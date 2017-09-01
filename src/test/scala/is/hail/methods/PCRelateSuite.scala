@@ -25,7 +25,7 @@ import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}
 
 import scala.sys.process._
-import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
+import is.hail.distributedmatrix.{HailBlockMatrixIsDistributedMatrix, DistributedMatrix, HailBlockMatrix}
 import is.hail.distributedmatrix.DistributedMatrix.implicits._
 
 class PCRelateSuite extends SparkSuite {
@@ -160,19 +160,13 @@ class PCRelateSuite extends SparkSuite {
     assert(fails.isEmpty)
   }
 
-  private def blockMatrixToBDM(m: BlockMatrix): BDM[Double] = {
-    val foo = m.toLocalMatrix().asInstanceOf[DenseMatrix]
-    new BDM[Double](foo.numRows, foo.numCols, foo.toArray)
-  }
-
-
   @Test
   def sampleVcfMatchesReference() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
     val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
 
-    val dm = BlockMatrixIsDistributedMatrix
+    val dm = HailBlockMatrixIsDistributedMatrix
     import dm.ops._
 
     val (truth, truth_g, truth_ibs0, truth_mu) = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
@@ -181,11 +175,11 @@ class PCRelateSuite extends SparkSuite {
     val g = PCRelate.vdsToMeanImputedMatrix(vds)
     val dmu = pcr.mu(g, pcs)
     // blockedG : variant x sample
-    val blockedG = dm.from(g, blockSize, blockSize)
+    val blockedG = dm.from(g, blockSize)
     val actual = runPcRelateHail(vds, pcs, 0.01)
-    val actual_g = blockMatrixToBDM(blockedG.t)
-    val actual_ibs0 = blockMatrixToBDM(pcr.ibs0(blockedG, dmu, blockSize))
-    val actual_mean = blockMatrixToBDM(dmu)
+    val actual_g = blockedG.t.toLocalMatrix()
+    val actual_ibs0 = pcr.ibs0(blockedG, dmu, blockSize).toLocalMatrix()
+    val actual_mean = dmu.toLocalMatrix()
 
     compareBDMs(actual_mean, truth_mu, tolerance=1e-14)
     compareBDMs(actual_ibs0, truth_ibs0, tolerance=1e-14)
