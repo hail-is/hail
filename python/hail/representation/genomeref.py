@@ -6,32 +6,32 @@ from hail.history import *
 
 
 class GenomeReference(HistoryMixin):
-    """An object that represents a genome reference.
+    """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
-    :param str name: Name of reference
+    :param str name: Name of reference.
 
-    :param contigs: Contig names
+    :param contigs: Contig names.
     :type contigs: list of str
 
-    :param lengths: Dict of contig names to contig lengths
+    :param lengths: Dict of contig names to contig lengths.
     :type lengths: dict of str to int
 
-    :param x_contigs: Contigs to be treated as X chromosomes
+    :param x_contigs: Contigs to be treated as X chromosomes.
     :type x_contigs: str or list of str
 
-    :param y_contigs: Contigs to be treated as Y chromosomes
+    :param y_contigs: Contigs to be treated as Y chromosomes.
     :type y_contigs: str or list of str
 
-    :param mt_contigs: Contigs to be treated as mitochondrial chromosomes
+    :param mt_contigs: Contigs to be treated as mitochondrial DNA.
     :type mt_contigs: str or list of str
 
-    :param par: List of intervals representing pseudoautosomal regions
+    :param par: List of intervals representing pseudoautosomal regions.
     :type par: list of :class:`.Interval`
 
     >>> contigs = ["1", "X", "Y", "MT"]
     >>> lengths = {"1": 249250621, "X": 155270560, "Y": 59373566, "MT": 16569}
     >>> par = [Interval.parse("X:60001-2699521")]
-    >>> my_gr = GenomeReference("my_gr", contigs, lengths, "X", "Y", "MT", par)
+    >>> my_ref = GenomeReference("my_ref", contigs, lengths, "X", "Y", "MT", par)
     """
 
     @handle_py4j
@@ -88,7 +88,7 @@ class GenomeReference(HistoryMixin):
 
     @property
     def name(self):
-        """Name of genome reference
+        """Name of genome reference.
 
         :rtype: str
         """
@@ -96,7 +96,7 @@ class GenomeReference(HistoryMixin):
 
     @property
     def contigs(self):
-        """Contig names
+        """Contig names.
 
         :rtype: list of str
         """
@@ -104,7 +104,7 @@ class GenomeReference(HistoryMixin):
 
     @property
     def lengths(self):
-        """Map of contig name to contig length
+        """Dict of contig name to contig length.
 
         :rtype: dict of str to int
         """
@@ -112,7 +112,7 @@ class GenomeReference(HistoryMixin):
 
     @property
     def x_contigs(self):
-        """X contigs
+        """X contigs.
 
         :rtype: list of str
         """
@@ -120,7 +120,7 @@ class GenomeReference(HistoryMixin):
 
     @property
     def y_contigs(self):
-        """Y contigs
+        """Y contigs.
 
         :rtype: list of str
         """
@@ -128,7 +128,7 @@ class GenomeReference(HistoryMixin):
 
     @property
     def mt_contigs(self):
-        """Mitochondrial contigs
+        """Mitochondrial contigs.
 
         :rtype: list of str
         """
@@ -136,7 +136,7 @@ class GenomeReference(HistoryMixin):
 
     @property
     def par(self):
-        """Pseudoautosomal regions
+        """Pseudoautosomal regions.
 
         :rtype: list of :class:`.Interval`
         """
@@ -144,11 +144,12 @@ class GenomeReference(HistoryMixin):
 
     @typecheck_method(contig=strlike)
     def contig_length(self, contig):
-        """Contig length
+        """Contig length.
 
-        :param contig: Contig to get length of
+        :param contig: Contig
         :type contig: str
 
+        :return: Length of contig.
         :rtype: int
         """
         return self._jrep.contigLength(contig)
@@ -157,11 +158,11 @@ class GenomeReference(HistoryMixin):
     @record_classmethod
     @handle_py4j
     def GRCh37(cls):
-        """Genome reference for GRCh37
+        """Reference genome for GRCh37.
 
-        Data from `<ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`_
+        Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__.
 
-        >>> gr37 = GenomeReference.GRCh37()
+        >>> grch37 = GenomeReference.GRCh37()
 
         :rtype: :class:`.GenomeReference`
         """
@@ -171,11 +172,11 @@ class GenomeReference(HistoryMixin):
     @record_classmethod
     @handle_py4j
     def GRCh38(cls):
-        """Genome reference for GRCh38
+        """Reference genome for GRCh38.
 
-        Data from `<ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`_
+        Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`__.
 
-        >>> gr38 = GenomeReference.GRCh38()
+        >>> grch38 = GenomeReference.GRCh38()
 
         :rtype: :class:`.GenomeReference`
         """

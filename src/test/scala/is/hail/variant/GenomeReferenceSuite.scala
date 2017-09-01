@@ -1,7 +1,7 @@
 package is.hail.variant
 
-import is.hail.SparkSuite
-import is.hail.utils.{HailException, Interval}
+import is.hail.{SparkSuite, TestUtils}
+import is.hail.utils.Interval
 import org.testng.annotations.Test
 
 class GenomeReferenceSuite extends SparkSuite {
@@ -36,20 +36,22 @@ class GenomeReferenceSuite extends SparkSuite {
   }
 
   @Test def testAssertions() {
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+    TestUtils.interceptFatal("The following X contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
       Set("X"), Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[HailException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5),
+    TestUtils.interceptFatal("No lengths given for the following contigs:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5),
       Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[HailException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100),
+    TestUtils.interceptFatal("Contigs found in `lengths' that are not present in `contigs'")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100),
       Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+    TestUtils.interceptFatal("The following Y contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
       Set.empty[String], Set("Y"), Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+    TestUtils.interceptFatal("The following mitochondrial contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
       Set.empty[String], Set.empty[String], Set("MT"), Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array.empty[String], Map.empty[String, Int],
+    TestUtils.interceptFatal("Must have at least one contig in the reference genome.")(GenomeReference("test", Array.empty[String], Map.empty[String, Int],
       Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
-      Set.empty[String], Set.empty[String], Set("MT"), Array(Interval(Locus("X", 1), Locus("X", 5)))))
+    TestUtils.interceptFatal("The contig name for PAR interval")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set.empty[String], Set.empty[String], Set.empty[String], Array(Interval(Locus("X", 1), Locus("X", 5)))))
+    TestUtils.interceptFatal("in both X and Y contigs.")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set("1"), Set("1"), Set.empty[String], Array.empty[Interval[Locus]]))
   }
 
   @Test def testVariant() {

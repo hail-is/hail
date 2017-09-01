@@ -50,8 +50,11 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 
   val nContigs = contigs.length
 
-  require(nContigs > 0, "Must have at least one contig in the genome reference.")
-  require(contigs.areDistinct(), "Repeated contig names are not allowed.")
+  if (nContigs <= 0)
+    fatal("Must have at least one contig in the reference genome.")
+
+  if (!contigs.areDistinct())
+    fatal("Repeated contig names are not allowed.")
 
   val missingLengths = contigs.toSet.diff(lengths.keySet)
   val extraLengths = lengths.keySet.diff(contigs.toSet)
@@ -60,19 +63,21 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     fatal(s"No lengths given for the following contigs: ${ missingLengths.mkString(", ")}")
 
   if (extraLengths.nonEmpty)
-    fatal(s"Extra contigs found in `lengths' that are not present in `contigs': ${ extraLengths.mkString(", ")}")
+    fatal(s"Contigs found in `lengths' that are not present in `contigs': ${ extraLengths.mkString(", ")}")
 
-  require(xContigs.intersect(yContigs).isEmpty,
-    s"Found the contigs `${ xContigs.intersect(yContigs).mkString(", ") }' in both xContigs and yContigs.")
-  require(xContigs.intersect(mtContigs).isEmpty,
-    s"Found the contigs `${ xContigs.intersect(mtContigs).mkString(", ") }' in both xContigs and mtContigs.")
-  require(yContigs.intersect(mtContigs).isEmpty,
-    s"Found the contigs `${ yContigs.intersect(mtContigs).mkString(", ") }' in both yContigs and mtContigs.")
+  if (xContigs.intersect(yContigs).nonEmpty)
+    fatal(s"Found the contigs `${ xContigs.intersect(yContigs).mkString(", ") }' in both X and Y contigs.")
+
+  if (xContigs.intersect(mtContigs).nonEmpty)
+    fatal(s"Found the contigs `${ xContigs.intersect(mtContigs).mkString(", ") }' in both X and MT contigs.")
+
+  if (yContigs.intersect(mtContigs).nonEmpty)
+    fatal(s"Found the contigs `${ yContigs.intersect(mtContigs).mkString(", ") }' in both Y and MT contigs.")
 
   par.foreach { i =>
-    require((xContigs.contains(i.start.contig) || yContigs.contains(i.start.contig)) &&
-      (xContigs.contains(i.end.contig) || yContigs.contains(i.end.contig)),
-      s"The contig name for PAR interval `$i' was not found in xContigs `$xContigs' or in yContigs `$yContigs'.")
+    if ((!xContigs.contains(i.start.contig) && !yContigs.contains(i.start.contig)) ||
+      (!xContigs.contains(i.end.contig) && !yContigs.contains(i.end.contig)))
+      fatal(s"The contig name for PAR interval `$i' was not found in xContigs `$xContigs' or in yContigs `$yContigs'.")
   }
 
   val contigsIndex: Map[String, Int] = contigs.zipWithIndex.toMap
@@ -81,16 +86,21 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 
   lengths.foreach { case (n, l) =>
     if (l <= 0)
-      fatal(s"Contig length must be greater than 0. Contig `$n' has length equal to $l.")
+      fatal(s"Contig length must be positive. Contig `$n' has length equal to $l.")
   }
 
   val xNotInRef = xContigs.diff(contigsSet)
   val yNotInRef = yContigs.diff(contigsSet)
   val mtNotInRef = mtContigs.diff(contigsSet)
 
-  require(xNotInRef.isEmpty, s"The following X contig names were not found in the reference: `${ xNotInRef.mkString(", ") }'.")
-  require(yNotInRef.isEmpty, s"The following Y contig names were not found in the reference: `${ yNotInRef.mkString(", ") }'.")
-  require(mtNotInRef.isEmpty, s"The following mitochondrial contig names were not found in the reference: `${ mtNotInRef.mkString(", ") }'.")
+  if (xNotInRef.nonEmpty)
+    fatal(s"The following X contig names are absent from the reference: `${ xNotInRef.mkString(", ") }'.")
+
+  if (yNotInRef.nonEmpty)
+    fatal(s"The following Y contig names are absent from the reference: `${ yNotInRef.mkString(", ") }'.")
+
+  if (mtNotInRef.nonEmpty)
+    fatal(s"The following mitochondrial contig names are absent from the reference: `${ mtNotInRef.mkString(", ") }'.")
 
   val xContigIndices = xContigs.map(contigsIndex)
   val yContigIndices = yContigs.map(contigsIndex)
