@@ -6,7 +6,7 @@ from hail.history import *
 
 
 class ReferenceGenome(HistoryMixin):
-    """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
+    """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`_.
 
     :param str name: Name of reference.
 
@@ -146,10 +146,10 @@ class ReferenceGenome(HistoryMixin):
     def contig_length(self, contig):
         """Contig length.
 
-        :param contig: Contig.
+        :param contig: Contig
         :type contig: str
 
-        :return: Length of contig.
+        :return: Length of contig
         :rtype: int
         """
         return self._jrep.contigLength(contig)
@@ -160,7 +160,7 @@ class ReferenceGenome(HistoryMixin):
     def GRCh37(cls):
         """Reference genome for GRCh37.
 
-        Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__.
+        Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`_.
 
         >>> grch37 = ReferenceGenome.GRCh37()
 
@@ -174,7 +174,7 @@ class ReferenceGenome(HistoryMixin):
     def GRCh38(cls):
         """Reference genome for GRCh38.
 
-        Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`__.
+        Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`_.
 
         >>> grch38 = ReferenceGenome.GRCh38()
 

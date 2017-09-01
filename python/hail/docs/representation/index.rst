@@ -14,11 +14,11 @@ representation
 
     hail.representation.AltAllele
     hail.representation.Call
+    hail.representation.ReferenceGenome
     hail.representation.Genotype
     hail.representation.Interval
     hail.representation.Locus
     hail.representation.Pedigree
-    hail.representation.ReferenceGenome
     hail.representation.Struct
     hail.representation.Trio
     hail.representation.Variant
