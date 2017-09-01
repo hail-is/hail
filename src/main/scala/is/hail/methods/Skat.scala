@@ -109,9 +109,9 @@ object Skat {
       val mu = sigmoid(cov * logRegM.b)
       val V = mu.map(x => x * (1 - x))
       val VX = cov(::, *) :* V
-      val XVX = cov.t * VX // symmetric but numerical precision can throw breeze.linalg.MatrixNotSymmetricException
-      val XVXsym = 0.5 * (XVX + XVX.t) // symmetrizing further fixes the issue
-      val Cinv = inv(cholesky(XVXsym))
+      val XVX = cov.t * VX
+      XVX.forceSymmetry()
+      val Cinv = inv(cholesky(XVX))
       val res = y - mu
 
       val sc = keyedRdd.sparkContext
