@@ -113,7 +113,7 @@ object HailContext {
     if (serializer != kryoSerializer)
       problems += s"Invalid configuration property spark.serializer: required $kryoSerializer.  Found: $serializer."
 
-    if (conf.get("spark.kryo.registrator") != "is.hail.kryo.HailKryoRegistrator")
+    if (!conf.getOption("spark.kryo.registrator").contains("is.hail.kryo.HailKryoRegistrator"))
       problems += s"Invalid config parameter: spark.kryo.registrator must be set to is.hail.kryo.HailKryoRegistrator"
 
     if (problems.nonEmpty)

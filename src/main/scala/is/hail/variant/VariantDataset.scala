@@ -424,9 +424,9 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     LDMatrix(vds, Some(forceLocal))
   }
 
-  def ldPrune(r2Threshold: Double = 0.2, windowSize: Int = 1000000, nCores: Int = 1, memoryPerCore: Int = 256): VariantDataset = {
+  def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): VariantDataset = {
     requireSplit("LD Prune")
-    LDPrune(vds, r2Threshold, windowSize, nCores, memoryPerCore * 1024L * 1024L)
+    LDPrune(vds, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
   }
 
   def linregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
@@ -436,7 +436,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def linreg(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, variantBlockSize: Int = 16): VariantDataset = {
-    requireSplit("linear regression 3")
+    requireSplit("linear regression")
     LinearRegression(vds, ys, covariates, root, useDosages, variantBlockSize)
   }
 
@@ -469,8 +469,8 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def logregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, test: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
-    requireSplit("linear burden regression")
-    vds.requireSampleTString("linear burden regression")
+    requireSplit("logistic burden regression")
+    vds.requireSampleTString("logistic burden regression")
     LogisticRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, test, y, covariates)
   }
 
@@ -578,5 +578,18 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   def variantQC(root: String = "va.qc"): VariantDataset = {
     requireSplit("variant QC")
     VariantQC(vds.toGDS, root).toVDS
+  }
+
+  def deNovo(ped: Pedigree,
+    referenceAF: String,
+    minGQ: Int = 20,
+    minPDeNovo: Double = 0.05,
+    maxParentAB: Double = 0.05,
+    minChildAB: Double = 0.20,
+    minDepthRatio: Double = 0.10): KeyTable = {
+    requireSplit("de novo")
+    vds.requireSampleTString("de novo")
+
+    DeNovo(vds, ped, referenceAF, minGQ, minPDeNovo, maxParentAB, minChildAB, minDepthRatio)
   }
 }

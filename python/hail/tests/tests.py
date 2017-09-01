@@ -13,6 +13,7 @@ from hail.java import *
 from hail.keytable import asc, desc
 from hail.utils import *
 import time
+import random
 from hail.keytable import desc
 import os
 import shutil
@@ -273,6 +274,10 @@ class ContextTests(unittest.TestCase):
             dataset.unpersist()
             dataset2.unpersist()
 
+            new_sample_order = dataset.sample_ids[:]
+            random.shuffle(new_sample_order)
+            self.assertEqual(vds.reorder_samples(new_sample_order).sample_ids, new_sample_order)
+
         sample = hc.import_vcf(test_resources + '/sample.vcf')
         sample.cache()
 
@@ -399,6 +404,10 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(var.key, ['v'])
         sample_split.annotate_variants_table(var, root='va.mendel').count()
 
+        (sample_split.annotate_variants_expr('va.AF = gs.callStats(g => v).AF[1]')
+            .de_novo(Pedigree.read(test_resources + '/sample.fam'), 'va.AF')
+            .query(['probandGt.map(g => g.gq).stats().mean', 'variant.count()', 'pDeNovo.stats().mean']))
+
         sample_split.pca('sa.scores')
 
         sample_split.tdt(Pedigree.read(test_resources + '/sample.fam'))
@@ -443,7 +452,7 @@ class ContextTests(unittest.TestCase):
 
         gds.annotate_genotypes_expr('g = g.GT.toGenotype()').split_multi()
 
-        sample_split.ld_prune().export_variants("/tmp/testLDPrune.tsv", "v")
+        sample_split.ld_prune(8).export_variants("/tmp/testLDPrune.tsv", "v")
         kt = (sample2.variants_table()
               .annotate("v2 = v")
               .key_by(["v", "v2"]))

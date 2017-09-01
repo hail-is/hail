@@ -172,7 +172,7 @@ class VariantDataset(HistoryMixin):
     def annotate_alleles_expr(self, expr, propagate_gq=False):
         """Annotate alleles with expression.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -1104,7 +1104,9 @@ class VariantDataset(HistoryMixin):
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Example**
         
@@ -1210,6 +1212,191 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
+    @typecheck_method(pedigree=Pedigree,
+                      pop_frequency_prior=strlike,
+                      min_gq=integral,
+                      min_p=numeric,
+                      max_parent_ab=numeric,
+                      min_child_ab=numeric,
+                      min_depth_ratio=numeric)
+    def de_novo(self, pedigree, pop_frequency_prior, min_gq=20, min_p=0.05,
+                max_parent_ab=0.05, min_child_ab=0.20, min_depth_ratio=0.10):
+        """Call de novo variation from trio data.
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
+        **Examples**
+
+        Call de novo events and export them to a file:
+
+        >>> pedigree = Pedigree.read('data/myStudy.fam')
+        >>> priors = hc.import_table('data/gnomadFreq.tsv', impute=True).key_by('Variant')
+        >>> denovo_kt = (vds.annotate_variants_table(priors, root='va.gnomAD')
+        ...                 .de_novo(pedigree, 'va.gnomAD'))
+        >>> denovo_kt.export('denovo_calls.tsv')
+
+        **Notes**
+
+        This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`__.
+        The version corresponding to git commit ``bde3e40`` is implemented in Hail with her permission and assistance.
+
+        This method produces a :py:class:`.KeyTable` with the following columns:
+
+            - **variant** (*Variant*) -- Variant at which parents are homozygous reference and proband is heterozygous.
+            - **proband** (*String*) -- Sample ID of proband.
+            - **father** (*String*) -- Sample ID of father.
+            - **mother** (*String*) -- Sample ID of mother.
+            - **isFemale** (*Boolean*) -- Sex of proband, true if female.
+            - **confidence** (*String*) -- Validation confidence. One of: 'HIGH', 'MEDIUM', 'LOW'
+            - **probandGt** (*Genotype*) -- Genotype of the proband
+            - **fatherGt** (*Genotype*) -- Genotype of the father
+            - **motherGt** (*Genotype*) -- Genotype of the mother
+            - **pDeNovo** (*Float64*) -- Unfiltered estimate of posterior probability that the event is a true de novo.
+
+        The model was originally designed to run against VCFs produced by GATK from high-throughput sequencing
+        experiments, and uses the GT, AD, DP, GQ, and PL fields. The absence of any of these fields will
+        result in an empty table of results (no called de novo mutations).
+
+        The model looks for de novo events in which both parents are homozygous
+        reference and the proband is a heterozygous. The model makes the simplifying assumption that when this
+        configuration ``x = (AA, AA, AB)`` of calls occurs, exactly one of the following is true:
+        
+            - ``d`` = a de novo mutation occurred in the proband and all calls are true
+            - ``m`` = at least one parental allele is truly non-reference and the proband call is true
+         
+        We can then estimate the posterior probability of a de novo mutation as:
+
+        .. math::
+
+            \\mathrm{P_{\\text{de novo}}} = \\frac{\mathrm{P}(d\,|\,x)}{\mathrm{P}(d\,|\,x) + \mathrm{P}(m\,|\,x)}
+
+        Applying Bayes rule to the numerator and denominator yields
+
+        .. math::
+
+            \\frac{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d) + \mathrm{P}(x\,|\,m)\,\mathrm{P}(m)}
+
+        The prior on de novo mutation is estimated from the rate in the literature:
+
+        .. math::
+
+            \\mathrm{P}(d) = \\frac{1 \\text{mutation}}{30,000,000\, \\text{bases}}
+
+        The prior used for at least one alternate allele between the parents depends on the alternate allele frequency:
+
+        .. math::
+
+            \\mathrm{P}(m) = 1 - (1 - AF)^4
+
+        The likelihoods :math:`\mathrm{P}(x\,|\,d)` and :math:`\mathrm{P}(x\,|\,m)` are computed from the
+        PL (genotype likelihood) fields using these factorizations:
+
+        .. math::
+
+            \\mathrm{P}(x = (AA, AA, AB) \,|\,d) = \\Big(
+            &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AA) \\\\
+            \\cdot &\\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} = AA) \\\\
+            \\cdot &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\, \\mathrm{proband} = AB) \\Big)
+
+        .. math::
+
+            \\mathrm{P}(x = (AA, AA, AB) \,|\,m) = \\Big( & \\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AB) \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} = AA) \\\\
+            + \, &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AA)
+            \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} = AB) \\Big) \\\\
+            \\cdot \, &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\, \\mathrm{proband} = AB)
+
+        (Technically, the second factorization assumes there is exactly (rather than at least) one alternate allele among the parents, which may be
+        justified on the grounds that it is typically the most likely case by far.)
+
+        While this posterior probability is a good metric for grouping putative de novo
+        mutations by validation likelihood, there exist error modes in high-throughput sequencing data that
+        are not appropriately accounted for by the phred-scaled genotype likelihoods. To this end, a number
+        of hard filters are applied in order to assign validation likelihood.
+
+        These filters are different for SNPs and insertions/deletions. In the below rules, the following
+        variables are used:
+
+         - ``DR`` refers to the ratio of the read depth in the proband to the combined read depth in the parents.
+         - ``AB`` refers to the read allele balance of the proband (number of alternate reads divided by total reads).
+         - ``AC`` refers to the count of alternate alleles across all individuals in the dataset at the site.
+         - ``p`` refers to :math:`\\mathrm{P_{\\text{de novo}}}`.
+         - ``min_p`` refers to the ``min_p`` function parameter.
+
+        HIGH-quality SNV:
+
+        .. code-block:: text
+
+            p > 0.99 && AB > 0.3 && DR > 0.2
+                or
+            p > 0.99 && AB > 0.3 && AC == 1
+
+        MEDIUM-quality SNV:
+
+        .. code-block:: text
+
+            p > 0.5 && AB > 0.3
+                or
+            p > 0.5 && AB > 0.2 && AC == 1
+
+        LOW-quality SNV:
+
+        .. code-block:: text
+
+            p > min_p && AB > 0.2
+
+        HIGH-quality indel:
+
+        .. code-block:: text
+
+            p > 0.99 && AB > 0.3 && DR > 0.2
+                or
+            p > 0.99 && AB > 0.3 && AC == 1
+
+        MEDIUM-quality indel:
+
+        .. code-block:: text
+
+            p > 0.5 && AB > 0.3
+                or
+            p > 0.5 && AB > 0.2 and AC == 1
+
+        LOW-quality indel:
+
+        .. code-block:: text
+
+            p > min_p && AB > 0.2
+
+        Additionally, de novo candidates are not considered if the proband GQ is smaller than the ``min_gq``
+        parameter, if the proband allele balance is lower than the ``min_child_ab`` parameter, if the
+        depth ratio between the proband and parents is smaller than the ``min_depth_ratio`` parameter, or
+        if the allele balance in a parent is above the ``max_parent_ab`` parameter.
+
+        :param pedigree: Pedigree object.
+        :type pedigree: :class:`.Pedigree`
+
+        :param str pop_frequency_prior: Expression for the reference allele frequency annotation.
+
+        :param int min_gq: Minimum GQ for de novo consideration.
+
+        :param float min_p: Minimum probability for "LOW" bin.
+
+        :param float max_parent_ab: Maximum allele balance for homozygous parent.
+
+        :param float min_child_ab: Minimum allele balance for heterozygous proband.
+
+        :param float min_depth_ratio: Minimum ratio of proband depth to parent depth.
+
+        :rtype: :class:`.KeyTable`
+        """
+
+        jkt = self._jvdf.deNovo(pedigree._jrep, pop_frequency_prior, min_gq, min_p,
+                                max_parent_ab, min_child_ab, min_depth_ratio)
+        return KeyTable(self.hc, jkt)
+
+    @handle_py4j
+    @record_method
     def deduplicate(self):
         """Remove duplicate variants.
 
@@ -1252,7 +1439,9 @@ class VariantDataset(HistoryMixin):
     def export_gen(self, output, precision=4):
         """Export variant dataset as GEN and SAMPLE file.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -1342,7 +1531,9 @@ class VariantDataset(HistoryMixin):
     def export_plink(self, output, fam_expr='id = s'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -1542,7 +1733,7 @@ class VariantDataset(HistoryMixin):
     def export_vcf(self, output, append_to_header=None, parallel=False):
         """Export variant dataset as a .vcf or .vcf.bgz file.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -1638,7 +1829,7 @@ class VariantDataset(HistoryMixin):
         evaluated for each alternate allele, but not for
         the reference allele (i.e. ``aIndex`` will never be zero).
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -1824,7 +2015,7 @@ class VariantDataset(HistoryMixin):
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         This method is much less computationally expensive than
         :py:meth:`.split_multi`, and can also be used to produce
@@ -2037,7 +2228,7 @@ class VariantDataset(HistoryMixin):
     def filter_intervals(self, intervals, keep=True):
         """Filter variants with an interval or list of intervals.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -2212,7 +2403,9 @@ class VariantDataset(HistoryMixin):
     def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
         
@@ -2244,7 +2437,7 @@ class VariantDataset(HistoryMixin):
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         A hard-called variant dataset is about two orders of magnitude
         smaller than a standard sequencing dataset. Use this
@@ -2267,7 +2460,9 @@ class VariantDataset(HistoryMixin):
     def ibd(self, maf=None, bounded=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2342,7 +2537,9 @@ class VariantDataset(HistoryMixin):
         """
         Prune samples from the :py:class:`.VariantDataset` based on :py:meth:`~hail.VariantDataset.ibd` PI_HAT measures of relatedness.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
         
@@ -2401,7 +2598,9 @@ class VariantDataset(HistoryMixin):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2481,16 +2680,16 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(r2=numeric,
+    @typecheck_method(num_cores=integral,
+                      r2=numeric,
                       window=integral,
-                      memory_per_core=integral,
-                      num_cores=integral)
-    def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256, num_cores=1):
+                      memory_per_core=integral)
+    def ld_prune(self, num_cores, r2=0.2, window=1000000, memory_per_core=256):
         """Prune variants in linkage disequilibrium (LD).
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
-        Requires :py:class:`~hail.VariantDataset.was_split` equals True.
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2498,7 +2697,7 @@ class VariantDataset(HistoryMixin):
 
         >>> vds_result = (vds.variant_qc()
         ...                  .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95")
-        ...                  .ld_prune()
+        ...                  .ld_prune(8)
         ...                  .export_variants("output/ldpruned.variants", "v"))
 
         **Notes**
@@ -2537,6 +2736,7 @@ class VariantDataset(HistoryMixin):
             The variants in the pruned set are not guaranteed to be identical each time :py:meth:`.ld_prune` is run. We recommend running :py:meth:`.ld_prune` once and exporting the list of LD pruned variants using
             :py:meth:`.export_variants` for future use.
 
+        :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
 
         :param float r2: Maximum :math:`R^2` threshold between two variants in the pruned set within a given window.
 
@@ -2544,13 +2744,11 @@ class VariantDataset(HistoryMixin):
 
         :param int memory_per_core: Total amount of memory available for each core in MB. If unsure, use the default value.
 
-        :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
-
         :return: Variant dataset filtered to those variants which remain after LD pruning.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.ldPrune(r2, window, num_cores, memory_per_core)
+        jvds = self._jvdf.ldPrune(num_cores, r2, window, memory_per_core)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2558,6 +2756,10 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(force_local=bool)
     def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2604,7 +2806,9 @@ class VariantDataset(HistoryMixin):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         linear regression model.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2796,6 +3000,10 @@ class VariantDataset(HistoryMixin):
     def linreg(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
         r"""Test each variant for association with multiple phenotypes using linear regression.
 
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
         .. warning::
 
             :py:meth:`.linreg` uses the same set of samples for each phenotype,
@@ -2854,7 +3062,9 @@ class VariantDataset(HistoryMixin):
                n_eigs=None, dropped_variance_fraction=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3099,7 +3309,9 @@ class VariantDataset(HistoryMixin):
     def logreg(self, test, y, covariates=[], root='va.logreg', use_dosages=False):
         """Test each variant for association using logistic regression.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3240,7 +3452,9 @@ class VariantDataset(HistoryMixin):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         logistic regression model.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3352,7 +3566,9 @@ class VariantDataset(HistoryMixin):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3508,7 +3724,7 @@ class VariantDataset(HistoryMixin):
         """
         Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -3539,7 +3755,9 @@ class VariantDataset(HistoryMixin):
     def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3637,7 +3855,11 @@ class VariantDataset(HistoryMixin):
         """Compute relatedness estimates between individuals using a variant of the
         PC-Relate method.
 
-        .. include:: experimental.rst
+        .. include:: _templates/experimental.rst
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -4306,6 +4528,39 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
+    @typecheck_method(mapping=listof(strlike))
+    def reorder_samples(self, mapping):
+        """Reorder samples.
+
+        **Examples**
+
+        Randomly shuffle order of samples:
+
+        >>> import random
+        >>> new_sample_order = vds.sample_ids[:]
+        >>> random.shuffle(new_sample_order)
+        >>> vds_reordered = vds.reorder_samples(new_sample_order)
+
+
+        **Notes**
+
+        This method requires unique sample ids. ``mapping`` must contain the same ids
+        as :py:meth:`~hail.VariantDataset.sample_ids`. The order of the ids in ``mapping``
+        determines the sample id order in the output dataset.
+
+
+        :param mapping: New ordering of sample ids.
+        :type mapping: list of str
+
+        :return: Dataset with samples reordered.
+        :rtype: :class:`.VariantDataset`
+        """
+
+        jvds = self._jvds.reorderSamples(mapping)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @record_method
     def rename_duplicates(self):
         """Rename duplicate samples.
 
@@ -4391,6 +4646,10 @@ class VariantDataset(HistoryMixin):
     def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
         **Examples**
 
         >>> kinship_matrix = vds.rrm()
@@ -4460,7 +4719,7 @@ class VariantDataset(HistoryMixin):
     def sample_qc(self, root='sa.qc', keep_star=False):
         """Compute per-sample QC metrics.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Annotations**
 
@@ -4540,8 +4799,7 @@ class VariantDataset(HistoryMixin):
     def summarize(self):
         """Returns a summary of useful information about the dataset.
         
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
-
+        .. include:: _templates/req_tvariant_tgenotype.rst
         
         **Examples**
         
@@ -4716,6 +4974,10 @@ class VariantDataset(HistoryMixin):
     def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, use_logistic=False, use_dosages=False):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
 
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
         **Examples**
 
         Run a gene test using the linear Sequence Kernel Association Test. Here ``va.genes``
@@ -4825,7 +5087,7 @@ class VariantDataset(HistoryMixin):
     def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -4960,7 +5222,9 @@ class VariantDataset(HistoryMixin):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -5070,7 +5334,9 @@ class VariantDataset(HistoryMixin):
     def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -5146,7 +5412,7 @@ class VariantDataset(HistoryMixin):
     def vep(self, config, block_size=1000, root='va.vep', csq=False):
         """Annotate variants with VEP.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+        .. include:: _templates/req_tvariant.rst
 
         :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with
         the `LOFTEE plugin <https://github.com/konradjk/loftee>`__

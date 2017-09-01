@@ -50,18 +50,18 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     else
       None
   }
-  
-  def forceSymmetry() {
-   require(m.rows == m.cols, "only square matrices can be made symmetric")
 
-   var i = 0
-   while (i < m.rows) {
-     var j = i + 1
-     while (j < m.rows) {
-       m(i, j) = m(j, i)
-       j += 1
-     }
-     i += 1
-   }
- }
+  def forceSymmetry() {
+    require(m.rows == m.cols, "only square matrices can be made symmetric")
+
+    var i = 0
+    while (i < m.rows) {
+      var j = i + 1
+      while (j < m.rows) {
+        m(i, j) = m(j, i)
+        j += 1
+      }
+      i += 1
+    }
+  }
 }

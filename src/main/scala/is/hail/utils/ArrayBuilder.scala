@@ -17,6 +17,11 @@ class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[
     b(i)
   }
 
+  def update(i: Int, x: T) {
+    require(i >= 0 && i < size)
+    b(i) = x
+  }
+
   def ensureCapacity(n: Int) {
     if (b.length < n) {
       val newCapacity = (b.length * 2).max(n)
@@ -34,6 +39,15 @@ class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[
     ensureCapacity(size_ + 1)
     b(size_) = x
     size_ += 1
+  }
+
+  def ++=(a: Array[T]): Unit = ++=(a, a.length)
+
+  def ++=(a: Array[T], length: Int) {
+    require(length >= 0 && length <= a.length)
+    ensureCapacity(size_ + length)
+    System.arraycopy(a, 0, b, size_, length)
+    size_ += length
   }
 
   def result(): Array[T] = {
