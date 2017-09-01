@@ -19,8 +19,6 @@ class eigSymDSuite extends SparkSuite {
     val K = W * W.t
     K.forceSymmetry()
 
-    K.forceSymmetry()
-
     val svdW = svd(W)
     val svdK = svd(K)
     val eigSymK = eigSym(K)
