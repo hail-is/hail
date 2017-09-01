@@ -5,33 +5,33 @@ from hail.utils import wrap_to_list
 from hail.history import *
 
 
-class ReferenceGenome(HistoryMixin):
-    """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`_.
+class GenomeReference(HistoryMixin):
+    """An object that represents a genome reference.
 
-    :param str name: Name of reference.
+    :param str name: Name of reference
 
-    :param contigs: Contig names.
+    :param contigs: Contig names
     :type contigs: list of str
 
-    :param lengths: Dict of contig names to contig lengths.
+    :param lengths: Dict of contig names to contig lengths
     :type lengths: dict of str to int
 
-    :param x_contigs: Contigs to be treated as X chromosomes.
+    :param x_contigs: Contigs to be treated as X chromosomes
     :type x_contigs: str or list of str
 
-    :param y_contigs: Contigs to be treated as Y chromosomes.
+    :param y_contigs: Contigs to be treated as Y chromosomes
     :type y_contigs: str or list of str
 
-    :param mt_contigs: Contigs to be treated as mitochondrial DNA.
+    :param mt_contigs: Contigs to be treated as mitochondrial chromosomes
     :type mt_contigs: str or list of str
 
-    :param par: List of intervals representing pseudoautosomal regions.
+    :param par: List of intervals representing pseudoautosomal regions
     :type par: list of :class:`.Interval`
 
     >>> contigs = ["1", "X", "Y", "MT"]
     >>> lengths = {"1": 249250621, "X": 155270560, "Y": 59373566, "MT": 16569}
     >>> par = [Interval.parse("X:60001-2699521")]
-    >>> my_ref = ReferenceGenome("my_ref", contigs, lengths, "X", "Y", "MT", par)
+    >>> my_gr = GenomeReference("my_gr", contigs, lengths, "X", "Y", "MT", par)
     """
 
     @handle_py4j
@@ -50,7 +50,7 @@ class ReferenceGenome(HistoryMixin):
         mt_contigs = wrap_to_list(mt_contigs)
         par_jrep = [interval._jrep for interval in par]
 
-        jrep = (Env.hail().variant.ReferenceGenome
+        jrep = (Env.hail().variant.GenomeReference
                 .apply(name,
                        contigs,
                        lengths,
@@ -68,14 +68,14 @@ class ReferenceGenome(HistoryMixin):
         self._mt_contigs = mt_contigs
         self._par = par
 
-        super(ReferenceGenome, self).__init__()
+        super(GenomeReference, self).__init__()
 
     @handle_py4j
     def __str__(self):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'ReferenceGenome(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % \
+        return 'GenomeReference(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % \
                (self.name, self.contigs, self.lengths, self.x_contigs, self.y_contigs, self.mt_contigs, self.par)
 
     @handle_py4j
@@ -88,7 +88,7 @@ class ReferenceGenome(HistoryMixin):
 
     @property
     def name(self):
-        """Name of reference genome.
+        """Name of genome reference
 
         :rtype: str
         """
@@ -96,7 +96,7 @@ class ReferenceGenome(HistoryMixin):
 
     @property
     def contigs(self):
-        """Contig names.
+        """Contig names
 
         :rtype: list of str
         """
@@ -104,7 +104,7 @@ class ReferenceGenome(HistoryMixin):
 
     @property
     def lengths(self):
-        """Dict of contig name to contig length.
+        """Map of contig name to contig length
 
         :rtype: dict of str to int
         """
@@ -112,7 +112,7 @@ class ReferenceGenome(HistoryMixin):
 
     @property
     def x_contigs(self):
-        """X contigs.
+        """X contigs
 
         :rtype: list of str
         """
@@ -120,7 +120,7 @@ class ReferenceGenome(HistoryMixin):
 
     @property
     def y_contigs(self):
-        """Y contigs.
+        """Y contigs
 
         :rtype: list of str
         """
@@ -128,7 +128,7 @@ class ReferenceGenome(HistoryMixin):
 
     @property
     def mt_contigs(self):
-        """Mitochondrial contigs.
+        """Mitochondrial contigs
 
         :rtype: list of str
         """
@@ -136,7 +136,7 @@ class ReferenceGenome(HistoryMixin):
 
     @property
     def par(self):
-        """Pseudoautosomal regions.
+        """Pseudoautosomal regions
 
         :rtype: list of :class:`.Interval`
         """
@@ -144,12 +144,11 @@ class ReferenceGenome(HistoryMixin):
 
     @typecheck_method(contig=strlike)
     def contig_length(self, contig):
-        """Contig length.
+        """Contig length
 
-        :param contig: Contig
+        :param contig: Contig to get length of
         :type contig: str
 
-        :return: Length of contig
         :rtype: int
         """
         return self._jrep.contigLength(contig)
@@ -158,29 +157,29 @@ class ReferenceGenome(HistoryMixin):
     @record_classmethod
     @handle_py4j
     def GRCh37(cls):
-        """Reference genome for GRCh37.
+        """Genome reference for GRCh37
 
-        Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`_.
+        Data from `<ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`_
 
-        >>> grch37 = ReferenceGenome.GRCh37()
+        >>> gr37 = GenomeReference.GRCh37()
 
-        :rtype: :class:`.ReferenceGenome`
+        :rtype: :class:`.GenomeReference`
         """
-        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.GRCh37())
+        return GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh37())
 
     @classmethod
     @record_classmethod
     @handle_py4j
     def GRCh38(cls):
-        """Reference genome for GRCh38.
+        """Genome reference for GRCh38
 
-        Data from `GATK resource bundle <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`_.
+        Data from `<ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`_
 
-        >>> grch38 = ReferenceGenome.GRCh38()
+        >>> gr38 = GenomeReference.GRCh38()
 
-        :rtype: :class:`.ReferenceGenome`
+        :rtype: :class:`.GenomeReference`
         """
-        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.GRCh38())
+        return GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh38())
 
     @handle_py4j
     def _init_from_java(self, jrep):
@@ -188,13 +187,13 @@ class ReferenceGenome(HistoryMixin):
 
     @classmethod
     def _from_java(cls, jrep):
-        rg = ReferenceGenome.__new__(cls)
-        rg._init_from_java(jrep)
-        rg._name = jrep.name()
-        rg._contigs = [str(x) for x in jrep.contigs()]
-        rg._lengths = {str(x._1()): int(x._2()) for x in jiterable_to_list(jrep.lengths())}
-        rg._x_contigs = [str(x) for x in jiterable_to_list(jrep.xContigs())]
-        rg._y_contigs = [str(x) for x in jiterable_to_list(jrep.yContigs())]
-        rg._mt_contigs = [str(x) for x in jiterable_to_list(jrep.mtContigs())]
-        rg._par = [Interval._from_java(x) for x in jrep.par()]
-        return rg
+        gr = GenomeReference.__new__(cls)
+        gr._init_from_java(jrep)
+        gr._name = jrep.name()
+        gr._contigs = [str(x) for x in jrep.contigs()]
+        gr._lengths = {str(x._1()): int(x._2()) for x in jiterable_to_list(jrep.lengths())}
+        gr._x_contigs = [str(x) for x in jiterable_to_list(jrep.xContigs())]
+        gr._y_contigs = [str(x) for x in jiterable_to_list(jrep.yContigs())]
+        gr._mt_contigs = [str(x) for x in jiterable_to_list(jrep.mtContigs())]
+        gr._par = [Interval._from_java(x) for x in jrep.par()]
+        return gr

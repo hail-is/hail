@@ -6,7 +6,7 @@ import is.hail.keytable.KeyTable
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.methods.IBD.generateComputeMaf
-import is.hail.variant.{ReferenceGenome, Genotype, Variant, VariantDataset}
+import is.hail.variant.{GenomeReference, Genotype, Variant, VariantDataset}
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -279,7 +279,7 @@ object IBD {
   }
 
   private[methods] def generateComputeMaf(vds: VariantDataset, computeMafExpr: String): (Variant, Annotation) => Double = {
-    val mafSymbolTable = Map("v" -> (0, TVariant(ReferenceGenome.GRCh37)), "va" -> (1, vds.vaSignature))
+    val mafSymbolTable = Map("v" -> (0, TVariant(GenomeReference.GRCh37)), "va" -> (1, vds.vaSignature))
     val mafEc = EvalContext(mafSymbolTable)
     val computeMafThunk = Parser.parseTypedExpr[java.lang.Double](computeMafExpr, mafEc)
 

@@ -153,7 +153,7 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
     val signature = TStruct(
       "fid" -> TString,
       "s" -> TString,
-      "v" -> TVariant(ReferenceGenome.GRCh37),
+      "v" -> TVariant(GenomeReference.GRCh37),
       "code" -> TInt32,
       "error" -> TString)
 
@@ -206,7 +206,7 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
 
   def lMendelKT(): KeyTable = {
     val signature = TStruct(
-      "v" -> TVariant(ReferenceGenome.GRCh37),
+      "v" -> TVariant(GenomeReference.GRCh37),
       "nError" -> TInt32
     )
 

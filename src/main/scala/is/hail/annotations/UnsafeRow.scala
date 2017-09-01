@@ -6,7 +6,7 @@ import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr._
 import is.hail.utils.Interval
-import is.hail.variant.{AltAllele, GenericGenotype, ReferenceGenome, Locus, Variant}
+import is.hail.variant.{AltAllele, GenericGenotype, GenomeReference, Locus, Variant}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
@@ -76,7 +76,7 @@ object UnsafeRow {
     new String(readBinary(region, offset))
 
   def readLocus(region: MemoryBuffer, offset: Long): Locus = {
-    val ft = TLocus(ReferenceGenome.GRCh37).fundamentalType.asInstanceOf[TStruct]
+    val ft = TLocus(GenomeReference.GRCh37).fundamentalType.asInstanceOf[TStruct]
     Locus(
       readString(region, offset + ft.byteOffsets(0)),
       region.loadInt(offset + ft.byteOffsets(1)))
