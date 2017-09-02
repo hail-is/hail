@@ -118,6 +118,10 @@ class KeyTableSuite extends SparkSuite {
     val ktInnerJoin = ktLeft.join(ktRight, "inner")
     val ktOuterJoin = ktLeft.join(ktRight, "outer")
 
+    val ktLeftJoinDistinct1 = ktLeft.broadcastLeftJoinDistinct(ktRight)
+    val ktLeftJoinDistinct2 = ktLeft.join(ktRight.distinctByKey(), "left")
+    assert(ktLeftJoinDistinct1.same(ktLeftJoinDistinct2))
+
     val nExpectedFields = ktLeft.nFields + ktRight.nFields - ktRight.nKeys
 
     val i: IndexedSeq[Int] = Array(1, 2, 3)

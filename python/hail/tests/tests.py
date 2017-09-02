@@ -459,6 +459,9 @@ class ContextTests(unittest.TestCase):
         # Join
         kt.join(kt2, 'left').count()
 
+        kt2.distinct_by_key().count()
+        kt.broadcast_left_join_distinct(kt2).count()
+
         # AggregateByKey
         (kt.aggregate_by_key("Status = Status", "Sum = qPhen.sum()")
          .count())
