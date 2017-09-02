@@ -10,12 +10,12 @@ import is.hail.variant.{Variant, VariantDataset}
 import org.testng.annotations.Test
 
 class LinearRegressionSuite extends SparkSuite {
-  def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6, i: Int = 0, j: Int = 0 ) {
-    assert(D_==(a.asInstanceOf[IndexedSeq[IndexedSeq[Double]]].apply(i)(j), value, tol))
+  def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6, fieldIndex: Int = 0, phenoIndex: Int = 0 ) {
+    assert(D_==(a.asInstanceOf[IndexedSeq[IndexedSeq[Double]]].apply(fieldIndex)(phenoIndex), value, tol))
   }
 
-  def assertNaN(a: Annotation) {
-    assert(a.asInstanceOf[IndexedSeq[IndexedSeq[Double]]].apply(0)(0).isNaN)
+  def assertNaN(a: Annotation, fieldIndex: Int = 0, phenoIndex: Int = 0) {
+    assert(a.asInstanceOf[IndexedSeq[IndexedSeq[Double]]].apply(fieldIndex)(phenoIndex).isNaN)
   }
 
   val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
@@ -132,58 +132,6 @@ class LinearRegressionSuite extends SparkSuite {
     */
     assertDouble(qBeta(am(v3)), 1.09536219)
     assertDouble(qSe(am(v3)), 0.6901002)
-    assertDouble(qTstat(am(v3)), 1.5872510)
-    assertDouble(qPval(am(v3)), 0.2533675)
-
-    assertNaN(qSe(am(v6)))
-  }
-
-  @Test def testWithTwoCovDosage() {
-    // .gen and .sample files created from regressionLinear.vcf
-    // dosages are derived from PLs so results should agree with testWithTwoCovPhred
-    val vds = hc.importGen("src/test/resources/regressionLinear.gen", "src/test/resources/regressionLinear.sample")
-      .annotateSamplesTable(covsKT, root = "sa.cov")
-      .annotateSamplesTable(phenoKT, root = "sa.pheno")
-      .linreg(Array("sa.pheno"), Array("g.dosage"), Array("sa.cov.Cov1", "sa.cov.Cov2"))
-
-    val qBeta = vds.queryVA("va.linreg.beta")._2
-    val qSe = vds.queryVA("va.linreg.se")._2
-    val qTstat = vds.queryVA("va.linreg.tstat")._2
-    val qPval = vds.queryVA("va.linreg.pval")._2
-
-    val am = vds.variantsAndAnnotations.collect().toMap
-
-    /*
-    comparing to output of R code:
-    y = c(1, 1, 2, 2, 2, 2)
-    x = c(0.009900990296049406, 0.9900990100009803, 0.009900990296049406, 0.009900990296049406, 0.009900990296049406, 0.9900990100009803)
-    c1 = c(0, 2, 1, -2, -2, 4)
-    c2 = c(-1, 3, 5, 0, -4, 3)
-    df = data.frame(y, x, c1, c2)
-    fit <- lm(y ~ x + c1 + c2, data=df)
-    summary(fit)["coefficients"]
-    */
-    
-    assertDouble(qBeta(am(v1)), -0.29166985, 1e-4)
-    assertDouble(qSe(am(v1)), 1.2996510, 1e-4)
-    assertDouble(qTstat(am(v1)), -0.22442167)
-    assertDouble(qPval(am(v1)), 0.84327106)
-
-    /*
-    v2 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
-    x = c(0.9950495050004902, 1.980198019704931, 0.9950495050004902, 1.980198019704931, 0.009900990296049406, 0.009900990296049406)
-    */
-    assertDouble(qBeta(am(v2)), -0.5499320, 1e-4)
-    assertDouble(qSe(am(v2)), 0.3401110, 1e-4)
-    assertDouble(qTstat(am(v2)), -1.616919)
-    assertDouble(qPval(am(v2)), 0.24728705)
-    
-    /*
-    v3 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
-    x = c(0.009900990296049406, 0.7450495050747477, 0.9900990100009803, 0.9900990100009803, 0.9900990100009803, 0.7450495050747477)
-    */
-    assertDouble(qBeta(am(v3)), 1.09536219, 1e-4)
-    assertDouble(qSe(am(v3)), 0.6901002, 1e-4)
     assertDouble(qTstat(am(v3)), 1.5872510)
     assertDouble(qPval(am(v3)), 0.2533675)
 
@@ -391,10 +339,10 @@ class LinearRegressionSuite extends SparkSuite {
     assertDouble(qPval(am(v1)), 0.84327106)
 
     // checking coefficients of cov2
-    assertDouble(qBeta(am(v1)), 0.02770781, i = 1)
-    assertDouble(qSe(am(v1)), 0.1643444, i = 1)
-    assertDouble(qTstat(am(v1)), 0.16859599, i = 1)
-    assertDouble(qPval(am(v1)), 0.88162287, i = 1)
+    assertDouble(qBeta(am(v1)), 0.02770781, fieldIndex = 1)
+    assertDouble(qSe(am(v1)), 0.1643444, fieldIndex = 1)
+    assertDouble(qTstat(am(v1)), 0.16859599, fieldIndex = 1)
+    assertDouble(qPval(am(v1)), 0.88162287, fieldIndex = 1)
     
     /*
     v2 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
@@ -420,4 +368,58 @@ class LinearRegressionSuite extends SparkSuite {
     assertSingular(qSe(am(v9)))
     assertSingular(qSe(am(v10)))
   }
+  
+  /* This test requires lifting linreg to run on GDS in subsequent PR
+  @Test def testWithTwoCovDosage() {
+    // .gen and .sample files created from regressionLinear.vcf
+    // dosages are derived from PLs so results should agree with testWithTwoCovPhred
+    val vds = hc.importGen("src/test/resources/regressionLinear.gen", "src/test/resources/regressionLinear.sample")
+      .annotateSamplesTable(covsKT, root = "sa.cov")
+      .annotateSamplesTable(phenoKT, root = "sa.pheno")
+      .linreg(Array("sa.pheno"), Array("g.dosage"), Array("sa.cov.Cov1", "sa.cov.Cov2"))
+
+    val qBeta = vds.queryVA("va.linreg.beta")._2
+    val qSe = vds.queryVA("va.linreg.se")._2
+    val qTstat = vds.queryVA("va.linreg.tstat")._2
+    val qPval = vds.queryVA("va.linreg.pval")._2
+
+    val am = vds.variantsAndAnnotations.collect().toMap
+
+    /*
+    comparing to output of R code:
+    y = c(1, 1, 2, 2, 2, 2)
+    x = c(0.009900990296049406, 0.9900990100009803, 0.009900990296049406, 0.009900990296049406, 0.009900990296049406, 0.9900990100009803)
+    c1 = c(0, 2, 1, -2, -2, 4)
+    c2 = c(-1, 3, 5, 0, -4, 3)
+    df = data.frame(y, x, c1, c2)
+    fit <- lm(y ~ x + c1 + c2, data=df)
+    summary(fit)["coefficients"]
+    */
+
+    assertDouble(qBeta(am(v1)), -0.29166985, 1e-4)
+    assertDouble(qSe(am(v1)), 1.2996510, 1e-4)
+    assertDouble(qTstat(am(v1)), -0.22442167)
+    assertDouble(qPval(am(v1)), 0.84327106)
+
+    /*
+    v2 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
+    x = c(0.9950495050004902, 1.980198019704931, 0.9950495050004902, 1.980198019704931, 0.009900990296049406, 0.009900990296049406)
+    */
+    assertDouble(qBeta(am(v2)), -0.5499320, 1e-4)
+    assertDouble(qSe(am(v2)), 0.3401110, 1e-4)
+    assertDouble(qTstat(am(v2)), -1.616919)
+    assertDouble(qPval(am(v2)), 0.24728705)
+
+    /*
+    v3 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
+    x = c(0.009900990296049406, 0.7450495050747477, 0.9900990100009803, 0.9900990100009803, 0.9900990100009803, 0.7450495050747477)
+    */
+    assertDouble(qBeta(am(v3)), 1.09536219, 1e-4)
+    assertDouble(qSe(am(v3)), 0.6901002, 1e-4)
+    assertDouble(qTstat(am(v3)), 1.5872510)
+    assertDouble(qPval(am(v3)), 0.2533675)
+
+    assertNaN(qSe(am(v6)))
+  }
+  */
 }

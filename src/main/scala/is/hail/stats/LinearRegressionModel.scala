@@ -10,7 +10,8 @@ case class LinearRegressionStats(b: Double, se: Double, t: Double, p: Double) {
   def toAnnotation: Annotation = Annotation(b, se, t, p)
 }
 
-case class LinearRegressionStatsNew(b: Array[Array[Double]], se: Array[Array[Double]], t: Array[Array[Double]], p: Array[Array[Double]]) {
+// a(i)(j) entry is value for ith field of jth phenotype
+case class LinearRegressionStatsMatrix(b: Array[Array[Double]], se: Array[Array[Double]], t: Array[Array[Double]], p: Array[Array[Double]]) {
   def toAnnotation: Annotation = Annotation(
     b.map(a => a: IndexedSeq[_]): IndexedSeq[_],
     se.map(a => a: IndexedSeq[_]): IndexedSeq[_],
@@ -26,10 +27,10 @@ object LinearRegressionModel {
     ("pval", TFloat64))
 
   def schemaNew = TStruct(
-    ("beta", TArray(TArray(TDouble))),
-    ("se", TArray(TArray(TDouble))),
-    ("tstat", TArray(TArray(TDouble))),
-    ("pval", TArray(TArray(TDouble))))
+    ("beta", TArray(TArray(TFloat64))),
+    ("se", TArray(TArray(TFloat64))),
+    ("tstat", TArray(TArray(TFloat64))),
+    ("pval", TArray(TArray(TFloat64))))
   
   // fit one row, one x, one y
   def fit(x: Vector[Double], y: Vector[Double], yyp: Double, qt: Matrix[Double], qty: Vector[Double], d: Int): LinearRegressionStats = {
@@ -46,7 +47,7 @@ object LinearRegressionModel {
   }
   
   // fit many rows, one x, many y
-  def fitBlock(X: DenseMatrix[Double], y: DenseMatrix[Double], yyp: DenseVector[Double], qt: DenseMatrix[Double], qty: DenseMatrix[Double], d: Int, blockLength: Int): Array[LinearRegressionStatsNew] = {
+  def fitBlock(X: DenseMatrix[Double], y: DenseMatrix[Double], yyp: DenseVector[Double], qt: DenseMatrix[Double], qty: DenseMatrix[Double], d: Int, blockLength: Int): Array[LinearRegressionStatsMatrix] = {
     
     val dInv = 1.0 / d
     val qtx: DenseMatrix[Double] = qt * X
@@ -68,7 +69,7 @@ object LinearRegressionModel {
     val p = t.map(s => 2 * T.cumulative(-math.abs(s), d, true, false))
     
     Array.tabulate(blockLength)(j =>
-      LinearRegressionStatsNew(
+      LinearRegressionStatsMatrix(
         Array(b(::, j).toArray),
         Array(se(::, j).toArray),
         Array(t(::, j).toArray),
@@ -76,7 +77,7 @@ object LinearRegressionModel {
   }
   
   // fit one row, many x, many y
-  def fit(x: DenseMatrix[Double], y: DenseMatrix[Double], yyp: DenseVector[Double], qt: DenseMatrix[Double], qty: DenseMatrix[Double], d: Int): Option[LinearRegressionStatsNew] = {
+  def fit(x: DenseMatrix[Double], y: DenseMatrix[Double], yyp: DenseVector[Double], qt: DenseMatrix[Double], qty: DenseMatrix[Double], d: Int): Option[LinearRegressionStatsMatrix] = {
     try {
       val nxs = x.cols
       val dInv = 1.0 / d
@@ -85,18 +86,18 @@ object LinearRegressionModel {
       val xyp = (x.t * y) - (qtx.t * qty)
       
       val b = xxpInv * xyp
-      val xypb = xyp :* b // FIXME can reuse xyp
-      val se = sqrt(diag(xxpInv)).asDenseMatrix.t * sqrt(dInv * (yyp.asDenseMatrix - sum(xypb(::, *)))) // move densematrix up
+      val xypb = xyp :* b
+      val se = sqrt(diag(xxpInv)).asDenseMatrix.t * sqrt(dInv * (yyp.asDenseMatrix - sum(xypb(::, *))))
       val t = b :/ se
       val p = t.map(stat => 2 * T.cumulative(-math.abs(stat), d, true, false))
 
-      Some(LinearRegressionStatsNew(
+      Some(LinearRegressionStatsMatrix(
         Array.tabulate(nxs)(i => b(i to i, ::).toArray),
         Array.tabulate(nxs)(i => se(i to i, ::).toArray),
         Array.tabulate(nxs)(i => t(i to i, ::).toArray),
         Array.tabulate(nxs)(i => p(i to i, ::).toArray)))
      } catch {
-      case e: breeze.linalg.MatrixSingularException =>
+      case _: breeze.linalg.MatrixSingularException =>
         None
     }
   }

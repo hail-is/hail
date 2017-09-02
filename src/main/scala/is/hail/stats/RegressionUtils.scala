@@ -184,7 +184,7 @@ object RegressionUtils {
       None
   }
 
-  def toDouble(t: Type, code: String): Any => Double = t match {
+  def toFloat64(t: Type, code: String): Any => Double = t match {
     case TInt32 => _.asInstanceOf[Int].toDouble
     case TInt64 => _.asInstanceOf[Long].toDouble
     case TFloat32 => _.asInstanceOf[Float].toDouble
@@ -195,7 +195,7 @@ object RegressionUtils {
 
   def getSampleAnnotation(vds: VariantDataset, annot: String, ec: EvalContext): IndexedSeq[Option[Double]] = {
     val (aT, aQ) = Parser.parseExpr(annot, ec)
-    val aToDouble = toDouble(aT, annot)
+    val aToDouble = toFloat64(aT, annot)
 
     vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       ec.setAll(s, sa)
@@ -207,7 +207,7 @@ object RegressionUtils {
   def getSampleAnnotations(vds: VariantDataset, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
     val (aT, aQ0) = annots.map(Parser.parseExpr(_, ec)).unzip
     val aQ = () => aQ0.map(_.apply())
-    val aToDouble = (aT, annots).zipped.map(toDouble)
+    val aToDouble = (aT, annots).zipped.map(toFloat64)
 
     vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       ec.setAll(s, sa)
