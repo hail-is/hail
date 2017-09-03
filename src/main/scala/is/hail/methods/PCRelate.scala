@@ -46,12 +46,15 @@ object PCRelate {
   private def toRowRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double, desire: Desire): RDD[Row] = {
     val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
     val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, desire)
+    val m = phi.rows
+    val n = phi.cols
+    val blockSize = phi.blockSize
 
-    def fuseBlocks(blocki: Int, blockj: Int, mk1: Matrix, mk2: Matrix, mk3: Matrix, mk4: Matrix) = {
-      val i = blocki * phi.blockSize
-      val j = blockj * phi.blockSize
-      val i2 = i + phi.blockSize
-      val j2 = j + phi.blockSize
+    def fuseBlocks(blocki: Int, blockj: Int, mk1: BDM[Double], mk2: BDM[Double], mk3: BDM[Double], mk4: BDM[Double]) = {
+      val i = blocki * blockSize
+      val j = blockj * blockSize
+      val i2 = i + blockSize
+      val j2 = j + blockSize
 
       if (blocki < blockj ||
         i <= j && j < i2 ||
@@ -61,10 +64,10 @@ object PCRelate {
         val size = mk1.numRows * mk1.numCols
         val ab = new ArrayBuilder[Row]()
         var jj = 1
-        while (jj < mk1.numCols) {
+        while (jj < mk1.cols) {
           // fixme: broken for non-square blocks
           var ii = 0
-          val rowsAboveDiagonal = if (blocki < blockj) mk1.numRows else jj
+          val rowsAboveDiagonal = if (blocki < blockj) mk1.rows else jj
           while (ii < rowsAboveDiagonal) {
             val kin = mk1(ii, jj)
             if (kin >= minKinship) {
