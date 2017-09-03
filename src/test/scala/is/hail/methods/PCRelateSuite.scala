@@ -169,6 +169,7 @@ class PCRelateSuite extends SparkSuite {
   @Test
   def sampleVcfMatchesReference() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
+      .verifyBiallelic()
 
     val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
 

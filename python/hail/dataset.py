@@ -2015,7 +2015,7 @@ class VariantDataset(HistoryMixin):
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         This method is much less computationally expensive than
         :py:meth:`.split_multi`, and can also be used to produce
@@ -2028,6 +2028,20 @@ class VariantDataset(HistoryMixin):
         """
 
         return VariantDataset(self.hc, self._jvkdf.filterMulti())
+
+    @handle_py4j
+    @record_method
+    def verify_biallelic(self):
+        """Verify dataset has only biallelic variants.
+
+        .. include:: _templates/req_tvariant.rst
+
+        :return: Dataset which can be used for biallelic-only methods.
+        :rtype: :class:`.VariantDataset`
+
+        """
+
+        return VariantDataset(self.hc, self._jvkdf.verifyBiallelic())
 
     @handle_py4j
     @record_method

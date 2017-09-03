@@ -306,6 +306,8 @@ class ContextTests(unittest.TestCase):
 
         sample2.filter_multi().count()
 
+        sample2.verify_biallelic().count()
+
         sample2.split_multi().grm().export_gcta_grm_bin('/tmp/sample2.grm')
 
         sample2.hardcalls().count()
