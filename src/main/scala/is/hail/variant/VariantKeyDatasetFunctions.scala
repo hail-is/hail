@@ -79,7 +79,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
       vsm.copy(
         rdd = vsm.rdd.map { case vvags@(v, _) =>
           if (!v.isBiallelic)
-            fatal("found non-biallelic variant: $v")
+            fatal(s"found non-biallelic variant: $v")
           vvags
         }.toOrderedRDD,
         wasSplit = true)
