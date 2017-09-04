@@ -1391,6 +1391,7 @@ class KeyTable(HistoryMixin):
         with respect to a PC-Relate measure of kinship.
 
         >>> related_pairs = (hc.import_vcf("data/sample.vcf.bgz")
+        ...     .verify_biallelic()
         ...     .pc_relate(2, 0.001)
         ...     .filter("kin > 0.125"))
         >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
