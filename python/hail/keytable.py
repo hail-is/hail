@@ -156,7 +156,7 @@ class KeyTable(HistoryMixin):
         """
 
         if self._num_columns is None:
-            self._num_columns = self._jkt.nFields()
+            self._num_columns = self._jkt.nColumns()
         return self._num_columns
 
     @property
@@ -208,7 +208,7 @@ class KeyTable(HistoryMixin):
         """
 
         if self._column_names is None:
-            self._column_names = list(self._jkt.fieldNames())
+            self._column_names = list(self._jkt.columns())
         return self._column_names
 
     @handle_py4j
@@ -599,8 +599,8 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(column_names=oneof(strlike, listof(strlike)))
-    def select(self, column_names):
+    @typecheck_method(selected_columns=oneof(strlike, listof(strlike)))
+    def select(self, selected_columns):
         """Select a subset of columns.
 
         **Examples**
@@ -620,16 +620,15 @@ class KeyTable(HistoryMixin):
 
         >>> kt_result = kt1.select([])
 
-        :param column_names: List of columns to be selected.
+        :param selected_columns: List of columns to be selected.
         :type: str or list of str
 
         :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
         """
 
-        column_names = wrap_to_list(column_names)
-        new_key = [k for k in self.key if k in column_names]
-        return KeyTable(self.hc, self._jkt.select(column_names, new_key))
+        selected_columns = wrap_to_list(selected_columns)
+        return KeyTable(self.hc, self._jkt.select(selected_columns))
 
     @handle_py4j
     @record_method
