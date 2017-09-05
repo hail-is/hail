@@ -72,8 +72,7 @@ class KeyTableSuite extends SparkSuite {
 
     def getDataAsMap(kt: KeyTable) = {
       val columns = kt.columns
-      val nColumns = kt.nColumns
-      kt.rdd.map { a => columns.zip(a.asInstanceOf[Row].toSeq).toMap }.collect().toSet
+      kt.rdd.map { a => columns.zip(a.toSeq).toMap }.collect().toSet
     }
 
     val kt3data = getDataAsMap(kt3)
@@ -118,7 +117,7 @@ class KeyTableSuite extends SparkSuite {
     val ktInnerJoin = ktLeft.join(ktRight, "inner")
     val ktOuterJoin = ktLeft.join(ktRight, "outer")
 
-    val nExpectedFields = ktLeft.nColumns + ktRight.nColumns - ktRight.nKeys
+    val nExpectedColumns = ktLeft.nColumns + ktRight.nColumns - ktRight.nKeys
 
     val i: IndexedSeq[Int] = Array(1, 2, 3)
 
@@ -136,7 +135,7 @@ class KeyTableSuite extends SparkSuite {
 
     assert(ktLeftJoin.count == ktLeft.count &&
       ktLeftJoin.nKeys == nExpectedKeys &&
-      ktLeftJoin.nColumns == nExpectedFields &&
+      ktLeftJoin.nColumns == nExpectedColumns &&
       ktLeftJoin.filter { a =>
         !rightKeys.contains(Option(leftJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
       }.forall("isMissing(qPhen2) && isMissing(qPhen3)")
@@ -144,18 +143,18 @@ class KeyTableSuite extends SparkSuite {
 
     assert(ktRightJoin.count == ktRight.count &&
       ktRightJoin.nKeys == nExpectedKeys &&
-      ktRightJoin.nColumns == nExpectedFields &&
+      ktRightJoin.nColumns == nExpectedColumns &&
       ktRightJoin.filter { a =>
         !leftKeys.contains(Option(rightJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
       }.forall("isMissing(Status) && isMissing(qPhen)"))
 
     assert(ktOuterJoin.count == nUnionRows &&
       ktOuterJoin.nKeys == ktLeft.nKeys &&
-      ktOuterJoin.nColumns == nExpectedFields)
+      ktOuterJoin.nColumns == nExpectedColumns)
 
     assert(ktInnerJoin.count == nIntersectRows &&
       ktInnerJoin.nKeys == nExpectedKeys &&
-      ktInnerJoin.nColumns == nExpectedFields)
+      ktInnerJoin.nColumns == nExpectedColumns)
 
     val outputFile = tmpDir.createTempFile("join", "tsv")
     ktLeftJoin.export(outputFile)
