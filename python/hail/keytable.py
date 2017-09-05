@@ -1521,11 +1521,8 @@ class KeyTable(HistoryMixin):
 
         The ungrouped columns are always appended to the end of the table.
 
-        :param column: Names of struct column to ungroup.
-        :type column: str
-
-        :param mangle: Rename ungrouped columns as ``column.subcolumn``
-        :type mangle: bool
+        :param str column: Names of struct column to ungroup.
+        :param bool mangle: Rename ungrouped columns as ``column.subcolumn``
 
         :return: A table with specified column ungrouped.
         :rtype: :class:`.KeyTable`
@@ -1568,8 +1565,7 @@ class KeyTable(HistoryMixin):
 
         The grouped column is always appended to the end of the table.
 
-        :param dest: Name of column to be constructed.
-        :type dest: str
+        :param str dest: Name of column to be constructed.
 
         :param columns: Names of columns to group.
         :type columns: str or list of str

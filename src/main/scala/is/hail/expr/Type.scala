@@ -69,8 +69,7 @@ object Type {
   def parseMap(s: String): Map[String, Type] = Parser.parseAnnotationTypes(s)
 }
 
-sealed abstract class Type extends Serializable {
-  self =>
+sealed abstract class Type extends Serializable { self =>
 
   def children: Seq[Type] = Seq()
 
@@ -1477,13 +1476,14 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   def ungroup(identifier: String, mangle: Boolean = false): (TStruct, (Row) => Row) = {
     val overlappingNames = mutable.Set[String]()
+    val fieldNamesSet = fieldNames.toSet
 
     val ungroupedFields = fieldOption(identifier) match {
       case None => fatal(s"Struct does not have field with name `$identifier'.")
       case Some(x) => x.typ match {
         case s: TStruct =>
           s.fields.flatMap { fd =>
-            (fieldNames.contains(fd.name), mangle) match {
+            (fieldNamesSet.contains(fd.name), mangle) match {
               case (_, true) => Some((identifier + "." + fd.name, fd.typ))
               case (false, false) => Some((fd.name, fd.typ))
               case (true, false) =>
@@ -1491,13 +1491,13 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
                 None
             }
           }.toArray
-        case other => fatal(s"Expecting a type of TStruct for field `$identifier', but found ${ other.toPrettyString() } ")
+        case other => fatal(s"Can only ungroup fields of type Struct, but found type ${ other.toPrettyString(compact = true) } for identifier $identifier.")
       }
     }
 
     if (overlappingNames.nonEmpty)
       fatal(s"Found ${ overlappingNames.size } ${ plural(overlappingNames.size, "ungrouped field name") } overlapping existing struct field names.\n" +
-        "Use the `mangle=True` option to deduplicate field names:\n  " +
+        "Either rename manually or use the 'mangle' option to handle duplicates.\n Overlapping fields:\n  " +
         s"@1", overlappingNames.truncatable("\n  "))
 
     val fdIndexToUngroup = fieldIdx(identifier)
@@ -1522,7 +1522,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
           i += 1
         }
 
-        val ugr = r.get(fdIndexToUngroup).asInstanceOf[Row]
+        val ugr = r.getAs[Row](fdIndexToUngroup)
 
         if (ugr != null) {
           var j = 0
