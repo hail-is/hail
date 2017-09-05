@@ -519,7 +519,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), parallelWrite = parallel)
   }
 
-  def aggregate(keyCond: String, aggCond: String): KeyTable = {
+  def aggregate(keyCond: String, aggCond: String, nPartitions: Option[Int] = None): KeyTable = {
 
     val aggregationST = fields.zipWithIndex.map {
       case (fd, i) => (fd.name, (i, fd.typ))
@@ -553,7 +553,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
             val key = Row.fromSeq(keyF())
             (key, r)
         }
-    }.aggregateByKey(zVals)(seqOp, combOp)
+    }.aggregateByKey(zVals, nPartitions.getOrElse(this.nPartitions))(seqOp, combOp)
       .map {
         case (k, agg) =>
           resultOp(agg)
