@@ -156,8 +156,7 @@ class FilterSuite extends SparkSuite {
     var vds = hc.importVCF("src/test/resources/sample.vcf")
     val (sigs, i) = vds.insertVA(TInt32, "weird name \t test")
     vds = vds
-      .mapAnnotations((v, va, gs) => i(va, 1000))
-      .copy(vaSignature = sigs)
+      .mapAnnotations(sigs, (v, va, gs) => i(va, 1000))
     assert(vds.filterVariantsExpr("va.`weird name \\t test` > 500").countVariants() == vds.countVariants)
 
     TestUtils.interceptFatal("invalid escape character.*backtick identifier.*\\\\i")(

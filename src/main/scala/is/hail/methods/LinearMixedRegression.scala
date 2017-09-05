@@ -162,14 +162,14 @@ object LinearMixedRegression {
 
       val scalerLMMBc = sc.broadcast(scalerLMM)
 
-      vds2.mapAnnotations { case (v, va, gs) =>
+      vds2.mapAnnotations(newVAS, { case (v, va, gs) =>
         val x: Vector[Double] =
           if (!useDosages) {
             val x0 = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
             if (x0.used <= sparsityThreshold * n) x0 else x0.toDenseVector
           } else
             RegressionUtils.dosages(gs, completeSampleIndexBc.value)
-        
+
         // TODO constant checking to be removed in 0.2
         val nonConstant = useDosages || !RegressionUtils.constantVector(x)
 
@@ -178,9 +178,8 @@ object LinearMixedRegression {
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
         newAnnotation
-      }.copy(vaSignature = newVAS)
-    }
-    else
+      })
+    } else
       vds2
   }
 

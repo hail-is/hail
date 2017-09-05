@@ -633,7 +633,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
 
-    mapAnnotations { case (v, va, gs) =>
+    mapAnnotations(finalType, { case (v, va, gs) =>
       ec.setAll(localGlobalAnnotation, v, va)
 
       aggregateOption.foreach(f => f(v, va, gs))
@@ -641,7 +641,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         .foldLeft(va) { case (va, (v, inserter)) =>
           inserter(va, v)
         }
-    }.copy(vaSignature = finalType)
+    })
   }
 
   def annotateVariantsTable(kt: KeyTable, vdsKey: java.util.ArrayList[String],
@@ -1378,35 +1378,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       }
   }
 
-  def mapAnnotations(f: (RK, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[RPK, RK, T] =
-    copy(rdd = rdd.mapValuesWithKey { case (v, (va, gs)) => (f(v, va, gs), gs) })
-
-  def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: Type)(
-    seqOp: (U, RK, Annotation, Annotation, Annotation, T) => U,
-    combOp: (U, U) => U,
-    mapOp: (Annotation, U) => Annotation)
-    (implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, T] = {
-
-    // Serialize the zero value to a byte array so that we can apply a new clone of it on each key
-    val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
-    val zeroArray = new Array[Byte](zeroBuffer.limit)
-    zeroBuffer.get(zeroArray)
-
-    val localSampleIdsBc = sampleIdsBc
-    val localSampleAnnotationsBc = sampleAnnotationsBc
-
-    copy(vaSignature = newVAS,
-      rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
-        val serializer = SparkEnv.get.serializer.newInstance()
-        val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
-
-        (mapOp(va, gs.iterator
-          .zip(localSampleIdsBc.value.iterator
-            .zip(localSampleAnnotationsBc.value.iterator)).foldLeft(zeroValue) { case (acc, (g, (s, sa))) =>
-          seqOp(acc, v, va, s, sa, g)
-        }), gs)
-      })
-  }
+  def mapAnnotations(newVASignature: Type, f: (RK, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[RPK, RK, T] =
+    copy(vaSignature = newVASignature,
+      rdd = rdd.mapValuesWithKey { case (v, (va, gs)) => (f(v, va, gs), gs) })
 
   def mapPartitionsWithAll[U](f: Iterator[(RK, Annotation, Annotation, Annotation, T)] => Iterator[U])
     (implicit uct: ClassTag[U]): RDD[U] = {

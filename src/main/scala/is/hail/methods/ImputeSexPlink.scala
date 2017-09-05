@@ -47,7 +47,7 @@ object ImputeSexPlink {
       else
         v.contig == "X" || v.contig == "23" || v.contig == "25"
     }
-      .mapAnnotations { case (v, va, gs) =>
+      .mapAnnotations(TFloat64, { case (v, va, gs) =>
         query.map(_.apply(va))
           .getOrElse {
             var nAlt = 0
@@ -65,7 +65,7 @@ object ImputeSexPlink {
             else
               null
           }
-      }
+      })
       .filterVariants { case (v, va, _) => Option(va).exists(_.asInstanceOf[Double] > mafThreshold) }
       .aggregateBySampleWithAll(new InbreedingCombiner)({ case (ibc, _, va, _, _, gt) =>
         ibc.merge(gt, va.asInstanceOf[Double])

@@ -82,7 +82,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
     val aggregateOption = Aggregators.buildVariantAggregations(vds, ec)
 
-    vds.mapAnnotations { case (v, va, gs) =>
+    vds.mapAnnotations(finalType, { case (v, va, gs) =>
 
       val annotations = SplitMulti.split(v, va, gs,
         propagateGQ = propagateGQ,
@@ -103,7 +103,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
           inserter(va, annotations.map(_ (i)).toArray[Any]: IndexedSeq[Any])
       }
 
-    }.copy(vaSignature = finalType)
+    })
   }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
