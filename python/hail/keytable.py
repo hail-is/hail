@@ -906,7 +906,21 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     def collect(self):
-        """Collect key table as a Python object."""
+        """Collect table to a local list.
+
+        **Examples**
+
+        >>> id_to_sex = {row.ID : row.SEX for row in kt1.collect()}
+
+        **Notes**
+
+        This method should be used on very small tables and as a last resort.
+        It is very slow to convert distributed Java objects to Python
+        (especially serially), and the resulting list may be too large
+        to fit in memory on one machine.
+
+        :rtype: list of :py:class:`.hail.representation.Struct`
+        """
 
         return TArray(self.schema)._convert_to_py(self._jkt.collect())
 
