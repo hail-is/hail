@@ -176,6 +176,7 @@ class SkatSuite extends SparkSuite {
   def intervals = IntervalList.read(hc, "src/test/resources/regressionLinear.interval_list")
 
   def vds: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
+    .verifyBiallelic()
     .annotateVariantsTable(intervals, root = "va.genes", product = true)
     .annotateSamplesTable(phenotypes, root = "sa.pheno")
     .annotateSamplesTable(covariates, root = "sa.cov")
