@@ -4711,9 +4711,9 @@ class VariantDataset(HistoryMixin):
                       y=strlike,
                       covariates=listof(strlike),
                       weight_expr=nullable(strlike),
-                      use_logistic=bool,
+                      logistic=bool,
                       use_dosages=bool)
-    def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, use_logistic=False, use_dosages=False):
+    def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, logistic=False, use_dosages=False):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
 
         **Examples**
@@ -4789,7 +4789,7 @@ class VariantDataset(HistoryMixin):
 
         .. caution::
 
-          Davies algorithm iterates up to 100k times until an accuracy of 1e-8 is achieved. Hence a reported p-value of
+          The Davies algorithm iterates up to 100k times until an accuracy of 1e-8 is achieved. Hence a reported p-value of
           zero with no issues may truly be as large as 1e-8.
 
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
@@ -4805,7 +4805,7 @@ class VariantDataset(HistoryMixin):
         :param covariates: List of covariate expressions.
         :type covariates: List of str
 
-        :param bool use_logistic: If true, runs logistic SKAT rather than linear SKAT.
+        :param bool logistic: If true, use the logistic test rather than the linear test. 
 
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
@@ -4815,7 +4815,7 @@ class VariantDataset(HistoryMixin):
 
         return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, y,
                                                  jarray(Env.jvm().java.lang.String, covariates),
-                                                 joption(weight_expr), use_logistic, use_dosages, False))
+                                                 joption(weight_expr), logistic, use_dosages, False))
 
     @handle_py4j
     @record_method

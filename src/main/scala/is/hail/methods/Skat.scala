@@ -30,20 +30,24 @@ object Skat {
     yExpr: String,
     covExpr: Array[String],
     weightExpr: Option[String],
-    useLogistic: Boolean = false,
+    logistic: Boolean = false,
     useDosages: Boolean,
     useLargeN: Boolean = false): KeyTable = {
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
-    if (useLogistic && (!y.forall(yi => yi == 0d || yi == 1d)))
-      fatal(s"For logistic SKAT, phenotype must be Boolean or numeric with all present values equal to 0 or 1")
-
+    if (logistic) {
+      val badVals = y.findAll(yi => yi != 0d && yi != 1d)
+      if (badVals.nonEmpty)
+        fatal(s"For logistic SKAT, phenotype must be Boolean or numeric with value 0 or 1 for each complete " +
+          s"sample; found ${badVals.length} ${plural(badVals.length, "violation")} starting with ${badVals(0)}")
+    }
+    
     val n = y.size
     val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
     completeSampleIndex.foreach(i => sampleMask(i) = true)
     val filteredVds = vds.filterSamplesMask(sampleMask)
 
-    def computeSkatLinear(keyedRdd: RDD[(Any, Iterable[(Vector[Double], Double)])], keyType: Type,
+    def computeSkatLinear(keyedRdd: RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
       y: DenseVector[Double], cov: DenseMatrix[Double],
       resultOp: (Array[SkatTuple], Double) => SkatStat): KeyTable = {
       val n = y.size
@@ -63,7 +67,7 @@ object Skat {
       val resBc = sc.broadcast(res)
       val qtBc = sc.broadcast(q.t)
 
-      def preProcessGenotypes(gs: Vector[Double], w: Double): SkatTuple = {
+      def preprocessGenotypes(gs: Vector[Double], w: Double): SkatTuple = {
         if (w < 0)
           fatal(s"Variant weights must be non-negative, got $w")
         val sqrtw = math.sqrt(w)
@@ -74,7 +78,7 @@ object Skat {
 
       val skatRDD = keyedRdd
         .map { case (key, vs) =>
-          val vArray = vs.toArray.map { case (gs, w) => preProcessGenotypes(gs, w) }
+          val vArray = vs.toArray.map { case (gs, w) => preprocessGenotypes(gs, w) }
           val skatStat = if (vArray.length.toLong * n < Int.MaxValue) {
             resultOp(vArray, 2 * sigmaSq)
           } else {
@@ -119,7 +123,7 @@ object Skat {
       val resBc = sc.broadcast(res)
       val CinvXtVBc = sc.broadcast(Cinv * VX.t)
 
-      def variantPreProcess(gs: Vector[Double], w: Double): SkatTuple = {
+      def preprocessGenotypes(gs: Vector[Double], w: Double): SkatTuple = {
         val wx = gs * math.sqrt(w)
         val sj = resBc.value dot wx
         val CinvXtVwx = CinvXtVBc.value * wx
@@ -128,7 +132,7 @@ object Skat {
 
       val skatRDD = keyedRdd
         .map { case (key, vs) =>
-          val vArray = vs.toArray.map { case (gs, w) => variantPreProcess(gs, w) }
+          val vArray = vs.toArray.map { case (gs, w) => preprocessGenotypes(gs, w) }
           val skatStat = resultOp(vArray, 2.0)
           Row(key, skatStat.q, skatStat.p, skatStat.fault)
         }
@@ -149,7 +153,7 @@ object Skat {
 
     val (keyedRdd, keysType) = keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, getGenotypesFunction)
 
-    if (!useLogistic) computeSkatLinear(keyedRdd, keysType, y, cov, if (!useLargeN) runSkatPerKey else runSkatPerKeyLargeN)
+    if (!logistic) computeSkatLinear(keyedRdd, keysType, y, cov, if (!useLargeN) runSkatPerKey else runSkatPerKeyLargeN)
     else computeSkatLogistic(keyedRdd, keysType, y, cov, if (!useLargeN) runSkatPerKey else runSkatPerKeyLargeN)
   }
 
