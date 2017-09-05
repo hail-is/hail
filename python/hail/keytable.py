@@ -383,8 +383,9 @@ class KeyTable(HistoryMixin):
     @handle_py4j
     @record_method
     @typecheck_method(key_expr=oneof(strlike, listof(strlike)),
-                      agg_expr=oneof(strlike, listof(strlike)))
-    def aggregate_by_key(self, key_expr, agg_expr):
+                      agg_expr=oneof(strlike, listof(strlike)),
+                      num_partitions=nullable(integral))
+    def aggregate_by_key(self, key_expr, agg_expr, num_partitions=None):
         """Aggregate columns programmatically.
 
         **Examples**
@@ -416,6 +417,9 @@ class KeyTable(HistoryMixin):
         :param agg_expr: Named aggregation expression(s).
         :type agg_expr: str or list of str
 
+        :param num_partitions: Target number of partitions in the resulting table.
+        :type num_partitions: int or None
+
         :return: A new key table with the keys computed from the ``key_expr`` and the remaining columns computed from the ``agg_expr``.
         :rtype: :class:`.KeyTable`
         """
@@ -426,7 +430,7 @@ class KeyTable(HistoryMixin):
         if isinstance(agg_expr, list):
             agg_expr = ", ".join(agg_expr)
 
-        return KeyTable(self.hc, self._jkt.aggregate(key_expr, agg_expr))
+        return KeyTable(self.hc, self._jkt.aggregate(key_expr, agg_expr, joption(num_partitions)))
 
     @handle_py4j
     @typecheck_method(expr=strlike)
