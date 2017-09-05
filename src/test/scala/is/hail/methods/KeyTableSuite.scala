@@ -507,8 +507,9 @@ class KeyTableSuite extends SparkSuite {
     assert(kt2.annotate("X = group(foo, a, b, a)").same(kt2Expected))
 
     TestUtils.interceptFatal("Duplicate"){ kt2.annotate("X = group(foo, a, b, b)") }
-    TestUtils.interceptFatal("Struct does not have field with name"){ kt2.annotate("X = group(foo, x, true)") }
+    TestUtils.interceptFatal("Expected struct field identifiers after the first position, but found a"){ kt2.annotate("X = group(foo, x, true)") }
     TestUtils.interceptFatal("too few arguments for method"){ kt2.annotate("X = group(foo, a)") }
     TestUtils.interceptFatal("expects a Struct argument in the first position"){ kt2.annotate("X = group(2, x, true)") }
+    TestUtils.interceptFatal("Struct does not have field with name"){ kt2.annotate("X = group(foo, x, y)") }
   }
 }
