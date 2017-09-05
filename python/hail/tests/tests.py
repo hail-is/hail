@@ -366,7 +366,7 @@ class ContextTests(unittest.TestCase):
                       y='sa.pheno',
                       covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
                       weight_expr='va.weight',
-                      use_logistic=False,
+                      logistic=False,
                       use_dosages=False).count())
 
         (skatVds.skat(variant_keys='va.genes',
@@ -374,7 +374,7 @@ class ContextTests(unittest.TestCase):
                       y='sa.pheno',
                       covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
                       weight_expr='va.weight',
-                      use_logistic=True,
+                      logistic=True,
                       use_dosages=True).count())
 
         vds_kinship = vds_assoc.filter_variants_expr('v.start < 4')
