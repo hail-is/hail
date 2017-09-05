@@ -658,15 +658,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       }
       val f = struct.ungroup(identifier, mangle)._2
       AST.evalComposeCodeM[AnyRef](s)(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
-
-    case ("ungroup", Array(s, id)) =>
-      val struct = s.`type`.asInstanceOf[TStruct]
-      val identifier = (id: @unchecked) match {
-        case SymRef(_, n) => n
-      }
-      val f = struct.ungroup(identifier)._2
-      AST.evalComposeCodeM[AnyRef](s)(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
-
+      
     case ("index", Array(structArray, k)) =>
       val key = (k: @unchecked) match {
         case SymRef(_, id) => id
