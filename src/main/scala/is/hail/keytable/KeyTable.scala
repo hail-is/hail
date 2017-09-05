@@ -223,6 +223,12 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
+  def withKeyRDD(): RDD[(Row, Row)] = {
+    val fieldIndices = fields.map(f => f.name -> f.index).toMap
+    val keyIndices = key.map(fieldIndices)
+    rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), r) }
+  }
+
   def same(other: KeyTable): Boolean = {
     if (signature != other.signature) {
       info(
@@ -433,7 +439,6 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
         s"""Columns that are not keys cannot be present in both key tables.
            |  Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
 
-
     val newSignature = TStruct((keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields)
       .map(fd => (fd.name, fd.typ)): _*)
     val localNKeys = nKeys
@@ -482,6 +487,72 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     }
 
     KeyTable(hc, joinedRDD, newSignature, key)
+  }
+
+  def broadcastLeftJoinDistinct(right: KeyTable): KeyTable = {
+    if (key.length != right.key.length || !(keyFields.map(_.typ) sameElements right.keyFields.map(_.typ)))
+      fatal(
+        s"""Both key tables must have the same number of keys and the types of keys must be identical. Order matters.
+           |  Left signature: ${ TStruct(keyFields).toPrettyString(compact = true) }
+           |  Right signature: ${ TStruct(right.keyFields).toPrettyString(compact = true) }""".stripMargin)
+
+    val overlappingFields = fieldNames.toSet.intersect(right.fieldNames.toSet) -- key -- right.key
+    if (overlappingFields.nonEmpty)
+      fatal(
+        s"""Columns that are not keys cannot be present in both key tables.
+           |  Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
+
+    val newSignature = TStruct((keySignature.fields ++ valueSignature.fields ++ right.valueSignature.fields)
+      .map(fd => (fd.name, fd.typ)): _*)
+    val localNKeys = nKeys
+    val size1 = valueSignature.size
+    val size2 = right.valueSignature.size
+    val totalSize = newSignature.size
+
+    assert(totalSize == localNKeys + size1 + size2)
+
+    val merger = (k: Row, r1: Row, r2: Row) => {
+      val result = Array.fill[Any](totalSize)(null)
+
+      var i = 0
+      while (i < localNKeys) {
+        result(i) = k.get(i)
+        i += 1
+      }
+
+      if (r1 != null) {
+        i = 0
+        while (i < size1) {
+          result(localNKeys + i) = r1.get(i)
+          i += 1
+        }
+      }
+
+      if (r2 != null) {
+        i = 0
+        while (i < size2) {
+          result(localNKeys + size1 + i) = r2.get(i)
+          i += 1
+        }
+      }
+      Row.fromSeq(result)
+    }
+
+    val rightMap = right.keyedRDD().collectAsMap()
+    val rightMapBc = rdd.sparkContext.broadcast(rightMap)
+
+    val joinedRDD = keyedRDD().map { case (lk, lr) =>
+        val rr = rightMapBc.value.getOrElse(lk, null)
+        merger(lk, lr, rr)
+    }
+
+    KeyTable(hc, joinedRDD, newSignature, key)
+  }
+
+  def distinctByKey(): KeyTable = {
+    KeyTable(hc, withKeyRDD().groupByKey().map { case (k, rs) =>
+      rs.head
+    }, signature, key)
   }
 
   def forall(code: String): Boolean = {

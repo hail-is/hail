@@ -332,6 +332,44 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.join(right._jkt, how))
 
     @handle_py4j
+    def distinct_by_key(self):
+        """Return a new key table whose keys are the distinct keys of this key
+        table by keeping one row among all rows with a duplicate key.
+        The row that is kept is chosen arbitrarily.  Requires a
+        shuffle.
+
+        :return: Key table with keys the distinct keys of this key table
+        :rtype: :class:`.KeyTable`
+
+        """
+        
+        return KeyTable(self.hc, self._jkt.distinctByKey())
+
+    @handle_py4j
+    @typecheck_method(right=kt_type)
+    def broadcast_left_join_distinct(self, right):
+        """Run distinct on ``right`` and join the result with this keytable
+        using a broadcast.  Does not require a shuffle so
+        :py:meth:`.broadcast_left_join_distinct` can be much faster
+        than :py:meth:`.join` when ``right`` is very small.
+
+        .. warning::
+
+          ``right`` is collected onto the master node and broadcasted
+          to all workers so it must be sufficiently small to avoid out
+          of memory errors.
+
+        :param right: Key table to join.
+        :type right: :class:`.KeyTable`
+
+        :return: The left join of this key table with the distinct of ``right``.
+        :rtype: :class:`.KeyTable`
+
+        """
+
+        return KeyTable(self.hc, self._jkt.broadcastLeftJoinDistinct(right._jkt))
+
+    @handle_py4j
     @typecheck_method(key_expr=oneof(strlike, listof(strlike)),
                       agg_expr=oneof(strlike, listof(strlike)))
     def aggregate_by_key(self, key_expr, agg_expr):
