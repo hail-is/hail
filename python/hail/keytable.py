@@ -1343,6 +1343,22 @@ class KeyTable(HistoryMixin):
 
         return KeyTable(self.hc, self._jkt.indexed(name))
 
+    @typecheck_method(rows=integral,
+                      truncate_to=nullable(integral),
+                      print_types=bool)
+    def show(self, rows=10, truncate_to=None, print_types=True):
+        """Show the first few rows of the table in human-readable format.
+
+        :param int rows: Number of rows to show.
+
+        :param truncate_to: Truncate columns to the desired number of characters.
+        :type truncate_to: int or None
+
+        :param bool print_types: Print a line with column types.
+        """
+        to_print = self._jkt.showString(rows, joption(truncate_to), print_types)
+        print(to_print)
+
     @classmethod
     @handle_py4j
     @record_classmethod

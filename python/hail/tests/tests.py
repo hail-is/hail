@@ -509,7 +509,10 @@ class ContextTests(unittest.TestCase):
         kt.flatten()
         kt.expand_types()
 
-        kt.to_dataframe()
+        kt.to_dataframe().count()
+
+        kt.show(10)
+        kt.show(4, print_types=False, truncate_to=15)
 
         kt.annotate("newField = [0, 1, 2]").explode(["newField"])
 
