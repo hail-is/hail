@@ -447,9 +447,9 @@ class KeyTableSuite extends SparkSuite {
 
     assert(kt1.ungroup("field3").ungroup("field2", mangle = true).same(ungroupedKt1))
 
-    TestUtils.interceptFatal("Expecting a type of TStruct for field"){ kt1.ungroup("field0") }
+    TestUtils.interceptFatal("Can only ungroup fields of type Struct, but found type"){ kt1.ungroup("field0") }
     TestUtils.interceptFatal("Struct does not have field with name"){ kt1.ungroup("nonExistentField") }
-    TestUtils.interceptFatal("Use the `mangle=True` option to deduplicate field names:"){ kt1.ungroup("field2").ungroup("field3") }
+    TestUtils.interceptFatal("Either rename manually or use the 'mangle' option to handle duplicates"){ kt1.ungroup("field2").ungroup("field3") }
 
     // test ungroup/group gives same result
     val data2 = Array(Array(Row(23, 1)))
