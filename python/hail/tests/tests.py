@@ -334,7 +334,7 @@ class ContextTests(unittest.TestCase):
         (regression.linreg(['sa.pheno.Pheno'], ['g.gt'], covs=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
-        (regression.logreg('wald', 'sa.pheno.isCase', covs=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
+        (regression.logreg('wald', 'sa.pheno.isCase', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
         vds_assoc = (regression
