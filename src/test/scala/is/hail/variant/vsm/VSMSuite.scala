@@ -343,7 +343,7 @@ class VSMSuite extends SparkSuite {
   
   @Test def testInvalidMetadata() {
     TestUtils.interceptFatal("""invalid metadata""") {
-      hc.readVDS("src/test/resources/0.1-commithash.vds").count()
+      hc.readVDS("src/test/resources/0.1-1fd5cc7.vds").count()
     }
   }
 
