@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.utils.Interval
 import org.testng.annotations.Test
 
@@ -9,7 +9,7 @@ class GenomeReferenceSuite extends SparkSuite {
     val grch37 = GenomeReference.GRCh37
 
     assert(grch37.inX("X") && grch37.inY("Y") && grch37.isMitochondrial("MT"))
-    assert(grch37.contigs.find(_.name == "1").get.length == 249250621)
+    assert(grch37.contigLength("1") == 249250621)
 
     val parXLocus = Array(Locus("X", 2499520), Locus("X", 155260460))
     val parYLocus = Array(Locus("Y", 50001), Locus("Y", 59035050))
@@ -24,7 +24,7 @@ class GenomeReferenceSuite extends SparkSuite {
     val grch38 = GenomeReference.GRCh38
 
     assert(grch38.inX("chrX") && grch38.inY("chrY") && grch38.isMitochondrial("chrM"))
-    assert(grch38.contigs.find(_.name == "chr1").get.length == 248956422)
+    assert(grch38.contigLength("chr1") == 248956422)
 
     val parXLocus38 = Array(Locus("chrX", 2781479), Locus("chrX", 156030895))
     val parYLocus38 = Array(Locus("chrY", 50001), Locus("chrY", 57217415))
@@ -36,16 +36,22 @@ class GenomeReferenceSuite extends SparkSuite {
   }
 
   @Test def testAssertions() {
-    intercept[IllegalArgumentException](GenomeReference("test", Array(Contig("1", 5), Contig("2", 5), Contig("3", 5)),
+    TestUtils.interceptFatal("The following X contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
       Set("X"), Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array(Contig("1", 5), Contig("2", 5), Contig("3", 5)),
-      Set.empty[String], Set("Y"), Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array(Contig("1", 5), Contig("2", 5), Contig("3", 5)),
-      Set.empty[String], Set.empty[String], Set("MT"), Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array.empty[Contig],
+    TestUtils.interceptFatal("No lengths given for the following contigs:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5),
       Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array(Contig("1", 5), Contig("2", 5), Contig("3", 5)),
-      Set.empty[String], Set.empty[String], Set("MT"), Array(Interval(Locus("X", 1), Locus("X", 5)))))
+    TestUtils.interceptFatal("Contigs found in `lengths' that are not present in `contigs'")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100),
+      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
+    TestUtils.interceptFatal("The following Y contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set.empty[String], Set("Y"), Set.empty[String], Array.empty[Interval[Locus]]))
+    TestUtils.interceptFatal("The following mitochondrial contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set.empty[String], Set.empty[String], Set("MT"), Array.empty[Interval[Locus]]))
+    TestUtils.interceptFatal("Must have at least one contig in the reference genome.")(GenomeReference("test", Array.empty[String], Map.empty[String, Int],
+      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
+    TestUtils.interceptFatal("The contig name for PAR interval")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set.empty[String], Set.empty[String], Set.empty[String], Array(Interval(Locus("X", 1), Locus("X", 5)))))
+    TestUtils.interceptFatal("in both X and Y contigs.")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set("1"), Set("1"), Set.empty[String], Array.empty[Interval[Locus]]))
   }
 
   @Test def testVariant() {
