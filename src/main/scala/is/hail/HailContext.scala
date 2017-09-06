@@ -29,8 +29,8 @@ object HailContext {
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
 
-  def configureAndCreateSparkContext(appName: String, master: Option[String], local: String,
-    parquetCompression: String, blockSize: Long): SparkContext = {
+  def configureAndCreateSparkContext(appName: String, master: Option[String],
+    local: String, blockSize: Long): SparkContext = {
     require(blockSize >= 0)
     require(is.hail.HAIL_SPARK_VERSION == org.apache.spark.SPARK_VERSION,
       s"""This Hail JAR was compiled for Spark ${ is.hail.HAIL_SPARK_VERSION },
@@ -58,20 +58,7 @@ object HailContext {
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     conf.set("spark.kryo.registrator", "is.hail.kryo.HailKryoRegistrator")
 
-    conf.set("spark.sql.parquet.compression.codec", parquetCompression)
-    conf.set("spark.sql.files.openCostInBytes", tera.toString)
-    conf.set("spark.sql.files.maxPartitionBytes", tera.toString)
-
     conf.set("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", (blockSize * 1024L * 1024L).toString)
-
-    /* `DataFrame.write` writes one file per partition.  Without this, read will split files larger than the default
-     * parquet block size into multiple partitions.  This causes `OrderedRDD` to fail since the per-partition range
-     * no longer line up with the RDD partitions.
-     *
-     * For reasons we don't understand, the DataFrame code uses `SparkHadoopUtil.get.conf` instead of the Hadoop
-     * configuration in the SparkContext.  Set both for consistency.
-     */
-    conf.set("spark.hadoop.parquet.block.size", tera.toString)
 
     // load additional Spark properties from HAIL_SPARK_PROPERTIES
     val hailSparkProperties = System.getenv("HAIL_SPARK_PROPERTIES")
@@ -97,16 +84,6 @@ object HailContext {
     val conf = sc.getConf
 
     val problems = new ArrayBuffer[String]
-
-    val enoughGigs = 1024L * 1024L * 1024L * 50
-    val sqlFileKeys = List("spark.sql.files.openCostInBytes",
-      "spark.sql.files.maxPartitionBytes")
-
-    sqlFileKeys.foreach { k =>
-      val param = conf.getLong(k, 0)
-      if (param < enoughGigs)
-        problems += s"Invalid configuration property $k: too small, at least 50G required. Found: $param."
-    }
 
     val serializer = conf.get("spark.serializer")
     val kryoSerializer = "org.apache.spark.serializer.KryoSerializer"
@@ -147,7 +124,6 @@ object HailContext {
     logFile: String = "hail.log",
     quiet: Boolean = false,
     append: Boolean = false,
-    parquetCompression: String = "snappy",
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp"): HailContext = {
@@ -167,14 +143,12 @@ object HailContext {
     configureLogging(logFile, quiet, append)
 
     val sparkContext = if (sc == null)
-      configureAndCreateSparkContext(appName, master, local, parquetCompression, minBlockSize)
+      configureAndCreateSparkContext(appName, master, local, minBlockSize)
     else {
-      SparkHadoopUtil.get.conf.setLong("parquet.block.size", 1024L * 1024L * 1024L * 1024L)
       checkSparkConfiguration(sc)
       sc
     }
 
-    SparkHadoopUtil.get.conf.setLong("parquet.block.size", tera)
     sparkContext.hadoopConfiguration.set("io.compression.codecs",
       "org.apache.hadoop.io.compress.DefaultCodec," +
         "is.hail.io.compress.BGzipCodec," +

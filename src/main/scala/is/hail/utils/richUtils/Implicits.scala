@@ -94,8 +94,6 @@ trait Implicits {
 
   implicit def toRichSC(sc: SparkContext): RichSparkContext = new RichSparkContext(sc)
 
-  implicit def toRichSQLContext(sqlContext: SQLContext): RichSQLContext = new RichSQLContext(sqlContext)
-
   implicit def toRichSortedPairIterator[K, V](it: Iterator[(K, V)]): RichPairIterator[K, V] = new RichPairIterator(it)
 
   implicit def toRichString(str: String): RichString = new RichString(str)
