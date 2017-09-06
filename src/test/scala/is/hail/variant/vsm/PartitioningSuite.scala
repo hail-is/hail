@@ -19,7 +19,7 @@ class PartitioningSuite extends SparkSuite {
     s1 == s2
   }
 
-  @Test def testParquetWriteRead() {
+  @Test def testWriteRead() {
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random), Gen.choose(1, 10)) { case (vds, nPar) =>
 
       val out = tmpDir.createTempFile("out", ".vds")

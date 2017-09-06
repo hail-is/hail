@@ -35,8 +35,6 @@ class HailContext(HistoryMixin):
 
     :param append: Write to end of log file instead of overwriting.
 
-    :param parquet_compression: Level of on-disk annotation compression.
-
     :param min_block_size: Minimum file split size in MB.
 
     :param branching_factor: Branching factor for tree aggregation.
@@ -55,12 +53,11 @@ class HailContext(HistoryMixin):
                       log=strlike,
                       quiet=bool,
                       append=bool,
-                      parquet_compression=strlike,
                       min_block_size=integral,
                       branching_factor=integral,
                       tmp_dir=strlike)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
-                 log='hail.log', quiet=False, append=False, parquet_compression='snappy',
+                 log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
 
         if Env._hc:
@@ -84,7 +81,7 @@ class HailContext(HistoryMixin):
         # to be routed through Python separately.
         self._jhc = self._hail.HailContext.apply(
             jsc, app_name, joption(master), local, log, True, append,
-            parquet_compression, min_block_size, branching_factor, tmp_dir)
+            min_block_size, branching_factor, tmp_dir)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))

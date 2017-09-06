@@ -212,40 +212,6 @@ class OrderedRDDSuite extends SparkSuite {
       checkLeftJoinDistinct(1, is1, nPar2, is2)
     }
 
-    val tmpPartitioner = tmpDir.createTempFile("partitioner.json.gz")
-    val tmpRdd = tmpDir.createTempFile("rdd", ".parquet")
-
-    property("writeRead") = Prop.forAll(g) { case (nPar, is) =>
-      val rdd = sc.parallelize(is, nPar).toOrderedRDD
-      val schema = StructType(Array(
-        StructField("variant", Variant.sparkSchema, nullable = false),
-        StructField("str", StringType, nullable = false)))
-      hadoopConf.delete(tmpRdd, recursive = true)
-      val df = sqlContext.createDataFrame(rdd.map { case (v, s) => Row.fromSeq(Seq(v.toRow, s)) }, schema)
-        .write.parquet(tmpRdd)
-
-      hadoopConf.writeTextFile(tmpPartitioner) { out =>
-        out.write(JsonMethods.compact(rdd.partitioner.get.asInstanceOf[OrderedPartitioner[Locus, Variant]].toJSON))
-      }
-
-      val status = hadoopConf.fileStatus(tmpPartitioner)
-
-      val rddReadBack = sqlContext.readParquetSorted(tmpRdd)
-        .map(r => (Variant.fromRow(r.getAs[Row](0)), r.getAs[String](1)))
-
-      val readBackPartitioner = hadoopConf.readFile(tmpPartitioner) { in =>
-        JsonMethods.parse(in).fromJSON[OrderedPartitioner[Locus, Variant]]
-      }
-
-      val orderedRddRB = OrderedRDD[Locus, Variant, String](rddReadBack, readBackPartitioner)
-
-      orderedRddRB.zipPartitions(rdd) { case (it1, it2) =>
-        it1.zip(it2)
-      }
-        .collect()
-        .forall { case (v1, v2) => v1 == v2 }
-    }
-
     val scrambled = for (rdd <- Gen.oneOfGen(sorted, locusSorted);
       newPartitions <- Gen.shuffle(rdd.partitions.indices)
     ) yield (rdd, rdd.reorderPartitions(newPartitions.toArray))
