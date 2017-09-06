@@ -152,7 +152,10 @@ class GenomeReference(HistoryMixin):
         :return: Length of contig.
         :rtype: int
         """
-        return self._jrep.contigLength(contig)
+        if contig in self._lengths:
+            return self._lengths[contig]
+        else:
+            raise KeyError("Contig `{}' is not in reference genome.".format(contig))
 
     @classmethod
     @record_classmethod
