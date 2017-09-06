@@ -65,7 +65,7 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
     assert(size <= length)
     assert(off >= 0 && off + n <= size, s"tried to read bytes of size $n at $off from region of size $size")
     val a = new Array[Byte](n)
-    Memory.copyToArray(a, mem + off, n)
+    Memory.copyToArray(a, 0, mem + off, n)
     a
   }
 
@@ -73,7 +73,7 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
     assert(size <= length)
     assert(off >= 0 && off + n <= size, s"tried to read bytes of size $n at $off from region of size $size")
     assert(n <= dst.length)
-    Memory.copyToArray(dst, mem + off, n)
+    Memory.copyToArray(dst, 0, mem + off, n)
   }
 
   def storeInt(off: Long, i: Int) {
@@ -102,7 +102,7 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
 
   def storeAddress(off: Long, a: Long) {
     assert(size <= length)
-    assert(off >= 0 && off + 8 <= size, s"tried to store double at $off to region of size $size")
+    assert(off >= 0 && off + 8 <= size, s"tried to store address at $off to region of size $size")
     Memory.storeAddress(mem + off, a)
   }
 
@@ -113,14 +113,14 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
   }
 
   def storeBytes(off: Long, bytes: Array[Byte]) {
-    storeBytes(off, bytes, bytes.length)
+    storeBytes(off, bytes, 0, bytes.length)
   }
 
-  def storeBytes(off: Long, bytes: Array[Byte], n: Int) {
+  def storeBytes(off: Long, bytes: Array[Byte], bytesOff: Long, n: Int) {
     assert(size <= length)
     assert(off >= 0 && off + n <= size, s"tried to store $n bytes at $off to region of size $size")
-    assert(n <= bytes.length)
-    Memory.copyFromArray(mem + off, bytes, n)
+    assert(bytesOff + n <= bytes.length)
+    Memory.copyFromArray(mem + off, bytes, bytesOff, n)
   }
 
   def ensure(n: Long) {
@@ -205,9 +205,9 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
     storeBytes(allocate(bytes.length), bytes)
   }
 
-  def appendBytes(bytes: Array[Byte], n: Int) {
-    assert(n <= bytes.length)
-    storeBytes(allocate(n), bytes, n)
+  def appendBytes(bytes: Array[Byte], bytesOff: Long, n: Int) {
+    assert(bytesOff + n <= bytes.length)
+    storeBytes(allocate(n), bytes, bytesOff, n)
   }
 
   def clear() {
