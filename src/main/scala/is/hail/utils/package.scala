@@ -353,6 +353,15 @@ package object utils extends Logging
     count
   }
 
+  def getIteratorSizeWithMaxN[T](max: Long)(iterator: Iterator[T]): Long = {
+    var count = 0L
+    while (iterator.hasNext && count < max) {
+      count += 1L
+      iterator.next()
+    }
+    count
+  }
+
   def lookupMethod(c: Class[_], method: String): Method = {
     try {
       c.getDeclaredMethod(method)

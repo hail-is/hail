@@ -76,7 +76,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
   def collectAsSet(): collection.Set[T] = {
     r.aggregate(mutable.Set.empty[T])(
-      { case (s, elem) => s += elem }, { case (s1, s2) => s1 ++ s2 }
+      { case (s, elem) => s += elem },
+      { case (s1, s2) => s1 ++ s2 }
     )
   }
 
@@ -98,39 +99,69 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
   }
 
-  def headPerPartition(n: Int)(implicit ct: ClassTag[T]): RDD[T] = {
-    require(n >= 0)
-    r.mapPartitions({ it => it.take(n) }, preservesPartitioning = true)
+  def countPerPartition()(implicit ct: ClassTag[T]): Array[Long] = {
+    val sc = r.sparkContext
+    sc.runJob(r, getIteratorSize _)
   }
 
+  def headPerPartition(n: Int)(implicit ct: ClassTag[T]): RDD[T] = {
+    require(n >= 0)
+    r.mapPartitions(_.take(n), preservesPartitioning = true)
+  }
+
+  /**
+    * Parts of this method are lifted from:
+    *   org.apache.spark.rdd.RDD.take
+    *   Spark version 2.0.2
+    */
   def head(n: Long)(implicit ct: ClassTag[T]): RDD[T] = {
     require(n >= 0)
 
     val sc = r.sparkContext
-    val parallelism = sc.defaultParallelism
-    val nPartitions = r.partitions.length
+    val nPartitions = r.getNumPartitions
 
-    val counts = new Array[Long](nPartitions)
-    var nScanned = 0
-    var nSeen = 0L
+    var partScanned = 0
+    var nLeft = n
+    var idxLast = 0
+    var nLast = 0L
+    var numPartsToTry = 1L
 
-    while (nSeen < n && nScanned < nPartitions) {
-      val scanPartitions = nScanned until (nScanned + parallelism): Seq[Int]
-      sc.runJob(r, getIteratorSize _, scanPartitions)
-        .zipWithIndex.foreach { case (c, i) =>
-        counts(nScanned + i) = c
-        nSeen += c
+    while (nLeft > 0 && partScanned < nPartitions) {
+      val nSeen = n - nLeft
+
+      if (partScanned > 0) {
+        // If we didn't find any rows after the previous iteration, quadruple and retry.
+        // Otherwise, interpolate the number of partitions we need to try, but overestimate
+        // it by 50%. We also cap the estimation in the end.
+        if (nSeen == 0) {
+          numPartsToTry = partScanned * 4
+        } else {
+          // the left side of max is >=1 whenever partsScanned >= 2
+          numPartsToTry = Math.max((1.5 * n * partScanned / nSeen).toInt - partScanned, 1)
+          numPartsToTry = Math.min(numPartsToTry, partScanned * 4)
+        }
       }
-      nScanned += parallelism
+
+      val p = partScanned.until(math.min(partScanned + numPartsToTry, nPartitions).toInt)
+      val counts = sc.runJob(r, getIteratorSizeWithMaxN(nLeft) _, p)
+
+      p.zip(counts).foreach { case (idx, c) =>
+        if (nLeft > 0) {
+          idxLast = idx
+          nLast = if (c < nLeft) c else nLeft
+          nLeft -= nLast
+        }
+      }
+
+      partScanned += p.size
     }
 
-    var nRemaining = n
-    val elementsPerPartition = counts.map { c =>
-      val nTake = if (c <= nRemaining) c else nRemaining
-      nRemaining -= nTake
-      nTake.toInt
-    }
-
-    r.mapPartitionsWithIndex({ case (i, it) => it.take(elementsPerPartition(i)) }, preservesPartitioning = true)
+    r.mapPartitionsWithIndex({ case (i, it) =>
+      if (i == idxLast)
+        it.take(nLast.toInt)
+      else
+        it
+    }, preservesPartitioning = true)
+      .subsetPartitions((0 to idxLast).toArray)
   }
 }

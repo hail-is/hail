@@ -9,22 +9,20 @@ class RichRDDSuite extends SparkSuite {
     assert(r.headPerPartition(5).count() == 100)
   }
 
-  @Test def testTake() {
+  @Test def testHead() {
     val r = sc.parallelize(0 until 1024, numSlices = 20)
+    val partitionRanges = r.countPerPartition().scanLeft(Range(0, 0)) { case (x, c) => Range(x.end, x.end + c.toInt) }
 
-    val t1 = r.head(15)
-    assert(t1.count == 15)
+    def getExpectedNumPartitions(n: Int): Int =
+      partitionRanges.indexWhere(_.contains(math.max(0, n - 1)))
 
-    val t2 = r.head(200)
-    assert(t2.count == 200)
+    for (n <- Array(0, 15, 200, 562, 1024, 2000)) {
+      val t = r.head(n)
+      val nActual = math.min(n, 1024)
 
-    val t3 = r.head(562)
-    assert(t3.count == 562)
-
-    val t4 = r.head(2000)
-    assert(t4.count == 1024)
-
-    val t5 = r.head(0)
-    assert(t5.count == 0)
+      assert(t.collect() sameElements (0 until nActual))
+      assert(t.count() == nActual)
+      assert(t.getNumPartitions == getExpectedNumPartitions(nActual))
+    }
   }
 }
