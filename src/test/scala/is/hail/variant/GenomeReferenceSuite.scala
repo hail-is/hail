@@ -1,7 +1,10 @@
 package is.hail.variant
 
+import is.hail.expr.{TInterval, TLocus, TStruct, TVariant}
+import is.hail.keytable.KeyTable
+import is.hail.utils.{FunctionDocumentation, Interval}
 import is.hail.{SparkSuite, TestUtils}
-import is.hail.utils.Interval
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class GenomeReferenceSuite extends SparkSuite {
@@ -73,5 +76,28 @@ class GenomeReferenceSuite extends SparkSuite {
       assert(v.inXNonPar == v.inXNonPar(gr))
       assert(v.inYNonPar == v.inYNonPar(gr))
     }
+  }
+
+  @Test def testParser() {
+    val gr = GenomeReference("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]])
+    GenomeReference.addReference(gr)
+
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+      .annotateVariantsExpr("va.v = NA: Variant(foo), va.l = NA: Locus(foo), va.i = NA: Interval(foo)")
+
+    val vas = vds.vaSignature.asInstanceOf[TStruct]
+
+    assert(vas.field("v").typ == TVariant(gr))
+    assert(vas.field("l").typ == TLocus(gr))
+    assert(vas.field("i").typ == TInterval(gr))
+  }
+
+  @Test(enabled = false) def testFuncReg() {
+    val data = Array(Row(Variant("X", 154931044, "A", "G"), Variant("X", 156030895, "A", "G")))
+    val kt = KeyTable(hc, sc.parallelize(data),
+      TStruct(("v37", TVariant(GenomeReference.GRCh37)), ("v38", TVariant(GenomeReference.GRCh38))))
+
+    assert(kt.forall("v37.inXPar() && v38.inXPar()"))
   }
 }

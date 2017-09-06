@@ -622,7 +622,8 @@ object FunctionRegistry {
     def typ = TTBoxed
   }
 
-  val GR = GRVariable(GenomeReference.GRCh37)
+  val GR = GRVariable()
+
   private def nonceToNullable[T : TypeInfo, U >: Null](check: Code[T] => Code[Boolean], v: Code[T], ifPresent: Code[T] => Code[U]): CM[Code[U]] = for (
     (stx, x) <- CM.memoize(v)
   ) yield Code(stx, check(x).mux(Code._null[U], ifPresent(x)))
@@ -981,7 +982,7 @@ object FunctionRegistry {
         let v = Variant("7:76324539:A:G") in v.contig
         result: "7"
     """,
-    "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")(stringHr, variantHr(GR))
+    "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")(stringHr, variantHr(GenomeReference.GRCh37))
   register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) },
     """
     Construct a :ref:`variant` object.
@@ -995,7 +996,7 @@ object FunctionRegistry {
     "contig" -> "String representation of contig.",
     "pos" -> "SNP position or start of an indel.",
     "ref" -> "Reference allele sequence.",
-    "alt" -> "Alternate allele sequence.")(stringHr, int32Hr, stringHr, stringHr, variantHr(GR))
+    "alt" -> "Alternate allele sequence.")(stringHr, int32Hr, stringHr, stringHr, variantHr(GenomeReference.GRCh37))
   register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray) },
     """
     Construct a :ref:`variant` object.
@@ -1010,7 +1011,7 @@ object FunctionRegistry {
     "pos" -> "SNP position or start of an indel.",
     "ref" -> "Reference allele sequence.",
     "alts" -> "Array of alternate allele sequences."
-  )(stringHr, int32Hr, stringHr, arrayHr(stringHr), variantHr(GR))
+  )(stringHr, int32Hr, stringHr, arrayHr(stringHr), variantHr(GenomeReference.GRCh37))
 
   register("Dict", { (keys: IndexedSeq[Annotation], values: IndexedSeq[Annotation]) =>
     if (keys.length != values.length)
@@ -1020,7 +1021,7 @@ object FunctionRegistry {
     "keys" -> "Keys of Dict.",
     "values" -> "Values of Dict.")(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
 
-  val combineVariantsStruct = TStruct(Array(("variant", TVariant(GenomeReference.GRCh37), "Resulting combined variant."),
+  val combineVariantsStruct = TStruct(Array(("variant", TVariant(GR), "Resulting combined variant."),
     ("laIndices", TDict(TInt32, TInt32), "Mapping from new to old allele index for the left variant."),
     ("raIndices", TDict(TInt32, TInt32), "Mapping from new to old allele index for the right variant.")
   ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
@@ -1085,7 +1086,7 @@ object FunctionRegistry {
         result: 10040532
     """,
     ("s", "String of the form ``CHR:POS``")
-  )(stringHr, locusHr(GR))
+  )(stringHr, locusHr(GenomeReference.GRCh37))
 
   register("Locus", { (x: String, y: Int) => Locus(x, y) },
     """
@@ -1098,13 +1099,13 @@ object FunctionRegistry {
         result: 10040532
     """,
     "contig" -> "String representation of contig.",
-    "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GR))
+    "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GenomeReference.GRCh37))
   register("Interval", { (x: Locus, y: Locus) => Interval(x, y) },
     """
     Construct a :ref:`interval` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
     """,
     "startLocus" -> "Start position of interval",
-    "endLocus" -> "End position of interval")(locusHr(GR), locusHr(GR), locusIntervalHr(GR))
+    "endLocus" -> "End position of interval")(locusHr(GenomeReference.GRCh37), locusHr(GenomeReference.GRCh37), locusIntervalHr(GenomeReference.GRCh37))
 
   val hweStruct = TStruct(Array(("rExpectedHetFrequency", TFloat64, "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
     ("pHWE", TFloat64, "P-value")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
@@ -1264,7 +1265,7 @@ object FunctionRegistry {
     Returns an interval parsed in the same way as :py:meth:`~hail.representation.Interval.parse`
     """,
     "s" -> "The string to parse."
-  )(stringHr, locusIntervalHr(GR))
+  )(stringHr, locusIntervalHr(GenomeReference.GRCh37))
 
   register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
     """
@@ -1272,7 +1273,7 @@ object FunctionRegistry {
     """,
     "chr" -> "Chromosome.",
     "start" -> "Starting position.",
-    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, locusIntervalHr(GR))
+    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, locusIntervalHr(GenomeReference.GRCh37))
 
   register("pcoin", { (p: Double) => math.random < p },
     """

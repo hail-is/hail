@@ -121,7 +121,8 @@ object MendelErrors {
 
 case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
   sampleIds: IndexedSeq[String],
-  mendelErrors: RDD[MendelError]) {
+  mendelErrors: RDD[MendelError],
+  gr: GRBase = GenomeReference.GRCh37) {
 
   private val sc = mendelErrors.sparkContext
   private val trioFam = trios.iterator.flatMap(t => t.fam.map(f => (t.kid, f))).toMap

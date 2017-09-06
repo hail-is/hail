@@ -36,13 +36,13 @@ abstract class GRBase extends Serializable {
 
   def toJSON: JValue
 
-  def unify(concrete: GenomeReference): Boolean
+  def unify(concrete: GRBase): Boolean
 
   def isBound: Boolean
 
   def clear(): Unit
 
-  def subst(): GenomeReference
+  def subst(): GRBase
 }
 
 case class GenomeReference(name: String, contigs: Array[String], lengths: Map[String, Int], xContigs: Set[String],
@@ -157,16 +157,30 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def unify(concrete: GenomeReference): Boolean = this == concrete
+  def unify(concrete: GRBase): Boolean = this == concrete
 
   def isBound: Boolean = true
 
   def clear() {}
 
   def subst(): GenomeReference = this
+
+  override def toString: String = name
 }
 
 object GenomeReference {
+  var references: Map[String, GenomeReference] = Map("GRCh37" -> GRCh37, "GRCh38" -> GRCh38)
+
+  def addReference(gr: GenomeReference) {
+    references += (gr.name -> gr)
+  }
+
+  def getReference(name: String): GenomeReference = {
+    references.get(name) match {
+      case Some(gr) => gr
+      case None => fatal(s"No genome reference with name `$name' exists. Available references: `${ references.keys.mkString(", ") }'.")
+    }
+  }
 
   def GRCh37: GenomeReference = fromResource("reference/grch37.json")
 
@@ -197,11 +211,11 @@ object GenomeReference {
       par.asScala.toArray)
 }
 
-case class GRVariable(var gr: GenomeReference = null) extends GRBase {
+case class GRVariable(var gr: GRBase = null) extends GRBase {
 
-  override def toString = "GenomeReference"
+  override def toString = "?GR"
 
-  def unify(concrete: GenomeReference): Boolean = {
+  def unify(concrete: GRBase): Boolean = {
     if (gr == null) {
       gr = concrete
       true
@@ -215,7 +229,7 @@ case class GRVariable(var gr: GenomeReference = null) extends GRBase {
     gr = null
   }
 
-  def subst(): GenomeReference = {
+  def subst(): GRBase = {
     assert(gr != null)
     gr
   }

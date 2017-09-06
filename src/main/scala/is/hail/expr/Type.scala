@@ -6,7 +6,7 @@ import is.hail.check.{Gen, _}
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils
 import is.hail.utils.{Interval, StringEscapeUtils, _}
-import is.hail.variant.{AltAllele, Call, Contig, GenomeReference, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, Contig, GRBase, GenomeReference, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
 import org.json4s._
@@ -982,8 +982,8 @@ case object TAltAllele extends ComplexType {
     "alt" -> TString)
 }
 
-case class TVariant(gr: GenomeReference) extends ComplexType {
-  override def toString = "Variant"
+case class TVariant(gr: GRBase) extends ComplexType {
+  override def toString = s"""Variant($gr)"""
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 
@@ -1063,10 +1063,14 @@ case class TVariant(gr: GenomeReference) extends ComplexType {
     case TVariant(cgr) => gr.unify(cgr)
     case _ => false
   }
+
+  override def clear(): Unit = gr.clear()
+
+  override def subst() = TVariant(gr.subst())
 }
 
-case class TLocus(gr: GenomeReference) extends ComplexType {
-  override def toString = "Locus"
+case class TLocus(gr: GRBase) extends ComplexType {
+  override def toString = s"Locus($gr)"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
 
@@ -1111,10 +1115,14 @@ case class TLocus(gr: GenomeReference) extends ComplexType {
     case TLocus(cgr) => gr.unify(cgr)
     case _ => false
   }
+
+  override def clear(): Unit = gr.clear()
+
+  override def subst() = TLocus(gr.subst())
 }
 
-case class TInterval(gr: GenomeReference) extends ComplexType {
-  override def toString = "Interval"
+case class TInterval(gr: GRBase) extends ComplexType {
+  override def toString = s"""Interval($gr)"""
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
 
@@ -1156,6 +1164,10 @@ case class TInterval(gr: GenomeReference) extends ComplexType {
     case TInterval(cgr) => gr.unify(cgr)
     case _ => false
   }
+
+  override def clear(): Unit = gr.clear()
+
+  override def subst() = TInterval(gr.subst())
 }
 
 final case class Field(name: String, typ: Type,

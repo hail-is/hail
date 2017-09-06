@@ -6,7 +6,7 @@ import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, GenericGenotype, GenomeReference, Locus, Variant}
+import is.hail.variant.{AltAllele, GRBase, GenericGenotype, Locus, Variant}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
@@ -115,8 +115,8 @@ object UnsafeRow {
   def readString(region: MemoryBuffer, boff: Long): String =
     new String(readBinary(region, boff))
 
-  def readLocus(region: MemoryBuffer, offset: Long): Locus = {
-    val ft = TLocus(GenomeReference.GRCh37).fundamentalType.asInstanceOf[TStruct]
+  def readLocus(region: MemoryBuffer, offset: Long, gr: GRBase): Locus = {
+    val ft = TLocus(gr).fundamentalType.asInstanceOf[TStruct]
     Locus(
       readString(region, ft.loadField(region, offset, 0)),
       region.loadInt(ft.loadField(region, offset, 1)))
@@ -189,13 +189,13 @@ object UnsafeRow {
           region.loadInt(ft.loadField(region, offset, 1)),
           readString(region, ft.loadField(region, offset, 2)),
           readArrayAltAllele(region, ft.loadField(region, offset, 3)))
-      case x: TLocus => readLocus(region, offset)
+      case x: TLocus => readLocus(region, offset, x.gr)
       case TAltAllele => readAltAllele(region, offset)
       case x: TInterval =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]
         Interval[Locus](
-          readLocus(region, ft.loadField(region, offset, 0)),
-          readLocus(region, ft.loadField(region, offset, 1)))
+          readLocus(region, ft.loadField(region, offset, 0), x.gr),
+          readLocus(region, ft.loadField(region, offset, 1), x.gr))
       case TGenotype =>
         val ft = TGenotype.fundamentalType.asInstanceOf[TStruct]
         val gt: Int =
