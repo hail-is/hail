@@ -292,7 +292,7 @@ case object TBoolean extends Type {
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-      java.lang.Boolean.compare(r1.loadBoolean(o1), r2.loadBoolean(o1))
+      java.lang.Boolean.compare(r1.loadBoolean(o1), r2.loadBoolean(o2))
     }
   }
 
