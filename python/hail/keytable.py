@@ -1343,20 +1343,36 @@ class KeyTable(HistoryMixin):
 
         return KeyTable(self.hc, self._jkt.indexed(name))
 
-    @typecheck_method(rows=integral,
+    @typecheck_method(n=integral,
                       truncate_to=nullable(integral),
                       print_types=bool)
-    def show(self, rows=10, truncate_to=None, print_types=True):
+    def show(self, n=10, truncate_to=None, print_types=True):
         """Show the first few rows of the table in human-readable format.
 
-        :param int rows: Number of rows to show.
+        **Examples**
+
+        Show, with default parameters (10 rows, no truncation, and column types):
+
+        >>> kt1.show()
+
+        Truncate long columns to 25 characters and only write 5 rows:
+
+        >>> kt1.show(5, truncate_to=25)
+
+        **Notes**
+
+        If the ``truncate_to`` argument is ``None``, then no truncation will
+        occur. This is the default behavior. An integer argument will truncate
+        each cell to the specified number of characters.
+
+        :param int n: Number of rows to show.
 
         :param truncate_to: Truncate columns to the desired number of characters.
         :type truncate_to: int or None
 
         :param bool print_types: Print a line with column types.
         """
-        to_print = self._jkt.showString(rows, joption(truncate_to), print_types)
+        to_print = self._jkt.showString(n, joption(truncate_to), print_types)
         print(to_print)
 
     @classmethod

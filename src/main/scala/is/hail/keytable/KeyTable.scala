@@ -762,19 +762,19 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     Graph.maximalIndependentSet(edgeRdd.collect())
   }
 
-  def showString(rows: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true): String = {
+  def showString(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true): String = {
     /**
       * Parts of this method are lifted from:
       *   org.apache.spark.sql.Dataset.showString
       *   Spark version 2.0.2
       */
 
-    require(rows >= 0, s"number of rows to show must be non-negative, found $rows")
+    require(n >= 0, s"number of rows to show must be non-negative, found $n")
     truncate.foreach { tr => require(tr > 3, s"truncation length too small: $tr") }
 
-    val takeResult = take(rows + 1)
-    val hasMoreData = takeResult.length > rows
-    val data = takeResult.take(rows)
+    val takeResult = take(n + 1)
+    val hasMoreData = takeResult.length > n
+    val data = takeResult.take(n)
 
     def convertType(t: Type, name: String, ab: ArrayBuilder[(String, String, Boolean)]) {
       t match {
@@ -867,7 +867,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     sb.append(sep)
 
     if (hasMoreData)
-      sb.append(s"showing top $rows ${ plural(rows, "row") }\n")
+      sb.append(s"showing top $n ${ plural(n, "row") }\n")
 
     sb.result()
   }
