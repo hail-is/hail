@@ -35,6 +35,7 @@ class ArrayStackSuite extends TestNGSuite {
 
     s(2) = 39
     assert(s.pop() == -13)
+    assert(s.top == 11)
     assert(s.size == 4)
 
     assert(s.pop() == 11)

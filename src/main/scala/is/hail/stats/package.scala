@@ -297,12 +297,7 @@ package object stats {
     result.toInt
   }
 
-  def uninitialized[T]: T = {
-    class A {
-      var x: T = _
-    }
-    (new A).x
-  }
+  def uninitialized[@specialized T]: T = null.asInstanceOf[T]
 
   // genotypes(i,j) is genotype of variant j in sample i encoded as one of {-1, 0, 1, 2}; i and j are 0-based indices
   // sample i is "i" by default
