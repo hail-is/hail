@@ -1307,28 +1307,29 @@ class KeyTable(HistoryMixin):
         return KeyTable(self.hc, self._jkt.union([kt._jkt for kt in kts]))
 
     @handle_py4j
+    @record_method
     @typecheck_method(n=integral)
-    def take(self, n):
+    def head(self, n=10):
         """Take a given number of rows from the head of the table.
-        
+
         **Examples**
-        
-        Take the first ten rows:
-        
-        >>> first10 = kt1.take(10)
-        
+
+        Take the first 50 rows:
+
+        >>> first50 = kt1.head(50)
+
         **Notes**
-        
-        This method does not need to look at all the data, and 
-        allows for fast queries of the start of the table.
-        
+
+        The number of partitions in the new table is equal to the number
+        of partitions containing the first n elements.
+
         :param int n: Number of rows to take.
-        
-        :return: Rows from the start of the table.
-        :rtype: list of :class:`.~hail.representation.Struct`
+
+        :return: A table with the first n rows.
+        :rtype: :class:`.KeyTable`
         """
 
-        return [self.schema._convert_to_py(r) for r in self._jkt.take(n)]
+        return KeyTable(self.hc, self._jkt.head(n))
 
     @handle_py4j
     @record_method

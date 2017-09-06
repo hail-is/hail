@@ -104,6 +104,8 @@ class ContextTests(unittest.TestCase):
 
             dataset.count()
 
+            self.assertEqual(dataset.head(3).count_variants(), 3)
+
             dataset.query_variants(['variants.count()'])
             dataset.query_samples(['samples.count()'])
 
@@ -451,7 +453,7 @@ class ContextTests(unittest.TestCase):
         variants_py = (sample
                        .annotate_variants_expr('va.hets = gs.filter(g => g.isHet).collect()')
                        .variants_table()
-                       .take(5))
+                       .head(5))
 
         VariantDataset.from_table(sample.variants_table())
 
@@ -558,14 +560,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(kt.union(kt).count(), kt.count() * 2)
         self.assertEqual(kt.union(kt, kt).count(), kt.count() * 3)
 
-        first3 = kt.take(3)
-        self.assertEqual(first3[0].qPhen, 27704)
-        self.assertEqual(first3[1].qPhen, 16636)
-        self.assertEqual(first3[2].qPhen, 7256)
-        self.assertEqual(first3[0].Sample, 'HG00096')
-        self.assertEqual(first3[1].Sample, 'HG00097')
-        self.assertEqual(first3[2].Sample, 'HG00099')
-        self.assertTrue(all(x.Status == 'CASE' for x in first3))
+        self.assertEqual(kt.head(3).count(), 3)
 
         self.assertEqual(range(10), [x.index for x in KeyTable.range(10).collect()])
         self.assertTrue(KeyTable.range(200).indexed('foo').forall('index == foo'))

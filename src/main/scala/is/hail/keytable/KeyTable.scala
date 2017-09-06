@@ -322,6 +322,12 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     filter(p)
   }
 
+  def head(n: Long = 10): KeyTable = {
+    if (n < 0)
+      fatal(s"n must be positive! Found `$n'.")
+    copy(rdd = rdd.head(n))
+  }
+
   def keyBy(key: String*): KeyTable = keyBy(key)
 
   def keyBy(key: java.util.ArrayList[String]): KeyTable = keyBy(key.asScala)
