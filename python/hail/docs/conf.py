@@ -258,7 +258,8 @@ html_static_path = ['_static']
 # directly to the root of the documentation.
 #
 html_extra_path = ['../../../../../www/hail-logo-cropped.png',
-                   '../../../../../www/navbar.css']
+                   '../../../../../www/navbar.css',
+                   'misc/']
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
 # bottom, using the given strftime format.
