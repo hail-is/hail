@@ -8,11 +8,11 @@ import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, ElasticsearchConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.utils._
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.JObject
 import org.json4s.JsonAST._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
@@ -777,5 +777,115 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val newRDD = rdd.zipWithIndex().map { case (r, ind) => ins(r, ind).asInstanceOf[Row] }
 
     copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
+  }
+
+  def showString(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true): String = {
+    /**
+      * Parts of this method are lifted from:
+      *   org.apache.spark.sql.Dataset.showString
+      *   Spark version 2.0.2
+      */
+
+    require(n >= 0, s"number of rows to show must be non-negative, found $n")
+    truncate.foreach { tr => require(tr > 3, s"truncation length too small: $tr") }
+
+    val takeResult = take(n + 1)
+    val hasMoreData = takeResult.length > n
+    val data = takeResult.take(n)
+
+    def convertType(t: Type, name: String, ab: ArrayBuilder[(String, String, Boolean)]) {
+      t match {
+        case s: TStruct => s.fields.foreach { f =>
+          convertType(f.typ, if (name == null) f.name else name + "." + f.name, ab)
+        }
+        case _ =>
+          ab += (name, t.toPrettyString(compact = true), t.isInstanceOf[TNumeric])
+      }
+    }
+
+    val headerBuilder = new ArrayBuilder[(String, String, Boolean)]()
+    convertType(signature, null, headerBuilder)
+    val (names, types, rightAlign) = headerBuilder.result().unzip3
+
+    def convertValue(t: Type, v: Annotation, ab: ArrayBuilder[String]) {
+      t match {
+        case s: TStruct =>
+          val r = v.asInstanceOf[Row]
+          s.fields.foreach(f => convertValue(f.typ, if (r == null) null else r.get(f.index), ab))
+        case _ =>
+          ab += t.str(v)
+      }
+    }
+
+    val valueBuilder = new ArrayBuilder[String]()
+    val dataStrings = data.map { r =>
+      valueBuilder.clear()
+      convertValue(signature, r, valueBuilder)
+      valueBuilder.result()
+    }
+
+    val allStrings = (Iterator(names, types) ++ dataStrings.iterator).map { arr =>
+      arr.map { str =>
+        truncate match {
+          case Some(tr) if str.length > tr => str.substring(0, tr - 3) + "..."
+          case _ => str
+        }
+      }
+    }.toArray
+
+    // Initialize the width of each column to a minimum value of '3'
+    val nCols = names.length
+    val colWidths = Array.fill(nCols)(3)
+
+    // Compute the width of each column
+    for (i <- allStrings.indices)
+      for (j <- 0 until nCols)
+        colWidths(j) = math.max(colWidths(j), allStrings(i)(j).length)
+
+    // create separator
+    val sep: String = colWidths.map("-" * _).addString(new StringBuilder(), "+-", "-+-", "-+\n").toString()
+
+    val sb = new StringBuilder()
+    sb.clear()
+    sb.append(sep)
+
+    // column names
+    allStrings(0).zipWithIndex.map { case (cell, i) =>
+      if (rightAlign(i))
+        StringUtils.leftPad(cell, colWidths(i))
+      else
+        StringUtils.rightPad(cell, colWidths(i))
+    }.addString(sb, "| ", " | ", " |\n")
+
+    sb.append(sep)
+
+    if (printTypes) {
+      // column types
+      allStrings(1).zipWithIndex.map { case (cell, i) =>
+        if (rightAlign(i))
+          StringUtils.leftPad(cell, colWidths(i))
+        else
+          StringUtils.rightPad(cell, colWidths(i))
+      }.addString(sb, "| ", " | ", " |\n")
+
+      sb.append(sep)
+    }
+
+    // data
+    allStrings.drop(2).foreach {
+      _.zipWithIndex.map { case (cell, i) =>
+        if (rightAlign(i))
+          StringUtils.leftPad(cell, colWidths(i))
+        else
+          StringUtils.rightPad(cell, colWidths(i))
+      }.addString(sb, "| ", " | ", " |\n")
+    }
+
+    sb.append(sep)
+
+    if (hasMoreData)
+      sb.append(s"showing top $n ${ plural(n, "row") }\n")
+
+    sb.result()
   }
 }
