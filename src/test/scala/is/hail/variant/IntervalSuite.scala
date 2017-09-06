@@ -46,7 +46,7 @@ class IntervalSuite extends SparkSuite {
     assert(ex1wr.same(ex1))
 
     val ex2 = IntervalList.read(hc, "src/test/resources/example2.interval_list")
-    assert(ex1.select(Array("interval"), Array("interval")).same(ex2))
+    assert(ex1.select(Array("interval")).same(ex2))
   }
 
   @Test def testAll() {

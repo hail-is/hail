@@ -37,7 +37,7 @@ class KeyTableSuite extends SparkSuite {
     KeyTable(hc, rdd, signature, keyNames)
   }
 
-  @Test def testImportExport() = {
+  @Test def testImportExport() {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
     val kt = hc.importTable(inputFile).keyBy("Sample", "Status")
@@ -53,34 +53,33 @@ class KeyTableSuite extends SparkSuite {
     assert(importedData == exportedData)
   }
 
-  @Test def testAnnotate() = {
+  @Test def testAnnotate() {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val kt1 = hc.importTable(inputFile, impute = true).keyBy("Sample")
     val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""")
     val kt3 = kt2.annotate("")
-    val kt4 = kt3.select(kt3.fieldNames, Array("qPhen", "NotStatus"))
+    val kt4 = kt3.select(kt3.columns).keyBy("qPhen", "NotStatus")
 
-    val kt1FieldNames = kt1.fieldNames.toSet
-    val kt2FieldNames = kt2.fieldNames.toSet
+    val kt1columns = kt1.columns.toSet
+    val kt2columns = kt2.columns.toSet
 
     assert(kt1.nKeys == 1)
     assert(kt2.nKeys == 1)
-    assert(kt1.nFields == 3 && kt2.nFields == 6)
+    assert(kt1.nColumns == 3 && kt2.nColumns == 6)
     assert(kt1.keyFields.zip(kt2.keyFields).forall { case (fd1, fd2) => fd1.name == fd2.name && fd1.typ == fd2.typ })
-    assert(kt1FieldNames ++ Set("qPhen2", "NotStatus", "X") == kt2FieldNames)
+    assert(kt1columns ++ Set("qPhen2", "NotStatus", "X") == kt2columns)
     assert(kt2 same kt3)
 
     def getDataAsMap(kt: KeyTable) = {
-      val fieldNames = kt.fieldNames
-      val nFields = kt.nFields
-      kt.rdd.map { a => fieldNames.zip(a.asInstanceOf[Row].toSeq).toMap }.collect().toSet
+      val columns = kt.columns
+      kt.rdd.map { a => columns.zip(a.toSeq).toMap }.collect().toSet
     }
 
     val kt3data = getDataAsMap(kt3)
     val kt4data = getDataAsMap(kt4)
 
     assert(kt4.key.toSet == Set("qPhen", "NotStatus") &&
-      kt4.fieldNames.toSet -- kt4.key == Set("qPhen2", "X", "Sample", "Status") &&
+      kt4.columns.toSet -- kt4.key == Set("qPhen2", "X", "Sample", "Status") &&
       kt3data == kt4data
     )
 
@@ -118,7 +117,7 @@ class KeyTableSuite extends SparkSuite {
     val ktInnerJoin = ktLeft.join(ktRight, "inner")
     val ktOuterJoin = ktLeft.join(ktRight, "outer")
 
-    val nExpectedFields = ktLeft.nFields + ktRight.nFields - ktRight.nKeys
+    val nExpectedColumns = ktLeft.nColumns + ktRight.nColumns - ktRight.nKeys
 
     val i: IndexedSeq[Int] = Array(1, 2, 3)
 
@@ -136,7 +135,7 @@ class KeyTableSuite extends SparkSuite {
 
     assert(ktLeftJoin.count == ktLeft.count &&
       ktLeftJoin.nKeys == nExpectedKeys &&
-      ktLeftJoin.nFields == nExpectedFields &&
+      ktLeftJoin.nColumns == nExpectedColumns &&
       ktLeftJoin.filter { a =>
         !rightKeys.contains(Option(leftJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
       }.forall("isMissing(qPhen2) && isMissing(qPhen3)")
@@ -144,18 +143,18 @@ class KeyTableSuite extends SparkSuite {
 
     assert(ktRightJoin.count == ktRight.count &&
       ktRightJoin.nKeys == nExpectedKeys &&
-      ktRightJoin.nFields == nExpectedFields &&
+      ktRightJoin.nColumns == nExpectedColumns &&
       ktRightJoin.filter { a =>
         !leftKeys.contains(Option(rightJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
       }.forall("isMissing(Status) && isMissing(qPhen)"))
 
     assert(ktOuterJoin.count == nUnionRows &&
       ktOuterJoin.nKeys == ktLeft.nKeys &&
-      ktOuterJoin.nFields == nExpectedFields)
+      ktOuterJoin.nColumns == nExpectedColumns)
 
     assert(ktInnerJoin.count == nIntersectRows &&
       ktInnerJoin.nKeys == nExpectedKeys &&
-      ktInnerJoin.nFields == nExpectedFields)
+      ktInnerJoin.nColumns == nExpectedColumns)
 
     val outputFile = tmpDir.createTempFile("join", "tsv")
     ktLeftJoin.export(outputFile)
@@ -163,7 +162,7 @@ class KeyTableSuite extends SparkSuite {
     val noNull = ktLeft.filter("isDefined(qPhen) && isDefined(Status)", keep = true).keyBy(List("Sample", "Status"))
     assert(noNull.join(
       noNull.rename(Map("qPhen" -> "qPhen_")), "outer"
-    ).rdd.forall { r => !r.toSeq.exists(_ == null)})
+    ).rdd.forall { r => !r.toSeq.exists(_ == null) })
   }
 
   @Test def testJoinDiffKeyNames() = {
@@ -174,7 +173,7 @@ class KeyTableSuite extends SparkSuite {
     val ktRight = hc.importTable(inputFile2, impute = true)
       .keyBy("Sample")
       .rename(Map("Sample" -> "sample"))
-    val ktBad = ktRight.select(ktRight.fieldNames, Array("qPhen2"))
+    val ktBad = ktRight.select(ktRight.columns).keyBy("qPhen2")
 
     intercept[HailException] {
       val ktJoinBad = ktLeft.join(ktBad, "left")
@@ -234,10 +233,10 @@ class KeyTableSuite extends SparkSuite {
     val kt = KeyTable(hc, rdd, signature, keyNames)
 
     val rename1 = kt.rename(Array("ID1", "ID2", "ID3"))
-    assert(rename1.fieldNames sameElements Array("ID1", "ID2", "ID3"))
+    assert(rename1.columns sameElements Array("ID1", "ID2", "ID3"))
 
     val rename2 = kt.rename(Map("field1" -> "ID1"))
-    assert(rename2.fieldNames sameElements Array("Sample", "ID1", "field2"))
+    assert(rename2.columns sameElements Array("Sample", "ID1", "field2"))
 
     intercept[HailException](kt.rename(Array("ID1")))
 
@@ -257,20 +256,20 @@ class KeyTableSuite extends SparkSuite {
 
     val kt = KeyTable(hc, rdd, signature, keyNames)
 
-    val select1 = kt.select(Array("field1"), Array("field1"))
-    assert((select1.key sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
+    val select1 = kt.select("field1").keyBy("field1")
+    assert((select1.key sameElements Array("field1")) && (select1.columns sameElements Array("field1")))
 
-    val select2 = kt.select(Array("Sample", "field2", "field1"), Array("Sample"))
-    assert((select2.key sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
+    val select2 = kt.select("Sample", "field2", "field1").keyBy("Sample")
+    assert((select2.key sameElements Array("Sample")) && (select2.columns sameElements Array("Sample", "field2", "field1")))
 
-    val select3 = kt.select(Array("field2", "field1", "Sample"), Array.empty[String])
-    assert((select3.key sameElements Array.empty[String]) && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
+    val select3 = kt.select("field2", "field1", "Sample").keyBy()
+    assert((select3.key sameElements Array.empty[String]) && (select3.columns sameElements Array("field2", "field1", "Sample")))
 
-    val select4 = kt.select(Array.empty[String], Array.empty[String])
-    assert((select4.key sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
+    val select4 = kt.select()
+    assert((select4.key sameElements Array.empty[String]) && (select4.columns sameElements Array.empty[String]))
 
-    intercept[HailException](kt.select(Array.empty[String], Array("Sample")))
-    intercept[HailException](kt.select(Array("Sample", "field2", "field5"), Array("Sample")))
+    intercept[HailException](kt.select().keyBy("Sample"))
+    intercept[HailException](kt.select("Sample", "field2", "field5").keyBy("Sample"))
 
     for (drop <- Array(select1, select2, select3, select4)) {
       drop.export(tmpDir.createTempFile("select", "tsv"))
@@ -284,21 +283,21 @@ class KeyTableSuite extends SparkSuite {
 
     val kt = KeyTable(hc, rdd, signature, Array("Sample"))
     val drop0 = kt.drop(Array.empty[String])
-    assert((drop0.key sameElements Array("Sample")) && (drop0.fieldNames sameElements Array("Sample", "field1", "field2")))
+    assert((drop0.key sameElements Array("Sample")) && (drop0.columns sameElements Array("Sample", "field1", "field2")))
     val drop1 = kt.drop(Array("Sample"))
-    assert((drop1.key sameElements Array.empty[String]) && (drop1.fieldNames sameElements Array("field1", "field2")))
+    assert((drop1.key sameElements Array.empty[String]) && (drop1.columns sameElements Array("field1", "field2")))
     val drop2 = kt.drop(Array("field1", "field2"))
-    assert((drop2.key sameElements Array("Sample")) && (drop2.fieldNames sameElements Array("Sample")))
+    assert((drop2.key sameElements Array("Sample")) && (drop2.columns sameElements Array("Sample")))
     val drop3 = kt.drop(Array("Sample", "field1"))
-    assert((drop3.key sameElements Array.empty[String]) && (drop3.fieldNames sameElements Array("field2")))
+    assert((drop3.key sameElements Array.empty[String]) && (drop3.columns sameElements Array("field2")))
     val drop4 = kt.drop(Array("Sample", "field2"))
-    assert((drop4.key sameElements Array.empty[String]) && (drop4.fieldNames sameElements Array("field1")))
+    assert((drop4.key sameElements Array.empty[String]) && (drop4.columns sameElements Array("field1")))
     val drop5 = kt.drop(Array("Sample", "field1", "field2"))
-    assert((drop5.key sameElements Array.empty[String]) && (drop5.fieldNames sameElements Array.empty[String]))
+    assert((drop5.key sameElements Array.empty[String]) && (drop5.columns sameElements Array.empty[String]))
 
     val kt2 = KeyTable(hc, rdd, signature, Array("field1", "field2"))
     val drop6 = kt2.drop(Array("field1"))
-    assert((drop6.key sameElements Array("field2")) && (drop6.fieldNames sameElements Array("Sample", "field2")))
+    assert((drop6.key sameElements Array("field2")) && (drop6.columns sameElements Array("Sample", "field2")))
 
     for (drop <- Array(drop0, drop1, drop2, drop3, drop4, drop5, drop6)) {
       drop.export(tmpDir.createTempFile("drop", "tsv"))
@@ -337,7 +336,7 @@ class KeyTableSuite extends SparkSuite {
       .variantsKT()
       .expandTypes()
       .flatten()
-      .select(Array("va.info.MQRankSum"), Array.empty[String])
+      .select(Array("va.info.MQRankSum"))
 
     val df = kt.toDF(sqlContext)
     df.printSchema()
@@ -376,7 +375,8 @@ class KeyTableSuite extends SparkSuite {
     val kt = vds.annotateVariantsExpr("va.id = str(v)")
       .variantsKT()
       .flatten()
-      .select(Array("v", "va.id"), Array("va.id"))
+      .select("v", "va.id")
+      .keyBy("va.id")
 
     val kt2 = KeyTable(hc, vds.variants.map(v => Row(v.toString, 5)),
       TStruct("v" -> TString, "value" -> TInt32), Array("v"))

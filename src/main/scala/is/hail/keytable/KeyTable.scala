@@ -28,10 +28,10 @@ case object Ascending extends SortOrder
 case object Descending extends SortOrder
 
 object SortColumn {
-  implicit def fromField(field: String): SortColumn = SortColumn(field, Ascending)
+  implicit def fromColumn(column: String): SortColumn = SortColumn(column, Ascending)
 }
 
-case class SortColumn(field: String, sortOrder: SortOrder)
+case class SortColumn(column: String, sortOrder: SortOrder)
 
 case class KeyTableMetadata(
   version: Int,
@@ -129,38 +129,35 @@ object KeyTable {
 case class KeyTable(hc: HailContext, rdd: RDD[Row],
   signature: TStruct, key: Array[String] = Array.empty) {
 
-  if (!fieldNames.areDistinct())
-    fatal(s"Column names are not distinct: ${ fieldNames.duplicates().mkString(", ") }")
+  if (!columns.areDistinct())
+    fatal(s"Column names are not distinct: ${ columns.duplicates().mkString(", ") }")
   if (!key.areDistinct())
     fatal(s"Key names are not distinct: ${ key.duplicates().mkString(", ") }")
-  if (!key.forall(fieldNames.contains(_)))
-    fatal(s"Key names found that are not column names: ${ key.filterNot(fieldNames.contains(_)).mkString(", ") }")
+  if (!key.forall(columns.contains(_)))
+    fatal(s"Key names found that are not column names: ${ key.filterNot(columns.contains(_)).mkString(", ") }")
 
   def fields: Array[Field] = signature.fields.toArray
 
   def keyFields: Array[Field] = key.map(signature.fieldIdx).map(i => fields(i))
 
-  def fieldNames: Array[String] = fields.map(_.name)
+  def columns: Array[String] = fields.map(_.name)
 
   def count(): Long = rdd.count()
 
-  def nFields: Int = fields.length
+  def nColumns: Int = fields.length
 
   def nKeys: Int = key.length
 
   def nPartitions: Int = rdd.partitions.length
 
   def keySignature: TStruct = {
-    val types = fields.map(f => f.name -> f.typ).toMap
-    val keyFields = key
-      .map(k => k -> types(k))
-
-    TStruct(keyFields: _*)
+    val (t, _) = signature.select(key)
+    t
   }
 
   def valueSignature: TStruct = {
-    val keySet = key.toSet
-    TStruct(signature.fields.filter(f => !keySet.contains(f.name)).map(f => (f.name, f.typ)): _*)
+    val (t, _) = signature.filter(key.toSet, include = false)
+    t
   }
 
   def typeCheck() {
@@ -219,15 +216,15 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
            |""".stripMargin)
       false
     } else {
-      val thisFieldNames = fieldNames
-      val otherFieldNames = other.fieldNames
+      val localColumns = columns
+      val localOtherColumns = other.columns
 
       keyedRDD().groupByKey().fullOuterJoin(other.keyedRDD().groupByKey()).forall { case (k, (v1, v2)) =>
         (v1, v2) match {
           case (None, None) => true
           case (Some(x), Some(y)) =>
-            val r1 = x.map(r => thisFieldNames.zip(r.toSeq).toMap).toSet
-            val r2 = y.map(r => otherFieldNames.zip(r.toSeq).toMap).toSet
+            val r1 = x.map(r => localColumns.zip(r.toSeq).toMap).toSet
+            val r2 = y.map(r => localOtherColumns.zip(r.toSeq).toMap).toSet
             val res = r1 == r2
             if (!res)
               info(s"k=$k r1=${ r1.mkString(",") } r2=${ r2.mkString(",") }")
@@ -295,7 +292,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val inserters = inserterBuilder.result()
 
-    val nFieldsLocal = nFields
+    val localNColumns = nColumns
 
     val annotF: Row => Row = { r =>
       ec.setAllFromRow(r)
@@ -329,7 +326,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def keyBy(key: java.util.ArrayList[String]): KeyTable = keyBy(key.asScala)
 
   def keyBy(key: Iterable[String]): KeyTable = {
-    val colSet = fieldNames.toSet
+    val colSet = columns.toSet
     val badKeys = key.filter(!colSet.contains(_))
 
     if (badKeys.nonEmpty)
@@ -340,80 +337,71 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     copy(key = key.toArray)
   }
 
-  def select(fieldsSelect: Array[String], newKeys: Array[String]): KeyTable = {
-    val keyColumnsNotInSelectedFields = newKeys.diff(fieldsSelect)
-    if (keyColumnsNotInSelectedFields.nonEmpty)
-      fatal(s"Key columns `${ keyColumnsNotInSelectedFields.mkString(", ") }' must be present in selected columns.")
+  def select(selectedColumns: Array[String]): KeyTable = {
+    val nonexistentColumns = selectedColumns.diff(columns)
+    if (nonexistentColumns.nonEmpty)
+      fatal(s"Selected columns `${ nonexistentColumns.mkString(", ") }' do not exist in key table. Choose from `${ columns.mkString(", ") }'.")
 
-    val fieldsNotExist = fieldsSelect.diff(fieldNames)
-    if (fieldsNotExist.nonEmpty)
-      fatal(s"Selected columns `${ fieldsNotExist.mkString(", ") }' do not exist in key table. Choose from `${ fieldNames.mkString(", ") }'.")
+    val (newSignature, del) = signature.select(selectedColumns)
+    val newKey = key.filter(selectedColumns.toSet)
 
-    val fieldTransform = fieldsSelect.map(cn => fieldNames.indexOf(cn))
-
-    val newSignature = TStruct(fieldTransform.zipWithIndex.map { case (oldIndex, newIndex) => signature.fields(oldIndex).copy(index = newIndex) })
-
-    val selectF: Row => Row = { r =>
-      Row.fromSeq(fieldTransform.map(r.get))
-    }
-
-    KeyTable(hc, mapAnnotations(selectF), newSignature, newKeys)
+    KeyTable(hc, rdd.map { r => del(r) }, newSignature, newKey)
   }
 
-  def select(fieldsSelect: java.util.ArrayList[String], newKeys: java.util.ArrayList[String]): KeyTable =
-    select(fieldsSelect.asScala.toArray, newKeys.asScala.toArray)
+  def select(selectedColumns: String*): KeyTable = select(selectedColumns.toArray)
 
-  def drop(fieldsDrop: Array[String]): KeyTable = {
-    val fieldsNotExist = fieldsDrop.diff(fieldNames)
-    if (fieldsNotExist.nonEmpty)
-      fatal(s"Columns `${ fieldsNotExist.mkString(", ") }' do not exist in key table. Choose from `${ fieldNames.mkString(", ") }'.")
+  def select(selectedColumns: java.util.ArrayList[String]): KeyTable =
+    select(selectedColumns.asScala.toArray)
 
-    val fieldsSelect = fieldNames.diff(fieldsDrop)
-    val newKeys = key.diff(fieldsDrop)
-    select(fieldsSelect, newKeys)
+  def drop(columnsToDrop: Array[String]): KeyTable = {
+    val nonexistentColumns = columnsToDrop.diff(columns)
+    if (nonexistentColumns.nonEmpty)
+      fatal(s"Columns `${ nonexistentColumns.mkString(", ") }' do not exist in key table. Choose from `${ columns.mkString(", ") }'.")
+
+    val selectedColumns = columns.diff(columnsToDrop)
+    select(selectedColumns)
   }
 
-  def drop(fieldsDrop: java.util.ArrayList[String]): KeyTable = drop(fieldsDrop.asScala.toArray)
+  def drop(columnsToDrop: java.util.ArrayList[String]): KeyTable = drop(columnsToDrop.asScala.toArray)
 
-  def rename(fieldNameMap: Map[String, String]): KeyTable = {
-    val newSignature = TStruct(signature.fields.map { fd => fd.copy(name = fieldNameMap.getOrElse(fd.name, fd.name)) })
-    val newFieldNames = newSignature.fields.map(_.name)
-    val newKey = key.map(n => fieldNameMap.getOrElse(n, n))
-    val duplicateFieldNames = newFieldNames.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter {
+  def rename(columnMap: Map[String, String]): KeyTable = {
+    val newSignature = TStruct(signature.fields.map { fd => fd.copy(name = columnMap.getOrElse(fd.name, fd.name)) })
+    val newColumns = newSignature.fields.map(_.name)
+    val newKey = key.map(n => columnMap.getOrElse(n, n))
+    val duplicateColumns = newColumns.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter {
       _._2 > 1
     }
 
-    if (duplicateFieldNames.nonEmpty)
-      fatal(s"Found duplicate column names after renaming fields: `${ duplicateFieldNames.keys.mkString(", ") }'")
+    if (duplicateColumns.nonEmpty)
+      fatal(s"Found duplicate column names after renaming columns: `${ duplicateColumns.keys.mkString(", ") }'")
 
     KeyTable(hc, rdd, newSignature, newKey)
   }
 
-  def rename(newFieldNames: Array[String]): KeyTable = {
-    if (newFieldNames.length != nFields)
-      fatal(s"Found ${ newFieldNames.length } new column names but need $nFields.")
+  def rename(newColumns: Array[String]): KeyTable = {
+    if (newColumns.length != nColumns)
+      fatal(s"Found ${ newColumns.length } new column names but need $nColumns.")
 
-    rename((fieldNames, newFieldNames).zipped.toMap)
+    rename((columns, newColumns).zipped.toMap)
   }
 
-  def rename(fieldNameMap: java.util.HashMap[String, String]): KeyTable = rename(fieldNameMap.asScala.toMap)
+  def rename(columnMap: java.util.HashMap[String, String]): KeyTable = rename(columnMap.asScala.toMap)
 
-  def rename(newFieldNames: java.util.ArrayList[String]): KeyTable = rename(newFieldNames.asScala.toArray)
+  def rename(newColumns: java.util.ArrayList[String]): KeyTable = rename(newColumns.asScala.toArray)
 
   def join(other: KeyTable, joinType: String): KeyTable = {
     if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
       fatal(
         s"""Both key tables must have the same number of keys and the types of keys must be identical. Order matters.
-           |  Left signature: ${ TStruct(keyFields).toPrettyString(compact = true) }
-           |  Right signature: ${ TStruct(other.keyFields).toPrettyString(compact = true) }""".stripMargin)
+           |  Left signature: ${ keySignature.toPrettyString(compact = true) }
+           |  Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
 
-    val preNames = fieldNames ++ other.valueSignature.fields.map(_.name)
+    val preNames = columns ++ other.valueSignature.fields.map(_.name)
     val (finalColumnNames, remapped) = mangle(preNames)
     if (remapped.nonEmpty) {
       warn(s"Remapped ${ remapped.length } ${ plural(remapped.length, "column") } from right-hand table:\n  @1",
         remapped.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
     }
-
 
     val newSignature = TStruct((keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields)
       .zipWithIndex
@@ -592,24 +580,24 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
       signature.schema.asInstanceOf[StructType])
   }
 
-  def explode(columnName: String): KeyTable = {
+  def explode(columnToExplode: String): KeyTable = {
 
-    val explodeField = signature.fieldOption(columnName) match {
+    val explodeField = signature.fieldOption(columnToExplode) match {
       case Some(x) => x
       case None =>
         fatal(
-          s"""Input field name `${ columnName }' not found in KeyTable.
-             |KeyTable field names are `${ fieldNames.mkString(", ") }'.""".stripMargin)
+          s"""Input field name `${ columnToExplode }' not found in KeyTable.
+             |KeyTable field names are `${ columns.mkString(", ") }'.""".stripMargin)
     }
 
     val index = explodeField.index
 
     val explodeType = explodeField.typ match {
       case t: TIterable => t.elementType
-      case _ => fatal(s"Require Array or Set. Column `$columnName' has type `${ explodeField.typ }'.")
+      case _ => fatal(s"Require Array or Set. Column `$columnToExplode' has type `${ explodeField.typ }'.")
     }
 
-    val newSignature = signature.copy(fields = fields.updated(index, Field(columnName, explodeType, index)))
+    val newSignature = signature.copy(fields = fields.updated(index, Field(columnToExplode, explodeType, index)))
 
     val empty = Iterable.empty[Row]
     val explodedRDD = rdd.flatMap { a =>
@@ -671,11 +659,11 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     rdd.unpersist()
   }
 
-  def orderBy(fields: SortColumn*): KeyTable =
-    orderBy(fields.toArray)
+  def orderBy(sortCols: SortColumn*): KeyTable =
+    orderBy(sortCols.toArray)
 
-  def orderBy(fields: Array[SortColumn]): KeyTable = {
-    val fieldOrds = fields.map { case SortColumn(n, so) =>
+  def orderBy(sortCols: Array[SortColumn]): KeyTable = {
+    val sortColIndexOrd = sortCols.map { case SortColumn(n, so) =>
       val i = signature.fieldIdx(n)
       val f = signature.fields(i)
 
@@ -687,8 +675,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val ord: Ordering[Annotation] = new Ordering[Annotation] {
       def compare(a: Annotation, b: Annotation): Int = {
         var i = 0
-        while (i < fieldOrds.length) {
-          val (fi, ford) = fieldOrds(i)
+        while (i < sortColIndexOrd.length) {
+          val (fi, ford) = sortColIndexOrd(i)
           val c = ford.compare(
             a.asInstanceOf[Row].get(fi),
             b.asInstanceOf[Row].get(fi))
@@ -731,7 +719,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def take(n: Int): Array[Row] = rdd.take(n)
 
   def indexed(name: String = "index"): KeyTable = {
-    if (fieldNames.contains(name))
+    if (columns.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
 
     val (newSignature, ins) = signature.insert(TInt64, name)

@@ -225,7 +225,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Double]("1.0 / -0.0").contains(Double.NegativeInfinity))
     assert(eval[Double]("0/0 * 1/0").forall(_.isNaN))
     assert(eval[Double]("0.0/0.0 * 1.0/0.0").forall(_.isNaN))
-    for { x <- Array("-1.0/0.0", "-1.0", "0.0", "1.0", "1.0/0.0") } {
+    for {x <- Array("-1.0/0.0", "-1.0", "0.0", "1.0", "1.0/0.0")} {
       assert(eval[Boolean](s"0.0/0.0 < $x").contains(false))
       assert(eval[Boolean](s"0.0/0.0 <= $x").contains(false))
       assert(eval[Boolean](s"0.0/0.0 > $x").contains(false))
@@ -1074,9 +1074,10 @@ class ExprSuite extends SparkSuite {
       b <- t.genValue) yield (t, a, b)
 
     val p = forAll(g) { case (t, a, b) =>
-        val ord = t.ordering(missingGreatest = true)
-        ord.compare(a, b) == - ord.compare(b, a)
+      val ord = t.ordering(missingGreatest = true)
+      ord.compare(a, b) == -ord.compare(b, a)
     }
+    p.check()
   }
 
   @Test def testContext() {

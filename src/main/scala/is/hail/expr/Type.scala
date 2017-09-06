@@ -1214,6 +1214,8 @@ object TStruct {
 }
 
 final case class TStruct(fields: IndexedSeq[Field]) extends Type {
+  assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
+
   override def children: Seq[Type] = fields.map(_.typ)
 
   override def canCompare(other: Type): Boolean = other match {
@@ -1631,6 +1633,18 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
         0
       }
     }
+  }
+
+  def select(keep: Array[String]): (TStruct, (Row) => Row) = {
+    val t = TStruct(keep.map { n =>
+      n -> field(n).typ
+    }: _*)
+
+    val keepIdx = keep.map(fieldIdx)
+    val selectF: Row => Row = { r =>
+      Row.fromSeq(keepIdx.map(r.get))
+    }
+    (t, selectF)
   }
 
   // needs to be lazy, because the compiler uses placeholders
