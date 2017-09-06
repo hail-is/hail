@@ -687,6 +687,9 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
   override def typecheckThis(ec: EvalContext): Type = {
+    if (cond.`type` != TBoolean) {
+      parseError(s"an `if` expression's condition must have type Boolean")
+    }
     (thenTree.`type`, elseTree.`type`) match {
       case (thenType, elseType) if thenType == elseType => thenType
       case (thenType: TNumeric, elseType: TNumeric) => TNumeric.promoteNumeric(Set(thenType, elseType))
