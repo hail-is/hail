@@ -1,9 +1,9 @@
 package is.hail.utils
 
-import is.hail.SparkSuite
+import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class ArrayBuilderSuite extends SparkSuite {
+class ArrayBuilderSuite extends TestNGSuite {
   @Test def addOneElement() {
     val ab = new ArrayBuilder[Int](0)
     ab += 3

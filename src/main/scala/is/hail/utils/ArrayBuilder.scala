@@ -2,7 +2,7 @@ package is.hail.utils
 
 import scala.reflect.ClassTag
 
-class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) {
+final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) {
   private var b: Array[T] = new Array[T](initialCapacity)
   private var size_ : Int = 0
 
