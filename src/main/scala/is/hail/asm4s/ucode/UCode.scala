@@ -1,7 +1,6 @@
 package is.hail.asm4s.ucode
 
 import is.hail.asm4s._
-import is.hail.expr.Type
 
 import is.hail.annotations._
 
@@ -16,7 +15,7 @@ trait UCode {
   def toConditional: Option[UCodeConditional] =
     None
   def coerceConditional: UCodeConditional =
-    toConditional.getOrElse { throw new RuntimeException("${this} cannot be used as a conditional") }
+    toConditional.getOrElse { throw new RuntimeException(s"${this} cannot be used as a conditional") }
 }
 
 abstract class InsnUCode(insn: AbstractInsnNode) extends UCode {
@@ -38,6 +37,7 @@ trait UCodeConditional extends UCode {
   def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode)
 }
 
+case class Null() extends InsnUCode(new InsnNode(ACONST_NULL))
 case class I32(x: Int) extends InsnUCode(new LdcInsnNode(x))
 case class I64(x: Long) extends InsnUCode(new LdcInsnNode(x))
 case class F32(x: Float) extends InsnUCode(new LdcInsnNode(x))
@@ -74,22 +74,22 @@ case class _If(cond: UCode, cnsq: UCode, altr: UCode) extends UCode {
     il += lafter
   }
 }
-case class NewInitializedArray(initializer: Array[UCode], rvb: Code[RegionValueBuilder], typ: Type) extends UCode {
+case class NewInitializedArray(initializer: Array[UCode], rvb: Code[RegionValueBuilder], ti: TypeInfo[_]) extends UCode {
   def emit(il: Growable[AbstractInsnNode]) {
-    il += tti.newArray()
+    il += ti.newArray()
     initializer.zipWithIndex.foreach { case (x, i) =>
       il += new InsnNode(DUP)
       x.emit(il)
       i.emit(il)
-      il += new InsnNode(tti.astoreOp)
+      il += new InsnNode(ti.astoreOp)
     }
   }
 }
-case class ArrayRef(array: UCode, idx: UCode, tti: Type) extends UCode {
+case class ArrayRef(array: UCode, idx: UCode, ti: TypeInfo[_]) extends UCode {
   def emit(il: Growable[AbstractInsnNode]) {
     array.emit(il)
     idx.emit(il)
-    il += new InsnNode(tti.aloadOp)
+    il += new InsnNode(ti.aloadOp)
   }
 }
 case class Erase(c: Code[_]) extends UCode {
@@ -104,11 +104,11 @@ case class Reify[T](c: UCode) extends Code[T] {
   }
 }
 
-case class ULocalRef(i: Int, tti: TypeInfo[_]) {
+case class ULocalRef(i: Int, ti: TypeInfo[_]) {
   def load(): UCode =
     new UCode {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
-        il += new IntInsnNode(tti.loadOp, i)
+        il += new IntInsnNode(ti.loadOp, i)
       }
     }
 
@@ -116,7 +116,7 @@ case class ULocalRef(i: Int, tti: TypeInfo[_]) {
     new UCode {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         rhs.emit(il)
-        il += new IntInsnNode(tti.storeOp, i)
+        il += new IntInsnNode(ti.storeOp, i)
       }
     }
 

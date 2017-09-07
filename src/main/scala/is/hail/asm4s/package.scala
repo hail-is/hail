@@ -14,6 +14,8 @@ import scala.reflect.ClassTag
 
 package object asm4s {
 
+  def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
+
   trait TypeInfo[T] {
     val name: String
     val iname: String = name

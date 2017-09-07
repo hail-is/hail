@@ -11,28 +11,29 @@ import is.hail.expr.TStruct
 import is.hail.annotations._
 
 object Compile {
-  def apply(x: IR): UCodeM[Unit] = for {
-    mb <- newVar(Code.newInstance[MemoryBuffer]())
-    srvb = new StagedRegionValueBuilder(mb)
-    _ <- terminal(x, srvb, Map())
-  } yield ()
+  case class OptionUCode(missing: UCode, value: UCode)
 
-  private[ir] def nonTerminal(x: IR, srvb: StagedRegionValueBuilder, env: Map[String, ULocalRef]): UCode = {
-    def nonTerminal(x: IR) = this.nonTerminal(x, srvb, env)
-    def terminal(x: IR) = this.terminal(x, srvb, env)
+  def apply(x: IR, outTyps: Array[MaybeGenericTypeInfo[_]]): UCodeM[Unit] =
+    terminal(x, Map(), outTyps)
+
+  private[ir] def nonTerminal(x: IR, env: Map[String, OptionUCode], outTyps: Array[MaybeGenericTypeInfo[_]]): OptionUCode = {
+    def nonTerminal(x: IR) = this.nonTerminal(x, env, outTyps)
+    def terminal(x: IR) = this.terminal(x, env, outTyps)
     x match {
+      case Null() =>
+        OptionUCode(ucode.True(), ucode.Null())
       case I32(x) =>
-        ucode.I32(x)
+        OptionUCode(ucode.False(), ucode.I32(x))
       case I64(x) =>
-        ucode.I64(x)
+        OptionUCode(ucode.False(), ucode.I64(x))
       case F32(x) =>
-        ucode.F32(x)
+        OptionUCode(ucode.False(), ucode.F32(x))
       case F64(x) =>
-        ucode.F64(x)
+        OptionUCode(ucode.False(), ucode.F64(x))
       case True() =>
-        ucode.True()
+        OptionUCode(ucode.False(), ucode.True())
       case False() =>
-        ucode.False()
+        OptionUCode(ucode.False(), ucode.False())
       case ApplyPrimitive(op, args) =>
         ???
       case LazyApplyPrimitive(op, args) =>
@@ -40,7 +41,7 @@ object Compile {
       case Lambda(name, body) =>
         ???
       case Ref(name) =>
-        env(name).load()
+        env(name)
       case MakeArray(args, typ) =>
         ???
         // ucode.NewInitializedArray(args map nonTerminal, typ)
@@ -48,7 +49,7 @@ object Compile {
         ???
         // ucode.ArrayRef(nonTerminal(a), nonTerminal(i), typ)
       case MakeStruct(fields) =>
-        srvb.start(TStruct(fields.map(x => (x._1, x._2)):_*))
+        ???
       case GetField(o, name) =>
         ???
       case In(i) =>
@@ -58,19 +59,29 @@ object Compile {
     }
   }
 
-  private[ir] def terminal(x: IR, srvb: StagedRegionValueBuilder, env: Map[String, ULocalRef]): UCodeM[Unit] = {
-    def nonTerminal(x: IR) = this.nonTerminal(x, srvb, env)
-    def terminal(x: IR) = this.terminal(x, srvb, env)
+  private[ir] def terminal(x: IR, env: Map[String, OptionUCode], outTyps: Array[MaybeGenericTypeInfo[_]]): UCodeM[Unit] = {
+    def nonTerminal(x: IR) = this.nonTerminal(x, env, outTyps)
+    def terminal(x: IR) = this.terminal(x, env, outTyps)
     x match {
-      case _If(cond, cnsq, altr) =>
-        UCodeM.mux(nonTerminal(cond), terminal(cnsq), terminal(altr))
+      case If(cond, cnsq, altr) =>
+        val OptionUCode(m, v) = nonTerminal(cond)
+        UCodeM.mux(m, ucode.Null(),
+          UCodeM.mux(v, terminal(cnsq), terminal(altr)))
       case Let(name, value, typ, body) =>
-        newVar(nonTerminal(value), typ) flatMap (x => this.terminal(body, srvb, env + (name -> x)))
-      case MapNull(name, value, body) =>
-        ???
+        val OptionUCode(m, v) = nonTerminal(value)
+        for {
+          mx <- newVar(m, typeInfo[Boolean])
+          x <- newVar(v, typ)
+          _ <- this.terminal(body, env + (name -> OptionUCode(mx.load(), x.load())), outTyps)
+        } yield ()
+      case MapNull(name, value, valueTyp, body) =>
+        val OptionUCode(m, v) = nonTerminal(value)
+        UCodeM.mux(m, ucode.Null(),
+          newVar(v, valueTyp) flatMap (x => this.terminal(body, env + (name -> OptionUCode(ucode.False(), x.load())), outTyps)))
       case Out(values) =>
         assert(values.length == 1)
-        nonTerminal(values(0))
+        val OptionUCode(m, v) = nonTerminal(values(0))
+        UCodeM.mux(m, ucode.Null(), ucode.Erase(outTyps(0).castToGeneric(ucode.Reify(v))))
       case x =>
         throw new UnsupportedOperationException(s"$x is not a terminal IR")
     }

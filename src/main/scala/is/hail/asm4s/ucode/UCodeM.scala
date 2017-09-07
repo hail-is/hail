@@ -11,7 +11,7 @@ import scala.language.existentials
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
-case class UCodeM[T](action: (FunctionBuilder[_ >: Null]) => T) {
+case class UCodeM[T](action: (FunctionBuilder[_ >: scala.Null]) => T) {
   def map[U](f: T => U): UCodeM[U] =
     UCodeM(fb => f(action(fb)))
   def flatMap[U](f: T => UCodeM[U]): UCodeM[U] =
@@ -25,10 +25,10 @@ case class UCodeM[T](action: (FunctionBuilder[_ >: Null]) => T) {
     * The user must ensure that this {@code UCodeM} refers to no more arguments
     * than {@code FunctionBuilder} {@code fb} provides.
     */
-  def run[F >: Null](fb: FunctionBuilder[F])(implicit ev: T =:= Unit): F =
+  def run[F >: scala.Null](fb: FunctionBuilder[F])(implicit ev: T =:= Unit): F =
     delayedRun(fb)(ev)()
 
-  def delayedRun[F >: Null](fb: FunctionBuilder[F])(implicit ev: T =:= Unit): () => F = {
+  def delayedRun[F >: scala.Null](fb: FunctionBuilder[F])(implicit ev: T =:= Unit): () => F = {
     action(fb)
     fb.result()
   }
@@ -50,7 +50,7 @@ object UCodeM {
       r
     }
 
-  private case class FbIsGrowable(fb: FunctionBuilder[_ >: Null]) extends Growable[AbstractInsnNode] {
+  private case class FbIsGrowable(fb: FunctionBuilder[_ >: scala.Null]) extends Growable[AbstractInsnNode] {
     def +=(e: AbstractInsnNode) = { fb.emit(e); this }
     def clear() = throw new UnsupportedOperationException()
   }

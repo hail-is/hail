@@ -1705,10 +1705,6 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     region.allocate(byteSize)
   }
 
-  def allocateCode(cb: CodeBlock, region: Code[MemoryBuffer]): Code[Long] =
-    Code(region.invoke[Long, Unit]("align", alignment),
-      region.invoke[Long, Long]("allocate", byteSize))
-
   def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =
     !region.loadBit(offset, fieldIdx)
 
