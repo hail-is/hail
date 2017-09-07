@@ -335,11 +335,11 @@ class AggregatorSuite extends SparkSuite {
       assert(vds.querySamples("samples.flatMap(id => NA: Array[Int]).collect()")._1 === Array[Int]())
       assert(vds.querySamples("samples.flatMap(id => NA: Set[Int]).collect()")._1 === Array[Int]())
       assert(vds.querySamples("samples.flatMap(id => if (id == \"a\") [1] else NA: Array[Int]).collect()")._1 === Array[Int](1))
-      assert(vds.querySamples("samples.flatMap(id => if (id == \"a\") [1] else NA: Set[Int]).collect()")._1 === Array[Int](1))
+      assert(vds.querySamples("samples.flatMap(id => if (id == \"a\") [1].toSet else NA: Set[Int]).collect()")._1 === Array[Int](1))
       assert(vds.querySamples("samples.flatMap(id => NA: Array[Int]).filter(x => x % 2 == 0).sum()")._1 == 0)
       assert(vds.querySamples("samples.flatMap(id => NA: Set[Int]).filter(x => x % 2 == 0).sum()")._1 == 0)
       assert(vds.querySamples("samples.flatMap(id => if (id == \"a\") [1,2] else NA: Array[Int]).filter(x => x % 2 == 0).sum()")._1 == 2)
-      assert(vds.querySamples("samples.flatMap(id => if (id == \"a\") [1,2] else NA: Set[Int]).filter(x => x % 2 == 0).sum()")._1 == 2)
+      assert(vds.querySamples("samples.flatMap(id => if (id == \"a\") [1,2].toSet else NA: Set[Int]).filter(x => x % 2 == 0).sum()")._1 == 2)
 
       true
     }.check()
