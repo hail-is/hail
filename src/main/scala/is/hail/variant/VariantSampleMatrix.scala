@@ -70,8 +70,16 @@ object VariantSampleMatrix {
            |  Recreate VDS with current version of Hail.""".stripMargin)
 
     val metadata = hConf.readFile(metadataFile) { in =>
-      val json = parse(in)
-      json.extract[VDSMetadata]
+      try {
+        val json = parse(in)
+        json.extract[VDSMetadata]
+      } catch {
+        case e: Exception => fatal(
+          s"""corrupt or outdated VDS: invalid metadata
+             |  Recreate VDS with current version of Hail.
+             |  Detailed exception:
+             |  ${e.getMessage}""".stripMargin)
+      }
     }
 
     if (metadata.version != VariantSampleMatrix.fileVersion)

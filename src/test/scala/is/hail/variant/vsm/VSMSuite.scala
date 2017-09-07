@@ -341,6 +341,12 @@ class VSMSuite extends SparkSuite {
 
     vds.write(out, overwrite = true)
   }
+  
+  @Test def testInvalidMetadata() {
+    TestUtils.interceptFatal("""invalid metadata""") {
+      hc.readVDS("src/test/resources/0.1-1fd5cc7.vds").count()
+    }
+  }
 
   @Test def testAnnotateVariantsKeyTable() {
     forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
