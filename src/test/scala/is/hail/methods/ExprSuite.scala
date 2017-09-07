@@ -611,6 +611,16 @@ class ExprSuite extends SparkSuite {
         |else true
       """.stripMargin).contains(true))
 
+    val ifConditionNotBooleanMessage = "condition must have type Boolean"
+    TestUtils.interceptFatal(ifConditionNotBooleanMessage)(
+      eval[Int]("""if (1) 1 else 0"""))
+    TestUtils.interceptFatal(ifConditionNotBooleanMessage)(
+      eval[Int]("""if ("a") 1 else 0"""))
+    TestUtils.interceptFatal(ifConditionNotBooleanMessage)(
+      eval[Int]("""if (0.1) 1 else 0"""))
+    TestUtils.interceptFatal(ifConditionNotBooleanMessage)(
+      eval[Int]("""if ([1]) 1 else 0"""))
+
     assert(eval[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true}) """).contains(Annotation(1, 2, false, true)))
     assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, {c: false, d: true}) """).contains(Annotation(null, null, false, true)))
     assert(eval[Annotation]("""merge({a: 1, b: 2}, NA: Struct{c: Boolean, d: Boolean}) """).contains(Annotation(1, 2, null, null)))
