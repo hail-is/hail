@@ -2,8 +2,6 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import warnings
 
-from decorator import decorator
-
 from hail.expr import Type, TGenotype, TString, TVariant, TArray
 from hail.typecheck import *
 from hail.java import *
@@ -4752,47 +4750,47 @@ class VariantDataset(HistoryMixin):
         +---------------------------+--------+----------------------------------------------------------+
         | Name                      | Type   | Description                                              |
         +===========================+========+==========================================================+
-        | ``callRate``              | Double | Fraction of genotypes called                             |
+        | ``callRate``              | Float64 | Fraction of genotypes called                             |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nHomRef``               | Int    | Number of homozygous reference genotypes                 |
+        | ``nHomRef``               | Int64   | Number of homozygous reference genotypes                 |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nHet``                  | Int    | Number of heterozygous genotypes                         |
+        | ``nHet``                  | Int64   | Number of heterozygous genotypes                         |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nHomVar``               | Int    | Number of homozygous alternate genotypes                 |
+        | ``nHomVar``               | Int64   | Number of homozygous alternate genotypes                 |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nCalled``               | Int    | Sum of ``nHomRef`` + ``nHet`` + ``nHomVar``              |
+        | ``nCalled``               | Int64   | Sum of ``nHomRef`` + ``nHet`` + ``nHomVar``              |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nNotCalled``            | Int    | Number of uncalled genotypes                             |
+        | ``nNotCalled``            | Int64   | Number of uncalled genotypes                             |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nSNP``                  | Int    | Number of SNP alternate alleles                          |
+        | ``nSNP``                  | Int64   | Number of SNP alternate alleles                          |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nInsertion``            | Int    | Number of insertion alternate alleles                    |
+        | ``nInsertion``            | Int64   | Number of insertion alternate alleles                    |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nDeletion``             | Int    | Number of deletion alternate alleles                     |
+        | ``nDeletion``             | Int64   | Number of deletion alternate alleles                     |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nSingleton``            | Int    | Number of private alleles                                |
+        | ``nSingleton``            | Int64   | Number of private alleles                                |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nTransition``           | Int    | Number of transition (A-G, C-T) alternate alleles        |
+        | ``nTransition``           | Int64   | Number of transition (A-G, C-T) alternate alleles        |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nTransversion``         | Int    | Number of transversion alternate alleles                 |
+        | ``nTransversion``         | Int64   | Number of transversion alternate alleles                 |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nStar``                 | Int    | Number of star (upstream deletion) alleles               |
+        | ``nStar``                 | Int64   | Number of star (upstream deletion) alleles               |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``nNonRef``               | Int    | Sum of ``nHet`` and ``nHomVar``                          |
+        | ``nNonRef``               | Int64   | Sum of ``nHet`` and ``nHomVar``                          |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``rTiTv``                 | Double | Transition/Transversion ratio                            |
+        | ``rTiTv``                 | Float64 | Transition/Transversion ratio                            |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``rHetHomVar``            | Double | Het/HomVar genotype ratio                                |
+        | ``rHetHomVar``            | Float64 | Het/HomVar genotype ratio                                |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``rInsertionDeletion``    | Double | Insertion/Deletion ratio                                 |
+        | ``rInsertionDeletion``    | Float64 | Insertion/Deletion ratio                                 |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``dpMean``                | Double | Depth mean across all genotypes                          |
+        | ``dpMean``                | Float64 | Depth mean across all genotypes                          |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``dpStDev``               | Double | Depth standard deviation across all genotypes            |
+        | ``dpStDev``               | Float64 | Depth standard deviation across all genotypes            |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``gqMean``                | Double | The average genotype quality across all genotypes        |
+        | ``gqMean``                | Float64 | The average genotype quality across all genotypes        |
         +---------------------------+--------+----------------------------------------------------------+
-        | ``gqStDev``               | Double | Genotype quality standard deviation across all genotypes |
+        | ``gqStDev``               | Float64 | Genotype quality standard deviation across all genotypes |
         +---------------------------+--------+----------------------------------------------------------+
 
         Missing values ``NA`` may result (for example, due to division by zero) and are handled properly
@@ -5378,41 +5376,41 @@ class VariantDataset(HistoryMixin):
         +---------------------------+--------+--------------------------------------------------------+
         | Name                      | Type   | Description                                            |
         +===========================+========+========================================================+
-        | ``callRate``              | Double | Fraction of samples with called genotypes              |
+        | ``callRate``              | Float64 | Fraction of samples with called genotypes              |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``AF``                    | Double | Calculated alternate allele frequency (q)              |
+        | ``AF``                    | Float64 | Calculated alternate allele frequency (q)              |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``AC``                    | Int    | Count of alternate alleles                             |
+        | ``AC``                    | Int32   | Count of alternate alleles                             |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``rHeterozygosity``       | Double | Proportion of heterozygotes                            |
+        | ``rHeterozygosity``       | Float64 | Proportion of heterozygotes                            |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``rHetHomVar``            | Double | Ratio of heterozygotes to homozygous alternates        |
+        | ``rHetHomVar``            | Float64 | Ratio of heterozygotes to homozygous alternates        |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``rExpectedHetFrequency`` | Double | Expected rHeterozygosity based on HWE                  |
+        | ``rExpectedHetFrequency`` | Float64 | Expected rHeterozygosity based on HWE                  |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``pHWE``                  | Double | p-value from Hardy Weinberg Equilibrium null model     |
+        | ``pHWE``                  | Float64 | p-value from Hardy Weinberg Equilibrium null model     |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``nHomRef``               | Int    | Number of homozygous reference samples                 |
+        | ``nHomRef``               | Int32   | Number of homozygous reference samples                 |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``nHet``                  | Int    | Number of heterozygous samples                         |
+        | ``nHet``                  | Int32   | Number of heterozygous samples                         |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``nHomVar``               | Int    | Number of homozygous alternate samples                 |
+        | ``nHomVar``               | Int32   | Number of homozygous alternate samples                 |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``nCalled``               | Int    | Sum of ``nHomRef``, ``nHet``, and ``nHomVar``          |
+        | ``nCalled``               | Int32   | Sum of ``nHomRef``, ``nHet``, and ``nHomVar``          |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``nNotCalled``            | Int    | Number of uncalled samples                             |
+        | ``nNotCalled``            | Int32   | Number of uncalled samples                             |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``nNonRef``               | Int    | Sum of ``nHet`` and ``nHomVar``                        |
+        | ``nNonRef``               | Int32   | Sum of ``nHet`` and ``nHomVar``                        |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``rHetHomVar``            | Double | Het/HomVar ratio across all samples                    |
+        | ``rHetHomVar``            | Float64 | Het/HomVar ratio across all samples                    |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``dpMean``                | Double | Depth mean across all samples                          |
+        | ``dpMean``                | Float64 | Depth mean across all samples                          |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``dpStDev``               | Double | Depth standard deviation across all samples            |
+        | ``dpStDev``               | Float64 | Depth standard deviation across all samples            |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``gqMean``                | Double | The average genotype quality across all samples        |
+        | ``gqMean``                | Float64 | The average genotype quality across all samples        |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``gqStDev``               | Double | Genotype quality standard deviation across all samples |
+        | ``gqStDev``               | Float64 | Genotype quality standard deviation across all samples |
         +---------------------------+--------+--------------------------------------------------------+
 
         Missing values ``NA`` may result (for example, due to division by zero) and are handled properly 

@@ -478,6 +478,19 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     globalSignature.insert(sig, path)
   }
 
+  def annotateSamples(signature: Type, path: List[String], annotations: Array[Annotation]): VariantSampleMatrix[RPK, RK, T] = {
+    val (t, ins) = insertSA(signature, path)
+
+    val newAnnotations = new Array[Annotation](nSamples)
+
+    for (i <- sampleAnnotations.indices) {
+      newAnnotations(i) = ins(sampleAnnotations(i), annotations(i))
+      t.typeCheck(newAnnotations(i))
+    }
+
+    copy(sampleAnnotations = newAnnotations, saSignature = t)
+  }
+
   def annotateSamples(signature: Type, path: List[String], annotation: (Annotation) => Annotation): VariantSampleMatrix[RPK, RK, T] = {
     val (t, i) = insertSA(signature, path)
     annotateSamples(annotation, t, i)

@@ -8,23 +8,23 @@ import org.apache.spark.util.StatCounter
 
 object SampleQCCombiner {
   val signature = TStruct("callRate" -> TFloat64,
-    "nCalled" -> TInt32,
-    "nNotCalled" -> TInt32,
-    "nHomRef" -> TInt32,
-    "nHet" -> TInt32,
-    "nHomVar" -> TInt32,
-    "nSNP" -> TInt32,
-    "nInsertion" -> TInt32,
-    "nDeletion" -> TInt32,
-    "nSingleton" -> TInt32,
-    "nTransition" -> TInt32,
-    "nTransversion" -> TInt32,
-    "nStar" -> TInt32,
+    "nCalled" -> TInt64,
+    "nNotCalled" -> TInt64,
+    "nHomRef" -> TInt64,
+    "nHet" -> TInt64,
+    "nHomVar" -> TInt64,
+    "nSNP" -> TInt64,
+    "nInsertion" -> TInt64,
+    "nDeletion" -> TInt64,
+    "nSingleton" -> TInt64,
+    "nTransition" -> TInt64,
+    "nTransversion" -> TInt64,
+    "nStar" -> TInt64,
     "dpMean" -> TFloat64,
     "dpStDev" -> TFloat64,
     "gqMean" -> TFloat64,
     "gqStDev" -> TFloat64,
-    "nNonRef" -> TInt32,
+    "nNonRef" -> TInt64,
     "rTiTv" -> TFloat64,
     "rHetHomVar" -> TFloat64,
     "rInsertionDeletion" -> TFloat64)
@@ -51,13 +51,13 @@ object SampleQCCombiner {
 }
 
 class SampleQCCombiner extends Serializable {
-  var nNotCalled: Int = 0
-  var nHomRef: Int = 0
-  var nHet: Int = 0
-  var nHomVar: Int = 0
+  var nNotCalled: Long = 0
+  var nHomRef: Long = 0
+  var nHet: Long = 0
+  var nHomVar: Long = 0
 
-  val aCounts: Array[Int] = Array.fill[Int](5)(0)
-  var nSingleton: Int = 0
+  val aCounts: Array[Long] = Array.fill[Long](5)(0L)
+  var nSingleton: Long = 0
 
   val dpSC: StatCounter = new StatCounter()
 
@@ -156,13 +156,12 @@ class SampleQCCombiner extends Serializable {
 }
 
 object SampleQC {
-  def results(vds: GenericDataset): Map[Annotation, SampleQCCombiner] = {
+  def results(vds: GenericDataset): Array[SampleQCCombiner] = {
     val depth = treeAggDepth(vds.hc, vds.nPartitions)
     val rowSignature = vds.rowSignature
     val nSamples = vds.nSamples
     if (vds.rdd.partitions.nonEmpty)
-      vds.sampleIds.iterator
-        .zip(vds.unsafeRowRDD
+      vds.unsafeRowRDD
           .mapPartitions { it =>
             val view = HTSGenotypeView(rowSignature)
             val acc = Array.fill[SampleQCCombiner](nSamples)(new SampleQCCombiner)
@@ -197,7 +196,7 @@ object SampleQC {
               }
             }
 
-            Iterator(acc)
+            Iterator.single(acc)
           }.treeReduce({ case (accs1, accs2) =>
           assert(accs1.length == accs2.length)
           var i = 0
@@ -206,14 +205,13 @@ object SampleQC {
             i += 1
           }
           accs1
-        }, depth).iterator).toMap
+        }, depth)
     else
-      vds.sampleIds.iterator.map(s => (s, new SampleQCCombiner)).toMap
+      Array.fill(nSamples)(new SampleQCCombiner)
   }
 
   def apply(vds: GenericDataset, root: String): GenericDataset = {
-    val r = results(vds)
-    vds.annotateSamples(SampleQCCombiner.signature,
-      Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), { (x: Annotation) => r(x).asAnnotation })
+    val r = results(vds).map(_.asAnnotation)
+    vds.annotateSamples(SampleQCCombiner.signature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), r)
   }
 }

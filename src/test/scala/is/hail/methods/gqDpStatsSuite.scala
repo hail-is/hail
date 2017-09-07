@@ -29,7 +29,7 @@ class gqDpStatsSuite extends SparkSuite {
       .query(Array("index(v.map(v => {v: v, dpMean: va.qc.dpMean, dpStDev: va.qc.dpStDev}).collect(), v)"))
       .apply(0)._1.asInstanceOf[Map[Variant, Row]]
 
-    val dpSampleR = SampleQC.results(dpVds.toGDS)
+    val dpSampleR = dpVds.sampleIds.zip(SampleQC.results(dpVds.toGDS)).toMap
 
     val samplePositionMap = dpVds.sampleIds.zipWithIndex.toMap
 
@@ -57,7 +57,7 @@ class gqDpStatsSuite extends SparkSuite {
       .variantsKT()
       .query(Array("index(v.map(v => {v: v, gqMean: va.qc.gqMean, gqStDev: va.qc.gqStDev}).collect(), v)"))
       .apply(0)._1.asInstanceOf[Map[Variant, Row]]
-    val gqSampleR = SampleQC.results(gqVds.toGDS)
+    val gqSampleR = gqVds.sampleIds.zip(SampleQC.results(gqVds.toGDS)).toMap
 
     gqVariantR.foreach {
       case (v, Row(mean, stdev)) =>
