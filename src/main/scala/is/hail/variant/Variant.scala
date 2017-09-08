@@ -106,7 +106,7 @@ case class AltAllele(ref: String,
 
   def isIndel: Boolean = isInsertion || isDeletion
 
-  def isComplex: Boolean = ref.length != alt.length && !isInsertion && !isDeletion
+  def isComplex: Boolean = !isStar && ref.length != alt.length && !isInsertion && !isDeletion
 
   def isTransition: Boolean = isSNP && {
     val (refChar, altChar) = strippedSNP
