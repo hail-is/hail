@@ -322,9 +322,9 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     filter(p)
   }
 
-  def head(n: Long = 10): KeyTable = {
+  def head(n: Long): KeyTable = {
     if (n < 0)
-      fatal(s"n must be positive! Found `$n'.")
+      fatal(s"n must be non-negative! Found `$n'.")
     copy(rdd = rdd.head(n))
   }
 

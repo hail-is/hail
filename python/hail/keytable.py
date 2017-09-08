@@ -1305,27 +1305,58 @@ class KeyTable(HistoryMixin):
         """
 
         return KeyTable(self.hc, self._jkt.union([kt._jkt for kt in kts]))
-
+    
     @handle_py4j
-    @record_method
     @typecheck_method(n=integral)
-    def head(self, n=10):
+    def take(self, n):
         """Take a given number of rows from the head of the table.
 
         **Examples**
 
-        Take the first 50 rows:
+        Take the first ten rows:
 
-        >>> first50 = kt1.head(50)
+        >>> first10 = kt1.take(10)
+
+        **Notes**
+
+        This method does not need to look at all the data, and
+        allows for fast queries of the start of the table.
+
+        This method is equivalent to :py:meth:`.KeyTable.head` followed by
+        :py:meth:`.KeyTable.collect`.
+
+        :param int n: Number of rows to take.
+
+        :return: Rows from the start of the table.
+        :rtype: list of :class:`.~hail.representation.Struct`
+        """
+
+        return [self.schema._convert_to_py(r) for r in self._jkt.take(n)]
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(n=integral)
+    def head(self, n):
+        """Subset table to first n rows.
+
+        **Examples**
+
+        Perform a query on the first 10 rows:
+
+        >>> first10_c1_mean = kt1.head(10).query('C1.stats().mean')
+
+        Return a list with the first 50 rows (equivalent to :py:meth:`.KeyTable.take`):
+
+        >>> first50_rows = kt1.head(50).collect()
 
         **Notes**
 
         The number of partitions in the new table is equal to the number
-        of partitions containing the first n elements.
+        of partitions containing the first n rows.
 
-        :param int n: Number of rows to take.
+        :param int n: Number of rows to include.
 
-        :return: A table with the first n rows.
+        :return: A table subsetted to the first n rows.
         :rtype: :class:`.KeyTable`
         """
 

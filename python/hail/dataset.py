@@ -2454,21 +2454,21 @@ class VariantDataset(HistoryMixin):
     @handle_py4j
     @record_method
     @typecheck_method(n=integral)
-    def head(self, n=10):
-        """Take a given number of rows from the head of the dataset.
+    def head(self, n):
+        """Subset dataset to the first n variants.
 
         **Examples**
 
-        Take the first 50 variants:
-
-        >>> first50 = vds.head(50)
+        >>> first10 = vds.head(10)
 
         **Notes**
 
         The number of partitions in the new dataset is equal to the number
-        of partitions containing the first n elements.
+        of partitions containing the first n variants.
 
-        :return: Variant dataset with only the first n rows.
+        :param int n: Number of variants to include.
+
+        :return: Variant dataset subsetted to the first n variants.
         :rtype: :py:class:`.VariantDataset`
         """
 
