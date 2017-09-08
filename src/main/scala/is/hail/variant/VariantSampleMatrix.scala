@@ -315,6 +315,8 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
+  def collect(): Array[UnsafeRow] = unsafeRowRDD.collect()
+
   def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
 
     val (keysType, keysQuerier) = queryVA(variantKeysVA)
