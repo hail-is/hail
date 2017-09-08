@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.expr.Parser
+import is.hail.expr.{Parser, TFloat64, TInt64}
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -25,7 +25,27 @@ class ExportSuite extends SparkSuite {
     sb.tsvAppend(5.124)
     assert(sb.result() == "5.12400e+00")
 
-    val readBackAnnotated = vds.annotateSamplesTable(hc.importTable(out, impute = true).keyBy("Sample"),
+    val readBackAnnotated = vds.annotateSamplesTable(hc.importTable(out, types = Map("callRate" -> TFloat64,
+      "nCalled" -> TInt64,
+      "nNotCalled" -> TInt64,
+      "nHomRef" -> TInt64,
+      "nHet" -> TInt64,
+      "nHomVar" -> TInt64,
+      "nSNP" -> TInt64,
+      "nInsertion" -> TInt64,
+      "nDeletion" -> TInt64,
+      "nSingleton" -> TInt64,
+      "nTransition" -> TInt64,
+      "nTransversion" -> TInt64,
+      "nStar" -> TInt64,
+      "dpMean" -> TFloat64,
+      "dpStDev" -> TFloat64,
+      "gqMean" -> TFloat64,
+      "gqStDev" -> TFloat64,
+      "nNonRef" -> TInt64,
+      "rTiTv" -> TFloat64,
+      "rHetHomVar" -> TFloat64,
+      "rInsertionDeletion" -> TFloat64)).keyBy("Sample"),
       root = "sa.readBackQC")
 
     val (t, qcQuerier) = readBackAnnotated.querySA("sa.qc")
