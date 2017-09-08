@@ -2275,29 +2275,30 @@ object FunctionRegistry {
   registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Unit) =>
     a { x =>
       val r = f(x).asInstanceOf[IndexedSeq[Any]]
-      var i = 0
-      while (i < r.size) {
-        k(r(i))
-        i += 1
+      if (r != null) {
+        var i = 0
+        while (i < r.size) {
+          k(r(i))
+          i += 1
+        }
       }
     }
   }
   }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) => { (k: Code[AnyRef] => CM[Code[Unit]]) =>
-    for (
-      is <- f(x);
-      (str, r) <- CM.memoize(Code.checkcast[IndexedSeq[AnyRef]](is));
-      (stn, n) <- CM.memoize(r.invoke[Int]("size"));
-      i <- CM.newLocal[Int];
-      ri = r.invoke[Int, AnyRef]("apply", i);
+    for {
+      is <- f(x)
+      (str, r) <- CM.memoize(Code.checkcast[IndexedSeq[AnyRef]](is))
+      (stn, n) <- CM.memoize(r.invoke[Int]("size"))
+      i <- CM.newLocal[Int]
+      ri = r.invoke[Int, AnyRef]("apply", i)
       invokek <- k(ri)
-    ) yield Code(
+    } yield Code(
       str,
-      stn,
-      i.store(0),
-      Code.whileLoop(i < n,
-        Code(invokek, i.store(i + 1))
-      )
-    )
+      r.ifNull(Code._empty[Unit], Code(
+        stn,
+        i.store(0),
+        Code.whileLoop(i < n,
+          Code(invokek, i.store(i + 1))))))
   }
   },
     """
@@ -2311,15 +2312,23 @@ object FunctionRegistry {
     """
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
 
-  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
+  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x =>
+    val s = f(x).asInstanceOf[Set[Any]]
+    if (s != null)
+      s.foreach(k)
+  } }
   }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) => { (k: Code[AnyRef] => CM[Code[Unit]]) =>
-    for (
-      fx <- f(x);
-      (stit, it) <- CM.memoize(Code.checkcast[Set[AnyRef]](fx).invoke[Iterator[AnyRef]]("iterator"));
-      hasNext = it.invoke[Boolean]("hasNext");
-      next = it.invoke[AnyRef]("next");
+    for {
+      fx <- f(x)
+      (sts, s) <- CM.memoize(Code.checkcast[Set[AnyRef]](fx))
+      (stit, it) <- CM.memoize(s.invoke[Iterator[AnyRef]]("iterator"))
+      hasNext = it.invoke[Boolean]("hasNext")
+      next = it.invoke[AnyRef]("next")
       invokek <- k(next)
-    ) yield Code(stit, Code.whileLoop(hasNext, invokek))
+    } yield Code(sts,
+      s.ifNull(Code._empty[Unit], Code(
+        stit,
+        Code.whileLoop(hasNext, invokek))))
   }
   },
     """

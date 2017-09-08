@@ -315,6 +315,7 @@ class AggregatorSuite extends SparkSuite {
       assert(vds.querySamples("samples.map(id => if (id == \"b\") (NA : Sample) else id).map(x => 1).sum()")._1 == 2)
       assert(vds.querySamples("samples.filter(id => true).map(id => 1).sum()")._1 == 2)
       assert(vds.querySamples("samples.filter(id => false).map(id => 1).sum()")._1 == 0)
+      assert(vds.querySamples("samples.filter(id => NA: Boolean).map(id => 1).count()")._1 == 0)
       assert(vds.querySamples("samples.flatMap(g => [1]).sum()")._1 == 2)
       assert(vds.querySamples("samples.flatMap(g => [0][:0]).sum()")._1 == 0)
       assert(vds.querySamples("samples.flatMap(g => [1,2]).sum()")._1 == 6)
@@ -325,6 +326,21 @@ class AggregatorSuite extends SparkSuite {
         .rdd
         .collect()
         .foreach { case (_, (va, _)) => assert(va == 1) }
+      true
+    }.check()
+  }
+
+  @Test def testNAInFlatMap() {
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random.copy(sampleIdGen = Gen.const(Array("a", "b"))))) { vds =>
+      assert(vds.querySamples("samples.flatMap(id => NA: Array[Int]).collect()")._1 === Array[Int]())
+      assert(vds.querySamples("samples.flatMap(id => NA: Set[Int]).collect()")._1 === Array[Int]())
+      assert(vds.querySamples("samples.flatMap(id => if (id == \"a\") [1] else NA: Array[Int]).collect()")._1 === Array[Int](1))
+      assert(vds.querySamples("samples.flatMap(id => if (id == \"a\") [1].toSet else NA: Set[Int]).collect()")._1 === Array[Int](1))
+      assert(vds.querySamples("samples.flatMap(id => NA: Array[Int]).filter(x => x % 2 == 0).sum()")._1 == 0)
+      assert(vds.querySamples("samples.flatMap(id => NA: Set[Int]).filter(x => x % 2 == 0).sum()")._1 == 0)
+      assert(vds.querySamples("samples.flatMap(id => if (id == \"a\") [1,2] else NA: Array[Int]).filter(x => x % 2 == 0).sum()")._1 == 2)
+      assert(vds.querySamples("samples.flatMap(id => if (id == \"a\") [1,2].toSet else NA: Set[Int]).filter(x => x % 2 == 0).sum()")._1 == 2)
+
       true
     }.check()
   }
