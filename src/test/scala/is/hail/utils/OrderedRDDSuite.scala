@@ -262,5 +262,16 @@ class OrderedRDDSuite extends SparkSuite {
     val (status, rdd) = OrderedRDD.coerce(emptyPartitions)
     assert(status == OrderedRDD.AS_IS)
   }
+  
+  @Test def testOrderedPartitionerInt() {
+    import OrderedKeyIntImplicits.orderedKey
+    
+    val rdd = OrderedRDD(sc.parallelize((0 until 10).map(i => (i, i)), numSlices = 4), None, None)
+    val op = rdd.orderedPartitioner
+    val OrderedPartitioner(rangeBounds, numPartitions) = rdd.orderedPartitionerInt()
+    
+    assert(rangeBounds sameElements op.rangeBounds)
+    assert(numPartitions == op.numPartitions)
+  }
 }
 
