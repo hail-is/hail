@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.keytable.KeyTable
@@ -418,5 +418,98 @@ class KeyTableSuite extends SparkSuite {
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true).keyBy("Sample")
     assert(kt.join(kt, "inner").forall("(isMissing(Status) || Status == Status_1) && " +
       "(isMissing(qPhen) || qPhen == qPhen_1)"))
+  }
+
+  @Test def testUngroup() {
+    // test KeyTable method
+    val data1 = Array(
+      Array("Sample1", 5, Row(23.0, "rabbit"), Row(1, "foo")),
+      Array("Sample1", 5, null, Row(1, "foo")))
+    val sig1 = TStruct(
+      ("field0", TString),
+      ("field1", TInt32),
+      ("field2", TStruct(("1", TFloat32), ("2", TString))),
+      ("field3", TStruct(("1", TInt32), ("2", TString))))
+    val kt1 = KeyTable(hc, sc.parallelize(data1.map(Row.fromSeq(_))), sig1)
+
+    val ungroupedData1 = Array(
+      Array("Sample1", 5, 1, "foo", 23.0, "rabbit"),
+      Array("Sample1", 5, 1, "foo", null, null))
+    val ungroupedSig1 = TStruct(
+      ("field0", TString),
+      ("field1", TInt32),
+      ("1", TInt32),
+      ("2", TString),
+      ("field2.1", TFloat32),
+      ("field2.2", TString)
+    )
+    val ungroupedKt1 = KeyTable(hc, sc.parallelize(ungroupedData1.map(Row.fromSeq(_))), ungroupedSig1)
+
+    assert(kt1.ungroup("field3").ungroup("field2", mangle = true).same(ungroupedKt1))
+
+    TestUtils.interceptFatal("Can only ungroup fields of type Struct, but found type"){ kt1.ungroup("field0") }
+    TestUtils.interceptFatal("Struct does not have field with name"){ kt1.ungroup("nonExistentField") }
+    TestUtils.interceptFatal("Either rename manually or use the 'mangle' option to handle duplicates"){ kt1.ungroup("field2").ungroup("field3") }
+
+    // test ungroup/group gives same result
+    val data2 = Array(Array(Row(23, 1)))
+    val rdd2 = sc.parallelize(data2.map(Row.fromSeq(_)))
+    val kt2 = KeyTable(hc, rdd2, TStruct(("A", TStruct(("c1", TInt32), ("c2", TInt32)))))
+    assert(kt2.ungroup("A").group("A", Array("c1", "c2")).same(kt2))
+
+    // test function registry method
+    val data3 = Array(Array(Row(6, Row("hello"))))
+    val sig3 = TStruct(("foo", TStruct(("a", TInt32), ("b", TStruct(("i", TString))))))
+    val kt3 = KeyTable(hc, sc.parallelize(data3.map(Row.fromSeq(_))), sig3)
+
+    val ungroupedData3 = Array(Array(Row(6, "hello")))
+    val ungroupedSig3 = TStruct(("foo", TStruct(("a", TInt32), ("i", TString))))
+    val ungroupedKt3 = KeyTable(hc, sc.parallelize(ungroupedData3.map(Row.fromSeq(_))), ungroupedSig3)
+
+    assert(kt3.annotate("foo = ungroup(foo, b, false)").same(ungroupedKt3))
+    assert(!kt3.annotate("foo = ungroup(foo, b, false)").same(kt3.annotate("foo = ungroup(foo, b, true)")))
+
+    TestUtils.interceptFatal("invalid arguments for method"){ kt3.annotate("foo = ungroup(foo)") }
+    TestUtils.interceptFatal("expects a Struct argument in the first position"){ kt3.annotate("foo = ungroup(false, b, true)") }
+    TestUtils.interceptFatal("Expected boolean argument in the third position, but found a"){ kt3.annotate("foo = ungroup(foo, b, b)") }
+    TestUtils.interceptFatal("Expected struct field identifier in the second position, but found a"){ kt3.annotate("foo = ungroup(foo, 2, true)") }
+    TestUtils.interceptFatal("Struct does not have field with name"){ kt3.annotate("foo = ungroup(foo, notexist, true)") }
+  }
+
+  @Test def testGroup() {
+    val data = Array(
+      Array("Sample1", Row(23.0, "rabbit"), 9, 5),
+      Array(null))
+
+    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
+    val kt = KeyTable(hc, rdd, TStruct(
+      ("Sample", TString),
+      ("field0", TStruct(("1", TFloat32), ("2", TString))),
+      ("field1", TInt32),
+      ("field2", TInt32)), key = Array("Sample"))
+
+    assert(kt.group("dest", Array("Sample", "field0")).signature == TStruct(("field1", TInt32), ("field2", TInt32),
+      ("dest", TStruct(("Sample", TString), ("field0", TStruct(("1", TFloat32), ("2", TString)))))))
+
+    assert(kt.group("Sample", Array("Sample", "field0")).signature == TStruct(("field1", TInt32), ("field2", TInt32),
+      ("Sample", TStruct(("Sample", TString), ("field0", TStruct(("1", TFloat32), ("2", TString)))))))
+
+    TestUtils.interceptFatal("Struct does not have field with name"){ kt.group("foo", Array("nonExistentField")) }
+
+    val data2 = Array(Array(Row("Sample1", 5)))
+    val rdd2 = sc.parallelize(data2.map(Row.fromSeq(_)))
+    val kt2 = KeyTable(hc, rdd2, TStruct(("foo", TStruct(("a", TString), ("b", TInt32)))))
+
+    val dataExpected = Array(Array(Row("Sample1", 5), Row(Row(5, "Sample1"))))
+    val sigExpected = TStruct(("foo", TStruct(("a", TString), ("b", TInt32))), ("X", TStruct(("a", TStruct(("b", TInt32), ("a", TString))))))
+    val kt2Expected = KeyTable(hc, sc.parallelize(dataExpected.map(Row.fromSeq(_))), sigExpected)
+
+    assert(kt2.annotate("X = group(foo, a, b, a)").same(kt2Expected))
+
+    TestUtils.interceptFatal("Duplicate"){ kt2.annotate("X = group(foo, a, b, b)") }
+    TestUtils.interceptFatal("Expected struct field identifiers after the first position, but found a"){ kt2.annotate("X = group(foo, x, true)") }
+    TestUtils.interceptFatal("too few arguments for method"){ kt2.annotate("X = group(foo, a)") }
+    TestUtils.interceptFatal("expects a Struct argument in the first position"){ kt2.annotate("X = group(2, x, true)") }
+    TestUtils.interceptFatal("Struct does not have field with name"){ kt2.annotate("X = group(foo, x, y)") }
   }
 }

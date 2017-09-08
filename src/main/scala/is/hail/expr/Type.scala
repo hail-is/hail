@@ -13,6 +13,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
@@ -1239,6 +1240,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
+  val fieldNames: Array[String] = fields.map(_.name).toArray
+
   def index(str: String): Option[Int] = fieldIdx.get(str)
 
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
@@ -1469,6 +1472,108 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
       else
         !set.contains(f.name)
     filter(fn)
+  }
+
+  def ungroup(identifier: String, mangle: Boolean = false): (TStruct, (Row) => Row) = {
+    val overlappingNames = mutable.Set[String]()
+    val fieldNamesSet = fieldNames.toSet
+
+    val ungroupedFields = fieldOption(identifier) match {
+      case None => fatal(s"Struct does not have field with name `$identifier'.")
+      case Some(x) => x.typ match {
+        case s: TStruct =>
+          s.fields.flatMap { fd =>
+            (fieldNamesSet.contains(fd.name), mangle) match {
+              case (_, true) => Some((identifier + "." + fd.name, fd.typ))
+              case (false, false) => Some((fd.name, fd.typ))
+              case (true, false) =>
+                overlappingNames += fd.name
+                None
+            }
+          }.toArray
+        case other => fatal(s"Can only ungroup fields of type Struct, but found type ${ other.toPrettyString(compact = true) } for identifier $identifier.")
+      }
+    }
+
+    if (overlappingNames.nonEmpty)
+      fatal(s"Found ${ overlappingNames.size } ${ plural(overlappingNames.size, "ungrouped field name") } overlapping existing struct field names.\n" +
+        "Either rename manually or use the 'mangle' option to handle duplicates.\n Overlapping fields:\n  " +
+        s"@1", overlappingNames.truncatable("\n  "))
+
+    val fdIndexToUngroup = fieldIdx(identifier)
+
+    val newSignature = TStruct(fields.filterNot(_.index == fdIndexToUngroup).map { fd => (fd.name, fd.typ) } ++ ungroupedFields: _*)
+
+    val origSize = size
+    val newSize = newSignature.size
+
+    val ungrouper = (r: Row) => {
+      val result = Array.fill[Any](newSize)(null)
+
+      if (r != null) {
+        var localIdx = 0
+
+        var i = 0
+        while (i < origSize) {
+          if (i != fdIndexToUngroup) {
+            result(localIdx) = r.get(i)
+            localIdx += 1
+          }
+          i += 1
+        }
+
+        val ugr = r.getAs[Row](fdIndexToUngroup)
+
+        if (ugr != null) {
+          var j = 0
+          while (j < ungroupedFields.length) {
+            result(localIdx) = ugr.get(j)
+            j += 1
+            localIdx += 1
+          }
+        }
+      }
+
+      Row.fromSeq(result)
+    }
+
+    (newSignature, ungrouper)
+  }
+
+  def group(dest: String, names: Array[String]): (TStruct, (Row) => Row) = {
+    val fieldsToGroup = names.zipWithIndex.map { case (name, i) =>
+      fieldOption(name) match {
+        case None => fatal(s"Struct does not have field with name `$name'.")
+        case Some(fd) => fd
+      }
+    }
+
+    val keepFields = fields.filterNot(fd => names.contains(fd.name) || fd.name == dest)
+    val keepIndices = keepFields.map(_.index)
+
+    val groupedTyp = TStruct(fieldsToGroup.map(fd => (fd.name, fd.typ)): _*)
+    val finalSignature = TStruct(keepFields.map(fd => (fd.name, fd.typ)) :+ (dest, groupedTyp): _*)
+
+    val newSize = finalSignature.size
+
+    val grouper = (r: Row) => {
+      val result = Array.fill[Any](newSize)(null)
+
+      if (r != null) {
+        var localIdx = 0
+        keepIndices.foreach { i =>
+          result(localIdx) = r.get(i)
+          localIdx += 1
+        }
+
+        assert(localIdx == newSize - 1)
+        result(localIdx) = Row.fromSeq(fieldsToGroup.map(fd => r.get(fd.index)))
+      }
+
+      Row.fromSeq(result)
+    }
+
+    (finalSignature, grouper)
   }
 
   def parseInStructScope[T >: Null](code: String)(implicit hr: HailRep[T]): (Annotation) => T = {

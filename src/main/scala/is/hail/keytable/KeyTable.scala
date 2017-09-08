@@ -293,8 +293,6 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val inserters = inserterBuilder.result()
 
-    val localNColumns = nColumns
-
     val annotF: Row => Row = { r =>
       ec.setAllFromRow(r)
 
@@ -551,6 +549,19 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     KeyTable(hc, newRDD, keySignature.merge(aggSignature)._1, newKey)
   }
+
+  def ungroup(column: String, mangle: Boolean = false): KeyTable = {
+    val (finalSignature, ungrouper) = signature.ungroup(column, mangle)
+    KeyTable(hc, rdd.map(ungrouper), finalSignature)
+  }
+
+  def group(dest: String, columns: java.util.ArrayList[String]): KeyTable = group(dest, columns.asScala.toArray)
+
+  def group(dest: String, columns: Array[String]): KeyTable = {
+    val (newSignature, grouper) = signature.group(dest, columns)
+    KeyTable(hc, rdd.map(grouper), newSignature)
+  }
+
 
   def expandTypes(): KeyTable = {
     val localSignature = signature

@@ -570,6 +570,11 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(range(10), [x.index for x in KeyTable.range(10).collect()])
         self.assertTrue(KeyTable.range(200).indexed('foo').forall('index == foo'))
 
+        kt3 = KeyTable.parallelize([{'A': Struct({'c1': 5, 'c2': 21})}],
+                                   TStruct(['A'], [TStruct(['c1', 'c2'], [TInt32(), TInt32()])]))
+
+        self.assertTrue(kt3.ungroup('A').group('A', 'c1', 'c2').same(kt3))
+
     def test_representation(self):
         v = Variant.parse('1:100:A:T')
 
