@@ -1128,7 +1128,7 @@ object FunctionRegistry {
 
     **Notes**
 
-    Hail computes the exact p-value with mid-p-value correction, i.e. the probability of a less-likely outcome plus one-half the probability of an equally-likely outcome. See this `document <../LeveneHaldane.pdf>`_ for details on the Levene-Haldane distribution and references.
+    Hail computes the exact p-value with mid-p-value correction, i.e. the probability of a less-likely outcome plus one-half the probability of an equally-likely outcome. See this `document <LeveneHaldane.pdf>`__ for details on the Levene-Haldane distribution and references.
     """,
     "nHomRef" -> "Number of samples that are homozygous for the reference allele.",
     "nHet" -> "Number of samples that are heterozygotes.",
@@ -2022,7 +2022,7 @@ object FunctionRegistry {
 
     **Notes**
 
-    Hail computes the exact p-value with mid-p-value correction, i.e. the probability of a less-likely outcome plus one-half the probability of an equally-likely outcome. See this `document <../LeveneHaldane.pdf>`_ for details on the Levene-Haldane distribution and references.
+    Hail computes the exact p-value with mid-p-value correction, i.e. the probability of a less-likely outcome plus one-half the probability of an equally-likely outcome. See this `document <LeveneHaldane.pdf>`__ for details on the Levene-Haldane distribution and references.
     """
   )(aggregableHr(genotypeHr),
     new HailRep[Any] {

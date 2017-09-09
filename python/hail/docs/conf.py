@@ -246,7 +246,7 @@ html_title = u'Hail'
 # the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
 #
-html_favicon = "hail_logo_sq.ico"
+html_favicon = "misc/hail_logo_sq.ico"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -258,7 +258,8 @@ html_static_path = ['_static']
 # directly to the root of the documentation.
 #
 html_extra_path = ['../../../../../www/hail-logo-cropped.png',
-                   '../../../../../www/navbar.css']
+                   '../../../../../www/navbar.css',
+                   'misc/']
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
 # bottom, using the given strftime format.
