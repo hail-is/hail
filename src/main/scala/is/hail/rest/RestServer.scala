@@ -20,7 +20,7 @@ object RestServerScoreCovariance {
   def apply(vds: VariantDataset, covariates: Array[String], useDosages: Boolean,
     port: Int, maxWidth: Int, hardLimit: Int) {
 
-    val restService = new RestServiceScoreCovariance(vds, covariates, useDosages, maxWidth, hardLimit) // FIXME: useDosages
+    val restService = new RestServiceScoreCovariance(vds, covariates, useDosages, maxWidth, hardLimit) // Currently useDosages only affects variants as covariates
     
     val task = BlazeBuilder.bindHttp(port, "0.0.0.0")
       .mountService(restService.service, "/")

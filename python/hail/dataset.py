@@ -4530,6 +4530,54 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @requireTGenotype
+    @typecheck_method(covariates=listof(strlike),
+                      use_dosages=bool,
+                      port=integral,
+                      max_width = integral,
+                      hard_limit = integral)
+    def rest_server_score_covariance(self, covariates=[], use_dosages=False, port=8080, max_width=1000000, hard_limit=100000):
+        """Launch a REST server for score and covariance statistics on windows.
+        
+        :param covariates: list of sample annotation paths to make available as phenotypes and covariates
+        :type covariates: list of str
+        
+        :param bool use_dosages: If true, use dosages rather than hard call genotypes.
+        
+        :param int port: Port on which to listen for requests.
+        
+        :param int max_width: Maximum width of window on chromosome in base pairs.
+        
+        :param int hard_limit: Maximum number of variants returned.
+        """
+        
+        self._jvdf.restServerScoreCovariance(jarray(Env.jvm().java.lang.String, covariates), use_dosages, port, max_width, hard_limit)
+
+    @handle_py4j
+    @requireTGenotype
+    @typecheck_method(covariates=listof(strlike),
+                      use_dosages=bool,
+                      port=integral,
+                      max_width = integral,
+                      hard_limit = integral)
+    def rest_server_linreg(self, covariates=[], use_dosages=False, port=8080, max_width=1000000, hard_limit=100000):
+        """Launch a REST server for linear regression p-values on windows.
+        
+        :param covariates: list of sample annotation paths to make available as phenotypes and covariates
+        :type covariates: list of str
+        
+        :param bool use_dosages: If true, use dosages rather than hard call genotypes.
+        
+        :param int port: Port on which to listen for requests.
+        
+        :param int max_width: Maximum width of window on chromosome in base pairs.
+        
+        :param int hard_limit: Maximum number of variants returned.
+        """
+        
+        self._jvdf.restServerLinreg(jarray(Env.jvm().java.lang.String, covariates), use_dosages, port, max_width, hard_limit)
+
+    @handle_py4j
     @typecheck_method(max_partitions=integral)
     def naive_coalesce(self, max_partitions):
         """Naively descrease the number of partitions.
