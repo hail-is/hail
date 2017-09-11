@@ -172,11 +172,11 @@ the same as above, except:
 
   - On a Cloudera cluster, when building a Hail JAR, you must specify a Cloudera version of Spark. The Cloudera Spark version string is the Spark version string followed by “.cloudera”. For example, to build a Hail JAR compatible with Cloudera Spark version 2.0.2, execute::
 
-       ./gradlew shadowJar -Dspark.version=2.0.2.cloudera
+       ./gradlew shadowJar -Dspark.version=2.0.2.cloudera1
 
     Similarly, a Hail JAR compatible with Cloudera Spark version 2.1.0 is built by executing::
 
-       ./gradlew shadowJar -Dspark.version=2.1.0.cloudera
+       ./gradlew shadowJar -Dspark.version=2.1.0.cloudera1
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,
