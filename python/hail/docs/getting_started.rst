@@ -170,11 +170,13 @@ it.
 Once Spark is installed, building and running Hail on a Cloudera cluster is exactly
 the same as above, except:
 
- - On a Cloudera cluster, when building a Hail JAR, you must specify a Cloudera
-   version of Spark. The following example builds a Hail JAR for Cloudera's
-   2.0.2 version of Spark::
- 
-   $ ./gradlew shadowJar -Dspark.version=2.0.2.cloudera
+  - On a Cloudera cluster, when building a Hail JAR, you must specify a Cloudera version of Spark. The Cloudera Spark version string is the Spark version string followed by “.cloudera”. For example, to build a Hail JAR compatible with Cloudera Spark version 2.0.2, execute::
+
+       ./gradlew shadowJar -Dspark.version=2.0.2.cloudera
+
+    Similarly, a Hail JAR compatible with Cloudera Spark version 2.1.0 is built by executing::
+
+       ./gradlew shadowJar -Dspark.version=2.1.0.cloudera
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,
