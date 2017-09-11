@@ -64,8 +64,7 @@ Building Hail from source
 
   .. code-block:: text
 
-      $ git clone https://github.com/broadinstitute/hail.git
-      $ git checkout 0.1
+      $ git clone --branch 0.1 https://github.com/broadinstitute/hail.git
       $ cd hail
 
   You can also download the source code directly from `Github <https://github.com/broadinstitute/hail/archive/master.zip>`_.
