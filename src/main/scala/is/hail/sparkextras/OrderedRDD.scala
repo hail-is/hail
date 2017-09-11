@@ -532,6 +532,16 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     OrderedRDD(rdd.subsetPartitions(keep), newPartitioner)
   }
 
+  def head(n: Long): OrderedRDD[PK, K, V] = {
+    require(n >= 0)
+
+    val h = rdd.head(n)
+    val newRangeBounds = h.partitions.map(_.index).init.map(orderedPartitioner.rangeBounds)
+    val newPartitioner = new OrderedPartitioner(newRangeBounds, h.getNumPartitions)
+
+    OrderedRDD(h, newPartitioner)
+  }
+
   def mapValues[V2](f: (V) => V2)(implicit v2ct: ClassTag[V2]): OrderedRDD[PK, K, V2] =
     OrderedRDD(rdd.mapValues(f), orderedPartitioner)
 

@@ -1244,6 +1244,12 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
+  def head(n: Long): VariantSampleMatrix[RPK, RK, T] = {
+    if (n < 0)
+      fatal(s"n must be non-negative! Found `$n'.")
+    copy(rdd = rdd.head(n))
+  }
+
   def insertGlobal(sig: Type, args: String*): (Type, Inserter) = insertGlobal(sig, args.toList)
 
   def insertSA(sig: Type, args: String*): (Type, Inserter) = insertSA(sig, args.toList)
