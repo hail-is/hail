@@ -7,7 +7,7 @@ import scala.language.higherKinds
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
-case class CodeM[T](action: (FunctionBuilder[_]) => T) {
+case class CodeM[T](action: (FunctionClassBuilder[_]) => T) {
   def map[U](f: T => U): CodeM[U] =
     CodeM(fb => f(action(fb)))
   def flatMap[U](f: T => CodeM[U]): CodeM[U] =
@@ -19,17 +19,17 @@ case class CodeM[T](action: (FunctionBuilder[_]) => T) {
 
   /**
     * The user must ensure that this {@code CodeM} refers to no more arguments
-    * than {@code FunctionBuilder} {@code fb} provides.
+    * than {@code FunctionClassBuilder} {@code fb} provides.
     */
-  def run[F >: Null](fb: FunctionBuilder[F])(implicit ev: T =:= Unit): F =
+  def run[F >: Null](fb: FunctionClassBuilder[F])(implicit ev: T =:= Unit): F =
     delayedRun(fb)(ev)()
 
-  def delayedRun[F >: Null](fb: FunctionBuilder[F])(implicit ev: T =:= Unit): () => F = {
+  def delayedRun[F >: Null](fb: FunctionClassBuilder[F])(implicit ev: T =:= Unit): () => F = {
     emit(fb)
     fb.result()
   }
 
-  def emit(fb: FunctionBuilder[_]): T =
+  def emit(fb: FunctionClassBuilder[_]): T =
     action(fb)
 
 }

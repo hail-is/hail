@@ -8,7 +8,6 @@ import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
 
-import scala.collection.generic.Growable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
@@ -281,14 +280,14 @@ package object asm4s {
     new CodeObject(c)
 
   implicit def toCode[T](insn: => AbstractInsnNode): Code[T] = new Code[T] {
-    def emit(il: Growable[AbstractInsnNode]): Unit = {
-      il += insn
+    def emit(fb: FunctionBuilder[_]): Unit = {
+      fb.emit(insn)
     }
   }
 
   implicit def toCodeFromIndexedSeq[T](codes: => TraversableOnce[Code[T]]): Code[T] = new Code[T] {
-    def emit(il: Growable[AbstractInsnNode]): Unit =
-      codes.foreach(_.emit(il))
+    def emit(fb: FunctionBuilder[_]): Unit =
+      codes.foreach(_.emit(fb))
   }
 
   implicit def toCode[T](f: LocalRef[T]): Code[T] = f.load()

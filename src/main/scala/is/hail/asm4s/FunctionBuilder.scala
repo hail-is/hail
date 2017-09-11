@@ -12,7 +12,6 @@ import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
 import org.objectweb.asm.{ClassReader, ClassWriter, Type}
 
 import scala.collection.mutable
-import scala.collection.generic.Growable
 import scala.language.implicitConversions
 import scala.language.higherKinds
 import scala.reflect.ClassTag
@@ -36,30 +35,32 @@ object FunctionBuilder {
     new ClassReader(bytes).accept(tcv, 0)
   }
 
-  def functionBuilder[R: TypeInfo]: FunctionBuilder[AsmFunction0[R]] =
-    new FunctionBuilder(Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
+  def functionBuilder[R: TypeInfo]: FunctionClassBuilder[AsmFunction0[R]] =
+    new FunctionClassBuilder(Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
 
-  def functionBuilder[A: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction1[A, R]] =
-    new FunctionBuilder(Array(GenericTypeInfo[A]), GenericTypeInfo[R])
+  def functionBuilder[A: TypeInfo, R: TypeInfo]: FunctionClassBuilder[AsmFunction1[A, R]] =
+    new FunctionClassBuilder(Array(GenericTypeInfo[A]), GenericTypeInfo[R])
 
-  def functionBuilder[A: TypeInfo, B: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction2[A, B, R]] =
-    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
+  def functionBuilder[A: TypeInfo, B: TypeInfo, R: TypeInfo]: FunctionClassBuilder[AsmFunction2[A, B, R]] =
+    new FunctionClassBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
 
-  private implicit def methodNodeToGrowable(mn: MethodNode): Growable[AbstractInsnNode] = new Growable[AbstractInsnNode] {
-    def +=(e: AbstractInsnNode) = { mn.instructions.add(e); this }
-    def clear() { throw new UnsupportedOperationException() }
-  }
 }
 
-// trait CodeBlock {
-//   def allocLocal[T](): Int
-//   def newLocal[T](): LocalRef[T]
-//   def emit(c: Code[_]): Unit
-//   def emit(c: ucode.UCode): Unit
-// }
+trait FunctionBuilder[F >: Null] {
+  def allocLocal[T]()(implicit tti: TypeInfo[T]): Int
+  def newLocal[T]()(implicit tti: TypeInfo[T]): LocalRef[T] =
+    new LocalRef[T](allocLocal[T]())
+  def newLocal[T](c: Code[T])(implicit tti: TypeInfo[T]): LocalRef[T] = {
+    val l = new LocalRef[T](allocLocal[T]())
+    emit(l.store(c))
+    l
+  }
+  def emit(c: Code[_])
+  def emit(insn: AbstractInsnNode)
+}
 
-class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], returnTypeInfo: MaybeGenericTypeInfo[_],
-  packageName: String = "is/hail/codegen/generated")(implicit interfaceTi: TypeInfo[F]) {
+class FunctionClassBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], returnTypeInfo: MaybeGenericTypeInfo[_],
+  packageName: String = "is/hail/codegen/generated")(implicit interfaceTi: TypeInfo[F]) extends FunctionBuilder[F] {
 
   import FunctionBuilder._
 
@@ -109,10 +110,16 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
       toCodeFromIndexedSeq(parameterTypeInfo.zipWithIndex.map { case (ti, i) => ti.castFromGeneric(getArg(i+1)(ti.generic)) }),
       Code(new MethodInsnNode(INVOKESPECIAL, name, "apply", descriptor, false)))
 
+    val self = this
+
     Code(
       returnTypeInfo.castToGeneric(callSpecialized),
       new InsnNode(returnTypeInfo.generic.returnOp)
-    ).emit(genericMn)
+    ).emit(new FunctionBuilder[F] {
+      def allocLocal[T]()(implicit tti: TypeInfo[T]): Int = self.allocLocal()(tti)
+      def emit(c: Code[_]) { c.emit(this) }
+      def emit(insn: AbstractInsnNode) { genericMn.instructions.add(insn) }
+    })
   }
 
   def allocLocal[T]()(implicit tti: TypeInfo[T]): Int = {
@@ -122,15 +129,6 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     mn.localVariables.asInstanceOf[util.List[LocalVariableNode]]
       .add(new LocalVariableNode("local" + i, tti.name, null, start, end, i))
     i
-  }
-
-  def newLocal[T]()(implicit tti: TypeInfo[T]): LocalRef[T] =
-    new LocalRef[T](allocLocal[T]())
-
-  def newLocal[T](c: Code[T])(implicit tti: TypeInfo[T]): LocalRef[T] = {
-    val l = new LocalRef[T](allocLocal[T]())
-    emit(l.store(c))
-    l
   }
 
   def getStatic[T, S](field: String)(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S]): Code[S] = {
@@ -153,11 +151,11 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   val l = new mutable.ArrayBuffer[AbstractInsnNode]()
   def emit(c: Code[_]) {
-    c.emit(l)
+    c.emit(this)
   }
 
-  def emit(c: ucode.UCode) {
-    c.emit(l)
+  def emit(insn: AbstractInsnNode) {
+    l += insn
   }
 
   def classAsBytes(): Array[Byte] = {
@@ -251,7 +249,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 }
 
 class Function2Builder[A1 >: Null : TypeInfo, A2 >: Null : TypeInfo, R >: Null : TypeInfo]
-    extends FunctionBuilder[AsmFunction2[A1, A2, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R]) {
+    extends FunctionClassBuilder[AsmFunction2[A1, A2, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R]) {
 
   def arg1 = getArg[A1](1)
 

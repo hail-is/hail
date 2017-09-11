@@ -7,7 +7,7 @@ import scala.language.existentials
 sealed case class PrimitiveOp(x: Long)
 
 sealed trait IR
-sealed case class Null() extends IR
+sealed case class NA(typ: PointedTypeInfo[_]) extends IR
 sealed case class I32(x: Int) extends IR
 sealed case class I64(x: Long) extends IR
 sealed case class F32(x: Float) extends IR
@@ -24,13 +24,13 @@ sealed case class MakeArray(args: Array[IR], typ: TypeInfo[_]) extends IR
 sealed case class ArrayRef(a: IR, i: IR, typ: TypeInfo[_]) extends IR
 sealed case class MakeStruct(fields: Array[(String, TypeInfo[_], IR)]) extends IR
 sealed case class GetField(o: IR, name: String) extends IR
-sealed case class MapNull(name: String, value: IR, valueTyp: TypeInfo[_], body: IR) extends IR
+sealed case class MapNA(name: String, value: IR, valueTyp: TypeInfo[_], body: IR, bodyTyp: PointedTypeInfo[_]) extends IR
 sealed case class In(i: Int) extends IR
 sealed case class Out(values: Array[IR]) extends IR
 
 object IR {
   def usedInputs(ir: IR): Array[Int] = ir match {
-    case Null() =>
+    case NA(typ) =>
       Array()
     case I32(x) =>
       Array()
@@ -64,7 +64,7 @@ object IR {
       fields map (_._3) flatMap usedInputs
     case GetField(o, name) =>
       usedInputs(o)
-    case MapNull(name, value, valueTyp, body) =>
+    case MapNA(name, value, valueTyp, body) =>
       usedInputs(value) ++ usedInputs(body)
     case In(i) =>
       Array(i)

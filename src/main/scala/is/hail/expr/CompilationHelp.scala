@@ -31,11 +31,11 @@ object CompilationHelp {
   private def loadElementsIntoArray[T](elements: IndexedSeq[Code[T]])(implicit tti: TypeInfo[T]): Code[Array[T]] =
     toCodeFromIndexedSeq(elements.zipWithIndex.map { case (x, i) =>
       new Code[AnyRef] {
-        def emit(il: Growable[AbstractInsnNode]) {
-          il += new InsnNode(DUP)
-          i.emit(il)
-          x.emit(il)
-          il += new InsnNode(tti.astoreOp)
+        def emit(fb: FunctionBuilder[_]) {
+          fb.emit(new InsnNode(DUP))
+          i.emit(fb)
+          x.emit(fb)
+          fb.emit(new InsnNode(tti.astoreOp))
         }
       }
     }).asInstanceOf[Code[Array[T]]]
@@ -51,11 +51,11 @@ object CompilationHelp {
         .map { case (x, i) =>
           t.conv.to(x).map { convertedX =>
             new Code[AnyRef] {
-              def emit(il: Growable[AbstractInsnNode]) {
-                il += new InsnNode(DUP)
-                i.emit(il)
-                convertedX.emit(il)
-                il += new InsnNode(classInfo[AnyRef].astoreOp)
+              def emit(fb: FunctionBuilder[_]) {
+                fb.emit(new InsnNode(DUP))
+                i.emit(fb)
+                convertedX.emit(fb)
+                fb.emit(new InsnNode(classInfo[AnyRef].astoreOp))
               }
             }
           }
@@ -63,11 +63,11 @@ object CompilationHelp {
     case _ =>
       CM.ret(toCodeFromIndexedSeq(elements.zipWithIndex.map { case (x, i) =>
         new Code[AnyRef] {
-          def emit(il: Growable[AbstractInsnNode]) {
-            il += new InsnNode(DUP)
-            i.emit(il)
-            x.emit(il)
-            il += new InsnNode(classInfo[AnyRef].astoreOp)
+          def emit(fb: FunctionBuilder[_]) {
+            fb.emit(new InsnNode(DUP))
+            i.emit(fb)
+            x.emit(fb)
+            fb.emit(new InsnNode(classInfo[AnyRef].astoreOp))
           }
         }
       }).asInstanceOf[Code[Array[AnyRef]]])
