@@ -40,8 +40,8 @@ class PCRelateSuite extends SparkSuite {
   private def toS(a: Any): String =
     a.asInstanceOf[String]
 
-  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double): Map[(String, String), (Double, Double, Double, Double)] =
-    PCRelate.toPairRdd(vds, pcs, maf, blockSize).collect().toMap.asInstanceOf[Map[(String, String), (Double, Double, Double, Double)]]
+  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double, minKinship: Double = PCRelate.defaultMinKinship): Map[(String, String), (Double, Double, Double, Double)] =
+    PCRelate.toPairRdd(vds, pcs, maf, blockSize, minKinship).collect().toMap.asInstanceOf[Map[(String, String), (Double, Double, Double, Double)]]
 
   def runPcRelateR(
     vds: VariantDataset,
@@ -203,6 +203,20 @@ class PCRelateSuite extends SparkSuite {
     val truth = runPcRelateR(vds, maf=0.01)
     val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
 
+    assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-2)))
+  }
+
+  @Test
+  def kinshipFiltering() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
+
+    val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
+
+    val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
+      .filter { case (_, (kin, _, _, _)) => kin >= 0.125 }
+    val actual = runPcRelateHail(vds, pcs, 0.01, 0.125)
+
+    assert(truth.size > 0)
     assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-2)))
   }
 
