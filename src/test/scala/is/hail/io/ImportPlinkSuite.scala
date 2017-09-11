@@ -68,4 +68,37 @@ class ImportPlinkSuite extends SparkSuite {
   @Test def testPlinkImportRandom() {
     Spec.check()
   }
+
+  @Test def testA1Major() {
+    val a1major = hc.importPlinkBFile("src/test/resources/fastlmmTest", a2Major = false)
+      .annotateGenotypesExpr("g = Genotype(g.GT)")
+      .toVDS
+
+    val a2major = hc.importPlinkBFile("src/test/resources/fastlmmTest", a2Major = true)
+      .annotateGenotypesExpr("g = Genotype(g.GT)")
+      .toVDS
+
+    val a1kt = a1major
+      .variantQC()
+      .variantsKT()
+      .flatten()
+      .select("va.rsid", "v", "va.qc.nNotCalled", "va.qc.nHomRef", "va.qc.nHet", "va.qc.nHomVar")
+      .rename(Map("va.rsid" -> "rsid","v" -> "vA1", "va.qc.nNotCalled" -> "nNotCalledA1",
+        "va.qc.nHomRef" -> "nHomRefA1", "va.qc.nHet" -> "nHetA1", "va.qc.nHomVar" -> "nHomVarA1"))
+      .keyBy("rsid")
+
+    val a2kt = a2major
+      .variantQC()
+      .variantsKT()
+      .flatten()
+      .select("va.rsid", "v", "va.qc.nNotCalled", "va.qc.nHomRef", "va.qc.nHet", "va.qc.nHomVar")
+      .rename(Map("va.rsid" -> "rsid","v" -> "vA2", "va.qc.nNotCalled" -> "nNotCalledA2",
+        "va.qc.nHomRef" -> "nHomRefA2", "va.qc.nHet" -> "nHetA2", "va.qc.nHomVar" -> "nHomVarA2"))
+      .keyBy("rsid")
+
+    val joined = a1kt.join(a2kt, "outer")
+
+    assert(joined.forall("vA1.ref == vA2.alt && vA1.alt == vA2.ref && nNotCalledA1 == nNotCalledA2 && " +
+      "nHetA1 == nHetA2 && nHomRefA1 == nHomVarA2 && nHomVarA1 == nHomRefA2"))
+  }
 }
