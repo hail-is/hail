@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import java.io.{DataInputStream, DataOutputStream}
+import java.io.{DataInputStream, DataOutputStream, ObjectInputStream, ObjectOutputStream}
 
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
@@ -34,6 +34,13 @@ class UnsafeIndexedSeqAnnotation(
     enc.writeRegionValue(ttBc.value.typ, region, aoff)
   }
 
+  private def writeObject(out: ObjectOutputStream) {
+    out.writeObject(ttBc)
+
+    val enc = new Encoder(new DataOutputStream(out))
+    enc.writeRegionValue(ttBc.value.typ, region, aoff)
+  }
+
   override def read(kryo: Kryo, input: Input) {
     val cTorrentBroadcast = Class.forName("org.apache.spark.broadcast.TorrentBroadcast")
     ttBc = kryo.readObject(input, cTorrentBroadcast).asInstanceOf[Broadcast[TypeTree]]
@@ -42,6 +49,20 @@ class UnsafeIndexedSeqAnnotation(
     val dec = new Decoder(new DataInputStream(input))
     region = MemoryBuffer()
     aoff = dec.readRegionValue(t, region)
+
+    length = region.loadInt(aoff)
+
+    elemSize = UnsafeUtils.arrayElementSize(t.elementType)
+    elemsOffset = aoff + t.elementsOffset(length)
+  }
+
+  private def readObject(in: ObjectInputStream) {
+    ttBc = in.readObject().asInstanceOf[Broadcast[TypeTree]]
+    val t = ttBc.value.typ.asInstanceOf[TArray]
+
+    val dec = new Decoder(new DataInputStream(in))
+    region = MemoryBuffer()
+    aoff = dec.readRegionValue(ttBc.value.typ, region)
 
     length = region.loadInt(aoff)
 
@@ -198,6 +219,8 @@ object UnsafeRow {
 class UnsafeRow(var ttBc: Broadcast[TypeTree],
   var region: MemoryBuffer, var offset: Long) extends Row with KryoSerializable {
 
+  def this() = this(null, null, 0L)
+
   def t: TStruct = ttBc.value.typ.asInstanceOf[TStruct]
 
   def length: Int = t.size
@@ -258,10 +281,23 @@ class UnsafeRow(var ttBc: Broadcast[TypeTree],
     enc.writeRegionValue(ttBc.value.typ, region, offset)
   }
 
+  private def writeObject(out: ObjectOutputStream) {
+    out.writeObject(ttBc)
+    val enc = new Encoder(new DataOutputStream(out))
+    enc.writeRegionValue(ttBc.value.typ, region, offset)
+  }
+
   override def read(kryo: Kryo, input: Input) {
     val cTorrentBroadcast = Class.forName("org.apache.spark.broadcast.TorrentBroadcast")
     ttBc = kryo.readObject(input, cTorrentBroadcast).asInstanceOf[Broadcast[TypeTree]]
     val dec = new Decoder(new DataInputStream(input))
+    region = MemoryBuffer()
+    offset = dec.readRegionValue(ttBc.value.typ, region)
+  }
+
+  private def readObject(in: ObjectInputStream) {
+    ttBc = in.readObject().asInstanceOf[Broadcast[TypeTree]]
+    val dec = new Decoder(new DataInputStream(in))
     region = MemoryBuffer()
     offset = dec.readRegionValue(ttBc.value.typ, region)
   }

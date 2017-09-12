@@ -1,5 +1,9 @@
 package is.hail.annotations
 
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
+import com.esotericsoftware.kryo.io.{Input, Output}
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
@@ -13,7 +17,7 @@ object MemoryBuffer {
   }
 }
 
-final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) {
+final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) extends KryoSerializable with Serializable {
   def size: Long = offset
 
   def copyFrom(other: MemoryBuffer, readStart: Long, writeStart: Long, n: Long) {
@@ -224,6 +228,56 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
 
   override def finalize() {
     Memory.free(mem)
+  }
+
+  override def write(kryo: Kryo, output: Output) {
+    output.writeLong(offset)
+
+    assert(offset <= Int.MaxValue)
+    val smallOffset = offset.toInt
+    val a = new Array[Byte](smallOffset)
+
+    Memory.memcpy(a, 0, mem, offset)
+
+    output.write(a)
+  }
+
+  override def read(kryo: Kryo, input: Input) {
+    offset = input.readLong()
+    assert(offset <= Int.MaxValue)
+    val smallOffset = offset.toInt
+    val inMem = new Array[Byte](smallOffset)
+    input.read(inMem)
+
+    mem = Memory.malloc(offset)
+    length = offset
+
+    Memory.memcpy(mem, inMem, 0, offset)
+  }
+
+  private def writeObject(out: ObjectOutputStream) {
+    out.writeLong(offset)
+
+    assert(offset <= Int.MaxValue)
+    val smallOffset = offset.toInt
+    val a = new Array[Byte](smallOffset)
+
+    Memory.memcpy(a, 0, mem, offset)
+
+    out.write(a)
+  }
+
+  private def readObject(in: ObjectInputStream) {
+    offset = in.readLong()
+    assert(offset <= Int.MaxValue)
+    val smallOffset = offset.toInt
+    val inMem = new Array[Byte](smallOffset)
+    in.read(inMem)
+
+    mem = Memory.malloc(offset)
+    length = offset
+
+    Memory.memcpy(mem, inMem, 0, offset)
   }
 
   def visit(t: Type, off: Long, v: ValueVisitor) {
