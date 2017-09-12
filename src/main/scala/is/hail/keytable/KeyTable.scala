@@ -342,21 +342,23 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     copy(key = key.toArray)
   }
 
-  def select(selectedColumns: Array[String]): KeyTable = {
-    val nonexistentColumns = selectedColumns.diff(columns)
-    if (nonexistentColumns.nonEmpty)
-      fatal(s"Selected columns `${ nonexistentColumns.mkString(", ") }' do not exist in key table. Choose from `${ columns.mkString(", ") }'.")
+  def select(keep: Array[String], mangle: Boolean = false): KeyTable = {
+    val paths = keep.map(Parser.parseAnnotationIdentifier)
 
-    val (newSignature, del) = signature.select(selectedColumns)
-    val newKey = key.filter(selectedColumns.toSet)
+    val nonexistentPaths = paths.filter(signature.fieldOption(_).isEmpty)
+    if (nonexistentPaths.nonEmpty)
+      fatal(s"""Selected paths `${ nonexistentPaths.mkString(", ") }' do not exist in key table.
+        |  Table signature is ${ signature.toPrettyString(compact = true) }.""".stripMargin)
 
-    KeyTable(hc, rdd.map { r => del(r) }, newSignature, newKey)
+    val (newSignature, f) = signature.select(paths, mangle)
+    val newKey = key.filter(keep.toSet)
+
+    KeyTable(hc, rdd.map(f), newSignature, newKey)
   }
 
-  def select(selectedColumns: String*): KeyTable = select(selectedColumns.toArray)
+  def select(keep: String*): KeyTable = select(keep.toArray)
 
-  def select(selectedColumns: java.util.ArrayList[String]): KeyTable =
-    select(selectedColumns.asScala.toArray)
+  def select(keep: java.util.ArrayList[String]): KeyTable = select(keep.asScala.toArray)
 
   def drop(columnsToDrop: Array[String]): KeyTable = {
     val nonexistentColumns = columnsToDrop.diff(columns)
