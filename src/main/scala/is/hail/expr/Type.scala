@@ -1741,9 +1741,9 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  def select(keep: Array[String]): (TStruct, (Row) => Row) = select(keep.map(List(_)))
+  def select(keep: Array[String], mangle: Boolean = false): (TStruct, (Row) => Row) = select(keep.map(List(_)), mangle)
 
-  def select(paths: Array[List[String]], mangle: Boolean = false): (TStruct, (Row) => Row) = {
+  def select(paths: Array[List[String]], mangle: Boolean): (TStruct, (Row) => Row) = {
     val overlappingNames = paths.map(_.last).counter.filter { case (n, i) => i != 1 && !mangle }.keys
     if (overlappingNames.nonEmpty)
       fatal(s"Found ${ overlappingNames.size } ${ plural(overlappingNames.size, "selected field name") } that are duplicated.\n" +
