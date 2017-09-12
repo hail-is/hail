@@ -558,11 +558,13 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     SplitMulti(vds, propagateGQ, keepStar, maxShift)
   }
 
-  def skat(variantKeys: String, singleKey: Boolean, weightExpr: Option[String], y: String,
-    covariates: Array[String] = Array.empty[String], useDosages: Boolean = false): KeyTable = {
+  def skat(variantKeys: String, singleKey: Boolean, y: String, covariates: Array[String] = Array.empty[String],
+    weightExpr: Option[String], logistic: Boolean = false, useDosages: Boolean = false,
+    useLargeN: Boolean = false): KeyTable = {
+
     requireSplit("skat")
 
-    Skat(vds, variantKeys, singleKey, weightExpr, y, covariates, useDosages)
+    Skat(vds, variantKeys, singleKey, y, covariates, weightExpr, logistic, useDosages, useLargeN)
   }
 
   def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {

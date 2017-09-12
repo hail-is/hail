@@ -4989,12 +4989,13 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(variant_keys=strlike,
                       single_key=bool,
-                      weight_expr=nullable(strlike),
                       y=strlike,
                       covariates=listof(strlike),
+                      weight_expr=nullable(strlike),
+                      logistic=bool,
                       use_dosages=bool)
-    def skat(self, variant_keys, single_key, y, weight_expr=None, covariates=[], use_dosages=False):
-        """Test each keyed group of variants for association by linear SKAT test.
+    def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, logistic=False, use_dosages=False):
+        """Test each keyed group of variants for association by linear or logistic SKAT test.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
 
@@ -5005,12 +5006,12 @@ class VariantDataset(HistoryMixin):
         Run a gene test using the linear Sequence Kernel Association Test. Here ``va.genes``
         is a variant annotation of type Set[String] giving the set of genes containing the variant:
 
-        >>> skat_kt = (hc.read('data/example_burden.vds').skat(
-        ...           variant_keys='va.genes',
-        ...           single_key=False,
-        ...           y='sa.burden.pheno',
-        ...           weight_expr='va.weight',
-        ...           covariates=['sa.burden.cov1', 'sa.burden.cov2']))
+        >>> skat_kt = (hc.read('data/example_burden.vds')
+        ...              .skat(variant_keys='va.genes',
+        ...                    single_key=False,
+        ...                    y='sa.burden.pheno',
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2'],
+        ...                    weight_expr='va.weight'))
 
         .. caution::
 
@@ -5027,6 +5028,13 @@ class VariantDataset(HistoryMixin):
         in `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
         <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
+        As in the paper, if ``weight_expr`` is unspecified,
+        default variant weights are given by evaluating the Beta(1, 25) density at the minor allele frequency. Variant
+        weights must be non-negative.
+
+        In the logistic case, the phenotype must either be numeric (with all present values 0 or 1) or Boolean, in
+        which case true and false are coded as 1 and 0, respectively.
+
         The resulting key table provides the variant component score and the p-value for each group, with the latter
         given by right tail of a weighted sum of :math:`\\chi^2(1)` distributions. For the example above the table has
         the form:
@@ -5041,8 +5049,9 @@ class VariantDataset(HistoryMixin):
         | geneC| 4.122 | 0.192|   0   |
         +------+-------+------+-------+
 
-        Note that the variant component score qstat is related to :math:`Q` in the paper by
+        Note that the variant component score qstat is related to :math:`Q` in the paper by a factor of
         :math:`\\frac{1}{2\\sigma^2}Q` where :math:`\\sigma^2` is the unbiased estimator of residual variance.
+        In the logistic case the scaling is by a factor of 0.5 .
 
         The key table also includes the fault flag returned by Davies' algorithm, an integer indicating any issues
         with the computation. These are described in the following table from Davies' original code.
@@ -5052,7 +5061,7 @@ class VariantDataset(HistoryMixin):
         +=============+=========================================+
         |      0      |                no issues                |
         +------+------+-----------------------------------------+
-        |      1      |       accuracy 1e-6 NOT achieved        |
+        |      1      |       accuracy 1e-8 NOT achieved        |
         +------+------+-----------------------------------------+
         |      2      |   round-off error possibly significant  |
         +------+------+-----------------------------------------+
@@ -5065,9 +5074,8 @@ class VariantDataset(HistoryMixin):
 
         .. caution::
 
-            If a p-value of 0.0 is returned, then the true p-value falls in the range between 0.0 and
-            :math:`2^{-52} \\approx  2.22 \\cdot 10^{-16}` (machine epsilon).  This is because Davies method calculates the
-            left-hand area, which we then subtract from 1 to get the p-value.
+          The Davies algorithm iterates up to 100k times until an accuracy of 1e-8 is achieved. Hence a reported p-value of
+          zero with no issues may truly be as large as 1e-8.
 
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
@@ -5076,22 +5084,23 @@ class VariantDataset(HistoryMixin):
 
         :param str y: Response expression.
 
-        :param str weight_expr: Variant expression of numeric type for SKAT weight. When no weight is provided, weights are
-                           generated to from a beta distribution (alpha = 1, beta = 25) evalulated at the minor allele
-                           frequency of each variant.
+        :param weight_expr: Variant expression of numeric type for SKAT weights.
+        :type weight_expr: str or None
 
         :param covariates: List of covariate expressions.
         :type covariates: List of str
 
+        :param bool logistic: If true, use the logistic test rather than the linear test. 
+
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
         :return: Key table of SKAT results.
-
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, joption(weight_expr), y,
-                                    jarray(Env.jvm().java.lang.String, covariates), use_dosages))
+        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, y,
+                                                 jarray(Env.jvm().java.lang.String, covariates),
+                                                 joption(weight_expr), logistic, use_dosages, False))
 
     @handle_py4j
     @record_method

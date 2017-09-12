@@ -1,11 +1,8 @@
 package is.hail.methods
 
 import is.hail.utils._
-import java.io._
-
-import scala.io.Source
 import is.hail.expr._
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.io.annotators.IntervalList
 import is.hail.variant.{GenomeReference, Genotype, VariantDataset}
 import is.hail.methods.Skat.keyedRDDSkat
@@ -13,9 +10,10 @@ import is.hail.annotations.Annotation
 
 import scala.sys.process._
 import breeze.linalg._
+import breeze.numerics.sigmoid
 
 import scala.language.postfixOps
-import is.hail.stats.RegressionUtils
+import is.hail.stats.RegressionUtils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -23,83 +21,59 @@ import org.testng.annotations.Test
 case class SkatAggForR(xs: ArrayBuilder[Vector[Double]], weights: ArrayBuilder[Double])
 
 class SkatSuite extends SparkSuite {
-
-  //Routines for running programs in R for comparison
-
-  def readResults(file: String) = {
-    hadoopConf.readLines(file) {
-      _.map {
-        _.map {
-          _.split(" ").map(_.toDouble)
-        }.value
-      }.toArray
-    }
-  }
-
-  def largeMatrixToString(A: DenseMatrix[Double], separator: String): String = {
-    val sb = new StringBuilder
-    for (i <- 0 until A.rows) {
-      for (j <- 0 until A.cols) {
-        sb.append(separator)
-        sb.append(A(i, j))
-      }
-      sb += '\n'
-    }
-    sb.result()
-  }
-
-  def resultOp(st: Array[(Vector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
-    val m = st.length
-    val xArray = Array.ofDim[Double](m * n)
-    val wArray = Array.ofDim[Double](m)
-
-    var i = 0
-    while (i < m) {
-      val (xw, w) = st(i)
-      wArray(i) = w
-      xw match {
-        case xw: SparseVector[Double] =>
-          val index = xw.index
-          val data = xw.data
-          var j = 0
-          while (j < index.length) {
-            xArray(i * n + index(j)) = data(j)
-            j += 1
-          }
-        case xw: DenseVector[Double] =>
-          val data = xw.data
-          var j = 0
-          while (j < n) {
-            xArray(i * n + j) = data(j)
-            j += 1
-          }
-        case _ => fatal("Skat tests are only supported for sparse and dense vector datatypes.")
-      }
-      i += 1
-
-    }
-
-    (new DenseMatrix(n, m, xArray), new DenseVector(wArray))
-  }
-
-  def testInR(vds: VariantDataset,
+  def skatInR(vds: VariantDataset,
     variantKeys: String,
     singleKey: Boolean,
-    weightExpr: Option[String],
     yExpr: String,
     covExpr: Array[String],
+    weightExpr: Option[String],
+    useLogistic: Boolean,
     useDosages: Boolean): Array[Row] = {
-
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-    val n = y.size
-    val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
-    completeSampleIndex.foreach(i => sampleMask(i) = true)
-    val filteredVds = vds.filterSamplesMask(sampleMask)
-
-
-    val completeSamplesBc = filteredVds.sparkContext.broadcast((0 until n).toArray)
-
-    def skatTestInR(keyedRdd:  RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
+    
+    def readRResults(file: String): Array[Array[Double]] = {
+      hadoopConf.readLines(file) {
+        _.map {
+          _.map {
+            _.split(" ").map(_.toDouble)
+          }.value
+        }.toArray
+      }
+    }
+  
+    def resultOp(st: Array[(Vector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
+      val m = st.length
+      val xArray = Array.ofDim[Double](m * n)
+      val wArray = Array.ofDim[Double](m)
+  
+      var i = 0
+      while (i < m) {
+        val (xw, w) = st(i)
+        wArray(i) = w
+        xw match {
+          case xw: SparseVector[Double] =>
+            val index = xw.index
+            val data = xw.data
+            var j = 0
+            while (j < index.length) {
+              xArray(i * n + index(j)) = data(j)
+              j += 1
+            }
+          case xw: DenseVector[Double] =>
+            val data = xw.data
+            var j = 0
+            while (j < n) {
+              xArray(i * n + j) = data(j)
+              j += 1
+            }
+        }
+        i += 1
+  
+      }
+  
+      (new DenseMatrix(n, m, xArray), new DenseVector(wArray))
+    }
+    
+    def runInR(keyedRdd:  RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
       y: DenseVector[Double], cov: DenseMatrix[Double],
       resultOp: (Array[(Vector[Double], Double)], Int) => (DenseMatrix[Double], DenseVector[Double])): Array[Row] = {
 
@@ -118,351 +92,220 @@ class SkatSuite extends SparkSuite {
 
       val inputFilePheno = tmpDir.createLocalTempFile("skatPhenoVec", ".txt")
       hadoopConf.writeTextFile(inputFilePheno) {
-        _.write(largeMatrixToString(y.toDenseMatrix, " "))
+        _.write(TestUtils.matrixToString(y.toDenseMatrix, " "))
       }
 
       val inputFileCov = tmpDir.createLocalTempFile("skatCovMatrix", ".txt")
       hadoopConf.writeTextFile(inputFileCov) {
-        _.write(largeMatrixToString(cov, " "))
+        _.write(TestUtils.matrixToString(cov, " "))
       }
 
       val skatRDD = keyedRdd.collect()
-        .map {case (k, vs) =>
+        .map { case (key, vs) =>
           val (xs, weights) = resultOp(vs.toArray, n)
 
           //write files to a location R script can read
           val inputFileG = tmpDir.createLocalTempFile("skatGMatrix", ".txt")
           hadoopConf.writeTextFile(inputFileG) {
-            _.write(largeMatrixToString(xs, " "))
+            _.write(TestUtils.matrixToString(xs, " "))
           }
 
           val inputFileW = tmpDir.createLocalTempFile("skatWeightVec", ".txt")
           hadoopConf.writeTextFile(inputFileW) {
-            _.write(largeMatrixToString(weights.toDenseMatrix, " "))
+            _.write(TestUtils.matrixToString(weights.toDenseMatrix, " "))
           }
 
           val resultsFile = tmpDir.createLocalTempFile("results", ".txt")
 
+          val datatype = if (useLogistic) "D" else "C"
+
           val rScript = s"Rscript src/test/resources/skatTest.R " +
             s"${ uriPath(inputFileG) } ${ uriPath(inputFileCov) } " +
             s"${ uriPath(inputFilePheno) } ${ uriPath(inputFileW) } " +
-            s"${ uriPath(resultsFile) } " + "C"
+            s"${ uriPath(resultsFile) } " + datatype
 
           rScript !
-          val results = readResults(resultsFile)
+          val results = readRResults(resultsFile)
 
-          Row(k, results(0)(0), results(0)(1))
+          Row(key, results(0)(0), results(0)(1))
         }
+      
       skatRDD
     }
 
-    val getGenotypeFunction =  (gs: Iterable[Genotype], n: Int) =>
-      if (!useDosages) {RegressionUtils.hardCalls(gs, n)
-    } else {RegressionUtils.dosages(gs, completeSamplesBc.value) }
+    val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val n = y.size
+    val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
+    completeSampleIndex.foreach(i => sampleMask(i) = true)
+    val filteredVds = vds.filterSamplesMask(sampleMask)
+
+    val completeSamplesBc = filteredVds.sparkContext.broadcast((0 until n).toArray)
+
+    val getGenotypesFunction = (gs: Iterable[Genotype], n: Int) =>
+      if (!useDosages) {
+        hardCalls(gs, n)
+      } else {
+        dosages(gs, completeSamplesBc.value)
+      }
 
     val (keyedRdd, keysType) =
-      keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, n, getGenotypeFunction)
-    skatTestInR(keyedRdd, keysType, y, cov, resultOp)
+      keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, getGenotypesFunction)
+    
+    runInR(keyedRdd, keysType, y, cov, resultOp)
   }
 
+  // 18 complete samples from sample2.vcf, 5 genes
+  // Using specified weights in Hail and R
+  val vdsSkat: VariantDataset = {
+    val covSkat = hc.importTable("src/test/resources/skat.cov",
+      impute = true).keyBy("Sample")
 
-  def covariates = hc.importTable("src/test/resources/regressionLinear.cov",
-    types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
+    val phenoSkat = hc.importTable("src/test/resources/skat.pheno",
+      types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
-  def phenotypes = hc.importTable("src/" +
-    "test/resources/regressionLinear.pheno",
-    types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
+    val intervalsSkat = IntervalList.read(hc, "src/test/resources/skat.interval_list")
 
-  def intervals = IntervalList.read(hc, "src/test/resources/regressionLinear.interval_list")
+    val rg = GenomeReference.GRCh37
 
-  def vds: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
-    .annotateVariantsTable(intervals, root = "va.genes", product = true)
-    .annotateSamplesTable(phenotypes, root = "sa.pheno")
-    .annotateSamplesTable(covariates, root = "sa.cov")
-    .annotateSamplesExpr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
-    .filterSamplesExpr("sa.pheno.isDefined() && sa.cov.Cov1.isDefined() && sa.cov.Cov2.isDefined()")
-    .annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
-    .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
+    val weightsSkat = hc.importTable("src/test/resources/skat.weights",
+      types = Map("locus" -> TLocus(rg), "weight" -> TFloat64)).keyBy("locus")
 
-  @Test def hardcallsSmallTest() {
+    hc.importVCF("src/test/resources/sample2.vcf")
+      .filterMulti()
+      .annotateVariantsTable(intervalsSkat, root = "va.genes") // intervals do not overlap
+      .annotateVariantsTable(weightsSkat, root = "va.weight")
+      .annotateSamplesTable(covSkat, root = "sa.cov")
+      .annotateSamplesTable(phenoSkat, root = "sa.pheno")
+      .annotateSamplesExpr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
+  }
+  
+  // R uses a small sample correction for logistic below 2000 samples, Hail does not
+  // So here we make a large deterministic example using the Balding-Nichols model (only hardcalls)
+  // Using default weights in both Hail and R
+  val vdsBN: VariantDataset = {
+    val seed = 0
+    val nSamples = 2001
+    val nVariants = 50
+  
+    val rand = scala.util.Random
+    rand.setSeed(seed)
+    
+    val cov1Array: Array[Double] = Array.fill[Double](nSamples)(rand.nextGaussian())
+    val cov2Array: Array[Double] = Array.fill[Double](nSamples)(rand.nextGaussian())
+  
+    val vdsBN0 = hc.baldingNicholsModel(1, nSamples, nVariants, seed = seed)
+  
+    val G: DenseMatrix[Double] = TestUtils.vdsToMatrixDouble(vdsBN0)
+    val pi: DenseVector[Double] = sigmoid(sum(G(*, ::)) - nVariants.toDouble)
+    val phenoArray: Array[Boolean] = pi.toArray.map(_ > rand.nextDouble())
+    
+    vdsBN0
+      .annotateSamples(TFloat64, List("cov", "Cov1"), s => cov1Array(s.asInstanceOf[String].toInt))
+      .annotateSamples(TFloat64, List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
+      .annotateSamples(TBoolean, List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
+      .annotateVariantsExpr("va.genes = [v.start % 2, v.start % 3].toSet") // three overlapping genes
+  }
+  
+  def hailVsRTest(useBN: Boolean, useDosages: Boolean, useLogistic: Boolean, useLargeN: Boolean,
+    displayValues: Boolean = false, tol: Double = 1e-5) {
+   
+    require(useBN || !useLogistic)
+    require(!(useBN && useDosages))
+    
+    val (vds, singleKey, weightExpr) = if (useBN) (vdsBN, false, None) else (vdsSkat, true, Some("va.weight"))
+    
+    val resultHail = vds.skat("va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
+      weightExpr, useLogistic, useDosages, useLargeN)
+      .rdd
+      .collect()
 
+    val resultsR = skatInR(vds, "va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
+      weightExpr, useLogistic, useDosages)
+
+    var i = 0
+    while (i < resultsR.length) {
+      val qstat = resultHail(i).getAs[Double](1)
+      val pval = resultHail(i).getAs[Double](2)
+
+      val qstatR = resultsR(i).getAs[Double](1)
+      val pvalR = resultsR(i).getAs[Double](2)
+      val fault = resultHail(i).getAs[Int](3)
+      
+      if (displayValues) {
+        println(f"Davies\' Fault: $fault%d")
+        println(f"HAIL SkatStat: $qstat%2.9f  HAIL pVal: $pval")
+        println(f"   R SkatStat: $qstatR     R pVal: $pvalR")
+      }
+
+      assert(fault == 0)
+      assert(D_==(qstat, qstatR, tol))
+      assert(math.abs(pval - pvalR) < 2e-6) // R Davies accuracy is only up to 1e-6
+      
+      i += 1
+    }
+  }
+  
+  @Test def linearHardcalls() {
+    val useBN = false
     val useDosages = false
-
-    val kt = vds.skat( "va.genes", singleKey = false, Option("va.weight"),
-      "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
-
-    val resultsArray = testInR(vds, "va.genes", singleKey = false,
-      Some("va.weight"), "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
-
-    val rows = kt.rdd.collect()
-
-    val tol = 1e-5
-    var i = 0
-
-    while (i < resultsArray.size) {
-
-      val qstat = rows(i).getAs[Double](1)
-      val pval = rows(i).getAs[Double](2)
-
-      val qstatR = resultsArray(i).getAs[Double](1)
-      val pvalR = resultsArray(i).getAs[Double](2)
-      if (pval <= 1 && pval >= 0) {
-
-        assert(D_==(qstat, qstatR, tol))
-        assert(D_==(pval, pvalR, tol))
-      }
-
-      i += 1
-    }
-
+    val useLargeN = false
+    val useLogistic = false
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
   }
 
-  @Test def dosagesSmallTest() {
-
+  @Test def linearDosages() {
+    val useBN = false
     val useDosages = true
-
-    val resultsArray = testInR(vds, "va.genes", singleKey = false,
-      Some("va.weight"), "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
-
-    val kt = vds.skat("va.genes", singleKey = false, Option("va.weight"),
-      "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
-
-
-    val rows = kt.rdd.collect()
-
-    val tol = 1e-5
-    var i = 0
-
-    while (i < resultsArray.size) {
-      val qstat = rows(i).getAs[Double](1)
-      val pval = rows(i).getAs[Double](2)
-
-      val qstatR = resultsArray(i).getAs[Double](1)
-      val pvalR = resultsArray(i).getAs[Double](2)
-
-      if (pval <= 1 && pval >= 0) {
-        assert(D_==(qstat, qstatR, tol))
-        assert(D_==(pval, pvalR, tol))
-      }
-      i += 1
-    }
-
+    val useLargeN = false
+    val useLogistic = false
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
   }
 
-
-  @Test def largeNSmallTest() {
-
+  @Test def linearLargeNHardCalls() {
+    val useBN = false
     val useDosages = false
     val useLargeN = true
-
-    val kt = Skat(vds, "va.genes", false, Option("va.weight"), "sa.pheno",
-      Array("sa.cov.Cov1", "sa.cov.Cov2"),useDosages, useLargeN)
-
-    val resultsArray = testInR(vds, "va.genes", singleKey = false,
-      Some("va.weight"), "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
-
-    val rows = kt.rdd.collect()
-
-    val tol = 1e-5
-    var i = 0
-
-    while (i < resultsArray.size) {
-      val qstat = rows(i).getAs[Double](1)
-      val pval = rows(i).getAs[Double](2)
-
-      val qstatR = resultsArray(i).getAs[Double](1)
-      val pvalR = resultsArray(i).getAs[Double](2)
-
-
-      if (pval <= 1 && pval >= 0) {
-        assert(D_==(qstat, qstatR, tol))
-        assert(D_==(pval, pvalR, tol))
-      }
-      i += 1
-    }
-
+    val useLogistic = false
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
   }
 
-
-  //Generates random data
-  def buildWeightValues(filepath: String): Unit = {
-
-    //read in chrom:pos values
-    val fileSource = Source.fromFile(filepath)
-    val linesArray = fileSource.getLines.toArray
-    fileSource.close()
-
-    //write in randomized weights
-    val fileObject = new PrintWriter(new File(filepath))
-
-    for (i <- -1 until linesArray.size) {
-      if (i == -1) {
-        fileObject.write("Pos\tWeights\n")
-      }
-      else {
-        val pos = linesArray(i)
-        val randomWeight = scala.util.Random.nextDouble()
-        fileObject.write(s"$pos\t$randomWeight\n")
-
-      }
-    }
-    fileObject.close()
-  }
-
-  def buildCovariateMatrix(filepath: String, covariateCount: Int): Unit = {
-    val fileObject = new PrintWriter(new File(filepath))
-
-    val startIndex = 96
-    val endIndex = 116
-
-    for (i <- startIndex - 1 to endIndex) {
-
-      if (i == startIndex - 1) {
-        fileObject.write("Sample\t")
-        for (j <- 1 to covariateCount) {
-          if (j == covariateCount) {
-            fileObject.write(s"Cov$j")
-          }
-          else {
-            fileObject.write(s"Cov$j\t")
-          }
-        }
-        fileObject.write("\n")
-      }
-      else {
-        fileObject.write("HG%05d\t".format(i))
-        for (j <- 1 to covariateCount) {
-          if (j == covariateCount) {
-            fileObject.write("%d".format(scala.util.Random.nextInt(25)))
-          }
-          else {
-            fileObject.write("%d\t".format(scala.util.Random.nextInt(25)))
-          }
-        }
-        fileObject.write("\n")
-      }
-    }
-
-    fileObject.close()
-  }
-
-  def covariatesSkat = hc.importTable("src/test/resources/skat.cov",
-    impute = true).keyBy("Sample")
-
-  def phenotypesSkat = hc.importTable("src/test/resources/skat.pheno",
-    types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
-
-  def intervalsSkat = IntervalList.read(hc, "src/test/resources/skat.interval_list")
-
-  val rg = GenomeReference.GRCh37
-
-  def weightsSkat = hc.importTable("src/test/resources/skat.weights",
-    types = Map("locus" -> TLocus(rg), "weight" -> TFloat64)).keyBy("locus")
-
-  def vdsSkat: VariantDataset = hc.importVCF("src/test/resources/sample2.vcf")
-    .annotateVariantsTable(intervalsSkat, root = "va.genes", product = true)
-    .annotateVariantsTable(weightsSkat, root = "va.weight")
-    .annotateSamplesTable(phenotypesSkat, root = "sa.pheno0")
-    .annotateSamplesTable(covariatesSkat, root = "sa.cov")
-    .annotateSamplesExpr("sa.pheno = if (sa.pheno0 == 1.0) false else if (sa.pheno0 == 2.0) true else NA: Boolean")
-
-
-  @Test def hardcallsBigTest() {
-
-    val useDosages = false
-    val covariates = Array("sa.cov.Cov1", "sa.cov.Cov2")
-
-    val kt = vdsSkat.splitMulti().skat( "va.genes", singleKey = false, Option("va.weight"),
-      "sa.pheno0", covariates, useDosages)
-    val resultsArray = testInR(vdsSkat.splitMulti(), "va.genes", singleKey = false,
-      Some("va.weight"), "sa.pheno0", covariates, useDosages)
-
-    val rows = kt.rdd.collect()
-
-    var i = 0
-    val tol = 1e-5
-
-    while (i < resultsArray.size) {
-
-      val qstat = rows(i).getAs[Double](1)
-      val pval = rows(i).getAs[Double](2)
-
-      val qstatR = resultsArray(i).getAs[Double](1)
-      val pvalR = resultsArray(i).getAs[Double](2)
-
-      if (pval <= 1 && pval >= 0) {
-        assert(D_==(qstat, qstatR, tol))
-        assert(D_==(pval, pvalR, tol))
-      }
-      i += 1
-    }
-  }
-
-  @Test def dosagesBigTest() {
-    val useDosages = true
-    val covariates = new Array[String](2)
-    for (i <- 1 to 2) {
-      covariates(i - 1) = "sa.cov.Cov%d".format(i)
-    }
-
-    val kt = vdsSkat.splitMulti().skat("va.genes", singleKey = false, Option("va.weight"),
-      "sa.pheno0", covariates, useDosages)
-    val resultsArray = testInR(vdsSkat.splitMulti(), "va.genes", singleKey = false,
-      Some("va.weight"), "sa.pheno0", covariates, useDosages)
-
-    val rows = kt.rdd.collect()
-
-    var i = 0
-    val tol = 1e-5
-
-    while (i < resultsArray.size) {
-      val qstat = rows(i).getAs[Double](1)
-      val pval = rows(i).getAs[Double](2)
-
-      val qstatR = resultsArray(i).getAs[Double](1)
-      val pvalR = resultsArray(i).getAs[Double](2)
-
-      if (pval <= 1 && pval >= 0) {
-        assert(D_==(qstat, qstatR, tol))
-        assert(D_==(pval, pvalR, tol))
-      }
-      i += 1
-    }
-  }
-
-  @Test def largeNBigTest() {
+  @Test def linearLargeNDosages() {
+    val useBN = false
     val useDosages = true
     val useLargeN = true
+    val useLogistic = false
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+  }
+  
+  @Test def linearHardcallsBN() {
+    val useBN= true
+    val useDosages = false
+    val useLargeN = false
+    val useLogistic = false
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+  }
 
-    val covariates = Array("sa.cov.Cov1", "sa.cov.Cov2")
+  @Test def linearLargeNHardcallsBN() {
+    val useBN = true
+    val useDosages = false
+    val useLargeN = true
+    val useLogistic = false
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+  }
+  
+  @Test def logisticHardCallsBN() {
+    val useBN = true
+    val useDosages = false
+    val useLargeN = false
+    val useLogistic = true
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+  }
 
-    val dosages = (gs: Iterable[Genotype], n: Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
-
-    val kt = Skat(vdsSkat.splitMulti(), "va.genes", false, Option("va.weight"), "sa.pheno0",
-              Array("sa.cov.Cov1", "sa.cov.Cov2"),useDosages,useLargeN)
-
-    val resultsArray = testInR(vdsSkat.splitMulti(), "va.genes", singleKey = false,
-      Some("va.weight"), "sa.pheno0", covariates, useDosages)
-
-    val rows = kt.rdd.collect()
-
-    var i = 0
-    val tol = 1e-5
-
-    while (i < resultsArray.size) {
-      val qstat = rows(i).getAs[Double](1)
-      val pval = rows(i).getAs[Double](2)
-
-      val qstatR = resultsArray(i).getAs[Double](1)
-      val pvalR = resultsArray(i).getAs[Double](2)
-
-      if (pval <= 1 && pval >= 0) {
-        assert(D_==(qstat, qstatR, tol))
-        assert(D_==(pval, pvalR, tol))
-      }
-      i += 1
-    }
+  @Test def logisticLargeNHardCalls() {
+    val useBN = true
+    val useDosages = false
+    val useLargeN = true
+    val useLogistic = true
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
   }
 }
-
-

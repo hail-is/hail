@@ -1050,8 +1050,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }.toArray
     filterSamplesMask(mask)
   }
-
-
+  
   /**
     * Filter samples using the Hail expression language.
     *
