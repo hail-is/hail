@@ -51,22 +51,27 @@ object PCRelate {
         j < i2 && i2 < j2) {
         val size = m1.numRows * m1.numCols
         val ab = new ArrayBuilder[Row]()
-        var jj = 1
-        while (jj < m1.numCols) {
-          // fixme: broken for non-square blocks
-          var ii = 0
-          val rowsAboveDiagonal = if (blocki < blockj) m1.numRows else jj
-          while (ii < rowsAboveDiagonal) {
-            val kin = m1(ii, jj)
-            if (kin >= minKinship) {
-              val k0 = m2(ii, jj)
-              val k1 = m3(ii, jj)
-              val k2 = m4(ii, jj)
-              ab += Annotation(indexToId(i + ii), indexToId(j + jj), kin, k0, k1, k2).asInstanceOf[Row]
+        try {
+          var jj = 1
+          while (jj < m1.numCols) {
+            // fixme: broken for non-square blocks
+            var ii = 0
+            val rowsAboveDiagonal = if (blocki < blockj) m1.numRows else jj
+            while (ii < rowsAboveDiagonal) {
+              val kin = m1(ii, jj)
+              if (kin >= minKinship) {
+                val k0 = m2(ii, jj)
+                val k1 = m3(ii, jj)
+                val k2 = m4(ii, jj)
+                ab += Annotation(indexToId(i + ii), indexToId(j + jj), kin, k0, k1, k2).asInstanceOf[Row]
+              }
+              ii += 1
             }
-            ii += 1
+            jj += 1
           }
-          jj += 1
+        } catch {
+          case e: Exception =>
+            throw new RuntimeException(s"$i, $j; $blocki, $blockj; $i2, $j2; ${m1.numRows}, ${m1.numCols}", e)
         }
         ab.result()
       } else
