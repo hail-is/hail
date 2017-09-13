@@ -603,8 +603,9 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(selected_columns=oneof(strlike, listof(strlike)))
-    def select(self, selected_columns):
+    @typecheck_method(selected_columns=oneof(strlike, listof(strlike)),
+                      mangle=bool)
+    def select(self, selected_columns, mangle=False):
         """Select a subset of columns.
 
         **Examples**
@@ -624,15 +625,61 @@ class KeyTable(HistoryMixin):
 
         >>> kt_result = kt1.select([])
 
+        **Notes**
+
+        If the type of a column is a :py:class:`.TStruct`, the fields of the Struct can also be selected. For example,
+        consider a table with three Struct columns: B, D, and E.
+
+        >>> kt4 = hc.import_table('data/kt_example4.tsv', impute=True,
+        ...                       types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
+        ...                              'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
+        ...                              'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
+
+        Select both top-level columns and nested fields:
+
+        >>> result = kt4.select(['B.B1', 'D.cat', 'E'])
+
+        The output schema is
+
+        .. code-block:: text
+
+            Struct{
+                B1: String,
+                cat: Int32,
+                E: Struct{
+                    A: Int32,
+                    B: Int32
+                }
+            }
+
+        Select with ``mangle=True``:
+
+        >>> result = kt4.select(['B', 'E.B', 'B.B1'], mangle=True)
+
+        The output schema is
+
+        .. code-block:: text
+
+            Struct{
+                 B: Struct{
+                     B0: Boolean,
+                     B1: String
+                 },
+                 `E.B`: Int32,
+                 `B.B1`: String
+             }
+
         :param selected_columns: List of columns to be selected.
         :type: str or list of str
+
+        :param bool mangle: Output selected columns with full path names. Useful for avoiding name conflicts.
 
         :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
         """
 
         selected_columns = wrap_to_list(selected_columns)
-        return KeyTable(self.hc, self._jkt.select(selected_columns))
+        return KeyTable(self.hc, self._jkt.select(selected_columns, mangle))
 
     @handle_py4j
     @record_method

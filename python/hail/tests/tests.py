@@ -511,8 +511,8 @@ class ContextTests(unittest.TestCase):
         kt.rename(["Field1", "Field2", "Field3"])
         kt.rename([name + "_a" for name in kt.columns])
 
-        kt.select("Sample")
-        kt.select(["Sample", "Status"])
+        kt.select("Sample", mangle=True)
+        kt.select(["Sample", "Status"], mangle=True)
 
         kt.drop("Sample")
         kt.drop(["Sample", "Status"])
