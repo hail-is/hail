@@ -262,7 +262,6 @@ object FunctionDocumentation {
   val addtlEntries = Array(
     DocumentationEntry("select", "function", None, TStruct(),
       Array(Argument("s", "Struct", "Struct to select fields from."),
-        Argument("mangle", "Boolean", "Rename selected field names with full path ``identifier.child``."),
         Argument("identifiers", "String", "Field names to select from ``s``. Multiple arguments allowed.")),
       """
       Return a new ``Struct`` with a subset of fields.
@@ -272,18 +271,6 @@ object FunctionDocumentation {
 
           let s = {gene: "ACBD", function: "LOF", nHet: 12} in select(s, gene, function)
           result: {gene: "ACBD", function: "LOF"}
-
-      .. code-block:: text
-          :emphasize-lines: 2
-
-          let s = {gene: "ACBD", x: {foo: 60, bar: true}} in select(s, x.foo, x.bar)
-          result: {foo: 60, bar: true}
-
-      .. code-block:: text
-          :emphasize-lines: 2
-
-          let s = {gene: "ACBD", x: {foo: 60, bar: true}, y: {foo: 70}} in select(s, x.foo, y.foo, true)
-          result: {`x.foo`: 60, `y.foo`: 70}
       """, varArgs = true),
     DocumentationEntry("drop", "function", None, TStruct(),
       Array(Argument("s", "Struct", "Struct to drop fields from."),
