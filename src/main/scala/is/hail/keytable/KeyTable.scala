@@ -358,7 +358,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
   def select(keep: String*): KeyTable = select(keep.toArray)
 
-  def select(keep: java.util.ArrayList[String]): KeyTable = select(keep.asScala.toArray)
+  def select(keep: java.util.ArrayList[String], mangle: Boolean): KeyTable = select(keep.asScala.toArray, mangle)
 
   def drop(columnsToDrop: Array[String]): KeyTable = {
     val nonexistentColumns = columnsToDrop.diff(columns)
