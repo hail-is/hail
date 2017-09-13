@@ -201,7 +201,7 @@ object Skat {
           keyIterator(key).map((_, gVector -> w))
         case _ => Iterator.empty
       }
-    }.groupByKey(), keysType)
+    }.groupByKey(), keyType)
   }
 
   /*

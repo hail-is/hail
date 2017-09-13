@@ -214,10 +214,12 @@ class SkatSuite extends SparkSuite {
     
     val (vds, singleKey, weightExpr) = if (useBN) (vdsBN, false, None) else (vdsSkat, true, Some("va.weight"))
     
-    val resultHail = vds.skat("va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
+    val hailKT = vds.skat("va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
       weightExpr, useLogistic, useDosages, useLargeN)
-      .rdd
-      .collect()
+
+    hailKT.typeCheck()
+    
+    val resultHail = hailKT.rdd.collect()
 
     val resultsR = skatInR(vds, "va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
       weightExpr, useLogistic, useDosages)
