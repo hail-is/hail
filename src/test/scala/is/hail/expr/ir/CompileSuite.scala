@@ -47,7 +47,7 @@ class CompileSuite {
 
   @Test
   def let() {
-    assert(compileAndRun(unboxed[Int], Let("x", I32(10), IntInfo, Out1(Ref("x")))) === 10)
+    assert(compileAndRun(unboxed[Int], Out1(Let("x", I32(10), IntInfo, Ref("x")))) === 10)
   }
 
   @Test(enabled = false)
@@ -85,16 +85,16 @@ class CompileSuite {
 
   @Test
   def mapNAInt() {
-    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", _NA[Int], typeInfo[Int], I32(1)))) === null)
-    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", _NA[Int], typeInfo[Int], Ref("x")))) === null)
-    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", I32(3), typeInfo[Int], Ref("x")))) === 3)
+    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", _NA[Int], typeInfo[Int], I32(1), pointedTypeInfo[Int]))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", _NA[Int], typeInfo[Int], Ref("x"), pointedTypeInfo[Int]))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", I32(3), typeInfo[Int], Ref("x"), pointedTypeInfo[Int]))) === 3)
   }
 
   @Test
   def mapNAOtherTypes() {
-    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(MapNA("x", _NA[Double], typeInfo[Double], F64(1.0)))) === null)
-    assert(compileAndRun(boxed[java.lang.Long, Long], Out1(MapNA("x", _NA[Long], typeInfo[Long], Ref("x")))) === null)
-    assert(compileAndRun(boxed[java.lang.Float, Float], Out1(MapNA("x", F32(3.0f), typeInfo[Float], Ref("x")))) === 3)
+    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(MapNA("x", _NA[Double], typeInfo[Double], F64(1.0), pointedTypeInfo[Double]))) === null)
+    assert(compileAndRun(boxed[java.lang.Long, Long], Out1(MapNA("x", _NA[Long], typeInfo[Long], Ref("x"), pointedTypeInfo[Long]))) === null)
+    assert(compileAndRun(boxed[java.lang.Float, Float], Out1(MapNA("x", F32(3.0f), typeInfo[Float], Ref("x"), pointedTypeInfo[Float]))) === 3)
   }
 
   @Test

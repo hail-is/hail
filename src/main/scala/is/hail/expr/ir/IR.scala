@@ -64,7 +64,7 @@ object IR {
       fields map (_._3) flatMap usedInputs
     case GetField(o, name) =>
       usedInputs(o)
-    case MapNA(name, value, valueTyp, body) =>
+    case MapNA(name, value, valueTyp, body, bodyTyp) =>
       usedInputs(value) ++ usedInputs(body)
     case In(i) =>
       Array(i)
