@@ -384,7 +384,7 @@ class KeyTableSuite extends SparkSuite {
       .variantsKT()
       .expandTypes()
       .flatten()
-      .select(Array("va.info.MQRankSum"))
+      .select(Array("`va.info.MQRankSum`"))
 
     val df = kt.toDF(sqlContext)
     df.printSchema()
@@ -423,8 +423,8 @@ class KeyTableSuite extends SparkSuite {
     val kt = vds.annotateVariantsExpr("va.id = str(v)")
       .variantsKT()
       .flatten()
-      .select("v", "va.id")
-      .keyBy("va.id")
+      .select("v", "`va.id`")
+      .keyBy("`va.id`")
     kt.typeCheck()
 
     val kt2 = KeyTable(hc, vds.variants.map(v => Row(v.toString, 5)),

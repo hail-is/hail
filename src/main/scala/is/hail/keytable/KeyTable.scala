@@ -332,14 +332,15 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
   def keyBy(key: Iterable[String]): KeyTable = {
     val colSet = columns.toSet
-    val badKeys = key.filter(!colSet.contains(_))
+    val keyParsed = key.map(Parser.parseAnnotationIdentifier(_).head)
+    val badKeys = keyParsed.filter(!colSet.contains(_))
 
     if (badKeys.nonEmpty)
       fatal(
         s"""Invalid ${ plural(badKeys.size, "key") }: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
            |  Available columns: [ ${ signature.fields.map(x => s"'${ x.name }'").mkString(", ") } ]""".stripMargin)
 
-    copy(key = key.toArray)
+    copy(key = keyParsed.toArray)
   }
 
   def select(keep: Array[String], mangle: Boolean = false): KeyTable = {
