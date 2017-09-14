@@ -11,49 +11,54 @@ import is.hail.annotations._
 import scala.language.existentials
 
 object Compile {
-  case class PP[L,R](l: L, r: R)
-  case class DetailedTypeInfo[T, UT : TypeInfo](injectNonMissing: Option[(TypeInfo[T], UCode[_] => UCode[_])]) {
+  case class DetailedTypeInfo[T, UT : TypeInfo](injectNonMissing: Option[(TypeInfo[T], UCode => UCode)]) {
     val uti = typeInfo[UT]
   }
 
-  def apply(x: IR, outTyps: Array[DetailedTypeInfo[_,_]]): UCode[_] = {
+  def apply(x: IR, outTyps: Array[DetailedTypeInfo[_,_]]): UCode = {
     terminal(x, Map(), outTyps)
   }
 
-  private[ir] def nonTerminal(x: IR, env: Map[String, PP[UCode[_], UCode[_]]], outTyps: Array[DetailedTypeInfo[_,_]]): UCode[PP[UCode[_], UCode[_]]] = {
+  private[ir] def nonTerminal(x: IR, env: Map[String, (UCode, UCode)], outTyps: Array[DetailedTypeInfo[_,_]]): (UCode, UCode) = {
     def nonTerminal(x: IR) = this.nonTerminal(x, env, outTyps)
     def terminal(x: IR) = this.terminal(x, env, outTyps)
     x match {
       case NA(pti) =>
-        ucode.Ret(PP(ucode.True(), pti.point))
+        ((ucode.True(), pti.point))
       case I32(x) =>
-        ucode.Ret(PP(ucode.False(), ucode.I32(x)))
+        (ucode.False(), ucode.I32(x))
       case I64(x) =>
-        ucode.Ret(PP(ucode.False(), ucode.I64(x)))
+        (ucode.False(), ucode.I64(x))
       case F32(x) =>
-        ucode.Ret(PP(ucode.False(), ucode.F32(x)))
+        (ucode.False(), ucode.F32(x))
       case F64(x) =>
-        ucode.Ret(PP(ucode.False(), ucode.F64(x)))
+        (ucode.False(), ucode.F64(x))
       case True() =>
-        ucode.Ret(PP(ucode.False(), ucode.True()))
+        (ucode.False(), ucode.True())
       case False() =>
-        ucode.Ret(PP(ucode.False(), ucode.False()))
+        (ucode.False(), ucode.False())
       case If(cond, cnsq, altr) =>
-        for {
-          PP(mcond, vcond) <- nonTerminal(cond)
-          PP(mcnsq, vcnsq) <- nonTerminal(cnsq)
-          PP(maltr, valtr) <- nonTerminal(altr)
-        } yield PP(ucode.Or(mcnsq, maltr),
-          ucode.If(mcond,
-            ucode.Erase(Code._throw(Code.newInstance[NullPointerException]())),
-            ucode.If(vcond, vcnsq, valtr)))
+        val (mcond, vcond) = nonTerminal(cond)
+        val (mcnsq, vcnsq) = nonTerminal(cnsq)
+        val (maltr, valtr) = nonTerminal(altr)
+
+        val missingness = ucode.Or(ucode.And(mcond, mcnsq), ucode.And(ucode.Not(mcond), maltr))
+        val code = ucode.If(mcond,
+          ucode.Erase(Code._throw(Code.newInstance[NullPointerException]())),
+          ucode.If(vcond, vcnsq, valtr))
+
+        (missingness, code)
       case Let(name, value, typ, body) =>
-        for {
-          PP(mvalue, vvalue) <- nonTerminal(value)
-          (_, xmvalue) <- ucode.Var(mvalue, typeInfo[Boolean])
-          (_, xvvalue) <- ucode.Var(vvalue, typ)
-          PP(mbody, vbody) <- this.nonTerminal(body, env + (name -> PP(xmvalue, xvvalue)), outTyps)
-        } yield PP(mbody, vbody)
+        val (mvalue, vvalue) = nonTerminal(value)
+
+        val missingness = ucode.Let(mvalue, typeInfo[Boolean]) { xmvalue =>
+          ucode.Let(vvalue, typ) { xvvalue =>
+            this.nonTerminal(body, env + (name -> (xmvalue -> xvvalue)), outTyps)._1 } }
+        val code = ucode.Let(mvalue, typeInfo[Boolean]) { xmvalue =>
+          ucode.Let(vvalue, typ) { xvvalue =>
+            this.nonTerminal(body, env + (name -> (xmvalue -> xvvalue)), outTyps)._2 } }
+
+        (missingness, code)
       case ApplyPrimitive(op, args) =>
         ???
       case LazyApplyPrimitive(op, args) =>
@@ -61,7 +66,7 @@ object Compile {
       case Lambda(name, body) =>
         ???
       case Ref(name) =>
-        ucode.Ret(env(name))
+        env(name)
       case MakeArray(args, typ) =>
         ???
         // ucode.NewInitializedArray(args map nonTerminal, typ)
@@ -73,12 +78,17 @@ object Compile {
       case GetField(o, name) =>
         ???
       case MapNA(name, value, valueTyp, body, bodyTyp) =>
-        for {
-          PP(mvalue, vvalue) <- nonTerminal(value)
-          PP(mbody, vbody) <- ucode.Let(vvalue, valueTyp) { (_, xvvalue) =>
-            this.nonTerminal(body, env + (name -> PP(ucode.False(), xvvalue)), outTyps)
-          }
-        } yield PP(ucode.Or(mvalue, mbody), ucode.If(mvalue, bodyTyp.point, vbody))
+        val (mvalue, vvalue) = nonTerminal(value)
+
+        val missingness = ucode.Let(vvalue, valueTyp) { xvvalue =>
+          val (mbody, _) = this.nonTerminal(body, env + (name -> (ucode.False() -> xvvalue)), outTyps)
+          ucode.Or(mvalue, mbody) }
+
+        val code = ucode.Let(vvalue, valueTyp) { xvvalue =>
+          val (_, vbody) = this.nonTerminal(body, env + (name -> (ucode.False() -> xvvalue)), outTyps)
+          ucode.If(mvalue, bodyTyp.point, vbody) }
+
+        (missingness, code)
       case In(i) =>
         ???
       case x =>
@@ -86,27 +96,26 @@ object Compile {
     }
   }
 
-  private[ir] def terminal(x: IR, env: Map[String, PP[UCode[_], UCode[_]]], outTyps: Array[DetailedTypeInfo[_,_]]): UCode[_] = {
+  private[ir] def terminal(x: IR, env: Map[String, (UCode, UCode)], outTyps: Array[DetailedTypeInfo[_,_]]): UCode = {
     def nonTerminal(x: IR) = this.nonTerminal(x, env, outTyps)
     def terminal(x: IR) = this.terminal(x, env, outTyps)
     x match {
       case Out(values) =>
         assert(values.length == 1)
 
-        for {
-          PP(mvalue, vvalue) <- nonTerminal(values(0))
-          _ <- outTyps(0).injectNonMissing match {
-            case Some((ti, inject)) =>
-              ucode.If(mvalue, ucode.Null(), inject(vvalue))
+        val (mvalue, vvalue) = nonTerminal(values(0))
 
-            case None =>
-              ucode.If(mvalue,
-                ucode.Erase(Code._throw(Code.newInstance[NullPointerException, String](
-                  s"tried to return a missing value via a primitive type: ${outTyps(0)}"))),
-                vvalue)
+        outTyps(0).injectNonMissing match {
+          case Some((ti, inject)) =>
+            ucode.If(mvalue, ucode.Null(), inject(vvalue))
 
-          }
-        } yield ()
+          case None =>
+            ucode.If(mvalue,
+              ucode.Erase(Code._throw(Code.newInstance[NullPointerException, String](
+                s"tried to return a missing value via a primitive type: ${outTyps(0)}"))),
+              vvalue)
+
+        }
       case x =>
         throw new UnsupportedOperationException(s"$x is not a terminal IR")
     }

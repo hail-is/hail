@@ -1,5 +1,6 @@
 package is.hail.methods.ir
 
+import is.hail.utils.using
 import is.hail.asm4s._
 import is.hail.check.{Gen, Parameters, Prop}
 import is.hail.expr.ir._
@@ -12,8 +13,10 @@ import Matchers._
 
 import scala.reflect.ClassTag
 
+import java.io.PrintWriter
+
 class CompileSuite {
-  def compileAndRun[T: TypeInfo](mgti: DetailedTypeInfo[T, _], ir: IR): T = {
+  def compileAndRun[T: TypeInfo](mgti: DetailedTypeInfo[T, _], ir: IR, write: Boolean = false): T = {
     val fb = FunctionBuilder.functionBuilder[T]
     Compile(ir, Array(mgti)).emit(fb)
     fb.result().apply().apply()
@@ -77,10 +80,10 @@ class CompileSuite {
     assert(compileAndRun(boxed[java.lang.Double, Double], Out1(_NA[Double])) === null)
     assert(compileAndRun(boxed[java.lang.Float, Float], Out1(_NA[Float])) === null)
     assert(compileAndRun(boxed[java.lang.Long, Long], Out1(If(True(), _NA[Long], _NA[Long]))) === null)
-    assert(compileAndRun(unboxed[AnyRef], Out1(If(False(), _NA[AnyRef], _NA[AnyRef]))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), _NA[Int], _NA[Int]))) === null)
     assert(compileAndRun(boxed[java.lang.Double, Double], Out1(Let("x", _NA[Double], typeInfo[Double], Ref("x")))) === null)
-    assert(compileAndRun(unboxed[Float], Out1(Let("x", _NA[Int], classInfo[Integer], F32(1.0f)))) === 1.0)
-    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(Let("x", F64(2.0), IntInfo, _NA[Double]))) === null)
+    assert(compileAndRun(unboxed[Float], Out1(Let("x", _NA[Int], typeInfo[Int], F32(1.0f)))) === 1.0)
+    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(Let("x", F64(2.0), DoubleInfo, _NA[Double]))) === null)
   }
 
   @Test
@@ -99,7 +102,7 @@ class CompileSuite {
 
   @Test
   def differingNullnessOnBranchesOfAnIf() {
-    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), _NA[Int], I32(3)))) === 3)
+    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), _NA[Int], I32(3))), true) === 3)
   }
 
 }

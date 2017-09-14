@@ -208,6 +208,7 @@ class FunctionClassBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeI
         } catch {
           case e: IOException => System.out.println("Exception " + e)
         }
+        println(sw)
         throw new IllegalStateException("Bytecode failed verification 2")
       }
     }
@@ -218,6 +219,12 @@ class FunctionClassBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeI
   }
 
   cn.interfaces.asInstanceOf[java.util.List[String]].add(interfaceTi.iname)
+
+  def writeAnnotatedBytecode(pw: PrintWriter) {
+    val cr = new ClassReader(classAsBytes())
+    val tcv = new TraceClassVisitor(null, new Textifier, pw)
+    cr.accept(tcv, 0)
+  }
 
   def result(): () => F = {
     val bytes = classAsBytes()

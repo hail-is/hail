@@ -5,7 +5,7 @@ import is.hail.asm4s.ucode.UCode
 
 sealed trait PointedTypeInfo[T] {
   def ti: TypeInfo[T]
-  def point: UCode[_]
+  def point: UCode
 }
 object PointedTypeInfo {
   def pointedTypeInfo[T](implicit tpti: PointedTypeInfo[T]) = tpti
