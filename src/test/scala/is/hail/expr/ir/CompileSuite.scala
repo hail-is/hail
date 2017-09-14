@@ -18,14 +18,14 @@ import java.io.PrintWriter
 class CompileSuite {
   def compileAndRun[T: TypeInfo](mgti: DetailedTypeInfo[T, _], ir: IR, write: Boolean = false): T = {
     val fb = FunctionBuilder.functionBuilder[T]
-    Compile(ir, Array(mgti)).emit(fb)
+    Compile(ir, Array(mgti), fb)
     fb.result().apply().apply()
   }
 
   private def unboxed[T: TypeInfo] = DetailedTypeInfo[T, T](None)
 
   private def boxed[T : ClassTag : TypeInfo, UT : ClassTag : TypeInfo] = DetailedTypeInfo[T, UT](Some(
-    (typeInfo[T], x => ucode.Erase(Code.newInstance[T, UT](ucode.Reify[UT](x))))))
+    (typeInfo[T], x => Code.newInstance[T, UT](x.asInstanceOf[Code[UT]]))))
 
   @Test
   def constants() {

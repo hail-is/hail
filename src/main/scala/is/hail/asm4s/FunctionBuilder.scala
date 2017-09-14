@@ -170,7 +170,7 @@ class FunctionClassBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeI
     // inscrutable; however, it is prone to false rejections (i.e. good code is
     // rejected) so we leave it disabled.
 
-    if (false) {
+    if (true) {
       // compute without frames first in case frame tester fails miserably
       val cwNoMaxesNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
       cn.accept(cwNoMaxesNoFrames)
