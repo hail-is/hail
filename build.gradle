@@ -23,6 +23,8 @@ repositories {
     jcenter()
     maven {
         url "https://repository.cloudera.com/artifactory/cloudera-repos/"
+        url "http://repo.hortonworks.com/content/repositories/releases/"
+        url "http://repo.spring.io/plugins-release/"
     }
 }
 
