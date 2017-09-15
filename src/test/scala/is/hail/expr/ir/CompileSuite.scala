@@ -1,6 +1,5 @@
 package is.hail.methods.ir
 
-import is.hail.utils.using
 import is.hail.asm4s._
 import is.hail.check.{Gen, Parameters, Prop}
 import is.hail.expr.ir._
