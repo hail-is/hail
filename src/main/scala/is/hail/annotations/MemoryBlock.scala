@@ -1,7 +1,5 @@
 package is.hail.annotations
 
-import is.hail.asm4s._
-import CodeM._
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{AltAllele, Genotype, Locus, Variant}

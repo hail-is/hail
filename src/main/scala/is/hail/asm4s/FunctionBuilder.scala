@@ -12,6 +12,7 @@ import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
 import org.objectweb.asm.{ClassReader, ClassWriter, Type}
 
 import scala.collection.mutable
+import scala.collection.generic.Growable
 import scala.language.implicitConversions
 import scala.language.higherKinds
 import scala.reflect.ClassTag
@@ -35,32 +36,23 @@ object FunctionBuilder {
     new ClassReader(bytes).accept(tcv, 0)
   }
 
-  def functionBuilder[R: TypeInfo]: FunctionClassBuilder[AsmFunction0[R]] =
-    new FunctionClassBuilder(Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
+  def functionBuilder[R: TypeInfo]: FunctionBuilder[AsmFunction0[R]] =
+    new FunctionBuilder(Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
 
-  def functionBuilder[A: TypeInfo, R: TypeInfo]: FunctionClassBuilder[AsmFunction1[A, R]] =
-    new FunctionClassBuilder(Array(GenericTypeInfo[A]), GenericTypeInfo[R])
+  def functionBuilder[A: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction1[A, R]] =
+    new FunctionBuilder(Array(GenericTypeInfo[A]), GenericTypeInfo[R])
 
-  def functionBuilder[A: TypeInfo, B: TypeInfo, R: TypeInfo]: FunctionClassBuilder[AsmFunction2[A, B, R]] =
-    new FunctionClassBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
+  def functionBuilder[A: TypeInfo, B: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction2[A, B, R]] =
+    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
 
-}
-
-trait FunctionBuilder[F >: Null] {
-  def allocLocal[T]()(implicit tti: TypeInfo[T]): Int
-  def newLocal[T]()(implicit tti: TypeInfo[T]): LocalRef[T] =
-    new LocalRef[T](allocLocal[T]())
-  def newLocal[T](c: Code[T])(implicit tti: TypeInfo[T]): LocalRef[T] = {
-    val l = new LocalRef[T](allocLocal[T]())
-    emit(l.store(c))
-    l
+  private implicit def methodNodeToGrowable(mn: MethodNode): Growable[AbstractInsnNode] = new Growable[AbstractInsnNode] {
+    def +=(e: AbstractInsnNode) = { mn.instructions.add(e); this }
+    def clear() { throw new UnsupportedOperationException() }
   }
-  def emit(c: Code[_])
-  def emit(insn: AbstractInsnNode)
 }
 
-class FunctionClassBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], returnTypeInfo: MaybeGenericTypeInfo[_],
-  packageName: String = "is/hail/codegen/generated")(implicit interfaceTi: TypeInfo[F]) extends FunctionBuilder[F] {
+class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], returnTypeInfo: MaybeGenericTypeInfo[_],
+  packageName: String = "is/hail/codegen/generated")(implicit interfaceTi: TypeInfo[F]) {
 
   import FunctionBuilder._
 
@@ -110,16 +102,10 @@ class FunctionClassBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeI
       toCodeFromIndexedSeq(parameterTypeInfo.zipWithIndex.map { case (ti, i) => ti.castFromGeneric(getArg(i+1)(ti.generic)) }),
       Code(new MethodInsnNode(INVOKESPECIAL, name, "apply", descriptor, false)))
 
-    val self = this
-
     Code(
       returnTypeInfo.castToGeneric(callSpecialized),
       new InsnNode(returnTypeInfo.generic.returnOp)
-    ).emit(new FunctionBuilder[F] {
-      def allocLocal[T]()(implicit tti: TypeInfo[T]): Int = self.allocLocal()(tti)
-      def emit(c: Code[_]) { c.emit(this) }
-      def emit(insn: AbstractInsnNode) { genericMn.instructions.add(insn) }
-    })
+    ).emit(genericMn)
   }
 
   def allocLocal[T]()(implicit tti: TypeInfo[T]): Int = {
@@ -130,6 +116,9 @@ class FunctionClassBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeI
       .add(new LocalVariableNode("local" + i, tti.name, null, start, end, i))
     i
   }
+
+  def newLocal[T]()(implicit tti: TypeInfo[T]): LocalRef[T] =
+    new LocalRef[T](allocLocal[T]())
 
   def getStatic[T, S](field: String)(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S]): Code[S] = {
     val f = FieldRef[T, S](field)
@@ -151,14 +140,14 @@ class FunctionClassBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeI
 
   val l = new mutable.ArrayBuffer[AbstractInsnNode]()
   def emit(c: Code[_]) {
-    c.emit(this)
+    c.emit(l)
   }
 
   def emit(insn: AbstractInsnNode) {
     l += insn
   }
 
-  def classAsBytes(): Array[Byte] = {
+  def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
     mn.instructions.add(start)
     val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
     assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${dupes: Seq[Any]}")
@@ -166,65 +155,51 @@ class FunctionClassBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeI
     mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
     mn.instructions.add(end)
 
-    // The following block of code can help when the output of Verification 2 is
-    // inscrutable; however, it is prone to false rejections (i.e. good code is
-    // rejected) so we leave it disabled.
-
-    if (true) {
-      // compute without frames first in case frame tester fails miserably
-      val cwNoMaxesNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
-      cn.accept(cwNoMaxesNoFrames)
-      val cr = new ClassReader(cwNoMaxesNoFrames.toByteArray)
-      val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(System.out))
-      cr.accept(tcv, 0)
-
-      val sw = new StringWriter()
-      CheckClassAdapter.verify(cr, false, new PrintWriter(sw))
-      if (sw.toString().length() != 0) {
-        println("Verify Output for " + name + ":")
-        try {
-          val out = new BufferedWriter(new FileWriter("ByteCodeOutput.txt"))
-          out.write(sw.toString())
-          out.close()
-        } catch {
-          case e: IOException => System.out.println("Exception " + e)
-        }
-        println(sw)
-        println("Bytecode failed verification 1")
-      }
-    }
-    {
-      val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
+    val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
+    var bytes: Array[Byte] = new Array[Byte](0)
+    try {
       cn.accept(cw)
+      bytes = cw.toByteArray
 
       val sw = new StringWriter()
-      CheckClassAdapter.verify(new ClassReader(cw.toByteArray), false, new PrintWriter(sw))
+      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw))
       if (sw.toString.length != 0) {
         println("Verify Output for " + name + ":")
-        try {
-          val out = new BufferedWriter(new FileWriter("ByteCodeOutput.txt"))
-          out.write(sw.toString)
-          out.close
-        } catch {
-          case e: IOException => System.out.println("Exception " + e)
-        }
         println(sw)
         throw new IllegalStateException("Bytecode failed verification 2")
       }
+    } catch {
+      case e: Exception =>
+        // if we fail with frames, try without frames for better error message
+        val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
+        cn.accept(cwNoFrames)
+
+        // print the bytecode for debugging purposes
+        val cr = new ClassReader(cwNoFrames.toByteArray)
+        val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(System.out))
+        cr.accept(tcv, 0)
+
+        val sw = new StringWriter()
+        CheckClassAdapter.verify(cr, false, new PrintWriter(sw))
+        if (sw.toString().length() != 0) {
+          println("Verify Output for " + name + ":")
+          println(sw)
+          throw new IllegalStateException("Bytecode failed verification 1", e)
+        } else {
+          throw e
+        }
     }
 
-    val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
-    cn.accept(cw)
-    cw.toByteArray
+    print.foreach { pw =>
+      val cr = new ClassReader(bytes)
+      val tcv = new TraceClassVisitor(null, new Textifier, pw)
+      cr.accept(tcv, 0)
+    }
+
+    bytes
   }
 
   cn.interfaces.asInstanceOf[java.util.List[String]].add(interfaceTi.iname)
-
-  def writeAnnotatedBytecode(pw: PrintWriter) {
-    val cr = new ClassReader(classAsBytes())
-    val tcv = new TraceClassVisitor(null, new Textifier, pw)
-    cr.accept(tcv, 0)
-  }
 
   def result(): () => F = {
     val bytes = classAsBytes()
@@ -256,7 +231,7 @@ class FunctionClassBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeI
 }
 
 class Function2Builder[A1 >: Null : TypeInfo, A2 >: Null : TypeInfo, R >: Null : TypeInfo]
-    extends FunctionClassBuilder[AsmFunction2[A1, A2, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R]) {
+    extends FunctionBuilder[AsmFunction2[A1, A2, R]](Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R]) {
 
   def arg1 = getArg[A1](1)
 

@@ -1,13 +1,9 @@
 package is.hail.asm4s
 
-import scala.collection.generic.Growable
 import scala.language.implicitConversions
 import scala.language.higherKinds
 
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.tree._
-
-case class CodeM[T](action: (FunctionClassBuilder[_]) => T) {
+case class CodeM[T](action: (FunctionBuilder[_]) => T) {
   def map[U](f: T => U): CodeM[U] =
     CodeM(fb => f(action(fb)))
   def flatMap[U](f: T => CodeM[U]): CodeM[U] =
@@ -19,18 +15,15 @@ case class CodeM[T](action: (FunctionClassBuilder[_]) => T) {
 
   /**
     * The user must ensure that this {@code CodeM} refers to no more arguments
-    * than {@code FunctionClassBuilder} {@code fb} provides.
+    * than {@code FunctionBuilder} {@code fb} provides.
     */
-  def run[F >: Null](fb: FunctionClassBuilder[F])(implicit ev: T =:= Unit): F =
+  def run[F >: Null](fb: FunctionBuilder[F])(implicit ev: T =:= Unit): F =
     delayedRun(fb)(ev)()
 
-  def delayedRun[F >: Null](fb: FunctionClassBuilder[F])(implicit ev: T =:= Unit): () => F = {
-    emit(fb)
+  def delayedRun[F >: Null](fb: FunctionBuilder[F])(implicit ev: T =:= Unit): () => F = {
+    action(fb)
     fb.result()
   }
-
-  def emit(fb: FunctionClassBuilder[_]): T =
-    action(fb)
 
 }
 

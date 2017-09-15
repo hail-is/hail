@@ -12,67 +12,67 @@ import scala.reflect.ClassTag
 
 object Code {
   def apply[T](insn: => AbstractInsnNode): Code[T] = new Code[T] {
-    def emit(fb: FunctionBuilder[_]): Unit = {
-      fb.emit(insn)
+    def emit(il: Growable[AbstractInsnNode]): Unit = {
+      il += insn
     }
   }
 
   def apply[S1, S2](c1: Code[S1], c2: Code[S2]): Code[S2] =
     new Code[S2] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
-        c1.emit(fb)
-        c2.emit(fb)
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
       }
     }
 
   def apply[S1, S2, S3](c1: Code[S1], c2: Code[S2], c3: Code[S3]): Code[S3] =
     new Code[S3] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
-        c1.emit(fb)
-        c2.emit(fb)
-        c3.emit(fb)
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
       }
     }
 
   def apply[S1, S2, S3, S4](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4]): Code[S4] =
     new Code[S4] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
-        c1.emit(fb)
-        c2.emit(fb)
-        c3.emit(fb)
-        c4.emit(fb)
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
+        c4.emit(il)
       }
     }
 
   def apply[S1, S2, S3, S4, S5](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5]): Code[S5] =
     new Code[S5] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
-        c1.emit(fb)
-        c2.emit(fb)
-        c3.emit(fb)
-        c4.emit(fb)
-        c5.emit(fb)
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
+        c4.emit(il)
+        c5.emit(il)
       }
     }
 
   def apply[S1, S2, S3, S4, S5, S6](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6]): Code[S6] =
     new Code[S6] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
-        c1.emit(fb)
-        c2.emit(fb)
-        c3.emit(fb)
-        c4.emit(fb)
-        c5.emit(fb)
-        c6.emit(fb)
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
+        c4.emit(il)
+        c5.emit(il)
+        c6.emit(il)
       }
     }
 
   def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] = {
     new Code[T] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
-        fb.emit(new TypeInsnNode(NEW, Type.getInternalName(tct.runtimeClass)))
-        fb.emit(new InsnNode(DUP))
-        Invokeable.lookupConstructor[T](parameterTypes).invoke(null, args).emit(fb)
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        il += new TypeInsnNode(NEW, Type.getInternalName(tct.runtimeClass))
+        il += new InsnNode(DUP)
+        Invokeable.lookupConstructor[T](parameterTypes).invoke(null, args).emit(il)
       }
     }
   }
@@ -94,25 +94,25 @@ object Code {
 
   def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T], atti: TypeInfo[Array[T]]): Code[Array[T]] = {
     new Code[Array[T]] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
-        size.emit(fb)
-        fb.emit(tti.newArray())
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        size.emit(il)
+        il += tti.newArray()
       }
     }
   }
 
   def whileLoop(condition: Code[Boolean], body: Code[_]): Code[Unit] = {
     new Code[Unit] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
         val l1 = new LabelNode
         val l2 = new LabelNode
-        fb.emit(l1)
-        condition.emit(fb)
-        fb.emit(new LdcInsnNode(0))
-        fb.emit(new JumpInsnNode(IF_ICMPEQ, l2))
-        body.emit(fb)
-        fb.emit(new JumpInsnNode(GOTO, l1))
-        fb.emit(l2)
+        il += l1
+        condition.emit(il)
+        il += new LdcInsnNode(0)
+        il += new JumpInsnNode(IF_ICMPEQ, l2)
+        body.emit(il)
+        il += new JumpInsnNode(GOTO, l1)
+        il += l2
       }
     }
   }
@@ -144,7 +144,7 @@ object Code {
   // FIXME: code should really carry around the stack so this type can be correct
   // Currently, this is a huge potential place for errors.
   def _empty[T]: Code[T] = new Code[T] {
-    def emit(fb: FunctionBuilder[_]): Unit = {
+    def emit(il: Growable[AbstractInsnNode]): Unit = {
     }
   }
 
@@ -172,41 +172,41 @@ object Code {
 
 trait Code[+T] {
   self =>
-  def emit(fb: FunctionBuilder[_]): Unit
+  def emit(il: Growable[AbstractInsnNode]): Unit
 
   def compare[U >: T](opcode: Int, rhs: Code[U]): CodeConditional =
     new CodeConditional {
-      def emitConditional(fb: FunctionBuilder[_]): (LabelNode, LabelNode) = {
+      def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode) = {
         val ltrue = new LabelNode
         val lfalse = new LabelNode
-        self.emit(fb)
-        rhs.emit(fb)
-        fb.emit(new JumpInsnNode(opcode, ltrue))
-        fb.emit(new JumpInsnNode(GOTO, lfalse))
+        self.emit(il)
+        rhs.emit(il)
+        il += new JumpInsnNode(opcode, ltrue)
+        il += new JumpInsnNode(GOTO, lfalse)
         (ltrue, lfalse)
       }
     }
 }
 
 trait CodeConditional extends Code[Boolean] { self =>
-  def emit(fb: FunctionBuilder[_]): Unit = {
+  def emit(il: Growable[AbstractInsnNode]): Unit = {
     val lafter = new LabelNode
-    val (ltrue, lfalse) = emitConditional(fb)
-    fb.emit(lfalse)
-    fb.emit(new LdcInsnNode(0))
-    fb.emit(new JumpInsnNode(GOTO, lafter))
-    fb.emit(ltrue)
-    fb.emit(new LdcInsnNode(1))
-    fb.emit(lafter)
+    val (ltrue, lfalse) = emitConditional(il)
+    il += lfalse
+    il += new LdcInsnNode(0)
+    il += new JumpInsnNode(GOTO, lafter)
+    il += ltrue
+    il += new LdcInsnNode(1)
+    il += lafter
   }
 
   // returns (ltrue, lfalse)
-  def emitConditional(fb: FunctionBuilder[_]): (LabelNode, LabelNode)
+  def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode)
 
   def unary_!(): CodeConditional =
     new CodeConditional {
-      def emitConditional(fb: FunctionBuilder[_]): (LabelNode, LabelNode) = {
-        val (ltrue, lfalse) = self.emitConditional(fb)
+      def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode) = {
+        val (ltrue, lfalse) = self.emitConditional(il)
         (lfalse, ltrue)
       }
     }
@@ -219,12 +219,12 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
     case _ =>
       new CodeConditional {
-        def emitConditional(fb: FunctionBuilder[_]): (LabelNode, LabelNode) = {
+        def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode) = {
           val ltrue = new LabelNode
           val lfalse = new LabelNode
-          lhs.emit(fb)
-          fb.emit(new JumpInsnNode(IFEQ, lfalse))
-          fb.emit(new JumpInsnNode(GOTO, ltrue))
+          lhs.emit(il)
+          il += new JumpInsnNode(IFEQ, lfalse)
+          il += new JumpInsnNode(GOTO, ltrue)
           (ltrue, lfalse)
         }
       }
@@ -236,16 +236,16 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
   def mux[T](cthen: Code[T], celse: Code[T]): Code[T] = {
     val cond = lhs.toConditional
     new Code[T] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
         val lafter = new LabelNode
-        val (ltrue, lfalse) = cond.emitConditional(fb)
-        fb.emit(lfalse)
-        celse.emit(fb)
-        fb.emit(new JumpInsnNode(GOTO, lafter))
-        fb.emit(ltrue)
-        cthen.emit(fb)
+        val (ltrue, lfalse) = cond.emitConditional(il)
+        il += lfalse
+        celse.emit(il)
+        il += new JumpInsnNode(GOTO, lafter)
+        il += ltrue
+        cthen.emit(il)
         // fall through
-        fb.emit(lafter)
+        il += lafter
       }
     }
   }
@@ -255,8 +255,6 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
   def ||(rhs: Code[Boolean]): Code[Boolean] =
     Code(lhs, rhs, new InsnNode(IOR))
-
-  def toByte: Code[Byte] = Code(lhs, new InsnNode(I2B))
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
@@ -282,8 +280,7 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def &(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IAND))
 
-  def |(rhs: Code[Int]): Code[Int] =
-    Code(lhs, rhs, new InsnNode(IOR))
+  def |(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IOR))
 
   def ceq(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPEQ, rhs)
 
@@ -438,16 +435,16 @@ class Invokeable[T, S](val name: String,
                        val concreteReturnType: Class[_])(implicit tct: ClassTag[T], sct: ClassTag[S]) {
   def invoke(lhs: Code[T], args: Array[Code[_]]): Code[S] =
     new Code[S] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
         if (!isStatic && lhs != null)
-          lhs.emit(fb)
-        args.foreach(_.emit(fb))
-        fb.emit(new MethodInsnNode(invokeOp,
-          Type.getInternalName(tct.runtimeClass), name, descriptor, isInterface))
+          lhs.emit(il)
+        args.foreach(_.emit(il))
+        il += new MethodInsnNode(invokeOp,
+          Type.getInternalName(tct.runtimeClass), name, descriptor, isInterface)
         if (concreteReturnType != sct.runtimeClass) {
           // if `m`'s return type is a generic type, we must use an explicit
           // cast to the expected type
-          fb.emit(new TypeInsnNode(CHECKCAST, Type.getInternalName(sct.runtimeClass)))
+          il += new TypeInsnNode(CHECKCAST, Type.getInternalName(sct.runtimeClass))
         }
       }
     }
@@ -466,16 +463,16 @@ object FieldRef {
 class LocalRef[T](i: Int)(implicit tti: TypeInfo[T]) {
   def load(): Code[T] =
     new Code[T] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
-        fb.emit(new IntInsnNode(tti.loadOp, i))
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        il += new IntInsnNode(tti.loadOp, i)
       }
     }
 
   def store(rhs: Code[T]): Code[Unit] =
     new Code[Unit] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
-        rhs.emit(fb)
-        fb.emit(new IntInsnNode(tti.storeOp, i))
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        rhs.emit(il)
+        il += new IntInsnNode(tti.storeOp, i)
       }
     }
 
@@ -493,22 +490,22 @@ class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
 
   def get(lhs: Code[T]): Code[S] =
     new Code[S] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
         if (!isStatic)
-          lhs.emit(fb)
-        fb.emit(new FieldInsnNode(getOp,
-          Type.getInternalName(tct.runtimeClass), f.getName, sti.name))
+          lhs.emit(il)
+        il += new FieldInsnNode(getOp,
+          Type.getInternalName(tct.runtimeClass), f.getName, sti.name)
       }
     }
 
   def put(lhs: Code[T], rhs: Code[S]): Code[Unit] =
     new Code[Unit] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
         if (!isStatic)
-          lhs.emit(fb)
-        rhs.emit(fb)
-        fb.emit(new FieldInsnNode(putOp,
-          Type.getInternalName(tct.runtimeClass), f.getName, sti.name))
+          lhs.emit(il)
+        rhs.emit(il)
+        il += new FieldInsnNode(putOp,
+          Type.getInternalName(tct.runtimeClass), f.getName, sti.name)
       }
     }
 }
@@ -541,17 +538,17 @@ class CodeObject[T >: Null](val lhs: Code[T])(implicit tct: ClassTag[T], tti: Ty
 
   def ifNull[T](cnullcase: Code[T], cnonnullcase: Code[T]): Code[T] =
     new Code[T] {
-      def emit(fb: FunctionBuilder[_]): Unit = {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
         val lnull = new LabelNode
         val lafter = new LabelNode
-        lhs.emit(fb)
-        fb.emit(new JumpInsnNode(IFNULL, lnull))
-        cnonnullcase.emit(fb)
-        fb.emit(new JumpInsnNode(GOTO, lafter))
-        fb.emit(lnull)
-        cnullcase.emit(fb)
+        lhs.emit(il)
+        il += new JumpInsnNode(IFNULL, lnull)
+        cnonnullcase.emit(il)
+        il += new JumpInsnNode(GOTO, lafter)
+        il += lnull
+        cnullcase.emit(il)
         // fall through
-        fb.emit(lafter)
+        il += lafter
       }
     }
 

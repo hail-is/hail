@@ -2654,38 +2654,38 @@ object FunctionRegistry {
       // false true => true
       // false false => false
       // false null => null
-      def emit(fb: FunctionBuilder[_]): Unit = {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
         val lnullorfalse = new LabelNode
         val ldone = new LabelNode
         val lfirst = new LabelNode
         val lsecond = new LabelNode
 
-        left.emit(fb) // L
-        fb.emit(new InsnNode(DUP)) // L L
-        fb.emit(new JumpInsnNode(IFNULL, lnullorfalse)) // L
-        fb.emit(new InsnNode(DUP)) // L L
-        (Code._empty[java.lang.Boolean].invoke[Boolean]("booleanValue")).emit(fb) // L Z
-        fb.emit(new JumpInsnNode(isZero, ldone)) // L
+        left.emit(il) // L
+        il += new InsnNode(DUP) // L L
+        il += new JumpInsnNode(IFNULL, lnullorfalse) // L
+        il += new InsnNode(DUP) // L L
+        (Code._empty[java.lang.Boolean].invoke[Boolean]("booleanValue")).emit(il) // L Z
+        il += new JumpInsnNode(isZero, ldone) // L
 
         // left = null or false
-        fb.emit(lnullorfalse) // L
-        fb.emit(new InsnNode(DUP)) // L L
-        right.emit(fb) // L L R
-        fb.emit(new InsnNode(SWAP)) // L R L
-        fb.emit(new JumpInsnNode(IFNONNULL, lfirst)) // L R; stack indexing is from right to left
+        il += lnullorfalse // L
+        il += new InsnNode(DUP) // L L
+        right.emit(il) // L L R
+        il += new InsnNode(SWAP) // L R L
+        il += new JumpInsnNode(IFNONNULL, lfirst) // L R; stack indexing is from right to left
 
         // left = null
-        fb.emit(new InsnNode(DUP)) // L R R
-        fb.emit(new JumpInsnNode(IFNULL, lsecond)) // L R; both are null so either one works
-        fb.emit(new InsnNode(DUP)) // L R R
-        (Code._empty[java.lang.Boolean].invoke[Boolean]("booleanValue")).emit(fb) // L R Z
-        fb.emit(new JumpInsnNode(isNotZero, lsecond)) // L R; stack indexing is from right to left
+        il += new InsnNode(DUP) // L R R
+        il += new JumpInsnNode(IFNULL, lsecond) // L R; both are null so either one works
+        il += new InsnNode(DUP) // L R R
+        (Code._empty[java.lang.Boolean].invoke[Boolean]("booleanValue")).emit(il) // L R Z
+        il += new JumpInsnNode(isNotZero, lsecond) // L R; stack indexing is from right to left
 
-        fb.emit(lfirst) // B A
-        fb.emit(new InsnNode(SWAP)) // A B
-        fb.emit(lsecond) // A B
-        fb.emit(new InsnNode(POP)) // A
-        fb.emit(ldone) // A
+        il += lfirst // B A
+        il += new InsnNode(SWAP) // A B
+        il += lsecond // A B
+        il += new InsnNode(POP) // A
+        il += ldone // A
       }
     }
   }

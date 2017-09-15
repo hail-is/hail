@@ -17,11 +17,12 @@ object Compile {
 
   class MissingBits(fb: FunctionBuilder[_]) {
     private var used = 0
-    private var bits: LocalRef[Int] = _
+    private var bits: LocalRef[Int] = null
 
     def newBit(x: Code[Boolean]): Code[Boolean] = {
-      if (used >= 64) {
+      if (used >= 64 || bits == null) {
         bits = fb.newLocal[Int]
+        fb.emit(bits.store(0))
         used = 0
       }
 
@@ -60,10 +61,8 @@ object Compile {
         val (mcnsq, vcnsq) = nonTerminal(cnsq)
         val (maltr, valtr) = nonTerminal(altr)
 
-        val x = mb.newBit(mcond)
-
-        val missingness = (x && mcnsq) || (!x && maltr)
-        val code = x.mux(
+        val missingness = mcnsq || maltr
+        val code = mcond.mux(
           Code._throw(Code.newInstance[NullPointerException]()),
           vcond.asInstanceOf[Code[Boolean]].mux(vcnsq, valtr))
 

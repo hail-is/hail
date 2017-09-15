@@ -10,7 +10,7 @@ trait Z2Z { def apply(z:Boolean): Boolean }
 
 class ASM4SSuite extends TestNGSuite {
   @Test def not(): Unit = {
-    val notb = new FunctionClassBuilder[Z2Z](Array(NotGenericTypeInfo[Boolean]), NotGenericTypeInfo[Boolean], "is/hail/asm4s/Z2Z")
+    val notb = new FunctionBuilder[Z2Z](Array(NotGenericTypeInfo[Boolean]), NotGenericTypeInfo[Boolean], "is/hail/asm4s/Z2Z")
     notb.emit(_return(!notb.getArg[Boolean](1)))
     val not = notb.result()()
     assert(!not(true))

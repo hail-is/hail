@@ -2,7 +2,6 @@ package is.hail.utils.richUtils
 
 import java.io._
 
-import is.hail.utils.using
 import is.hail.io.compress.BGzipCodec
 import is.hail.utils.{TextContext, WithContext, _}
 import net.jpountz.lz4.{LZ4BlockOutputStream, LZ4Compressor}
@@ -221,6 +220,14 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   }
 
   def fileStatus(filename: String): FileStatus = fileSystem(filename).getFileStatus(new hadoop.fs.Path(filename))
+
+  private def using[R <: Closeable, T](r: R)(consume: (R) => T): T = {
+    try {
+      consume(r)
+    } finally {
+      r.close()
+    }
+  }
 
   def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T =
     using(create(filename)) { ois => using(new ObjectOutputStream(ois))(f) }
