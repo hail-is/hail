@@ -200,8 +200,8 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   cn.interfaces.asInstanceOf[java.util.List[String]].add(interfaceTi.iname)
 
-  def result(): () => F = {
-    val bytes = classAsBytes()
+  def result(print: Option[PrintWriter] = None): () => F = {
+    val bytes = classAsBytes(print)
     val localName = name.replaceAll("/",".")
 
     new (() => F) with java.io.Serializable {

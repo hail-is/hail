@@ -15,10 +15,10 @@ import scala.reflect.ClassTag
 import java.io.PrintWriter
 
 class CompileSuite {
-  def compileAndRun[T: TypeInfo](mgti: DetailedTypeInfo[T, _], ir: IR, write: Boolean = false): T = {
+  def compileAndRun[T: TypeInfo](mgti: DetailedTypeInfo[T, _], ir: IR, print: Option[PrintWriter] = None): T = {
     val fb = FunctionBuilder.functionBuilder[T]
     Compile(ir, Array(mgti), fb)
-    fb.result().apply().apply()
+    fb.result(print).apply().apply()
   }
 
   private def unboxed[T: TypeInfo] = DetailedTypeInfo[T, T](None)
@@ -101,7 +101,7 @@ class CompileSuite {
 
   @Test
   def differingNullnessOnBranchesOfAnIf() {
-    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), _NA[Int], I32(3))), true) === 3)
+    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), _NA[Int], I32(3))), Some(new PrintWriter(System.err))) === 3)
   }
 
 }

@@ -61,8 +61,10 @@ object Compile {
         val (mcnsq, vcnsq) = nonTerminal(cnsq)
         val (maltr, valtr) = nonTerminal(altr)
 
-        val missingness = mcnsq || maltr
-        val code = vcond.asInstanceOf[Code[Boolean]].mux(vcnsq, valtr)
+        val x = fb.newLocal[Boolean]
+        x.store(vcond.asInstanceOf[Code[Boolean]])
+        val missingness = (x && mcnsq) || (!x && maltr)
+        val code = x.mux(vcnsq, valtr)
 
         (missingness, code)
       case Let(name, value, typ: TypeInfo[t], body) =>
