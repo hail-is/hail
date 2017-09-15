@@ -51,7 +51,7 @@ class UnionFindSuite extends TestNGSuite {
     assert(uf.find(1000) == 1000)
     assert(uf.find(1024) == 1024)
     assert(uf.find(4097) == 4097)
-    assert(uf.find(4096) == 4096)
+    assert(uf.find(4095) == 4095)
     assert(uf.size == 4)
   }
 
@@ -100,14 +100,14 @@ class UnionFindSuite extends TestNGSuite {
     uf.makeSet(5)
     uf.makeSet(6)
 
-    assert(uf.size == 5)
+    assert(uf.size == 6)
 
     uf.union(1, 2)
     uf.union(1, 4)
     uf.union(5, 3)
     uf.union(2, 6)
 
-    assert(uf.size == 3)
+    assert(uf.size == 2)
     assert(uf.find(1) == uf.find(2))
     assert(uf.find(1) == uf.find(4))
     assert(uf.find(5) == uf.find(3))
