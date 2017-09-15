@@ -156,38 +156,37 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     mn.instructions.add(end)
 
     val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
+    val sw1 = new StringWriter()
+    val sw2 = new StringWriter()
     var bytes: Array[Byte] = new Array[Byte](0)
     try {
       cn.accept(cw)
       bytes = cw.toByteArray
-
-      val sw = new StringWriter()
-      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw))
-      if (sw.toString.length != 0) {
-        println("Verify Output for " + name + ":")
-        println(sw)
-        throw new IllegalStateException("Bytecode failed verification 2")
-      }
+      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
     } catch {
       case e: Exception =>
         // if we fail with frames, try without frames for better error message
         val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
         cn.accept(cwNoFrames)
+        CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
 
-        // print the bytecode for debugging purposes
-        val cr = new ClassReader(cwNoFrames.toByteArray)
-        val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(System.out))
-        cr.accept(tcv, 0)
-
-        val sw = new StringWriter()
-        CheckClassAdapter.verify(cr, false, new PrintWriter(sw))
-        if (sw.toString().length() != 0) {
-          println("Verify Output for " + name + ":")
-          println(sw)
+        if (sw2.toString().length() != 0) {
+          System.err.println("Verify Output 2 for " + name + ":")
+          System.err.println(sw2)
           throw new IllegalStateException("Bytecode failed verification 1", e)
         } else {
+          if (sw1.toString().length() != 0) {
+            System.err.println("Verifiy Output 1 for " + name + ":")
+            System.err.println(sw1)
+          }
           throw e
         }
+    }
+
+    if (sw1.toString.length != 0) {
+      System.err.println("Verify Output 1 for " + name + ":")
+      System.err.println(sw1)
+      throw new IllegalStateException("Bytecode failed verification 2")
     }
 
     print.foreach { pw =>
