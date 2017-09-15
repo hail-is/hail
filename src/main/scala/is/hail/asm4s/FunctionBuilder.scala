@@ -157,7 +157,6 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
     val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
     val sw1 = new StringWriter()
-    val sw2 = new StringWriter()
     var bytes: Array[Byte] = new Array[Byte](0)
     try {
       cn.accept(cw)
@@ -167,6 +166,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
       case e: Exception =>
         // if we fail with frames, try without frames for better error message
         val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
+        val sw2 = new StringWriter()
         cn.accept(cwNoFrames)
         CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
 
