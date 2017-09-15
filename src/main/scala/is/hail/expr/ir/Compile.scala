@@ -62,7 +62,7 @@ object Compile {
         val (maltr, valtr) = nonTerminal(altr)
 
         val x = fb.newLocal[Boolean]
-        x.store(vcond.asInstanceOf[Code[Boolean]])
+        fb.emit(x.store(vcond.asInstanceOf[Code[Boolean]]))
         val missingness = (x && mcnsq) || (!x && maltr)
         val code = x.mux(vcnsq, valtr)
 
