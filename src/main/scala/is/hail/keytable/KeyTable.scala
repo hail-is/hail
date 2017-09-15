@@ -358,6 +358,23 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def select(selectedColumns: java.util.ArrayList[String]): KeyTable =
     select(selectedColumns.asScala.toArray)
 
+  def selectFields(keep: Array[String], mangle: Boolean = false): KeyTable = {
+    val paths = keep.map(Parser.parseAnnotationIdentifier)
+
+    val nonexistentPaths = paths.filter(signature.fieldOption(_).isEmpty)
+    if (nonexistentPaths.nonEmpty)
+      fatal(s"""Selected paths `${ nonexistentPaths.mkString(", ") }' do not exist in key table.
+        |  Table signature is ${ signature.toPrettyString(compact = true) }.""".stripMargin)
+
+    val (newSignature, f) = signature.selectFields(paths, mangle)
+    val newKey = key.filter(keep.toSet)
+
+    KeyTable(hc, rdd.map(f), newSignature, newKey)
+  }
+
+  def selectFields(keep: java.util.ArrayList[String], mangle: Boolean): KeyTable =
+    selectFields(keep.asScala.toArray, mangle)
+
   def drop(columnsToDrop: Array[String]): KeyTable = {
     val nonexistentColumns = columnsToDrop.diff(columns)
     if (nonexistentColumns.nonEmpty)

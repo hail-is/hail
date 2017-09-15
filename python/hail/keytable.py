@@ -636,6 +636,76 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     @record_method
+    @typecheck_method(selected_fields=oneof(strlike, listof(strlike)),
+                      mangle=bool)
+    def select_fields(self, selected_fields, mangle=False):
+        """Select a subset of fields.
+
+        This method performs the same functionality as :py:meth:`~.KeyTable.select`, but also
+        allows the selection of nested fields for columns with the type :py:class:`.TStruct`.
+
+        **Examples**
+
+        Consider a table with three Struct columns: B, D, and E.
+
+        >>> kt4 = hc.import_table('data/kt_example4.tsv', impute=True,
+        ...                       types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
+        ...                              'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
+        ...                              'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
+
+        Select both top-level columns and nested fields:
+
+        >>> result = kt4.select_fields(['B.B1', 'D.cat', 'E'])
+
+        The output schema is
+
+        .. code-block:: text
+
+            Struct{
+                B1: String,
+                cat: Int32,
+                E: Struct{
+                    A: Int32,
+                    B: Int32
+                }
+            }
+
+        Avoid name conflicts with ``mangle=True``:
+
+        >>> result = kt4.select_fields(['B', 'E.B', 'B.B1'], mangle=True)
+
+        The output schema is
+
+        .. code-block:: text
+
+            Struct{
+                 B: Struct{
+                     B0: Boolean,
+                     B1: String
+                 },
+                 `E.B`: Int32,
+                 `B.B1`: String
+             }
+
+        **Notes**
+
+        If a field name contains `.`, the field name must be enclosed by back-ticks because periods are used to
+        delimit different levels of nesting in the Struct hierarchy.
+
+        :param selected_fields: List of fields to be selected.
+        :type: str or list of str
+
+        :param bool mangle: Output selected fields with full path names delimited by `.`. Useful for avoiding name conflicts.
+
+        :return: Key table with selected fields.
+        :rtype: :class:`.KeyTable`
+        """
+
+        selected_fields = wrap_to_list(selected_fields)
+        return KeyTable(self.hc, self._jkt.selectFields(selected_fields, mangle))
+
+    @handle_py4j
+    @record_method
     @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def drop(self, column_names):
         """Drop columns.
