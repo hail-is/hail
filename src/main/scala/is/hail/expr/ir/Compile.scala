@@ -62,9 +62,7 @@ object Compile {
         val (maltr, valtr) = nonTerminal(altr)
 
         val missingness = mcnsq || maltr
-        val code = mcond.mux(
-          Code._throw(Code.newInstance[NullPointerException]()),
-          vcond.asInstanceOf[Code[Boolean]].mux(vcnsq, valtr))
+        val code = vcond.asInstanceOf[Code[Boolean]].mux(vcnsq, valtr)
 
         (missingness, code)
       case Let(name, value, typ: TypeInfo[t], body) =>
