@@ -5,66 +5,75 @@ import org.testng.annotations.Test
 
 class BiallelicMethodsSuite extends SparkSuite {
 
-  def catchError[T](f: => T) {
-    TestUtils.interceptFatal("requires a split dataset")(f)
+  def interceptRequire[T](f: => T) {
+    intercept[IllegalArgumentException](f)
   }
 
   @Test def test() {
     val multi = hc.importVCF("src/test/resources/sample2.vcf")
+    val bi = multi.filterMulti()
 
-    catchError {
+    interceptRequire {
       multi.concordance(multi)
     }
 
-    catchError {
+    interceptRequire {
+      multi.concordance(bi)
+    }
+
+    interceptRequire {
+      bi.concordance(multi)
+    }
+
+    interceptRequire {
       multi.exportGen("foo")
     }
 
-    catchError {
+    interceptRequire {
       multi.exportPlink("foo")
     }
 
-    catchError {
+    interceptRequire {
       multi.ibd()
     }
 
-    catchError {
+    interceptRequire {
       multi.grm()
     }
 
-    catchError {
+    interceptRequire {
       multi.mendelErrors(null)
     }
 
-    catchError {
-      multi.linreg(Array("foo"), Array(), "foo", useDosages = false)
+    interceptRequire {
+      multi.linreg(Array("foo"))
     }
 
-    catchError {
-      multi.logreg("foo", "foo", Array(), "foo")
+    interceptRequire {
+      multi.logreg("foo", "foo")
     }
 
-    catchError {
-      multi.lmmreg(multi.filterMulti().rrm(true, false), "foo", Array(), true, "foo", "foo", false, None, 1)
+    interceptRequire {
+      multi.lmmreg(null, "foo")
     }
 
-    catchError {
-      multi.rrm(true, false)
+    interceptRequire {
+      multi.rrm()
     }
 
-    catchError {
+    interceptRequire {
       multi.imputeSex()
     }
 
-    catchError {
+    interceptRequire {
       multi.pca("foo")
     }
 
-    catchError {
+    interceptRequire {
       multi.tdt(null, "foo")
     }
 
-    catchError {
+    interceptRequire {
       multi.variantQC()
     }
   }
