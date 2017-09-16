@@ -67,7 +67,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
     } else {
       vsm.filterVariants {
         case (v, va, gs) => v.isBiallelic
-      }.copy(wasSplit = true)
+      }.copy2(wasSplit = true)
     }
   }
 

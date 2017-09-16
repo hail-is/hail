@@ -83,8 +83,12 @@ object KeyTable {
 
     val schema = Parser.parseType(metadata.schema).asInstanceOf[TStruct]
 
+    val ttBc = BroadcastTypeTree(hc.sc, schema)
     KeyTable(hc,
-      new ReadRowsRDD(hc.sc, path, schema, metadata.n_partitions),
+      new ReadRowsRDD(hc.sc, path, schema, metadata.n_partitions)
+        .map { rv =>
+          new UnsafeRow(ttBc, rv.region.copy(), rv.offset)
+        },
       schema,
       metadata.key)
   }
@@ -182,21 +186,19 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
-  def unsafeRowRDD: RDD[UnsafeRow] = {
-    val ttBc = BroadcastTypeTree(hc.sc, signature)
-
+  def unsafeRowRDD: RDD[RegionValue] = {
+    val localSignature = signature
     rdd.mapPartitions { it =>
       val region = MemoryBuffer(8 * 1024)
       val rvb = new RegionValueBuilder(region)
-
-      val t = ttBc.value.typ.asInstanceOf[TStruct]
+      val rv = RegionValue(region, 0)
 
       it.map { r =>
         region.clear()
-        rvb.start(t)
-        rvb.addRow(t, r)
-        val offset = rvb.end()
-        new UnsafeRow(ttBc, region.copy(), offset)
+        rvb.start(localSignature)
+        rvb.addRow(localSignature, r)
+        rv.offset = rvb.end()
+        rv
       }
     }
   }

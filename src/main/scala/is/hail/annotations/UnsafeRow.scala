@@ -7,14 +7,50 @@ import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr._
 import is.hail.utils.Interval
 import is.hail.variant.{AltAllele, GenericGenotype, GenomeReference, Locus, Variant}
+import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
-class UnsafeIndexedSeqAnnotation(
+object UnsafeIndexedSeq {
+  def apply(sc: SparkContext, region: MemoryBuffer, t: TArray, aoff: Long, length: Int): UnsafeIndexedSeq = {
+    new UnsafeIndexedSeq(region, BroadcastTypeTree(sc, t), t.elementByteSize, aoff, aoff + t.elementsOffset(length), length)
+  }
+
+  def apply(ttBc: Broadcast[TypeTree], region: MemoryBuffer, aoff: Long): UnsafeIndexedSeq = {
+    val t = ttBc.value.typ.asInstanceOf[TContainer]
+    val length = region.loadInt(aoff)
+    new UnsafeIndexedSeq(region, ttBc, t.elementByteSize, aoff, aoff + t.elementsOffset(length), length)
+  }
+
+  def apply(sc: SparkContext, t: TArray, a: IndexedSeq[Annotation]): UnsafeIndexedSeq = {
+    val region = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+    rvb.start(t)
+    rvb.startArray(a.length)
+    var i = 0
+    while (i < a.length) {
+      rvb.addAnnotation(t.elementType, a(i))
+      i += 1
+    }
+    rvb.endArray()
+    UnsafeIndexedSeq(sc, region, t, rvb.end(), a.length)
+  }
+
+  def empty(sc: SparkContext, t: TArray): UnsafeIndexedSeq = {
+    val region = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+    rvb.start(t)
+    rvb.startArray(0)
+    rvb.endArray()
+    UnsafeIndexedSeq(sc, region, t, rvb.end(), 0)
+  }
+}
+
+class UnsafeIndexedSeq(
+  var region: MemoryBuffer,
   var ttBc: Broadcast[TypeTree],
-  var region: MemoryBuffer, var aoff: Long, var elemsOffset: Long,
-  var length: Int,
-  var elemSize: Long) extends IndexedSeq[Annotation] with KryoSerializable {
+  var elemSize: Long, var aoff: Long, var elemsOffset: Long,
+  var length: Int) extends IndexedSeq[Annotation] with KryoSerializable {
   def apply(i: Int): Annotation = {
     if (i < 0 || i >= length)
       throw new IndexOutOfBoundsException(i.toString)
@@ -30,15 +66,26 @@ class UnsafeIndexedSeqAnnotation(
 
   override def write(kryo: Kryo, output: Output) {
     kryo.writeObject(output, ttBc)
-    val enc = new Encoder(new DataOutputStream(output))
+
+    val enc = new Encoder()
     enc.writeRegionValue(ttBc.value.typ, region, aoff)
+
+    assert(enc.outOff <= Int.MaxValue)
+    val smallOutOff = enc.outOff.toInt
+    output.writeInt(smallOutOff)
+    output.write(enc.outMem, 0, smallOutOff)
   }
 
   private def writeObject(out: ObjectOutputStream) {
     out.writeObject(ttBc)
 
-    val enc = new Encoder(new DataOutputStream(out))
+    val enc = new Encoder()
     enc.writeRegionValue(ttBc.value.typ, region, aoff)
+
+    assert(enc.outOff <= Int.MaxValue)
+    val smallOutOff = enc.outOff.toInt
+    out.writeInt(smallOutOff)
+    out.write(enc.outMem, 0, smallOutOff)
   }
 
   override def read(kryo: Kryo, input: Input) {
@@ -46,7 +93,13 @@ class UnsafeIndexedSeqAnnotation(
     ttBc = kryo.readObject(input, cTorrentBroadcast).asInstanceOf[Broadcast[TypeTree]]
     val t = ttBc.value.typ.asInstanceOf[TArray]
 
-    val dec = new Decoder(new DataInputStream(input))
+    val smallInOff = input.readInt()
+    val inMem = new Array[Byte](smallInOff)
+    input.read(inMem, 0, smallInOff)
+
+    val dec = new Decoder()
+    dec.set(inMem)
+
     region = MemoryBuffer()
     aoff = dec.readRegionValue(t, region)
 
@@ -60,7 +113,13 @@ class UnsafeIndexedSeqAnnotation(
     ttBc = in.readObject().asInstanceOf[Broadcast[TypeTree]]
     val t = ttBc.value.typ.asInstanceOf[TArray]
 
-    val dec = new Decoder(new DataInputStream(in))
+    val smallInOff = in.readInt()
+    val inMem = new Array[Byte](smallInOff)
+    in.read(inMem, 0, smallInOff)
+
+    val dec = new Decoder()
+    dec.set(inMem)
+
     region = MemoryBuffer()
     aoff = dec.readRegionValue(ttBc.value.typ, region)
 
@@ -72,6 +131,31 @@ class UnsafeIndexedSeqAnnotation(
 }
 
 object UnsafeRow {
+  def apply(ttBc: Broadcast[TypeTree], r: Row): UnsafeRow = {
+    val region = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+    val t = ttBc.value.typ
+    rvb.start(t)
+    rvb.addAnnotation(t, r)
+    new UnsafeRow(ttBc, region, rvb.end())
+  }
+
+  def apply(ttBc: Broadcast[TypeTree], args: Annotation*): UnsafeRow = {
+    val region = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+    val t = ttBc.value.typ.asInstanceOf[TStruct]
+    assert(t.size == args.length)
+    rvb.start(t)
+    rvb.startStruct()
+    var i = 0
+    while (i < args.length) {
+      rvb.addAnnotation(t.fields(i).typ, args(i))
+      i += 1
+    }
+    rvb.endStruct()
+    new UnsafeRow(ttBc, region, rvb.end())
+  }
+
   def readBinary(region: MemoryBuffer, offset: Long): Array[Byte] = {
     val start = region.loadAddress(offset)
     assert(offset > 0 && (offset & 0x3) == 0, s"invalid binary start: $offset")
@@ -86,7 +170,7 @@ object UnsafeRow {
     val elemsOffset = arrayTTBc.value.typ.asInstanceOf[TContainer].elementsOffset(length)
     val elemSize = UnsafeUtils.arrayElementSize(elemType)
 
-    new UnsafeIndexedSeqAnnotation(arrayTTBc, region, aoff, aoff + elemsOffset, length, elemSize)
+    new UnsafeIndexedSeq(region, arrayTTBc, elemSize, aoff, aoff + elemsOffset, length)
   }
 
   def readStruct(region: MemoryBuffer, offset: Long, ttBc: Broadcast[TypeTree]): UnsafeRow = {
@@ -110,15 +194,16 @@ object UnsafeRow {
       readString(region, offset + ft.byteOffsets(1)))
   }
 
+  private val tArrayAltAllele = TArray(TAltAllele)
+
   def readArrayAltAllele(region: MemoryBuffer, offset: Long): Array[AltAllele] = {
-    val elemType = TAltAllele
-    val t = TArray(elemType)
+    val t = tArrayAltAllele
 
     val aoff = region.loadAddress(offset)
 
     val length = region.loadInt(aoff)
     val elemOffset = t.elementsOffset(length)
-    val elemSize = UnsafeUtils.arrayElementSize(elemType)
+    val elemSize = t.elementByteSize
 
     val a = new Array[AltAllele](length)
     var i = 0
@@ -129,15 +214,16 @@ object UnsafeRow {
     a
   }
 
+  private val tArrayInt32 = TArray(TInt32)
+
   def readArrayInt(region: MemoryBuffer, offset: Long): Array[Int] = {
-    val elemType = TInt32
-    val t = TArray(elemType)
+    val t = tArrayInt32
 
     val aoff = region.loadInt(offset)
 
     val length = region.loadInt(aoff)
     val elemOffset = t.elementsOffset(length)
-    val elemSize = UnsafeUtils.arrayElementSize(elemType)
+    val elemSize = t.elementByteSize
 
     val a = new Array[Int](length)
     var i = 0
@@ -277,27 +363,53 @@ class UnsafeRow(var ttBc: Broadcast[TypeTree],
 
   override def write(kryo: Kryo, output: Output) {
     kryo.writeObject(output, ttBc)
-    val enc = new Encoder(new DataOutputStream(output))
+
+    val enc = new Encoder()
     enc.writeRegionValue(ttBc.value.typ, region, offset)
+
+    assert(enc.outOff <= Int.MaxValue)
+    val smallOutOff = enc.outOff.toInt
+    output.writeInt(smallOutOff)
+    output.write(enc.outMem, 0, smallOutOff)
   }
 
   private def writeObject(out: ObjectOutputStream) {
     out.writeObject(ttBc)
-    val enc = new Encoder(new DataOutputStream(out))
+
+    val enc = new Encoder()
     enc.writeRegionValue(ttBc.value.typ, region, offset)
+
+    assert(enc.outOff <= Int.MaxValue)
+    val smallOutOff = enc.outOff.toInt
+    out.writeInt(smallOutOff)
+    out.write(enc.outMem, 0, smallOutOff)
   }
 
   override def read(kryo: Kryo, input: Input) {
     val cTorrentBroadcast = Class.forName("org.apache.spark.broadcast.TorrentBroadcast")
     ttBc = kryo.readObject(input, cTorrentBroadcast).asInstanceOf[Broadcast[TypeTree]]
-    val dec = new Decoder(new DataInputStream(input))
+
+    val smallInOff = input.readInt()
+    val inMem = new Array[Byte](smallInOff)
+    input.read(inMem, 0, smallInOff)
+
+    val dec = new Decoder()
+    dec.set(inMem)
+
     region = MemoryBuffer()
     offset = dec.readRegionValue(ttBc.value.typ, region)
   }
 
   private def readObject(in: ObjectInputStream) {
     ttBc = in.readObject().asInstanceOf[Broadcast[TypeTree]]
-    val dec = new Decoder(new DataInputStream(in))
+
+    val smallInOff = in.readInt()
+    val inMem = new Array[Byte](smallInOff)
+    in.read(inMem, 0, smallInOff)
+
+    val dec = new Decoder()
+    dec.set(inMem)
+
     region = MemoryBuffer()
     offset = dec.readRegionValue(ttBc.value.typ, region)
   }

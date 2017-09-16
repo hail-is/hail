@@ -5,6 +5,7 @@ import is.hail.check._
 import is.hail.check.Arbitrary._
 import is.hail.expr._
 import is.hail.utils._
+import is.hail.variant.{GenomeReference, Variant}
 import org.apache.spark.SparkEnv
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.Row
@@ -31,17 +32,15 @@ class UnsafeSuite extends SparkSuite {
       val offset = rvb.end()
       val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
 
-      hadoopConf.writeDataFile(path) { out =>
-        val en = new Encoder(out)
-        en.writeRegionValue(t, region, offset)
-      }
+      val en = new Encoder()
+      en.clear()
+      en.writeRegionValue(f, region, offset)
+      val (mem, n) = (en.outMem, en.outOff)
 
       region2.clear()
-      val offset2 = hadoopConf.readDataFile(path) { in =>
-        val dec = new Decoder(in)
-        dec.readRegionValue(t, region2)
-      }
-
+      val dec = new Decoder()
+      dec.set(mem)
+      val offset2 = dec.readRegionValue(f, region2)
       val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
 
       assert(t.valuesSimilar(a, ur2))
@@ -164,6 +163,29 @@ class UnsafeSuite extends SparkSuite {
 
   @Test def testEmptySize() {
     assert(TStruct().byteSize == 0)
+  }
+
+  @Test def orderingRegression() {
+    val region = MemoryBuffer()
+    val region2 = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+    val rvb2 = new RegionValueBuilder(region2)
+
+    val v1 = Variant("1", 1, "T", Array("A", "G"))
+    val v2 = Variant("1", 1, "T", "C")
+
+    val t = TVariant(GenomeReference.GRCh37)
+
+    rvb.start(t)
+    rvb.addAnnotation(t, v1)
+    val rv = RegionValue(region, rvb.end())
+
+    rvb2.start(t)
+    rvb2.addAnnotation(t, v2)
+    val rv2 = RegionValue(region2, rvb2.end())
+
+    assert(math.signum(t.ordering(missingGreatest = true).compare(v1, v2)) ==
+      math.signum(t.unsafeOrdering(missingGreatest = true).compare(rv, rv2)))
   }
 
   @Test def testUnsafeOrdering() {

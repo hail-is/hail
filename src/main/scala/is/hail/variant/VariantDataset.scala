@@ -78,7 +78,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     val aggregateOption = Aggregators.buildVariantAggregations(vds, ec)
 
     vds.mapAnnotations(finalType, { case (v, va, gs) =>
-
       val annotations = SplitMulti.split(v, va, gs,
         propagateGQ = propagateGQ,
         keepStar = true,
@@ -86,18 +85,16 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
           insertSplit(insertIndex(va, index), wasSplit)
         },
         f = _ => true)
-        .map({
-          case (v, (va, gs)) =>
-            ec.setAll(localGlobalAnnotation, v, va)
-            aggregateOption.foreach(f => f(v, va, gs))
-            f()
-        }).toArray
+        .map { case (v, (va, gs)) =>
+          ec.setAll(localGlobalAnnotation, v, va)
+          aggregateOption.foreach(f => f(v, va, gs))
+          f()
+        }.toArray
 
       inserters.zipWithIndex.foldLeft(va) {
         case (va, (inserter, i)) =>
           inserter(va, annotations.map(_ (i)).toArray[Any]: IndexedSeq[Any])
       }
-
     })
   }
 
@@ -115,20 +112,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     vds.rdd
       .aggregate(new SummaryCombiner[Genotype](_.hardCallIterator.countNonNegative()))(_.merge(_), _.merge(_))
       .result(vds.nSamples)
-  }
-
-  def eraseSplit(): VariantDataset = {
-    if (vds.wasSplit) {
-      val (newSignatures1, f1) = vds.deleteVA("wasSplit")
-      val vds1 = vds.copy(vaSignature = newSignatures1)
-      val (newSignatures2, f2) = vds1.deleteVA("aIndex")
-      vds1.copy(wasSplit = false,
-        vaSignature = newSignatures2,
-        rdd = vds1.rdd.mapValuesWithKey { case (v, (va, gs)) =>
-          (f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
-        }.asOrderedRDD)
-    } else
-      vds
   }
 
   def exportGen(path: String, precision: Int = 4) {
@@ -343,15 +326,14 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
     val noCall = Genotype()
     val localKeep = keep
-    vds.mapValuesWithAll(
-      (v: Variant, va: Annotation, s: Annotation, sa: Annotation, g: Genotype) => {
-        ec.setAll(v, va, s, sa, g)
+    vds.mapValuesWithAll(vds.genotypeSignature, { (v: Variant, va: Annotation, s: Annotation, sa: Annotation, g: Genotype) =>
+      ec.setAll(v, va, s, sa, g)
 
-        if (Filter.boxedKeepThis(f(), localKeep))
-          g
-        else
-          noCall
-      })
+      if (Filter.boxedKeepThis(f(), localKeep))
+        g
+      else
+        noCall
+    })
   }
 
   def grm(): KinshipMatrix = {
@@ -361,22 +343,84 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def hardCalls(): VariantDataset = {
-    vds.mapValues { g =>
+    val localNSamples = vds.nSamples
+
+    val rowType = vds.matrixType.rowType
+    val gst = TArray(TGenotype)
+    val gt = TGenotype.representation
+
+    vds.copy2(
+      rdd2 = vds.rdd2.mapPartitionsPreservesPartitioning { it =>
+        val rvb = new RegionValueBuilder()
+
+        it.map { rv =>
+          val region = rv.region
+
+          rvb.set(rv.region)
+          rvb.start(rowType)
+          rvb.startStruct()
+          rvb.addField(rowType, rv, 0) // pk
+          rvb.addField(rowType, rv, 1) // v
+          rvb.addField(rowType, rv, 2) // va
+
+          // gs
+          rvb.startArray(localNSamples)
+          val gsAOff = rowType.loadField(region, rv.offset, 3)
+          var i = 0
+          while (i < localNSamples) {
+            if (gst.isElementDefined(region, gsAOff, i)) {
+              rvb.startStruct() // g
+              val gOff = gst.elementOffset(gsAOff, localNSamples, i)
+
+              // gt
+              if (gt.isFieldDefined(region, gOff, 0)) {
+                rvb.addInt(region.loadInt(gt.loadField(region, gOff, 0)))
+              } else
+                rvb.setMissing()
+
+              rvb.setMissing() // ad
+              rvb.setMissing() // dp
+              rvb.setMissing() // gq
+              rvb.setMissing() // pl
+
+              // fakeRef
+              assert(gt.isFieldDefined(region, gOff, 5))
+              rvb.addBoolean(region.loadBoolean(gt.loadField(region, gOff, 5)))
+
+              rvb.addBoolean(false) // isLinearScale = false
+
+              rvb.endStruct()
+            } else
+              rvb.setMissing()
+
+            i += 1
+          }
+          rvb.endArray() // gs
+          rvb.endStruct()
+
+          rv.offset = rvb.end()
+
+          rv
+        }
+      }
+    )
+
+    /* vds.mapValues(vds.genotypeSignature, { g =>
       if (g == null)
-        g
+        null
       else
         Genotype(g._unboxedGT, g._fakeRef)
-    }
+    }) */
   }
 
   /**
     *
     * @param computeMafExpr An expression for the minor allele frequency of the current variant, `v', given
-    * the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
-    * @param bounded Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
-    * (e.g. outside of [0,1]).
-    * @param minimum Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
-    * @param maximum Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
+    *                       the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
+    * @param bounded        Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
+    *                       (e.g. outside of [0,1]).
+    * @param minimum        Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
+    * @param maximum        Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
     */
   def ibd(computeMafExpr: Option[String] = None, bounded: Boolean = true,
     minimum: Option[Double] = None, maximum: Option[Double] = None): KeyTable = {

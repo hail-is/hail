@@ -1096,4 +1096,25 @@ class ExprSuite extends SparkSuite {
       assert(t.typeCheck(a), s"problematic symbol: '$sym'")
     }
   }
+
+  @Test def testSizeAlignment() {
+    val lengths = (0 to 20) ++ Array(30, 31, 32, 33, 34) ++ Array(63, 64, 65) ++
+      Array(137, 427, 1099, 3529)
+    val p = forAll(Type.genArb) { t =>
+      assert(t.byteSize == t.fundamentalType.byteSize)
+      assert(t.alignment == t.fundamentalType.alignment)
+      t match {
+        case t: TContainer =>
+          val f = t.fundamentalType.asInstanceOf[TArray]
+          assert(t.contentsAlignment == f.contentsAlignment)
+          lengths.foreach { length =>
+            assert(t.contentsByteSize(length) == f.contentsByteSize(length))
+          }
+        case _ =>
+      }
+
+      true
+    }
+    p.check()
+  }
 }
