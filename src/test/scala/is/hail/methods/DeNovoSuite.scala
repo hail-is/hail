@@ -102,6 +102,7 @@ class DeNovoSuite extends SparkSuite {
       }.toMap
 
     val vds = hc.importVCF(pathBase + ".vcf")
+      .verifyBiallelic()
     val kt = vds.deNovo(Pedigree.read(pathBase + ".fam", hadoopConf), "va.info.ESP")
 
     kt.typeCheck()

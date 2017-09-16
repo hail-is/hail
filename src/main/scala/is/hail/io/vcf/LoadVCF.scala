@@ -267,13 +267,6 @@ object LoadVCF {
       .map(_.map(lineVariant).value)
       .persist(StorageLevel.MEMORY_AND_DISK)
 
-    val noMulti = justVariants.forall(_.nAlleles == 2)
-
-    if (noMulti)
-      info("No multiallelics detected.")
-    else
-      info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
-
     val gr = GenomeReference.GRCh37
 
     val rowType = TStruct(
@@ -329,8 +322,7 @@ object LoadVCF {
       TVariant(gr),
       vaSignature,
       TStruct.empty,
-      genotypeSignature,
-      wasSplit = noMulti),
+      genotypeSignature),
       VSMLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
