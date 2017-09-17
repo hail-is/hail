@@ -95,7 +95,12 @@ class UnsafeIndexedSeq(
 
     val smallInOff = input.readInt()
     val inMem = new Array[Byte](smallInOff)
-    input.read(inMem, 0, smallInOff)
+
+    var off = 0
+    while (off < smallInOff) {
+      val n = input.read(inMem, off, smallInOff - off)
+      off += n
+    }
 
     val dec = new Decoder()
     dec.set(inMem)
@@ -115,7 +120,7 @@ class UnsafeIndexedSeq(
 
     val smallInOff = in.readInt()
     val inMem = new Array[Byte](smallInOff)
-    in.read(inMem, 0, smallInOff)
+    in.readFully(inMem, 0, smallInOff)
 
     val dec = new Decoder()
     dec.set(inMem)
@@ -391,7 +396,12 @@ class UnsafeRow(var ttBc: Broadcast[TypeTree],
 
     val smallInOff = input.readInt()
     val inMem = new Array[Byte](smallInOff)
-    input.read(inMem, 0, smallInOff)
+
+    var off = 0
+    while (off < smallInOff) {
+      val n = input.read(inMem, off, smallInOff - off)
+      off += n
+    }
 
     val dec = new Decoder()
     dec.set(inMem)
@@ -405,7 +415,7 @@ class UnsafeRow(var ttBc: Broadcast[TypeTree],
 
     val smallInOff = in.readInt()
     val inMem = new Array[Byte](smallInOff)
-    in.read(inMem, 0, smallInOff)
+    in.readFully(inMem, 0, smallInOff)
 
     val dec = new Decoder()
     dec.set(inMem)
