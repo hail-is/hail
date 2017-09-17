@@ -270,6 +270,7 @@ object LoadVCF {
     val gr = GenomeReference.GRCh37
 
     val rowType = TStruct(
+      "pk" -> TLocus(gr),
       "v" -> TVariant(gr),
       "va" -> vaSignature,
       "gs" -> TArray(genotypeSignature))
@@ -298,14 +299,14 @@ object LoadVCF {
                 region.clear()
                 rvb.start(rowType.fundamentalType)
                 rvb.startStruct()
-                reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, canonicalFlags)
+                reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, dropSamples, canonicalFlags)
                 rvb.endStruct()
 
                 val ur = new UnsafeRow(rowTypeTreeBc, region.copy(), rvb.end())
 
-                val v = ur.getAs[Variant](0)
-                val va = ur.get(1)
-                val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
+                val v = ur.getAs[Variant](1)
+                val va = ur.get(2)
+                val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](3)
 
                 Some((v, (va, gs)))
               }

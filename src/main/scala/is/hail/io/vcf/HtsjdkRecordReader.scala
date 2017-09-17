@@ -90,7 +90,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     rvb.endStruct() // va
   }
 
-  def readRecord(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct, gType: TStruct, canonicalFlags: Int): Unit = {
+  def readRecord(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct, gType: TStruct, dropSamples: Boolean, canonicalFlags: Int): Unit = {
     readVariantInfo(vc, rvb, infoType)
 
     val nAlleles = vc.getNAlleles
@@ -99,106 +99,111 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
 
     val nCanonicalFields = Integer.bitCount(canonicalFlags)
 
-    rvb.startArray(vc.getNSamples) // gs
-    val it = vc.getGenotypes.iterator
-    while (it.hasNext) {
-      val g = it.next()
+    if (dropSamples) {
+      rvb.startArray(0)
+      rvb.endArray()
+    } else {
+      rvb.startArray(vc.getNSamples) // gs
+      val it = vc.getGenotypes.iterator
+      while (it.hasNext) {
+        val g = it.next()
 
-      val alleles = g.getAlleles
-      assert(alleles.size() == 1 || alleles.size() == 2,
-        s"expected 1 or 2 alleles in genotype, but found ${ alleles.size() }")
+        val alleles = g.getAlleles
+        assert(alleles.size() == 1 || alleles.size() == 2,
+          s"expected 1 or 2 alleles in genotype, but found ${ alleles.size() }")
 
-      rvb.startStruct() // g
+        rvb.startStruct() // g
 
-      if ((canonicalFlags & 1) != 0) {
-        val a0 = alleles.get(0)
-        val a1 = if (alleles.size() == 2)
-          alleles.get(1)
-        else
-          a0
+        if ((canonicalFlags & 1) != 0) {
+          val a0 = alleles.get(0)
+          val a1 = if (alleles.size() == 2)
+            alleles.get(1)
+          else
+            a0
 
-        assert(a0.isCalled || a0.isNoCall)
-        assert(a1.isCalled || a1.isNoCall)
-        assert(a0.isCalled == a1.isCalled)
+          assert(a0.isCalled || a0.isNoCall)
+          assert(a1.isCalled || a1.isNoCall)
+          assert(a0.isCalled == a1.isCalled)
 
-        val hasGT = a0.isCalled
-        if (hasGT) {
-          val i = vc.getAlleleIndex(a0)
-          val j = vc.getAlleleIndex(a1)
-          val gt = Genotype.gtIndexWithSwap(i, j)
-          rvb.addInt(gt)
-        } else
-          rvb.setMissing()
-      }
+          val hasGT = a0.isCalled
+          if (hasGT) {
+            val i = vc.getAlleleIndex(a0)
+            val j = vc.getAlleleIndex(a1)
+            val gt = Genotype.gtIndexWithSwap(i, j)
+            rvb.addInt(gt)
+          } else
+            rvb.setMissing()
+        }
 
-      if ((canonicalFlags & 2) != 0) {
-        if (g.hasAD) {
-          val ad = g.getAD
-          rvb.startArray(ad.length)
-          var i = 0
-          while (i < ad.length) {
-            rvb.addInt(ad(i))
-            i += 1
-          }
-          rvb.endArray()
-        } else
-          rvb.setMissing()
-      }
-
-      if ((canonicalFlags & 4) != 0) {
-        if (g.hasDP)
-          rvb.addInt(g.getDP)
-        else
-          rvb.setMissing()
-      }
-
-      if ((canonicalFlags & 8) != 0) {
-        if (g.hasGQ)
-          rvb.addInt(g.getGQ)
-        else
-          rvb.setMissing()
-      }
-
-      if ((canonicalFlags & 16) != 0) {
-        if (g.hasPL) {
-          var pl = g.getPL
-
-          // handle haploid
-          if (alleles.size() == 1) {
-            assert(pl.length == nAlleles)
-            util.Arrays.fill(haploidPL, haploidNonsensePL)
-
+        if ((canonicalFlags & 2) != 0) {
+          if (g.hasAD) {
+            val ad = g.getAD
+            rvb.startArray(ad.length)
             var i = 0
-            while (i < pl.length) {
-              haploidPL(triangle(i + 1) - 1) = pl(i)
+            while (i < ad.length) {
+              rvb.addInt(ad(i))
               i += 1
             }
+            rvb.endArray()
+          } else
+            rvb.setMissing()
+        }
 
-            pl = haploidPL
-          }
+        if ((canonicalFlags & 4) != 0) {
+          if (g.hasDP)
+            rvb.addInt(g.getDP)
+          else
+            rvb.setMissing()
+        }
 
-          rvb.startArray(pl.length)
-          var i = 0
-          while (i < pl.length) {
-            rvb.addInt(pl(i))
-            i += 1
-          }
-          rvb.endArray()
-        } else
-          rvb.setMissing()
+        if ((canonicalFlags & 8) != 0) {
+          if (g.hasGQ)
+            rvb.addInt(g.getGQ)
+          else
+            rvb.setMissing()
+        }
+
+        if ((canonicalFlags & 16) != 0) {
+          if (g.hasPL) {
+            var pl = g.getPL
+
+            // handle haploid
+            if (alleles.size() == 1) {
+              assert(pl.length == nAlleles)
+              util.Arrays.fill(haploidPL, haploidNonsensePL)
+
+              var i = 0
+              while (i < pl.length) {
+                haploidPL(triangle(i + 1) - 1) = pl(i)
+                i += 1
+              }
+
+              pl = haploidPL
+            }
+
+            rvb.startArray(pl.length)
+            var i = 0
+            while (i < pl.length) {
+              rvb.addInt(pl(i))
+              i += 1
+            }
+            rvb.endArray()
+          } else
+            rvb.setMissing()
+        }
+
+        var i = nCanonicalFields
+        while (i < gType.fields.length) {
+          val f = gType.fields(i)
+          val a = g.getAnyAttribute(f.name)
+          addAttribute(rvb, a, f.typ, nAlleles)
+          i += 1
+        }
+
+        rvb.endStruct() // g
       }
-
-      var i = nCanonicalFields
-      while (i < gType.fields.length) {
-        val f = gType.fields(i)
-        val a = g.getAnyAttribute(f.name)
-        addAttribute(rvb, a, f.typ, nAlleles)
-        i += 1
-      }
-
-      rvb.endStruct() // g
+      rvb.endArray() // gs
     }
-    rvb.endArray() // gs
   }
 }
 

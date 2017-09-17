@@ -50,7 +50,7 @@ class UnsafeIndexedSeq(
   var region: MemoryBuffer,
   var ttBc: Broadcast[TypeTree],
   var elemSize: Long, var aoff: Long, var elemsOffset: Long,
-  var length: Int) extends IndexedSeq[Annotation] with KryoSerializable {
+  var length: Int) extends IndexedSeq[Annotation] with KryoSerializable with Serializable {
   def apply(i: Int): Annotation = {
     if (i < 0 || i >= length)
       throw new IndexOutOfBoundsException(i.toString)
