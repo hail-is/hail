@@ -512,4 +512,13 @@ class KeyTableSuite extends SparkSuite {
     TestUtils.interceptFatal("expects a Struct argument in the first position"){ kt2.annotate("X = group(2, x, true)") }
     TestUtils.interceptFatal("Struct does not have field with name"){ kt2.annotate("X = group(foo, x, y)") }
   }
+
+  @Test def issue2231() {
+    assert(KeyTable.range(hc, 100)
+      .annotate("j = 1.0, i = 1")
+      .keyBy("i").join(KeyTable.range(hc, 100), "inner")
+      .signature.fields.map(f => (f.name, f.typ)).toSet
+      ===
+      Set(("index", TInt32), ("i", TInt32), ("j", TFloat64)))
+  }
 }
