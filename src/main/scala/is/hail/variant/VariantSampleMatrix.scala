@@ -615,9 +615,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val newRowType = newMatrixType.rowType
 
     copy2(vaSignature = finalType,
-      rdd2 = OrderedRDD2(
-        rdd2.partitionKey, rdd2.key,
-        newRowType,
+      rdd2 = OrderedRDD2(newMatrixType.orderedRDD2Type,
         rdd2.orderedPartitioner,
         rdd2.mapPartitions { it =>
           val rvb = new RegionValueBuilder()
@@ -845,11 +843,11 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     // type: Struct { pk, v, va, gs, va2 }
     val joinRDD = rdd2.orderedLeftJoinDistinct(other.variantsAndAnnotations2)
 
-    val joinType = joinRDD.rowType
+    val joinType = joinRDD.typ.rowType
     val joinTTBc = BroadcastTypeTree(sparkContext, joinType)
 
     copy2(vaSignature = finalType,
-      rdd2 = OrderedRDD2("pk", "v", newRowType, rdd2.orderedPartitioner,
+      rdd2 = OrderedRDD2(newMatrixType.orderedRDD2Type, rdd2.orderedPartitioner,
         joinRDD.mapPartitions { it =>
           val rvb = new RegionValueBuilder()
           it.map { rv =>
@@ -1411,9 +1409,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val rowTTBc = BroadcastTypeTree(sparkContext, matrixType.rowType)
 
     copy2(vaSignature = newVASignature,
-      rdd2 = OrderedRDD2(
-        rdd2.partitionKey, rdd2.key,
-        newRowType,
+      rdd2 = OrderedRDD2(newMatrixType.orderedRDD2Type,
         rdd2.orderedPartitioner,
         rdd2.mapPartitions { it =>
           val rvb = new RegionValueBuilder()
@@ -1990,11 +1986,12 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   def variantsAndAnnotations2: OrderedRDD2 = {
     val rowType = matrixType.rowType
     val newRowType = TStruct(
-      "pk" -> matrixType.partitionKeyType,
+      "pk" -> matrixType.locusType,
       "v" -> matrixType.vType,
       "va2" -> matrixType.vaType) // FIXME
 
-    OrderedRDD2("pk", "v", newRowType, rdd2.orderedPartitioner,
+    OrderedRDD2(new OrderedRDD2Type(Array("pk"), Array("pk", "v"), newRowType),
+      rdd2.orderedPartitioner,
       rdd2.mapPartitions { it =>
         val rvb = new RegionValueBuilder()
         it.map { rv =>
@@ -2157,18 +2154,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def toGDS: GenericDataset = new VariantSampleMatrix[Annotation, Annotation, Annotation](hc, metadata, ast)
 
-  def rowSignature: TStruct = {
-    val pkType = vSignature match {
-      case t: TVariant =>
-        TLocus(t.gr)
-      case _ => vSignature
-    }
-    TStruct(
-      "pk" -> pkType,
-      "v" -> vSignature,
-      "va" -> vaSignature,
-      "gs" -> TArray(genotypeSignature))
-  }
+  def rowType: TStruct = matrixType.rowType
 
   def write(dirname: String, overwrite: Boolean = false): Unit = {
     require(dirname.endsWith(".vds"), "generic dataset write paths must end in '.vds'")
@@ -2184,6 +2170,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       Serialization.write(rdd2.orderedPartitioner.toJSON, out)
     }
 
-    rdd2.writeRows(dirname, rowSignature)
+    rdd2.writeRows(dirname, rowType)
   }
 }

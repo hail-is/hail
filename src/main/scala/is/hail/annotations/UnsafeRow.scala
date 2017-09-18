@@ -12,6 +12,23 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
 object UnsafeIndexedSeq {
+  def apply(sc: SparkContext, elementType: Type, elements: Array[RegionValue]): UnsafeIndexedSeq = {
+    val t = TArray(elementType)
+
+    val region = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+    rvb.start(t)
+    rvb.startArray(elements.length)
+    var i = 0
+    while (i < elements.length) {
+      rvb.addRegionValue(elementType, elements(i))
+      i += 1
+    }
+    rvb.endArray()
+
+    UnsafeIndexedSeq(sc, region, t, rvb.end(), elements.length)
+  }
+
   def apply(sc: SparkContext, region: MemoryBuffer, t: TArray, aoff: Long, length: Int): UnsafeIndexedSeq = {
     new UnsafeIndexedSeq(region, BroadcastTypeTree(sc, t), t.elementByteSize, aoff, aoff + t.elementsOffset(length), length)
   }

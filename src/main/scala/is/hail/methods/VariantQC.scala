@@ -103,16 +103,16 @@ object VariantQC {
   def apply(vds: GenericDataset, root: String): GenericDataset = {
     val (newVAS, insertQC) = vds.vaSignature.insert(VariantQC.signature,
       Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
-    val nSamples = vds.nSamples
-    val rowSignature = vds.rowSignature
-    val rowTTBc = BroadcastTypeTree(vds.sparkContext, rowSignature)
+    val localNSamples = vds.nSamples
+    val localRowType = vds.rowType
+    val rowTTBc = BroadcastTypeTree(vds.sparkContext, localRowType)
     val rdd = vds.rdd2.mapPartitions { it =>
-      val view = HTSGenotypeView(rowSignature)
+      val view = HTSGenotypeView(localRowType)
       it.map { rv =>
         view.setRegion(rv.region, rv.offset)
         val comb = new VariantQCCombiner
         var i = 0
-        while (i < nSamples) {
+        while (i < localNSamples) {
           view.setGenotype(i)
           if (view.hasGT)
             comb.mergeGT(view.getGT)

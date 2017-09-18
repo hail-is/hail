@@ -5,7 +5,7 @@ import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TSet, TStruct, Type}
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
-import org.json4s.JsonAST.{JInt, JObject, JString, JValue}
+import org.json4s.JsonAST._
 
 import scala.collection.mutable
 
@@ -71,6 +71,22 @@ class WritableRegionValue(val t: Type,
   val value: RegionValue) {
   def offset: Long = value.offset
 
+  def setSelect(fromT: TStruct, toFromFieldIdx: Array[Int], fromRV: RegionValue) {
+    t match {
+      case t: TStruct =>
+        region.clear()
+        rvb.start(t)
+        rvb.startStruct()
+        var i = 0
+        while (i < t.size) {
+          rvb.addField(fromT, fromRV, toFromFieldIdx(i))
+          i += 1
+        }
+        rvb.endStruct()
+        value.offset = rvb.end()
+    }
+  }
+
   def set(rv: RegionValue): Unit = set(rv.region, rv.offset)
 
   def set(fromRegion: MemoryBuffer, fromOffset: Long) {
@@ -129,6 +145,89 @@ object PartitionKeyInfo2 {
   }
 }
 
+object OrderedRDD2Type {
+  def selectUnsafeOrdering(t1: TStruct, fields1: Array[Int],
+    t2: TStruct, fields2: Array[Int]): UnsafeOrdering = {
+    require(fields1.length == fields2.length)
+    require((fields1, fields2).zipped.forall { case (f1, f2) =>
+      t1.fieldType(f1) == t2.fieldType(f2)
+    })
+
+    val nFields = fields1.length
+    val fieldOrderings = fields1.map(f1 => t1.fieldType(f1).unsafeOrdering(missingGreatest = true))
+
+    new UnsafeOrdering {
+      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+        var i = 0
+        while (i < nFields) {
+          val f1 = fields1(i)
+          val f2 = fields2(i)
+          val leftDefined = t1.isFieldDefined(r1, o1, f1)
+          val rightDefined = t2.isFieldDefined(r2, o2, f2)
+
+          if (leftDefined && rightDefined) {
+            val c = fieldOrderings(i).compare(r1, t1.loadField(r1, o1, f1), r2, t2.loadField(r2, o2, f2))
+            if (c != 0)
+              return c
+          } else if (leftDefined != rightDefined) {
+            val c = if (leftDefined) -1 else 1
+            return c
+          }
+
+          i += 1
+        }
+
+        0
+      }
+    }
+  }
+
+  def apply(jv: JValue): OrderedRDD2Type = {
+    case class Extract(partitionKey: Array[String],
+      key: Array[String],
+      rowType: String)
+    val ex = jv.extract[Extract]
+    new OrderedRDD2Type(ex.partitionKey, ex.key, Parser.parseType(ex.rowType).asInstanceOf[TStruct])
+  }
+}
+
+class OrderedRDD2Type(
+  val partitionKey: Array[String],
+  val key: Array[String], // full key
+  val rowType: TStruct) extends Serializable {
+  assert(key.startsWith(partitionKey))
+
+
+  val (pkType, _) = rowType.select(partitionKey)
+  val (kType, _) = rowType.select(key)
+
+  val keySet: Set[String] = key.toSet
+  val (valueType, _) = rowType.filter(f => !keySet.contains(f.name))
+
+  val valueFieldIdx: Array[Int] = (0 until rowType.size)
+    .filter(i => !keySet.contains(rowType.fields(i).name))
+    .toArray
+
+  val kRowFieldIdx: Array[Int] = key.map(n => rowType.fieldIdx(n))
+  val pkRowFieldIdx: Array[Int] = partitionKey.map(n => rowType.fieldIdx(n))
+  val pkKFieldIdx: Array[Int] = partitionKey.map(n => kType.fieldIdx(n))
+  assert(pkKFieldIdx sameElements (0 until pkType.size))
+
+  val pkOrd: UnsafeOrdering = pkType.unsafeOrdering(missingGreatest = true)
+  val kOrd: UnsafeOrdering = kType.unsafeOrdering(missingGreatest = true)
+
+  val pkRowOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, rowType, pkRowFieldIdx)
+  val pkKOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx)
+  val pkInRowOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(rowType, pkRowFieldIdx, rowType, pkRowFieldIdx)
+  val kInRowOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(rowType, kRowFieldIdx, rowType, kRowFieldIdx)
+
+  def toJSON: JValue =
+    JObject(List(
+      "partitionKey" -> JArray(partitionKey.map(JString).toList),
+      "key" -> JArray(key.map(JString).toList),
+      "rowType" -> JString(rowType.toString)))
+}
+
 object OrderedRDD2 {
   type CoercionMethod = Int
 
@@ -137,48 +236,29 @@ object OrderedRDD2 {
   final val LOCAL_SORT: CoercionMethod = 2
   final val SHUFFLE: CoercionMethod = 3
 
-  def empty(sc: SparkContext,
-    partitionKey: String,
-    key: String,
-    rowType: TStruct): OrderedRDD2 = {
-    val pkField = rowType.field(partitionKey)
-    val pkIndex = pkField.index
-    val pkType = pkField.typ
-    val pkOrd = pkType.unsafeOrdering(missingGreatest = true)
-
-    val kField = rowType.field(key)
-    val kIndex = kField.index
-    val kType = kField.typ
-    val kOrd = kType.unsafeOrdering(missingGreatest = true)
-
-    val fullKeyType = TStruct(
-      "pk" -> pkType,
-      "k" -> kType)
-
-    OrderedRDD2(partitionKey, key, rowType,
-      OrderedPartitioner2.empty(sc, fullKeyType),
+  def empty(sc: SparkContext, typ: OrderedRDD2Type): OrderedRDD2 = {
+    OrderedRDD2(typ,
+      OrderedPartitioner2.empty(sc, typ),
       sc.emptyRDD[RegionValue])
   }
 
-  def cast(partitionKey: String,
-    key: String,
-    rowType: TStruct,
+  def cast(typ: OrderedRDD2Type,
     rdd: RDD[RegionValue]): OrderedRDD2 = {
     if (rdd.partitions.isEmpty)
-      OrderedRDD2.empty(rdd.sparkContext, partitionKey, key, rowType)
+      OrderedRDD2.empty(rdd.sparkContext, typ)
     else
       rdd match {
         case ordered: OrderedRDD2 => ordered.asInstanceOf[OrderedRDD2]
         case _ =>
           (rdd.partitioner: @unchecked) match {
-            case Some(p: OrderedPartitioner2) => OrderedRDD2(partitionKey, key, rowType, p.asInstanceOf[OrderedPartitioner2], rdd)
+            case Some(p: OrderedPartitioner2) => OrderedRDD2(typ, p.asInstanceOf[OrderedPartitioner2], rdd)
           }
       }
   }
 
-  def apply(partitionKey: String, key: String, rowType: TStruct,
+  def apply(typ: OrderedRDD2Type,
     rdd: RDD[RegionValue], fastKeys: Option[RDD[RegionValue]], hintPartitioner: Option[OrderedPartitioner2]): OrderedRDD2 = {
-    val (_, orderedRDD) = coerce(partitionKey, key, rowType, rdd, fastKeys, hintPartitioner)
+    val (_, orderedRDD) = coerce(typ, rdd, fastKeys, hintPartitioner)
     orderedRDD
   }
 
@@ -186,12 +266,13 @@ object OrderedRDD2 {
     * Precondition: the iterator it is PK-sorted.  We lazily K-sort each block
     * of PK-equivalent elements.
     */
-  def localKeySort(rowType: TStruct, pkOrd: Ordering[RegionValue], kOrd: Ordering[RegionValue],
+  def localKeySort(typ: OrderedRDD2Type,
+    // it: Iterator[RegionValue[rowType]]
     it: Iterator[RegionValue]): Iterator[RegionValue] = {
     new Iterator[RegionValue] {
       private val bit = it.buffered
 
-      private val q = new mutable.PriorityQueue[RegionValue]()(kOrd.reverse)
+      private val q = new mutable.PriorityQueue[RegionValue]()(typ.kInRowOrd.reverse)
 
       def hasNext: Boolean = bit.hasNext || q.nonEmpty
 
@@ -203,7 +284,7 @@ object OrderedRDD2 {
             q.enqueue(RegionValue(
               rv.region.copy(),
               rv.offset))
-          } while (bit.hasNext && pkOrd.compare(q.head, bit.head) == 0)
+          } while (bit.hasNext && typ.pkInRowOrd.compare(q.head, bit.head) == 0)
         }
 
         val rv = q.dequeue()
@@ -212,16 +293,15 @@ object OrderedRDD2 {
     }
   }
 
-  def coerce(partitionKey: String,
-    key: String,
-    rowType: TStruct,
+  def coerce(typ: OrderedRDD2Type,
     rdd: RDD[RegionValue],
+    // fastKeys: Option[RDD[RegionValue[kType]]]
     fastKeys: Option[RDD[RegionValue]] = None,
     hintPartitioner: Option[OrderedPartitioner2] = None): (CoercionMethod, OrderedRDD2) = {
     val sc = rdd.sparkContext
 
     if (rdd.partitions.isEmpty)
-      return (ORDERED_PARTITIONER, empty(sc, partitionKey, key, rowType))
+      return (ORDERED_PARTITIONER, empty(sc, typ))
 
     rdd match {
       case ordd: OrderedRDD2 =>
@@ -229,41 +309,18 @@ object OrderedRDD2 {
       case _ =>
     }
 
-    val pkField = rowType.field(partitionKey)
-    val pkIndex = pkField.index
-    val pkType = pkField.typ
-    val pkOrd = pkType.unsafeOrdering(missingGreatest = true)
-
-    val kField = rowType.field(key)
-    val kIndex = kField.index
-    val kType = kField.typ
-    val kOrd = kType.unsafeOrdering(missingGreatest = true)
-
-    val fullKeyType = TStruct(
-      "pk" -> pkType,
-      "k" -> kType)
-    val fOrd = fullKeyType.unsafeOrdering(missingGreatest = true)
-
+    // keys: RDD[RegionValue[kType]]
     val keys = fastKeys.getOrElse(rdd.mapPartitions { it =>
-      var krvb = new RegionValueBuilder(null)
-      var krv = RegionValue()
-
+      val wrv = WritableRegionValue(typ.kType)
       it.map { rv =>
-        krvb.set(rv.region)
-        krvb.start(fullKeyType)
-        krvb.startStruct()
-        krvb.addRegionValue(pkType, rv.region, rowType.loadField(rv.region, rv.offset, pkIndex))
-        krvb.addRegionValue(kType, rv.region, rowType.loadField(rv.region, rv.offset, kIndex))
-        krvb.endStruct()
-        krv.set(rv.region, krvb.end())
-
-        krv
+        wrv.setSelect(typ.rowType, typ.pkRowFieldIdx, rv)
+        wrv.value
       }
     })
 
     val keyInfo = keys.mapPartitionsWithIndex { case (i, it) =>
       if (it.hasNext)
-        Iterator(PartitionKeyInfo2(fullKeyType, i, it))
+        Iterator(PartitionKeyInfo2(typ.kType, i, it))
       else
         Iterator()
     }.collect()
@@ -271,39 +328,26 @@ object OrderedRDD2 {
     log.info(s"Partition summaries: ${ keyInfo.zipWithIndex.map { case (pki, i) => s"i=$i,min=${ pki.min },max=${ pki.max }" }.mkString(";") }")
 
     if (keyInfo.isEmpty)
-      return (AS_IS, empty(sc, partitionKey, key, rowType))
+      return (AS_IS, empty(sc, typ))
 
-    val sortedKeyInfo = keyInfo.sortBy(_.min)(pkOrd)
+    val sortedKeyInfo = keyInfo.sortBy(_.min)(typ.pkOrd)
 
     val partitionsSorted = sortedKeyInfo.zip(sortedKeyInfo.tail).forall { case (p, pnext) =>
-      val r = pkOrd.lteq(p.max, pnext.min)
+      val r = typ.pkOrd.lteq(p.max, pnext.min)
       if (!r)
         log.info(s"not sorted: p = $p, pnext = $pnext")
       r
     }
 
-    val pkTTBc = BroadcastTypeTree(sc, pkType)
+    val pkTTBc = BroadcastTypeTree(sc, typ.pkType)
 
     val sortedness = sortedKeyInfo.map(_.sortedness).min
     if (partitionsSorted && sortedness >= PartitionKeyInfo.TSORTED) {
-      val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments(partitionKey, key, rowType, sortedKeyInfo, sortedness)
+      val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments(typ, sortedKeyInfo, sortedness)
 
-      // FIXME clean up
-      val rangeBoundsType = TArray(pkType)
-      val rangeBoundsRegion = MemoryBuffer()
-      val rangeBoundsRVB = new RegionValueBuilder(rangeBoundsRegion)
-      rangeBoundsRVB.start(rangeBoundsType)
-      rangeBoundsRVB.startArray(rangeBounds.length)
-      var i = 0
-      while (i < rangeBounds.length) {
-        rangeBoundsRVB.addRegionValue(pkType, rangeBounds(i))
-        i += 1
-      }
-      rangeBoundsRVB.endArray()
-
-      val unsafeRangeBounds = UnsafeIndexedSeq(sc, rangeBoundsRegion, rangeBoundsType, rangeBoundsRVB.end(), rangeBounds.length)
+      val unsafeRangeBounds = UnsafeIndexedSeq(sc, typ.pkType, rangeBounds)
       val partitioner = new OrderedPartitioner2(adjustedPartitions.length,
-        fullKeyType,
+        typ,
         unsafeRangeBounds)
 
       val reorderedPartitionsRDD = rdd.reorderPartitions(sortedKeyInfo.map(_.partIndex))
@@ -311,29 +355,16 @@ object OrderedRDD2 {
       (adjSortedness: @unchecked) match {
         case PartitionKeyInfo.KSORTED =>
           info("Coerced sorted dataset")
-          (AS_IS, OrderedRDD2(partitionKey, key, rowType,
+          (AS_IS, OrderedRDD2(typ,
             partitioner,
             adjustedRDD))
 
         case PartitionKeyInfo.TSORTED =>
           info("Coerced almost-sorted dataset")
-          (LOCAL_SORT, OrderedRDD2(partitionKey, key, rowType,
+          (LOCAL_SORT, OrderedRDD2(typ,
             partitioner,
             adjustedRDD.mapPartitions { it =>
-              localKeySort(rowType,
-                new Ordering[RegionValue] {
-                  def compare(rv1: RegionValue, rv2: RegionValue): Int = {
-                    pkOrd.compare(rv1.region, rowType.loadField(rv1.region, rv1.offset, pkIndex),
-                      rv2.region, rowType.loadField(rv2.region, rv2.offset, pkIndex))
-                  }
-                },
-                new Ordering[RegionValue] {
-                  def compare(rv1: RegionValue, rv2: RegionValue): Int = {
-                    kOrd.compare(rv1.region, rowType.loadField(rv1.region, rv1.offset, kIndex),
-                      rv2.region, rowType.loadField(rv2.region, rv2.offset, kIndex))
-                  }
-                },
-                it)
+              localKeySort(typ, it)
             }))
       }
     } else {
@@ -341,24 +372,27 @@ object OrderedRDD2 {
       val p = hintPartitioner
         .filter(_.numPartitions >= rdd.partitions.length)
         .getOrElse {
-          val ranges: UnsafeIndexedSeq = calculateKeyRanges(fullKeyType, keys)
-          new OrderedPartitioner2(ranges.length + 1, fullKeyType, ranges)
+          val ranges: UnsafeIndexedSeq = calculateKeyRanges(typ, keys)
+          new OrderedPartitioner2(ranges.length + 1, typ, ranges)
         }
-      (SHUFFLE, shuffle(partitionKey, key, rowType, p, rdd))
+      (SHUFFLE, shuffle(typ, p, rdd))
     }
   }
 
-  def calculateKeyRanges(keyType: TStruct, keysRDD: RDD[RegionValue]): UnsafeIndexedSeq = {
+  def calculateKeyRanges(typ: OrderedRDD2Type, keysRDD: RDD[RegionValue]): UnsafeIndexedSeq = {
     val n = keysRDD.getNumPartitions
 
-    val pkType = keyType.fields(0).typ
-    val pkOrd = pkType.unsafeOrdering(missingGreatest = true)
-
     // FIXME sample up to 1m
-    val keys = keysRDD.map { rv =>
-      RegionValue(rv.region.copy(), keyType.loadField(rv.region, rv.offset, 0))
+    val keys = keysRDD.mapPartitions { it =>
+      // FIXME extra copy
+      val wrv = WritableRegionValue(typ.pkType)
+
+      it.map { rv =>
+        wrv.setSelect(typ.kType, typ.pkKFieldIdx, rv)
+        RegionValue(wrv.region.copy(), wrv.offset)
+      }
     }.collect()
-      .sorted(pkOrd)
+      .sorted(typ.pkOrd)
 
     val rangeBounds =
       if (keys.length <= n)
@@ -369,89 +403,37 @@ object OrderedRDD2 {
         Array.tabulate(n - 1)(i => keys((i + 1) * k))
       }
 
-    // FIXME clean up
-    val rangeBoundsType = TArray(pkType)
-    val rangeBoundsRegion = MemoryBuffer()
-    val rangeBoundsRVB = new RegionValueBuilder(rangeBoundsRegion)
-    rangeBoundsRVB.start(rangeBoundsType)
-    rangeBoundsRVB.startArray(rangeBounds.length)
-    var i = 0
-    while (i < rangeBounds.length) {
-      rangeBoundsRVB.addRegionValue(pkType, rangeBounds(i))
-      i += 1
-    }
-    rangeBoundsRVB.endArray()
-
-    val unsafeRangeBounds = UnsafeIndexedSeq(keysRDD.sparkContext, rangeBoundsRegion, rangeBoundsType, rangeBoundsRVB.end(), rangeBounds.length)
-    unsafeRangeBounds
+    UnsafeIndexedSeq(keysRDD.sparkContext, typ.pkType, rangeBounds)
   }
 
-  def shuffle(partitionKey: String,
-    key: String,
-    rowType: TStruct,
+  def shuffle(typ: OrderedRDD2Type,
     partitioner: OrderedPartitioner2,
     rdd: RDD[RegionValue]): OrderedRDD2 = {
     val sc = rdd.sparkContext
 
-    val pkField = rowType.field(partitionKey)
-    val pkIndex = pkField.index
-    val pkType = pkField.typ
-
-    val kField = rowType.field(key)
-    val kIndex = kField.index
-    val kType = kField.typ
-
-    val fullKeyType = TStruct(
-      "pk" -> pkType,
-      "k" -> kType)
-
-    // FIXME just for assert
-    val partitionerBc = sc.broadcast(partitioner)
-
-    val fOrd = fullKeyType.unsafeOrdering(missingGreatest = true)
-    OrderedRDD2(partitionKey, key, rowType,
+    OrderedRDD2(typ,
       partitioner,
-      // FIXME OrderedPartitioner2 should take fullKey, but bounds should be pk
       new ShuffledRDD[RegionValue, RegionValue, RegionValue](
         rdd.mapPartitions { it =>
-          val fRegion = MemoryBuffer()
-          val frvb = new RegionValueBuilder(fRegion)
-          val frv = RegionValue(fRegion, 0)
-
+          val wkrv = WritableRegionValue(typ.kType)
           it.map { rv =>
-            fRegion.clear()
-            frvb.start(fullKeyType)
-            frvb.startStruct()
-            frvb.addRegionValue(pkType, rv.region, rowType.loadField(rv.region, rv.offset, pkIndex))
-            frvb.addRegionValue(kType, rv.region, rowType.loadField(rv.region, rv.offset, kIndex))
-            frvb.endStruct()
-
-            frv.offset = frvb.end()
-
-            (frv, rv)
+            wkrv.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
+            (wkrv.value, rv)
           }
         },
         partitioner)
-        .setKeyOrdering(fOrd)
+        .setKeyOrdering(typ.kOrd)
         .mapPartitionsWithIndex { case (i, it) =>
           it.map { case (k, v) =>
-            assert(partitionerBc.value.getPartition(k) == i)
+            assert(partitioner.getPartition(k) == i)
             v
           }
         })
   }
 
-  def rangesAndAdjustments(
-    partitionKey: String,
-    key: String,
-    rowType: TStruct,
+  def rangesAndAdjustments(typ: OrderedRDD2Type,
     sortedKeyInfo: Array[PartitionKeyInfo2],
     sortedness: Int): (IndexedSeq[Array[Adjustment[RegionValue]]], Array[RegionValue], Int) = {
-
-    val pkField = rowType.field(partitionKey)
-    val pkIndex = pkField.index
-    val pkType = pkField.typ
-    val pkOrd = pkType.unsafeOrdering(missingGreatest = true)
 
     val rangeBounds = new ArrayBuilder[RegionValue]()
     val adjustmentsBuffer = new mutable.ArrayBuffer[Array[Adjustment[RegionValue]]]
@@ -471,9 +453,9 @@ object OrderedRDD2 {
       indicesBuilder += i
 
       var continue = true
-      while (continue && it.hasNext && pkOrd.equiv(sortedKeyInfo(it.head).min, max)) {
+      while (continue && it.hasNext && typ.pkOrd.equiv(sortedKeyInfo(it.head).min, max)) {
         anyOverlaps = true
-        if (pkOrd.equiv(sortedKeyInfo(it.head).max, max))
+        if (typ.pkOrd.equiv(sortedKeyInfo(it.head).max, max))
           indicesBuilder += it.next()
         else {
           indicesBuilder += it.head
@@ -486,15 +468,13 @@ object OrderedRDD2 {
         val f: (Iterator[RegionValue]) => Iterator[RegionValue] =
         // In the first partition, drop elements that should go in the last if necessary
           if (index == 0)
-            if (adjustmentsBuffer.nonEmpty && pkOrd.equiv(min, sortedKeyInfo(adjustmentsBuffer.last.head.index).max))
-              _.dropWhile(rv => pkOrd.compare(rv.region, rowType.loadField(rv.region, rv.offset, pkIndex),
-                min.region, min.offset) == 0)
+            if (adjustmentsBuffer.nonEmpty && typ.pkOrd.equiv(min, sortedKeyInfo(adjustmentsBuffer.last.head.index).max))
+              _.dropWhile(rv => typ.pkRowOrd.compare(min.region, min.offset, rv) == 0)
             else
               identity
           else
           // In every subsequent partition, only take elements that are the max of the last
-            _.takeWhile(rv => pkOrd.compare(rv.region, rowType.loadField(rv.region, rv.offset, pkIndex),
-              max.region, max.offset) == 0)
+            _.takeWhile(rv => typ.pkRowOrd.compare(max.region, max.offset, rv) == 0)
         Adjustment(partitionIndex, f)
       }
 
@@ -512,87 +492,14 @@ object OrderedRDD2 {
     (adjustmentsBuffer, rangeBounds.result(), adjSortedness)
   }
 
-  def apply(partitionKey: String,
-    key: String,
-    rowType: TStruct,
-    rangeBounds1: Array[Annotation],
-    rdd1: RDD[Annotation]): OrderedRDD2 = {
-    val sc = rdd1.sparkContext
-
-    val pkField = rowType.field(partitionKey)
-    val pkIndex = pkField.index
-    val pkType = pkField.typ
-    val pkOrd = pkType.unsafeOrdering(missingGreatest = true)
-
-    val kField = rowType.field(key)
-    val kIndex = kField.index
-    val kType = kField.typ
-    val kOrd = kType.unsafeOrdering(missingGreatest = true)
-
-    val fullKeyType = TStruct(
-      "pk" -> pkType,
-      "k" -> kType)
-
-    val rangeBoundsType = TArray(pkType)
-    val region = MemoryBuffer()
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(rangeBoundsType)
-    rvb.startArray(rangeBounds1.length)
-    var i = 0
-    while (i < rangeBounds1.length) {
-      rvb.addAnnotation(pkType, rangeBounds1(i))
-      i += 1
-    }
-    rvb.endArray()
-    val aoff = rvb.end()
-    val rangeBounds = UnsafeIndexedSeq(sc, region, rangeBoundsType, aoff, rangeBounds1.length)
-
-    val rowTTBc = BroadcastTypeTree(sc, rowType)
-    OrderedRDD2(
-      partitionKey,
-      key,
-      rowType,
-      new OrderedPartitioner2(rdd1.getNumPartitions,
-        fullKeyType,
-        rangeBounds),
-      rdd1.mapPartitions { it =>
-        val rowType = rowTTBc.value.typ
-        val region = MemoryBuffer()
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region, 0)
-
-        it.map { a =>
-          region.clear()
-          rvb.start(rowType)
-          rvb.addAnnotation(rowType, a)
-          rv.offset = rvb.end()
-
-          rv
-        }
-      })
-  }
-
-  def apply(partitionKey: String,
-    key: String,
-    rowType: TStruct,
-    orderedPartitioner: OrderedPartitioner2,
+  def apply(typ: OrderedRDD2Type,
+    partitioner: OrderedPartitioner2,
     rdd: RDD[RegionValue]): OrderedRDD2 = {
-
     val sc = rdd.sparkContext
-    val pkField = rowType.field(partitionKey)
-    val pkIndex = pkField.index
-    val pkType = pkField.typ
-    assert(pkType == orderedPartitioner.rangeBoundsType.elementType)
 
-    val partitionerBc = sc.broadcast(orderedPartitioner)
-
-    new OrderedRDD2(partitionKey, key, rowType, orderedPartitioner,
+    new OrderedRDD2(typ, partitioner,
       rdd.mapPartitionsWithIndex { case (i, it) =>
-        val partitioner = partitionerBc.value
-        val pkOrd = partitioner.unsafeOrdering
-        val prevRegion = MemoryBuffer()
-        val prevB = new RegionValueBuilder(prevRegion)
-        val prev: RegionValue = RegionValue(prevRegion, 0)
+        val prev = WritableRegionValue(typ.pkType)
 
         new Iterator[RegionValue] {
           var first = true
@@ -602,26 +509,23 @@ object OrderedRDD2 {
           def next(): RegionValue = {
             val rv = it.next()
 
-            val pkOff = rowType.loadField(rv.region, rv.offset, pkIndex)
-
-            if (i < partitioner.rangeBounds.length)
-              assert(pkOrd.compare(rv.region, pkOff,
-                partitioner.region, partitioner.loadElement(i)) <= 0)
+            if (i < partitioner.rangeBounds.length) {
+              assert(typ.pkRowOrd.compare(
+                partitioner.region, partitioner.loadElement(i),
+                rv) >= 0)
+            }
             if (i > 0)
-              assert(pkOrd.compare(partitioner.region, partitioner.loadElement(i - 1),
-                rv.region, pkOff) < 0)
+              assert(typ.pkRowOrd.compare(partitioner.region, partitioner.loadElement(i - 1),
+                rv) < 0)
 
             if (first)
               first = false
             else
-              assert(pkOrd.compare(prev.region, prev.offset, rv.region, pkOff) <= 0)
+              assert(typ.pkRowOrd.compare(prev.value, rv) <= 0)
 
-            prevRegion.clear()
-            prevB.start(pkType)
-            prevB.addRegionValue(pkType, rv.region, pkOff)
-            prev.offset = prevB.end()
+            prev.setSelect(typ.rowType, typ.pkRowFieldIdx, rv)
 
-            assert(pkOrd.compare(prev.region, prev.offset, rv.region, pkOff) == 0)
+            assert(typ.pkRowOrd.compare(prev.value, rv) == 0)
 
             rv
           }
@@ -629,71 +533,41 @@ object OrderedRDD2 {
       })
   }
 
-  def leftJoin(left: TStruct, leftKey: Array[String],
-    right: TStruct, rightKey: Array[String]): (
+  def leftJoin(left: OrderedRDD2Type, right: OrderedRDD2Type): (
     TStruct, UnsafeOrdering, (RegionValueBuilder, RegionValue, RegionValue) => Unit) = {
-    val rightKeySet = rightKey.toSet
-    val rightValueIdx: Array[Int] =
-      (0 until right.size)
-        .filter(i => !rightKeySet(right.fields(i).name))
-        .toArray
-
-    val (leftKeyType, _) = left.select(leftKey)
-    val (rightKeyType, _) = right.select(rightKey)
-
-    if (leftKeyType != rightKeyType)
+    if (left.kType != right.kType)
       fatal(
         s"""Incompatible join keys.  Keys must have same length and types, in order:
-           | Left key type: ${ leftKeyType.toPrettyString(compact = true) }
-           | Right key type: ${ rightKeyType.toPrettyString(compact = true) }
+           | Left key type: ${ left.kType.toPrettyString(compact = true) }
+           | Right key type: ${ right.kType.toPrettyString(compact = true) }
          """.stripMargin)
 
-    val (rightValueType, _) = right.filter(rightKey.toSet, include = false)
-
     // checks disjoint names
-    val joinType = left ++ rightValueType
+    val joinType = left.rowType ++ right.valueType
 
-    val leftKeyIdx = leftKey.map(left.fieldIdx)
-    val rightKeyIdx = rightKey.map(right.fieldIdx)
-    val keyOrd = leftKeyIdx.map { i =>
-      assert(left.fieldType(leftKeyIdx(i)) == right.fieldType(rightKeyIdx(i)))
-      left.fieldType(leftKeyIdx(i)).unsafeOrdering(missingGreatest = true)
-    }
-
-    val fkOrd = new UnsafeOrdering {
-      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-        var i = 0
-        while (i < leftKeyIdx.length) {
-          val c = keyOrd(i).compare(r1, left.loadField(r1, o1, leftKeyIdx(i)),
-            r2, right.loadField(r2, o2, rightKeyIdx(i)))
-          if (c != 0)
-            return c
-          i += 1
-        }
-
-        0
-      }
-    }
+    val lrKOrd = OrderedRDD2Type.selectUnsafeOrdering(left.rowType, left.kRowFieldIdx,
+      right.rowType, right.kRowFieldIdx)
 
     val merge = { (rvb: RegionValueBuilder, lrv: RegionValue, rrv: RegionValue) =>
       rvb.set(lrv.region)
       rvb.start(joinType)
       rvb.startStruct() // row
-    var i = 0
-      while (i < left.size) {
-        rvb.addField(left, lrv, i)
+
+      var i = 0
+      while (i < left.rowType.size) {
+        rvb.addField(left.rowType, lrv, i)
         i += 1
       }
 
       if (rrv != null) {
         i = 0
-        while (i < rightValueIdx.length) {
-          rvb.addField(right, rrv, rightValueIdx(i))
+        while (i < right.valueFieldIdx.length) {
+          rvb.addField(right.rowType, rrv, right.valueFieldIdx(i))
           i += 1
         }
       } else {
         i = 0
-        while (i < rightValueIdx.length) {
+        while (i < right.valueFieldIdx.length) {
           rvb.setMissing()
           i += 1
         }
@@ -704,16 +578,19 @@ object OrderedRDD2 {
       lrv.offset = rvb.end()
     }
 
-    (joinType, fkOrd, merge)
+    (joinType, lrKOrd, merge)
   }
 }
 
 class OrderedRDD2 private(
-  val partitionKey: String,
-  val key: String,
-  val rowType: TStruct,
+  val typ: OrderedRDD2Type,
   @transient val orderedPartitioner: OrderedPartitioner2,
   val rdd: RDD[RegionValue]) extends RDD[RegionValue](rdd) {
+
+  def this(partitionKey: String, key: String, rowType: TStruct,
+    orderedPartitioner: OrderedPartitioner2,
+    rdd: RDD[RegionValue]) = this(new OrderedRDD2Type(Array(partitionKey), Array(partitionKey, key), rowType),
+    orderedPartitioner, rdd)
 
   @transient override val partitioner: Option[Partitioner] = Some(orderedPartitioner)
 
@@ -724,33 +601,31 @@ class OrderedRDD2 private(
   override def getPreferredLocations(split: Partition): Seq[String] = rdd.preferredLocations(split)
 
   def mapPreservesPartitioning(f: (RegionValue) => RegionValue): OrderedRDD2 =
-    OrderedRDD2(partitionKey, key, rowType,
+    OrderedRDD2(typ,
       orderedPartitioner,
       rdd.map(f))
 
   def mapPartitionsPreservesPartitioning(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRDD2 =
-    OrderedRDD2(partitionKey, key, rowType,
+    OrderedRDD2(typ,
       orderedPartitioner,
       rdd.mapPartitions(f))
 
   override def filter(p: (RegionValue) => Boolean): OrderedRDD2 =
-    OrderedRDD2(partitionKey, key, rowType,
+    OrderedRDD2(typ,
       orderedPartitioner,
       rdd.filter(p))
 
   override def sample(withReplacement: Boolean, fraction: Double, seed: Long): OrderedRDD2 =
-    OrderedRDD2(partitionKey, key, rowType,
+    OrderedRDD2(typ,
       orderedPartitioner,
       rdd.sample(withReplacement, fraction, seed))
 
   def orderedLeftJoinDistinct(right: OrderedRDD2): OrderedRDD2 = {
-    val (joinType, fkOrd, merge) = OrderedRDD2.leftJoin(rowType, Array(partitionKey, key),
-      right.rowType, Array(right.partitionKey, right.key))
+    val (joinType, lrKOrd, merge) = OrderedRDD2.leftJoin(typ, right.typ)
 
-    OrderedRDD2(partitionKey, key,
-      joinType,
+    OrderedRDD2(new OrderedRDD2Type(typ.partitionKey, typ.key, joinType),
       orderedPartitioner,
-      new OrderedLeftJoinDistinctRDD2(this, right, fkOrd, merge))
+      new OrderedLeftJoinDistinctRDD2(this, right, lrKOrd, merge))
   }
 }
 
@@ -778,7 +653,7 @@ object OrderedDependency2 {
 case class OrderedLeftJoinDistinctRDD2Partition(index: Int, leftPartition: Partition, rightPartitions: Array[Partition]) extends Partition
 
 class OrderedLeftJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2,
-  fkOrd: UnsafeOrdering,
+  lrKOrd: UnsafeOrdering,
   merge: (RegionValueBuilder, RegionValue, RegionValue) => Unit)
   extends RDD[RegionValue](left.sparkContext,
     Seq[Dependency[_]](new OneToOneDependency(left),
@@ -815,7 +690,7 @@ class OrderedLeftJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2,
           null
 
       def advanceRight(lrv: RegionValue) {
-        while (rrv != null && fkOrd.compare(lrv, rrv) > 0) {
+        while (rrv != null && lrKOrd.compare(lrv, rrv) > 0) {
           if (rightIt.hasNext)
             rrv = rightIt.next()
           else
@@ -831,7 +706,7 @@ class OrderedLeftJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2,
         // merge into lrv
         merge(rvb, lrv,
           // FIXME duplicate comparison
-          if (rrv != null && fkOrd.compare(lrv, rrv) == 0)
+          if (rrv != null && lrKOrd.compare(lrv, rrv) == 0)
             rrv
           else
             null)
@@ -842,21 +717,19 @@ class OrderedLeftJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2,
 }
 
 object OrderedPartitioner2 {
-  def empty(sc: SparkContext, fullKeyType: TStruct): OrderedPartitioner2 = {
-    val pkType = fullKeyType.fields(0).typ
-    new OrderedPartitioner2(0, fullKeyType, UnsafeIndexedSeq.empty(sc, TArray(pkType)))
+  def empty(sc: SparkContext, typ: OrderedRDD2Type): OrderedPartitioner2 = {
+    new OrderedPartitioner2(0, typ, UnsafeIndexedSeq.empty(sc, TArray(typ.pkType)))
   }
 
   def apply(sc: SparkContext, jv: JValue): OrderedPartitioner2 = {
     case class Extract(numPartitions: Int,
-      fullKeyType: String,
+      typ: JValue,
       rangeBounds: JValue)
     val ex = jv.extract[Extract]
-    val fullKeyType = Parser.parseType(ex.fullKeyType).asInstanceOf[TStruct]
-    val pkType = fullKeyType.fields(0).typ
-    val rangeBoundsType = TArray(pkType)
+    val typ = OrderedRDD2Type(ex.typ)
+    val rangeBoundsType = TArray(typ.pkType)
     new OrderedPartitioner2(ex.numPartitions,
-      fullKeyType,
+      typ,
       UnsafeIndexedSeq(
         sc,
         rangeBoundsType,
@@ -866,30 +739,30 @@ object OrderedPartitioner2 {
 
 class OrderedPartitioner2(
   val numPartitions: Int,
-  val fullKeyType: TStruct,
-  // rangeBounds is partition max
+  val typ: OrderedRDD2Type,
+  // rangeBounds is partition max, sorted ascending
+  // rangeBounds: Array[pkType]
   val rangeBounds: UnsafeIndexedSeq) extends Partitioner {
   require((numPartitions == 0 && rangeBounds.isEmpty) || numPartitions == rangeBounds.length + 1,
     s"nPartitions = $numPartitions, ranges = ${ rangeBounds.length }")
-  // require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left, right) => left < right })
 
-  val pkType: Type = fullKeyType.fields(0).typ
-
-  val rangeBoundsType = TArray(pkType)
+  val rangeBoundsType = TArray(typ.pkType)
   assert(rangeBoundsType.typeCheck(rangeBounds))
 
-  val ordering: Ordering[Annotation] = pkType.ordering(missingGreatest = true)
-
-  val unsafeOrdering: UnsafeOrdering = pkType.unsafeOrdering(missingGreatest = true)
+  val ordering: Ordering[Annotation] = typ.pkType.ordering(missingGreatest = true)
+  require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left, right) => ordering.compare(left, right) < 0 })
 
   def region: MemoryBuffer = rangeBounds.region
 
   def loadElement(i: Int): Long = rangeBoundsType.loadElement(rangeBounds.region, rangeBounds.aoff, rangeBounds.length, i)
 
-  // FIXME test
+  // return the smallest partition for which key <= max
+  // pk: Annotation[pkType]
   def getPartitionPK(pk: Any): Int = {
+    assert(typ.pkType.typeCheck(pk))
+
     val part = BinarySearch.binarySearch(numPartitions,
-      // elem.compare(key)
+      // key.compare(elem)
       i =>
         if (i == numPartitions - 1)
           -1 // key.compare(inf)
@@ -899,24 +772,23 @@ class OrderedPartitioner2(
   }
 
   // return the smallest partition for which key <= max
-  // key: fullKeyType
+  // key: RegionValue[kType]
   def getPartition(key: Any): Int = {
     val keyrv = key.asInstanceOf[RegionValue]
-    val pkOff = fullKeyType.loadField(keyrv.region, keyrv.offset, 0)
 
     val part = BinarySearch.binarySearch(numPartitions,
-      // elem.compare(key)
+      // key.compare(elem)
       i =>
         if (i == numPartitions - 1)
           -1 // key.compare(inf)
         else
-          unsafeOrdering.compare(keyrv.region, pkOff, rangeBounds.region, loadElement(i)))
+          -typ.pkKOrd.compare(rangeBounds.region, loadElement(i), keyrv))
     part
   }
 
   def toJSON: JValue =
     JObject(List(
       "numPartitions" -> JInt(numPartitions),
-      "fullKeyType" -> JString(fullKeyType.toString),
+      "typ" -> typ.toJSON,
       "rangeBounds" -> JSONAnnotationImpex.exportAnnotation(rangeBounds, rangeBoundsType)))
 }

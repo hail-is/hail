@@ -24,33 +24,35 @@ case class MatrixType(
 
   def saType: Type = metadata.saSignature
 
+  def locusType: Type = vType match {
+    case t: TVariant =>
+      TLocus(vType.asInstanceOf[TVariant].gr)
+    case _ =>
+      vType
+  }
+
   def vType: Type = metadata.vSignature
 
   def vaType: Type = metadata.vaSignature
 
   def genotypeType: Type = metadata.genotypeSignature
 
-  def partitionKeyType: Type =
-    vType match {
-      case t: TVariant =>
-        TLocus(vType.asInstanceOf[TVariant].gr)
-      case _ =>
-        vType
-    }
-
-  def fullKeyType: TStruct = {
+  def rowType: TStruct =
     TStruct(
-      "pk" -> partitionKeyType,
-      "v" -> vType)
-  }
-
-  def rowType: TStruct = {
-    TStruct(
-      "pk" -> partitionKeyType,
+      "pk" -> locusType,
       "v" -> vType,
       "va" -> vaType,
       "gs" -> TArray(genotypeType))
+
+  def orderedRDD2Type: OrderedRDD2Type = {
+    new OrderedRDD2Type(Array("pk"),
+      Array("pk", "v"),
+      rowType)
   }
+
+  def pkType: TStruct = orderedRDD2Type.pkType
+
+  def kType: TStruct = orderedRDD2Type.kType
 
   def typ = TStruct(
     "v" -> vType,
@@ -161,18 +163,15 @@ object MatrixValue {
     implicit val kOk: OrderedKey[Annotation, Annotation] = typ.vType.orderedKey
     val sc = rdd.sparkContext
     val localRowType = typ.rowType
-    val localFullKeyType = typ.fullKeyType
     val localGType = typ.genotypeType
     val localNSamples = localValue.nSamples
-    val rangeBoundsType = TArray(typ.partitionKeyType)
+    val rangeBoundsType = TArray(typ.pkType)
     new MatrixValue(typ, localValue,
-      OrderedRDD2(
-        "pk",
-        "v",
-        typ.rowType,
+      OrderedRDD2(typ.orderedRDD2Type,
         new OrderedPartitioner2(rdd.orderedPartitioner.numPartitions,
-          localFullKeyType,
-          UnsafeIndexedSeq(sc, rangeBoundsType, rdd.orderedPartitioner.rangeBounds)),
+          typ.orderedRDD2Type,
+          UnsafeIndexedSeq(sc, rangeBoundsType,
+            rdd.orderedPartitioner.rangeBounds.map(b => Row(b)))),
         rdd.mapPartitions { it =>
           val region = MemoryBuffer()
           val rvb = new RegionValueBuilder(region)
@@ -230,7 +229,7 @@ case class MatrixValue(
       },
       OrderedPartitioner(
         rdd2.orderedPartitioner.rangeBounds.map { b =>
-          b.asInstanceOf[RPK]
+          b.asInstanceOf[Row].getAs[RPK](0)
         }.toArray(kOk.pkct),
         rdd2.orderedPartitioner.numPartitions))
   }
@@ -387,11 +386,10 @@ case class MatrixRead(
 
     val rdd =
       if (dropVariants)
-        OrderedRDD2.empty(hc.sc,
-          "pk", "v", typ.rowType)
+        OrderedRDD2.empty(hc.sc, typ.orderedRDD2Type)
       else {
         var rdd = OrderedRDD2(
-          "pk", "v", typ.rowType,
+          typ.orderedRDD2Type,
           OrderedPartitioner2(hc.sc,
             hc.hadoopConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))),
           new ReadRowsRDD(hc.sc, path, typ.rowType, nPartitions))
