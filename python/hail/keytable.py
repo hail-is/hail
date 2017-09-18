@@ -1492,8 +1492,8 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(i=strlike,j=strlike)
-    def maximal_independent_set(self, i, j):
+    @typecheck_method(i=strlike,j=strlike, tie_breaker=nullable(strlike))
+    def maximal_independent_set(self, i, j, tie_breaker=None):
         """Compute a `maximal independent set
         <https://en.wikipedia.org/wiki/Maximal_independent_set>`__ of vertices
         in an undirected graph whose edges are given by this key table.
@@ -1503,9 +1503,23 @@ class KeyTable(HistoryMixin):
         Prune individuals from a dataset until no close relationships remain
         with respect to a PC-Relate measure of kinship.
 
-        >>> related_pairs = hc.import_vcf("data/sample.vcf.bgz").pc_relate(2, 0.001).filter("kin > 0.125")
+        >>> vds = hc.import_vcf("data/sample.vcf.bgz")
+        >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
         >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
         >>> related_samples_to_keep = related_pairs.maximal_independent_set("i", "j")
+        >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
+        >>> vds.filter_samples_list(list(related_samples_to_remove))
+
+        Prune individuals from a dataset, prefering to keep cases over controls.
+
+        >>> vds = hc.import_vcf("data/sample.vcf.bgz")
+        >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
+        >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
+        >>> related_samples_to_keep = (related_pairs
+        ...   .key_by("i").join(vds.samples_table()).annotate('iAndCase = { id: i, isCase: sa.isCase }').select('iAndCase')
+        ...   .key_by("j").join(vds.samples_table()).annotate('jAndCase = { id: j, isCase: sa.isCase }').select('jAndCase')
+        ...   .maximal_independent_set("iAndCase", "jAndCase",
+        ...     'if (l.isCase && !r.isCase) -1 else if (!l.isCase && r.isCase) 1 else 0'))
         >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
         >>> vds.filter_samples_list(list(related_samples_to_remove))
 
@@ -1523,15 +1537,30 @@ class KeyTable(HistoryMixin):
         This method implements a greedy algorithm which iteratively removes a
         vertex of highest degree until the graph contains no edges.
 
+        ``tie_breaker`` is a Hail expression that defines an ordering on
+        nodes. It has two values in scope, ``l`` and ``r``, that refer the two
+        nodes being compared. A pair of nodes can be ordered in one of three
+        ways, and ``tie_breaker`` must encode the relationship as follows:
+
+         - if ``l < r`` then ``tie_breaker`` evaluates to some negative integer
+         - if ``l == r`` then ``tie_breaker`` evaluates to 0
+         - if ``l > r`` then ``tie_breaker`` evaluates to some positive integer
+
+        For example, the usual ordering on the integers is defined by: ``l - r``.
+
+        When multiple nodes have the same degree, this algorithm will order the
+        nodes according to ``tie_breaker`` and remove the *largest* node.
+
         :param str i: expression to compute one endpoint.
         :param str j: expression to compute another endpoint.
+        :param tie_breaker: Expression used to order nodes with equal degree.
 
         :return: a list of vertices in a maximal independent set.
         :rtype: list of elements with the same type as ``i`` and ``j``
 
         """
 
-        return jarray_to_list(self._jkt.maximalIndependentSet(i, j))
+        return jarray_to_list(self._jkt.maximalIndependentSet(i, j, joption(tie_breaker)))
 
     @handle_py4j
     @record_method
