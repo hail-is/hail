@@ -3,11 +3,14 @@ package is.hail.utils
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
+class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T,T) => Int = null) {
   private var ts: Array[T] = new Array[T](minimumCapacity)
   private var ranks: Array[Long] = new Array[Long](minimumCapacity)
   private val m: mutable.Map[T, Int] = new mutable.HashMap()
   private var next: Int = 0
+
+  private def isLeftFavoredTie(ai: Int, bi: Int): Boolean =
+    maybeTieBreaker != null && ranks(ai) == ranks(bi) && maybeTieBreaker(ts(ai), ts(bi)) > 0
 
   def size: Int = next
 
@@ -143,7 +146,7 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
   private def bubbleUp(i: Int) {
     var current = i
     var p = parent(current)
-    while (ranks(current) > ranks(p)) {
+    while (ranks(current) > ranks(p) || isLeftFavoredTie(current, p)) {
       swap(current, p)
       current = p
       p = parent(current)
@@ -158,9 +161,9 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
       val leftChild = (current << 1) + 1
       val rightChild = (current << 1) + 2
 
-      if (leftChild < next && ranks(leftChild) > ranks(largest))
+      if (leftChild < next && (ranks(leftChild) > ranks(largest) || isLeftFavoredTie(leftChild, largest)))
         largest = leftChild
-      if (rightChild < next && ranks(rightChild) > ranks(largest))
+      if (rightChild < next && (ranks(rightChild) > ranks(largest) || isLeftFavoredTie(rightChild, largest)))
         largest = rightChild
 
       if (largest != current) {

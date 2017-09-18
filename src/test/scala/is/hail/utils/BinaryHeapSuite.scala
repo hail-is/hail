@@ -316,4 +316,183 @@ class BinaryHeapSuite {
     }.check()
   }
 
+  private def evensFirst(a: Int, b: Int): Int = {
+    if (a % 2 == 0 && b % 2 == 1)
+      1
+    else if (a % 2 == 1 && b % 2 == 0)
+      -1
+    else
+      0
+  }
+
+  @Test
+  def tieBreakingDoesntChangeExistingFunctionality() {
+    val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
+    bh.insert(1, -10)
+    assert(bh.contains(1) == true)
+    bh.insert(2, -5)
+    assert(bh.contains(2) == true)
+    bh.insert(3, -7)
+    assert(bh.contains(3) == true)
+    assert(bh.max() === 2)
+    assert(bh.max() === 2)
+    assert(bh.size === 3)
+    assert(bh.extractMax() === 2)
+    assert(bh.size === 2)
+
+    assert(bh.max() === 3)
+    assert(bh.max() === 3)
+    assert(bh.size === 2)
+    assert(bh.extractMax() === 3)
+    assert(bh.size === 1)
+
+    assert(bh.max() === 1)
+    assert(bh.max() === 1)
+    assert(bh.size === 1)
+    assert(bh.extractMax() === 1)
+    assert(bh.size === 0)
+
+    assert(bh.contains(1) == false)
+    assert(bh.contains(2) == false)
+    assert(bh.contains(3) == false)
+  }
+
+  @Test
+  def tieBreakingHappens() {
+    val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
+    bh.insert(1, -10)
+    assert(bh.contains(1) == true)
+    bh.insert(2, -5)
+    assert(bh.contains(2) == true)
+    bh.insert(3, -5)
+    assert(bh.contains(3) == true)
+    assert(bh.max() === 2)
+    assert(bh.max() === 2)
+    assert(bh.size === 3)
+    assert(bh.extractMax() === 2)
+    assert(bh.size === 2)
+
+    assert(bh.max() === 3)
+    assert(bh.max() === 3)
+    assert(bh.size === 2)
+    assert(bh.extractMax() === 3)
+    assert(bh.size === 1)
+
+    assert(bh.max() === 1)
+    assert(bh.max() === 1)
+    assert(bh.size === 1)
+    assert(bh.extractMax() === 1)
+    assert(bh.size === 0)
+
+    assert(bh.contains(1) == false)
+    assert(bh.contains(2) == false)
+    assert(bh.contains(3) == false)
+  }
+
+  @Test
+  def tieBreakingThreeWayDeterministic() {
+    val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
+    bh.insert(1, -5)
+    assert(bh.contains(1) == true)
+    bh.insert(2, -5)
+    assert(bh.contains(2) == true)
+    bh.insert(3, -5)
+    assert(bh.contains(3) == true)
+    assert(bh.max() === 2)
+    assert(bh.max() === 2)
+    assert(bh.size === 3)
+    assert(bh.extractMax() === 2)
+    assert(bh.size === 2)
+
+    assert(bh.max() === 3)
+    assert(bh.max() === 3)
+    assert(bh.size === 2)
+    assert(bh.extractMax() === 3)
+    assert(bh.size === 1)
+
+    assert(bh.max() === 1)
+    assert(bh.max() === 1)
+    assert(bh.size === 1)
+    assert(bh.extractMax() === 1)
+    assert(bh.size === 0)
+
+    assert(bh.contains(1) == false)
+    assert(bh.contains(2) == false)
+    assert(bh.contains(3) == false)
+  }
+
+  @Test
+  def tieBreakingThreeWayNonDeterministic() {
+    val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
+    bh.insert(0, -5)
+    assert(bh.contains(0) == true)
+    bh.insert(2, -5)
+    assert(bh.contains(2) == true)
+    bh.insert(3, -5)
+    assert(bh.contains(3) == true)
+    val firstMax = bh.max()
+    val nextMax = if (firstMax == 2) 0 else 2
+    assert(firstMax === 2 || firstMax === 0)
+    assert(bh.max() === firstMax)
+    assert(bh.size === 3)
+    assert(bh.extractMax() === firstMax)
+    assert(bh.size === 2)
+
+    assert(bh.max() === nextMax)
+    assert(bh.max() === nextMax)
+    assert(bh.size === 2)
+    assert(bh.extractMax() === nextMax)
+    assert(bh.size === 1)
+
+    assert(bh.max() === 3)
+    assert(bh.max() === 3)
+    assert(bh.size === 1)
+    assert(bh.extractMax() === 3)
+    assert(bh.size === 0)
+
+    assert(bh.contains(0) == false)
+    assert(bh.contains(2) == false)
+    assert(bh.contains(3) == false)
+  }
+
+  @Test
+  def tieBreakingAfterPriorityChange() {
+    val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
+    bh.insert(1, 15)
+    bh.insert(2, 10)
+    bh.insert(3, 5)
+    bh.insert(4, 0)
+
+    println(bh)
+    assert(bh.max() === 1)
+
+    bh.decreasePriorityTo(1, 10)
+
+    assert(bh.max() === 2)
+
+    bh.decreasePriorityTo(1, 5)
+
+    assert(bh.max() === 2)
+
+    bh.increasePriorityTo(1, 10)
+
+    assert(bh.max() === 2)
+
+    bh.increasePriorityTo(1, 15)
+
+    assert(bh.max() === 1)
+
+    bh.decreasePriorityTo(1, 10)
+
+    assert(bh.extractMax() === 2)
+    assert(bh.max() === 1)
+
+    bh.increasePriorityTo(4, 10)
+
+    assert(bh.extractMax() === 4)
+    assert(bh.extractMax() === 1)
+    assert(bh.extractMax() === 3)
+    assert(bh.isEmpty)
+  }
+
 }
