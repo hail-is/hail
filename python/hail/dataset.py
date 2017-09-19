@@ -5103,8 +5103,11 @@ class VariantDataset(HistoryMixin):
                       covariates=listof(strlike),
                       weight_expr=nullable(strlike),
                       logistic=bool,
-                      use_dosages=bool)
-    def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, logistic=False, use_dosages=False):
+                      use_dosages=bool,
+                      accuracy=numeric,
+                      iterations=integral)
+    def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, logistic=False, use_dosages=False,
+             accuracy=1e-6, iterations=10000):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
@@ -5167,25 +5170,27 @@ class VariantDataset(HistoryMixin):
         with the computation. These are described in the following table from Davies' original code.
 
         +-------------+-----------------------------------------+
-        | fault value |               Description               |
+        | fault value | Description                             |
         +=============+=========================================+
-        |      0      |                no issues                |
+        |      0      | no issues                               |
         +------+------+-----------------------------------------+
-        |      1      |       accuracy 1e-8 NOT achieved        |
+        |      1      | accuracy NOT achieved                   |
         +------+------+-----------------------------------------+
-        |      2      |   round-off error possibly significant  |
+        |      2      | round-off error possibly significant    |
         +------+------+-----------------------------------------+
-        |      3      |            invalid parameters           |
+        |      3      | invalid parameters                      |
         +------+------+-----------------------------------------+
         |      4      | unable to locate integration parameters |
         +------+------+-----------------------------------------+
-        |      5      |               out of memory             |
+        |      5      | out of memory                           |
         +------+------+-----------------------------------------+
 
         .. caution::
 
-          The Davies algorithm iterates up to 100k times until an accuracy of 1e-8 is achieved. Hence a reported p-value of
-          zero with no issues may truly be as large as 1e-8.
+          By default, the Davies algorithm iterates up to 10k times until an accuracy of 1e-6 is achieved.
+          Hence a reported p-value of zero with no issues may truly be as large as 1e-6. The accuracy and
+          maximum number of iterations may be controlled by the corresponding function parameters.
+          In general, higher accuracy requires more iterations.
 
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
@@ -5204,13 +5209,17 @@ class VariantDataset(HistoryMixin):
 
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
+        :param float accuracy: Accuracy achieved by the 
+
+        :param int iterations: Maximum number of iterations attempted by the Davies algorithm.
+
         :return: Key table of SKAT results.
         :rtype: :py:class:`.KeyTable`
         """
 
         return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, y,
-                                                 jarray(Env.jvm().java.lang.String, covariates),
-                                                 joption(weight_expr), logistic, use_dosages, False))
+                                                 jarray(Env.jvm().java.lang.String, covariates), joption(weight_expr),
+                                                 logistic, use_dosages, accuracy, iterations, False))
 
     @handle_py4j
     @record_method

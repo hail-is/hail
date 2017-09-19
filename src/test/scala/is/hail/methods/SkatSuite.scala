@@ -215,7 +215,7 @@ class SkatSuite extends SparkSuite {
     val (vds, singleKey, weightExpr) = if (useBN) (vdsBN, false, None) else (vdsSkat, true, Some("va.weight"))
     
     val hailKT = vds.skat("va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
-      weightExpr, useLogistic, useDosages, useLargeN)
+      weightExpr, useLogistic, useDosages, useLargeN=useLargeN)
 
     hailKT.typeCheck()
     
