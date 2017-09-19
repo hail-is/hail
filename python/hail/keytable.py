@@ -1381,7 +1381,8 @@ class KeyTable(object):
         Prune individuals from a dataset until no close relationships remain
         with respect to a PC-Relate measure of kinship.
 
-        >>> related_pairs = hc.import_vcf("data/sample.vcf.bgz").pc_relate(2, 0.001).filter("kin > 0.125")
+        >>> vds = hc.import_vcf('data/example3.vcf.bgz')
+        >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
         >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
         >>> related_samples_to_keep = related_pairs.maximal_independent_set("i", "j")
         >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
