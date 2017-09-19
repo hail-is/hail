@@ -1370,7 +1370,6 @@ class KeyTable(object):
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.range(Env.hc()._jhc, n, joption(num_partitions)))
 
     @handle_py4j
-    @record_method
     @typecheck_method(i=strlike,j=strlike)
     def maximal_independent_set(self, i, j):
         """Compute a `maximal independent set
