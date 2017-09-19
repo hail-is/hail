@@ -401,14 +401,16 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
            |  Left signature: ${ keySignature.toPrettyString(compact = true) }
            |  Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
 
-    val preNames = columns ++ other.valueSignature.fields.map(_.name)
+    val joinedFields = keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields
+
+    val preNames = joinedFields.map(_.name).toArray
     val (finalColumnNames, remapped) = mangle(preNames)
     if (remapped.nonEmpty) {
       warn(s"Remapped ${ remapped.length } ${ plural(remapped.length, "column") } from right-hand table:\n  @1",
         remapped.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
     }
 
-    val newSignature = TStruct((keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields)
+    val newSignature = TStruct(joinedFields
       .zipWithIndex
       .map { case (fd, i) => (finalColumnNames(i), fd.typ) }: _*)
     val localNKeys = nKeys
