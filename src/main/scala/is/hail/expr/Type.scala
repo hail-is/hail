@@ -669,10 +669,10 @@ abstract class TContainer extends Type {
     region.loadInt(aoff)
 
   def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
-    !region.loadBit(4 + aoff, i)
+    !region.loadBit(aoff + 4, i)
 
   def setElementMissing(region: MemoryBuffer, aoff: Long, i: Int) {
-    region.setBit(4 + aoff, i)
+    region.setBit(aoff + 4, i)
   }
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
@@ -695,6 +695,20 @@ abstract class TContainer extends Type {
   def allocate(region: MemoryBuffer, length: Int): Long = {
     region.align(contentsAlignment)
     region.allocate(contentsByteSize(length))
+  }
+
+  def clearMissingBits(region: MemoryBuffer, aoff: Long, length: Int) {
+    val nMissingBytes = (length + 7) / 8
+    var i = 0
+    while (i < nMissingBytes) {
+      region.storeByte(aoff + 4 + i, 0)
+      i += 1
+    }
+  }
+
+  def initialize(region: MemoryBuffer, aoff: Long, length: Int) {
+    region.storeInt(aoff, length)
+    clearMissingBits(region, aoff, length)
   }
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
@@ -1871,6 +1885,15 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   def allocate(region: MemoryBuffer): Long = {
     region.align(alignment)
     region.allocate(byteSize)
+  }
+
+  def clearMissingBits(region: MemoryBuffer, off: Long) {
+    val nMissingBytes = (size + 7) / 8
+    var i = 0
+    while (i < nMissingBytes) {
+      region.storeByte(off + i, 0)
+      i += 1
+    }
   }
 
   def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =

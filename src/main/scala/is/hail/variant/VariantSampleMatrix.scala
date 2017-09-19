@@ -609,7 +609,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
 
-    val rowTTBc = BroadcastTypeTree(sparkContext, matrixType.rowType)
+    val localRowType = matrixType.rowType
 
     val newMatrixType = matrixType.copy(metadata = metadata.copy(vaSignature = finalType))
     val newRowType = newMatrixType.rowType
@@ -621,7 +621,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           val rvb = new RegionValueBuilder()
 
           it.map { rv =>
-            val ur = new UnsafeRow(rowTTBc, rv.region, rv.offset)
+            val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
 
             val pk = ur.getAs[RPK](0)
             val v = ur.getAs[RK](1)
@@ -844,14 +844,13 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val joinRDD = rdd2.orderedLeftJoinDistinct(other.variantsAndAnnotations2)
 
     val joinType = joinRDD.typ.rowType
-    val joinTTBc = BroadcastTypeTree(sparkContext, joinType)
 
     copy2(vaSignature = finalType,
       rdd2 = OrderedRDD2(newMatrixType.orderedRDD2Type, rdd2.orderedPartitioner,
         joinRDD.mapPartitions { it =>
           val rvb = new RegionValueBuilder()
           it.map { rv =>
-            val ur = new UnsafeRow(joinTTBc, rv.region, rv.offset)
+            val ur = new UnsafeRow(joinType, rv.region, rv.offset)
 
             rvb.set(rv.region)
             rvb.start(newRowType)
@@ -1050,11 +1049,10 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   def filterVariants(p: (RK, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[RPK, RK, T] = {
-    val rowTTBc = BroadcastTypeTree(sparkContext, matrixType.rowType)
-
+    val localRowType = matrixType.rowType
     copy2(rdd2 = rdd2.filter { rv =>
       // FIXME ur could be allocate once and set
-      val ur = new UnsafeRow(rowTTBc, rv.region, rv.offset)
+      val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
 
       val v = ur.getAs[RK](1)
       val va = ur.get(2)
@@ -1406,7 +1404,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val newMatrixType = matrixType.copy(metadata = matrixType.metadata.copy(vaSignature = newVASignature))
     val newRowType = newMatrixType.rowType
 
-    val rowTTBc = BroadcastTypeTree(sparkContext, matrixType.rowType)
+    val localRowType = matrixType.rowType
 
     copy2(vaSignature = newVASignature,
       rdd2 = OrderedRDD2(newMatrixType.orderedRDD2Type,
@@ -1415,7 +1413,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           val rvb = new RegionValueBuilder()
 
           it.map { rv =>
-            val ur = new UnsafeRow(rowTTBc, rv.region, rv.offset)
+            val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
 
             val pk = ur.getAs[RPK](0)
             val v = ur.getAs[RK](1)
@@ -1993,16 +1991,20 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     OrderedRDD2(new OrderedRDD2Type(Array("pk"), Array("pk", "v"), newRowType),
       rdd2.orderedPartitioner,
       rdd2.mapPartitions { it =>
-        val rvb = new RegionValueBuilder()
+        val rv2b = new RegionValueBuilder()
+        val rv2 = RegionValue()
         it.map { rv =>
-          rvb.set(rv.region)
-          rvb.start(newRowType)
-          rvb.startStruct() // row
-          rvb.addField(rowType, rv, 0) // pk
-          rvb.addField(rowType, rv, 1) // v
-          rvb.addField(rowType, rv, 2) // va
-          rvb.endStruct()
-          rv
+          rv2b.set(rv.region)
+          rv2b.start(newRowType)
+          rv2b.startStruct() // row
+          rv2b.addField(rowType, rv, 0) // pk
+          rv2b.addField(rowType, rv, 1) // v
+          rv2b.addField(rowType, rv, 2) // va
+          rv2b.endStruct()
+
+          rv2.set(rv.region, rv2b.end())
+
+          rv2
         }
       })
   }

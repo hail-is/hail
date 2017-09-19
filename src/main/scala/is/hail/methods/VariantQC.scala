@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.annotations.{Annotation, BroadcastTypeTree, UnsafeRow}
+import is.hail.annotations.{Annotation, UnsafeRow}
 import is.hail.expr.{TStruct, _}
 import is.hail.sparkextras.OrderedRDD
 import is.hail.stats.LeveneHaldane
@@ -105,7 +105,6 @@ object VariantQC {
       Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
     val localNSamples = vds.nSamples
     val localRowType = vds.rowType
-    val rowTTBc = BroadcastTypeTree(vds.sparkContext, localRowType)
     val rdd = vds.rdd2.mapPartitions { it =>
       val view = HTSGenotypeView(localRowType)
       it.map { rv =>
@@ -127,7 +126,7 @@ object VariantQC {
           i += 1
         }
 
-        val ur = new UnsafeRow(rowTTBc, rv.region.copy(), rv.offset)
+        val ur = new UnsafeRow(localRowType, rv.region.copy(), rv.offset)
         (ur.get(1): Annotation) -> (insertQC(ur.get(2), comb.result()) -> ur.getAs[Iterable[Annotation]](3))
       }
     }

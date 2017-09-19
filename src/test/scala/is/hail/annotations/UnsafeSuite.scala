@@ -30,7 +30,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.start(f)
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
-      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur = new UnsafeRow(t, region, offset)
 
       val en = new Encoder()
       en.clear()
@@ -41,7 +41,7 @@ class UnsafeSuite extends SparkSuite {
       val dec = new Decoder()
       dec.set(mem)
       val offset2 = dec.readRegionValue(f, region2)
-      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      val ur2 = new UnsafeRow(t, region2, offset2)
 
       assert(t.valuesSimilar(a, ur2))
 
@@ -69,7 +69,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
 
-      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur = new UnsafeRow(t, region, offset)
       assert(t.valuesSimilar(a, ur))
 
       region2.clear()
@@ -77,7 +77,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addRow(t, ur)
       val offset2 = rvb2.end()
 
-      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      val ur2 = new UnsafeRow(t, region2, offset2)
       assert(t.valuesSimilar(a, ur2))
 
       // don't clear, just add on
@@ -85,7 +85,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addUnsafeRow(t, ur)
       val offset3 = rvb2.end()
 
-      val ur3 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset3)
+      val ur3 = new UnsafeRow(t, region2, offset3)
       assert(t.valuesSimilar(a, ur2))
 
       true
@@ -208,7 +208,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.addRow(t, a1.asInstanceOf[Row])
       val offset = rvb.end()
 
-      val ur1 = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur1 = new UnsafeRow(t, region, offset)
       assert(t.valuesSimilar(a1, ur1))
 
       region2.clear()
@@ -216,7 +216,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addRow(t, a2.asInstanceOf[Row])
       val offset2 = rvb2.end()
 
-      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      val ur2 = new UnsafeRow(t, region2, offset2)
       assert(t.valuesSimilar(a2, ur2))
 
       val ord = t.ordering(b)
@@ -255,7 +255,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.start(t)
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
-      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur = new UnsafeRow(t, region, offset)
 
       hadoopConf.writeObjectFile(path) { out =>
         out.writeObject(ur)
@@ -288,7 +288,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.start(t)
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
-      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur = new UnsafeRow(t, region, offset)
 
       hadoopConf.writeKryoFile(path) { out =>
         kryo.writeObject(out, ur)

@@ -82,12 +82,10 @@ object KeyTable {
     }
 
     val schema = Parser.parseType(metadata.schema).asInstanceOf[TStruct]
-
-    val ttBc = BroadcastTypeTree(hc.sc, schema)
     KeyTable(hc,
       new ReadRowsRDD(hc.sc, path, schema, metadata.n_partitions)
         .map { rv =>
-          new UnsafeRow(ttBc, rv.region.copy(), rv.offset)
+          new UnsafeRow(schema, rv.region.copy(), rv.offset)
         },
       schema,
       metadata.key)

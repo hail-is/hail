@@ -170,7 +170,7 @@ object MatrixValue {
       OrderedRDD2(typ.orderedRDD2Type,
         new OrderedPartitioner2(rdd.orderedPartitioner.numPartitions,
           typ.orderedRDD2Type,
-          UnsafeIndexedSeq(sc, rangeBoundsType,
+          UnsafeIndexedSeq(rangeBoundsType,
             rdd.orderedPartitioner.rangeBounds.map(b => Row(b)))),
         rdd.mapPartitions { it =>
           val region = MemoryBuffer()
@@ -214,11 +214,11 @@ case class MatrixValue(
 
     import kOk._
 
-    val rowTTBc = BroadcastTypeTree(sparkContext, typ.rowType)
+    val localRowType = typ.rowType
     val localNSamples = localValue.nSamples
     OrderedRDD(
       rdd2.map { rv =>
-        val ur = new UnsafeRow(rowTTBc, rv.region.copy(), rv.offset)
+        val ur = new UnsafeRow(localRowType, rv.region.copy(), rv.offset)
 
         val gs = ur.getAs[IndexedSeq[T]](3)
         assert(gs.length == localNSamples)
@@ -270,16 +270,11 @@ case class MatrixValue(
         sampleIds = keep.map(sampleIds),
         sampleAnnotations = keep.map(sampleAnnotations)),
       rdd2 = rdd2.mapPartitionsPreservesPartitioning { it =>
-        var rv2b: RegionValueBuilder = null
-        var rv2: RegionValue = null
+        var rv2b = new RegionValueBuilder()
+        var rv2 = RegionValue()
 
         it.map { rv =>
-          if (rv2 == null) {
-            rv2b = new RegionValueBuilder(rv.region)
-            rv2 = RegionValue(rv.region, 0)
-          } else
-            assert(rv.region eq rv2.region)
-
+          rv2b.set(rv.region)
           rv2b.start(localRowType)
           rv2b.startStruct()
           rv2b.addField(localRowType, rv, 0)
@@ -299,8 +294,8 @@ case class MatrixValue(
           }
           rv2b.endArray()
           rv2b.endStruct()
+          rv2.set(rv.region, rv2b.end())
 
-          rv2.offset = rv2b.end()
           rv2
         }
       })
@@ -489,9 +484,9 @@ case class FilterVariants(
     val aggregatorOption = Aggregators.buildVariantAggregations(
       prev.rdd2.sparkContext, prev.localValue, ec)
 
-    val rowTTBc = BroadcastTypeTree(hc.sc, prev.typ.rowType)
+    val localPrevRowType = prev.typ.rowType
     val p = (rv: RegionValue) => {
-      val ur = new UnsafeRow(rowTTBc, rv.region.copy(), rv.offset)
+      val ur = new UnsafeRow(localPrevRowType, rv.region.copy(), rv.offset)
 
       val v = ur.get(1)
       val va = ur.get(2)

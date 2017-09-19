@@ -404,13 +404,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
         }
       }
     )
-
-    /* vds.mapValues(vds.genotypeSignature, { g =>
-      if (g == null)
-        null
-      else
-        Genotype(g._unboxedGT, g._fakeRef)
-    }) */
   }
 
   /**

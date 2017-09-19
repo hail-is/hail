@@ -4,13 +4,12 @@ import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
+import is.hail.sparkextras.OrderedRDD2
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
-import org.apache.spark.storage.StorageLevel
 
-import scala.collection.JavaConverters._
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 import scala.collection.mutable
@@ -257,6 +256,20 @@ object LoadVCF {
 
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
+    val gr = GenomeReference.GRCh37
+    val vsmMetadata = VSMMetadata(
+      TString,
+      TStruct.empty,
+      TVariant(gr),
+      vaSignature,
+      TStruct.empty,
+      genotypeSignature)
+    val matrixType = MatrixType(vsmMetadata)
+
+    val locusType = matrixType.locusType
+    val vType = matrixType.vType
+    val kType = matrixType.kType
+
     val justVariants = lines
       .filter(_.map { line =>
         !line.isEmpty &&
@@ -264,26 +277,37 @@ object LoadVCF {
           lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')
         // FIXME this doesn't filter symbolic, but also avoids decoding the line.  Won't cause errors but might cause unnecessary shuffles
       }.value)
-      .map(_.map(lineVariant).value)
-      .persist(StorageLevel.MEMORY_AND_DISK)
+      .mapPartitions { it =>
+        val region = MemoryBuffer()
+        val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
 
-    val gr = GenomeReference.GRCh37
+        it.map { line =>
+          val v = line.map(lineVariant).value
+          region.clear()
+          rvb.start(kType)
+          rvb.startStruct()
+          rvb.addAnnotation(locusType, v.locus)
+          rvb.addAnnotation(vType, v)
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
 
-    val rowType = TStruct(
-      "pk" -> TLocus(gr),
-      "v" -> TVariant(gr),
-      "va" -> vaSignature,
-      "gs" -> TArray(genotypeSignature))
+          rv
+        }
+      }
 
-    val rowTypeTreeBc = BroadcastTypeTree(sc, rowType)
+    val rowType = matrixType.rowType
 
-    val rdd = lines
+    val rdd = OrderedRDD2(
+      matrixType.orderedRDD2Type,
+      lines
       .mapPartitions { lines =>
         val codec = new htsjdk.variant.vcf.VCFCodec()
         codec.readHeader(new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
 
         val region = MemoryBuffer()
         val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
 
         lines.flatMap { l =>
           l.map { line =>
@@ -301,29 +325,17 @@ object LoadVCF {
                 rvb.startStruct()
                 reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, dropSamples, canonicalFlags)
                 rvb.endStruct()
+                rv.setOffset(rvb.end())
 
-                val ur = new UnsafeRow(rowTypeTreeBc, region.copy(), rvb.end())
-
-                val v = ur.getAs[Variant](1)
-                val va = ur.get(2)
-                val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](3)
-
-                Some((v, (va, gs)))
+                Some(rv)
               }
             }
           }.value
         }
-      }.toOrderedRDD(justVariants)
+      }, Some(justVariants), None)
 
-    justVariants.unpersist()
-
-    new VariantSampleMatrix(hc, VSMMetadata(
-      TString,
-      TStruct.empty,
-      TVariant(gr),
-      vaSignature,
-      TStruct.empty,
-      genotypeSignature),
+    new VariantSampleMatrix(hc,
+      vsmMetadata,
       VSMLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),

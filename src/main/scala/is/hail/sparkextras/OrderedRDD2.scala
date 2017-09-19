@@ -102,41 +102,35 @@ object PartitionKeyInfo2 {
   final val TSORTED = 1
   final val KSORTED = 2
 
-  def apply(fullKeyType: TStruct, partIndex: Int, it: Iterator[RegionValue]): PartitionKeyInfo2 = {
+  def apply(typ: OrderedRDD2Type, partIndex: Int, it: Iterator[RegionValue]): PartitionKeyInfo2 = {
+    val minF = WritableRegionValue(typ.pkType)
+    val maxF = WritableRegionValue(typ.pkType)
+
     assert(it.hasNext)
     val f0 = it.next()
 
-    val pkType = fullKeyType.fields(0).typ
-
-    val fOrd = fullKeyType.unsafeOrdering(missingGreatest = true)
-    val pkOrd = pkType.unsafeOrdering(missingGreatest = true)
-
-    val minF = WritableRegionValue(pkType, f0.region, fullKeyType.loadField(f0.region, f0.offset, 0))
-    val maxF = WritableRegionValue(pkType, f0.region, fullKeyType.loadField(f0.region, f0.offset, 0))
+    minF.setSelect(typ.kType, typ.pkKFieldIdx, f0)
+    maxF.setSelect(typ.kType, typ.pkKFieldIdx, f0)
 
     var sortedness = KSORTED
 
-    val prevF = WritableRegionValue(fullKeyType, f0)
+    val prevF = WritableRegionValue(typ.kType)
+    prevF.set(f0)
 
     while (it.hasNext) {
       val f = it.next()
 
-      val pkOff = fullKeyType.loadField(f.region, f.offset, 0)
-      if (fOrd.lt(f, prevF.value)) {
-        if (pkOrd.compare(
-          f.region, pkOff,
-          prevF.region, fullKeyType.loadField(prevF.region, prevF.offset, 0)) < 0)
+      if (typ.kOrd.compare(f, prevF.value) < 0) {
+        if (typ.pkInKOrd.compare(f, prevF.value) < 0)
           sortedness = UNSORTED
         else
           sortedness = sortedness.min(TSORTED)
       }
 
-      if (pkOrd.compare(f.region, pkOff,
-        minF.region, minF.offset) < 0)
-        minF.set(f.region, pkOff)
-      if (pkOrd.compare(f.region, pkOff,
-        maxF.region, maxF.offset) > 0)
-        maxF.set(f.region, pkOff)
+      if (typ.pkKOrd.compare(minF.value, f) > 0)
+        minF.setSelect(typ.kType, typ.pkKFieldIdx, f)
+      if (typ.pkKOrd.compare(maxF.value, f) < 0)
+        maxF.setSelect(typ.kType, typ.pkKFieldIdx, f)
 
       prevF.set(f)
     }
@@ -197,7 +191,6 @@ class OrderedRDD2Type(
   val rowType: TStruct) extends Serializable {
   assert(key.startsWith(partitionKey))
 
-
   val (pkType, _) = rowType.select(partitionKey)
   val (kType, _) = rowType.select(key)
 
@@ -220,6 +213,7 @@ class OrderedRDD2Type(
   val pkKOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx)
   val pkInRowOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(rowType, pkRowFieldIdx, rowType, pkRowFieldIdx)
   val kInRowOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(rowType, kRowFieldIdx, rowType, kRowFieldIdx)
+  val pkInKOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(kType, pkKFieldIdx, kType, pkKFieldIdx)
 
   def toJSON: JValue =
     JObject(List(
@@ -238,7 +232,7 @@ object OrderedRDD2 {
 
   def empty(sc: SparkContext, typ: OrderedRDD2Type): OrderedRDD2 = {
     OrderedRDD2(typ,
-      OrderedPartitioner2.empty(sc, typ),
+      OrderedPartitioner2.empty(typ),
       sc.emptyRDD[RegionValue])
   }
 
@@ -320,7 +314,7 @@ object OrderedRDD2 {
 
     val keyInfo = keys.mapPartitionsWithIndex { case (i, it) =>
       if (it.hasNext)
-        Iterator(PartitionKeyInfo2(typ.kType, i, it))
+        Iterator(PartitionKeyInfo2(typ, i, it))
       else
         Iterator()
     }.collect()
@@ -339,13 +333,11 @@ object OrderedRDD2 {
       r
     }
 
-    val pkTTBc = BroadcastTypeTree(sc, typ.pkType)
-
     val sortedness = sortedKeyInfo.map(_.sortedness).min
     if (partitionsSorted && sortedness >= PartitionKeyInfo.TSORTED) {
       val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments(typ, sortedKeyInfo, sortedness)
 
-      val unsafeRangeBounds = UnsafeIndexedSeq(sc, typ.pkType, rangeBounds)
+      val unsafeRangeBounds = UnsafeIndexedSeq(TArray(typ.pkType), rangeBounds)
       val partitioner = new OrderedPartitioner2(adjustedPartitions.length,
         typ,
         unsafeRangeBounds)
@@ -403,7 +395,7 @@ object OrderedRDD2 {
         Array.tabulate(n - 1)(i => keys((i + 1) * k))
       }
 
-    UnsafeIndexedSeq(keysRDD.sparkContext, typ.pkType, rangeBounds)
+    UnsafeIndexedSeq(TArray(typ.pkType), rangeBounds)
   }
 
   def shuffle(typ: OrderedRDD2Type,
@@ -717,8 +709,8 @@ class OrderedLeftJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2,
 }
 
 object OrderedPartitioner2 {
-  def empty(sc: SparkContext, typ: OrderedRDD2Type): OrderedPartitioner2 = {
-    new OrderedPartitioner2(0, typ, UnsafeIndexedSeq.empty(sc, TArray(typ.pkType)))
+  def empty(typ: OrderedRDD2Type): OrderedPartitioner2 = {
+    new OrderedPartitioner2(0, typ, UnsafeIndexedSeq.empty(TArray(typ.pkType)))
   }
 
   def apply(sc: SparkContext, jv: JValue): OrderedPartitioner2 = {
@@ -731,7 +723,6 @@ object OrderedPartitioner2 {
     new OrderedPartitioner2(ex.numPartitions,
       typ,
       UnsafeIndexedSeq(
-        sc,
         rangeBoundsType,
         JSONAnnotationImpex.importAnnotation(ex.rangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Annotation]]))
   }

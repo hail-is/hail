@@ -463,7 +463,10 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   val offsetstk = new ArrayStack[Long]()
   val elementsOffsetstk = new ArrayStack[Long]()
 
+  def inactive: Boolean = root == null && typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty
+
   def set(newRegion: MemoryBuffer) {
+    assert(inactive)
     region = newRegion
   }
 
@@ -474,7 +477,6 @@ class RegionValueBuilder(var region: MemoryBuffer) {
       val i = indexstk.top
       typestk.top match {
         case t: TStruct =>
-          (t.fields(i).typ, offsetstk.top + t.byteOffsets(i))
           offsetstk.top + t.byteOffsets(i)
         case t: TArray =>
           elementsOffsetstk.top + i * t.elementByteSize
@@ -497,7 +499,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def start(newRoot: Type) {
-    assert(typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty)
+    assert(inactive)
 
     root = newRoot.fundamentalType
     root match {
@@ -514,8 +516,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def end(): Long = {
-    assert(typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty)
-
+    root = null
+    assert(inactive)
     start
   }
 
@@ -531,14 +533,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     offsetstk.push(off)
     indexstk.push(0)
 
-    if (init) {
-      val nMissingBytes = (t.size + 7) / 8
-      var i = 0
-      while (i < nMissingBytes) {
-        region.storeByte(off + i, 0)
-        i += 1
-      }
-    }
+    if (init)
+      t.clearMissingBits(region, off)
   }
 
   def endStruct() {
@@ -568,16 +564,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     indexstk.push(0)
     offsetstk.push(aoff)
 
-    if (init) {
-      region.storeInt(aoff, length)
-
-      val nMissingBytes = (length + 7) / 8
-      var i = 0
-      while (i < nMissingBytes) {
-        region.storeByte(aoff + 4 + i, 0)
-        i += 1
-      }
-    }
+    if (init)
+      t.initialize(region, aoff, length)
   }
 
   def endArray() {
@@ -600,9 +588,9 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     val i = indexstk.top
     typestk.top match {
       case t: TStruct =>
-        region.setBit(offsetstk.top, i)
+        t.setFieldMissing(region, offsetstk.top, i)
       case t: TArray =>
-        region.setBit(offsetstk.top + 4, i)
+        t.setElementMissing(region, offsetstk.top, i)
     }
 
     advance()
@@ -647,7 +635,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     assert(currentType() == TBinary)
     val off = currentOffset()
 
-    region.align(4)
+    region.align(TBinary.contentAlignment)
     val boff = region.offset
     region.appendInt(bytes.length)
     region.appendBytes(bytes)
@@ -870,7 +858,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
             .map { case (k, v) => Row(k, v) }
             .toArray
             .sorted(td.elementType.ordering(true))
-          startArray(m.size)
+          startArray(m.length)
           m.foreach { case Row(k, v) =>
             startStruct()
             addAnnotation(td.keyType, k)
