@@ -404,16 +404,18 @@ class BinaryHeapSuite {
     assert(bh.extractMax() === 2)
     assert(bh.size === 2)
 
-    assert(bh.max() === 3)
-    assert(bh.max() === 3)
+    val x = bh.max()
+    val y = if (x == 3) 1 else 3
+    assert(x === 3 || x === 1)
+    assert(bh.max() === x)
     assert(bh.size === 2)
-    assert(bh.extractMax() === 3)
+    assert(bh.extractMax() === x)
     assert(bh.size === 1)
 
-    assert(bh.max() === 1)
-    assert(bh.max() === 1)
+    assert(bh.max() === y)
+    assert(bh.max() === y)
     assert(bh.size === 1)
-    assert(bh.extractMax() === 1)
+    assert(bh.extractMax() === y)
     assert(bh.size === 0)
 
     assert(bh.contains(1) == false)
