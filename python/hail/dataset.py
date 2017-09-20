@@ -2044,7 +2044,9 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     def _verify_biallelic(self, method):
-        return VariantDataset(self.hc, self._jvkdf.verifyBiallelic(method))
+        vds = VariantDataset(self.hc, self._jvkdf.verifyBiallelic(method))
+        vds._history = self._history
+        return vds
 
     @record_method
     def verify_biallelic(self):
