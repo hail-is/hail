@@ -39,7 +39,7 @@ buildScan {
 
 String hailVersion = "0.1"
 String[] deployedSparkVersions = ["2.0.2", "2.1.0"]
-String gitHash = exec {commandLine 'git', 'rev-parse', '--short', 'HEAD'}
+String gitHash = exec {commandLine 'git', 'rev-parse', '--short=12', 'HEAD'}
 
 String sparkVersion = System.getProperty("spark.version","2.0.2")
 
