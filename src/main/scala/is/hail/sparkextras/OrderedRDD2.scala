@@ -1,7 +1,7 @@
 package is.hail.sparkextras
 
 import is.hail.annotations._
-import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TSet, TStruct, Type}
+import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TStruct, Type}
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
@@ -42,13 +42,6 @@ object BinarySearch {
   }
 }
 
-case class PartitionKeyInfo2(
-  partIndex: Int,
-  sortedness: Int,
-  // pk
-  min: RegionValue,
-  max: RegionValue)
-
 object WritableRegionValue {
   def apply(t: Type, initial: RegionValue): WritableRegionValue =
     WritableRegionValue(t, initial.region, initial.offset)
@@ -69,6 +62,7 @@ class WritableRegionValue(val t: Type,
   val region: MemoryBuffer,
   rvb: RegionValueBuilder,
   val value: RegionValue) {
+
   def offset: Long = value.offset
 
   def setSelect(fromT: TStruct, toFromFieldIdx: Array[Int], fromRV: RegionValue) {
@@ -102,21 +96,24 @@ object PartitionKeyInfo2 {
   final val TSORTED = 1
   final val KSORTED = 2
 
-  def apply(typ: OrderedRDD2Type, partIndex: Int, it: Iterator[RegionValue]): PartitionKeyInfo2 = {
+  def apply(typ: OrderedRDD2Type, sampleSize: Int, partitionIndex: Int, it: Iterator[RegionValue], seed: Int): PartitionKeyInfo2 = {
     val minF = WritableRegionValue(typ.pkType)
     val maxF = WritableRegionValue(typ.pkType)
+    val prevF = WritableRegionValue(typ.kType)
 
     assert(it.hasNext)
     val f0 = it.next()
 
     minF.setSelect(typ.kType, typ.pkKFieldIdx, f0)
     maxF.setSelect(typ.kType, typ.pkKFieldIdx, f0)
+    prevF.set(f0)
 
     var sortedness = KSORTED
 
-    val prevF = WritableRegionValue(typ.kType)
-    prevF.set(f0)
+    val rng = new java.util.Random(seed)
+    val samples = new Array[WritableRegionValue](sampleSize)
 
+    var i = 0
     while (it.hasNext) {
       val f = it.next()
 
@@ -133,11 +130,33 @@ object PartitionKeyInfo2 {
         maxF.setSelect(typ.kType, typ.pkKFieldIdx, f)
 
       prevF.set(f)
+
+      if (i < sampleSize)
+        samples(i) = WritableRegionValue(typ.pkType, f)
+      else {
+        val j = rng.nextInt(i)
+        if (j < sampleSize)
+          samples(j).set(f)
+      }
+
+      i += 1
     }
 
-    PartitionKeyInfo2(partIndex, sortedness, minF.value, maxF.value)
+    PartitionKeyInfo2(partitionIndex, i,
+      minF.value, maxF.value,
+      Array.tabulate[RegionValue](math.min(i, sampleSize))(i => samples(i).value),
+      sortedness)
   }
 }
+
+case class PartitionKeyInfo2(
+  partitionIndex: Int,
+  size: Int,
+  min: RegionValue,
+  max: RegionValue,
+  // min, max: RegionValue[pkType]
+  samples: Array[RegionValue],
+  sortedness: Int)
 
 object OrderedRDD2Type {
   def selectUnsafeOrdering(t1: TStruct, fields1: Array[Int],
@@ -287,7 +306,42 @@ object OrderedRDD2 {
     }
   }
 
+  // getKeys: RDD[RegionValue[kType]]
+  def getKeys(typ: OrderedRDD2Type,
+    // rdd: RDD[RegionValue[rowType]]
+    rdd: RDD[RegionValue]): RDD[RegionValue] = {
+    rdd.mapPartitions { it =>
+      val wrv = WritableRegionValue(typ.kType)
+      it.map { rv =>
+        wrv.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
+        wrv.value
+      }
+    }
+  }
+
+  def getPartitionKeyInfo(typ: OrderedRDD2Type,
+    // keys: RDD[kType]
+    keys: RDD[RegionValue]): Array[PartitionKeyInfo2] = {
+    val nPartitions = keys.getNumPartitions
+
+    val rng = new java.util.Random(1)
+    val partitionSeed = Array.tabulate[Int](nPartitions)(i => rng.nextInt())
+
+    val sampleSize = math.min(nPartitions * 20, 1000000)
+    val samplesPerPartition = sampleSize / nPartitions
+
+    val pkis = keys.mapPartitionsWithIndex { case (i, it) =>
+      if (it.hasNext)
+        Iterator(PartitionKeyInfo2(typ, samplesPerPartition, i, it, partitionSeed(i)))
+      else
+        Iterator()
+    }.collect()
+
+    pkis.sortBy(_.min)(typ.pkOrd)
+  }
+
   def coerce(typ: OrderedRDD2Type,
+    // rdd: RDD[RegionValue[rowType]]
     rdd: RDD[RegionValue],
     // fastKeys: Option[RDD[RegionValue[kType]]]
     fastKeys: Option[RDD[RegionValue]] = None,
@@ -304,45 +358,30 @@ object OrderedRDD2 {
     }
 
     // keys: RDD[RegionValue[kType]]
-    val keys = fastKeys.getOrElse(rdd.mapPartitions { it =>
-      val wrv = WritableRegionValue(typ.kType)
-      it.map { rv =>
-        wrv.setSelect(typ.rowType, typ.pkRowFieldIdx, rv)
-        wrv.value
-      }
-    })
+    val keys = fastKeys.getOrElse(getKeys(typ, rdd))
 
-    val keyInfo = keys.mapPartitionsWithIndex { case (i, it) =>
-      if (it.hasNext)
-        Iterator(PartitionKeyInfo2(typ, i, it))
-      else
-        Iterator()
-    }.collect()
+    val pkis = getPartitionKeyInfo(typ, keys)
 
-    log.info(s"Partition summaries: ${ keyInfo.zipWithIndex.map { case (pki, i) => s"i=$i,min=${ pki.min },max=${ pki.max }" }.mkString(";") }")
-
-    if (keyInfo.isEmpty)
+    if (pkis.isEmpty)
       return (AS_IS, empty(sc, typ))
 
-    val sortedKeyInfo = keyInfo.sortBy(_.min)(typ.pkOrd)
-
-    val partitionsSorted = sortedKeyInfo.zip(sortedKeyInfo.tail).forall { case (p, pnext) =>
+    val partitionsSorted = (pkis, pkis.tail).zipped.forall { case (p, pnext) =>
       val r = typ.pkOrd.lteq(p.max, pnext.min)
       if (!r)
         log.info(s"not sorted: p = $p, pnext = $pnext")
       r
     }
 
-    val sortedness = sortedKeyInfo.map(_.sortedness).min
+    val sortedness = pkis.map(_.sortedness).min
     if (partitionsSorted && sortedness >= PartitionKeyInfo.TSORTED) {
-      val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments(typ, sortedKeyInfo, sortedness)
+      val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments(typ, pkis, sortedness)
 
       val unsafeRangeBounds = UnsafeIndexedSeq(TArray(typ.pkType), rangeBounds)
       val partitioner = new OrderedPartitioner2(adjustedPartitions.length,
         typ,
         unsafeRangeBounds)
 
-      val reorderedPartitionsRDD = rdd.reorderPartitions(sortedKeyInfo.map(_.partIndex))
+      val reorderedPartitionsRDD = rdd.reorderPartitions(pkis.map(_.partitionIndex))
       val adjustedRDD = new AdjustedPartitionsRDD(reorderedPartitionsRDD, adjustedPartitions)
       (adjSortedness: @unchecked) match {
         case PartitionKeyInfo.KSORTED =>
@@ -364,35 +403,26 @@ object OrderedRDD2 {
       val p = hintPartitioner
         .filter(_.numPartitions >= rdd.partitions.length)
         .getOrElse {
-          val ranges: UnsafeIndexedSeq = calculateKeyRanges(typ, keys)
+          val ranges = calculateKeyRanges(typ, pkis, rdd.getNumPartitions)
           new OrderedPartitioner2(ranges.length + 1, typ, ranges)
         }
       (SHUFFLE, shuffle(typ, p, rdd))
     }
   }
 
-  def calculateKeyRanges(typ: OrderedRDD2Type, keysRDD: RDD[RegionValue]): UnsafeIndexedSeq = {
-    val n = keysRDD.getNumPartitions
-
-    // FIXME sample up to 1m
-    val keys = keysRDD.mapPartitions { it =>
-      // FIXME extra copy
-      val wrv = WritableRegionValue(typ.pkType)
-
-      it.map { rv =>
-        wrv.setSelect(typ.kType, typ.pkKFieldIdx, rv)
-        RegionValue(wrv.region.copy(), wrv.offset)
-      }
-    }.collect()
+  def calculateKeyRanges(typ: OrderedRDD2Type, pkis: Array[PartitionKeyInfo2], nPartitions: Int): UnsafeIndexedSeq = {
+    val keys = pkis
+      .flatMap(_.samples)
       .sorted(typ.pkOrd)
 
+    // FIXME weighted
     val rangeBounds =
-      if (keys.length <= n)
+      if (keys.length <= nPartitions)
         keys.init
       else {
-        val k = keys.length / n
+        val k = keys.length / nPartitions
         assert(k > 0)
-        Array.tabulate(n - 1)(i => keys((i + 1) * k))
+        Array.tabulate(nPartitions - 1)(i => keys((i + 1) * k))
       }
 
     UnsafeIndexedSeq(TArray(typ.pkType), rangeBounds)
@@ -401,8 +431,6 @@ object OrderedRDD2 {
   def shuffle(typ: OrderedRDD2Type,
     partitioner: OrderedPartitioner2,
     rdd: RDD[RegionValue]): OrderedRDD2 = {
-    val sc = rdd.sparkContext
-
     OrderedRDD2(typ,
       partitioner,
       new ShuffledRDD[RegionValue, RegionValue, RegionValue](
