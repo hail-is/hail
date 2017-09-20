@@ -5148,26 +5148,26 @@ class VariantDataset(HistoryMixin):
         In the logistic case, the phenotype must either be numeric (with all present values 0 or 1) or Boolean, in
         which case true and false are coded as 1 and 0, respectively.
 
-        The resulting key table provides the variant component score and the p-value for each group, with the latter
-        given by right tail of a weighted sum of :math:`\\chi^2(1)` distributions. For the example above the table has
-        the form:
+        The resulting key table provides the group's key, the size (number of variants) in the group,
+        the variance component score ``qstat``, the SKAT p-value, and a fault flag.
+        For the toy example above, the table has the form:
 
-        +------+-------+------+-------+
-        |  key | qstat | pval | fault |
-        +======+=======+======+=======+
-        | geneA| 4.136 | 0.205|   0   |
-        +------+-------+------+-------+
-        | geneB| 5.659 | 0.195|   0   |
-        +------+-------+------+-------+
-        | geneC| 4.122 | 0.192|   0   |
-        +------+-------+------+-------+
+        +------+------+-------+-------+-------+
+        |  key | size | qstat | pval  | fault |
+        +======+======+=======+=======+=======+
+        | geneA|   2  | 4.136 | 0.205 |   0   |
+        +------+------+-------+-------+-------+
+        | geneB|   1  | 5.659 | 0.195 |   0   |
+        +------+------+-------+-------+-------|
+        | geneC|   3  | 4.122 | 0.192 |   0   |
+        +------+------+-------+-------+-------+
 
-        Note that the variant component score qstat is related to :math:`Q` in the paper by a factor of
-        :math:`\\frac{1}{2\\sigma^2}Q` where :math:`\\sigma^2` is the unbiased estimator of residual variance.
-        In the logistic case the scaling is by a factor of 0.5 .
+        Note that the variance component score ``qstat`` is related to :math:`Q` in the paper by a factor of
+        :math:`\\frac{1}{2\\sigma^2} Q` where :math:`\\sigma^2` is the unbiased estimator of residual variance.
+        In the logistic case the scaling is by a factor of 0.5.
 
-        The key table also includes the fault flag returned by Davies' algorithm, an integer indicating any issues
-        with the computation. These are described in the following table from Davies' original code.
+        The fault flag is an integer indicating whether any issues occurred when running the Davies algorithm
+        to compute the p-value as the right tail of a weighted sum of :math:`\\chi^2(1)` distributions.
 
         +-------------+-----------------------------------------+
         | fault value | Description                             |
@@ -5192,6 +5192,12 @@ class VariantDataset(HistoryMixin):
           maximum number of iterations may be controlled by the corresponding function parameters.
           In general, higher accuracy requires more iterations.
 
+        .. caution::
+
+          While groups are processed in parallel, each group is processed serially and requires memory proportional
+          to the square of the size of the group. More precisely, for :math:`n` samples, a group of math:`m` variants
+          requires :math:`\\mathcal{O}(n + m^2)` space and :math:`\\mathcal{O}(n * m^2 + m^3)` compute.
+        
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
         :param bool single_key: If true, ``variant_keys`` is interpreted as a single (or missing) key per variant,

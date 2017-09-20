@@ -5,7 +5,6 @@ import is.hail.expr._
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.io.annotators.IntervalList
 import is.hail.variant.{GenomeReference, Genotype, VariantDataset}
-import is.hail.methods.Skat.keyedRDDSkat
 import is.hail.annotations.Annotation
 
 import scala.sys.process._
@@ -139,17 +138,8 @@ class SkatSuite extends SparkSuite {
     completeSampleIndex.foreach(i => sampleMask(i) = true)
     val filteredVds = vds.filterSamplesMask(sampleMask)
 
-    val completeSamplesBc = filteredVds.sparkContext.broadcast((0 until n).toArray)
-
-    val getGenotypesFunction = (gs: Iterable[Genotype], n: Int) =>
-      if (!useDosages) {
-        hardCalls(gs, n)
-      } else {
-        dosages(gs, completeSamplesBc.value)
-      }
-
     val (keyedRdd, keysType) =
-      keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, getGenotypesFunction)
+      Skat.formKeyedRdd(filteredVds, variantKeys, singleKey, weightExpr, useDosages)
     
     runInR(keyedRdd, keysType, y, cov, resultOp)
   }
@@ -215,7 +205,7 @@ class SkatSuite extends SparkSuite {
     val (vds, singleKey, weightExpr) = if (useBN) (vdsBN, false, None) else (vdsSkat, true, Some("va.weight"))
     
     val hailKT = vds.skat("va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
-      weightExpr, useLogistic, useDosages, useLargeN=useLargeN)
+      weightExpr, useLogistic, useDosages, forceLargeN=useLargeN)
 
     hailKT.typeCheck()
     
@@ -226,12 +216,13 @@ class SkatSuite extends SparkSuite {
 
     var i = 0
     while (i < resultsR.length) {
-      val qstat = resultHail(i).getAs[Double](1)
-      val pval = resultHail(i).getAs[Double](2)
+      val size = resultHail(i).getAs[Int](1)
+      val qstat = resultHail(i).getAs[Double](2)
+      val pval = resultHail(i).getAs[Double](3)
+      val fault = resultHail(i).getAs[Int](4)
 
       val qstatR = resultsR(i).getAs[Double](1)
       val pvalR = resultsR(i).getAs[Double](2)
-      val fault = resultHail(i).getAs[Int](3)
       
       if (displayValues) {
         println(f"Davies\' Fault: $fault%d")
