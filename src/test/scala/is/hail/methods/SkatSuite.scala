@@ -139,7 +139,7 @@ class SkatSuite extends SparkSuite {
     val filteredVds = vds.filterSamplesMask(sampleMask)
 
     val (keyedRdd, keysType) =
-      Skat.formKeyedRdd(filteredVds, variantKeys, singleKey, weightExpr, useDosages)
+      Skat.toKeyGsWeightRdd(filteredVds, variantKeys, singleKey, weightExpr, useDosages)
     
     runInR(keyedRdd, keysType, y, cov, resultOp)
   }
@@ -197,7 +197,7 @@ class SkatSuite extends SparkSuite {
   }
   
   def hailVsRTest(useBN: Boolean, useDosages: Boolean, useLogistic: Boolean, useLargeN: Boolean,
-    displayValues: Boolean = false, tol: Double = 1e-5) {
+    displayValues: Boolean = true, tol: Double = 1e-5) {
    
     require(useBN || !useLogistic)
     require(!(useBN && useDosages))
@@ -225,9 +225,8 @@ class SkatSuite extends SparkSuite {
       val pvalR = resultsR(i).getAs[Double](2)
       
       if (displayValues) {
-        println(f"Davies\' Fault: $fault%d")
-        println(f"HAIL SkatStat: $qstat%2.9f  HAIL pVal: $pval")
-        println(f"   R SkatStat: $qstatR     R pVal: $pvalR")
+        println(f"HAIL qstat: $qstat%2.9f  pval: $pval  fault: $fault  size: $size")
+        println(f"   R qstat: $qstatR%2.9f  pval: $pvalR")
       }
 
       assert(fault == 0)

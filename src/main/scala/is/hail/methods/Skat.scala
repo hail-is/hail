@@ -11,6 +11,46 @@ import breeze.numerics._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
+/*
+Skat implements the burden test described in:
+
+Wu MC, Lee S, Cai T, Li Y, Boehnke M, Lin X.
+Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test.
+American Journal of Human Genetics. 2011;89(1):82-93. doi:10.1016/j.ajhg.2011.05.029.
+
+For n samples and a group of m variants, we have:
+y = n x 1 vector of phenotypes
+X = n x k matrix of covariates including intercept = cov
+mu = n x 1 vector of predictions under the null model, linear: mu = Xb, logistic: mu = sigmoid(Xb)
+W = m x m diagonal matrix of variant weights
+G = n x m matrix of genotypes
+
+The variance component score statistic in the paper is:
+Q = (y - mu).t * G * W * G.t * (y - mu)
+
+The null distribution of Q is a mixture of independent 1 d.o.f. chi-squared random variables
+with coefficients given by the non-zero eigenvalues of n x n matrix
+Z * Z.t = sqrt(P_0) * G * W * G.t * sqrt(P_0)
+where
+P_0 = V - V * X * (X.t * V * X)^-1 * X.t * V
+V = n x n diagonal matrix with diagonal elements given by sigmaSq for linear and mu_i * (1 - mu_i) for logistic
+
+To scale to large n, we exploit that Z * Z.t has the same non-zero eigenvalues as the m x m matrix
+Z.t * Z = sqrt(W) * G.t * P_0 * G * sqrt(W)
+and express the latter in terms of matrices A and B as follows:
+linear:   sigmaSq * Z.t * Z = A.t * A - B.t * B,    A = G * sqrt(W)              B = Q0.t * G * sqrt(W)
+logistic:           Z.t * Z = A.t * A - B.t * B,    A = sqrt(V) * G * sqrt(W)    B = C^-1 * X.t * V * G * sqrt(W)
+where
+Q0 = n x k matrix in QR decomposition of X = Q0 * R
+C = k x k Cholesky factor of X.t * V * X = C * C.t
+
+For each variant, SkatTuple encodes the corresponding summand of Q and columns of A and B.
+
+We compute and group SkatTuples by key and then, for each key, computes Q and the gramian A.t * A - B.t * B,
+the eigenvalues of the latter, and the p-value with the Davies algorithm.
+*/
+case class SkatTuple(q: Double, a: Vector[Double], b: DenseVector[Double])
+
 object Skat {
   def apply(vds: VariantDataset,
     variantKeys: String,
@@ -20,9 +60,10 @@ object Skat {
     weightExpr: Option[String],
     logistic: Boolean,
     useDosages: Boolean,
+    maxSize: Int,
     accuracy: Double,
     iterations: Int,
-    forceLargeN: Boolean = false): KeyTable = { // useLargeN used to force runSkatPerKeyLargeN in testing
+    forceLargeN: Boolean = false): KeyTable = { // useLargeN used to force computeGramianLargeN in testing
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
     if (accuracy <= 0)
@@ -38,45 +79,49 @@ object Skat {
           s"sample; found ${badVals.length} ${plural(badVals.length, "violation")} starting with ${badVals(0)}")
     }
     
+    if (maxSize < 1 || maxSize > 32000) {
+      fatal(s"Maximum group size must be in range [1, 32000], got $maxSize")
+    }
+    
     val n = y.size
     val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
     completeSampleIndex.foreach(i => sampleMask(i) = true)
 
     val filteredVds = vds.filterSamplesMask(sampleMask)
     
-    val (keyedRdd, keyType) = formKeyedRdd(filteredVds, variantKeys, singleKey, weightExpr, useDosages)
+    val (keyGsWeightRdd, keyType) = toKeyGsWeightRdd(filteredVds, variantKeys, singleKey, weightExpr, useDosages)
 
     val skatRdd: RDD[Row] = 
       if (logistic)
-        logisticSkat(keyedRdd, keyType, y, cov, accuracy, iterations, forceLargeN)
+        logisticSkat(keyGsWeightRdd, y, cov, maxSize, accuracy, iterations, forceLargeN)
       else
-        linearSkat(keyedRdd, keyType, y, cov, accuracy, iterations, forceLargeN)
+        linearSkat(keyGsWeightRdd, y, cov, maxSize, accuracy, iterations, forceLargeN)
     
-    val skatSignature = skatSchema(keyType)
+    val skatSignature = TStruct(
+      ("key", keyType),
+      ("size", TInt32),
+      ("qstat", TFloat64),
+      ("pval", TFloat64),
+      ("fault", TInt32))
 
     new KeyTable(vds.hc, skatRdd, skatSignature, Array("key"))
   }
   
-  def skatSchema(keyType: Type) = TStruct(
-    ("key", keyType),
-    ("size", TInt32),
-    ("qstat", TFloat64),
-    ("pval", TFloat64),
-    ("fault", TInt32))
-  
-  def formKeyedRdd(vds: VariantDataset,
+  def toKeyGsWeightRdd(vds: VariantDataset,
     variantKeys: String,
     singleKey: Boolean,
     weightExpr: Option[String],
     useDosages: Boolean):
   (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
+    // ((key, [(gs_v, weight_v)]), keyType)
     
     val n = vds.nSamples
     
     val vdsWithWeight =
       if (weightExpr.isEmpty)
         vds.annotateVariantsExpr("va.__AF = gs.callStats(g => v).AF")
-          .annotateVariantsExpr("va.__weight = let af = if (va.__AF[0] <= va.__AF[1]) va.__AF[0] else va.__AF[1] in dbeta(af, 1.0, 25.0)**2")
+          .annotateVariantsExpr("va.__weight = let af = " +
+            "if (va.__AF[0] <= va.__AF[1]) va.__AF[0] else va.__AF[1] in dbeta(af, 1.0, 25.0)**2")
       else
         vds
 
@@ -88,7 +133,7 @@ object Skat {
 
     val typedWeightQuerier = weightType match {
       case _: TNumeric => (x: Annotation) => DoubleNumericConversion.to(weightQuerier(x))
-      case _ => fatal("Weight must evaluate to numeric type")
+      case _ => fatal("Weight must evaluate to numeric type.")
     }
 
     val (keyType, keyIterator): (Type, Annotation => Iterator[Annotation]) = if (singleKey) {
@@ -101,26 +146,28 @@ object Skat {
       (keyType, (keys: Annotation) => keys.asInstanceOf[Iterable[Annotation]].iterator)
     }
     
-    val completeSamplesBc = vds.sparkContext.broadcast((0 until n).toArray)
+    val completeSamplesBc = vds.sparkContext.broadcast((0 until n).toArray) // already filtered to complete samples
 
     (vdsWithWeight.rdd.flatMap { case (_, (va, gs)) =>
       (Option(keysQuerier(va)), Option(typedWeightQuerier(va))) match {
         case (Some(key), Some(w)) =>
-          val gVector: Vector[Double] =
+          if (w < 0)
+            fatal(s"Variant weights must be non-negative, got $w")
+          val x: Vector[Double] =
             if (!useDosages) {
               RegressionUtils.hardCalls(gs, n)
             } else {
               RegressionUtils.dosages(gs, completeSamplesBc.value)
             }
-          keyIterator(key).map((_, (gVector, w)))
+          keyIterator(key).map((_, (x, w)))
         case _ => Iterator.empty
       }
     }.groupByKey(), keyType)
   }
   
-  def linearSkat(keyedRdd: RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
+  def linearSkat(keyGsWeightRdd: RDD[(Annotation, Iterable[(Vector[Double], Double)])],
     y: DenseVector[Double], cov: DenseMatrix[Double],
-    accuracy: Double, iterations: Int, forceLargeN: Boolean): RDD[Row] = {
+    maxSize: Int, accuracy: Double, iterations: Int, forceLargeN: Boolean): RDD[Row] = {
     
     val n = y.size
     val k = cov.cols
@@ -130,40 +177,51 @@ object Skat {
       fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
     // fit null model
-    val qr.QR(q, r) = qr.reduced.impl_reduced_DM_Double(cov)
-    val beta = r \ (q.t * y)
+    val QR = qr.reduced.impl_reduced_DM_Double(cov)
+    val Qt = QR.q.t
+    val R = QR.r
+    val beta = R \ (Qt * y)
     val res = y - cov * beta
     val sigmaSq = (res dot res) / d
 
-    val sc = keyedRdd.sparkContext
+    val sc = keyGsWeightRdd.sparkContext
     val resBc = sc.broadcast(res)
-    val QtBc = sc.broadcast(q.t)
-
-    def preprocessGenotypes(x: Vector[Double], w: Double): SkatTuple = {
-      if (w < 0)
-        fatal(s"Variant weights must be non-negative, got $w")
-      val sqrtw = math.sqrt(w)
-      val xw = x * sqrtw
-      val sqrt_qi = resBc.value dot xw
-      SkatTuple(sqrt_qi * sqrt_qi, xw, QtBc.value * xw)
+    val QtBc = sc.broadcast(Qt)
+    
+    def linearTuple(x: Vector[Double], w: Double): SkatTuple = {
+      val xw = x * math.sqrt(w)
+      val sqrt_q = resBc.value dot xw
+      SkatTuple(sqrt_q * sqrt_q, xw, QtBc.value * xw)
     }
-
-    keyedRdd
+    
+    // use computeGramianLargeN if A exceeds maximum size of grammian or 512MB of doubles
+    val maxEntries = math.max(maxSize * maxSize, 64e6)
+    
+    keyGsWeightRdd
       .map { case (key, vs) =>
-        val vArray = vs.map((preprocessGenotypes _).tupled).toArray
-        val (q, gramian) = if (vArray.length.toLong * n < Int.MaxValue && !forceLargeN) {
-          computeGramianSmallN(vArray)
+        val vsArray = vs.toArray
+        val size = vsArray.length
+        if (size <= maxSize) {
+          val skatTuples = vsArray.map((linearTuple _).tupled)
+          val (q, gramian) = if (size.toLong * n <= maxEntries && !forceLargeN) {
+            computeGramianSmallN(skatTuples)
+          } else {
+            computeGramianLargeN(skatTuples)
+          }
+          // using q / sigmaSq since Z.t * Z = gramian / sigmaSq
+          val (pval, fault) = SkatModel.computePval(q / sigmaSq, gramian, accuracy, iterations)
+          
+          // returning qstat = q / (2 * sigmaSq) to agree with skat R package convention
+          Row(key, size, q / (2 * sigmaSq), pval, fault)
         } else {
-          computeGramianLargeN(vArray)
+          Row(key, size, null, null, null)
         }
-        val (pval, fault) = SkatModel.computeStats(q / sigmaSq, gramian, accuracy, iterations)
-        Row(key, vArray.length, q / (2 * sigmaSq), pval, fault)
       }
   }
 
-  def logisticSkat(keyedRdd: RDD[(Any, Iterable[(Vector[Double], Double)])], keyType: Type,
+  def logisticSkat(keyGsWeightRdd: RDD[(Any, Iterable[(Vector[Double], Double)])],
     y: DenseVector[Double], cov: DenseMatrix[Double],
-    accuracy: Double, iterations: Int, forceLargeN: Boolean): RDD[Row] = {
+    maxSize: Int, accuracy: Double, iterations: Int, forceLargeN: Boolean): RDD[Row] = {
 
     val n = y.size
     val k = cov.cols
@@ -194,67 +252,70 @@ object Skat {
     }
     val res = y - mu
 
-    val sc = keyedRdd.sparkContext
+    val sc = keyGsWeightRdd.sparkContext
     val sqrtVBc = sc.broadcast(sqrt(V))
     val resBc = sc.broadcast(res)
     val CinvXtVBc = sc.broadcast(Cinv * VX.t)
 
-    def preprocessGenotypes(x: Vector[Double], w: Double): SkatTuple = {
+    def logisticTuple(x: Vector[Double], w: Double): SkatTuple = {
       val xw = x * math.sqrt(w)
-      val sqrt_qi = resBc.value dot xw
-      val CinvXtVwx = CinvXtVBc.value * xw
-      
-      SkatTuple(sqrt_qi * sqrt_qi, xw :* sqrtVBc.value , CinvXtVwx)
+      val sqrt_q = resBc.value dot xw      
+      SkatTuple(sqrt_q * sqrt_q, xw :* sqrtVBc.value , CinvXtVBc.value * xw)
     }
+    
+    // use computeGramianLargeN if A exceeds maximum size of grammian or 512MB of doubles
+    val maxEntries = math.max(maxSize * maxSize, 64e6)
 
-    keyedRdd.map { case (key, vs) =>
-      val vArray = vs.map((preprocessGenotypes _).tupled).toArray
-      val (q, gramian) = if (vArray.length.toLong * n < Int.MaxValue && !forceLargeN) {
-        computeGramianSmallN(vArray)
+    keyGsWeightRdd.map { case (key, vs) =>
+      val vsArray = vs.toArray
+      val size = vsArray.length
+      if (size <= maxSize) {
+        val skatTuples = vs.map((logisticTuple _).tupled).toArray
+        // used largeN is number of entries exceeds maximum size of gramian
+        val (q, gramian) = if (size.toLong * n <= maxEntries && !forceLargeN) {
+          computeGramianSmallN(skatTuples)
+        } else {
+          computeGramianLargeN(skatTuples)
+        }
+        val (pval, fault) = SkatModel.computePval(q, gramian, accuracy, iterations)
+
+        // returning qstat = q / 2 to agree with skat R package convention
+        Row(key, size, q / 2, pval, fault)
       } else {
-        computeGramianLargeN(vArray)
+        Row(key, size, null, null, null)
       }
-      val (pval, fault) = SkatModel.computeStats(q, gramian, accuracy, iterations)
-      
-      Row(key, vArray.length, q / 2, pval, fault)
     }
   }
 
-  /*
-  Davies algorithm uses the eigenvalues of (G * sqrt(W)).t * P_0 * G * sqrt(W)
-  We evaluate this matrix as A.t * A - B.t * B where
-  linear:   A = G * sqrt(W)              B = Q.t * G * sqrt(W)
-  logistic: A = sqrt(V) * G * sqrt(W)    B = inv(C) * X.t * V * G * sqrt(W)
-  Here X = Q * R and C * C.t = X.t * V * X
-  */
   def computeGramianSmallN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
     require(st.nonEmpty)
+    println("SMALL N")
     
     val m = st.length
-    val n = st(0).xw.size    
-    val k = st(0).Qtxw.size
-    val isDenseVector = st(0).xw.isInstanceOf[DenseVector[Double]]
+    val n = st(0).a.size    
+    val k = st(0).b.size
+    val isDenseVector = st(0).a.isInstanceOf[DenseVector[Double]]
         
     val Adata = new Array[Double](m * n)
     var i = 0
     if (isDenseVector) {
       while (i < m) {
-        val xwi = st(i).xw
+        val ai = st(i).a
         var j = 0
         while (j < n) {
-          Adata(i * n + j) = xwi(j)
+          Adata(i * n + j) = ai(j)
           j += 1
         }
         i += 1
       }
     } else {
       while (i < m) {
-        val xwi = st(i).xw.asInstanceOf[SparseVector[Double]]
-        val nnz = xwi.used
+        val ai = st(i).a.asInstanceOf[SparseVector[Double]]
+        val nnz = ai.used
         var j = 0
         while (j < nnz) {
-          val index = xwi.index(j)
-          Adata(i * n + index) = xwi.data(j)
+          val index = ai.index(j)
+          Adata(i * n + index) = ai.data(j)
           j += 1
         }
         i += 1
@@ -265,11 +326,11 @@ object Skat {
     var q = 0.0
     i = 0
     while (i < m) {
-      q += st(i).qi
-      val Qtxwi = st(i).Qtxw
+      q += st(i).q
+      val bi = st(i).b
       var j = 0
       while (j < k) {
-        Bdata(i * k + j) = Qtxwi(j)
+        Bdata(i * k + j) = bi(j)
         j += 1
       }
       i += 1
@@ -282,29 +343,28 @@ object Skat {
   }
 
   def computeGramianLargeN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
+    println("LARGE N")
     val m = st.length
     val data = Array.ofDim[Double](m * m)
     var q = 0.0
 
     var i = 0
     while (i < m) {
-      q += st(i).qi
-      val xwi = st(i).xw
-      val Qtxwi = st(i).Qtxw
-      data(i * (m + 1)) = (xwi dot xwi) - (Qtxwi dot Qtxwi)
+      q += st(i).q
+      val ai = st(i).a
+      val bi = st(i).b
+      data(i * (m + 1)) = (ai dot ai) - (bi dot bi)
       var j = 0
       while (j < i) {
-        val temp = (xwi dot st(j).xw) - (Qtxwi dot st(j).Qtxw)
+        val temp = (ai dot st(j).a) - (bi dot st(j).b)
         data(i * m + j) = temp
         data(j * m + i) = temp
         j += 1
       }
       i += 1
-
     }
     
     (q, new DenseMatrix[Double](m, m, data))
   }
 }
 
-case class SkatTuple(qi: Double, xw: Vector[Double], Qtxw: DenseVector[Double])

@@ -1,7 +1,6 @@
 package is.hail.stats
 
 import breeze.linalg._
-import is.hail.methods.SkatStat
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
 
@@ -23,7 +22,7 @@ object SkatModel {
   
   // gramian is the m x m matrix (G * sqrt(W)).t * P_0 * (G * sqrt(W)) which has the same non-zero eigenvalues
   // as the n x n matrix in the paper P_0^{1/2} * (G * W * G.t) * P_0^{1/2}
-  def computeStats(q: Double, gramian: DenseMatrix[Double], accuracy: Double = 1e-6, iterations: Int = 10000): (Double, Int) = {
+  def computePval(q: Double, gramian: DenseMatrix[Double], accuracy: Double = 1e-6, iterations: Int = 10000): (Double, Int) = {
     val allEvals = eigSymD.justEigenvalues(gramian)
 
     // filter out those eigenvalues below the mean / 100k

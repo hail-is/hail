@@ -5104,10 +5104,11 @@ class VariantDataset(HistoryMixin):
                       weight_expr=nullable(strlike),
                       logistic=bool,
                       use_dosages=bool,
+                      max_size=integral,
                       accuracy=numeric,
                       iterations=integral)
     def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, logistic=False, use_dosages=False,
-             accuracy=1e-6, iterations=10000):
+             max_size=32000, accuracy=1e-6, iterations=10000):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
@@ -5116,7 +5117,7 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        Run a gene test using the linear Sequence Kernel Association Test. Here ``va.genes``
+        Test each gene for association using the linear sequence kernel association test. Here ``va.genes``
         is a variant annotation of type Set[String] giving the set of genes containing the variant:
 
         >>> skat_kt = (hc.read('data/example_burden.vds')
@@ -5145,7 +5146,8 @@ class VariantDataset(HistoryMixin):
         .. caution::
 
           To process a group with math:`m` variants, several copies of an math:`m \times m` matrix of doubles must fit
-          in worker memory.
+          in worker memory. Groups with tens of thousands of variants may exhaust worker memory causing the entire
+          job to fail. In this case, lower the ``max_size`` parameter, as groups larger than ``max_size`` are skipped.
         
         **Notes**
 
@@ -5198,10 +5200,8 @@ class VariantDataset(HistoryMixin):
         |      5      | out of memory                           |
         +------+------+-----------------------------------------+
         
-        Groups are processed independently and in parallel up to the number of available cores.
-        With :math:`n` samples, a group of math:`m` variants requires
-        :math:`\\mathcal{O}(n + m^2)` space and :math:`\\mathcal{O}(n * m^2 + m^3)` compute.
-        
+        Groups larger than ``max_size`` appear with missing ``qstat``, ``pval``, and ``fault``.
+             
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
         :param bool single_key: If true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
@@ -5219,6 +5219,8 @@ class VariantDataset(HistoryMixin):
 
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
+        :param bool max_size: Maximum size of group on which to run the test.
+
         :param float accuracy: Accuracy achieved by the Davies algorithm if fault value is zero.
 
         :param int iterations: Maximum number of iterations attempted by the Davies algorithm.
@@ -5229,7 +5231,7 @@ class VariantDataset(HistoryMixin):
 
         return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, y,
                                                  jarray(Env.jvm().java.lang.String, covariates), joption(weight_expr),
-                                                 logistic, use_dosages, accuracy, iterations, False))
+                                                 logistic, use_dosages, max_size, accuracy, iterations, False))
 
     @handle_py4j
     @record_method
