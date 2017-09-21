@@ -6,6 +6,7 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.{EvalContext, Parser, TStruct, Type, _}
 import is.hail.io.{Decoder, LZ4InputBuffer}
+import is.hail.io.LoadMatrix
 import is.hail.io.bgen.BgenLoader
 import is.hail.io.gen.GenLoader
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
@@ -504,6 +505,31 @@ class HailContext private(val sc: SparkContext,
     hadoopConf.set("io.compression.codecs", codecs)
 
     vkds
+  }
+
+  def importMatrix(file: String,
+    nPartitions: Option[Int] = None,
+    dropSamples: Boolean = false,
+    cellType: Int= 1,
+    missingVal: String = "NA"): VariantSampleMatrix[Annotation, Annotation, Annotation] = importMatrices(List(file), nPartitions, dropSamples, cellType, missingVal)
+
+  def importMatrices(files: Seq[String],
+    nPartitions: Option[Int] = None,
+    dropSamples: Boolean = false,
+    cellType: Int = 1,
+    missingVal: String = "NA"): VariantSampleMatrix[Annotation, Annotation, Annotation] = {
+
+    val inputs = hadoopConf.globAll(files)
+
+    val actualType = Map(
+      0 -> TInt32,
+      1 -> TInt64,
+      2 -> TFloat32,
+      3 -> TFloat64,
+      4 -> TString
+    )(cellType)
+
+    LoadMatrix(this, inputs, nPartitions, dropSamples, cellType = actualType, missingValue = missingVal)
   }
 
   def indexBgen(file: String) {
