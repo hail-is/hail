@@ -76,13 +76,21 @@ object BgenLoader {
       (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
     })).toOrderedRDD[Locus](fastKeys)
 
+    val noMulti = rdd.forall(_._1.nAlleles == 2)
+
+    if (noMulti)
+      info("No multiallelics detected.")
+    if (!noMulti)
+      info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
+
+
     new VariantSampleMatrix(hc, VSMMetadata(
       TString,
       saSignature = TStruct.empty,
       TVariant,
       vaSignature = signature,
       globalSignature = TStruct.empty,
-      wasSplit = true,
+      wasSplit = noMulti,
       isLinearScale = true),
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = samples,
