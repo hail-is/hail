@@ -1105,7 +1105,7 @@ object FunctionRegistry {
     Construct a :ref:`interval` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
     """,
     "startLocus" -> "Start position of interval",
-    "endLocus" -> "End position of interval")(locusHr(GenomeReference.GRCh37), locusHr(GenomeReference.GRCh37), locusIntervalHr(GenomeReference.GRCh37))
+    "endLocus" -> "End position of interval")(locusHr(GR), locusHr(GR), locusIntervalHr(GR))
 
   val hweStruct = TStruct(Array(("rExpectedHetFrequency", TFloat64, "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
     ("pHWE", TFloat64, "P-value")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })

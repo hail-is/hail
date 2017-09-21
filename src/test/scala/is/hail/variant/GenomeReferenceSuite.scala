@@ -2,7 +2,7 @@ package is.hail.variant
 
 import is.hail.expr.{TInterval, TLocus, TStruct, TVariant}
 import is.hail.keytable.KeyTable
-import is.hail.utils.{FunctionDocumentation, Interval}
+import is.hail.utils.Interval
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test

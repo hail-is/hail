@@ -157,7 +157,7 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def unify(concrete: GRBase): Boolean = this == concrete
+  def unify(concrete: GRBase): Boolean = this eq concrete
 
   def isBound: Boolean = true
 
@@ -169,9 +169,13 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 }
 
 object GenomeReference {
+  val GRCh37: GenomeReference = fromResource("reference/grch37.json")
+  val GRCh38: GenomeReference = fromResource("reference/grch38.json")
   var references: Map[String, GenomeReference] = Map("GRCh37" -> GRCh37, "GRCh38" -> GRCh38)
 
   def addReference(gr: GenomeReference) {
+    if (references.contains(gr.name))
+      fatal(s"Cannot add reference genome. Reference genome `${ gr.name }' already exists.")
     references += (gr.name -> gr)
   }
 
@@ -181,10 +185,6 @@ object GenomeReference {
       case None => fatal(s"No genome reference with name `$name' exists. Available references: `${ references.keys.mkString(", ") }'.")
     }
   }
-
-  def GRCh37: GenomeReference = fromResource("reference/grch37.json")
-
-  def GRCh38: GenomeReference = fromResource("reference/grch38.json")
 
   def fromJSON(json: JValue): GenomeReference = json.extract[JSONExtractGenomeReference].toGenomeReference
 
@@ -220,7 +220,7 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
       gr = concrete
       true
     } else
-      gr == concrete
+      gr eq concrete
   }
 
   def isBound: Boolean = gr != null

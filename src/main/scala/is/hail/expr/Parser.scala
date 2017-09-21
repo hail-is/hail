@@ -533,7 +533,6 @@ object Parser extends JavaTokenParsers {
   def type_expr: Parser[Type] =
     "Empty" ^^ { _ => TStruct.empty } |
       ("Interval" ~ "(") ~> identifier <~ ")" ^^ { id => TInterval(GenomeReference.getReference(id)) } |
-      "Interval" ^^ { _ => TInterval(GenomeReference.GRCh37) } | // Backwards compatibility
       "Boolean" ^^ { _ => TBoolean } |
       "Int32" ^^ { _ => TInt32 } |
       "Int64" ^^ { _ => TInt64 } |
@@ -544,9 +543,7 @@ object Parser extends JavaTokenParsers {
       "String" ^^ { _ => TString } |
       "AltAllele" ^^ { _ => TAltAllele } |
       ("Variant" ~ "(") ~> identifier <~ ")" ^^ { id => TVariant(GenomeReference.getReference(id)) } |
-      "Variant" ^^ { _ => TVariant(GenomeReference.GRCh37) } | // Backwards compatibility
       ("Locus" ~ "(") ~> identifier <~ ")" ^^ { id => TLocus(GenomeReference.getReference(id)) } |
-      "Locus" ^^ { _ => TLocus(GenomeReference.GRCh37) } | // Backwards compatibility
       "Genotype" ^^ { _ => TGenotype } |
       "Call" ^^ { _ => TCall } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
