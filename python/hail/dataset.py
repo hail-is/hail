@@ -3872,7 +3872,7 @@ class VariantDataset(object):
 
         >>> rel = vds.pc_relate(5, 0.01, min_kinship=0.1)
 
-        **Method*
+        **Method**
 
         The traditional estimator for kinship between a pair of individuals
         :math:`i` and :math:`j`, sharing the set :math:`S_{ij}` of
