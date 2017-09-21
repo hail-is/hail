@@ -4,9 +4,6 @@ from hail.expr.column import Column, NumericColumn
 from hail.expr.keytable import GroupedKeyTable, NewKeyTable
 from hail.expr.dataset import NewVariantDataset
 
-__all__ = ['Column',
-           'NumericColumn',
-           'NewKeyTable',
-           'GroupedKeyTable',
+__all__ = ['NewKeyTable',
            'NewVariantDataset'
            ]

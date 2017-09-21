@@ -155,31 +155,31 @@ class NewVariantDataset(DatasetTemplate):
         return NewVariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def with_alleles(self, propagate_gq=False, **kwargs):
+    def annotate_alleles(self, propagate_gq=False, **kwargs):
         exprs = ", ".join(["va." + k + " = " + to_expr(v) for k, v in kwargs.items()])
         jvds = self._jvdf.annotateAllelesExpr(exprs, propagate_gq)
         return NewVariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def with_genotypes(self, **kwargs):
+    def annotate_genotypes(self, **kwargs):
         exprs = ", ".join(["g." + k + " = " + to_expr(v) for k, v in kwargs.items()])
         jvds = self._jvds.annotateGenotypesExpr(exprs)
         return NewVariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def with_global(self, **kwargs):
+    def annotate_global(self, **kwargs):
         exprs = ", ".join(["global." + k + " = " + to_expr(v) for k, v in kwargs.items()])
         jvds = self._jvds.annotateGlobalExpr(exprs)
         return NewVariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def with_samples(self, **kwargs):
+    def annotate_samples(self, **kwargs):
         exprs = ", ".join(["sa." + k + " = " + to_expr(v) for k, v in kwargs.items()])
         jvds = self._jvds.annotateSamplesExpr(exprs)
         return NewVariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def with_variants(self, **kwargs):
+    def annotate_variants(self, **kwargs):
         exprs = ", ".join(["va." + k + " = " + to_expr(v) for k, v in kwargs.items()])
         jvds = self._jvds.annotateVariantsExpr(exprs)
         return NewVariantDataset(self.hc, jvds)

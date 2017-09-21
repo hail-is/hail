@@ -221,17 +221,17 @@ class DatasetTests(unittest.TestCase):
 
     def test_with(self):
         vds = self.get_vds()
-        vds = vds.with_global(foo = 5)
+        vds = vds.annotate_global(foo = 5)
 
         new_global_schema = vds.global_schema
         self.assertEqual(new_global_schema, TStruct(['foo'], [TInt32()]))
 
         orig_variant_schema = vds.variant_schema
-        vds = (vds.with_variants(x1 = vds.gs.count(),
-                              x2 = vds.gs.fraction(lambda g: False),
-                              x3 = vds.gs.filter(lambda g: True).count(),
-                              x4 = vds.va.info.AC + vds.globals.foo)
-                 .with_alleles(propagate_gq=False, a1 = vds.gs.count()))
+        vds = (vds.annotate_variants(x1 = vds.gs.count(),
+                                     x2 = vds.gs.fraction(lambda g: False),
+                                     x3 = vds.gs.filter(lambda g: True).count(),
+                                     x4 = vds.va.info.AC + vds.globals.foo)
+               .annotate_alleles(propagate_gq=False, a1 = vds.gs.count()))
 
         expected_fields = [(fd.name, fd.typ) for fd in orig_variant_schema.fields] + \
                           [('x1', TInt64()),
@@ -242,11 +242,11 @@ class DatasetTests(unittest.TestCase):
 
         self.assertTrue(orig_variant_schema, TStruct(*[list(x) for x in zip(*expected_fields)]))
 
-        vds = vds.with_samples(apple = 6)
-        vds = vds.with_samples(x1 = vds.gs.count(),
-                             x2 = vds.gs.fraction(lambda g: False),
-                             x3 = vds.gs.filter(lambda g: True).count(),
-                             x4 = vds.globals.foo + vds.sa.apple)
+        vds = vds.annotate_samples(apple = 6)
+        vds = vds.annotate_samples(x1 = vds.gs.count(),
+                                   x2 = vds.gs.fraction(lambda g: False),
+                                   x3 = vds.gs.filter(lambda g: True).count(),
+                                   x4 = vds.globals.foo + vds.sa.apple)
 
         expected_schema = TStruct(['apple','x1', 'x2', 'x3', 'x4'],
                                   [TInt32(), TInt64(), TFloat64(), TInt64(), TInt32()])
@@ -254,18 +254,18 @@ class DatasetTests(unittest.TestCase):
         self.assertTrue(schema_eq(vds.sample_schema, expected_schema),
                         "expected: " + str(vds.sample_schema) + "\nactual: " + str(expected_schema))
 
-        vds = vds.with_genotypes(x1 = vds.va.x1 + vds.globals.foo,
-                                 x2 = vds.va.x1 + vds.sa.x1 + vds.globals.foo)
+        vds = vds.annotate_genotypes(x1 =vds.va.x1 + vds.globals.foo,
+                                     x2 = vds.va.x1 + vds.sa.x1 + vds.globals.foo)
         self.assertTrue(schema_eq(vds.genotype_schema, TStruct(['x1', 'x2'], [TInt64(), TInt64()])))
 
     def test_filter(self):
         vds = self.get_vds()
 
         vds = (vds
-               .with_global(foo = 5)
-               .with_variants(x1 = vds.gs.count())
-               .with_samples(x1 = vds.gs.count())
-               .with_genotypes(x1 = vds.g.dp))
+               .annotate_global(foo = 5)
+               .annotate_variants(x1 = vds.gs.count())
+               .annotate_samples(x1 = vds.gs.count())
+               .annotate_genotypes(x1 = vds.g.dp))
 
         (vds
          .filter_variants((vds.va.x1 == 5) & (vds.gs.count() == 3) & (vds.globals.foo == 2))
@@ -277,10 +277,10 @@ class DatasetTests(unittest.TestCase):
         vds = self.get_vds()
 
         vds = (vds
-               .with_global(foo = 5)
-               .with_variants(x1 = vds.gs.count())
-               .with_samples(x1 = vds.gs.count())
-               .with_genotypes(x1 = vds.g.dp))
+               .annotate_global(foo = 5)
+               .annotate_variants(x1 = vds.gs.count())
+               .annotate_samples(x1 = vds.gs.count())
+               .annotate_genotypes(x1 = vds.g.dp))
 
         vds_agg = vds.aggregate()
         qv = vds_agg.query_variants(vds_agg.variants.map(lambda v: vds_agg.v).count())
