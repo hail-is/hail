@@ -197,7 +197,7 @@ class SkatSuite extends SparkSuite {
   }
   
   def hailVsRTest(useBN: Boolean, useDosages: Boolean, useLogistic: Boolean, useLargeN: Boolean,
-    displayValues: Boolean = true, tol: Double = 1e-5) {
+    displayValues: Boolean = false, tol: Double = 1e-5) {
    
     require(useBN || !useLogistic)
     require(!(useBN && useDosages))

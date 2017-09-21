@@ -60,7 +60,7 @@ object Skat {
     weightExpr: Option[String],
     logistic: Boolean,
     useDosages: Boolean,
-    maxSize: Int,
+    optMaxSize: Option[Int],
     accuracy: Double,
     iterations: Int,
     forceLargeN: Boolean = false): KeyTable = { // useLargeN used to force computeGramianLargeN in testing
@@ -79,9 +79,9 @@ object Skat {
           s"sample; found ${badVals.length} ${plural(badVals.length, "violation")} starting with ${badVals(0)}")
     }
     
-    if (maxSize < 1 || maxSize > 32000) {
-      fatal(s"Maximum group size must be in range [1, 32000], got $maxSize")
-    }
+    val maxSize = optMaxSize.getOrElse(Int.MaxValue)
+    if (maxSize <= 0)
+      fatal(s"Maximum group size must be positive, got $maxSize")
     
     val n = y.size
     val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
@@ -289,7 +289,6 @@ object Skat {
 
   def computeGramianSmallN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
     require(st.nonEmpty)
-    println("SMALL N")
     
     val m = st.length
     val n = st(0).a.size    
@@ -343,7 +342,8 @@ object Skat {
   }
 
   def computeGramianLargeN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
-    println("LARGE N")
+    require(st.nonEmpty)
+    
     val m = st.length
     val data = Array.ofDim[Double](m * m)
     var q = 0.0
