@@ -42,7 +42,7 @@ object PCRelate {
       val i = blocki * phi.rowsPerBlock
       val j = blockj * phi.colsPerBlock
       val i2 = i + phi.rowsPerBlock
-      val j2 = i + phi.colsPerBlock
+      val j2 = j + phi.colsPerBlock
 
       if (blocki < blockj ||
         i <= j && j < i2 ||
