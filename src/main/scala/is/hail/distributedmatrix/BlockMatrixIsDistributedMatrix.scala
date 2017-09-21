@@ -175,8 +175,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     new BlockMatrix(blocks, l.rowsPerBlock, l.colsPerBlock, l.numRows(), l.numCols())
   }
 
-  def pointwiseAdd(l: M, r: M): M = map2(_ + _)(r)
-  def pointwiseSubtract(l: M, r: M): M = map2(_ - _)(r)
+  def pointwiseAdd(l: M, r: M): M = map2(_ + _)(l, r)
+  def pointwiseSubtract(l: M, r: M): M = map2(_ - _)(l, r)
   def pointwiseMultiply(l: M, r: M): M = map2(_ * _)(l, r)
   def pointwiseDivide(l: M, r: M): M = map2(_ / _)(l, r)
 
