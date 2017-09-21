@@ -1232,9 +1232,9 @@ object FunctionRegistry {
 
   register("gamma", (x: Double) => Gamma.gamma(x),
     """
-    Returns the value of ``Gamma(x)``.
+    Returns the value of the `gamma function <https://en.wikipedia.org/wiki/Gamma_function>`__ at ``x``.
     """,
-    "x" -> "the input to Gamma.")
+    "x" -> "the input to gamma.")
 
   register("Interval", (s: String) => Locus.parseInterval(s),
     """
