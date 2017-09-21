@@ -5134,7 +5134,19 @@ class VariantDataset(HistoryMixin):
           variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
           variant annotation whose value is itself the key of interest. In both cases, variants with missing keys are
           ignored.
+          
+        .. caution::
 
+          By default, the Davies algorithm iterates up to 10k times until an accuracy of 1e-6 is achieved.
+          Hence a reported p-value of zero with no issues may truly be as large as 1e-6. The accuracy and
+          maximum number of iterations may be controlled by the corresponding function parameters.
+          In general, higher accuracy requires more iterations.
+
+        .. caution::
+
+          To process a group with math:`m` variants, several copies of an math:`m \times m` matrix of doubles must fit
+          in worker memory.
+        
         **Notes**
 
         This method provides a scalable implementation of the score-based variance-component test originally described
@@ -5162,9 +5174,10 @@ class VariantDataset(HistoryMixin):
         | geneC|   3  | 4.122 | 0.192 |   0   |
         +------+------+-------+-------+-------+
 
-        Note that the variance component score ``qstat`` is related to :math:`Q` in the paper by a factor of
-        :math:`\\frac{1}{2\\sigma^2} Q` where :math:`\\sigma^2` is the unbiased estimator of residual variance.
-        In the logistic case the scaling is by a factor of 0.5.
+        Note that the variance component score ``qstat`` agrees with ``Q`` in the R package ``skat``,
+        but both differ from :math:`Q` in the paper by the factor
+        :math:`\\frac{1}{2\\sigma^2}` in the linear case and :math:`\\frac{1}{2}` in the logistic case,
+        where :math:`\\sigma^2` is the unbiased estimator of residual variance for the linear null model.
 
         The fault flag is an integer indicating whether any issues occurred when running the Davies algorithm
         to compute the p-value as the right tail of a weighted sum of :math:`\\chi^2(1)` distributions.
@@ -5184,19 +5197,10 @@ class VariantDataset(HistoryMixin):
         +------+------+-----------------------------------------+
         |      5      | out of memory                           |
         +------+------+-----------------------------------------+
-
-        .. caution::
-
-          By default, the Davies algorithm iterates up to 10k times until an accuracy of 1e-6 is achieved.
-          Hence a reported p-value of zero with no issues may truly be as large as 1e-6. The accuracy and
-          maximum number of iterations may be controlled by the corresponding function parameters.
-          In general, higher accuracy requires more iterations.
-
-        .. caution::
-
-          While groups are processed in parallel, each group is processed serially and requires memory proportional
-          to the square of the size of the group. More precisely, for :math:`n` samples, a group of math:`m` variants
-          requires :math:`\\mathcal{O}(n + m^2)` space and :math:`\\mathcal{O}(n * m^2 + m^3)` compute.
+        
+        Groups are processed independently and in parallel up to the number of available cores.
+        With :math:`n` samples, a group of math:`m` variants requires
+        :math:`\\mathcal{O}(n + m^2)` space and :math:`\\mathcal{O}(n * m^2 + m^3)` compute.
         
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
@@ -5215,7 +5219,7 @@ class VariantDataset(HistoryMixin):
 
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
-        :param float accuracy: Accuracy achieved by the 
+        :param float accuracy: Accuracy achieved by the Davies algorithm if fault value is zero.
 
         :param int iterations: Maximum number of iterations attempted by the Davies algorithm.
 

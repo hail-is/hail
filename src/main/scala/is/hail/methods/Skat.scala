@@ -11,23 +11,6 @@ import breeze.numerics._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-object SkatStat {
-  def schema(keyType: Type) = TStruct(
-    ("key", keyType),
-    ("size", TInt32),
-    ("qstat", TFloat64),
-    ("pval", TFloat64),
-    ("fault", TInt32))
-}
-
-case class SkatStat(q: Double, p: Double, fault: Int)
-
-// names are consistent with linear
-// linear => xw = weighted genotype vector, Qtxw = projection to covariate subspace
-// logistic => CinvXtVZi
-
-case class SkatTuple(qi: Double, xw: Vector[Double], Qtxw: DenseVector[Double])
-
 object Skat {
   def apply(vds: VariantDataset,
     variantKeys: String,
@@ -69,10 +52,17 @@ object Skat {
       else
         linearSkat(keyedRdd, keyType, y, cov, accuracy, iterations, forceLargeN)
     
-    val skatSignature = SkatStat.schema(keyType)
+    val skatSignature = skatSchema(keyType)
 
     new KeyTable(vds.hc, skatRdd, skatSignature, Array("key"))
   }
+  
+  def skatSchema(keyType: Type) = TStruct(
+    ("key", keyType),
+    ("size", TInt32),
+    ("qstat", TFloat64),
+    ("pval", TFloat64),
+    ("fault", TInt32))
   
   def formKeyedRdd(vds: VariantDataset,
     variantKeys: String,
@@ -161,12 +151,13 @@ object Skat {
     keyedRdd
       .map { case (key, vs) =>
         val vArray = vs.map((preprocessGenotypes _).tupled).toArray
-        val skatStat = if (vArray.length.toLong * n < Int.MaxValue && !forceLargeN) {
-          runSkatPerKeySmallN(accuracy, iterations)(vArray, 2 * sigmaSq)
+        val (q, gramian) = if (vArray.length.toLong * n < Int.MaxValue && !forceLargeN) {
+          computeGramianSmallN(vArray)
         } else {
-          runSkatPerKeyLargeN(accuracy, iterations)(vArray, 2 * sigmaSq)
+          computeGramianLargeN(vArray)
         }
-        Row(key, vArray.length, skatStat.q, skatStat.p, skatStat.fault)
+        val (pval, fault) = SkatModel.computeStats(q / sigmaSq, gramian, accuracy, iterations)
+        Row(key, vArray.length, q / (2 * sigmaSq), pval, fault)
       }
   }
 
@@ -218,23 +209,25 @@ object Skat {
 
     keyedRdd.map { case (key, vs) =>
       val vArray = vs.map((preprocessGenotypes _).tupled).toArray
-      val skatStat = if (vArray.length.toLong * n < Int.MaxValue && !forceLargeN) {
-        runSkatPerKeySmallN(accuracy, iterations)(vArray, 2)
+      val (q, gramian) = if (vArray.length.toLong * n < Int.MaxValue && !forceLargeN) {
+        computeGramianSmallN(vArray)
       } else {
-        runSkatPerKeyLargeN(accuracy, iterations)(vArray, 2)
+        computeGramianLargeN(vArray)
       }
-      Row(key, vArray.length, skatStat.q, skatStat.p, skatStat.fault)
+      val (pval, fault) = SkatModel.computeStats(q, gramian, accuracy, iterations)
+      
+      Row(key, vArray.length, q / 2, pval, fault)
     }
   }
 
   /*
   Davies algorithm uses the eigenvalues of (G * sqrt(W)).t * P_0 * G * sqrt(W)
-  We evaluate this matrix as 0.5 * (A.t * A - B.t * B) where
+  We evaluate this matrix as A.t * A - B.t * B where
   linear:   A = G * sqrt(W)              B = Q.t * G * sqrt(W)
-  logistic: A = sqrt(V) * G * sqrt(W)    B = inv(L) * X.t * V * G * sqrt(W)
-  Here X = Q * R and L * L.t = X.t * V * X
+  logistic: A = sqrt(V) * G * sqrt(W)    B = inv(C) * X.t * V * G * sqrt(W)
+  Here X = Q * R and C * C.t = X.t * V * X
   */
-  def runSkatPerKeySmallN(accuracy: Double, iterations: Int)(st: Array[SkatTuple], skatStatScaling: Double): SkatStat = {
+  def computeGramianSmallN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
     require(st.nonEmpty)
     
     val m = st.length
@@ -242,15 +235,14 @@ object Skat {
     val k = st(0).Qtxw.size
     val isDenseVector = st(0).xw.isInstanceOf[DenseVector[Double]]
         
-    val AArray = new Array[Double](m * n)
-
+    val Adata = new Array[Double](m * n)
     var i = 0
     if (isDenseVector) {
       while (i < m) {
         val xwi = st(i).xw
         var j = 0
         while (j < n) {
-          AArray(i * n + j) = xwi(j)
+          Adata(i * n + j) = xwi(j)
           j += 1
         }
         i += 1
@@ -262,73 +254,57 @@ object Skat {
         var j = 0
         while (j < nnz) {
           val index = xwi.index(j)
-          AArray(i * n + index) = xwi.data(j)
+          Adata(i * n + index) = xwi.data(j)
           j += 1
         }
         i += 1
       }
     }
     
-    val BArray = new Array[Double](k * m)
-      
+    val Bdata = new Array[Double](k * m)
+    var q = 0.0
     i = 0
     while (i < m) {
-      var j = 0
+      q += st(i).qi
       val Qtxwi = st(i).Qtxw
+      var j = 0
       while (j < k) {
-        BArray(i * k + j) = Qtxwi(j)
+        Bdata(i * k + j) = Qtxwi(j)
         j += 1
       }
       i += 1
     }
 
-    val A = new DenseMatrix[Double](n, m, AArray)
-    val B = new DenseMatrix[Double](k, m, BArray)
+    val A = new DenseMatrix[Double](n, m, Adata)
+    val B = new DenseMatrix[Double](k, m, Bdata)
     
-    val gramian = 0.5 * (A.t * A - B.t * B)
-
-    var skatStat = 0.0
-    i = 0
-    while (i < m) {
-      skatStat += st(i).qi
-      i += 1
-    }
-    val q = skatStat / skatStatScaling
-
-    SkatModel.computeStats(q, gramian, accuracy, iterations)
+    (q, A.t * A - B.t * B)
   }
 
-  def runSkatPerKeyLargeN(accuracy: Double, iterations: Int)(st: Array[SkatTuple], skatStatScaling: Double): SkatStat = {
+  def computeGramianLargeN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
     val m = st.length
+    val data = Array.ofDim[Double](m * m)
+    var q = 0.0
 
-    // compute each entry of 0.5 * (A.t * A - B.t * B)
-    val grammianArray = Array.ofDim[Double](m * m)
-    
     var i = 0
     while (i < m) {
+      q += st(i).qi
       val xwi = st(i).xw
       val Qtxwi = st(i).Qtxw
-      grammianArray(i * (m + 1)) = 0.5 * ((xwi dot xwi) - (Qtxwi dot Qtxwi))
+      data(i * (m + 1)) = (xwi dot xwi) - (Qtxwi dot Qtxwi)
       var j = 0
       while (j < i) {
-        val temp = 0.5 * ((xwi dot st(j).xw) - (Qtxwi dot st(j).Qtxw))
-        grammianArray(i * m + j) = temp
-        grammianArray(j * m + i) = temp
+        val temp = (xwi dot st(j).xw) - (Qtxwi dot st(j).Qtxw)
+        data(i * m + j) = temp
+        data(j * m + i) = temp
         j += 1
       }
       i += 1
-    }
 
-    val grammian = new DenseMatrix[Double](m, m, grammianArray)
-    
-    var skatStat = 0.0
-    i = 0
-    while (i < m) {
-      skatStat += st(i).qi
-      i += 1
     }
-    val q = skatStat / skatStatScaling
     
-    SkatModel.computeStats(q, grammian, accuracy, iterations)
+    (q, new DenseMatrix[Double](m, m, data))
   }
 }
+
+case class SkatTuple(qi: Double, xw: Vector[Double], Qtxw: DenseVector[Double])

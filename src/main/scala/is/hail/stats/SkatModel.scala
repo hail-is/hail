@@ -23,7 +23,7 @@ object SkatModel {
   
   // gramian is the m x m matrix (G * sqrt(W)).t * P_0 * (G * sqrt(W)) which has the same non-zero eigenvalues
   // as the n x n matrix in the paper P_0^{1/2} * (G * W * G.t) * P_0^{1/2}
-  def computeStats(q: Double, gramian: DenseMatrix[Double], accuracy: Double = 1e-6, iterations: Int = 10000): SkatStat = {
+  def computeStats(q: Double, gramian: DenseMatrix[Double], accuracy: Double = 1e-6, iterations: Int = 10000): (Double, Int) = {
     val allEvals = eigSymD.justEigenvalues(gramian)
 
     // filter out those eigenvalues below the mean / 100k
@@ -37,8 +37,8 @@ object SkatModel {
     val fault = new IntByReference()
     val s = 0.0
     val x = qfWrapper(evals, noncentrality, dof, terms, s, q, iterations, accuracy, trace, fault)
-    val p = 1 - x
+    val pval = 1 - x
     
-    SkatStat(q, p, fault.getValue)
+    (pval, fault.getValue)
   }
 }
