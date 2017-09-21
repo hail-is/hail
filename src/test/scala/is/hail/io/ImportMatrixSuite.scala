@@ -1,6 +1,7 @@
 package is.hail.io
 
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.variant.VariantSampleMatrix
 import org.apache.spark.SparkException
@@ -43,9 +44,8 @@ class ImportMatrixSuite extends SparkSuite {
     val tmp1 = tmpDir.createTempFile("readtest", ".vds")
     vsm.write(tmp1, true)
 
-    val vsm2 = VariantSampleMatrix.read(hc,tmp1)
-    val vsm3 = new VariantSampleMatrix[String, String, java.lang.Long](hc, vsm2.metadata, vsm2.ast)
-    assert(vsm3.same(vsm))
+    val vsm2 = VariantSampleMatrix.read(hc,tmp1).toGDS
+    assert(vsm2.same(vsm))
   }
 
 }

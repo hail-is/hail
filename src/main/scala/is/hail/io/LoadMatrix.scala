@@ -47,7 +47,7 @@ object LoadMatrix {
             sep: String = "\t",
             nPartitions: Option[Int] = None,
             dropSamples: Boolean = false):
-  VariantSampleMatrix[String, String, java.lang.Long] = {
+  VariantSampleMatrix[Annotation, Annotation, Annotation] = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
