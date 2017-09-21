@@ -163,6 +163,9 @@ class ExprSuite extends SparkSuite {
       (t, Option(f()).map(_.asInstanceOf[T]))
     }
 
+    assert(D_==(eval[Double]("gamma(5)").get, 24))
+    assert(D_==(eval[Double]("gamma(0.5)").get, 1.7724538509055159)) // python: math.gamma(0.5)
+
     assert(eval[Int]("is.toInt()").contains(-37))
 
     assert(eval[Boolean]("!true").contains(false))
@@ -225,7 +228,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Double]("1.0 / -0.0").contains(Double.NegativeInfinity))
     assert(eval[Double]("0/0 * 1/0").forall(_.isNaN))
     assert(eval[Double]("0.0/0.0 * 1.0/0.0").forall(_.isNaN))
-    for { x <- Array("-1.0/0.0", "-1.0", "0.0", "1.0", "1.0/0.0") } {
+    for {x <- Array("-1.0/0.0", "-1.0", "0.0", "1.0", "1.0/0.0")} {
       assert(eval[Boolean](s"0.0/0.0 < $x").contains(false))
       assert(eval[Boolean](s"0.0/0.0 <= $x").contains(false))
       assert(eval[Boolean](s"0.0/0.0 > $x").contains(false))
@@ -1084,8 +1087,8 @@ class ExprSuite extends SparkSuite {
       b <- t.genValue) yield (t, a, b)
 
     val p = forAll(g) { case (t, a, b) =>
-        val ord = t.ordering(missingGreatest = true)
-        ord.compare(a, b) == - ord.compare(b, a)
+      val ord = t.ordering(missingGreatest = true)
+      ord.compare(a, b) == -ord.compare(b, a)
     }
   }
 

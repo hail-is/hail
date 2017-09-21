@@ -19,6 +19,7 @@ import scala.language.higherKinds
 import scala.reflect.ClassTag
 
 import org.apache.commons.math3.stat.inference.ChiSquareTest
+import org.apache.commons.math3.special.Gamma
 
 case class MetaData(docstring: Option[String], args: Seq[(String, String)] = Seq.empty[(String, String)])
 
@@ -1228,6 +1229,12 @@ object FunctionRegistry {
     """,
     "b" -> "the base.",
     "x" -> "the exponent.")
+
+  register("gamma", (x: Double) => Gamma.gamma(x),
+    """
+    Returns the value of ``Gamma(x)``.
+    """,
+    "x" -> "the input to Gamma.")
 
   register("Interval", (s: String) => Locus.parseInterval(s),
     """
