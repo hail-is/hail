@@ -12,8 +12,11 @@ plugins {
   id 'idea'
   id 'maven'
   id 'jacoco'
+  id 'application'  
   id 'com.github.johnrengelman.shadow' version '1.2.3'
 }
+
+mainClassName = "NA"
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 

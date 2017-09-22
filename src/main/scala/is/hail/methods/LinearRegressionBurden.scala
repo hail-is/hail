@@ -35,7 +35,7 @@ object LinearRegressionBurden {
     if (completeSamplesSet(keyName))
       fatal(s"Key name '$keyName' clashes with a sample name")
 
-    val linregFields = LinearRegression.schema.fields.map(_.name).toSet
+    val linregFields = LinearRegressionModel.schema.fields.map(_.name).toSet
     if (linregFields(keyName))
       fatal(s"Key name '$keyName' clashes with reserved linreg columns $linregFields")
 
@@ -51,7 +51,7 @@ object LinearRegressionBurden {
     if (!numericType.isInstanceOf[TNumeric])
       fatal(s"aggregate_expr type must be numeric, found $numericType")
 
-    info(s"Running linear regression burden test for ${sampleKT.count} keys on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+    info(s"Running linear regression burden test for ${sampleKT.count()} keys on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
@@ -62,13 +62,13 @@ object LinearRegressionBurden {
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
 
-    val (linregSignature, merger) = TStruct(keyName -> keyType).merge(LinearRegression.schema)
+    val (linregSignature, merger) = TStruct(keyName -> keyType).merge(LinearRegressionModel.schema)
     
     val linregRDD = sampleKT.mapAnnotations { keyedRow =>
       val x = RegressionUtils.keyedRowToVectorDouble(keyedRow)
       merger(
         Row(keyedRow.get(0)),
-        LinearRegressionModel.fit(x, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d)).asInstanceOf[Row]
+        LinearRegressionModel.fit(x, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d).toAnnotation).asInstanceOf[Row]
     }
     val linregKT = new KeyTable(sampleKT.hc, linregRDD, signature = linregSignature, key = Array(keyName))
 

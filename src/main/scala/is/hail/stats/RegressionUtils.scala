@@ -217,6 +217,31 @@ object RegressionUtils {
       (aQ().map(Option(_)), aToDouble).zipped.map(_.map(_))
     }
   }
+  
+  // creates "maps" of both sample presentness and covariate values for efficiency in subsetting
+  // present means value is neither missing nor NaN; missing values are set to NaN
+  // sampleMap: sample index -> (covariate index -> presentness)
+  // covMap: covariate index -> (sample index -> double value)
+  def getSampleAndCovMaps(
+    vds: VariantDataset,
+    covariates: Array[String]): (Array[Array[Boolean]], Array[Array[Double]]) = {
+
+    val symTab = Map(
+      "s" -> (0, TString),
+      "sa" -> (1, vds.saSignature))
+
+    val ec = EvalContext(symTab)
+    val covIS = getSampleAnnotations(vds, covariates, ec)
+    val sampleMap = covIS.map(_.map(e => e.exists(!_.isNaN))).toArray
+    
+    val covArray = covIS.flatMap(_.map(_.getOrElse(Double.NaN))).toArray
+    val cov = new DenseMatrix(rows = vds.nSamples, cols = covariates.size, data = covArray,
+      offset = 0, majorStride = covariates.size, isTranspose = true)
+    
+    val covMap = covariates.indices.map(cov(::, _).toArray).toArray
+    
+    (sampleMap, covMap)
+  }
 
   def getPhenoCovCompleteSamples(
     vds: VariantDataset,
