@@ -5155,9 +5155,13 @@ class VariantDataset(HistoryMixin):
         in `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
         <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
+        The test is run on complete samples (i.e., phenotype and all covariates non-missing).
+        For each variant, missing genotypes are imputed as the mean of all non-missing genotypes.
+
+        Variant weights must be non-negative. Variants with missing weights are ignored.
         As in the paper, if ``weight_expr`` is unspecified,
-        default variant weights are given by evaluating the Beta(1, 25) density at the minor allele frequency. Variant
-        weights must be non-negative.
+        default variant weights are given by evaluating the Beta(1, 25) density at the minor allele frequency.
+        In Hail, this minor allele frequency is calculated from all samples, not just complete samples.
 
         In the logistic case, the phenotype must either be numeric (with all present values 0 or 1) or Boolean, in
         which case true and false are coded as 1 and 0, respectively.
@@ -5180,6 +5184,8 @@ class VariantDataset(HistoryMixin):
         but both differ from :math:`Q` in the paper by the factor
         :math:`\\frac{1}{2\\sigma^2}` in the linear case and :math:`\\frac{1}{2}` in the logistic case,
         where :math:`\\sigma^2` is the unbiased estimator of residual variance for the linear null model.
+        The R package also applies a "small-sample adjustment" to the null distribution in the logistic case when the
+        sample size is less than 2000. Hail does not apply this adjustment.
 
         The fault flag is an integer indicating whether any issues occurred when running the Davies algorithm
         to compute the p-value as the right tail of a weighted sum of :math:`\\chi^2(1)` distributions.

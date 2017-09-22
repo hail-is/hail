@@ -4,7 +4,7 @@ import is.hail.utils._
 import is.hail.expr._
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.io.annotators.IntervalList
-import is.hail.variant.{GenomeReference, Genotype, VariantDataset}
+import is.hail.variant.{GenomeReference, VariantDataset}
 import is.hail.annotations.Annotation
 
 import scala.sys.process._
@@ -39,55 +39,32 @@ class SkatSuite extends SparkSuite {
       }
     }
   
-    def resultOp(st: Array[(Vector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
+    def formGAndW(st: Array[(Vector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
       val m = st.length
-      val xArray = Array.ofDim[Double](m * n)
-      val wArray = Array.ofDim[Double](m)
+      val GData = Array.ofDim[Double](m * n)
+      val wData = Array.ofDim[Double](m)
   
       var i = 0
       while (i < m) {
         val (xw, w) = st(i)
-        wArray(i) = w
-        xw match {
-          case xw: SparseVector[Double] =>
-            val index = xw.index
-            val data = xw.data
-            var j = 0
-            while (j < index.length) {
-              xArray(i * n + index(j)) = data(j)
-              j += 1
-            }
-          case xw: DenseVector[Double] =>
-            val data = xw.data
-            var j = 0
-            while (j < n) {
-              xArray(i * n + j) = data(j)
-              j += 1
-            }
+        wData(i) = w
+        val data = xw.toArray
+        var j = 0
+        while (j < n) {
+          GData(i * n + j) = data(j)
+          j += 1
         }
         i += 1
-  
       }
   
-      (new DenseMatrix(n, m, xArray), new DenseVector(wArray))
+      val G = new DenseMatrix(n, m, GData)
+      val w = DenseVector(wData)
+      
+      (G, w)
     }
     
     def runInR(keyedRdd:  RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
-      y: DenseVector[Double], cov: DenseMatrix[Double],
-      resultOp: (Array[(Vector[Double], Double)], Int) => (DenseMatrix[Double], DenseVector[Double])): Array[Row] = {
-
-      val n = y.size
-      val k = cov.cols
-      val d = n - k
-
-      if (d < 1)
-        fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
-
-      // fit null model
-      val qr.QR(q, r) = qr.reduced.impl_reduced_DM_Double(cov)
-      val beta = r \ (q.t * y)
-      val res = y - cov * beta
-      val sigmaSq = (res dot res) / d
+      y: DenseVector[Double], cov: DenseMatrix[Double]): Array[Row] = {
 
       val inputFilePheno = tmpDir.createLocalTempFile("skatPhenoVec", ".txt")
       hadoopConf.writeTextFile(inputFilePheno) {
@@ -101,9 +78,8 @@ class SkatSuite extends SparkSuite {
 
       val skatRDD = keyedRdd.collect()
         .map { case (key, vs) =>
-          val (xs, weights) = resultOp(vs.toArray, n)
+          val (xs, weights) = formGAndW(vs.toArray, y.size)
 
-          //write files to a location R script can read
           val inputFileG = tmpDir.createLocalTempFile("skatGMatrix", ".txt")
           hadoopConf.writeTextFile(inputFileG) {
             _.write(TestUtils.matrixToString(xs, " "))
@@ -138,10 +114,10 @@ class SkatSuite extends SparkSuite {
     completeSampleIndex.foreach(i => sampleMask(i) = true)
     val filteredVds = vds.filterSamplesMask(sampleMask)
 
-    val (keyedRdd, keysType) =
+    val (keyGsWeightRdd, keyType) =
       Skat.toKeyGsWeightRdd(filteredVds, variantKeys, singleKey, weightExpr, useDosages)
     
-    runInR(keyedRdd, keysType, y, cov, resultOp)
+    runInR(keyGsWeightRdd, keyType, y, cov)
   }
 
   // 18 complete samples from sample2.vcf, 5 genes
@@ -174,7 +150,7 @@ class SkatSuite extends SparkSuite {
   // Using default weights in both Hail and R
   lazy val vdsBN: VariantDataset = {
     val seed = 0
-    val nSamples = 2001
+    val nSamples = 500
     val nVariants = 50
   
     val rand = scala.util.Random
@@ -196,8 +172,8 @@ class SkatSuite extends SparkSuite {
       .annotateVariantsExpr("va.genes = [v.start % 2, v.start % 3].toSet") // three overlapping genes
   }
   
-  def hailVsRTest(useBN: Boolean, useDosages: Boolean, useLogistic: Boolean, useLargeN: Boolean,
-    displayValues: Boolean = false, tol: Double = 1e-5) {
+  def hailVsRTest(useBN: Boolean, useDosages: Boolean, useLogistic: Boolean, forceLargeN: Boolean,
+    displayValues: Boolean = true, tol: Double = 1e-5) {
    
     require(useBN || !useLogistic)
     require(!(useBN && useDosages))
@@ -205,7 +181,7 @@ class SkatSuite extends SparkSuite {
     val (vds, singleKey, weightExpr) = if (useBN) (vdsBN, false, None) else (vdsSkat, true, Some("va.weight"))
     
     val hailKT = vds.skat("va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
-      weightExpr, useLogistic, useDosages, forceLargeN=useLargeN)
+      weightExpr, useLogistic, useDosages, forceLargeN=forceLargeN)
 
     hailKT.typeCheck()
     
@@ -240,64 +216,78 @@ class SkatSuite extends SparkSuite {
   @Test def linearHardcalls() {
     val useBN = false
     val useDosages = false
-    val useLargeN = false
+    val forceLargeN = false
     val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
   }
 
   @Test def linearDosages() {
     val useBN = false
     val useDosages = true
-    val useLargeN = false
+    val forceLargeN = false
     val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
   }
 
   @Test def linearLargeNHardCalls() {
     val useBN = false
     val useDosages = false
-    val useLargeN = true
+    val forceLargeN = true
     val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
   }
 
   @Test def linearLargeNDosages() {
     val useBN = false
     val useDosages = true
-    val useLargeN = true
+    val forceLargeN = true
     val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
   }
   
   @Test def linearHardcallsBN() {
     val useBN= true
     val useDosages = false
-    val useLargeN = false
+    val forceLargeN = false
     val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
   }
 
   @Test def linearLargeNHardcallsBN() {
     val useBN = true
     val useDosages = false
-    val useLargeN = true
+    val forceLargeN = true
     val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
   }
   
   @Test def logisticHardCallsBN() {
     val useBN = true
     val useDosages = false
-    val useLargeN = false
+    val forceLargeN = false
     val useLogistic = true
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
   }
 
   @Test def logisticLargeNHardCalls() {
     val useBN = true
     val useDosages = false
-    val useLargeN = true
+    val forceLargeN = true
     val useLogistic = true
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
+  }
+  
+  @Test def maxSizeTest() {
+    
+    
+    val vds = vdsSkat.annotateVariantsExpr("va.__AF = gs.callStats(g => v).AF")
+      .annotateVariantsExpr("va.__weight = let af = " +
+        "if (va.__AF[0] <= va.__AF[1]) va.__AF[0] else va.__AF[1] in dbeta(af, 1.0, 25.0)**2")
+    
+//    println(vds.vaSignature)
+//    
+//    println(vds.variantsKT().flatten().select(Array("va.__AF", "va.__weight")).collect())
+    
+    val hailKT = vdsSkat.skat("va.genes", singleKey = true, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), maxSize = Some(3)).count()
   }
 }

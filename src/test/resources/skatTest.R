@@ -24,7 +24,7 @@ pheno = unlist(pheno)
 
 #run SKAT
 start.time = Sys.time()
-obj <-SKAT_Null_Model(pheno ~ Cov - 1,out_type = args[6])
+obj <-SKAT_Null_Model(pheno ~ Cov - 1, out_type = args[6], Adjustment=FALSE)
 end.time = Sys.time()
 nullModelTime = end.time - start.time
 #print(sprintf("Null Model time: %f",nullModelTime))

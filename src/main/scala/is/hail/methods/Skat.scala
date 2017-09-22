@@ -124,7 +124,7 @@ object Skat {
             "if (va.__AF[0] <= va.__AF[1]) va.__AF[0] else va.__AF[1] in dbeta(af, 1.0, 25.0)**2")
       else
         vds
-
+    
     val (keysType, keysQuerier) = vdsWithWeight.queryVA(variantKeys)
     val (weightType, weightQuerier) = weightExpr match {
       case None => vdsWithWeight.queryVA("va.__weight")
@@ -132,8 +132,8 @@ object Skat {
     }
 
     val typedWeightQuerier = weightType match {
-      case _: TNumeric => (x: Annotation) => DoubleNumericConversion.to(weightQuerier(x))
-      case _ => fatal("Weight must evaluate to numeric type.")
+      case _: TNumeric => (a: Annotation) => Option(weightQuerier(a)).map(DoubleNumericConversion.to)
+      case _ => fatal(s"Weight must have numeric type, got $weightType")
     }
 
     val (keyType, keyIterator): (Type, Annotation => Iterator[Annotation]) = if (singleKey) {
@@ -148,8 +148,8 @@ object Skat {
     
     val completeSamplesBc = vds.sparkContext.broadcast((0 until n).toArray) // already filtered to complete samples
 
-    (vdsWithWeight.rdd.flatMap { case (_, (va, gs)) =>
-      (Option(keysQuerier(va)), Option(typedWeightQuerier(va))) match {
+    (vdsWithWeight.rdd.flatMap { case (v, (va, gs)) =>      
+      (Option(keysQuerier(va)), typedWeightQuerier(va)) match {
         case (Some(key), Some(w)) =>
           if (w < 0)
             fatal(s"Variant weights must be non-negative, got $w")
@@ -271,7 +271,6 @@ object Skat {
       val size = vsArray.length
       if (size <= maxSize) {
         val skatTuples = vs.map((logisticTuple _).tupled).toArray
-        // used largeN is number of entries exceeds maximum size of gramian
         val (q, gramian) = if (size.toLong * n <= maxEntries && !forceLargeN) {
           computeGramianSmallN(skatTuples)
         } else {
@@ -290,19 +289,21 @@ object Skat {
   def computeGramianSmallN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
     require(st.nonEmpty)
     
+    println("SMALL N")
+    
     val m = st.length
     val n = st(0).a.size    
     val k = st(0).b.size
     val isDenseVector = st(0).a.isInstanceOf[DenseVector[Double]]
         
-    val Adata = new Array[Double](m * n)
+    val AData = new Array[Double](m * n)
     var i = 0
     if (isDenseVector) {
       while (i < m) {
         val ai = st(i).a
         var j = 0
         while (j < n) {
-          Adata(i * n + j) = ai(j)
+          AData(i * n + j) = ai(j)
           j += 1
         }
         i += 1
@@ -314,14 +315,14 @@ object Skat {
         var j = 0
         while (j < nnz) {
           val index = ai.index(j)
-          Adata(i * n + index) = ai.data(j)
+          AData(i * n + index) = ai.data(j)
           j += 1
         }
         i += 1
       }
     }
     
-    val Bdata = new Array[Double](k * m)
+    val BData = new Array[Double](k * m)
     var q = 0.0
     i = 0
     while (i < m) {
@@ -329,20 +330,22 @@ object Skat {
       val bi = st(i).b
       var j = 0
       while (j < k) {
-        Bdata(i * k + j) = bi(j)
+        BData(i * k + j) = bi(j)
         j += 1
       }
       i += 1
     }
 
-    val A = new DenseMatrix[Double](n, m, Adata)
-    val B = new DenseMatrix[Double](k, m, Bdata)
+    val A = new DenseMatrix[Double](n, m, AData)
+    val B = new DenseMatrix[Double](k, m, BData)
     
     (q, A.t * A - B.t * B)
   }
 
   def computeGramianLargeN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
     require(st.nonEmpty)
+    
+    println("LARGE N")
     
     val m = st.length
     val data = Array.ofDim[Double](m * m)
