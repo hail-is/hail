@@ -53,7 +53,7 @@ object HailBlockMatrixIsDistributedMatrix extends DistributedMatrix[HailBlockMat
     from(irm, true, blockSize)
   def from(irm: IndexedRowMatrix, dense: Boolean, blockSize: Int): M =
     if (dense)
-      irm.toHailBlockMatrixDense()
+      irm.toHailBlockMatrixDense(blockSize)
     else
       ???
   def from(bm: BlockMatrix): M = ???
@@ -105,15 +105,15 @@ object HailBlockMatrixIsDistributedMatrix extends DistributedMatrix[HailBlockMat
   def map(f: Double => Double)(m: M): M =
     m.map(f)
   def scalarAdd(m: M, i: Double): M =
-    m.blockMap(_ + i)
+    m.blockMap { x => x :+= i; x }
   def scalarSubtract(m: M, i: Double): M =
-    m.blockMap(_ - i)
+    m.blockMap { x => x :-= i; x }
   def scalarSubtract(i: Double, m: M): M =
     m.blockMap(i - _)
   def scalarMultiply(m: M, i: Double): M =
-    m.blockMap(_ :* i)
+    m.blockMap { x => x :*= i; x }
   def scalarDivide(m: M, i: Double): M =
-    m.blockMap(_ / i)
+    m.blockMap { x => x :/= i; x }
   def scalarDivide(i: Double, m: M): M =
     m.blockMap(i / _)
   def vectorAddToEveryColumn(v: Array[Double])(m: M): M = {

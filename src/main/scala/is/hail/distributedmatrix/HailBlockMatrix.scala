@@ -20,19 +20,25 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new HailBlockMatrix(new HailBlockMatrixTransposeRDD(this), blockSize, cols, rows)
 
   def add(other: HailBlockMatrix): HailBlockMatrix =
-    blockMap2(other, _ + _)
+    blockMap2(other, { (x, y) => x += y; x })
 
   def subtract(other: HailBlockMatrix): HailBlockMatrix =
-    blockMap2(other, _ - _)
+    blockMap2(other, { (x, y) => x -= y; x })
 
   def pointwiseMultiply(other: HailBlockMatrix): HailBlockMatrix =
-    blockMap2(other, _ :* _)
+    blockMap2(other, { (x, y) => x :*= y; x })
 
   def pointwiseDivide(other: HailBlockMatrix): HailBlockMatrix =
-    blockMap2(other, _ :/ _)
+    blockMap2(other, { (x, y) => x :/= y; x })
 
   def multiply(other: HailBlockMatrix): HailBlockMatrix =
     new HailBlockMatrix(new HailBlockMatrixMultiplyRDD(this, other), blockSize, rows, other.cols)
+
+  def layoutString(): String =
+    blocks.map { case ((i, j), m) => ((i, j), (m.rows, m.cols)) }
+      .collect()
+      .sortBy(_._1)
+      .mkString(" ")
 
   def cache(): this.type = {
     blocks.cache()
@@ -88,13 +94,12 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def map(op: Double => Double): HailBlockMatrix = {
     val blocks2 = blocks.mapValues { m =>
       val src = m.data
-      val dst = new Array[Double](src.length)
       var i = 0
       while (i < src.length) {
-        dst(i) = op(src(i))
+        src(i) = op(src(i))
         i += 1
       }
-      new BDM(m.rows, m.cols, dst)
+      m
     }
     new HailBlockMatrix(blocks2, blockSize, rows, cols)
   }
@@ -104,13 +109,12 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     val blocks2 = blocks.join(other.blocks).mapValues { case (m1, m2) =>
       val src1 = m1.data
       val src2 = m2.data
-      val dst = new Array[Double](src1.length)
       var i = 0
       while (i < src1.length) {
-        dst(i) = op(src1(i), src2(i))
+        src1(i) = op(src1(i), src2(i))
         i += 1
       }
-      new BDM(m1.rows, m1.cols, dst)
+      m1
     }
     new HailBlockMatrix(blocks2, blockSize, rows, cols)
   }
@@ -122,13 +126,12 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       val src1 = m1.data
       val src2 = m2.data
       val src3 = m3.data
-      val dst = new Array[Double](src1.length)
       var i = 0
       while (i < src1.length) {
-        dst(i) = op(src1(i), src2(i), src3(i))
+        src1(i) = op(src1(i), src2(i), src3(i))
         i += 1
       }
-      new BDM(m1.rows, m1.cols, dst)
+      m1
     }
     new HailBlockMatrix(blocks2, blockSize, rows, cols)
   }
@@ -142,13 +145,12 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       val src2 = m2.data
       val src3 = m3.data
       val src4 = m4.data
-      val dst = new Array[Double](src1.length)
       var i = 0
       while (i < src1.length) {
-        dst(i) = op(src1(i), src2(i), src3(i), src4(i))
+        src1(i) = op(src1(i), src2(i), src3(i), src4(i))
         i += 1
       }
-      new BDM(m1.rows, m1.cols, dst)
+      m1
     }
     new HailBlockMatrix(blocks2, blockSize, rows, cols)
   }
@@ -280,16 +282,15 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
     val rowsInThisBlock: Int = if (row + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else blockSize
     val colsInThisBlock: Int = if (col + 1 == colBlocks && colsRemainder != 0) colsRemainder else blockSize
 
-    val result = BDM.zeros[Double](rowsInThisBlock, colsInThisBlock)
+    var result: BDM[Double] = null
     var i = 0
     while (i < nProducts) {
       val left = leftBlock(row, i, context)
       val right = rightBlock(i, col, context)
-      try {
+      if (result == null)
+        result = left * right
+      else
         result :+= (left * right)
-      } catch {
-        case e: Exception => throw new RuntimeException(s"$row , $i , $col ;; $rowBlocks , $nProducts , $colBlocks ;; ${result.rows} x ${result.cols} :+= (${left.rows} x ${left.cols} * ${right.rows} x ${right.cols})", e)
-      }
       i += 1
     }
 
