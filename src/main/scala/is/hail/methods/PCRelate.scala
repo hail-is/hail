@@ -184,12 +184,11 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val mu = this.mu(g, pcs)
     val blockedG = dm.from(g, blockSize, blockSize)
 
-    val variance = dm.map2 {
-      case (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          mu * (1.0 - mu)
+    val variance = dm.map2 { (g, mu) =>
+      if (badgt(g) || badmu(mu))
+        0.0
+      else
+        mu * (1.0 - mu)
     }(blockedG, mu)
 
     val phi = this.phi(mu, variance, blockedG)
@@ -227,10 +226,10 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
-    val homalt = dm.map2 { case (g, mu) =>
+    val homalt = dm.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 2.0) 0.0 else 1.0
     } (g, mu)
-    val homref = dm.map2 { case (g, mu) =>
+    val homref = dm.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
     } (g, mu)
     (homalt.t * homref) :+ (homref.t * homalt)
@@ -238,7 +237,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = dm.diagonal(phi).map(2.0 * _)
-    val normalizedGD = dm.map2WithIndex { case (_, i, g, mu) =>
+    val normalizedGD = dm.map2WithIndex { (_, i, g, mu) =>
         if (badmu(mu) || badgt(g))
           0.0  // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
         else {
@@ -254,19 +253,17 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
-    val mu2 = dm.map2 {
-      case (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          mu * mu
+    val mu2 = dm.map2 { (g, mu) =>
+      if (badgt(g) || badmu(mu))
+        0.0
+      else
+        mu * mu
     }(g, mu)
-    val oneMinusMu2 = dm.map2 {
-      case (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          (1.0 - mu) * (1.0 - mu)
+    val oneMinusMu2 = dm.map2 { (g, mu) =>
+      if (badgt(g) || badmu(mu))
+        0.0
+      else
+        (1.0 - mu) * (1.0 - mu)
     }(g, mu)
     val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
     dm.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
