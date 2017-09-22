@@ -121,6 +121,17 @@ class LazyChecker(TypeChecker):
             raise RuntimeError("LazyChecker not initialized. Use 'set' to provide the expected type")
         return extract(self.t)
 
+class ExactlyTypeChecker(TypeChecker):
+    def __init__(self, v):
+        self.v = v
+        super(ExactlyTypeChecker, self).__init__()
+
+    def check(self, x):
+        return x == self.v
+
+    def expects(self):
+        return str(v)
+
 
 def only(t):
     if isinstance(t, type) or type(t) is ClassType:
@@ -131,8 +142,16 @@ def only(t):
         raise RuntimeError("invalid typecheck signature: expected 'type' or 'TypeChecker', found '%s'" % type(t))
 
 
+def exactly(v):
+    return ExactlyTypeChecker(v)
+
+
 def oneof(*args):
     return MultipleTypeChecker([only(x) for x in args])
+
+
+def enumeration(*args):
+    return MultipleTypeChecker([exactly(x) for x in args])
 
 
 def nullable(t):
