@@ -109,7 +109,6 @@ class SkatSuite extends SparkSuite {
     }
 
     val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-    val n = y.size
     val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
     completeSampleIndex.foreach(i => sampleMask(i) = true)
     val filteredVds = vds.filterSamplesMask(sampleMask)
@@ -120,7 +119,8 @@ class SkatSuite extends SparkSuite {
     runInR(keyGsWeightRdd, keyType, y, cov)
   }
 
-  // 18 complete samples from sample2.vcf, 5 genes
+  // 18 complete samples from sample2.vcf
+  // 5 genes with sizes 24, 13, 66, 27, and 51
   // Using specified weights in Hail and R
   lazy val vdsSkat: VariantDataset = {
     val covSkat = hc.importTable("src/test/resources/skat.cov",
@@ -145,8 +145,7 @@ class SkatSuite extends SparkSuite {
       .annotateSamplesExpr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
   }
   
-  // R uses a small sample correction for logistic below 2000 samples, Hail does not
-  // So here we make a large deterministic example using the Balding-Nichols model (only hardcalls)
+  // Here we make a larger deterministic example using the Balding-Nichols model (only hardcalls)
   // Using default weights in both Hail and R
   lazy val vdsBN: VariantDataset = {
     val seed = 0
@@ -172,23 +171,22 @@ class SkatSuite extends SparkSuite {
       .annotateVariantsExpr("va.genes = [v.start % 2, v.start % 3].toSet") // three overlapping genes
   }
   
-  def hailVsRTest(useBN: Boolean, useDosages: Boolean, useLogistic: Boolean, forceLargeN: Boolean,
-    displayValues: Boolean = true, tol: Double = 1e-5) {
+  def hailVsRTest(useBN: Boolean = false, useDosages: Boolean = false, logistic: Boolean = false,
+    forceLargeN: Boolean = false, displayValues: Boolean = false, tol: Double = 1e-5) {
    
-    require(useBN || !useLogistic)
     require(!(useBN && useDosages))
     
     val (vds, singleKey, weightExpr) = if (useBN) (vdsBN, false, None) else (vdsSkat, true, Some("va.weight"))
     
     val hailKT = vds.skat("va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
-      weightExpr, useLogistic, useDosages, forceLargeN=forceLargeN)
+      weightExpr, logistic, useDosages, forceLargeN=forceLargeN)
 
     hailKT.typeCheck()
     
     val resultHail = hailKT.rdd.collect()
 
     val resultsR = skatInR(vds, "va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
-      weightExpr, useLogistic, useDosages)
+      weightExpr, logistic, useDosages)
 
     var i = 0
     while (i < resultsR.length) {
@@ -213,81 +211,33 @@ class SkatSuite extends SparkSuite {
     }
   }
   
-  @Test def linearHardcalls() {
-    val useBN = false
-    val useDosages = false
-    val forceLargeN = false
-    val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
-  }
-
-  @Test def linearDosages() {
-    val useBN = false
-    val useDosages = true
-    val forceLargeN = false
-    val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
-  }
-
-  @Test def linearLargeNHardCalls() {
-    val useBN = false
-    val useDosages = false
-    val forceLargeN = true
-    val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
-  }
-
-  @Test def linearLargeNDosages() {
-    val useBN = false
-    val useDosages = true
-    val forceLargeN = true
-    val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
-  }
+  // testing linear
+  @Test def linear() { hailVsRTest() }
+  @Test def linearDosages() { hailVsRTest(useDosages = true) }
+  @Test def linearBN() { hailVsRTest(useBN = true) }
   
-  @Test def linearHardcallsBN() {
-    val useBN= true
-    val useDosages = false
-    val forceLargeN = false
-    val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
-  }
-
-  @Test def linearLargeNHardcallsBN() {
-    val useBN = true
-    val useDosages = false
-    val forceLargeN = true
-    val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
-  }
+  // testing logistic
+  @Test def logistic() { hailVsRTest(logistic = true) }
+  @Test def logisticDosages() { hailVsRTest(useDosages = true, logistic = true) }
+  @Test def logisticBN() { hailVsRTest(useBN = true, logistic = true) }
   
-  @Test def logisticHardCallsBN() {
-    val useBN = true
-    val useDosages = false
-    val forceLargeN = false
-    val useLogistic = true
-    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
-  }
-
-  @Test def logisticLargeNHardCalls() {
-    val useBN = true
-    val useDosages = false
-    val forceLargeN = true
-    val useLogistic = true
-    hailVsRTest(useBN, useDosages, useLogistic, forceLargeN)
-  }
+  // testing computeGrammianLargeN route
+  @Test def linearLargeN() { hailVsRTest(forceLargeN = true) }
+  @Test def logisticLargeN() { hailVsRTest(logistic = true, forceLargeN = true) }
   
+  //testing size and maxSize
   @Test def maxSizeTest() {
+    val maxSize = 27
     
+    val kt = vdsSkat.skat("va.genes", singleKey = true, y = "sa.pheno", weightExpr = Some("1"), maxSize = Some(maxSize))
+      
+    val ktMap = kt.rdd.collect().map{ case Row(key, size, qstat, pval, fault) => 
+        key.asInstanceOf[String] -> (size.asInstanceOf[Int], qstat == null, pval == null, fault == null) }.toMap
     
-    val vds = vdsSkat.annotateVariantsExpr("va.__AF = gs.callStats(g => v).AF")
-      .annotateVariantsExpr("va.__weight = let af = " +
-        "if (va.__AF[0] <= va.__AF[1]) va.__AF[0] else va.__AF[1] in dbeta(af, 1.0, 25.0)**2")
-    
-//    println(vds.vaSignature)
-//    
-//    println(vds.variantsKT().flatten().select(Array("va.__AF", "va.__weight")).collect())
-    
-    val hailKT = vdsSkat.skat("va.genes", singleKey = true, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), maxSize = Some(3)).count()
+    assert(ktMap("Gene1") == (24, false, false, false))
+    assert(ktMap("Gene2") == (13, false, false, false))
+    assert(ktMap("Gene3") == (66, true, true, true))
+    assert(ktMap("Gene4") == (27, false, false, false))
+    assert(ktMap("Gene5") == (51, true, true, true))
   }
 }

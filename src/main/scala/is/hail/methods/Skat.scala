@@ -37,7 +37,7 @@ V = n x n diagonal matrix with diagonal elements given by sigmaSq for linear and
 
 To scale to large n, we exploit that Z * Z.t has the same non-zero eigenvalues as the m x m matrix
 Z.t * Z = sqrt(W) * G.t * P_0 * G * sqrt(W)
-and express the latter in terms of matrices A and B as follows:
+and express the latter gramian matrix in terms of matrices A and B as follows:
 linear:   sigmaSq * Z.t * Z = A.t * A - B.t * B,    A = G * sqrt(W)              B = Q0.t * G * sqrt(W)
 logistic:           Z.t * Z = A.t * A - B.t * B,    A = sqrt(V) * G * sqrt(W)    B = C^-1 * X.t * V * G * sqrt(W)
 where
@@ -45,13 +45,15 @@ Q0 = n x k matrix in QR decomposition of X = Q0 * R
 C = k x k Cholesky factor of X.t * V * X = C * C.t
 
 For each variant, SkatTuple encodes the corresponding summand of Q and columns of A and B.
-
-We compute and group SkatTuples by key and then, for each key, computes Q and the gramian A.t * A - B.t * B,
+We compute and group SkatTuples by key. Then, for each key, we compute Q and A.t * A - B.t * B,
 the eigenvalues of the latter, and the p-value with the Davies algorithm.
 */
 case class SkatTuple(q: Double, a: Vector[Double], b: DenseVector[Double])
 
 object Skat {
+  // use computeGramianLargeN route if n x m exceeds 8000 * 8000 (512MB of doubles) or maxSize * maxSize
+  val maxEntriesForSmallN = 64e6
+  
   def apply(vds: VariantDataset,
     variantKeys: String,
     singleKey: Boolean,
@@ -63,7 +65,8 @@ object Skat {
     optMaxSize: Option[Int],
     accuracy: Double,
     iterations: Int,
-    forceLargeN: Boolean = false): KeyTable = { // useLargeN used to force computeGramianLargeN in testing
+    forceLargeN: Boolean = false): KeyTable = { // forceLargeN only used in testing
+    
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
     if (accuracy <= 0)
@@ -194,8 +197,7 @@ object Skat {
       SkatTuple(sqrt_q * sqrt_q, xw, QtBc.value * xw)
     }
     
-    // use computeGramianLargeN if A exceeds maximum size of grammian or 512MB of doubles
-    val maxEntries = math.max(maxSize * maxSize, 64e6)
+    val maxEntries = math.max(maxSize * maxSize, maxEntriesForSmallN)
     
     keyGsWeightRdd
       .map { case (key, vs) =>
@@ -247,8 +249,8 @@ object Skat {
     try {
       Cinv = inv(cholesky(XtVX))
     } catch {
-      case _: MatrixSingularException => fatal("Singular matrix exception while computing Cholesky factor of XtVX")
-      case _: NotConvergedException => fatal("Inversion of Cholesky factor of XtVX did not converge")
+      case _: MatrixSingularException => fatal("Singular matrix exception while computing Cholesky factor of X.t * V * X")
+      case _: NotConvergedException => fatal("Not converged exception while inverting Cholesky factor of X.t * V * X")
     }
     val res = y - mu
 
@@ -262,9 +264,8 @@ object Skat {
       val sqrt_q = resBc.value dot xw      
       SkatTuple(sqrt_q * sqrt_q, xw :* sqrtVBc.value , CinvXtVBc.value * xw)
     }
-    
-    // use computeGramianLargeN if A exceeds maximum size of grammian or 512MB of doubles
-    val maxEntries = math.max(maxSize * maxSize, 64e6)
+        
+    val maxEntries = math.max(maxSize * maxSize, maxEntriesForSmallN)
 
     keyGsWeightRdd.map { case (key, vs) =>
       val vsArray = vs.toArray
@@ -288,8 +289,6 @@ object Skat {
 
   def computeGramianSmallN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
     require(st.nonEmpty)
-    
-    println("SMALL N")
     
     val m = st.length
     val n = st(0).a.size    
@@ -344,8 +343,6 @@ object Skat {
 
   def computeGramianLargeN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
     require(st.nonEmpty)
-    
-    println("LARGE N")
     
     val m = st.length
     val data = Array.ofDim[Double](m * m)
