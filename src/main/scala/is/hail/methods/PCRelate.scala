@@ -21,24 +21,31 @@ object PCRelate {
   val dm = BlockMatrixIsDistributedMatrix
   import dm.ops._
 
+  type Desire = Int
+  val PhiOnly: Desire = 0
+  val PhiK2: Desire = 1
+  val PhiK2K0: Desire = 2
+  val PhiK2K0K1: Desire = 3
+
   case class Result[M](phiHat: M, k0: M, k1: M, k2: M) {
     def map[N](f: M => N): Result[N] = Result(f(phiHat), f(k0), f(k1), f(k2))
   }
 
   val defaultMinKinship = Double.NegativeInfinity
+  val defaultDesire: Desire = PhiK2K0K1
 
-  def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): Result[M] =
-    new PCRelate(maf, blockSize)(vds, pcs)
+  def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, desire: Desire = defaultDesire): Result[M] =
+    new PCRelate(maf, blockSize)(vds, pcs, desire)
 
   private val signature =
     TStruct(("i", TString), ("j", TString), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble))
   private val keys = Array("i", "j")
 
-  private def toRowRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double): RDD[Row] = {
+  private def toRowRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double, desire: Desire): RDD[Row] = {
     val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
-    val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize)
+    val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, desire)
 
-    (phi.blocks join k0.blocks join k1.blocks join k2.blocks).flatMap { case ((blocki, blockj), (((mphi, mk0), mk1), mk2)) =>
+    def fuseBlocks(blocki: Int, blockj: Int, mphi: Matrix, mk0: Matrix, mk1: Matrix, mk2: Matrix) = {
       val i = blocki * phi.rowsPerBlock
       val j = blockj * phi.colsPerBlock
       val i2 = i + phi.rowsPerBlock
@@ -47,7 +54,6 @@ object PCRelate {
       if (blocki <= blockj) {
         val size = mphi.numRows * mphi.numCols
         val ab = new ArrayBuilder[Row]()
-        try {
           var jj = 1
           while (jj < mphi.numCols) {
             // fixme: broken for non-square blocks
@@ -56,31 +62,38 @@ object PCRelate {
             while (ii < rowsAboveDiagonal) {
               val kin = mphi(ii, jj)
               if (kin >= minKinship) {
-                val k0 = mk0(ii, jj)
-                val k1 = mk1(ii, jj)
-                val k2 = mk2(ii, jj)
+                val k0 = if (mk0 == null) null else mk0(ii, jj)
+                val k1 = if (mk1 == null) null else mk1(ii, jj)
+                val k2 = if (mk2 == null) null else mk2(ii, jj)
                 ab += Annotation(indexToId(i + ii), indexToId(j + jj), kin, k0, k1, k2).asInstanceOf[Row]
               }
               ii += 1
             }
-            jj += 1
-          }
-        } catch {
-          case e: Exception =>
-            throw new RuntimeException(s"$i, $j; $blocki, $blockj; $i2, $j2; ${mphi.numRows}, ${mphi.numCols}", e)
+          jj += 1
         }
         ab.result()
       } else
         new Array[Row](0)
     }
+
+    desire match {
+      case PhiOnly => phi.blocks
+          .flatMap { case ((blocki, blockj), phi) => fuseBlocks(blocki, blockj, phi, null, null, null) }
+      case PhiK2 => (phi.blocks join k2.blocks)
+          .flatMap { case ((blocki, blockj), (phi, k2)) => fuseBlocks(blocki, blockj, phi, null, null, k2) }
+      case PhiK2K0 => (phi.blocks join k0.blocks join k2.blocks)
+          .flatMap { case ((blocki, blockj), ((phi, k0), k2)) => fuseBlocks(blocki, blockj, phi, k0, null, k2) }
+      case PhiK2K0K1 => (phi.blocks join k0.blocks join k1.blocks join k2.blocks)
+          .flatMap { case ((blocki, blockj), (((phi, k0), k1), k2)) => fuseBlocks(blocki, blockj, phi, k0, k1, k2) }
+    }
   }
 
-  def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship): KeyTable =
-    KeyTable(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship), signature, keys)
+  def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, desire: Desire = defaultDesire): KeyTable =
+    KeyTable(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship, desire), signature, keys)
 
-  def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship)
+  def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, desire: Desire = defaultDesire)
       : RDD[((Annotation, Annotation), (Double, Double, Double, Double))] =
-     toRowRdd(vds, pcs, maf, blockSize, minKinship)
+     toRowRdd(vds, pcs, maf, blockSize, minKinship, desire)
        .map(r => ((r(0), r(1)), (r(2).asInstanceOf[Double], r(3).asInstanceOf[Double], r(4).asInstanceOf[Double], r(5).asInstanceOf[Double])))
 
   private val k0cutoff = math.pow(2.0, (-5.0 / 2.0))
@@ -174,7 +187,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   def badgt(gt: Double): Boolean =
     gt != 0.0 && gt != 1.0 && gt != 2.0
 
-  def apply(vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
+  def apply(vds: VariantDataset, pcs: DenseMatrix, desire: Desire = defaultDesire): Result[M] = {
     val g = vdsToMeanImputedMatrix(vds)
 
     val mu = this.mu(g, pcs)
@@ -189,11 +202,19 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
     val phi = this.phi(mu, variance, blockedG)
 
-    val k2 = this.k2(phi, mu, variance, blockedG)
-    val k0 = this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize))
-    val k1 = 1.0 - (k2 :+ k0)
-
-    Result(phi, k0, k1, k2)
+    if (desire >= PhiK2) {
+      val k2 = this.k2(phi, mu, variance, blockedG)
+      if (desire >= PhiK2K0) {
+        val k0 = this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize))
+        if (desire >= PhiK2K0K1) {
+          val k1 = 1.0 - (k2 :+ k0)
+          Result(phi, k0, k1, k2)
+        } else
+          Result(phi, k0, null, k2)
+      } else
+        Result(phi, null, null, k2)
+    } else
+      Result(phi, null, null, null)
   }
 
   /**

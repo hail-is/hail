@@ -3845,8 +3845,9 @@ class VariantDataset(object):
     @typecheck_method(k=integral,
                       maf=numeric,
                       block_size=integral,
-                      min_kinship=numeric)
-    def pc_relate(self, k, maf, block_size=512, min_kinship=-float("inf")):
+                      min_kinship=numeric,
+                      desire=enumeration("phi", "phik2", "phik2k0", "all"))
+    def pc_relate(self, k, maf, block_size=512, min_kinship=-float("inf"), desire="all"):
         """Compute relatedness estimates between individuals using a variant of the
         PC-Relate method.
 
@@ -4045,7 +4046,9 @@ class VariantDataset(object):
 
         """
 
-        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship))
+        intdesire = { "phi" : 0, "phik2" : 1, "phik2k0" : 2, "all" : 3 }[desire]
+
+        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship, intdesire))
 
     @handle_py4j
     @typecheck_method(storage_level=strlike)
