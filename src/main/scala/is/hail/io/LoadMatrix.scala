@@ -44,9 +44,9 @@ object LoadMatrix {
   def apply(hc: HailContext,
             file1: String,
             files: Array[String],
-            sep: String = "\t",
             nPartitions: Option[Int] = None,
-            dropSamples: Boolean = false):
+            dropSamples: Boolean = false,
+            sep: String = "\t"):
   VariantSampleMatrix[Annotation, Annotation, Annotation] = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
