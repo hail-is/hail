@@ -18,6 +18,9 @@ class HailContext(object):
     .. warning::
         Only one Hail context may be running in a Python session at any time. If you
         need to reconfigure settings, restart the Python session or use the :py:meth:`.HailContext.stop` method.
+        
+        If passing in a Spark context, ensure that the configuration parameters ``spark.sql.files.openCostInBytes``
+        and ``spark.sql.files.maxPartitionBytes`` are set to as least 50GB.
 
     :param sc: Spark context, one will be created if None.
     :type sc: :class:`.pyspark.SparkContext`
