@@ -334,12 +334,12 @@ class HailContext private(val sc: SparkContext,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
     quantPheno: Boolean = false,
-    a2Major: Boolean = true): GenericDataset = {
+    a2Reference: Boolean = true): GenericDataset = {
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
     PlinkLoader(this, bed, bim, fam,
-      ffConfig, nPartitions, a2Major)
+      ffConfig, nPartitions, a2Reference)
   }
 
   def importPlinkBFile(bfileRoot: String,
@@ -347,9 +347,9 @@ class HailContext private(val sc: SparkContext,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
     quantPheno: Boolean = false,
-    a2Major: Boolean = true): GenericDataset = {
+    a2Reference: Boolean = true): GenericDataset = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno, a2Major)
+      nPartitions, delimiter, missing, quantPheno, a2Reference)
   }
 
   def checkDatasetSchemasCompatible(datasets: Array[VariantSampleMatrix[_, _, _]], inputs: Array[String]) {

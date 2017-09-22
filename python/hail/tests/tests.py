@@ -55,7 +55,7 @@ class ContextTests(unittest.TestCase):
 
         bfile = '/tmp/sample_plink'
         plink = hc.import_plink(
-            bfile + '.bed', bfile + '.bim', bfile + '.fam')
+            bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True)
         self.assertEqual(vcf.count(), plink.count())
 
         vcf.write('/tmp/sample.vds', overwrite=True)

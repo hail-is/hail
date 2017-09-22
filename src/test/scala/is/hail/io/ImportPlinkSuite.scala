@@ -70,15 +70,19 @@ class ImportPlinkSuite extends SparkSuite {
   }
 
   @Test def testA1Major() {
-    val a1major = hc.importPlinkBFile("src/test/resources/fastlmmTest", a2Major = false)
+    val plinkFileRoot = tmpDir.createTempFile("plink_reftest")
+    hc.importVCF("src/test/resources/sample.vcf").exportPlink(plinkFileRoot)
+
+
+    val a1ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = false)
       .annotateGenotypesExpr("g = Genotype(g.GT)")
       .toVDS
 
-    val a2major = hc.importPlinkBFile("src/test/resources/fastlmmTest", a2Major = true)
+    val a2ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = true)
       .annotateGenotypesExpr("g = Genotype(g.GT)")
       .toVDS
 
-    val a1kt = a1major
+    val a1kt = a1ref
       .variantQC()
       .variantsKT()
       .flatten()
@@ -87,7 +91,7 @@ class ImportPlinkSuite extends SparkSuite {
         "va.qc.nHomRef" -> "nHomRefA1", "va.qc.nHet" -> "nHetA1", "va.qc.nHomVar" -> "nHomVarA1"))
       .keyBy("rsid")
 
-    val a2kt = a2major
+    val a2kt = a2ref
       .variantQC()
       .variantsKT()
       .flatten()

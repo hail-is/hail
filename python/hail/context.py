@@ -478,10 +478,10 @@ class HailContext(HistoryMixin):
                       min_partitions=nullable(integral),
                       delimiter=strlike,
                       missing=strlike,
-                      quantpheno=bool,
-                      a2major=bool)
+                      quant_pheno=bool,
+                      a2_reference=bool)
     def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
-                     missing='NA', quantpheno=False, a2major=True):
+                     missing='NA', quant_pheno=False, a2_reference=True):
         """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
 
         **Examples**
@@ -540,15 +540,15 @@ class HailContext(HistoryMixin):
 
         :param str delimiter: FAM file field delimiter regex.
 
-        :param bool quantpheno: If True, FAM phenotype is interpreted as quantitative.
+        :param bool quant_pheno: If True, FAM phenotype is interpreted as quantitative.
 
-        :param bool a2major: If True, A2 is treated as the reference allele. If False, A1 is treated as the reference allele.
+        :param bool a2_reference: If True, A2 is treated as the reference allele. If False, A1 is treated as the reference allele.
 
         :return: Variant dataset imported from PLINK binary file.
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter, missing, quantpheno, a2major)
+        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter, missing, quant_pheno, a2_reference)
 
         return VariantDataset(self, jvds)
 
