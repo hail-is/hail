@@ -173,7 +173,7 @@ class SkatSuite extends SparkSuite {
   
   def hailVsRTest(useBN: Boolean = false, useDosages: Boolean = false, logistic: Boolean = false,
     forceLargeN: Boolean = false, displayValues: Boolean = false, tol: Double = 1e-5) {
-   
+    
     require(!(useBN && useDosages))
     
     val (vds, singleKey, weightExpr) = if (useBN) (vdsBN, false, None) else (vdsSkat, true, Some("va.weight"))
@@ -219,11 +219,11 @@ class SkatSuite extends SparkSuite {
   // testing logistic
   @Test def logistic() { hailVsRTest(logistic = true) }
   @Test def logisticDosages() { hailVsRTest(useDosages = true, logistic = true) }
-  @Test def logisticBN() { hailVsRTest(useBN = true, logistic = true, displayValues = true) }
+  @Test def logisticBN() { hailVsRTest(useBN = true, logistic = true, tol = 1e-4) }
   
   // testing computeGrammianLargeN route
   @Test def linearLargeN() { hailVsRTest(forceLargeN = true) }
-  @Test def logisticLargeN() { hailVsRTest(logistic = true, forceLargeN = true, displayValues = true) }
+  @Test def logisticLargeN() { hailVsRTest(logistic = true, forceLargeN = true) }
   
   //testing size and maxSize
   @Test def maxSizeTest() {
