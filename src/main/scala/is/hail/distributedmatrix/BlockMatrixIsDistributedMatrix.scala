@@ -6,6 +6,7 @@ import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
+import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.hadoop.io._
 import java.io._
 import org.json4s._
@@ -91,6 +92,11 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     */
   def multiply(l: M, r: M): M =
     BetterBlockMatrix.multiply(l, r)
+  def multiply(l: M, r: BDM[Double]): M = {
+    require(l.numCols() == r.rows,
+      s"incompatible matrix dimensions: ${l.numRows()}x${l.numCols()} and ${r.rows}x${r.cols}")
+    multiply(l, from(l.blocks.sparkContext, new DenseMatrix(r.rows, r.cols, r.data), l.colsPerBlock, l.rowsPerBlock))
+  }
   def multiply(l: M, r: DenseMatrix): M = {
     require(l.numCols() == r.numRows,
       s"incompatible matrix dimensions: ${l.numRows()}x${l.numCols()} and ${r.numRows}x${r.numCols}")
@@ -98,6 +104,9 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   }
 
   def map4(op: (Double, Double, Double, Double) => Double)(a: M, b: M, c: M, d: M): M = {
+    assert(a.blocks.partitioner == b.blocks.partitioner, s"${a.blocks.partitioner} ${b.blocks.partitioner}")
+    assert(b.blocks.partitioner == c.blocks.partitioner, s"${b.blocks.partitioner} ${c.blocks.partitioner}")
+    assert(c.blocks.partitioner == d.blocks.partitioner, s"${c.blocks.partitioner} ${d.blocks.partitioner}")
     require(a.numRows() == b.numRows(), s"expected a's dimensions to match b's dimensions, but: ${a.numRows()} x ${a.numCols()},  ${b.numRows()} x ${b.numCols()}")
     require(b.numRows() == c.numRows(), s"expected b's dimensions to match c's dimensions, but: ${b.numRows()} x ${b.numCols()},  ${c.numRows()} x ${c.numCols()}")
     require(c.numRows() == d.numRows(), s"expected c's dimensions to match d's dimensions, but: ${c.numRows()} x ${c.numCols()},  ${d.numRows()} x ${d.numCols()}")
@@ -125,6 +134,15 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       new DenseMatrix(m1.numRows, m1.numCols, result)
     }
     new BlockMatrix(blocks, a.rowsPerBlock, a.colsPerBlock, a.numRows(), a.numCols())
+  }
+
+  def blockMap2(op: (Matrix, Matrix) => DenseMatrix)(l: M, r: M): M = {
+    require(l.numRows() == r.numRows())
+    require(l.numCols() == r.numCols())
+    require(l.rowsPerBlock == r.rowsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
+    require(l.colsPerBlock == r.colsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
+    val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).mapValues(op.tupled)
+    new BlockMatrix(blocks, l.rowsPerBlock, l.colsPerBlock, l.numRows(), l.numCols())
   }
 
   def map2(op: (Double, Double) => Double)(l: M, r: M): M = {
@@ -175,8 +193,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     new BlockMatrix(blocks, l.rowsPerBlock, l.colsPerBlock, l.numRows(), l.numCols())
   }
 
-  def pointwiseAdd(l: M, r: M): M = l.add(r)
-  def pointwiseSubtract(l: M, r: M): M = l.subtract(r)
+  def pointwiseAdd(l: M, r: M): M = map2(_ + _)(l, r)
+  def pointwiseSubtract(l: M, r: M): M = map2(_ - _)(l, r)
   def pointwiseMultiply(l: M, r: M): M = map2(_ * _)(l, r)
   def pointwiseDivide(l: M, r: M): M = map2(_ / _)(l, r)
 
@@ -274,7 +292,10 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
   def toBlockRdd(m: M): RDD[((Int, Int), Matrix)] = m.blocks
 
-  def toLocalMatrix(m: M): Matrix = m.toLocalMatrix()
+  def toLocalMatrix(m: M): BDM[Double] = {
+    val sm = m.toLocalMatrix().asInstanceOf[DenseMatrix]
+    new BDM[Double](sm.numRows, sm.numCols, sm.values)
+  }
 
   private class PairWriter(var i: Int, var j: Int) extends Writable {
     def this() {

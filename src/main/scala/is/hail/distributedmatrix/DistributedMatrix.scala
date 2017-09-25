@@ -3,6 +3,7 @@ package is.hail.distributedmatrix
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
+import breeze.linalg.{DenseMatrix => BDM}
 
 import scala.reflect.ClassTag
 
@@ -16,7 +17,7 @@ trait DistributedMatrix[M] {
   def diagonal(m: M): Array[Double]
 
   def multiply(l: M, r: M): M
-  def multiply(l: M, r: DenseMatrix): M
+  def multiply(l: M, r: BDM[Double]): M
 
   def map4(f: (Double, Double, Double, Double) => Double)(a: M, b: M, c: M, d: M): M
 
@@ -43,7 +44,7 @@ trait DistributedMatrix[M] {
 
   def toBlockRdd(m: M): RDD[((Int, Int), Matrix)]
 
-  def toLocalMatrix(m: M): Matrix
+  def toLocalMatrix(m: M): BDM[Double]
 
   object ops {
     implicit class Shim(l: M) {
@@ -54,7 +55,7 @@ trait DistributedMatrix[M] {
 
       def *(r: M): M =
         multiply(l, r)
-      def *(r: DenseMatrix): M =
+      def *(r: BDM[Double]): M =
         multiply(l, r)
 
       def :+(r: M): M =
