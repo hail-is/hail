@@ -120,4 +120,35 @@ class UnionFindSuite extends TestNGSuite {
     assert(uf.find(1) == uf.find(6))
     assert(uf.find(1) != uf.find(5))
   }
+
+  @Test
+  def sameSetWorks() {
+    val uf = new UnionFind()
+
+    uf.makeSet(1)
+    uf.makeSet(2)
+    uf.makeSet(3)
+    uf.makeSet(1024)
+    uf.makeSet(4097)
+    uf.makeSet(4096)
+
+    assert(!uf.sameSet(1, 1024))
+    assert(!uf.sameSet(1, 4097))
+    assert(!uf.sameSet(1, 4096))
+    assert(!uf.sameSet(2, 1024))
+    assert(!uf.sameSet(2, 4097))
+    assert(!uf.sameSet(2, 4096))
+
+    uf.union(1024, 4096)
+    uf.union(4097, 1)
+
+    assert(!uf.sameSet(1, 1024))
+    assert(uf.sameSet(1, 4097))
+    assert(!uf.sameSet(1, 4096))
+    assert(!uf.sameSet(2, 1024))
+    assert(!uf.sameSet(2, 4097))
+    assert(!uf.sameSet(2, 4096))
+
+    assert(uf.sameSet(1024, 4096))
+  }
 }
