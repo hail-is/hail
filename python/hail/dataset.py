@@ -3844,8 +3844,10 @@ class VariantDataset(object):
     @handle_py4j
     @typecheck_method(k=integral,
                       maf=numeric,
-                      block_size=integral)
-    def pc_relate(self, k, maf, block_size=512):
+                      block_size=integral,
+                      min_kinship=numeric,
+                      desire=enumeration("phi", "phik2", "phik2k0", "all"))
+    def pc_relate(self, k, maf, block_size=512, min_kinship=-float("inf"), desire="all"):
         """Compute relatedness estimates between individuals using a variant of the
         PC-Relate method.
 
@@ -3864,6 +3866,12 @@ class VariantDataset(object):
         multiplications use a matrix-block-size of 1024 by 1024.
 
         >>> rel = vds.pc_relate(5, 0.01, 1024)
+
+        Calculate values as above, excluding sample-pairs with kinship lower
+        than 0.1. This is more efficient than producing the full key table and
+        filtering using :py:meth:`~hail.KeyTable.filter`.
+
+        >>> rel = vds.pc_relate(5, 0.01, min_kinship=0.1)
 
         **Method**
 
@@ -4029,13 +4037,18 @@ class VariantDataset(object):
                                memory (in addition to all other objects
                                necessary for Spark and Hail)
 
+        :param float min_kinship: Pairs of samples with kinship lower than
+                                  ``min_kinship`` are excluded from the results
+
         :return: A :py:class:`.KeyTable` mapping pairs of samples to estimations
                  of their kinship and identity-by-descent zero, one, and two
         :rtype: :py:class:`.KeyTable`
 
         """
 
-        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size))
+        intdesire = { "phi" : 0, "phik2" : 1, "phik2k0" : 2, "all" : 3 }[desire]
+
+        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship, intdesire))
 
     @handle_py4j
     @typecheck_method(storage_level=strlike)

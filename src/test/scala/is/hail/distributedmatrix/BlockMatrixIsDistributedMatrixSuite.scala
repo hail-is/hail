@@ -40,11 +40,6 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   def toBM(x: BDM[Double], rowsPerBlock: Int, colsPerBlock: Int): BlockMatrix =
     dm.from(sc, new DenseMatrix(x.rows, x.cols, x.toArray), rowsPerBlock, colsPerBlock)
 
-  def toBreeze(bm: BlockMatrix): BDM[Double] = {
-    val lm = dm.toLocalMatrix(bm)
-    new BDM(lm.numRows, lm.numCols, lm.toArray)
-  }
-
   def toBreeze(a: Array[Double]): BDV[Double] =
     new BDV(a)
 
@@ -104,9 +99,10 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
       Array[Double](9,10,11,12),
       Array[Double](13,14,15,16)))
 
-    val r = new DenseMatrix(4, 1, Array[Double](1,2,3,4))
+    val br = new BDM[Double](4, 1, Array[Double](1,2,3,4))
+    val sr = new DenseMatrix(br.rows, br.cols, br.data)
 
-    assert((l.toIndexedRowMatrix().multiply(r).toBlockMatrix().toLocalMatrix().toArray: IndexedSeq[Double]) == ((l * r).toLocalMatrix().toArray: IndexedSeq[Double]))
+    assert((l.toIndexedRowMatrix().multiply(sr).toBlockMatrix().toLocalMatrix().toArray: IndexedSeq[Double]) == ((l * br).toLocalMatrix().toArray: IndexedSeq[Double]))
   }
 
   @Test
@@ -121,12 +117,14 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
       Array[Double](0.75, -0.5000000000000001, 0.5),
       Array[Double](1.0, -0.0, 0.0)))
 
-    val r = new DenseMatrix(3, 4, Array[Double](1.0,0.0,1.0,
+    val br = new BDM[Double](3, 4, Array[Double](1.0,0.0,1.0,
       1.0,1.0,1.0,
       1.0,1.0,0.0,
       1.0,0.0,0.0))
+    val sr = new DenseMatrix(br.rows, br.cols, br.data)
 
-    assert((l.toIndexedRowMatrix().multiply(r).toBlockMatrix().toLocalMatrix().toArray: IndexedSeq[Double]) == ((l * r).toLocalMatrix().toArray: IndexedSeq[Double]))
+
+    assert((l.toIndexedRowMatrix().multiply(sr).toBlockMatrix().toLocalMatrix().toArray: IndexedSeq[Double]) == ((l * br).toLocalMatrix().toArray: IndexedSeq[Double]))
   }
 
   private def arrayEqualNaNEqualsNaN(x: Array[Double], y: Array[Double]): Boolean = {
@@ -190,10 +188,10 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     } yield (l, r)
 
     forAll(g) { case (l: BlockMatrix, r: Array[Double]) =>
-      val truth = toBreeze(l --* r)
+      val truth = (l --* r).toLocalMatrix()
       val repeatedR = (0 until l.numRows().toInt).map(x => r).flatten.toArray
       val repeatedRMatrix = new BDM(r.size, l.numRows().toInt, repeatedR).t
-      val expected = toBreeze(l) :* repeatedRMatrix
+      val expected = dm.toLocalMatrix(l) :* repeatedRMatrix
 
       if (arrayEqualNaNEqualsNaN(truth.toArray, expected.toArray))
         true
@@ -236,10 +234,10 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     } yield (l, r)
 
     forAll(g) { case (l: BlockMatrix, r: Array[Double]) =>
-      val truth = toBreeze(l :* r)
+      val truth = (l :* r).toLocalMatrix()
       val repeatedR = (0 until l.numCols().toInt).map(x => r).flatten.toArray
       val repeatedRMatrix = new BDM(r.size, l.numCols().toInt, repeatedR)
-      val expected = toBreeze(l) :* repeatedRMatrix
+      val expected = dm.toLocalMatrix(l) :* repeatedRMatrix
 
       if (arrayEqualNaNEqualsNaN(truth.toArray, expected.toArray))
         true
