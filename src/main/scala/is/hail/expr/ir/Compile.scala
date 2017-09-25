@@ -42,8 +42,8 @@ object Compile {
     def nonTerminal(x: IR) = this.nonTerminal(x, env, outTyps, fb, mb)
     def terminal(x: IR) = this.terminal(x, env, outTyps, fb, mb)
     x match {
-      case NA(pti) =>
-        (const(true), pti.point)
+      case NA(t) =>
+        (const(true), t.point)
       case I32(x) =>
         (const(false), const(x))
       case I64(x) =>
@@ -67,12 +67,15 @@ object Compile {
         val code = x.mux(vcnsq, valtr)
 
         (missingness, code)
-      case Let(name, value, typ: TypeInfo[t], body) =>
+      case Let(name, value, typ, body) =>
         val (mvalue, vvalue) = nonTerminal(value)
 
         val x = mb.newBit(mvalue)
-        val y = fb.newLocal()(typ)
-        fb.emit(y.store(vvalue.asInstanceOf[Code[t]]))
+        val y = typ.ti match { case ti: TypeInfo[t] =>
+          val y = fb.newLocal()(ti)
+          fb.emit(y.store(vvalue.asInstanceOf[Code[t]]))
+          y
+        }
 
         this.nonTerminal(body, env + (name -> (x -> y)), outTyps, fb, mb)
       case ApplyPrimitive(op, args) =>
@@ -93,7 +96,7 @@ object Compile {
         ???
       case GetField(o, name) =>
         ???
-      case MapNA(name, value, valueTyp: TypeInfo[t], body, bodyTyp) =>
+      case MapNA(name, value, valueTyp, body, bodyTyp) =>
         // FIXME: maybe we can pass down the "null" label and jump directly there
         val (mvalue, vvalue) = nonTerminal(value)
 
@@ -101,8 +104,11 @@ object Compile {
         val lafter = new LabelNode
 
         val x = mb.newBit(mvalue)
-        val y = fb.newLocal()(valueTyp)
-        fb.emit(y.store(vvalue.asInstanceOf[Code[t]]))
+        val y = valueTyp.ti match { case ti: TypeInfo[t] =>
+          val y = fb.newLocal()(ti)
+          fb.emit(y.store(vvalue.asInstanceOf[Code[t]]))
+          y
+        }
 
         val (mbody, vbody) =
           this.nonTerminal(body, env + (name -> (const(false) -> y.load())), outTyps, fb, mb)

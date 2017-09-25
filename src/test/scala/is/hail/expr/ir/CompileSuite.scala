@@ -2,8 +2,8 @@ package is.hail.methods.ir
 
 import is.hail.asm4s._
 import is.hail.check.{Gen, Parameters, Prop}
+import is.hail.expr.{TInt32, TInt64, TFloat32, TFloat64}
 import is.hail.expr.ir._
-import is.hail.expr.ir.PointedTypeInfo._
 import is.hail.expr.ir.IR._
 import is.hail.expr.ir.Compile.DetailedTypeInfo
 import org.testng.annotations.Test
@@ -49,59 +49,59 @@ class CompileSuite {
 
   @Test
   def let() {
-    assert(compileAndRun(unboxed[Int], Out1(Let("x", I32(10), IntInfo, Ref("x")))) === 10)
+    assert(compileAndRun(unboxed[Int], Out1(Let("x", I32(10), TInt32, Ref("x")))) === 10)
   }
 
   @Test(enabled = false)
   def arrays() {
-    assert(compileAndRun(unboxed[Array[Int]], Out1(MakeArray(Array(), IntInfo))) === Array[Int]())
-    assert(compileAndRun(unboxed[Array[Int]], Out1(MakeArray(Array(I32(4), I32(3), I32(2), I32(1), I32(0)), IntInfo))) === Array(4,3,2,1,0))
-    assert(compileAndRun(unboxed[Int], Out1(ArrayRef(MakeArray(Array(I32(4), I32(3), I32(2), I32(1), I32(0)), IntInfo), I32(0), IntInfo))) === 4)
-    assert(compileAndRun(unboxed[Int], Out1(ArrayRef(MakeArray(Array(I32(4), I32(3), I32(2), I32(1), I32(0)), IntInfo), I32(4), IntInfo))) === 0)
+    assert(compileAndRun(unboxed[Array[Int]], Out1(MakeArray(Array(), TInt32))) === Array[Int]())
+    assert(compileAndRun(unboxed[Array[Int]], Out1(MakeArray(Array(I32(4), I32(3), I32(2), I32(1), I32(0)), TInt32))) === Array(4,3,2,1,0))
+    assert(compileAndRun(unboxed[Int], Out1(ArrayRef(MakeArray(Array(I32(4), I32(3), I32(2), I32(1), I32(0)), TInt32), I32(0), TInt32))) === 4)
+    assert(compileAndRun(unboxed[Int], Out1(ArrayRef(MakeArray(Array(I32(4), I32(3), I32(2), I32(1), I32(0)), TInt32), I32(4), TInt32))) === 0)
     intercept[IndexOutOfBoundsException] {
-      compileAndRun(unboxed[Int], Out1(ArrayRef(MakeArray(Array(I32(4), I32(3), I32(2), I32(1), I32(0)), IntInfo), I32(5), IntInfo)))
+      compileAndRun(unboxed[Int], Out1(ArrayRef(MakeArray(Array(I32(4), I32(3), I32(2), I32(1), I32(0)), TInt32), I32(5), TInt32)))
     }
   }
 
   @Test
   def simpleNullnessInt() {
-    assert(compileAndRun(boxed[Integer, Int], Out1(_NA[Int])) === null)
-    assert(compileAndRun(boxed[Integer, Int], Out1(_NA[Int])) === null)
-    assert(compileAndRun(boxed[Integer, Int], Out1(If(True(), _NA[Int], _NA[Int]))) === null)
-    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), _NA[Int], _NA[Int]))) === null)
-    assert(compileAndRun(boxed[Integer, Int], Out1(Let("x", _NA[Int], typeInfo[Int], Ref("x")))) === null)
-    assert(compileAndRun(unboxed[Int], Out1(Let("x", _NA[Int], typeInfo[Int], I32(1)))) === 1)
-    assert(compileAndRun(boxed[Integer, Int], Out1(Let("x", I32(2), IntInfo, _NA[Int]))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(NA(TInt32))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(NA(TInt32))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(If(True(), NA(TInt32), NA(TInt32)))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), NA(TInt32), NA(TInt32)))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(Let("x", NA(TInt32), TInt32, Ref("x")))) === null)
+    assert(compileAndRun(unboxed[Int], Out1(Let("x", NA(TInt32), TInt32, I32(1)))) === 1)
+    assert(compileAndRun(boxed[Integer, Int], Out1(Let("x", I32(2), TInt32, NA(TInt32)))) === null)
   }
 
   @Test
   def simpleNullnessOtherTypes() {
-    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(_NA[Double])) === null)
-    assert(compileAndRun(boxed[java.lang.Float, Float], Out1(_NA[Float])) === null)
-    assert(compileAndRun(boxed[java.lang.Long, Long], Out1(If(True(), _NA[Long], _NA[Long]))) === null)
-    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), _NA[Int], _NA[Int]))) === null)
-    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(Let("x", _NA[Double], typeInfo[Double], Ref("x")))) === null)
-    assert(compileAndRun(unboxed[Float], Out1(Let("x", _NA[Int], typeInfo[Int], F32(1.0f)))) === 1.0)
-    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(Let("x", F64(2.0), DoubleInfo, _NA[Double]))) === null)
+    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(NA(TFloat64))) === null)
+    assert(compileAndRun(boxed[java.lang.Float, Float], Out1(NA(TFloat32))) === null)
+    assert(compileAndRun(boxed[java.lang.Long, Long], Out1(If(True(), NA(TInt64), NA(TInt64)))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), NA(TInt32), NA(TInt32)))) === null)
+    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(Let("x", NA(TFloat64), TFloat64, Ref("x")))) === null)
+    assert(compileAndRun(unboxed[Float], Out1(Let("x", NA(TInt32), TInt32, F32(1.0f)))) === 1.0)
+    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(Let("x", F64(2.0), TFloat64, NA(TFloat64)))) === null)
   }
 
   @Test
   def mapNAInt() {
-    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", _NA[Int], typeInfo[Int], I32(1), pointedTypeInfo[Int]))) === null)
-    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", _NA[Int], typeInfo[Int], Ref("x"), pointedTypeInfo[Int]))) === null)
-    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", I32(3), typeInfo[Int], Ref("x"), pointedTypeInfo[Int]))) === 3)
+    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", NA(TInt32), TInt32, I32(1), TInt32))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", NA(TInt32), TInt32, Ref("x"), TInt32))) === null)
+    assert(compileAndRun(boxed[Integer, Int], Out1(MapNA("x", I32(3), TInt32, Ref("x"), TInt32))) === 3)
   }
 
   @Test
   def mapNAOtherTypes() {
-    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(MapNA("x", _NA[Double], typeInfo[Double], F64(1.0), pointedTypeInfo[Double]))) === null)
-    assert(compileAndRun(boxed[java.lang.Long, Long], Out1(MapNA("x", _NA[Long], typeInfo[Long], Ref("x"), pointedTypeInfo[Long]))) === null)
-    assert(compileAndRun(boxed[java.lang.Float, Float], Out1(MapNA("x", F32(3.0f), typeInfo[Float], Ref("x"), pointedTypeInfo[Float]))) === 3)
+    assert(compileAndRun(boxed[java.lang.Double, Double], Out1(MapNA("x", NA(TFloat64), TFloat64, F64(1.0), TFloat64))) === null)
+    assert(compileAndRun(boxed[java.lang.Long, Long], Out1(MapNA("x", NA(TInt64), TInt64, Ref("x"), TInt64))) === null)
+    assert(compileAndRun(boxed[java.lang.Float, Float], Out1(MapNA("x", F32(3.0f), TFloat32, Ref("x"), TFloat32))) === 3)
   }
 
   @Test
   def differingNullnessOnBranchesOfAnIf() {
-    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), _NA[Int], I32(3))), Some(new PrintWriter(System.err))) === 3)
+    assert(compileAndRun(boxed[Integer, Int], Out1(If(False(), NA(TInt32), I32(3))), Some(new PrintWriter(System.err))) === 3)
   }
 
 }

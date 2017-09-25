@@ -1,6 +1,8 @@
 package is.hail.expr
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
+import is.hail.asm4s._
+import is.hail.asm4s.TypeInfo
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
 import is.hail.sparkextras.OrderedKey
@@ -207,6 +209,10 @@ sealed abstract class Type extends Serializable { self =>
   /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
       types, Array and Struct. */
   def fundamentalType: Type = this
+
+  def point: Code[_]
+
+  def ti: TypeInfo[_]
 }
 
 abstract class ComplexType extends Type {
@@ -219,6 +225,10 @@ abstract class ComplexType extends Type {
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = representation.unsafeOrdering(missingGreatest)
 
   override lazy val fundamentalType: Type = representation.fundamentalType
+
+  override def point: Code[AnyRef] = Code._null
+
+  override def ti: TypeInfo[AnyRef] = typeInfo[AnyRef]
 }
 
 case object TBinary extends Type {
@@ -277,6 +287,10 @@ case object TBinary extends Type {
     region.align(contentAlignment)
     region.allocate(contentByteSize(length))
   }
+
+  override val point: Code[Byte] = const(0.toByte)
+
+  override val ti: TypeInfo[Byte] = typeInfo[Byte]
 }
 
 case object TBoolean extends Type {
@@ -301,6 +315,10 @@ case object TBoolean extends Type {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Boolean]]))
 
   override def byteSize: Long = 1
+
+  override val point: Code[Boolean] = const(false)
+
+  override val ti: TypeInfo[Boolean] = typeInfo[Boolean]
 }
 
 object TNumeric {
@@ -348,6 +366,10 @@ case object TInt32 extends TIntegral {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
 
   override def byteSize: Long = 4
+
+  override val point: Code[Int] = const(0)
+
+  override val ti: TypeInfo[Int] = typeInfo[Int]
 }
 
 case object TInt64 extends TIntegral {
@@ -372,6 +394,10 @@ case object TInt64 extends TIntegral {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Long]]))
 
   override def byteSize: Long = 8
+
+  override val point: Code[Long] = const(0L)
+
+  override val ti: TypeInfo[Long] = typeInfo[Long]
 }
 
 case object TFloat32 extends TNumeric {
@@ -403,6 +429,10 @@ case object TFloat32 extends TNumeric {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Float]]))
 
   override def byteSize: Long = 4
+
+  override val point: Code[Float] = const(0.0F)
+
+  override val ti: TypeInfo[Float] = typeInfo[Float]
 }
 
 case object TFloat64 extends TNumeric {
@@ -434,6 +464,10 @@ case object TFloat64 extends TNumeric {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Double]]))
 
   override def byteSize: Long = 8
+
+  override val point: Code[Double] = const(0.0)
+
+  override val ti: TypeInfo[Double] = typeInfo[Double]
 }
 
 case object TString extends Type {
@@ -459,6 +493,10 @@ case object TString extends Type {
     val length = TBinary.loadLength(region, offset)
     new String(region.loadBytes(TBinary.bytesOffset(offset), length))
   }
+
+  override def point: Code[String] = const("")
+
+  override val ti: TypeInfo[String] = typeInfo[String]
 }
 
 final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
@@ -490,6 +528,10 @@ final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TFunction is not realizable")
+
+  override def point: Code[_] = throw new RuntimeException("TFunction is not realizable")
+
+  override def ti: TypeInfo[String] = throw new RuntimeException("TFunction is not realizable")
 }
 
 final case class Box[T](var b: Option[T] = None) {
@@ -542,6 +584,10 @@ final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) ex
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TAggregableVariable is not realizable")
+
+  override def point: Code[_] = throw new RuntimeException("TAggregableVariable is not realizable")
+
+  override def ti: TypeInfo[_] = throw new RuntimeException("TAggregableVariable is not realizable")
 }
 
 final case class TVariable(name: String, var t: Type = null) extends Type {
@@ -575,6 +621,10 @@ final case class TVariable(name: String, var t: Type = null) extends Type {
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TVariable is not realizable")
+
+  override def point: Code[_] = throw new RuntimeException("TVariable is not realizable")
+
+  override def ti: TypeInfo[_] = throw new RuntimeException("TVariable is not realizable")
 }
 
 object TAggregable {
@@ -615,6 +665,10 @@ final case class TAggregable(elementType: Type) extends TContainer {
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TAggregable is not realizable")
+
+  override def point: Code[_] = throw new RuntimeException("TAggregable is not realizable")
+
+  override def ti: TypeInfo[_] = throw new RuntimeException("TAggregable is not realizable")
 }
 
 abstract class TContainer extends Type {
@@ -769,6 +823,10 @@ final case class TArray(elementType: Type) extends TIterable {
     """
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
+
+  override def point: Code[Array[_]] = Code._null
+
+  override def ti: TypeInfo[Array[_]] = typeInfo[Array[_]]
 }
 
 final case class TSet(elementType: Type) extends TIterable {
@@ -834,6 +892,10 @@ final case class TSet(elementType: Type) extends TIterable {
     """
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
+
+  override def point: Code[_] = ???
+
+  override def ti: TypeInfo[_] = ???
 }
 
 final case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -905,6 +967,10 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
     annotationOrdering(extendOrderingToNull(missingGreatest)(dict))
   }
+
+  override def point: Code[_] = ???
+
+  override def ti: TypeInfo[_] = ???
 }
 
 case object TGenotype extends ComplexType {
@@ -1715,4 +1781,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
       case _ => off
     }
   }
+
+  override def point: Code[AnyRef] = Code._null
+
+  override def ti: TypeInfo[_] = typeInfo[AnyRef]
 }
