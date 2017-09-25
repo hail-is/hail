@@ -171,6 +171,9 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("!true").contains(false))
     assert(eval[Boolean]("!isMissing(i)").contains(true))
 
+    assert(eval[Boolean]("-j").contains(7))
+    assert(eval[Boolean]("+j").contains(-7))
+
     assert(eval[Boolean]("gs.het.isHomRef()").contains(false))
     assert(eval[Boolean]("!gs.het.isHomRef()").contains(true))
 
