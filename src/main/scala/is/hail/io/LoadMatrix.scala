@@ -22,12 +22,6 @@ object LoadMatrix {
     }
   }
 
-  def placeholderCorrectnessFunction(str: String): Boolean = {
-    // if there is anything that we want to check for on a per-line basis
-    // check for number of elements in row? Do something else?
-    true
-  }
-
   // this assumes that col IDs are in last line of header.
   /// FIXME: Is the toString.split call too slow?
   def parseHeader(lines: Array[String], sep: String = "\t"): Array[String] = {
@@ -104,7 +98,7 @@ object LoadMatrix {
         def advance() {
           while (!present && it.hasNext) {
             it.next().foreach { line =>
-              if (line.nonEmpty && placeholderCorrectnessFunction(line)) {
+              if (line.nonEmpty) {
                 val k = line.substring(0,line.indexOf(sep))
                 region.clear()
                 rvb.start(keyType)
@@ -150,27 +144,55 @@ object LoadMatrix {
           def advance() {
             while (!present && it.hasNext) {
               it.next().foreach { line =>
-                if (line.nonEmpty && placeholderCorrectnessFunction(line)) {
+                if (line.nonEmpty) {
 
-                  val row = line.split(sep)
-                  if (nSamples != 0 && row.length != (nSamples + 1)) {
-                    fatal(
-                      s"""Incorrect number of elements in line:
-                         |     There are $nSamples column IDs but ${row.length} elements in line, including row ID.""".stripMargin)
-                  }
+                  val firstsep = line.indexOf(sep)
 
                   region.clear()
                   rvb.start(matrixType.orderedRDD2Type.rowType.fundamentalType)
                   rvb.startStruct()
-                  rvb.addString(row.head)
-                  rvb.addString(row.head)
+
+                  rvb.addString(line.substring(0,firstsep))
+                  rvb.addString(line.substring(0,firstsep))
                   rvb.startStruct()
                   rvb.endStruct()
 
                   rvb.startArray(nSamples)
                   if (nSamples > 0) {
-                    for (v <- row.tail) {
-                      rvb.addLong(v.trim.toLong)
+                    var off = firstsep + 1
+                    var v = 0L
+                    var ii = 0
+                    while (ii < nSamples) {
+                      if (off > line.length) {
+                        fatal(
+                          s"""Incorrect number of elements in line:
+                             |    expected $nSamples elements in row but only $i elements found.
+                             |    in file ${fileByPartition(i)}
+                           """.stripMargin
+                        )
+                      }
+                      if (off == line.length || line(off) == sep(0)) {
+                        rvb.addLong(v)
+                        v = 0L
+                        ii += 1
+                      } else if (line(off) <= 57 && line(off) >= 48) {
+                        v *= 10
+                        v += line(off) - 48
+                      } else {
+                        fatal(
+                          s"""Encountered non-numeric digit in data field:
+                             |${line(off).toInt} in file ${fileByPartition(i)}""".stripMargin
+                        )
+                      }
+                      off += 1
+                    }
+                    if (off < line.length) {
+                      fatal(
+                        s"""Incorrect number of elements in line:
+                           |    expected $nSamples elements in row but more data found.
+                           |    in file ${fileByPartition(i)}
+                           """.stripMargin
+                      )
                     }
                   }
                   rvb.endArray()
