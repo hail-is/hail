@@ -8,6 +8,7 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
 
 import scala.io.Source
 
@@ -70,20 +71,21 @@ object BgenLoader {
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey)))
+    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey))).persist(StorageLevel.MEMORY_AND_DISK)
 
     val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
       (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
     })).toOrderedRDD[Locus](fastKeys)
 
-    val noMulti = rdd.forall(_._1.nAlleles == 2)
+    val noMulti = fastKeys.forall(_.nAlleles == 2)
 
     if (noMulti)
       info("No multiallelics detected.")
     if (!noMulti)
       info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
 
-
+    fastKeys.unpersist()
+    
     new VariantSampleMatrix(hc, VSMMetadata(
       TString,
       saSignature = TStruct.empty,
