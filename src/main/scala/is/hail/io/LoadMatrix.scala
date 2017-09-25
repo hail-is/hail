@@ -51,33 +51,8 @@ object LoadMatrix {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
-    val headerLines1 = getHeaderLines(hConf, file1)
-    val header1 = parseHeader(headerLines1, sep)
+    val header1 = parseHeader(getHeaderLines(hConf, file1), sep)
     val header1Bc = sc.broadcast(header1)
-
-    val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
-
-    sc.parallelize(files.tail, math.max(1, files.length - 1)).foreach { file =>
-
-      val hConf = confBc.value.value
-      val hd = parseHeader(getHeaderLines(hConf, file), sep)
-      val hd1 = header1Bc.value
-
-      if (!hd1.sameElements(hd)) {
-        hd1.zipAll(hd, None, None)
-          .zipWithIndex.dropWhile { case ((s1, s2), i) => s1 == s2 }.headOption match {
-          case Some(((s1, s2), i)) => fatal(
-            s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i
-.
-             |    ${files(0)}: $s1
-
-             |    $file:
-          $s2""".
-              stripMargin)
-        case None =>
-        }
-      }
-    }
 
     val sampleIds: Array[String] =
       if (dropSamples)
@@ -89,10 +64,7 @@ object LoadMatrix {
 
     LoadMatrix.warnDuplicates(sampleIds)
 
-    val headerLinesBc = sc.broadcast(headerLines1)
-
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
-    /// FIXME: at some point, should probably become more sophisticated.
 
     val fileByPartition = lines.partitions.map(p => partitionPath(p))
     val firstPartitions = fileByPartition.zipWithIndex.filter((name) => name._2 == 0 || fileByPartition(name._2-1) != name._1).map((name) => name._2)
@@ -106,7 +78,21 @@ object LoadMatrix {
     val keyType = matrixType.kType
     val rowKeys: RDD[RegionValue] = lines.mapPartitionsWithIndex { (i,it) =>
 
-      if (firstPartitions.contains(i)) {it.next()}
+      if (firstPartitions.contains(i)) {
+        val hd1 = header1Bc.value
+        val hd = it.next().value.split(sep)
+        if (!hd1.sameElements(hd)) {
+          hd1.zipAll(hd, None, None).zipWithIndex.foreach { case ((s1, s2), j) =>
+            if (s1 != s2) {
+              fatal(
+                s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $j.
+                   |    ${files(0)}: $s1
+                   |    ${fileByPartition(i)}: $s2""".
+                  stripMargin)
+            }
+          }
+        }
+      }
 
       val region = MemoryBuffer()
       val rvb = new RegionValueBuilder(region)
@@ -213,13 +199,11 @@ object LoadMatrix {
         }
       }
 
-    val ordd = OrderedRDD2(matrixType.orderedRDD2Type, rdd, Some(rowKeys), None)
-
     new VariantSampleMatrix(hc,
       VSMMetadata(TString, vSignature = TString, genotypeSignature = TInt64),
       VSMLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
-      ordd)
+      OrderedRDD2(matrixType.orderedRDD2Type, rdd, Some(rowKeys), None))
   }
 }
