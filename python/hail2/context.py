@@ -1,16 +1,16 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
-from hail.typecheck import *
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
-from hail.dataset import VariantDataset
+from hail2.dataset import VariantDataset
 from hail.typ import Type
 from hail.java import *
-from hail.keytable import KeyTable
+from hail2.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
 from hail.utils import wrap_to_list
 from hail.history import *
+from hail.typecheck import *
 
 
 class HailContext(HistoryMixin):
@@ -88,6 +88,8 @@ class HailContext(HistoryMixin):
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
         super(HailContext, self).__init__()
+
+        self._counter = 0
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
@@ -914,3 +916,7 @@ class HailContext(HistoryMixin):
 
         jkt = self._jhc.readTable(path)
         return KeyTable(self, jkt)
+
+    def _get_unique_id(self):
+        self._counter += 1
+        return "__uid_{}".format(self._counter)

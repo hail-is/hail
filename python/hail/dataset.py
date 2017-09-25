@@ -4,7 +4,7 @@ import warnings
 
 from decorator import decorator
 
-from hail.htypes import Type, TGenotype, TString, TVariant, TArray
+from hail.typ import Type, TGenotype, TString, TVariant, TArray
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
@@ -5738,9 +5738,9 @@ class VariantDataset(HistoryMixin):
                                 jarray(Env.jvm().java.lang.String, wrap_to_list(key)), separator)
         return KeyTable(self.hc, jkt)
 
-    def _to_new_variant_dataset(self):
-        from hail.expr.dataset import NewVariantDataset
-        return NewVariantDataset(self.hc, self._jvds)
+    def to_hail2(self):
+        import hail2
+        return hail2.VariantDataset(self.hc, self._jvds)
 
 vds_type.set(VariantDataset)
 

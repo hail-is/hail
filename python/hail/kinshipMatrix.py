@@ -3,7 +3,7 @@ from decorator import decorator
 from hail.typecheck import *
 from hail.history import *
 from hail.java import *
-from hail.htypes import Type, TString
+from hail.typ import Type, TString
 
 
 class KinshipMatrix(HistoryMixin):

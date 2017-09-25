@@ -5,11 +5,11 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail import HailContext
-from hail.expr.functions import *
-from hail.htypes import *
-from hail.expr import NewKeyTable
-from hail.expr.column import VariantColumn, LocusColumn, IntervalColumn, GenotypeColumn
+from hail2.context import HailContext
+from hail2.expr.functions import *
+from hail.typ import *
+from hail2.keytable import KeyTable
+from hail2.expr.column import VariantColumn, LocusColumn, IntervalColumn, GenotypeColumn
 
 hc = None
 
@@ -47,9 +47,9 @@ def convert_struct_to_dict(x):
 class KeyTableTests(unittest.TestCase):
     def test_conversion(self):
         test_resources = 'src/test/resources'
-        kt_old = hc.import_table(test_resources + '/sampleAnnotations.tsv', impute=True).key_by('Sample')
-        kt_new = kt_old._to_new_keytable()
-        kt_old2 = kt_new._to_old_keytable()
+        kt_old = hc.import_table(test_resources + '/sampleAnnotations.tsv', impute=True).to_hail1()
+        kt_new = kt_old.to_hail2()
+        kt_old2 = kt_new.to_hail1()
         self.assertListEqual(kt_new.columns, ['Sample', 'Status', 'qPhen'])
         self.assertTrue(kt_old.same(kt_old2))
         
@@ -61,10 +61,10 @@ class KeyTableTests(unittest.TestCase):
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
                 {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
 
         result1 = convert_struct_to_dict(kt.annotate(foo = kt.a + 1,
-                                                     foo2 = kt.a)._to_old_keytable().take(1)[0])
+                                                     foo2 = kt.a).to_hail1().take(1)[0])
 
         self.assertDictEqual(result1, {'a': 4,
                                    'b': 1,
@@ -80,7 +80,7 @@ class KeyTableTests(unittest.TestCase):
                                          'b.y': 23,
                                          'b.z': True,
                                          'b.q.hello': [1, 2, 3]}
-                                                     )._to_old_keytable().take(1)[0])
+                                                     ).to_hail1().take(1)[0])
 
         self.assertDictEqual(result2, {'a': {'foo': 5},
                                    'b': {'x': "hello", 'y': 23, 'z': True, 'q': {'hello': [1, 2, 3]}},
@@ -103,8 +103,9 @@ class KeyTableTests(unittest.TestCase):
             x11 = kt.f[1:2],
             x12 = kt.f.map(lambda x: [x, x + 1]),
             x13 = kt.f.map(lambda x: [[x, x + 1], [x + 2]]).flat_map(lambda x: x),
-            x14 = where(kt.a < kt.b, kt.c, Column.null(TInt32()))
-        )._to_old_keytable().take(1)[0])
+            x14 = where(kt.a < kt.b, kt.c, Column.null(TInt32())),
+            x15 = set([1, 2, 3])
+        ).to_hail1().take(1)[0])
 
         self.assertDictEqual(result3, {'a': 4,
                                    'b': 1,
@@ -117,7 +118,7 @@ class KeyTableTests(unittest.TestCase):
                                    'x9': [2, 3], 'x10': [1, 2, 3], 'x11': [2],
                                    'x12': [[1, 2], [2, 3], [3, 4]],
                                    'x13': [[1, 2], [3], [2, 3], [4], [3, 4], [5]],
-                                   'x14': None})
+                                   'x14': None, 'x15': set([1, 2, 3])})
 
     def test_query(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f'],
@@ -127,7 +128,7 @@ class KeyTableTests(unittest.TestCase):
                 {'a':0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
                 {'a':4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
         kt_agg = kt.aggregate()
         q1, q2 = kt_agg.query([kt_agg.b.sum(), kt_agg.b.count()])
         q3 = kt_agg.query(kt_agg.e.collect())
@@ -144,7 +145,7 @@ class KeyTableTests(unittest.TestCase):
                 {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
                 {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
 
         self.assertEqual(kt.filter(kt.a == 4).count(), 2)
         self.assertEqual(kt.filter((kt.d == -1) | (kt.c == 20) | (kt.e == "hello")).count(), 3)
@@ -158,7 +159,7 @@ class KeyTableTests(unittest.TestCase):
                 {'a':0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
                 {'a':4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
 
         self.assertEqual(kt.select('a', 'e').columns, ['a', 'e'])
         self.assertEqual(kt.select(*['a', 'e']).columns, ['a', 'e'])
@@ -171,7 +172,7 @@ class KeyTableTests(unittest.TestCase):
                 {'status':0, 'gt': Genotype(1), 'qPheno': 13},
                 {'status':1, 'gt': Genotype(1), 'qPheno': 20}]
 
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
 
         g = kt.group_by(status = kt.status)
         result = convert_struct_to_dict(g.aggregate_by_key(
@@ -193,7 +194,7 @@ class KeyTableTests(unittest.TestCase):
             x16 = (g.gt.map(lambda g: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})}))
                    .map(lambda s: s.c.banana).collect()[0]),
             num_partitions=5
-        )._to_old_keytable().take(1)[0])
+        ).to_hail1().take(1)[0])
 
         expected = {'status': 0, 'x1': [6, 26], 'x2': [3, 4, 13, 14],
                     'x3': 3, 'x4': 13, 'x5': 16, 'x6': 39, 'x7': 2, 'x8': 1,
@@ -211,12 +212,18 @@ class KeyTableTests(unittest.TestCase):
 class DatasetTests(unittest.TestCase):
     def get_vds(self):
         test_resources = 'src/test/resources/'
-        return hc.import_vcf(test_resources + "sample.vcf")._to_new_variant_dataset()
+        return hc.import_vcf(test_resources + "sample.vcf")
+
+    def testConversion(self):
+        vds_old = self.get_vds().to_hail1()
+        vds_new = vds_old.to_hail2()
+        vds_old2 = vds_new.to_hail1()
+        self.assertTrue(vds_old.same(vds_old2))
 
     def test_update(self):
         vds = self.get_vds()
         vds = vds.update_genotypes(lambda g: Struct({'dp': vds.g.dp, 'gq': vds.g.gq}))
-        vds_old = vds._to_old_variant_dataset()
+        vds_old = vds.to_hail1()
         self.assertTrue(schema_eq(vds_old.genotype_schema, TStruct(['dp', 'gq'], [TInt32(), TInt32()])))
 
     def test_with(self):
@@ -316,7 +323,7 @@ class FunctionsTests(unittest.TestCase):
                  'i': True,
                  'j': Struct({'x': 3, 'y': 2, 'z': "summer"})}]
 
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
 
         result = convert_struct_to_dict(kt.annotate(
             chisq = chisq(kt.a, kt.b, kt.c, kt.d),
@@ -355,7 +362,7 @@ class FunctionsTests(unittest.TestCase):
             sqrt = sqrt(kt.a),
             to_str = [to_str(5), to_str(kt.a), to_str(kt.g)],
             where = where(kt.i, 5, 10)
-        )._to_old_keytable().take(1)[0])
+        ).to_hail1().take(1)[0])
 
         # print(result) # Fixme: Add asserts
 
@@ -369,7 +376,7 @@ class ColumnTests(unittest.TestCase):
                 {'a':0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
                 {'a':4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
 
         result = convert_struct_to_dict(kt.annotate(
             x1 = kt.a + 5,
@@ -408,7 +415,7 @@ class ColumnTests(unittest.TestCase):
             x34 = (kt.a == 0) | (kt.b == 5),
             x35 = False,
             x36 = True
-        )._to_old_keytable().take(1)[0])
+        ).to_hail1().take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
                     'x1': 9, 'x2': 9, 'x3': 5,
@@ -428,7 +435,7 @@ class ColumnTests(unittest.TestCase):
     def test_array_column(self):
         schema = TStruct(['a'], [TArray(TInt32())])
         rows = [{'a': [1, 2, 3]}]
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
 
         result = convert_struct_to_dict(kt.annotate(
             x1 = kt.a[0],
@@ -437,7 +444,7 @@ class ColumnTests(unittest.TestCase):
             x4 = kt.a[1:2],
             x5 = kt.a[-1:2],
             x6 = kt.a[:2]
-        )._to_old_keytable().take(1)[0])
+        ).to_hail1().take(1)[0])
 
         expected = {'a': [1, 2, 3], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3],
                     'x4': [2], 'x5': [], 'x6': [1, 2]}
@@ -447,7 +454,7 @@ class ColumnTests(unittest.TestCase):
     def test_dict_column(self):
         schema = TStruct(['x'], [TFloat64()])
         rows = [{'x': 2.0}]
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
 
         kt = kt.annotate(a = Dict(['cat', 'dog'], [3, 7]))
 
@@ -461,7 +468,7 @@ class ColumnTests(unittest.TestCase):
             x7 = kt.a.values(),
             x8 = kt.a.size(),
             x9 = kt.a.map_values(lambda v: v.to_float64())
-        )._to_old_keytable().take(1)[0])
+        ).to_hail1().take(1)[0])
 
         expected = {'a': {'cat': 3, 'dog': 7}, 'x': 2.0, 'x1': 3, 'x2': 7, 'x3': False,
                     'x4': False, 'x5': set(['cat', 'dog']), 'x6': ['cat', 'dog'],
@@ -472,7 +479,7 @@ class ColumnTests(unittest.TestCase):
     def test_numeric_conversion(self):
         schema = TStruct(['a', 'b', 'c', 'd'], [TFloat64(), TFloat64(), TInt32(), TInt64()])
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': long(5)}]
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
 
         kt = kt.annotate(x1 = [1.0, kt.a, 1, long(1)],
                          x2 = [1, 1.0],
@@ -489,7 +496,7 @@ class ColumnTests(unittest.TestCase):
     def test_constructors(self):
         schema = TStruct(['a', 'b', 'c', 'd'], [TFloat64(), TFloat64(), TInt32(), TInt64()])
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': long(5)}]
-        kt = NewKeyTable.parallelize(rows, schema)
+        kt = KeyTable.parallelize(rows, schema)
 
         kt = kt.annotate(v1 = VariantColumn.parse("1:500:A:T"),
                          v2 = VariantColumn.from_args("1", 23, "A", "T"),

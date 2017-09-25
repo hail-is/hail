@@ -1,12 +1,6 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
-import warnings
-
-from decorator import decorator
-from hail.expr.column import *
-
-
-warnings.filterwarnings(module=__name__, action='once')
+from hail2.expr.column import *
 
 
 class DatasetTemplate(object):
@@ -142,7 +136,7 @@ class AggregatedVariantDataset(DatasetTemplate):
         return r
 
 
-class NewVariantDataset(DatasetTemplate):
+class VariantDataset(DatasetTemplate):
 
     @handle_py4j
     def count_variants(self):
@@ -152,59 +146,59 @@ class NewVariantDataset(DatasetTemplate):
     def update_genotypes(self, f):
         exprs = ", ".join(["g = " + to_expr(f(self.g))])
         jvds = self._jvds.annotateGenotypesExpr(exprs)
-        return NewVariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     def annotate_alleles(self, propagate_gq=False, **kwargs):
         exprs = ", ".join(["va." + k + " = " + to_expr(v) for k, v in kwargs.items()])
         jvds = self._jvdf.annotateAllelesExpr(exprs, propagate_gq)
-        return NewVariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     def annotate_genotypes(self, **kwargs):
         exprs = ", ".join(["g." + k + " = " + to_expr(v) for k, v in kwargs.items()])
         jvds = self._jvds.annotateGenotypesExpr(exprs)
-        return NewVariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     def annotate_global(self, **kwargs):
         exprs = ", ".join(["global." + k + " = " + to_expr(v) for k, v in kwargs.items()])
         jvds = self._jvds.annotateGlobalExpr(exprs)
-        return NewVariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     def annotate_samples(self, **kwargs):
         exprs = ", ".join(["sa." + k + " = " + to_expr(v) for k, v in kwargs.items()])
         jvds = self._jvds.annotateSamplesExpr(exprs)
-        return NewVariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     def annotate_variants(self, **kwargs):
         exprs = ", ".join(["va." + k + " = " + to_expr(v) for k, v in kwargs.items()])
         jvds = self._jvds.annotateVariantsExpr(exprs)
-        return NewVariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, jvds)
 
     # FIXME: Filter alleles will be rewritten so as not to include an annotation path
 
     @handle_py4j
     def filter_genotypes(self, expr, keep=True):
         jvds = self._jvds.filterGenotypes(expr.expr, keep)
-        return NewVariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     def filter_samples(self, expr, keep=True):
         jvds = self._jvds.filterSamplesExpr(expr.expr, keep)
-        return NewVariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     def filter_variants(self, expr, keep=True):
         jvds = self._jvds.filterVariantsExpr(expr.expr, keep)
-        return NewVariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     def aggregate(self):
         return AggregatedVariantDataset(self.hc, self._jvds)
 
-    def _to_old_variant_dataset(self):
-        from hail.dataset import VariantDataset
-        return VariantDataset(self.hc, self._jvds)
+    def to_hail1(self):
+        import hail
+        return hail.VariantDataset(self.hc, self._jvds)

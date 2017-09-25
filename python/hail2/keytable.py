@@ -1,8 +1,8 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
-from hail.expr.column import Column, convert_column, to_expr
+from hail2.expr.column import Column, convert_column, to_expr
 from hail.java import *
-from hail.htypes import Type, TArray, TStruct, TAggregable
+from hail.typ import Type, TArray, TStruct, TAggregable
 from hail.representation import Struct
 from hail.typecheck import *
 from hail.utils import wrap_to_list
@@ -54,7 +54,7 @@ class GroupedKeyTable(KeyTableTemplate):
     @handle_py4j
     def aggregate_by_key(self, num_partitions=None, **kwargs):
         agg_expr = [k + " = " + to_expr(v) for k, v in kwargs.items()]
-        return NewKeyTable(self.hc, self._jkt.aggregate(self._groups, ", ".join(agg_expr), joption(num_partitions)))
+        return KeyTable(self.hc, self._jkt.aggregate(self._groups, ", ".join(agg_expr), joption(num_partitions)))
 
 
 class AggregatedKeyTable(KeyTableTemplate):
@@ -84,9 +84,9 @@ class AggregatedKeyTable(KeyTableTemplate):
         return r
 
 
-class NewKeyTable(KeyTableTemplate):
+class KeyTable(KeyTableTemplate):
     def __init__(self, hc, jkt):
-        super(NewKeyTable, self).__init__(hc, jkt)
+        super(KeyTable, self).__init__(hc, jkt)
         for fd in self.schema.fields:
             self.__setattr__(fd.name, convert_column(Column(fd.name, fd.typ)))
 
@@ -118,7 +118,7 @@ class NewKeyTable(KeyTableTemplate):
     @classmethod
     @handle_py4j
     def parallelize(cls, rows, schema, key=[], num_partitions=None):
-        return NewKeyTable(
+        return KeyTable(
             Env.hc(),
             Env.hail().keytable.KeyTable.parallelize(
                 Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],
@@ -127,16 +127,16 @@ class NewKeyTable(KeyTableTemplate):
     @handle_py4j
     def annotate(self, **kwargs):
         exprs = [k + " = " + to_expr(v) for k, v in kwargs.items()]
-        return NewKeyTable(self.hc, self._jkt.annotate(", ".join(exprs)))
+        return KeyTable(self.hc, self._jkt.annotate(", ".join(exprs)))
 
     @handle_py4j
     def filter(self, expr, keep=True):
         jkt = self._jkt.filter(expr.expr, keep)
-        return NewKeyTable(self.hc, jkt)
+        return KeyTable(self.hc, jkt)
 
     @handle_py4j
     def select(self, *column_names):
-        return NewKeyTable(self.hc, self._jkt.select(column_names))
+        return KeyTable(self.hc, self._jkt.select(column_names))
 
     @handle_py4j
     def export(self, output, types_file=None, header=True):
@@ -149,6 +149,6 @@ class NewKeyTable(KeyTableTemplate):
         group_exprs = [k + " = " + to_expr(v) for k, v in kwargs.items()]
         return GroupedKeyTable(self.hc, self._jkt, ", ".join(group_exprs))
 
-    def _to_old_keytable(self):
-        from hail.keytable import KeyTable
-        return KeyTable(self.hc, self._jkt)
+    def to_hail1(self):
+        import hail
+        return hail.KeyTable(self.hc, self._jkt)

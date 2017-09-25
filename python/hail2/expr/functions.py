@@ -1,7 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
-from hail.expr.column import *
-from hail.htypes import *
+from hail2.expr.column import *
+from hail.typ import *
 from hail.typecheck import *
 
 integral = oneof(Int32Column, Int64Column, integral)

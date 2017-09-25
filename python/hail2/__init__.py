@@ -1,15 +1,15 @@
+from hail2.context import HailContext
+from hail2.keytable import KeyTable
+from hail2.dataset import VariantDataset
 from hail.representation import *
-from hail.context import HailContext
-from hail.dataset import VariantDataset
 from hail.typ import *
-from hail.keytable import KeyTable
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
 from hail.utils import hadoop_read, hadoop_write, hadoop_copy
 
 __all__ = ['HailContext',
-           'VariantDataset',
            'KeyTable',
+           'VariantDataset',
            'Variant',
            'Locus',
            'AltAllele',

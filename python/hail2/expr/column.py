@@ -1,7 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
-from hail.htypes import *
+from hail.typ import *
 from hail.representation import *
 
 
@@ -12,12 +12,15 @@ def to_expr(arg):
         return "\"" + arg + "\""
     elif isinstance(arg, bool):
         return "true" if arg else "false"
+    elif isinstance(arg, int) or isinstance(arg, float):
+        return str(arg)
     elif isinstance(arg, long):
         return "{}.toInt64()".format(arg)
     elif isinstance(arg, list):
         return "[" + ", ".join([to_expr(a) for a in arg]) + "]"
     elif isinstance(arg, set):
-        return "let xfsjd = [" + ", ".join([to_expr(a) for a in arg]) + "] in xfsjd.toSet()"
+        uid = Env.hc()._get_unique_id()
+        return "let {uid} = [{args}] in {uid}.toSet()".format(uid=uid, args=", ".join([to_expr(a) for a in arg]))
     elif isinstance(arg, Variant):
         return "Variant(\"" + str(arg) + "\")"
     elif isinstance(arg, Locus):
@@ -29,7 +32,7 @@ def to_expr(arg):
     elif callable(arg):
         return arg
     else:
-        return str(arg)
+        raise NotImplementedError("Cannot convert arg `{}' with type `{}' to an expr.".format(arg, arg.__class__))
 
 
 @decorator
@@ -41,23 +44,19 @@ def args_to_expr(func, *args):
 def convert_column(x):
     if isinstance(x, Column) and x.typ.__class__ in typ_to_column:
         x = typ_to_column[x.typ.__class__](x.expr, x.typ, x.parent)
+
+        if isinstance(x, ArrayColumn) and x._elt_type.__class__ in elt_typ_to_array_column:
+            return elt_typ_to_array_column[x._elt_type.__class__](x.expr, x.typ, x.parent)
+        elif isinstance(x, SetColumn) and x._elt_type.__class__ in elt_typ_to_set_column:
+            return elt_typ_to_set_column[x._elt_type.__class__](x.expr, x.typ, x.parent)
+        elif isinstance(x, AggregableColumn) and isinstance(x._elt_type, TArray):
+            return elt_typ_to_agg_column[TArray][x._elt_type.element_type.__class__](x.expr, x.typ, x.parent)
+        elif isinstance(x, AggregableColumn) and x._elt_type.__class__ in elt_typ_to_agg_column:
+            return elt_typ_to_agg_column[x._elt_type.__class__](x.expr, x.typ, x.parent)
+        else:
+            return x
     else:
         raise NotImplementedError("Can't convert column with type `" + str(x.typ.__class__) + "'.")
-
-    if isinstance(x, ArrayColumn) and x._elt_type.__class__ in elt_typ_to_array_column:
-        return elt_typ_to_array_column[x._elt_type.__class__](x.expr, x.typ, x.parent)
-
-    elif isinstance(x, SetColumn) and x._elt_type.__class__ in elt_typ_to_set_column:
-        return elt_typ_to_set_column[x._elt_type.__class__](x.expr, x.typ, x.parent)
-
-    elif isinstance(x, AggregableColumn) and isinstance(x._elt_type, TArray):
-        return elt_typ_to_agg_column[TArray][x._elt_type.element_type.__class__](x.expr, x.typ, x.parent)
-
-    elif isinstance(x, AggregableColumn) and x._elt_type.__class__ in elt_typ_to_agg_column:
-        return elt_typ_to_agg_column[x._elt_type.__class__](x.expr, x.typ, x.parent)
-
-    else:
-        return x
 
 
 def is_numeric(x):
