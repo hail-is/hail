@@ -1,6 +1,7 @@
 from hail2.context import HailContext
-from hail2.keytable import KeyTable
-from hail2.dataset import VariantDataset
+from hail2.keytable import *
+from hail2.dataset import *
+from hail2.expr.column import Column
 from hail.representation import *
 from hail.typ import *
 from hail.kinshipMatrix import KinshipMatrix
@@ -9,7 +10,10 @@ from hail.utils import hadoop_read, hadoop_write, hadoop_copy
 
 __all__ = ['HailContext',
            'KeyTable',
+           'AggregatedKeyTable',
+           'GroupedKeyTable',
            'VariantDataset',
+           'AggregatedVariantDataset',
            'Variant',
            'Locus',
            'AltAllele',
@@ -41,5 +45,6 @@ __all__ = ['HailContext',
            'hadoop_copy',
            'KinshipMatrix',
            'LDMatrix',
-           'representation'
+           # 'representation',
+           'Column'
            ]

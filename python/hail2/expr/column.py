@@ -7,7 +7,7 @@ from hail.representation import *
 
 def to_expr(arg):
     if isinstance(arg, Column):
-        return arg.expr
+        return arg._expr
     elif isinstance(arg, str):
         return "\"" + arg + "\""
     elif isinstance(arg, bool):
@@ -42,21 +42,21 @@ def args_to_expr(func, *args):
 
 
 def convert_column(x):
-    if isinstance(x, Column) and x.typ.__class__ in typ_to_column:
-        x = typ_to_column[x.typ.__class__](x.expr, x.typ, x.parent)
+    if isinstance(x, Column) and x._typ.__class__ in typ_to_column:
+        x = typ_to_column[x._typ.__class__](x._expr, x._typ, x._parent, x._scope)
 
         if isinstance(x, ArrayColumn) and x._elt_type.__class__ in elt_typ_to_array_column:
-            return elt_typ_to_array_column[x._elt_type.__class__](x.expr, x.typ, x.parent)
+            return elt_typ_to_array_column[x._elt_type.__class__](x._expr, x._typ, x._parent, x._scope)
         elif isinstance(x, SetColumn) and x._elt_type.__class__ in elt_typ_to_set_column:
-            return elt_typ_to_set_column[x._elt_type.__class__](x.expr, x.typ, x.parent)
-        elif isinstance(x, AggregableColumn) and isinstance(x._elt_type, TArray):
-            return elt_typ_to_agg_column[TArray][x._elt_type.element_type.__class__](x.expr, x.typ, x.parent)
-        elif isinstance(x, AggregableColumn) and x._elt_type.__class__ in elt_typ_to_agg_column:
-            return elt_typ_to_agg_column[x._elt_type.__class__](x.expr, x.typ, x.parent)
+            return elt_typ_to_set_column[x._elt_type.__class__](x._expr, x._typ, x._parent, x._scope)
+        elif isinstance(x, AggregableColumn) and isinstance(x._elt_type, TArray) and x._elt_type.element_type.__class__ in elt_typ_to_agg_column[TArray]:
+            return elt_typ_to_agg_column[TArray][x._elt_type.element_type.__class__](x._expr, x._typ, x._parent, x._scope)
+        elif isinstance(x, AggregableColumn) and not isinstance(x._elt_type, TArray) and x._elt_type.__class__ in elt_typ_to_agg_column:
+            return elt_typ_to_agg_column[x._elt_type.__class__](x._expr, x._typ, x._parent, x._scope)
         else:
             return x
     else:
-        raise NotImplementedError("Can't convert column with type `" + str(x.typ.__class__) + "'.")
+        raise NotImplementedError("Can't convert column with type `" + str(x._typ.__class__) + "'.")
 
 
 def is_numeric(x):
@@ -78,7 +78,7 @@ def convert_numeric_typ(xs):
 
 def get_typ(x):
     if isinstance(x, Column):
-        return x.typ
+        return x._typ
     elif isinstance(x, Variant):
         return TVariant()
     elif isinstance(x, Locus):
@@ -119,10 +119,11 @@ def get_typ(x):
 
 
 class Column(object):
-    def __init__(self, expr, typ=None, parent=None):
+    def __init__(self, expr, typ=None, parent=None, scope=None):
         self._expr = parent + "." + expr if parent else expr
         self._typ = typ
         self._parent = parent
+        self._scope = scope
 
     def __str__(self):
         return self._expr
@@ -130,23 +131,11 @@ class Column(object):
     def __repr__(self):
         return self._expr
 
-    @property
-    def expr(self):
-        return self._expr
-
-    @property
-    def typ(self):
-        return self._typ
-
-    @property
-    def parent(self):
-        return self._parent
-
     def _unary_op(self, name):
         @args_to_expr
         def _(column):
             return "{name}({col})".format(name=name, col=column)
-        return convert_column(Column(_(self), self.typ))
+        return convert_column(Column(_(self), self._typ))
 
     def _bin_op(self, name, other, ret_typ):
         @args_to_expr
@@ -217,15 +206,15 @@ class Column(object):
 
 
 class CollectionColumn(Column):
-    def __init__(self, expr, typ=None, parent=None):
+    def __init__(self, expr, typ=None, parent=None, scope=None):
         self._elt_type = typ.element_type
-        super(CollectionColumn, self).__init__(expr, typ, parent)
+        super(CollectionColumn, self).__init__(expr, typ, parent, scope)
 
     def exists(self, f):
         return self._bin_lambda_method("exists", f, self._elt_type, lambda t: TBoolean())
 
     def filter(self, f):
-        return self._bin_lambda_method("filter", f, self._elt_type, lambda t: self.typ)
+        return self._bin_lambda_method("filter", f, self._elt_type, lambda t: self._typ)
 
     def find(self, f):
         return self._bin_lambda_method("find", f, self._elt_type, lambda t: self._elt_type)
@@ -237,7 +226,7 @@ class CollectionColumn(Column):
         return self._bin_lambda_method("forall", f, self._elt_type, lambda t: TBoolean())
 
     def group_by(self, f):
-        return self._bin_lambda_method("groupBy", f, self._elt_type, lambda t: TDict(t, self.typ))
+        return self._bin_lambda_method("groupBy", f, self._elt_type, lambda t: TDict(t, self._typ))
 
     def head(self):
         return self._method("head", self._elt_type)
@@ -246,13 +235,13 @@ class CollectionColumn(Column):
         return self._method("isEmpty", TBoolean())
 
     def map(self, f):
-        return self._bin_lambda_method("map", f, self._elt_type, lambda t: self.typ.__class__(t))
+        return self._bin_lambda_method("map", f, self._elt_type, lambda t: self._typ.__class__(t))
 
     def size(self):
         return self._method("size", TInt32())
 
     def tail(self):
-        return self._method("tail", self.typ)
+        return self._method("tail", self._typ)
 
     def to_array(self):
         return self._method("toArray", TArray(self._elt_type))
@@ -278,40 +267,39 @@ class CollectionNumericColumn(CollectionColumn):
         return self._method("product", self._elt_type)
 
     def sort(self, ascending=True):
-        return self._method("sort", self.typ, ascending)
+        return self._method("sort", self._typ, ascending)
 
     def sum(self):
         return self._method("sum", self._elt_type)
 
 
 class ArrayColumn(CollectionColumn):
-
     def __getitem__(self, item):
         if isinstance(item, slice):
             args = "{start}:{end}".format(start=item.start if item.start else '',
                                           end=item.stop if item.stop else '')
-            return self._getter_index(self.typ, args)
+            return self._getter_index(self._typ, args)
         elif isinstance(item, int) or isinstance(item, Int32Column):
             return self._getter_index(self._elt_type, item)
         else:
             raise NotImplementedError
 
     def append(self, x):
-        return self._method("append", self.typ, x)
+        return self._method("append", self._typ, x)
 
     def extend(self, a):
-        return self._method("extend", self.typ, a)
+        return self._method("extend", self._typ, a)
 
     def length(self):
         return self._method("length", TInt32())
 
     def sort_by(self, f, ascending=True):
-        return self._bin_lambda_method("sortBy", f, self._elt_type, lambda t: self.typ, ascending)
+        return self._bin_lambda_method("sortBy", f, self._elt_type, lambda t: self._typ, ascending)
 
 
 class ArrayBooleanColumn(ArrayColumn):
     def sort(self, ascending=True):
-        return self._method("sort", self.typ, ascending)
+        return self._method("sort", self._typ, ascending)
 
 
 class ArrayNumericColumn(ArrayColumn, CollectionNumericColumn):
@@ -418,7 +406,7 @@ class ArrayStringColumn(ArrayColumn):
         return self._method("mkString", TString(), delimiter)
 
     def sort(self, ascending=True):
-        return self._method("sort", self.typ, ascending)
+        return self._method("sort", self._typ, ascending)
 
 
 class ArrayStructColumn(ArrayColumn):
@@ -432,22 +420,22 @@ class ArrayArrayColumn(ArrayColumn):
 
 class SetColumn(CollectionColumn):
     def add(self, x):
-        return self._method("add", self.typ, x)
+        return self._method("add", self._typ, x)
 
     def contains(self, x):
         return self._method("contains", TBoolean(), x)
 
     def difference(self, s):
-        return self._method("difference", self.typ, s)
+        return self._method("difference", self._typ, s)
 
     def intersection(self, s):
-        return self._method("intersection", self.typ, s)
+        return self._method("intersection", self._typ, s)
 
     def is_subset(self, s):
         return self._method("isSubset", TBoolean(), s)
 
     def union(self, s):
-        return self._method("union", self.typ, s)
+        return self._method("union", self._typ, s)
 
 
 class SetFloat64Column(SetColumn, CollectionNumericColumn):
@@ -477,10 +465,10 @@ class SetSetColumn(SetColumn):
 
 
 class DictColumn(Column):
-    def __init__(self, expr, typ=None, parent=None):
+    def __init__(self, expr, typ=None, parent=None, scope=None):
         self._key_typ = typ.key_type
         self._value_typ = typ.value_type
-        super(DictColumn, self).__init__(expr, typ, parent)
+        super(DictColumn, self).__init__(expr, typ, parent, scope)
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -513,7 +501,33 @@ class DictColumn(Column):
         return self._method("values", TArray(self._value_typ))
 
 
+class Scope(object):
+    def __setattr__(self, key, value):
+        self.__dict__[key] = value
+
+
 class AggregableColumn(CollectionColumn):
+    def __init__(self, expr, typ, parent=None, scope=None):
+        assert(scope), "AggregableColumn requires a scope."
+        super(AggregableColumn, self).__init__(expr, typ, parent, scope)
+
+    def _bin_lambda_method(self, name, f, inp_typ, ret_typ_f, *args):
+        @args_to_expr
+        def _(column, result, *args):
+            if args:
+                return "{col}.{name}({new_id} => {result}, {args})".format(col=column, name=name, new_id=new_id,
+                                                                           result=result, args=", ".join(args))
+            else:
+                return "{col}.{name}({new_id} => {result})".format(col=column, name=name, new_id=new_id,
+                                                                   result=result)
+
+        new_id = "x"
+        lambda_result = f(convert_column(Column(new_id, inp_typ)), self._scope)
+        lambda_ret_typ = get_typ(lambda_result)
+
+        result = convert_column(Column(to_expr(lambda_result), lambda_ret_typ, scope=self._scope))
+        return convert_column(Column(_(self, result, *args), ret_typ_f(lambda_ret_typ), scope=self._scope))
+
     def collect(self):
         return self._method("collect", TArray(self._elt_type))
 
@@ -524,21 +538,62 @@ class AggregableColumn(CollectionColumn):
         return self._method("counter", TDict(self._elt_type, TInt64()))
 
     def filter(self, f):
+        """Filter items from aggregable.
+
+        :param f: Function to apply to each element in the aggregable. The function must take two
+            input arguments. The first is the element being iterated over. The second is the variable scope of
+            the aggregable. The result type of the function must be either a bool or a :py:class:`~hail2.expr.column.BooleanColumn`.
+
+        """
+
         return self._bin_lambda_method("filter", f, self._elt_type, lambda t: TAggregable(self._elt_type))
 
     def flat_map(self, f):
+        """Flat map each element in aggregable to a new value.
+
+        :param f: Function to apply to each element in the aggregable. The function must take two
+            input arguments. The first is the element being iterated over. The second is the variable scope of
+            the aggregable. The result type of the function must be either a bool or a :py:class:`~hail2.expr.column.BooleanColumn`.
+
+        """
+
         return self._bin_lambda_method("flatMap", f, self._elt_type, lambda t: TAggregable(t.element_type))
 
     def fraction(self, f):
+        """Compute fraction of elements in aggregable satisfying a condition.
+
+        :param f: Function to apply to each element in the aggregable. The function must take two
+             input arguments. The first is the element being iterated over. The second is the variable scope of
+             the aggregable. The result type of the function must be either a bool or a :py:class:`~hail2.expr.column.BooleanColumn`.
+
+        """
+
         return self._bin_lambda_method("fraction", f, self._elt_type, lambda t: TFloat64())
 
     def map(self, f):
+        """Map each element in aggregable to a new value.
+
+        :param f: Function to apply to each element in the aggregable. The function must take two
+            input arguments. The first is the element being iterated over. The second is the variable scope of
+            the aggregable.
+
+        """
+
         return self._bin_lambda_method("map", f, self._elt_type, lambda t: TAggregable(t))
 
     def take(self, n):
         return self._method("take", TArray(self._elt_type), n)
 
     def take_by(self, f, n):
+        """
+
+        :param f: Function to apply to each element in the aggregable. The function must take two
+            input arguments. The first is the element being iterated over. The second is the variable scope of
+            the aggregable.
+
+        :param n: Number of elements to take.
+
+        """
         return self._bin_lambda_method("takeBy", f, self._elt_type, lambda t: TArray(self._elt_type), n)
 
 
@@ -579,16 +634,39 @@ class AggregableFloat64Column(AggregableNumericColumn):
 
 
 class AggregableInt64Column(AggregableNumericColumn):
+    def _to_float64(self):
+        return self.map(lambda x, _: x.to_float64())
+
     def product(self):
         return self._method("product", TInt64())
 
+    def hist(self, start, end, bins):
+        return self._to_float64().hist(start, end, bins)
+
+    def stats(self):
+        return self._to_float64().stats()
+
 
 class AggregableInt32Column(AggregableNumericColumn):
-    pass
+    def _to_float64(self):
+        return self.map(lambda x, _: x.to_float64())
+
+    def hist(self, start, end, bins):
+        return self._to_float64().hist(start, end, bins)
+
+    def stats(self):
+        return self._to_float64().stats()
 
 
 class AggregableFloat32Column(AggregableNumericColumn):
-    pass
+    def _to_float64(self):
+        return self.map(lambda x, _: x.to_float64())
+
+    def hist(self, start, end, bins):
+        return self._to_float64().hist(start, end, bins)
+
+    def stats(self):
+        return self._to_float64().stats()
 
 
 class AggregableArrayNumericColumn(AggregableColumn):
@@ -614,11 +692,10 @@ class AggregableArrayInt64Column(AggregableArrayNumericColumn):
 
 
 class StructColumn(Column):
-
-    def __init__(self, expr, typ, parent=None):
+    def __init__(self, expr, typ, parent=None, scope=None):
         assert(isinstance(typ, TStruct)), "StructColumn requires `typ' to be TStruct."
 
-        super(StructColumn, self).__init__(expr, typ, parent)
+        super(StructColumn, self).__init__(expr, typ, parent, scope)
 
         self.fields = []
 
@@ -655,11 +732,11 @@ class AtomicColumn(Column):
 
     def max(self, other):
         assert(isinstance(other, self.__class__))
-        return self._method("max", self.typ, other)
+        return self._method("max", self._typ, other)
 
     def min(self, other):
         assert(isinstance(other, self.__class__))
-        return self._method("min", self.typ, other)
+        return self._method("min", self._typ, other)
 
 
 class BooleanColumn(AtomicColumn):
@@ -753,7 +830,7 @@ class NumericColumn(AtomicColumn):
         return self._method("signum", TInt32())
 
     def abs(self):
-        return self._method("abs", self.typ)
+        return self._method("abs", self._typ)
 
 
 class Float64Column(NumericColumn):

@@ -1639,6 +1639,7 @@ class KeyTable(HistoryMixin):
 
         return KeyTable(self.hc, self._jkt.group(dest, list(columns)))
 
+    @record_method
     def to_hail2(self):
         import hail2
         return hail2.KeyTable(self.hc, self._jkt)

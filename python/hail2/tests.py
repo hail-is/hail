@@ -52,7 +52,7 @@ class KeyTableTests(unittest.TestCase):
         kt_old2 = kt_new.to_hail1()
         self.assertListEqual(kt_new.columns, ['Sample', 'Status', 'qPhen'])
         self.assertTrue(kt_old.same(kt_old2))
-        
+
     def test_annotate(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f'],
                          [TInt32(), TInt32(), TInt32(), TInt32(), TString(), TArray(TInt32())])
@@ -130,12 +130,14 @@ class KeyTableTests(unittest.TestCase):
 
         kt = KeyTable.parallelize(rows, schema)
         kt_agg = kt.aggregate()
-        q1, q2 = kt_agg.query([kt_agg.b.sum(), kt_agg.b.count()])
+        q1, q2 = kt_agg.query(kt_agg.b.sum(), kt_agg.b.count())
         q3 = kt_agg.query(kt_agg.e.collect())
+        q4 = kt_agg.query(kt_agg.e.filter(lambda x, _: (_.d >= 5) | (_.a == 0)).collect())
 
         self.assertEqual(q1, 8)
         self.assertEqual(q2, 3)
         self.assertEqual(set(q3), set(["hello", "cat", "dog"]))
+        self.assertEqual(set(q4), set(["hello", "cat"]))
 
     def test_filter(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f'],
@@ -150,6 +152,7 @@ class KeyTableTests(unittest.TestCase):
         self.assertEqual(kt.filter(kt.a == 4).count(), 2)
         self.assertEqual(kt.filter((kt.d == -1) | (kt.c == 20) | (kt.e == "hello")).count(), 3)
         self.assertEqual(kt.filter((kt.c != 20) & (kt.a == 4)).count(), 1)
+        self.assertEqual(kt.filter(True).count(), 3)
 
     def test_select(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f'],
@@ -176,23 +179,23 @@ class KeyTableTests(unittest.TestCase):
 
         g = kt.group_by(status = kt.status)
         result = convert_struct_to_dict(g.aggregate_by_key(
-            x1 = g.qPheno.map(lambda x: x * 2).collect(),
-            x2 = g.qPheno.flat_map(lambda x: [x, x + 1]).collect(),
+            x1 = g.qPheno.map(lambda x, _: x * 2).collect(),
+            x2 = g.qPheno.flat_map(lambda x, _: [x, x + 1]).collect(),
             x3 = g.qPheno.min(),
             x4 = g.qPheno.max(),
             x5 = g.qPheno.sum(),
-            x6 = g.qPheno.map(lambda x: x.to_int64()).product(),
+            x6 = g.qPheno.map(lambda x, _: x.to_int64()).product(),
             x7 = g.qPheno.count(),
-            x8 = g.qPheno.filter(lambda x: x == 3).count(),
-            x9 = g.qPheno.fraction(lambda x: x == 1),
-            x10 = g.qPheno.map(lambda x: x.to_float64()).stats(),
+            x8 = g.qPheno.filter(lambda x, _: x == 3).count(),
+            x9 = g.qPheno.fraction(lambda x, _: x == 1),
+            x10 = g.qPheno.map(lambda x, _: x.to_float64()).stats(),
             x11 = g.gt.hardy_weinberg(),
-            x12 = g.gt.map(lambda x: x.gp).info_score(),
-            x13 = g.gt.inbreeding(lambda x: 0.1),
-            x14 = g.gt.call_stats(lambda g: Variant("1", 10000, "A", "T")),
-            x15 = g.gt.map(lambda g: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})})).collect()[0],
-            x16 = (g.gt.map(lambda g: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})}))
-                   .map(lambda s: s.c.banana).collect()[0]),
+            x12 = g.gt.map(lambda x, _: x.gp).info_score(),
+            x13 = g.gt.inbreeding(lambda x, _: 0.1),
+            x14 = g.gt.call_stats(lambda g, _: Variant("1", 10000, "A", "T")),
+            x15 = g.gt.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})})).collect()[0],
+            x16 = (g.gt.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})}))
+                   .map(lambda s, _: s.c.banana).collect()[0]),
             num_partitions=5
         ).to_hail1().take(1)[0])
 
@@ -222,11 +225,11 @@ class DatasetTests(unittest.TestCase):
 
     def test_update(self):
         vds = self.get_vds()
-        vds = vds.update_genotypes(lambda g: Struct({'dp': vds.g.dp, 'gq': vds.g.gq}))
+        vds = vds.update_genotypes(lambda g: Struct({'dp': g.dp, 'gq': g.gq}))
         vds_old = vds.to_hail1()
         self.assertTrue(schema_eq(vds_old.genotype_schema, TStruct(['dp', 'gq'], [TInt32(), TInt32()])))
 
-    def test_with(self):
+    def test_annotate(self):
         vds = self.get_vds()
         vds = vds.annotate_global(foo = 5)
 
@@ -235,8 +238,8 @@ class DatasetTests(unittest.TestCase):
 
         orig_variant_schema = vds.variant_schema
         vds = (vds.annotate_variants(x1 = vds.gs.count(),
-                                     x2 = vds.gs.fraction(lambda g: False),
-                                     x3 = vds.gs.filter(lambda g: True).count(),
+                                     x2 = vds.gs.fraction(lambda g, _: False),
+                                     x3 = vds.gs.filter(lambda g, _: True).count(),
                                      x4 = vds.va.info.AC + vds.globals.foo)
                .annotate_alleles(propagate_gq=False, a1 = vds.gs.count()))
 
@@ -251,8 +254,8 @@ class DatasetTests(unittest.TestCase):
 
         vds = vds.annotate_samples(apple = 6)
         vds = vds.annotate_samples(x1 = vds.gs.count(),
-                                   x2 = vds.gs.fraction(lambda g: False),
-                                   x3 = vds.gs.filter(lambda g: True).count(),
+                                   x2 = vds.gs.fraction(lambda g, _: False),
+                                   x3 = vds.gs.filter(lambda g, _: True).count(),
                                    x4 = vds.globals.foo + vds.sa.apple)
 
         expected_schema = TStruct(['apple','x1', 'x2', 'x3', 'x4'],
@@ -290,22 +293,22 @@ class DatasetTests(unittest.TestCase):
                .annotate_genotypes(x1 = vds.g.dp))
 
         vds_agg = vds.aggregate()
-        qv = vds_agg.query_variants(vds_agg.variants.map(lambda v: vds_agg.v).count())
-        qs = vds_agg.query_samples(vds_agg.samples.map(lambda s: vds_agg.s).count())
-        qg = vds_agg.query_genotypes(vds_agg.gs.map(lambda g: vds.g).count())
+        qv = vds_agg.query_variants(vds_agg.variants.map(lambda v, _: v).count())
+        qs = vds_agg.query_samples(vds_agg.samples.map(lambda s, _: s).count())
+        qg = vds_agg.query_genotypes(vds_agg.gs.map(lambda g, _: g).count())
 
         self.assertEqual(qv, 346)
         self.assertEqual(qs, 100)
         self.assertEqual(qg, qv * qs)
 
-        [qv1, qv2] = vds_agg.query_variants([vds_agg.variants.map(lambda v: vds_agg.v.contig).collect(),
-                                             vds_agg.variants.map(lambda v: vds_agg.va.x1).collect()])
+        [qv1, qv2] = vds_agg.query_variants(vds_agg.variants.map(lambda v, _: _.v.contig).collect(),
+                                            vds_agg.variants.map(lambda v, _: _.va.x1).collect())
 
-        [qs1, qs2] = vds_agg.query_samples([vds_agg.samples.map(lambda s: vds_agg.s).collect(),
-                                            vds_agg.samples.map(lambda s: vds_agg.sa.x1).collect()])
+        [qs1, qs2] = vds_agg.query_samples(vds_agg.samples.map(lambda s, _: s).collect(),
+                                        vds_agg.samples.map(lambda s, _: _.sa.x1).collect())
 
-        [qg1, qg2] = vds_agg.query_genotypes([vds_agg.gs.filter(lambda g: False).map(lambda g: vds_agg.sa.x1).collect(),
-                                              vds_agg.gs.filter(lambda g: pcoin(0.1)).map(lambda g: vds_agg.g).collect()])
+        [qg1, qg2] = vds_agg.query_genotypes(vds_agg.gs.filter(lambda g, _: False).map(lambda g, _: _.sa.x1).collect(),
+                                             vds_agg.gs.filter(lambda g, _: pcoin(0.1)).map(lambda g, _: g).collect())
 
 
 class FunctionsTests(unittest.TestCase):

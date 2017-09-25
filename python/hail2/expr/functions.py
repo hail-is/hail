@@ -54,7 +54,7 @@ def dpois(x, lamb, logP=False):
 @typecheck(s=StructColumn, identifiers=tupleof(string_typ))
 def drop(s, *identifiers):  # FIXME: Need to be able to take regular Struct as input args
     expr = "drop({}, {})".format(to_expr(s), ", ".join(identifiers))
-    ret_typ = s.typ._drop(*identifiers)
+    ret_typ = s._typ._drop(*identifiers)
     return convert_column(Column(expr, ret_typ))
 
 
@@ -149,7 +149,7 @@ def logical_not(x):
 
 @typecheck(s1=StructColumn, s2=StructColumn)  # FIXME: Need to be able to take regular Struct as input args
 def merge(s1, s2):
-    ret_typ = s1.typ._merge(s2.typ)
+    ret_typ = s1._typ._merge(s2._typ)
     return _func("merge", ret_typ, s1, s2)
 
 
@@ -229,7 +229,7 @@ def runif(min, max):
 @typecheck(s=StructColumn, identifiers=tupleof(string_typ))  # FIXME: Need to be able to take regular Struct as input args
 def select(s, *identifiers):
     expr = "select({}, {})".format(to_expr(s), ", ".join(identifiers))
-    ret_typ = s.typ._select(*identifiers)
+    ret_typ = s._typ._select(*identifiers)
     return convert_column(Column(expr, ret_typ))
 
 

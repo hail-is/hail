@@ -20,6 +20,12 @@ class HailContext(HistoryMixin):
         Only one Hail context may be running in a Python session at any time. If you
         need to reconfigure settings, restart the Python session or use the :py:meth:`.HailContext.stop` method.
 
+    .. testsetup::
+
+        hc.stop()
+        import hail2 as h2
+        hc = h2.HailContext()
+
     :param sc: Spark context, one will be created if None.
     :type sc: :class:`.pyspark.SparkContext`
 
@@ -323,7 +329,7 @@ class HailContext(HistoryMixin):
                      comment=None, delimiter="\t", missing="NA", types={}, quote=None):
         """Import delimited text file (text table) as key table.
 
-        The resulting key table will have no key columns, use :py:meth:`.KeyTable.key_by`
+        The resulting key table will have no key columns, use :py:meth:`~hail.keytable.KeyTable.key_by`
         to specify keys.
         
         **Example**
@@ -394,9 +400,9 @@ class HailContext(HistoryMixin):
 
         To import:
 
-        >>> annotations = (hc.import_table('data/samples3.tsv', no_header=True)
-        ...                   .annotate('sample = f0.split("_")[1]')
-        ...                   .key_by('sample'))
+        >>> kt = hc.import_table('data/samples3.tsv', no_header=True)
+        >>> annotations = (kt.annotate(sample = kt.f0.split("_")[1])
+        ...                  .key_by('sample'))
         
         **Notes**
         
@@ -458,7 +464,7 @@ class HailContext(HistoryMixin):
         :type types: dict with str keys and :py:class:`.Type` values
     
         :return: Key table constructed from text table.
-        :rtype: :class:`.KeyTable`
+        :rtype: :class:`~hail2.keytable.KeyTable`
 
         :param quote: Quote character
         :type quote: str or None
@@ -606,7 +612,7 @@ class HailContext(HistoryMixin):
 
         Hail is designed to be maximally compatible with files in the `VCF v4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
 
-        :py:meth:`~hail.HailContext.import_vcf` takes a list of VCF files to load. All files must have the same header and the same set of samples in the same order
+        :py:meth:`~hail2.HailContext.import_vcf` takes a list of VCF files to load. All files must have the same header and the same set of samples in the same order
         (e.g., a variant dataset split by chromosome). Files can be specified as :ref:`Hadoop glob patterns <sec-hadoop-glob>`.
 
         Ensure that the VCF file is correctly prepared for import: VCFs should either be uncompressed (*.vcf*) or block compressed
@@ -641,7 +647,7 @@ class HailContext(HistoryMixin):
 
             - Not all :py:class:`.VariantDataset` methods will work with a generic genotype schema.
 
-        :py:meth:`~hail.HailContext.import_vcf` does not perform deduplication - if the provided VCF(s) contain multiple records with the same chrom, pos, ref, alt, all
+        :py:meth:`~hail2.HailContext.import_vcf` does not perform deduplication - if the provided VCF(s) contain multiple records with the same chrom, pos, ref, alt, all
         these records will be imported and will not be collapsed into a single variant.
 
         Since Hail's genotype representation does not yet support ploidy other than 2,
@@ -667,10 +673,10 @@ class HailContext(HistoryMixin):
             This annotation is a ``Set`` and can be queried for filter membership with expressions 
             like ``va.filters.contains("VQSRTranche99.5...")``. Variants that are flagged as "PASS" 
             will have no filters applied; for these variants, ``va.filters.isEmpty()`` is true. Thus, 
-            filtering to PASS variants can be done with :py:meth:`.VariantDataset.filter_variants_expr`
+            filtering to PASS variants can be done with :py:meth:`~hail2.VariantDataset.filter_variants`
             as follows:
             
-            >>> pass_vds = vds.filter_variants_expr('va.filters.isEmpty()', keep=True)
+            >>> pass_vds = vds.filter_variants(vds.va.filters.is_empty(), keep=True)
 
         **Annotations**
 

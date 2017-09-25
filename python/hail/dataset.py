@@ -28,7 +28,7 @@ class VariantDataset(HistoryMixin):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
     Variant datasets may be generated from other formats using the :py:class:`.HailContext` import methods,
-    constructed from a variant-keyed :py:class:`KeyTable` using :py:meth:`.VariantDataset.from_table`,
+    constructed from a variant-keyed :py:class:`~hail.KeyTable` using :py:meth:`.VariantDataset.from_table`,
     and simulated using :py:meth:`~hail.HailContext.balding_nichols_model`.
 
     Once a variant dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`,
@@ -847,16 +847,16 @@ class VariantDataset(HistoryMixin):
 
         It is possible that an unsplit variant dataset contains no multiallelic
         variants, so ignore any warnings Hail prints if you know that to be the
-        case.  Otherwise, run :py:meth:`.split_multi` before :py:meth:`.annotate_variants_vds`.
+        case.  Otherwise, run :py:meth:`~hail.VariantDataset.split_multi` before :py:meth:`~hail.VariantDataset.annotate_variants_vds`.
 
-        :param VariantDataset other: Variant dataset to annotate with.
+        :param :py:class:`~hail.VariantDataset` other: Variant dataset to annotate with.
 
         :param str root: Sample annotation path to add variant annotations.
 
         :param str expr: Annotation expression.
 
         :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :py:class:`~hail.VariantDataset`
         '''
 
         jvds = self._jvds.annotateVariantsVDS(other._jvds, joption(root), joption(expr))
@@ -5738,6 +5738,7 @@ class VariantDataset(HistoryMixin):
                                 jarray(Env.jvm().java.lang.String, wrap_to_list(key)), separator)
         return KeyTable(self.hc, jkt)
 
+    @record_method
     def to_hail2(self):
         import hail2
         return hail2.VariantDataset(self.hc, self._jvds)
