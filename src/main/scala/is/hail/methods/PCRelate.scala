@@ -211,9 +211,9 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val phi = this.phi(mu, variance, blockedG).cache()
 
     if (desire >= PhiK2) {
-      val k2 = this.k2(phi, mu, variance, blockedG)
+      val k2 = this.k2(phi, mu, variance, blockedG).cache()
       if (desire >= PhiK2K0) {
-        val k0 = this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize))
+        val k0 = this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize)).cache()
         if (desire >= PhiK2K0K1) {
           val k1 = 1.0 - (k2 :+ k0)
           Result(phi, k0, k1, k2)
@@ -247,7 +247,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     }(g, mu)
     val stddev = dm.map(math.sqrt _)(variance)
 
-    (gram(centeredG.t) :/ gram(stddev.t)) / 4.0
+    (gram(centeredG) :/ gram(stddev)) / 4.0
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
@@ -274,7 +274,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
         }
     } (g, mu)
 
-    gram(normalizedGD.t) :/ gram(variance.t)
+    gram(normalizedGD) :/ gram(variance)
   }
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
