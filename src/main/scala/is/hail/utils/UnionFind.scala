@@ -9,10 +9,10 @@ class UnionFind(initialCapacity: Int = 32) {
 
   private def ensure(i: Int) {
     if (i >= a.length) {
-      var newLength = a.length
-      do {
+      var newLength = a.length << 1
+      while (i >= newLength) {
         newLength = newLength << 1
-      } while (i >= newLength);
+      }
       val a2 = new Array[Int](newLength)
       Array.copy(a, 0, a2, 0, a.length)
       a = a2
@@ -29,6 +29,7 @@ class UnionFind(initialCapacity: Int = 32) {
   }
 
   def find(x: Int): Int = {
+    require(x < a.length)
     var representative = x
     while (representative != a(representative)) {
       representative = a(representative)
@@ -59,4 +60,8 @@ class UnionFind(initialCapacity: Int = 32) {
     }
   }
 
+  def sameSet(x: Int, y: Int): Boolean = {
+    require(x < a.length && y < a.length)
+    find(x) == find(y)
+  }
 }

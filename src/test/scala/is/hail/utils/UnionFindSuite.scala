@@ -52,6 +52,12 @@ class UnionFindSuite extends TestNGSuite {
     assert(uf.find(1024) == 1024)
     assert(uf.find(4097) == 4097)
     assert(uf.find(4095) == 4095)
+    assert(uf.find(1000) != uf.find(1024))
+    assert(uf.find(1000) != uf.find(4097))
+    assert(uf.find(1000) != uf.find(4095))
+    assert(uf.find(1024) != uf.find(4097))
+    assert(uf.find(1024) != uf.find(4095))
+    assert(uf.find(4097) != uf.find(4095))
     assert(uf.size == 4)
   }
 
