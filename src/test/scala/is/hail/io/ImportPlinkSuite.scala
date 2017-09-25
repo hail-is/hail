@@ -74,7 +74,7 @@ class ImportPlinkSuite extends SparkSuite {
     hc.importVCF("src/test/resources/sample.vcf")
       .verifyBiallelic()
       .exportPlink(plinkFileRoot)
-    
+
     val a1ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = false)
       .annotateGenotypesExpr("g = Genotype(g.GT)")
       .toVDS
