@@ -35,12 +35,12 @@ object Compile {
   }
 
   def apply(x: IR, outTyps: Array[DetailedTypeInfo[_,_]], fb: FunctionBuilder[_]) {
-    terminal(x, Map(), outTyps, fb, new MissingBits(fb))
+    statement(x, Map(), outTyps, fb, new MissingBits(fb))
   }
 
-  private[ir] def nonTerminal(x: IR, env: Map[String, (Code[Boolean], Code[_])], outTyps: Array[DetailedTypeInfo[_,_]], fb: FunctionBuilder[_], mb: MissingBits): (Code[Boolean], Code[_]) = {
-    def nonTerminal(x: IR) = this.nonTerminal(x, env, outTyps, fb, mb)
-    def terminal(x: IR) = this.terminal(x, env, outTyps, fb, mb)
+  private[ir] def expression(x: IR, env: Map[String, (Code[Boolean], Code[_])], outTyps: Array[DetailedTypeInfo[_,_]], fb: FunctionBuilder[_], mb: MissingBits): (Code[Boolean], Code[_]) = {
+    def expression(x: IR) = this.expression(x, env, outTyps, fb, mb)
+    def statement(x: IR) = this.statement(x, env, outTyps, fb, mb)
     x match {
       case NA(t) =>
         (const(true), t.point)
@@ -57,9 +57,9 @@ object Compile {
       case False() =>
         (const(false), const(false))
       case If(cond, cnsq, altr) =>
-        val (mcond, vcond) = nonTerminal(cond)
-        val (mcnsq, vcnsq) = nonTerminal(cnsq)
-        val (maltr, valtr) = nonTerminal(altr)
+        val (mcond, vcond) = expression(cond)
+        val (mcnsq, vcnsq) = expression(cnsq)
+        val (maltr, valtr) = expression(altr)
 
         val x = fb.newLocal[Boolean]
         fb.emit(x.store(vcond.asInstanceOf[Code[Boolean]]))
@@ -68,7 +68,7 @@ object Compile {
 
         (missingness, code)
       case Let(name, value, typ, body) =>
-        val (mvalue, vvalue) = nonTerminal(value)
+        val (mvalue, vvalue) = expression(value)
 
         val x = mb.newBit(mvalue)
         val y = typ.ti match { case ti: TypeInfo[t] =>
@@ -77,7 +77,7 @@ object Compile {
           y
         }
 
-        this.nonTerminal(body, env + (name -> (x -> y)), outTyps, fb, mb)
+        this.expression(body, env + (name -> (x -> y)), outTyps, fb, mb)
       case ApplyPrimitive(op, args) =>
         ???
       case LazyApplyPrimitive(op, args) =>
@@ -88,17 +88,17 @@ object Compile {
         env(name)
       case MakeArray(args, typ) =>
         ???
-        // ucode.NewInitializedArray(args map nonTerminal, typ)
+        // ucode.NewInitializedArray(args map expression, typ)
       case ArrayRef(a, i, typ) =>
         ???
-        // ucode.ArrayRef(nonTerminal(a), nonTerminal(i), typ)
+        // ucode.ArrayRef(expression(a), expression(i), typ)
       case MakeStruct(fields) =>
         ???
       case GetField(o, name) =>
         ???
       case MapNA(name, value, valueTyp, body, bodyTyp) =>
         // FIXME: maybe we can pass down the "null" label and jump directly there
-        val (mvalue, vvalue) = nonTerminal(value)
+        val (mvalue, vvalue) = expression(value)
 
         val lnonnull = new LabelNode
         val lafter = new LabelNode
@@ -111,7 +111,7 @@ object Compile {
         }
 
         val (mbody, vbody) =
-          this.nonTerminal(body, env + (name -> (const(false) -> y.load())), outTyps, fb, mb)
+          this.expression(body, env + (name -> (const(false) -> y.load())), outTyps, fb, mb)
 
         val missingness = x || mbody
         val code = x.mux(bodyTyp.point, vbody)
@@ -120,18 +120,18 @@ object Compile {
       case In(i) =>
         ???
       case x =>
-        throw new UnsupportedOperationException(s"$x is not a non-terminal IR")
+        throw new UnsupportedOperationException(s"$x is not an expression IR")
     }
   }
 
-  private[ir] def terminal(x: IR, env: Map[String, (Code[Boolean], Code[_])], outTyps: Array[DetailedTypeInfo[_,_]], fb: FunctionBuilder[_], mb: MissingBits) {
-    def nonTerminal(x: IR) = this.nonTerminal(x, env, outTyps, fb, mb)
-    def terminal(x: IR) = this.terminal(x, env, outTyps, fb, mb)
+  private[ir] def statement(x: IR, env: Map[String, (Code[Boolean], Code[_])], outTyps: Array[DetailedTypeInfo[_,_]], fb: FunctionBuilder[_], mb: MissingBits) {
+    def expression(x: IR) = this.expression(x, env, outTyps, fb, mb)
+    def statement(x: IR) = this.statement(x, env, outTyps, fb, mb)
     x match {
       case Out(values) =>
         assert(values.length == 1)
 
-        val (mvalue, vvalue) = nonTerminal(values(0))
+        val (mvalue, vvalue) = expression(values(0))
 
         outTyps(0).injectNonMissing match {
           case Some((ti, inject)) =>
@@ -145,7 +145,7 @@ object Compile {
 
         }
       case x =>
-        throw new UnsupportedOperationException(s"$x is not a terminal IR")
+        throw new UnsupportedOperationException(s"$x is not a statement IR")
     }
   }
 
