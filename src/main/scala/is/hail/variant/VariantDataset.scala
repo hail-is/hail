@@ -105,9 +105,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     require(vds.wasSplit)
     require(other.wasSplit)
 
-    if (!other.wasSplit)
-      fatal("method `concordance' requires both datasets to be split, but found unsplit right-hand VDS.")
-
     CalculateConcordance(vds, other)
   }
 

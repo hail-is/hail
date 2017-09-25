@@ -127,7 +127,7 @@ object LoadGDB {
     val records = gdbReader
       .iterator
       .asScala
-      .map(vc => {
+      .map { vc =>
         region.clear()
         rvb.start(rowType.fundamentalType)
         reader.readRecord(vc, rvb, infoSignature, genotypeSignature, canonicalFlags)
@@ -139,24 +139,13 @@ object LoadGDB {
         val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
 
         (v, (va, gs))
-      })
+      }
       .toSeq
 
     val recordRDD = sc.parallelize(records, nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val justVariants = recordRDD.map(_._1)
-    justVariants.persist(StorageLevel.MEMORY_AND_DISK)
+    val rdd = recordRDD.toOrderedRDD
 
-    val noMulti = justVariants.forall(_.nAlleles == 2)
-
-    if (noMulti)
-      info("No multiallelics detected.")
-    else
-      info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
-
-    val rdd = recordRDD.toOrderedRDD(justVariants)
-
-    justVariants.unpersist()
     queryFile.delete()
 
     new VariantSampleMatrix(hc, VSMMetadata(
@@ -165,8 +154,7 @@ object LoadGDB {
       TVariant(GenomeReference.GRCh37),
       variantAnnotationSignatures,
       TStruct.empty,
-      genotypeSignature,
-      wasSplit = noMulti),
+      genotypeSignature),
       VSMLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),

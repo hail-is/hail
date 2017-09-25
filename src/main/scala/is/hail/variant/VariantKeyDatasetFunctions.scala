@@ -72,12 +72,11 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
   }
 
   def verifyBiallelic(): VariantSampleMatrix[Locus, Variant, T] =
-    verifyBiallelic("verifyBialellic")
+    verifyBiallelic("verifyBiallelic")
 
   def verifyBiallelic(method: String): VariantSampleMatrix[Locus, Variant, T] = {
     if (vsm.wasSplit) {
-      assert(method == "verify_biallelic")
-      warn("called redundant `verify_biallelic' on biallelic VDS")
+      warn("called redundant `$method' on biallelic VDS")
       vsm
     } else {
       vsm.copy(

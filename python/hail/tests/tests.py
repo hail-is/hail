@@ -286,6 +286,8 @@ class ContextTests(unittest.TestCase):
         sample.summarize().report()
         sample.drop_samples().summarize().report()
 
+        self.assertEqual(sample.verify_biallelic().was_split(), True)
+
         sample_split = sample.split_multi()
 
         sample2 = hc.import_vcf(test_resources + '/sample2.vcf')
