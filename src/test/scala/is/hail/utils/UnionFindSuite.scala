@@ -52,12 +52,12 @@ class UnionFindSuite extends TestNGSuite {
     assert(uf.find(1024) == 1024)
     assert(uf.find(4097) == 4097)
     assert(uf.find(4095) == 4095)
-    assert(uf.find(1000) != uf.find(1024))
-    assert(uf.find(1000) != uf.find(4097))
-    assert(uf.find(1000) != uf.find(4095))
-    assert(uf.find(1024) != uf.find(4097))
-    assert(uf.find(1024) != uf.find(4095))
-    assert(uf.find(4097) != uf.find(4095))
+    assert(!uf.sameSet(1000, 1024))
+    assert(!uf.sameSet(1000, 4097))
+    assert(!uf.sameSet(1000, 4095))
+    assert(!uf.sameSet(1024, 4097))
+    assert(!uf.sameSet(1024, 4095))
+    assert(!uf.sameSet(4097, 4095))
     assert(uf.size == 4)
   }
 
@@ -73,25 +73,25 @@ class UnionFindSuite extends TestNGSuite {
 
     uf.union(1, 2)
 
-    assert(uf.find(1) == uf.find(2))
-    assert(uf.find(1) != uf.find(3))
-    assert(uf.find(1) != uf.find(4))
-    assert(uf.find(3) != uf.find(4))
+    assert(uf.sameSet(1, 2))
+    assert(!uf.sameSet(1, 3))
+    assert(!uf.sameSet(1, 4))
+    assert(!uf.sameSet(3, 4))
     assert(uf.size == 3)
 
     uf.union(1, 4)
 
-    assert(uf.find(1) == uf.find(2))
-    assert(uf.find(1) != uf.find(3))
-    assert(uf.find(1) == uf.find(4))
-    assert(uf.find(3) != uf.find(4))
+    assert(uf.sameSet(1, 2))
+    assert(!uf.sameSet(1, 3))
+    assert(uf.sameSet(1, 4))
+    assert(!uf.sameSet(3, 4))
     assert(uf.size == 2)
 
     uf.union(2, 3)
 
-    assert(uf.find(1) == uf.find(2))
-    assert(uf.find(1) == uf.find(3))
-    assert(uf.find(1) == uf.find(4))
+    assert(uf.sameSet(1, 2))
+    assert(uf.sameSet(1, 3))
+    assert(uf.sameSet(1, 4))
     assert(uf.size == 1)
   }
 
@@ -114,11 +114,11 @@ class UnionFindSuite extends TestNGSuite {
     uf.union(2, 6)
 
     assert(uf.size == 2)
-    assert(uf.find(1) == uf.find(2))
-    assert(uf.find(1) == uf.find(4))
-    assert(uf.find(5) == uf.find(3))
-    assert(uf.find(1) == uf.find(6))
-    assert(uf.find(1) != uf.find(5))
+    assert(uf.sameSet(1, 2))
+    assert(uf.sameSet(1, 4))
+    assert(uf.sameSet(5, 3))
+    assert(uf.sameSet(1, 6))
+    assert(!uf.sameSet(1, 5))
   }
 
   @Test
