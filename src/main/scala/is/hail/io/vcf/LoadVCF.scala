@@ -224,15 +224,20 @@ object LoadVCF {
       val hd = parseHeader(reader, getHeaderLines(hConf, file))
       val hd1 = header1Bc.value
 
-      if (!hd1.sampleIds.iterator.sameElements(hd.sampleIds.iterator)) {
-        hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
-          .zipWithIndex.dropWhile { case ((s1, s2), i) => s1 == s2 }.toArray.headOption match {
-          case Some(((s1, s2), i)) => fatal(
-            s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i.
-               |    ${files(0)}: $s1
-               |    $file: $s2""".stripMargin)
-          case None =>
-        }
+      if (hd1.sampleIds.length != hd.sampleIds.length) {
+        fatal(
+          s"""invalid sample ids: sample ids are different lengths.
+             | ${files(0)} has ${hd1.sampleIds.length} ids and
+             | ${file} has ${hd.sampleIds.length} ids.
+           """.stripMargin)
+      }
+
+      hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
+        .zipWithIndex.foreach { (i) =>
+        if (i._1._1 != i._1._2) fatal(
+          s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position ${i._2}.
+             |    ${files(0)}: ${i._1._1}
+             |    $file: ${i._1._2}""".stripMargin)
       }
 
       if (hd1.genotypeSignature != hd.genotypeSignature)
