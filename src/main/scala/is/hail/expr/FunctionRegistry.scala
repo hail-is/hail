@@ -2517,6 +2517,7 @@ object FunctionRegistry {
     registerMethod("signum", ev.signum _, "Returns the sign of a number (1, 0, or -1).")
 
     register("-", ev.negate _, "Returns the negation of this value.")
+    register("+", (x: T) => x, "Returns this value.")
     register("fromInt", ev.fromInt _, null)
 
     registerMethod("toInt32", ev.toInt _, "Convert value to a 32-bit integer.")
