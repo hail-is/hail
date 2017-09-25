@@ -3016,12 +3016,12 @@ class VariantDataset(HistoryMixin):
     @handle_py4j
     @record_method
     @typecheck_method(ys=listof(strlike),
-                      covariates=listof(strlike),
+                      xs=listof(strlike),
+                      covs=listof(strlike),
                       root=strlike,
-                      use_dosages=bool,
                       variant_block_size=integral)
-    def linreg(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
-        r"""Test each variant for association with multiple phenotypes using linear regression.
+    def linreg(self, ys, xs, covs=[], root='va.linreg', variant_block_size=16):
+        r"""Test for association using linear regression.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
 
@@ -3030,40 +3030,67 @@ class VariantDataset(HistoryMixin):
         .. warning::
 
             :py:meth:`.linreg` uses the same set of samples for each phenotype,
-            namely the set of samples for which **all** phenotypes and covariates are defined.
+            namely the set of samples for which **all** phenotypes ``ys`` and covariates ``covs`` are defined.
+
+        **Examples**
+        
+        Linear regression to test association of height and genotype, adjusting for age and sex:
+
+        >>> vds_result = vds.linreg(ys = ['sa.pheno.height'], xs = ['g.gt'], covs=['sa.pheno.age', 'sa.pheno.isFemale'])
+
+        Add examples here.
+        
+        **Notes**
+        
+        Discuss model here.
+        
+        .. math::
+        
+          y = X \\beta + C \\gamma + \\epsilon  
+
+        In this model, Hail only includes samples for which the all responses ``ys`` and covariates ``covs`` are defined.
+        For each variant, missing fields ``xs`` are mean-imputed. For Boolean types, true is coded as 1 and false as 0. 
+        
+        The standard least-squares linear regression model is derived in Section
+        3.2 of `The Elements of Statistical Learning, 2nd Edition
+        <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__. See
+        equation 3.12 for the t-statistic which follows the t-distribution with
+        :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
+        effect, with :math:`n` samples and :math:`k` total covariates in addition to
+        genotype and intercept.
 
         **Annotations**
 
-        With the default root, the following four variant annotations are added.
-        The indexing of the array annotations corresponds to that of ``y``.
+        With the default root, the following four variant annotations are added. In each case,
+        the primary index is field and the secondary index is phenotype. For example,
+        ``va.linreg.beta[i][j]`` is the coefficient of field ``i`` in ``xs`` for phenotype `j` in `ys`.
 
-        - **va.linreg.nCompleteSamples** (*Int*) -- number of samples used
-        - **va.linreg.AC** (*Double*) -- sum of the genotype values ``x``
-        - **va.linreg.ytx** (*Array[Double]*) -- array of dot products of each phenotype vector ``y`` with the genotype vector ``x``
-        - **va.linreg.beta** (*Array[Double]*) -- array of fit genotype coefficients, :math:`\hat\beta_1`
-        - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
-        - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-        - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
+        - **va.linreg.beta** (*Array[Array[Double]]*) -- fit genotype coefficients, :math:`\hat\beta`
+        - **va.linreg.se** (*Array[Array[Double]]*) -- estimated standard errors, :math:`\widehat{\mathrm{se}}`
+        - **va.linreg.tstat** (*Array[Array[Double]]*) -- :math:`t`-statistics, equal to :math:`\hat\beta / \widehat{\mathrm{se}}`
+        - **va.linreg.pval** (*Array[Array[Double]]*) -- :math:`p`-values
 
         :param ys: list of one or more response expressions.
         :type ys: list of str
 
-        :param covariates: list of covariate expressions.
-        :type covariates: list of str
+        :param xs: list of one or more per-key covariate (field) expressions.
+        :type xs: list of str
+
+        :param covs: list of covariate expressions.
+        :type covs: list of str
 
         :param str root: Variant annotation path to store result of linear regression.
 
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
-
-        :param int variant_block_size: Number of variant regressions to perform simultaneously.  Larger block size requires more memmory.
+        :param int variant_block_size: With one field, number of variants to regress simultaneously. Larger block size requires more memory.
 
         :return: Variant dataset with linear regression variant annotations.
         :rtype: :py:class:`.VariantDataset`
-
         """
 
         jvds = self._jvdf.linreg(jarray(Env.jvm().java.lang.String, ys),
-                                 jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, variant_block_size)
+                                 jarray(Env.jvm().java.lang.String, xs),
+                                 jarray(Env.jvm().java.lang.String, covs),
+                                 root, variant_block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

@@ -338,7 +338,7 @@ class ContextTests(unittest.TestCase):
                       .annotate_samples_table(phen1, root='sa.pheno.Pheno')
                       .annotate_samples_table(phen2, root='sa.pheno.isCase'))
 
-        (regression.linreg(['sa.pheno.Pheno'], covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
+        (regression.linreg(['sa.pheno.Pheno'], ['g.gt'], covs=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
         (regression.logreg('wald', 'sa.pheno.isCase', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])

@@ -1,13 +1,11 @@
 package is.hail.methods
 
 import breeze.linalg._
-import is.hail.annotations.Annotation
 import is.hail.keytable.KeyTable
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.expr._
 import is.hail.variant._
-import net.sourceforge.jdistlib.T
 import org.apache.spark.sql.Row
 
 object LinearRegressionBurden {
@@ -36,7 +34,7 @@ object LinearRegressionBurden {
     if (completeSamplesSet(keyName))
       fatal(s"Key name '$keyName' clashes with a sample name")
 
-    val linregFields = LinearRegression.schema.fields.map(_.name).toSet
+    val linregFields = LinearRegressionModel.schema.fields.map(_.name).toSet
     if (linregFields(keyName))
       fatal(s"Key name '$keyName' clashes with reserved linreg columns $linregFields")
 
@@ -69,7 +67,7 @@ object LinearRegressionBurden {
       val x = RegressionUtils.keyedRowToVectorDouble(keyedRow)
       merger(
         Row(keyedRow.get(0)),
-        LinearRegressionModel.fit(x, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d)).asInstanceOf[Row]
+        LinearRegressionModel.fit(x, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d).toAnnotation).asInstanceOf[Row]
     }
     val linregKT = new KeyTable(sampleKT.hc, linregRDD, signature = linregSignature, key = Array(keyName))
 
