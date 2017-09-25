@@ -130,7 +130,7 @@ class ExactlyTypeChecker(TypeChecker):
         return x == self.v
 
     def expects(self):
-        return str(v)
+        return str(self.v)
 
 
 def only(t):
