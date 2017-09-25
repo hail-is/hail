@@ -342,9 +342,9 @@ class ExprSuite extends SparkSuite {
     assert(eval[Set[_]]("""iset.union([2,3,4].toSet)""").contains(Set(0, 1, 2, 3, 4)))
     assert(eval[Set[_]]("""iset.intersection([2,3,4].toSet)""").contains(Set(2)))
     assert(eval[Set[_]]("""iset.difference([2,3,4].toSet)""").contains(Set(0, 1)))
-    assert(eval[Boolean]("""iset.issubset([2,3,4].toSet)""").contains(false))
-    assert(eval[Boolean]("""iset.issubset([0,1].toSet)""").contains(false))
-    assert(eval[Boolean]("""iset.issubset([0,1,2,3,4].toSet)""").contains(true))
+    assert(eval[Boolean]("""iset.isSubset([2,3,4].toSet)""").contains(false))
+    assert(eval[Boolean]("""iset.isSubset([0,1].toSet)""").contains(false))
+    assert(eval[Boolean]("""iset.isSubset([0,1,2,3,4].toSet)""").contains(true))
 
 
     assert(eval[Set[_]]("""nullset.flatMap(x => [x].toSet())""").isEmpty)
