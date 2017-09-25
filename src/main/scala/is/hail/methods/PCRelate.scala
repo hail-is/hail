@@ -48,7 +48,6 @@ object PCRelate {
     val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, desire)
     val m = phi.rows
     val n = phi.cols
-    val blockSize = phi.blockSize
 
     def fuseBlocks(blocki: Int, blockj: Int, mk1: BDM[Double], mk2: BDM[Double], mk3: BDM[Double], mk4: BDM[Double]) = {
       val i = blocki * blockSize
@@ -61,7 +60,7 @@ object PCRelate {
         i < j2 && j2 < i2 ||
         j <= i && i < j2 ||
         j < i2 && i2 < j2) {
-        val size = mk1.numRows * mk1.numCols
+        val size = mk1.rows * mk1.cols
         val ab = new ArrayBuilder[Row]()
         var jj = 1
         while (jj < mk1.cols) {
