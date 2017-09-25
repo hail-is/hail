@@ -290,7 +290,7 @@ case object TBinary extends Type {
 
   override val point: Code[Byte] = const(0.toByte)
 
-  override val ti: TypeInfo[Byte] = typeInfo[Byte]
+  @transient override val ti: TypeInfo[Byte] = typeInfo[Byte]
 }
 
 case object TBoolean extends Type {
@@ -318,7 +318,7 @@ case object TBoolean extends Type {
 
   override val point: Code[Boolean] = const(false)
 
-  override val ti: TypeInfo[Boolean] = typeInfo[Boolean]
+  @transient override val ti: TypeInfo[Boolean] = typeInfo[Boolean]
 }
 
 object TNumeric {
@@ -369,7 +369,7 @@ case object TInt32 extends TIntegral {
 
   override val point: Code[Int] = const(0)
 
-  override val ti: TypeInfo[Int] = typeInfo[Int]
+  @transient override val ti: TypeInfo[Int] = typeInfo[Int]
 }
 
 case object TInt64 extends TIntegral {
@@ -397,7 +397,7 @@ case object TInt64 extends TIntegral {
 
   override val point: Code[Long] = const(0L)
 
-  override val ti: TypeInfo[Long] = typeInfo[Long]
+  @transient override val ti: TypeInfo[Long] = typeInfo[Long]
 }
 
 case object TFloat32 extends TNumeric {
@@ -432,7 +432,7 @@ case object TFloat32 extends TNumeric {
 
   override val point: Code[Float] = const(0.0F)
 
-  override val ti: TypeInfo[Float] = typeInfo[Float]
+  @transient override val ti: TypeInfo[Float] = typeInfo[Float]
 }
 
 case object TFloat64 extends TNumeric {
@@ -467,7 +467,7 @@ case object TFloat64 extends TNumeric {
 
   override val point: Code[Double] = const(0.0)
 
-  override val ti: TypeInfo[Double] = typeInfo[Double]
+  @transient override val ti: TypeInfo[Double] = typeInfo[Double]
 }
 
 case object TString extends Type {
@@ -496,7 +496,7 @@ case object TString extends Type {
 
   override def point: Code[String] = const("")
 
-  override val ti: TypeInfo[String] = typeInfo[String]
+  @transient override val ti: TypeInfo[String] = typeInfo[String]
 }
 
 final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
