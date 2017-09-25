@@ -51,7 +51,6 @@ object LoadMatrix {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
-    // This imports header information from first file
     val headerLines1 = getHeaderLines(hConf, file1)
     val header1 = parseHeader(headerLines1, sep)
     val header1Bc = sc.broadcast(header1)
@@ -60,14 +59,13 @@ object LoadMatrix {
 
     sc.parallelize(files.tail, math.max(1, files.length - 1)).foreach { file =>
 
-      //This imports header info from files. use reimplementation for col ID
       val hConf = confBc.value.value
       val hd = parseHeader(getHeaderLines(hConf, file), sep)
       val hd1 = header1Bc.value
 
       if (!hd1.sameElements(hd)) {
-        hd1.zipAll(hd, None, None) //this compares sample id info from all files to first file for consistency
-          .zipWithIndex.dropWhile { case ((s1, s2), i) => s1 == s2 }.toArray.headOption match {
+        hd1.zipAll(hd, None, None)
+          .zipWithIndex.dropWhile { case ((s1, s2), i) => s1 == s2 }.headOption match {
           case Some(((s1, s2), i)) => fatal(
             s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i
 .
@@ -81,9 +79,7 @@ object LoadMatrix {
       }
     }
 
-    //val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature, canonicalFlags) = header1
-
-    val sampleIds: Array[String] = //dropSamples controls whether Sample IDs are stored? or whether samples are imported instead of just variant metadata?
+    val sampleIds: Array[String] =
       if (dropSamples)
         Array.empty
       else
@@ -93,24 +89,24 @@ object LoadMatrix {
 
     LoadMatrix.warnDuplicates(sampleIds)
 
-    val headerLinesBc = sc.broadcast(headerLines1) // ???
+    val headerLinesBc = sc.broadcast(headerLines1)
 
-    val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions)).filter(line => !headerLinesBc.value.exists(_.equals(line.value)))
-    // this creates an RDD containing all lines from text files?
-    // and also filters out anything matching the header line(s).
-    // would subtract be better?
+    val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
     /// FIXME: at some point, should probably become more sophisticated.
 
-    val vsmMetadata = VSMMetadata(
+    val fileByPartition = lines.partitions.map(p => partitionPath(p))
+    val firstPartitions = fileByPartition.zipWithIndex.filter((name) => name._2 == 0 || fileByPartition(name._2-1) != name._1).map((name) => name._2)
+
+    val matrixType = MatrixType(VSMMetadata(
       sSignature = TString,
       vSignature = TString,
       genotypeSignature = TInt64
-    )
-    val matrixType = MatrixType(vsmMetadata)
+    ))
 
     val keyType = matrixType.kType
+    val rowKeys: RDD[RegionValue] = lines.mapPartitionsWithIndex { (i,it) =>
 
-    val rowKeys: RDD[RegionValue] = lines.mapPartitions { it => //this will store just the row key.
+      if (firstPartitions.contains(i)) {it.next()}
 
       val region = MemoryBuffer()
       val rvb = new RegionValueBuilder(region)
@@ -126,10 +122,10 @@ object LoadMatrix {
                 val k = line.substring(0,line.indexOf(sep))
                 region.clear()
                 rvb.start(keyType)
-                rvb.startStruct() // fk
+                rvb.startStruct()
                 rvb.addString(k)
                 rvb.addString(k)
-                rvb.endStruct() // fk
+                rvb.endStruct()
                 rv.setOffset(rvb.end())
 
                 present = true
@@ -154,11 +150,13 @@ object LoadMatrix {
     }
 
     val rdd = lines
-      .mapPartitions { it => //this is the rdd that stores the data!
+      .mapPartitionsWithIndex { (i,it) =>
 
         val region = MemoryBuffer()
         val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region, 0) //this creates the RV block based for a partition in the rdd.
+        val rv = RegionValue(region, 0)
+
+        if (firstPartitions.contains(i)) {it.next()}
 
         new Iterator[RegionValue] {
           var present = false
@@ -183,16 +181,14 @@ object LoadMatrix {
                   rvb.startStruct()
                   rvb.endStruct()
 
-                  rvb.startArray(nSamples) // gs
-
+                  rvb.startArray(nSamples)
                   if (nSamples > 0) {
                     for (v <- row.tail) {
                       rvb.addLong(v.trim.toLong)
-                      /// FIXME: should we throw error if line does not have n+1 cells? If so, rewrite.
                     }
                   }
                   rvb.endArray()
-                  rvb.endStruct() // row
+                  rvb.endStruct()
                   rv.setOffset(rvb.end())
 
                   present = true
@@ -217,7 +213,6 @@ object LoadMatrix {
         }
       }
 
-    // OrderedRDD2(rpk, rk, rowType, rdd, fastkeys, hintPartitioner??)
     val ordd = OrderedRDD2(matrixType.orderedRDD2Type, rdd, Some(rowKeys), None)
 
     new VariantSampleMatrix(hc,
