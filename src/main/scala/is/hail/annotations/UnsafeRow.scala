@@ -116,7 +116,7 @@ object UnsafeRow {
     new String(readBinary(region, boff))
 
   def readLocus(region: MemoryBuffer, offset: Long, gr: GRBase): Locus = {
-    val ft = TLocus(gr).fundamentalType.asInstanceOf[TStruct]
+    val ft = gr.locus.fundamentalType.asInstanceOf[TStruct]
     Locus(
       readString(region, ft.loadField(region, offset, 0)),
       region.loadInt(ft.loadField(region, offset, 1)))

@@ -991,7 +991,7 @@ case class TVariant(gr: GRBase) extends ComplexType {
 
   override def desc: String =
     """
-    A ``Variant`` is a Hail data type representing a variant in the Variant Dataset. It is referred to as ``v`` in the expression language.
+    A ``Variant(GR)`` is a Hail data type representing a variant in the dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38. It is referred to as ``v`` in the expression language.
 
     The `pseudoautosomal region <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`_ (PAR) is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
 
@@ -1066,7 +1066,7 @@ case class TVariant(gr: GRBase) extends ComplexType {
 
   override def clear(): Unit = gr.clear()
 
-  override def subst() = TVariant(gr.subst())
+  override def subst() = gr.subst().variant
 }
 
 case class TLocus(gr: GRBase) extends ComplexType {
@@ -1076,7 +1076,7 @@ case class TLocus(gr: GRBase) extends ComplexType {
 
   override def genNonmissingValue: Gen[Annotation] = Locus.gen
 
-  override def desc: String = "A ``Locus`` is a Hail data type representing a specific genomic location in the Variant Dataset."
+  override def desc: String = "A ``Locus(GR)`` is a Hail data type representing a specific genomic location in the Variant Dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38."
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
@@ -1118,7 +1118,7 @@ case class TLocus(gr: GRBase) extends ComplexType {
 
   override def clear(): Unit = gr.clear()
 
-  override def subst() = TLocus(gr.subst())
+  override def subst() = gr.subst().locus
 }
 
 case class TInterval(gr: GRBase) extends ComplexType {
@@ -1128,7 +1128,7 @@ case class TInterval(gr: GRBase) extends ComplexType {
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(Locus.gen)
 
-  override def desc: String = "An ``Interval`` is a Hail data type representing a range of genomic locations in the Variant Dataset."
+  override def desc: String = "An ``Interval(GR)`` is a Hail data type representing a range of genomic locations in the dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38."
 
   override def scalaClassTag: ClassTag[Interval[Locus]] = classTag[Interval[Locus]]
 
@@ -1167,7 +1167,7 @@ case class TInterval(gr: GRBase) extends ComplexType {
 
   override def clear(): Unit = gr.clear()
 
-  override def subst() = TInterval(gr.subst())
+  override def subst() = gr.subst().interval
 }
 
 final case class Field(name: String, typ: Type,

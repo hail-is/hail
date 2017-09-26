@@ -100,9 +100,6 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
         case TArray(_) => Some("Array")
         case TSet(_) => Some("Set")
         case TDict(_, _) => Some("Dict")
-        case TVariant(_) => Some("Variant")
-        case TLocus(_) => Some("Locus")
-        case TInterval(_) => Some("Interval")
         case _ => Some(ot.toString.replaceAll("\\?", ""))
       }
       case None => None

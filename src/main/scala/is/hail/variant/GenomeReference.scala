@@ -3,7 +3,7 @@ package is.hail.variant
 import java.io.InputStream
 
 import is.hail.check.Gen
-import is.hail.expr.JSONExtractGenomeReference
+import is.hail.expr.{JSONExtractGenomeReference, TInterval, TLocus, TVariant}
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods
@@ -12,6 +12,12 @@ import scala.collection.JavaConverters._
 import scala.language.implicitConversions
 
 abstract class GRBase extends Serializable {
+  def variant: TVariant
+
+  def locus: TLocus
+
+  def interval: TInterval
+
   def isValidContig(contig: String): Boolean
 
   def contigLength(contig: String): Int
@@ -105,6 +111,10 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   val xContigIndices = xContigs.map(contigsIndex)
   val yContigIndices = yContigs.map(contigsIndex)
   val mtContigIndices = mtContigs.map(contigsIndex)
+
+  val variant: TVariant = TVariant(this)
+  val locus: TLocus = TLocus(this)
+  val interval: TInterval = TInterval(this)
 
   def contigLength(contig: String): Int = lengths.get(contig) match {
     case Some(l) => l
@@ -233,6 +243,10 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
     assert(gr != null)
     gr
   }
+
+  val variant: TVariant = TVariant(gr)
+  val locus: TLocus = TLocus(gr)
+  val interval: TInterval = TInterval(gr)
 
   def isValidContig(contig: String): Boolean = ???
 
