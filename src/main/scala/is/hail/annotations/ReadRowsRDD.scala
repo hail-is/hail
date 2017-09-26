@@ -277,7 +277,6 @@ class RichRDDUnsafeRow(val rdd: RDD[UnsafeRow]) extends AnyVal {
     val d = digitsNeeded(nPartitions)
 
     val rowCount = rdd.mapPartitionsWithIndex { case (i, it) =>
-      val buffer = new Array[Byte](8 * 1024)
       var rowCount = 0L
 
       val is = i.toString
@@ -337,7 +336,6 @@ class ReadRowsRDD(sc: SparkContext,
 
       private var rowSize = in.readLong()
 
-      private val buffer = new Array[Byte](8 * 1024)
       private val region = MemoryBuffer(rowSize.max(8 * 1024))
 
       private val dec = new Decoder(in)
