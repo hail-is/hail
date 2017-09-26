@@ -337,7 +337,6 @@ class ReadRowsRDD(sc: SparkContext,
 
       private var rowSize = in.readLong()
 
-      private val buffer = new Array[Byte](8 * 1024)
       private val region = MemoryBuffer(rowSize.max(8 * 1024))
 
       private val dec = new Decoder(in)
