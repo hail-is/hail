@@ -2858,7 +2858,7 @@ class VariantDataset(HistoryMixin):
 
         jldm = self._jvdf.ldMatrix(force_local)
         return LDMatrix(jldm)
-    
+
     @handle_py4j
     @require_biallelic
     @record_method
@@ -4711,7 +4711,7 @@ class VariantDataset(HistoryMixin):
 
         jvds = self._jvds.naiveCoalesce(max_partitions)
         return VariantDataset(self.hc, jvds)
-    
+
     @handle_py4j
     @require_biallelic
     @record_method
@@ -4868,6 +4868,64 @@ class VariantDataset(HistoryMixin):
         """
 
         return self._jvds.storageLevel()
+
+    @handle_py4j
+    def collect(self):
+        """Collect the dataset into a local list.
+
+        **Examples**
+
+        >>> local_dataset = vds.collect()
+
+        **Notes**
+
+        This method should be used on very small tables and as a last resort.
+        It is very slow to convert distributed Java objects to Python
+        (especially serially), and the resulting list may be too large
+        to fit in memory on one machine.
+
+        The schema of the returned structs is:
+
+         - **v**: :py:meth:`.VariantDataset.rowkey_schema`
+         - **va**: :py:meth:`.VariantDataset.variant_schema`
+         - **gs**: *list of* :py:meth:`.VariantDataset.genotype_schema`
+
+        :rtype: list of :py:class:`.hail.representation.Struct`
+        """
+
+        schema = Type._from_java(self._jvds.rowSignature())
+        return [schema._convert_to_py(r) for r in self._jvds.collect()]
+
+
+    @handle_py4j
+    @typecheck_method(n=integral)
+    def take(self, n):
+        """Collect the first `n` rows of the dataset into a local list.
+
+        **Examples**
+
+        >>> dataset_head = vds.take(10)
+
+        **Notes**
+
+        This method should be used with very small `n` and as a last resort.
+        It is very slow to convert distributed Java objects to Python
+        (especially serially), and the resulting list may be too large
+        to fit in memory on one machine.
+
+        The schema of the returned structs is:
+
+         - **v**: :py:meth:`.VariantDataset.rowkey_schema`
+         - **va**: :py:meth:`.VariantDataset.variant_schema`
+         - **gs**: *list of* :py:meth:`.VariantDataset.genotype_schema`
+
+        :param int n: Number of rows to take.
+
+        :rtype: list of :py:class:`.hail.representation.Struct`
+        """
+
+        schema = Type._from_java(self._jvds.rowSignature())
+        return [schema._convert_to_py(r) for r in self._jvds.take(n)]
 
     @handle_py4j
     def summarize(self):

@@ -1065,3 +1065,24 @@ class ContextTests(unittest.TestCase):
         vds = vds.rename_duplicates()
         duplicate_sample_ids = vds.query_samples('samples.filter(s => s != sa.originalID).map(s => sa.originalID).collectAsSet()')
         self.assertEqual(duplicate_sample_ids, {'5', '10'})
+
+    def test_take_collect(self):
+        vds = hc.import_vcf('src/test/resources/sample2.vcf')
+
+        # need tiny example because this stuff is really slow
+        n_samples = 5
+        n_variants = 3
+        vds = vds.filter_samples_list(vds.sample_ids[-n_samples:])
+        sample_ids = vds.sample_ids
+
+        self.assertEqual([(x.v, x.va) for x in vds.take(n_variants)],
+                         [(x.v, x.va) for x in vds.variants_table().take(n_variants)])
+        from_kt = {(x.v, x.s) : x.g for x in vds.genotypes_table().take(n_variants * n_samples)}
+        from_vds = {(x.v, sample_ids[i]) : x.gs[i] for i in range(n_samples) for x in vds.take(n_variants)}
+        self.assertEqual(from_kt, from_vds)
+
+        vds = vds.filter_variants_expr('v.start % 199 == 0')
+        self.assertEqual([(x.v, x.va) for x in vds.collect()], [(x.v, x.va) for x in vds.variants_table().collect()])
+        from_kt = {(x.v, x.s) : x.g for x in vds.genotypes_table().collect()}
+        from_vds = {(x.v, sample_ids[i]) : x.gs[i] for i in range(n_samples) for x in vds.collect()}
+        self.assertEqual(from_kt, from_vds)
