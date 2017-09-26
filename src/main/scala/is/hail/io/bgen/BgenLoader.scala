@@ -70,7 +70,7 @@ object BgenLoader {
     val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey: Annotation)))
 
     val gr = GenomeReference.GRCh37
-
+    
     val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
       (decoder.getKey: Annotation, (decoder.getAnnotation, decoder.getValue))
     })).toOrderedRDD(fastKeys)(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
@@ -81,8 +81,7 @@ object BgenLoader {
       TVariant(gr),
       vaSignature = signature,
       genotypeSignature = TStruct("GT" -> TCall, "GP" -> TArray(TFloat64)),
-      globalSignature = TStruct.empty,
-      wasSplit = true),
+      globalSignature = TStruct.empty),
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = Array.fill(nSamples)(Annotation.empty)),

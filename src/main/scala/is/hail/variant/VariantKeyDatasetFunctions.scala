@@ -62,12 +62,30 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
     */
   def filterMulti(): VariantSampleMatrix[Locus, Variant, T] = {
     if (vsm.wasSplit) {
-      warn("called redundant `filtermulti' on an already split or multiallelic-filtered VDS")
+      warn("called redundant `filter_multi' on an already split or multiallelic-filtered VDS")
       vsm
     } else {
       vsm.filterVariants {
         case (v, va, gs) => v.isBiallelic
       }.copy(wasSplit = true)
+    }
+  }
+
+  def verifyBiallelic(): VariantSampleMatrix[Locus, Variant, T] =
+    verifyBiallelic("verifyBiallelic")
+
+  def verifyBiallelic(method: String): VariantSampleMatrix[Locus, Variant, T] = {
+    if (vsm.wasSplit) {
+      warn("called redundant `$method' on biallelic VDS")
+      vsm
+    } else {
+      vsm.copy(
+        rdd = vsm.rdd.map { case vvags@(v, _) =>
+          if (!v.isBiallelic)
+            fatal("in $method: found non-biallelic variant: $v")
+          vvags
+        }.toOrderedRDD,
+        wasSplit = true)
     }
   }
 }

@@ -64,6 +64,7 @@ class LoadBgenSuite extends SparkSuite {
       val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10))
         .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
         .toVDS
+        .verifyBiallelic()
       assert(bgenVDS.nSamples == nSamples && bgenVDS.countVariants() == nVariants)
 
       val genVDS = hc.importGen(gen, sampleFile)

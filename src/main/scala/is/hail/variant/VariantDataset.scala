@@ -41,11 +41,6 @@ object VariantDataset {
 
 class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
-  private def requireSplit(methodName: String) {
-    if (!vds.wasSplit)
-      fatal(s"method `$methodName' requires a split dataset. Use `split_multi' or `filter_multi' first.")
-  }
-
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
     val (vas2, insertIndex) = vds.vaSignature.insert(TInt32, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
@@ -107,10 +102,8 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
-    requireSplit("concordance")
-
-    if (!other.wasSplit)
-      fatal("method `concordance' requires both datasets to be split, but found unsplit right-hand VDS.")
+    require(vds.wasSplit)
+    require(other.wasSplit)
 
     CalculateConcordance(vds, other)
   }
@@ -136,7 +129,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def exportGen(path: String, precision: Int = 4) {
-    requireSplit("export gen")
+    require(vds.wasSplit)
 
     def writeSampleFile() {
       //FIXME: should output all relevant sample annotations such as phenotype, gender, ...
@@ -209,7 +202,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def exportPlink(path: String, famExpr: String = "id = s") {
-    requireSplit("export plink")
+    require(vds.wasSplit)
     vds.requireSampleTString("export plink")
 
     val ec = EvalContext(Map(
@@ -359,7 +352,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def grm(): KinshipMatrix = {
-    requireSplit("GRM")
+    require(vds.wasSplit)
     info("Computing GRM...")
     GRM(vds)
   }
@@ -384,14 +377,12 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     */
   def ibd(computeMafExpr: Option[String] = None, bounded: Boolean = true,
     minimum: Option[Double] = None, maximum: Option[Double] = None): KeyTable = {
-    requireSplit("IBD")
-
+    require(vds.wasSplit)
     IBD.toKeyTable(vds.hc, IBD.validateAndCall(vds, computeMafExpr, bounded, minimum, maximum))
   }
 
   def ibdPrune(threshold: Double, tiebreakerExpr: Option[String] = None, computeMafExpr: Option[String] = None, bounded: Boolean = true): VariantDataset = {
-    requireSplit("IBD Prune")
-
+    require(vds.wasSplit)
     IBDPrune(vds, threshold, tiebreakerExpr, computeMafExpr, bounded)
   }
 
@@ -405,7 +396,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
     fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
-    requireSplit("impute sex")
+    require(vds.wasSplit)
 
     val result = ImputeSexPlink(vds,
       mafThreshold,
@@ -420,23 +411,23 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def ldMatrix(forceLocal: Boolean = false): LDMatrix = {
-    requireSplit("LD Matrix")
+    require(vds.wasSplit)
     LDMatrix(vds, Some(forceLocal))
   }
 
   def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): VariantDataset = {
-    requireSplit("LD Prune")
+    require(vds.wasSplit)
     LDPrune(vds, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
   }
 
   def linregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
-    requireSplit("linear burden regression")
+    require(vds.wasSplit)
     vds.requireSampleTString("linear burden regression")
     LinearRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, y, covariates)
   }
 
   def linreg(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, variantBlockSize: Int = 16): VariantDataset = {
-    requireSplit("linear regression")
+    require(vds.wasSplit)
     LinearRegression(vds, ys, covariates, root, useDosages, variantBlockSize)
   }
 
@@ -452,8 +443,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     useDosages: Boolean = false,
     nEigs: Option[Int] = None,
     optDroppedVarianceFraction: Option[Double] = None): VariantDataset = {
-
-    requireSplit("linear mixed regression")
+    require(vds.wasSplit)
     LinearMixedRegression(vds, kinshipMatrix, y, covariates, useML, rootGA, rootVA,
       runAssoc, delta, sparsityThreshold, useDosages, nEigs, optDroppedVarianceFraction)
   }
@@ -463,19 +453,18 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     covariates: Array[String] = Array.empty[String],
     root: String = "va.logreg",
     useDosages: Boolean = false): VariantDataset = {
-
-    requireSplit("logistic regression")
+    require(vds.wasSplit)
     LogisticRegression(vds, test, y, covariates, root, useDosages)
   }
 
   def logregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, test: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
-    requireSplit("logistic burden regression")
+    require(vds.wasSplit)
     vds.requireSampleTString("logistic burden regression")
     LogisticRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, test, y, covariates)
   }
 
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
-    requireSplit("mendel errors")
+    require(vds.wasSplit)
     vds.requireSampleTString("mendel errors")
 
     val men = MendelErrors(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios)
@@ -493,7 +482,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     */
   def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
     asArrays: Boolean = false): VariantDataset = {
-    requireSplit("PCA")
+    require(vds.wasSplit)
 
     if (k < 1)
       fatal(
@@ -531,7 +520,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     *                  objects necessary for Spark and Hail).
     */
   def pcRelate(k: Int, maf: Double, blockSize: Int): KeyTable = {
-    requireSplit("PCRelate")
+    require(vds.wasSplit)
     val pcs = SamplePCA.justScores(vds, k)
     PCRelate.toKeyTable(vds, pcs, maf, blockSize)
   }
@@ -539,7 +528,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds.toGDS, root, keepStar).toVDS
 
   def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
-    requireSplit("rrm")
+    require(vds.wasSplit)
     info(s"rrm: Computing Realized Relationship Matrix...")
     val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
     info(s"rrm: RRM computed using $m variants.")
@@ -561,22 +550,19 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   def skat(variantKeys: String, singleKey: Boolean, y: String, covariates: Array[String] = Array.empty[String],
     weightExpr: Option[String], logistic: Boolean = false, useDosages: Boolean = false,
     useLargeN: Boolean = false): KeyTable = {
-
-    requireSplit("skat")
-
+    require(vds.wasSplit)
     Skat(vds, variantKeys, singleKey, y, covariates, weightExpr, logistic, useDosages, useLargeN)
   }
 
   def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {
-    requireSplit("TDT")
+    require(vds.wasSplit)
     vds.requireSampleTString("TDT")
-
     TDT(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios,
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
   }
 
   def variantQC(root: String = "va.qc"): VariantDataset = {
-    requireSplit("variant QC")
+    require(vds.wasSplit)
     VariantQC(vds.toGDS, root).toVDS
   }
 
@@ -587,7 +573,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     maxParentAB: Double = 0.05,
     minChildAB: Double = 0.20,
     minDepthRatio: Double = 0.10): KeyTable = {
-    requireSplit("de novo")
+    require(vds.wasSplit)
     vds.requireSampleTString("de novo")
 
     DeNovo(vds, ped, referenceAF, minGQ, minPDeNovo, maxParentAB, minChildAB, minDepthRatio)
