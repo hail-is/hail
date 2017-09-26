@@ -60,7 +60,8 @@ object LogisticRegression {
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(logRegTest.schema, pathVA)
 
-    vds.copy(rdd = vds.rdd.mapPartitions( { it =>
+    vds.copy(vaSignature = newVAS,
+      rdd = vds.rdd.mapPartitions( { it =>
       val  missingSamples = new ArrayBuilder[Int]()
 
       val X = XBc.value.copy
@@ -81,7 +82,7 @@ object LogisticRegression {
         assert(newVAS.typeCheck(newAnnotation))
         (v, (newAnnotation, gs))
       }
-    }, preservesPartitioning = true).asOrderedRDD).copy(vaSignature = newVAS)
+    }, preservesPartitioning = true).asOrderedRDD)
   }
 }
 

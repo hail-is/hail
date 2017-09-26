@@ -9,8 +9,8 @@ import org.testng.annotations.Test
 
 class HardCallsSuite extends SparkSuite {
   def gtTriples(vds: VariantDataset): Set[(Variant, Annotation, (Option[Int], Option[Boolean]))] =
-    vds.mapValues { g => (Genotype.gt(g), Genotype.fakeRef(g)) }
-      .expand()
+    vds.expand()
+      .map { case (v, s, g) => (v, s, (Genotype.gt(g), Genotype.fakeRef(g))) }
       .collect()
       .toSet
 

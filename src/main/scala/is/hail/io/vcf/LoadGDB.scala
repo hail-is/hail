@@ -119,28 +119,25 @@ object LoadGDB {
       "va" -> variantAnnotationSignatures,
       "gs" -> TArray(genotypeSignature))
 
-    val rowTypeTreeBc = BroadcastTypeTree(sc, rowType)
-
     val region = MemoryBuffer()
     val rvb = new RegionValueBuilder(region)
 
     val records = gdbReader
       .iterator
       .asScala
-      .map(vc => {
+      .map { vc =>
         region.clear()
         rvb.start(rowType.fundamentalType)
-        reader.readRecord(vc, rvb, infoSignature, genotypeSignature, canonicalFlags)
+        reader.readRecord(vc, rvb, infoSignature, genotypeSignature, dropSamples, canonicalFlags)
 
-        val ur = new UnsafeRow(rowTypeTreeBc, region.copy(), rvb.end())
+        val ur = new UnsafeRow(rowType, region.copy(), rvb.end())
 
-        val v = ur.getAs[Variant](0)
-        val va = ur.get(1)
-        val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
+        val v = ur.getAs[Variant](1)
+        val va = ur.get(2)
+        val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](3)
 
         (v, (va, gs))
-      })
-      .toSeq
+      }.toSeq
 
     val recordRDD = sc.parallelize(records, nPartitions.getOrElse(sc.defaultMinPartitions))
 

@@ -2,6 +2,7 @@ package is.hail.utils.richUtils
 
 import java.io._
 
+import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.io.compress.BGzipCodec
 import is.hail.utils.{TextContext, WithContext, _}
 import net.jpountz.lz4.{LZ4BlockOutputStream, LZ4Compressor}
@@ -246,6 +247,12 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
 
   def readTextFile[T](filename: String)(f: (InputStreamReader) => T): T =
     using(new InputStreamReader(open(filename)))(f)
+
+  def writeKryoFile[T](filename: String)(f: (Output) => T): T =
+    using(new Output(create(filename)))(f)
+
+  def readKryoFile[T](filename: String)(f: (Input) => T): T =
+    using(new Input(open(filename)))(f)
 
   def readFile[T](filename: String)(f: (InputStream) => T): T =
     using(open(filename))(f)

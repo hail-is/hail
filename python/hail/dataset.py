@@ -18,6 +18,12 @@ warnings.filterwarnings(module=__name__, action='once')
 
 vds_type = lazy()
 
+@decorator
+def require_biallelic(func, vds, *args, **kwargs):
+    if not vds.was_split():
+        vds = vds._verify_biallelic(func.__name__)
+    return func(vds, *args, **kwargs)
+
 class VariantDataset(HistoryMixin):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
@@ -1103,6 +1109,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvds.cache())
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(right=vds_type)
     def concordance(self, right):
@@ -1186,6 +1193,9 @@ class VariantDataset(HistoryMixin):
         :rtype: (list of list of int, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
+        if not right.was_split():
+            right = right._verify_biallelic("concordance, right")
+
         r = self._jvdf.concordance(right._jvds)
         j_global_concordance = r._1()
         sample_kt = KeyTable(self.hc, r._2())
@@ -1215,6 +1225,7 @@ class VariantDataset(HistoryMixin):
         return r._1(), r._2()
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(pedigree=Pedigree,
                       pop_frequency_prior=strlike,
@@ -1437,6 +1448,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
 
     @handle_py4j
+    @require_biallelic
     @write_history('output')
     @typecheck_method(output=strlike,
                       precision=integral)
@@ -1529,6 +1541,7 @@ class VariantDataset(HistoryMixin):
         self._jvds.exportGenotypes(output, expr, types, parallel)
 
     @handle_py4j
+    @require_biallelic
     @write_history('output')
     @typecheck_method(output=strlike,
                       fam_expr=strlike)
@@ -2019,7 +2032,7 @@ class VariantDataset(HistoryMixin):
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         This method is much less computationally expensive than
         :py:meth:`.split_multi`, and can also be used to produce
@@ -2032,6 +2045,25 @@ class VariantDataset(HistoryMixin):
         """
 
         return VariantDataset(self.hc, self._jvkdf.filterMulti())
+
+    @handle_py4j
+    def _verify_biallelic(self, method):
+        vds = VariantDataset(self.hc, self._jvkdf.verifyBiallelic(method))
+        vds._history = self._history
+        return vds
+
+    @record_method
+    def verify_biallelic(self):
+        """Verify dataset has only biallelic variants.
+
+        .. include:: _templates/req_tvariant.rst
+
+        :return: Dataset which can be used for biallelic-only methods.
+        :rtype: :class:`.VariantDataset`
+
+        """
+
+        return self._verify_biallelic("verify_biallelic")
 
     @handle_py4j
     @record_method
@@ -2403,6 +2435,7 @@ class VariantDataset(HistoryMixin):
         return self._globals
 
     @handle_py4j
+    @require_biallelic
     @record_method
     def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
@@ -2479,6 +2512,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvds.head(n))
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(maf=nullable(strlike),
                       bounded=bool,
@@ -2555,6 +2589,7 @@ class VariantDataset(HistoryMixin):
         return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(threshold=numeric,
                       tiebreaking_expr=nullable(strlike),
@@ -2615,6 +2650,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(tiebreaking_expr), joption(maf), bounded))
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(maf_threshold=numeric,
                       include_par=bool,
@@ -2706,6 +2742,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvds.join(right._jvds))
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(num_cores=integral,
                       r2=numeric,
@@ -2779,6 +2816,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(force_local=bool)
     def ld_matrix(self, force_local=False):
@@ -2822,6 +2860,7 @@ class VariantDataset(HistoryMixin):
         return LDMatrix(jldm)
     
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
@@ -3018,6 +3057,7 @@ class VariantDataset(HistoryMixin):
         return linreg_kt, sample_kt
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(ys=listof(strlike),
                       covariates=listof(strlike),
@@ -3071,6 +3111,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(kinshipMatrix=KinshipMatrix,
                       y=strlike,
@@ -3327,6 +3368,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(test=strlike,
                       y=strlike,
@@ -3467,6 +3509,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
@@ -3587,6 +3630,7 @@ class VariantDataset(HistoryMixin):
         return logreg_kt, sample_kt
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(pedigree=Pedigree)
     def mendel_errors(self, pedigree):
@@ -3773,6 +3817,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(scores=strlike,
                       loadings=nullable(strlike),
@@ -3874,6 +3919,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(k=integral,
                       maf=numeric,
@@ -4667,6 +4713,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
     
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(force_block=bool,
                       force_gramian=bool)
@@ -4990,6 +5037,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvds.deleteVaAttribute(ann_path, attribute))
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(variant_keys=strlike,
                       single_key=bool,
@@ -5242,6 +5290,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(pedigree=Pedigree,
                       root=strlike)
@@ -5356,6 +5405,7 @@ class VariantDataset(HistoryMixin):
         self._jvds.typecheck()
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(root=strlike)
     def variant_qc(self, root='va.qc'):

@@ -26,6 +26,7 @@ class LogisticRegressionBurdenSuite extends SparkSuite {
     types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
   def vdsBurden: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
+    .verifyBiallelic()
     .annotateVariantsTable(intervals, root="va.genes", product=true)
     .annotateVariantsExpr("va.weight = v.start.toFloat64()")
     .annotateSamplesTable(phenotypes, root="sa.pheno0")

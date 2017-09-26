@@ -1,11 +1,11 @@
 package is.hail.methods
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, UnsafeRow}
 import is.hail.expr.{TStruct, _}
 import is.hail.sparkextras.OrderedRDD
 import is.hail.stats.LeveneHaldane
 import is.hail.utils._
-import is.hail.variant.{HTSGenotypeView, GenericDataset, Genotype, Variant, VariantDataset}
+import is.hail.variant.{GenericDataset, Genotype, HTSGenotypeView, Variant, VariantDataset}
 import org.apache.spark.util.StatCounter
 
 import scala.reflect.classTag
@@ -103,15 +103,15 @@ object VariantQC {
   def apply(vds: GenericDataset, root: String): GenericDataset = {
     val (newVAS, insertQC) = vds.vaSignature.insert(VariantQC.signature,
       Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
-    val nSamples = vds.nSamples
-    val rowSignature = vds.rowSignature
-    val rdd = vds.unsafeRowRDD.mapPartitions { it =>
-      val view = HTSGenotypeView(rowSignature)
-      it.map { r =>
-        view.setRegion(r.region, r.offset)
+    val localNSamples = vds.nSamples
+    val localRowType = vds.rowType
+    val rdd = vds.rdd2.mapPartitions { it =>
+      val view = HTSGenotypeView(localRowType)
+      it.map { rv =>
+        view.setRegion(rv.region, rv.offset)
         val comb = new VariantQCCombiner
         var i = 0
-        while (i < nSamples) {
+        while (i < localNSamples) {
           view.setGenotype(i)
           if (view.hasGT)
             comb.mergeGT(view.getGT)
@@ -126,7 +126,8 @@ object VariantQC {
           i += 1
         }
 
-        (r.get(0): Annotation) -> (insertQC(r.get(1), comb.result()) -> r.getAs[Iterable[Annotation]](2))
+        val ur = new UnsafeRow(localRowType, rv.region.copy(), rv.offset)
+        (ur.get(1): Annotation) -> (insertQC(ur.get(2), comb.result()) -> ur.getAs[Iterable[Annotation]](3))
       }
     }
     val ord = OrderedRDD.apply(rdd, vds.rdd.orderedPartitioner)(vds.rdd.kOk, classTag[(Annotation, Iterable[Annotation])])

@@ -718,6 +718,27 @@ class HailContext(HistoryMixin):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @record_method
+    @typecheck_method(path=oneof(strlike, listof(strlike)),
+                      min_partitions=nullable(integral),
+                      drop_samples=bool)
+    def import_matrix(self, path, min_partitions = None, drop_samples = False):
+        """
+        :param path: File(s) to read. Currently, takes 1 header line of column ids and subsequent lines of rowID, data... in TSV form where data can be parsed as an integer.
+        :type path: str or list of str
+
+        :param min_partitions: Number of partitions.
+        :type min_partitions: int or None
+
+        :param bool drop_samples: I don't know if this is relevant, but it only loads the row IDs.
+
+        :return: Variant dataset imported from file(s)
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        return VariantDataset(self,self._jhc.importMatrices(jindexed_seq_args(path), joption(min_partitions), drop_samples))
+
+    @handle_py4j
     @typecheck_method(path=oneof(strlike, listof(strlike)))
     def index_bgen(self, path):
         """Index .bgen files. :py:meth:`.HailContext.import_bgen` cannot run without these indices.
