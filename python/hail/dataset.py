@@ -4832,6 +4832,11 @@ class VariantDataset(HistoryMixin):
 
         **Notes**
 
+        This method should be used on very small tables and as a last resort.
+        It is very slow to convert distributed Java objects to Python
+        (especially serially), and the resulting list may be too large
+        to fit in memory on one machine.
+
         The schema of the returned structs is:
 
          - **v**: :py:meth:`.VariantDataset.rowkey_schema`
@@ -4855,6 +4860,11 @@ class VariantDataset(HistoryMixin):
         >>> dataset_head = vds.take(10)
 
         **Notes**
+
+        This method should be used with very small `n` and as a last resort.
+        It is very slow to convert distributed Java objects to Python
+        (especially serially), and the resulting list may be too large
+        to fit in memory on one machine.
 
         The schema of the returned structs is:
 
