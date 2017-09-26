@@ -6,7 +6,7 @@ import is.hail.expr._
 import is.hail.utils.{SerializableHadoopConfiguration, _}
 import net.jpountz.lz4.{LZ4BlockInputStream, LZ4Factory}
 import org.apache.commons.lang3.StringUtils
-import org.apache.spark.rdd.RDDR
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 
