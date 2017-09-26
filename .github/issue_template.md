@@ -1,7 +1,10 @@
-#### Hail uses issues to track bugs. For support and feature requests, please use the discussion forum: http://discuss.hail.is/
+To report a bug, fill in the information below. 
+For support and feature requests, please use the discussion forum: http://discuss.hail.is/
 
-#### Hail version:
+-------------------------------------------------------------------------------------------
 
-#### What you did:
+### Hail version:
 
-#### What went wrong (all error messages here, including the full java stack trace):
+### What you did:
+
+### What went wrong (all error messages here, including the full java stack trace):
