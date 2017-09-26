@@ -206,11 +206,15 @@ class ImportVCFSuite extends SparkSuite {
   @Test def notIdenticalHeaders() {
     val tmp1 = tmpDir.createTempFile("sample1", ".vcf")
     val tmp2 = tmpDir.createTempFile("sample2", ".vcf")
+    val tmp3 = tmpDir.createTempFile("sample3", ".vcf")
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     val sampleIds = vds.sampleIds
     vds.filterSamplesList(Set(sampleIds(0))).exportVCF(tmp1)
     vds.filterSamplesList(Set(sampleIds(1))).exportVCF(tmp2)
-    intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp2)))
+    assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp2))).getMessage.contains("invalid sample ids"))
+
+    vds.filterSamplesList(Set(sampleIds(0),sampleIds(1))).exportVCF(tmp3)
+    assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp3))).getMessage.contains("invalid sample ids"))
   }
 }
