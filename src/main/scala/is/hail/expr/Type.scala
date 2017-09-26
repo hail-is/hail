@@ -226,9 +226,9 @@ abstract class ComplexType extends Type {
 
   override lazy val fundamentalType: Type = representation.fundamentalType
 
-  override def defaultValue: Code[AnyRef] = fundamentalType.defaultValue
+  override def defaultValue: Code[_] = fundamentalType.defaultValue
 
-  override def ti: TypeInfo[AnyRef] = fundamentalType.ti
+  override def ti: TypeInfo[_] = fundamentalType.ti
 }
 
 case object TBinary extends Type {
