@@ -212,7 +212,7 @@ object LoadVCF {
     gr: GenomeReference = GenomeReference.GRCh37): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
-    
+
     val headerLines1 = getHeaderLines(hConf, file1)
     val header1 = parseHeader(reader, headerLines1)
     val header1Bc = sc.broadcast(header1)
@@ -227,28 +227,32 @@ object LoadVCF {
       if (hd1.sampleIds.length != hd.sampleIds.length) {
         fatal(
           s"""invalid sample ids: sample ids are different lengths.
-             | ${files(0)} has ${hd1.sampleIds.length} ids and
-             | ${file} has ${hd.sampleIds.length} ids.
+             | ${ files(0) } has ${ hd1.sampleIds.length } ids and
+             | ${ file } has ${ hd.sampleIds.length } ids.
            """.stripMargin)
       }
 
       hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
         .zipWithIndex.foreach { case ((s1, s2), i) =>
-        if (s1 != s2) fatal(
-          s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i.
-             |    ${files(0)}: $s1
-             |    $file: $s2""".stripMargin)
+        if (s1 != s2) {
+          fatal(
+            s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i.
+               |    ${ files(0) }: $s1
+               |    $file: $s2""".stripMargin)
+        }
       }
 
       if (hd1.genotypeSignature != hd.genotypeSignature)
-        fatal(s"""invalid genotype signature: expected signatures to be identical for all inputs.
-               |   ${ files(0) }: ${ hd1.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }
-               |   $file: ${ hd.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
+        fatal(
+          s"""invalid genotype signature: expected signatures to be identical for all inputs.
+             |   ${ files(0) }: ${ hd1.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }
+             |   $file: ${ hd.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
 
       if (hd1.vaSignature != hd.vaSignature)
-        fatal(s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
-               |   ${ files(0) }: ${ hd1.vaSignature.toPrettyString(compact = true, printAttrs = true) }
-               |   $file: ${ hd.vaSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
+        fatal(
+          s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
+             |   ${ files(0) }: ${ hd1.vaSignature.toPrettyString(compact = true, printAttrs = true) }
+             |   $file: ${ hd.vaSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
     }
 
     val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature, canonicalFlags) = header1
