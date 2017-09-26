@@ -288,7 +288,7 @@ case object TBinary extends Type {
     region.allocate(contentByteSize(length))
   }
 
-  override val point: Code[Byte] = const(0.toByte)
+  @transient override val point: Code[Byte] = const(0.toByte)
 
   @transient override val ti: TypeInfo[Byte] = typeInfo[Byte]
 }
@@ -316,7 +316,7 @@ case object TBoolean extends Type {
 
   override def byteSize: Long = 1
 
-  override val point: Code[Boolean] = const(false)
+  @transient override val point: Code[Boolean] = const(false)
 
   @transient override val ti: TypeInfo[Boolean] = typeInfo[Boolean]
 }
@@ -367,7 +367,7 @@ case object TInt32 extends TIntegral {
 
   override def byteSize: Long = 4
 
-  override val point: Code[Int] = const(0)
+  @transient override val point: Code[Int] = const(0)
 
   @transient override val ti: TypeInfo[Int] = typeInfo[Int]
 }
@@ -395,7 +395,7 @@ case object TInt64 extends TIntegral {
 
   override def byteSize: Long = 8
 
-  override val point: Code[Long] = const(0L)
+  @transient override val point: Code[Long] = const(0L)
 
   @transient override val ti: TypeInfo[Long] = typeInfo[Long]
 }
@@ -430,7 +430,7 @@ case object TFloat32 extends TNumeric {
 
   override def byteSize: Long = 4
 
-  override val point: Code[Float] = const(0.0F)
+  @transient override val point: Code[Float] = const(0.0F)
 
   @transient override val ti: TypeInfo[Float] = typeInfo[Float]
 }
@@ -465,7 +465,7 @@ case object TFloat64 extends TNumeric {
 
   override def byteSize: Long = 8
 
-  override val point: Code[Double] = const(0.0)
+  @transient override val point: Code[Double] = const(0.0)
 
   @transient override val ti: TypeInfo[Double] = typeInfo[Double]
 }
