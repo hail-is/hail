@@ -14,6 +14,8 @@ import scala.reflect.ClassTag
 
 package object asm4s {
 
+  def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
+
   trait TypeInfo[T] {
     val name: String
     val iname: String = name
@@ -304,6 +306,10 @@ package object asm4s {
   implicit def toCodeBoolean(f: LocalRef[Boolean]): CodeBoolean = new CodeBoolean(f.load())
 
   implicit def toCodeObject[T >: Null](f: LocalRef[T])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CodeObject[T] = new CodeObject[T](f.load())
+
+  implicit def const(b: Byte): Code[Byte] = Code(new IntInsnNode(BIPUSH, b))
+
+  implicit def const(s: Short): Code[Byte] = Code(new IntInsnNode(SIPUSH, s))
 
   implicit def const(s: String): Code[String] = Code(new LdcInsnNode(s))
 

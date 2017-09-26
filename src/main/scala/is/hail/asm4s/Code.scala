@@ -280,6 +280,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def &(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IAND))
 
+  def |(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IOR))
+
   def ceq(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPEQ, rhs)
 
   def cne(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPNE, rhs)
