@@ -2820,7 +2820,7 @@ class VariantDataset(HistoryMixin):
 
         jldm = self._jvdf.ldMatrix(force_local)
         return LDMatrix(jldm)
-    
+
     @handle_py4j
     @record_method
     @typecheck_method(key_name=strlike,
@@ -4665,7 +4665,7 @@ class VariantDataset(HistoryMixin):
 
         jvds = self._jvds.naiveCoalesce(max_partitions)
         return VariantDataset(self.hc, jvds)
-    
+
     @handle_py4j
     @record_method
     @typecheck_method(force_block=bool,
@@ -4832,10 +4832,6 @@ class VariantDataset(HistoryMixin):
 
         **Notes**
 
-        .. warning::
-
-            This method is very slow.
-
         The schema of the returned structs is:
 
          - **v**: :py:meth:`.VariantDataset.rowkey_schema`
@@ -4847,6 +4843,30 @@ class VariantDataset(HistoryMixin):
 
         schema = Type._from_java(self._jvds.rowSignature())
         return [schema._convert_to_py(r) for r in self._jvds.collect()]
+
+
+    @handle_py4j
+    @typecheck_method(n=integral)
+    def take(self, n):
+        """Collect the first `n` rows of the dataset into a local list.
+
+        **Examples**
+
+        >>> dataset_head = vds.take(10)
+
+        **Notes**
+
+        The schema of the returned structs is:
+
+         - **v**: :py:meth:`.VariantDataset.rowkey_schema`
+         - **va**: :py:meth:`.VariantDataset.variant_schema`
+         - **gs**: *list of* :py:meth:`.VariantDataset.genotype_schema`
+
+        :rtype: list of :py:class:`.hail.representation.Struct`
+        """
+
+        schema = Type._from_java(self._jvds.rowSignature())
+        return [schema._convert_to_py(r) for r in self._jvds.take(n)]
 
     @handle_py4j
     def summarize(self):

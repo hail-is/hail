@@ -317,6 +317,8 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def collect(): Array[UnsafeRow] = unsafeRowRDD.collect()
 
+  def take(n: Int): Array[UnsafeRow] = unsafeRowRDD.take(n)
+
   def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
 
     val (keysType, keysQuerier) = queryVA(variantKeysVA)

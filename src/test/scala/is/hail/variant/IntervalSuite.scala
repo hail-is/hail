@@ -152,7 +152,7 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testFilter() {
-    val vds = hc.importVCF("src/test/resources/sample2.vcf", nPartitions = Some(4)).cache()
+    val vds = hc.importVCF("src/test/resources/sample2.vcf", nPartitions = Some(4)).persist()
     val iList = tmpDir.createTempFile("input", ".interval_list")
     val tmp1 = tmpDir.createTempFile("output", ".tsv")
 
