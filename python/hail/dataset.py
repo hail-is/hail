@@ -4862,6 +4862,8 @@ class VariantDataset(HistoryMixin):
          - **va**: :py:meth:`.VariantDataset.variant_schema`
          - **gs**: *list of* :py:meth:`.VariantDataset.genotype_schema`
 
+        :param int n: Number of rows to take.
+
         :rtype: list of :py:class:`.hail.representation.Struct`
         """
 
