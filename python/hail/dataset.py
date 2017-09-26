@@ -855,6 +855,10 @@ class VariantDataset(HistoryMixin):
 
         return VariantDataset(self.hc, jvds)
 
+    @handle_py4j
+    @record_method
+    @typecheck_method(annotations=oneof(strlike, listof(strlike)),
+                      gene_key=nullable(strlike))
     def annotate_variants_db(self, annotations, gene_key=None):
         """
         Annotate variants using the Hail annotation database.
