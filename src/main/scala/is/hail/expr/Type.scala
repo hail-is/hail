@@ -210,7 +210,7 @@ sealed abstract class Type extends Serializable { self =>
       types, Array and Struct. */
   def fundamentalType: Type = this
 
-  def point: Code[_]
+  def defaultValue: Code[_]
 
   def ti: TypeInfo[_]
 }
@@ -226,9 +226,9 @@ abstract class ComplexType extends Type {
 
   override lazy val fundamentalType: Type = representation.fundamentalType
 
-  override def point: Code[AnyRef] = Code._null
+  override def defaultValue: Code[AnyRef] = fundamentalType.defaultValue
 
-  override def ti: TypeInfo[AnyRef] = typeInfo[AnyRef]
+  override def ti: TypeInfo[AnyRef] = fundamentalType.ti
 }
 
 case object TBinary extends Type {
@@ -288,7 +288,7 @@ case object TBinary extends Type {
     region.allocate(contentByteSize(length))
   }
 
-  @transient override val point: Code[Byte] = const(0.toByte)
+  @transient override val defaultValue: Code[Byte] = const(0.toByte)
 
   @transient override val ti: TypeInfo[Byte] = typeInfo[Byte]
 }
@@ -316,7 +316,7 @@ case object TBoolean extends Type {
 
   override def byteSize: Long = 1
 
-  @transient override val point: Code[Boolean] = const(false)
+  @transient override val defaultValue: Code[Boolean] = const(false)
 
   @transient override val ti: TypeInfo[Boolean] = typeInfo[Boolean]
 }
@@ -367,7 +367,7 @@ case object TInt32 extends TIntegral {
 
   override def byteSize: Long = 4
 
-  @transient override val point: Code[Int] = const(0)
+  @transient override val defaultValue: Code[Int] = const(0)
 
   @transient override val ti: TypeInfo[Int] = typeInfo[Int]
 }
@@ -395,7 +395,7 @@ case object TInt64 extends TIntegral {
 
   override def byteSize: Long = 8
 
-  @transient override val point: Code[Long] = const(0L)
+  @transient override val defaultValue: Code[Long] = const(0L)
 
   @transient override val ti: TypeInfo[Long] = typeInfo[Long]
 }
@@ -430,7 +430,7 @@ case object TFloat32 extends TNumeric {
 
   override def byteSize: Long = 4
 
-  @transient override val point: Code[Float] = const(0.0F)
+  @transient override val defaultValue: Code[Float] = const(0.0F)
 
   @transient override val ti: TypeInfo[Float] = typeInfo[Float]
 }
@@ -465,7 +465,7 @@ case object TFloat64 extends TNumeric {
 
   override def byteSize: Long = 8
 
-  @transient override val point: Code[Double] = const(0.0)
+  @transient override val defaultValue: Code[Double] = const(0.0)
 
   @transient override val ti: TypeInfo[Double] = typeInfo[Double]
 }
@@ -494,7 +494,7 @@ case object TString extends Type {
     new String(region.loadBytes(TBinary.bytesOffset(offset), length))
   }
 
-  override def point: Code[String] = const("")
+  override def defaultValue: Code[String] = Code._null
 
   @transient override val ti: TypeInfo[String] = typeInfo[String]
 }
@@ -529,7 +529,7 @@ final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TFunction is not realizable")
 
-  override def point: Code[_] = throw new RuntimeException("TFunction is not realizable")
+  override def defaultValue: Code[_] = throw new RuntimeException("TFunction is not realizable")
 
   override def ti: TypeInfo[String] = throw new RuntimeException("TFunction is not realizable")
 }
@@ -585,7 +585,7 @@ final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) ex
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TAggregableVariable is not realizable")
 
-  override def point: Code[_] = throw new RuntimeException("TAggregableVariable is not realizable")
+  override def defaultValue: Code[_] = throw new RuntimeException("TAggregableVariable is not realizable")
 
   override def ti: TypeInfo[_] = throw new RuntimeException("TAggregableVariable is not realizable")
 }
@@ -622,7 +622,7 @@ final case class TVariable(name: String, var t: Type = null) extends Type {
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TVariable is not realizable")
 
-  override def point: Code[_] = throw new RuntimeException("TVariable is not realizable")
+  override def defaultValue: Code[_] = throw new RuntimeException("TVariable is not realizable")
 
   override def ti: TypeInfo[_] = throw new RuntimeException("TVariable is not realizable")
 }
@@ -666,7 +666,7 @@ final case class TAggregable(elementType: Type) extends TContainer {
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TAggregable is not realizable")
 
-  override def point: Code[_] = throw new RuntimeException("TAggregable is not realizable")
+  override def defaultValue: Code[_] = throw new RuntimeException("TAggregable is not realizable")
 
   override def ti: TypeInfo[_] = throw new RuntimeException("TAggregable is not realizable")
 }
@@ -824,7 +824,7 @@ final case class TArray(elementType: Type) extends TIterable {
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 
-  override def point: Code[Array[_]] = Code._null
+  override def defaultValue: Code[Array[_]] = Code._null
 
   override def ti: TypeInfo[Array[_]] = typeInfo[Array[_]]
 }
@@ -893,9 +893,9 @@ final case class TSet(elementType: Type) extends TIterable {
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 
-  override def point: Code[_] = ???
+  override def defaultValue: Code[_] = Code._null
 
-  override def ti: TypeInfo[_] = ???
+  override def ti: TypeInfo[_] = typeInfo[Set[AnyRef]]
 }
 
 final case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -968,9 +968,9 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
     annotationOrdering(extendOrderingToNull(missingGreatest)(dict))
   }
 
-  override def point: Code[_] = ???
+  override def defaultValue: Code[_] = Code._null
 
-  override def ti: TypeInfo[_] = ???
+  override def ti: TypeInfo[_] = typeInfo[Map[_, _]]
 }
 
 case object TGenotype extends ComplexType {
@@ -1782,7 +1782,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  override def point: Code[AnyRef] = Code._null
+  override def defaultValue: Code[AnyRef] = Code._null
 
   override def ti: TypeInfo[_] = typeInfo[AnyRef]
 }

@@ -43,7 +43,7 @@ object Compile {
     def statement(x: IR) = this.statement(x, env, outTyps, fb, mb)
     x match {
       case NA(t) =>
-        (const(true), t.point)
+        (const(true), t.defaultValue)
       case I32(x) =>
         (const(false), const(x))
       case I64(x) =>
@@ -114,7 +114,7 @@ object Compile {
           this.expression(body, env + (name -> (const(false) -> y.load())), outTyps, fb, mb)
 
         val missingness = x || mbody
-        val code = x.mux(bodyTyp.point, vbody)
+        val code = x.mux(bodyTyp.defaultValue, vbody)
 
         (missingness, code)
       case In(i) =>
