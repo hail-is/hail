@@ -4,12 +4,16 @@ import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
 import is.hail.keytable.KeyTable
-import is.hail.stats.{LogisticRegressionModel, RegressionUtils, SkatModel}
+import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
 import is.hail.annotations.Annotation
+
 import breeze.linalg._
 import breeze.numerics._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+
+import com.sun.jna.Native
+import com.sun.jna.ptr.IntByReference
 
 /*
 Skat implements the burden test described in:
@@ -51,8 +55,7 @@ the eigenvalues of the latter, and the p-value with the Davies algorithm.
 case class SkatTuple(q: Double, a: Vector[Double], b: DenseVector[Double])
 
 object Skat {
-  // use computeGramianLargeN route if n x m exceeds 8000 * 8000 (512MB of doubles) or maxSize * maxSize
-  val maxEntriesForSmallN = 64e6
+  val maxEntriesForSmallN = 64e6 // 512MB of doubles
   
   def apply(vds: VariantDataset,
     variantKeys: String,
@@ -85,14 +88,8 @@ object Skat {
     val maxSize = optMaxSize.getOrElse(Int.MaxValue)
     if (maxSize <= 0)
       fatal(s"Maximum group size must be positive, got $maxSize")
-    
-    val n = y.size
-    val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
-    completeSampleIndex.foreach(i => sampleMask(i) = true)
-
-    val filteredVds = vds.filterSamplesMask(sampleMask)
-    
-    val (keyGsWeightRdd, keyType) = toKeyGsWeightRdd(filteredVds, variantKeys, singleKey, weightExpr, useDosages)
+        
+    val (keyGsWeightRdd, keyType) = toKeyGsWeightRdd(vds, completeSampleIndex, variantKeys, singleKey, weightExpr, useDosages)
 
     val skatRdd: RDD[Row] = 
       if (logistic)
@@ -109,16 +106,15 @@ object Skat {
 
     new KeyTable(vds.hc, skatRdd, skatSignature, Array("key"))
   }
-  
+
   def toKeyGsWeightRdd(vds: VariantDataset,
+    completeSamplesIndex: Array[Int],
     variantKeys: String,
     singleKey: Boolean,
     weightExpr: Option[String],
     useDosages: Boolean):
   (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
     // ((key, [(gs_v, weight_v)]), keyType)
-    
-    val n = vds.nSamples
     
     val vdsWithWeight =
       if (weightExpr.isEmpty)
@@ -127,7 +123,7 @@ object Skat {
             "if (va.__AF[0] <= va.__AF[1]) va.__AF[0] else va.__AF[1] in dbeta(af, 1.0, 25.0)**2")
       else
         vds
-    
+
     val (keysType, keysQuerier) = vdsWithWeight.queryVA(variantKeys)
     val (weightType, weightQuerier) = weightExpr match {
       case None => vdsWithWeight.queryVA("va.__weight")
@@ -149,18 +145,24 @@ object Skat {
       (keyType, (keys: Annotation) => keys.asInstanceOf[Iterable[Annotation]].iterator)
     }
     
-    val completeSamplesBc = vds.sparkContext.broadcast((0 until n).toArray) // already filtered to complete samples
+    val n = completeSamplesIndex.length
 
-    (vdsWithWeight.rdd.flatMap { case (v, (va, gs)) =>      
+    val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
+    completeSamplesIndex.foreach(i => sampleMask(i) = true)
+   
+    val sampleMaskBc = vds.sparkContext.broadcast(sampleMask)    
+    val completeSamplesBc = vds.sparkContext.broadcast(completeSamplesIndex)
+
+    (vdsWithWeight.rdd.flatMap { case (_, (va, gs)) =>
       (Option(keysQuerier(va)), typedWeightQuerier(va)) match {
         case (Some(key), Some(w)) =>
           if (w < 0)
             fatal(s"Variant weights must be non-negative, got $w")
           val x: Vector[Double] =
-            if (!useDosages) {
-              RegressionUtils.hardCalls(gs, n)
-            } else {
+            if (useDosages) {
               RegressionUtils.dosages(gs, completeSamplesBc.value)
+            } else {
+              RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
             }
           keyIterator(key).map((_, (x, w)))
         case _ => Iterator.empty
@@ -211,7 +213,7 @@ object Skat {
             computeGramianLargeN(skatTuples)
           }
           // using q / sigmaSq since Z.t * Z = gramian / sigmaSq
-          val (pval, fault) = SkatModel.computePval(q / sigmaSq, gramian, accuracy, iterations)
+          val (pval, fault) = computePval(q / sigmaSq, gramian, accuracy, iterations)
           
           // returning qstat = q / (2 * sigmaSq) to agree with skat R package convention
           Row(key, size, q / (2 * sigmaSq), pval, fault)
@@ -277,7 +279,7 @@ object Skat {
         } else {
           computeGramianLargeN(skatTuples)
         }
-        val (pval, fault) = SkatModel.computePval(q, gramian, accuracy, iterations)
+        val (pval, fault) = computePval(q, gramian, accuracy, iterations)
 
         // returning qstat = q / 2 to agree with skat R package convention
         Row(key, size, q / 2, pval, fault)
@@ -365,6 +367,41 @@ object Skat {
     }
     
     (q, new DenseMatrix[Double](m, m, data))
+  }
+  
+  /** Davies Algorithm original C code
+  *   Citation:
+  *     Davies, Robert B. "The distribution of a linear combination of
+  *     x2 random variables." Applied Statistics 29.3 (1980): 323-333.
+  *   Software Link:
+  *     http://www.robertnz.net/QF.htm
+  */
+  @native
+  def qfWrapper(lb1: Array[Double], nc1: Array[Double], n1: Array[Int], r1: Int,
+    sigma: Double, c1: Double, lim1: Int, acc: Double, trace: Array[Double],
+    ifault: IntByReference): Double
+
+  Native.register("hail")
+  
+  // gramian is the m x m matrix (G * sqrt(W)).t * P_0 * (G * sqrt(W)) which has the same non-zero eigenvalues
+  // as the n x n matrix in the paper P_0^{1/2} * (G * W * G.t) * P_0^{1/2}
+  def computePval(q: Double, gramian: DenseMatrix[Double], accuracy: Double, iterations: Int): (Double, Int) = {
+    val allEvals = eigSymD.justEigenvalues(gramian)
+
+    // filter out those eigenvalues below the mean / 100k
+    val threshold = 1e-5 * sum(allEvals) / allEvals.length
+    val evals = allEvals.toArray.dropWhile(_ < threshold) // evals are increasing
+
+    val terms = evals.length
+    val noncentrality = Array.fill[Double](terms)(0.0)
+    val dof = Array.fill[Int](terms)(1)
+    val trace = Array.fill[Double](7)(0.0)
+    val fault = new IntByReference()
+    val s = 0.0
+    val x = qfWrapper(evals, noncentrality, dof, terms, s, q, iterations, accuracy, trace, fault)
+    val pval = 1 - x
+    
+    (pval, fault.getValue)
   }
 }
 

@@ -1,21 +1,21 @@
 package is.hail.methods
 
-import is.hail.utils._
-import is.hail.expr._
-import is.hail.{SparkSuite, TestUtils}
-import is.hail.io.annotators.IntervalList
-import is.hail.variant.{GenomeReference, VariantDataset}
 import is.hail.annotations.Annotation
+import is.hail.expr._
+import is.hail.io.annotators.IntervalList
+import is.hail.{SparkSuite, TestUtils}
+import is.hail.stats.RegressionUtils._
+import is.hail.utils._
+import is.hail.variant._
 
-import scala.sys.process._
 import breeze.linalg._
 import breeze.numerics.sigmoid
-
-import scala.language.postfixOps
-import is.hail.stats.RegressionUtils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+
 import org.testng.annotations.Test
+import scala.sys.process._
+import scala.language.postfixOps
 
 case class SkatAggForR(xs: ArrayBuilder[Vector[Double]], weights: ArrayBuilder[Double])
 
@@ -109,12 +109,9 @@ class SkatSuite extends SparkSuite {
     }
 
     val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-    val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
-    completeSampleIndex.foreach(i => sampleMask(i) = true)
-    val filteredVds = vds.filterSamplesMask(sampleMask)
 
     val (keyGsWeightRdd, keyType) =
-      Skat.toKeyGsWeightRdd(filteredVds, variantKeys, singleKey, weightExpr, useDosages)
+      Skat.toKeyGsWeightRdd(vds, completeSampleIndex, variantKeys, singleKey, weightExpr, useDosages)
     
     runInR(keyGsWeightRdd, keyType, y, cov)
   }
