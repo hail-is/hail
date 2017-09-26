@@ -3,6 +3,7 @@ package is.hail.stats
 import breeze.stats._
 import is.hail.SparkSuite
 import is.hail.variant.Genotype
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.testng.Assert.assertEquals
 import org.testng.annotations.Test
@@ -61,7 +62,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
       })
 
       //Test AF distributions
-      val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[GenericRow]]
+      val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[Row]]
       val arrayOfVATuples = arrayOfVARows.map(row => (row.get(0), row.get(1)).asInstanceOf[(Double, Vector[Double])])
 
       val AFStats = arrayOfVATuples.map(tuple => meanAndVariance(tuple._2))
@@ -96,7 +97,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
     def testRangeHelp(dist: Distribution, min: Double, max: Double, seed: Int) {
       val bnm = BaldingNicholsModel(hc, 3, 400, 400, None, None, seed, Some(4), dist)
 
-      val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[GenericRow]]
+      val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[Row]]
       val arrayOfAncestralAFs = arrayOfVARows.map(row => row.get(0).asInstanceOf[Double])
 
       assert(arrayOfAncestralAFs.forall(af => af > min && af < max))

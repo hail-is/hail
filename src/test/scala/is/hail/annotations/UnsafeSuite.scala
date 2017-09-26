@@ -5,6 +5,9 @@ import is.hail.check._
 import is.hail.check.Arbitrary._
 import is.hail.expr._
 import is.hail.utils._
+import is.hail.variant.{GenomeReference, Variant}
+import org.apache.spark.SparkEnv
+import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -19,7 +22,6 @@ class UnsafeSuite extends SparkSuite {
     val g = Type.genStruct
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
       .filter { case (t, a) => a != null }
-      .resize(10)
     val p = Prop.forAll(g) { case (t, a) =>
       t.typeCheck(a)
       val f = t.fundamentalType
@@ -28,20 +30,18 @@ class UnsafeSuite extends SparkSuite {
       rvb.start(f)
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
-      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur = new UnsafeRow(t, region, offset)
 
-      hadoopConf.writeDataFile(path) { out =>
-        val en = new Encoder(out)
-        en.writeRegionValue(t, region, offset)
-      }
+      val en = new Encoder()
+      en.clear()
+      en.writeRegionValue(f, region, offset)
+      val (mem, n) = (en.outMem, en.outOff)
 
       region2.clear()
-      val offset2 = hadoopConf.readDataFile(path) { in =>
-        val dec = new Decoder(in)
-        dec.readRegionValue(t, region2)
-      }
-
-      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      val dec = new Decoder()
+      dec.set(mem)
+      val offset2 = dec.readRegionValue(f, region2)
+      val ur2 = new UnsafeRow(t, region2, offset2)
 
       assert(t.valuesSimilar(a, ur2))
 
@@ -69,7 +69,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
 
-      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur = new UnsafeRow(t, region, offset)
       assert(t.valuesSimilar(a, ur))
 
       region2.clear()
@@ -77,7 +77,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addRow(t, ur)
       val offset2 = rvb2.end()
 
-      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      val ur2 = new UnsafeRow(t, region2, offset2)
       assert(t.valuesSimilar(a, ur2))
 
       // don't clear, just add on
@@ -85,7 +85,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addUnsafeRow(t, ur)
       val offset3 = rvb2.end()
 
-      val ur3 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset3)
+      val ur3 = new UnsafeRow(t, region2, offset3)
       assert(t.valuesSimilar(a, ur2))
 
       true
@@ -165,6 +165,29 @@ class UnsafeSuite extends SparkSuite {
     assert(TStruct().byteSize == 0)
   }
 
+  @Test def orderingRegression() {
+    val region = MemoryBuffer()
+    val region2 = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+    val rvb2 = new RegionValueBuilder(region2)
+
+    val v1 = Variant("1", 1, "T", Array("A", "G"))
+    val v2 = Variant("1", 1, "T", "C")
+
+    val t = TVariant(GenomeReference.GRCh37)
+
+    rvb.start(t)
+    rvb.addAnnotation(t, v1)
+    val rv = RegionValue(region, rvb.end())
+
+    rvb2.start(t)
+    rvb2.addAnnotation(t, v2)
+    val rv2 = RegionValue(region2, rvb2.end())
+
+    assert(math.signum(t.ordering(missingGreatest = true).compare(v1, v2)) ==
+      math.signum(t.unsafeOrdering(missingGreatest = true).compare(rv, rv2)))
+  }
+
   @Test def testUnsafeOrdering() {
     val region = MemoryBuffer()
     val region2 = MemoryBuffer()
@@ -185,7 +208,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.addRow(t, a1.asInstanceOf[Row])
       val offset = rvb.end()
 
-      val ur1 = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur1 = new UnsafeRow(t, region, offset)
       assert(t.valuesSimilar(a1, ur1))
 
       region2.clear()
@@ -193,7 +216,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addRow(t, a2.asInstanceOf[Row])
       val offset2 = rvb2.end()
 
-      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      val ur2 = new UnsafeRow(t, region2, offset2)
       assert(t.valuesSimilar(a2, ur2))
 
       val ord = t.ordering(b)
@@ -216,5 +239,121 @@ class UnsafeSuite extends SparkSuite {
       p
     }
     p.check()
+  }
+
+  @Test def unsafeSer() {
+    val region = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+
+    val path = tmpDir.createTempFile(extension = "ser")
+
+    val g = Type.genStruct
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
+      .filter { case (t, a) => a != null }
+    val p = Prop.forAll(g) { case (t, a) =>
+      region.clear()
+      rvb.start(t)
+      rvb.addRow(t, a.asInstanceOf[Row])
+      val offset = rvb.end()
+      val ur = new UnsafeRow(t, region, offset)
+
+      hadoopConf.writeObjectFile(path) { out =>
+        out.writeObject(ur)
+      }
+
+      val ur2 = hadoopConf.readObjectFile(path) { in =>
+        in.readObject().asInstanceOf[UnsafeRow]
+      }
+
+      assert(t.valuesSimilar(ur, ur2))
+
+      true
+    }
+    p.check()
+  }
+
+  @Test def unsafeKryo() {
+    val conf = sc.getConf // force sc
+    val ser = SparkEnv.get.serializer.asInstanceOf[KryoSerializer]
+    val kryo = ser.newKryo()
+
+    val region = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+    val path = tmpDir.createTempFile(extension = "ser")
+    val g = Type.genStruct
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
+      .filter { case (t, a) => a != null }
+    val p = Prop.forAll(g) { case (t, a) =>
+      region.clear()
+      rvb.start(t)
+      rvb.addRow(t, a.asInstanceOf[Row])
+      val offset = rvb.end()
+      val ur = new UnsafeRow(t, region, offset)
+
+      hadoopConf.writeKryoFile(path) { out =>
+        kryo.writeObject(out, ur)
+      }
+
+      val ur2 = hadoopConf.readKryoFile(path) { in =>
+        kryo.readObject[UnsafeRow](in, classOf[UnsafeRow])
+      }
+
+      assert(t.valuesSimilar(ur, ur2))
+
+      true
+    }
+    p.check()
+  }
+
+  @Test def testRegionSer() {
+    val region = MemoryBuffer()
+    val path = tmpDir.createTempFile(extension = "ser")
+    val g = Gen.buildableOf[Array, Byte](arbitrary[Byte])
+    val p = Prop.forAll(g) { (a: Array[Byte]) =>
+      region.clear()
+      region.appendBytes(a)
+
+      hadoopConf.writeObjectFile(path) { out =>
+        out.writeObject(region)
+      }
+
+      val region2 = hadoopConf.readObjectFile(path) { in =>
+        in.readObject().asInstanceOf[MemoryBuffer]
+      }
+
+      assert(region2.size.toInt == a.length)
+      val a2 = region2.loadBytes(0, region2.size.toInt)
+      assert(a2 sameElements a)
+
+      true
+    }
+  }
+
+  @Test def testRegionKryo() {
+    val conf = sc.getConf // force sc
+    val ser = SparkEnv.get.serializer.asInstanceOf[KryoSerializer]
+    val kryo = ser.newKryo()
+
+    val region = MemoryBuffer()
+    val path = tmpDir.createTempFile(extension = "ser")
+    val g = Gen.buildableOf[Array, Byte](arbitrary[Byte])
+    val p = Prop.forAll(g) { (a: Array[Byte]) =>
+      region.clear()
+      region.appendBytes(a)
+
+      hadoopConf.writeKryoFile(path) { out =>
+        kryo.writeObject(out, region)
+      }
+
+      val region2 = hadoopConf.readKryoFile(path) { in =>
+        kryo.readObject[MemoryBuffer](in, classOf[MemoryBuffer])
+      }
+
+      assert(region2.size.toInt == a.length)
+      val a2 = region2.loadBytes(0, region2.size.toInt)
+      assert(a2 sameElements a)
+
+      true
+    }
   }
 }

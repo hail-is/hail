@@ -6,7 +6,7 @@ import is.hail.utils._
 
 object HTSGenotypeView {
   def apply(rowSignature: TStruct): HTSGenotypeView = {
-    rowSignature.fields(2).typ.asInstanceOf[TArray].elementType match {
+    rowSignature.fields(3).typ.asInstanceOf[TArray].elementType match {
       case TGenotype => new TGenotypeView(rowSignature)
       case _: TStruct => new StructGenotypeView(rowSignature)
       case t => fatal(s"invalid genotype representation: $t, expect TGenotype or TStruct")
@@ -44,7 +44,7 @@ sealed abstract class HTSGenotypeView {
 }
 
 private class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
-  private val tgs = rs.fields(2).typ.asInstanceOf[TArray]
+  private val tgs = rs.fields(3).typ.asInstanceOf[TArray]
   private val tg = TGenotype.representation
 
   private val gtIndex = 0
@@ -62,7 +62,7 @@ private class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
 
   def setRegion(mb: MemoryBuffer, offset: Long) {
     this.m = mb
-    gsOffset = rs.loadField(m, offset, 2)
+    gsOffset = rs.loadField(m, offset, 3)
     gsLength = tgs.loadLength(m, gsOffset)
   }
 
