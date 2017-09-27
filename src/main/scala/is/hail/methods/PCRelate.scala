@@ -185,11 +185,15 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
   require(maf >= 0.0)
   require(maf <= 1.0)
+
   val antimaf = (1.0 - maf)
+
   def badmu(mu: Double): Boolean =
     mu <= maf || mu >= antimaf || mu <= 0.0 || mu >= 1.0
+
   def badgt(gt: Double): Boolean =
     gt != 0.0 && gt != 1.0 && gt != 2.0
+
   private def gram(m: M): M = {
     val mc = m.cache()
     mc.t * mc
