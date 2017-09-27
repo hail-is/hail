@@ -39,28 +39,27 @@ class SkatSuite extends SparkSuite {
       }
     }
   
-    def formGAndW(st: Array[(Vector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
-      val m = st.length
-      val GData = Array.ofDim[Double](m * n)
-      val wData = Array.ofDim[Double](m)
+    def formGenotypeMatrixAndWeightVector(
+      xwArray: Array[(Vector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
+      
+      val m = xwArray.length
+      val genotypeData = Array.ofDim[Double](m * n)
+      val weightData = Array.ofDim[Double](m)
   
       var i = 0
       while (i < m) {
-        val (xw, w) = st(i)
-        wData(i) = w
-        val data = xw.toArray
+        val (x, w) = xwArray(i)
+        weightData(i) = w
+        val data = x.toArray
         var j = 0
         while (j < n) {
-          GData(i * n + j) = data(j)
+          genotypeData(i * n + j) = data(j)
           j += 1
         }
         i += 1
       }
-  
-      val G = new DenseMatrix(n, m, GData)
-      val w = DenseVector(wData)
-      
-      (G, w)
+
+      (new DenseMatrix(n, m, genotypeData), DenseVector(weightData))
     }
     
     def runInR(keyGsWeightRdd:  RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
@@ -77,17 +76,17 @@ class SkatSuite extends SparkSuite {
       }
 
       val skatRDD = keyGsWeightRdd.collect()
-        .map { case (key, vs) =>
-          val (xs, weights) = formGAndW(vs.toArray, y.size)
+        .map { case (key, xw) =>
+          val (genotypeMatrix, weightVector) = formGenotypeMatrixAndWeightVector(xw.toArray, y.size)
 
           val inputFileG = tmpDir.createLocalTempFile("skatGMatrix", ".txt")
           hadoopConf.writeTextFile(inputFileG) {
-            _.write(TestUtils.matrixToString(xs, " "))
+            _.write(TestUtils.matrixToString(genotypeMatrix, " "))
           }
 
           val inputFileW = tmpDir.createLocalTempFile("skatWeightVec", ".txt")
           hadoopConf.writeTextFile(inputFileW) {
-            _.write(TestUtils.matrixToString(weights.toDenseMatrix, " "))
+            _.write(TestUtils.matrixToString(weightVector.toDenseMatrix, " "))
           }
 
           val resultsFile = tmpDir.createLocalTempFile("results", ".txt")
