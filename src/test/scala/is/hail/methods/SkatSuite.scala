@@ -118,7 +118,6 @@ class SkatSuite extends SparkSuite {
 
   // 18 complete samples from sample2.vcf
   // 5 genes with sizes 24, 13, 66, 27, and 51
-  // Using specified weights in Hail and R
   lazy val vdsSkat: VariantDataset = {
     val covSkat = hc.importTable("src/test/resources/skat.cov",
       impute = true).keyBy("Sample")
@@ -142,8 +141,7 @@ class SkatSuite extends SparkSuite {
       .annotateSamplesExpr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
   }
   
-  // Here we make a larger deterministic example using the Balding-Nichols model (only hardcalls)
-  // Using default weights in both Hail and R
+  // A larger deterministic example using the Balding-Nichols model (only hardcalls)
   lazy val vdsBN: VariantDataset = {
     val seed = 0
     val nSamples = 500
@@ -167,7 +165,8 @@ class SkatSuite extends SparkSuite {
       .annotateSamples(TBoolean, List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
       .annotateVariantsExpr("va.genes = [v.start % 2, v.start % 3].toSet") // three overlapping genes
       .annotateVariantsExpr("va.AF = gs.callStats(g => v).AF")
-      .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af, 1.0, 25.0)**2")
+      .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
+        "dbeta(af, 1.0, 25.0)**2")
   }
   
   def hailVsRTest(useBN: Boolean = false, useDosages: Boolean = false, logistic: Boolean = false,
@@ -177,13 +176,15 @@ class SkatSuite extends SparkSuite {
     
     val (vds, singleKey) = if (useBN) (vdsBN, false) else (vdsSkat, true)
     
-    val hailKT = vds.skat("va.genes", singleKey = singleKey, "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic, useDosages)
+    val hailKT = vds.skat("va.genes", singleKey = singleKey, "va.weight", "sa.pheno",
+      Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic, useDosages)
 
     hailKT.typeCheck()
     
     val resultHail = hailKT.rdd.collect()
 
-    val resultsR = skatInR(vds, "va.genes", singleKey = singleKey, "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic, useDosages)
+    val resultsR = skatInR(vds, "va.genes", singleKey = singleKey, "va.weight", "sa.pheno",
+      Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic, useDosages)
 
     var i = 0
     while (i < resultsR.length) {
