@@ -1395,18 +1395,17 @@ class KeyTable(object):
         corresponds to an undirected edge between the vertices given by
         evaluating ``i`` and ``j`` on that row. An undirected edge may appear
         multiple times in the key table and will not affect the output. Vertices
-        with self-edges are removed as they cannot be a members of an
-        independent set.
+        with self-edges are removed as they are not independent of themselves.
 
         The expressions for ``i`` and ``j`` must have the same type.
 
         This method implements a greedy algorithm which iteratively removes a
         vertex of highest degree until the graph contains no edges.
 
-        :param str i: expression to compute one endpoint
-        :param str j: expression to compute another endpoint
+        :param str i: expression to compute one endpoint.
+        :param str j: expression to compute another endpoint.
 
-        :return: a list of vertices in a maximal independent set
+        :return: a list of vertices in a maximal independent set.
         :rtype: list of elements with the same type as ``i`` and ``j``
 
         """

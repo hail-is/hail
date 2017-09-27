@@ -896,7 +896,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val (jType, jThunk) = Parser.parseExpr(jExpr, ec)
 
     if (iType != jType)
-      fatal(s"the node expressions must have the same type: type of `i' is $iType, but type of `j' is $jType")
+      fatal(s"node expressions must have the same type: type of `i' is $iType, but type of `j' is $jType")
 
     val edgeRdd = mapAnnotations { r =>
       ec.setAllFromRow(r)

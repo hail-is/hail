@@ -79,7 +79,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def decreaseKey1() {
+  def decreaseToKey1() {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -94,7 +94,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def decreaseKey2() {
+  def decreaseToKey2() {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -109,7 +109,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def decreaseKeyButNoOrderingChange() {
+  def decreaseToKeyButNoOrderingChange() {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -124,7 +124,52 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def increaseKey1() {
+  def decreaseKey1() {
+    val bh = new BinaryHeap[Int]()
+
+    bh.insert(1, 0)
+    bh.insert(2, 100)
+    bh.insert(3, 10)
+
+    bh.decreasePriority(2, _ - 110)
+    assert(bh.max() === 3)
+    assert(bh.extractMax() === 3)
+    assert(bh.extractMax() === 1)
+    assert(bh.extractMax() === 2)
+  }
+
+  @Test
+  def decreaseKey2() {
+    val bh = new BinaryHeap[Int]()
+
+    bh.insert(1, 0)
+    bh.insert(2, 100)
+    bh.insert(3, 10)
+
+    bh.decreasePriority(1, _ - 10)
+    assert(bh.max() === 2)
+    assert(bh.extractMax() === 2)
+    assert(bh.extractMax() === 3)
+    assert(bh.extractMax() === 1)
+  }
+
+  @Test
+  def decreaseKeyButNoOrderingChange() {
+    val bh = new BinaryHeap[Int]()
+
+    bh.insert(1, 0)
+    bh.insert(2, 100)
+    bh.insert(3, 10)
+
+    bh.decreasePriority(3, _ - 9)
+    assert(bh.max() === 2)
+    assert(bh.extractMax() === 2)
+    assert(bh.extractMax() === 3)
+    assert(bh.extractMax() === 1)
+  }
+
+  @Test
+  def increaseToKey1() {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -139,7 +184,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def increaseKeys() {
+  def increaseToKeys() {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -149,6 +194,39 @@ class BinaryHeapSuite {
     bh.increasePriorityTo(3, 200)
     bh.increasePriorityTo(2, 300)
     bh.increasePriorityTo(1, 250)
+
+    assert(bh.max() === 2)
+    assert(bh.extractMax() === 2)
+    assert(bh.extractMax() === 1)
+    assert(bh.extractMax() === 3)
+  }
+
+  @Test
+  def increaseKey1() {
+    val bh = new BinaryHeap[Int]()
+
+    bh.insert(1, 0)
+    bh.insert(2, 100)
+    bh.insert(3, 10)
+
+    bh.increasePriority(3, _ + 190)
+    assert(bh.max() === 3)
+    assert(bh.extractMax() === 3)
+    assert(bh.extractMax() === 2)
+    assert(bh.extractMax() === 1)
+  }
+
+  @Test
+  def increaseKeys() {
+    val bh = new BinaryHeap[Int]()
+
+    bh.insert(1, 0)
+    bh.insert(2, 100)
+    bh.insert(3, 10)
+
+    bh.increasePriority(3, _ + 190)
+    bh.increasePriority(2, _ + 200)
+    bh.increasePriority(1, _ + 250)
 
     assert(bh.max() === 2)
     assert(bh.extractMax() === 2)
