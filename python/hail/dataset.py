@@ -5099,15 +5099,15 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(variant_keys=strlike,
                       single_key=bool,
+                      weight_expr=strlike,
                       y=strlike,
                       covariates=listof(strlike),
-                      weight_expr=nullable(strlike),
                       logistic=bool,
                       use_dosages=bool,
                       max_size=nullable(integral),
                       accuracy=numeric,
                       iterations=integral)
-    def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, logistic=False, use_dosages=False,
+    def skat(self, variant_keys, single_key, weight_expr, y, covariates=[], logistic=False, use_dosages=False,
              max_size=None, accuracy=1e-6, iterations=10000):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
 
@@ -5122,10 +5122,10 @@ class VariantDataset(HistoryMixin):
 
         >>> skat_kt = (hc.read('data/example_burden.vds')
         ...              .skat(variant_keys='va.genes',
+        ...                    weight_expr='va.weight',
         ...                    single_key=False,
         ...                    y='sa.burden.pheno',
-        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2'],
-        ...                    weight_expr='va.weight'))
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         .. caution::
 
@@ -5159,9 +5159,11 @@ class VariantDataset(HistoryMixin):
         For each variant, missing genotypes are imputed as the mean of all non-missing genotypes.
 
         Variant weights must be non-negative. Variants with missing weights are ignored.
-        As in the paper, if ``weight_expr`` is unspecified,
-        default variant weights are given by evaluating the Beta(1, 25) density at the minor allele frequency.
-        In Hail, this minor allele frequency is calculated from all samples, not just complete samples.
+        In the R package ``skat``, default weights are given by evaluating the Beta(1, 25) density at
+        the minor allele frequency. To replicate these weights in Hail using alternate allele frequencies stored at
+        ``va.AF``, one can use the expression:
+
+        ``let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af, 1.0, 25.0)**2``
 
         In the logistic case, the phenotype must either be numeric (with all present values 0 or 1) or Boolean, in
         which case true and false are coded as 1 and 0, respectively.
@@ -5179,6 +5181,8 @@ class VariantDataset(HistoryMixin):
         +------+------+-------+-------+-------+
         | geneC|   3  | 4.122 | 0.192 |   0   |
         +------+------+-------+-------+-------+
+        
+        Groups larger than ``max_size`` appear with missing ``qstat``, ``pval``, and ``fault``.
 
         Note that the variance component score ``qstat`` agrees with ``Q`` in the R package ``skat``,
         but both differ from :math:`Q` in the paper by the factor
@@ -5205,18 +5209,15 @@ class VariantDataset(HistoryMixin):
         +------+------+-----------------------------------------+
         |      5      | out of memory                           |
         +------+------+-----------------------------------------+
-        
-        Groups larger than ``max_size`` appear with missing ``qstat``, ``pval``, and ``fault``.
-             
+                     
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
         :param bool single_key: If true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
                                 rather than as a collection of keys.
 
-        :param str y: Response expression.
+        :param str weight_expr: Variant expression of numeric type for variant weights.
 
-        :param weight_expr: Variant expression of numeric type for SKAT weights.
-        :type weight_expr: str or None
+        :param str y: Response expression.
 
         :param covariates: List of covariate expressions.
         :type covariates: List of str
@@ -5236,9 +5237,9 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, y,
-                                                 jarray(Env.jvm().java.lang.String, covariates), joption(weight_expr),
-                                                 logistic, use_dosages, joption(max_size), accuracy, iterations, False))
+        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, weight_expr, y,
+                                                 jarray(Env.jvm().java.lang.String, covariates),
+                                                 logistic, use_dosages, joption(max_size), accuracy, iterations))
 
     @handle_py4j
     @record_method

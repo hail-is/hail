@@ -23,9 +23,9 @@ class SkatSuite extends SparkSuite {
   def skatInR(vds: VariantDataset,
     variantKeys: String,
     singleKey: Boolean,
+    weightExpr: String,
     yExpr: String,
     covExpr: Array[String],
-    weightExpr: Option[String],
     useLogistic: Boolean,
     useDosages: Boolean): Array[Row] = {
     
@@ -63,7 +63,7 @@ class SkatSuite extends SparkSuite {
       (G, w)
     }
     
-    def runInR(keyedRdd:  RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
+    def runInR(keyGsWeightRdd:  RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
       y: DenseVector[Double], cov: DenseMatrix[Double]): Array[Row] = {
 
       val inputFilePheno = tmpDir.createLocalTempFile("skatPhenoVec", ".txt")
@@ -76,7 +76,7 @@ class SkatSuite extends SparkSuite {
         _.write(TestUtils.matrixToString(cov, " "))
       }
 
-      val skatRDD = keyedRdd.collect()
+      val skatRDD = keyGsWeightRdd.collect()
         .map { case (key, vs) =>
           val (xs, weights) = formGAndW(vs.toArray, y.size)
 
@@ -166,24 +166,24 @@ class SkatSuite extends SparkSuite {
       .annotateSamples(TFloat64, List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
       .annotateSamples(TBoolean, List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
       .annotateVariantsExpr("va.genes = [v.start % 2, v.start % 3].toSet") // three overlapping genes
+      .annotateVariantsExpr("va.AF = gs.callStats(g => v).AF")
+      .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af, 1.0, 25.0)**2")
   }
   
   def hailVsRTest(useBN: Boolean = false, useDosages: Boolean = false, logistic: Boolean = false,
-    forceLargeN: Boolean = false, displayValues: Boolean = false, tol: Double = 1e-5) {
+    displayValues: Boolean = false, tol: Double = 1e-5) {
     
     require(!(useBN && useDosages))
     
-    val (vds, singleKey, weightExpr) = if (useBN) (vdsBN, false, None) else (vdsSkat, true, Some("va.weight"))
+    val (vds, singleKey) = if (useBN) (vdsBN, false) else (vdsSkat, true)
     
-    val hailKT = vds.skat("va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
-      weightExpr, logistic, useDosages, forceLargeN=forceLargeN)
+    val hailKT = vds.skat("va.genes", singleKey = singleKey, "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic, useDosages)
 
     hailKT.typeCheck()
     
     val resultHail = hailKT.rdd.collect()
 
-    val resultsR = skatInR(vds, "va.genes", singleKey = singleKey, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),
-      weightExpr, logistic, useDosages)
+    val resultsR = skatInR(vds, "va.genes", singleKey = singleKey, "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic, useDosages)
 
     var i = 0
     while (i < resultsR.length) {
@@ -218,15 +218,11 @@ class SkatSuite extends SparkSuite {
   @Test def logisticDosages() { hailVsRTest(useDosages = true, logistic = true) }
   @Test def logisticBN() { hailVsRTest(useBN = true, logistic = true, tol = 1e-4) }
   
-  // testing computeGrammianLargeN route
-  @Test def linearLargeN() { hailVsRTest(forceLargeN = true) }
-  @Test def logisticLargeN() { hailVsRTest(logistic = true, forceLargeN = true) }
-  
   //testing size and maxSize
   @Test def maxSizeTest() {
     val maxSize = 27
     
-    val kt = vdsSkat.skat("va.genes", singleKey = true, y = "sa.pheno", weightExpr = Some("1"), maxSize = Some(maxSize))
+    val kt = vdsSkat.skat("va.genes", singleKey = true, y = "sa.pheno", weightExpr = "1", maxSize = Some(maxSize))
       
     val ktMap = kt.rdd.collect().map{ case Row(key, size, qstat, pval, fault) => 
         key.asInstanceOf[String] -> (size.asInstanceOf[Int], qstat == null, pval == null, fault == null) }.toMap
@@ -236,5 +232,34 @@ class SkatSuite extends SparkSuite {
     assert(ktMap("Gene3") == (66, true, true, true))
     assert(ktMap("Gene4") == (27, false, false, false))
     assert(ktMap("Gene5") == (51, true, true, true))
+  }
+  
+  @Test def smallNLargeNEqualityTest() {
+    val rand = scala.util.Random
+    rand.setSeed(0)
+    
+    val n = 10 // samples
+    val m = 5 // variants
+    val k = 3 // covariates
+    
+    val stDense = Array.tabulate(m){ _ => 
+      SkatTuple(rand.nextDouble(),
+        DenseVector(Array.fill(n)(rand.nextDouble())),
+        DenseVector(Array.fill(k)(rand.nextDouble())))
+    }
+    
+    val stSparse = Array.tabulate(m){ _ => 
+      SkatTuple(rand.nextDouble(),
+        SparseVector(n)(Array.tabulate(n / 2)(i => (2 * i, rand.nextDouble())): _*),
+        DenseVector(Array.fill(k)(rand.nextDouble())))
+    }
+    
+    for (st <- Array(stDense, stSparse)) {
+      val (qSmall, gramianSmall) = Skat.computeGramianSmallN(st)
+      val (qLarge, gramianLarge) = Skat.computeGramianLargeN(st)
+      
+      assert(D_==(qSmall, qLarge))
+      TestUtils.assertMatrixEqualityDouble(gramianSmall, gramianLarge)
+    }
   }
 }

@@ -60,15 +60,14 @@ object Skat {
   def apply(vds: VariantDataset,
     variantKeys: String,
     singleKey: Boolean,
+    weightExpr: String,
     yExpr: String,
     covExpr: Array[String],
-    weightExpr: Option[String],
     logistic: Boolean,
     useDosages: Boolean,
     optMaxSize: Option[Int],
     accuracy: Double,
-    iterations: Int,
-    forceLargeN: Boolean = false): KeyTable = { // forceLargeN only used in testing
+    iterations: Int): KeyTable = {
     
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
@@ -93,9 +92,9 @@ object Skat {
 
     val skatRdd: RDD[Row] = 
       if (logistic)
-        logisticSkat(keyGsWeightRdd, y, cov, maxSize, accuracy, iterations, forceLargeN)
+        logisticSkat(keyGsWeightRdd, y, cov, maxSize, accuracy, iterations)
       else
-        linearSkat(keyGsWeightRdd, y, cov, maxSize, accuracy, iterations, forceLargeN)
+        linearSkat(keyGsWeightRdd, y, cov, maxSize, accuracy, iterations)
     
     val skatSignature = TStruct(
       ("key", keyType),
@@ -111,24 +110,13 @@ object Skat {
     completeSamplesIndex: Array[Int],
     variantKeys: String,
     singleKey: Boolean,
-    weightExpr: Option[String],
+    weightExpr: String,
     useDosages: Boolean):
   (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
     // ((key, [(gs_v, weight_v)]), keyType)
     
-    val vdsWithWeight =
-      if (weightExpr.isEmpty)
-        vds.annotateVariantsExpr("va.__AF = gs.callStats(g => v).AF")
-          .annotateVariantsExpr("va.__weight = let af = " +
-            "if (va.__AF[0] <= va.__AF[1]) va.__AF[0] else va.__AF[1] in dbeta(af, 1.0, 25.0)**2")
-      else
-        vds
-
-    val (keysType, keysQuerier) = vdsWithWeight.queryVA(variantKeys)
-    val (weightType, weightQuerier) = weightExpr match {
-      case None => vdsWithWeight.queryVA("va.__weight")
-      case Some(expr) => vdsWithWeight.queryVA(expr)
-    }
+    val (keysType, keysQuerier) = vds.queryVA(variantKeys)
+    val (weightType, weightQuerier) = vds.queryVA(weightExpr)
 
     val typedWeightQuerier = weightType match {
       case _: TNumeric => (a: Annotation) => Option(weightQuerier(a)).map(DoubleNumericConversion.to)
@@ -153,7 +141,7 @@ object Skat {
     val sampleMaskBc = vds.sparkContext.broadcast(sampleMask)    
     val completeSamplesBc = vds.sparkContext.broadcast(completeSamplesIndex)
 
-    (vdsWithWeight.rdd.flatMap { case (_, (va, gs)) =>
+    (vds.rdd.flatMap { case (_, (va, gs)) =>
       (Option(keysQuerier(va)), typedWeightQuerier(va)) match {
         case (Some(key), Some(w)) =>
           if (w < 0)
@@ -171,8 +159,7 @@ object Skat {
   }
   
   def linearSkat(keyGsWeightRdd: RDD[(Annotation, Iterable[(Vector[Double], Double)])],
-    y: DenseVector[Double], cov: DenseMatrix[Double],
-    maxSize: Int, accuracy: Double, iterations: Int, forceLargeN: Boolean): RDD[Row] = {
+    y: DenseVector[Double], cov: DenseMatrix[Double], maxSize: Int, accuracy: Double, iterations: Int): RDD[Row] = {
     
     val n = y.size
     val k = cov.cols
@@ -207,7 +194,7 @@ object Skat {
         val size = vsArray.length
         if (size <= maxSize) {
           val skatTuples = vsArray.map((linearTuple _).tupled)
-          val (q, gramian) = if (size.toLong * n <= maxEntries && !forceLargeN) {
+          val (q, gramian) = if (size.toLong * n <= maxEntries) {
             computeGramianSmallN(skatTuples)
           } else {
             computeGramianLargeN(skatTuples)
@@ -224,8 +211,7 @@ object Skat {
   }
 
   def logisticSkat(keyGsWeightRdd: RDD[(Any, Iterable[(Vector[Double], Double)])],
-    y: DenseVector[Double], cov: DenseMatrix[Double],
-    maxSize: Int, accuracy: Double, iterations: Int, forceLargeN: Boolean): RDD[Row] = {
+    y: DenseVector[Double], cov: DenseMatrix[Double], maxSize: Int, accuracy: Double, iterations: Int): RDD[Row] = {
 
     val n = y.size
     val k = cov.cols
@@ -274,7 +260,7 @@ object Skat {
       val size = vsArray.length
       if (size <= maxSize) {
         val skatTuples = vs.map((logisticTuple _).tupled).toArray
-        val (q, gramian) = if (size.toLong * n <= maxEntries && !forceLargeN) {
+        val (q, gramian) = if (size.toLong * n <= maxEntries) {
           computeGramianSmallN(skatTuples)
         } else {
           computeGramianLargeN(skatTuples)
