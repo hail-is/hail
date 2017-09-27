@@ -3866,7 +3866,7 @@ class VariantDataset(object):
 
         >>> rel = vds.pc_relate(5, 0.01, 1024)
 
-        Calculate values as above, excluding sample-pairs with kinship lower
+        Calculate values as above, excluding sample-pairs with kinship less
         than 0.1. This is more efficient than producing the full key table and
         filtering using :py:meth:`~hail.KeyTable.filter`.
 
@@ -4034,13 +4034,13 @@ class VariantDataset(object):
                                distributed matrices; this should be set such
                                that at least three of these matrices fit in
                                memory (in addition to all other objects
-                               necessary for Spark and Hail)
+                               necessary for Spark and Hail).
 
         :param float min_kinship: Pairs of samples with kinship lower than
-                                  ``min_kinship`` are excluded from the results
+                                  ``min_kinship`` are excluded from the results.
 
         :return: A :py:class:`.KeyTable` mapping pairs of samples to estimations
-                 of their kinship and identity-by-descent zero, one, and two
+                 of their kinship and identity-by-descent zero, one, and two.
         :rtype: :py:class:`.KeyTable`
 
         """

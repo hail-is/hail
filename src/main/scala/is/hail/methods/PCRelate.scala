@@ -38,31 +38,27 @@ object PCRelate {
     val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
     val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize)
 
-    (phi.blocks join k0.blocks join k1.blocks join k2.blocks).flatMap { case ((blocki, blockj), (((m1, m2), m3), m4)) =>
+    (phi.blocks join k0.blocks join k1.blocks join k2.blocks).flatMap { case ((blocki, blockj), (((mphi, mk0), mk1), mk2)) =>
       val i = blocki * phi.rowsPerBlock
       val j = blockj * phi.colsPerBlock
       val i2 = i + phi.rowsPerBlock
       val j2 = j + phi.colsPerBlock
 
-      if (blocki < blockj ||
-        i <= j && j < i2 ||
-        i < j2 && j2 < i2 ||
-        j <= i && i < j2 ||
-        j < i2 && i2 < j2) {
-        val size = m1.numRows * m1.numCols
+      if (blocki <= blockj) {
+        val size = mphi.numRows * mphi.numCols
         val ab = new ArrayBuilder[Row]()
         try {
           var jj = 1
-          while (jj < m1.numCols) {
+          while (jj < mphi.numCols) {
             // fixme: broken for non-square blocks
             var ii = 0
-            val rowsAboveDiagonal = if (blocki < blockj) m1.numRows else jj
+            val rowsAboveDiagonal = if (blocki < blockj) mphi.numRows else jj
             while (ii < rowsAboveDiagonal) {
-              val kin = m1(ii, jj)
+              val kin = mphi(ii, jj)
               if (kin >= minKinship) {
-                val k0 = m2(ii, jj)
-                val k1 = m3(ii, jj)
-                val k2 = m4(ii, jj)
+                val k0 = mk0(ii, jj)
+                val k1 = mk1(ii, jj)
+                val k2 = mk2(ii, jj)
                 ab += Annotation(indexToId(i + ii), indexToId(j + jj), kin, k0, k1, k2).asInstanceOf[Row]
               }
               ii += 1
@@ -71,7 +67,7 @@ object PCRelate {
           }
         } catch {
           case e: Exception =>
-            throw new RuntimeException(s"$i, $j; $blocki, $blockj; $i2, $j2; ${m1.numRows}, ${m1.numCols}", e)
+            throw new RuntimeException(s"$i, $j; $blocki, $blockj; $i2, $j2; ${mphi.numRows}, ${mphi.numCols}", e)
         }
         ab.result()
       } else
