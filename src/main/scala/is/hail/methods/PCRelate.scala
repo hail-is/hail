@@ -196,12 +196,12 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val mu = this.mu(g, pcs).cache()
     val blockedG = BlockMatrix.from(g, blockSize).cache()
 
-    val variance = BlockMatrix.map2 { (g, mu) =>
+    val variance = (BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         mu * (1.0 - mu)
-    } (blockedG, mu)
+    } (blockedG, mu)).cache()
 
     val phi = this.phi(mu, variance, blockedG).cache()
 
