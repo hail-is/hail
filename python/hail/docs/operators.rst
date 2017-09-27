@@ -40,7 +40,7 @@ Numeric
         5 * 3
         15
 
- - ``/`` -- Divide left operand by the right one. Always results in a Double.
+ - ``/`` -- Divide left operand by the right one. Always results in a Float64.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -113,7 +113,7 @@ If one of the two operands is a scalar, the operation will be applied to each el
         [10, 0, 5]
 
 
- - ``/`` -- Divide left operand by the right one. Always results in a Double.
+ - ``/`` -- Divide left operand by the right one. Always results in a Float64.
 
     .. code-block:: text
         :emphasize-lines: 2, 5, 8
