@@ -12,9 +12,9 @@ class LDMatrixSuite extends SparkSuite {
   val m = 100
   val n = 100
   val seed = scala.util.Random.nextInt()
-  val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
-  val distLDMatrix = LDMatrix.apply(vds, Some(false))
-  val localLDMatrix = vds.ldMatrix(forceLocal = true)
+  lazy val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
+  lazy val distLDMatrix = LDMatrix.apply(vds, Some(false))
+  lazy val localLDMatrix = vds.ldMatrix(forceLocal = true)
 
   /**
     * Tests that entries in LDMatrix agree with those computed by LDPrune.computeR. Also tests
