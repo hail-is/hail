@@ -89,7 +89,7 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBr
     val r = f(ranks(i))
     assert(ranks(i) < r)
     ranks(i) = r
-    bubbleDown(i)
+    bubbleUp(i)
   }
 
   def contains(t: T): Boolean =
