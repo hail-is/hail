@@ -205,12 +205,12 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val mu = this.mu(g, pcs).cache()
     val blockedG = dm.from(g, blockSize, blockSize).cache()
 
-    val variance = dm.map2 { (g, mu) =>
+    val variance = (dm.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         mu * (1.0 - mu)
-    }(blockedG, mu)
+    } (blockedG, mu)).cache()
 
     val phi = this.phi(mu, variance, blockedG).cache()
 
@@ -260,7 +260,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     } (g, mu)).cache()
     val homref = (dm.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
-    } (g, mu)).cache
+    } (g, mu)).cache()
     (homalt.t * homref) :+ (homref.t * homalt)
   }
 
