@@ -125,7 +125,6 @@ class AggregatorSuite extends SparkSuite {
           })
       }
 
-    println(vds.samplesKT().showString())
     assert(vds.samplesKT().forall("sa.qc.nCalled == sa.test.nCalled"))
     assert(vds.samplesKT().forall("sa.qc.nNotCalled == sa.test.nNotCalled"))
     assert(vds.samplesKT().forall("sa.qc.callRate == sa.test.callrate"))
