@@ -71,21 +71,22 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testColumns() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
-      .splitMulti()
       .sampleQC()
       .annotateSamplesExpr(
         """sa.test.callrate = gs.fraction(g => g.isCalled()),
+          |sa.test.nCalled = gs.filter(g => g.isCalled()).count(),
+          |sa.test.nNotCalled = gs.filter(g => !g.isCalled()).count(),
           |sa.test.gqstats = gs.map(g => g.gq).stats(),
           |sa.test.gqhetstats = gs.filter(g => g.isHet()).map(g => g.gq).stats(),
           |sa.test.nHet = gs.filter(g => g.isHet()).count(),
           |sa.test.nHomRef = gs.filter(g => g.isHomRef()).count(),
           |sa.test.nHomVar = gs.filter(g => g.isHomVar()).count(),
-          |sa.test.nSNP = gs.filter(g => v.altAllele.isSNP()).map(g => g.nNonRefAlleles()).sum(),
-          |sa.test.nInsertion = gs.filter(g => v.altAllele.isInsertion()).map(g => g.nNonRefAlleles()).sum(),
-          |sa.test.nDeletion = gs.filter(g => v.altAllele.isDeletion()).map(g => g.nNonRefAlleles()).sum(),
-          |sa.test.nTi = gs.filter(g => v.altAllele.isTransition()).map(g => g.nNonRefAlleles()).sum(),
-          |sa.test.nTv = gs.filter(g => v.altAllele.isTransversion()).map(g => g.nNonRefAlleles()).sum()
-          |""".stripMargin)
+          |sa.test.nSNP = gs.map(g => [g.gtj, g.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isSNP()) 1 else 0).sum()).sum(),
+          |sa.test.nInsertion = gs.map(g => [g.gtj, g.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isInsertion()) 1 else 0).sum()).sum(),
+          |sa.test.nDeletion = gs.map(g => [g.gtj, g.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isDeletion()) 1 else 0).sum()).sum(),
+          |sa.test.nTi = gs.map(g => [g.gtj, g.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isTransition()) 1 else 0).sum()).sum(),
+          |sa.test.nTv = gs.map(g => [g.gtj, g.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isTransversion()) 1 else 0).sum()).sum(),
+          |sa.test.nStar = gs.map(g => [g.gtj, g.gtk].map(x => if (x > 0 && v.altAlleles[x - 1].isStar()) 1 else 0).sum()).sum()""".stripMargin)
 
     val qCallRate = vds.querySA("sa.test.callrate")._2
     val qCallRateQC = vds.querySA("sa.qc.callRate")._2
@@ -124,6 +125,9 @@ class AggregatorSuite extends SparkSuite {
           })
       }
 
+    assert(vds.samplesKT().forall("sa.qc.nCalled == sa.test.nCalled"))
+    assert(vds.samplesKT().forall("sa.qc.nNotCalled == sa.test.nNotCalled"))
+    assert(vds.samplesKT().forall("sa.qc.callRate == sa.test.callrate"))
     assert(vds.samplesKT().forall("sa.qc.nHet == sa.test.nHet"))
     assert(vds.samplesKT().forall("sa.qc.nHomVar == sa.test.nHomVar"))
     assert(vds.samplesKT().forall("sa.qc.nHomRef == sa.test.nHomRef"))
@@ -132,6 +136,7 @@ class AggregatorSuite extends SparkSuite {
     assert(vds.samplesKT().forall("sa.qc.nDeletion == sa.test.nDeletion"))
     assert(vds.samplesKT().forall("sa.qc.nTransition == sa.test.nTi"))
     assert(vds.samplesKT().forall("sa.qc.nTransversion == sa.test.nTv"))
+    assert(vds.samplesKT().forall("sa.qc.nStar == sa.test.nStar"))
   }
 
   @Test def testSum() {
