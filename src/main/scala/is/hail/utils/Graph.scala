@@ -42,8 +42,8 @@ object Graph {
       val current = verticesByDegree.extractMax()
       val neighbors = g(current)
       neighbors.foreach { x =>
-        if (verticesByDegree.contains(x))
-          verticesByDegree.decreasePriority(x, _ - 1)
+        g(x) -= current
+        verticesByDegree.decreasePriority(x, _ - 1)
       }
     }
 
