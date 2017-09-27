@@ -28,4 +28,28 @@ class RichRDDSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     assert(vds.head(3).countVariants() == 3)
   }
+
+  @Test def binaryParallelWrite() {
+    def readBytes(file: String): Array[Byte] = hadoopConf.readFile(file) { dis =>
+      val buffer = new Array[Byte](32)
+      val size = dis.read(buffer)
+      buffer.take(size)
+    }
+
+    val header = Array[Byte](108, 27, 1, 91)
+    val data = Array(Array[Byte](1, 19, 23, 127, -1), Array[Byte](23, 4, 15, -2, 1))
+    val r = sc.parallelize(data, numSlices = 2)
+    assert(r.getNumPartitions == 2)
+
+    val notParallelWrite = tmpDir.createTempFile("notParallelWrite")
+    r.saveFromByteArrays(notParallelWrite, tmpDir.tempDir, Some(header), parallelWrite = false)
+
+    assert(readBytes(notParallelWrite) sameElements header ++: data.flatten)
+
+    val parallelWrite = tmpDir.createTempFile("parallelWrite")
+    r.saveFromByteArrays(parallelWrite, tmpDir.tempDir, Some(header), parallelWrite = true)
+
+    assert(readBytes(parallelWrite + "/part-00000") sameElements header ++ data(0))
+    assert(readBytes(parallelWrite + "/part-00001") sameElements header ++ data(1))
+  }
 }
