@@ -8,8 +8,10 @@ import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.hadoop.io._
 import java.io._
+
 import org.json4s._
-import java.net._
+
+import org.apache.commons.lang3.StringUtils
 
 import scala.reflect.ClassTag
 
@@ -276,53 +278,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
   def toLocalMatrix(m: M): Matrix = m.toLocalMatrix()
 
-  private class PairWriter(var i: Int, var j: Int) extends Writable {
-    def this() {
-      this(0,0)
-    }
-
-    def write(out: DataOutput) {
-      out.writeInt(i)
-      out.writeInt(j)
-    }
-
-    def readFields(in: DataInput) {
-      i = in.readInt()
-      j = in.readInt()
-    }
-  }
-
-  private class MatrixWriter(var rows: Int, var cols: Int, var m: Array[Double]) extends Writable {
-    def this() {
-      this(0, 0, null)
-    }
-
-    def write(out: DataOutput) {
-      out.writeInt(rows)
-      out.writeInt(cols)
-      var i = 0
-      while (i < rows * cols) {
-        out.writeDouble(m(i))
-        i += 1
-      }
-    }
-
-    def readFields(in: DataInput) {
-      rows = in.readInt()
-      cols = in.readInt()
-      m = new Array[Double](rows * cols)
-      var i = 0
-      while (i < rows * cols) {
-        m(i) = in.readDouble()
-        i += 1
-      }
-    }
-
-    def toDenseMatrix(): DenseMatrix = {
-      new DenseMatrix(rows, cols, m)
-    }
-  }
-
   private val metadataRelativePath = "/metadata.json"
   private val matrixRelativePath = "/matrix"
   /**
@@ -334,15 +289,48 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val hadoop = m.blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
 
-    m.blocks.map { case ((i, j), m) =>
-      (new PairWriter(i, j), new MatrixWriter(m.numRows, m.numCols, m.toArray)) }
-      .saveAsSequenceFile(uri+matrixRelativePath)
-
+    writeBlocks(m, uri)
+    
     hadoop.writeDataFile(uri+metadataRelativePath) { os =>
       jackson.Serialization.write(
         BlockMatrixMetadata(m.rowsPerBlock, m.colsPerBlock, m.numRows(), m.numCols()),
         os)
     }
+  }
+  
+  def writeBlocks(m: M, uri: String) {
+    val blocks = m.blocks
+    val sc = blocks.sparkContext
+    val hadoopConf = sc.hadoopConfiguration
+    
+    hadoopConf.mkDir(uri + "/blockstore")
+    
+    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hadoopConf))
+    
+    val nPartitions = blocks.getNumPartitions
+    val d = digitsNeeded(nPartitions)
+
+    val blockCount = blocks.mapPartitionsWithIndex { case (i, it) =>
+      var localBlockCount = 0L
+
+      val is = i.toString
+      assert(is.length <= d)
+      val pis = StringUtils.leftPad(is, d, "0")
+
+      sHadoopConfBc.value.value.writeDataFile(uri + "/blockstore/block-" + pis) { out =>
+        it.foreach { case ((iblock, jblock), dm) => // will have one block per partition
+
+          new MatrixWriter(dm.numRows, dm.numCols, dm.toArray).write(out)
+          
+          localBlockCount += 1
+        }
+      }
+
+      Iterator(localBlockCount)
+    }
+      .fold(0L)(_ + _)
+
+    info(s"wrote $blockCount blocks") // should equal number of partitions
   }
 
   /**
@@ -353,19 +341,96 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def read(hc: HailContext, uri: String): M = {
     val hadoop = hc.hadoopConf
     hadoop.mkDir(uri)
-
-    val rdd = hc.sc.sequenceFile[PairWriter, MatrixWriter](uri+matrixRelativePath).map { case (pw, mw) =>
-      ((pw.i, pw.j), mw.toDenseMatrix(): Matrix)
-    }
-
-    val BlockMatrixMetadata(rowsPerBlock, colsPerBlock, numRows, numCols) =
+    
+    val BlockMatrixMetadata(rowsPerBlock, colsPerBlock, nRowBlocks, nColBlocks) =
       hadoop.readTextFile(uri+metadataRelativePath) { isr  =>
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
-
-    new BlockMatrix(rdd, rowsPerBlock, colsPerBlock, numRows, numCols)
+    
+    val blocks = new ReadBlocksRDD(hc.sc, uri, nRowBlocks, nColBlocks)
+    
+    new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, nRowBlocks, nColBlocks)
   }
+}
+
+case class ReadBlocksRDDPartition(index: Int) extends Partition
+
+class ReadBlocksRDD(sc: SparkContext, uri: String, nRowBlocks: Long, nColBlocks: Long) extends RDD[((Int, Int), Matrix)](sc, Nil) {
+  assert(nRowBlocks < Int.MaxValue && nColBlocks < Int.MaxValue)
+  private val nBlocks = nRowBlocks * nColBlocks
+  
+  assert(nBlocks < Int.MaxValue)
+  val nPartitions: Int = nBlocks.toInt
+  
+  override def getPartitions: Array[Partition] =
+    Array.tabulate(nPartitions)(i => ReadBlocksRDDPartition(i))
+  
+  private val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+
+  override def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), Matrix)] = {
+    val d = digitsNeeded(nPartitions)
+
+    val is = split.index.toString
+    assert(is.length <= d)
+    val pis = StringUtils.leftPad(is, d, "0")
+
+    Iterator(sHadoopConfBc.value.value.readDataFile(uri + "/rowstore/part-" + pis) { in =>
+      val mw = new MatrixWriter()
+      mw.readFields(in)
+
+      ((mw.rows, mw.cols), mw.toDenseMatrix())
+    })
+  }
+
+  override val partitioner: Option[Partitioner] = Some(GridPartitioner(nRowBlocks.toInt, nColBlocks.toInt))
 }
 
 // must be top-level for Jackson to serialize correctly
 case class BlockMatrixMetadata(rowsPerBlock: Int, colsPerBlock: Int, numRows: Long, numCols: Long)
+
+class PairWriter(var i: Int, var j: Int) extends Writable {
+  def this() {
+    this(0,0)
+  }
+
+  def write(out: DataOutput) {
+    out.writeInt(i)
+    out.writeInt(j)
+  }
+
+  def readFields(in: DataInput) {
+    i = in.readInt()
+    j = in.readInt()
+  }
+}
+
+class MatrixWriter(var rows: Int, var cols: Int, var m: Array[Double]) extends Writable {
+  def this() {
+    this(0, 0, null)
+  }
+
+  def write(out: DataOutput) {
+    out.writeInt(rows)
+    out.writeInt(cols)
+    var i = 0
+    while (i < rows * cols) {
+      out.writeDouble(m(i))
+      i += 1
+    }
+  }
+
+  def readFields(in: DataInput) {
+    rows = in.readInt()
+    cols = in.readInt()
+    m = new Array[Double](rows * cols)
+    var i = 0
+    while (i < rows * cols) {
+      m(i) = in.readDouble()
+      i += 1
+    }
+  }
+
+  def toDenseMatrix(): DenseMatrix = {
+    new DenseMatrix(rows, cols, m)
+  }
+}

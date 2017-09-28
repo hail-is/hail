@@ -502,7 +502,14 @@ package object utils extends Logging
           (i, math.floor(orig))
     }.sortBy(_._1).map(_._2.toInt)
   }
-
+  
+  def digitsNeeded(i: Int): Int = {
+    assert(i >= 0)
+    if (i < 10)
+      1
+    else
+      1 + digitsNeeded(i / 10)
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
