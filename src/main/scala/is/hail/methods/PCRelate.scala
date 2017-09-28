@@ -25,45 +25,7 @@ object PCRelate {
     def map[N](f: M => N): Result[N] = Result(f(phiHat), f(k0), f(k1), f(k2))
   }
 
-  def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): RDD[((Annotation, Annotation), (Double, Double, Double, Double))] = {
-    val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
-    def upperTriangularEntires(bm: BlockMatrix): RDD[((Annotation, Annotation), Double)] = {
-      val rowsPerBlock = bm.rowsPerBlock
-      val colsPerBlock = bm.colsPerBlock
-
-      bm.blocks.filter { case ((blocki, blockj), m) =>
-        blocki < blockj || {
-          val i = blocki * rowsPerBlock
-          val j = blockj * colsPerBlock
-          val i2 = i + rowsPerBlock
-          val j2 = i + colsPerBlock
-          i <= j && j < i2 ||
-          i < j2 && j2 < i2 ||
-          j <= i && i < j2 ||
-          j < i2 && i2 < j2
-        }
-      }.flatMap { case ((blocki, blockj), m) =>
-          val ioffset = blocki * rowsPerBlock
-          val joffset = blockj * colsPerBlock
-          for {
-            i <- 0 until m.numRows
-            // FIXME: only works with square blocks
-            jstart = if (blocki < blockj) 0 else i+1
-            j <- jstart until m.numCols
-          } yield ((indexToId(i + ioffset), indexToId(j + joffset)), m(i, j))
-      }
-    }
-
-    val result = apply(vds, pcs, maf, blockSize)
-
-    val a = upperTriangularEntires(result.phiHat)
-    val b = upperTriangularEntires(result.k0)
-    val c = upperTriangularEntires(result.k1)
-    val d = upperTriangularEntires(result.k2)
-
-    (a join b join c join d)
-        .mapValues { case (((kin, k0), k1), k2) => (kin, k0, k1, k2) }
-  }
+  val defaultMinKinship = Double.NegativeInfinity
 
   def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): Result[M] =
     new PCRelate(maf, blockSize)(vds, pcs)
@@ -72,11 +34,54 @@ object PCRelate {
     TStruct(("i", TString), ("j", TString), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble))
   private val keys = Array("i", "j")
 
-  def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): KeyTable =
-    KeyTable(vds.hc,
-      toPairRdd(vds, pcs, maf, blockSize).map { case ((i, j), (kin, k0, k1, k2)) => Annotation(i, j, kin, k0, k1, k2).asInstanceOf[Row] },
-      signature,
-      keys)
+  private def toRowRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double): RDD[Row] = {
+    val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
+    val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize)
+
+    (phi.blocks join k0.blocks join k1.blocks join k2.blocks).flatMap { case ((blocki, blockj), (((mphi, mk0), mk1), mk2)) =>
+      val i = blocki * phi.rowsPerBlock
+      val j = blockj * phi.colsPerBlock
+      val i2 = i + phi.rowsPerBlock
+      val j2 = j + phi.colsPerBlock
+
+      if (blocki <= blockj) {
+        val size = mphi.numRows * mphi.numCols
+        val ab = new ArrayBuilder[Row]()
+        try {
+          var jj = 1
+          while (jj < mphi.numCols) {
+            // fixme: broken for non-square blocks
+            var ii = 0
+            val rowsAboveDiagonal = if (blocki < blockj) mphi.numRows else jj
+            while (ii < rowsAboveDiagonal) {
+              val kin = mphi(ii, jj)
+              if (kin >= minKinship) {
+                val k0 = mk0(ii, jj)
+                val k1 = mk1(ii, jj)
+                val k2 = mk2(ii, jj)
+                ab += Annotation(indexToId(i + ii), indexToId(j + jj), kin, k0, k1, k2).asInstanceOf[Row]
+              }
+              ii += 1
+            }
+            jj += 1
+          }
+        } catch {
+          case e: Exception =>
+            throw new RuntimeException(s"$i, $j; $blocki, $blockj; $i2, $j2; ${mphi.numRows}, ${mphi.numCols}", e)
+        }
+        ab.result()
+      } else
+        new Array[Row](0)
+    }
+  }
+
+  def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship): KeyTable =
+    KeyTable(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship), signature, keys)
+
+  def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship)
+      : RDD[((Annotation, Annotation), (Double, Double, Double, Double))] =
+     toRowRdd(vds, pcs, maf, blockSize, minKinship)
+       .map(r => ((r(0), r(1)), (r(2).asInstanceOf[Double], r(3).asInstanceOf[Double], r(4).asInstanceOf[Double], r(5).asInstanceOf[Double])))
 
   private val k0cutoff = math.pow(2.0, (-5.0 / 2.0))
 
@@ -175,12 +180,11 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val mu = this.mu(g, pcs)
     val blockedG = dm.from(g, blockSize, blockSize)
 
-    val variance = dm.map2 {
-      case (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          mu * (1.0 - mu)
+    val variance = dm.map2 { (g, mu) =>
+      if (badgt(g) || badmu(mu))
+        0.0
+      else
+        mu * (1.0 - mu)
     }(blockedG, mu)
 
     val phi = this.phi(mu, variance, blockedG)
@@ -218,10 +222,10 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
-    val homalt = dm.map2 { case (g, mu) =>
+    val homalt = dm.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 2.0) 0.0 else 1.0
     } (g, mu)
-    val homref = dm.map2 { case (g, mu) =>
+    val homref = dm.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
     } (g, mu)
     (homalt.t * homref) :+ (homref.t * homalt)
@@ -229,7 +233,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = dm.diagonal(phi).map(2.0 * _)
-    val normalizedGD = dm.map2WithIndex { case (_, i, g, mu) =>
+    val normalizedGD = dm.map2WithIndex { (_, i, g, mu) =>
         if (badmu(mu) || badgt(g))
           0.0  // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
         else {
@@ -245,19 +249,17 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
-    val mu2 = dm.map2 {
-      case (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          mu * mu
+    val mu2 = dm.map2 { (g, mu) =>
+      if (badgt(g) || badmu(mu))
+        0.0
+      else
+        mu * mu
     }(g, mu)
-    val oneMinusMu2 = dm.map2 {
-      case (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          (1.0 - mu) * (1.0 - mu)
+    val oneMinusMu2 = dm.map2 { (g, mu) =>
+      if (badgt(g) || badmu(mu))
+        0.0
+      else
+        (1.0 - mu) * (1.0 - mu)
     }(g, mu)
     val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
     dm.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
