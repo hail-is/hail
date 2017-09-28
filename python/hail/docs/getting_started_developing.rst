@@ -14,7 +14,7 @@ You'll need:
 Building a Hail JAR
 -------------------
 
-The minimal set of tools necessary to build Hail from source are a C++ compiler. On a Debian-based OS like Ubuntu, these tools can be installed with apt-get::
+The minimal set of tools necessary to build Hail from source is a C++ compiler. On a Debian-based OS like Ubuntu, a C++ compiler can be installed with apt-get::
 
     sudo apt-get install g++
 
