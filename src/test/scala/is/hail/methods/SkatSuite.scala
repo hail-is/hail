@@ -156,7 +156,7 @@ class SkatSuite extends SparkSuite {
 
   // 18 complete samples from sample2.vcf, 5 genes
   // Using specified weights in Hail and R
-  val vdsSkat: VariantDataset = {
+  lazy val vdsSkat: VariantDataset = {
     val covSkat = hc.importTable("src/test/resources/skat.cov",
       impute = true).keyBy("Sample")
 
@@ -182,7 +182,7 @@ class SkatSuite extends SparkSuite {
   // R uses a small sample correction for logistic below 2000 samples, Hail does not
   // So here we make a large deterministic example using the Balding-Nichols model (only hardcalls)
   // Using default weights in both Hail and R
-  val vdsBN: VariantDataset = {
+  lazy val vdsBN: VariantDataset = {
     val seed = 0
     val nSamples = 2001
     val nVariants = 50
