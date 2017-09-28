@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import is.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
+import is.hail.io.hadoop.BytesOnlyWritable
 import is.hail.utils._
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.spark.rdd.RDD
@@ -18,13 +18,12 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     val rMapped = r.mapPartitions { iter =>
       val bw = new BytesOnlyWritable()
       iter.map { bb =>
-        bw.set(new BytesWritable(bb))
+        bw.set(bb)
         (NullWritable.get(), bw)
       }
     }
 
-    RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, bytesClassTag, null)
-      .saveAsHadoopFile[ByteArrayOutputFormat](tmpFileName)
+    rMapped.saveAsSequenceFile(tmpFileName)
 
     header.foreach { str =>
       hConf.writeDataFile(tmpFileName + "/header") { s =>
