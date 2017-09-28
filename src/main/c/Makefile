@@ -26,9 +26,11 @@ endif
 
 default: $(shared_library)
 
-test: ibs.cpp test.cpp
+build/functional-tests: ibs.cpp test.cpp
 	mkdir -p build
 	${CXX} ${CXXFLAGS} -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o build/functional-tests
+
+test: build/functional-tests
 	./build/functional-tests
 
 clean:
