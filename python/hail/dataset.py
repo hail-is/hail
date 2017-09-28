@@ -3921,8 +3921,9 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(k=integral,
                       maf=numeric,
-                      block_size=integral)
-    def pc_relate(self, k, maf, block_size=512):
+                      block_size=integral,
+                      min_kinship=numeric)
+    def pc_relate(self, k, maf, block_size=512, min_kinship=-float("inf")):
         """Compute relatedness estimates between individuals using a variant of the
         PC-Relate method.
 
@@ -3945,6 +3946,12 @@ class VariantDataset(HistoryMixin):
         multiplications use a matrix-block-size of 1024 by 1024.
 
         >>> rel = vds.pc_relate(10, 0.01, 1024)
+
+        Calculate values as above, excluding sample-pairs with kinship less
+        than 0.1. This is more efficient than producing the full key table and
+        filtering using :py:meth:`~hail.KeyTable.filter`.
+
+        >>> rel = vds.pc_relate(5, 0.01, min_kinship=0.1)
 
         **Method**
 
@@ -4108,15 +4115,18 @@ class VariantDataset(HistoryMixin):
                                distributed matrices; this should be set such
                                that at least three of these matrices fit in
                                memory (in addition to all other objects
-                               necessary for Spark and Hail)
+                               necessary for Spark and Hail).
+
+        :param float min_kinship: Pairs of samples with kinship lower than
+                                  ``min_kinship`` are excluded from the results.
 
         :return: A :py:class:`.KeyTable` mapping pairs of samples to estimations
-                 of their kinship and identity-by-descent zero, one, and two
+                 of their kinship and identity-by-descent zero, one, and two.
         :rtype: :py:class:`.KeyTable`
 
         """
 
-        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size))
+        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship))
 
     @handle_py4j
     @record_method
