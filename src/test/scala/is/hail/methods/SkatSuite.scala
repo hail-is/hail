@@ -7,13 +7,14 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.stats.RegressionUtils._
 import is.hail.utils._
 import is.hail.variant._
+import is.hail.stats.vdsFromGtMatrix
 
 import breeze.linalg._
 import breeze.numerics.sigmoid
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-
 import org.testng.annotations.Test
+
 import scala.sys.process._
 import scala.language.postfixOps
 
@@ -261,5 +262,27 @@ class SkatSuite extends SparkSuite {
       assert(D_==(qSmall, qLarge))
       TestUtils.assertMatrixEqualityDouble(gramianSmall, gramianLarge)
     }
+  }
+  
+  @Test def testToKeyGsWeightRdd() {
+    val v1 = Array(0, 1, 0, 2)
+    val v2 = Array(0, 2, 1, 0)
+    val v3 = Array(1, 0, 0, 1)
+
+    val G = new DenseMatrix[Int](4, 3, v1 ++ v2 ++ v3)
+    
+    val vds = vdsFromGtMatrix(hc)(G)
+      .annotateVariantsExpr("va.intkey = v.start % 2, va.weight = v.start") // 1 = {v1, v3}, 0 = {v2}
+    
+    val (keyGsWeightRdd, keyType) = Skat.toKeyGsWeightRdd(vds, completeSamplesIndex = Array(1, 3),
+      variantKeys = "va.intkey", singleKey = true, weightExpr = "va.weight", useDosages = false)
+        
+    val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => 
+        key.asInstanceOf[Int] -> it.toSet }.toMap
+    
+    assert(keyToSet(0) == Set((Vector(2.0, 0.0), 2)))    
+    assert(keyToSet(1) == Set((Vector(1.0, 2.0), 1), (Vector(0.0, 1.0), 3)))
+    
+    assert(keyType == TInt32)
   }
 }
