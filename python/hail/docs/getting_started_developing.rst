@@ -116,7 +116,7 @@ Several Hail tests have additional dependencies:
 
  - `QCTOOL 1.4 <http://www.well.ox.ac.uk/~gav/qctool>`_
 
- - `R 3.3.1 <http://www.r-project.org/>`_ with packages ``jsonlite``, ``SKAT`` and ``logistf``, which depends on ``mice`` and ``Rcpp``.
+ - `R 3.3.1 <http://www.r-project.org/>`_ with packages ``jsonlite``, ``SKAT`` and ``logistf``.
 
 Other recent versions of QCTOOL and R should suffice, but PLINK 1.7 will not.
 
