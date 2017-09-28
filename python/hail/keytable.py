@@ -1369,5 +1369,47 @@ class KeyTable(object):
 
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.range(Env.hc()._jhc, n, joption(num_partitions)))
 
+    @handle_py4j
+    @typecheck_method(i=strlike,j=strlike)
+    def maximal_independent_set(self, i, j):
+        """Compute a `maximal independent set
+        <https://en.wikipedia.org/wiki/Maximal_independent_set>__` of vertices
+        in an undirected graph whose edges are given by this key table.
+
+        **Examples**
+
+        Prune individuals from a dataset until no close relationships remain
+        with respect to a PC-Relate measure of kinship.
+
+        >>> vds = hc.import_vcf('data/example3.vcf.bgz')
+        >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
+        >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
+        >>> related_samples_to_keep = related_pairs.maximal_independent_set("i", "j")
+        >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
+        >>> vds.filter_samples_list(list(related_samples_to_remove))
+
+        **Notes**
+
+        The vertex set of the graph is implicitly all the values realized by
+        ``i`` and ``j`` on the rows of this key table. Each row of the key table
+        corresponds to an undirected edge between the vertices given by
+        evaluating ``i`` and ``j`` on that row. An undirected edge may appear
+        multiple times in the key table and will not affect the output. Vertices
+        with self-edges are removed as they are not independent of themselves.
+
+        The expressions for ``i`` and ``j`` must have the same type.
+
+        This method implements a greedy algorithm which iteratively removes a
+        vertex of highest degree until the graph contains no edges.
+
+        :param str i: expression to compute one endpoint.
+        :param str j: expression to compute another endpoint.
+
+        :return: a list of vertices in a maximal independent set.
+        :rtype: list of elements with the same type as ``i`` and ``j``
+
+        """
+
+        return jarray_to_list(self._jkt.maximalIndependentSet(i, j))
 
 kt_type.set(KeyTable)
