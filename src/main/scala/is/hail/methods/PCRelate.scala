@@ -9,7 +9,8 @@ import is.hail.expr.{TStruct, TString, TDouble}
 import is.hail.utils._
 import is.hail.keytable.KeyTable
 import is.hail.variant.{Variant, VariantDataset}
-import is.hail.distributedmatrix.HailBlockMatrixIsDistributedMatrix
+import is.hail.distributedmatrix.HailBlockMatrix
+import is.hail.distributedmatrix.HailBlockMatrix.ops._
 import breeze.linalg.{DenseMatrix => BDM, _}
 import breeze.numerics._
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
@@ -19,9 +20,7 @@ import scala.language.higherKinds
 import scala.language.implicitConversions
 
 object PCRelate {
-  type M = HailBlockMatrixIsDistributedMatrix.M
-  val dm = HailBlockMatrixIsDistributedMatrix
-  import dm.ops._
+  type M = HailBlockMatrix
 
   type StatisticSubset = Int
   val PhiOnly: StatisticSubset = 0
@@ -168,18 +167,17 @@ object PCRelate {
       val a = ols.estimateRegressionParameters()
       IndexedRow(i, new DenseVector(a))
     }
-    dm.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize)
+    HailBlockMatrix.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize)
   }
 
   def k1(k2: M, k0: M): M = {
-    1.0 - (k2 :+ k0)
+    1.0 - (k2 :+: k0)
   }
 
 }
 
 class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   import PCRelate._
-  import dm.ops._
 
   require(maf >= 0.0)
   require(maf <= 1.0)
@@ -193,14 +191,14 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val g = vdsToMeanImputedMatrix(vds)
 
     val mu = this.mu(g, pcs)
-    val blockedG = dm.from(g, blockSize)
+    val blockedG = HailBlockMatrix.from(g, blockSize)
 
-    val variance = dm.map2 { (g, mu) =>
+    val variance = HailBlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         mu * (1.0 - mu)
-    }(blockedG, mu)
+    } (blockedG, mu)
 
     val phi = this.phi(mu, variance, blockedG)
 
@@ -233,29 +231,29 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
-    val centeredG = dm.map2 { (g,mu) =>
+    val centeredG = HailBlockMatrix.map2 { (g,mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         g - mu * 2.0
     }(g, mu)
-    val stddev = dm.map(math.sqrt _)(variance)
+    val stddev = variance.map(math.sqrt _)
 
-    ((centeredG.t * centeredG) :/ (stddev.t * stddev)) / 4.0
+    ((centeredG.t * centeredG) :/: (stddev.t * stddev)) / 4.0
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
-    val homalt = dm.map2 { (g, mu) =>
+    val homalt = HailBlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 2.0) 0.0 else 1.0
     } (g, mu)
-    val homref = dm.map2 { (g, mu) =>
+    val homref = HailBlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
     } (g, mu)
-    (homalt.t * homref) :+ (homref.t * homalt)
+    (homalt.t * homref) :+: (homref.t * homalt)
   }
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
-    val twoPhi_ii = dm.diagonal(phi).map(2.0 * _)
+    val twoPhi_ii = phi.diagonal.map(2.0 * _)
     val normalizedGD = g.map2WithIndex(mu, { case (_, i, g, mu) =>
         if (badmu(mu) || badgt(g))
           0.0  // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
@@ -268,24 +266,24 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
         }
     })
 
-    (normalizedGD.t * normalizedGD) :/ (variance.t * variance)
+    (normalizedGD.t * normalizedGD) :/: (variance.t * variance)
   }
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
-    val mu2 = dm.map2 { (g, mu) =>
+    val mu2 = HailBlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         mu * mu
     }(g, mu)
-    val oneMinusMu2 = dm.map2 { (g, mu) =>
+    val oneMinusMu2 = HailBlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         (1.0 - mu) * (1.0 - mu)
     }(g, mu)
-    val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
-    dm.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
+    val denom = (mu2.t * oneMinusMu2) :+: (oneMinusMu2.t * mu2)
+    HailBlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phi <= k0cutoff)
         1.0 - 4.0 * phi + k2
       else

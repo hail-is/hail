@@ -1,14 +1,13 @@
 package is.hail.stats
 
-
 import breeze.linalg.DenseMatrix
-import is.hail.distributedmatrix.DistributedMatrix
+import is.hail.distributedmatrix.HailBlockMatrix
+import is.hail.distributedmatrix.HailBlockMatrix.ops._
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vectors}
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix, RowMatrix}
-
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
 object ComputeGramian {
@@ -19,12 +18,8 @@ object ComputeGramian {
   }
 
   def withBlock(A: IndexedRowMatrix): IndexedRowMatrix = {
-    import is.hail.distributedmatrix.DistributedMatrix.implicits._
-    val dm = DistributedMatrix[BlockMatrix]
-    import dm.ops._
-
     val n = A.numCols().toInt
-    val B = A.toBlockMatrixDense().cache()
+    val B = A.toHailBlockMatrixDense().cache()
     val G = B.t * B
     B.blocks.unpersist()
     G.toIndexedRowMatrix()
