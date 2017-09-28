@@ -47,10 +47,7 @@ libsimdpp-2.0-rc2.tar.gz:
 libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
 	tar -xzf libsimdpp-2.0-rc2.tar.gz
 
-libsimdpp: libsimdpp-2.0-rc2
-	(cd libsimdpp-2.0-rc2 && cmake .)
-
-$(shared_library): libsimdpp ${OBJECTS}
+$(shared_library): libsimdpp-2.0-rc2 ${OBJECTS}
 	mkdir -p $(basename $(shared_library))
 	${CXX} ${LIBFLAGS} ${CXXFLAGS} ${OBJECTS} -o $@
 
