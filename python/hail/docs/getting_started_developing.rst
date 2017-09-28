@@ -14,15 +14,13 @@ You'll need:
 Building a Hail JAR
 -------------------
 
-The minimal set of tools necessary to build Hail from source are a C++ compiler and CMake. On a Debian-based OS like Ubuntu, these tools can be installed with apt-get::
+The minimal set of tools necessary to build Hail from source are a C++ compiler. On a Debian-based OS like Ubuntu, these tools can be installed with apt-get::
 
-    sudo apt-get install g++ cmake
+    sudo apt-get install g++
 
-On Mac OS X, a C++ compiler is provided by the Apple Xcode, and CMake is in
-`Homebrew <http://brew.sh>`_::
+On Mac OS X, a C++ compiler is provided by the Apple Xcode::
 
     xcode-select --install
-    brew install cmake
 
 The Hail source code is hosted `on GitHub <https://github.com/broadinstitute/hail>`_::
 
