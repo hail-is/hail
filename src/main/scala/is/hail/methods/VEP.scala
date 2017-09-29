@@ -23,45 +23,45 @@ object VEP {
     "ancestral" -> TString,
     "colocated_variants" -> TArray(TStruct(
       "aa_allele" -> TString,
-      "aa_maf" -> TDouble,
+      "aa_maf" -> TString,
       "afr_allele" -> TString,
-      "afr_maf" -> TDouble,
+      "afr_maf" -> TString,
       "allele_string" -> TString,
       "amr_allele" -> TString,
-      "amr_maf" -> TDouble,
+      "amr_maf" -> TString,
       "clin_sig" -> TArray(TString),
       "end" -> TInt,
       "eas_allele" -> TString,
-      "eas_maf" -> TDouble,
+      "eas_maf" -> TString,
       "ea_allele" -> TString,
-      "ea_maf" -> TDouble,
+      "ea_maf" -> TString,
       "eur_allele" -> TString,
-      "eur_maf" -> TDouble,
+      "eur_maf" -> TString,
       "exac_adj_allele" -> TString,
-      "exac_adj_maf" -> TDouble,
+      "exac_adj_maf" -> TString,
       "exac_allele" -> TString,
       "exac_afr_allele" -> TString,
-      "exac_afr_maf" -> TDouble,
+      "exac_afr_maf" -> TString,
       "exac_amr_allele" -> TString,
-      "exac_amr_maf" -> TDouble,
+      "exac_amr_maf" -> TString,
       "exac_eas_allele" -> TString,
-      "exac_eas_maf" -> TDouble,
+      "exac_eas_maf" -> TString,
       "exac_fin_allele" -> TString,
-      "exac_fin_maf" -> TDouble,
-      "exac_maf" -> TDouble,
+      "exac_fin_maf" -> TString,
+      "exac_maf" -> TString,
       "exac_nfe_allele" -> TString,
-      "exac_nfe_maf" -> TDouble,
+      "exac_nfe_maf" -> TString,
       "exac_oth_allele" -> TString,
-      "exac_oth_maf" -> TDouble,
+      "exac_oth_maf" -> TString,
       "exac_sas_allele" -> TString,
-      "exac_sas_maf" -> TDouble,
+      "exac_sas_maf" -> TString,
       "id" -> TString,
       "minor_allele" -> TString,
       "minor_allele_freq" -> TDouble,
       "phenotype_or_disease" -> TInt,
       "pubmed" -> TArray(TInt),
       "sas_allele" -> TString,
-      "sas_maf" -> TDouble,
+      "sas_maf" -> TString,
       "somatic" -> TInt,
       "start" -> TInt,
       "strand" -> TInt)),
@@ -244,7 +244,7 @@ object VEP {
     if (cacheDir == null)
       fatal("property `hail.vep.cache_dir' required")
 
-
+    val pluginActivated = properties.getProperty("hail.vep.plugin.activated")
     val plugin = if (properties.getProperty("hail.vep.plugin") != null) {
          properties.getProperty("hail.vep.plugin")
     } else {
@@ -269,6 +269,7 @@ object VEP {
       warn("property `hail.vep.assembly' not specified. Setting to GRCh37")
       assembly = "GRCh37"
     }
+    val plugin_cmd = "--plugin,"+ s"$plugin"
 
     val cmd =
       Array(
@@ -284,7 +285,7 @@ object VEP {
         "--fasta", s"$fasta",
         "--minimal",
         "--assembly", s"$assembly",
-        "--plugin", s"$plugin",
+        if (plugin == "True") plugin_cmd else "",
         "-o", "STDOUT")
 
     val inputQuery = vepSignature.query("input")
@@ -392,8 +393,20 @@ object VEP {
 
     val newRDD = vsm.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
-        left.sortedLeftJoinDistinct(right)
-          .map { case (v, ((va, gs), a)) => (v, (insertVEP(va, a.orNull), gs)) }
+        new Iterator[(Variant, (Annotation, Iterable[T]))] {
+          def hasNext: Boolean = {
+            val r = left.hasNext
+            assert(r == right.hasNext)
+            r
+          }
+
+          def next(): (Variant, (Annotation, Iterable[T])) = {
+            val (lv, (va, gs)) = left.next()
+            val (rv, vaVep) = right.next()
+            assert(lv == rv)
+            (lv, (insertVEP(va, vaVep), gs))
+          }
+        }
       }.asOrderedRDD
 
     (csq, newVASignature) match {
