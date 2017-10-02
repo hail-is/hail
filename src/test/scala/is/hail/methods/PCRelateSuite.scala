@@ -41,7 +41,12 @@ class PCRelateSuite extends SparkSuite {
     a.asInstanceOf[String]
 
   def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double): Map[(String, String), (Double, Double, Double, Double)] =
-    PCRelate.toPairRdd(vds, pcs, maf, blockSize).collect().toMap.asInstanceOf[Map[(String, String), (Double, Double, Double, Double)]]
+    PCRelate.toKeyTable(vds, pcs, maf, blockSize)
+      .collect()
+      .map(x => x.asInstanceOf[Row])
+      .map(r => ((r(0), r(1)), (r(2).asInstanceOf[Double], r(3).asInstanceOf[Double], r(4).asInstanceOf[Double], r(5).asInstanceOf[Double])))
+      .toMap
+      .asInstanceOf[Map[(String, String), (Double, Double, Double, Double)]]
 
   def runPcRelateR(
     vds: VariantDataset,
