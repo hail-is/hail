@@ -13,7 +13,7 @@ import org.testng.annotations.Test
 class RichIndexedRowMatrixSuite extends SparkSuite {
 
   @Test def testToBlockMatrixDense() {
-    val m = 5L
+    val m = 6L
     val n = 3L
     val data = Seq(
       (0L, Vectors.dense(0.0, 1.0, 2.0)),
