@@ -156,13 +156,13 @@ object HailBlockMatrix {
       def *(r: BDM[Double]): M =
         l.multiply(r)
 
-      def :+:(r: M): M =
+      def :+(r: M): M =
         l.add(r)
-      def :-:(r: M): M =
+      def :-(r: M): M =
         l.subtract(r)
-      def :*:(r: M): M =
+      def :*(r: M): M =
         l.pointwiseMultiply(r)
-      def :/:(r: M): M =
+      def :/(r: M): M =
         l.pointwiseDivide(r)
 
       def +(r: Double): M =
@@ -449,7 +449,36 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new HailBlockMatrix(blocks2, blockSize, rows, cols)
   }
 
-  def toIndexedRowMatrix(): IndexedRowMatrix = ???
+
+  def toIndexedRowMatrix(): IndexedRowMatrix = {
+    require(cols < Integer.MAX_VALUE)
+    val icols = cols.toInt
+
+    def createCombiner(v: (Int, Array[Double])) = new Array[Double](icols)
+    def mergeValue(a: Array[Double], p: (Int, Array[Double])): Array[Double] = p match { case (offset, v) =>
+      System.arraycopy(v, 0, a, offset, v.length)
+      a
+    }
+    def mergeCombiners(l: Array[Double], r: Array[Double]): Array[Double] = {
+      var i = 0
+      while (i < l.length) {
+        if (r(i) != 0)
+          l(i) = r(i)
+        i += 1
+      }
+      l
+    }
+
+    new IndexedRowMatrix(this.blocks.flatMap { case ((i, j), m) =>
+      val ioffset = i * blockSize
+      val joffset = j * blockSize
+
+      for (k <- 0 until m.rows)
+      yield (k + ioffset, (joffset, m(k, ::).inner.toArray))
+    }.combineByKey(createCombiner, mergeValue, mergeCombiners)
+      .map { case (i, a) => new IndexedRow(i, new DenseVector(a)) },
+      rows, icols)
+  }
 }
 
 private class HailBlockMatrixTransposeRDD(m: HailBlockMatrix)
@@ -462,7 +491,7 @@ private class HailBlockMatrixTransposeRDD(m: HailBlockMatrix)
 
   private val prevPartitioner = m.partitioner
   @transient override val partitioner: Option[Partitioner] =
-    Some(HailGridPartitioner(m.rows, m.cols, m.blockSize, transposed = true))
+    Some(prevPartitioner.transpose)
 }
 
 private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)

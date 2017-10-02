@@ -13,12 +13,14 @@ import org.testng.annotations.Test
 class RichIndexedRowMatrixSuite extends SparkSuite {
 
   @Test def testToBlockMatrixDense() {
-    val m = 4
-    val n = 3
+    val m = 5L
+    val n = 3L
     val data = Seq(
       (0L, Vectors.dense(0.0, 1.0, 2.0)),
       (1L, Vectors.dense(3.0, 4.0, 5.0)),
-      (3L, Vectors.dense(9.0, 0.0, 1.0))
+      (3L, Vectors.dense(9.0, 0.0, 1.0)),
+      (4L, Vectors.dense(9.0, 0.0, 1.0)),
+      (5L, Vectors.dense(9.0, 0.0, 1.0))
     ).map(IndexedRow.tupled)
     val indexedRows: RDD[IndexedRow] = sc.parallelize(data)
 
@@ -29,23 +31,26 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
       breezeConverter.invoke(sparkMatrix).asInstanceOf[Matrix[Double]]
     }
 
-    // Tests when n % colsPerBlock != 0
-    val blockMat = idxRowMat.toBlockMatrixDense(2, 2)
-    assert(blockMat.numRows() === m)
-    assert(blockMat.numCols() === n)
-    assert(convertDistributedMatrixToBreeze(blockMat) === convertDistributedMatrixToBreeze(idxRowMat))
+    val blockMat = idxRowMat.toHailBlockMatrixDense(2)
+    assert(blockMat.rows === m)
+    assert(blockMat.cols === n)
+    assert(blockMat.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
 
-    // Tests when m % rowsPerBlock != 0
-    val blockMat2 = idxRowMat.toBlockMatrixDense(3, 1)
-    assert(blockMat2.numRows() === m)
-    assert(blockMat2.numCols() === n)
-    assert(convertDistributedMatrixToBreeze(blockMat2) === convertDistributedMatrixToBreeze(idxRowMat))
+    val blockMat2 = idxRowMat.toHailBlockMatrixDense(4)
+    assert(blockMat2.rows === m)
+    assert(blockMat2.cols === n)
+    assert(blockMat2.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
+
+    val blockMat3 = idxRowMat.toHailBlockMatrixDense(10)
+    assert(blockMat2.rows === m)
+    assert(blockMat2.cols === n)
+    assert(blockMat2.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
 
     intercept[IllegalArgumentException] {
-      idxRowMat.toBlockMatrix(-1, 2)
+      idxRowMat.toHailBlockMatrixDense(-1)
     }
     intercept[IllegalArgumentException] {
-      idxRowMat.toBlockMatrix(2, 0)
+      idxRowMat.toHailBlockMatrixDense(0)
     }
   }
 }

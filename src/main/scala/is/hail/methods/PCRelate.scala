@@ -171,7 +171,7 @@ object PCRelate {
   }
 
   def k1(k2: M, k0: M): M = {
-    1.0 - (k2 :+: k0)
+    1.0 - (k2 :+ k0)
   }
 
 }
@@ -239,7 +239,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     }(g, mu)
     val stddev = variance.map(math.sqrt _)
 
-    ((centeredG.t * centeredG) :/: (stddev.t * stddev)) / 4.0
+    ((centeredG.t * centeredG) :/ (stddev.t * stddev)) / 4.0
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
@@ -249,7 +249,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val homref = HailBlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
     } (g, mu)
-    (homalt.t * homref) :+: (homref.t * homalt)
+    (homalt.t * homref) :+ (homref.t * homalt)
   }
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
@@ -266,7 +266,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
         }
     })
 
-    (normalizedGD.t * normalizedGD) :/: (variance.t * variance)
+    (normalizedGD.t * normalizedGD) :/ (variance.t * variance)
   }
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
@@ -282,7 +282,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
       else
         (1.0 - mu) * (1.0 - mu)
     }(g, mu)
-    val denom = (mu2.t * oneMinusMu2) :+: (oneMinusMu2.t * mu2)
+    val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
     HailBlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phi <= k0cutoff)
         1.0 - 4.0 * phi + k2

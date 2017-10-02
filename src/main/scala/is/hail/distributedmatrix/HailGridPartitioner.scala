@@ -50,4 +50,7 @@ case class HailGridPartitioner(rows: Long, cols: Long, blockSize: Int, transpose
       partitionIdFromBlockIndices(i / blockSize, j / blockSize)
     }
   }
+
+  def transpose: HailGridPartitioner =
+    HailGridPartitioner(this.rows, this.cols, this.blockSize, !this.transposed)
 }
