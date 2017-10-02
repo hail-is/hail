@@ -10,8 +10,6 @@ import scala.reflect.ClassTag
 
 class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
   def saveFromByteArrays(filename: String, tmpDir: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
-    val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
-    val bytesClassTag = implicitly[ClassTag[BytesOnlyWritable]]
     val hConf = r.sparkContext.hadoopConfiguration
 
     val tmpFileName = hConf.getTemporaryFile(tmpDir)
