@@ -543,14 +543,10 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
       })
 
   private def block(hbm: HailBlockMatrix, bmPartitions: Array[Partition], p: HailGridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] =
-    try {
-      hbm.blocks
-        .iterator(bmPartitions(p.partitionIdFromBlockIndices(i, j)), context)
-        .next()
-        ._2
-    } catch {
-      case e: Exception => throw new RuntimeException(s"couldn't get block at $i, $j with partition id ${ p.partitionIdFromBlockIndices(i, j) }; ${ l.rows } ${ l.cols } ${ l.blockSize }; ${ r.rows } ${ r.cols } ${ r.blockSize }; --- ; ${ lPartitions.toSeq }, ${ rPartitions.toSeq } ;; $nParts ;; $rowBlocks, $colBlocks", e)
-    }
+    hbm.blocks
+      .iterator(bmPartitions(p.partitionIdFromBlockIndices(i, j)), context)
+      .next()
+      ._2
 
   private def leftBlock(i: Int, j: Int, context: TaskContext): BDM[Double] =
     block(l, lPartitions, lPartitioner, context, i, j)
@@ -569,11 +565,7 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
     while (i < nProducts) {
       val left = leftBlock(row, i, context)
       val right = rightBlock(i, col, context)
-      try {
-        result :+= (left * right)
-      } catch {
-        case e: Exception => throw new RuntimeException(s"$row , $i , $col ;; $rowBlocks , $nProducts , $colBlocks ;; ${ result.rows } x ${ result.cols } :+= (${ left.rows } x ${ left.cols } * ${ right.rows } x ${ right.cols })", e)
-      }
+      result :+= (left * right)
       i += 1
     }
 
