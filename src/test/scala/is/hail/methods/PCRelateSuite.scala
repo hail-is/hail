@@ -202,7 +202,7 @@ class PCRelateSuite extends SparkSuite {
 
   @Test(enabled = false)
   def sampleVcfReferenceMatchesR() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz").splitMulti()
 
     val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
 
@@ -214,7 +214,7 @@ class PCRelateSuite extends SparkSuite {
 
   @Test
   def kinshipFiltering() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz").splitMulti()
 
     val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
 
