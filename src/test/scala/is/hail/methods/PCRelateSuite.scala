@@ -142,7 +142,7 @@ class PCRelateSuite extends SparkSuite {
       val truth = runPcRelateR(vds, maf=0.01)
       val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
 
-      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => D_==(x, y, tolerance=1e-2))))
+      assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => D_==(x, y, tolerance=1e-2))))
     }
   }
 
@@ -192,7 +192,7 @@ class PCRelateSuite extends SparkSuite {
     compareBDMs(actual_ibs0, truth_ibs0, tolerance=1e-14)
     compareBDMs(actual_g, truth_g, tolerance=1e-14)
 
-    assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
+    assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
   }
 
   @Test(enabled = false)
@@ -204,7 +204,7 @@ class PCRelateSuite extends SparkSuite {
     val truth = runPcRelateR(vds, maf=0.01)
     val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
 
-    assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-2)))
+    assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-2)))
   }
 
 }
