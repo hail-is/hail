@@ -326,6 +326,22 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   }
 
   @Test
+  def scratchTest() { // FIXME: Make this bigger
+    val lm = new BDM[Double](1100, 2200, (0 until (1100 * 2200)).map(_.toDouble).toArray)
+    val actual = toBM(lm, 1024, 1024)
+    
+    val fname = "/Users/jbloom/data/block_matrix/test_matrix"
+    
+    dm.write(actual, fname)
+    
+    val bm = dm.read(hc, fname)
+    
+    println(bm, bm.numRowBlocks, bm.numColBlocks, bm.numRows(), bm.numCols())
+    
+    assert(actual.toLocalMatrix() == dm.read(hc, fname).toLocalMatrix())
+  }
+  
+  @Test
   def readWriteIdentityRandom() {
     forAll(blockMatrixGen) { (bm: BlockMatrix) =>
       val fname = tmpDir.createTempFile("test")

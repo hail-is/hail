@@ -342,47 +342,50 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val hadoop = hc.hadoopConf
     hadoop.mkDir(uri)
     
-    val BlockMatrixMetadata(rowsPerBlock, colsPerBlock, nRowBlocks, nColBlocks) =
-      hadoop.readTextFile(uri+metadataRelativePath) { isr  =>
+    val BlockMatrixMetadata(rowsPerBlock, colsPerBlock, numRows, numCols) =
+      hadoop.readTextFile(uri + metadataRelativePath) { isr  =>
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
+
+    val nRowBlocks = math.ceil(numRows * 1.0 / rowsPerBlock).toInt
+    val nColBlocks = math.ceil(numCols * 1.0 / colsPerBlock).toInt
     
     val blocks = new ReadBlocksRDD(hc.sc, uri, nRowBlocks, nColBlocks)
     
-    new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, nRowBlocks, nColBlocks)
+    new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, numRows, numCols)
   }
 }
 
 case class ReadBlocksRDDPartition(index: Int) extends Partition
 
-class ReadBlocksRDD(sc: SparkContext, uri: String, nRowBlocks: Long, nColBlocks: Long) extends RDD[((Int, Int), Matrix)](sc, Nil) {
-  assert(nRowBlocks < Int.MaxValue && nColBlocks < Int.MaxValue)
-  private val nBlocks = nRowBlocks * nColBlocks
-  
-  assert(nBlocks < Int.MaxValue)
-  val nPartitions: Int = nBlocks.toInt
+class ReadBlocksRDD(sc: SparkContext, uri: String, nRowBlocks: Int, nColBlocks: Int) extends RDD[((Int, Int), Matrix)](sc, Nil) {
+  private val nBlocks= nRowBlocks * nColBlocks
+  assert(nBlocks >= nRowBlocks && nBlocks >= nColBlocks)
   
   override def getPartitions: Array[Partition] =
-    Array.tabulate(nPartitions)(i => ReadBlocksRDDPartition(i))
+    Array.tabulate(nBlocks)(i => ReadBlocksRDDPartition(i))
   
   private val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
   override def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), Matrix)] = {
-    val d = digitsNeeded(nPartitions)
+    val d = digitsNeeded(nBlocks)
+    val i = split.index
+    assert(i >= 0 && i < nBlocks)
 
-    val is = split.index.toString
+    val is = i.toString
     assert(is.length <= d)
     val pis = StringUtils.leftPad(is, d, "0")
 
-    Iterator(sHadoopConfBc.value.value.readDataFile(uri + "/rowstore/part-" + pis) { in =>
+    Iterator(sHadoopConfBc.value.value.readDataFile(uri + "/blockstore/block-" + pis) { in =>
       val mw = new MatrixWriter()
       mw.readFields(in)
-
-      ((mw.rows, mw.cols), mw.toDenseMatrix())
+      
+      // block indices are column major
+      ((i % nRowBlocks, i / nRowBlocks), mw.toDenseMatrix())
     })
   }
 
-  override val partitioner: Option[Partitioner] = Some(GridPartitioner(nRowBlocks.toInt, nColBlocks.toInt))
+  override val partitioner: Option[Partitioner] = Some(GridPartitioner(nRowBlocks, nColBlocks))
 }
 
 // must be top-level for Jackson to serialize correctly
