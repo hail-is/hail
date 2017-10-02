@@ -102,8 +102,7 @@ def main(args):
         properties.append(args.properties)
 
     # default initialization script to start up cluster with
-    #init_actions = 'gs://hail-common/init_notebook-{}.py'.format(COMPATIBILITY_VERSION)
-    init_actions = 'gs://labbott/init_notebook-{}.py'.format(COMPATIBILITY_VERSION)
+    init_actions = 'gs://hail-common/init_notebook-{}.py'.format(COMPATIBILITY_VERSION)
 
     # add VEP init script
     if args.vep:
