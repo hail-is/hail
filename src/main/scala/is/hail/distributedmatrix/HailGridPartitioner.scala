@@ -8,11 +8,8 @@ case class HailGridPartitioner(rows: Long, cols: Long, blockSize: Int, transpose
   require((rows - 1) / blockSize + 1 < Int.MaxValue)
   require((cols - 1) / blockSize + 1 < Int.MaxValue)
 
-  private val untransposedRowPartitions = ((rows - 1) / blockSize + 1).toInt
-  private val untransposedColPartitions = ((cols - 1) / blockSize + 1).toInt
-
-  val rowPartitions = if (transposed) untransposedColPartitions else untransposedRowPartitions
-  val colPartitions = if (transposed) untransposedRowPartitions else untransposedColPartitions
+  val rowPartitions = ((rows - 1) / blockSize + 1).toInt
+  val colPartitions = ((cols - 1) / blockSize + 1).toInt
 
   override val numPartitions: Int = rowPartitions * colPartitions
 
@@ -28,29 +25,21 @@ case class HailGridPartitioner(rows: Long, cols: Long, blockSize: Int, transpose
     (blockRowIndex(pid), blockColIndex(pid))
 
   def partitionIdFromBlockIndices(i: Int, j: Int): Int = {
+    require(0 <= i && i < rowPartitions, s"Row index $i out of range [0, $rowPartitions).")
+    require(0 <= j && j < colPartitions, s"Column index $j out of range [0, $colPartitions).")
     if (transposed) {
-      require(0 <= j && j < untransposedRowPartitions, s"Row index $j out of range [0, $untransposedRowPartitions).")
-      require(0 <= i && i < untransposedColPartitions, s"Column index $i out of range [0, $untransposedColPartitions).")
-      j + i * untransposedRowPartitions
+      j + i * rowPartitions
     } else {
-      require(0 <= i && i < untransposedRowPartitions, s"Row index $i out of range [0, $untransposedRowPartitions).")
-      require(0 <= j && j < untransposedColPartitions, s"Column index $j out of range [0, $untransposedColPartitions).")
-      i + j * untransposedRowPartitions
+      i + j * rowPartitions
     }
   }
 
   def partitionIdFromGlobalIndices(i: Int, j: Int): Int = {
-    if (transposed) {
-      require(0 <= j && j < rows, s"Row index $j out of range [0, $rows).")
-      require(0 <= i && i < cols, s"Column index $i out of range [0, $cols).")
-      partitionIdFromBlockIndices(j / blockSize, i / blockSize)
-    } else {
-      require(0 <= i && i < rows, s"Row index $i out of range [0, $rows).")
-      require(0 <= j && j < cols, s"Column index $j out of range [0, $cols).")
-      partitionIdFromBlockIndices(i / blockSize, j / blockSize)
-    }
+    require(0 <= i && i < rows, s"Row index $i out of range [0, $rows).")
+    require(0 <= j && j < cols, s"Column index $j out of range [0, $cols).")
+    partitionIdFromBlockIndices(i / blockSize, j / blockSize)
   }
 
   def transpose: HailGridPartitioner =
-    HailGridPartitioner(this.rows, this.cols, this.blockSize, !this.transposed)
+    HailGridPartitioner(this.cols, this.rows, this.blockSize, !this.transposed)
 }
