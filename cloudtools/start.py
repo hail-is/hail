@@ -135,7 +135,10 @@ def main(args):
 
     # command to start cluster
     cmd = [
-        'gcloud', 'dataproc', 'clusters', 'create',
+        'gcloud', 
+        'dataproc', 
+        'clusters', 
+        'create',
         args.name,
         '--image-version={}'.format(image_version),
         '--master-machine-type={}'.format(args.master_machine_type),
@@ -152,6 +155,10 @@ def main(args):
         '--properties={}'.format(",".join(properties)),
         '--initialization-actions={}'.format(init_actions)
     ]
+
+    # print underlying gcloud command
+    print('gcloud command:')
+    print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
 
     # spin up cluster
     call(cmd)
