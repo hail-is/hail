@@ -1,5 +1,6 @@
 package is.hail.utils.richUtils
 
+import is.hail.io.hadoop.ByteArrayOutputFormat
 import is.hail.io.hadoop.BytesOnlyWritable
 import is.hail.utils._
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
@@ -23,7 +24,7 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       }
     }
 
-    rMapped.saveAsSequenceFile(tmpFileName)
+    rMapped.saveAsHadoopFile[ByteArrayOutputFormat](tmpFileName)
 
     header.foreach { str =>
       hConf.writeDataFile(tmpFileName + "/header") { s =>
