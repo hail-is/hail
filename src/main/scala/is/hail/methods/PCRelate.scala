@@ -78,11 +78,6 @@ object PCRelate {
   def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship): KeyTable =
     KeyTable(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship), signature, keys)
 
-  def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship)
-      : RDD[((Annotation, Annotation), (Double, Double, Double, Double))] =
-     toRowRdd(vds, pcs, maf, blockSize, minKinship)
-       .map(r => ((r(0), r(1)), (r(2).asInstanceOf[Double], r(3).asInstanceOf[Double], r(4).asInstanceOf[Double], r(5).asInstanceOf[Double])))
-
   private val k0cutoff = math.pow(2.0, (-5.0 / 2.0))
 
   private def prependConstantColumn(k: Double, m: DenseMatrix): DenseMatrix = {
