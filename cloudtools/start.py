@@ -102,7 +102,8 @@ def main(args):
         properties.append(args.properties)
 
     # default initialization script to start up cluster with
-    init_actions = 'gs://hail-common/init_notebook-{}.py'.format(COMPATIBILITY_VERSION)
+    #init_actions = 'gs://hail-common/init_notebook-{}.py'.format(COMPATIBILITY_VERSION)
+    init_actions = 'gs://labbott/init_notebook-{}.py'.format(COMPATIBILITY_VERSION)
 
     # add VEP init script
     if args.vep:
@@ -135,7 +136,10 @@ def main(args):
 
     # command to start cluster
     cmd = [
-        'gcloud', 'dataproc', 'clusters', 'create',
+        'gcloud', 
+        'dataproc', 
+        'clusters', 
+        'create',
         args.name,
         '--image-version={}'.format(image_version),
         '--master-machine-type={}'.format(args.master_machine_type),
@@ -152,6 +156,10 @@ def main(args):
         '--properties={}'.format(",".join(properties)),
         '--initialization-actions={}'.format(init_actions)
     ]
+
+    # print underlying gcloud command
+    print('gcloud command:')
+    print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
 
     # spin up cluster
     call(cmd)

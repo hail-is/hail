@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='cloudtools',
-	  version='1.1.3',
+	  version='1.1.5',
 	  description='Collection of utilities for working on the Google Cloud Platform.',
 	  url='https://github.com/Nealelab/cloudtools',
 	  author='Liam Abbott',

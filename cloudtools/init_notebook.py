@@ -61,15 +61,25 @@ if role == 'Master':
 		hail_zip = custom_zip.rsplit('/')[-1]
 		zip_path = custom_zip
 
+	# make local directory for Hail jar and zip
+	if not os.path.isdir('/home/hail/'):
+		os.mkdir('/home/hail/')
+
 	# copy Hail jar and zip to local directory on master node
-	call(['gsutil', 'cp', jar_path, '/usr/lib/spark/jars/'])
-	call(['gsutil', 'cp', zip_path, '/usr/lib/spark/python/'])
+	call(['gsutil', 'cp', jar_path, '/home/hail/'])
+	call(['gsutil', 'cp', zip_path, '/home/hail/'])
+
+	# copy conf files to custom directory
+	if not os.path.isdir('/home/hail/conf/'):
+		os.mkdir('/home/hail/conf/')
+	call(['cp', '/etc/spark/conf/spark-defaults.conf', '/home/hail/conf/spark-defaults.conf'])
+	call(['cp', '/etc/spark/conf/spark-env.sh', '/home/hail/conf/spark-env.sh'])
 
 	# modify custom Spark conf file to reference Hail jar and zip
-	with open('/etc/spark/conf/spark-defaults.conf', 'a') as f:
+	with open('/home/hail/conf/spark-defaults.conf', 'a') as f:
 		opts = [
-			'spark.files=/usr/lib/spark/jars/{}'.format(hail_jar),
-			'spark.submit.pyFiles=/usr/lib/spark/python/{}'.format(hail_zip),
+			'spark.files=/home/hail/{}'.format(hail_jar),
+			'spark.submit.pyFiles=/home/hail/{}'.format(hail_zip),
 			'spark.driver.extraClassPath=./{}'.format(hail_jar),
 			'spark.executor.extraClassPath=./{}'.format(hail_jar)
 		]
@@ -89,8 +99,8 @@ if role == 'Master':
 		'env': {
 			'PYTHONHASHSEED': '0',
 			'SPARK_HOME': '/usr/lib/spark/',
-			'SPARK_CONF_DIR': '/etc/spark/conf/',
-			'PYTHONPATH': '/usr/lib/spark/python/:/usr/lib/spark/python/lib/py4j-0.10.3-src.zip:/usr/lib/spark/python/{}'.format(hail_zip)
+			'SPARK_CONF_DIR': '/home/hail/conf/',
+			'PYTHONPATH': '/usr/lib/spark/python/:/usr/lib/spark/python/lib/py4j-0.10.3-src.zip:/home/hail/{}'.format(hail_zip)
 		}
 	}
 
@@ -128,7 +138,7 @@ if role == 'Master':
 			'Type=simple',
 			'User=root',
 			'Group=root',
-			'WorkingDirectory=/usr/local/',
+			'WorkingDirectory=/home/hail/',
 			'ExecStart=/usr/bin/python /usr/local/bin/jupyter notebook --allow-root',
 			'Restart=always',
 			'RestartSec=1',
