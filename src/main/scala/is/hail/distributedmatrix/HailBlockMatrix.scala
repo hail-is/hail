@@ -321,9 +321,6 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BDM(rows, cols, values)
   }
 
-  def blockMap(op: BDM[Double] => BDM[Double]): M =
-    new HailBlockMatrix(blocks.mapValues(op), blockSize, rows, cols)
-
   private def requireZippable(other: M) {
     require(rows == other.rows,
       s"must have same number of rows, but actually: ${ rows }x${ cols }, ${ other.rows }x${ other.cols }")
@@ -332,6 +329,9 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     require(blockSize == other.blockSize,
       s"blocks must be same size, but actually were ${ blockSize }x${ blockSize } and ${ other.blockSize }x${ other.blockSize }")
   }
+
+  def blockMap(op: BDM[Double] => BDM[Double]): M =
+    new HailBlockMatrix(blocks.mapValues(op), blockSize, rows, cols)
 
   def blockMap2(other: M, op: (BDM[Double], BDM[Double]) => BDM[Double]): M = {
     requireZippable(other)
