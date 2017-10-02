@@ -60,6 +60,8 @@ def init_parser(parser):
                         help='Additional configuration properties for the cluster')
     parser.add_argument('--metadata', default='',
                         help='Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2...')
+    parser.add_argument('--packages', '--pkgs', default='',
+                        help='Comma-separated list of Python packages to be installed on the master node.')
 
     # specify custom Hail jar and zip
     parser.add_argument('--jar', help='Hail jar to use for Jupyter notebook.')
@@ -102,13 +104,15 @@ def main(args):
     # default initialization script to start up cluster with
     init_actions = 'gs://hail-common/init_notebook-{}.py'.format(COMPATIBILITY_VERSION)
 
-    if args.init:
-        init_actions += ',' + args.init
-
-    # add VEP action
+    # add VEP init script
     if args.vep:
         init_actions += ',' + 'gs://hail-common/vep/vep/vep85-init.sh'
 
+    # add custom init scripts
+    if args.init:
+        init_actions += ',' + args.init
+
+    # get Hail build (default to latest)
     if args.hash == 'latest':
         hail_hash = check_output(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'.format(args.version, args.spark)]).strip()
     else:
@@ -124,6 +128,10 @@ def main(args):
         metadata += ',JAR={}'.format(args.jar)
     if args.zip:
         metadata += ',ZIP={}'.format(args.zip)
+
+    # if Python packages requested, add metadata variable
+    if args.packages:
+        metadata = '^:^' + metadata.replace(',', ':') + ':PKGS={}'.format(args.packages)
 
     # command to start cluster
     cmd = [
