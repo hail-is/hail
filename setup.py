@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='cloudtools',
-	  version='1.1.2',
+	  version='1.1.3',
 	  description='Collection of utilities for working on the Google Cloud Platform.',
 	  url='https://github.com/Nealelab/cloudtools',
 	  author='Liam Abbott',
@@ -12,7 +12,7 @@ setup(name='cloudtools',
 	      'License :: OSI Approved :: MIT License',
 	      'Programming Language :: Python :: 2.7'
 	  ],
-	  keywords='google cloud dataproc spark jupyter hail',
+	  keywords='google cloud dataproc spark jupyter hail notebook ipython',
 	  packages=['cloudtools'],
 	  entry_points={
 	      'console_scripts': [

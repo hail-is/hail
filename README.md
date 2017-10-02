@@ -91,14 +91,20 @@ from hail import *
 hc = HailContext()
 ...
 ```
-To read or write files stored in a Google bucket outside of Hail-specific commands, use Hail's `hadoop_read()` and `hadoop_write()` helper functions. For example, to read in a TSV file from Google storage to a nested Python list:
+To read or write files stored in a Google bucket outside of Hail-specific commands, use Hail's `hadoop_read()` and `hadoop_write()` helper functions. For example, to read in a TSV file from Google storage to a pandas dataframe:
 ```
 from hail import *
+import pandas as pd
 
 hc = HailContext()
 
 with hadoop_read('gs://mybucket/mydata.tsv') as f:
-    rows = [x.strip().split('\t') for x in f.readlines()]
+    df = pd.read_table(f)
+```
+
+where pandas was included as a package to be installed in the cluster start command:
+```
+cluster start testcluster --pkgs pandas
 ```
 
 When you save your notebooks using either `File -> Save and Checkpoint` or `command + s`, they'll be saved automatically to the bucket you're working in.
@@ -158,7 +164,8 @@ usage: cluster start [-h] [--hash HASH] [--spark {2.0.2,2.1.0}]
                      [--worker-boot-disk-size WORKER_BOOT_DISK_SIZE]
                      [--worker-machine-type WORKER_MACHINE_TYPE] [--zone ZONE]
                      [--properties PROPERTIES] [--metadata METADATA]
-                     [--jar JAR] [--zip ZIP] [--init INIT] [--vep]
+                     [--packages PACKAGES] [--jar JAR] [--zip ZIP]
+                     [--init INIT] [--vep]
                      name
 
 Start a Dataproc cluster configured for Hail.
@@ -201,6 +208,9 @@ optional arguments:
                         Additional configuration properties for the cluster
   --metadata METADATA   Comma-separated list of metadata to add:
                         KEY1=VALUE1,KEY2=VALUE2...
+  --packages PACKAGES, --pkgs PACKAGES
+                        Comma-separated list of Python packages to be
+                        installed on the master node.
   --jar JAR             Hail jar to use for Jupyter notebook.
   --zip ZIP             Hail zip to use for Jupyter notebook.
   --init INIT           Comma-separated list of init scripts to run.

@@ -11,6 +11,8 @@ def init_parser(parser):
                         help='Hail version to use (default: %(default)s).')
     parser.add_argument('--jar', required=False, type=str, help='Custom Hail jar to use.')
     parser.add_argument('--zip', required=False, type=str, help='Custom Hail zip to use.')
+    parser.add_argument('--archives', required=False, type=str, help='Comma-separated list of archives (.zip/.tar/.tar.gz/.tvz) to be provided to the Hail application.')
+    parser.add_argument('--files', required=False, type=str, help='Comma-separated list of files to add to the working directory of the Hail application.')
     parser.add_argument('--properties', '-p', required=False, type=str, help='Extra Spark properties to set.')
     parser.add_argument('--args', type=str, help='Quoted string of arguments to pass to the Hail script being submitted.')
 
@@ -39,6 +41,14 @@ def main(args):
         hail_zip = 'hail-{0}-{1}.zip'.format(args.version, hash_name)
         zip_path = 'gs://hail-common/builds/{0}/python/{1}'.format(args.version, hail_zip)
 
+    # create files argument
+    files = jar_path
+    if args.files:
+        files += ',' + args.files
+
+    # create archives argument
+    archives = args.archives if args.archives else ''
+
     # create properties argument
     properties = 'spark.driver.extraClassPath=./{0},spark.executor.extraClassPath=./{0}'.format(hail_jar)
     if args.properties:
@@ -53,7 +63,8 @@ def main(args):
         'pyspark',
         args.script,
         '--cluster={}'.format(args.name),
-        '--files={}'.format(jar_path),
+        '--files={}'.format(files),
+        '--archives={}'.format(archives),
         '--py-files={}'.format(zip_path),
         '--properties={}'.format(properties)
     ]
@@ -63,5 +74,7 @@ def main(args):
         cmd.append('--')
         for x in args.args.split():
             cmd.append(x)
+
+    print(cmd)
 
     call(cmd)
