@@ -21,29 +21,29 @@ object PCRelate {
   val dm = BlockMatrixIsDistributedMatrix
   import dm.ops._
 
-  type Desire = Int
-  val PhiOnly: Desire = 0
-  val PhiK2: Desire = 1
-  val PhiK2K0: Desire = 2
-  val PhiK2K0K1: Desire = 3
+  type StatisticSubset = Int
+  val PhiOnly: StatisticSubset = 0
+  val PhiK2: StatisticSubset = 1
+  val PhiK2K0: StatisticSubset = 2
+  val PhiK2K0K1: StatisticSubset = 3
 
   case class Result[M](phiHat: M, k0: M, k1: M, k2: M) {
     def map[N](f: M => N): Result[N] = Result(f(phiHat), f(k0), f(k1), f(k2))
   }
 
   val defaultMinKinship = Double.NegativeInfinity
-  val defaultDesire: Desire = PhiK2K0K1
+  val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
 
-  def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, desire: Desire = defaultDesire): Result[M] =
-    new PCRelate(maf, blockSize)(vds, pcs, desire)
+  def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, statistics: StatisticSubset = defaultStatisticSubset): Result[M] =
+    new PCRelate(maf, blockSize)(vds, pcs, statistics)
 
   private val signature =
     TStruct(("i", TString), ("j", TString), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble))
   private val keys = Array("i", "j")
 
-  private def toRowRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double, desire: Desire): RDD[Row] = {
+  private def toRowRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double, statistics: StatisticSubset): RDD[Row] = {
     val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
-    val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, desire)
+    val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, statistics)
 
     def fuseBlocks(blocki: Int, blockj: Int, mphi: Matrix, mk0: Matrix, mk1: Matrix, mk2: Matrix) = {
       val i = blocki * phi.rowsPerBlock
@@ -76,7 +76,7 @@ object PCRelate {
         new Array[Row](0)
     }
 
-    desire match {
+    statistics match {
       case PhiOnly => phi.blocks
           .flatMap { case ((blocki, blockj), phi) => fuseBlocks(blocki, blockj, phi, null, null, null) }
       case PhiK2 => (phi.blocks join k2.blocks)
@@ -88,12 +88,12 @@ object PCRelate {
     }
   }
 
-  def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, desire: Desire = defaultDesire): KeyTable =
-    KeyTable(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship, desire), signature, keys)
+  def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, statistics: StatisticSubset = defaultStatisticSubset): KeyTable =
+    KeyTable(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship, statistics), signature, keys)
 
-  def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, desire: Desire = defaultDesire)
+  def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, statistics: StatisticSubset = defaultStatisticSubset)
       : RDD[((Annotation, Annotation), (Double, Double, Double, Double))] =
-     toRowRdd(vds, pcs, maf, blockSize, minKinship, desire)
+     toRowRdd(vds, pcs, maf, blockSize, minKinship, statistics)
        .map(r => ((r(0), r(1)), (r(2).asInstanceOf[Double], r(3).asInstanceOf[Double], r(4).asInstanceOf[Double], r(5).asInstanceOf[Double])))
 
   private val k0cutoff = math.pow(2.0, (-5.0 / 2.0))
@@ -187,7 +187,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   def badgt(gt: Double): Boolean =
     gt != 0.0 && gt != 1.0 && gt != 2.0
 
-  def apply(vds: VariantDataset, pcs: DenseMatrix, desire: Desire = defaultDesire): Result[M] = {
+  def apply(vds: VariantDataset, pcs: DenseMatrix, statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
     val g = vdsToMeanImputedMatrix(vds)
 
     val mu = this.mu(g, pcs)
@@ -202,11 +202,11 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
     val phi = this.phi(mu, variance, blockedG)
 
-    if (desire >= PhiK2) {
+    if (statistics >= PhiK2) {
       val k2 = this.k2(phi, mu, variance, blockedG)
-      if (desire >= PhiK2K0) {
+      if (statistics >= PhiK2K0) {
         val k0 = this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize))
-        if (desire >= PhiK2K0K1) {
+        if (statistics >= PhiK2K0K1) {
           val k1 = 1.0 - (k2 :+ k0)
           Result(phi, k0, k1, k2)
         } else
