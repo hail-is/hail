@@ -40,10 +40,10 @@ object Graph {
 
     while (verticesByDegree.nonEmpty && verticesByDegree.maxPriority() > 0) {
       val current = verticesByDegree.extractMax()
-      val neighbors = g(current)
+      val neighbors = g(current) - current
       neighbors.foreach { x =>
-        if (verticesByDegree.contains(x))
-          verticesByDegree.decreasePriority(x, _ - 1)
+        g(x) -= current
+        verticesByDegree.decreasePriority(x, _ - 1)
       }
     }
 
