@@ -68,8 +68,11 @@ object Skat {
     maxSize: Int,
     accuracy: Double,
     iterations: Int): KeyTable = {
+    
     if (maxSize <= 0 || maxSize > 46340)
       fatal(s"Maximum group size must be in [1, 46340], got $maxSize")
+
+    val maxEntriesForSmallN = math.min(maxSize * maxSize, hardMaxEntriesForSmallN)
 
     if (accuracy <= 0)
       fatal(s"tolerance must be positive, default is 1e-6, got $accuracy")
@@ -78,6 +81,12 @@ object Skat {
     
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
+    val n = y.size
+    val k = cov.cols
+    val d = n - k
+
+    if (d < 1)
+      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")    
     if (logistic) {
       val badVals = y.findAll(yi => yi != 0d && yi != 1d)
       if (badVals.nonEmpty)
@@ -85,13 +94,100 @@ object Skat {
           s"sample; found ${badVals.length} ${plural(badVals.length, "violation")} starting with ${badVals(0)}")
     }
     
-    val (keyGsWeightRdd, keyType) = toKeyGsWeightRdd(vds, completeSampleIndex, variantKeys, singleKey, weightExpr, useDosages)
+    val (keyGsWeightRdd, keyType) =
+      computeKeyGsWeightRdd(vds, completeSampleIndex, variantKeys, singleKey, weightExpr, useDosages)
 
-    val skatRdd: RDD[Row] = 
-      if (logistic)
-        logisticSkat(keyGsWeightRdd, y, cov, maxSize, accuracy, iterations)
-      else
-        linearSkat(keyGsWeightRdd, y, cov, maxSize, accuracy, iterations)
+    val sc = keyGsWeightRdd.sparkContext
+
+    def linearSkat(): RDD[Row] = { 
+      // fit null model
+      val QR = qr.reduced(cov)
+      val Qt = QR.q.t
+      val R = QR.r
+      val beta = R \ (Qt * y)
+      val res = y - cov * beta
+      val sigmaSq = (res dot res) / d
+  
+      val resBc = sc.broadcast(res)
+      val QtBc = sc.broadcast(Qt)
+      
+      def linearTuple(x: Vector[Double], w: Double): SkatTuple = {
+        val xw = x * math.sqrt(w)
+        val sqrt_q = resBc.value dot xw
+        SkatTuple(sqrt_q * sqrt_q, xw, QtBc.value * xw)
+      }
+            
+      keyGsWeightRdd
+        .map { case (key, vs) =>
+          val vsArray = vs.toArray
+          val size = vsArray.length
+          if (size <= maxSize) {
+            val skatTuples = vsArray.map((linearTuple _).tupled)
+            val (q, gramian) = computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
+            
+            // using q / sigmaSq since Z.t * Z = gramian / sigmaSq
+            val (pval, fault) = computePval(q / sigmaSq, gramian, accuracy, iterations)
+            
+            // returning qstat = q / (2 * sigmaSq) to agree with skat R package convention
+            Row(key, size, q / (2 * sigmaSq), pval, fault)
+          } else {
+            Row(key, size, null, null, null)
+          }
+        }
+    }
+        
+    def logisticSkat(): RDD[Row] = {
+      val logRegM = new LogisticRegressionModel(cov, y).fit()
+      if (!logRegM.converged)
+        fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
+          if (logRegM.exploded)
+            s"exploded at Newton iteration ${ logRegM.nIter }"
+          else
+            "Newton iteration failed to converge"))
+  
+      val mu = sigmoid(cov * logRegM.b)
+      val V = mu.map(x => x * (1 - x))
+      val VX = cov(::, *) :* V
+      val XtVX = cov.t * VX
+      XtVX.forceSymmetry()
+      var Cinv: DenseMatrix[Double] = null
+      try {
+        Cinv = inv(cholesky(XtVX))
+      } catch {
+        case e: MatrixSingularException =>
+          fatal("Singular matrix exception while computing Cholesky factor of X.t * V * X.\n" + e.getMessage)
+        case e: NotConvergedException =>
+          fatal("Not converged exception while inverting Cholesky factor of X.t * V * X.\n" + e.getMessage)
+      }
+      val res = y - mu
+  
+      val sqrtVBc = sc.broadcast(sqrt(V))
+      val resBc = sc.broadcast(res)
+      val CinvXtVBc = sc.broadcast(Cinv * VX.t)
+  
+      def logisticTuple(x: Vector[Double], w: Double): SkatTuple = {
+        val xw = x * math.sqrt(w)
+        val sqrt_q = resBc.value dot xw      
+        SkatTuple(sqrt_q * sqrt_q, xw :* sqrtVBc.value , CinvXtVBc.value * xw)
+      }
+  
+      keyGsWeightRdd.map { case (key, vs) =>
+        val vsArray = vs.toArray
+        val size = vsArray.length
+        if (size <= maxSize) {
+          val skatTuples = vs.map((logisticTuple _).tupled).toArray
+          val (q, gramian) = computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
+          val (pval, fault) = computePval(q, gramian, accuracy, iterations)
+  
+          // returning qstat = q / 2 to agree with skat R package convention
+          Row(key, size, q / 2, pval, fault)
+        } else {
+          Row(key, size, null, null, null)
+        }
+      }
+    }
+    
+    val skatRdd = if (logistic) logisticSkat() else linearSkat()
     
     val skatSignature = TStruct(
       ("key", keyType),
@@ -103,14 +199,12 @@ object Skat {
     new KeyTable(vds.hc, skatRdd, skatSignature, Array("key"))
   }
 
-  def toKeyGsWeightRdd(vds: VariantDataset,
+  def computeKeyGsWeightRdd(vds: VariantDataset,
     completeSamplesIndex: Array[Int],
     variantKeys: String,
     singleKey: Boolean,
-    weightExpr: String,
-    useDosages: Boolean):
-  (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
-    // ((key, [(gs_v, weight_v)]), keyType)
+    weightExpr: String, // returns ((key, [(gs_v, weight_v)]), keyType)
+    useDosages: Boolean): (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
     
     val (keysType, keysQuerier) = vds.queryVA(variantKeys)
     val (weightType, weightQuerier) = vds.queryVA(weightExpr)
@@ -154,118 +248,7 @@ object Skat {
       }
     }.groupByKey(), keyType)
   }
-  
-  def linearSkat(keyGsWeightRdd: RDD[(Annotation, Iterable[(Vector[Double], Double)])],
-    y: DenseVector[Double], cov: DenseMatrix[Double], maxSize: Int, accuracy: Double, iterations: Int): RDD[Row] = {
-    
-    val n = y.size
-    val k = cov.cols
-    val d = n - k
-
-    if (d < 1)
-      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
-
-    // fit null model
-    val QR = qr.reduced(cov)
-    val Qt = QR.q.t
-    val R = QR.r
-    val beta = R \ (Qt * y)
-    val res = y - cov * beta
-    val sigmaSq = (res dot res) / d
-
-    val sc = keyGsWeightRdd.sparkContext
-    val resBc = sc.broadcast(res)
-    val QtBc = sc.broadcast(Qt)
-    
-    def linearTuple(x: Vector[Double], w: Double): SkatTuple = {
-      val xw = x * math.sqrt(w)
-      val sqrt_q = resBc.value dot xw
-      SkatTuple(sqrt_q * sqrt_q, xw, QtBc.value * xw)
-    }
-    
-    val maxEntriesForSmallN = math.min(maxSize * maxSize, hardMaxEntriesForSmallN)
-    
-    keyGsWeightRdd
-      .map { case (key, vs) =>
-        val vsArray = vs.toArray
-        val size = vsArray.length
-        if (size <= maxSize) {
-          val skatTuples = vsArray.map((linearTuple _).tupled)
-          val (q, gramian) = computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
-          
-          // using q / sigmaSq since Z.t * Z = gramian / sigmaSq
-          val (pval, fault) = computePval(q / sigmaSq, gramian, accuracy, iterations)
-          
-          // returning qstat = q / (2 * sigmaSq) to agree with skat R package convention
-          Row(key, size, q / (2 * sigmaSq), pval, fault)
-        } else {
-          Row(key, size, null, null, null)
-        }
-      }
-  }
-
-  def logisticSkat(keyGsWeightRdd: RDD[(Any, Iterable[(Vector[Double], Double)])],
-    y: DenseVector[Double], cov: DenseMatrix[Double], maxSize: Int, accuracy: Double, iterations: Int): RDD[Row] = {
-
-    val n = y.size
-    val k = cov.cols
-    val d = n - k
-
-    if (d < 1)
-      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
-
-    val logRegM = new LogisticRegressionModel(cov, y).fit()
-    if (!logRegM.converged)
-      fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
-        if (logRegM.exploded)
-          s"exploded at Newton iteration ${ logRegM.nIter }"
-        else
-          "Newton iteration failed to converge"))
-
-    val mu = sigmoid(cov * logRegM.b)
-    val V = mu.map(x => x * (1 - x))
-    val VX = cov(::, *) :* V
-    val XtVX = cov.t * VX
-    XtVX.forceSymmetry()
-    var Cinv: DenseMatrix[Double] = null
-    try {
-      Cinv = inv(cholesky(XtVX))
-    } catch {
-      case e: MatrixSingularException =>
-        fatal("Singular matrix exception while computing Cholesky factor of X.t * V * X.\n" + e.getMessage)
-      case e: NotConvergedException =>
-        fatal("Not converged exception while inverting Cholesky factor of X.t * V * X.\n" + e.getMessage)
-    }
-    val res = y - mu
-
-    val sc = keyGsWeightRdd.sparkContext
-    val sqrtVBc = sc.broadcast(sqrt(V))
-    val resBc = sc.broadcast(res)
-    val CinvXtVBc = sc.broadcast(Cinv * VX.t)
-
-    def logisticTuple(x: Vector[Double], w: Double): SkatTuple = {
-      val xw = x * math.sqrt(w)
-      val sqrt_q = resBc.value dot xw      
-      SkatTuple(sqrt_q * sqrt_q, xw :* sqrtVBc.value , CinvXtVBc.value * xw)
-    }
-
-    val maxEntriesForSmallN = math.min(maxSize * maxSize, hardMaxEntriesForSmallN)
-    
-    keyGsWeightRdd.map { case (key, vs) =>
-      val vsArray = vs.toArray
-      val size = vsArray.length
-      if (size <= maxSize) {
-        val skatTuples = vs.map((logisticTuple _).tupled).toArray
-        val (q, gramian) = computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
-        val (pval, fault) = computePval(q, gramian, accuracy, iterations)
-
-        // returning qstat = q / 2 to agree with skat R package convention
-        Row(key, size, q / 2, pval, fault)
-      } else {
-        Row(key, size, null, null, null)
-      }
-    }
-  }
+ 
   
   def computeGramian(st: Array[SkatTuple], useSmallN: Boolean): (Double, DenseMatrix[Double]) =
     if (useSmallN) computeGramianSmallN(st) else computeGramianLargeN(st)

@@ -111,7 +111,7 @@ class SkatSuite extends SparkSuite {
     val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
     val (keyGsWeightRdd, keyType) =
-      Skat.toKeyGsWeightRdd(vds, completeSampleIndex, variantKeys, singleKey, weightExpr, useDosages)
+      Skat.computeKeyGsWeightRdd(vds, completeSampleIndex, variantKeys, singleKey, weightExpr, useDosages)
     
     runInR(keyGsWeightRdd, keyType, y, cov)
   }
@@ -274,7 +274,7 @@ class SkatSuite extends SparkSuite {
     val vds = vdsFromGtMatrix(hc)(G)
       .annotateVariantsExpr("va.intkey = v.start % 2, va.weight = v.start") // 1 = {v1, v3}, 0 = {v2}
     
-    val (keyGsWeightRdd, keyType) = Skat.toKeyGsWeightRdd(vds, completeSamplesIndex = Array(1, 3),
+    val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, completeSamplesIndex = Array(1, 3),
       variantKeys = "va.intkey", singleKey = true, weightExpr = "va.weight", useDosages = false)
         
     val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => 
