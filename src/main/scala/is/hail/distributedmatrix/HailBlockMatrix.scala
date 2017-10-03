@@ -458,12 +458,11 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     require(cols < Integer.MAX_VALUE)
     val icols = cols.toInt
 
-    def createCombiner(v: (Int, Array[Double])) = new Array[Double](icols)
-    def mergeValue(a: Array[Double], p: (Int, Array[Double])): Array[Double] = p match { case (offset, v) =>
+    def seqOp(a: Array[Double], p: (Int, Array[Double])): Array[Double] = p match { case (offset, v) =>
       System.arraycopy(v, 0, a, offset, v.length)
       a
     }
-    def mergeCombiners(l: Array[Double], r: Array[Double]): Array[Double] = {
+    def combOp(l: Array[Double], r: Array[Double]): Array[Double] = {
       var i = 0
       while (i < l.length) {
         if (r(i) != 0)
@@ -479,7 +478,7 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
       for (k <- 0 until m.rows)
       yield (k + ioffset, (joffset, m(k, ::).inner.toArray))
-    }.combineByKey(createCombiner, mergeValue, mergeCombiners)
+    }.aggregateByKey(new Array[Double](icols))(seqOp, combOp)
       .map { case (i, a) => new IndexedRow(i, new DenseVector(a)) },
       rows, icols)
   }

@@ -383,7 +383,7 @@ class HailBlockMatrixSuite extends SparkSuite {
 
   @Test
   def doubleTransposeIsIdentity() {
-    forAll(blockMatrixGen.resize(10)) { (bm: HailBlockMatrix) =>
+    forAll(blockMatrixGen) { (bm: HailBlockMatrix) =>
       val bmt = bm.t.cache()
       val bmtt = bm.t.t.cache()
       assert(bmtt.rows == bm.rows)
@@ -414,6 +414,24 @@ class HailBlockMatrixSuite extends SparkSuite {
         println(s"${a.t.cache().t.toLocalMatrix()}")
         println(s"${a.toLocalMatrix()}")
         println(s"$truth != $expected")
+        assert(false)
+      }
+
+      true
+    }.check()
+  }
+
+  @Test
+  def toIRMToHBMIdentity() {
+    forAll(blockMatrixGen) { (bm : HailBlockMatrix) =>
+      val roundtrip = bm.toIndexedRowMatrix().toHailBlockMatrixDense(bm.blockSize)
+
+      val roundtriplm = roundtrip.toLocalMatrix()
+      val bmlm = bm.toLocalMatrix()
+
+      if (roundtriplm != bmlm) {
+        println(roundtriplm)
+        println(bmlm)
         assert(false)
       }
 
