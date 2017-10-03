@@ -2589,67 +2589,6 @@ class VariantDataset(HistoryMixin):
     @handle_py4j
     @require_biallelic
     @record_method
-    @typecheck_method(threshold=numeric,
-                      tiebreaking_expr=nullable(strlike),
-                      maf=nullable(strlike),
-                      bounded=bool)
-    def ibd_prune(self, threshold, tiebreaking_expr=None, maf=None, bounded=True):
-        """
-        Prune samples from the :py:class:`.VariantDataset` based on :py:meth:`~hail.VariantDataset.ibd` PI_HAT measures of relatedness.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
-
-        **Examples**
-        
-        Prune samples so that no two have a PI_HAT value greater than or equal to 0.6.
-        
-        >>> pruned_vds = vds.ibd_prune(0.6)
-
-        Prune samples so that no two have a PI_HAT value greater than or equal to 0.5, with a tiebreaking expression that 
-        selects cases over controls:
-
-        >>> pruned_vds = vds.ibd_prune(0.5, tiebreaking_expr="if (sa1.isCase) 1 else 0")
-
-        **Notes**
-
-        The variant dataset returned may change in near future as a result of algorithmic improvements. The current algorithm is very efficient on datasets with many small
-        families, less so on datasets with large families. Currently, the algorithm works by deleting the person from each family who has the highest number of relatives,
-        and iterating until no two people have a PI_HAT value greater than that specified. If two people within a family have the same number of relatives, the tiebreaking_expr
-        given will be used to determine which sample gets deleted. 
-        
-        The tiebreaking_expr namespace has the following variables available:
-        
-        - ``s1``: The first sample id.
-        - ``sa1``: The annotations associated with s1.
-        - ``s2``: The second sample id. 
-        - ``sa2``: The annotations associated with s2. 
-        
-        The tiebreaking_expr returns an integer expressing the preference for one sample over the other. Any negative integer expresses a preference for keeping ``s1``. Any positive integer expresses a preference for keeping ``s2``. A zero expresses no preference. This function must induce a `preorder <https://en.wikipedia.org/wiki/Preorder>`__ on the samples, in particular:
-
-        - ``tiebreaking_expr(sample1, sample2)`` must equal ``-1 * tie breaking_expr(sample2, sample1)``, which evokes the common sense understanding that if ``x < y`` then `y > x``.
-        - ``tiebreaking_expr(sample1, sample1)`` must equal 0, i.e. ``x = x``
-        - if sample1 is preferred to sample2 and sample2 is preferred to sample3, then sample1 must also be preferred to sample3
-
-        The last requirement is only important if you have three related samples with the same number of relatives and all three are related to one another. In cases like this one, it is important that either:
-
-        - one of the three is preferred to **both** other ones, or
-        - there is no preference among the three samples 
-
-        :param threshold: The desired maximum PI_HAT value between any pair of samples.
-        :param tiebreaking_expr: Expression used to choose between two samples with the same number of relatives. 
-        :param maf: Expression for the minor allele frequency.
-        :param bounded: Forces the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically meaningful values (in the range [0,1]).
-
-        :return: A :py:class:`.VariantDataset` containing no samples with a PI_HAT greater than threshold.
-        :rtype: :py:class:`.VariantDataset`
-        """
-        return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(tiebreaking_expr), joption(maf), bounded))
-
-    @handle_py4j
-    @require_biallelic
-    @record_method
     @typecheck_method(maf_threshold=numeric,
                       include_par=bool,
                       female_threshold=numeric,

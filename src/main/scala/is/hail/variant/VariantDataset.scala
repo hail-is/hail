@@ -381,11 +381,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     IBD.toKeyTable(vds.hc, IBD.validateAndCall(vds, computeMafExpr, bounded, minimum, maximum))
   }
 
-  def ibdPrune(threshold: Double, tiebreakerExpr: Option[String] = None, computeMafExpr: Option[String] = None, bounded: Boolean = true): VariantDataset = {
-    require(vds.wasSplit)
-    IBDPrune(vds, threshold, tiebreakerExpr, computeMafExpr, bounded)
-  }
-
   /**
     *
     * @param mafThreshold Minimum minor allele frequency threshold

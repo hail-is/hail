@@ -155,16 +155,4 @@ class IBDSuite extends SparkSuite {
     val us = IBD.toKeyTable(vds.hc, IBD(vds)).typeCheck()
   }
 
-  //Maximal Independent Set and IBD are both tested on their own, so this just makes sure expressions work right for orderings.
-  @Test def ibdPrune() {
-    val vds = hc.baldingNicholsModel(1, 3, 5, seed = 0)
-
-    val prunedVDS = vds.ibdPrune(0.0, Some("if (s1.toInt32() < s2.toInt32()) 1 else if (s1.toInt32() == s2.toInt32()) 0 else -1"), bounded = true)
-    assert(prunedVDS.sampleIds.length == 1)
-    assert(prunedVDS.sampleIds(0) == "2")
-
-    val prunedVDS2 = vds.ibdPrune(0.0, None, bounded = true)
-    assert(prunedVDS2.sampleIds.length == 1)
-    assert(prunedVDS2.sampleIds(0) == "0")
-  }
 }
