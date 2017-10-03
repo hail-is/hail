@@ -5182,7 +5182,7 @@ class VariantDataset(HistoryMixin):
         | geneC|   3  | 4.122 | 0.192 |   0   |
         +------+------+-------+-------+-------+
         
-        Groups larger than ``max_size`` appear with missing ``qstat``, ``pval``, and ``fault``. The hard limit the
+        Groups larger than ``max_size`` appear with missing ``qstat``, ``pval``, and ``fault``. The hard limit on the
         number of variants in a group is 46340.
 
         Note that the variance component score ``qstat`` agrees with ``Q`` in the R package ``skat``,

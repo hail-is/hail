@@ -223,7 +223,7 @@ class SkatSuite extends SparkSuite {
   @Test def maxSizeTest() {
     val maxSize = 27
     
-    val kt = vdsSkat.skat("va.genes", singleKey = true, y = "sa.pheno", weightExpr = "1", maxSize = Some(maxSize))
+    val kt = vdsSkat.skat("va.genes", singleKey = true, y = "sa.pheno", weightExpr = "1", maxSize = maxSize)
       
     val ktMap = kt.rdd.collect().map{ case Row(key, size, qstat, pval, fault) => 
         key.asInstanceOf[String] -> (size.asInstanceOf[Int], qstat == null, pval == null, fault == null) }.toMap

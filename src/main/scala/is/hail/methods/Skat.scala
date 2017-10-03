@@ -55,7 +55,7 @@ the eigenvalues of the latter, and the p-value with the Davies algorithm.
 case class SkatTuple(q: Double, a: Vector[Double], b: DenseVector[Double])
 
 object Skat {
-  val maxEntriesForSmallN = 64e6 // 512MB of doubles
+  val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
   
   def apply(vds: VariantDataset,
     variantKeys: String,
@@ -65,18 +65,19 @@ object Skat {
     covExpr: Array[String],
     logistic: Boolean,
     useDosages: Boolean,
-    optMaxSize: Option[Int],
+    maxSize: Int,
     accuracy: Double,
     iterations: Int): KeyTable = {
-    
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    if (maxSize <= 0 || maxSize > 46340)
+      fatal(s"Maximum group size must be in [1, 46340], got $maxSize")
 
     if (accuracy <= 0)
       fatal(s"tolerance must be positive, default is 1e-6, got $accuracy")
-    
     if (iterations <= 0)
       fatal(s"iterations must be positive, default is 10000, got $iterations")
     
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+
     if (logistic) {
       val badVals = y.findAll(yi => yi != 0d && yi != 1d)
       if (badVals.nonEmpty)
@@ -84,10 +85,6 @@ object Skat {
           s"sample; found ${badVals.length} ${plural(badVals.length, "violation")} starting with ${badVals(0)}")
     }
     
-    val maxSize = optMaxSize.getOrElse(Int.MaxValue)
-    if (maxSize <= 0)
-      fatal(s"Maximum group size must be positive, got $maxSize")
-        
     val (keyGsWeightRdd, keyType) = toKeyGsWeightRdd(vds, completeSampleIndex, variantKeys, singleKey, weightExpr, useDosages)
 
     val skatRdd: RDD[Row] = 
@@ -133,7 +130,7 @@ object Skat {
       (keyType, (keys: Annotation) => keys.asInstanceOf[Iterable[Annotation]].iterator)
     }
     
-    val n = completeSamplesIndex.length
+    val nSamples = completeSamplesIndex.length
 
     val sampleMask = new Array[Boolean](vds.nSamples)
     completeSamplesIndex.foreach(i => sampleMask(i) = true)
@@ -150,7 +147,7 @@ object Skat {
             if (useDosages) {
               RegressionUtils.dosages(gs, completeSamplesBc.value)
             } else {
-              RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
+              RegressionUtils.hardCalls(gs, nSamples, sampleMaskBc.value)
             }
           keyIterator(key).map((_, (x, w)))
         case _ => Iterator.empty
@@ -186,7 +183,7 @@ object Skat {
       SkatTuple(sqrt_q * sqrt_q, xw, QtBc.value * xw)
     }
     
-    val maxEntries = math.max(maxSize * maxSize, maxEntriesForSmallN)
+    val maxEntriesForSmallN = math.min(maxSize * maxSize, hardMaxEntriesForSmallN)
     
     keyGsWeightRdd
       .map { case (key, vs) =>
@@ -194,11 +191,8 @@ object Skat {
         val size = vsArray.length
         if (size <= maxSize) {
           val skatTuples = vsArray.map((linearTuple _).tupled)
-          val (q, gramian) = if (size.toLong * n <= maxEntries) {
-            computeGramianSmallN(skatTuples)
-          } else {
-            computeGramianLargeN(skatTuples)
-          }
+          val (q, gramian) = computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
+          
           // using q / sigmaSq since Z.t * Z = gramian / sigmaSq
           val (pval, fault) = computePval(q / sigmaSq, gramian, accuracy, iterations)
           
@@ -254,19 +248,15 @@ object Skat {
       val sqrt_q = resBc.value dot xw      
       SkatTuple(sqrt_q * sqrt_q, xw :* sqrtVBc.value , CinvXtVBc.value * xw)
     }
-        
-    val maxEntries = math.max(maxSize * maxSize, maxEntriesForSmallN)
 
+    val maxEntriesForSmallN = math.min(maxSize * maxSize, hardMaxEntriesForSmallN)
+    
     keyGsWeightRdd.map { case (key, vs) =>
       val vsArray = vs.toArray
       val size = vsArray.length
       if (size <= maxSize) {
         val skatTuples = vs.map((logisticTuple _).tupled).toArray
-        val (q, gramian) = if (size.toLong * n <= maxEntries) {
-          computeGramianSmallN(skatTuples)
-        } else {
-          computeGramianLargeN(skatTuples)
-        }
+        val (q, gramian) = computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
         val (pval, fault) = computePval(q, gramian, accuracy, iterations)
 
         // returning qstat = q / 2 to agree with skat R package convention
@@ -276,6 +266,9 @@ object Skat {
       }
     }
   }
+  
+  def computeGramian(st: Array[SkatTuple], useSmallN: Boolean): (Double, DenseMatrix[Double]) =
+    if (useSmallN) computeGramianSmallN(st) else computeGramianLargeN(st)
 
   def computeGramianSmallN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
     require(st.nonEmpty)
