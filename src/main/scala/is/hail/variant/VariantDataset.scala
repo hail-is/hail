@@ -554,7 +554,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     covariates: Array[String] = Array.empty[String],
     logistic: Boolean = false,
     useDosages: Boolean = false,
-    maxSize: Option[Int] = None,
+    maxSize: Int = 46340, // floor(sqrt(Int.MaxValue))
     accuracy: Double = 1e-6,
     iterations: Int = 10000): KeyTable = {
 

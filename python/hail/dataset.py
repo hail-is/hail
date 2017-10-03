@@ -5104,11 +5104,11 @@ class VariantDataset(HistoryMixin):
                       covariates=listof(strlike),
                       logistic=bool,
                       use_dosages=bool,
-                      max_size=nullable(integral),
+                      max_size=integral,
                       accuracy=numeric,
                       iterations=integral)
     def skat(self, variant_keys, single_key, weight_expr, y, covariates=[], logistic=False, use_dosages=False,
-             max_size=None, accuracy=1e-6, iterations=10000):
+             max_size=46340, accuracy=1e-6, iterations=10000):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
@@ -5182,7 +5182,8 @@ class VariantDataset(HistoryMixin):
         | geneC|   3  | 4.122 | 0.192 |   0   |
         +------+------+-------+-------+-------+
         
-        Groups larger than ``max_size`` appear with missing ``qstat``, ``pval``, and ``fault``.
+        Groups larger than ``max_size`` appear with missing ``qstat``, ``pval``, and ``fault``. The hard limit the
+        number of variants in a group is 46340.
 
         Note that the variance component score ``qstat`` agrees with ``Q`` in the R package ``skat``,
         but both differ from :math:`Q` in the paper by the factor
@@ -5226,8 +5227,7 @@ class VariantDataset(HistoryMixin):
 
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
-        :param max_size: Maximum size of group on which to run the test.
-        :type max_size: int or None
+        :param int max_size: Maximum size of group on which to run the test.
 
         :param float accuracy: Accuracy achieved by the Davies algorithm if fault value is zero.
 
@@ -5239,7 +5239,7 @@ class VariantDataset(HistoryMixin):
 
         return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, weight_expr, y,
                                                  jarray(Env.jvm().java.lang.String, covariates),
-                                                 logistic, use_dosages, joption(max_size), accuracy, iterations))
+                                                 logistic, use_dosages, max_size, accuracy, iterations))
 
     @handle_py4j
     @record_method
