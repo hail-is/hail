@@ -121,34 +121,28 @@ class PCRelateSuite extends SparkSuite {
 
   @Test
   def baldingNicholsMatchesReference() {
-    for {
-      n <- Seq(50, 100)
-      seed <- Seq(0, 1)
-      nVariants <- Seq(1000, 10000)
-    } {
-      val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
-      val pcs = SamplePCA.justScores(vds, 2)
-      val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
-      val actual = runPcRelateHail(vds, pcs, maf=0.01)
+    val seed = 0
+    val n = 100
+    val nVariants = 10000
+    val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
+    val pcs = SamplePCA.justScores(vds, 2)
+    val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
+    val actual = runPcRelateHail(vds, pcs, maf=0.01)
 
-      assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
-    }
+    assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
   }
 
   @Test(enabled = false)
   def baldingNicholsReferenceMatchesR() {
-    for {
-      n <- Seq(50, 100)
-      seed <- Seq(0, 1)
-      nVariants <- Seq(1000, 10000)
-    } {
-      val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
-      val pcs = SamplePCA.justScores(vds, 2)
-      val truth = runPcRelateR(vds, maf=0.01)
-      val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
+    val seed = 0
+    val n = 100
+    val nVariants = 10000
+    val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
+    val pcs = SamplePCA.justScores(vds, 2)
+    val truth = runPcRelateR(vds, maf=0.01)
+    val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
 
-      assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => D_==(x, y, tolerance=1e-2))))
-    }
+    assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => D_==(x, y, tolerance=1e-2))))
   }
 
   private def compareBDMs(l: BDM[Double], r: BDM[Double], tolerance: Double) {
