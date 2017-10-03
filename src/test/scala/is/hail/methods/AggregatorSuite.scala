@@ -241,12 +241,6 @@ class AggregatorSuite extends SparkSuite {
 
     val dummy = tmpDir.createTempFile("out")
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
-      vds.exportVariants(dummy, "gs"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Int32\\]")(
-      vds.exportVariants(dummy, "gs.map(g => 5)"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
-      vds.exportVariants(dummy, "gs.filter(x => false)"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
       vds.annotateVariantsExpr("va = gs"))
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Int32\\]")(
       vds.annotateVariantsExpr("va = gs.map(g => 5)"))

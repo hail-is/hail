@@ -356,7 +356,9 @@ class VariantDataset(HistoryMixin):
         Compute per-sample GQ statistics for hets:
 
         >>> vds_result = (vds.annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet()).map(g => g.gq).stats()')
-        ...     .export_samples('output/samples.txt', 'sample = s, het_gq_mean = sa.gqHetStats.mean'))
+        ...                  .samples_table()
+        ...                  .select('sample = s', 'het_gq_mean = sa.gqHetStats.mean')
+        ...                  .export('output/samples.txt'))
 
         Compute the list of genes with a singleton LOF per sample:
 
@@ -1501,44 +1503,6 @@ class VariantDataset(HistoryMixin):
         self._jvdf.exportGen(output, precision)
 
     @handle_py4j
-    @write_history('output')
-    @typecheck_method(output=strlike,
-                      expr=strlike,
-                      types=bool,
-                      parallel=bool)
-    def export_genotypes(self, output, expr, types=False, parallel=False):
-        """Export genotype-level information to delimited text file.
-
-        **Examples**
-
-        Export genotype information with identifiers that form the header:
-
-        >>> vds.export_genotypes('output/genotypes.tsv', 'SAMPLE=s, VARIANT=v, GQ=g.gq, DP=g.dp, ANNO1=va.anno1, ANNO2=va.anno2')
-
-        Export the same information without identifiers, resulting in a file with no header:
-
-        >>> vds.export_genotypes('output/genotypes.tsv', 's, v, g.gq, g.dp, va.anno1, va.anno2')
-
-        **Notes**
-
-        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per non-missing cell (genotype) in the data set.
-
-        The ``expr`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
-
-        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
-
-        :param str output: Output path.
-
-        :param str expr: Export expression for values to export.
-
-        :param bool types: Write types of exported columns to a file at (output + ".types")
-
-        :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
-        """
-
-        self._jvds.exportGenotypes(output, expr, types, parallel)
-
-    @handle_py4j
     @require_biallelic
     @write_history('output')
     @typecheck_method(output=strlike,
@@ -1606,139 +1570,6 @@ class VariantDataset(HistoryMixin):
         """
 
         self._jvdf.exportPlink(output, fam_expr)
-
-    @handle_py4j
-    @write_history('output')
-    @typecheck_method(output=strlike,
-                      expr=strlike,
-                      types=bool)
-    def export_samples(self, output, expr, types=False):
-        """Export sample information to delimited text file.
-
-        **Examples**
-
-        Export some sample QC metrics:
-
-        >>> (vds.sample_qc()
-        ...     .export_samples('output/samples.tsv', 'SAMPLE = s, CALL_RATE = sa.qc.callRate, NHET = sa.qc.nHet'))
-
-        This will produce a file with a header and three columns.  To
-        produce a file with no header, just leave off the assignment
-        to the column identifier:
-
-        >>> (vds.sample_qc()
-        ...     .export_samples('output/samples.tsv', 's, sa.qc.rTiTv'))
-
-        **Notes**
-
-        One line per sample will be exported.  As :py:meth:`~hail.VariantDataset.export_samples` runs in sample context, the following symbols are in scope:
-
-        - ``s`` (*Sample*): sample
-        - ``sa``: sample annotations
-        - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
-
-        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
-
-        :param str output: Output file.
-
-        :param str expr: Export expression for values to export.
-
-        :param bool types: Write types of exported columns to a file at (output + ".types").
-        """
-
-        self._jvds.exportSamples(output, expr, types)
-
-    @handle_py4j
-    @write_history('output')
-    @typecheck_method(output=strlike,
-                      expr=strlike,
-                      types=bool,
-                      parallel=bool)
-    def export_variants(self, output, expr, types=False, parallel=False):
-        """Export variant information to delimited text file.
-
-        **Examples**
-
-        Export a three column TSV with ``v``, ``va.filters``, and
-        one computed field: ``1 - va.qc.callRate``.
-
-        >>> vds.export_variants('output/file.tsv',
-        ...        'VARIANT = v, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
-
-        It is also possible to export without identifiers, which will result in
-        a file with no header. In this case, the expressions should look like
-        the examples below:
-
-        >>> vds.export_variants('output/file.tsv', 'v, va.filters, va.qc.AF')
-
-        .. note::
-
-            If any field is named, all fields must be named.
-
-        In the common case that a group of annotations needs to be exported (for
-        example, the annotations produced by ``variantqc``), one can use the
-        ``struct.*`` syntax.  This syntax produces one column per field in the
-        struct, and names them according to the struct field name.
-
-        For example, the following invocation (assuming ``va.qc`` was generated
-        by :py:meth:`.variant_qc`):
-
-        >>> vds.export_variants('output/file.tsv', 'variant = v, va.qc.*')
-
-        will produce the following set of columns:
-
-        .. code-block:: text
-
-            variant  callRate  AC  AF  nCalled  ...
-
-        Note that using the ``.*`` syntax always results in named arguments, so it
-        is not possible to export header-less files in this manner.  However,
-        naming the "splatted" struct will apply the name in front of each column
-        like so:
-
-        >>> vds.export_variants('output/file.tsv', 'variant = v, QC = va.qc.*')
-
-        which produces these columns:
-
-        .. code-block:: text
-
-            variant  QC.callRate  QC.AC  QC.AF  QC.nCalled  ...
-
-
-        **Notes**
-
-        This module takes a comma-delimited list of fields or expressions to
-        print. These fields will be printed in the order they appear in the
-        expression in the header and on each line.
-
-        One line per variant in the VDS will be printed.  The accessible namespace includes:
-
-        - ``v`` (*Variant*): :ref:`variant`
-        - ``va``: variant annotations
-        - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
-
-        **Designating output with an expression**
-
-        Much like the filtering methods, this method uses the Hail expression language.
-        While the filtering methods expect an
-        expression that evaluates to true or false, this method expects a
-        comma-separated list of fields to print. These fields take the
-        form ``IDENTIFIER = <expression>``.
-
-        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
-
-        :param str output: Output file.
-
-        :param str expr: Export expression for values to export.
-
-        :param bool types: Write types of exported columns to a file at (output + ".types")
-
-        :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
-        """
-
-        self._jvds.exportVariants(output, expr, types, parallel)
 
     @handle_py4j
     @write_history('output')
@@ -2760,7 +2591,9 @@ class VariantDataset(HistoryMixin):
         >>> vds_result = (vds.variant_qc()
         ...                  .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95")
         ...                  .ld_prune(8)
-        ...                  .export_variants("output/ldpruned.variants", "v"))
+        ...                  .variants_table()
+        ...                  .select('v')
+        ...                  .export("output/ldpruned.variants"))
 
         **Notes**
 
@@ -2796,7 +2629,7 @@ class VariantDataset(HistoryMixin):
         .. warning::
 
             The variants in the pruned set are not guaranteed to be identical each time :py:meth:`.ld_prune` is run. We recommend running :py:meth:`.ld_prune` once and exporting the list of LD pruned variants using
-            :py:meth:`.export_variants` for future use.
+            :py:meth:`.variants_table` and :py:meth:`.KeyTable.export` for future use.
 
         :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
 
@@ -3210,7 +3043,9 @@ class VariantDataset(HistoryMixin):
 
         The simplest way to export all resulting annotations is:
 
-        >>> lmm_vds.export_variants('output/lmmreg.tsv.bgz', 'variant = v, va.lmmreg.*')
+        >>> lmm_vds.variants_table()
+        ...        .select('variant = v', 'va.lmmreg.*')
+        ...        .export('output/lmmreg.tsv.bgz')
         >>> lmmreg_results = lmm_vds.globals['lmmreg']
         
         By default, genotypes values are given by hard call genotypes (``g.gt``).
@@ -5376,7 +5211,9 @@ class VariantDataset(HistoryMixin):
 
         >>> pedigree = Pedigree.read('data/trios.fam')
         >>> (vds.tdt(pedigree)
-        ...     .export_variants("output/tdt_results.tsv", "Variant = v, va.tdt.*"))
+        ...     .variants_table()
+        ...     .select('Variant = v', 'va.tdt.*')
+        ...     .export("output/tdt_results.tsv"))
 
         **Notes**
 

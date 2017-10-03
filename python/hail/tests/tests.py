@@ -110,7 +110,7 @@ class ContextTests(unittest.TestCase):
             dataset.query_samples(['samples.count()'])
 
             (dataset.annotate_samples_expr('sa.nCalled = gs.filter(g => {0}.isCalled()).count()'.format(gt))
-             .export_samples('/tmp/sa.tsv', 's = s, nCalled = sa.nCalled'))
+             .samples_table().select('s', 'nCalled = sa.nCalled').export('/tmp/sa.tsv'))
 
             dataset.annotate_global_expr('global.foo = 5')
             dataset.annotate_global_expr(['global.foo = 5', 'global.bar = 6'])
@@ -136,8 +136,8 @@ class ContextTests(unittest.TestCase):
              .count())
 
             downsampled = dataset.sample_variants(0.10)
-            downsampled.export_variants('/tmp/sample2_loci.tsv', 'chr = v.contig, pos = v.start')
-            downsampled.export_variants('/tmp/sample2_variants.tsv', 'v')
+            downsampled.variants_table().select('chr = v.contig', 'pos = v.start').export('/tmp/sample2_loci.tsv')
+            downsampled.variants_table().select('v').export('/tmp/sample2_variants.tsv')
 
             with open(test_resources + '/sample2.sample_list') as f:
                 samples = [s.strip() for s in f]
@@ -168,10 +168,10 @@ class ContextTests(unittest.TestCase):
             self.assertEqual(dataset_dedup.count()[1], 735)
 
             (dataset.filter_samples_expr('pcoin(0.5)')
-             .export_samples('/tmp/sample2.sample_list', 's'))
+             .samples_table().select('s').export('/tmp/sample2.sample_list'))
 
             (dataset.filter_variants_expr('pcoin(0.5)')
-             .export_variants('/tmp/sample2.variant_list', 'v'))
+             .variants_table().select('v').export('/tmp/sample2.variant_list'))
 
             (dataset.filter_variants_table(
                 KeyTable.import_interval_list(test_resources + '/annotinterall.interval_list'))
@@ -196,12 +196,12 @@ class ContextTests(unittest.TestCase):
 
             dataset._typecheck()
 
-            dataset.export_variants('/tmp/variants.tsv', 'v = v, va = va')
+            dataset.variants_table().export('/tmp/variants.tsv')
             self.assertTrue((dataset.variants_table()
                              .annotate('va = json(va)'))
                             .same(hc.import_table('/tmp/variants.tsv', impute=True).key_by('v')))
 
-            dataset.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
+            dataset.samples_table().export('/tmp/samples.tsv')
             self.assertTrue((dataset.samples_table()
                              .annotate('s = s, sa = json(sa)'))
                             .same(hc.import_table('/tmp/samples.tsv', impute=True).key_by('s')))
@@ -213,13 +213,14 @@ class ContextTests(unittest.TestCase):
                 gt_string = 'gt = g.GT, gq = g.GQ'
                 gt_string2 = 'gt: g.GT, gq: g.GQ'
 
-            cols = ['v = v, info = va.info']
+            cols = ['v = v', 'info = va.info']
             for s in dataset.sample_ids:
-                cols.append('{s}.gt = va.G["{s}"].gt, {s}.gq = va.G["{s}"].gq'.format(s=s))
+                cols.append('`{s}`.gt = va.G["{s}"].gt'.format(s=s))
+                cols.append('`{s}`.gq = va.G["{s}"].gq'.format(s=s))
 
             (dataset
              .annotate_variants_expr('va.G = index(gs.map(g => { s: s, %s }).collect(), s)' % gt_string2)
-             .export_variants('/tmp/sample_kt.tsv', ','.join(cols)))
+             .variants_table().select(*cols).export('/tmp/sample_kt.tsv'))
 
             ((dataset
               .make_table('v = v, info = va.info', gt_string, ['v']))
@@ -242,7 +243,7 @@ class ContextTests(unittest.TestCase):
 
             kt = (dataset.variants_table()
                   .annotate("v2 = v")
-                  .key_by(["v", "v2"]))
+                  .key_by("v", "v2"))
 
             dataset.annotate_variants_table(kt, root='va.foo', vds_key=["v", "v"])
 
@@ -263,7 +264,9 @@ class ContextTests(unittest.TestCase):
                 expr = 'g.GT.isHet() && g.GQ > 20'
 
             (dataset.filter_genotypes(expr)
-             .export_genotypes('/tmp/sample2_genotypes.tsv', 'v, s, {0}.nNonRefAlleles()'.format(gt)))
+             .genotypes_table()
+             .select('v', 's', 'nNonRefAlleles = {0}.nNonRefAlleles()'.format(gt))
+             .export('/tmp/sample2_genotypes.tsv'))
 
             self.assertTrue(
                 (dataset.repartition(16, shuffle=False)
@@ -399,11 +402,11 @@ class ContextTests(unittest.TestCase):
 
         vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', ['sa.cov.Cov1', 'sa.cov.Cov2'])
 
-        vds_assoc.export_variants('/tmp/lmmreg.tsv', 'Variant = v, va.lmmreg.*')
+        vds_assoc.variants_table().select('Variant = v', 'va.lmmreg.*').export('/tmp/lmmreg.tsv')
 
         men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_resources + '/sample.fam'))
-        men.select(['fid', 's', 'code'])
-        fam.select(['father', 'nChildren'])
+        men.select('fid', 's', 'code')
+        fam.select('father', 'nChildren')
         self.assertEqual(ind.key, ['s'])
         self.assertEqual(var.key, ['v'])
         sample_split.annotate_variants_table(var, root='va.mendel').count()
@@ -418,23 +421,24 @@ class ContextTests(unittest.TestCase):
 
         sample2_split.variant_qc().variant_schema
 
-        sample2.export_variants('/tmp/variants.tsv', 'v = v, va = va')
+        sample2.variants_table().export('/tmp/variants.tsv')
         self.assertTrue((sample2.variants_table()
                          .annotate('va = json(va)'))
                         .same(hc.import_table('/tmp/variants.tsv', impute=True).key_by('v')))
 
-        sample2.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
+        sample2.samples_table().export('/tmp/samples.tsv')
         self.assertTrue((sample2.samples_table()
                          .annotate('s = s, sa = json(sa)'))
                         .same(hc.import_table('/tmp/samples.tsv', impute=True).key_by('s')))
 
-        cols = ['v = v, info = va.info']
+        cols = ['v = v', 'info = va.info']
         for s in sample2.sample_ids:
-            cols.append('{s}.gt = va.G["{s}"].gt, {s}.gq = va.G["{s}"].gq'.format(s=s))
+            cols.append('{s}.gt = va.G["{s}"].gt'.format(s=s))
+            cols.append('{s}.gq = va.G["{s}"].gq'.format(s=s))
 
         (sample2
          .annotate_variants_expr('va.G = index(gs.map(g => { s: s, gt: g.gt, gq: g.gq }).collect(), s)')
-         .export_variants('/tmp/sample_kt.tsv', ','.join(cols)))
+         .variants_table().select(*cols).export('/tmp/sample_kt.tsv'))
 
         ((sample2
           .make_table('v = v, info = va.info', 'gt = g.gt, gq = g.gq', ['v']))
@@ -456,10 +460,10 @@ class ContextTests(unittest.TestCase):
 
         gds.annotate_genotypes_expr('g = g.GT.toGenotype()').split_multi()
 
-        sample_split.ld_prune(8).export_variants("/tmp/testLDPrune.tsv", "v")
+        sample_split.ld_prune(8).variants_table().select('v').export("/tmp/testLDPrune.tsv")
         kt = (sample2.variants_table()
               .annotate("v2 = v")
-              .key_by(["v", "v2"]))
+              .key_by("v", "v2"))
         sample2.annotate_variants_table(kt, root="va.foo", vds_key=["v", "v"])
 
         self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
@@ -514,13 +518,13 @@ class ContextTests(unittest.TestCase):
         kt.rename([name + "_a" for name in kt.columns])
 
         kt.select("Sample")
-        kt.select(["Sample", "Status"])
+        kt.select("Sample", "Status")
 
         kt.drop("Sample")
-        kt.drop(["Sample", "Status"])
+        kt.drop("Sample", "Status")
 
-        kt.key_by(['Sample', 'Status'])
-        kt.key_by([])
+        kt.key_by('Sample', 'Status')
+        kt.key_by()
 
         kt.flatten()
         kt.expand_types()

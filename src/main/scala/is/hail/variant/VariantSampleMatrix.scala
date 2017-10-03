@@ -904,44 +904,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       }
   }
 
-  def exportGenotypes(path: String, expr: String, typeFile: Boolean, parallel: Boolean = false) {
-    val symTab = Map(
-      "v" -> (0, vSignature),
-      "va" -> (1, vaSignature),
-      "s" -> (2, sSignature),
-      "sa" -> (3, saSignature),
-      "g" -> (4, genotypeSignature),
-      "global" -> (5, globalSignature))
-
-    val ec = EvalContext(symTab)
-    ec.set(5, globalAnnotation)
-    val (names, ts, f) = Parser.parseExportExprs(expr, ec)
-
-    val hadoopConf = hc.hadoopConf
-    if (typeFile) {
-      hadoopConf.delete(path + ".types", recursive = false)
-      val typeInfo = names
-        .getOrElse(ts.indices.map(i => s"_$i").toArray)
-        .zip(ts)
-      exportTypes(path + ".types", hadoopConf, typeInfo)
-    }
-
-    hadoopConf.delete(path, recursive = true)
-
-    mapPartitionsWithAll { it =>
-      val sb = new StringBuilder()
-      it
-        .filter { case (v, va, s, sa, g) => g != null }
-        .map { case (v, va, s, sa, g) =>
-          ec.setAll(v, va, s, sa, g)
-          sb.clear()
-
-          f().foreachBetween(x => sb.append(x))(sb += '\t')
-          sb.result()
-        }
-    }.writeTable(path, hc.tmpDir, names.map(_.mkString("\t")), parallelWrite = parallel)
-  }
-
   def annotateGenotypesExpr(expr: String): VariantSampleMatrix[RPK, RK, Annotation] = {
     val symTab = Map(
       "v" -> (0, vSignature),
@@ -976,72 +938,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           inserter(ga, a)
         }
     }.copy(genotypeSignature = finalType)
-  }
-
-  def exportSamples(path: String, expr: String, typeFile: Boolean = false) {
-    val localGlobalAnnotation = globalAnnotation
-
-    val ec = sampleEC
-
-    val (names, types, f) = Parser.parseExportExprs(expr, ec)
-    val hadoopConf = hc.hadoopConf
-    if (typeFile) {
-      hadoopConf.delete(path + ".types", recursive = false)
-      val typeInfo = names
-        .getOrElse(types.indices.map(i => s"_$i").toArray)
-        .zip(types)
-      exportTypes(path + ".types", hadoopConf, typeInfo)
-    }
-
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, value, ec)
-
-    hadoopConf.delete(path, recursive = true)
-
-    val sb = new StringBuilder()
-    val lines = for ((s, sa) <- sampleIdsAndAnnotations) yield {
-      sampleAggregationOption.foreach(f => f.apply(s))
-      sb.clear()
-      ec.setAll(localGlobalAnnotation, s, sa)
-      f().foreachBetween(x => sb.append(x))(sb += '\t')
-      sb.result()
-    }
-
-    hadoopConf.writeTable(path, lines, names.map(_.mkString("\t")))
-  }
-
-  def exportVariants(path: String, expr: String, typeFile: Boolean = false, parallel: Boolean = false) {
-    val vas = vaSignature
-    val hConf = hc.hadoopConf
-
-    val localGlobalAnnotations = globalAnnotation
-    val ec = variantEC
-
-    val (names, types, f) = Parser.parseExportExprs(expr, ec)
-
-    val hadoopConf = hc.hadoopConf
-    if (typeFile) {
-      hadoopConf.delete(path + ".types", recursive = false)
-      val typeInfo = names
-        .getOrElse(types.indices.map(i => s"_$i").toArray)
-        .zip(types)
-      exportTypes(path + ".types", hadoopConf, typeInfo)
-    }
-
-    val variantAggregations = Aggregators.buildVariantAggregations(this, ec)
-
-    hadoopConf.delete(path, recursive = true)
-
-    rdd
-      .mapPartitions { it =>
-        val sb = new StringBuilder()
-        it.map { case (v, (va, gs)) =>
-          variantAggregations.foreach { f => f(v, va, gs) }
-          ec.setAll(localGlobalAnnotations, v, va)
-          sb.clear()
-          f().foreachBetween(x => sb.append(x))(sb += '\t')
-          sb.result()
-        }
-      }.writeTable(path, hc.tmpDir, names.map(_.mkString("\t")), parallelWrite = parallel)
   }
 
   def filterVariants(p: (RK, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[RPK, RK, T] =

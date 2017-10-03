@@ -223,7 +223,7 @@ class PCRelateSuite extends SparkSuite {
     val actual = runPcRelateHail(vds, pcs, 0.01, 0.125)
 
     assert(truth.size > 0)
-    assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-2)))
+    assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-2)))
   }
 
 }

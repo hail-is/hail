@@ -15,7 +15,7 @@ class ExportSuite extends SparkSuite {
       .sampleQC()
 
     val out = tmpDir.createTempFile("out", ".tsv")
-    vds.exportSamples(out, "Sample = s, sa.qc.*")
+    vds.samplesKT().select("Sample = s", "sa.qc.*").export(out)
 
     val sb = new StringBuilder()
     sb.tsvAppend(Array(1, 2, 3, 4, 5))
@@ -64,7 +64,7 @@ class ExportSuite extends SparkSuite {
 
     // verify exports localSamples
     val f = tmpDir.createTempFile("samples", ".tsv")
-    vds.exportSamples(f, "s")
+    vds.samplesKT().select("s").export(f, header = false)
     assert(sc.textFile(f).count() == 1)
   }
 
@@ -75,9 +75,9 @@ class ExportSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()
-    vds.exportSamples(f, "S.A.M.P.L.E.ID = s")
-    vds.exportSamples(f2, "$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS**** = s, ANOTHERTHING=s")
-    vds.exportSamples(f3, "`I have some spaces and tabs\\there` = s,`more weird stuff here`=s")
+    vds.samplesKT().select("`S.A.M.P.L.E.ID` = s").export(f)
+    vds.samplesKT().select("`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****` = s", "ANOTHERTHING = s").export(f2)
+    vds.samplesKT().select("`I have some spaces and tabs\\there` = s", "`more weird stuff here` = s").export(f3)
     hadoopConf.readFile(f) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()
@@ -102,7 +102,9 @@ class ExportSuite extends SparkSuite {
     hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()
       .sampleQC()
-      .exportSamples(f, "computation = 5 * (if (sa.qc.callRate < .95) 0 else 1)")
+      .samplesKT()
+      .select("computation = 5 * (if (sa.qc.callRate < .95) 0 else 1)")
+      .export(f)
   }
 
   @Test def testTypes() {
@@ -110,7 +112,7 @@ class ExportSuite extends SparkSuite {
       .splitMulti()
     val out = tmpDir.createTempFile("export", ".out")
 
-    vds.exportVariants(out, "v = v, va = va", typeFile = true)
+    vds.variantsKT().export(out, typesFile = out + ".types")
 
     val types = Parser.parseAnnotationTypes(hadoopConf.readFile(out + ".types")(Source.fromInputStream(_).mkString))
     val readBack = vds.annotateVariantsTable(hc.importTable(out, types=types).keyBy("v"),
