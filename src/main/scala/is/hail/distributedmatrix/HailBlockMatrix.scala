@@ -581,7 +581,7 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
   private val _partitioner = HailGridPartitioner(rows, cols, blockSize)
   /** Optionally overridden by subclasses to specify how they are partitioned. */
   @transient override val partitioner: Option[Partitioner] =
-  Some(_partitioner)
+    Some(_partitioner)
 }
 
 case class IntPartition(index: Int) extends Partition {}

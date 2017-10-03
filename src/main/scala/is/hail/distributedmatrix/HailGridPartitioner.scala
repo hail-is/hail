@@ -18,9 +18,9 @@ case class HailGridPartitioner(rows: Long, cols: Long, blockSize: Int, transpose
   }
 
   def blockRowIndex(pid: Int) =
-    if (transposed) pid / rowPartitions else pid % rowPartitions
+    if (transposed) pid / colPartitions else pid % rowPartitions
   def blockColIndex(pid: Int) =
-    if (transposed) pid % rowPartitions else pid / rowPartitions
+    if (transposed) pid % colPartitions else pid / rowPartitions
   def blockCoordinates(pid: Int) =
     (blockRowIndex(pid), blockColIndex(pid))
 
@@ -28,7 +28,7 @@ case class HailGridPartitioner(rows: Long, cols: Long, blockSize: Int, transpose
     require(0 <= i && i < rowPartitions, s"Row index $i out of range [0, $rowPartitions).")
     require(0 <= j && j < colPartitions, s"Column index $j out of range [0, $colPartitions).")
     if (transposed) {
-      j + i * rowPartitions
+      j + i * colPartitions
     } else {
       i + j * rowPartitions
     }
