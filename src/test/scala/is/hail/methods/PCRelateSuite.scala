@@ -94,7 +94,7 @@ class PCRelateSuite extends SparkSuite {
       .toMap
   }
 
-  def compareDoubleQuartuplets(cmp: (Double, Double) => Boolean)(x: (Double, Double, Double, Double), y: (Double, Double, Double, Double)): Boolean =
+  def compareDoubleQuadruplet(cmp: (Double, Double) => Boolean)(x: (Double, Double, Double, Double), y: (Double, Double, Double, Double)): Boolean =
     cmp(x._1, y._1) && cmp(x._2, y._2) && cmp(x._3, y._3) && cmp(x._4, y._4)
 
   @Test
@@ -105,7 +105,7 @@ class PCRelateSuite extends SparkSuite {
     val pcs = new DenseMatrix(4,2,pcsArray)
     val us = runPcRelateHail(vds, pcs, maf=0.0)
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.0)._1
-    assert(mapSameElements(us, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
+    assert(mapSameElements(us, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
   }
 
   @Test(enabled = false)
@@ -116,7 +116,7 @@ class PCRelateSuite extends SparkSuite {
     val pcs = new DenseMatrix(4,2,pcsArray)
     val usRef = PCRelateReferenceImplementation(vds, pcs, maf=0.0)._1
     val truth = runPcRelateR(vds, maf=0.0, "src/test/resources/is/hail/methods/runPcRelateOnTrivialExample.R")
-    assert(mapSameElements(usRef, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
+    assert(mapSameElements(usRef, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
   }
 
   @Test
@@ -131,7 +131,7 @@ class PCRelateSuite extends SparkSuite {
       val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
       val actual = runPcRelateHail(vds, pcs, maf=0.01)
 
-      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
+      assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
     }
   }
 
@@ -147,7 +147,7 @@ class PCRelateSuite extends SparkSuite {
       val truth = runPcRelateR(vds, maf=0.01)
       val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
 
-      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => D_==(x, y, tolerance=1e-2))))
+      assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => D_==(x, y, tolerance=1e-2))))
     }
   }
 
@@ -197,7 +197,7 @@ class PCRelateSuite extends SparkSuite {
     compareBDMs(actual_ibs0, truth_ibs0, tolerance=1e-14)
     compareBDMs(actual_g, truth_g, tolerance=1e-14)
 
-    assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
+    assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
   }
 
   @Test(enabled = false)
@@ -209,7 +209,7 @@ class PCRelateSuite extends SparkSuite {
     val truth = runPcRelateR(vds, maf=0.01)
     val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
 
-    assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-2)))
+    assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-2)))
   }
 
 }
