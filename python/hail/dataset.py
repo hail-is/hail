@@ -4030,7 +4030,7 @@ class VariantDataset(object):
            statistic is 0.5 in expection.
 
          - Parent-child and sibling pairs both have kinship 0.25 in expectation
-           and are separated by the identity-by-descent-zero, \[ k^{(2)}_{ij} \],
+           and are separated by the identity-by-descent-zero, \[ k^{(2)}_{ij} \],
            statistic which is zero for parent-child pairs and 0.25 for sibling
            pairs.
 
@@ -4038,7 +4038,7 @@ class VariantDataset(object):
            in expectation and both have identity-by-descent-zero 0.5 in expectation
 
          - "Third degree relatives" are those pairs sharing
-           \[ 2^{-3} = 12.5 % \] of their genetic material, the results of
+           \[ 2^{-3} = 12.5 % \] of their genetic material, the results of
            PCRelate are often too noisy to reliably distinguish these pairs from
            higher-degree-relative-pairs or unrelated pairs.
 
