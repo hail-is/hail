@@ -209,7 +209,7 @@ test {
 test.dependsOn(checkSettings)
 
 task testPython(type: Exec, dependsOn: shadowJar) {
-     commandLine 'python', '-m', 'unittest', 'hail2.tests'//, 'hail.typecheck.tests', 'hail.tests.tests'
+     commandLine 'python', '-m', 'unittest', 'hail2.tests', 'hail.typecheck.tests', 'hail.tests.tests'
      environment SPARK_HOME: sparkHome
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
      environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
@@ -413,7 +413,7 @@ task makeFunctionsRst(type: Exec, dependsOn: ['shadowJar', 'copyPythonDirToTmp']
 
 task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'generateDistLinks', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
-    commandLine 'make', 'clean', 'html', 'doctest' // 'SPHINXOPTS="-tchecktutorial"'
+    commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'

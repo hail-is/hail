@@ -45,6 +45,5 @@ __all__ = ['HailContext',
            'hadoop_copy',
            'KinshipMatrix',
            'LDMatrix',
-           # 'representation',
            'Column'
            ]
