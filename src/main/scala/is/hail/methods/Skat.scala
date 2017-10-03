@@ -135,7 +135,7 @@ object Skat {
     
     val n = completeSamplesIndex.length
 
-    val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
+    val sampleMask = new Array[Boolean](vds.nSamples)
     completeSamplesIndex.foreach(i => sampleMask(i) = true)
    
     val sampleMaskBc = vds.sparkContext.broadcast(sampleMask)    
@@ -169,7 +169,7 @@ object Skat {
       fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
     // fit null model
-    val QR = qr.reduced.impl_reduced_DM_Double(cov)
+    val QR = qr.reduced(cov)
     val Qt = QR.q.t
     val R = QR.r
     val beta = R \ (Qt * y)
@@ -237,8 +237,10 @@ object Skat {
     try {
       Cinv = inv(cholesky(XtVX))
     } catch {
-      case _: MatrixSingularException => fatal("Singular matrix exception while computing Cholesky factor of X.t * V * X")
-      case _: NotConvergedException => fatal("Not converged exception while inverting Cholesky factor of X.t * V * X")
+      case e: MatrixSingularException =>
+        fatal("Singular matrix exception while computing Cholesky factor of X.t * V * X.\n" + e.getMessage)
+      case e: NotConvergedException =>
+        fatal("Not converged exception while inverting Cholesky factor of X.t * V * X.\n" + e.getMessage)
     }
     val res = y - mu
 

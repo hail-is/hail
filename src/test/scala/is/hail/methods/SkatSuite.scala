@@ -170,7 +170,7 @@ class SkatSuite extends SparkSuite {
   }
   
   def hailVsRTest(useBN: Boolean = false, useDosages: Boolean = false, logistic: Boolean = false,
-    displayValues: Boolean = false, tol: Double = 1e-5) {
+    displayValues: Boolean = false, qstatTol: Double = 1e-5) {
     
     require(!(useBN && useDosages))
     
@@ -202,8 +202,8 @@ class SkatSuite extends SparkSuite {
       }
 
       assert(fault == 0)
-      assert(D_==(qstat, qstatR, tol))
-      assert(math.abs(pval - pvalR) < math.max(tol, 2e-6)) // R Davies accuracy is only up to 1e-6
+      assert(D_==(qstat, qstatR, qstatTol))
+      assert(math.abs(pval - pvalR) < math.max(qstatTol, 2e-6)) // R Davies accuracy is only up to 1e-6
       
       i += 1
     }
@@ -217,7 +217,7 @@ class SkatSuite extends SparkSuite {
   // testing logistic
   @Test def logistic() { hailVsRTest(logistic = true) }
   @Test def logisticDosages() { hailVsRTest(useDosages = true, logistic = true) }
-  @Test def logisticBN() { hailVsRTest(useBN = true, logistic = true, tol = 1e-4) }
+  @Test def logisticBN() { hailVsRTest(useBN = true, logistic = true, qstatTol = 1e-4) }
   
   //testing size and maxSize
   @Test def maxSizeTest() {
