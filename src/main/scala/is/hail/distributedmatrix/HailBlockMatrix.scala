@@ -185,12 +185,16 @@ object HailBlockMatrix {
     implicit class ScalarShim(l: Double) {
       def +(r: M): M =
         r.scalarAdd(l)
-      def -(r: M): M =
-        r.blockMap(l - _)
+      def -(r: M): M = {
+        val ll = l
+        r.blockMap(ll - _)
+      }
       def *(r: M): M =
         r.scalarMultiply(l)
-      def /(r: M): M =
+      def /(r: M): M = {
+        val ll = l
         r.blockMap(l / _)
+      }
     }
   }
 }
