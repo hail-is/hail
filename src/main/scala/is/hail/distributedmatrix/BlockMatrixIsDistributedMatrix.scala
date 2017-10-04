@@ -303,7 +303,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val sc = blocks.sparkContext
     val hadoopConf = sc.hadoopConfiguration
     
-    hadoopConf.mkDir(uri + "/blockstore")
+    hadoopConf.mkDir(uri + "/blocks")
     
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hadoopConf))
     
@@ -317,7 +317,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       assert(is.length <= d)
       val pis = StringUtils.leftPad(is, d, "0")
 
-      sHadoopConfBc.value.value.writeDataFile(uri + "/blockstore/block-" + pis) { out =>
+      sHadoopConfBc.value.value.writeDataFile(uri + "/blocks/block-" + pis) { out =>
         it.foreach { case ((iblock, jblock), dm) => // will have one block per partition
 
           new MatrixWriter(dm.numRows, dm.numCols, dm.toArray).write(out)
@@ -326,7 +326,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
         }
       }
 
-      Iterator(localBlockCount)
+      Iterator.single(localBlockCount)
     }
       .fold(0L)(_ + _)
 
@@ -334,8 +334,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   }
 
   /**
-    * Reads a BlockMatrix matrix written by {@code write} at location {@code
-    * uri}.
+    * Reads a BlockMatrix matrix written by {@code write} at location
+    * {@code uri}.
     *
     **/
   def read(hc: HailContext, uri: String): M = {
@@ -347,8 +347,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
 
-    val nRowBlocks = math.ceil(numRows * 1.0 / rowsPerBlock).toInt
-    val nColBlocks = math.ceil(numCols * 1.0 / colsPerBlock).toInt
+    val nRowBlocks = ((numRows - 1) / rowsPerBlock).toInt + 1
+    val nColBlocks = ((numCols - 1) / colsPerBlock).toInt + 1
     
     val blocks = new ReadBlocksRDD(hc.sc, uri, nRowBlocks, nColBlocks)
     
@@ -376,7 +376,7 @@ class ReadBlocksRDD(sc: SparkContext, uri: String, nRowBlocks: Int, nColBlocks: 
     assert(is.length <= d)
     val pis = StringUtils.leftPad(is, d, "0")
 
-    Iterator(sHadoopConfBc.value.value.readDataFile(uri + "/blockstore/block-" + pis) { in =>
+    Iterator.single(sHadoopConfBc.value.value.readDataFile(uri + "/blocks/block-" + pis) { in =>
       val mw = new MatrixWriter()
       mw.readFields(in)
       
