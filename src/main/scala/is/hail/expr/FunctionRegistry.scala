@@ -97,9 +97,11 @@ object FunctionRegistry {
       .toRight[LookupError](NotFound(name, typ))
       .flatMap { case (priority, it) =>
         assert(it.nonEmpty)
-        if (it.size == 1)
-          Right(it.head._2._2)
-        else {
+        if (it.size == 1) {
+          val (_, (_, f)) = it.head
+          f.captureType()
+          Right(f)
+        } else {
           assert(priority != 0, s"when it is non-singular, I expect non-zero priority, but priority was $priority and it was $it. name was $name, typ was $typ")
           Left(Ambiguous(name, typ, it))
         }
@@ -476,6 +478,11 @@ object FunctionRegistry {
   def registerCode[T, U](name: String, impl: Code[T] => CM[Code[U]], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, FunType(hrt.typ), UnaryFunCode[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerDependentCode[T, U](name: String, impl: () => Code[T] => CM[Code[U]], docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, FunType(hrt.typ), UnaryDependentFunCode[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerSpecial[T, U](name: String, impl: (() => Any) => U, docstring: String, argNames: (String, String)*)
@@ -2922,4 +2929,12 @@ object FunctionRegistry {
         s[-i:-j] == s[s.length - i, s.length - j]
     """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
   )
+
+  registerDependentCode("str", { () =>
+    val t = TT.t
+    (v: Code[Any]) => CM.invokePrimitive1(t.str)(v) },
+    """
+    Convert the argument to a human-readable string representation
+    """, "x" -> "the value to be stringified")(TTHr, stringHr)
+
 }

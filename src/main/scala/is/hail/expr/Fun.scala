@@ -3,6 +3,8 @@ package is.hail.expr
 import is.hail.asm4s.Code
 
 sealed trait Fun {
+  def captureType() { }
+
   def retType: Type
 
   def subst(): Fun
@@ -12,6 +14,28 @@ sealed trait Fun {
 
 case class Transformation[T, U](f: T => U, fcode: Code[T] => CM[Code[U]]) extends (T => U) {
   def apply(t: T): U = f(t)
+}
+
+case class UnaryDependentFunCode[T, U](retType: Type, code: () => Code[T] => CM[Code[U]]) extends Fun {
+  private var postCapture: Code[T] => CM[Code[U]] = null
+
+  override def captureType() {
+    postCapture = code()
+  }
+
+  def apply(ct: Code[T]): CM[Code[U]] =
+    postCapture(ct)
+
+  def subst() = UnaryDependentFunCode[T, U](retType.subst(), code)
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = {
+    require(transformations.length == 1)
+
+    UnaryDependentFunCode[Any, Any](retType, { () =>
+      val postCapture = code()
+      (a: Code[Any]) => transformations(0).fcode(a).flatMap(ct => postCapture(ct.asInstanceOf[Code[T]]))
+    })
+  }
 }
 
 case class UnaryFunCode[T, U](retType: Type, code: Code[T] => CM[Code[U]]) extends Fun with (Code[T] => CM[Code[U]]) {
