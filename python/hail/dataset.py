@@ -5109,12 +5109,16 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(variant_keys=strlike,
                       single_key=bool,
+                      weight_expr=strlike,
                       y=strlike,
                       covariates=listof(strlike),
-                      weight_expr=nullable(strlike),
                       logistic=bool,
-                      use_dosages=bool)
-    def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, logistic=False, use_dosages=False):
+                      use_dosages=bool,
+                      max_size=integral,
+                      accuracy=numeric,
+                      iterations=integral)
+    def skat(self, variant_keys, single_key, weight_expr, y, covariates=[], logistic=False, use_dosages=False,
+             max_size=46340, accuracy=1e-6, iterations=10000):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
@@ -5123,15 +5127,15 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        Run a gene test using the linear Sequence Kernel Association Test. Here ``va.genes``
+        Test each gene for association using the linear sequence kernel association test. Here ``va.genes``
         is a variant annotation of type Set[String] giving the set of genes containing the variant:
 
         >>> skat_kt = (hc.read('data/example_burden.vds')
         ...              .skat(variant_keys='va.genes',
+        ...                    weight_expr='va.weight',
         ...                    single_key=False,
         ...                    y='sa.burden.pheno',
-        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2'],
-        ...                    weight_expr='va.weight'))
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         .. caution::
 
@@ -5141,71 +5145,90 @@ class VariantDataset(HistoryMixin):
           variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
           variant annotation whose value is itself the key of interest. In both cases, variants with missing keys are
           ignored.
+          
+        .. caution::
 
+          By default, the Davies algorithm iterates up to 10k times until an accuracy of 1e-6 is achieved.
+          Hence a reported p-value of zero with no issues may truly be as large as 1e-6. The accuracy and
+          maximum number of iterations may be controlled by the corresponding function parameters.
+          In general, higher accuracy requires more iterations.
+
+        .. caution::
+
+          To process a group with math:`m` variants, several copies of an math:`m \times m` matrix of doubles must fit
+          in worker memory. Groups with tens of thousands of variants may exhaust worker memory causing the entire
+          job to fail. In this case, use the ``max_size`` parameter to skip groups larger than ``max_size``.
+        
         **Notes**
 
         This method provides a scalable implementation of the score-based variance-component test originally described
         in `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
         <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
-        As in the paper, if ``weight_expr`` is unspecified,
-        default variant weights are given by evaluating the Beta(1, 25) density at the minor allele frequency. Variant
-        weights must be non-negative.
+        The test is run on complete samples (i.e., phenotype and all covariates non-missing).
+        For each variant, missing genotypes are imputed as the mean of all non-missing genotypes.
+
+        Variant weights must be non-negative. Variants with missing weights are ignored.
+        In the R package ``skat``, default weights are given by evaluating the Beta(1, 25) density at
+        the minor allele frequency. To replicate these weights in Hail using alternate allele frequencies stored at
+        ``va.AF``, one can use the expression:
+
+        ``let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af, 1.0, 25.0)**2``
 
         In the logistic case, the phenotype must either be numeric (with all present values 0 or 1) or Boolean, in
         which case true and false are coded as 1 and 0, respectively.
 
-        The resulting key table provides the variant component score and the p-value for each group, with the latter
-        given by right tail of a weighted sum of :math:`\\chi^2(1)` distributions. For the example above the table has
-        the form:
+        The resulting key table provides the group's key, the size (number of variants) in the group,
+        the variance component score ``qstat``, the SKAT p-value, and a fault flag.
+        For the toy example above, the table has the form:
 
-        +------+-------+------+-------+
-        |  key | qstat | pval | fault |
-        +======+=======+======+=======+
-        | geneA| 4.136 | 0.205|   0   |
-        +------+-------+------+-------+
-        | geneB| 5.659 | 0.195|   0   |
-        +------+-------+------+-------+
-        | geneC| 4.122 | 0.192|   0   |
-        +------+-------+------+-------+
+        +------+------+-------+-------+-------+
+        |  key | size | qstat | pval  | fault |
+        +======+======+=======+=======+=======+
+        | geneA|   2  | 4.136 | 0.205 |   0   |
+        +------+------+-------+-------+-------+
+        | geneB|   1  | 5.659 | 0.195 |   0   |
+        +------+------+-------+-------+-------+
+        | geneC|   3  | 4.122 | 0.192 |   0   |
+        +------+------+-------+-------+-------+
+        
+        Groups larger than ``max_size`` appear with missing ``qstat``, ``pval``, and ``fault``. The hard limit on the
+        number of variants in a group is 46340.
 
-        Note that the variant component score qstat is related to :math:`Q` in the paper by a factor of
-        :math:`\\frac{1}{2\\sigma^2}Q` where :math:`\\sigma^2` is the unbiased estimator of residual variance.
-        In the logistic case the scaling is by a factor of 0.5 .
+        Note that the variance component score ``qstat`` agrees with ``Q`` in the R package ``skat``,
+        but both differ from :math:`Q` in the paper by the factor
+        :math:`\\frac{1}{2\\sigma^2}` in the linear case and :math:`\\frac{1}{2}` in the logistic case,
+        where :math:`\\sigma^2` is the unbiased estimator of residual variance for the linear null model.
+        The R package also applies a "small-sample adjustment" to the null distribution in the logistic case when the
+        sample size is less than 2000. Hail does not apply this adjustment.
 
-        The key table also includes the fault flag returned by Davies' algorithm, an integer indicating any issues
-        with the computation. These are described in the following table from Davies' original code.
+        The fault flag is an integer indicating whether any issues occurred when running the Davies algorithm
+        to compute the p-value as the right tail of a weighted sum of :math:`\\chi^2(1)` distributions.
 
         +-------------+-----------------------------------------+
-        | fault value |               Description               |
+        | fault value | Description                             |
         +=============+=========================================+
-        |      0      |                no issues                |
+        |      0      | no issues                               |
         +------+------+-----------------------------------------+
-        |      1      |       accuracy 1e-8 NOT achieved        |
+        |      1      | accuracy NOT achieved                   |
         +------+------+-----------------------------------------+
-        |      2      |   round-off error possibly significant  |
+        |      2      | round-off error possibly significant    |
         +------+------+-----------------------------------------+
-        |      3      |            invalid parameters           |
+        |      3      | invalid parameters                      |
         +------+------+-----------------------------------------+
         |      4      | unable to locate integration parameters |
         +------+------+-----------------------------------------+
-        |      5      |               out of memory             |
+        |      5      | out of memory                           |
         +------+------+-----------------------------------------+
-
-        .. caution::
-
-          The Davies algorithm iterates up to 100k times until an accuracy of 1e-8 is achieved. Hence a reported p-value of
-          zero with no issues may truly be as large as 1e-8.
-
+                     
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
         :param bool single_key: If true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
                                 rather than as a collection of keys.
 
-        :param str y: Response expression.
+        :param str weight_expr: Variant expression of numeric type for variant weights.
 
-        :param weight_expr: Variant expression of numeric type for SKAT weights.
-        :type weight_expr: str or None
+        :param str y: Response expression.
 
         :param covariates: List of covariate expressions.
         :type covariates: List of str
@@ -5214,13 +5237,19 @@ class VariantDataset(HistoryMixin):
 
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
+        :param int max_size: Maximum size of group on which to run the test.
+
+        :param float accuracy: Accuracy achieved by the Davies algorithm if fault value is zero.
+
+        :param int iterations: Maximum number of iterations attempted by the Davies algorithm.
+
         :return: Key table of SKAT results.
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, y,
+        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, weight_expr, y,
                                                  jarray(Env.jvm().java.lang.String, covariates),
-                                                 joption(weight_expr), logistic, use_dosages, False))
+                                                 logistic, use_dosages, max_size, accuracy, iterations))
 
     @handle_py4j
     @record_method
