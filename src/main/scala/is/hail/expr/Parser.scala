@@ -271,6 +271,20 @@ object Parser extends JavaTokenParsers {
     }
   }
 
+  def parseAnnotationIdentifier(code: String): List[String] = {
+    parseAll(annotationIdentifier, code) match {
+      case Success(result, _) => result
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
+  }
+
+  def parseAnnotationIdentifierArray(code: String): Array[List[String]] = {
+    parseAll(annotationIdentifierArray, code) match {
+      case Success(result, _) => result
+      case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
+    }
+  }
+
   def parseCommaDelimitedDoubles(code: String): Array[Double] = {
     parseAll(comma_delimited_doubles, code) match {
       case Success(r, _) => r
@@ -279,11 +293,7 @@ object Parser extends JavaTokenParsers {
   }
 
   def parseAnnotationRoot(code: String, root: String): List[String] = {
-    val path = parseAll(annotationIdentifier, code) match {
-      case Success(result, _) => result.asInstanceOf[List[String]]
-      case NoSuccess(msg, _) => fatal(msg)
-    }
-
+    val path = parseAnnotationIdentifier(code)
     if (path.isEmpty)
       fatal(s"expected an annotation path starting in `$root', but got an empty path")
     else if (path.head != root)

@@ -516,6 +516,9 @@ class ContextTests(unittest.TestCase):
         kt.select("Sample")
         kt.select(["Sample", "Status"])
 
+        kt.select_fields("Sample", mangle=True)
+        kt.select_fields(["Sample", "Status"], mangle=True)
+
         kt.drop("Sample")
         kt.drop(["Sample", "Status"])
 

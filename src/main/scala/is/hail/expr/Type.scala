@@ -1204,13 +1204,14 @@ object TStruct {
       .map { case ((n, t), i) => Field(n, t, i) }
       .toArray)
 
-  def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type]): TStruct = {
-    val sNames = names.asScala.toArray
-    val sTypes = types.asScala.toArray
-    if (sNames.length != sTypes.length)
-      fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
+  def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type]): TStruct =
+    TStruct(names.asScala.toArray, types.asScala.toArray)
 
-    TStruct(sNames.zip(sTypes): _*)
+  def apply(names: Array[String], types: Array[Type]): TStruct = {
+    if (names.length != types.length)
+      fatal(s"number of names does not match number of types: found ${ names.length } names and ${ types.length } types")
+
+    TStruct(names.zip(types): _*)
   }
 }
 
@@ -1749,6 +1750,46 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     val selectF: Row => Row = { r =>
       Row.fromSeq(keepIdx.map(r.get))
     }
+    (t, selectF)
+  }
+
+  def selectFields(paths: Array[List[String]], mangle: Boolean = false): (TStruct, (Row) => Row) = {
+    val overlappingNames = paths.map(_.last).counter.filter { case (n, i) => i != 1 && !mangle }.keys
+    if (overlappingNames.nonEmpty)
+      fatal(s"Found ${ overlappingNames.size } ${ plural(overlappingNames.size, "selected field name") } that are duplicated.\n" +
+        "Either rename manually or use the 'mangle' option to handle duplicates.\n Overlapping fields:\n  " +
+        s"@1", overlappingNames.truncatable("\n  "))
+
+    val (names, types, queriers) = paths.map { path =>
+      fieldOption(path) match {
+        case None => fatal(s"Selected path not in struct `${ path.mkString(".") }'. Signature is ${ toPrettyString(compact = true) }")
+        case Some(_) =>
+          val (t, q) = queryTyped(path)
+          if (mangle)
+            (path.mkString("."), t, q)
+          else
+            (path.last, t, q)
+      }
+    }.unzip3
+
+    val t = TStruct(names, types)
+    val newSize = paths.length
+
+    val selectF = (r: Row) => {
+      val result = Array.fill[Any](newSize)(null)
+
+      if (r != null) {
+        var i = 0
+        while (i < newSize) {
+          val q = queriers(i)
+          result(i) = q(r)
+          i += 1
+        }
+      }
+
+      Row.fromSeq(result)
+    }
+
     (t, selectF)
   }
 
