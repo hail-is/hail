@@ -23,18 +23,17 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     val numRowBlocks = (m / blockSize + (if (m % blockSize == 0) 0 else 1)).toInt
     val numColBlocks = (n / blockSize + (if (n % blockSize == 0) 0 else 1)).toInt
 
-
-    val blocks = indexedRowMatrix.rows.flatMap{ ir =>
+    val blocks = indexedRowMatrix.rows.flatMap { ir =>
       val blockRow = ir.index / blockSize
       val rowInBlock = ir.index % blockSize
 
       ir.vector.toArray
         .grouped(blockSize)
         .zipWithIndex
-        .map{ case (values, blockColumn) =>
+        .map { case (values, blockColumn) =>
           ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
         }
-    }.groupByKey(HailGridPartitioner(m, n, blockSize)).mapValuesWithKey{
+    }.groupByKey(HailGridPartitioner(m, n, blockSize)).mapValuesWithKey {
       case ((blockRow, blockColumn), itr) =>
         val actualNumRows: Int = if (blockRow == lastRowBlockIndex) lastRowBlockSize else blockSize
         val actualNumColumns: Int = if (blockColumn == lastColBlockIndex) lastColBlockSize else blockSize

@@ -538,10 +538,8 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
 private class HailBlockMatrixTransposeRDD(m: HailBlockMatrix)
   extends RDD[((Int, Int), BDM[Double])](m.blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(m.blocks))) {
-  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-    val it = m.blocks.iterator(split, context).map { case ((i, j), m) => ((j, i), m.t) }
-    Iterator.single(it.next)
-  }
+  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] =
+    m.blocks.iterator(split, context).map { case ((i, j), m) => ((j, i), m.t) }
 
   protected def getPartitions: Array[Partition] =
     m.blocks.partitions
@@ -599,24 +597,38 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
         }
       })
 
-  private def block(hbm: HailBlockMatrix, bmPartitions: Array[Partition], p: HailGridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] =
-    hbm.blocks
+  private def block(hbm: HailBlockMatrix, bmPartitions: Array[Partition], p: HailGridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = try {
+    val it = hbm.blocks
       .iterator(bmPartitions(p.partitionIdFromBlockIndices(i, j)), context)
-      .next()
-      ._2
+    if (it.hasNext) {
+      val v = it.next()._2
+      assert(!it.hasNext)
+      v
+    } else
+      throw new RuntimeException("iterator shouldn't be empty $it")
+  } catch {
+    case e : Exception =>
+      val blocks = (for {
+        ii <- 0 until hbm.partitioner.rowPartitions
+        jj <- 0 until hbm.partitioner.colPartitions
+        pid = p.partitionIdFromBlockIndices(ii, jj)
+        block <- hbm.blocks.iterator(bmPartitions(pid), context).map(_._1 -> pid).toArray
+      } yield block).mkString("\n")
+      throw new RuntimeException(s"couldn't find ${(i,j)}=${p.partitionIdFromBlockIndices(i, j)} but I did find: ${blocks}", e)
+  }
 
   private def leftBlock(i: Int, j: Int, context: TaskContext): BDM[Double] =
      try {
     block(l, lPartitions, lPartitioner, context, i, j)
      } catch {
-       case e : Exception => throw new RuntimeException(s"${(i,j)} left: ${l.st}", e)
+       case e : Exception => throw new RuntimeException(s"${(i,j)} ${l.blocks.partitions.map(_.index).toSeq} ${l.blocks.partitions.toSeq} left: ${l.st}", e)
        }
 
   private def rightBlock(i: Int, j: Int, context: TaskContext): BDM[Double] =
      try {
     block(r, rPartitions, rPartitioner, context, i, j)
      } catch {
-       case e : Exception => throw new RuntimeException(s"${(i,j)} right: ${r.st}", e)
+       case e : Exception => throw new RuntimeException(s"${(i,j)} ${r.blocks.partitions.map(_.index).toSeq} ${r.blocks.partitions.toSeq} right: ${r.st}", e)
        }
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
