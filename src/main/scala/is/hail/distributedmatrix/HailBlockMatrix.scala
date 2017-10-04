@@ -208,6 +208,8 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val cols: Long) extends Serializable {
   type M = HailBlockMatrix
 
+  val st = Thread.currentThread().getStackTrace().mkString("\n")
+
   require(blocks.partitioner.isDefined)
   require(blocks.partitioner.get.isInstanceOf[HailGridPartitioner])
 
@@ -358,54 +360,89 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def map2(other: M, op: (Double, Double) => Double): M = {
     requireZippable(other)
-    val blocks2 = blocks.join(other.blocks).mapValues { case (m1, m2) =>
-      val src1 = m1.data
-      val src2 = m2.data
-      val dst = new Array[Double](src1.length)
-      var i = 0
-      while (i < src1.length) {
-        dst(i) = op(src1(i), src2(i))
-        i += 1
+    val blocks2 = blocks.zipPartitions(other.blocks, preservesPartitioning = true) { (thisIter, otherIter) =>
+      new Iterator[((Int, Int), BDM[Double])] {
+        def hasNext: Boolean = (thisIter.hasNext, otherIter.hasNext) match {
+          case (true, true) => true
+          case (false, false) => false
+          case _ => throw new RuntimeException("Can only zip RDDs with " +
+            "same number of elements in each partition")
+        }
+        def next(): ((Int, Int), BDM[Double]) = {
+          val ((i,j), m1) = thisIter.next()
+          val ((i2,j2), m2) = otherIter.next()
+          assert(i == i2, s"$i $i2")
+          assert(j == j2, s"$j $j2")
+          val src1 = m1.data
+          val src2 = m2.data
+          val dst = new Array[Double](src1.length)
+          var k = 0
+          while (k < src1.length) {
+            dst(k) = op(src1(k), src2(k))
+            k += 1
+          }
+          ((i,j), new BDM(m1.rows, m1.cols, dst))
+        }
       }
-      new BDM(m1.rows, m1.cols, dst)
     }
     new HailBlockMatrix(blocks2, blockSize, rows, cols)
   }
 
-  def map3(hbm2: M, hbm3: M, op: (Double, Double, Double) => Double): M = {
-    requireZippable(hbm2)
-    requireZippable(hbm3)
-    val blocks2 = blocks.join(hbm2.blocks).join(hbm3.blocks).mapValues { case ((m1, m2), m3) =>
-      val src1 = m1.data
-      val src2 = m2.data
-      val src3 = m3.data
-      val dst = new Array[Double](src1.length)
-      var i = 0
-      while (i < src1.length) {
-        dst(i) = op(src1(i), src2(i), src3(i))
-        i += 1
-      }
-      new BDM(m1.rows, m1.cols, dst)
-    }
-    new HailBlockMatrix(blocks2, blockSize, rows, cols)
-  }
+  def map3(hbm2: M, hbm3: M, op: (Double, Double, Double) => Double): M = ???
+  // {
+  //   requireZippable(hbm2)
+  //   requireZippable(hbm3)
+  //   val blocks2 = blocks.join(hbm2.blocks).join(hbm3.blocks).mapValues { case ((m1, m2), m3) =>
+  //     val src1 = m1.data
+  //     val src2 = m2.data
+  //     val src3 = m3.data
+  //     val dst = new Array[Double](src1.length)
+  //     var i = 0
+  //     while (i < src1.length) {
+  //       dst(i) = op(src1(i), src2(i), src3(i))
+  //       i += 1
+  //     }
+  //     new BDM(m1.rows, m1.cols, dst)
+  //   }
+  //   new HailBlockMatrix(blocks2, blockSize, rows, cols)
+  // }
 
   def map4(hbm2: M, hbm3: M, hbm4: M, op: (Double, Double, Double, Double) => Double): M = {
     requireZippable(hbm2)
     requireZippable(hbm3)
     requireZippable(hbm4)
-    val blocks2 = blocks.join(hbm2.blocks).join(hbm3.blocks).join(hbm4.blocks).mapValues { case (((m1, m2), m3), m4) =>
-      val src1 = m1.data
-      val src2 = m2.data
-      val src3 = m3.data
-      val src4 = m4.data
-      val dst = new Array[Double](src1.length)
-      var i = 0
-      while (i < src1.length) {
-        dst(i) = op(src1(i), src2(i), src3(i), src4(i))
-        i += 1
+    val blocks2 = blocks.zipPartitions(hbm2.blocks, hbm3.blocks, hbm4.blocks, preservesPartitioning = true) { (it1, it2, it3, it4) =>
+      new Iterator[((Int, Int), BDM[Double])] {
+        def hasNext: Boolean = (it1.hasNext, it2.hasNext, it3.hasNext, it4.hasNext) match {
+          case (true, true, true, true) => true
+          case (false, false, false, false) => false
+          case _ => throw new RuntimeException("Can only zip RDDs with " +
+              "same number of elements in each partition")
+        }
+        def next(): ((Int, Int), BDM[Double]) = {
+          val ((i,j), m1) = it1.next()
+          val ((i2,j2), m2) = it2.next()
+          val ((i3,j3), m3) = it3.next()
+          val ((i4,j4), m4) = it4.next()
+          assert(i == i2, s"$i $i2")
+          assert(j == j2, s"$j $j2")
+          assert(i == i3, s"$i $i3")
+          assert(j == j3, s"$j $j3")
+          assert(i == i4, s"$i $i4")
+          assert(j == j4, s"$j $j4")
+          val src1 = m1.data
+          val src2 = m2.data
+          val src3 = m3.data
+          val src4 = m4.data
+          val dst = new Array[Double](src1.length)
+          var k = 0
+          while (k < src1.length) {
+            dst(k) = op(src1(k), src2(k), src3(k), src4(k))
+            k += 1
+          }
+          ((i, j), new BDM(m1.rows, m1.cols, dst))
+        }
       }
-      new BDM(m1.rows, m1.cols, dst)
     }
     new HailBlockMatrix(blocks2, blockSize, rows, cols)
   }
@@ -434,21 +471,36 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def map2WithIndex(other: M, op: (Long, Long, Double, Double) => Double): M = {
     requireZippable(other)
     val blockSize = this.blockSize
-    val blocks2 = blocks.join(other.blocks).mapValuesWithKey { case ((blocki, blockj), (m1, m2)) =>
-      val iprefix = blocki.toLong * blockSize
-      val jprefix = blockj.toLong * blockSize
-      val size = m1.cols * m1.rows
-      val result = new Array[Double](size)
-      var j = 0
-      while (j < m1.cols) {
-        var i = 0
-        while (i < m1.rows) {
-          result(i + j * m1.rows) = op(iprefix + i, jprefix + j, m1(i, j), m2(i, j))
-          i += 1
+    val blocks2 = blocks.zipPartitions(other.blocks, preservesPartitioning = true) { (thisIter, otherIter) =>
+      new Iterator[((Int, Int), BDM[Double])] {
+        def hasNext: Boolean = (thisIter.hasNext, otherIter.hasNext) match {
+          case (true, true) => true
+          case (false, false) => false
+          case _ => throw new RuntimeException("Can only zip RDDs with " +
+            "same number of elements in each partition")
         }
-        j += 1
+        def next(): ((Int, Int), BDM[Double]) = {
+          val ((blocki,blockj), m1) = thisIter.next()
+          val ((blocki2,blockj2), m2) = otherIter.next()
+          assert(blocki == blocki2, s"$blocki $blocki2")
+          assert(blockj == blockj2, s"$blockj $blockj2")
+
+          val iprefix = blocki.toLong * blockSize
+          val jprefix = blockj.toLong * blockSize
+          val size = m1.cols * m1.rows
+          val result = new Array[Double](size)
+          var j = 0
+          while (j < m1.cols) {
+            var i = 0
+            while (i < m1.rows) {
+              result(i + j * m1.rows) = op(iprefix + i, jprefix + j, m1(i, j), m2(i, j))
+              i += 1
+            }
+            j += 1
+          }
+          ((blocki, blockj), new BDM(m1.rows, m1.cols, result))
+        }
       }
-      new BDM(m1.rows, m1.cols, result)
     }
     new HailBlockMatrix(blocks2, blockSize, rows, cols)
   }
@@ -486,8 +538,10 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
 private class HailBlockMatrixTransposeRDD(m: HailBlockMatrix)
   extends RDD[((Int, Int), BDM[Double])](m.blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(m.blocks))) {
-  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] =
-    m.blocks.iterator(split, context).map { case ((i, j), m) => ((j, i), m.t) }
+  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
+    val it = m.blocks.iterator(split, context).map { case ((i, j), m) => ((j, i), m.t) }
+    Iterator.single(it.next)
+  }
 
   protected def getPartitions: Array[Partition] =
     m.blocks.partitions
@@ -552,10 +606,18 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
       ._2
 
   private def leftBlock(i: Int, j: Int, context: TaskContext): BDM[Double] =
+     try {
     block(l, lPartitions, lPartitioner, context, i, j)
+     } catch {
+       case e : Exception => throw new RuntimeException(s"${(i,j)} left: ${l.st}", e)
+       }
 
   private def rightBlock(i: Int, j: Int, context: TaskContext): BDM[Double] =
+     try {
     block(r, rPartitions, rPartitioner, context, i, j)
+     } catch {
+       case e : Exception => throw new RuntimeException(s"${(i,j)} right: ${r.st}", e)
+       }
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val row = _partitioner.blockRowIndex(split.index)
