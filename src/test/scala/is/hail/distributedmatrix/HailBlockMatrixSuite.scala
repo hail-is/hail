@@ -388,7 +388,7 @@ class HailBlockMatrixSuite extends SparkSuite {
       val bmtt = bm.t.t.cache()
       assert(bmtt.rows == bm.rows)
       assert(bmtt.cols == bm.cols)
-      assert(arrayEqualNaNEqualsNaN(bmt.toLocalMatrix().toArray, bm.toLocalMatrix().toArray))
+      assert(arrayEqualNaNEqualsNaN(bmtt.toLocalMatrix().toArray, bm.toLocalMatrix().toArray))
       assert(arrayEqualNaNEqualsNaN((bmt * bmtt).toLocalMatrix().toArray, (bmt * bm).toLocalMatrix().toArray))
       true
     }.check()
