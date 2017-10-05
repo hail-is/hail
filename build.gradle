@@ -191,6 +191,8 @@ task(checkSettings) << {
 test {
     useTestNG {}
 
+    maxParallelForks 4
+
     systemProperties System.getProperties()
 
     testLogging {
