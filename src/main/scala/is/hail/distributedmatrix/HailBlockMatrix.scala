@@ -597,39 +597,20 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
         }
       })
 
-  private def block(hbm: HailBlockMatrix, bmPartitions: Array[Partition], p: HailGridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = try {
+  private def block(hbm: HailBlockMatrix, bmPartitions: Array[Partition], p: HailGridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = {
     val it = hbm.blocks
       .iterator(bmPartitions(p.partitionIdFromBlockIndices(i, j)), context)
-    if (it.hasNext) {
-      val v = it.next()._2
-      assert(!it.hasNext)
-      v
-    } else
-      throw new RuntimeException("iterator shouldn't be empty $it")
-  } catch {
-    case e : Exception =>
-      val blocks = (for {
-        ii <- 0 until hbm.partitioner.rowPartitions
-        jj <- 0 until hbm.partitioner.colPartitions
-        pid = p.partitionIdFromBlockIndices(ii, jj)
-        block <- hbm.blocks.iterator(bmPartitions(pid), context).map(_._1 -> pid).toArray
-      } yield block).mkString("\n")
-      throw new RuntimeException(s"couldn't find ${(i,j)}=${p.partitionIdFromBlockIndices(i, j)} but I did find: ${blocks}", e)
+    assert(it.hasNext)
+    val v = it.next()._2
+    assert(!it.hasNext)
+    v
   }
 
   private def leftBlock(i: Int, j: Int, context: TaskContext): BDM[Double] =
-     try {
     block(l, lPartitions, lPartitioner, context, i, j)
-     } catch {
-       case e : Exception => throw new RuntimeException(s"${(i,j)} ${l.blocks.partitions.map(_.index).toSeq} ${l.blocks.partitions.toSeq} left: ${l.st}", e)
-       }
 
   private def rightBlock(i: Int, j: Int, context: TaskContext): BDM[Double] =
-     try {
     block(r, rPartitions, rPartitioner, context, i, j)
-     } catch {
-       case e : Exception => throw new RuntimeException(s"${(i,j)} ${r.blocks.partitions.map(_.index).toSeq} ${r.blocks.partitions.toSeq} right: ${r.st}", e)
-       }
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val row = _partitioner.blockRowIndex(split.index)
