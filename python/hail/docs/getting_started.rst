@@ -196,15 +196,15 @@ Running in the cloud
 
 `Google <https://cloud.google.com/dataproc/>`_ and `Amazon
 <https://aws.amazon.com/emr/details/spark/>`_ offer optimized Spark performance
-and exceptional scalability to tens of thousands of cores without the overhead
+and exceptional scalability to many thousands of cores without the overhead
 of installing and managing an on-prem cluster.
 
 Hail publishes pre-built JARs for Google Cloud Platform's Dataproc Spark
 clusters. If you would prefer to avoid building Hail from source, learn how to
 get started on Google Cloud Platform by reading this `forum post
-<http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__. To get
-started running Hail on GCP via an interactive Jupyter notebook, see this `forum post
-<http://discuss.hail.is/t/using-hail-with-jupyter-notebooks-on-google-cloud/196>`__.
+<http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__. You
+can use `cloudtools <https://github.com/Nealelab/cloudtools>`__ to simplify using
+Hail on GCP even further, including via interactive Jupyter notebooks (also discussed `here <http://discuss.hail.is/t/using-hail-with-jupyter-notebooks-on-google-cloud/196>`__).
 
 Building with other versions of Spark 2
 =======================================
