@@ -439,4 +439,93 @@ class HailBlockMatrixSuite extends SparkSuite {
     }.check()
   }
 
+  @Test
+  def map2RespectsTransposition() {
+    val m = new BDM[Double](4,2, Array[Double](
+      1,2,3,4,
+      5,6,7,8))
+    val mt = new BDM[Double](2,4, Array[Double](
+      1,5,
+      2,6,
+      3,7,
+      4,8))
+    val dm = toBM(m)
+    val dmt = toBM(mt)
+
+    assert(dm.map2(dmt.t, _ + _).toLocalMatrix() === m + m)
+    assert(dmt.t.map2(dm, _ + _).toLocalMatrix() === m + m, s"${dmt.toLocalMatrix()}\n${dmt.t.toLocalMatrix()}\n${dm.toLocalMatrix()}")
+  }
+
+  @Test
+  def map4RespectsTransposition() {
+    val m = new BDM[Double](4,2, Array[Double](
+      1,2,3,4,
+      5,6,7,8))
+    val mt = new BDM[Double](2,4, Array[Double](
+      1,5,
+      2,6,
+      3,7,
+      4,8))
+    val dm = toBM(m)
+    val dmt = toBM(mt)
+
+    assert(dm.map4(dm, dmt.t, dmt.t.t.t, _ + _ + _ + _).toLocalMatrix() === m + m + m + m)
+    assert(dmt.map4(dmt, dm.t, dmt.t.t, _ + _ + _ + _).toLocalMatrix() === m.t + m.t + m.t + m.t)
+  }
+
+  @Test
+  def mapRespectsTransposition() {
+    val m = new BDM[Double](4,2, Array[Double](
+      1,2,3,4,
+      5,6,7,8))
+    val mt = new BDM[Double](2,4, Array[Double](
+      1,5,
+      2,6,
+      3,7,
+      4,8))
+    val dm = toBM(m)
+    val dmt = toBM(mt)
+
+    assert(dm.t.map(_ * 4).toLocalMatrix() === m.t.map(_ * 4))
+    assert(dm.t.t.map(_ * 4).toLocalMatrix() === m.map(_ * 4))
+    assert(dmt.t.map(_ * 4).toLocalMatrix() === m.map(_ * 4))
+  }
+
+  @Test
+  def mapWithIndexRespectsTransposition() {
+    val m = new BDM[Double](4,2, Array[Double](
+      1,2,3,4,
+      5,6,7,8))
+    val mt = new BDM[Double](2,4, Array[Double](
+      1,5,
+      2,6,
+      3,7,
+      4,8))
+    val dm = toBM(m)
+    val dmt = toBM(mt)
+
+    assert(dm.t.mapWithIndex((_,_,x) => x * 4).toLocalMatrix() === m.t.map(_ * 4))
+    assert(dm.t.t.mapWithIndex((_,_,x) => x * 4).toLocalMatrix() === m.map(_ * 4))
+    assert(dmt.t.mapWithIndex((_,_,x) => x * 4).toLocalMatrix() === m.map(_ * 4))
+  }
+
+  @Test
+  def map2WithIndexRespectsTransposition() {
+    val m = new BDM[Double](4,2, Array[Double](
+      1,2,3,4,
+      5,6,7,8))
+    val mt = new BDM[Double](2,4, Array[Double](
+      1,5,
+      2,6,
+      3,7,
+      4,8))
+    val dm = toBM(m)
+    val dmt = toBM(mt)
+
+    assert(dm.map2WithIndex(dmt.t, (_,_,x,y) => x + y).toLocalMatrix() === m + m)
+    assert(dmt.map2WithIndex(dm.t, (_,_,x,y) => x + y).toLocalMatrix() === m.t + m.t)
+    assert(dmt.t.map2WithIndex(dm, (_,_,x,y) => x + y).toLocalMatrix() === m + m)
+    assert(dm.t.t.map2WithIndex(dmt.t, (_,_,x,y) => x + y).toLocalMatrix() === m + m)
+  }
+
 }

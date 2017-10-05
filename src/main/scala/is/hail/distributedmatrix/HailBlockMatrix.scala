@@ -346,6 +346,8 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def map(op: Double => Double): M = {
     val blocks2 = blocks.mapValues { m =>
+      assert(m.offset == 0, s"${m.offset}")
+      assert(m.majorStride == (if (m.isTranspose) m.cols else m.rows), s"${m.majorStride} ${m.isTranspose} ${m.rows} ${m.cols}}")
       val src = m.data
       val dst = new Array[Double](src.length)
       var i = 0
@@ -353,7 +355,7 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         dst(i) = op(src(i))
         i += 1
       }
-      new BDM(m.rows, m.cols, dst)
+      new BDM(m.rows, m.cols, dst, 0, m.majorStride, m.isTranspose)
     }
     new HailBlockMatrix(blocks2, blockSize, rows, cols)
   }
@@ -366,22 +368,38 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           case (true, true) => true
           case (false, false) => false
           case _ => throw new RuntimeException("Can only zip RDDs with " +
-            "same number of elements in each partition")
+              "same number of elements in each partition")
         }
         def next(): ((Int, Int), BDM[Double]) = {
           val ((i,j), m1) = thisIter.next()
           val ((i2,j2), m2) = otherIter.next()
+          assert(m1.offset == 0, s"${m1.offset}")
+          assert(m1.majorStride == (if (m1.isTranspose) m1.cols else m1.rows), s"${m1.majorStride} ${m1.isTranspose} ${m1.rows} ${m1.cols}")
+          assert(m2.offset == 0, s"${m2.offset}")
+          assert(m2.majorStride == (if (m2.isTranspose) m2.cols else m2.rows), s"${m2.majorStride} ${m2.isTranspose} ${m2.rows} ${m2.cols}")
           assert(i == i2, s"$i $i2")
           assert(j == j2, s"$j $j2")
+          val rows = m1.rows
+          val cols = m1.cols
           val src1 = m1.data
           val src2 = m2.data
           val dst = new Array[Double](src1.length)
           var k = 0
-          while (k < src1.length) {
-            dst(k) = op(src1(k), src2(k))
-            k += 1
+          if (m1.isTranspose == m2.isTranspose) {
+            while (k < src1.length) {
+              dst(k) = op(src1(k), src2(k))
+              k += 1
+            }
+          } else {
+            while (k < src1.length) {
+              val ii = k % m1.majorStride
+              val jj = k / m1.majorStride
+              val k2 = jj + ii * m2.majorStride
+              dst(k) = op(src1(k), src2(k2))
+              k += 1
+            }
           }
-          ((i,j), new BDM(m1.rows, m1.cols, dst))
+          ((i,j), new BDM(rows, cols, dst, 0, m1.majorStride, m1.isTranspose))
         }
       }
     }
@@ -424,23 +442,49 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           val ((i2,j2), m2) = it2.next()
           val ((i3,j3), m3) = it3.next()
           val ((i4,j4), m4) = it4.next()
+          assert(m1.offset == 0, s"${m1.offset}")
+          assert(m1.majorStride == (if (m1.isTranspose) m1.cols else m1.rows), s"${m1.majorStride} ${m1.isTranspose} ${m1.rows} ${m1.cols}")
+          assert(m2.offset == 0, s"${m2.offset}")
+          assert(m2.majorStride == (if (m2.isTranspose) m2.cols else m2.rows), s"${m2.majorStride} ${m2.isTranspose} ${m2.rows} ${m2.cols}")
+          assert(m3.offset == 0, s"${m3.offset}")
+          assert(m3.majorStride == (if (m3.isTranspose) m3.cols else m3.rows), s"${m3.majorStride} ${m3.isTranspose} ${m3.rows} ${m3.cols}")
+          assert(m4.offset == 0, s"${m4.offset}")
+          assert(m4.majorStride == (if (m4.isTranspose) m4.cols else m4.rows), s"${m4.majorStride} ${m4.isTranspose} ${m4.rows} ${m4.cols}")
           assert(i == i2, s"$i $i2")
           assert(j == j2, s"$j $j2")
           assert(i == i3, s"$i $i3")
           assert(j == j3, s"$j $j3")
           assert(i == i4, s"$i $i4")
           assert(j == j4, s"$j $j4")
+          val rows = m1.rows
+          val cols = m1.cols
           val src1 = m1.data
           val src2 = m2.data
           val src3 = m3.data
           val src4 = m4.data
           val dst = new Array[Double](src1.length)
           var k = 0
-          while (k < src1.length) {
-            dst(k) = op(src1(k), src2(k), src3(k), src4(k))
-            k += 1
+          if (m1.isTranspose == m2.isTranspose
+            && m1.isTranspose == m3.isTranspose
+            && m1.isTranspose == m4.isTranspose) {
+            while (k < src1.length) {
+              dst(k) = op(src1(k), src2(k), src3(k), src4(k))
+              k += 1
+            }
+          } else {
+            // FIXME: code gen the optimal tree?
+            // FIXME: code gen the optimal tree on driver?
+            while (k < src1.length) {
+              val ii = k % m1.majorStride
+              val jj = k / m1.majorStride
+              val v2 = if (m1.isTranspose == m2.isTranspose) src2(k) else src2(jj + ii * m2.majorStride)
+              val v3 = if (m1.isTranspose == m3.isTranspose) src3(k) else src3(jj + ii * m3.majorStride)
+              val v4 = if (m1.isTranspose == m4.isTranspose) src4(k) else src4(jj + ii * m4.majorStride)
+              dst(k) = op(src1(k), v2, v3, v4)
+              k += 1
+            }
           }
-          ((i, j), new BDM(m1.rows, m1.cols, dst))
+          ((i, j), new BDM(rows, cols, dst, 0, m1.majorStride, m1.isTranspose))
         }
       }
     }
@@ -463,7 +507,7 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
         j += 1
       }
-      new BDM(m.rows, m.cols, result)
+      new BDM(m.rows, m.cols, result, 0, m.rows, false)
     }
     new HailBlockMatrix(blocks2, blockSize, rows, cols)
   }
@@ -498,7 +542,7 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
             }
             j += 1
           }
-          ((blocki, blockj), new BDM(m1.rows, m1.cols, result))
+          ((blocki, blockj), new BDM(m1.rows, m1.cols, result, 0, m1.rows, false))
         }
       }
     }
