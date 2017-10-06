@@ -271,25 +271,25 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     blockMap(_ / i)
 
   def vectorAddToEveryColumn(v: Array[Double]): M = {
-    require(v.length == rows, s"vector length, ${ v.length }, must equal number of matrix rows ${ rows }; v: $v, m: $this")
+    require(v.length == rows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ rows }; v: ${v: IndexedSeq[Double]}, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
     mapWithIndex((i, _, x) => x + vBc.value(i.toInt))
   }
 
   def vectorPointwiseMultiplyEveryColumn(v: Array[Double]): M = {
-    require(v.length == rows, s"vector length, ${ v.length }, must equal number of matrix rows ${ rows }; v: $v, m: $this")
+    require(v.length == rows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ rows }; v: ${v: IndexedSeq[Double]}, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
     mapWithIndex((i, _, x) => x * vBc.value(i.toInt))
   }
 
   def vectorAddToEveryRow(v: Array[Double]): M = {
-    require(v.length == cols, s"vector length, ${ v.length }, must equal number of matrix columns ${ cols }; v: $v, m: $this")
+    require(v.length == cols, s"vector length, ${ v.length }, must equal number of matrix columns, ${ cols }; v: ${v: IndexedSeq[Double]}, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
     mapWithIndex((_, j, x) => x + vBc.value(j.toInt))
   }
 
   def vectorPointwiseMultiplyEveryRow(v: Array[Double]): M = {
-    require(v.length == cols, s"vector length, ${ v.length }, must equal number of matrix columns ${ cols }; v: $v, m: $this")
+    require(v.length == cols, s"vector length, ${ v.length }, must equal number of matrix columns, ${ cols }; v: ${v: IndexedSeq[Double]}, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
     mapWithIndex((_, j, x) => x * vBc.value(j.toInt))
   }
