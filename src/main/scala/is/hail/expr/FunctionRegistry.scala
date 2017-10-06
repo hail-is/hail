@@ -83,7 +83,7 @@ object FunctionRegistry {
         anyFailAllFail[Array, Option[(Int, Transformation[Any, Any])]](conversions)
           .map { arr =>
             if (arr.forall(_.isEmpty))
-              0 -> (tt.subst(), f.subst())
+              0 -> (tt.subst(), f.captureType().subst())
             else {
               val arr2 = arr.map(_.getOrElse(0 -> Transformation[Any, Any]((a: Any) => a, (a: Code[Any]) => CM.ret(a))))
               arr2.map(_._1).max -> (tt.subst(), f.captureType().subst().convertArgs(arr2.map(_._2)))
