@@ -38,7 +38,7 @@ object TempDir {
       createTempDir("/tmp", hConf))
 }
 
-case class TempDir(localTempDir: String, tempDir: String) {
+class TempDir(val localTempDir: String, val tempDir: String) {
   var counter: Int = 0
 
   def createTempFile(tempDir: String, prefix: String, extension: String): String = {

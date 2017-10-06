@@ -43,8 +43,7 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
       fatal("write failed: no success indicator found")
 
     if (!parallelWrite) {
-      val expNumPart = if (r.partitions.length == 0) 1 else r.getNumPartitions
-      hConf.copyMerge(parallelOutputPath, filename, expNumPart, deleteTmpFiles, hasHeader = false)
+      hConf.copyMerge(parallelOutputPath, filename, rWithHeader.getNumPartitions, deleteTmpFiles, hasHeader = false)
     }
 
   }
