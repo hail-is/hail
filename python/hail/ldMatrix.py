@@ -43,7 +43,7 @@ class LDMatrix:
         from pyspark.mllib.linalg import DenseMatrix
 
         j_local_mat = self._jldm.toLocalMatrix()
-        return DenseMatrix(j_local_mat.numRows(), j_local_mat.numCols(), list(j_local_mat.toArray()), j_local_mat.isTransposed())
+        return DenseMatrix(j_local_mat.rows(), j_local_mat.cols(), list(j_local_mat.toArray()), False) # nb: toArray is always column-major
 
     def write(self, path):
         """
