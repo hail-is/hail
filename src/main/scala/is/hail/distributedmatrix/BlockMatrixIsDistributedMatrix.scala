@@ -318,19 +318,21 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       val pis = StringUtils.leftPad(is, d, "0")
 
       sHadoopConfBc.value.value.writeDataFile(uri + "/blocks/block-" + pis) { out =>
-        it.foreach { case ((iblock, jblock), dm) => // will have one block per partition
+        assert(it.hasNext)
+        val ((iblock, jblock), dm) = it.next()
+        assert(!it.hasNext)
 
-          new MatrixWriter(dm.numRows, dm.numCols, dm.toArray).write(out)
-          
-          localBlockCount += 1
-        }
+        new MatrixWriter(dm.numRows, dm.numCols, dm.toArray).write(out)
+        
+        localBlockCount += 1
       }
 
       Iterator.single(localBlockCount)
     }
       .fold(0L)(_ + _)
 
-    info(s"wrote $blockCount blocks") // should equal number of partitions
+    info(s"wrote $blockCount blocks")
+    assert(blockCount == nPartitions)
   }
 
   /**
