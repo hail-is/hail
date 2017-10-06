@@ -9,8 +9,8 @@ import org.apache.spark.mllib.linalg.distributed._
 import org.apache.hadoop.io._
 import java.io._
 
+import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.json4s._
-
 import org.apache.commons.lang3.StringUtils
 
 import scala.reflect.ClassTag
@@ -319,11 +319,13 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
       sHadoopConfBc.value.value.writeDataFile(uri + "/blocks/block-" + pis) { out =>
         assert(it.hasNext)
-        val ((iblock, jblock), dm) = it.next()
+        val ((iblock, jblock), sdm) = it.next()
         assert(!it.hasNext)
 
-        new MatrixWriter(dm.numRows, dm.numCols, dm.toArray).write(out)
+        val bdm = sdm.asBreeze()
         
+        bdm.write(out)
+                
         localBlockCount += 1
       }
 
@@ -379,11 +381,11 @@ class ReadBlocksRDD(sc: SparkContext, uri: String, nRowBlocks: Int, nColBlocks: 
     val pis = StringUtils.leftPad(is, d, "0")
 
     Iterator.single(sHadoopConfBc.value.value.readDataFile(uri + "/blocks/block-" + pis) { in =>
-      val mw = new MatrixWriter()
-      mw.readFields(in)
+      
+      val bdm = RichDenseMatrixDouble.read(in)
       
       // block indices are column major
-      ((i % nRowBlocks, i / nRowBlocks), mw.toDenseMatrix())
+      ((i % nRowBlocks, i / nRowBlocks), new DenseMatrix(bdm.rows, bdm.cols, bdm.data))
     })
   }
 
