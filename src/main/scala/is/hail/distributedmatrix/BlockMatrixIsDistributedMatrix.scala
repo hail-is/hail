@@ -4,10 +4,10 @@ import is.hail._
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
+
+import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
-import org.apache.hadoop.io._
-import java.io._
 
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.json4s._
@@ -319,13 +319,13 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
       sHadoopConfBc.value.value.writeDataFile(uri + "/blocks/block-" + pis) { out =>
         assert(it.hasNext)
-        val ((iblock, jblock), sdm) = it.next()
+        val ((iblock, jblock), sparkMat) = it.next()
         assert(!it.hasNext)
 
-        val bdm = sdm.asBreeze()
+        def breezeMat = sparkMat.asBreeze()
+        assert(breezeMat.isInstanceOf[BDM[Double]])
+        breezeMat.asInstanceOf[BDM[Double]].write(out)
         
-        bdm.write(out)
-                
         localBlockCount += 1
       }
 
@@ -394,50 +394,3 @@ class ReadBlocksRDD(sc: SparkContext, uri: String, nRowBlocks: Int, nColBlocks: 
 
 // must be top-level for Jackson to serialize correctly
 case class BlockMatrixMetadata(rowsPerBlock: Int, colsPerBlock: Int, numRows: Long, numCols: Long)
-
-class PairWriter(var i: Int, var j: Int) extends Writable {
-  def this() {
-    this(0,0)
-  }
-
-  def write(out: DataOutput) {
-    out.writeInt(i)
-    out.writeInt(j)
-  }
-
-  def readFields(in: DataInput) {
-    i = in.readInt()
-    j = in.readInt()
-  }
-}
-
-class MatrixWriter(var rows: Int, var cols: Int, var m: Array[Double]) extends Writable {
-  def this() {
-    this(0, 0, null)
-  }
-
-  def write(out: DataOutput) {
-    out.writeInt(rows)
-    out.writeInt(cols)
-    var i = 0
-    while (i < rows * cols) {
-      out.writeDouble(m(i))
-      i += 1
-    }
-  }
-
-  def readFields(in: DataInput) {
-    rows = in.readInt()
-    cols = in.readInt()
-    m = new Array[Double](rows * cols)
-    var i = 0
-    while (i < rows * cols) {
-      m(i) = in.readDouble()
-      i += 1
-    }
-  }
-
-  def toDenseMatrix(): DenseMatrix = {
-    new DenseMatrix(rows, cols, m)
-  }
-}
