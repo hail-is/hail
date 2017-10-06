@@ -97,10 +97,9 @@ object FunctionRegistry {
       .toRight[LookupError](NotFound(name, typ))
       .flatMap { case (priority, it) =>
         assert(it.nonEmpty)
-        if (it.size == 1) {
-          val (_, (_, f)) = it.head
-          Right(f)
-        } else {
+        if (it.size == 1)
+          Right(it.head._2._2)
+        else {
           assert(priority != 0, s"when it is non-singular, I expect non-zero priority, but priority was $priority and it was $it. name was $name, typ was $typ")
           Left(Ambiguous(name, typ, it))
         }
