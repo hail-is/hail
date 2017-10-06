@@ -412,13 +412,6 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
   override def typecheckThis(): Type = {
     (fn, args) match {
-      case ("str", rhs) =>
-        if (rhs.length != 1)
-          parseError("str expects 1 argument")
-        if (!rhs.head.`type`.isRealizable)
-          parseError(s"Argument to str has unrealizable type: ${ rhs.head.`type` }")
-        TString
-
       case ("json", rhs) =>
         if (rhs.length != 1)
           parseError("json expects 1 argument")
@@ -617,12 +610,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
   def compile() = ((fn, args): @unchecked) match {
-    case ("str", Array(a)) => for (
-      v <- a.compile();
-      t = a.`type`;
-      result <- CM.invokePrimitive1(t.str)(v)
-    ) yield result
-
     case ("json", Array(a)) => for (
       v <- a.compile();
       t = a.`type`;

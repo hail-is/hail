@@ -3,7 +3,7 @@ package is.hail.expr
 import is.hail.asm4s.Code
 
 sealed trait Fun {
-  def captureType() { }
+  def captureType(): Fun = this
 
   def retType: Type
 
@@ -17,14 +17,10 @@ case class Transformation[T, U](f: T => U, fcode: Code[T] => CM[Code[U]]) extend
 }
 
 case class UnaryDependentFunCode[T, U](retType: Type, code: () => Code[T] => CM[Code[U]]) extends Fun {
-  private var postCapture: Code[T] => CM[Code[U]] = null
-
-  override def captureType() {
-    postCapture = code()
-  }
+  override def captureType() = UnaryFunCode(retType, code())
 
   def apply(ct: Code[T]): CM[Code[U]] =
-    postCapture(ct)
+    throw new UnsupportedOperationException("must captureType first")
 
   def subst() = UnaryDependentFunCode[T, U](retType.subst(), code)
 

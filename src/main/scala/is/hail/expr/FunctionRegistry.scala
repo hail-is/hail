@@ -99,8 +99,7 @@ object FunctionRegistry {
         assert(it.nonEmpty)
         if (it.size == 1) {
           val (_, (_, f)) = it.head
-          f.captureType()
-          Right(f)
+          Right(f.captureType())
         } else {
           assert(priority != 0, s"when it is non-singular, I expect non-zero priority, but priority was $priority and it was $it. name was $name, typ was $typ")
           Left(Ambiguous(name, typ, it))
