@@ -15,30 +15,30 @@ import org.json4s._
 object HailBlockMatrix {
   type M = HailBlockMatrix
 
-  def from(sc: SparkContext, bdm: BDM[Double], blockSize: Int): M = {
-    val partitioner = HailGridPartitioner(bdm.rows, bdm.cols, blockSize)
-    val rbc = sc.broadcast(bdm)
-    val rowBlocks = partitioner.rowPartitions
-    val colBlocks = partitioner.colPartitions
-    val rowsRemainder = bdm.rows % blockSize
-    val colsRemainder = bdm.cols % blockSize
+  def from(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
+    val partitioner = HailGridPartitioner(lm.rows, lm.cols, blockSize)
+    val lmBc = sc.broadcast(lm)
+    val rowPartitions = partitioner.rowPartitions
+    val colPartitions = partitioner.colPartitions
+    val rowsRemainder = lm.rows % blockSize
+    val colsRemainder = lm.cols % blockSize
     val indices = for {
-      i <- 0 until rowBlocks
-      j <- 0 until colBlocks
+      i <- 0 until rowPartitions
+      j <- 0 until colPartitions
     } yield (i, j)
-    val rMats = sc.parallelize(indices).map { case (i, j) =>
-      val rowsInThisBlock = (if (i + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else blockSize)
-      val colsInThisBlock = (if (j + 1 == colBlocks && colsRemainder != 0) colsRemainder else blockSize)
+    val blocks = sc.parallelize(indices).map { case (i, j) =>
+      val rowsInThisBlock = if (i + 1 == rowPartitions && rowsRemainder != 0) rowsRemainder else blockSize
+      val colsInThisBlock = if (j + 1 == colPartitions && colsRemainder != 0) colsRemainder else blockSize
       val a = new Array[Double](rowsInThisBlock * colsInThisBlock)
       for {
         ii <- 0 until rowsInThisBlock
         jj <- 0 until colsInThisBlock
       } {
-        a(jj * rowsInThisBlock + ii) = rbc.value(i * blockSize + ii, j * blockSize + jj)
+        a(jj * rowsInThisBlock + ii) = lmBc.value(i * blockSize + ii, j * blockSize + jj)
       }
       ((i, j), new BDM(rowsInThisBlock, colsInThisBlock, a))
     }.partitionBy(partitioner)
-    new HailBlockMatrix(rMats, blockSize, bdm.rows, bdm.cols)
+    new HailBlockMatrix(blocks, blockSize, lm.rows, lm.cols)
   }
 
   def from(irm: IndexedRowMatrix, blockSize: Int): M =
@@ -66,7 +66,7 @@ object HailBlockMatrix {
     }
   }
 
-  private class MatrixWriter(var rows: Int, var cols: Int, var m: Array[Double]) extends Writable {
+  private class MatrixWriter(var rows: Int, var cols: Int, var a: Array[Double]) extends Writable {
     def this() {
       this(0, 0, null)
     }
@@ -76,7 +76,7 @@ object HailBlockMatrix {
       out.writeInt(cols)
       var i = 0
       while (i < rows * cols) {
-        out.writeDouble(m(i))
+        out.writeDouble(a(i))
         i += 1
       }
     }
@@ -84,16 +84,16 @@ object HailBlockMatrix {
     def readFields(in: DataInput) {
       rows = in.readInt()
       cols = in.readInt()
-      m = new Array[Double](rows * cols)
+      a = new Array[Double](rows * cols)
       var i = 0
       while (i < rows * cols) {
-        m(i) = in.readDouble()
+        a(i) = in.readDouble()
         i += 1
       }
     }
 
     def toDenseMatrix(): BDM[Double] = {
-      new BDM[Double](rows, cols, m)
+      new BDM[Double](rows, cols, a)
     }
   }
 
@@ -105,18 +105,18 @@ object HailBlockMatrix {
     * uri}.
     *
     **/
-  def write(m: M, uri: String) {
-    val hadoop = m.blocks.sparkContext.hadoopConfiguration
+  def write(dm: M, uri: String) {
+    val hadoop = dm.blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
 
-    m.blocks.map { case ((i, j), m) =>
-      (new PairWriter(i, j), new MatrixWriter(m.rows, m.cols, m.data))
+    dm.blocks.map { case ((i, j), lm) =>
+      (new PairWriter(i, j), new MatrixWriter(lm.rows, lm.cols, lm.data))
     }
       .saveAsSequenceFile(uri + matrixRelativePath)
 
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       jackson.Serialization.write(
-        HailBlockMatrixMetadata(m.blockSize, m.rows, m.cols),
+        HailBlockMatrixMetadata(dm.blockSize, dm.rows, dm.cols),
         os)
     }
   }
@@ -130,7 +130,7 @@ object HailBlockMatrix {
     val hadoop = hc.hadoopConf
     hadoop.mkDir(uri)
 
-    val rdd = hc.sc.sequenceFile[PairWriter, MatrixWriter](uri + matrixRelativePath).map { case (pw, mw) =>
+    val blocks = hc.sc.sequenceFile[PairWriter, MatrixWriter](uri + matrixRelativePath).map { case (pw, mw) =>
       ((pw.i, pw.j), mw.toDenseMatrix())
     }
 
@@ -139,7 +139,7 @@ object HailBlockMatrix {
         jackson.Serialization.read[HailBlockMatrixMetadata](isr)
       }
 
-    new HailBlockMatrix(rdd.partitionBy(HailGridPartitioner(rows, cols, blockSize)), blockSize, rows, cols)
+    new HailBlockMatrix(blocks.partitionBy(HailGridPartitioner(rows, cols, blockSize)), blockSize, rows, cols)
   }
 
   object ops {
@@ -217,8 +217,8 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new HailBlockMatrix(new HailBlockMatrixTransposeRDD(this), blockSize, cols, rows)
 
   def diagonal(): Array[Double] = {
-    require(this.rows == this.cols,
-      s"diagonal only works on square matrices, given ${ this.rows }x${ this.cols }")
+    require(rows == cols,
+      s"diagonal only works on square matrices, given ${ rows }x${ cols }")
 
     def diagonal(block: BDM[Double]): Array[Double] = {
       val length = math.min(block.rows, block.cols)
@@ -231,7 +231,7 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       diagonal
     }
 
-    this.blocks
+    blocks
       .filter { case ((i, j), block) => i == j }
       .map { case ((i, j), block) => (i, diagonal(block)) }
       .collect()
@@ -240,55 +240,55 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       .fold(Array[Double]())(_ ++ _)
   }
 
-  def add(other: M): M =
-    blockMap2(other, _ + _)
+  def add(that: M): M =
+    blockMap2(that, _ + _)
 
-  def subtract(other: M): M =
-    blockMap2(other, _ - _)
+  def subtract(that: M): M =
+    blockMap2(that, _ - _)
 
-  def pointwiseMultiply(other: M): M =
-    blockMap2(other, _ :* _)
+  def pointwiseMultiply(that: M): M =
+    blockMap2(that, _ :* _)
 
-  def pointwiseDivide(other: M): M =
-    blockMap2(other, _ :/ _)
+  def pointwiseDivide(that: M): M =
+    blockMap2(that, _ :/ _)
 
-  def multiply(other: M): M =
-    new HailBlockMatrix(new HailBlockMatrixMultiplyRDD(this, other), blockSize, rows, other.cols)
+  def multiply(that: M): M =
+    new HailBlockMatrix(new HailBlockMatrixMultiplyRDD(this, that), blockSize, rows, that.cols)
 
-  def multiply(r: BDM[Double]): M = {
-    require(this.cols == r.rows,
-      s"incompatible matrix dimensions: ${ this.rows }x${ this.cols } and ${ r.rows }x${ r.cols }")
-    multiply(HailBlockMatrix.from(this.blocks.sparkContext, r, this.blockSize))
+  def multiply(lm: BDM[Double]): M = {
+    require(cols == lm.rows,
+      s"incompatible matrix dimensions: ${ rows }x${ cols } and ${ lm.rows }x${ lm.cols }")
+    multiply(HailBlockMatrix.from(blocks.sparkContext, lm, blockSize))
   }
 
   def scalarAdd(i: Double): M =
-    this.blockMap(_ + i)
+    blockMap(_ + i)
 
   def scalarSubtract(i: Double): M =
-    this.blockMap(_ - i)
+    blockMap(_ - i)
 
   def scalarMultiply(i: Double): M =
-    this.blockMap(_ :* i)
+    blockMap(_ :* i)
 
   def scalarDivide(i: Double): M =
-    this.blockMap(_ / i)
+    blockMap(_ / i)
 
   def vectorAddToEveryColumn(v: Array[Double]): M = {
-    require(v.length == this.rows, s"vector length, ${ v.length }, must equal number of matrix rows ${ this.rows }; v: $v, m: $this")
-    val vbc = this.blocks.sparkContext.broadcast(v)
-    this.mapWithIndex((i, j, x) => x + vbc.value(i.toInt))
+    require(v.length == rows, s"vector length, ${ v.length }, must equal number of matrix rows ${ rows }; v: $v, m: $this")
+    val vBc = blocks.sparkContext.broadcast(v)
+    mapWithIndex((i, j, x) => x + vBc.value(i.toInt))
   }
 
   def vectorPointwiseMultiplyEveryColumn(v: Array[Double]): M = {
-    require(v.length == this.rows, s"vector length, ${ v.length }, must equal number of matrix rows ${ this.rows }; v: $v, m: $this")
-    val vbc = this.blocks.sparkContext.broadcast(v)
-    this.mapWithIndex((i, j, x) => x * vbc.value(i.toInt))
+    require(v.length == rows, s"vector length, ${ v.length }, must equal number of matrix rows ${ rows }; v: $v, m: $this")
+    val vBc = blocks.sparkContext.broadcast(v)
+    mapWithIndex((i, j, x) => x * vBc.value(i.toInt))
   }
 
   def vectorPointwiseMultiplyEveryRow(v: Array[Double]): M = {
-    require(v.length == this.cols, s"vector length, ${ v.length }, must equal number of matrix columns ${ this.cols }; v: $v, m: $this")
-    val vbc = this.blocks.sparkContext.broadcast(v)
-    this.mapWithIndex((i, j, x) => x * vbc.value(j.toInt))
+    require(v.length == cols, s"vector length, ${ v.length }, must equal number of matrix columns ${ cols }; v: $v, m: $this")
+    val vBc = blocks.sparkContext.broadcast(v)
+    mapWithIndex((i, j, x) => x * vBc.value(j.toInt))
   }
 
   def cache(): this.type = {
@@ -325,146 +325,122 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BDM(rows, cols, values)
   }
 
-  private def requireZippable(other: M) {
-    require(rows == other.rows,
-      s"must have same number of rows, but actually: ${ rows }x${ cols }, ${ other.rows }x${ other.cols }")
-    require(cols == other.cols,
-      s"must have same number of cols, but actually: ${ rows }x${ cols }, ${ other.rows }x${ other.cols }")
-    require(blockSize == other.blockSize,
-      s"blocks must be same size, but actually were ${ blockSize }x${ blockSize } and ${ other.blockSize }x${ other.blockSize }")
+  private def requireZippable(that: M) {
+    require(rows == that.rows,
+      s"must have same number of rows, but actually: ${ rows }x${ cols }, ${ that.rows }x${ that.cols }")
+    require(cols == that.cols,
+      s"must have same number of cols, but actually: ${ rows }x${ cols }, ${ that.rows }x${ that.cols }")
+    require(blockSize == that.blockSize,
+      s"blocks must be same size, but actually were ${ blockSize }x${ blockSize } and ${ that.blockSize }x${ that.blockSize }")
+  }
+  private def assertCompatibleLocalMatrix(lm: BDM[Double]) {
+    assert(lm.offset == 0, s"${lm.offset}")
+    assert(lm.majorStride == (if (lm.isTranspose) lm.cols else lm.rows), s"${lm.majorStride} ${lm.isTranspose} ${lm.rows} ${lm.cols}}")
   }
 
   def blockMap(op: BDM[Double] => BDM[Double]): M =
     new HailBlockMatrix(blocks.mapValues(op), blockSize, rows, cols)
 
-  def blockMap2(other: M, op: (BDM[Double], BDM[Double]) => BDM[Double]): M = {
-    requireZippable(other)
-    new HailBlockMatrix(blocks.join(other.blocks).mapValues(op.tupled), blockSize, rows, cols)
+  def blockMap2(that: M, op: (BDM[Double], BDM[Double]) => BDM[Double]): M = {
+    requireZippable(that)
+    new HailBlockMatrix(blocks.join(that.blocks).mapValues(op.tupled), blockSize, rows, cols)
   }
 
   def map(op: Double => Double): M = {
-    val blocks2 = blocks.mapValues { m =>
-      assert(m.offset == 0, s"${m.offset}")
-      assert(m.majorStride == (if (m.isTranspose) m.cols else m.rows), s"${m.majorStride} ${m.isTranspose} ${m.rows} ${m.cols}}")
-      val src = m.data
+    val blocks = this.blocks.mapValues { lm =>
+      assertCompatibleLocalMatrix(lm)
+      val src = lm.data
       val dst = new Array[Double](src.length)
       var i = 0
       while (i < src.length) {
         dst(i) = op(src(i))
         i += 1
       }
-      new BDM(m.rows, m.cols, dst, 0, m.majorStride, m.isTranspose)
+      new BDM(lm.rows, lm.cols, dst, 0, lm.majorStride, lm.isTranspose)
     }
-    new HailBlockMatrix(blocks2, blockSize, rows, cols)
+    new HailBlockMatrix(blocks, blockSize, rows, cols)
   }
 
-  def map2(other: M, op: (Double, Double) => Double): M = {
-    requireZippable(other)
-    val blocks2 = blocks.zipPartitions(other.blocks, preservesPartitioning = true) { (thisIter, otherIter) =>
+  def map2(that: M, op: (Double, Double) => Double): M = {
+    requireZippable(that)
+    val blocks = this.blocks.zipPartitions(that.blocks, preservesPartitioning = true) { (thisIter, thatIter) =>
       new Iterator[((Int, Int), BDM[Double])] {
-        def hasNext: Boolean = (thisIter.hasNext, otherIter.hasNext) match {
-          case (true, true) => true
-          case (false, false) => false
-          case _ => throw new RuntimeException("Can only zip RDDs with " +
-              "same number of elements in each partition")
+        def hasNext: Boolean = {
+          assert(thisIter.hasNext == thatIter.hasNext)
+          thisIter.hasNext
         }
         def next(): ((Int, Int), BDM[Double]) = {
-          val ((i,j), m1) = thisIter.next()
-          val ((i2,j2), m2) = otherIter.next()
-          assert(m1.offset == 0, s"${m1.offset}")
-          assert(m1.majorStride == (if (m1.isTranspose) m1.cols else m1.rows), s"${m1.majorStride} ${m1.isTranspose} ${m1.rows} ${m1.cols}")
-          assert(m2.offset == 0, s"${m2.offset}")
-          assert(m2.majorStride == (if (m2.isTranspose) m2.cols else m2.rows), s"${m2.majorStride} ${m2.isTranspose} ${m2.rows} ${m2.cols}")
-          assert(i == i2, s"$i $i2")
-          assert(j == j2, s"$j $j2")
-          val rows = m1.rows
-          val cols = m1.cols
-          val src1 = m1.data
-          val src2 = m2.data
+          val ((i1,j1), lm1) = thisIter.next()
+          val ((i2,j2), lm2) = thatIter.next()
+          assertCompatibleLocalMatrix(lm1)
+          assertCompatibleLocalMatrix(lm2)
+          assert(i1 == i2, s"$i1 $i2")
+          assert(j1 == j2, s"$j1 $j2")
+          val rows = lm1.rows
+          val cols = lm1.cols
+          val src1 = lm1.data
+          val src2 = lm2.data
           val dst = new Array[Double](src1.length)
           var k = 0
-          if (m1.isTranspose == m2.isTranspose) {
+          if (lm1.isTranspose == lm2.isTranspose) {
             while (k < src1.length) {
               dst(k) = op(src1(k), src2(k))
               k += 1
             }
           } else {
             while (k < src1.length) {
-              val ii = k % m1.majorStride
-              val jj = k / m1.majorStride
-              val k2 = jj + ii * m2.majorStride
+              val ii = k % lm1.majorStride
+              val jj = k / lm1.majorStride
+              val k2 = jj + ii * lm2.majorStride
               dst(k) = op(src1(k), src2(k2))
               k += 1
             }
           }
-          ((i,j), new BDM(rows, cols, dst, 0, m1.majorStride, m1.isTranspose))
+          ((i1,j1), new BDM(rows, cols, dst, 0, lm1.majorStride, lm1.isTranspose))
         }
       }
     }
-    new HailBlockMatrix(blocks2, blockSize, rows, cols)
+    new HailBlockMatrix(blocks, blockSize, rows, cols)
   }
 
-  def map3(hbm2: M, hbm3: M, op: (Double, Double, Double) => Double): M = ???
-  // {
-  //   requireZippable(hbm2)
-  //   requireZippable(hbm3)
-  //   val blocks2 = blocks.join(hbm2.blocks).join(hbm3.blocks).mapValues { case ((m1, m2), m3) =>
-  //     val src1 = m1.data
-  //     val src2 = m2.data
-  //     val src3 = m3.data
-  //     val dst = new Array[Double](src1.length)
-  //     var i = 0
-  //     while (i < src1.length) {
-  //       dst(i) = op(src1(i), src2(i), src3(i))
-  //       i += 1
-  //     }
-  //     new BDM(m1.rows, m1.cols, dst)
-  //   }
-  //   new HailBlockMatrix(blocks2, blockSize, rows, cols)
-  // }
-
-  def map4(hbm2: M, hbm3: M, hbm4: M, op: (Double, Double, Double, Double) => Double): M = {
-    requireZippable(hbm2)
-    requireZippable(hbm3)
-    requireZippable(hbm4)
-    val blocks2 = blocks.zipPartitions(hbm2.blocks, hbm3.blocks, hbm4.blocks, preservesPartitioning = true) { (it1, it2, it3, it4) =>
+  def map4(dm2: M, dm3: M, dm4: M, op: (Double, Double, Double, Double) => Double): M = {
+    requireZippable(dm2)
+    requireZippable(dm3)
+    requireZippable(dm4)
+    val blocks = this.blocks.zipPartitions(dm2.blocks, dm3.blocks, dm4.blocks, preservesPartitioning = true) { (it1, it2, it3, it4) =>
       new Iterator[((Int, Int), BDM[Double])] {
-        def hasNext: Boolean = (it1.hasNext, it2.hasNext, it3.hasNext, it4.hasNext) match {
-          case (true, true, true, true) => true
-          case (false, false, false, false) => false
-          case _ => throw new RuntimeException("Can only zip RDDs with " +
-              "same number of elements in each partition")
+        def hasNext: Boolean = {
+          assert(it1.hasNext == it2.hasNext)
+          assert(it1.hasNext == it3.hasNext)
+          assert(it1.hasNext == it4.hasNext)
+          it1.hasNext
         }
         def next(): ((Int, Int), BDM[Double]) = {
-          val ((i,j), m1) = it1.next()
-          val ((i2,j2), m2) = it2.next()
-          val ((i3,j3), m3) = it3.next()
-          val ((i4,j4), m4) = it4.next()
-          assert(m1.offset == 0, s"${m1.offset}")
-          assert(m1.majorStride == (if (m1.isTranspose) m1.cols else m1.rows), s"${m1.majorStride} ${m1.isTranspose} ${m1.rows} ${m1.cols}")
-          assert(m2.offset == 0, s"${m2.offset}")
-          assert(m2.majorStride == (if (m2.isTranspose) m2.cols else m2.rows), s"${m2.majorStride} ${m2.isTranspose} ${m2.rows} ${m2.cols}")
-          assert(m3.offset == 0, s"${m3.offset}")
-          assert(m3.majorStride == (if (m3.isTranspose) m3.cols else m3.rows), s"${m3.majorStride} ${m3.isTranspose} ${m3.rows} ${m3.cols}")
-          assert(m4.offset == 0, s"${m4.offset}")
-          assert(m4.majorStride == (if (m4.isTranspose) m4.cols else m4.rows), s"${m4.majorStride} ${m4.isTranspose} ${m4.rows} ${m4.cols}")
-          assert(i == i2, s"$i $i2")
-          assert(j == j2, s"$j $j2")
-          assert(i == i3, s"$i $i3")
-          assert(j == j3, s"$j $j3")
-          assert(i == i4, s"$i $i4")
-          assert(j == j4, s"$j $j4")
-          val rows = m1.rows
-          val cols = m1.cols
-          val src1 = m1.data
-          val src2 = m2.data
-          val src3 = m3.data
-          val src4 = m4.data
+          val ((i1,j1), lm1) = it1.next()
+          val ((i2,j2), lm2) = it2.next()
+          val ((i3,j3), lm3) = it3.next()
+          val ((i4,j4), lm4) = it4.next()
+          assertCompatibleLocalMatrix(lm1)
+          assertCompatibleLocalMatrix(lm2)
+          assertCompatibleLocalMatrix(lm3)
+          assertCompatibleLocalMatrix(lm4)
+          assert(i1 == i2, s"$i1 $i2")
+          assert(j1 == j2, s"$j1 $j2")
+          assert(i1 == i3, s"$i1 $i3")
+          assert(j1 == j3, s"$j1 $j3")
+          assert(i1 == i4, s"$i1 $i4")
+          assert(j1 == j4, s"$j1 $j4")
+          val rows = lm1.rows
+          val cols = lm1.cols
+          val src1 = lm1.data
+          val src2 = lm2.data
+          val src3 = lm3.data
+          val src4 = lm4.data
           val dst = new Array[Double](src1.length)
           var k = 0
-          if (m1.isTranspose == m2.isTranspose
-            && m1.isTranspose == m3.isTranspose
-            && m1.isTranspose == m4.isTranspose) {
+          if (lm1.isTranspose == lm2.isTranspose
+            && lm1.isTranspose == lm3.isTranspose
+            && lm1.isTranspose == lm4.isTranspose) {
             while (k < src1.length) {
               dst(k) = op(src1(k), src2(k), src3(k), src4(k))
               k += 1
@@ -473,83 +449,81 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
             // FIXME: code gen the optimal tree?
             // FIXME: code gen the optimal tree on driver?
             while (k < src1.length) {
-              val ii = k % m1.majorStride
-              val jj = k / m1.majorStride
-              val v2 = if (m1.isTranspose == m2.isTranspose) src2(k) else src2(jj + ii * m2.majorStride)
-              val v3 = if (m1.isTranspose == m3.isTranspose) src3(k) else src3(jj + ii * m3.majorStride)
-              val v4 = if (m1.isTranspose == m4.isTranspose) src4(k) else src4(jj + ii * m4.majorStride)
+              val ii = k % lm1.majorStride
+              val jj = k / lm1.majorStride
+              val v2 = if (lm1.isTranspose == lm2.isTranspose) src2(k) else src2(jj + ii * lm2.majorStride)
+              val v3 = if (lm1.isTranspose == lm3.isTranspose) src3(k) else src3(jj + ii * lm3.majorStride)
+              val v4 = if (lm1.isTranspose == lm4.isTranspose) src4(k) else src4(jj + ii * lm4.majorStride)
               dst(k) = op(src1(k), v2, v3, v4)
               k += 1
             }
           }
-          ((i, j), new BDM(rows, cols, dst, 0, m1.majorStride, m1.isTranspose))
+          ((i1, j1), new BDM(rows, cols, dst, 0, lm1.majorStride, lm1.isTranspose))
         }
       }
     }
-    new HailBlockMatrix(blocks2, blockSize, rows, cols)
+    new HailBlockMatrix(blocks, blockSize, rows, cols)
   }
 
   def mapWithIndex(op: (Long, Long, Double) => Double): M = {
     val blockSize = this.blockSize
-    val blocks2 = blocks.mapValuesWithKey { case ((blocki, blockj), m) =>
-      val iprefix = blocki.toLong * blockSize
-      val jprefix = blockj.toLong * blockSize
-      val size = m.cols * m.rows
+    val blocks = this.blocks.mapValuesWithKey { case ((i, j), lm) =>
+      val iOffset = i.toLong * blockSize
+      val jOffset = j.toLong * blockSize
+      val size = lm.cols * lm.rows
       val result = new Array[Double](size)
-      var j = 0
-      while (j < m.cols) {
-        var i = 0
-        while (i < m.rows) {
-          result(i + j * m.rows) = op(iprefix + i, jprefix + j, m(i, j))
-          i += 1
+      var jj = 0
+      while (jj < lm.cols) {
+        var ii = 0
+        while (ii < lm.rows) {
+          result(ii + jj * lm.rows) = op(iOffset + ii, jOffset + jj, lm(ii, jj))
+          ii += 1
         }
-        j += 1
+        jj += 1
       }
-      new BDM(m.rows, m.cols, result, 0, m.rows, false)
+      new BDM(lm.rows, lm.cols, result, 0, lm.rows, false)
     }
-    new HailBlockMatrix(blocks2, blockSize, rows, cols)
+    new HailBlockMatrix(blocks, blockSize, rows, cols)
   }
 
-  def map2WithIndex(other: M, op: (Long, Long, Double, Double) => Double): M = {
-    requireZippable(other)
+  def map2WithIndex(that: M, op: (Long, Long, Double, Double) => Double): M = {
+    requireZippable(that)
     val blockSize = this.blockSize
-    val blocks2 = blocks.zipPartitions(other.blocks, preservesPartitioning = true) { (thisIter, otherIter) =>
+    val blocks = this.blocks.zipPartitions(that.blocks, preservesPartitioning = true) { (thisIter, thatIter) =>
       new Iterator[((Int, Int), BDM[Double])] {
-        def hasNext: Boolean = (thisIter.hasNext, otherIter.hasNext) match {
-          case (true, true) => true
-          case (false, false) => false
-          case _ => throw new RuntimeException("Can only zip RDDs with " +
-            "same number of elements in each partition")
+        def hasNext: Boolean = {
+          assert(thisIter.hasNext == thatIter.hasNext)
+          thisIter.hasNext
         }
         def next(): ((Int, Int), BDM[Double]) = {
-          val ((blocki,blockj), m1) = thisIter.next()
-          val ((blocki2,blockj2), m2) = otherIter.next()
-          assert(blocki == blocki2, s"$blocki $blocki2")
-          assert(blockj == blockj2, s"$blockj $blockj2")
-
-          val iprefix = blocki.toLong * blockSize
-          val jprefix = blockj.toLong * blockSize
-          val size = m1.cols * m1.rows
+          val ((i1,j1), lm1) = thisIter.next()
+          val ((i2,j2), lm2) = thatIter.next()
+          assertCompatibleLocalMatrix(lm1)
+          assertCompatibleLocalMatrix(lm2)
+          assert(i1 == i2, s"$i1 $i2")
+          assert(j1 == j2, s"$j1 $j2")
+          val iOffset = i.toLong * blockSize
+          val jOffset = j.toLong * blockSize
+          val size = lm1.cols * lm1.rows
           val result = new Array[Double](size)
-          var j = 0
-          while (j < m1.cols) {
-            var i = 0
-            while (i < m1.rows) {
-              result(i + j * m1.rows) = op(iprefix + i, jprefix + j, m1(i, j), m2(i, j))
-              i += 1
+          var jj = 0
+          while (jj < lm1.cols) {
+            var ii = 0
+            while (ii < lm1.rows) {
+              result(ii + jj * lm1.rows) = op(iOffset + ii, jOffset + jj, lm1(ii, jj), lm2(ii, jj))
+              ii += 1
             }
-            j += 1
+            jj += 1
           }
-          ((blocki, blockj), new BDM(m1.rows, m1.cols, result, 0, m1.rows, false))
+          ((i, j), new BDM(lm1.rows, lm1.cols, result, 0, lm1.rows, false))
         }
       }
     }
-    new HailBlockMatrix(blocks2, blockSize, rows, cols)
+    new HailBlockMatrix(blocks, blockSize, rows, cols)
   }
 
-
   def toIndexedRowMatrix(): IndexedRowMatrix = {
-    require(cols < Integer.MAX_VALUE)
+    require(cols <= Integer.MAX_VALUE)
     val icols = cols.toInt
 
     def seqOp(a: Array[Double], p: (Int, Array[Double])): Array[Double] = p match { case (offset, v) =>
@@ -567,11 +541,11 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     }
 
     new IndexedRowMatrix(this.blocks.flatMap { case ((i, j), m) =>
-      val ioffset = i * blockSize
-      val joffset = j * blockSize
+      val iOffset = i * blockSize
+      val jOffset = j * blockSize
 
       for (k <- 0 until m.rows)
-      yield (k + ioffset, (joffset, m(k, ::).inner.toArray))
+      yield (k + iOffset, (jOffset, m(k, ::).inner.toArray))
     }.aggregateByKey(new Array[Double](icols))(seqOp, combOp)
       .map { case (i, a) => new IndexedRow(i, new DenseVector(a)) },
       rows, icols)
@@ -605,12 +579,12 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
   private val rows = l.rows
   private val cols = r.cols
   private val blockSize = l.blockSize
-  private val rowBlocks = lPartitioner.rowPartitions
-  private val colBlocks = rPartitioner.colPartitions
+  private val rowPartitions = lPartitioner.rowPartitions
+  private val colPartitions = rPartitioner.colPartitions
   private val nProducts = lPartitioner.colPartitions
   private val rowsRemainder = (rows % blockSize).toInt
   private val colsRemainder = (cols % blockSize).toInt
-  private val nParts = rowBlocks * colBlocks
+  private val nParts = rowPartitions * colPartitions
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
@@ -639,8 +613,8 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
         }
       })
 
-  private def block(hbm: HailBlockMatrix, bmPartitions: Array[Partition], p: HailGridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = {
-    val it = hbm.blocks
+  private def block(dm: HailBlockMatrix, bmPartitions: Array[Partition], p: HailGridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = {
+    val it = dm.blocks
       .iterator(bmPartitions(p.partitionIdFromBlockIndices(i, j)), context)
     assert(it.hasNext)
     val v = it.next()._2
@@ -657,8 +631,8 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val row = _partitioner.blockRowIndex(split.index)
     val col = _partitioner.blockColIndex(split.index)
-    val rowsInThisBlock: Int = if (row + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else blockSize
-    val colsInThisBlock: Int = if (col + 1 == colBlocks && colsRemainder != 0) colsRemainder else blockSize
+    val rowsInThisBlock: Int = if (row + 1 == rowPartitions && rowsRemainder != 0) rowsRemainder else blockSize
+    val colsInThisBlock: Int = if (col + 1 == colPartitions && colsRemainder != 0) colsRemainder else blockSize
 
     val result = BDM.zeros[Double](rowsInThisBlock, colsInThisBlock)
     var i = 0
