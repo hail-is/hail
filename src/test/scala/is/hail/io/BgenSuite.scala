@@ -1,41 +1,22 @@
 package is.hail.io
 
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.io.bgen.BGen12ProbabilityArray
+import is.hail.io.bgen._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
+import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
 import scala.io.Source
 import scala.language.postfixOps
 import scala.sys.process._
 
-class BgenProbabilityIterator(input: ByteArrayReader, nBitsPerProb: Int) extends HailIterator[UInt] {
-  val bitMask = (1L << nBitsPerProb) - 1
-  var data = 0L
-  var dataSize = 0
-
-  override def next(): UInt = {
-    while (dataSize < nBitsPerProb && input.hasNext()) {
-      data |= ((input.read() & 0xffL) << dataSize)
-      dataSize += 8
-    }
-    assert(dataSize >= nBitsPerProb, s"Data size `$dataSize' less than nBitsPerProb `$nBitsPerProb'.")
-
-    val result = data & bitMask
-    dataSize -= nBitsPerProb
-    data = data >>> nBitsPerProb
-    result.toUInt
-  }
-
-  override def hasNext: Boolean = input.hasNext() || (dataSize >= nBitsPerProb)
-}
-
-class LoadBgenSuite extends SparkSuite {
+class BgenSuite extends SparkSuite {
 
   def getNumberOfLinesInFile(file: String): Long = {
     hadoopConf.readFile(file) { s =>
@@ -45,6 +26,43 @@ class LoadBgenSuite extends SparkSuite {
     }.toLong
   }
 
+  def resizeWeights(input: Array[Int], newSize: Long): ArrayUInt = {
+    class Output(ab: ArrayBuilder[Int]) extends IntConsumer {
+      def +=(x: Int): Unit = ab += x
+      def result(): Array[Int] = ab.result()
+    }
+
+    val n = input.length
+    val resized = new Array[Double](n)
+    val fractional = new Array[Double](n)
+    val index = new Array[Int](n)
+    val indexInverse = new Array[Int](n)
+    val output = new Output(new ArrayBuilder[Int])
+
+    val conversionFactor = newSize.toDouble / input.sum
+    val F = BgenWriter.resizeAndComputeFractional(input, resized, fractional, conversionFactor)
+    BgenWriter.roundWithConstantSum(resized, fractional, index, indexInverse, output, F, newSize)
+    new ArrayUInt(output.result())
+  }
+
+  def isGPSame(vds1: VariantKeyDataset, vds2: VariantKeyDataset, tolerance: Double): Boolean = {
+    val vds1Expanded = vds1.expandWithAll().map { case (v, va, s, sa, g) => ((v.toString, s), g) }
+    val vds2Expanded = vds2.expandWithAll().map { case (v, va, s, sa, g) => ((v.toString, s), g) }
+    isGPSame(vds1Expanded, vds2Expanded, tolerance)
+  }
+
+  def isGPSame(ds1: RDD[((String, Annotation), Annotation)], ds2: RDD[((String, Annotation), Annotation)], tolerance: Double): Boolean = {
+    ds1.fullOuterJoin(ds2).forall { case ((v, s), (g1, g2)) =>
+      g1 == g2 || {
+        val r1 = g1.get.asInstanceOf[Row]
+        val r2 = g2.get.asInstanceOf[Row]
+        val gp1 = if (r1 != null) r1.getAs[IndexedSeq[Double]](1) else null
+        val gp2 = if (r2 != null) r2.getAs[IndexedSeq[Double]](1) else null
+        gp1 == gp2 || (gp1.zip(gp2).forall { case (d1, d2) => math.abs(d1 - d2) <= tolerance })
+      }
+    }
+  }
+
   @Test def testGavinExample() {
     val gen = "src/test/resources/example.gen"
     val sampleFile = "src/test/resources/example.sample"
@@ -52,11 +70,15 @@ class LoadBgenSuite extends SparkSuite {
       ("src/test/resources/example.v11.bgen", 1d / 32768),
       ("src/test/resources/example.10bits.bgen", 1d / ((1L << 10) - 1)))
 
-    def testBgen(bgen: String, tolerance: Double = 1e-6): Unit = {
+    val nSamples = getNumberOfLinesInFile(sampleFile) - 2
+    val nVariants = getNumberOfLinesInFile(gen)
+
+    inputs.foreach { case (bgen, tolerance) =>
       hadoopConf.delete(bgen + ".idx", recursive = true)
 
-      val nSamples = getNumberOfLinesInFile(sampleFile) - 2
-      val nVariants = getNumberOfLinesInFile(gen)
+      val inputs = Array(
+        ("src/test/resources/example.v11.bgen", 1d / ((1L << 10) - 1))
+      )
 
       hc.indexBgen(bgen)
       val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10))
@@ -78,19 +100,7 @@ class LoadBgenSuite extends SparkSuite {
 
       assert(genAnnotations.fullOuterJoin(bgenAnnotations).forall { case (varid, (va1, va2)) => va1 == va2 })
 
-      val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidBgenQuery(va), s), gt) }
-      val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidGenQuery(va), s), gt) }
-
-      val isSame = genFull.fullOuterJoin(bgenFull)
-        .collect()
-        .forall { case ((v, i), (g1, g2)) =>
-          g1 == g2 || {
-            val gp1 = g1.get.asInstanceOf[Row].getAs[IndexedSeq[Double]](1)
-            val gp2 = g2.get.asInstanceOf[Row].getAs[IndexedSeq[Double]](1)
-            gp1 == gp2 || (gp1.zip(gp2)
-              .forall { case (d1, d2) => math.abs(d1 - d2) <= tolerance })
-          }
-        }
+      val isSame = isGPSame(genVDS, bgenVDS, tolerance)
 
       val vdsFile = tmpDir.createTempFile("bgenImportWriteRead", "vds")
       bgenVDS.write(vdsFile)
@@ -105,11 +115,9 @@ class LoadBgenSuite extends SparkSuite {
 
       assert(isSame)
     }
-
-    inputs.foreach { case (file, tolerance) => testBgen(file, tolerance) }
   }
 
-  object Spec extends Properties("ImportBGEN") {
+  object Spec extends Properties("BGEN Import/Export") {
     val compGen = for (vds <- VariantSampleMatrix.gen(hc,
       VSMSubgen.dosage.copy(
         vGen = _ => VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
@@ -122,7 +130,7 @@ class LoadBgenSuite extends SparkSuite {
     val sampleRenameFile = tmpDir.createTempFile(prefix = "sample_rename")
     hadoopConf.writeTextFile(sampleRenameFile)(_.write("NA\tfdsdakfasdkfla"))
 
-    property("import generates same output as export") =
+    property("bgen v1.1 import") =
       forAll(compGen) { case (vds, nPartitions) =>
 
         assert(vds.rdd.forall { case (v, (va, gs)) =>
@@ -172,59 +180,56 @@ class LoadBgenSuite extends SparkSuite {
 
         assert(importedVds.variantsAndAnnotations.forall { case (v, va) => varidQuery(va) == v.toString && rsidQuery(va) == "." })
 
-        val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
-        val originalFull = vds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
+        val isSame = isGPSame(vds, importedVds, 3e-4)
 
-        originalFull.fullOuterJoin(importedFull).forall { case ((v, i), (g1, g2)) =>
-          g1 == g2 || {
-            val r1 = g1.get.asInstanceOf[Row]
-            val r2 = g2.get.asInstanceOf[Row]
-            val gp1 = if (r1 != null) r1.getAs[IndexedSeq[Double]](1) else null
-            val gp2 = if (r2 != null) r2.getAs[IndexedSeq[Double]](1) else null
-            gp1 == gp2 || (gp1.zip(gp2)
-              .forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 })
-          }
+        hadoopConf.delete(bgenFile + ".idx", recursive = true)
+        isSame
+      }
+
+    val compGen2 = for (vds <- VariantSampleMatrix.gen(hc,
+      VSMSubgen.dosage.copy(
+        vGen = _ => VariantSubgen.random.gen.map(v => v.copy(contig = "01")),
+        sGen = _ => Gen.identifier.filter(_ != "NA")))
+      .filter(_.countVariants > 0)
+      .map(_.copy(wasSplit = false));
+      nPartitions <- choose(1, 10);
+      nBitsPerProb <- choose(1, 32))
+      yield (vds, nPartitions, nBitsPerProb)
+
+    property("bgen v1.2 export/import") =
+      forAll(compGen2) { case (vds, nPartitions, nBitsPerProb) =>
+        val fileRoot = tmpDir.createTempFile("testImportBgen")
+        val sampleFile = fileRoot + ".sample"
+        val bgenFile = fileRoot + ".bgen"
+
+        def test(parallel: Boolean): Boolean = {
+          vds.exportBgen(fileRoot, nBitsPerProb)
+          hc.indexBgen(bgenFile)
+
+          val importedVds = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), nPartitions = Some(nPartitions))
+            .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
+            .toVDS
+            .cache()
+
+          assert(importedVds.nSamples == vds.nSamples)
+          assert(importedVds.countVariants() == vds.countVariants())
+          assert(importedVds.sampleIds == vds.sampleIds)
+
+          val varidQuery = importedVds.vaSignature.query("varid")
+          val rsidQuery = importedVds.vaSignature.query("rsid")
+
+          assert(importedVds.variantsAndAnnotations.forall { case (v, va) => varidQuery(va) == v.toString && rsidQuery(va) == "." })
+
+          isGPSame(vds, importedVds, 1d / ((1L << nBitsPerProb) - 1))
         }
+
+        test(parallel = true) && test(parallel = false)
       }
-  }
 
-  @Test def testBgenImportRandom() {
-    Spec.check()
-  }
-
-  def bitPack(input: Array[UInt], nSamples: Int, nBitsPerProb: Int): Array[Byte] = {
-    val expectedProbBytes = (input.length * nBitsPerProb + 7) / 8
-    val packedInput = new Array[Byte](nSamples + 10 + expectedProbBytes)
-
-    val bitMask = (1L << nBitsPerProb) - 1
-    var byteIndex = 0
-    var data = 0L
-    var dataSize = 0
-
-    input.foreach { i =>
-      data |= ((i.toLong & bitMask) << dataSize)
-      dataSize += nBitsPerProb
-
-      while (dataSize >= 8) {
-        packedInput(nSamples + 10 + byteIndex) = (data & 0xffL).toByte
-        data = data >>> 8
-        dataSize -= 8
-        byteIndex += 1
-      }
-    }
-
-    if (dataSize > 0)
-      packedInput(nSamples + 10 + byteIndex) = (data & 0xffL).toByte
-
-    packedInput
-  }
-
-  object TestProbIterator extends Properties("ImportBGEN") {
     val probIteratorGen = for (
       nBitsPerProb <- Gen.choose(1, 32);
       nSamples <- Gen.choose(1, 5);
       nGenotypes <- Gen.choose(3, 5);
-      nProbabilities = nSamples * (nGenotypes - 1);
       totalProb = ((1L << nBitsPerProb) - 1).toUInt;
       sampleProbs <- Gen.buildableOfN[Array, Array[UInt]](nSamples, Gen.partition(nGenotypes - 1, totalProb));
       input = sampleProbs.flatten
@@ -233,27 +238,50 @@ class LoadBgenSuite extends SparkSuite {
     property("bgen probability iterator, array give correct result") =
       forAll(probIteratorGen) { case (nBitsPerProb, nSamples, nGenotypes, input) =>
         assert(input.length == nSamples * (nGenotypes - 1))
-        val packedInput = bitPack(input, nSamples, nBitsPerProb)
-        val reader = new ByteArrayReader(packedInput)
-        reader.seek(nSamples + 10)
-        val probIter = new BgenProbabilityIterator(reader, nBitsPerProb)
-        val probArr = new BGen12ProbabilityArray(packedInput, nSamples, nGenotypes, nBitsPerProb)
+
+        val packedInputBuilder = new ArrayBuilder[Byte]
+        packedInputBuilder ++= new Array[Byte](nSamples + 10)
+
+        val bitPacker = new BitPacker(packedInputBuilder, nBitsPerProb)
+        input.foreach(bitPacker += _.intRep)
+        bitPacker.flush()
+        val packedInput = packedInputBuilder.result()
+        val probArr = new Bgen12ProbabilityArray(packedInput, nSamples, nGenotypes, nBitsPerProb)
 
         for (s <- 0 until nSamples)
           for (i <- 0 until (nGenotypes - 1)) {
             val expected = input(s * (nGenotypes - 1) + i)
-            assert(probIter.hasNext)
-            assert(probIter.next() == expected)
             assert(probArr(s, i) == expected)
           }
-        assert(!probIter.hasNext)
 
         true
       }
+
+    val sortIndexGen = for (
+      nGenotypes <- Gen.frequency((0.5, Gen.const(3)), (0.5, Gen.choose(0, 25)));
+      input <- Gen.buildableOfN[Array, Double](nGenotypes, Gen.choose(-10, 10))
+    ) yield (input, nGenotypes)
+
+    property("sorted index") =
+      forAll(sortIndexGen) { case (a, n) =>
+        val index = new Array[Int](n)
+        val sorted = new Array[Double](n)
+
+        BgenWriter.sortedIndex(a, index)
+        index.zipWithIndex.foreach { case (sortIdx, i) => sorted(i) = a(sortIdx) }
+
+        sorted sameElements a.sortWith { case (d1, d2) => d1 > d2 }
+      }
   }
 
-  @Test def testBgenProbabilityIterator() {
-    TestProbIterator.check()
+  @Test def test() {
+    Spec.check()
+  }
+
+  @Test def testResizeWeights() {
+    assert(resizeWeights(Array(0, 32768, 0), (1L << 32) - 1).intArrayRep sameElements Array(0, UInt(4294967295L).intRep, 0))
+    assert(resizeWeights(Array(1, 1, 1), 32768).intArrayRep sameElements Array(10923, 10923, 10922))
+    assert(resizeWeights(Array(2, 3, 1), 32768).intArrayRep sameElements Array(10923, 16384, 5461))
   }
 
   @Test def testParallelImport() {

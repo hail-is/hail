@@ -1450,6 +1450,50 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
 
     @handle_py4j
+    @write_history('output')
+    @typecheck_method(output=strlike,
+                      nbits_per_prob=integral,
+                      parallel=bool)
+    def export_bgen(self, output, nbits_per_prob=8, parallel=False):
+        """Export variant dataset as v1.2 BGEN and SAMPLE file.
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        **Examples**
+
+        Import dosage data, filter variants based on INFO score, and export data to a BGEN and SAMPLE file:
+
+        >>> vds3 = (hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+        ...           .annotate_genotypes_expr("g = Genotype(v, g.GT, g.GP)"))
+        >>> (vds3.filter_variants_expr("gs.map(g => g.gp).infoScore().score >= 0.9")
+        ...      .export_bgen("output/infoscore_filtered"))
+
+        **Notes**
+
+        Writes out the dataset to a BGEN and SAMPLE fileset in the `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`__.
+        The BGEN file is `v1.2 <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format.html>`__ and the genotype probabilities are unphased and diploid.
+        The maximum rounding error is given by :math:`\\frac{1}{2^{B} - 1}` where :math:`B` is specified by the parameter ``nbits_per_prob``. For example, if :math:`B = 8`, the maximum rounding error is 1/255 or 0.0039.
+
+        The information describing each variant is as follows:
+        - Chromosome (``v.contig``)
+        - Variant ID (``va.varid`` if defined, else Chromosome:Position:Ref:Alt)
+        - rsID (``va.rsid`` if defined, else ".")
+        - position (``v.start``)
+        - reference allele (``v.ref``)
+        - alternate alleles (``v.altAlleles``)
+
+        The sample file has 3 columns:
+        - ID_1 and ID_2 are identical and set to the sample ID (``s``).
+        - The third column ("missing") is set to NA for all samples.
+
+        :param str output: Output file base.  Will write BGEN and SAMPLE files.
+        :param int nbits_per_prob: Number of bits per probability. Must be between 1 and 32 inclusive.
+        :param bool parallel: If true, return a set of BGEN files (one per partition) rather than serially concatenating these files.
+        """
+
+        self._jvdf.exportBgen(output, nbits_per_prob, parallel)
+
+    @handle_py4j
     @require_biallelic
     @write_history('output')
     @typecheck_method(output=strlike,
