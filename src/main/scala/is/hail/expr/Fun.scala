@@ -22,16 +22,12 @@ case class UnaryDependentFunCode[T, U](retType: Type, code: () => Code[T] => CM[
   def apply(ct: Code[T]): CM[Code[U]] =
     throw new UnsupportedOperationException("must captureType first")
 
-  def subst() = UnaryDependentFunCode[T, U](retType.subst(), code)
+  def subst() =
+    throw new UnsupportedOperationException("must captureType first")
 
-  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = {
-    require(transformations.length == 1)
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun =
+    throw new UnsupportedOperationException("must captureType first")
 
-    UnaryDependentFunCode[Any, Any](retType, { () =>
-      val postCapture = code()
-      (a: Code[Any]) => transformations(0).fcode(a).flatMap(ct => postCapture(ct.asInstanceOf[Code[T]]))
-    })
-  }
 }
 
 case class UnaryFunCode[T, U](retType: Type, code: Code[T] => CM[Code[U]]) extends Fun with (Code[T] => CM[Code[U]]) {

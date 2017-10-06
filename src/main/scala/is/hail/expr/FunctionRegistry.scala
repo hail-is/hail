@@ -86,7 +86,7 @@ object FunctionRegistry {
               0 -> (tt.subst(), f.subst())
             else {
               val arr2 = arr.map(_.getOrElse(0 -> Transformation[Any, Any]((a: Any) => a, (a: Code[Any]) => CM.ret(a))))
-              arr2.map(_._1).max -> (tt.subst(), f.subst().convertArgs(arr2.map(_._2)))
+              arr2.map(_._1).max -> (tt.subst(), f.captureType().subst().convertArgs(arr2.map(_._2)))
             }
           }
       } else
@@ -99,7 +99,7 @@ object FunctionRegistry {
         assert(it.nonEmpty)
         if (it.size == 1) {
           val (_, (_, f)) = it.head
-          Right(f.captureType())
+          Right(f)
         } else {
           assert(priority != 0, s"when it is non-singular, I expect non-zero priority, but priority was $priority and it was $it. name was $name, typ was $typ")
           Left(Ambiguous(name, typ, it))
