@@ -1,19 +1,13 @@
 package is.hail.distributedmatrix
 
+import breeze.linalg.{DenseMatrix => BDM}
+import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
-import is.hail.check.Gen._
 import is.hail.check._
+import is.hail.distributedmatrix.HailBlockMatrix.ops._
 import is.hail.utils._
-import is.hail.SparkSuite
-import HailBlockMatrix.ops._
-
-import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import org.testng.annotations.Test
-import scala.reflect.ClassTag
-import org.scalactic._
-
-import scala.util.Random
 
 class HailBlockMatrixSuite extends SparkSuite {
 
@@ -34,9 +28,6 @@ class HailBlockMatrixSuite extends SparkSuite {
 
   def toBM(x: BDM[Double], blockSize: Int): HailBlockMatrix =
     HailBlockMatrix.from(sc, x, blockSize)
-
-  def toBreeze(a: Array[Double]): BDV[Double] =
-    new BDV(a)
 
   def blockMatrixPreGen(blockSize: Int): Gen[HailBlockMatrix] = for {
     (l, w) <- Gen.nonEmptySquareOfAreaAtMostSize

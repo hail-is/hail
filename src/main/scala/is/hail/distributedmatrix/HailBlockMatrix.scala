@@ -2,17 +2,15 @@ package is.hail.distributedmatrix
 
 import java.io._
 
-import breeze.linalg.{DenseMatrix => BDM, Matrix => BM, _}
+import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail._
 import is.hail.utils._
 import org.apache.hadoop.io._
-import org.apache.spark.{SparkContext, _}
+import org.apache.spark._
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
-
-import scala.reflect.ClassTag
 
 object HailBlockMatrix {
   type M = HailBlockMatrix
