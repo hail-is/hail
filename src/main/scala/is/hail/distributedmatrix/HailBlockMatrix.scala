@@ -16,6 +16,7 @@ object HailBlockMatrix {
   type M = HailBlockMatrix
 
   def from(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
+    assertCompatibleLocalMatrix(lm)
     val partitioner = HailGridPartitioner(lm.rows, lm.cols, blockSize)
     val lmBc = sc.broadcast(lm)
     val rowPartitions = partitioner.rowPartitions
@@ -30,11 +31,14 @@ object HailBlockMatrix {
       val rowsInThisBlock = if (i + 1 == rowPartitions && rowsRemainder != 0) rowsRemainder else blockSize
       val colsInThisBlock = if (j + 1 == colPartitions && colsRemainder != 0) colsRemainder else blockSize
       val a = new Array[Double](rowsInThisBlock * colsInThisBlock)
-      for {
-        ii <- 0 until rowsInThisBlock
-        jj <- 0 until colsInThisBlock
-      } {
-        a(jj * rowsInThisBlock + ii) = lmBc.value(i * blockSize + ii, j * blockSize + jj)
+      var jj = 0
+      while (jj < colsInThisBlock) {
+        var ii = 0
+        while (ii < rowsInThisBlock) {
+          a(jj * rowsInThisBlock + ii) = lmBc.value(i * blockSize + ii, j * blockSize + jj)
+          ii += 1
+        }
+        jj += 1
       }
       ((i, j), new BDM(rowsInThisBlock, colsInThisBlock, a))
     }.partitionBy(partitioner)
@@ -42,7 +46,7 @@ object HailBlockMatrix {
   }
 
   def from(irm: IndexedRowMatrix, blockSize: Int): M =
-    irm.toHailBlockMatrixDense(blockSize)
+    irm.toHailBlockMatrix(blockSize)
 
   def map4(f: (Double, Double, Double, Double) => Double)(a: M, b: M, c: M, d: M): M =
     a.map4(b, c, d, f)
@@ -142,6 +146,20 @@ object HailBlockMatrix {
     new HailBlockMatrix(blocks.partitionBy(HailGridPartitioner(rows, cols, blockSize)), blockSize, rows, cols)
   }
 
+  private[distributedmatrix] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
+    assert(lm.offset == 0, s"${lm.offset}")
+    assert(lm.majorStride == (if (lm.isTranspose) lm.cols else lm.rows), s"${lm.majorStride} ${lm.isTranspose} ${lm.rows} ${lm.cols}}")
+  }
+
+  private[distributedmatrix] def block(dm: HailBlockMatrix, partitions: Array[Partition], partitioner: HailGridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = {
+    val it = dm.blocks
+      .iterator(partitions(partitioner.partitionIdFromBlockIndices(i, j)), context)
+    assert(it.hasNext)
+    val v = it.next()._2
+    assert(!it.hasNext)
+    v
+  }
+
   object ops {
     implicit class Shim(l: M) {
       def t: M =
@@ -191,7 +209,7 @@ object HailBlockMatrix {
         r.scalarMultiply(l)
       def /(r: M): M = {
         val ll = l
-        r.blockMap(l / _)
+        r.blockMap(ll / _)
       }
     }
   }
@@ -204,41 +222,20 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val blockSize: Int,
   val rows: Long,
   val cols: Long) extends Serializable {
-  type M = HailBlockMatrix
+  import HailBlockMatrix._
 
   val st = Thread.currentThread().getStackTrace().mkString("\n")
 
   require(blocks.partitioner.isDefined)
   require(blocks.partitioner.get.isInstanceOf[HailGridPartitioner])
 
-  val partitioner = blocks.partitioner.get.asInstanceOf[HailGridPartitioner]
+  val partitioner: HailGridPartitioner = blocks.partitioner.get.asInstanceOf[HailGridPartitioner]
 
   def transpose(): M =
     new HailBlockMatrix(new HailBlockMatrixTransposeRDD(this), blockSize, cols, rows)
 
-  def diagonal(): Array[Double] = {
-    require(rows == cols,
-      s"diagonal only works on square matrices, given ${ rows }x${ cols }")
-
-    def diagonal(block: BDM[Double]): Array[Double] = {
-      val length = math.min(block.rows, block.cols)
-      val diagonal = new Array[Double](length)
-      var i = 0
-      while (i < length) {
-        diagonal(i) = block(i, i)
-        i += 1
-      }
-      diagonal
-    }
-
-    blocks
-      .filter { case ((i, j), block) => i == j }
-      .map { case ((i, j), block) => (i, diagonal(block)) }
-      .collect()
-      .sortBy(_._1)
-      .map(_._2)
-      .fold(Array[Double]())(_ ++ _)
-  }
+  def diagonal(): Array[Double] =
+    new HailBlockMatrixDiagonalRDD(this).toArray
 
   def add(that: M): M =
     blockMap2(that, _ + _)
@@ -257,7 +254,7 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   def multiply(lm: BDM[Double]): M = {
     require(cols == lm.rows,
-      s"incompatible matrix dimensions: ${ rows }x${ cols } and ${ lm.rows }x${ lm.cols }")
+      s"incompatible matrix dimensions: ${ rows } x ${ cols } and ${ lm.rows } x ${ lm.cols }")
     multiply(HailBlockMatrix.from(blocks.sparkContext, lm, blockSize))
   }
 
@@ -276,19 +273,25 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def vectorAddToEveryColumn(v: Array[Double]): M = {
     require(v.length == rows, s"vector length, ${ v.length }, must equal number of matrix rows ${ rows }; v: $v, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
-    mapWithIndex((i, j, x) => x + vBc.value(i.toInt))
+    mapWithIndex((i, _, x) => x + vBc.value(i.toInt))
   }
 
   def vectorPointwiseMultiplyEveryColumn(v: Array[Double]): M = {
     require(v.length == rows, s"vector length, ${ v.length }, must equal number of matrix rows ${ rows }; v: $v, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
-    mapWithIndex((i, j, x) => x * vBc.value(i.toInt))
+    mapWithIndex((i, _, x) => x * vBc.value(i.toInt))
+  }
+
+  def vectorAddToEveryRow(v: Array[Double]): M = {
+    require(v.length == cols, s"vector length, ${ v.length }, must equal number of matrix columns ${ cols }; v: $v, m: $this")
+    val vBc = blocks.sparkContext.broadcast(v)
+    mapWithIndex((_, j, x) => x + vBc.value(j.toInt))
   }
 
   def vectorPointwiseMultiplyEveryRow(v: Array[Double]): M = {
     require(v.length == cols, s"vector length, ${ v.length }, must equal number of matrix columns ${ cols }; v: $v, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
-    mapWithIndex((i, j, x) => x * vBc.value(j.toInt))
+    mapWithIndex((_, j, x) => x * vBc.value(j.toInt))
   }
 
   def cache(): this.type = {
@@ -302,23 +305,23 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def toLocalMatrix(): BDM[Double] = {
-    require(this.rows < Int.MaxValue, "The number of rows of this matrix should be less than " +
+    require(this.rows <= Int.MaxValue, "The number of rows of this matrix should be less than or equal to " +
       s"Int.MaxValue. Currently numRows: ${ this.rows }")
-    require(this.cols < Int.MaxValue, "The number of columns of this matrix should be less than " +
+    require(this.cols <= Int.MaxValue, "The number of columns of this matrix should be less than or equal to " +
       s"Int.MaxValue. Currently numCols: ${ this.cols }")
-    require(this.rows * this.cols < Int.MaxValue, "The length of the values array must be " +
-      s"less than Int.MaxValue. Currently rows * cols: ${ this.rows * this.cols }")
+    require(this.rows * this.cols <= Int.MaxValue, "The length of the values array must be " +
+      s"less than or equal to Int.MaxValue. Currently rows * cols: ${ this.rows * this.cols }")
     val rows = this.rows.toInt
     val cols = this.cols.toInt
     val localBlocks = blocks.collect()
     val values = new Array[Double](rows * cols)
     var bi = 0
     while (bi < localBlocks.length) {
-      val ((blocki, blockj), m) = localBlocks(bi)
-      val ioffset = blocki * blockSize
-      val joffset = blockj * blockSize
-      m.foreachPair { case ((i, j), v) =>
-        values((joffset + j) * rows + ioffset + i) = v
+      val ((i, j), lm) = localBlocks(bi)
+      val iOffset = i * blockSize
+      val jOffset = j * blockSize
+      lm.foreachPair { case ((ii, jj), v) =>
+        values((jOffset + jj) * rows + iOffset + ii) = v
       }
       bi += 1
     }
@@ -332,10 +335,6 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       s"must have same number of cols, but actually: ${ rows }x${ cols }, ${ that.rows }x${ that.cols }")
     require(blockSize == that.blockSize,
       s"blocks must be same size, but actually were ${ blockSize }x${ blockSize } and ${ that.blockSize }x${ that.blockSize }")
-  }
-  private def assertCompatibleLocalMatrix(lm: BDM[Double]) {
-    assert(lm.offset == 0, s"${lm.offset}")
-    assert(lm.majorStride == (if (lm.isTranspose) lm.cols else lm.rows), s"${lm.majorStride} ${lm.isTranspose} ${lm.rows} ${lm.cols}}")
   }
 
   def blockMap(op: BDM[Double] => BDM[Double]): M =
@@ -502,8 +501,8 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           assertCompatibleLocalMatrix(lm2)
           assert(i1 == i2, s"$i1 $i2")
           assert(j1 == j2, s"$j1 $j2")
-          val iOffset = i.toLong * blockSize
-          val jOffset = j.toLong * blockSize
+          val iOffset = i1.toLong * blockSize
+          val jOffset = j1.toLong * blockSize
           val size = lm1.cols * lm1.rows
           val result = new Array[Double](size)
           var jj = 0
@@ -515,7 +514,7 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
             }
             jj += 1
           }
-          ((i, j), new BDM(lm1.rows, lm1.cols, result, 0, lm1.rows, false))
+          ((i1, j1), new BDM(lm1.rows, lm1.cols, result, 0, lm1.rows, false))
         }
       }
     }
@@ -523,8 +522,8 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def toIndexedRowMatrix(): IndexedRowMatrix = {
-    require(cols <= Integer.MAX_VALUE)
-    val icols = cols.toInt
+    require(this.cols <= Integer.MAX_VALUE)
+    val cols = this.cols.toInt
 
     def seqOp(a: Array[Double], p: (Int, Array[Double])): Array[Double] = p match { case (offset, v) =>
       System.arraycopy(v, 0, a, offset, v.length)
@@ -546,27 +545,83 @@ class HailBlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
       for (k <- 0 until m.rows)
       yield (k + iOffset, (jOffset, m(k, ::).inner.toArray))
-    }.aggregateByKey(new Array[Double](icols))(seqOp, combOp)
+    }.aggregateByKey(new Array[Double](cols))(seqOp, combOp)
       .map { case (i, a) => new IndexedRow(i, new DenseVector(a)) },
-      rows, icols)
+      rows, cols)
   }
 }
 
-private class HailBlockMatrixTransposeRDD(m: HailBlockMatrix)
-  extends RDD[((Int, Int), BDM[Double])](m.blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(m.blocks))) {
+private class HailBlockMatrixTransposeRDD(dm: HailBlockMatrix)
+  extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(dm.blocks))) {
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] =
-    m.blocks.iterator(split, context).map { case ((i, j), m) => ((j, i), m.t) }
+    dm.blocks.iterator(split, context).map { case ((i, j), dm) => ((j, i), dm.t) }
 
   protected def getPartitions: Array[Partition] =
-    m.blocks.partitions
+    dm.blocks.partitions
 
-  private val prevPartitioner = m.partitioner
+  private val prevPartitioner = dm.partitioner
   @transient override val partitioner: Option[Partitioner] =
     Some(prevPartitioner.transpose)
 }
 
+private class HailBlockMatrixDiagonalRDD(dm: HailBlockMatrix)
+    extends RDD[Array[Double]](dm.blocks.sparkContext, Nil) {
+  import HailBlockMatrix.block
+
+  private val length = {
+    val x = math.min(dm.rows, dm.cols)
+    assert(x <= Integer.MAX_VALUE, s"diagonal is too big for local array: $x; ${dm.st}")
+    x.toInt
+  }
+  private val blockSize = dm.blockSize
+  private val dmPartitions = dm.blocks.partitions
+  private val dmPartitioner = dm.partitioner
+  private val partitionsLength = math.min(
+    dmPartitioner.rowPartitions, dmPartitioner.colPartitions)
+
+  override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
+    new NarrowDependency(dm.blocks) {
+      def getParents(partitionId: Int): Seq[Int] = {
+        assert(partitionId == 0)
+        val deps = new Array[Int](length)
+        var i = 0
+        while (i < partitionsLength) {
+          deps(i) = dmPartitioner.partitionIdFromBlockIndices(i, i)
+          i += 1
+        }
+        deps
+      }})
+
+  def compute(split: Partition, context: TaskContext): Iterator[Array[Double]] = {
+    val result = new Array[Double](length)
+    var i = 0
+    while (i < partitionsLength) {
+      val a = diag(block(dm, dmPartitions, dmPartitioner, context, i, i)).toArray
+      var k = 0
+      while (k < a.length) {
+        result(i * blockSize + k) = a(k)
+        k += 1
+      }
+      i += 1
+    }
+    Iterator.single(result)
+  }
+
+  protected def getPartitions: Array[Partition] =
+    Array(IntPartition(0))
+
+  def toArray: Array[Double] = {
+    val a = this.collect()
+    assert(a.length == 1)
+    a(0)
+  }
+
+}
+
 private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
-  extends RDD[((Int, Int), BDM[Double])](l.blocks.sparkContext, Nil) {
+    extends RDD[((Int, Int), BDM[Double])](l.blocks.sparkContext, Nil) {
+  import HailBlockMatrix.block
+
   require(l.cols == r.rows,
     s"inner dimension must match, but given: ${ l.rows }x${ l.cols }, ${ r.rows }x${ r.cols }")
   require(l.blockSize == r.blockSize,
@@ -584,7 +639,7 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
   private val nProducts = lPartitioner.colPartitions
   private val rowsRemainder = (rows % blockSize).toInt
   private val colsRemainder = (cols % blockSize).toInt
-  private val nParts = rowPartitions * colPartitions
+  private val nPartitions = rowPartitions * colPartitions
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
@@ -592,10 +647,10 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
         def getParents(partitionId: Int): Seq[Int] = {
           val row = _partitioner.blockRowIndex(partitionId)
           val deps = new Array[Int](nProducts)
-          var i = 0
-          while (i < nProducts) {
-            deps(i) = lPartitioner.partitionIdFromBlockIndices(row, i)
-            i += 1
+          var j = 0
+          while (j < nProducts) {
+            deps(j) = lPartitioner.partitionIdFromBlockIndices(row, j)
+            j += 1
           }
           deps
         }
@@ -613,15 +668,6 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
         }
       })
 
-  private def block(dm: HailBlockMatrix, bmPartitions: Array[Partition], p: HailGridPartitioner, context: TaskContext, i: Int, j: Int): BDM[Double] = {
-    val it = dm.blocks
-      .iterator(bmPartitions(p.partitionIdFromBlockIndices(i, j)), context)
-    assert(it.hasNext)
-    val v = it.next()._2
-    assert(!it.hasNext)
-    v
-  }
-
   private def leftBlock(i: Int, j: Int, context: TaskContext): BDM[Double] =
     block(l, lPartitions, lPartitioner, context, i, j)
 
@@ -629,25 +675,25 @@ private class HailBlockMatrixMultiplyRDD(l: HailBlockMatrix, r: HailBlockMatrix)
     block(r, rPartitions, rPartitioner, context, i, j)
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-    val row = _partitioner.blockRowIndex(split.index)
-    val col = _partitioner.blockColIndex(split.index)
-    val rowsInThisBlock: Int = if (row + 1 == rowPartitions && rowsRemainder != 0) rowsRemainder else blockSize
-    val colsInThisBlock: Int = if (col + 1 == colPartitions && colsRemainder != 0) colsRemainder else blockSize
+    val i = _partitioner.blockRowIndex(split.index)
+    val j = _partitioner.blockColIndex(split.index)
+    val rowsInThisBlock: Int = if (i + 1 == rowPartitions && rowsRemainder != 0) rowsRemainder else blockSize
+    val colsInThisBlock: Int = if (j + 1 == colPartitions && colsRemainder != 0) colsRemainder else blockSize
 
     val result = BDM.zeros[Double](rowsInThisBlock, colsInThisBlock)
-    var i = 0
-    while (i < nProducts) {
-      val left = leftBlock(row, i, context)
-      val right = rightBlock(i, col, context)
+    var k = 0
+    while (k < nProducts) {
+      val left = leftBlock(i, k, context)
+      val right = rightBlock(k, j, context)
       result :+= (left * right)
-      i += 1
+      k += 1
     }
 
-    Iterator.single(((row, col), result))
+    Iterator.single(((i, j), result))
   }
 
   protected def getPartitions: Array[Partition] =
-    (0 until nParts).map(IntPartition.apply _).toArray[Partition]
+    (0 until nPartitions).map(IntPartition.apply _).toArray[Partition]
 
   private val _partitioner = HailGridPartitioner(rows, cols, blockSize)
   /** Optionally overridden by subclasses to specify how they are partitioned. */

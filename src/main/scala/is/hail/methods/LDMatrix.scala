@@ -35,7 +35,7 @@ object LDMatrix {
     val normalizedIndexedRows = filteredNormalizedHardCalls.map(_._2).zipWithIndex()
       .map{ case (values, idx) => IndexedRow(idx, Vectors.dense(values))}
 
-    val normalizedBlockMatrix = new IndexedRowMatrix(normalizedIndexedRows, nVariantsKept, nSamples).toHailBlockMatrixDense()
+    val normalizedBlockMatrix = new IndexedRowMatrix(normalizedIndexedRows, nVariantsKept, nSamples).toHailBlockMatrix()
 
     filteredNormalizedHardCalls.unpersist()
 
@@ -89,7 +89,7 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
   import LDMatrix._
 
   def toLocalMatrix: BDM[Double] = {
-    matrix.toHailBlockMatrixDense().toLocalMatrix()
+    matrix.toHailBlockMatrix().toLocalMatrix()
   }
 
   def write(uri: String) {

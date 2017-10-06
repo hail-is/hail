@@ -8,8 +8,8 @@ case class HailGridPartitioner(rows: Long, cols: Long, blockSize: Int, transpose
   require((rows - 1) / blockSize + 1 < Int.MaxValue)
   require((cols - 1) / blockSize + 1 < Int.MaxValue)
 
-  val rowPartitions = ((rows - 1) / blockSize + 1).toInt
-  val colPartitions = ((cols - 1) / blockSize + 1).toInt
+  val rowPartitions: Int = ((rows - 1) / blockSize + 1).toInt
+  val colPartitions: Int = ((cols - 1) / blockSize + 1).toInt
 
   override val numPartitions: Int = rowPartitions * colPartitions
 

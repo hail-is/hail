@@ -6,11 +6,11 @@ import is.hail.distributedmatrix._
 import is.hail.utils._
 
 class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
-  def toHailBlockMatrixDense(): HailBlockMatrix = {
-    toHailBlockMatrixDense(1024)
+  def toHailBlockMatrix(): HailBlockMatrix = {
+    toHailBlockMatrix(1024)
   }
 
-  def toHailBlockMatrixDense(blockSize: Int): HailBlockMatrix = {
+  def toHailBlockMatrix(blockSize: Int): HailBlockMatrix = {
     require(blockSize > 0,
       s"rowsPerBlock needs to be greater than 0. rowsPerBlock: $blockSize")
 

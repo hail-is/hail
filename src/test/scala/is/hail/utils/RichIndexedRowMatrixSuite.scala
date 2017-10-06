@@ -31,26 +31,26 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
       breezeConverter.invoke(sparkMatrix).asInstanceOf[Matrix[Double]]
     }
 
-    val blockMat = idxRowMat.toHailBlockMatrixDense(2)
+    val blockMat = idxRowMat.toHailBlockMatrix(2)
     assert(blockMat.rows === m)
     assert(blockMat.cols === n)
     assert(blockMat.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
 
-    val blockMat2 = idxRowMat.toHailBlockMatrixDense(4)
+    val blockMat2 = idxRowMat.toHailBlockMatrix(4)
     assert(blockMat2.rows === m)
     assert(blockMat2.cols === n)
     assert(blockMat2.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
 
-    val blockMat3 = idxRowMat.toHailBlockMatrixDense(10)
+    val blockMat3 = idxRowMat.toHailBlockMatrix(10)
     assert(blockMat2.rows === m)
     assert(blockMat2.cols === n)
     assert(blockMat2.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
 
     intercept[IllegalArgumentException] {
-      idxRowMat.toHailBlockMatrixDense(-1)
+      idxRowMat.toHailBlockMatrix(-1)
     }
     intercept[IllegalArgumentException] {
-      idxRowMat.toHailBlockMatrixDense(0)
+      idxRowMat.toHailBlockMatrix(0)
     }
   }
 }

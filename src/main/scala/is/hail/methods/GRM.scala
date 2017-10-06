@@ -14,7 +14,7 @@ object GRM {
     assert(nSamples == mat.numCols())
     val nVariants = mat.numRows() // mat cached
 
-    val bmat = mat.toHailBlockMatrixDense().cache()
+    val bmat = mat.toHailBlockMatrix().cache()
     val grm = bmat.t * bmat
 
     assert(grm.cols == nSamples && grm.rows == nSamples)

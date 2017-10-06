@@ -415,7 +415,7 @@ class HailBlockMatrixSuite extends SparkSuite {
   @Test
   def toIRMToHBMIdentity() {
     forAll(blockMatrixGen) { (bm : HailBlockMatrix) =>
-      val roundtrip = bm.toIndexedRowMatrix().toHailBlockMatrixDense(bm.blockSize)
+      val roundtrip = bm.toIndexedRowMatrix().toHailBlockMatrix(bm.blockSize)
 
       val roundtriplm = roundtrip.toLocalMatrix()
       val bmlm = bm.toLocalMatrix()
