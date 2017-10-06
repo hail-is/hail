@@ -110,7 +110,7 @@ class ContextTests(unittest.TestCase):
             dataset.query_samples(['samples.count()'])
 
             (dataset.annotate_samples_expr('sa.nCalled = gs.filter(g => {0}.isCalled()).count()'.format(gt))
-             .samples_table().select('s', 'nCalled = sa.nCalled').export('/tmp/sa.tsv'))
+             .samples_table().select(['s', 'nCalled = sa.nCalled']).export('/tmp/sa.tsv'))
 
             dataset.annotate_global_expr('global.foo = 5')
             dataset.annotate_global_expr(['global.foo = 5', 'global.bar = 6'])
@@ -136,7 +136,7 @@ class ContextTests(unittest.TestCase):
              .count())
 
             downsampled = dataset.sample_variants(0.10)
-            downsampled.variants_table().select('chr = v.contig', 'pos = v.start').export('/tmp/sample2_loci.tsv')
+            downsampled.variants_table().select(['chr = v.contig', 'pos = v.start']).export('/tmp/sample2_loci.tsv')
             downsampled.variants_table().select('v').export('/tmp/sample2_variants.tsv')
 
             with open(test_resources + '/sample2.sample_list') as f:
@@ -220,7 +220,7 @@ class ContextTests(unittest.TestCase):
 
             (dataset
              .annotate_variants_expr('va.G = index(gs.map(g => { s: s, %s }).collect(), s)' % gt_string2)
-             .variants_table().select(*cols).export('/tmp/sample_kt.tsv'))
+             .variants_table().select(cols).export('/tmp/sample_kt.tsv'))
 
             ((dataset
               .make_table('v = v, info = va.info', gt_string, ['v']))
@@ -243,7 +243,7 @@ class ContextTests(unittest.TestCase):
 
             kt = (dataset.variants_table()
                   .annotate("v2 = v")
-                  .key_by("v", "v2"))
+                  .key_by(["v", "v2"]))
 
             dataset.annotate_variants_table(kt, root='va.foo', vds_key=["v", "v"])
 
@@ -265,7 +265,7 @@ class ContextTests(unittest.TestCase):
 
             (dataset.filter_genotypes(expr)
              .genotypes_table()
-             .select('v', 's', 'nNonRefAlleles = {0}.nNonRefAlleles()'.format(gt))
+             .select(['v', 's', 'nNonRefAlleles = {0}.nNonRefAlleles()'.format(gt)])
              .export('/tmp/sample2_genotypes.tsv'))
 
             self.assertTrue(
@@ -402,11 +402,11 @@ class ContextTests(unittest.TestCase):
 
         vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', ['sa.cov.Cov1', 'sa.cov.Cov2'])
 
-        vds_assoc.variants_table().select('Variant = v', 'va.lmmreg.*').export('/tmp/lmmreg.tsv')
+        vds_assoc.variants_table().select(['Variant = v', 'va.lmmreg.*']).export('/tmp/lmmreg.tsv')
 
         men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_resources + '/sample.fam'))
-        men.select('fid', 's', 'code')
-        fam.select('father', 'nChildren')
+        men.select(['fid', 's', 'code'])
+        fam.select(['father', 'nChildren'])
         self.assertEqual(ind.key, ['s'])
         self.assertEqual(var.key, ['v'])
         sample_split.annotate_variants_table(var, root='va.mendel').count()
@@ -438,7 +438,7 @@ class ContextTests(unittest.TestCase):
 
         (sample2
          .annotate_variants_expr('va.G = index(gs.map(g => { s: s, gt: g.gt, gq: g.gq }).collect(), s)')
-         .variants_table().select(*cols).export('/tmp/sample_kt.tsv'))
+         .variants_table().select(cols).export('/tmp/sample_kt.tsv'))
 
         ((sample2
           .make_table('v = v, info = va.info', 'gt = g.gt, gq = g.gq', ['v']))
@@ -463,7 +463,7 @@ class ContextTests(unittest.TestCase):
         sample_split.ld_prune(8).variants_table().select('v').export("/tmp/testLDPrune.tsv")
         kt = (sample2.variants_table()
               .annotate("v2 = v")
-              .key_by("v", "v2"))
+              .key_by(["v", "v2"]))
         sample2.annotate_variants_table(kt, root="va.foo", vds_key=["v", "v"])
 
         self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
@@ -518,13 +518,13 @@ class ContextTests(unittest.TestCase):
         kt.rename([name + "_a" for name in kt.columns])
 
         kt.select("Sample")
-        kt.select("Sample", "Status")
+        kt.select(["Sample", "Status"], qualified_name=True)
 
         kt.drop("Sample")
-        kt.drop("Sample", "Status")
+        kt.drop(["Sample", "Status"])
 
-        kt.key_by('Sample', 'Status')
-        kt.key_by()
+        kt.key_by(['Sample', 'Status'])
+        kt.key_by([])
 
         kt.flatten()
         kt.expand_types()

@@ -342,16 +342,16 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     copy(key = key.toArray)
   }
 
-  def select(exprs: Array[String], mangle: Boolean = false): KeyTable = {
+  def select(exprs: Array[String], qualifiedName: Boolean = false): KeyTable = {
     val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
 
-    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs, ec, None, mangle)
+    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs, ec)
 
     val paths = maybePaths.zip(isNamedExpr).map { case (p, isNamed) =>
       if (isNamed)
         List(p.mkString(".")) // FIXME: Not certain what behavior we want here
       else {
-        if (mangle)
+        if (qualifiedName)
           List(p.mkString("."))
         else
           List(p.last)
@@ -391,8 +391,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
   def select(selectedColumns: String*): KeyTable = select(selectedColumns.toArray)
 
-  def select(selectedColumns: java.util.ArrayList[String]): KeyTable =
-    select(selectedColumns.asScala.toArray)
+  def select(selectedColumns: java.util.ArrayList[String], mangle: Boolean): KeyTable =
+    select(selectedColumns.asScala.toArray, mangle)
 
   def drop(columnsToDrop: Array[String]): KeyTable = {
     val nonexistentColumns = columnsToDrop.diff(columns)

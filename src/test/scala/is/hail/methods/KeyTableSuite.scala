@@ -271,7 +271,7 @@ class KeyTableSuite extends SparkSuite {
     val select4 = kt.select()
     assert((select4.key sameElements Array.empty[String]) && (select4.columns sameElements Array.empty[String]))
 
-    val select5 = kt.select(Array("field3.*", "A = field1 + field2"), mangle = true)
+    val select5 = kt.select(Array("field3.*", "A = field1 + field2"), qualifiedName = true)
     assert(select5.signature == TStruct(("field3.A", TInt32), ("field3.B", TString), ("A", TInt32)))
 
     val select6 = kt.select("field2", "X = field1 + field2", "Z = 5", "field1", "field3.*", "Q.R = true")
@@ -349,7 +349,7 @@ class KeyTableSuite extends SparkSuite {
       .variantsKT()
       .expandTypes()
       .flatten()
-      .select(Array("va.info.MQRankSum"))
+      .select("`va.info.MQRankSum`")
 
     val df = kt.toDF(sqlContext)
     df.printSchema()
@@ -388,7 +388,7 @@ class KeyTableSuite extends SparkSuite {
     val kt = vds.annotateVariantsExpr("va.id = str(v)")
       .variantsKT()
       .flatten()
-      .select("v", "va.id")
+      .select("v", "`va.id`")
       .keyBy("va.id")
 
     val kt2 = KeyTable(hc, vds.variants.map(v => Row(v.toString, 5)),

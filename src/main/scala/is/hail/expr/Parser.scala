@@ -104,8 +104,7 @@ object Parser extends JavaTokenParsers {
     (types.toArray, () => fs.map(f => f()).toArray)
   }
 
-  def parseSelectExprs(codes: Array[String], ec: EvalContext, expectedHead: Option[String],
-    mangle: Boolean = false): (Array[List[String]], Array[Type], () => Array[Any], Array[Boolean]) = {
+  def parseSelectExprs(codes: Array[String], ec: EvalContext): (Array[List[String]], Array[Type], () => Array[Any], Array[Boolean]) = {
     val idPaths = codes.map { x => select_arg.parse_opt(x) }
     val (maybeNames, types, f, isNamed) = parseNamedExprs[List[String]](codes.mkString(","), annotationIdentifier,
       ec, (t, s) => t.map(_ :+ s), Some((i) => idPaths(i)))
@@ -113,17 +112,7 @@ object Parser extends JavaTokenParsers {
     if (maybeNames.exists(_.isEmpty))
       fatal("left-hand side required in annotation expression")
 
-    val names = maybeNames.map(_.get)
-
-    expectedHead.foreach { h =>
-      names.foreach { n =>
-        if (n.head != h)
-          fatal(
-            s"""invalid annotation path `${ n.map(prettyIdentifier).mkString(".") }'
-               |  Path should begin with `$h'
-           """.stripMargin)
-      }
-    }
+    val names = maybeNames.flatten
 
     (names, types, f, isNamed)
   }
@@ -136,7 +125,7 @@ object Parser extends JavaTokenParsers {
     if (maybeNames.exists(_.isEmpty))
       fatal("left-hand side required in annotation expression")
 
-    val names = maybeNames.map(_.get)
+    val names = maybeNames.flatten
 
     expectedHead.foreach { h =>
       names.foreach { n =>
@@ -165,7 +154,7 @@ object Parser extends JavaTokenParsers {
     if (maybeNames.exists(_.isEmpty))
       fatal("left-hand side required in named expression")
 
-    val names = maybeNames.map(_.get)
+    val names = maybeNames.flatten
 
     (names, types, f)
   }

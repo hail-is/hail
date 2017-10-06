@@ -522,8 +522,8 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(keys=tupleof(strlike))
-    def key_by(self, *keys):
+    @typecheck_method(key=oneof(strlike, listof(strlike)))
+    def key_by(self, key):
         """Change which columns are keys.
 
         **Examples**
@@ -533,22 +533,22 @@ class KeyTable(HistoryMixin):
 
         Change key columns:
 
-        >>> kt_result = kt1.key_by('C2', 'C3')
+        >>> kt_result = kt1.key_by(['C2', 'C3'])
 
         >>> kt_result = kt1.key_by('C2')
 
         Set to no keys:
 
-        >>> kt_result = kt1.key_by()
+        >>> kt_result = kt1.key_by([])
 
-        :param key: Columns to be used as keys. Multiple arguments allowed
-        :type key: str
+        :param key: List of columns to be used as keys.
+        :type key: str or list of str
 
         :return: Key table whose key columns are given by ``key``.
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jkt.keyBy(list(keys)))
+        return KeyTable(self.hc, self._jkt.keyBy(wrap_to_list(key)))
 
     @handle_py4j
     @record_method
@@ -603,9 +603,9 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(exprs=tupleof(strlike),
-                      mangle=bool)
-    def select(self, *exprs, mangle=False):
+    @typecheck_method(selected_columns=oneof(strlike, listof(strlike)),
+                      qualified_name=bool)
+    def select(self, selected_columns, qualified_name=False):
         """Select a subset of columns.
 
         **Examples**
@@ -619,11 +619,11 @@ class KeyTable(HistoryMixin):
 
         Reorder the columns:
 
-        >>> kt_result = kt1.select('C3', 'C1', 'C2')
+        >>> kt_result = kt1.select(['C3', 'C1', 'C2'])
 
         Drop all columns:
 
-        >>> kt_result = kt1.select()
+        >>> kt_result = kt1.select([])
 
         Create a new column computed from existing columns:
 
@@ -633,7 +633,7 @@ class KeyTable(HistoryMixin):
 
         >>> vds.variant_qc()
         ...    .variants_table()
-        ...    .select('v', 'va.qc.*', '`1-AF` = 1 - va.qc.AF')
+        ...    .select(['v', 'va.qc.*', '`1-AF` = 1 - va.qc.AF'])
         ...    .export('output/variant_qc.tsv')
 
         **Notes**
@@ -641,34 +641,35 @@ class KeyTable(HistoryMixin):
         :py:meth:`~hail.KeyTable.select` creates a new schema as specified by `exprs`.
 
         Each argument can either be an annotation path `A.B.C` for an existing column in the table, a splatted annotation
-        path `A.*`, or an :ref:`annotation expression <overview-expr-add>`__ `Z = X + 2 * Y`.
+        path `A.*`, or an :ref:`annotation expression <overview-expr-add>` `Z = X + 2 * Y`.
 
         For annotation paths, the column name in the new table will be the field name.
         For example, if the annotation path is `A.B.C`, the column name will be `C` in the output table.
-        Use the `mangle=True` option to output the full path name as the column name (`A.B.C`).
+        Use the `qualified_name=True` option to output the full path name as the column name (`A.B.C`).
 
         For annotation paths with a type of Struct, use the splat character `.*` to add a new column per Field
-        to the output table. The column name will be the field name unless `mangle=True`.
+        to the output table. The column name will be the field name unless `qualified_name=True`.
 
         For annotation expressions, the left hand side is the new annotation path for the computed result.
         To include "." or other special characters in a path name, enclose the name in backticks.
 
-        :param exprs: Columns to be selected. Multiple arguments allowed.
-        :type: str
+        :param selected_columns: List of columns to be selected.
+        :type: str or list of str
 
-        :param mangle: If True, make the column name for annotation identifiers arguments be the full path name. Useful for avoiding naming collisions.
+        :param qualified_name: If True, make the column name for annotation identifiers arguments be the full path name. Useful for avoiding naming collisions.
         :type: bool
 
         :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jkt.select(list(exprs), mangle))
+        selected_columns = wrap_to_list(selected_columns)
+        return KeyTable(self.hc, self._jkt.select(selected_columns, qualified_name))
 
     @handle_py4j
     @record_method
-    @typecheck_method(column_names=tupleof(strlike))
-    def drop(self, *column_names):
+    @typecheck_method(column_names=oneof(strlike, listof(strlike)))
+    def drop(self, column_names):
         """Drop columns.
 
         **Examples**
@@ -680,16 +681,16 @@ class KeyTable(HistoryMixin):
 
         >>> kt_result = kt1.drop('C1')
 
-        >>> kt_result = kt1.drop('C1', 'C2')
+        >>> kt_result = kt1.drop(['C1', 'C2'])
 
-        :param column_names: Columns to be dropped. Multiple arguments allowed.
-        :type: str
+        :param column_names: List of columns to be dropped.
+        :type: str or list of str
 
         :return: Key table with dropped columns.
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jkt.drop(list(column_names)))
+        return KeyTable(self.hc, self._jkt.drop(wrap_to_list(column_names)))
 
     @handle_py4j
     @typecheck_method(expand=bool,
