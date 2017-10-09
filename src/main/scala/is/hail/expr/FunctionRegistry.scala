@@ -83,10 +83,10 @@ object FunctionRegistry {
         anyFailAllFail[Array, Option[(Int, Transformation[Any, Any])]](conversions)
           .map { arr =>
             if (arr.forall(_.isEmpty))
-              0 -> (tt.subst(), f.subst())
+              0 -> (tt.subst(), f.captureType().subst())
             else {
               val arr2 = arr.map(_.getOrElse(0 -> Transformation[Any, Any]((a: Any) => a, (a: Code[Any]) => CM.ret(a))))
-              arr2.map(_._1).max -> (tt.subst(), f.subst().convertArgs(arr2.map(_._2)))
+              arr2.map(_._1).max -> (tt.subst(), f.captureType().subst().convertArgs(arr2.map(_._2)))
             }
           }
       } else
@@ -476,6 +476,11 @@ object FunctionRegistry {
   def registerCode[T, U](name: String, impl: Code[T] => CM[Code[U]], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, FunType(hrt.typ), UnaryFunCode[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerDependentCode[T, U](name: String, impl: () => Code[T] => CM[Code[U]], docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, FunType(hrt.typ), UnaryDependentFunCode[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerSpecial[T, U](name: String, impl: (() => Any) => U, docstring: String, argNames: (String, String)*)
@@ -2922,4 +2927,12 @@ object FunctionRegistry {
         s[-i:-j] == s[s.length - i, s.length - j]
     """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
   )
+
+  registerDependentCode("str", { () =>
+    val t = TT.t
+    (v: Code[Any]) => CM.invokePrimitive1(t.str)(v) },
+    """
+    Convert the argument to a human-readable string representation
+    """, "x" -> "the value to be stringified")(TTHr, stringHr)
+
 }

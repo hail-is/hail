@@ -555,8 +555,11 @@ final case class TVariable(name: String, var t: Type = null) extends Type {
 
   override def unify(concrete: Type): Boolean = {
     if (t == null) {
-      t = concrete
-      true
+      if (concrete.isRealizable) {
+        t = concrete
+        true
+      } else
+        false
     } else
       t == concrete
   }
