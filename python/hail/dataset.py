@@ -3861,8 +3861,9 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(k=integral,
                       maf=numeric,
                       block_size=integral,
-                      min_kinship=numeric)
-    def pc_relate(self, k, maf, block_size=512, min_kinship=-float("inf")):
+                      min_kinship=numeric,
+                      statistics=enumeration("phi", "phik2", "phik2k0", "all"))
+    def pc_relate(self, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
         """Compute relatedness estimates between individuals using a variant of the
         PC-Relate method.
 
@@ -4040,6 +4041,27 @@ class VariantDataset(HistoryMixin):
         the threshold, then the variant's contribution to relatedness estimates
         is zero.
 
+        Under the PC-Relate model, kinship, \[ \phi_{ij} \], ranges from 0 to
+        0.5, and is precisely half of the
+        fraction-of-genetic-material-shared. Listed below are the statistics for
+        a few pairings:
+
+         - Monozygotic twins share all their genetic material so their kinship
+           statistic is 0.5 in expection.
+
+         - Parent-child and sibling pairs both have kinship 0.25 in expectation
+           and are separated by the identity-by-descent-zero, \[ k^{(2)}_{ij} \],
+           statistic which is zero for parent-child pairs and 0.25 for sibling
+           pairs.
+
+         - Avuncular pairs and grand-parent/-child pairs both have kinship 0.125
+           in expectation and both have identity-by-descent-zero 0.5 in expectation
+
+         - "Third degree relatives" are those pairs sharing
+           \[ 2^{-3} = 12.5 % \] of their genetic material, the results of
+           PCRelate are often too noisy to reliably distinguish these pairs from
+           higher-degree-relative-pairs or unrelated pairs.
+
         The resulting :py:class:`.KeyTable` entries have the type: *{ i: String,
         j: String, kin: Double, k2: Double, k1: Double, k0: Double }*. The key
         list is: `*i: String, j: String*`.
@@ -4059,13 +4081,23 @@ class VariantDataset(HistoryMixin):
         :param float min_kinship: Pairs of samples with kinship lower than
                                   ``min_kinship`` are excluded from the results.
 
+        :param str statistics: the set of statistics to compute, 'phi' will only
+                               compute the kinship statistic, 'phik2' will
+                               compute the kinship and identity-by-descent two
+                               statistics, 'phik2k0' will compute the kinship
+                               statistics and both identity-by-descent two and
+                               zero, 'all' computes the kinship statistic and
+                               all three identity-by-descent statistics.
+
         :return: A :py:class:`.KeyTable` mapping pairs of samples to estimations
                  of their kinship and identity-by-descent zero, one, and two.
         :rtype: :py:class:`.KeyTable`
 
         """
 
-        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship))
+        intstatistics = { "phi" : 0, "phik2" : 1, "phik2k0" : 2, "all" : 3 }[statistics]
+
+        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship, intstatistics))
 
     @handle_py4j
     @record_method
