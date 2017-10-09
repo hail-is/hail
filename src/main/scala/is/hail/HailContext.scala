@@ -56,7 +56,6 @@ object HailContext {
         "org.apache.hadoop.io.compress.GzipCodec")
 
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-    conf.set("spark.kryo.registrator", "is.hail.kryo.HailKryoRegistrator")
 
     conf.set("spark.sql.parquet.compression.codec", parquetCompression)
     conf.set("spark.sql.files.openCostInBytes", tera.toString)
@@ -108,14 +107,6 @@ object HailContext {
         problems += s"Invalid config parameter '$k': too small. Found $param, require at least 50G"
     }
 
-    val serializer = conf.get("spark.serializer")
-    val kryoSerializer = "org.apache.spark.serializer.KryoSerializer"
-    if (serializer != kryoSerializer)
-      problems += s"Invalid configuration property spark.serializer: required $kryoSerializer.  Found: $serializer."
-    
-    if (!conf.getOption("spark.kryo.registrator").contains("is.hail.kryo.HailKryoRegistrator"))
-      problems += s"Invalid config parameter: spark.kryo.registrator must be set to is.hail.kryo.HailKryoRegistrator"    
-    
     if (problems.nonEmpty)
       fatal(
         s"""Found problems with SparkContext configuration:

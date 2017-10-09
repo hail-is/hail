@@ -305,31 +305,25 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     
     hadoopConf.mkDir(uri + "/blocks")
     
-    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hadoopConf))
+    val sHadoopConf = new SerializableHadoopConfiguration(hadoopConf)
     
     val nPartitions = blocks.getNumPartitions
     val d = digitsNeeded(nPartitions)
 
     val blockCount = blocks.mapPartitionsWithIndex { case (i, it) =>
-      var localBlockCount = 0L
-
       val is = i.toString
       assert(is.length <= d)
       val pis = StringUtils.leftPad(is, d, "0")
 
-      sHadoopConfBc.value.value.writeDataFile(uri + "/blocks/block-" + pis) { out =>
+      sHadoopConf.value.writeDataFile(uri + "/blocks/block-" + pis) { out =>
         assert(it.hasNext)
         val ((iblock, jblock), sparkMat) = it.next()
         assert(!it.hasNext)
 
-        def breezeMat = sparkMat.asBreeze()
-        assert(breezeMat.isInstanceOf[BDM[Double]])
-        breezeMat.asInstanceOf[BDM[Double]].write(out)
-        
-        localBlockCount += 1
+        sparkMat.asBreeze().asInstanceOf[BDM[Double]].write(out)
       }
 
-      Iterator.single(localBlockCount)
+      Iterator.single(1L)
     }
       .fold(0L)(_ + _)
 
@@ -369,7 +363,7 @@ class ReadBlocksRDD(sc: SparkContext, uri: String, nRowBlocks: Int, nColBlocks: 
   override def getPartitions: Array[Partition] =
     Array.tabulate(nBlocks)(i => ReadBlocksRDDPartition(i))
   
-  private val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  private val sHadoopConf = new SerializableHadoopConfiguration(sc.hadoopConfiguration)
 
   override def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), Matrix)] = {
     val d = digitsNeeded(nBlocks)
@@ -380,7 +374,7 @@ class ReadBlocksRDD(sc: SparkContext, uri: String, nRowBlocks: Int, nColBlocks: 
     assert(is.length <= d)
     val pis = StringUtils.leftPad(is, d, "0")
 
-    Iterator.single(sHadoopConfBc.value.value.readDataFile(uri + "/blocks/block-" + pis) { in =>
+    Iterator.single(sHadoopConf.value.readDataFile(uri + "/blocks/block-" + pis) { in =>
       
       val bdm = RichDenseMatrixDouble.read(in)
       
