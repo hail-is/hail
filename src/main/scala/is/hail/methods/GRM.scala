@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.distributedmatrix.HailBlockMatrix.ops._
+import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.stats.ToHWENormalizedIndexedRowMatrix
 import is.hail.utils._
 import is.hail.variant.VariantDataset

@@ -6,11 +6,11 @@ import is.hail.distributedmatrix._
 import is.hail.utils._
 
 class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
-  def toHailBlockMatrix(): HailBlockMatrix = {
+  def toHailBlockMatrix(): BlockMatrix = {
     toHailBlockMatrix(1024)
   }
 
-  def toHailBlockMatrix(blockSize: Int): HailBlockMatrix = {
+  def toHailBlockMatrix(blockSize: Int): BlockMatrix = {
     require(blockSize > 0,
       s"rowsPerBlock needs to be greater than 0. rowsPerBlock: $blockSize")
 
@@ -49,7 +49,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         }
         new BDM[Double](actualNumRows, actualNumColumns, matrixAsArray)
     }
-    new HailBlockMatrix(blocks, blockSize, m, n)
+    new BlockMatrix(blocks, blockSize, m, n)
   }
 }
 

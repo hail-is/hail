@@ -25,8 +25,8 @@ import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}
 
 import scala.sys.process._
-import is.hail.distributedmatrix.HailBlockMatrix
-import is.hail.distributedmatrix.HailBlockMatrix.ops._
+import is.hail.distributedmatrix.BlockMatrix
+import is.hail.distributedmatrix.BlockMatrix.ops._
 
 class PCRelateSuite extends SparkSuite {
   private val blockSize: Int = 8192
@@ -172,7 +172,7 @@ class PCRelateSuite extends SparkSuite {
     val g = PCRelate.vdsToMeanImputedMatrix(vds)
     val dmu = pcr.mu(g, pcs)
     // blockedG : variant x sample
-    val blockedG = HailBlockMatrix.from(g, blockSize)
+    val blockedG = BlockMatrix.from(g, blockSize)
     val actual = runPcRelateHail(vds, pcs, 0.01)
     val actual_g = blockedG.t.toLocalMatrix()
     val actual_ibs0 = pcr.ibs0(blockedG, dmu, blockSize).toLocalMatrix()

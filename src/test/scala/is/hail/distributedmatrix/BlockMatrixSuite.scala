@@ -5,36 +5,36 @@ import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
 import is.hail.check._
-import is.hail.distributedmatrix.HailBlockMatrix.ops._
+import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.utils._
 import org.testng.annotations.Test
 
-class HailBlockMatrixSuite extends SparkSuite {
+class BlockMatrixSuite extends SparkSuite {
 
   private val defaultBlockSize = 1024
 
-  def toBM(rows: Seq[Array[Double]]): HailBlockMatrix =
+  def toBM(rows: Seq[Array[Double]]): BlockMatrix =
     toBM(rows, defaultBlockSize)
 
-  def toBM(rows: Seq[Array[Double]], blockSize: Int): HailBlockMatrix = {
+  def toBM(rows: Seq[Array[Double]], blockSize: Int): BlockMatrix = {
     val n = rows.length
     val m = if (n == 0) 0 else rows(0).length
 
-    HailBlockMatrix.from(sc, new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
+    BlockMatrix.from(sc, new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
   }
 
-  def toBM(x: BDM[Double]): HailBlockMatrix =
+  def toBM(x: BDM[Double]): BlockMatrix =
     toBM(x, defaultBlockSize)
 
-  def toBM(x: BDM[Double], blockSize: Int): HailBlockMatrix =
-    HailBlockMatrix.from(sc, x, blockSize)
+  def toBM(x: BDM[Double], blockSize: Int): BlockMatrix =
+    BlockMatrix.from(sc, x, blockSize)
 
-  def blockMatrixPreGen(blockSize: Int): Gen[HailBlockMatrix] = for {
+  def blockMatrixPreGen(blockSize: Int): Gen[BlockMatrix] = for {
     (l, w) <- Gen.nonEmptySquareOfAreaAtMostSize
     bm <- blockMatrixPreGen(l, w, blockSize)
   } yield bm
 
-  def blockMatrixPreGen(rows: Int, columns: Int, blockSize: Int): Gen[HailBlockMatrix] = for {
+  def blockMatrixPreGen(rows: Int, columns: Int, blockSize: Int): Gen[BlockMatrix] = for {
     arrays <- Gen.buildableOfN[Seq, Array[Double]](rows, Gen.buildableOfN(columns, arbDouble.arbitrary))
   } yield toBM(arrays, blockSize)
 
@@ -171,7 +171,7 @@ class HailBlockMatrixSuite extends SparkSuite {
 
   @Test
   def multiplySameAsBreezeRandomized() {
-    forAll(twoMultipliableBlockMatrices) { case (a: HailBlockMatrix, b: HailBlockMatrix) =>
+    forAll(twoMultipliableBlockMatrices) { case (a: BlockMatrix, b: BlockMatrix) =>
       val truth = (a * b).toLocalMatrix()
       val expected = a.toLocalMatrix() * b.toLocalMatrix()
 
@@ -216,7 +216,7 @@ class HailBlockMatrixSuite extends SparkSuite {
       r <- Gen.buildableOfN[Array, Double](l.cols.toInt, arbitrary[Double])
     } yield (l, r)
 
-    forAll(g) { case (l: HailBlockMatrix, r: Array[Double]) =>
+    forAll(g) { case (l: BlockMatrix, r: Array[Double]) =>
       val truth = (l --* r).toLocalMatrix()
       val repeatedR = (0 until l.rows.toInt).map(x => r).flatten.toArray
       val repeatedRMatrix = new BDM(r.size, l.rows.toInt, repeatedR).t
@@ -262,7 +262,7 @@ class HailBlockMatrixSuite extends SparkSuite {
       r <- Gen.buildableOfN[Array, Double](l.rows.toInt, arbitrary[Double])
     } yield (l, r)
 
-    forAll(g) { case (l: HailBlockMatrix, r: Array[Double]) =>
+    forAll(g) { case (l: BlockMatrix, r: Array[Double]) =>
       val truth = (l :* r).toLocalMatrix()
       val repeatedR = (0 until l.cols.toInt).map(x => r).flatten.toArray
       val repeatedRMatrix = new BDM(r.size, l.cols.toInt, repeatedR)
@@ -315,7 +315,7 @@ class HailBlockMatrixSuite extends SparkSuite {
 
   @Test
   def diagonalTestRandomized() {
-    forAll(squareBlockMatrixGen) { (mat: HailBlockMatrix) =>
+    forAll(squareBlockMatrixGen) { (mat: BlockMatrix) =>
       val lm = mat.toLocalMatrix()
       val diagonalLength = math.min(lm.rows, lm.cols)
       val diagonal = (0 until diagonalLength).map(i => lm(i,i)).toArray
@@ -335,7 +335,7 @@ class HailBlockMatrixSuite extends SparkSuite {
     val numRows = 100
     val numCols = 100
     val local = BDM.rand[Double](numRows, numCols)
-    assert(local === HailBlockMatrix.from(sc, local, numRows - 1).toLocalMatrix())
+    assert(local === BlockMatrix.from(sc, local, numRows - 1).toLocalMatrix())
   }
 
   @Test
@@ -347,23 +347,23 @@ class HailBlockMatrixSuite extends SparkSuite {
       Array[Double](13,14,15,16)))
 
     val fname = tmpDir.createTempFile("test")
-    HailBlockMatrix.write(actual, fname)
-    assert(actual.toLocalMatrix() == HailBlockMatrix.read(hc, fname).toLocalMatrix())
+    BlockMatrix.write(actual, fname)
+    assert(actual.toLocalMatrix() == BlockMatrix.read(hc, fname).toLocalMatrix())
   }
 
   @Test
   def readWriteIdentityRandom() {
-    forAll(blockMatrixGen) { (bm: HailBlockMatrix) =>
+    forAll(blockMatrixGen) { (bm: BlockMatrix) =>
       val fname = tmpDir.createTempFile("test")
-      HailBlockMatrix.write(bm, fname)
-      assert(bm.toLocalMatrix() == HailBlockMatrix.read(hc, fname).toLocalMatrix())
+      BlockMatrix.write(bm, fname)
+      assert(bm.toLocalMatrix() == BlockMatrix.read(hc, fname).toLocalMatrix())
       true
     }.check()
   }
 
   @Test
   def transpose() {
-    forAll(blockMatrixGen) { (bm: HailBlockMatrix) =>
+    forAll(blockMatrixGen) { (bm: BlockMatrix) =>
       val transposed = bm.toLocalMatrix().t
       assert(transposed.rows == bm.cols)
       assert(transposed.cols == bm.rows)
@@ -374,7 +374,7 @@ class HailBlockMatrixSuite extends SparkSuite {
 
   @Test
   def doubleTransposeIsIdentity() {
-    forAll(blockMatrixGen) { (bm: HailBlockMatrix) =>
+    forAll(blockMatrixGen) { (bm: BlockMatrix) =>
       val bmt = bm.t.cache()
       val bmtt = bm.t.t.cache()
       assert(bmtt.rows == bm.rows)
@@ -387,7 +387,7 @@ class HailBlockMatrixSuite extends SparkSuite {
 
   @Test
   def cachedOpsOK() {
-    forAll(twoMultipliableBlockMatrices) { case (a: HailBlockMatrix, b: HailBlockMatrix) =>
+    forAll(twoMultipliableBlockMatrices) { case (a: BlockMatrix, b: BlockMatrix) =>
       a.cache()
       b.cache()
 
@@ -414,7 +414,7 @@ class HailBlockMatrixSuite extends SparkSuite {
 
   @Test
   def toIRMToHBMIdentity() {
-    forAll(blockMatrixGen) { (bm : HailBlockMatrix) =>
+    forAll(blockMatrixGen) { (bm : BlockMatrix) =>
       val roundtrip = bm.toIndexedRowMatrix().toHailBlockMatrix(bm.blockSize)
 
       val roundtriplm = roundtrip.toLocalMatrix()

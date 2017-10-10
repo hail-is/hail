@@ -1,8 +1,8 @@
 package is.hail.stats
 
 import breeze.linalg.DenseMatrix
-import is.hail.distributedmatrix.HailBlockMatrix
-import is.hail.distributedmatrix.HailBlockMatrix.ops._
+import is.hail.distributedmatrix.BlockMatrix
+import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.SparkContext

@@ -9,8 +9,8 @@ import is.hail.expr.{TStruct, TString, TDouble}
 import is.hail.utils._
 import is.hail.keytable.KeyTable
 import is.hail.variant.{Variant, VariantDataset}
-import is.hail.distributedmatrix.HailBlockMatrix
-import is.hail.distributedmatrix.HailBlockMatrix.ops._
+import is.hail.distributedmatrix.BlockMatrix
+import is.hail.distributedmatrix.BlockMatrix.ops._
 import breeze.linalg.{DenseMatrix => BDM, _}
 import breeze.numerics._
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
@@ -20,7 +20,7 @@ import scala.language.higherKinds
 import scala.language.implicitConversions
 
 object PCRelate {
-  type M = HailBlockMatrix
+  type M = BlockMatrix
 
   type StatisticSubset = Int
   val PhiOnly: StatisticSubset = 0
@@ -167,7 +167,7 @@ object PCRelate {
       val a = ols.estimateRegressionParameters()
       IndexedRow(i, new DenseVector(a))
     }
-    HailBlockMatrix.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize)
+    BlockMatrix.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize)
   }
 
   def k1(k2: M, k0: M): M = {
@@ -191,9 +191,9 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val g = vdsToMeanImputedMatrix(vds)
 
     val mu = this.mu(g, pcs)
-    val blockedG = HailBlockMatrix.from(g, blockSize)
+    val blockedG = BlockMatrix.from(g, blockSize)
 
-    val variance = HailBlockMatrix.map2 { (g, mu) =>
+    val variance = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
@@ -231,7 +231,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
-    val centeredG = HailBlockMatrix.map2 { (g,mu) =>
+    val centeredG = BlockMatrix.map2 { (g,mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
@@ -243,10 +243,10 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
-    val homalt = HailBlockMatrix.map2 { (g, mu) =>
+    val homalt = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 2.0) 0.0 else 1.0
     } (g, mu)
-    val homref = HailBlockMatrix.map2 { (g, mu) =>
+    val homref = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
     } (g, mu)
     (homalt.t * homref) :+ (homref.t * homalt)
@@ -270,20 +270,20 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
-    val mu2 = HailBlockMatrix.map2 { (g, mu) =>
+    val mu2 = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         mu * mu
     }(g, mu)
-    val oneMinusMu2 = HailBlockMatrix.map2 { (g, mu) =>
+    val oneMinusMu2 = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         (1.0 - mu) * (1.0 - mu)
     }(g, mu)
     val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
-    HailBlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
+    BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phi <= k0cutoff)
         1.0 - 4.0 * phi + k2
       else

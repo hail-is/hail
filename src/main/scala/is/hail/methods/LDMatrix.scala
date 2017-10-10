@@ -2,8 +2,8 @@ package is.hail.methods
 
 import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.HailContext
-import is.hail.distributedmatrix.HailBlockMatrix
-import is.hail.distributedmatrix.HailBlockMatrix.ops._
+import is.hail.distributedmatrix.BlockMatrix
+import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
@@ -50,7 +50,7 @@ object LDMatrix {
       if (computeProductLocally) {
         val localMat = normalizedBlockMatrix.toLocalMatrix()
         val product = localMat * localMat.t
-        HailBlockMatrix.from(vds.sparkContext, product, normalizedBlockMatrix.blockSize).toIndexedRowMatrix()
+        BlockMatrix.from(vds.sparkContext, product, normalizedBlockMatrix.blockSize).toIndexedRowMatrix()
       } else
         (normalizedBlockMatrix * normalizedBlockMatrix.t).toIndexedRowMatrix()
 
