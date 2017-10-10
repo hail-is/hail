@@ -8,14 +8,14 @@ import is.hail.variant.VariantDataset
 object GRM {
   def apply(vds: VariantDataset): KinshipMatrix = {
 
-    val (_, mat) = ToHWENormalizedIndexedRowMatrix(vds)
+    val (_, irm) = ToHWENormalizedIndexedRowMatrix(vds)
 
     val nSamples = vds.nSamples
-    assert(nSamples == mat.numCols())
-    val nVariants = mat.numRows() // mat cached
+    assert(nSamples == irm.numCols())
+    val nVariants = irm.numRows() // mat cached
 
-    val bmat = mat.toHailBlockMatrix().cache()
-    val grm = bmat.t * bmat
+    val bm = irm.toHailBlockMatrix().cache()
+    val grm = bm.t * bm
 
     assert(grm.cols == nSamples && grm.rows == nSamples)
 

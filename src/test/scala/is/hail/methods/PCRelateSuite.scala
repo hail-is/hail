@@ -1,32 +1,18 @@
 package is.hail.methods
 
-import java.io.InputStream
-import java.io.OutputStream
-import java.nio.file.Files
-import java.nio.file.Paths
-
-import breeze.linalg.{DenseMatrix => BDM, _}
-import is.hail.keytable._
-import is.hail.annotations.Annotation
-import is.hail.expr.{TStruct, _}
-import org.apache.spark.mllib.linalg.distributed._
+import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.SparkSuite
-import org.apache.hadoop
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
-import org.apache.spark.mllib.linalg._
-import org.testng.annotations.Test
-import is.hail.check._
-import is.hail.check.Prop._
-import is.hail.expr.{TDouble, TString}
-import is.hail.variant.VariantDataset
-import is.hail.variant.VSMSubgen
-import is.hail.stats._
-import is.hail.utils.{TextTableReader, _}
-
-import scala.sys.process._
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
+import is.hail.expr.{TDouble, TString}
+import is.hail.stats._
+import is.hail.utils.{TextTableReader, _}
+import is.hail.variant.VariantDataset
+import org.apache.spark.mllib.linalg._
+import org.apache.spark.sql.Row
+import org.testng.annotations.Test
+
+import scala.sys.process._
 
 class PCRelateSuite extends SparkSuite {
   private val blockSize: Int = 8192
@@ -174,7 +160,7 @@ class PCRelateSuite extends SparkSuite {
     // blockedG : variant x sample
     val blockedG = BlockMatrix.from(g, blockSize)
     val actual = runPcRelateHail(vds, pcs, 0.01)
-    val actual_g = blockedG.t.toLocalMatrix()
+    val actual_g = blockedG.toLocalMatrix().t
     val actual_ibs0 = pcr.ibs0(blockedG, dmu, blockSize).toLocalMatrix()
     val actual_mean = dmu.toLocalMatrix()
 

@@ -13,8 +13,8 @@ import org.testng.annotations.Test
 class RichIndexedRowMatrixSuite extends SparkSuite {
 
   @Test def testToBlockMatrixDense() {
-    val m = 6L
-    val n = 3L
+    val rows = 6L
+    val cols = 3L
     val data = Seq(
       (0L, Vectors.dense(0.0, 1.0, 2.0)),
       (1L, Vectors.dense(3.0, 4.0, 5.0)),
@@ -32,18 +32,18 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
     }
 
     val blockMat = idxRowMat.toHailBlockMatrix(2)
-    assert(blockMat.rows === m)
-    assert(blockMat.cols === n)
+    assert(blockMat.rows === rows)
+    assert(blockMat.cols === cols)
     assert(blockMat.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
 
     val blockMat2 = idxRowMat.toHailBlockMatrix(4)
-    assert(blockMat2.rows === m)
-    assert(blockMat2.cols === n)
+    assert(blockMat2.rows === rows)
+    assert(blockMat2.cols === cols)
     assert(blockMat2.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
 
     val blockMat3 = idxRowMat.toHailBlockMatrix(10)
-    assert(blockMat2.rows === m)
-    assert(blockMat2.cols === n)
+    assert(blockMat2.rows === rows)
+    assert(blockMat2.cols === cols)
     assert(blockMat2.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
 
     intercept[IllegalArgumentException] {

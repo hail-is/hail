@@ -1,23 +1,20 @@
 package is.hail.methods
 
-import org.apache.spark.mllib.linalg.DenseMatrix
-import org.apache.spark.mllib.linalg.distributed.{IndexedRowMatrix, IndexedRow}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
+import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.annotations.Annotation
-import is.hail.expr.{TStruct, TString, TDouble}
-import is.hail.utils._
-import is.hail.keytable.KeyTable
-import is.hail.variant.{Variant, VariantDataset}
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
-import breeze.linalg.{DenseMatrix => BDM, _}
-import breeze.numerics._
+import is.hail.expr.{TDouble, TString, TStruct}
+import is.hail.keytable.KeyTable
+import is.hail.utils._
+import is.hail.variant.VariantDataset
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
+import org.apache.spark.mllib.linalg.DenseMatrix
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
-import scala.collection.generic.CanBuildFrom
-import scala.language.higherKinds
-import scala.language.implicitConversions
+import scala.language.{higherKinds, implicitConversions}
 
 object PCRelate {
   type M = BlockMatrix
@@ -46,27 +43,25 @@ object PCRelate {
     val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
     val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, statistics)
 
-    def fuseBlocks(blocki: Int, blockj: Int, mphi: Matrix, mk0: Matrix, mk1: Matrix, mk2: Matrix) = {
-      val i = blocki * blockSize
-      val j = blockj * blockSize
-      val i2 = i + blockSize
-      val j2 = j + blockSize
+    def fuseBlocks(i: Int, j: Int, lmPhi: Matrix, lmK0: Matrix, lmK1: Matrix, lmK2: Matrix) = {
+      val iOffset = i * blockSize
+      val jOffset = j * blockSize
 
-      if (blocki <= blockj) {
-        val size = mphi.rows * mphi.cols
+      if (i <= j) {
+        val size = lmPhi.rows * lmPhi.cols
         val ab = new ArrayBuilder[Row]()
         var jj = 1
-        while (jj < mphi.cols) {
-          // fixme: broken for non-square blocks
+        while (jj < lmPhi.cols) {
           var ii = 0
-          val rowsAboveDiagonal = if (blocki < blockj) mphi.rows else jj
+          // assumes square blocks
+          val rowsAboveDiagonal = if (i < j) lmPhi.rows else jj
           while (ii < rowsAboveDiagonal) {
-            val kin = mphi(ii, jj)
+            val kin = lmPhi(ii, jj)
             if (kin >= minKinship) {
-              val k0 = if (mk0 == null) null else mk0(ii, jj)
-              val k1 = if (mk1 == null) null else mk1(ii, jj)
-              val k2 = if (mk2 == null) null else mk2(ii, jj)
-              ab += Annotation(indexToId(i + ii), indexToId(j + jj), kin, k0, k1, k2).asInstanceOf[Row]
+              val k0 = if (lmK0 == null) null else lmK0(ii, jj)
+              val k1 = if (lmK1 == null) null else lmK1(ii, jj)
+              val k2 = if (lmK2 == null) null else lmK2(ii, jj)
+              ab += Annotation(indexToId(iOffset + ii), indexToId(jOffset + jj), kin, k0, k1, k2).asInstanceOf[Row]
             }
             ii += 1
           }

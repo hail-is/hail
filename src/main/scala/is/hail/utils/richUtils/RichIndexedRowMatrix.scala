@@ -1,55 +1,49 @@
 package is.hail.utils.richUtils
 
-import org.apache.spark.mllib.linalg.distributed._
+import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.distributedmatrix._
 import is.hail.utils._
 
 class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
-  def toHailBlockMatrix(): BlockMatrix = {
-    toHailBlockMatrix(1024)
-  }
-
-  def toHailBlockMatrix(blockSize: Int): BlockMatrix = {
+  def toHailBlockMatrix(blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix = {
     require(blockSize > 0,
-      s"rowsPerBlock needs to be greater than 0. rowsPerBlock: $blockSize")
+      s"blockSize needs to be greater than 0. blockSize: $blockSize")
 
-    val m = indexedRowMatrix.numRows()
-    val n = indexedRowMatrix.numCols()
-    val lastRowBlockIndex = m / blockSize
-    val lastColBlockIndex = n / blockSize
-    val lastRowBlockSize = (m % blockSize).toInt
-    val lastColBlockSize = (n % blockSize).toInt
-    val numRowBlocks = (m / blockSize + (if (m % blockSize == 0) 0 else 1)).toInt
-    val numColBlocks = (n / blockSize + (if (n % blockSize == 0) 0 else 1)).toInt
+    val rows = indexedRowMatrix.numRows()
+    val cols = indexedRowMatrix.numCols()
+    // NB: if excessRows == 0, we never reach the truncatedBlockRow
+    val truncatedBlockRow = rows / blockSize
+    val truncatedBlockCol = cols / blockSize
+    val excessRows = (rows % blockSize).toInt
+    val excessCols = (cols % blockSize).toInt
 
     val blocks = indexedRowMatrix.rows.flatMap { ir =>
-      val blockRow = ir.index / blockSize
-      val rowInBlock = ir.index % blockSize
+      val i = ir.index / blockSize
+      val ii = ir.index % blockSize
 
       ir.vector.toArray
         .grouped(blockSize)
         .zipWithIndex
         .map { case (values, blockColumn) =>
-          ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
+          ((i.toInt, blockColumn), (ii.toInt, values))
         }
-    }.groupByKey(HailGridPartitioner(m, n, blockSize)).mapValuesWithKey {
-      case ((blockRow, blockColumn), itr) =>
-        val actualNumRows: Int = if (blockRow == lastRowBlockIndex) lastRowBlockSize else blockSize
-        val actualNumColumns: Int = if (blockColumn == lastColBlockIndex) lastColBlockSize else blockSize
+    }.groupByKey(GridPartitioner(rows, cols, blockSize)).mapValuesWithKey {
+      case ((i, j), it) =>
+        val rowsInBlock: Int = if (i == truncatedBlockRow) excessRows else blockSize
+        val colsInBlock: Int = if (j == truncatedBlockCol) excessCols else blockSize
 
-        val arraySize = actualNumRows * actualNumColumns
-        val matrixAsArray = new Array[Double](arraySize)
-        itr.foreach{ case (rowWithinBlock, values) =>
-          var i = 0
-          while (i < values.length) {
-            matrixAsArray.update(i * actualNumRows + rowWithinBlock, values(i))
-            i += 1
+        val a = new Array[Double](rowsInBlock * colsInBlock)
+        it.foreach{ case (ii, values) =>
+          var jj = 0
+          while (j < values.length) {
+            a(jj * rowsInBlock + ii) = values(i)
+            jj += 1
           }
         }
-        new BDM[Double](actualNumRows, actualNumColumns, matrixAsArray)
+        new BDM[Double](rowsInBlock, colsInBlock, a)
     }
-    new BlockMatrix(blocks, blockSize, m, n)
+    new BlockMatrix(blocks, blockSize, rows, cols)
   }
 }
 
