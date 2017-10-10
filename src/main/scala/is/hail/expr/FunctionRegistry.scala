@@ -1242,6 +1242,24 @@ object FunctionRegistry {
     """,
     "s" -> "The string to parse."
   )
+ def removedot(value: String, precision: Int) = {
+    def truncateAt(n: Double, p: Int): Double = {
+    //exponsive but the other way with bigdecimal causes an issue with spark sql
+    val s = math pow(10, p);
+    (math floor n * s) / s
+    }
+    value match {
+      case "." => 0.0
+      case "" => 0.0
+      case _ => truncateAt(value.toDouble, 4)
+    }
+  }
+  register("removedot", (value: String, precision: Int) => removedot(value,precision),
+    """
+    remove dot
+    """,
+    "value" -> "Chromosome.",
+    "precision" -> "Starting position.")
 
   register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
     """
