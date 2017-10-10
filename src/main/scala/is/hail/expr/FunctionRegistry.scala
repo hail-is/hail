@@ -1254,7 +1254,7 @@ object FunctionRegistry {
       case _ => truncateAt(value.toDouble, 4)
     }
   }
-  register("removedot", (value: String, precision: Int) => removedot(value,precision),
+  register("removedot", {(value: String, precision: Int) => removedot(value,precision)},
     """
     remove dot
     """,
