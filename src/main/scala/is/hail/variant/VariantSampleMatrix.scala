@@ -140,6 +140,81 @@ object VariantSampleMatrix {
       tGen = (t: Type, v: Annotation) => t.genValue.resize(20),
       makeKOk = (vSig: Type) => vSig.orderedKey)
       .gen(hc)
+
+
+  def checkDatasetSchemasCompatible(datasets: Array[VariantSampleMatrix[Annotation, Annotation, Annotation]]) {
+    val first = datasets(0)
+    val sampleIds = first.sampleIds
+    val vaSchema = first.vaSignature
+    val wasSplit = first.wasSplit
+    val genotypeSchema = first.genotypeSignature
+    val rowKeySchema = first.vSignature
+    val colKeySchema = first.sSignature
+
+    datasets.indices.tail.foreach { i =>
+      val vds = datasets(i)
+      val ids = vds.sampleIds
+      val vas = vds.vaSignature
+      val gsig = vds.genotypeSignature
+      val vsig = vds.vSignature
+      val ssig = vds.sSignature
+
+      if (ssig != colKeySchema) {
+        fatal(
+          s"""cannot combine datasets with different column key schemata
+             |  Schema in datasets[0]: @1
+             |  Schema in datasets[$i]: @2""".stripMargin,
+          colKeySchema.toPrettyString(compact = true, printAttrs = true),
+          ssig.toPrettyString(compact = true, printAttrs = true)
+        )
+      } else if (vsig != rowKeySchema) {
+        fatal(
+          s"""cannot combine datasets with different row key schemata
+             |  Schema in datasets[0]: @1
+             |  Schema in datasets[$i]: @2""".stripMargin,
+          rowKeySchema.toPrettyString(compact = true, printAttrs = true),
+          vsig.toPrettyString(compact = true, printAttrs = true)
+        )
+      } else if (ids != sampleIds) {
+        fatal(
+          s"""cannot combine datasets with different column identifiers or ordering
+             |  IDs in datasets[0]: @1
+             |  IDs in datasets[$i]: @2""".stripMargin, sampleIds, ids)
+      } else if (wasSplit != vds.wasSplit) {
+        fatal(
+          s"""cannot combine split and unsplit datasets
+             |  Split status in datasets[0]: $wasSplit
+             |  Split status in datasets[$i]: ${ vds.wasSplit }""".stripMargin)
+      } else if (vas != vaSchema) {
+        fatal(
+          s"""cannot combine datasets with different row annotation schemata
+             |  Schema in datasets[0]: @1
+             |  Schema in datasets[$i]: @2""".stripMargin,
+          vaSchema.toPrettyString(compact = true, printAttrs = true),
+          vas.toPrettyString(compact = true, printAttrs = true)
+        )
+      } else if (gsig != genotypeSchema) {
+        fatal(
+          s"""cannot read datasets with different cell schemata
+             |  Schema in datasets[0]: @1
+             |  Schema in datasets[$i]: @2""".stripMargin,
+          genotypeSchema.toPrettyString(compact = true, printAttrs = true),
+          gsig.toPrettyString(compact = true, printAttrs = true)
+        )
+      }
+    }
+  }
+
+  def union(datasets: java.util.ArrayList[VariantSampleMatrix[Annotation, Annotation, Annotation]]): VariantSampleMatrix[Annotation, Annotation, Annotation] =
+    union(datasets.asScala.toArray)
+
+  def union(datasets: Array[VariantSampleMatrix[Annotation, Annotation, Annotation]]): VariantSampleMatrix[Annotation, Annotation, Annotation] = {
+    require(datasets.length >= 2)
+
+    checkDatasetSchemasCompatible(datasets)
+    val (first, others) = (datasets.head, datasets.tail)
+    first.copy(rdd = first.sparkContext.union(others.map(_.rdd)).toOrderedRDD(first.rdd.orderedPartitioner.kOk, first.rdd.vct))
+  }
 }
 
 case class VSMSubgen[RPK, RK, T >: Null](
@@ -1067,7 +1142,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }.toArray
     filterSamplesMask(mask)
   }
-  
+
   /**
     * Filter samples using the Hail expression language.
     *
@@ -1639,7 +1714,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         case (None, Some(j)) => notInDataset += s
       }
     }
-    
+
     if (missingSamples.nonEmpty)
       fatal(s"Found ${ missingSamples.size } ${ plural(missingSamples.size, "sample ID") } in dataset that are not in new ordering:\n  " +
         s"@1", missingSamples.truncatable("\n  "))

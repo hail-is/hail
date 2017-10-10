@@ -300,7 +300,7 @@ object OrderedRDD {
 }
 
 class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: OrderedPartitioner[PK, K])
-  (implicit vct: ClassTag[V]) extends RDD[(K, V)](rdd) {
+  (implicit val vct: ClassTag[V]) extends RDD[(K, V)](rdd) {
   implicit val kOk: OrderedKey[PK, K] = orderedPartitioner.kOk
 
   import kOk._
