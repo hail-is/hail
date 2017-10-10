@@ -357,7 +357,7 @@ class VariantDataset(HistoryMixin):
 
         >>> vds_result = (vds.annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet()).map(g => g.gq).stats()')
         ...                  .samples_table()
-        ...                  .select('sample = s', 'het_gq_mean = sa.gqHetStats.mean')
+        ...                  .select(['sample = s', 'het_gq_mean = sa.gqHetStats.mean'])
         ...                  .export('output/samples.txt'))
 
         Compute the list of genes with a singleton LOF per sample:
@@ -3044,7 +3044,7 @@ class VariantDataset(HistoryMixin):
         The simplest way to export all resulting annotations is:
 
         >>> lmm_vds.variants_table()
-        ...        .select('variant = v', 'va.lmmreg.*')
+        ...        .select(['variant = v', 'va.lmmreg.*'])
         ...        .export('output/lmmreg.tsv.bgz')
         >>> lmmreg_results = lmm_vds.globals['lmmreg']
         
@@ -5212,7 +5212,7 @@ class VariantDataset(HistoryMixin):
         >>> pedigree = Pedigree.read('data/trios.fam')
         >>> (vds.tdt(pedigree)
         ...     .variants_table()
-        ...     .select('Variant = v', 'va.tdt.*')
+        ...     .select(['Variant = v', 'va.tdt.*'])
         ...     .export("output/tdt_results.tsv"))
 
         **Notes**
