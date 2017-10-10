@@ -42,12 +42,12 @@ class RichRDDSuite extends SparkSuite {
     assert(r.getNumPartitions == 2)
 
     val notParallelWrite = tmpDir.createTempFile("notParallelWrite")
-    r.saveFromByteArrays(notParallelWrite, tmpDir.tempDir, Some(header), parallelWrite = false)
+    r.saveFromByteArrays(notParallelWrite, tmpDir.createTempFile("notParallelWrite_tmp"), Some(header), parallelWrite = false)
 
-    assert(readBytes(notParallelWrite) sameElements header ++: data.flatten)
+    assert(readBytes(notParallelWrite) sameElements (header ++: data.flatten))
 
     val parallelWrite = tmpDir.createTempFile("parallelWrite")
-    r.saveFromByteArrays(parallelWrite, tmpDir.tempDir, Some(header), parallelWrite = true)
+    r.saveFromByteArrays(parallelWrite, tmpDir.createTempFile("parallelWrite_tmp"), Some(header), parallelWrite = true)
 
     assert(readBytes(parallelWrite + "/part-00000") sameElements header ++ data(0))
     assert(readBytes(parallelWrite + "/part-00001") sameElements header ++ data(1))
