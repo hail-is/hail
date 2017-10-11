@@ -1,9 +1,9 @@
 package is.hail.utils.richUtils
 
-import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.distributedmatrix._
 import is.hail.utils._
+import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 
 object RichIndexedRowMatrix {
   private def seqOp(truncatedBlockRow: Int, truncatedBlockCol: Int, excessRows: Int, excessCols: Int, blockSize: Int)
@@ -17,7 +17,7 @@ object RichIndexedRowMatrix {
         block(jj * rowsInBlock + ii) = a(jj)
         jj += 1
       }
-      a
+      block
   }
 
   private def combOp(l: Array[Double], r: Array[Double]): Array[Double] = {
