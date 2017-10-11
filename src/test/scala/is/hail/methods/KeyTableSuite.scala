@@ -9,6 +9,8 @@ import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.testng.annotations.Test
 
+import scala.collection.mutable
+
 class KeyTableSuite extends SparkSuite {
   def sampleKT1: KeyTable = {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
@@ -249,12 +251,13 @@ class KeyTableSuite extends SparkSuite {
   }
 
   @Test def testSelect() {
-    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
+    val data = Array(Array("Sample1", 9, 5, Row(5, "bunny")), Array("Sample2", 3, 5, Row(6, "hello")), Array("Sample3", 2, 5, null), Array("Sample4", 1, 5, null))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32))
+    val signature = TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32), ("field3", TStruct(("A", TInt32), ("B", TString))))
     val keyNames = Array("Sample")
 
     val kt = KeyTable(hc, rdd, signature, keyNames)
+    kt.typeCheck()
 
     val select1 = kt.select("field1").keyBy("field1")
     assert((select1.key sameElements Array("field1")) && (select1.columns sameElements Array("field1")))
@@ -268,12 +271,22 @@ class KeyTableSuite extends SparkSuite {
     val select4 = kt.select()
     assert((select4.key sameElements Array.empty[String]) && (select4.columns sameElements Array.empty[String]))
 
-    intercept[HailException](kt.select().keyBy("Sample"))
-    intercept[HailException](kt.select("Sample", "field2", "field5").keyBy("Sample"))
+    val select5 = kt.select(Array("field3.*", "A = field1 + field2"), qualifiedName = true)
+    assert(select5.signature == TStruct(("field3.A", TInt32), ("field3.B", TString), ("A", TInt32)))
 
-    for (drop <- Array(select1, select2, select3, select4)) {
-      drop.export(tmpDir.createTempFile("select", "tsv"))
+    val select6 = kt.select("field2", "X = field1 + field2", "Z = 5", "field1", "field3.*", "Q.R = true")
+    assert(select6.signature == TStruct(("field2", TInt32), ("X", TInt32), ("Z", TInt32),
+      ("field1", TInt32), ("A", TInt32), ("B", TString), ("Q.R", TBoolean)))
+
+    for (select <- Array(select1, select2, select3, select4, select5, select6)) {
+      select.export(tmpDir.createTempFile("select", "tsv"))
     }
+
+    TestUtils.interceptFatal("Invalid key")(kt.select().keyBy("Sample"))
+    TestUtils.interceptFatal("symbol `field5' not found")(kt.select("Sample", "field2", "field5").keyBy("Sample"))
+    TestUtils.interceptFatal("Either rename manually or use the 'mangle' option to handle duplicates")(kt.select("field3.*", "A = field1 + field2"))
+    TestUtils.interceptFatal("left-hand side required in annotation expression")(kt.select("field1 + field2"))
+    TestUtils.interceptFatal("cannot splat non-struct type:")(kt.select("field2.*"))
   }
 
   @Test def testDrop() {
@@ -336,7 +349,7 @@ class KeyTableSuite extends SparkSuite {
       .variantsKT()
       .expandTypes()
       .flatten()
-      .select(Array("va.info.MQRankSum"))
+      .select("`va.info.MQRankSum`")
 
     val df = kt.toDF(sqlContext)
     df.printSchema()
@@ -375,7 +388,7 @@ class KeyTableSuite extends SparkSuite {
     val kt = vds.annotateVariantsExpr("va.id = str(v)")
       .variantsKT()
       .flatten()
-      .select("v", "va.id")
+      .select("v", "`va.id`")
       .keyBy("va.id")
 
     val kt2 = KeyTable(hc, vds.variants.map(v => Row(v.toString, 5)),

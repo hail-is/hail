@@ -342,21 +342,57 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     copy(key = key.toArray)
   }
 
-  def select(selectedColumns: Array[String]): KeyTable = {
-    val nonexistentColumns = selectedColumns.diff(columns)
-    if (nonexistentColumns.nonEmpty)
-      fatal(s"Selected columns `${ nonexistentColumns.mkString(", ") }' do not exist in key table. Choose from `${ columns.mkString(", ") }'.")
+  def select(exprs: Array[String], qualifiedName: Boolean = false): KeyTable = {
+    val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
 
-    val (newSignature, del) = signature.select(selectedColumns)
-    val newKey = key.filter(selectedColumns.toSet)
+    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs, ec)
 
-    KeyTable(hc, rdd.map { r => del(r) }, newSignature, newKey)
+    val paths = maybePaths.zip(isNamedExpr).map { case (p, isNamed) =>
+      if (isNamed)
+        List(p.mkString(".")) // FIXME: Not certain what behavior we want here
+      else {
+        if (qualifiedName)
+          List(p.mkString("."))
+        else
+          List(p.last)
+      }
+    }
+
+    val overlappingPaths = paths.counter.filter { case (n, i) => i != 1 }.keys
+
+    if (overlappingPaths.nonEmpty)
+      fatal(s"Found ${ overlappingPaths.size } ${ plural(overlappingPaths.size, "selected field name") } that are duplicated.\n" +
+        "Either rename manually or use the 'mangle' option to handle duplicates.\n Overlapping fields:\n  " +
+        s"@1", overlappingPaths.truncatable("\n  "))
+
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+
+    val finalSignature = (paths, types).zipped.foldLeft(TStruct()) { case (vs, (p, sig)) =>
+      val (s: TStruct, i) = vs.insert(sig, p)
+      inserterBuilder += i
+      s
+    }
+
+    val inserters = inserterBuilder.result()
+
+    val annotF: Row => Row = { r =>
+      ec.setAllFromRow(r)
+
+      f().zip(inserters)
+        .foldLeft(Row()) { case (a1, (v, inserter)) =>
+          inserter(a1, v).asInstanceOf[Row]
+        }
+    }
+
+    val newKey = key.filter(paths.map(_.mkString(".")).toSet)
+
+    KeyTable(hc, mapAnnotations(annotF), finalSignature, newKey)
   }
 
   def select(selectedColumns: String*): KeyTable = select(selectedColumns.toArray)
 
-  def select(selectedColumns: java.util.ArrayList[String]): KeyTable =
-    select(selectedColumns.asScala.toArray)
+  def select(selectedColumns: java.util.ArrayList[String], mangle: Boolean): KeyTable =
+    select(selectedColumns.asScala.toArray, mangle)
 
   def drop(columnsToDrop: Array[String]): KeyTable = {
     val nonexistentColumns = columnsToDrop.diff(columns)

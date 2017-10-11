@@ -145,9 +145,9 @@ class DeNovoSuite extends SparkSuite {
           "va.info.ESP = min(max(va.callStats.AF[1] + runif(-0.05, 0.05), 0), 1)")
       .cache()
     annot.exportVCF(path + ".vcf")
-    annot.exportVariants(path + ".esp",
-      "Chromosome = v.contig, Position = v.start, Ref = v.ref, Alt = v.alt, 4 = 0, 5 = 0, " +
-        "6 = 0, 7 = 0, 8 = 0, AC_EA = va.info.ESP, AN_EA = 1, 11 = 0, AC_AA = 0, AN_AA = 0, 12 = 0")
+    annot.variantsKT().select("Chromosome = v.contig", "Position = v.start", "Ref = v.ref", "Alt = v.alt", "4 = 0", "5 = 0",
+    "6 = 0", "7 = 0", "8 = 0", "AC_EA = va.info.ESP", "AN_EA = 1", "11 = 0", "AC_AA = 0", "AN_AA = 0", "12 = 0")
+        .export(path + ".esp")
     ped.write(path + ".fam", hc.hadoopConf)
   }
 

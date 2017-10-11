@@ -14,8 +14,10 @@ class TDTSuite extends SparkSuite {
       .splitMulti()
       .tdt(Pedigree.read("src/test/resources/tdt.fam", hadoopConf))
       .filterVariantsExpr("v.contig != \"Y\" && v.contig != \"MT\"")
-      .exportVariants(out, "CHROM=v.contig, POSITION=v.start, REF=v.ref, ALT=v.alt(), " +
-        "T = va.tdt.nTransmitted, U = va.tdt.nUntransmitted, Chi2 = va.tdt.chi2, Pval = va.tdt.pval")
+      .variantsKT()
+      .select("CHROM = v.contig", "POSITION = v.start", "REF = v.ref", "ALT = v.alt()",
+        "T = va.tdt.nTransmitted", "U = va.tdt.nUntransmitted", "Chi2 = va.tdt.chi2", "Pval = va.tdt.pval")
+      .export(out)
 
     def parse(file: String) = {
       hadoopConf.readLines(file) { lines =>

@@ -16,6 +16,13 @@ class RichParser[T](parser: Parser.Parser[T]) {
       case Parser.NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
   }
+
+  def parse_opt(input: String): Option[T] = {
+    Parser.parseAll(parser, input) match {
+      case Parser.Success(result, _) => Some(result)
+      case Parser.NoSuccess(msg, next) => None
+    }
+  }
 }
 
 object ParserUtils {
@@ -97,15 +104,28 @@ object Parser extends JavaTokenParsers {
     (types.toArray, () => fs.map(f => f()).toArray)
   }
 
+  def parseSelectExprs(codes: Array[String], ec: EvalContext): (Array[List[String]], Array[Type], () => Array[Any], Array[Boolean]) = {
+    val idPaths = codes.map { x => select_arg.parse_opt(x) }
+    val (maybeNames, types, f, isNamed) = parseNamedExprs[List[String]](codes.mkString(","), annotationIdentifier,
+      ec, (t, s) => t.map(_ :+ s), Some((i) => idPaths(i)))
+
+    if (maybeNames.exists(_.isEmpty))
+      fatal("left-hand side required in annotation expression")
+
+    val names = maybeNames.flatten
+
+    (names, types, f, isNamed)
+  }
+
   def parseAnnotationExprs(code: String, ec: EvalContext, expectedHead: Option[String]): (
     Array[List[String]], Array[Type], () => Array[Any]) = {
-    val (maybeNames, types, f) = parseNamedExprs[List[String]](code, annotationIdentifier, ec,
+    val (maybeNames, types, f, _) = parseNamedExprs[List[String]](code, annotationIdentifier, ec,
       (t, s) => t.map(_ :+ s))
 
     if (maybeNames.exists(_.isEmpty))
       fatal("left-hand side required in annotation expression")
 
-    val names = maybeNames.map(_.get)
+    val names = maybeNames.flatten
 
     expectedHead.foreach { h =>
       names.foreach { n =>
@@ -127,40 +147,21 @@ object Parser extends JavaTokenParsers {
     })
   }
 
-  def parseExportExprs(code: String, ec: EvalContext): (Option[Array[String]], Array[Type], () => Array[String]) = {
-    val (names, types, f) = parseNamedExprs[String](code, tsvIdentifier, ec,
-      (t, s) => Some(t.map(_ + "." + s).getOrElse(s)))
-
-    val allNamed = names.forall(_.isDefined)
-    val noneNamed = names.forall(_.isEmpty)
-
-    if (!allNamed && !noneNamed)
-      fatal(
-        """export expressions require either all arguments named or none
-          |  Hint: exploded structs (e.g. va.info.*) count as named arguments""".stripMargin)
-
-    (anyFailAllFail(names), types,
-      () => {
-        (types, f()).zipped.map { case (t, v) =>
-          TableAnnotationImpex.exportAnnotation(v, t)
-        }
-      })
-  }
-
   def parseNamedExprs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[Any]) = {
-    val (maybeNames, types, f) = parseNamedExprs[String](code, identifier, ec,
+    val (maybeNames, types, f, _) = parseNamedExprs[String](code, identifier, ec,
       (t, s) => Some(t.map(_ + "." + s).getOrElse(s)))
 
     if (maybeNames.exists(_.isEmpty))
       fatal("left-hand side required in named expression")
 
-    val names = maybeNames.map(_.get)
+    val names = maybeNames.flatten
 
     (names, types, f)
   }
 
-  def parseNamedExprs[T](code: String, name: Parser[T], ec: EvalContext, concat: (Option[T], String) => Option[T]): (
-    Array[Option[T]], Array[Type], () => Array[Any]) = {
+  def parseNamedExprs[T](code: String, name: Parser[T], ec: EvalContext, concat: (Option[T], String) => Option[T],
+    nameF: Option[(Int) => Option[T]] = None): (
+    Array[Option[T]], Array[Type], () => Array[Any], Array[Boolean]) = {
 
     val parsed = named_exprs(name).parse(code)
     val nExprs = parsed.size
@@ -184,10 +185,12 @@ object Parser extends JavaTokenParsers {
     val names = new Array[Option[T]](nValues)
     val types = new Array[Type](nValues)
     val fs = new Array[() => Unit](nExprs)
+    val isNamed = new Array[Boolean](nValues)
 
     var i = 0
     var j = 0
-    parsed.foreach { case (n, ast, splat) =>
+    parsed.foreach { case (name, ast, splat) =>
+      val n = nameF.flatMap(f => f(i)).orElse(name)
       val t = ast.`type`
 
       if (!t.isRealizable)
@@ -200,6 +203,7 @@ object Parser extends JavaTokenParsers {
         s.fields.foreach { field =>
           names(j) = concat(n, field.name)
           types(j) = field.typ
+          isNamed(j) = name.isDefined
           j += 1
         }
 
@@ -224,6 +228,7 @@ object Parser extends JavaTokenParsers {
       } else {
         names(j) = n
         types(j) = t
+        isNamed(j) = name.isDefined
         val localJ = j
         fs(i) = () => {
           a(localJ) = f()
@@ -242,7 +247,7 @@ object Parser extends JavaTokenParsers {
       val newa = new Array[Any](nValues)
       System.arraycopy(a, 0, newa, 0, nValues)
       newa
-    })
+    }, isNamed)
   }
 
   def parseType(code: String): Type = {
@@ -351,21 +356,8 @@ object Parser extends JavaTokenParsers {
       lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
-  def export_args: Parser[Array[(Option[String], AST)]] =
-  // FIXME | not backtracking properly.  Why?
-    rep1sep(expr ^^ { e => (None, e) } |||
-      named_arg ^^ { case (name, expr) => (Some(name), expr) }, ",") ^^ (_.toArray)
-
   def comma_delimited_doubles: Parser[Array[Double]] =
     repsep(floatingPointNumber, ",") ^^ (_.map(_.toDouble).toArray)
-
-  def named_args: Parser[Array[(String, AST)]] =
-    named_arg ~ rep("," ~ named_arg) ^^ { case arg ~ lst =>
-      (arg :: lst.map { case _ ~ arg => arg }).toArray
-    }
-
-  def named_arg: Parser[(String, AST)] =
-    tsvIdentifier ~ "=" ~ expr ^^ { case id ~ _ ~ expr => (id, expr) }
 
   def annotationExpressions: Parser[Array[(List[String], AST)]] =
     repsep(annotationExpression, ",") ^^ {
@@ -509,6 +501,11 @@ object Parser extends JavaTokenParsers {
   def splat: Parser[Boolean] =
     "." ~ "*" ^^ { _ => true } |
       success(false)
+
+  def splatAnnotationIdentifier = rep1sep(identifier, ".") <~ ".*"
+
+  def select_arg: Parser[List[String]] =
+    splatAnnotationIdentifier ||| annotationIdentifier
 
   def named_expr[T](name: Parser[T]): Parser[(Option[T], AST, Boolean)] =
     (((name <~ "=") ^^ { n => Some(n) }) ~ expr ~ splat |||

@@ -95,7 +95,7 @@ class TextTableSuite extends SparkSuite {
     val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)
       .filter(vds => vds.countVariants > 0 && vds.vaSignature != TFloat64)) { vds: VariantDataset =>
 
-      vds.exportVariants(outPath, "v = v, va = va", typeFile = true)
+      vds.variantsKT().export(outPath, typesFile = outPath + ".types")
 
       val types = Type.parseMap(hadoopConf.readFile(outPath + ".types")(Source.fromInputStream(_).mkString))
 

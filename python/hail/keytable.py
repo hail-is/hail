@@ -603,8 +603,9 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(selected_columns=oneof(strlike, listof(strlike)))
-    def select(self, selected_columns):
+    @typecheck_method(selected_columns=oneof(strlike, listof(strlike)),
+                      qualified_name=bool)
+    def select(self, selected_columns, qualified_name=False):
         """Select a subset of columns.
 
         **Examples**
@@ -624,15 +625,46 @@ class KeyTable(HistoryMixin):
 
         >>> kt_result = kt1.select([])
 
+        Create a new column computed from existing columns:
+
+        >>> kt_result = kt1.select('C_NEW = C1 + C2 + C3')
+
+        Export variant QC results:
+
+        >>> vds.variant_qc()
+        ...    .variants_table()
+        ...    .select(['v', 'va.qc.*', '`1-AF` = 1 - va.qc.AF'])
+        ...    .export('output/variant_qc.tsv')
+
+        **Notes**
+
+        :py:meth:`~hail.KeyTable.select` creates a new schema as specified by `exprs`.
+
+        Each argument can either be an annotation path `A.B.C` for an existing column in the table, a splatted annotation
+        path `A.*`, or an :ref:`annotation expression <overview-expr-add>` `Z = X + 2 * Y`.
+
+        For annotation paths, the column name in the new table will be the field name.
+        For example, if the annotation path is `A.B.C`, the column name will be `C` in the output table.
+        Use the `qualified_name=True` option to output the full path name as the column name (`A.B.C`).
+
+        For annotation paths with a type of Struct, use the splat character `.*` to add a new column per Field
+        to the output table. The column name will be the field name unless `qualified_name=True`.
+
+        For annotation expressions, the left hand side is the new annotation path for the computed result.
+        To include "." or other special characters in a path name, enclose the name in backticks.
+
         :param selected_columns: List of columns to be selected.
         :type: str or list of str
+
+        :param qualified_name: If True, make the column name for annotation identifiers arguments be the full path name. Useful for avoiding naming collisions.
+        :type: bool
 
         :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
         """
 
         selected_columns = wrap_to_list(selected_columns)
-        return KeyTable(self.hc, self._jkt.select(selected_columns))
+        return KeyTable(self.hc, self._jkt.select(selected_columns, qualified_name))
 
     @handle_py4j
     @record_method

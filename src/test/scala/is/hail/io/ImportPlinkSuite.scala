@@ -86,19 +86,17 @@ class ImportPlinkSuite extends SparkSuite {
     val a1kt = a1ref
       .variantQC()
       .variantsKT()
-      .flatten()
       .select("va.rsid", "v", "va.qc.nNotCalled", "va.qc.nHomRef", "va.qc.nHet", "va.qc.nHomVar")
-      .rename(Map("va.rsid" -> "rsid","v" -> "vA1", "va.qc.nNotCalled" -> "nNotCalledA1",
-        "va.qc.nHomRef" -> "nHomRefA1", "va.qc.nHet" -> "nHetA1", "va.qc.nHomVar" -> "nHomVarA1"))
+      .rename(Map("v" -> "vA1", "nNotCalled" -> "nNotCalledA1",
+        "nHomRef" -> "nHomRefA1", "nHet" -> "nHetA1", "nHomVar" -> "nHomVarA1"))
       .keyBy("rsid")
 
     val a2kt = a2ref
       .variantQC()
       .variantsKT()
-      .flatten()
       .select("va.rsid", "v", "va.qc.nNotCalled", "va.qc.nHomRef", "va.qc.nHet", "va.qc.nHomVar")
-      .rename(Map("va.rsid" -> "rsid","v" -> "vA2", "va.qc.nNotCalled" -> "nNotCalledA2",
-        "va.qc.nHomRef" -> "nHomRefA2", "va.qc.nHet" -> "nHetA2", "va.qc.nHomVar" -> "nHomVarA2"))
+      .rename(Map("v" -> "vA2", "nNotCalled" -> "nNotCalledA2",
+        "nHomRef" -> "nHomRefA2", "nHet" -> "nHetA2", "nHomVar" -> "nHomVarA2"))
       .keyBy("rsid")
 
     val joined = a1kt.join(a2kt, "outer")
