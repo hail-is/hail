@@ -1,5 +1,7 @@
 package is.hail.utils.richUtils
 
+import java.io.{DataInputStream, DataOutputStream}
+
 import breeze.linalg.DenseMatrix
 import is.hail.utils.ArrayBuilder
 
@@ -10,6 +12,20 @@ object RichDenseMatrixDouble {
       None
     else
       Some(DenseMatrix.horzcat(ms: _*))
+  }
+  
+  def read(in: DataInputStream): DenseMatrix[Double] = {
+    val rows = in.readInt()
+    val cols = in.readInt()
+    
+    val data = new Array[Double](rows * cols)
+    var i = 0
+    while (i < rows * cols) {
+      data(i) = in.readDouble()
+      i += 1
+    }
+    
+    new DenseMatrix[Double](rows, cols, data)
   }
 }
 
@@ -49,5 +65,17 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       Some(new DenseMatrix[Double](rows = m.rows, cols = nCols, data = ab.result()))
     else
       None
+  }
+  
+  def write(out: DataOutputStream) {
+    out.writeInt(m.rows)
+    out.writeInt(m.cols)
+
+    val data = m.toArray
+    var i = 0
+    while (i < m.rows * m.cols) {
+      out.writeDouble(data(i))
+      i += 1
+    }
   }
 }

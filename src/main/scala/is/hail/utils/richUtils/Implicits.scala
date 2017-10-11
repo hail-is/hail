@@ -1,6 +1,7 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
+import org.apache.spark.mllib.linalg.{Matrix => SparkMatrix}
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable}
 import is.hail.variant.Variant
 import org.apache.hadoop
@@ -28,6 +29,8 @@ trait Implicits {
 
   implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble = new RichDenseMatrixDouble(m)
 
+  implicit def toRichSparkMatrix(m: SparkMatrix): RichSparkMatrix = new RichSparkMatrix(m)
+  
   implicit def toRichDouble(d: Double): RichDouble = new RichDouble(d)
 
   implicit def toRichEnumeration[T <: Enumeration](e: T): RichEnumeration[T] = new RichEnumeration(e)
