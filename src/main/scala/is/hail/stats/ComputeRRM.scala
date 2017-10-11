@@ -1,5 +1,6 @@
 package is.hail.stats
 
+import is.hail.distributedmatrix.BlockMatrix.ops._
 import breeze.linalg.DenseMatrix
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
@@ -17,7 +18,7 @@ object ComputeGramian {
 
   def withBlock(A: IndexedRowMatrix): IndexedRowMatrix = {
     val n = A.numCols().toInt
-    val B = A.toBlockMatrix().cache()
+    val B = A.toHailBlockMatrix().cache()
     val G = B.t * B
     B.blocks.unpersist()
     G.toIndexedRowMatrix()

@@ -16,7 +16,10 @@ object BlockMatrix {
   type M = BlockMatrix
   val defaultBlockSize: Int = 1024
 
-  def from(sc: SparkContext, lm: BDM[Double], blockSize: Int = defaultBlockSize): M = {
+  def from(sc: SparkContext, lm: BDM[Double]): M =
+    from(sc, lm, defaultBlockSize)
+
+  def from(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
     assertCompatibleLocalMatrix(lm)
     val partitioner = GridPartitioner(lm.rows, lm.cols, blockSize)
     val lmBc = sc.broadcast(lm)
@@ -50,7 +53,10 @@ object BlockMatrix {
     new BlockMatrix(blocks, blockSize, lm.rows, lm.cols)
   }
 
-  def from(irm: IndexedRowMatrix, blockSize: Int = defaultBlockSize): M =
+  def from(irm: IndexedRowMatrix): M =
+    from(irm, defaultBlockSize)
+
+  def from(irm: IndexedRowMatrix, blockSize: Int): M =
     irm.toHailBlockMatrix(blockSize)
 
   def map4(f: (Double, Double, Double, Double) => Double)(a: M, b: M, c: M, d: M): M =
