@@ -18,7 +18,6 @@ import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
@@ -283,7 +282,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, None)
 
-    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val inserterBuilder = new ArrayBuilder[Inserter]()
 
     val finalSignature = (paths, types).zipped.foldLeft(signature) { case (vs, (ids, sig)) =>
       val (s: TStruct, i) = vs.insert(sig, ids)

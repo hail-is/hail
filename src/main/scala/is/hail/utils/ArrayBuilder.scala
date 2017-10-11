@@ -41,6 +41,8 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
     size_ += 1
   }
 
+  def ++=(s: Seq[T]): Unit = s.foreach(x => this += x)
+
   def ++=(a: Array[T]): Unit = ++=(a, a.length)
 
   def ++=(a: Array[T], length: Int) {

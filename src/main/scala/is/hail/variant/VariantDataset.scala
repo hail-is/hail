@@ -11,7 +11,6 @@ import is.hail.variant.Variant.orderedKey
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 
-import scala.collection.mutable
 import scala.language.implicitConversions
 
 object VariantDataset {
@@ -61,7 +60,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
 
-    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val inserterBuilder = new ArrayBuilder[Inserter]()
     val newType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
       val (s, i) = vas.insert(TArray(signature), ids)
       inserterBuilder += i

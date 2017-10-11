@@ -3,8 +3,6 @@ package is.hail.expr
 import is.hail.annotations.{Annotation, _}
 import is.hail.utils._
 
-import scala.collection.mutable
-
 trait JoinAnnotator {
 
   def splitWarning(leftSplit: Boolean, left: String, rightSplit: Boolean, right: String) {
@@ -29,7 +27,7 @@ trait JoinAnnotator {
   def buildInserter(code: String, t: Type, ec: EvalContext, expectedHead: String): (Type, Inserter) = {
     val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, Some(expectedHead))
 
-    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val inserterBuilder = new ArrayBuilder[Inserter]()
     val finalType = (paths, types).zipped.foldLeft(t) { case (t, (ids, signature)) =>
       val (s, i) = t.insert(signature, ids)
       inserterBuilder += i

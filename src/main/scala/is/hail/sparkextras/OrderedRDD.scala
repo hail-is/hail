@@ -481,7 +481,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
 
     val intervalArray = intervals.toArray
 
-    val partitionIndices = new scala.collection.mutable.ArrayBuilder.ofInt
+    val partitionIndices = new ArrayBuilder[Int]()
 
     val rangeBounds = orderedPartitioner.rangeBounds
 
