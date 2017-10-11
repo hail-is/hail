@@ -36,8 +36,8 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         val a = new Array[Double](rowsInBlock * colsInBlock)
         it.foreach{ case (ii, values) =>
           var jj = 0
-          while (j < values.length) {
-            a(jj * rowsInBlock + ii) = values(i)
+          while (jj < values.length) {
+            a(jj * rowsInBlock + ii) = values(jj)
             jj += 1
           }
         }
