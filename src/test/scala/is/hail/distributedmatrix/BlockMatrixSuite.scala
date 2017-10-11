@@ -18,7 +18,7 @@ class BlockMatrixSuite extends SparkSuite {
     new BDM(rows, cols, data, 0, cols, isTranspose = true)
 
   def toBM(rows: Int, cols: Int, data: Array[Double]): BlockMatrix =
-    toBM(rows, new BDM(rows, cols, data, 0, rows, isTranspose=true))
+    toBM(new BDM(rows, cols, data, 0, rows, true))
 
   def toBM(rows: Seq[Array[Double]]): BlockMatrix =
     toBM(rows, BlockMatrix.defaultBlockSize)
@@ -114,7 +114,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def randomMultiplyByLocalMatrix() {
-    forAll(Gen.twoMultipliableDenseMatrices) { case (ll, lr) =>
+    forAll(Gen.twoMultipliableDenseMatrices[Double]) { case (ll, lr) =>
       val l = toBM(ll)
       assert(ll * lr === (l * lr).toLocalMatrix())
       true
@@ -197,7 +197,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def rowwiseMultiplication() {
-    val l = toBM(4, 4, new Array[Double](
+    val l = toBM(4, 4, Array[Double](
       1,  2,  3,  4,
       5,  6,  7,  8,
       9,  10, 11, 12,
@@ -300,6 +300,25 @@ class BlockMatrixSuite extends SparkSuite {
   }
 
   @Test
+  def rowwiseAddition() {
+    val l = toBM(4, 4, Array[Double](
+      1,  2,  3,  4,
+      5,  6,  7,  8,
+      9,  10, 11, 12,
+      13, 14, 15, 16))
+
+    val v = Array[Double](1,2,3,4)
+
+    val result = toLM(4, 4, Array[Double](
+      2,  4,  6,  8,
+      6,  8,  10, 12,
+      10, 12, 14, 16,
+      14, 16, 18, 20))
+
+    assert((l --+ v).toLocalMatrix() == result)
+  }
+
+  @Test
   def diagonalTestTiny() {
     val m = toBM(4, 4, Array[Double](
       1,  2,  3,  4,
@@ -315,7 +334,7 @@ class BlockMatrixSuite extends SparkSuite {
     forAll(squareBlockMatrixGen) { (m: BlockMatrix) =>
       val lm = m.toLocalMatrix()
       val diagonalLength = math.min(lm.rows, lm.cols)
-      val diagonal = Array.tabulate(diagonalLenth)(i => lm(i,i))
+      val diagonal = Array.tabulate(diagonalLength)(i => lm(i,i))
 
       if (m.diag.toSeq == diagonal.toSeq)
         true

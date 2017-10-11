@@ -22,26 +22,30 @@ object BlockMatrix {
     val lmBc = sc.broadcast(lm)
     val rowPartitions = partitioner.rowPartitions
     val colPartitions = partitioner.colPartitions
-    val rowsRemainder = lm.rows % blockSize
-    val colsRemainder = lm.cols % blockSize
+    val truncatedBlockRow = lm.rows / blockSize
+    val truncatedBlockCol = lm.cols / blockSize
+    val excessRows = lm.rows % blockSize
+    val excessCols = lm.cols % blockSize
     val indices = for {
       i <- 0 until rowPartitions
       j <- 0 until colPartitions
     } yield (i, j)
     val blocks = sc.parallelize(indices).map { case (i, j) =>
-      val rowsInThisBlock = if (i + 1 == rowPartitions && rowsRemainder != 0) rowsRemainder else blockSize
-      val colsInThisBlock = if (j + 1 == colPartitions && colsRemainder != 0) colsRemainder else blockSize
-      val a = new Array[Double](rowsInThisBlock * colsInThisBlock)
+      val iOffset = i * blockSize
+      val jOffset = j * blockSize
+      val rowsInBlock = if (i == truncatedBlockRow) excessRows else blockSize
+      val colsInBlock = if (j == truncatedBlockCol) excessCols else blockSize
+      val a = new Array[Double](rowsInBlock * colsInBlock)
       var jj = 0
-      while (jj < colsInThisBlock) {
+      while (jj < colsInBlock) {
         var ii = 0
-        while (ii < rowsInThisBlock) {
-          a(jj * rowsInThisBlock + ii) = lmBc.value(i * blockSize + ii, j * blockSize + jj)
+        while (ii < rowsInBlock) {
+          a(jj * rowsInBlock + ii) = lmBc.value(iOffset + ii, jOffset + jj)
           ii += 1
         }
         jj += 1
       }
-      ((i, j), new BDM(rowsInThisBlock, colsInThisBlock, a))
+      ((i, j), new BDM(rowsInBlock, colsInBlock, a))
     }.partitionBy(partitioner)
     new BlockMatrix(blocks, blockSize, lm.rows, lm.cols)
   }
@@ -196,6 +200,8 @@ object BlockMatrix {
       def :*(v: Array[Double]): M =
         l.vectorPointwiseMultiplyEveryColumn(v)
 
+      def --+(v: Array[Double]): M =
+        l.vectorAddToEveryRow(v)
       def --*(v: Array[Double]): M =
         l.vectorPointwiseMultiplyEveryRow(v)
     }
@@ -225,7 +231,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val cols: Long) extends Serializable {
   import BlockMatrix._
 
-  val st = Thread.currentThread().getStackTrace().mkString("\n")
+  private[distributedmatrix] val st: String = Thread.currentThread().getStackTrace().mkString("\n")
 
   require(blocks.partitioner.isDefined)
   require(blocks.partitioner.get.isInstanceOf[GridPartitioner])
@@ -233,7 +239,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val partitioner: GridPartitioner = blocks.partitioner.get.asInstanceOf[GridPartitioner]
 
   def transpose(): M =
-    new BlockMatrix(new BlockMAtrixTransposeRDD(this), blockSize, cols, rows)
+    new BlockMatrix(new BlockMatrixTransposeRDD(this), blockSize, cols, rows)
 
   def diagonal(): Array[Double] =
     new BlockMatrixDiagonalRDD(this).toArray
@@ -559,7 +565,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 }
 
-private class BlockMAtrixTransposeRDD(dm: BlockMatrix)
+private class BlockMatrixTransposeRDD(dm: BlockMatrix)
   extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(dm.blocks))) {
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] =
     dm.blocks.iterator(split, context).map { case ((i, j), lm) => ((j, i), lm.t) }
@@ -572,23 +578,23 @@ private class BlockMAtrixTransposeRDD(dm: BlockMatrix)
     Some(prevPartitioner.transpose)
 }
 
-private class BlockMatrixDiagonalRDD(dm: BlockMatrix)
-    extends RDD[Array[Double]](dm.blocks.sparkContext, Nil) {
+private class BlockMatrixDiagonalRDD(m: BlockMatrix)
+    extends RDD[Array[Double]](m.blocks.sparkContext, Nil) {
   import BlockMatrix.block
 
   private val length = {
-    val x = math.min(dm.rows, dm.cols)
-    assert(x <= Integer.MAX_VALUE, s"diagonal is too big for local array: $x; ${dm.st}")
+    val x = math.min(m.rows, m.cols)
+    assert(x <= Integer.MAX_VALUE, s"diagonal is too big for local array: $x; ${m.st}")
     x.toInt
   }
-  private val blockSize = dm.blockSize
-  private val dmPartitions = dm.blocks.partitions
-  private val dmPartitioner = dm.partitioner
+  private val blockSize = m.blockSize
+  private val dmPartitions = m.blocks.partitions
+  private val dmPartitioner = m.partitioner
   private val partitionsLength = math.min(
     dmPartitioner.rowPartitions, dmPartitioner.colPartitions)
 
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
-    new NarrowDependency(dm.blocks) {
+    new NarrowDependency(m.blocks) {
       def getParents(partitionId: Int): Seq[Int] = {
         assert(partitionId == 0)
         val deps = new Array[Int](partitionsLength)
@@ -604,7 +610,7 @@ private class BlockMatrixDiagonalRDD(dm: BlockMatrix)
     val result = new Array[Double](length)
     var i = 0
     while (i < partitionsLength) {
-      val a = diag(block(dm, dmPartitions, dmPartitioner, context, i, i)).toArray
+      val a = diag(block(m, dmPartitions, dmPartitioner, context, i, i)).toArray
       var k = 0
       val offset = i * blockSize
       while (k < a.length) {
