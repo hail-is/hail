@@ -881,9 +881,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
 
   def dropSamples(): VariantSampleMatrix[RPK, RK, T] =
-    copy(sampleIds = IndexedSeq.empty[Annotation],
+    copyAST(sampleIds = IndexedSeq.empty[Annotation],
       sampleAnnotations = IndexedSeq.empty[Annotation],
-      rdd = rdd.mapValues { case (va, gs) => (va, Iterable.empty[T]) })
+      ast = FilterSamples(ast, Const(_, true, TBoolean)))
 
   def dropVariants(): VariantSampleMatrix[RPK, RK, T] = copy(rdd = OrderedRDD.empty(sparkContext))
 
