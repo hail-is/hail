@@ -117,7 +117,7 @@ class BlockMatrixSuite extends SparkSuite {
   def randomMultiplyByLocalMatrix() {
     forAll(Gen.twoMultipliableDenseMatrices[Double]) { case (ll, lr) =>
       val l = toBM(ll)
-      assert(ll * lr === (l * lr).toLocalMatrix())
+      assert(arrayEqualNaNEqualsNaN((ll * lr).toArray, (l * lr).toLocalMatrix().toArray))
       true
     }.check()
   }
@@ -375,7 +375,7 @@ class BlockMatrixSuite extends SparkSuite {
     forAll(blockMatrixGen) { (m: BlockMatrix) =>
       val fname = tmpDir.createTempFile("test")
       BlockMatrix.write(m, fname)
-      assert(m.toLocalMatrix() == BlockMatrix.read(hc, fname).toLocalMatrix())
+      assert(arrayEqualNaNEqualsNaN(m.toLocalMatrix().toArray, BlockMatrix.read(hc, fname).toLocalMatrix().toArray))
       true
     }.check()
   }
@@ -452,13 +452,13 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def map2RespectsTransposition() {
     val lm = toLM(4, 2, Array[Double](
-      1,5,
-      2,6,
-      3,7,
-      4,8))
+      1,2,
+      3,4,
+      5,6,
+      7,8))
     val lmt = toLM(2, 4, Array[Double](
-      1,2,3,4,
-      5,6,7,8)).t
+      1,3,5,7,
+      2,4,6,8))
 
     val m = toBM(lm)
     val mt = toBM(lmt)
@@ -470,13 +470,13 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def map4RespectsTransposition() {
     val lm = toLM(4, 2, Array[Double](
-      1,5,
-      2,6,
-      3,7,
-      4,8))
+      1,2,
+      3,4,
+      5,6,
+      7,8))
     val lmt = toLM(2, 4, Array[Double](
-      1,2,3,4,
-      5,6,7,8)).t
+      1,3,5,7,
+      2,4,6,8))
 
     val m = toBM(lm)
     val mt = toBM(lmt)
@@ -488,13 +488,13 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def mapRespectsTransposition() {
     val lm = toLM(4, 2, Array[Double](
-      1,5,
-      2,6,
-      3,7,
-      4,8))
+      1,2,
+      3,4,
+      5,6,
+      7,8))
     val lmt = toLM(2, 4, Array[Double](
-      1,2,3,4,
-      5,6,7,8)).t
+      1,3,5,7,
+      2,4,6,8))
 
     val m = toBM(lm)
     val mt = toBM(lmt)
@@ -506,14 +506,14 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def mapWithIndexRespectsTransposition() {
-    val lm = toLM(2, 4, Array[Double](
-      1,5,
-      2,6,
-      3,7,
-      4,8))
-    val lmt = toLM(4, 2, Array[Double](
-      1,2,3,4,
-      5,6,7,8)).t
+    val lm = toLM(4, 2, Array[Double](
+      1,2,
+      3,4,
+      5,6,
+      7,8))
+    val lmt = toLM(2, 4, Array[Double](
+      1,3,5,7,
+      2,4,6,8))
 
     val m = toBM(lm)
     val mt = toBM(lmt)
@@ -525,14 +525,14 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def map2WithIndexRespectsTransposition() {
-    val lm = toLM(2, 4, Array[Double](
-      1,5,
-      2,6,
-      3,7,
-      4,8))
-    val lmt = toLM(4, 2, Array[Double](
-      1,2,3,4,
-      5,6,7,8)).t
+    val lm = toLM(4, 2, Array[Double](
+      1,2,
+      3,4,
+      5,6,
+      7,8))
+    val lmt = toLM(2, 4, Array[Double](
+      1,3,5,7,
+      2,4,6,8))
 
     val m = toBM(lm)
     val mt = toBM(lmt)

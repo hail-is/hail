@@ -393,8 +393,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           val src1 = lm1.data
           val src2 = lm2.data
           val dst = new Array[Double](src1.length)
-          var k = 0
           if (lm1.isTranspose == lm2.isTranspose) {
+            var k = 0
             while (k < src1.length) {
               dst(k) = op(src1(k), src2(k))
               k += 1
@@ -405,7 +405,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
             var k2 = 0
             while (k1 < length) {
               while (k2 < length) {
-                dst(k) = op(src1(k1), src2(k2))
+                dst(k1) = op(src1(k1), src2(k2))
                 k1 += 1
                 k2 += lm2.majorStride
               }
