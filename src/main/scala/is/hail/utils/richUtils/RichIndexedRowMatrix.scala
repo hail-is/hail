@@ -52,7 +52,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
       val i = ir.index / blockSize
       val ii = ir.index % blockSize
       val a = ir.vector.toArray
-      val grouped = new Array[((Int, Int), (Int, Int, Int, Array[Double]))](a.length / blockSize)
+      val grouped = new Array[((Int, Int), (Int, Int, Int, Array[Double]))](colPartitions)
 
       var j = 0
       while (j < colPartitions) {
