@@ -125,7 +125,7 @@ object BlockMatrix {
     hadoop.mkDir(uri)
 
     dm.blocks.map { case ((i, j), lm) =>
-      (new PairWriter(i, j), new MatrixWriter(lm.rows, lm.cols, lm.data))
+      (new PairWriter(i, j), new MatrixWriter(lm.rows, lm.cols, lm.toArray))
     }
       .saveAsSequenceFile(uri + matrixRelativePath)
 

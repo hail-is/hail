@@ -129,6 +129,8 @@ class BlockMatrixSuite extends SparkSuite {
       var i = 0
       while (i < x.length) {
         if (math.abs(x(i) - y(i)) > absoluteTolerance && !(x(i).isNaN && y(i).isNaN)) {
+          println(x: IndexedSeq[Double])
+          println(y: IndexedSeq[Double])
           println(s"inequality found at $i: ${x(i)} and ${y(i)}")
           return false
         }
@@ -368,6 +370,19 @@ class BlockMatrixSuite extends SparkSuite {
     val fname = tmpDir.createTempFile("test")
     BlockMatrix.write(m, fname)
     assert(m.toLocalMatrix() == BlockMatrix.read(hc, fname).toLocalMatrix())
+  }
+
+  @Test
+  def readWriteIdentityTrivialTransposed() {
+    val m = toBM(4, 4, Array[Double](
+      1,  2,  3,  4,
+      5,  6,  7,  8,
+      9,  10, 11, 12,
+      13, 14, 15, 16))
+
+    val fname = tmpDir.createTempFile("test")
+    BlockMatrix.write(m.t, fname)
+    assert(m.t.toLocalMatrix() == BlockMatrix.read(hc, fname).toLocalMatrix())
   }
 
   @Test
