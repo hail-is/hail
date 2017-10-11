@@ -43,7 +43,7 @@ object PCRelate {
     val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
     val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, statistics)
 
-    def fuseBlocks(i: Int, j: Int, lmPhi: Matrix, lmK0: Matrix, lmK1: Matrix, lmK2: Matrix) = {
+    def fuseBlocks(i: Int, j: Int, lmPhi: BDM[Double], lmK0: BDM[Double], lmK1: BDM[Double], lmK2: BDM[Double]) = {
       val iOffset = i * blockSize
       val jOffset = j * blockSize
 
