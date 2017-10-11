@@ -3,18 +3,18 @@ package is.hail.methods
 import breeze.linalg.{DenseMatrix, convert, norm}
 import breeze.stats.mean
 import is.hail.utils._
+import is.hail.variant.VariantDataset
 import is.hail.{SparkSuite, TestUtils, stats}
 import org.testng.Assert
 import org.testng.annotations.Test
 
 class LDMatrixSuite extends SparkSuite {
-
-  val m = 100
-  val n = 100
-  val seed = scala.util.Random.nextInt()
-  val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
-  val distLDMatrix = LDMatrix.apply(vds, Some(false))
-  val localLDMatrix = vds.ldMatrix(forceLocal = true)
+  val m = 50
+  val n = 60
+  val seed: Int = scala.util.Random.nextInt()
+  val vds: VariantDataset = hc.baldingNicholsModel(1, n, m, seed = seed)
+  val distLDMatrix: LDMatrix = LDMatrix.apply(vds, Some(false))
+  val localLDMatrix: LDMatrix = vds.ldMatrix(forceLocal = true)
 
   /**
     * Tests that entries in LDMatrix agree with those computed by LDPrune.computeR. Also tests
@@ -53,8 +53,6 @@ class LDMatrixSuite extends SparkSuite {
     * Tests that the method agrees with local Breeze math.
     */
   @Test def localTest() {
-    val m = 2
-    val n = 3
     val genotypes: DenseMatrix[Int] = DenseMatrix((0, 2, 1),
                                                   (1, 0, 0))
 
