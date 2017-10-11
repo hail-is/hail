@@ -5,7 +5,35 @@ import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.distributedmatrix._
 import is.hail.utils._
 
+object RichIndexedRowMatrix {
+  private def seqOp(truncatedBlockRow: Int, truncatedBlockCol: Int, excessRows: Int, excessCols: Int, blockSize: Int)
+    (block: Array[Double], row: (Int, Int, Int, Array[Double])): Array[Double] = row match {
+    case (i, j, ii, a) =>
+      val rowsInBlock: Int = if (i == truncatedBlockRow) excessRows else blockSize
+      val colsInBlock: Int = if (j == truncatedBlockCol) excessCols else blockSize
+
+      var jj = 0
+      while (jj < a.length) {
+        block(jj * rowsInBlock + ii) = a(jj)
+        jj += 1
+      }
+      a
+  }
+
+  private def combOp(l: Array[Double], r: Array[Double]): Array[Double] = {
+    var k = 0
+    while (k < l.length) {
+      if (r(k) != 0)
+        l(k) = r(k)
+      k += 1
+    }
+    l
+  }
+}
+
 class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
+  import RichIndexedRowMatrix._
+
   def toHailBlockMatrix(blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix = {
     require(blockSize > 0,
       s"blockSize needs to be greater than 0. blockSize: $blockSize")
@@ -15,33 +43,10 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     val partitioner = GridPartitioner(rows, cols, blockSize)
     val colPartitions = partitioner.colPartitions
     // NB: if excessRows == 0, we never reach the truncatedBlockRow
-    val truncatedBlockRow = rows / blockSize
-    val truncatedBlockCol = cols / blockSize
+    val truncatedBlockRow = (rows / blockSize).toInt
+    val truncatedBlockCol = (cols / blockSize).toInt
     val excessRows = (rows % blockSize).toInt
     val excessCols = (cols % blockSize).toInt
-
-    def seqOp(block: Array[Double], row: (Int, Int, Int, Array[Double])): Array[Double] = row match {
-      case (i, j, ii, a) =>
-        val rowsInBlock: Int = if (i == truncatedBlockRow) excessRows else blockSize
-        val colsInBlock: Int = if (j == truncatedBlockCol) excessCols else blockSize
-
-        var jj = 0
-        while (jj < a.length) {
-          block(jj * rowsInBlock + ii) = a(jj)
-          jj += 1
-        }
-        a
-    }
-
-    def combOp(l: Array[Double], r: Array[Double]): Array[Double] = {
-      var k = 0
-      while (k < l.length) {
-        if (r(k) != 0)
-          l(k) = r(k)
-        k += 1
-      }
-      l
-    }
 
     val blocks = indexedRowMatrix.rows.flatMap { ir =>
       val i = ir.index / blockSize
@@ -61,7 +66,8 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
       }
 
       grouped.iterator
-    }.aggregateByKey(new Array[Double](blockSize * blockSize), partitioner)(seqOp, combOp)
+    }.aggregateByKey(new Array[Double](blockSize * blockSize), partitioner)(
+      seqOp(truncatedBlockRow, truncatedBlockCol, excessRows, excessCols, blockSize), combOp)
       .mapValuesWithKey { case ((i, j), a) =>
         if (j == truncatedBlockCol) {
           if (i == truncatedBlockRow) {
