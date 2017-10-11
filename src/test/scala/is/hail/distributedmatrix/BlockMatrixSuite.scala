@@ -69,9 +69,10 @@ class BlockMatrixSuite extends SparkSuite {
   val twoMultipliableBlockMatrices = for {
     Array(rows, inner, columns) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
     blockSize <- Gen.interestingPosInt
-    l <- blockMatrixPreGen(rows, inner, blockSize)
-    r <- blockMatrixPreGen(inner, columns, blockSize)
-  } yield (l, r)
+    transposed <- Gen.coin()
+    l <- blockMatrixPreGen(rows, inner, blockSize, transposed)
+    r <- blockMatrixPreGen(inner, columns, blockSize, transposed)
+  } yield if (transposed) (r, l) else (l, r)
 
   implicit val arbitraryHailBlockMatrix =
     Arbitrary(blockMatrixGen)
