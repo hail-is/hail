@@ -116,4 +116,6 @@ trait Implicits {
     override def next(): Double = it.next().toDouble
     override def hasNext: Boolean = it.hasNext
   }
+
+  implicit def toRichInputStream(in: InputStream): RichInputStream = new RichInputStream(in)
 }
