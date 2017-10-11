@@ -470,8 +470,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
             while (k1 < length) {
               while (kt < length) {
                 val v2 = if (lm1.isTranspose == lm2.isTranspose) src2(k1) else src2(kt)
-                val v3 = if (lm1.isTranspose == lm3.isTranspose) src2(k1) else src2(kt)
-                val v4 = if (lm1.isTranspose == lm4.isTranspose) src2(k1) else src2(kt)
+                val v3 = if (lm1.isTranspose == lm3.isTranspose) src3(k1) else src3(kt)
+                val v4 = if (lm1.isTranspose == lm4.isTranspose) src4(k1) else src4(kt)
                 dst(k1) = op(src1(k1), v2, v3, v4)
                 k1 += 1
                 kt += lm1MinorSize
