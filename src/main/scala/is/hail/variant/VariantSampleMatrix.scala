@@ -969,13 +969,13 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
          |  Original: ${ genotypeSignature.toPrettyString(compact = true) }
          |  New: ${ finalType.toPrettyString(compact = true) }""".stripMargin)
 
-    mapValuesWithAll { (v: RK, va: Annotation, s: Annotation, sa: Annotation, g: T) =>
+    mapValuesWithAll(finalType, { (v: RK, va: Annotation, s: Annotation, sa: Annotation, g: T) =>
       ec.setAll(v, va, s, sa, g)
       f().zip(inserters)
         .foldLeft(g: Annotation) { case (ga, (a, inserter)) =>
           inserter(ga, a)
         }
-    }.copy(genotypeSignature = finalType)
+    })
   }
 
   def exportSamples(path: String, expr: String, typeFile: Boolean = false) {
@@ -1425,23 +1425,19 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
   }
 
-  def mapValues[U >: Null](f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
-    mapValuesWithAll((v, va, s, sa, g) => f(g))
+  def mapValues[U >: Null](newGSignature: Type, f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
+    mapValuesWithAll(newGSignature, (v, va, s, sa, g) => f(g))
   }
 
-  def mapValuesWithKeys[U >: Null](f: (RK, Annotation, T) => U)
-    (implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
-    mapValuesWithAll((v, va, s, sa, g) => f(v, s, g))
-  }
-
-  def mapValuesWithAll[U >: Null](f: (RK, Annotation, Annotation, Annotation, T) => U)
+  def mapValuesWithAll[U >: Null](newGSignature: Type, f: (RK, Annotation, Annotation, Annotation, T) => U)
     (implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
-    copy(rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
-      (va, localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](
-        localSampleAnnotationsBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g) }))
-    })
+    copy(genotypeSignature = newGSignature,
+      rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
+        (va, localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](
+          localSampleAnnotationsBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g) }))
+      })
   }
 
   def queryGenotypes(expr: String): (Annotation, Type) = {
@@ -2057,13 +2053,13 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 
     val localKeep = keep
-    mapValuesWithAll { (v: RK, va: Annotation, s: Annotation, sa: Annotation, g: T) =>
+    mapValuesWithAll(genotypeSignature, { (v: RK, va: Annotation, s: Annotation, sa: Annotation, g: T) =>
       ec.setAll(v, va, s, sa, g)
       if (Filter.boxedKeepThis(f(), localKeep))
         g
       else
         null
-    }
+    })
   }
 
   def makeVariantConcrete(): VariantSampleMatrix[Locus, Variant, T] = {
