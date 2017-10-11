@@ -191,6 +191,9 @@ task(checkSettings) << {
 test {
     useTestNG {}
 
+    // avoid stack overflow in lmmLargeExampleTest on some systems
+    jvmArgs '-Xss4m'
+
     systemProperties System.getProperties()
 
     testLogging {
