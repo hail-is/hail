@@ -9,25 +9,32 @@ object RichIndexedRowMatrix {
   private def seqOp(truncatedBlockRow: Int, truncatedBlockCol: Int, excessRows: Int, excessCols: Int, blockSize: Int)
     (block: Array[Double], row: (Int, Int, Int, Array[Double])): Array[Double] = row match {
     case (i, j, ii, a) =>
+      val block2 = if (block == null) new Array[Double](blockSize * blockSize) else block
       val rowsInBlock: Int = if (i == truncatedBlockRow) excessRows else blockSize
       val colsInBlock: Int = if (j == truncatedBlockCol) excessCols else blockSize
 
       var jj = 0
       while (jj < a.length) {
-        block(jj * rowsInBlock + ii) = a(jj)
+        block2(jj * rowsInBlock + ii) = a(jj)
         jj += 1
       }
-      block
+      block2
   }
 
   private def combOp(l: Array[Double], r: Array[Double]): Array[Double] = {
-    var k = 0
-    while (k < l.length) {
-      if (r(k) != 0)
-        l(k) = r(k)
-      k += 1
+    if (l == null)
+      r
+    else if (r == null)
+      l
+    else {
+      var k = 0
+      while (k < l.length) {
+        if (r(k) != 0)
+          l(k) = r(k)
+        k += 1
+      }
+      l
     }
-    l
   }
 }
 
@@ -66,7 +73,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
       }
 
       grouped.iterator
-    }.aggregateByKey(new Array[Double](blockSize * blockSize), partitioner)(
+    }.aggregateByKey(null: Array[Double], partitioner)(
       seqOp(truncatedBlockRow, truncatedBlockCol, excessRows, excessCols, blockSize), combOp)
       .mapValuesWithKey { case ((i, j), a) =>
         if (j == truncatedBlockCol) {
