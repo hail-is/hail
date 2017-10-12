@@ -1746,7 +1746,7 @@ class VariantDataset(HistoryMixin):
         **Downcode algorithm**
 
         The downcode algorithm (``subset=False``) recodes occurances of filtered alleles
-        to occurances of the reference allele (e.g. 1: 0 in our example). So the depths of filtered alleles in the AD field
+        to occurances of the reference allele (e.g. 1 -> 0 in our example). So the depths of filtered alleles in the AD field
         are added to the depth of the reference allele. Where downcodeing filtered alleles merges distinct genotypes, the minimum PL is used (since PL is on a log scale, this roughly corresponds to adding probabilities). The PLs
         are then re-normalized (shifted) so that the most likely genotype has a PL of 0, and GT is set to this genotype.
         If an allele is filtered, this algorithm acts similarly to :py:meth:`~hail.VariantDataset.split_multi`.
@@ -5582,7 +5582,7 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
 <<<<<<< HEAD
-    def nirvana(self, config, block_size = 50000, root = 'va.nirvana'):
+    def nirvana(self, config, block_size = 500000, root = 'va.nirvana'):
         """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
         ***Configuration***
