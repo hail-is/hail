@@ -5581,7 +5581,6 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-<<<<<<< HEAD
     def nirvana(self, config, block_size = 500000, root = 'va.nirvana'):
         """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
@@ -5792,9 +5791,7 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-=======
     @record_method
->>>>>>> master
     def variants_table(self):
         """Convert variants and variant annotations to a KeyTable.
 
