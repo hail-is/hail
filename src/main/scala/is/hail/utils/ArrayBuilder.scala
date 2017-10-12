@@ -2,7 +2,7 @@ package is.hail.utils
 
 import scala.reflect.ClassTag
 
-class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) {
+final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) {
   private var b: Array[T] = new Array[T](initialCapacity)
   private var size_ : Int = 0
 
@@ -15,6 +15,11 @@ class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[
   def apply(i: Int): T = {
     require(i >= 0 && i < size)
     b(i)
+  }
+
+  def update(i: Int, x: T) {
+    require(i >= 0 && i < size)
+    b(i) = x
   }
 
   def ensureCapacity(n: Int) {
@@ -34,6 +39,15 @@ class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[
     ensureCapacity(size_ + 1)
     b(size_) = x
     size_ += 1
+  }
+
+  def ++=(a: Array[T]): Unit = ++=(a, a.length)
+
+  def ++=(a: Array[T], length: Int) {
+    require(length >= 0 && length <= a.length)
+    ensureCapacity(size_ + length)
+    System.arraycopy(a, 0, b, size_, length)
+    size_ += length
   }
 
   def result(): Array[T] = {

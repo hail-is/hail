@@ -2,8 +2,6 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import warnings
 
-from decorator import decorator
-
 from hail.expr import Type, TGenotype, TString, TVariant, TArray
 from hail.typecheck import *
 from hail.java import *
@@ -12,33 +10,19 @@ from hail.representation import Interval, Pedigree, Variant
 from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
+from hail.history import *
 
 warnings.filterwarnings(module=__name__, action='once')
 
-
-@decorator
-def requireTGenotype(func, vds, *args, **kwargs):
-    if vds._is_generic_genotype:
-        if vds.genotype_schema != TGenotype:
-            coerced_vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
-            return func(coerced_vds, *args, **kwargs)
-        else:
-            raise TypeError("genotype signature must be Genotype, but found '%s'" % type(vds.genotype_schema))
-
-    return func(vds, *args, **kwargs)
-
-
-@decorator
-def convertVDS(func, vds, *args, **kwargs):
-    if vds._is_generic_genotype:
-        if isinstance(vds.genotype_schema, TGenotype):
-            vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
-
-    return func(vds, *args, **kwargs)
-
 vds_type = lazy()
 
-class VariantDataset(object):
+@decorator
+def require_biallelic(func, vds, *args, **kwargs):
+    if not vds.was_split():
+        vds = vds._verify_biallelic(func.__name__)
+    return func(vds, *args, **kwargs)
+
+class VariantDataset(HistoryMixin):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
     Variant datasets may be generated from other formats using the :py:class:`.HailContext` import methods,
@@ -69,11 +53,14 @@ class VariantDataset(object):
         self._sample_ids = None
         self._num_samples = None
         self._jvdf_cache = None
+        self._jvkdf_cache = None
+        super(VariantDataset, self).__init__()
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(table=KeyTable)
-    def from_table(table):
+    @record_classmethod
+    @typecheck_method(table=KeyTable)
+    def from_table(cls, table):
         """Construct a sites-only variant dataset from a key table.
 
         **Examples**
@@ -104,15 +91,14 @@ class VariantDataset(object):
     @property
     def _jvdf(self):
         if self._jvdf_cache is None:
-            if self._is_generic_genotype:
-                self._jvdf_cache = Env.hail().variant.GenericDatasetFunctions(self._jvds)
-            else:
-                self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds)
+            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds.toVDS())
         return self._jvdf_cache
 
     @property
-    def _is_generic_genotype(self):
-        return self._jvds.isGenericGenotype()
+    def _jvkdf(self):
+        if self._jvkdf_cache is None:
+            self._jvkdf_cache = Env.hail().variant.VariantKeyDatasetFunctions(self._jvds.toVKDS())
+        return self._jvkdf_cache
 
     @property
     @handle_py4j
@@ -126,27 +112,6 @@ class VariantDataset(object):
         if self._sample_ids is None:
             self._sample_ids = jiterable_to_list(self._jvds.sampleIds())
         return self._sample_ids
-
-    @property
-    @handle_py4j
-    def sample_annotations(self):
-        """Return a dict of sample annotations.
-
-        The keys of this dictionary are the sample IDs (strings).
-        The values are sample annotations.
-
-        :return: dict
-        """
-
-        if self._sample_annotations is None:
-            zipped_annotations = Env.jutils().iterableToArrayList(
-                self._jvds.sampleIdsAndAnnotations()
-            )
-            r = {}
-            for element in zipped_annotations:
-                r[element._1()] = self.sample_schema._convert_to_py(element._2())
-            self._sample_annotations = r
-        return self._sample_annotations
 
     @handle_py4j
     def num_partitions(self):
@@ -205,47 +170,13 @@ class VariantDataset(object):
         return self._jvds.fileVersion()
 
     @handle_py4j
-    @typecheck_method(key_exprs=oneof(strlike, listof(strlike)),
-               agg_exprs=oneof(strlike, listof(strlike)))
-    def aggregate_by_key(self, key_exprs, agg_exprs):
-        """Aggregate by user-defined key and aggregation expressions to produce a KeyTable.
-        Equivalent to a group-by operation in SQL.
-
-        **Examples**
-
-        Compute the number of LOF heterozygote calls per gene per sample:
-
-        >>> kt_result = (vds
-        ...     .aggregate_by_key(['Sample = s', 'Gene = va.gene'],
-        ...                        'nHet = g.filter(g => g.isHet() && va.consequence == "LOF").count()')
-        ...     .export("test.tsv"))
-
-        This will produce a :class:`KeyTable` with 3 columns (`Sample`, `Gene`, `nHet`).
-
-        :param key_exprs: Named expression(s) for which fields are keys.
-        :type key_exprs: str or list of str
-
-        :param agg_exprs: Named aggregation expression(s).
-        :type agg_exprs: str or list of str
-
-        :rtype: :class:`.KeyTable`
-        """
-
-        if isinstance(key_exprs, list):
-            key_exprs = ",".join(key_exprs)
-        if isinstance(agg_exprs, list):
-            agg_exprs = ",".join(agg_exprs)
-
-        return KeyTable(self.hc, self._jvds.aggregateByKey(key_exprs, agg_exprs))
-
-    @handle_py4j
-    @requireTGenotype
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)),
                propagate_gq=bool)
     def annotate_alleles_expr(self, expr, propagate_gq=False):
         """Annotate alleles with expression.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -276,6 +207,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_genotypes_expr(self, expr):
         """Annotate genotypes with expression.
@@ -336,14 +268,10 @@ class VariantDataset(object):
         if isinstance(expr, list):
             expr = ",".join(expr)
 
-        jvds = self._jvdf.annotateGenotypesExpr(expr)
-        vds = VariantDataset(self.hc, jvds)
-        if isinstance(vds.genotype_schema, TGenotype):
-            return VariantDataset(self.hc, vds._jvdf.toVDS())
-        else:
-            return vds
+        return VariantDataset(self.hc, self._jvds.annotateGenotypesExpr(expr))
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_global_expr(self, expr):
         """Annotate global with expression.
@@ -378,6 +306,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=strlike,
                       annotation=anytype,
                       annotation_type=Type)
@@ -417,6 +346,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, annotated)
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_samples_expr(self, expr):
         """Annotate samples with expression.
@@ -426,7 +356,9 @@ class VariantDataset(object):
         Compute per-sample GQ statistics for hets:
 
         >>> vds_result = (vds.annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet()).map(g => g.gq).stats()')
-        ...     .export_samples('output/samples.txt', 'sample = s, het_gq_mean = sa.gqHetStats.mean'))
+        ...                  .samples_table()
+        ...                  .select(['sample = s', 'het_gq_mean = sa.gqHetStats.mean'])
+        ...                  .export('output/samples.txt'))
 
         Compute the list of genes with a singleton LOF per sample:
 
@@ -437,7 +369,7 @@ class VariantDataset(object):
 
         To create an annotation for only a subset of samples based on an existing annotation:
 
-        >>> vds_result = vds.annotate_samples_expr('sa.newpheno = if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Double')
+        >>> vds_result = vds.annotate_samples_expr('sa.newpheno = if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Float64')
 
         .. note::
 
@@ -466,6 +398,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(table=KeyTable,
                       root=nullable(strlike),
                       expr=nullable(strlike),
@@ -647,6 +580,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.annotateSamplesTable(table._jkt, vds_key, root, expr, product))
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_variants_expr(self, expr):
         """Annotate variants with expression.
@@ -691,6 +625,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(table=KeyTable,
                       root=nullable(strlike),
                       expr=nullable(strlike),
@@ -851,6 +786,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(other=vds_type,
                       expr=nullable(strlike),
                       root=nullable(strlike))
@@ -925,6 +861,10 @@ class VariantDataset(object):
 
         return VariantDataset(self.hc, jvds)
 
+    @handle_py4j
+    @record_method
+    @typecheck_method(annotations=oneof(strlike, listof(strlike)),
+                      gene_key=nullable(strlike))
     def annotate_variants_db(self, annotations, gene_key=None):
         """
         Annotate variants using the Hail annotation database.
@@ -1157,6 +1097,7 @@ class VariantDataset(object):
         return self
 
     @handle_py4j
+    @record_method
     def cache(self):
         """Mark this variant dataset to be cached in memory.
 
@@ -1165,15 +1106,18 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.cache())
+        return VariantDataset(self.hc, self._jvds.cache())
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     @typecheck_method(right=vds_type)
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Example**
         
@@ -1249,6 +1193,9 @@ class VariantDataset(object):
         :rtype: (list of list of int, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
+        if not right.was_split():
+            right = right._verify_biallelic("concordance, right")
+
         r = self._jvdf.concordance(right._jvds)
         j_global_concordance = r._1()
         sample_kt = KeyTable(self.hc, r._2())
@@ -1278,6 +1225,193 @@ class VariantDataset(object):
         return r._1(), r._2()
 
     @handle_py4j
+    @require_biallelic
+    @record_method
+    @typecheck_method(pedigree=Pedigree,
+                      pop_frequency_prior=strlike,
+                      min_gq=integral,
+                      min_p=numeric,
+                      max_parent_ab=numeric,
+                      min_child_ab=numeric,
+                      min_depth_ratio=numeric)
+    def de_novo(self, pedigree, pop_frequency_prior, min_gq=20, min_p=0.05,
+                max_parent_ab=0.05, min_child_ab=0.20, min_depth_ratio=0.10):
+        """Call de novo variation from trio data.
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
+        **Examples**
+
+        Call de novo events and export them to a file:
+
+        >>> pedigree = Pedigree.read('data/myStudy.fam')
+        >>> priors = hc.import_table('data/gnomadFreq.tsv', impute=True).key_by('Variant')
+        >>> denovo_kt = (vds.annotate_variants_table(priors, root='va.gnomAD')
+        ...                 .de_novo(pedigree, 'va.gnomAD'))
+        >>> denovo_kt.export('denovo_calls.tsv')
+
+        **Notes**
+
+        This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`__.
+        The version corresponding to git commit ``bde3e40`` is implemented in Hail with her permission and assistance.
+
+        This method produces a :py:class:`.KeyTable` with the following columns:
+
+            - **variant** (*Variant*) -- Variant at which parents are homozygous reference and proband is heterozygous.
+            - **proband** (*String*) -- Sample ID of proband.
+            - **father** (*String*) -- Sample ID of father.
+            - **mother** (*String*) -- Sample ID of mother.
+            - **isFemale** (*Boolean*) -- Sex of proband, true if female.
+            - **confidence** (*String*) -- Validation confidence. One of: 'HIGH', 'MEDIUM', 'LOW'
+            - **probandGt** (*Genotype*) -- Genotype of the proband
+            - **fatherGt** (*Genotype*) -- Genotype of the father
+            - **motherGt** (*Genotype*) -- Genotype of the mother
+            - **pDeNovo** (*Float64*) -- Unfiltered estimate of posterior probability that the event is a true de novo.
+
+        The model was originally designed to run against VCFs produced by GATK from high-throughput sequencing
+        experiments, and uses the GT, AD, DP, GQ, and PL fields. The absence of any of these fields will
+        result in an empty table of results (no called de novo mutations).
+
+        The model looks for de novo events in which both parents are homozygous
+        reference and the proband is a heterozygous. The model makes the simplifying assumption that when this
+        configuration ``x = (AA, AA, AB)`` of calls occurs, exactly one of the following is true:
+        
+            - ``d`` = a de novo mutation occurred in the proband and all calls are true
+            - ``m`` = at least one parental allele is truly non-reference and the proband call is true
+         
+        We can then estimate the posterior probability of a de novo mutation as:
+
+        .. math::
+
+            \\mathrm{P_{\\text{de novo}}} = \\frac{\mathrm{P}(d\,|\,x)}{\mathrm{P}(d\,|\,x) + \mathrm{P}(m\,|\,x)}
+
+        Applying Bayes rule to the numerator and denominator yields
+
+        .. math::
+
+            \\frac{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d) + \mathrm{P}(x\,|\,m)\,\mathrm{P}(m)}
+
+        The prior on de novo mutation is estimated from the rate in the literature:
+
+        .. math::
+
+            \\mathrm{P}(d) = \\frac{1 \\text{mutation}}{30,000,000\, \\text{bases}}
+
+        The prior used for at least one alternate allele between the parents depends on the alternate allele frequency:
+
+        .. math::
+
+            \\mathrm{P}(m) = 1 - (1 - AF)^4
+
+        The likelihoods :math:`\mathrm{P}(x\,|\,d)` and :math:`\mathrm{P}(x\,|\,m)` are computed from the
+        PL (genotype likelihood) fields using these factorizations:
+
+        .. math::
+
+            \\mathrm{P}(x = (AA, AA, AB) \,|\,d) = \\Big(
+            &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AA) \\\\
+            \\cdot &\\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} = AA) \\\\
+            \\cdot &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\, \\mathrm{proband} = AB) \\Big)
+
+        .. math::
+
+            \\mathrm{P}(x = (AA, AA, AB) \,|\,m) = \\Big( & \\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AB) \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} = AA) \\\\
+            + \, &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AA)
+            \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} = AB) \\Big) \\\\
+            \\cdot \, &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\, \\mathrm{proband} = AB)
+
+        (Technically, the second factorization assumes there is exactly (rather than at least) one alternate allele among the parents, which may be
+        justified on the grounds that it is typically the most likely case by far.)
+
+        While this posterior probability is a good metric for grouping putative de novo
+        mutations by validation likelihood, there exist error modes in high-throughput sequencing data that
+        are not appropriately accounted for by the phred-scaled genotype likelihoods. To this end, a number
+        of hard filters are applied in order to assign validation likelihood.
+
+        These filters are different for SNPs and insertions/deletions. In the below rules, the following
+        variables are used:
+
+         - ``DR`` refers to the ratio of the read depth in the proband to the combined read depth in the parents.
+         - ``AB`` refers to the read allele balance of the proband (number of alternate reads divided by total reads).
+         - ``AC`` refers to the count of alternate alleles across all individuals in the dataset at the site.
+         - ``p`` refers to :math:`\\mathrm{P_{\\text{de novo}}}`.
+         - ``min_p`` refers to the ``min_p`` function parameter.
+
+        HIGH-quality SNV:
+
+        .. code-block:: text
+
+            p > 0.99 && AB > 0.3 && DR > 0.2
+                or
+            p > 0.99 && AB > 0.3 && AC == 1
+
+        MEDIUM-quality SNV:
+
+        .. code-block:: text
+
+            p > 0.5 && AB > 0.3
+                or
+            p > 0.5 && AB > 0.2 && AC == 1
+
+        LOW-quality SNV:
+
+        .. code-block:: text
+
+            p > min_p && AB > 0.2
+
+        HIGH-quality indel:
+
+        .. code-block:: text
+
+            p > 0.99 && AB > 0.3 && DR > 0.2
+                or
+            p > 0.99 && AB > 0.3 && AC == 1
+
+        MEDIUM-quality indel:
+
+        .. code-block:: text
+
+            p > 0.5 && AB > 0.3
+                or
+            p > 0.5 && AB > 0.2 and AC == 1
+
+        LOW-quality indel:
+
+        .. code-block:: text
+
+            p > min_p && AB > 0.2
+
+        Additionally, de novo candidates are not considered if the proband GQ is smaller than the ``min_gq``
+        parameter, if the proband allele balance is lower than the ``min_child_ab`` parameter, if the
+        depth ratio between the proband and parents is smaller than the ``min_depth_ratio`` parameter, or
+        if the allele balance in a parent is above the ``max_parent_ab`` parameter.
+
+        :param pedigree: Pedigree object.
+        :type pedigree: :class:`.Pedigree`
+
+        :param str pop_frequency_prior: Expression for the reference allele frequency annotation.
+
+        :param int min_gq: Minimum GQ for de novo consideration.
+
+        :param float min_p: Minimum probability for "LOW" bin.
+
+        :param float max_parent_ab: Maximum allele balance for homozygous parent.
+
+        :param float min_child_ab: Minimum allele balance for heterozygous proband.
+
+        :param float min_depth_ratio: Minimum ratio of proband depth to parent depth.
+
+        :rtype: :class:`.KeyTable`
+        """
+
+        jkt = self._jvdf.deNovo(pedigree._jrep, pop_frequency_prior, min_gq, min_p,
+                                max_parent_ab, min_child_ab, min_depth_ratio)
+        return KeyTable(self.hc, jkt)
+
+    @handle_py4j
+    @record_method
     def deduplicate(self):
         """Remove duplicate variants.
 
@@ -1288,6 +1422,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.deduplicate())
 
     @handle_py4j
+    @record_method
     @typecheck_method(fraction=numeric,
                       seed=integral)
     def sample_variants(self, fraction, seed=1):
@@ -1313,13 +1448,16 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @write_history('output')
     @typecheck_method(output=strlike,
                       precision=integral)
     def export_gen(self, output, precision=4):
         """Export variant dataset as GEN and SAMPLE file.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -1327,8 +1465,9 @@ class VariantDataset(object):
 
         >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
 
-        >>> (vds3.filter_variants_expr("gs.infoScore().score >= 0.9")
-        ...      .export_gen("output/infoscore_filtered"))
+        >>> (vds3.filter_variants_expr('gs.map(g => g.GP).infoScore().score >= 0.9')
+        ...      .annotate_genotypes_expr('g = Genotype(v, g.GT, g.GP)')
+        ...      .export_gen('output/infoscore_filtered'))
 
         **Notes**
 
@@ -1355,6 +1494,8 @@ class VariantDataset(object):
         - ID_1 and ID_2 are identical and set to the sample ID (``s``).
         - The third column ("missing") is set to 0 for all samples.
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output file base.  Will write GEN and SAMPLE files.
         :param int precision: Number of digits after the decimal point each probability is truncated to.
         """
@@ -1362,62 +1503,16 @@ class VariantDataset(object):
         self._jvdf.exportGen(output, precision)
 
     @handle_py4j
-    @typecheck_method(output=strlike,
-                      expr=strlike,
-                      types=bool,
-                      export_ref=bool,
-                      export_missing=bool,
-                      parallel=bool)
-    def export_genotypes(self, output, expr, types=False, export_ref=False, export_missing=False, parallel=False):
-        """Export genotype-level information to delimited text file.
-
-        **Examples**
-
-        Export genotype information with identifiers that form the header:
-
-        >>> vds.export_genotypes('output/genotypes.tsv', 'SAMPLE=s, VARIANT=v, GQ=g.gq, DP=g.dp, ANNO1=va.anno1, ANNO2=va.anno2')
-
-        Export the same information without identifiers, resulting in a file with no header:
-
-        >>> vds.export_genotypes('output/genotypes.tsv', 's, v, g.gq, g.dp, va.anno1, va.anno2')
-
-        **Notes**
-
-        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default if the genotype schema is equal to :py:class:`~hail.expr.TGenotype`. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
-
-        The ``expr`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
-
-        .. warning::
-
-            If the genotype schema does not have the type :py:class:`~hail.expr.TGenotype`, all genotypes will be exported unless the value of ``g`` is missing.
-            Use :py:meth:`~hail.VariantDataset.filter_genotypes` to filter out genotypes based on an expression before exporting.
-
-        :param str output: Output path.
-
-        :param str expr: Export expression for values to export.
-
-        :param bool types: Write types of exported columns to a file at (output + ".types")
-
-        :param bool export_ref: If true, export reference genotypes. Only applicable if the genotype schema is :py:class:`~hail.expr.TGenotype`.
-
-        :param bool export_missing: If true, export missing genotypes.
-
-        :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
-        """
-
-        if self._is_generic_genotype:
-            self._jvdf.exportGenotypes(output, expr, types, export_missing, parallel)
-        else:
-            self._jvdf.exportGenotypes(output, expr, types, export_ref, export_missing, parallel)
-
-    @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @write_history('output')
     @typecheck_method(output=strlike,
                       fam_expr=strlike)
     def export_plink(self, output, fam_expr='id = s'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -1467,6 +1562,8 @@ class VariantDataset(object):
           file may disagree.
         - PLINK uses the rsID for the BIM file ID.
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output file base.  Will write BED, BIM, and FAM files.
 
         :param str fam_expr: Expression for FAM file fields.
@@ -1475,140 +1572,14 @@ class VariantDataset(object):
         self._jvdf.exportPlink(output, fam_expr)
 
     @handle_py4j
-    @typecheck_method(output=strlike,
-                      expr=strlike,
-                      types=bool)
-    def export_samples(self, output, expr, types=False):
-        """Export sample information to delimited text file.
-
-        **Examples**
-
-        Export some sample QC metrics:
-
-        >>> (vds.sample_qc()
-        ...     .export_samples('output/samples.tsv', 'SAMPLE = s, CALL_RATE = sa.qc.callRate, NHET = sa.qc.nHet'))
-
-        This will produce a file with a header and three columns.  To
-        produce a file with no header, just leave off the assignment
-        to the column identifier:
-
-        >>> (vds.sample_qc()
-        ...     .export_samples('output/samples.tsv', 's, sa.qc.rTiTv'))
-
-        **Notes**
-
-        One line per sample will be exported.  As :py:meth:`~hail.VariantDataset.export_samples` runs in sample context, the following symbols are in scope:
-
-        - ``s`` (*Sample*): sample
-        - ``sa``: sample annotations
-        - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
-
-        :param str output: Output file.
-
-        :param str expr: Export expression for values to export.
-
-        :param bool types: Write types of exported columns to a file at (output + ".types").
-        """
-
-        self._jvds.exportSamples(output, expr, types)
-
-    @handle_py4j
-    @typecheck_method(output=strlike,
-                      expr=strlike,
-                      types=bool,
-                      parallel=bool)
-    def export_variants(self, output, expr, types=False, parallel=False):
-        """Export variant information to delimited text file.
-
-        **Examples**
-
-        Export a four column TSV with ``v``, ``va.pass``, ``va.filters``, and
-        one computed field: ``1 - va.qc.callRate``.
-
-        >>> vds.export_variants('output/file.tsv',
-        ...        'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
-
-        It is also possible to export without identifiers, which will result in
-        a file with no header. In this case, the expressions should look like
-        the examples below:
-
-        >>> vds.export_variants('output/file.tsv', 'v, va.pass, va.qc.AF')
-
-        .. note::
-
-            If any field is named, all fields must be named.
-
-        In the common case that a group of annotations needs to be exported (for
-        example, the annotations produced by ``variantqc``), one can use the
-        ``struct.*`` syntax.  This syntax produces one column per field in the
-        struct, and names them according to the struct field name.
-
-        For example, the following invocation (assuming ``va.qc`` was generated
-        by :py:meth:`.variant_qc`):
-
-        >>> vds.export_variants('output/file.tsv', 'variant = v, va.qc.*')
-
-        will produce the following set of columns:
-
-        .. code-block:: text
-
-            variant  callRate  AC  AF  nCalled  ...
-
-        Note that using the ``.*`` syntax always results in named arguments, so it
-        is not possible to export header-less files in this manner.  However,
-        naming the "splatted" struct will apply the name in front of each column
-        like so:
-
-        >>> vds.export_variants('output/file.tsv', 'variant = v, QC = va.qc.*')
-
-        which produces these columns:
-
-        .. code-block:: text
-
-            variant  QC.callRate  QC.AC  QC.AF  QC.nCalled  ...
-
-
-        **Notes**
-
-        This module takes a comma-delimited list of fields or expressions to
-        print. These fields will be printed in the order they appear in the
-        expression in the header and on each line.
-
-        One line per variant in the VDS will be printed.  The accessible namespace includes:
-
-        - ``v`` (*Variant*): :ref:`variant`
-        - ``va``: variant annotations
-        - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
-
-        **Designating output with an expression**
-
-        Much like the filtering methods, this method uses the Hail expression language.
-        While the filtering methods expect an
-        expression that evaluates to true or false, this method expects a
-        comma-separated list of fields to print. These fields take the
-        form ``IDENTIFIER = <expression>``.
-
-
-        :param str output: Output file.
-
-        :param str expr: Export expression for values to export.
-
-        :param bool types: Write types of exported columns to a file at (output + ".types")
-
-        :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
-        """
-
-        self._jvds.exportVariants(output, expr, types, parallel)
-
-    @handle_py4j
+    @write_history('output')
     @typecheck_method(output=strlike,
                       append_to_header=nullable(strlike),
-                      export_pp=bool,
                       parallel=bool)
-    def export_vcf(self, output, append_to_header=None, export_pp=False, parallel=False):
+    def export_vcf(self, output, append_to_header=None, parallel=False):
         """Export variant dataset as a .vcf or .vcf.bgz file.
+
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -1635,7 +1606,7 @@ class VariantDataset(object):
         Hail only exports the contents of ``va.info`` to the INFO field. No other annotations besides ``va.info`` are exported.
 
         The genotype schema must have the type :py:class:`~hail.expr.TGenotype` or :py:class:`~hail.expr.TStruct`. If the type is
-        :py:class:`~hail.expr.TGenotype`, then the FORMAT fields will be GT, AD, DP, GQ, and PL (or PP if ``export_pp`` is True).
+        :py:class:`~hail.expr.TGenotype`, then the FORMAT fields will be GT, AD, DP, GQ, and PL.
         If the type is :py:class:`~hail.expr.TStruct`, then the exported FORMAT fields will be the names of each field of the Struct.
         Each field must have a type of String, Char, Int, Double, or Call. Arrays and Sets are also allowed as long as they are not nested.
         For example, a field with type ``Array[Int]`` can be exported but not a field with type ``Array[Array[Int]]``.
@@ -1650,24 +1621,23 @@ class VariantDataset(object):
             ...     .annotate_variants_expr('va.info.AC = va.qc.AC')
             ...     .export_vcf('output/example.vcf.bgz'))
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Path of .vcf file to write.
 
         :param append_to_header: Path of file to append to VCF header.
         :type append_to_header: str or None
 
-        :param bool export_pp: If true, export linear-scaled probabilities (Hail's `pp` field on genotype) as the VCF PP FORMAT field.
-
         :param bool parallel: If true, return a set of VCF files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jvdf.exportVCF(output, joption(append_to_header), export_pp, parallel)
+        self._jvkdf.exportVCF(output, joption(append_to_header), parallel)
 
     @handle_py4j
-    @convertVDS
+    @write_history('output', is_dir=True)
     @typecheck_method(output=strlike,
-                      overwrite=bool,
-                      parquet_genotypes=bool)
-    def write(self, output, overwrite=False, parquet_genotypes=False):
+                      overwrite=bool)
+    def write(self, output, overwrite=False):
         """Write variant dataset as VDS file.
 
         **Examples**
@@ -1676,21 +1646,20 @@ class VariantDataset(object):
 
         >>> vds.write("output/sample.vds")
 
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>/history.txt``.
+
         :param str output: Path of VDS file to write.
 
         :param bool overwrite: If true, overwrite any existing VDS file. Cannot be used to read from and write to the same path.
 
-        :param bool parquet_genotypes: If true, store genotypes as Parquet rather than Hail's serialization.  The resulting VDS will be larger and slower in Hail but the genotypes will be accessible from other tools that support Parquet.
-
         """
 
-        if self._is_generic_genotype:
-            self._jvdf.write(output, overwrite)
-        else:
-            self._jvdf.write(output, overwrite, parquet_genotypes)
+        self._jvds.write(output, overwrite)
 
     @handle_py4j
-    @requireTGenotype
+    @record_method
     @typecheck_method(expr=strlike,
                       annotation=strlike,
                       subset=bool,
@@ -1706,7 +1675,7 @@ class VariantDataset(object):
         evaluated for each alternate allele, but not for
         the reference allele (i.e. ``aIndex`` will never be zero).
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -1846,6 +1815,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=strlike,
                       keep=bool)
     def filter_genotypes(self, expr, keep=True):
@@ -1884,15 +1854,14 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.filterGenotypes(expr, keep)
-        return VariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, self._jvds.filterGenotypes(expr, keep))
 
     @handle_py4j
-    @requireTGenotype
+    @record_method
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         This method is much less computationally expensive than
         :py:meth:`.split_multi`, and can also be used to produce
@@ -1904,9 +1873,29 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.filterMulti())
+        return VariantDataset(self.hc, self._jvkdf.filterMulti())
 
     @handle_py4j
+    def _verify_biallelic(self, method):
+        vds = VariantDataset(self.hc, self._jvkdf.verifyBiallelic(method))
+        vds._history = self._history
+        return vds
+
+    @record_method
+    def verify_biallelic(self):
+        """Verify dataset has only biallelic variants.
+
+        .. include:: _templates/req_tvariant.rst
+
+        :return: Dataset which can be used for biallelic-only methods.
+        :rtype: :class:`.VariantDataset`
+
+        """
+
+        return self._verify_biallelic("verify_biallelic")
+
+    @handle_py4j
+    @record_method
     def drop_samples(self):
         """Removes all samples from variant dataset.
 
@@ -1920,6 +1909,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.dropSamples())
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=strlike,
                       keep=bool)
     def filter_samples_expr(self, expr, keep=True):
@@ -1969,6 +1959,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(samples=listof(strlike),
                       keep=bool)
     def filter_samples_list(self, samples, keep=True):
@@ -1996,6 +1987,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.filterSamplesList(samples, keep))
 
     @handle_py4j
+    @record_method
     @typecheck_method(table=KeyTable,
                       keep=bool)
     def filter_samples_table(self, table, keep=True):
@@ -2030,6 +2022,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.filterSamplesTable(table._jkt, keep))
 
     @handle_py4j
+    @record_method
     def drop_variants(self):
         """Discard all variants, variant annotations and genotypes.
 
@@ -2047,6 +2040,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.dropVariants())
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=strlike,
                       keep=bool)
     def filter_variants_expr(self, expr, keep=True):
@@ -2093,10 +2087,13 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(intervals=oneof(Interval, listof(Interval)),
                       keep=bool)
     def filter_intervals(self, intervals, keep=True):
         """Filter variants with an interval or list of intervals.
+
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -2159,10 +2156,11 @@ class VariantDataset(object):
 
         intervals = wrap_to_list(intervals)
 
-        jvds = self._jvds.filterIntervals([x._jrep for x in intervals], keep)
+        jvds = self._jvkdf.filterIntervals([x._jrep for x in intervals], keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(variants=listof(Variant),
                       keep=bool)
     def filter_variants_list(self, variants, keep=True):
@@ -2197,6 +2195,7 @@ class VariantDataset(object):
                 [TVariant()._convert_to_j(v) for v in variants], keep))
 
     @handle_py4j
+    @record_method
     @typecheck_method(table=KeyTable,
                       keep=bool)
     def filter_variants_table(self, table, keep=True):
@@ -2265,11 +2264,14 @@ class VariantDataset(object):
         return self._globals
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
         
@@ -2297,11 +2299,11 @@ class VariantDataset(object):
         return KinshipMatrix(jkm)
 
     @handle_py4j
-    @requireTGenotype
+    @record_method
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         A hard-called variant dataset is about two orders of magnitude
         smaller than a standard sequencing dataset. Use this
@@ -2316,7 +2318,31 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.hardCalls())
 
     @handle_py4j
-    @requireTGenotype
+    @record_method
+    @typecheck_method(n=integral)
+    def head(self, n):
+        """Subset dataset to the first n variants.
+
+        **Examples**
+
+        >>> first10 = vds.head(10)
+
+        **Notes**
+
+        The number of partitions in the new dataset is equal to the number
+        of partitions containing the first n variants.
+
+        :param int n: Number of variants to include.
+
+        :return: Variant dataset subsetted to the first n variants.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        return VariantDataset(self.hc, self._jvds.head(n))
+
+    @handle_py4j
+    @require_biallelic
+    @record_method
     @typecheck_method(maf=nullable(strlike),
                       bounded=bool,
                       min=nullable(numeric),
@@ -2324,7 +2350,9 @@ class VariantDataset(object):
     def ibd(self, maf=None, bounded=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2390,65 +2418,8 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
-    @requireTGenotype
-    @typecheck_method(threshold=numeric,
-                      tiebreaking_expr=nullable(strlike),
-                      maf=nullable(strlike),
-                      bounded=bool)
-    def ibd_prune(self, threshold, tiebreaking_expr=None, maf=None, bounded=True):
-        """
-        Prune samples from the :py:class:`.VariantDataset` based on :py:meth:`~hail.VariantDataset.ibd` PI_HAT measures of relatedness.
-
-        .. include:: requireTGenotype.rst
-
-        **Examples**
-        
-        Prune samples so that no two have a PI_HAT value greater than or equal to 0.6.
-        
-        >>> pruned_vds = vds.ibd_prune(0.6)
-
-        Prune samples so that no two have a PI_HAT value greater than or equal to 0.5, with a tiebreaking expression that 
-        selects cases over controls:
-
-        >>> pruned_vds = vds.ibd_prune(0.5, tiebreaking_expr="if (sa1.isCase) 1 else 0")
-
-        **Notes**
-
-        The variant dataset returned may change in near future as a result of algorithmic improvements. The current algorithm is very efficient on datasets with many small
-        families, less so on datasets with large families. Currently, the algorithm works by deleting the person from each family who has the highest number of relatives,
-        and iterating until no two people have a PI_HAT value greater than that specified. If two people within a family have the same number of relatives, the tiebreaking_expr
-        given will be used to determine which sample gets deleted. 
-        
-        The tiebreaking_expr namespace has the following variables available:
-        
-        - ``s1``: The first sample id.
-        - ``sa1``: The annotations associated with s1.
-        - ``s2``: The second sample id. 
-        - ``sa2``: The annotations associated with s2. 
-        
-        The tiebreaking_expr returns an integer expressing the preference for one sample over the other. Any negative integer expresses a preference for keeping ``s1``. Any positive integer expresses a preference for keeping ``s2``. A zero expresses no preference. This function must induce a `preorder <https://en.wikipedia.org/wiki/Preorder>`__ on the samples, in particular:
-
-        - ``tiebreaking_expr(sample1, sample2)`` must equal ``-1 * tie breaking_expr(sample2, sample1)``, which evokes the common sense understanding that if ``x < y`` then `y > x``.
-        - ``tiebreaking_expr(sample1, sample1)`` must equal 0, i.e. ``x = x``
-        - if sample1 is preferred to sample2 and sample2 is preferred to sample3, then sample1 must also be preferred to sample3
-
-        The last requirement is only important if you have three related samples with the same number of relatives and all three are related to one another. In cases like this one, it is important that either:
-
-        - one of the three is preferred to **both** other ones, or
-        - there is no preference among the three samples 
-
-        :param threshold: The desired maximum PI_HAT value between any pair of samples.
-        :param tiebreaking_expr: Expression used to choose between two samples with the same number of relatives. 
-        :param maf: Expression for the minor allele frequency.
-        :param bounded: Forces the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically meaningful values (in the range [0,1]).
-
-        :return: A :py:class:`.VariantDataset` containing no samples with a PI_HAT greater than threshold.
-        :rtype: :py:class:`.VariantDataset`
-        """
-        return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(tiebreaking_expr), joption(maf), bounded))
-
-    @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     @typecheck_method(maf_threshold=numeric,
                       include_par=bool,
                       female_threshold=numeric,
@@ -2458,7 +2429,9 @@ class VariantDataset(object):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2514,6 +2487,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(right=vds_type)
     def join(self, right):
         """Join two variant datasets.
@@ -2536,17 +2510,18 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.join(right._jvds))
 
     @handle_py4j
-    @requireTGenotype
-    @typecheck_method(r2=numeric,
+    @require_biallelic
+    @record_method
+    @typecheck_method(num_cores=integral,
+                      r2=numeric,
                       window=integral,
-                      memory_per_core=integral,
-                      num_cores=integral)
-    def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256, num_cores=1):
+                      memory_per_core=integral)
+    def ld_prune(self, num_cores, r2=0.2, window=1000000, memory_per_core=256):
         """Prune variants in linkage disequilibrium (LD).
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
-        Requires :py:class:`~hail.VariantDataset.was_split` equals True.
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2554,8 +2529,10 @@ class VariantDataset(object):
 
         >>> vds_result = (vds.variant_qc()
         ...                  .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95")
-        ...                  .ld_prune()
-        ...                  .export_variants("output/ldpruned.variants", "v"))
+        ...                  .ld_prune(8)
+        ...                  .variants_table()
+        ...                  .select('v')
+        ...                  .export("output/ldpruned.variants"))
 
         **Notes**
 
@@ -2591,8 +2568,9 @@ class VariantDataset(object):
         .. warning::
 
             The variants in the pruned set are not guaranteed to be identical each time :py:meth:`.ld_prune` is run. We recommend running :py:meth:`.ld_prune` once and exporting the list of LD pruned variants using
-            :py:meth:`.export_variants` for future use.
+            :py:meth:`.variants_table` and :py:meth:`.KeyTable.export` for future use.
 
+        :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
 
         :param float r2: Maximum :math:`R^2` threshold between two variants in the pruned set within a given window.
 
@@ -2600,20 +2578,23 @@ class VariantDataset(object):
 
         :param int memory_per_core: Total amount of memory available for each core in MB. If unsure, use the default value.
 
-        :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
-
         :return: Variant dataset filtered to those variants which remain after LD pruning.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.ldPrune(r2, window, num_cores, memory_per_core)
+        jvds = self._jvdf.ldPrune(num_cores, r2, window, memory_per_core)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     @typecheck_method(force_local=bool)
     def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2649,110 +2630,8 @@ class VariantDataset(object):
         return LDMatrix(jldm)
 
     @handle_py4j
-    @requireTGenotype
-    @typecheck_method(y=strlike,
-                      covariates=listof(strlike),
-                      root=strlike,
-                      use_dosages=bool,
-                      min_ac=integral,
-                      min_af=numeric)
-    def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
-        r"""Test each variant for association using linear regression.
-
-        .. include:: requireTGenotype.rst
-
-        **Examples**
-
-        Run linear regression per variant using a phenotype and two covariates stored in sample annotations:
-
-        >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
-
-        **Notes**
-
-        The :py:meth:`.linreg` method computes, for each variant, statistics of
-        the :math:`t`-test for the genotype coefficient of the linear function
-        of best fit from sample genotype and covariates to quantitative
-        phenotype or case-control status. Hail only includes samples for which
-        phenotype and all covariates are defined. For each variant, missing genotypes
-        as the mean of called genotypes.
-
-        By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values are defined by the dosage
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
-        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
-        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
-
-        Assuming there are sample annotations ``sa.pheno.height``,
-        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the code:
-
-        >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale', 'sa.cov.PC1'])
-
-        considers a model of the form
-
-        .. math::
-
-            \mathrm{height} = \beta_0 + \beta_1 \, \mathrm{gt} + \beta_2 \, \mathrm{age} + \beta_3 \, \mathrm{isFemale} + \beta_4 \, \mathrm{PC1} + \varepsilon, \quad \varepsilon \sim \mathrm{N}(0, \sigma^2)
-
-        where the genotype :math:`\mathrm{gt}` is coded as :math:`0` for HomRef, :math:`1` for
-        Het, and :math:`2` for HomVar, and the Boolean covariate :math:`\mathrm{isFemale}`
-        is coded as :math:`1` for true (female) and :math:`0` for false (male). The null
-        model sets :math:`\beta_1 = 0`.
-
-        Those variants that don't vary across the included samples (e.g., all genotypes
-        are HomRef) will have missing annotations. One can further
-        restrict computation to those variants with at least :math:`k` observed
-        alternate alleles (AC) or alternate allele frequency (AF) at least
-        :math:`p` in the included samples using the options ``min_ac=k`` or
-        ``min_af=p``, respectively. Unlike the :py:meth:`.filter_variants_expr`
-        method, these filters do not remove variants from the underlying
-        variant dataset; rather the linear regression annotations for variants with
-        low AC or AF are set to missing. Adding both filters is equivalent to applying
-        the more stringent of the two.
-
-        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`__ without identifiers, such as:
-
-        >>> vds_result = vds.linreg('if (sa.pheno.isFemale) sa.pheno.age else (2 * sa.pheno.age + 10)')
-
-        For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
-
-        The standard least-squares linear regression model is derived in Section
-        3.2 of `The Elements of Statistical Learning, 2nd Edition
-        <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__. See
-        equation 3.12 for the t-statistic which follows the t-distribution with
-        :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
-        effect, with :math:`n` samples and :math:`k` covariates in addition to
-        genotype and intercept.
-
-        **Annotations**
-
-        With the default root, the following four variant annotations are added.
-
-        - **va.linreg.beta** (*Double*) -- fit genotype coefficient, :math:`\hat\beta_1`
-        - **va.linreg.se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
-        - **va.linreg.tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-        - **va.linreg.pval** (*Double*) -- :math:`p`-value
-
-        :param str y: Response expression
-
-        :param covariates: list of covariate expressions
-        :type covariates: list of str
-
-        :param str root: Variant annotation path to store result of linear regression.
-
-        :param bool use_dosages: If true, use dosages genotypes rather than hard call genotypes.
-
-        :param int min_ac: Minimum alternate allele count.
-
-        :param float min_af: Minimum alternate allele frequency.
-
-        :return: Variant dataset with linear regression variant annotations.
-        :rtype: :py:class:`.VariantDataset`
-        """
-
-        jvds = self._jvdf.linreg(y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
+    @require_biallelic
+    @record_method
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
                       single_key=bool,
@@ -2763,7 +2642,9 @@ class VariantDataset(object):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         linear regression model.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2792,7 +2673,7 @@ class VariantDataset(object):
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
-        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
+        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toFloat64(), 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
         is the allele frequency over those samples that have no missing phenotype or covariates.
 
         .. caution::
@@ -2946,76 +2827,23 @@ class VariantDataset(object):
         return linreg_kt, sample_kt
 
     @handle_py4j
-    @requireTGenotype
-    @typecheck_method(ys=listof(strlike),
-                      covariates=listof(strlike),
-                      root=strlike,
-                      use_dosages=bool,
-                      min_ac=integral,
-                      min_af=numeric)
-    def linreg_multi_pheno(self, ys, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
-        r"""Test each variant for association with multiple phenotypes using linear regression.
-
-        This method runs linear regression for multiple phenotypes more efficiently
-        than looping over :py:meth:`.linreg`.
-
-        .. warning::
-
-            :py:meth:`.linreg_multi_pheno` uses the same set of samples for each phenotype,
-            namely the set of samples for which **all** phenotypes and covariates are defined.
-
-        **Annotations**
-
-        With the default root, the following four variant annotations are added.
-        The indexing of these annotations corresponds to that of ``y``.
-
-        - **va.linreg.beta** (*Array[Double]*) -- array of fit genotype coefficients, :math:`\hat\beta_1`
-        - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
-        - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-        - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
-
-        :param ys: list of one or more response expressions.
-        :type covariates: list of str
-
-        :param covariates: list of covariate expressions.
-        :type covariates: list of str
-
-        :param str root: Variant annotation path to store result of linear regression.
-
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
-
-        :param int min_ac: Minimum alternate allele count.
-
-        :param float min_af: Minimum alternate allele frequency.
-
-        :return: Variant dataset with linear regression variant annotations.
-        :rtype: :py:class:`.VariantDataset`
-        """
-
-        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys),
-                                           jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
-                                           min_af)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     @typecheck_method(ys=listof(strlike),
                       covariates=listof(strlike),
                       root=strlike,
                       use_dosages=bool,
                       variant_block_size=integral)
-    def linreg3(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
+    def linreg(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
         r"""Test each variant for association with multiple phenotypes using linear regression.
 
-        This method runs linear regression for multiple phenotypes
-        more efficiently than looping over :py:meth:`.linreg`.  This
-        method is more efficient than :py:meth:`.linreg_multi_pheno`
-        but doesn't implicitly filter on allele count or allele
-        frequency.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         .. warning::
 
-            :py:meth:`.linreg3` uses the same set of samples for each phenotype,
+            :py:meth:`.linreg` uses the same set of samples for each phenotype,
             namely the set of samples for which **all** phenotypes and covariates are defined.
 
         **Annotations**
@@ -3032,7 +2860,7 @@ class VariantDataset(object):
         - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
 
         :param ys: list of one or more response expressions.
-        :type covariates: list of str
+        :type ys: list of str
 
         :param covariates: list of covariate expressions.
         :type covariates: list of str
@@ -3048,12 +2876,13 @@ class VariantDataset(object):
 
         """
 
-        jvds = self._jvdf.linreg3(jarray(Env.jvm().java.lang.String, ys),
-                                  jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, variant_block_size)
+        jvds = self._jvdf.linreg(jarray(Env.jvm().java.lang.String, ys),
+                                 jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, variant_block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     @typecheck_method(kinshipMatrix=KinshipMatrix,
                       y=strlike,
                       covariates=listof(strlike),
@@ -3071,7 +2900,9 @@ class VariantDataset(object):
                n_eigs=None, dropped_variance_fraction=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3151,7 +2982,9 @@ class VariantDataset(object):
 
         The simplest way to export all resulting annotations is:
 
-        >>> lmm_vds.export_variants('output/lmmreg.tsv.bgz', 'variant = v, va.lmmreg.*')
+        >>> lmm_vds.variants_table()
+        ...        .select(['variant = v', 'va.lmmreg.*'])
+        ...        .export('output/lmmreg.tsv.bgz')
         >>> lmmreg_results = lmm_vds.globals['lmmreg']
         
         By default, genotypes values are given by hard call genotypes (``g.gt``).
@@ -3307,7 +3140,8 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     @typecheck_method(test=strlike,
                       y=strlike,
                       covariates=listof(strlike),
@@ -3316,7 +3150,9 @@ class VariantDataset(object):
     def logreg(self, test, y, covariates=[], root='va.logreg', use_dosages=False):
         """Test each variant for association using logistic regression.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3445,6 +3281,8 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @require_biallelic
+    @record_method
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
                       single_key=bool,
@@ -3456,7 +3294,9 @@ class VariantDataset(object):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         logistic regression model.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3487,7 +3327,7 @@ class VariantDataset(object):
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
-        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
+        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toFloat64(), 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
         is the allele frequency over those samples that have no missing phenotype or covariates.
 
         .. caution::
@@ -3562,13 +3402,16 @@ class VariantDataset(object):
         return logreg_kt, sample_kt
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     @typecheck_method(pedigree=Pedigree)
     def mendel_errors(self, pedigree):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3718,10 +3561,13 @@ class VariantDataset(object):
                KeyTable(self.hc, kts._3()), KeyTable(self.hc, kts._4())
 
     @handle_py4j
+    @record_method
     @typecheck_method(max_shift=integral)
     def min_rep(self, max_shift=100):
         """
         Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
+
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -3739,11 +3585,12 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvds.minRep(max_shift)
+        jvds = self._jvkdf.minRep(max_shift)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     @typecheck_method(scores=strlike,
                       loadings=nullable(strlike),
                       eigenvalues=nullable(strlike),
@@ -3752,7 +3599,9 @@ class VariantDataset(object):
     def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3842,6 +3691,219 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @require_biallelic
+    @record_method
+    @typecheck_method(k=integral,
+                      maf=numeric,
+                      block_size=integral,
+                      min_kinship=numeric)
+    def pc_relate(self, k, maf, block_size=512, min_kinship=-float("inf")):
+        """Compute relatedness estimates between individuals using a variant of the
+        PC-Relate method.
+
+        .. include:: _templates/experimental.rst
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
+        **Examples**
+
+        Estimate kinship, identity-by-descent two, identity-by-descent one, and
+        identity-by-descent zero for every pair of samples, using 10 prinicpal
+        components to correct for ancestral populations, and a minimum minor
+        allele frequency filter of 0.01:
+
+        >>> rel = vds.pc_relate(10, 0.01)
+
+        Calculate values as above, but when performing distributed matrix
+        multiplications use a matrix-block-size of 1024 by 1024.
+
+        >>> rel = vds.pc_relate(10, 0.01, 1024)
+
+        Calculate values as above, excluding sample-pairs with kinship less
+        than 0.1. This is more efficient than producing the full key table and
+        filtering using :py:meth:`~hail.KeyTable.filter`.
+
+        >>> rel = vds.pc_relate(5, 0.01, min_kinship=0.1)
+
+        **Method**
+
+        The traditional estimator for kinship between a pair of individuals
+        :math:`i` and :math:`j`, sharing the set :math:`S_{ij}` of
+        single-nucleotide variants, from a population with allele frequencies
+        :math:`p_s`, is given by:
+
+        .. math::
+
+          \\widehat{\phi_{ij}} := \\frac{1}{|S_{ij}|}\\sum_{s \in S_{ij}}\\frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}{4 * \sum_{s \in S_{ij} p_s (1 - p_s)}}
+
+        This estimator is true under the model that the sharing of common
+        (relative to the population) alleles is not very informative to
+        relatedness (because they're common) and the sharing of rare alleles
+        suggests a recent common ancestor from which the allele was inherited by
+        descent.
+
+        When multiple ancestry groups are mixed in a sample, this model breaks
+        down. Alleles that are rare in all but one ancestry group are treated as
+        very informative to relatedness. However, these alleles are simply
+        markers of the ancestry group. The PC-Relate method corrects for this
+        situation and the related situation of admixed individuals.
+
+        PC-Relate slightly modifies the usual estimator for relatedness:
+        occurences of population allele frequency are replaced with an
+        "individual-specific allele frequency". This modification allows the
+        method to correctly weight an allele according to an individual's unique
+        ancestry profile.
+
+        The "individual-specific allele frequency" at a given genetic locus is
+        modeled by PC-Relate as a linear function of their first ``k`` principal
+        component coordinates. As such, the efficacy of this method rests on two
+        assumptions:
+
+         - an individual's first ``k`` principal component coordinates fully
+           describe their allele-frequency-relevant ancestry, and
+
+         - the relationship between ancestry (as described by principal
+           component coordinates) and population allele frequency is linear
+
+        The estimators for kinship, and identity-by-descent zero, one, and two
+        follow. Let:
+
+         - :math:`S_{ij}` be the set of genetic loci at which both individuals
+           :math:`i` and :math:`j` have a defined genotype
+
+         - :math:`g_{is} \in {0, 1, 2}` be the number of alternate alleles that
+           individual :math:`i` has at gentic locus :math:`s`
+
+         - :math:`\\widehat{\\mu_{is}} \in [0, 1]` be the individual-specific allele
+           frequency for individual :math:`i` at genetic locus :math:`s`
+
+         - :math:`{\\widehat{\\sigma^2_{is}}} := \\widehat{\\mu_{is}} (1 -
+           \\widehat{\\mu_{is}})`, the binomial variance of
+           :math:`\\widehat{\\mu_{is}}`
+
+         - :math:`\\widehat{\\sigma_{is}} := \sqrt{\\widehat{\\sigma^2_{is}}}`,
+           the binomial standard deviation of :math:`\\widehat{\\mu_{is}}`
+
+         - :math:`\\text{IBS}^{(0)}_{ij} := \\sum_{s \\in S_{ij}} \\mathbb{1}_{||g_{is} -
+           g_{js} = 2||}`, the number of genetic loci at which individuals
+           :math:`i` and :math:`j` share no alleles
+
+         - :math:`\\widehat{f_i} := 2 \\widehat{\phi_{ii}} - 1`, the inbreeding
+           coefficient for individual :math:`i`
+
+         - :math:`g^D_{is}` be a dominance encoding of the genotype matrix, and
+           :math:`X_{is}` be a normalized dominance-coded genotype matrix
+
+        .. math::
+
+          g^D_{is} :=
+            \\begin{cases}
+              \\widehat{\\mu_{is}}     & g_{is} = 0 \\\\
+              0                        & g_{is} = 1 \\\\
+              1 - \\widehat{\\mu_{is}} & g_{is} = 2
+            \\end{cases}
+
+          X_{is} := g^D_{is} - \\widehat{\\sigma^2_{is}} (1 - \\widehat{f_i})
+
+        The estimator for kinship is given by:
+
+        .. math::
+
+          \\widehat{\phi_{ij}} := \\frac{\sum_{s \in S_{ij}}(g - 2 \\mu)_{is} (g - 2 \\mu)_{js}}{4 * \sum_{s \in S_{ij}}\\widehat{\\sigma_{is}} \\widehat{\\sigma_{js}}}
+
+        The estimator for identity-by-descent two is given by:
+
+        .. math::
+
+          \\widehat{k^{(2)}_{ij}} := \\frac{\sum_{s \in S_{ij}}X_{is} X_{js}}{\sum_{s \in S_{ij}}\\widehat{\\sigma^2_{is}} \\widehat{\\sigma^2_{js}}}
+
+        The estimator for identity-by-descent zero is given by:
+
+        .. math::
+
+          \\widehat{k^{(0)}_{ij}} :=
+            \\begin{cases}
+              \\frac{\\text{IBS}^{(0)}_{ij}}
+                   {\sum_{s \in S_{ij}} \\widehat{\\mu_{is}}^2(1 - \\widehat{\\mu_{js}})^2 + (1 - \\widehat{\\mu_{is}})^2\\widehat{\\mu_{js}}^2}
+                & \\widehat{\phi_{ij}} > 2^{-5/2} \\\\
+              1 - 4 \\widehat{\phi_{ij}} + k^{(2)}_{ij}
+                & \\widehat{\phi_{ij}} \le 2^{-5/2}
+            \\end{cases}
+
+        The estimator for identity-by-descent one is given by:
+
+        .. math::
+
+          \\widehat{k^{(1)}_{ij}} := 1 - \\widehat{k^{(2)}_{ij}} - \\widehat{k^{(0)}_{ij}}
+
+        **Details**
+
+        The PC-Relate method is described in "Model-free Estimation of Recent
+        Genetic Relatedness". Conomos MP, Reiner AP, Weir BS, Thornton TA. in
+        American Journal of Human Genetics. 2016 Jan 7. The reference
+        implementation is available in the `GENESIS Bioconductor package
+        <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`_ .
+
+        :py:meth:`~hail.VariantDataset.pc_relate` differs from the reference
+        implementation in a couple key ways:
+
+         - the principal components analysis does not use an unrelated set of
+           individuals
+
+         - the estimators do not perform small sample correction
+
+         - the algorithm does not provide an option to use population-wide
+           allele frequency estimates
+
+         - the algorithm does not provide an option to not use "overall
+           standardization" (see R ``pcrelate`` documentation)
+
+        **Notes**
+
+        The ``block_size`` controls memory usage and parallelism. If it is large
+        enough to hold an entire sample-by-sample matrix of 64-bit doubles in
+        memory, then only one Spark worker node can be used to compute matrix
+        operations. If it is too small, communication overhead will begin to
+        dominate the computation's time. The author has found that on Google
+        Dataproc (where each core has about 3.75GB of memory), setting
+        ``block_size`` larger than 512 tends to cause memory exhaustion errors.
+
+        The minimum allele frequency filter is applied per-pair: if either of
+        the two individual's individual-specific minor allele frequency is below
+        the threshold, then the variant's contribution to relatedness estimates
+        is zero.
+
+        The resulting :py:class:`.KeyTable` entries have the type: *{ i: String,
+        j: String, kin: Double, k2: Double, k1: Double, k0: Double }*. The key
+        list is: `*i: String, j: String*`.
+
+        :param int k: The number of principal components to use to distinguish
+                      ancestries.
+
+        :param float maf: The minimum individual-specific allele frequency for
+                          an allele used to measure relatedness.
+
+        :param int block_size: the side length of the blocks of the block-
+                               distributed matrices; this should be set such
+                               that at least three of these matrices fit in
+                               memory (in addition to all other objects
+                               necessary for Spark and Hail).
+
+        :param float min_kinship: Pairs of samples with kinship lower than
+                                  ``min_kinship`` are excluded from the results.
+
+        :return: A :py:class:`.KeyTable` mapping pairs of samples to estimations
+                 of their kinship and identity-by-descent zero, one, and two.
+        :rtype: :py:class:`.KeyTable`
+
+        """
+
+        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship))
+
+    @handle_py4j
+    @record_method
     @typecheck_method(storage_level=strlike)
     def persist(self, storage_level="MEMORY_AND_DISK"):
         """Persist this variant dataset to memory and/or disk.
@@ -3868,7 +3930,7 @@ class VariantDataset(object):
             Persist, like all other :class:`.VariantDataset` functions, is functional.
             Its output must be captured. This is wrong:
             
-            >>> vds = vds.linreg('sa.phenotype') # doctest: +SKIP
+            >>> vds = vds.linreg(['sa.phenotype']) # doctest: +SKIP
             >>> vds.persist() # doctest: +SKIP
             
             The above code does NOT persist ``vds``. Instead, it copies ``vds`` and persists that result. 
@@ -3884,7 +3946,7 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.persist(storage_level))
+        return VariantDataset(self.hc, self._jvds.persist(storage_level))
 
     def unpersist(self):
         """
@@ -4279,7 +4341,8 @@ class VariantDataset(object):
         return r
 
     @handle_py4j
-    @typecheck_method(mapping=dictof(strlike, strlike))
+    @record_method
+    @typecheck_method(mapping=oneof(dictof(strlike, strlike), listof(strlike)))
     def rename_samples(self, mapping):
         """Rename samples.
 
@@ -4293,7 +4356,23 @@ class VariantDataset(object):
         >>> mapping_dict = {row.old_id: row.new_id for row in mapping_table.collect()}
         >>> vds_result = vds.rename_samples(mapping_dict)
 
-        :param dict mapping: Mapping from old to new sample IDs.
+        Rename samples by replacing spaces with underscores:
+
+        >>> new_id_list = [s.replace(' ', '_') for s in vds.sample_ids]
+        >>> vds_result = vds.rename_samples(new_id_list)
+
+        **Notes**
+
+        This method either takes a dict or a list as an argument. If a
+        dict is passed, then each sample found as a key in the dict will
+        be renamed to the value. Samples not found in the dict will be
+        unchanged.
+
+        If a list is passed, this list must contain the same number of
+        elements as the dataset. Samples are renamed by index.
+
+        :param mapping: Mapping from old to new sample IDs.
+        :type mapping: list of str or dict of str to str
 
         :return: Dataset with remapped sample IDs.
         :rtype: :class:`.VariantDataset`
@@ -4303,6 +4382,69 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
+    @typecheck_method(mapping=listof(strlike))
+    def reorder_samples(self, mapping):
+        """Reorder samples.
+
+        **Examples**
+
+        Randomly shuffle order of samples:
+
+        >>> import random
+        >>> new_sample_order = vds.sample_ids[:]
+        >>> random.shuffle(new_sample_order)
+        >>> vds_reordered = vds.reorder_samples(new_sample_order)
+
+
+        **Notes**
+
+        This method requires unique sample ids. ``mapping`` must contain the same ids
+        as :py:meth:`~hail.VariantDataset.sample_ids`. The order of the ids in ``mapping``
+        determines the sample id order in the output dataset.
+
+
+        :param mapping: New ordering of sample ids.
+        :type mapping: list of str
+
+        :return: Dataset with samples reordered.
+        :rtype: :class:`.VariantDataset`
+        """
+
+        jvds = self._jvds.reorderSamples(mapping)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @record_method
+    def rename_duplicates(self):
+        """Rename duplicate samples.
+
+        **Examples**
+
+        >>> vds_result = vds.rename_duplicates()
+        >>> duplicate_sample_ids = vds_result.query_samples(
+        ...     'samples.filter(s => s != sa.originalID).map(s => sa.originalID).collectAsSet()')
+
+        **Notes**
+
+        This method produces a dataset with unique sample identifiers by appending
+        a unique suffix ``_N`` to duplicate samples. For example, if the id "NA12878"
+        appears three times in the dataset, the first will be left as "NA12878", the
+        second will be renamed "NA12878_1", and the third will be "NA12878_2". The
+        original ID is stored in sample annotations.
+
+        **Annotations**
+
+        :py:meth:`~hail.VariantDataset.rename_duplicates` adds one sample annotation:
+
+         - **sa.originalID** (*String*) -- Original sample ID.
+        """
+
+        jvds = self._jvds.renameDuplicates()
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @record_method
     @typecheck_method(num_partitions=integral,
                       shuffle=bool)
     def repartition(self, num_partitions, shuffle=True):
@@ -4330,10 +4472,11 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.coalesce(num_partitions, shuffle)
+        jvds = self._jvds.coalesce(num_partitions, shuffle)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(max_partitions=integral)
     def naive_coalesce(self, max_partitions):
         """Naively descrease the number of partitions.
@@ -4350,12 +4493,18 @@ class VariantDataset(object):
 
         jvds = self._jvds.naiveCoalesce(max_partitions)
         return VariantDataset(self.hc, jvds)
-    
+
     @handle_py4j
+    @require_biallelic
+    @record_method
     @typecheck_method(force_block=bool,
                       force_gramian=bool)
     def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -4420,74 +4569,76 @@ class VariantDataset(object):
         return self._jvds.same(other._jvds, tolerance)
 
     @handle_py4j
-    @requireTGenotype
-    @typecheck_method(root=strlike,
-                      keep_star=bool)
-    def sample_qc(self, root='sa.qc', keep_star=False):
+    @record_method
+    @typecheck_method(root=strlike)
+    def sample_qc(self, root='sa.qc'):
         """Compute per-sample QC metrics.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Annotations**
 
-        :py:meth:`~hail.VariantDataset.sample_qc` computes 20 sample statistics from the 
+        :py:meth:`~hail.VariantDataset.sample_qc` computes sample statistics from the
         genotype data and stores the results as sample annotations that can be accessed with
         ``sa.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
 
-        +---------------------------+--------+----------------------------------------------------------+
-        | Name                      | Type   | Description                                              |
-        +===========================+========+==========================================================+
-        | ``callRate``              | Double | Fraction of genotypes called                             |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nHomRef``               | Int    | Number of homozygous reference genotypes                 |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nHet``                  | Int    | Number of heterozygous genotypes                         |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nHomVar``               | Int    | Number of homozygous alternate genotypes                 |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nCalled``               | Int    | Sum of ``nHomRef`` + ``nHet`` + ``nHomVar``              |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nNotCalled``            | Int    | Number of uncalled genotypes                             |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nSNP``                  | Int    | Number of SNP alternate alleles                          |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nInsertion``            | Int    | Number of insertion alternate alleles                    |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nDeletion``             | Int    | Number of deletion alternate alleles                     |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nSingleton``            | Int    | Number of private alleles                                |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nTransition``           | Int    | Number of transition (A-G, C-T) alternate alleles        |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nTransversion``         | Int    | Number of transversion alternate alleles                 |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``nNonRef``               | Int    | Sum of ``nHet`` and ``nHomVar``                          |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``rTiTv``                 | Double | Transition/Transversion ratio                            |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``rHetHomVar``            | Double | Het/HomVar genotype ratio                                |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``rInsertionDeletion``    | Double | Insertion/Deletion ratio                                 |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``dpMean``                | Double | Depth mean across all genotypes                          |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``dpStDev``               | Double | Depth standard deviation across all genotypes            |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``gqMean``                | Double | The average genotype quality across all genotypes        |
-        +---------------------------+--------+----------------------------------------------------------+
-        | ``gqStDev``               | Double | Genotype quality standard deviation across all genotypes |
-        +---------------------------+--------+----------------------------------------------------------+
+        +------------------------+-------+-+----------------------------------------------------------+
+        | Name                   | Type    | Description                                              |
+        +========================+=========+==========================================================+
+        | ``callRate``           | Float64 | Fraction of genotypes called                             |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nHomRef``            | Int64   | Number of homozygous reference genotypes                 |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nHet``               | Int64   | Number of heterozygous genotypes                         |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nHomVar``            | Int64   | Number of homozygous alternate genotypes                 |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nCalled``            | Int64   | Sum of ``nHomRef`` + ``nHet`` + ``nHomVar``              |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nNotCalled``         | Int64   | Number of uncalled genotypes                             |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nSNP``               | Int64   | Number of SNP alternate alleles                          |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nInsertion``         | Int64   | Number of insertion alternate alleles                    |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nDeletion``          | Int64   | Number of deletion alternate alleles                     |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nSingleton``         | Int64   | Number of private alleles                                |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nTransition``        | Int64   | Number of transition (A-G, C-T) alternate alleles        |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nTransversion``      | Int64   | Number of transversion alternate alleles                 |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nStar``              | Int64   | Number of star (upstream deletion) alleles               |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``nNonRef``            | Int64   | Sum of ``nHet`` and ``nHomVar``                          |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``rTiTv``              | Float64 | Transition/Transversion ratio                            |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``rHetHomVar``         | Float64 | Het/HomVar genotype ratio                                |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``rInsertionDeletion`` | Float64 | Insertion/Deletion ratio                                 |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``dpMean``             | Float64 | Depth mean across all genotypes                          |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``dpStDev``            | Float64 | Depth standard deviation across all genotypes            |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``gqMean``             | Float64 | The average genotype quality across all genotypes        |
+        +------------------------+---------+----------------------------------------------------------+
+        | ``gqStDev``            | Float64 | Genotype quality standard deviation across all genotypes |
+        +------------------------+---------+----------------------------------------------------------+
 
-        Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
+        Missing values ``NA`` may result (for example, due to division by zero) and are handled properly
+         in filtering and written as "NA" in export modules. The empirical standard deviation is computed
+         with zero degrees of freedom.
 
         :param str root: Sample annotation root for the computed struct.
-        :param bool keep_star: Count star alleles as non-reference alleles
-        
+
         :return: Annotated variant dataset with new sample qc annotations.
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.sampleQC(root, keep_star))
+        return VariantDataset(self.hc, self._jvdf.sampleQC(root))
 
     @handle_py4j
     def storage_level(self):
@@ -4503,12 +4654,68 @@ class VariantDataset(object):
         return self._jvds.storageLevel()
 
     @handle_py4j
-    @requireTGenotype
+    def collect(self):
+        """Collect the dataset into a local list.
+
+        **Examples**
+
+        >>> local_dataset = vds.collect()
+
+        **Notes**
+
+        This method should be used on very small tables and as a last resort.
+        It is very slow to convert distributed Java objects to Python
+        (especially serially), and the resulting list may be too large
+        to fit in memory on one machine.
+
+        The schema of the returned structs is:
+
+         - **v**: :py:meth:`.VariantDataset.rowkey_schema`
+         - **va**: :py:meth:`.VariantDataset.variant_schema`
+         - **gs**: *list of* :py:meth:`.VariantDataset.genotype_schema`
+
+        :rtype: list of :py:class:`.hail.representation.Struct`
+        """
+
+        schema = Type._from_java(self._jvds.rowSignature())
+        return [schema._convert_to_py(r) for r in self._jvds.collect()]
+
+
+    @handle_py4j
+    @typecheck_method(n=integral)
+    def take(self, n):
+        """Collect the first `n` rows of the dataset into a local list.
+
+        **Examples**
+
+        >>> dataset_head = vds.take(10)
+
+        **Notes**
+
+        This method should be used with very small `n` and as a last resort.
+        It is very slow to convert distributed Java objects to Python
+        (especially serially), and the resulting list may be too large
+        to fit in memory on one machine.
+
+        The schema of the returned structs is:
+
+         - **v**: :py:meth:`.VariantDataset.rowkey_schema`
+         - **va**: :py:meth:`.VariantDataset.variant_schema`
+         - **gs**: *list of* :py:meth:`.VariantDataset.genotype_schema`
+
+        :param int n: Number of rows to take.
+
+        :rtype: list of :py:class:`.hail.representation.Struct`
+        """
+
+        schema = Type._from_java(self._jvds.rowSignature())
+        return [schema._convert_to_py(r) for r in self._jvds.take(n)]
+
+    @handle_py4j
     def summarize(self):
         """Returns a summary of useful information about the dataset.
         
-        .. include:: requireTGenotype.rst
-
+        .. include:: _templates/req_tvariant_tgenotype.rst
         
         **Examples**
         
@@ -4540,6 +4747,7 @@ class VariantDataset(object):
         return Summary._from_java(js)
 
     @handle_py4j
+    @record_method
     @typecheck_method(ann_path=strlike,
                       attributes=dictof(strlike, strlike))
     def set_va_attributes(self, ann_path, attributes):
@@ -4629,6 +4837,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.setVaAttributes(ann_path, Env.jutils().javaMapToMap(attributes)))
 
     @handle_py4j
+    @record_method
     @typecheck_method(ann_path=strlike,
                       attribute=strlike)
     def delete_va_attribute(self, ann_path, attribute):
@@ -4670,14 +4879,161 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.deleteVaAttribute(ann_path, attribute))
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
+    @typecheck_method(variant_keys=strlike,
+                      single_key=bool,
+                      weight_expr=strlike,
+                      y=strlike,
+                      covariates=listof(strlike),
+                      logistic=bool,
+                      use_dosages=bool,
+                      max_size=integral,
+                      accuracy=numeric,
+                      iterations=integral)
+    def skat(self, variant_keys, single_key, weight_expr, y, covariates=[], logistic=False, use_dosages=False,
+             max_size=46340, accuracy=1e-6, iterations=10000):
+        """Test each keyed group of variants for association by linear or logistic SKAT test.
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
+        **Examples**
+
+        Test each gene for association using the linear sequence kernel association test. Here ``va.genes``
+        is a variant annotation of type Set[String] giving the set of genes containing the variant:
+
+        >>> skat_kt = (hc.read('data/example_burden.vds')
+        ...              .skat(variant_keys='va.genes',
+        ...                    weight_expr='va.weight',
+        ...                    single_key=False,
+        ...                    y='sa.burden.pheno',
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
+
+        .. caution::
+
+          With ``single_key=False``, ``variant_keys`` expects a variant annotation of Set or Array type, in order to
+          allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
+          genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
+          variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
+          variant annotation whose value is itself the key of interest. In both cases, variants with missing keys are
+          ignored.
+          
+        .. caution::
+
+          By default, the Davies algorithm iterates up to 10k times until an accuracy of 1e-6 is achieved.
+          Hence a reported p-value of zero with no issues may truly be as large as 1e-6. The accuracy and
+          maximum number of iterations may be controlled by the corresponding function parameters.
+          In general, higher accuracy requires more iterations.
+
+        .. caution::
+
+          To process a group with math:`m` variants, several copies of an math:`m \times m` matrix of doubles must fit
+          in worker memory. Groups with tens of thousands of variants may exhaust worker memory causing the entire
+          job to fail. In this case, use the ``max_size`` parameter to skip groups larger than ``max_size``.
+        
+        **Notes**
+
+        This method provides a scalable implementation of the score-based variance-component test originally described
+        in `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
+        <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
+
+        The test is run on complete samples (i.e., phenotype and all covariates non-missing).
+        For each variant, missing genotypes are imputed as the mean of all non-missing genotypes.
+
+        Variant weights must be non-negative. Variants with missing weights are ignored.
+        In the R package ``skat``, default weights are given by evaluating the Beta(1, 25) density at
+        the minor allele frequency. To replicate these weights in Hail using alternate allele frequencies stored at
+        ``va.AF``, one can use the expression:
+
+        ``let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af, 1.0, 25.0)**2``
+
+        In the logistic case, the phenotype must either be numeric (with all present values 0 or 1) or Boolean, in
+        which case true and false are coded as 1 and 0, respectively.
+
+        The resulting key table provides the group's key, the size (number of variants) in the group,
+        the variance component score ``qstat``, the SKAT p-value, and a fault flag.
+        For the toy example above, the table has the form:
+
+        +------+------+-------+-------+-------+
+        |  key | size | qstat | pval  | fault |
+        +======+======+=======+=======+=======+
+        | geneA|   2  | 4.136 | 0.205 |   0   |
+        +------+------+-------+-------+-------+
+        | geneB|   1  | 5.659 | 0.195 |   0   |
+        +------+------+-------+-------+-------+
+        | geneC|   3  | 4.122 | 0.192 |   0   |
+        +------+------+-------+-------+-------+
+        
+        Groups larger than ``max_size`` appear with missing ``qstat``, ``pval``, and ``fault``. The hard limit on the
+        number of variants in a group is 46340.
+
+        Note that the variance component score ``qstat`` agrees with ``Q`` in the R package ``skat``,
+        but both differ from :math:`Q` in the paper by the factor
+        :math:`\\frac{1}{2\\sigma^2}` in the linear case and :math:`\\frac{1}{2}` in the logistic case,
+        where :math:`\\sigma^2` is the unbiased estimator of residual variance for the linear null model.
+        The R package also applies a "small-sample adjustment" to the null distribution in the logistic case when the
+        sample size is less than 2000. Hail does not apply this adjustment.
+
+        The fault flag is an integer indicating whether any issues occurred when running the Davies algorithm
+        to compute the p-value as the right tail of a weighted sum of :math:`\\chi^2(1)` distributions.
+
+        +-------------+-----------------------------------------+
+        | fault value | Description                             |
+        +=============+=========================================+
+        |      0      | no issues                               |
+        +------+------+-----------------------------------------+
+        |      1      | accuracy NOT achieved                   |
+        +------+------+-----------------------------------------+
+        |      2      | round-off error possibly significant    |
+        +------+------+-----------------------------------------+
+        |      3      | invalid parameters                      |
+        +------+------+-----------------------------------------+
+        |      4      | unable to locate integration parameters |
+        +------+------+-----------------------------------------+
+        |      5      | out of memory                           |
+        +------+------+-----------------------------------------+
+                     
+        :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
+
+        :param bool single_key: If true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
+                                rather than as a collection of keys.
+
+        :param str weight_expr: Variant expression of numeric type for variant weights.
+
+        :param str y: Response expression.
+
+        :param covariates: List of covariate expressions.
+        :type covariates: List of str
+
+        :param bool logistic: If true, use the logistic test rather than the linear test. 
+
+        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
+
+        :param int max_size: Maximum size of group on which to run the test.
+
+        :param float accuracy: Accuracy achieved by the Davies algorithm if fault value is zero.
+
+        :param int iterations: Maximum number of iterations attempted by the Davies algorithm.
+
+        :return: Key table of SKAT results.
+        :rtype: :py:class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, weight_expr, y,
+                                                 jarray(Env.jvm().java.lang.String, covariates),
+                                                 logistic, use_dosages, max_size, accuracy, iterations))
+
+    @handle_py4j
+    @record_method
     @typecheck_method(propagate_gq=bool,
                       keep_star_alleles=bool,
                       max_shift=integral)
     def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -4805,14 +5161,17 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     @typecheck_method(pedigree=Pedigree,
                       root=strlike)
     def tdt(self, pedigree, root='va.tdt'):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -4820,7 +5179,9 @@ class VariantDataset(object):
 
         >>> pedigree = Pedigree.read('data/trios.fam')
         >>> (vds.tdt(pedigree)
-        ...     .export_variants("output/tdt_results.tsv", "Variant = v, va.tdt.*"))
+        ...     .variants_table()
+        ...     .select(['Variant = v', 'va.tdt.*'])
+        ...     .export("output/tdt_results.tsv"))
 
         **Notes**
 
@@ -4917,12 +5278,15 @@ class VariantDataset(object):
         self._jvds.typecheck()
 
     @handle_py4j
-    @requireTGenotype
+    @require_biallelic
+    @record_method
     @typecheck_method(root=strlike)
     def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
 
-        .. include:: requireTGenotype.rst
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -4936,47 +5300,47 @@ class VariantDataset(object):
         genotype data and stores the results as variant annotations that can be accessed 
         with ``va.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
 
-        +---------------------------+--------+--------------------------------------------------------+
-        | Name                      | Type   | Description                                            |
-        +===========================+========+========================================================+
-        | ``callRate``              | Double | Fraction of samples with called genotypes              |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``AF``                    | Double | Calculated alternate allele frequency (q)              |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``AC``                    | Int    | Count of alternate alleles                             |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``rHeterozygosity``       | Double | Proportion of heterozygotes                            |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``rHetHomVar``            | Double | Ratio of heterozygotes to homozygous alternates        |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``rExpectedHetFrequency`` | Double | Expected rHeterozygosity based on HWE                  |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``pHWE``                  | Double | p-value from Hardy Weinberg Equilibrium null model     |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``nHomRef``               | Int    | Number of homozygous reference samples                 |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``nHet``                  | Int    | Number of heterozygous samples                         |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``nHomVar``               | Int    | Number of homozygous alternate samples                 |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``nCalled``               | Int    | Sum of ``nHomRef``, ``nHet``, and ``nHomVar``          |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``nNotCalled``            | Int    | Number of uncalled samples                             |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``nNonRef``               | Int    | Sum of ``nHet`` and ``nHomVar``                        |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``rHetHomVar``            | Double | Het/HomVar ratio across all samples                    |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``dpMean``                | Double | Depth mean across all samples                          |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``dpStDev``               | Double | Depth standard deviation across all samples            |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``gqMean``                | Double | The average genotype quality across all samples        |
-        +---------------------------+--------+--------------------------------------------------------+
-        | ``gqStDev``               | Double | Genotype quality standard deviation across all samples |
-        +---------------------------+--------+--------------------------------------------------------+
+        +---------------------------+---------+--------------------------------------------------------+
+        | Name                      | Type    | Description                                            |
+        +===========================+=========+========================================================+
+        | ``callRate``              | Float64 | Fraction of samples with called genotypes              |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``AF``                    | Float64 | Calculated alternate allele frequency (q)              |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``AC``                    | Int32   | Count of alternate alleles                             |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``rHeterozygosity``       | Float64 | Proportion of heterozygotes                            |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``rHetHomVar``            | Float64 | Ratio of heterozygotes to homozygous alternates        |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``rExpectedHetFrequency`` | Float64 | Expected rHeterozygosity based on HWE                  |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``pHWE``                  | Float64 | p-value from Hardy Weinberg Equilibrium null model     |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``nHomRef``               | Int32   | Number of homozygous reference samples                 |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``nHet``                  | Int32   | Number of heterozygous samples                         |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``nHomVar``               | Int32   | Number of homozygous alternate samples                 |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``nCalled``               | Int32   | Sum of ``nHomRef``, ``nHet``, and ``nHomVar``          |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``nNotCalled``            | Int32   | Number of uncalled samples                             |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``nNonRef``               | Int32   | Sum of ``nHet`` and ``nHomVar``                        |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``rHetHomVar``            | Float64 | Het/HomVar ratio across all samples                    |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``dpMean``                | Float64 | Depth mean across all samples                          |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``dpStDev``               | Float64 | Depth standard deviation across all samples            |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``gqMean``                | Float64 | The average genotype quality across all samples        |
+        +---------------------------+---------+--------------------------------------------------------+
+        | ``gqStDev``               | Float64 | Genotype quality standard deviation across all samples |
+        +---------------------------+---------+--------------------------------------------------------+
 
-        Missing values ``NA`` may result (for example, due to division by zero) and are handled properly 
+        Missing values ``NA`` may result (for example, due to division by zero) and are handled properly
         in filtering and written as "NA" in export modules. The empirical standard deviation is computed
         with zero degrees of freedom.
 
@@ -4990,12 +5354,15 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(config=strlike,
                       block_size=integral,
                       root=strlike,
                       csq=bool)
     def vep(self, config, block_size=1000, root='va.vep', csq=False):
         """Annotate variants with VEP.
+
+        .. include:: _templates/req_tvariant.rst
 
         :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with
         the `LOFTEE plugin <https://github.com/konradjk/loftee>`__
@@ -5210,10 +5577,11 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.vep(config, root, csq, block_size)
+        jvds = self._jvkdf.vep(config, root, csq, block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+<<<<<<< HEAD
     def nirvana(self, config, block_size = 50000, root = 'va.nirvana'):
         """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
@@ -5424,6 +5792,9 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+=======
+    @record_method
+>>>>>>> master
     def variants_table(self):
         """Convert variants and variant annotations to a KeyTable.
 
@@ -5445,6 +5816,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.variantsKT())
 
     @handle_py4j
+    @record_method
     def samples_table(self):
         """Convert samples and sample annotations to KeyTable.
 
@@ -5466,6 +5838,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.samplesKT())
 
     @handle_py4j
+    @record_method
     def genotypes_table(self):
         """Generate a fully expanded genotype table.
 
@@ -5498,6 +5871,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.genotypeKT())
 
     @handle_py4j
+    @record_method
     @typecheck_method(variant_expr=oneof(strlike, listof(strlike)),
                       genotype_expr=oneof(strlike, listof(strlike)),
                       key=oneof(strlike, listof(strlike)),

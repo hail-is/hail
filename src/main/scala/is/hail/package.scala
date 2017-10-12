@@ -1,6 +1,6 @@
 package is
 
-import scala.tools.nsc.interpreter.InputStream
+import java.io.InputStream
 
 package object hail {
 

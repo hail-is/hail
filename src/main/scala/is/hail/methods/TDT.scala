@@ -16,7 +16,7 @@ case class TDTResult(nTransmitted: Int, nUntransmitted: Int, chi2: Double, pval:
 
 object TDT {
 
-  def schema: TStruct = TStruct("nTransmitted" -> TInt, "nUntransmitted" -> TInt, "chi2" -> TDouble, "pval" -> TDouble)
+  def schema: TStruct = TStruct("nTransmitted" -> TInt32, "nUntransmitted" -> TInt32, "chi2" -> TFloat64, "pval" -> TFloat64)
 
   def getTransmission(kid: GenotypeType, dad: GenotypeType, mom: GenotypeType, copyState: CopyState): (Int, Int) = {
     (kid, dad, mom, copyState) match {
@@ -54,6 +54,7 @@ object TDT {
   }
 
   def apply(vds: VariantDataset, preTrios: IndexedSeq[CompleteTrio], path: List[String]): VariantDataset = {
+    vds.requireUniqueSamples("tdt")
 
     // Remove trios with an undefined sex.
     val trios = preTrios.filter(_.sex.isDefined)
@@ -92,10 +93,10 @@ object TDT {
         else {
           gs.iterator.zipWithIndex.foreach { case (g, i) =>
             sampleTrioRolesBc.value(i).foreach { case (tIdx, rIdx) =>
-              if (v.inXNonPar && rIdx == 1 && g.isHet)
+              if (v.inXNonPar && rIdx == 1 && Genotype.isHet(g))
                 arr.update(tIdx, rIdx, GenotypeType.NoCall)
               else
-                arr.update(tIdx, rIdx, g.gtType)
+                arr.update(tIdx, rIdx, Genotype.gtType(g))
             }
           }
 

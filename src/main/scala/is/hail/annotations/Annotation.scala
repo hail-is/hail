@@ -17,7 +17,7 @@ object Annotation {
 
   final val GENOTYPE_HEAD = "g"
 
-  def empty: Annotation = null
+  val empty: Annotation = Row()
 
   def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = Array.fill[Annotation](n)(Annotation.empty)
 
@@ -36,9 +36,7 @@ object Annotation {
   }
 
   def expandType(t: Type): Type = t match {
-    case TVariant => Variant.expandedType
-    case TGenotype => Genotype.expandedType
-    case TLocus => Locus.expandedType
+    case tc: ComplexType => expandType(tc.representation)
     case TArray(elementType) =>
       TArray(expandType(elementType))
     case TStruct(fields) =>
@@ -49,11 +47,6 @@ object Annotation {
       TArray(TStruct(
         "key" -> expandType(keyType),
         "value" -> expandType(valueType)))
-    case TAltAllele => AltAllele.expandedType
-    case TInterval =>
-      TStruct(
-        "start" -> Locus.expandedType,
-        "end" -> Locus.expandedType)
     case _ => t
   }
 
@@ -62,9 +55,9 @@ object Annotation {
       null
     else
       t match {
-        case TVariant => a.asInstanceOf[Variant].toRow
-        case TGenotype => a.asInstanceOf[Genotype].toRow
-        case TLocus => a.asInstanceOf[Locus].toRow
+        case _: TVariant => a.asInstanceOf[Variant].toRow
+        case TGenotype => Genotype.toRow(a.asInstanceOf[Genotype])
+        case _: TLocus => a.asInstanceOf[Locus].toRow
 
         case TArray(elementType) =>
           a.asInstanceOf[IndexedSeq[_]].map(expandAnnotation(_, elementType))
@@ -86,7 +79,7 @@ object Annotation {
 
         case TAltAllele => a.asInstanceOf[AltAllele].toRow
 
-        case TInterval =>
+        case _: TInterval =>
           val i = a.asInstanceOf[Interval[Locus]]
           Annotation(i.start.toRow,
             i.end.toRow)

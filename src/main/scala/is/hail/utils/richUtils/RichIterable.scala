@@ -152,4 +152,11 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
 
     def strings: (String, String) = (truncate, i.mkString(delim))
   }
+
+  def counter(): Map[T, Int] = {
+    val m = new mutable.HashMap[T, Int]()
+    i.foreach { elem => m.updateValue(elem, 0, _ + 1) }
+
+    m.toMap
+  }
 }

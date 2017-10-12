@@ -1,14 +1,14 @@
 package is.hail.stats
 
 import is.hail.annotations.Annotation
-import is.hail.expr.{Field, TDouble, TInt, TStruct}
+import is.hail.expr.{Field, TFloat64, TInt32, TStruct}
 import is.hail.utils._
 import is.hail.variant.Genotype
 
 object InfoScoreCombiner {
   def signature = TStruct(Array(
-    ("score", TDouble, "IMPUTE info score"),
-    ("nIncluded", TInt, "Number of samples with non-missing genotype probability distribution")
+    ("score", TFloat64, "IMPUTE info score"),
+    ("nIncluded", TInt32, "Number of samples with non-missing genotype probability distribution")
   ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 }
 
@@ -18,14 +18,14 @@ class InfoScoreCombiner extends Serializable {
   var totalDosage = 0d
   var nIncluded = 0
 
-  def expectedVariance(gp: Array[Double], mean: Double): Double = (gp(1) + 4 * gp(2)) - (mean * mean)
+  def expectedVariance(gp: IndexedSeq[Double], mean: Double): Double = (gp(1) + 4 * gp(2)) - (mean * mean)
 
-  def merge(g: Genotype): InfoScoreCombiner = {
-    g.gp.foreach { dx =>
-      val mean = dx(1) + 2 * dx(2)
-      result += expectedVariance(dx, mean)
+  def merge(gp: IndexedSeq[Double]): InfoScoreCombiner = {
+    if (gp != null) {
+      val mean = gp(1) + 2 * gp(2)
+      result += expectedVariance(gp, mean)
       expectedAlleleCount += mean
-      totalDosage += dx.sum
+      totalDosage += gp.sum
       nIncluded += 1
     }
     this
@@ -39,9 +39,9 @@ class InfoScoreCombiner extends Serializable {
     this
   }
 
-  def thetaMLE = divOption(expectedAlleleCount, totalDosage)
+  def thetaMLE: Option[Double] = divOption(expectedAlleleCount, totalDosage)
 
-  def imputeInfoScore(theta: Double) =
+  def imputeInfoScore(theta: Double): Option[Double] =
     if (theta == 1.0 || theta == 0.0)
       Some(1d)
     else if (nIncluded == 0)

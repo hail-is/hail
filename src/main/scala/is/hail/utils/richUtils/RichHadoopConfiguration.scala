@@ -2,8 +2,10 @@ package is.hail.utils.richUtils
 
 import java.io._
 
+import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.io.compress.BGzipCodec
 import is.hail.utils.{TextContext, WithContext, _}
+import net.jpountz.lz4.{LZ4BlockOutputStream, LZ4Compressor}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.IOUtils._
@@ -129,18 +131,26 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       false, hConf)
   }
 
-  def copyMerge(sourceFolder: String, destinationFile: String, deleteSource: Boolean = true, hasHeader: Boolean = true) {
+  def copyMerge(sourceFolder: String, destinationFile: String, numPartFilesExpected: Int, deleteSource: Boolean = true, hasHeader: Boolean = true) {
     if (!exists(sourceFolder + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
     delete(destinationFile, recursive = true) // overwriting by default
 
+    val headerFileStatus = glob(sourceFolder + "/header")
+    
+    if (hasHeader && headerFileStatus.isEmpty)
+      fatal(s"Missing header file")
+    else if (!hasHeader && headerFileStatus.nonEmpty)
+      fatal(s"Found unexpected header file")
+
     val partFileStatuses = glob(sourceFolder + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
 
-    val filesToMerge =
-      if (hasHeader) glob(sourceFolder + ".header") ++ partFileStatuses
-      else partFileStatuses
-
+    if (partFileStatuses.length != numPartFilesExpected)
+      fatal(s"Expected $numPartFilesExpected part files but found ${partFileStatuses.length}")
+        
+    val filesToMerge = headerFileStatus ++ partFileStatuses
+    
     val (_, dt) = time {
       copyMergeList(filesToMerge, destinationFile, deleteSource)
     }
@@ -210,63 +220,45 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       }.getOrElse(s)
   }
 
-  def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T = {
-    val oos = new ObjectOutputStream(create(filename))
-    try {
-      f(oos)
-    } finally {
-      oos.close()
-    }
-  }
-
   def fileStatus(filename: String): FileStatus = fileSystem(filename).getFileStatus(new hadoop.fs.Path(filename))
 
-  def readObjectFile[T](filename: String)(f: (ObjectInputStream) => T): T = {
-    val ois = new ObjectInputStream(open(filename))
+  private def using[R <: Closeable, T](r: R)(consume: (R) => T): T = {
     try {
-      f(ois)
+      consume(r)
     } finally {
-      ois.close()
+      r.close()
     }
   }
 
-  def readDataFile[T](filename: String)(f: (DataInputStream) => T): T = {
-    val dis = new DataInputStream(open(filename))
-    try {
-      f(dis)
-    } finally {
-      dis.close()
-    }
-  }
+  def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T =
+    using(create(filename)) { ois => using(new ObjectOutputStream(ois))(f) }
 
-  def writeTextFile[T](filename: String)(writer: (OutputStreamWriter) => T): T = {
-    val oos = create(filename)
-    val fw = new OutputStreamWriter(oos)
-    try {
-      writer(fw)
-    } finally {
-      fw.close()
-    }
-  }
+  def readObjectFile[T](filename: String)(f: (ObjectInputStream) => T): T =
+    using(open(filename)) { is => using(new ObjectInputStream(is))(f) }
 
-  def writeDataFile[T](filename: String)(writer: (DataOutputStream) => T): T = {
-    val oos = create(filename)
-    val dos = new DataOutputStream(oos)
-    try {
-      writer(dos)
-    } finally {
-      dos.close()
-    }
-  }
+  def writeDataFile[T](filename: String)(f: (DataOutputStream) => T): T =
+    using(new DataOutputStream(create(filename)))(f)
 
-  def readFile[T](filename: String)(reader: (InputStream) => T): T = {
-    val is = open(filename)
-    try {
-      reader(is)
-    } finally {
-      is.close()
-    }
-  }
+  def readDataFile[T](filename: String)(f: (DataInputStream) => T): T =
+    using(new DataInputStream(open(filename)))(f)
+
+  def writeTextFile[T](filename: String)(f: (OutputStreamWriter) => T): T =
+    using(new OutputStreamWriter(create(filename)))(f)
+
+  def readTextFile[T](filename: String)(f: (InputStreamReader) => T): T =
+    using(new InputStreamReader(open(filename)))(f)
+
+  def writeKryoFile[T](filename: String)(f: (Output) => T): T =
+    using(new Output(create(filename)))(f)
+
+  def readKryoFile[T](filename: String)(f: (Input) => T): T =
+    using(new Input(open(filename)))(f)
+
+  def readFile[T](filename: String)(f: (InputStream) => T): T =
+    using(open(filename))(f)
+
+  def writeFile[T](filename: String)(f: (OutputStream) => T): T =
+    using(create(filename))(f)
 
   def readLines[T](filename: String)(reader: (Iterator[WithContext[String]] => T)): T = {
     readFile[T](filename) {
@@ -300,4 +292,16 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   def unsafeReader(filename: String): InputStream = open(filename)
 
   def unsafeWriter(filename: String): OutputStream = create(filename)
+
+  def writeLZ4DataFile[T](path: String, blockSize: Int, compressor: LZ4Compressor)(writer: (DataOutputStream) => T): T = {
+    val oos = create(path)
+    val comp = new LZ4BlockOutputStream(oos, blockSize, compressor)
+    val dos = new DataOutputStream(comp)
+    try {
+      writer(dos)
+    } finally {
+      dos.flush()
+      dos.close()
+    }
+  }
 }

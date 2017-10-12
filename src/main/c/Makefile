@@ -2,7 +2,7 @@
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
 # this list
-OBJECTS=ibs.o
+OBJECTS=ibs.o davies.o
 
 CXX ?= c++
 # append existing flags so they override our flags
@@ -26,9 +26,11 @@ endif
 
 default: $(shared_library)
 
-test: ibs.cpp test.cpp
+build/functional-tests: ibs.cpp test.cpp
 	mkdir -p build
 	${CXX} ${CXXFLAGS} -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o build/functional-tests
+
+test: build/functional-tests
 	./build/functional-tests
 
 clean:
@@ -47,9 +49,7 @@ libsimdpp-2.0-rc2.tar.gz:
 libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
 	tar -xzf libsimdpp-2.0-rc2.tar.gz
 
-libsimdpp: libsimdpp-2.0-rc2
-	(cd libsimdpp-2.0-rc2 && cmake .)
-
-$(shared_library): libsimdpp ${OBJECTS}
+$(shared_library): libsimdpp-2.0-rc2 ${OBJECTS}
 	mkdir -p $(basename $(shared_library))
 	${CXX} ${LIBFLAGS} ${CXXFLAGS} ${OBJECTS} -o $@
+

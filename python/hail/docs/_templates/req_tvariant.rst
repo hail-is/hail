@@ -1,0 +1,1 @@
+Requires the row key (variant) schema to be :py:class:`~hail.expr.TVariant`.

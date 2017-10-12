@@ -47,10 +47,10 @@ object CassandraImpex {
 
   def exportType(t: Type, depth: Int): DataType = t match {
     case TBoolean => DataType.cboolean()
-    case TInt => DataType.cint()
-    case TLong => DataType.bigint()
-    case TFloat => DataType.cfloat()
-    case TDouble => DataType.cdouble()
+    case TInt32 => DataType.cint()
+    case TInt64 => DataType.bigint()
+    case TFloat32 => DataType.cfloat()
+    case TFloat64 => DataType.cdouble()
     case TString => DataType.text()
     case TBinary => DataType.blob()
     case TCall => DataType.cint()
@@ -60,9 +60,9 @@ object CassandraImpex {
       DataType.map(exportType(keyType, depth + 1),
         exportType(valueType, depth + 1), depth == 1)
     case TAltAllele => DataType.text()
-    case TVariant => DataType.text()
-    case TLocus => DataType.text()
-    case TInterval => DataType.text()
+    case TVariant(_) => DataType.text()
+    case TLocus(_) => DataType.text()
+    case TInterval(_) => DataType.text()
     case TGenotype => DataType.text()
     case s: TStruct => DataType.text()
   }
@@ -71,12 +71,12 @@ object CassandraImpex {
     (dt.getName: @unchecked) match {
       case DataType.Name.BOOLEAN => TBoolean
       case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR => TString
-      case DataType.Name.TINYINT => TInt
-      case DataType.Name.SMALLINT => TInt
-      case DataType.Name.INT => TInt
-      case DataType.Name.BIGINT | DataType.Name.COUNTER => TLong
-      case DataType.Name.FLOAT => TFloat
-      case DataType.Name.DOUBLE => TDouble
+      case DataType.Name.TINYINT => TInt32
+      case DataType.Name.SMALLINT => TInt32
+      case DataType.Name.INT => TInt32
+      case DataType.Name.BIGINT | DataType.Name.COUNTER => TInt64
+      case DataType.Name.FLOAT => TFloat32
+      case DataType.Name.DOUBLE => TFloat64
 
       case DataType.Name.LIST =>
         val typeArgs = dt.getTypeArguments
@@ -101,10 +101,10 @@ object CassandraImpex {
 
   def exportAnnotation(a: Any, t: Type): Any = t match {
     case TBoolean => a
-    case TInt => a
-    case TLong => a
-    case TFloat => a
-    case TDouble => a
+    case TInt32 => a
+    case TInt64 => a
+    case TFloat32 => a
+    case TFloat64 => a
     case TString => a
     case TBinary => ByteBuffer.wrap(a.asInstanceOf[Array[Byte]])
     case TCall => a
@@ -126,7 +126,7 @@ object CassandraImpex {
           (exportAnnotation(k, keyType),
             exportAnnotation(v, valueType))
         }.asJava
-    case TAltAllele | TVariant | TLocus | TInterval | TGenotype =>
+    case TAltAllele | TVariant(_) | TLocus(_) | TInterval(_) | TGenotype =>
       JsonMethods.compact(t.toJSON(a))
     case s: TStruct => DataType.text()
       JsonMethods.compact(t.toJSON(a))

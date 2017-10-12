@@ -6,14 +6,17 @@ from hail.representation import Struct
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from pyspark.sql import DataFrame
+from hail.history import *
 
 
-class Ascending(object):
+class Ascending(HistoryMixin):
+    @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).asc(col)
 
 
-class Descending(object):
+class Descending(HistoryMixin):
+    @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).desc(col)
 
@@ -33,12 +36,12 @@ def desc(col):
 kt_type = lazy()
 
 
-class KeyTable(object):
+class KeyTable(HistoryMixin):
     """Hail's version of a SQL table where columns can be designated as keys.
 
     Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_table`
     or :py:meth:`~hail.KeyTable.from_dataframe`, generated from a variant dataset
-    with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_table`,
+    with :py:meth:`~hail.VariantDataset.make_table`, :py:meth:`~hail.VariantDataset.genotypes_table`,
     :py:meth:`~hail.VariantDataset.samples_table`, or :py:meth:`~hail.VariantDataset.variants_table`.
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
@@ -87,19 +90,59 @@ class KeyTable(object):
     def __repr__(self):
         return self._jkt.toString()
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(hc=anytype,
-               rows_py=oneof(listof(Struct), listof(dictof(strlike, anytype))),
-               schema=TStruct,
-               key_names=listof(strlike),
-               num_partitions=nullable(integral))
-    def from_py(hc, rows_py, schema, key_names=[], num_partitions=None):
+    @record_classmethod
+    @typecheck_method(rows=oneof(listof(Struct), listof(dictof(strlike, anytype))),
+                      schema=TStruct,
+                      key=oneof(strlike, listof(strlike)),
+                      num_partitions=nullable(integral))
+    def parallelize(cls, rows, schema, key=[], num_partitions=None):
+        """Construct a key table from a list of rows.
+
+        **Examples**
+
+        >>> rows = [{'a': 5, 'b': 'foo', 'c': False},
+        ...         {'a': None, 'b': 'bar', 'c': True},
+        ...         {'b': 'baz', 'c': False}]
+        >>> schema = TStruct(['a', 'b', 'c'], [TInt32(), TString(), TBoolean()])
+        >>> table = KeyTable.parallelize(rows, schema, key='b')
+
+        This table will look like:
+
+        .. code-block:: text
+
+            >>> table.to_dataframe().show()
+
+            +----+---+-----+
+            |   a|  b|    c|
+            +----+---+-----+
+            |   5|foo|false|
+            |null|bar| true|
+            |null|baz|false|
+            +----+---+-----+
+
+        :param rows: List of rows to include in table.
+        :type rows: list of :class:`.hail.representation.Struct` or dict
+
+        :param schema: Struct schema of table.
+        :type schema: :class:`.hail.expr.TStruct`
+
+        :param key: Key field(s).
+        :type key: str or list of str
+
+        :param num_partitions: Number of partitions to generate.
+        :type num_partitions: int or None
+
+        :return: Key table parallelized from the given rows.
+        :rtype: :class:`.KeyTable`
+        """
+
         return KeyTable(
-            hc,
+            Env.hc(),
             Env.hail().keytable.KeyTable.parallelize(
-                hc._jhc, [schema._convert_to_j(r) for r in rows_py],
-                schema._jtype, key_names, joption(num_partitions)))
+                Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],
+                schema._jtype, wrap_to_list(key), joption(num_partitions)))
 
     @property
     @handle_py4j
@@ -113,7 +156,7 @@ class KeyTable(object):
         """
 
         if self._num_columns is None:
-            self._num_columns = self._jkt.nFields()
+            self._num_columns = self._jkt.nColumns()
         return self._num_columns
 
     @property
@@ -165,7 +208,7 @@ class KeyTable(object):
         """
 
         if self._column_names is None:
-            self._column_names = list(self._jkt.fieldNames())
+            self._column_names = list(self._jkt.columns())
         return self._column_names
 
     @handle_py4j
@@ -200,6 +243,7 @@ class KeyTable(object):
         return self._jkt.same(other._jkt)
 
     @handle_py4j
+    @write_history('output')
     @typecheck_method(output=strlike,
                       types_file=nullable(strlike),
                       header=bool,
@@ -214,6 +258,10 @@ class KeyTable(object):
         >>> (kt1.rename({'HT' : 'Height'})
         ...     .export("output/kt1_renamed.tsv"))
 
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output file path.
 
         :param str types_file: Output path of types file.
@@ -226,6 +274,7 @@ class KeyTable(object):
         self._jkt.export(output, types_file, header, parallel)
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=strlike,
                       keep=bool)
     def filter(self, expr, keep=True):
@@ -262,6 +311,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.filter(expr, keep))
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate(self, expr):
         """Add new columns computed from existing columns.
@@ -293,6 +343,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.annotate(expr))
 
     @handle_py4j
+    @record_method
     @typecheck_method(right=kt_type,
                       how=strlike)
     def join(self, right, how='inner'):
@@ -314,8 +365,6 @@ class KeyTable(object):
          - **left** -- Key present in ``kt1``. For keys only in ``kt1``, the value of non-key columns from ``kt2`` is set to missing.
          - **right** -- Key present in ``kt2``. For keys only in ``kt2``, the value of non-key columns from ``kt1`` is set to missing.
 
-        The non-key fields in ``kt2`` must have non-overlapping column names with ``kt1``.
-
         Both key tables must have the same number of keys and the corresponding types of each key must be the same (order matters), but the key names can be different.
         For example, if ``kt1`` has the key schema ``Struct{("a", Int), ("b", String)}``, ``kt1`` can be merged with a key table that has a key schema equal to
         ``Struct{("b", Int), ("c", String)}`` but cannot be merged to a key table with key schema ``Struct{("b", "String"), ("a", Int)}``. ``kt_joined`` will have the same key names and schema as ``kt1``.
@@ -332,9 +381,11 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.join(right._jkt, how))
 
     @handle_py4j
+    @record_method
     @typecheck_method(key_expr=oneof(strlike, listof(strlike)),
-                      agg_expr=oneof(strlike, listof(strlike)))
-    def aggregate_by_key(self, key_expr, agg_expr):
+                      agg_expr=oneof(strlike, listof(strlike)),
+                      num_partitions=nullable(integral))
+    def aggregate_by_key(self, key_expr, agg_expr, num_partitions=None):
         """Aggregate columns programmatically.
 
         **Examples**
@@ -366,6 +417,9 @@ class KeyTable(object):
         :param agg_expr: Named aggregation expression(s).
         :type agg_expr: str or list of str
 
+        :param num_partitions: Target number of partitions in the resulting table.
+        :type num_partitions: int or None
+
         :return: A new key table with the keys computed from the ``key_expr`` and the remaining columns computed from the ``agg_expr``.
         :rtype: :class:`.KeyTable`
         """
@@ -376,7 +430,7 @@ class KeyTable(object):
         if isinstance(agg_expr, list):
             agg_expr = ", ".join(agg_expr)
 
-        return KeyTable(self.hc, self._jkt.aggregate(key_expr, agg_expr))
+        return KeyTable(self.hc, self._jkt.aggregate(key_expr, agg_expr, joption(num_partitions)))
 
     @handle_py4j
     @typecheck_method(expr=strlike)
@@ -417,6 +471,7 @@ class KeyTable(object):
         return self._jkt.exists(expr)
 
     @handle_py4j
+    @record_method
     @typecheck_method(column_names=oneof(listof(strlike), dictof(strlike, strlike)))
     def rename(self, column_names):
         """Rename columns of key table.
@@ -445,6 +500,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.rename(column_names))
 
     @handle_py4j
+    @record_method
     def expand_types(self):
         """Expand types Locus, Interval, AltAllele, Variant, Genotype, Char,
         Set and Dict.  Char is converted to String.  Set is converted
@@ -465,6 +521,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.expandTypes())
 
     @handle_py4j
+    @record_method
     @typecheck_method(key=oneof(strlike, listof(strlike)))
     def key_by(self, key):
         """Change which columns are keys.
@@ -494,6 +551,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.keyBy(wrap_to_list(key)))
 
     @handle_py4j
+    @record_method
     def flatten(self):
         """Flatten nested Structs.  Column names will be concatenated with dot
         (.).
@@ -544,8 +602,10 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.flatten())
 
     @handle_py4j
-    @typecheck_method(column_names=oneof(strlike, listof(strlike)))
-    def select(self, column_names):
+    @record_method
+    @typecheck_method(selected_columns=oneof(strlike, listof(strlike)),
+                      qualified_name=bool)
+    def select(self, selected_columns, qualified_name=False):
         """Select a subset of columns.
 
         **Examples**
@@ -565,18 +625,49 @@ class KeyTable(object):
 
         >>> kt_result = kt1.select([])
 
-        :param column_names: List of columns to be selected.
+        Create a new column computed from existing columns:
+
+        >>> kt_result = kt1.select('C_NEW = C1 + C2 + C3')
+
+        Export variant QC results:
+
+        >>> vds.variant_qc()
+        ...    .variants_table()
+        ...    .select(['v', 'va.qc.*', '`1-AF` = 1 - va.qc.AF'])
+        ...    .export('output/variant_qc.tsv')
+
+        **Notes**
+
+        :py:meth:`~hail.KeyTable.select` creates a new schema as specified by `exprs`.
+
+        Each argument can either be an annotation path `A.B.C` for an existing column in the table, a splatted annotation
+        path `A.*`, or an :ref:`annotation expression <overview-expr-add>` `Z = X + 2 * Y`.
+
+        For annotation paths, the column name in the new table will be the field name.
+        For example, if the annotation path is `A.B.C`, the column name will be `C` in the output table.
+        Use the `qualified_name=True` option to output the full path name as the column name (`A.B.C`).
+
+        For annotation paths with a type of Struct, use the splat character `.*` to add a new column per Field
+        to the output table. The column name will be the field name unless `qualified_name=True`.
+
+        For annotation expressions, the left hand side is the new annotation path for the computed result.
+        To include "." or other special characters in a path name, enclose the name in backticks.
+
+        :param selected_columns: List of columns to be selected.
         :type: str or list of str
+
+        :param qualified_name: If True, make the column name for annotation identifiers arguments be the full path name. Useful for avoiding naming collisions.
+        :type: bool
 
         :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
         """
 
-        column_names = wrap_to_list(column_names)
-        new_key = [k for k in self.key if k in column_names]
-        return KeyTable(self.hc, self._jkt.select(column_names, new_key))
+        selected_columns = wrap_to_list(selected_columns)
+        return KeyTable(self.hc, self._jkt.select(selected_columns, qualified_name))
 
     @handle_py4j
+    @record_method
     @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def drop(self, column_names):
         """Drop columns.
@@ -690,6 +781,7 @@ class KeyTable(object):
         self._jkt.exportCassandra(address, keyspace, table, block_size, rate)
 
     @handle_py4j
+    @record_method
     @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def explode(self, column_names):
         """Explode columns of this key table.
@@ -703,7 +795,7 @@ class KeyTable(object):
         c3.
 
         >>> kt3 = hc.import_table('data/kt_example3.tsv', impute=True,
-        ...                       types={'c1': TString(), 'c2': TArray(TInt()), 'c3': TArray(TArray(TInt()))})
+        ...                       types={'c1': TString(), 'c2': TArray(TInt32()), 'c3': TArray(TArray(TInt32()))})
 
         The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
         c1 cannot be exploded because its type is not an ``Array`` or ``Set``.
@@ -845,7 +937,21 @@ class KeyTable(object):
 
     @handle_py4j
     def collect(self):
-        """Collect key table as a Python object."""
+        """Collect table to a local list.
+
+        **Examples**
+
+        >>> id_to_sex = {row.ID : row.SEX for row in kt1.collect()}
+
+        **Notes**
+
+        This method should be used on very small tables and as a last resort.
+        It is very slow to convert distributed Java objects to Python
+        (especially serially), and the resulting list may be too large
+        to fit in memory on one machine.
+
+        :rtype: list of :py:class:`.hail.representation.Struct`
+        """
 
         return TArray(self.schema)._convert_to_py(self._jkt.collect())
 
@@ -856,6 +962,7 @@ class KeyTable(object):
         self._jkt.typeCheck()
 
     @handle_py4j
+    @write_history('output', is_dir=True)
     @typecheck_method(output=strlike,
                       overwrite=bool)
     def write(self, output, overwrite=False):
@@ -865,7 +972,11 @@ class KeyTable(object):
 
         >>> kt1.write('output/kt1.kt')
 
-        .. note:: The write path must end in ".kt".       
+        .. note:: The write path must end in ".kt".
+
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>/history.txt``.
 
         :param str output: Path of KT file to write.
 
@@ -877,6 +988,7 @@ class KeyTable(object):
         self._jkt.write(output, overwrite)
 
     @handle_py4j
+    @record_method
     def cache(self):
         """Mark this key table to be cached in memory.
 
@@ -888,6 +1000,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.cache())
 
     @handle_py4j
+    @record_method
     @typecheck_method(storage_level=strlike)
     def persist(self, storage_level="MEMORY_AND_DISK"):
         """Persist this key table to memory and/or disk.
@@ -934,6 +1047,7 @@ class KeyTable(object):
         self._jkt.unpersist()
 
     @handle_py4j
+    @record_method
     @typecheck_method(cols=tupleof(oneof(strlike, Ascending, Descending)))
     def order_by(self, *cols):
         """Sort by the specified columns.  Missing values are sorted after non-missing values.  Sort by the first column, then the second, etc.
@@ -957,10 +1071,11 @@ class KeyTable(object):
         """
         return self._jkt.nPartitions()
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(path=strlike)
-    def import_interval_list(path):
+    @record_classmethod
+    @typecheck_method(path=strlike)
+    def import_interval_list(cls, path):
         """Import an interval list file in the GATK standard format.
         
         >>> intervals = KeyTable.import_interval_list('data/capture_intervals.txt')
@@ -1008,10 +1123,11 @@ class KeyTable(object):
         jkt = Env.hail().keytable.KeyTable.importIntervalList(Env.hc()._jhc, path)
         return KeyTable(Env.hc(), jkt)
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(path=strlike)
-    def import_bed(path):
+    @record_classmethod
+    @typecheck_method(path=strlike)
+    def import_bed(cls, path):
         """Import a UCSC .bed file as a key table.
 
         **Examples**
@@ -1074,11 +1190,12 @@ class KeyTable(object):
         jkt = Env.hail().keytable.KeyTable.importBED(Env.hc()._jhc, path)
         return KeyTable(Env.hc(), jkt)
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(df=DataFrame,
-               key=oneof(strlike, listof(strlike)))
-    def from_dataframe(df, key=[]):
+    @record_classmethod
+    @typecheck_method(df=DataFrame,
+                      key=oneof(strlike, listof(strlike)))
+    def from_dataframe(cls, df, key=[]):
         """Convert Spark SQL DataFrame to key table.
 
         **Examples**
@@ -1116,26 +1233,33 @@ class KeyTable(object):
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
 
     @handle_py4j
-    @typecheck_method(n=integral)
-    def repartition(self, n):
+    @record_method
+    @typecheck_method(n=integral,
+                      shuffle=bool)
+    def repartition(self, n, shuffle=True):
         """Change the number of distributed partitions.
         
-        Always shuffles data.
+        .. warning ::
+
+          When `shuffle` is `False`, `repartition` can only decrease the number of partitions and simply combines adjacent partitions to achieve the desired number.  It does not attempt to rebalance and so can produce a heavily unbalanced dataset.  An unbalanced dataset can be inefficient to operate on because the work is not evenly distributed across partitions.
         
         :param int n: Desired number of partitions.
+
+        :param bool shuffle: Whether to shuffle or naively coalesce.
         
         :rtype: :class:`.KeyTable` 
         """
 
-        return KeyTable(self.hc, self._jkt.repartition(n))
+        return KeyTable(self.hc, self._jkt.repartition(n, shuffle))
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(path=strlike,
-               quantitative=bool,
-               delimiter=strlike,
-               missing=strlike)
-    def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA'):
+    @record_classmethod
+    @typecheck_method(path=strlike,
+                      quantitative=bool,
+                      delimiter=strlike,
+                      missing=strlike)
+    def import_fam(cls, path, quantitative=False, delimiter='\\\\s+', missing='NA'):
         """Import PLINK .fam file into a key table.
 
         **Examples**
@@ -1187,6 +1311,7 @@ class KeyTable(object):
         return KeyTable(hc, jkt)
 
     @handle_py4j
+    @record_method
     @typecheck_method(kts=tupleof(kt_type))
     def union(self, *kts):
         """Union the rows of multiple tables.
@@ -1212,25 +1337,28 @@ class KeyTable(object):
         """
 
         return KeyTable(self.hc, self._jkt.union([kt._jkt for kt in kts]))
-
+    
     @handle_py4j
     @typecheck_method(n=integral)
     def take(self, n):
         """Take a given number of rows from the head of the table.
-        
+
         **Examples**
-        
+
         Take the first ten rows:
-        
+
         >>> first10 = kt1.take(10)
-        
+
         **Notes**
-        
-        This method does not need to look at all the data, and 
+
+        This method does not need to look at all the data, and
         allows for fast queries of the start of the table.
-        
+
+        This method is equivalent to :py:meth:`.KeyTable.head` followed by
+        :py:meth:`.KeyTable.collect`.
+
         :param int n: Number of rows to take.
-        
+
         :return: Rows from the start of the table.
         :rtype: list of :class:`.~hail.representation.Struct`
         """
@@ -1238,6 +1366,36 @@ class KeyTable(object):
         return [self.schema._convert_to_py(r) for r in self._jkt.take(n)]
 
     @handle_py4j
+    @record_method
+    @typecheck_method(n=integral)
+    def head(self, n):
+        """Subset table to first n rows.
+
+        **Examples**
+
+        Perform a query on the first 10 rows:
+
+        >>> first10_c1_mean = kt1.head(10).query('C1.stats().mean')
+
+        Return a list with the first 50 rows (equivalent to :py:meth:`.KeyTable.take`):
+
+        >>> first50_rows = kt1.head(50).collect()
+
+        **Notes**
+
+        The number of partitions in the new table is equal to the number
+        of partitions containing the first n rows.
+
+        :param int n: Number of rows to include.
+
+        :return: A table subsetted to the first n rows.
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jkt.head(n))
+
+    @handle_py4j
+    @record_method
     @typecheck_method(name=strlike)
     def indexed(self, name='index'):
         """Add the numerical index of each row as a new column.
@@ -1266,12 +1424,45 @@ class KeyTable(object):
 
         return KeyTable(self.hc, self._jkt.indexed(name))
 
-    @staticmethod
+    @typecheck_method(n=integral,
+                      truncate_to=nullable(integral),
+                      print_types=bool)
+    def show(self, n=10, truncate_to=None, print_types=True):
+        """Show the first few rows of the table in human-readable format.
+
+        **Examples**
+
+        Show, with default parameters (10 rows, no truncation, and column types):
+
+        >>> kt1.show()
+
+        Truncate long columns to 25 characters and only write 5 rows:
+
+        >>> kt1.show(5, truncate_to=25)
+
+        **Notes**
+
+        If the ``truncate_to`` argument is ``None``, then no truncation will
+        occur. This is the default behavior. An integer argument will truncate
+        each cell to the specified number of characters.
+
+        :param int n: Number of rows to show.
+
+        :param truncate_to: Truncate columns to the desired number of characters.
+        :type truncate_to: int or None
+
+        :param bool print_types: Print a line with column types.
+        """
+        to_print = self._jkt.showString(n, joption(truncate_to), print_types)
+        print(to_print)
+
+    @classmethod
     @handle_py4j
-    @typecheck(n=integral,
-               num_partitions=nullable(integral))
-    def range(n, num_partitions=None):
-        """Construct a table with rows from 0 until ``n``.
+    @record_classmethod
+    @typecheck_method(n=integral,
+                      num_partitions=nullable(integral))
+    def range(cls, n, num_partitions=None):
+        """Construct a table of ``n`` rows with values 0 to ``n - 1``.
 
         **Examples**
 
@@ -1287,7 +1478,7 @@ class KeyTable(object):
 
         The resulting table has one column:
 
-         - **index** (*Int*) -- Unique row index from 0 until ``n``
+         - **index** (*Int*) -- Unique row index from 0 to ``n - 1``
 
         :param int n: Number of rows.
 
@@ -1299,5 +1490,153 @@ class KeyTable(object):
 
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.range(Env.hc()._jhc, n, joption(num_partitions)))
 
+    @handle_py4j
+    @record_method
+    @typecheck_method(i=strlike,j=strlike)
+    def maximal_independent_set(self, i, j):
+        """Compute a `maximal independent set
+        <https://en.wikipedia.org/wiki/Maximal_independent_set>__` of vertices
+        in an undirected graph whose edges are given by this key table.
+
+        **Examples**
+
+        Prune individuals from a dataset until no close relationships remain
+        with respect to a PC-Relate measure of kinship.
+
+        >>> related_pairs = hc.import_vcf("data/sample.vcf.bgz").pc_relate(2, 0.001).filter("kin > 0.125")
+        >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
+        >>> related_samples_to_keep = related_pairs.maximal_independent_set("i", "j")
+        >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
+        >>> vds.filter_samples_list(list(related_samples_to_remove))
+
+        **Notes**
+
+        The vertex set of the graph is implicitly all the values realized by
+        ``i`` and ``j`` on the rows of this key table. Each row of the key table
+        corresponds to an undirected edge between the vertices given by
+        evaluating ``i`` and ``j`` on that row. An undirected edge may appear
+        multiple times in the key table and will not affect the output. Vertices
+        with self-edges are removed as they are not independent of themselves.
+
+        The expressions for ``i`` and ``j`` must have the same type.
+
+        This method implements a greedy algorithm which iteratively removes a
+        vertex of highest degree until the graph contains no edges.
+
+        :param str i: expression to compute one endpoint.
+        :param str j: expression to compute another endpoint.
+
+        :return: a list of vertices in a maximal independent set.
+        :rtype: list of elements with the same type as ``i`` and ``j``
+
+        """
+
+        return jarray_to_list(self._jkt.maximalIndependentSet(i, j))
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(column=strlike,
+                      mangle=bool)
+    def ungroup(self, column, mangle=False):
+        """Lifts fields of struct columns as distinct top-level columns.
+
+        **Examples**
+
+        ``kt4`` is a :py:class:`.KeyTable` with five columns: A, B, C, D and E.
+
+        >>> kt4 = hc.import_table('data/kt_example4.tsv', impute=True,
+        ...                       types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
+        ...                              'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
+        ...                              'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
+
+        The types of each column are ``Int32``, ``Struct``, ``Boolean``, ``Struct`` and ``Struct`` respectively.
+
+        +----+--------------------------+-------+-------------------+--------------+
+        | A  |   B                      |   C   | D                 | E            |
+        +====+==========================+=======+===================+==============+
+        | 15 | {"B0":true,"B1":"hello"} | false | {"cat":5,"dog":7} | {"A":5,"B":7}|
+        +----+--------------------------+-------+-------------------+--------------+
+
+        Both B and D can be ungrouped. However, E cannot be ungrouped because the names of its
+        fields collide with existing columns in the key table.
+
+        Ungroup B:
+
+        >>> kt4.ungroup('B')
+
+        +----+-------+-------------------+--------------+-------+--------+
+        | A  |  C    | D                 | E            |   B0  | B1     |
+        +====+=======+===================+==============+=======+========+
+        | 15 | false | {"cat":5,"dog":7} | {"A":5,"B":7}| true  | "hello"|
+        +----+-------+----------------------------------+-------+--------+
+
+        Ungroup E using `mangle=True` to avoid name conflicts:
+
+        >>> kt4.ungroup('E', mangle=True)
+
+        +----+--------------------------+-------+-------------------+--------------+
+        | A  |   B                      |   C   | D                 | E.A   |  E.B |
+        +====+==========================+=======+===================+==============+
+        | 15 | {"B0":true,"B1":"hello"} | false | {"cat":5,"dog":7} | 5     |  7   |
+        +----+--------------------------+-------+-------------------+--------------+
+
+        **Notes**
+
+        The ungrouped columns are always appended to the end of the table.
+
+        :param str column: Names of struct column to ungroup.
+        :param bool mangle: Rename ungrouped columns as ``column.subcolumn``
+
+        :return: A table with specified column ungrouped.
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jkt.ungroup(column, mangle))
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(dest=strlike,
+                      columns=tupleof(strlike))
+    def group(self, dest, *columns):
+        """Combines columns into a single struct column.
+
+        **Examples**
+
+        ``kt5`` is a :py:class:`.KeyTable` with three columns: A, B, and C.
+
+        >>> kt5 = hc.import_table('data/kt_example5.tsv', impute=True)
+
+        The types of each column are ``Int32``, ``Boolean`` and ``String`` respectively.
+
+        +----+------+-------+
+        | A  |   B  |   C   |
+        +====+======+=======+
+        | 24 | true | "sun" |
+        +----+------+-------+
+
+        Group A and C into a new column X:
+
+        >>> kt5.group('X', 'A', 'C')
+
+        +----+-------------------+
+        | B  |   X               |
+        +====+===================+
+        |true|{"A":24,"C":"sun"} |
+        +----+-------------------+
+
+        **Notes**
+
+        The grouped column is always appended to the end of the table.
+
+        :param str dest: Name of column to be constructed.
+
+        :param columns: Names of columns to group.
+        :type columns: str or list of str
+
+        :return: A table with specified columns grouped.
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jkt.group(dest, list(columns)))
 
 kt_type.set(KeyTable)

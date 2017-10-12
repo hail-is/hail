@@ -16,12 +16,12 @@ class ImportPlinkSuite extends SparkSuite {
 
   object Spec extends Properties("ImportPlink") {
     val compGen = for {
-      vds <- VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random).map(_.cache().splitMulti())
+      vds <- VariantSampleMatrix.gen(hc, VSMSubgen.random).map(_.cache().splitMulti())
       nPartitions <- choose(1, PlinkLoader.expectedBedSize(vds.nSamples, vds.countVariants()).toInt.min(10))
     } yield (vds, nPartitions)
 
     property("import generates same output as export") =
-      forAll(compGen) { case (vds: VariantSampleMatrix[Genotype], nPartitions: Int) =>
+      forAll(compGen) { case (vds: VariantDataset, nPartitions: Int) =>
 
         val truthRoot = tmpDir.createTempFile("truth")
         val testRoot = tmpDir.createTempFile("test")
@@ -40,6 +40,8 @@ class ImportPlinkSuite extends SparkSuite {
           true
         } else {
           hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
+            .annotateGenotypesExpr("g = Genotype(g.GT)")
+            .toVDS
             .exportPlink(testRoot)
 
           val localTruthRoot = tmpDir.createLocalTempFile("truth")
@@ -65,5 +67,41 @@ class ImportPlinkSuite extends SparkSuite {
 
   @Test def testPlinkImportRandom() {
     Spec.check()
+  }
+
+  @Test def testA1Major() {
+    val plinkFileRoot = tmpDir.createTempFile("plink_reftest")
+    hc.importVCF("src/test/resources/sample.vcf")
+      .verifyBiallelic()
+      .exportPlink(plinkFileRoot)
+
+    val a1ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = false)
+      .annotateGenotypesExpr("g = Genotype(g.GT)")
+      .toVDS
+
+    val a2ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = true)
+      .annotateGenotypesExpr("g = Genotype(g.GT)")
+      .toVDS
+
+    val a1kt = a1ref
+      .variantQC()
+      .variantsKT()
+      .select("va.rsid", "v", "va.qc.nNotCalled", "va.qc.nHomRef", "va.qc.nHet", "va.qc.nHomVar")
+      .rename(Map("v" -> "vA1", "nNotCalled" -> "nNotCalledA1",
+        "nHomRef" -> "nHomRefA1", "nHet" -> "nHetA1", "nHomVar" -> "nHomVarA1"))
+      .keyBy("rsid")
+
+    val a2kt = a2ref
+      .variantQC()
+      .variantsKT()
+      .select("va.rsid", "v", "va.qc.nNotCalled", "va.qc.nHomRef", "va.qc.nHet", "va.qc.nHomVar")
+      .rename(Map("v" -> "vA2", "nNotCalled" -> "nNotCalledA2",
+        "nHomRef" -> "nHomRefA2", "nHet" -> "nHetA2", "nHomVar" -> "nHomVarA2"))
+      .keyBy("rsid")
+
+    val joined = a1kt.join(a2kt, "outer")
+
+    assert(joined.forall("vA1.ref == vA2.alt && vA1.alt == vA2.ref && nNotCalledA1 == nNotCalledA2 && " +
+      "nHetA1 == nHetA2 && nHomRefA1 == nHomVarA2 && nHomVarA1 == nHomRefA2"))
   }
 }

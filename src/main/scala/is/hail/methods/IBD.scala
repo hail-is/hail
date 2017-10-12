@@ -1,12 +1,12 @@
 package is.hail.methods
 
 import is.hail.HailContext
-import is.hail.expr.{EvalContext, Parser, TDouble, TLong, TString, TStruct, TVariant}
+import is.hail.expr.{EvalContext, Parser, TFloat64, TInt64, TString, TStruct, TVariant}
 import is.hail.keytable.KeyTable
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.methods.IBD.generateComputeMaf
-import is.hail.variant.{Genotype, Variant, VariantDataset}
+import is.hail.variant.{GenomeReference, Genotype, Variant, VariantDataset}
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -19,7 +19,7 @@ object IBDInfo {
   }
 
   val signature =
-    TStruct(("Z0", TDouble), ("Z1", TDouble), ("Z2", TDouble), ("PI_HAT", TDouble))
+    TStruct(("Z0", TFloat64), ("Z1", TFloat64), ("Z2", TFloat64), ("PI_HAT", TFloat64))
 }
 
 case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
@@ -33,7 +33,7 @@ case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
 
 object ExtendedIBDInfo {
   val signature =
-    TStruct(("ibd", IBDInfo.signature), ("ibs0", TLong), ("ibs1", TLong), ("ibs2", TLong))
+    TStruct(("ibd", IBDInfo.signature), ("ibs0", TInt64), ("ibs1", TInt64), ("ibs2", TInt64))
 }
 
 case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Long, ibs1: Long, ibs2: Long) {
@@ -85,7 +85,7 @@ object IBD {
 
   def ibsForGenotypes(gs: Iterable[Genotype], maybeMaf: Option[Double]): IBSExpectations = {
     def calculateCountsFromMAF(maf: Double) = {
-      val Na = gs.count(_.gt.isDefined) * 2.0
+      val Na = gs.count(g => Genotype.isCalled(g)) * 2.0
       val p = 1 - maf
       val q = maf
       val x = Na * p
@@ -95,7 +95,9 @@ object IBD {
 
     def estimateFrequenciesFromSample = {
       val (na, x) = gs.foldLeft((0, 0d)) { case ((na, sum), g) =>
-        (na + g.gt.map(x => 2).getOrElse(0), sum + g.gt.map(countRefs).getOrElse(0))
+        val gt = Genotype.unboxedGT(g)
+        (na + (if (gt != -1) 2 else 0),
+          sum + (if (gt != -1) countRefs(gt) else 0))
       }
       val Na = na.toDouble
       val y = Na - x
@@ -158,7 +160,12 @@ object IBD {
     val nSamples = vds.nSamples
 
     val chunkedGenotypeMatrix = vds.rdd
-      .map { case (v, (va, gs)) => gs.map(_.gt.map(IBSFFI.gtToCRep).getOrElse(IBSFFI.missingGTCRep)).toArray[Byte] }
+      .map { case (v, (va, gs)) => gs.map(g =>
+        if (Genotype.isCalled(g))
+          IBSFFI.gtToCRep(Genotype.unboxedGT(g))
+        else
+          IBSFFI.missingGTCRep).toArray[Byte]
+      }
       .zipWithIndex()
       .flatMap { case (gts, variantId) =>
         val vid = (variantId % chunkSize).toInt
@@ -251,6 +258,8 @@ object IBD {
     min: Option[Double] = None,
     max: Option[Double] = None): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
 
+    vds.requireUniqueSamples("ibd")
+
     val sampleIds = vds.sampleIds
 
     computeIBDMatrix(vds, computeMaf, bounded)
@@ -263,13 +272,14 @@ object IBD {
 
 
   private val (ibdSignature, ibdMerger) = TStruct(("i", TString), ("j", TString)).merge(ExtendedIBDInfo.signature)
+
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): KeyTable = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation).asInstanceOf[Row] }
     KeyTable(sc, ktRdd, ibdSignature, Array("i", "j"))
   }
 
   private[methods] def generateComputeMaf(vds: VariantDataset, computeMafExpr: String): (Variant, Annotation) => Double = {
-    val mafSymbolTable = Map("v" -> (0, TVariant), "va" -> (1, vds.vaSignature))
+    val mafSymbolTable = Map("v" -> (0, TVariant(GenomeReference.GRCh37)), "va" -> (1, vds.vaSignature))
     val mafEc = EvalContext(mafSymbolTable)
     val computeMafThunk = Parser.parseTypedExpr[java.lang.Double](computeMafExpr, mafEc)
 
@@ -287,46 +297,4 @@ object IBD {
     }
   }
 
-}
-
-object IBDPrune {
-  def apply(vds: VariantDataset,
-    threshold: Double,
-    tiebreakerExpr: Option[String] = None,
-    computeMafExpr: Option[String] = None,
-    bounded: Boolean = true): VariantDataset = {
-
-    val sc = vds.sparkContext
-
-    val sampleIDs: IndexedSeq[Annotation] = vds.sampleIds
-    val sampleAnnotations = sc.broadcast(vds.sampleAnnotations)
-
-    val computeMaf = computeMafExpr.map(generateComputeMaf(vds, _))
-
-    val comparisonSymbolTable = Map("s1" -> (0, TString), "sa1" -> (1, vds.saSignature), "s2" -> (2, TString), "sa2" -> (3, vds.saSignature))
-    val compEc = EvalContext(comparisonSymbolTable)
-    val optCompThunk = tiebreakerExpr.map(Parser.parseTypedExpr[java.lang.Integer](_, compEc))
-
-    val optCompareFunc = optCompThunk.map(compThunk => {
-      (s1: Int, s2: Int) => {
-        compEc.set(0, sampleIDs(s1))
-        compEc.set(1, sampleAnnotations.value(s1))
-        compEc.set(2, sampleIDs(s2))
-        compEc.set(3, sampleAnnotations.value(s2))
-        compThunk().toInt
-      }
-    })
-
-    val computedIBDs: RDD[((Int, Int), Double)] = IBD.computeIBDMatrix(vds, computeMaf, bounded)
-      .map{case ((v1, v2), info) => ((v1, v2), info.ibd.PI_HAT)}
-
-    info("Performing IBD Prune")
-
-    val setToKeep = MaximalIndependentSet.ofIBDMatrix(computedIBDs, threshold, 0 until sampleIDs.size, optCompareFunc)
-      .map(id => sampleIDs(id.toInt))
-
-    info("Pruning Complete")
-
-    vds.filterSamples((id, _) => setToKeep.contains(id))
-  }
 }

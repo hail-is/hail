@@ -24,7 +24,7 @@ class AnnotateGlobalSuite extends SparkSuite {
     val qSingleton = vds.querySA("sa.qc.nSingleton")._2
 
     val sCount = vds.sampleAnnotations.count(sa =>
-      qSingleton(sa).asInstanceOf[Int] > 2)
+      qSingleton(sa).asInstanceOf[Long] > 2)
 
     assert(singStats == sCount)
 
@@ -82,8 +82,8 @@ class AnnotateGlobalSuite extends SparkSuite {
 
     assert(t == TArray(TStruct(
       ("GENE", TString),
-      ("PLI", TDouble),
-      ("EXAC_LOF_COUNT", TInt))))
+      ("PLI", TFloat64),
+      ("EXAC_LOF_COUNT", TInt32))))
 
     assert(res == IndexedSeq(
       Annotation("Gene1", "0.12312".toDouble, 2),

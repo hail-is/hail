@@ -3,7 +3,7 @@ package is.hail.stats
 import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.utils._
-import is.hail.variant.Variant
+import is.hail.variant.{Genotype, Variant}
 import org.apache.commons.math3.distribution.{ChiSquaredDistribution, NormalDistribution}
 import org.testng.annotations.Test
 
@@ -53,7 +53,7 @@ class StatsSuite extends SparkSuite {
     val vds = vdsFromGtMatrix(hc)(G)
 
     val G1 = DenseMatrix.zeros[Int](3, 2)
-    vds.rdd.collect().foreach{ case (v, (va, gs)) => gs.zipWithIndex.foreach { case (g, i) => G1(i, v.start - 1) = g.gt.getOrElse(-1) } }
+    vds.rdd.collect().foreach{ case (v, (va, gs)) => gs.zipWithIndex.foreach { case (g, i) => G1(i, v.start - 1) = Genotype.gt(g).getOrElse(-1) } }
 
     assert(vds.sampleIds == IndexedSeq("0", "1", "2"))
     assert(vds.variants.collect().toSet == Set(Variant("1", 1, "A", "C"), Variant("1", 2, "A", "C")))
@@ -76,5 +76,21 @@ class StatsSuite extends SparkSuite {
     assert(qpois(ppois(5, 10, lowerTail = false), 10, lowerTail = false) == 5)
 
     assert(ppois(30, 1, lowerTail = false) > 0)
+  }
+
+  @Test def betaTest() {
+    val tol = 1e-5
+
+    assert(D_==(dbeta(.2 , 1, 3), 1.92, tol))
+    assert(D_==(dbeta(0.70, 2, 10), 0.001515591, tol))
+    assert(D_==(dbeta(.4, 5, 3), 0.96768, tol))
+    assert(D_==(dbeta(.3, 7, 2), 0.0285768, tol))
+    assert(D_==(dbeta(.8, 2, 2), .96, tol))
+    assert(D_==(dbeta(.1, 3, 6), 0.9920232, tol))
+    assert(D_==(dbeta(.6, 3, 4), 1.3824, tol))
+    assert(D_==(dbeta(.1, 1, 1), 1, tol))
+    assert(D_==(dbeta(.2, 4, 7), 1.761608, tol))
+    assert(D_==(dbeta(.2, 1, 2), 1.6, tol))
+
   }
 }

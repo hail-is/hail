@@ -1,7 +1,6 @@
 package is.hail.io
 
 import is.hail.SparkSuite
-import is.hail.io.plink.FamFileConfig
 import is.hail.keytable.KeyTable
 import is.hail.utils._
 import org.testng.annotations.Test
@@ -79,6 +78,9 @@ class ExportPlinkSuite extends SparkSuite {
     vds.exportPlink(plink,
       "famID = sa.famID, id = s, matID = sa.matID, patID = sa.patID, isFemale = sa.isFemale, isCase = sa.isCase")
 
-    assert(hc.importPlinkBFile(plink).same(vds))
+    assert(hc.importPlinkBFile(plink)
+      .annotateGenotypesExpr("g = Genotype(g.GT)")
+      .toVDS
+      .same(vds))
   }
 }

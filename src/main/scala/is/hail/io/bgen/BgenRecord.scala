@@ -3,11 +3,10 @@ package is.hail.io.bgen
 import breeze.linalg.DenseVector
 import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
-import is.hail.io.gen.GenReport._
 import is.hail.utils._
-import is.hail.variant.{DosageGenotype, Genotype, Variant}
+import is.hail.variant.{Genotype, Variant}
 
-abstract class BgenRecord extends KeySerializedValueRecord[Variant, Iterable[Genotype]] {
+abstract class BgenRecord extends KeySerializedValueRecord[Variant, Iterable[Annotation]] {
   var ann: Annotation = _
 
   def setAnnotation(ann: Annotation) {
@@ -16,14 +15,14 @@ abstract class BgenRecord extends KeySerializedValueRecord[Variant, Iterable[Gen
 
   def getAnnotation: Annotation = ann
 
-  override def getValue: Iterable[Genotype]
+  override def getValue: Iterable[Annotation]
 }
 
 class BgenRecordV11(compressed: Boolean,
   nSamples: Int,
   tolerance: Double) extends BgenRecord {
 
-  override def getValue: Iterable[Genotype] = {
+  override def getValue: Iterable[Annotation] = {
     require(input != null, "called getValue before serialized value was set")
 
     val byteReader = new ByteArrayReader(if (compressed) decompress(input, nSamples * 6) else input)
@@ -33,16 +32,16 @@ class BgenRecordV11(compressed: Boolean,
     val upperTol = (32768 * (1.0 + tolerance) + 0.5).toInt
     assert(lowerTol > 0)
 
-    val noCall: Genotype = new DosageGenotype(-1, null)
+    val t = new Array[Int](3)
 
-    new Iterable[Genotype] {
-      def iterator = new Iterator[Genotype] {
+    new Iterable[Annotation] {
+      def iterator = new Iterator[Annotation] {
         var i = 0
         byteReader.seek(0)
 
         def hasNext: Boolean = i < byteReader.length
 
-        def next(): Genotype = {
+        def next(): Annotation = {
           val d0 = byteReader.readShort()
           val d1 = byteReader.readShort()
           val d2 = byteReader.readShort()
@@ -50,20 +49,16 @@ class BgenRecordV11(compressed: Boolean,
           i += 6
 
           val dsum = d0 + d1 + d2
-          if (dsum >= lowerTol) {
-            if (dsum <= upperTol) {
-              val px =
-                if (dsum == 32768)
-                  Array(d0, d1, d2)
-                else
-                  Genotype.weightsToLinear(d0, d1, d2)
-              val gt = Genotype.unboxedGTFromLinear(px)
-              new DosageGenotype(gt, px)
-            } else {
-              noCall
-            }
+          if (dsum >= lowerTol
+            && dsum <= upperTol) {
+            t(0) = d0
+            t(1) = d1
+            t(2) = d2
+            val gt = Genotype.unboxedGTFromLinear(t)
+            val gp: IndexedSeq[Double] = Array(d0.toDouble / dsum, d1.toDouble / dsum, d2.toDouble / dsum)
+            Annotation(gt, gp)
           } else
-            noCall
+            null
         }
       }
     }
@@ -97,58 +92,25 @@ class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBi
 final class Bgen12GenotypeIterator(a: Array[Byte],
   val nAlleles: Int,
   val nBitsPerProb: Int,
-  nSamples: Int) extends Iterable[Genotype] {
+  nSamples: Int) extends Iterable[Annotation] {
   private val nGenotypes = triangle(nAlleles)
 
   private val totalProb = ((1L << nBitsPerProb) - 1).toUInt
 
   private val sampleProbs = ArrayUInt(nGenotypes)
 
-  private val noCall = new DosageGenotype(-1, null)
-
   private val pa = new BGen12ProbabilityArray(a, nSamples, nGenotypes, nBitsPerProb)
 
   def isSampleMissing(s: Int): Boolean = (a(8 + s) & 0x80) != 0
 
-  def dosages(v: DenseVector[Double], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
-    require(nAlleles == 2)
-    require(nBitsPerProb == 8)
-    require(v.length == completeSampleIndex.length)
-    require(totalProb == 255)
-
-    val n = v.length
-
-    missingSamples.clear()
-    var sum = 0.0
-    var i = 0
-    while (i < n) {
-      val s = completeSampleIndex(i)
-      if (!isSampleMissing(s)) {
-        val off = nSamples + 10 + 2 * s
-        val d = (510 - 2 * (a(off) & 0xff) - (a(off + 1) & 0xff)) / 255.0
-        v(i) = d
-        sum += d
-      } else
-        missingSamples += i
-      i += 1
-    }
-
-    val mean = sum / (n - missingSamples.length)
-    i = 0
-    while (i < missingSamples.length) {
-      v(missingSamples(i)) = mean
-      i += 1
-    }
-  }
-
-  def iterator: Iterator[Genotype] = new Iterator[Genotype] {
+  def iterator: Iterator[Annotation] = new Iterator[Annotation] {
     var sampleIndex = 0
 
     def hasNext: Boolean = sampleIndex < nSamples
 
-    def next(): Genotype = {
+    def next(): Annotation = {
       val g = if (isSampleMissing(sampleIndex))
-        noCall
+        null
       else {
         var i = 0
         var lastProb = totalProb
@@ -160,9 +122,10 @@ final class Bgen12GenotypeIterator(a: Array[Byte],
         }
         sampleProbs(i) = lastProb
 
-        val px = Genotype.weightsToLinear(sampleProbs)
-        val gt = Genotype.unboxedGTFromLinear(px)
-        new DosageGenotype(gt, px)
+        val gt = Genotype.unboxedGTFromUIntLinear(sampleProbs)
+
+        val gp: IndexedSeq[Double] = Array.tabulate(nGenotypes)(i => sampleProbs(i).toDouble / totalProb.toDouble)
+        Annotation(gt, gp)
       }
 
       sampleIndex += 1
@@ -184,7 +147,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     this.expectedNumAlleles = n
   }
 
-  override def getValue: Iterable[Genotype] = {
+  override def getValue: Iterable[Annotation] = {
     require(input != null, "called getValue before serialized value was set")
 
     val a = if (compressed) decompress(input, expectedDataSize) else input

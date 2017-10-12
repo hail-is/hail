@@ -4,7 +4,7 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.expr.{TLong, TStruct}
+import is.hail.expr.{TInt64, TStruct}
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantSampleMatrix}
@@ -13,7 +13,7 @@ import org.testng.annotations.Test
 import scala.io.Source
 import scala.language.postfixOps
 
-class ExportVcfSuite extends SparkSuite {
+class ExportVCFSuite extends SparkSuite {
 
   @Test def testSameAsOrigBGzip() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
@@ -40,12 +40,13 @@ class ExportVcfSuite extends SparkSuite {
 
     assert(vdsOrig.same(vdsNew))
 
-    val infoSize = vdsNew.vaSignature.getAsOption[TStruct]("info").get.size
+    val infoType = vdsNew.vaSignature.getAsOption[TStruct]("info").get
+    val infoSize = infoType.size
     val toAdd = Annotation.fromSeq(Array.fill[Any](infoSize)(null))
-    val (_, inserter) = vdsNew.insertVA(null, "info")
+    val (newVASignature, inserter) = vdsNew.insertVA(infoType, "info")
 
-    val vdsNewMissingInfo = vdsNew.mapAnnotations((v, va, gs) => inserter(va, toAdd))
-
+    val vdsNewMissingInfo = vdsNew.mapAnnotations(newVASignature,
+      (v, va, gs) => inserter(va, toAdd))
 
     vdsNewMissingInfo.exportVCF(outFile2)
 
@@ -74,7 +75,7 @@ class ExportVcfSuite extends SparkSuite {
 
     val out = tmpDir.createTempFile("foo", ".vcf.bgz")
     val out2 = tmpDir.createTempFile("foo2", ".vcf.bgz")
-    val p = forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random), Gen.choose(1, 10),
+    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random), Gen.choose(1, 10),
       Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
       hadoopConf.delete(out, recursive = true)
       hadoopConf.delete(out2, recursive = true)
@@ -99,16 +100,6 @@ class ExportVcfSuite extends SparkSuite {
     assert(hadoopConf.getFileSize(out2) > 0)
     assert(hc.importVCF(out).same(vds))
     assert(hc.importVCF(out2).same(vds))
-  }
-
-  @Test def testPPs() {
-    val vds = hc.importVCF("src/test/resources/sample.PPs.vcf", ppAsPL = true)
-    val out = tmpDir.createTempFile("exportPPs", ".vcf")
-    vds.exportVCF(out, exportPP = true)
-
-    val vdsNew = hc.importVCF(out, nPartitions = Some(10), ppAsPL = true)
-
-    assert(vds.same(vdsNew, 1e-3))
   }
 
   @Test def testGeneratedInfo() {
@@ -144,12 +135,12 @@ class ExportVcfSuite extends SparkSuite {
 
     val out2 = tmpDir.createTempFile("cast2", ".vcf")
     hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat()")
+      .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat64()")
       .exportVCF(out2)
 
     intercept[HailException] {
       val sb = new StringBuilder()
-      ExportVCF.strVCF(sb, TLong, 3147483647L)
+      ExportVCF.strVCF(sb, TInt64, 3147483647L)
     }
   }
 
@@ -165,6 +156,22 @@ class ExportVcfSuite extends SparkSuite {
       hc.importVCF("src/test/resources/sample2.vcf")
         .annotateVariantsExpr("va.info.foo = v")
         .exportVCF(out)
+    }
+  }
+
+  @Test def testInfoFieldSemicolons() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf", dropSamples = true)
+      .annotateVariantsExpr("va.info = {foo: 5, bar: NA: Int}")
+
+    val out = tmpDir.createLocalTempFile("foo", "vcf")
+    vds.exportVCF(out)
+    hadoopConf.readLines(out) { lines =>
+      lines.foreach { l =>
+        if (!l.value.startsWith("#")) {
+          assert(l.value.contains("foo=5"))
+          assert(!l.value.contains("foo=5;"))
+        }
+      }
     }
   }
 }

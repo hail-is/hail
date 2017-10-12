@@ -3,59 +3,15 @@ package is.hail.io.gen
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.io.bgen.BgenLoader
+import is.hail.io.vcf.LoadVCF
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{Accumulable, SparkContext}
+import org.apache.spark.SparkContext
 
 import scala.collection.mutable
 
-case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))])
-
-object GenReport {
-  final val gpNoCall = 0
-  final val gpSumLessThanTolerance = 1
-  final val gpSumGreaterThanTolerance = 2
-
-  var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
-
-  def warningMessage(id: Int, count: Int): String = {
-    val desc = (id: @unchecked) match {
-      case `gpNoCall` => "Genotype probabilities are (0.0,0.0,0.0)"
-      case `gpSumLessThanTolerance` => "Sum of genotype probabilities < (1.0 - tolerance)"
-      case `gpSumGreaterThanTolerance` => "Sum of genotype probabilities > (1.0 + tolerance)"
-    }
-    s"$count ${ plural(count, "time") }: $desc"
-  }
-
-  def report() {
-    val sb = new StringBuilder()
-
-    for ((file, m) <- accumulators) {
-      sb.clear()
-
-      sb.append(s"while importing:\n    $file")
-
-      val genotypeWarnings = m.value
-      val nGenotypesFiltered = genotypeWarnings.values.sum
-      if (nGenotypesFiltered > 0) {
-        sb.append(s"\n  filtered $nGenotypesFiltered genotypes:")
-        genotypeWarnings.foreach { case (id, n) =>
-          if (n > 0) {
-            sb.append("\n    ")
-            sb.append(warningMessage(id, n))
-          }
-        }
-      }
-
-      if (nGenotypesFiltered == 0) {
-        sb.append("  import clean")
-        info(sb.result())
-      } else
-        warn(sb.result())
-    }
-  }
-}
+case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))])
 
 object GenLoader {
   def apply(genFile: String, sampleFile: String, sc: SparkContext,
@@ -65,17 +21,13 @@ object GenLoader {
     val hConf = sc.hadoopConfiguration
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
 
-    if (sampleIds.length != sampleIds.toSet.size)
-      fatal(s"Duplicate sample IDs exist in $sampleFile")
+    LoadVCF.warnDuplicates(sampleIds)
 
     val nSamples = sampleIds.length
 
-    val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
-    GenReport.accumulators ::= (genFile, reportAcc)
-
     val rdd = sc.textFileLines(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
       .map(_.map { l =>
-        readGenLine(l, nSamples, tolerance, reportAcc, chromosome)
+        readGenLine(l, nSamples, tolerance, chromosome)
       }.value)
 
     val signatures = TStruct("rsid" -> TString, "varid" -> TString)
@@ -85,8 +37,7 @@ object GenLoader {
 
   def readGenLine(line: String, nSamples: Int,
     tolerance: Double,
-    reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    chromosome: Option[String] = None): (Variant, (Annotation, Iterable[Genotype])) = {
+    chromosome: Option[String] = None): (Annotation, (Annotation, Iterable[Annotation])) = {
 
     val arr = line.split("\\s+")
     val chrCol = if (chromosome.isDefined) 1 else 0
@@ -114,33 +65,27 @@ object GenLoader {
     if (gp.length != (3 * nSamples))
       fatal("Number of genotype probabilities does not match 3 * number of samples. If no chromosome column is included, use -c to input the chromosome.")
 
-    val gsb = new GenotypeStreamBuilder(2, isLinearScale = true)
-    val gb = new GenotypeBuilder(2, isLinearScale = true)
+    val gsb = new ArrayBuilder[Annotation]()
 
     for (i <- gp.indices by 3) {
-      gb.clear()
-
       val d0 = gp(i)
       val d1 = gp(i + 1)
       val d2 = gp(i + 2)
       val sumDosages = d0 + d1 + d2
-      if (sumDosages == 0.0)
-        reportAcc += GenReport.gpNoCall
-      else if (math.abs(sumDosages - 1.0) > tolerance)
-        reportAcc += GenReport.gpSumLessThanTolerance
-      else {
-        val px = Genotype.weightsToLinear(d0, d1, d2)
-        val gt = Genotype.gtFromLinear(px)
 
-        gt.foreach(gt => gb.setGT(gt))
-        gb.setPX(px)
-      }
+      val a =
+        if (math.abs(sumDosages - 1.0) <= tolerance) {
+        val gp = Array(d0, d1, d2)
+        val gt = Genotype.unboxedGTFromLinear(gp)
+          Annotation(gt, gp: IndexedSeq[Double])
+      } else
+        null
 
-      gsb.write(gb)
+      gsb += a
     }
 
     val annotations = Annotation(rsid, varid)
 
-    (variant, (annotations, gsb.result()))
+    (variant: Annotation, (annotations, gsb.result()))
   }
 }

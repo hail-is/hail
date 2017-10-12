@@ -17,10 +17,10 @@ import org.apache.commons.math3.util.FastMath
 
 object LinearMixedRegression {
   val schema: Type = TStruct(
-    ("beta", TDouble),
-    ("sigmaG2", TDouble),
-    ("chi2", TDouble),
-    ("pval", TDouble))
+    ("beta", TFloat64),
+    ("sigmaG2", TFloat64),
+    ("chi2", TFloat64),
+    ("pval", TFloat64))
 
   def apply(
     assocVds: VariantDataset,
@@ -42,12 +42,10 @@ object LinearMixedRegression {
     val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, yExpr, covExpr)
-    val completeSamplesSet = completeSamples.toSet
-    val sampleMask = assocVds.sampleIds.map(completeSamplesSet).toArray
-    val completeSampleIndex = (0 until assocVds.nSamples)
-      .filter(i => completeSamplesSet(assocVds.sampleIds(i)))
-      .toArray
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, yExpr, covExpr)
+    val completeSampleSet = completeSampleIndex.toSet
+    val completeSampleStrings = completeSampleIndex.map(assocVds.sampleIds)
+    val sampleMask = (0 until assocVds.nSamples).map(completeSampleSet).toArray
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
@@ -55,11 +53,11 @@ object LinearMixedRegression {
 
     val covNames = "intercept" +: covExpr
 
-    val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSamples)
+    val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSampleStrings)
       kinshipMatrix
     else {
-      val fkm = kinshipMatrix.filterSamples(completeSamplesSet)
-      if (!(fkm.sampleIds sameElements completeSamples))
+      val fkm = kinshipMatrix.filterSamples(completeSampleStrings.toSet)
+      if (!(fkm.sampleIds sameElements completeSampleStrings))
         fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
           "samples in assoc_vds) do not agree. This should not happen when kinship_matrix is computed from a filtered version of assoc_vds.")
       fkm
@@ -128,16 +126,16 @@ object LinearMixedRegression {
 
     val vds1 = assocVds.annotateGlobal(
       Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, fullS.data.reverse: IndexedSeq[Double], nEigs, optDroppedVarianceFraction.getOrElse(null)),
-      TStruct(("useML", TBoolean), ("beta", TDict(TString, TDouble)), ("sigmaG2", TDouble), ("sigmaE2", TDouble),
-        ("delta", TDouble), ("h2", TDouble), ("evals", TArray(TDouble)), ("nEigs", TInt), ("dropped_variance_fraction", TDouble)), rootGA)
+      TStruct(("useML", TBoolean), ("beta", TDict(TString, TFloat64)), ("sigmaG2", TFloat64), ("sigmaE2", TFloat64),
+        ("delta", TFloat64), ("h2", TFloat64), ("evals", TArray(TFloat64)), ("nEigs", TInt32), ("dropped_variance_fraction", TFloat64)), rootGA)
 
     val vds2 = diagLMM.optGlobalFit match {
       case Some(gf) =>
         val (logDeltaGrid, logLkhdVals) = gf.gridLogLkhd.unzip
         vds1.annotateGlobal(
           Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
-          TStruct(("seH2", TDouble), ("normLkhdH2", TArray(TDouble)), ("maxLogLkhd", TDouble),
-            ("logDeltaGrid", TArray(TDouble)), ("logLkhdVals", TArray(TDouble))), rootGA + ".fit")
+          TStruct(("seH2", TFloat64), ("normLkhdH2", TArray(TFloat64)), ("maxLogLkhd", TFloat64),
+            ("logDeltaGrid", TArray(TFloat64)), ("logLkhdVals", TArray(TFloat64))), rootGA + ".fit")
       case None =>
         assert(optDelta.isDefined)
         vds1
@@ -164,14 +162,14 @@ object LinearMixedRegression {
 
       val scalerLMMBc = sc.broadcast(scalerLMM)
 
-      vds2.mapAnnotations { case (v, va, gs) =>
+      vds2.mapAnnotations(newVAS, { case (v, va, gs) =>
         val x: Vector[Double] =
           if (!useDosages) {
             val x0 = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
             if (x0.used <= sparsityThreshold * n) x0 else x0.toDenseVector
           } else
             RegressionUtils.dosages(gs, completeSampleIndexBc.value)
-        
+
         // TODO constant checking to be removed in 0.2
         val nonConstant = useDosages || !RegressionUtils.constantVector(x)
 
@@ -180,9 +178,8 @@ object LinearMixedRegression {
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
         newAnnotation
-      }.copy(vaSignature = newVAS)
-    }
-    else
+      })
+    } else
       vds2
   }
 

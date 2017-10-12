@@ -66,6 +66,12 @@ class Type(object):
             return TDict._from_java(jtype)
         elif class_name == 'is.hail.expr.TStruct':
             return TStruct._from_java(jtype)
+        elif class_name == 'is.hail.expr.TVariant':
+            return TVariant._from_java(jtype)
+        elif class_name == 'is.hail.expr.TLocus':
+            return TLocus._from_java(jtype)
+        elif class_name == 'is.hail.expr.TInterval':
+            return TInterval._from_java(jtype)
         else:
             raise TypeError("unknown type class: '%s'" % class_name)
 
@@ -92,9 +98,9 @@ class SingletonType(Singleton, abc.ABCMeta):
     pass
 
 
-class TInt(Type):
+class TInt32(Type):
     """
-    Hail type corresponding to 32-bit integers
+    Hail type corresponding to 32-bit integers.
 
     .. include:: hailType.rst
 
@@ -105,7 +111,7 @@ class TInt(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TInt, self).__init__(scala_object(Env.hail().expr, 'TInt'))
+        super(TInt32, self).__init__(scala_object(Env.hail().expr, 'TInt32'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -118,12 +124,14 @@ class TInt(Type):
 
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, int):
-            raise TypeCheckError("TInt expected type 'int', but found type '%s'" % type(annotation))
+            raise TypeCheckError("TInt32 expected type 'int', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TInt32()"
 
-class TLong(Type):
+class TInt64(Type):
     """
-    Hail type corresponding to 64-bit integers
+    Hail type corresponding to 64-bit integers.
 
     .. include:: hailType.rst
 
@@ -134,7 +142,7 @@ class TLong(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TLong, self).__init__(scala_object(Env.hail().expr, 'TLong'))
+        super(TInt64, self).__init__(scala_object(Env.hail().expr, 'TInt64'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -147,12 +155,15 @@ class TLong(Type):
 
     def _typecheck(self, annotation):
         if annotation and not (isinstance(annotation, long) or isinstance(annotation, int)):
-            raise TypeCheckError("TLong expected type 'int' or 'long', but found type '%s'" % type(annotation))
+            raise TypeCheckError("TInt64 expected type 'int' or 'long', but found type '%s'" % type(annotation))
+
+    def __repr__(self):
+        return "TInt64()"
 
 
-class TFloat(Type):
+class TFloat32(Type):
     """
-    Hail type corresponding to 32-bit floating point numbers
+    Hail type for 32-bit floating point numbers.
 
     .. include:: hailType.rst
 
@@ -163,7 +174,7 @@ class TFloat(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TFloat, self).__init__(scala_object(Env.hail().expr, 'TFloat'))
+        super(TFloat32, self).__init__(scala_object(Env.hail().expr, 'TFloat32'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -175,16 +186,19 @@ class TFloat(Type):
         #     return annotation
 
         # FIXME: This function is unsupported until py4j-0.10.4: https://github.com/bartdag/py4j/issues/255
-        raise NotImplementedError('TFloat is currently unsupported in certain operations, use TDouble instead')
+        raise NotImplementedError('TFloat32 is currently unsupported in certain operations, use TFloat64 instead')
 
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, float):
-            raise TypeCheckError("TDouble expected type 'float', but found type '%s'" % type(annotation))
+            raise TypeCheckError("TFloat32 expected type 'float', but found type '%s'" % type(annotation))
+
+    def __repr__(self):
+        return "TFloat32()"
 
 
-class TDouble(Type):
+class TFloat64(Type):
     """
-    Hail type corresponding to 64-bit floating point numbers (python default)
+    Hail type for 64-bit floating point numbers.
 
     .. include:: hailType.rst
 
@@ -195,7 +209,7 @@ class TDouble(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TDouble, self).__init__(scala_object(Env.hail().expr, 'TDouble'))
+        super(TFloat64, self).__init__(scala_object(Env.hail().expr, 'TFloat64'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -208,12 +222,15 @@ class TDouble(Type):
 
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, float):
-            raise TypeCheckError("TDouble expected type 'float', but found type '%s'" % type(annotation))
+            raise TypeCheckError("TFloat64 expected type 'float', but found type '%s'" % type(annotation))
+
+    def __repr__(self):
+        return "TFloat64()"
 
 
 class TString(Type):
     """
-    Hail type corresponding to str
+    Hail type corresponding to str.
 
     .. include:: hailType.rst
 
@@ -236,10 +253,13 @@ class TString(Type):
         if annotation and not (isinstance(annotation, str) or isinstance(annotation, unicode)):
             raise TypeCheckError("TString expected type 'str', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TString()"
+
 
 class TBoolean(Type):
     """
-    Hail type corresponding to bool
+    Hail type corresponding to bool.
 
     .. include:: hailType.rst
 
@@ -262,10 +282,13 @@ class TBoolean(Type):
         if annotation and not isinstance(annotation, bool):
             raise TypeCheckError("TBoolean expected type 'bool', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TBoolean()"
+
 
 class TArray(Type):
     """
-    Hail type corresponding to list
+    Hail type corresponding to list.
 
     .. include:: hailType.rst
 
@@ -316,10 +339,13 @@ class TArray(Type):
             for elt in annotation:
                 self.element_type._typecheck(elt)
 
+    def __repr__(self):
+        return "TArray({})".format(repr(self.element_type))
+
 
 class TSet(Type):
     """
-    Hail type corresponding to set
+    Hail type corresponding to set.
 
     .. include:: hailType.rst
 
@@ -370,10 +396,13 @@ class TSet(Type):
             for elt in annotation:
                 self.element_type._typecheck(elt)
 
+    def __repr__(self):
+        return "TSet({})".format(repr(self.element_type))
+
 
 class TDict(Type):
     """
-    Hail type corresponding to dict
+    Hail type corresponding to dict.
 
     .. include:: hailType.rst
 
@@ -431,6 +460,8 @@ class TDict(Type):
                 self.key_type._typecheck(k)
                 self.value_type._typecheck(v)
 
+    def __repr__(self):
+        return "TDict({}, {})".format(repr(self.key_type), repr(self.value_type))
 
 class Field(object):
     """
@@ -454,7 +485,7 @@ class Field(object):
 
 class TStruct(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Struct`
+    Hail type corresponding to :class:`hail.representation.Struct`.
 
     .. include:: hailType.rst
 
@@ -523,10 +554,14 @@ class TStruct(Type):
                                          ([f.name for f in self.fields], annotation._attrs))
                 f.typ._typecheck((annotation[f.name]))
 
+    def __repr__(self):
+        names, types = zip(*[(fd.name, fd.typ) for fd in self.fields])
+        return "TStruct({}, {})".format(repr(list(names)), repr(list(types)))
+
 
 class TVariant(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Variant`
+    Hail type corresponding to :class:`hail.representation.Variant`.
 
     .. include:: hailType.rst
 
@@ -534,10 +569,16 @@ class TVariant(Type):
     - in Python, values are instances of :class:`hail.representation.Variant`
 
     """
-    __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TVariant, self).__init__(scala_object(Env.hail().expr, 'TVariant'))
+        jtype = scala_object(Env.hail().expr, 'TVariant').apply(Env.hail().variant.GenomeReference.GRCh37())
+        super(TVariant, self).__init__(jtype)
+
+    @classmethod
+    def _from_java(cls, jtype):
+        v = TVariant.__new__(cls)
+        v._jtype = jtype
+        return v
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -556,10 +597,13 @@ class TVariant(Type):
             raise TypeCheckError('TVariant expected type hail.representation.Variant, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TVariant()"
+
 
 class TAltAllele(Type):
     """
-    Hail type corresponding to :class:`hail.representation.AltAllele`
+    Hail type corresponding to :class:`hail.representation.AltAllele`.
 
     .. include:: hailType.rst
 
@@ -589,10 +633,13 @@ class TAltAllele(Type):
             raise TypeCheckError('TAltAllele expected type hail.representation.AltAllele, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TAltAllele()"
+
 
 class TGenotype(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Genotype`
+    Hail type corresponding to :class:`hail.representation.Genotype`.
 
     .. include:: hailType.rst
 
@@ -622,10 +669,13 @@ class TGenotype(Type):
             raise TypeCheckError('TGenotype expected type hail.representation.Genotype, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TGenotype()"
+
 
 class TCall(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Call`
+    Hail type corresponding to :class:`hail.representation.Call`.
 
     .. include:: hailType.rst
 
@@ -655,10 +705,13 @@ class TCall(Type):
             raise TypeCheckError('TCall expected type hail.representation.Call, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TCall()"
+
 
 class TLocus(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Locus`
+    Hail type corresponding to :class:`hail.representation.Locus`.
 
     .. include:: hailType.rst
 
@@ -666,10 +719,16 @@ class TLocus(Type):
     - in Python, values are instances of :class:`hail.representation.Locus`
 
     """
-    __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TLocus, self).__init__(scala_object(Env.hail().expr, 'TLocus'))
+        jtype = scala_object(Env.hail().expr, 'TLocus').apply(Env.hail().variant.GenomeReference.GRCh37())
+        super(TLocus, self).__init__(jtype)
+
+    @classmethod
+    def _from_java(cls, jtype):
+        l = TLocus.__new__(cls)
+        l._jtype = jtype
+        return l
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -688,10 +747,13 @@ class TLocus(Type):
             raise TypeCheckError('TLocus expected type hail.representation.Locus, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TLocus()"
+
 
 class TInterval(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Interval`
+    Hail type corresponding to :class:`hail.representation.Interval`.
 
     .. include:: hailType.rst
 
@@ -699,10 +761,16 @@ class TInterval(Type):
     - in Python, values are instances of :class:`hail.representation.Interval`
 
     """
-    __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TInterval, self).__init__(scala_object(Env.hail().expr, 'TInterval'))
+        jtype = scala_object(Env.hail().expr, 'TInterval').apply(Env.hail().variant.GenomeReference.GRCh37())
+        super(TInterval, self).__init__(jtype)
+
+    @classmethod
+    def _from_java(cls, jtype):
+        i = TInterval.__new__(cls)
+        i._jtype = jtype
+        return i
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -721,23 +789,24 @@ class TInterval(Type):
             raise TypeCheckError('TInterval expected type hail.representation.Interval, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TInterval()"
 
-__singletons__ = {'is.hail.expr.TInt$': TInt,
-                  'is.hail.expr.TLong$': TLong,
-                  'is.hail.expr.TFloat$': TFloat,
-                  'is.hail.expr.TDouble$': TDouble,
+
+__singletons__ = {'is.hail.expr.TInt32$': TInt32,
+                  'is.hail.expr.TInt64$': TInt64,
+                  'is.hail.expr.TFloat32$': TFloat32,
+                  'is.hail.expr.TFloat64$': TFloat64,
                   'is.hail.expr.TBoolean$': TBoolean,
                   'is.hail.expr.TString$': TString,
-                  'is.hail.expr.TVariant$': TVariant,
                   'is.hail.expr.TAltAllele$': TAltAllele,
-                  'is.hail.expr.TLocus$': TLocus,
                   'is.hail.expr.TGenotype$': TGenotype,
-                  'is.hail.expr.TCall$': TCall,
-                  'is.hail.expr.TInterval$': TInterval}
+                  'is.hail.expr.TCall$': TCall}
 
 import pprint
 
 _old_printer = pprint.PrettyPrinter
+
 
 class TypePrettyPrinter(pprint.PrettyPrinter):
     def _format(self, object, stream, indent, allowance, context, level):

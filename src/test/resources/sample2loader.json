@@ -1,0 +1,21 @@
+ {
+    "row_based_partitioning" : false,
+    "produce_combined_vcf" : false,
+    "produce_tiledb_array" : true,
+    "column_partitions" : [
+        {"begin": 0, "workspace":"src/test/resources/tdbworkspace", "array":"sample2Array"}
+    ],
+    "vid_mapping_file" : "src/test/resources/sample2vid.json",
+    "callset_mapping_file" : "src/test/resources/sample2callsets.json",
+    "size_per_column_partition": 3000000,
+    "treat_deletions_as_intervals" : false,
+    "delete_and_create_tiledb_array" : true,
+    "fail_if_updating": true,
+    "do_ping_pong_buffering" : true,
+    "offload_vcf_output_processing" : true,
+    "discard_vcf_index": true,
+    "compress_tiledb_array" : true,
+    "disable_synced_writes" : true,
+    "segment_size" : 1048576,
+    "num_cells_per_tile" : 1000
+    }

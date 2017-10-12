@@ -46,7 +46,7 @@ class IntervalSuite extends SparkSuite {
     assert(ex1wr.same(ex1))
 
     val ex2 = IntervalList.read(hc, "src/test/resources/example2.interval_list")
-    assert(ex1.select(Array("interval"), Array("interval")).same(ex2))
+    assert(ex1.select(Array("interval")).same(ex2))
   }
 
   @Test def testAll() {
@@ -176,11 +176,11 @@ class IntervalSuite extends SparkSuite {
 
       val p1 = vdsKeep.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
           intervals.exists(_.contains(v.locus))
-      }.asOrderedRDD))
+      }))
 
       val p2 = vdsRemove.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
         intervals.forall(!_.contains(v.locus))
-      }.asOrderedRDD))
+      }))
 
       val p = p1 && p2
       if (!p)

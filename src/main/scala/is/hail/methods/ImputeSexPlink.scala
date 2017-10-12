@@ -4,16 +4,16 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.stats.InbreedingCombiner
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.{Genotype, VariantDataset}
 
 object ImputeSexPlink {
 
   def schema: Type = TStruct("isFemale" -> TBoolean,
-    "Fstat" -> TDouble,
-    "nTotal" -> TLong,
-    "nCalled" -> TLong,
-    "expectedHoms" -> TDouble,
-    "observedHoms" -> TLong)
+    "Fstat" -> TFloat64,
+    "nTotal" -> TInt64,
+    "nCalled" -> TInt64,
+    "expectedHoms" -> TFloat64,
+    "observedHoms" -> TInt64)
 
   def determineSex(ibc: InbreedingCombiner, fFemaleThreshold: Double, fMaleThreshold: Double): Option[Boolean] = {
     ibc.Fstat
@@ -36,7 +36,7 @@ object ImputeSexPlink {
     val query = popFrequencyExpr.map { code =>
       val (t, f) = vds.queryVA(code)
       t match {
-        case TDouble => f
+        case TFloat64 => f
         case other => fatal(s"invalid population frequency.  Expected Double, but got `$other'")
       }
     }
@@ -47,15 +47,17 @@ object ImputeSexPlink {
       else
         v.contig == "X" || v.contig == "23" || v.contig == "25"
     }
-      .mapAnnotations { case (v, va, gs) =>
+      .mapAnnotations(TFloat64, { case (v, va, gs) =>
         query.map(_.apply(va))
           .getOrElse {
             var nAlt = 0
             var nTot = 0
             for (g <- gs) {
-              g.nNonRefAlleles.foreach { c =>
-                nAlt += c
-                nTot += 2
+              if (g != null) {
+                Genotype.nNonRefAlleles(g).foreach { c =>
+                  nAlt += c
+                  nTot += 2
+                }
               }
             }
             if (nTot > 0)
@@ -63,7 +65,7 @@ object ImputeSexPlink {
             else
               null
           }
-      }
+      })
       .filterVariants { case (v, va, _) => Option(va).exists(_.asInstanceOf[Double] > mafThreshold) }
       .aggregateBySampleWithAll(new InbreedingCombiner)({ case (ibc, _, va, _, _, gt) =>
         ibc.merge(gt, va.asInstanceOf[Double])

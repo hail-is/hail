@@ -12,12 +12,13 @@ representation
     :toctree: ./
     :template: class.rst
 
-    hail.representation.Variant
     hail.representation.AltAllele
-    hail.representation.Genotype
     hail.representation.Call
-    hail.representation.Locus
+    hail.representation.GenomeReference
+    hail.representation.Genotype
     hail.representation.Interval
-    hail.representation.Trio
+    hail.representation.Locus
     hail.representation.Pedigree
     hail.representation.Struct
+    hail.representation.Trio
+    hail.representation.Variant

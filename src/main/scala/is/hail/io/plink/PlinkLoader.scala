@@ -3,6 +3,7 @@ package is.hail.io.plink
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.io.vcf.LoadVCF
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
@@ -11,6 +12,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 
 import scala.collection.mutable
+import scala.reflect.classTag
 
 case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
 
@@ -23,7 +25,7 @@ object PlinkLoader {
 
   val plinkSchema = TStruct(("rsid", TString))
 
-  private def parseBim(bimPath: String, hConf: Configuration): Array[(Variant, String)] = {
+  private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true): Array[(Variant, String)] = {
     hConf.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
         case Array(contig, rsId, morganPos, bpPos, allele1, allele2) =>
@@ -34,7 +36,12 @@ object PlinkLoader {
             case "26" => "MT"
             case x => x
           }
-          (Variant(recodedContig, bpPos.toInt, allele2, allele1), rsId)
+
+          if (a2Reference)
+            (Variant(recodedContig, bpPos.toInt, allele2, allele1), rsId)
+          else
+            (Variant(recodedContig, bpPos.toInt, allele1, allele2), rsId)
+
         case other => fatal(s"Invalid .bim line.  Expected 6 fields, found ${ other.length } ${ plural(other.length, "field") }")
       }
     }.value
@@ -49,24 +56,20 @@ object PlinkLoader {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
-    val phenoSig = if (ffConfig.isQuantitative) ("qPheno", TDouble) else ("isCase", TBoolean)
+    val phenoSig = if (ffConfig.isQuantitative) ("qPheno", TFloat64) else ("isCase", TBoolean)
 
     val signature = TStruct(("famID", TString), ("patID", TString), ("matID", TString), ("isFemale", TBoolean), phenoSig)
 
-    val kidSet = mutable.Set[String]()
+    val idBuilder = new ArrayBuilder[String]
+    val structBuilder = new ArrayBuilder[Annotation]
 
     val m = hConf.readLines(filename) {
-      _.map(_.map { line =>
+      _.foreachLine { line =>
 
         val split = line.split(delimiter)
         if (split.length != 6)
           fatal(s"expected 6 fields, but found ${ split.length }")
         val Array(fam, kid, dad, mom, isFemale, pheno) = split
-
-        if (kidSet(kid))
-          fatal(s".fam sample name is not unique: $kid")
-        else
-          kidSet += kid
 
         val fam1 = if (fam != "0") fam else null
         val dad1 = if (dad != "0") dad else null
@@ -99,15 +102,18 @@ object PlinkLoader {
               case numericRegex() => fatal(s"Invalid case-control phenotype: `$pheno'. Control is `1', case is `2', missing is `0', `-9', `${ ffConfig.missingValue }', or non-numeric.")
               case _ => null
             }
-
-        (kid, Annotation(fam1, dad1, mom1, isFemale1, pheno1))
-      }.value).toIndexedSeq
+        idBuilder += kid
+        structBuilder += Annotation(fam1, dad1, mom1, isFemale1, pheno1)
+      }
     }
 
-    if (m.isEmpty)
+    val sampleIds = idBuilder.result()
+    LoadVCF.warnDuplicates(sampleIds)
+
+    if (sampleIds.isEmpty)
       fatal("Empty .fam file")
 
-    (m, signature)
+    (sampleIds.zip(structBuilder.result()), signature)
   }
 
   private def parseBed(hc: HailContext,
@@ -116,27 +122,33 @@ object PlinkLoader {
     sampleAnnotations: IndexedSeq[Annotation],
     sampleAnnotationSignature: Type,
     variants: Array[(Variant, String)],
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None,
+    a2Reference: Boolean = true): GenericDataset = {
 
     val sc = hc.sc
     val nSamples = sampleIds.length
     val variantsBc = sc.broadcast(variants)
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
+    sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
+
+    val gr = GenomeReference.GRCh37
 
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1 }
+    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1: Annotation }
     val variantRDD = rdd.map {
       case (_, vr) =>
         val (v, rsId) = variantsBc.value(vr.getKey)
-        (v, (Annotation(rsId), vr.getValue))
-    }.toOrderedRDD(fastKeys)
+        (v: Annotation, (Annotation(rsId), vr.getValue: Iterable[Annotation]))
+    }.toOrderedRDD(fastKeys)(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
 
-    new VariantSampleMatrix(hc, VSMMetadata(
+    new GenericDataset(hc, VSMMetadata(
       saSignature = sampleAnnotationSignature,
       vaSignature = plinkSchema,
+      vSignature = TVariant(gr),
       globalSignature = TStruct.empty,
+      genotypeSignature = TStruct("GT" -> TCall),
       wasSplit = true),
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
@@ -145,13 +157,13 @@ object PlinkLoader {
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None, a2Reference: Boolean = true): GenericDataset = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
     val nSamples = sampleInfo.length
     if (nSamples <= 0)
       fatal(".fam file does not contain any samples")
 
-    val variants = parseBim(bimPath, hc.hadoopConf)
+    val variants = parseBim(bimPath, hc.hadoopConf, a2Reference)
     val nVariants = variants.length
     if (nVariants <= 0)
       fatal(".bim file does not contain any variants")
@@ -188,7 +200,7 @@ object PlinkLoader {
            |  Duplicate IDs: @1""".stripMargin, duplicateIds)
     }
 
-    val vds = parseBed(hc, bedPath, ids, annotations, signature, variants, nPartitions)
+    val vds = parseBed(hc, bedPath, ids, annotations, signature, variants, nPartitions, a2Reference)
     vds
   }
 

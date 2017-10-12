@@ -276,7 +276,7 @@ object FunctionDocumentation {
       Array(Argument("s", "Struct", "Struct to drop fields from."),
         Argument("identifiers", "String", "Field names to drop from ``s``. Multiple arguments allowed.")),
       """
-      Return a new ``Struct`` with the a subset of fields not matching ``identifiers``.
+      Return a new ``Struct`` with the subset of fields not matching ``identifiers``.
 
       .. code-block:: text
           :emphasize-lines: 2
@@ -295,6 +295,32 @@ object FunctionDocumentation {
           let s1 = {gene: "ACBD", function: "LOF"} and s2 = {a: 20, b: "hello"} in merge(s1, s2)
           result: {gene: "ACBD", function: "LOF", a: 20, b: "hello"}
       """),
+    DocumentationEntry("ungroup", "function", None, TStruct(),
+      Array(Argument("s", "Struct", "Struct to ungroup fields from."),
+        Argument("identifier", "String", "Field name to ungroup from ``s``. The field type must be a Struct."),
+        Argument("mangle", "Boolean", "Rename ungrouped field names as ``identifier.child``.")),
+      """
+      Return a new ``Struct`` where the subfields of the field given by ``identifier`` are lifted as fields in ``s``.
+
+      .. code-block:: text
+          :emphasize-lines: 2
+
+          let s = {gene: "ACBD", info: {A: 5, B: 3}, function: "LOF"} in ungroup(s, info, true)
+          result: {gene: "ACBD", function: "LOF", info.A: 5, info.B: 3}
+      """, varArgs = false),
+    DocumentationEntry("group", "function", None, TStruct(),
+      Array(Argument("s", "Struct", "Struct to group fields from."),
+        Argument("dest", "String", "Location to place new struct field in ``s``."),
+        Argument("identifiers", "String", "Field names to group from ``s``. Multiple arguments allowed.")),
+      """
+      Return a new ``Struct`` where the fields given by ``identifiers`` are inserted into a new field in ``s`` with name ``dest`` and type ``Struct``.
+
+      .. code-block:: text
+          :emphasize-lines: 2
+
+          let s = {gene: "ACBD", function: "LOF", nhet: 6} in group(s, grouped_field, gene, function)
+          result: {nhet: 6, grouped_field: {gene: "ACBD", function: "LOF"}}
+      """, varArgs = true),
     DocumentationEntry("index", "function", None, TDict(TString, TStruct()),
       Array(Argument("structs", "Array[Struct]"),
         Argument("identifier", "String")),

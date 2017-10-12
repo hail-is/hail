@@ -7,7 +7,7 @@ import org.apache.commons.math3.random.JDKRandomGenerator
 import org.testng.annotations.Test
 
 class eigSymDSuite extends SparkSuite {
-  @Test def eigSymTest() = {
+  @Test def eigSymTest() {
     val seed = 0
 
     val rand = new JDKRandomGenerator()
@@ -17,6 +17,7 @@ class eigSymDSuite extends SparkSuite {
     val m = 10
     val W = DenseMatrix.fill[Double](n, m)(rand.nextGaussian())
     val K = W * W.t
+    K.forceSymmetry()
 
     val svdW = svd(W)
     val svdK = svd(K)
@@ -79,6 +80,7 @@ class eigSymDSuite extends SparkSuite {
       for (n <- 500 to 5500 by 500) {
         val W = DenseMatrix.fill[Double](n, n)(rand.nextGaussian())
         val K = W * W.t
+        K.forceSymmetry()
 
         println(s"$n dim")
         print("svd:     ")

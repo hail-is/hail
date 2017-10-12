@@ -6,10 +6,10 @@ import is.hail.utils._
 import is.hail.variant.{Genotype, Variant}
 
 object CallStats {
-  def schema = TStruct(Array(("AC", TArray(TInt), "Allele count. One element per allele **including reference**. There are two elements for a biallelic variant, or 4 for a variant with three alternate alleles."),
-    ("AF", TArray(TDouble), "Allele frequency. One element per allele including reference. Sums to 1."),
-    ("AN", TInt, "Allele number. This is equal to the sum of AC, or 2 * the total number of called genotypes in the aggregable."),
-    ("GC", TArray(TInt), "Genotype count. One element per possible genotype, including reference genotypes -- 3 for biallelic, 6 for triallelic, 10 for 3 alt alleles, and so on. The sum of this array is the number of called genotypes in the aggregable.")
+  def schema = TStruct(Array(("AC", TArray(TInt32), "Allele count. One element per allele **including reference**. There are two elements for a biallelic variant, or 4 for a variant with three alternate alleles."),
+    ("AF", TArray(TFloat64), "Allele frequency. One element per allele including reference. Sums to 1."),
+    ("AN", TInt32, "Allele number. This is equal to the sum of AC, or 2 * the total number of called genotypes in the aggregable."),
+    ("GC", TArray(TInt32), "Genotype count. One element per possible genotype, including reference genotypes -- 3 for biallelic, 6 for triallelic, 10 for 3 alt alleles, and so on. The sum of this array is the number of called genotypes in the aggregable.")
   ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 }
 
@@ -27,7 +27,7 @@ class CallStatsCombiner(v: Variant) extends Serializable {
   val genotypeCount = new Array[Int](v.nGenotypes)
 
   def merge(g: Genotype): CallStatsCombiner = {
-    g.gt.foreach { gt =>
+    Genotype.gt(g).foreach { gt =>
       val p = Genotype.gtPair(gt)
       alleleCount(p.j) += 1
       alleleCount(p.k) += 1

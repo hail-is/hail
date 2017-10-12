@@ -4,7 +4,7 @@ TARGET=build/tmp/python/hail/docs/distLinks.rst
 rm -f $TARGET
 
 HAIL_VERSION=$1
-HASH=$(git rev-parse --short HEAD)
+HASH=$(git rev-parse --short=12 HEAD)
 
 
 echo "Hail uploads distributions to Google Storage as part of our continuous integration suite." >> $TARGET

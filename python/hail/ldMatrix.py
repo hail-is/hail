@@ -1,6 +1,9 @@
+from hail.java import *
 from hail.representation import Variant
+from hail.history import *
 
-class LDMatrix:
+
+class LDMatrix(HistoryMixin):
     """
     Represents a symmetric matrix encoding the Pearson correlation between each pair of variants in the accompanying variant list.
     """
@@ -43,3 +46,37 @@ class LDMatrix:
 
         j_local_mat = self._jldm.toLocalMatrix()
         return DenseMatrix(j_local_mat.numRows(), j_local_mat.numCols(), list(j_local_mat.toArray()), j_local_mat.isTransposed())
+
+    def write(self, path):
+        """
+        Writes the LD matrix to a file.
+
+        **Examples**
+
+        Write an LD matrix to a file.
+
+        >>> vds.ld_matrix().write('output/ld_matrix')
+
+        :param path: the path to which to write the LD matrix
+        :type path: str
+        """
+
+        self._jldm.write(path)
+
+    @staticmethod
+    def read(path):
+        """
+        Reads the LD matrix from a file.
+
+        **Examples**
+
+        Read an LD matrix from a file.
+
+        >>> ld_matrix = LDMatrix.read('data/ld_matrix')
+
+        :param path: the path from which to read the LD matrix
+        :type path: str
+        """
+
+        jldm = Env.hail().methods.LDMatrix.read(Env.hc()._jhc, path)
+        return LDMatrix(jldm)

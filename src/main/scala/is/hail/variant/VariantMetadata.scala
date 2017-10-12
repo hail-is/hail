@@ -15,7 +15,6 @@ case class VSMLocalValue(
   globalAnnotation: Annotation,
   sampleIds: IndexedSeq[Annotation],
   sampleAnnotations: IndexedSeq[Annotation]) {
-  assert(sampleIds.areDistinct(), s"Sample ID names are not distinct: ${ sampleIds.duplicates().mkString(", ") }")
   assert(sampleIds.length == sampleAnnotations.length)
 
   def nSamples: Int = sampleIds.length
@@ -31,14 +30,13 @@ object VSMFileMetadata {
     globalAnnotation: Annotation = Annotation.empty,
     sSignature: Type = TString,
     saSignature: Type = TStruct.empty,
-    vSignature: Type = TVariant,
+    vSignature: Type = TVariant(GenomeReference.GRCh37),
     vaSignature: Type = TStruct.empty,
     globalSignature: Type = TStruct.empty,
     genotypeSignature: Type = TGenotype,
-    wasSplit: Boolean = false,
-    isLinearScale: Boolean = false): VSMFileMetadata = {
+    wasSplit: Boolean = false): VSMFileMetadata = {
     VSMFileMetadata(
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale),
+      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit),
       VSMLocalValue(globalAnnotation, sampleIds,
         if (sampleAnnotations == null)
           Annotation.emptyIndexedSeq(sampleIds.length)
@@ -54,10 +52,8 @@ case class VSMFileMetadata(
 case class VSMMetadata(
   sSignature: Type = TString,
   saSignature: Type = TStruct.empty,
-  vSignature: Type = TVariant,
+  vSignature: Type = TVariant(GenomeReference.GRCh37),
   vaSignature: Type = TStruct.empty,
   globalSignature: Type = TStruct.empty,
   genotypeSignature: Type = TGenotype,
-  wasSplit: Boolean = false,
-  isLinearScale: Boolean = false,
-  isGenericGenotype: Boolean = false)
+  wasSplit: Boolean = false)

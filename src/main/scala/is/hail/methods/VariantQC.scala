@@ -2,53 +2,15 @@ package is.hail.methods
 
 import is.hail.annotations.Annotation
 import is.hail.expr.{TStruct, _}
+import is.hail.sparkextras.OrderedRDD
 import is.hail.stats.LeveneHaldane
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, VariantDataset}
-import org.apache.spark.rdd.RDD
+import is.hail.variant.{HTSGenotypeView, GenericDataset, Genotype, Variant, VariantDataset}
 import org.apache.spark.util.StatCounter
 
-import scala.collection.mutable
+import scala.reflect.classTag
 
-
-object VariantQCCombiner {
-  val header =
-    "callRate\t" +
-      "AC\t" +
-      "AF\t" +
-      "nCalled\t" +
-      "nNotCalled\t" +
-      "nHomRef\t" +
-      "nHet\t" +
-      "nHomVar\t" +
-      "dpMean\tdpStDev\t" +
-      "gqMean\tgqStDev\t" +
-      "nNonRef\t" +
-      "rHeterozygosity\t" +
-      "rHetHomVar\t" +
-      "rExpectedHetFrequency\tpHWE"
-
-  val signature = TStruct(
-    "callRate" -> TDouble,
-    "AC" -> TInt,
-    "AF" -> TDouble,
-    "nCalled" -> TInt,
-    "nNotCalled" -> TInt,
-    "nHomRef" -> TInt,
-    "nHet" -> TInt,
-    "nHomVar" -> TInt,
-    "dpMean" -> TDouble,
-    "dpStDev" -> TDouble,
-    "gqMean" -> TDouble,
-    "gqStDev" -> TDouble,
-    "nNonRef" -> TInt,
-    "rHeterozygosity" -> TDouble,
-    "rHetHomVar" -> TDouble,
-    "rExpectedHetFrequency" -> TDouble,
-    "pHWE" -> TDouble)
-}
-
-class VariantQCCombiner extends Serializable {
+final class VariantQCCombiner {
   var nNotCalled: Int = 0
   var nHomRef: Int = 0
   var nHet: Int = 0
@@ -58,71 +20,49 @@ class VariantQCCombiner extends Serializable {
 
   val gqSC: StatCounter = new StatCounter()
 
-  // FIXME per-genotype
-
-  def merge(g: Genotype): VariantQCCombiner = {
-    (g.gt: @unchecked) match {
-      case Some(0) =>
-        nHomRef += 1
-      case Some(1) =>
-        nHet += 1
-      case Some(2) =>
-        nHomVar += 1
-      case None =>
-        nNotCalled += 1
+  def mergeGT(gt: Int) {
+    (gt: @unchecked) match {
+      case 0 => nHomRef += 1
+      case 1 => nHet += 1
+      case 2 => nHomVar += 1
     }
-
-    if (g.isCalled) {
-      g.dp.foreach { v =>
-        dpSC.merge(v)
-      }
-      g.gq.foreach { v =>
-        gqSC.merge(v)
-      }
-    }
-
-    this
   }
 
-  def merge(that: VariantQCCombiner): VariantQCCombiner = {
-    nNotCalled += that.nNotCalled
-    nHomRef += that.nHomRef
-    nHet += that.nHet
-    nHomVar += that.nHomVar
-
-    dpSC.merge(that.dpSC)
-
-    gqSC.merge(that.gqSC)
-
-    this
+  def skipGT() {
+    nNotCalled += 1
   }
 
-  def HWEStats: (Option[Double], Double) = {
-    // rExpectedHetFrequency, pHWE
+  def mergeDP(dp: Int) {
+    dpSC.merge(dp)
+  }
+
+  def mergeGQ(gq: Int) {
+    gqSC.merge(gq)
+  }
+
+  def result(): Annotation = {
+    val af = {
+      val refAlleles = nHomRef * 2 + nHet
+      val altAlleles = nHomVar * 2 + nHet
+      divNull(altAlleles, refAlleles + altAlleles)
+    }
+
+    val nCalled = nHomRef + nHet + nHomVar
+    val callrate = divOption(nCalled, nCalled + nNotCalled)
+    val ac = nHet + 2 * nHomVar
+
     val n = nHomRef + nHet + nHomVar
     val nAB = nHet
     val nA = nAB + 2 * nHomRef.min(nHomVar)
 
     val LH = LeveneHaldane(n, nA)
-    (divOption(LH.getNumericalMean, n), LH.exactMidP(nAB))
-  }
-
-  def asAnnotation: Annotation = {
-    val af = {
-      val refAlleles = nHomRef * 2 + nHet
-      val altAlleles = nHomVar * 2 + nHet
-      divOption(altAlleles, refAlleles + altAlleles)
-    }
-
-    val nCalled = nHomRef + nHet + nHomVar
-    val hwe = HWEStats
-    val callrate = divOption(nCalled, nCalled + nNotCalled)
-    val ac = nHet + 2 * nHomVar
+    val rExpectedHetFreq = divNull(LH.getNumericalMean, n)
+    val hweP = LH.exactMidP(nAB)
 
     Annotation(
       divNull(nCalled, nCalled + nNotCalled),
       ac,
-      af.getOrElse(null),
+      af,
       nCalled,
       nNotCalled,
       nHomRef,
@@ -135,22 +75,61 @@ class VariantQCCombiner extends Serializable {
       nHet + nHomVar,
       divNull(nHet, nHomRef + nHet + nHomVar),
       divNull(nHet, nHomVar),
-      hwe._1.getOrElse(null),
-      hwe._2)
+      rExpectedHetFreq,
+      hweP)
   }
 }
 
 object VariantQC {
-  def results(vds: VariantDataset): RDD[(Variant, VariantQCCombiner)] =
-    vds
-      .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(g),
-        (comb1, comb2) => comb1.merge(comb2))
+  val signature = TStruct(
+    "callRate" -> TFloat64,
+    "AC" -> TInt32,
+    "AF" -> TFloat64,
+    "nCalled" -> TInt32,
+    "nNotCalled" -> TInt32,
+    "nHomRef" -> TInt32,
+    "nHet" -> TInt32,
+    "nHomVar" -> TInt32,
+    "dpMean" -> TFloat64,
+    "dpStDev" -> TFloat64,
+    "gqMean" -> TFloat64,
+    "gqStDev" -> TFloat64,
+    "nNonRef" -> TInt32,
+    "rHeterozygosity" -> TFloat64,
+    "rHetHomVar" -> TFloat64,
+    "rExpectedHetFrequency" -> TFloat64,
+    "pHWE" -> TFloat64)
 
-  def apply(vds: VariantDataset, root: String): VariantDataset = {
-    val (newVAS, insertQC) = vds.vaSignature.insert(VariantQCCombiner.signature,
+  def apply(vds: GenericDataset, root: String): GenericDataset = {
+    val (newVAS, insertQC) = vds.vaSignature.insert(VariantQC.signature,
       Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
-    vds.mapAnnotationsWithAggregate(new VariantQCCombiner, newVAS)((comb, v, va, s, sa, g) => comb.merge(g),
-      (comb1, comb2) => comb1.merge(comb2),
-      (va, comb) => insertQC(va, comb.asAnnotation))
+    val nSamples = vds.nSamples
+    val rowSignature = vds.rowSignature
+    val rdd = vds.unsafeRowRDD.mapPartitions { it =>
+      val view = HTSGenotypeView(rowSignature)
+      it.map { r =>
+        view.setRegion(r.region, r.offset)
+        val comb = new VariantQCCombiner
+        var i = 0
+        while (i < nSamples) {
+          view.setGenotype(i)
+          if (view.hasGT)
+            comb.mergeGT(view.getGT)
+          else
+            comb.skipGT()
+
+          if (view.hasDP)
+            comb.mergeDP(view.getDP)
+          if (view.hasGQ)
+            comb.mergeGQ(view.getGQ)
+
+          i += 1
+        }
+
+        (r.get(0): Annotation) -> (insertQC(r.get(1), comb.result()) -> r.getAs[Iterable[Annotation]](2))
+      }
+    }
+    val ord = OrderedRDD.apply(rdd, vds.rdd.orderedPartitioner)(vds.rdd.kOk, classTag[(Annotation, Iterable[Annotation])])
+    vds.copy[Annotation, Annotation, Annotation](rdd = ord, vaSignature = newVAS)
   }
 }

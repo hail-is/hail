@@ -8,13 +8,14 @@ import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.utils._
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.JObject
-import org.json4s.JsonAST._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -28,13 +29,19 @@ case object Ascending extends SortOrder
 case object Descending extends SortOrder
 
 object SortColumn {
-  implicit def fromField(field: String): SortColumn = SortColumn(field, Ascending)
+  implicit def fromColumn(column: String): SortColumn = SortColumn(column, Ascending)
 }
 
-case class SortColumn(field: String, sortOrder: SortOrder)
+case class SortColumn(column: String, sortOrder: SortOrder)
+
+case class KeyTableMetadata(
+  version: Int,
+  key: Array[String],
+  schema: String,
+  n_partitions: Int)
 
 object KeyTable {
-  final val fileVersion: Int = 1
+  final val fileVersion: Int = 0x101
 
   def range(hc: HailContext, n: Int, partitions: Option[Int] = None): KeyTable = {
     val range = Range(0, n).view.map(Row(_))
@@ -42,7 +49,7 @@ object KeyTable {
       case Some(parts) => hc.sc.parallelize(range, numSlices = parts)
       case None => hc.sc.parallelize(range)
     }
-    KeyTable(hc, rdd, TStruct("index" -> TInt), Array("index"))
+    KeyTable(hc, rdd, TStruct("index" -> TInt32), Array("index"))
   }
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): KeyTable = {
@@ -64,63 +71,22 @@ object KeyTable {
       fatal(s"key table files must end in '.kt', but found '$path'")
 
     val metadataFile = path + "/metadata.json.gz"
-    val pqtSuccess = path + "/rdd.parquet/_SUCCESS"
-
-    if (!hc.hadoopConf.exists(pqtSuccess))
-      fatal(
-        s"corrupt KeyTable: parquet success file does not exist: $pqtSuccess")
-
     if (!hc.hadoopConf.exists(metadataFile))
       fatal(
         s"corrupt KeyTable: metadata file does not exist: $metadataFile")
 
-    val (signature, key) = try {
-      val json = hc.hadoopConf.readFile(metadataFile)(in =>
-        JsonMethods.parse(in))
-
-      val fields = json.asInstanceOf[JObject].obj.toMap
-
-      (fields.get("version"): @unchecked) match {
-        case Some(JInt(v)) =>
-          if (v != KeyTable.fileVersion)
-            fatal(
-              s"""Invalid KeyTable: old version
-                 |  got version $v, expected version ${ KeyTable.fileVersion }""".stripMargin)
-      }
-
-      val signature = (fields.get("schema"): @unchecked) match {
-        case Some(JString(s)) =>
-          Parser.parseType(s).asInstanceOf[TStruct]
-      }
-
-      val key = (fields.get("key_names"): @unchecked) match {
-        case Some(JArray(a)) =>
-          a.map { case JString(s) => s }.toArray[String]
-      }
-
-      (signature, key)
-    } catch {
-      case e: Throwable =>
-        fatal(
-          s"""
-             |corrupt KeyTable: invalid metadata file.
-             |  caught exception: ${ expandException(e, logMessage = true) }
-          """.stripMargin)
+    val metadata = hc.hadoopConf.readFile(metadataFile) { in =>
+      // FIXME why doesn't this work?  Serialization.read[KeyTableMetadata](in)
+      val json = parse(in)
+      json.extract[KeyTableMetadata]
     }
 
-    val requiresConversion = SparkAnnotationImpex.requiresConversion(signature)
-    val parquetFile = path + "/rdd.parquet"
+    val schema = Parser.parseType(metadata.schema).asInstanceOf[TStruct]
 
-    val rdd = hc.sqlContext.read.parquet(parquetFile)
-      .rdd
-      .map { r =>
-        if (requiresConversion)
-          SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
-        else
-          r
-      }
-
-    KeyTable(hc, rdd, signature, key)
+    KeyTable(hc,
+      new ReadRowsRDD(hc.sc, path, schema, metadata.n_partitions),
+      schema,
+      metadata.key)
   }
 
   def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
@@ -164,38 +130,35 @@ object KeyTable {
 case class KeyTable(hc: HailContext, rdd: RDD[Row],
   signature: TStruct, key: Array[String] = Array.empty) {
 
-  if (!fieldNames.areDistinct())
-    fatal(s"Column names are not distinct: ${ fieldNames.duplicates().mkString(", ") }")
+  if (!columns.areDistinct())
+    fatal(s"Column names are not distinct: ${ columns.duplicates().mkString(", ") }")
   if (!key.areDistinct())
     fatal(s"Key names are not distinct: ${ key.duplicates().mkString(", ") }")
-  if (!key.forall(fieldNames.contains(_)))
-    fatal(s"Key names found that are not column names: ${ key.filterNot(fieldNames.contains(_)).mkString(", ") }")
+  if (!key.forall(columns.contains(_)))
+    fatal(s"Key names found that are not column names: ${ key.filterNot(columns.contains(_)).mkString(", ") }")
 
   def fields: Array[Field] = signature.fields.toArray
 
   def keyFields: Array[Field] = key.map(signature.fieldIdx).map(i => fields(i))
 
-  def fieldNames: Array[String] = fields.map(_.name)
+  def columns: Array[String] = fields.map(_.name)
 
   def count(): Long = rdd.count()
 
-  def nFields: Int = fields.length
+  def nColumns: Int = fields.length
 
   def nKeys: Int = key.length
 
   def nPartitions: Int = rdd.partitions.length
 
   def keySignature: TStruct = {
-    val types = fields.map(f => f.name -> f.typ).toMap
-    val keyFields = key
-      .map(k => k -> types(k))
-
-    TStruct(keyFields: _*)
+    val (t, _) = signature.select(key)
+    t
   }
 
   def valueSignature: TStruct = {
-    val keySet = key.toSet
-    TStruct(signature.fields.filter(f => !keySet.contains(f.name)).map(f => (f.name, f.typ)): _*)
+    val (t, _) = signature.filter(key.toSet, include = false)
+    t
   }
 
   def typeCheck() {
@@ -212,15 +175,30 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   }
 
   def keyedRDD(): RDD[(Row, Row)] = {
-    if (nKeys == 0)
-      fatal("cannot produce a keyed RDD from a key table with no key columns")
-
     val fieldIndices = fields.map(f => f.name -> f.index).toMap
-
     val keyIndices = key.map(fieldIndices)
     val keyIndexSet = keyIndices.toSet
     val valueIndices = fields.filter(f => !keyIndexSet.contains(f.index)).map(_.index)
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
+  }
+
+  def unsafeRowRDD: RDD[UnsafeRow] = {
+    val ttBc = BroadcastTypeTree(hc.sc, signature)
+
+    rdd.mapPartitions { it =>
+      val region = MemoryBuffer(8 * 1024)
+      val rvb = new RegionValueBuilder(region)
+
+      val t = ttBc.value.typ.asInstanceOf[TStruct]
+
+      it.map { r =>
+        region.clear()
+        rvb.start(t)
+        rvb.addRow(t, r)
+        val offset = rvb.end()
+        new UnsafeRow(ttBc, region.copy(), offset)
+      }
+    }
   }
 
   def same(other: KeyTable): Boolean = {
@@ -239,15 +217,15 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
            |""".stripMargin)
       false
     } else {
-      val thisFieldNames = fieldNames
-      val otherFieldNames = other.fieldNames
+      val localColumns = columns
+      val localOtherColumns = other.columns
 
       keyedRDD().groupByKey().fullOuterJoin(other.keyedRDD().groupByKey()).forall { case (k, (v1, v2)) =>
         (v1, v2) match {
           case (None, None) => true
           case (Some(x), Some(y)) =>
-            val r1 = x.map(r => thisFieldNames.zip(r.toSeq).toMap).toSet
-            val r2 = y.map(r => otherFieldNames.zip(r.toSeq).toMap).toSet
+            val r1 = x.map(r => localColumns.zip(r.toSeq).toMap).toSet
+            val r2 = y.map(r => localOtherColumns.zip(r.toSeq).toMap).toSet
             val res = r1 == r2
             if (!res)
               info(s"k=$k r1=${ r1.mkString(",") } r2=${ r2.mkString(",") }")
@@ -315,8 +293,6 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val inserters = inserterBuilder.result()
 
-    val nFieldsLocal = nFields
-
     val annotF: Row => Row = { r =>
       ec.setAllFromRow(r)
 
@@ -344,12 +320,18 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     filter(p)
   }
 
+  def head(n: Long): KeyTable = {
+    if (n < 0)
+      fatal(s"n must be non-negative! Found `$n'.")
+    copy(rdd = rdd.head(n))
+  }
+
   def keyBy(key: String*): KeyTable = keyBy(key)
 
   def keyBy(key: java.util.ArrayList[String]): KeyTable = keyBy(key.asScala)
 
   def keyBy(key: Iterable[String]): KeyTable = {
-    val colSet = fieldNames.toSet
+    val colSet = columns.toSet
     val badKeys = key.filter(!colSet.contains(_))
 
     if (badKeys.nonEmpty)
@@ -360,82 +342,113 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     copy(key = key.toArray)
   }
 
-  def select(fieldsSelect: Array[String], newKeys: Array[String]): KeyTable = {
-    val keyColumnsNotInSelectedFields = newKeys.diff(fieldsSelect)
-    if (keyColumnsNotInSelectedFields.nonEmpty)
-      fatal(s"Key columns `${ keyColumnsNotInSelectedFields.mkString(", ") }' must be present in selected columns.")
+  def select(exprs: Array[String], qualifiedName: Boolean = false): KeyTable = {
+    val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
 
-    val fieldsNotExist = fieldsSelect.diff(fieldNames)
-    if (fieldsNotExist.nonEmpty)
-      fatal(s"Selected columns `${ fieldsNotExist.mkString(", ") }' do not exist in key table. Choose from `${ fieldNames.mkString(", ") }'.")
+    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs, ec)
 
-    val fieldTransform = fieldsSelect.map(cn => fieldNames.indexOf(cn))
-
-    val newSignature = TStruct(fieldTransform.zipWithIndex.map { case (oldIndex, newIndex) => signature.fields(oldIndex).copy(index = newIndex) })
-
-    val selectF: Row => Row = { r =>
-      Row.fromSeq(fieldTransform.map(r.get))
+    val paths = maybePaths.zip(isNamedExpr).map { case (p, isNamed) =>
+      if (isNamed)
+        List(p.mkString(".")) // FIXME: Not certain what behavior we want here
+      else {
+        if (qualifiedName)
+          List(p.mkString("."))
+        else
+          List(p.last)
+      }
     }
 
-    KeyTable(hc, mapAnnotations(selectF), newSignature, newKeys)
+    val overlappingPaths = paths.counter.filter { case (n, i) => i != 1 }.keys
+
+    if (overlappingPaths.nonEmpty)
+      fatal(s"Found ${ overlappingPaths.size } ${ plural(overlappingPaths.size, "selected field name") } that are duplicated.\n" +
+        "Either rename manually or use the 'mangle' option to handle duplicates.\n Overlapping fields:\n  " +
+        s"@1", overlappingPaths.truncatable("\n  "))
+
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+
+    val finalSignature = (paths, types).zipped.foldLeft(TStruct()) { case (vs, (p, sig)) =>
+      val (s: TStruct, i) = vs.insert(sig, p)
+      inserterBuilder += i
+      s
+    }
+
+    val inserters = inserterBuilder.result()
+
+    val annotF: Row => Row = { r =>
+      ec.setAllFromRow(r)
+
+      f().zip(inserters)
+        .foldLeft(Row()) { case (a1, (v, inserter)) =>
+          inserter(a1, v).asInstanceOf[Row]
+        }
+    }
+
+    val newKey = key.filter(paths.map(_.mkString(".")).toSet)
+
+    KeyTable(hc, mapAnnotations(annotF), finalSignature, newKey)
   }
 
-  def select(fieldsSelect: java.util.ArrayList[String], newKeys: java.util.ArrayList[String]): KeyTable =
-    select(fieldsSelect.asScala.toArray, newKeys.asScala.toArray)
+  def select(selectedColumns: String*): KeyTable = select(selectedColumns.toArray)
 
-  def drop(fieldsDrop: Array[String]): KeyTable = {
-    val fieldsNotExist = fieldsDrop.diff(fieldNames)
-    if (fieldsNotExist.nonEmpty)
-      fatal(s"Columns `${ fieldsNotExist.mkString(", ") }' do not exist in key table. Choose from `${ fieldNames.mkString(", ") }'.")
+  def select(selectedColumns: java.util.ArrayList[String], mangle: Boolean): KeyTable =
+    select(selectedColumns.asScala.toArray, mangle)
 
-    val fieldsSelect = fieldNames.diff(fieldsDrop)
-    val newKeys = key.diff(fieldsDrop)
-    select(fieldsSelect, newKeys)
+  def drop(columnsToDrop: Array[String]): KeyTable = {
+    val nonexistentColumns = columnsToDrop.diff(columns)
+    if (nonexistentColumns.nonEmpty)
+      fatal(s"Columns `${ nonexistentColumns.mkString(", ") }' do not exist in key table. Choose from `${ columns.mkString(", ") }'.")
+
+    val selectedColumns = columns.diff(columnsToDrop)
+    select(selectedColumns)
   }
 
-  def drop(fieldsDrop: java.util.ArrayList[String]): KeyTable = drop(fieldsDrop.asScala.toArray)
+  def drop(columnsToDrop: java.util.ArrayList[String]): KeyTable = drop(columnsToDrop.asScala.toArray)
 
-  def rename(fieldNameMap: Map[String, String]): KeyTable = {
-    val newSignature = TStruct(signature.fields.map { fd => fd.copy(name = fieldNameMap.getOrElse(fd.name, fd.name)) })
-    val newFieldNames = newSignature.fields.map(_.name)
-    val newKey = key.map(n => fieldNameMap.getOrElse(n, n))
-    val duplicateFieldNames = newFieldNames.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter {
+  def rename(columnMap: Map[String, String]): KeyTable = {
+    val newSignature = TStruct(signature.fields.map { fd => fd.copy(name = columnMap.getOrElse(fd.name, fd.name)) })
+    val newColumns = newSignature.fields.map(_.name)
+    val newKey = key.map(n => columnMap.getOrElse(n, n))
+    val duplicateColumns = newColumns.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter {
       _._2 > 1
     }
 
-    if (duplicateFieldNames.nonEmpty)
-      fatal(s"Found duplicate column names after renaming fields: `${ duplicateFieldNames.keys.mkString(", ") }'")
+    if (duplicateColumns.nonEmpty)
+      fatal(s"Found duplicate column names after renaming columns: `${ duplicateColumns.keys.mkString(", ") }'")
 
     KeyTable(hc, rdd, newSignature, newKey)
   }
 
-  def rename(newFieldNames: Array[String]): KeyTable = {
-    if (newFieldNames.length != nFields)
-      fatal(s"Found ${ newFieldNames.length } new column names but need $nFields.")
+  def rename(newColumns: Array[String]): KeyTable = {
+    if (newColumns.length != nColumns)
+      fatal(s"Found ${ newColumns.length } new column names but need $nColumns.")
 
-    rename((fieldNames, newFieldNames).zipped.toMap)
+    rename((columns, newColumns).zipped.toMap)
   }
 
-  def rename(fieldNameMap: java.util.HashMap[String, String]): KeyTable = rename(fieldNameMap.asScala.toMap)
+  def rename(columnMap: java.util.HashMap[String, String]): KeyTable = rename(columnMap.asScala.toMap)
 
-  def rename(newFieldNames: java.util.ArrayList[String]): KeyTable = rename(newFieldNames.asScala.toArray)
+  def rename(newColumns: java.util.ArrayList[String]): KeyTable = rename(newColumns.asScala.toArray)
 
   def join(other: KeyTable, joinType: String): KeyTable = {
     if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
       fatal(
         s"""Both key tables must have the same number of keys and the types of keys must be identical. Order matters.
-           |  Left signature: ${ TStruct(keyFields).toPrettyString(compact = true) }
-           |  Right signature: ${ TStruct(other.keyFields).toPrettyString(compact = true) }""".stripMargin)
+           |  Left signature: ${ keySignature.toPrettyString(compact = true) }
+           |  Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
 
-    val overlappingFields = fieldNames.toSet.intersect(other.fieldNames.toSet) -- key -- other.key
-    if (overlappingFields.nonEmpty)
-      fatal(
-        s"""Columns that are not keys cannot be present in both key tables.
-           |  Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
+    val joinedFields = keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields
 
+    val preNames = joinedFields.map(_.name).toArray
+    val (finalColumnNames, remapped) = mangle(preNames)
+    if (remapped.nonEmpty) {
+      warn(s"Remapped ${ remapped.length } ${ plural(remapped.length, "column") } from right-hand table:\n  @1",
+        remapped.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
+    }
 
-    val newSignature = TStruct((keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields)
-      .map(fd => (fd.name, fd.typ)): _*)
+    val newSignature = TStruct(joinedFields
+      .zipWithIndex
+      .map { case (fd, i) => (finalColumnNames(i), fd.typ) }: _*)
     val localNKeys = nKeys
     val size1 = valueSignature.size
     val size2 = other.valueSignature.size
@@ -529,7 +542,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
         sb.clear()
 
         localTypes.indices.foreachBetween { i =>
-          sb.append(localTypes(i).str(r.get(i)))
+          sb.append(TableAnnotationImpex.exportAnnotation(r.get(i), localTypes(i)))
         }(sb += '\t')
 
         sb.result()
@@ -537,7 +550,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), parallelWrite = parallel)
   }
 
-  def aggregate(keyCond: String, aggCond: String): KeyTable = {
+  def aggregate(keyCond: String, aggCond: String, nPartitions: Option[Int] = None): KeyTable = {
 
     val aggregationST = fields.zipWithIndex.map {
       case (fd, i) => (fd.name, (i, fd.typ))
@@ -571,7 +584,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
             val key = Row.fromSeq(keyF())
             (key, r)
         }
-    }.aggregateByKey(zVals)(seqOp, combOp)
+    }.aggregateByKey(zVals, nPartitions.getOrElse(this.nPartitions))(seqOp, combOp)
       .map {
         case (k, agg) =>
           resultOp(agg)
@@ -580,6 +593,19 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     KeyTable(hc, newRDD, keySignature.merge(aggSignature)._1, newKey)
   }
+
+  def ungroup(column: String, mangle: Boolean = false): KeyTable = {
+    val (finalSignature, ungrouper) = signature.ungroup(column, mangle)
+    KeyTable(hc, rdd.map(ungrouper), finalSignature)
+  }
+
+  def group(dest: String, columns: java.util.ArrayList[String]): KeyTable = group(dest, columns.asScala.toArray)
+
+  def group(dest: String, columns: Array[String]): KeyTable = {
+    val (newSignature, grouper) = signature.group(dest, columns)
+    KeyTable(hc, rdd.map(grouper), newSignature)
+  }
+
 
   def expandTypes(): KeyTable = {
     val localSignature = signature
@@ -610,24 +636,24 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
       signature.schema.asInstanceOf[StructType])
   }
 
-  def explode(columnName: String): KeyTable = {
+  def explode(columnToExplode: String): KeyTable = {
 
-    val explodeField = signature.fieldOption(columnName) match {
+    val explodeField = signature.fieldOption(columnToExplode) match {
       case Some(x) => x
       case None =>
         fatal(
-          s"""Input field name `${ columnName }' not found in KeyTable.
-             |KeyTable field names are `${ fieldNames.mkString(", ") }'.""".stripMargin)
+          s"""Input field name `${ columnToExplode }' not found in KeyTable.
+             |KeyTable field names are `${ columns.mkString(", ") }'.""".stripMargin)
     }
 
     val index = explodeField.index
 
     val explodeType = explodeField.typ match {
       case t: TIterable => t.elementType
-      case _ => fatal(s"Require Array or Set. Column `$columnName' has type `${ explodeField.typ }'.")
+      case _ => fatal(s"Require Array or Set. Column `$columnToExplode' has type `${ explodeField.typ }'.")
     }
 
-    val newSignature = signature.copy(fields = fields.updated(index, Field(columnName, explodeType, index)))
+    val newSignature = signature.copy(fields = fields.updated(index, Field(columnToExplode, explodeType, index)))
 
     val empty = Iterable.empty[Row]
     val explodedRDD = rdd.flatMap { a =>
@@ -661,30 +687,14 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     hc.hadoopConf.mkDir(path)
 
-    val sb = new StringBuilder
-    sb.clear()
-    signature.pretty(sb, printAttrs = true, compact = true)
-    val schemaString = sb.result()
+    val metadata = KeyTableMetadata(KeyTable.fileVersion,
+      key,
+      signature.toPrettyString(printAttrs = true, compact = true),
+      rdd.partitions.length)
+    hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
+      Serialization.write(metadata, out))
 
-    val json = JObject(
-      ("version", JInt(KeyTable.fileVersion)),
-      ("key_names", JArray(key.map(k => JString(k)).toList)),
-      ("schema", JString(schemaString)))
-
-    hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(Serialization.writePretty(json, _))
-
-    val localSignature = signature
-    val requiresConversion = SparkAnnotationImpex.requiresConversion(signature)
-
-    val rowRDD = rdd.map { a =>
-      (if (requiresConversion)
-        SparkAnnotationImpex.exportAnnotation(a, localSignature)
-      else
-        a).asInstanceOf[Row]
-    }
-
-    hc.sqlContext.createDataFrame(rowRDD, signature.schema.asInstanceOf[StructType])
-      .write.parquet(path + "/rdd.parquet")
+    unsafeRowRDD.writeRows(path, signature)
   }
 
   def cache(): KeyTable = persist("MEMORY_ONLY")
@@ -705,11 +715,11 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     rdd.unpersist()
   }
 
-  def orderBy(fields: SortColumn*): KeyTable =
-    orderBy(fields.toArray)
+  def orderBy(sortCols: SortColumn*): KeyTable =
+    orderBy(sortCols.toArray)
 
-  def orderBy(fields: Array[SortColumn]): KeyTable = {
-    val fieldOrds = fields.map { case SortColumn(n, so) =>
+  def orderBy(sortCols: Array[SortColumn]): KeyTable = {
+    val sortColIndexOrd = sortCols.map { case SortColumn(n, so) =>
       val i = signature.fieldIdx(n)
       val f = signature.fields(i)
 
@@ -721,8 +731,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val ord: Ordering[Annotation] = new Ordering[Annotation] {
       def compare(a: Annotation, b: Annotation): Int = {
         var i = 0
-        while (i < fieldOrds.length) {
-          val (fi, ford) = fieldOrds(i)
+        while (i < sortColIndexOrd.length) {
+          val (fi, ford) = sortColIndexOrd(i)
           val c = ford.compare(
             a.asInstanceOf[Row].get(fi),
             b.asInstanceOf[Row].get(fi))
@@ -747,7 +757,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     CassandraConnector.export(this, address, keyspace, table, blockSize, rate)
   }
 
-  def repartition(n: Int): KeyTable = copy(rdd = rdd.repartition(n))
+  def repartition(n: Int, shuffle: Boolean = true): KeyTable = copy(rdd = rdd.coalesce(n, shuffle))
 
   def union(kts: java.util.ArrayList[KeyTable]): KeyTable = union(kts.asScala.toArray: _*)
 
@@ -765,13 +775,144 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def take(n: Int): Array[Row] = rdd.take(n)
 
   def indexed(name: String = "index"): KeyTable = {
-    if (fieldNames.contains(name))
+    if (columns.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
 
-    val (newSignature, ins) = signature.insert(TLong, name)
+    val (newSignature, ins) = signature.insert(TInt64, name)
 
     val newRDD = rdd.zipWithIndex().map { case (r, ind) => ins(r, ind).asInstanceOf[Row] }
 
     copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
   }
+
+  def maximalIndependentSet(iExpr: String, jExpr: String): Array[Any] = {
+    val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
+
+    val (iType, iThunk) = Parser.parseExpr(iExpr, ec)
+    val (jType, jThunk) = Parser.parseExpr(jExpr, ec)
+
+    if (iType != jType)
+      fatal(s"node expressions must have the same type: type of `i' is $iType, but type of `j' is $jType")
+
+    val edgeRdd = mapAnnotations { r =>
+      ec.setAllFromRow(r)
+      (iThunk(), jThunk())
+    }
+
+    if (edgeRdd.count() > 400000)
+      warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
+
+    Graph.maximalIndependentSet(edgeRdd.collect())
+  }
+
+  def showString(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true): String = {
+    /**
+      * Parts of this method are lifted from:
+      *   org.apache.spark.sql.Dataset.showString
+      *   Spark version 2.0.2
+      */
+
+    require(n >= 0, s"number of rows to show must be non-negative, found $n")
+    truncate.foreach { tr => require(tr > 3, s"truncation length too small: $tr") }
+
+    val takeResult = take(n + 1)
+    val hasMoreData = takeResult.length > n
+    val data = takeResult.take(n)
+
+    def convertType(t: Type, name: String, ab: ArrayBuilder[(String, String, Boolean)]) {
+      t match {
+        case s: TStruct => s.fields.foreach { f =>
+          convertType(f.typ, if (name == null) f.name else name + "." + f.name, ab)
+        }
+        case _ =>
+          ab += (name, t.toPrettyString(compact = true), t.isInstanceOf[TNumeric])
+      }
+    }
+
+    val headerBuilder = new ArrayBuilder[(String, String, Boolean)]()
+    convertType(signature, null, headerBuilder)
+    val (names, types, rightAlign) = headerBuilder.result().unzip3
+
+    def convertValue(t: Type, v: Annotation, ab: ArrayBuilder[String]) {
+      t match {
+        case s: TStruct =>
+          val r = v.asInstanceOf[Row]
+          s.fields.foreach(f => convertValue(f.typ, if (r == null) null else r.get(f.index), ab))
+        case _ =>
+          ab += t.str(v)
+      }
+    }
+
+    val valueBuilder = new ArrayBuilder[String]()
+    val dataStrings = data.map { r =>
+      valueBuilder.clear()
+      convertValue(signature, r, valueBuilder)
+      valueBuilder.result()
+    }
+
+    val allStrings = (Iterator(names, types) ++ dataStrings.iterator).map { arr =>
+      arr.map { str =>
+        truncate match {
+          case Some(tr) if str.length > tr => str.substring(0, tr - 3) + "..."
+          case _ => str
+        }
+      }
+    }.toArray
+
+    // Initialize the width of each column to a minimum value of '3'
+    val nCols = names.length
+    val colWidths = Array.fill(nCols)(3)
+
+    // Compute the width of each column
+    for (i <- allStrings.indices)
+      for (j <- 0 until nCols)
+        colWidths(j) = math.max(colWidths(j), allStrings(i)(j).length)
+
+    // create separator
+    val sep: String = colWidths.map("-" * _).addString(new StringBuilder(), "+-", "-+-", "-+\n").toString()
+
+    val sb = new StringBuilder()
+    sb.clear()
+    sb.append(sep)
+
+    // column names
+    allStrings(0).zipWithIndex.map { case (cell, i) =>
+      if (rightAlign(i))
+        StringUtils.leftPad(cell, colWidths(i))
+      else
+        StringUtils.rightPad(cell, colWidths(i))
+    }.addString(sb, "| ", " | ", " |\n")
+
+    sb.append(sep)
+
+    if (printTypes) {
+      // column types
+      allStrings(1).zipWithIndex.map { case (cell, i) =>
+        if (rightAlign(i))
+          StringUtils.leftPad(cell, colWidths(i))
+        else
+          StringUtils.rightPad(cell, colWidths(i))
+      }.addString(sb, "| ", " | ", " |\n")
+
+      sb.append(sep)
+    }
+
+    // data
+    allStrings.drop(2).foreach {
+      _.zipWithIndex.map { case (cell, i) =>
+        if (rightAlign(i))
+          StringUtils.leftPad(cell, colWidths(i))
+        else
+          StringUtils.rightPad(cell, colWidths(i))
+      }.addString(sb, "| ", " | ", " |\n")
+    }
+
+    sb.append(sep)
+
+    if (hasMoreData)
+      sb.append(s"showing top $n ${ plural(n, "row") }\n")
+
+    sb.result()
+  }
+
 }

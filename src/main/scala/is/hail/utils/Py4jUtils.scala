@@ -1,14 +1,11 @@
 package is.hail.utils
 
-import java.io.{InputStream, OutputStream, OutputStreamWriter}
-import java.util
+import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
-import is.hail.utils._
 import is.hail.variant.Locus
 
 import scala.collection.JavaConverters._
-import scala.io.{BufferedSource, Source}
 
 trait Py4jUtils {
   def arrayToArrayList[T](arr: Array[T]): java.util.ArrayList[T] = {
@@ -66,6 +63,11 @@ trait Py4jUtils {
 
   def copyFile(from: String, to: String, hc: HailContext) {
     hc.hadoopConf.copy(from, to)
+  }
+
+  def addSocketAppender(hostname: String, port: Int) {
+    val app = new StringSocketAppender(hostname, port, HailContext.logFormat)
+    consoleLog.addAppender(app)
   }
 }
 

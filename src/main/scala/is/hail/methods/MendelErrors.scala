@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.HailContext
 import is.hail.annotations.Annotation
-import is.hail.expr.{TInt, TString, TStruct, TVariant}
+import is.hail.expr.{TInt32, TString, TStruct, TVariant}
 import is.hail.keytable.KeyTable
 import is.hail.utils.{MultiArray2, _}
 import is.hail.variant.CopyState._
@@ -66,6 +66,7 @@ object MendelErrors {
   }
 
   def apply(vds: VariantDataset, preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
+    vds.requireUniqueSamples("mendel_errors")
 
     val trios = preTrios.filter(_.sex.isDefined)
     val nSamplesDiscarded = preTrios.size - trios.size
@@ -89,7 +90,7 @@ object MendelErrors {
     val zeroVal: MultiArray2[GenotypeType] = MultiArray2.fill(trios.length, 3)(NoCall)
 
     def seqOp(a: MultiArray2[GenotypeType], s: Annotation, g: Genotype): MultiArray2[GenotypeType] = {
-      sampleTrioRolesBc.value.get(s.asInstanceOf[String]).foreach(l => l.foreach { case (ti, ri) => a.update(ti, ri, g.gtType) })
+      sampleTrioRolesBc.value.get(s.asInstanceOf[String]).foreach(l => l.foreach { case (ti, ri) => a.update(ti, ri, Genotype.gtType(g)) })
       a
     }
 
@@ -152,8 +153,8 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
     val signature = TStruct(
       "fid" -> TString,
       "s" -> TString,
-      "v" -> TVariant,
-      "code" -> TInt,
+      "v" -> TVariant(GenomeReference.GRCh37),
+      "code" -> TInt32,
       "error" -> TString)
 
     val rdd = mendelErrors.map { e => Row(e.trio.fam.orNull, e.trio.kid, e.variant, e.code, e.errorString) }
@@ -166,9 +167,9 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
       "fid" -> TString,
       "father" -> TString,
       "mother" -> TString,
-      "nChildren" -> TInt,
-      "nErrors" -> TInt,
-      "nSNP" -> TInt
+      "nChildren" -> TInt32,
+      "nErrors" -> TInt32,
+      "nSNP" -> TInt32
     )
 
     val trioFamBc = sc.broadcast(trioFam)
@@ -188,8 +189,8 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
     val signature = TStruct(
       "fid" -> TString,
       "s" -> TString,
-      "nError" -> TInt,
-      "nSNP" -> TInt
+      "nError" -> TInt32,
+      "nSNP" -> TInt32
     )
 
     val trioFamBc = sc.broadcast(trios.iterator.flatMap { t =>
@@ -205,8 +206,8 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
 
   def lMendelKT(): KeyTable = {
     val signature = TStruct(
-      "v" -> TVariant,
-      "nError" -> TInt
+      "v" -> TVariant(GenomeReference.GRCh37),
+      "nError" -> TInt32
     )
 
     val rdd = nErrorPerVariant.map { case (v, l) => Row(v, l.toInt) }

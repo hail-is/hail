@@ -1,7 +1,9 @@
 from hail.java import scala_object, Env, handle_py4j
 from hail.typecheck import *
+from hail.history import *
 
-class Variant(object):
+
+class Variant(HistoryMixin):
     """
     An object that represents a genomic polymorphism.
 
@@ -19,6 +21,7 @@ class Variant(object):
     """
 
     @handle_py4j
+    @record_init
     def __init__(self, contig, start, ref, alts):
         if isinstance(contig, int):
             contig = str(contig)
@@ -45,6 +48,7 @@ class Variant(object):
         self._alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         v = Variant.__new__(cls)
         v._init_from_java(jrep)
@@ -53,10 +57,11 @@ class Variant(object):
         v._ref = jrep.ref()
         return v
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(string=strlike)
-    def parse(string):
+    @record_classmethod
+    @typecheck_method(string=strlike)
+    def parse(cls, string):
         """Parses a variant object from a string.
 
         There are two acceptable formats: CHR:POS:REF:ALT, and
@@ -192,6 +197,7 @@ class Variant(object):
 
         return self._jrep.nGenotypes()
 
+    @record_method
     def locus(self):
         """Returns the locus object for this polymorphism.
 
@@ -254,7 +260,7 @@ class Variant(object):
         return self._jrep.inYNonPar()
 
 
-class AltAllele(object):
+class AltAllele(HistoryMixin):
     """
     An object that represents an allele in a polymorphism deviating from the reference allele.
 
@@ -263,6 +269,7 @@ class AltAllele(object):
     """
 
     @handle_py4j
+    @record_init
     def __init__(self, ref, alt):
         jaa = scala_object(Env.hail().variant, 'AltAllele').apply(ref, alt)
         self._init_from_java(jaa)
@@ -285,6 +292,7 @@ class AltAllele(object):
         self._jrep = jrep
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jaa):
         aa = AltAllele.__new__(cls)
         aa._init_from_java(jaa)
@@ -417,7 +425,8 @@ class AltAllele(object):
         """
         return self._jrep.altAlleleType()
 
-class Locus(object):
+
+class Locus(HistoryMixin):
     """
     An object that represents a location in the genome.
 
@@ -427,6 +436,7 @@ class Locus(object):
     """
 
     @handle_py4j
+    @record_init
     def __init__(self, contig, position):
         if isinstance(contig, int):
             contig = str(contig)
@@ -451,6 +461,7 @@ class Locus(object):
         self._jrep = jrep
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         l = Locus.__new__(cls)
         l._init_from_java(jrep)
@@ -458,10 +469,11 @@ class Locus(object):
         l._position = jrep.position()
         return l
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(string=strlike)
-    def parse(string):
+    @record_classmethod
+    @typecheck_method(string=strlike)
+    def parse(cls, string):
         """Parses a locus object from a CHR:POS string.
 
         **Examples**

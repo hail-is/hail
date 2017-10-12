@@ -17,6 +17,7 @@ Contents
     Expression Language <exprlang>
     Python API <api>
     Annotation Database <annotationdb>
+    Getting Started Developing <getting_started_developing>
     Other Resources <other_resources>
 
 ==================

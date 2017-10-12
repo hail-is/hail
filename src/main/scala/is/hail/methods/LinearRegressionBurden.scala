@@ -20,7 +20,8 @@ object LinearRegressionBurden {
     yExpr: String,
     covExpr: Array[String]): (KeyTable, KeyTable) = {
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val (y, cov, completeSamplesIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val completeSamples = completeSamplesIndex.map(vds.sampleIds)
 
     val n = y.size
     val k = cov.cols
@@ -62,7 +63,7 @@ object LinearRegressionBurden {
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
 
-    val (linregSignature, merger) = TStruct(keyName -> keyType).merge(LinearRegression.schema)
+    val (linregSignature, merger) = TStruct(keyName -> keyType).merge(LinearRegressionModel.schema)
     
     val linregRDD = sampleKT.mapAnnotations { keyedRow =>
       val x = RegressionUtils.keyedRowToVectorDouble(keyedRow)

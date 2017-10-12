@@ -7,8 +7,13 @@
   {%- set titlesuffix = "" %}
 {%- endif %}
 
-{%- set script_files = script_files + ['../bootstrap.min.js'] %}
+{%- set script_files = script_files + ['../../bootstrap.min.js'] %}
 {%- set css_files = css_files + ['navbar.css', '_static/rtd_modifications.css'] %}
+
+{% if pagename == "annotationdb" %}
+{%- set css_files = css_files + ['_static/annotationdb/bootstrap-treeview.min.css', '_static/annotationdb/annotationdb.css'] %}
+{%- set script_files = script_files + ['_static/annotationdb/bootstrap-treeview.min.js', '_static/annotationdb/clipboard.min.js', '_static/annotationdb/annotationdb.js'] %}
+{% endif %}
 
 <!DOCTYPE html>
 <!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
@@ -80,9 +85,19 @@
   {# Keep modernizr in head - http://modernizr.com/docs/#installing #}
   <script src="{{ pathto('_static/js/modernizr.min.js', 1) }}"></script>
 
+  <script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-86050742-1', 'auto');
+    ga('send', 'pageview');
+  </script>
+
   {% if pagename == "annotationdb" %}
-    <link rel="stylesheet" href="../annotationdb/bootstrap-treeview.min.css">
-    <link rel="stylesheet" href="../annotationdb/annotationdb.css">
+    <link rel="stylesheet" href="../../annotationdb/bootstrap-treeview.min.css">
+    <link rel="stylesheet" href="../../annotationdb/annotationdb.css">
   {% endif %}
 
 </head>
@@ -199,12 +214,6 @@
           SphinxRtdTheme.StickyNav.enable();
       });
   </script>
-  {% endif %}
-
-  {% if pagename == "annotationdb" %}
-    <script type="text/javascript" src="../annotationdb/bootstrap-treeview.min.js"></script>
-    <script type="text/javascript" src="../annotationdb/clipboard.min.js"></script>
-    <script type="text/javascript" src="../annotationdb/annotationdb.js"></script>
   {% endif %}
 
   {%- block footer %} {% endblock %}

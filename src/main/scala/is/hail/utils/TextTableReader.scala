@@ -5,6 +5,7 @@ import java.util.regex.Pattern
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
+import is.hail.variant.GenomeReference
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -51,7 +52,7 @@ object TextTableReader {
 
         // full field must be quoted
         if (i < s.length) {
-          val l =  matchSep(i)
+          val l = matchSep(i)
           if (l == -1)
             fatal(s"terminating quote character $quote not at end of field")
           i += l
@@ -80,7 +81,8 @@ object TextTableReader {
     val nFields = header.length
     val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex).map(Pattern.compile)
 
-    val regexTypes: Array[Type] = Array(TBoolean, TVariant, TLocus, TInt, TDouble)
+    val gr = GenomeReference.GRCh37
+    val regexTypes: Array[Type] = Array(TBoolean, TVariant(gr), TLocus(gr), TInt32, TFloat64)
     val nRegex = regexes.length
 
     val imputation = values.treeAggregate(MultiArray2.fill[Boolean](nFields, nRegex + 1)(true))({ case (ma, line) =>
@@ -145,28 +147,25 @@ object TextTableReader {
       if (filt.isEmpty)
         fatal(
           s"""invalid file: no lines remaining after comment filter
-              |  Offending file: $firstFile""".stripMargin)
+             |  Offending file: $firstFile""".stripMargin)
       else
         filt.next().value
     }
 
     val splitHeader = splitLine(header, separator, quote)
-    val columns = if (noHeader) {
+    val preColumns = if (noHeader) {
       splitHeader
         .indices
         .map(i => s"f$i")
         .toArray
     } else splitHeader.map(unescapeString)
 
-    val nField = columns.length
-
-    val duplicates = columns.duplicates()
+    val (columns, duplicates) = mangle(preColumns)
     if (duplicates.nonEmpty) {
-      fatal(s"invalid header: found duplicate columns [${
-        duplicates.map(x => '"' + x + '"').mkString(", ")
-      }]")
+      warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "column") }. Mangled columns follows:\n  @1",
+        duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
     }
-
+    val nField = columns.length
 
     val rdd = sc.textFilesLines(files, nPartitions)
       .filter { line =>

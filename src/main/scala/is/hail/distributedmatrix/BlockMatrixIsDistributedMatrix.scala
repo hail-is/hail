@@ -1,10 +1,15 @@
 package is.hail.distributedmatrix
 
+import is.hail._
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
+import org.apache.hadoop.io._
+import java.io._
+import org.json4s._
+import java.net._
 
 import scala.reflect.ClassTag
 
@@ -16,7 +21,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def from(irm: IndexedRowMatrix, dense: Boolean = true): M =
     if (dense) irm.toBlockMatrixDense()
     else irm.toBlockMatrix()
-  def from(bm: BlockMatrix): M = bm
   def from(sc: SparkContext, dm: DenseMatrix, rowsPerBlock: Int, colsPerBlock: Int): M = {
     val rbc = sc.broadcast(dm)
     val rowBlocks = (dm.numRows - 1) / rowsPerBlock + 1
@@ -41,6 +45,16 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     }.partitionBy(GridPartitioner(rowBlocks, colBlocks))
     new BlockMatrix(rMats, rowsPerBlock, colsPerBlock, dm.numRows, dm.numCols)
   }
+  def from(irm: IndexedRowMatrix, rowsPerBlock: Int, colsPerBlock: Int): M =
+    irm.toBlockMatrixDense(rowsPerBlock, colsPerBlock)
+  def from(bm: BlockMatrix): M =
+    new BlockMatrix(
+      bm.blocks.partitionBy(GridPartitioner(((bm.numRows - 1) / bm.rowsPerBlock).toInt + 1, ((bm.numCols - 1) / bm.colsPerBlock).toInt + 1)).persist(),
+      bm.rowsPerBlock, bm.colsPerBlock, bm.numRows(), bm.numCols())
+  def from(bm: BlockMatrix, rowsPerBlock: Int, colsPerBlock: Int): M =
+    new BlockMatrix(
+      bm.blocks.partitionBy(GridPartitioner(((bm.numRows - 1) / rowsPerBlock).toInt + 1, ((bm.numCols - 1) / colsPerBlock).toInt + 1)).persist(),
+      rowsPerBlock, colsPerBlock, bm.numRows(), bm.numCols())
 
   def transpose(m: M): M =
     BetterBlockMatrix.transpose(m)
@@ -116,8 +130,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def map2(op: (Double, Double) => Double)(l: M, r: M): M = {
     require(l.numRows() == r.numRows())
     require(l.numCols() == r.numCols())
-    require(l.rowsPerBlock == r.rowsPerBlock)
-    require(l.colsPerBlock == r.colsPerBlock)
+    require(l.rowsPerBlock == r.rowsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
+    require(l.colsPerBlock == r.colsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
     val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).mapValues { case (m1, m2) =>
       val size = m1.numRows * m1.numCols
       val result = new Array[Double](size)
@@ -135,8 +149,34 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     new BlockMatrix(blocks, l.rowsPerBlock, l.colsPerBlock, l.numRows(), l.numCols())
   }
 
-  def pointwiseAdd(l: M, r: M): M = l.add(r)
-  def pointwiseSubtract(l: M, r: M): M = l.subtract(r)
+  def map2WithIndex(op: (Long, Long, Double, Double) => Double)(l: M, r: M): M = {
+    require(l.numRows() == r.numRows())
+    require(l.numCols() == r.numCols())
+    require(l.rowsPerBlock == r.rowsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
+    require(l.colsPerBlock == r.colsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
+    val rowsPerBlock = l.rowsPerBlock
+    val colsPerBlock = l.colsPerBlock
+    val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).mapValuesWithKey { case ((blocki, blockj), (m1, m2)) =>
+      val iprefix = blocki.toLong * rowsPerBlock
+      val jprefix = blockj.toLong * colsPerBlock
+      val size = m1.numRows * m1.numCols
+      val result = new Array[Double](size)
+      var j = 0
+      while (j < m1.numCols) {
+        var i = 0
+        while (i < m1.numRows) {
+          result(i + j*m1.numRows) = op(iprefix + i, jprefix + j, m1(i, j), m2(i, j))
+          i += 1
+        }
+        j += 1
+      }
+      new DenseMatrix(m1.numRows, m1.numCols, result)
+    }
+    new BlockMatrix(blocks, l.rowsPerBlock, l.colsPerBlock, l.numRows(), l.numCols())
+  }
+
+  def pointwiseAdd(l: M, r: M): M = map2(_ + _)(l, r)
+  def pointwiseSubtract(l: M, r: M): M = map2(_ - _)(l, r)
   def pointwiseMultiply(l: M, r: M): M = map2(_ * _)(l, r)
   def pointwiseDivide(l: M, r: M): M = map2(_ / _)(l, r)
 
@@ -235,4 +275,97 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def toBlockRdd(m: M): RDD[((Int, Int), Matrix)] = m.blocks
 
   def toLocalMatrix(m: M): Matrix = m.toLocalMatrix()
+
+  private class PairWriter(var i: Int, var j: Int) extends Writable {
+    def this() {
+      this(0,0)
+    }
+
+    def write(out: DataOutput) {
+      out.writeInt(i)
+      out.writeInt(j)
+    }
+
+    def readFields(in: DataInput) {
+      i = in.readInt()
+      j = in.readInt()
+    }
+  }
+
+  private class MatrixWriter(var rows: Int, var cols: Int, var m: Array[Double]) extends Writable {
+    def this() {
+      this(0, 0, null)
+    }
+
+    def write(out: DataOutput) {
+      out.writeInt(rows)
+      out.writeInt(cols)
+      var i = 0
+      while (i < rows * cols) {
+        out.writeDouble(m(i))
+        i += 1
+      }
+    }
+
+    def readFields(in: DataInput) {
+      rows = in.readInt()
+      cols = in.readInt()
+      m = new Array[Double](rows * cols)
+      var i = 0
+      while (i < rows * cols) {
+        m(i) = in.readDouble()
+        i += 1
+      }
+    }
+
+    def toDenseMatrix(): DenseMatrix = {
+      new DenseMatrix(rows, cols, m)
+    }
+  }
+
+  private val metadataRelativePath = "/metadata.json"
+  private val matrixRelativePath = "/matrix"
+  /**
+    * Writes the matrix {@code m} to a Hadoop sequence file at location {@code
+    * uri}.
+    *
+    **/
+  def write(m: M, uri: String) {
+    val hadoop = m.blocks.sparkContext.hadoopConfiguration
+    hadoop.mkDir(uri)
+
+    m.blocks.map { case ((i, j), m) =>
+      (new PairWriter(i, j), new MatrixWriter(m.numRows, m.numCols, m.toArray)) }
+      .saveAsSequenceFile(uri+matrixRelativePath)
+
+    hadoop.writeDataFile(uri+metadataRelativePath) { os =>
+      jackson.Serialization.write(
+        BlockMatrixMetadata(m.rowsPerBlock, m.colsPerBlock, m.numRows(), m.numCols()),
+        os)
+    }
+  }
+
+  /**
+    * Reads a BlockMatrix matrix written by {@code write} at location {@code
+    * uri}.
+    *
+    **/
+  def read(hc: HailContext, uri: String): M = {
+    val hadoop = hc.hadoopConf
+    hadoop.mkDir(uri)
+
+    val rdd = hc.sc.sequenceFile[PairWriter, MatrixWriter](uri+matrixRelativePath).map { case (pw, mw) =>
+      ((pw.i, pw.j), mw.toDenseMatrix(): Matrix)
+    }
+
+    val BlockMatrixMetadata(rowsPerBlock, colsPerBlock, numRows, numCols) =
+      hadoop.readTextFile(uri+metadataRelativePath) { isr  =>
+        jackson.Serialization.read[BlockMatrixMetadata](isr)
+      }
+
+    new BlockMatrix(rdd, rowsPerBlock, colsPerBlock, numRows, numCols)
+  }
 }
+
+// must be top-level for Jackson to serialize correctly
+case class BlockMatrixMetadata(rowsPerBlock: Int, colsPerBlock: Int, numRows: Long, numCols: Long)

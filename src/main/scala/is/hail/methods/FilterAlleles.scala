@@ -1,10 +1,10 @@
 package is.hail.methods
 
 import is.hail.annotations.{Annotation, Inserter}
-import is.hail.expr.{EvalContext, Parser, TArray, TInt, TVariant}
+import is.hail.expr.{EvalContext, Parser, TArray, TInt32, TVariant}
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
-import is.hail.variant.{GTPair, Genotype, Variant, VariantDataset}
+import is.hail.variant.{GTPair, GenomeReference, Genotype, Variant, VariantDataset}
 
 import scala.collection.mutable
 import scala.math.min
@@ -19,15 +19,15 @@ object FilterAlleles {
       warn("this VDS was already split; this module was designed to handle multi-allelics, perhaps you should use filtervariants instead.")
 
     val conditionEC = EvalContext(Map(
-      "v" -> (0, TVariant),
+      "v" -> (0, TVariant(GenomeReference.GRCh37)),
       "va" -> (1, vds.vaSignature),
-      "aIndex" -> (2, TInt)))
+      "aIndex" -> (2, TInt32)))
     val conditionE = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, conditionEC)
 
     val annotationEC = EvalContext(Map(
-      "v" -> (0, TVariant),
+      "v" -> (0, TVariant(GenomeReference.GRCh37)),
       "va" -> (1, vds.vaSignature),
-      "aIndices" -> (2, TArray(TInt))))
+      "aIndices" -> (2, TArray(TInt32))))
     val (paths, types, f) = Parser.parseAnnotationExprs(annotationExpr, annotationEC, Some(Annotation.VARIANT_HEAD))
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val finalType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (path, signature)) =>
@@ -95,9 +95,9 @@ object FilterAlleles {
       }
 
       def downcodeGenotype(g: Genotype): Genotype = {
-        val px = g.px.map(downcodePx)
-        g.copy(gt = g.gt.map(downcodeGt),
-          ad = g.ad.map(downcodeAd),
+        val px = Genotype.px(g).map(downcodePx)
+        g.copy(gt = Genotype.gt(g).map(downcodeGt),
+          ad = Genotype.ad(g).map(downcodeAd),
           gq = px.map(Genotype.gqFromPL),
           px = px
         )
@@ -120,19 +120,22 @@ object FilterAlleles {
       }
 
       def subsetGenotype(g: Genotype): Genotype = {
-        val px = g.px.map(subsetPx)
-        g.copy(
-          gt = px.map(_.zipWithIndex.min._2),
-          ad = g.ad.map(_.zipWithIndex.filter({ case (d, i) => i == 0 || oldToNew(i) != 0 }).map(_._1)),
-          gq = px.map(Genotype.gqFromPL),
-          px = px
-        )
+        if (g == null)
+          null
+        else {
+          val px = Genotype.px(g).map(subsetPx)
+          g.copy(
+            gt = px.map(_.zipWithIndex.min._2),
+            ad = Genotype.ad(g).map(_.zipWithIndex.filter({ case (d, i) => i == 0 || oldToNew(i) != 0 }).map(_._1)),
+            gq = px.map(Genotype.gqFromPL),
+            px = px)
+        }
       }
 
       gs.map({
         g =>
           val newG = if (subset) subsetGenotype(g) else downcodeGenotype(g)
-          if (filterAlteredGenotypes && newG.gt != g.gt)
+          if (filterAlteredGenotypes && Genotype.gt(newG) != Genotype.gt(g))
             newG.copy(gt = None)
           else
             newG

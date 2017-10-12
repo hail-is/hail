@@ -2,28 +2,35 @@ package is.hail.stats
 
 import is.hail.SparkSuite
 import is.hail.check._
-import is.hail.methods.VariantQC
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class HWESuite extends SparkSuite {
 
   @Test def test() {
-    val r = VariantQC.results(hc.importVCF("src/test/resources/HWE_test.vcf"))
-      .map { case (v, a) => (v.start, a.HWEStats) }
-      .collectAsMap()
+    val a = hc.importVCF("src/test/resources/HWE_test.vcf")
+      .verifyBiallelic()
+      .variantQC()
+      .variantsKT()
+      .query(Array("v.map(v => v.start).collect()",
+        "v.map(v => {r: va.qc.rExpectedHetFrequency, p: va.qc.pHWE}).collect()"))
+      .map(_._1.asInstanceOf[IndexedSeq[Any]])
 
-    assert(r(1) == (Some(0.0), 0.5))
-    assert(r(2) == (Some(0.25), 0.5))
-    assert(D_==(r(3)._2, LeveneHaldane(4, 3).exactMidP(1)))
-    assert(D_==(r(4)._2, LeveneHaldane(4, 4).exactMidP(2)))
-    assert(D_==(r(5)._2, LeveneHaldane(3, 1).exactMidP(1)))
-    assert(r(6) == (None, 0.5))
+    val r = a(0).zip(a(1)).toMap
+
+
+    assert(r(1) == Row(0.0, 0.5))
+    assert(r(2) == Row(0.25, 0.5))
+    assert(D_==(r(3).asInstanceOf[Row].getAs[Double](1), LeveneHaldane(4, 3).exactMidP(1)))
+    assert(D_==(r(4).asInstanceOf[Row].getAs[Double](1), LeveneHaldane(4, 4).exactMidP(2)))
+    assert(D_==(r(5).asInstanceOf[Row].getAs[Double](1), LeveneHaldane(3, 1).exactMidP(1)))
+    assert(r(6) == Row(null, 0.5))
   }
 
   @Test def testExpr() {
-    val p = Prop.forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds: VariantDataset =>
+    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds: VariantDataset =>
       val vds2 = vds.splitMulti()
         .variantQC()
         .annotateVariantsExpr("va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)")

@@ -44,6 +44,8 @@ extensions = [
     'IPython.sphinxext.ipython_console_highlighting' # https://github.com/spatialaudio/nbsphinx/issues/24#issuecomment-187172022 and https://github.com/ContinuumIO/anaconda-issues/issues/1430
 ]
 
+mathjax_path = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML'
+
 nbsphinx_timeout = 300
 nbsphinx_allow_errors = False
 
@@ -66,13 +68,47 @@ from hail.stats import *
 if not os.path.isdir("output/"):
     os.mkdir("output/")
 
-vds_files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
-for f in vds_files:
+files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds", "data/ld_matrix"]
+for f in files:
     if os.path.isdir(f):
         shutil.rmtree(f)
 
 hc = HailContext(log="output/hail.log", quiet=True)
-vds = hc.read('data/example.vds')"""
+
+(hc.import_vcf('data/sample.vcf.bgz')
+ .sample_variants(0.03)
+ .annotate_variants_expr('va.useInKinship = pcoin(0.9), va.panel_maf = 0.1, va.anno1 = 5, va.anno2 = 0, va.consequence = "LOF", va.gene = "A", va.score = 5.0')
+ .annotate_variants_expr('va.aIndex = 1') # as if split_multi was called
+ .variant_qc()
+ .sample_qc()
+ .annotate_samples_expr('sa.isCase = true, sa.pheno.isCase = pcoin(0.5), sa.pheno.isFemale = pcoin(0.5), sa.pheno.age=rnorm(65, 10), sa.cov.PC1 = rnorm(0,1), sa.pheno.height = rnorm(70, 10), sa.cov1 = rnorm(0, 1), sa.cov2 = rnorm(0,1), sa.pheno.bloodPressure = rnorm(120,20), sa.pheno.cohortName = "cohort1"')
+ .write('data/example.vds', overwrite=True))
+
+(hc.import_vcf("data/sample.vcf.bgz")
+ .sample_variants(0.015).annotate_variants_expr('va.anno1 = 5, va.toKeep1 = true, va.toKeep2 = false, va.toKeep3 = true')
+ .split_multi()
+ .write("data/example2.vds", overwrite=True))
+
+(hc.import_vcf('data/sample.vcf.bgz')
+ .split_multi()
+ .variant_qc()
+ .annotate_samples_table(hc.import_table('data/example_lmmreg.tsv', 'Sample', impute=True), root='sa')
+ .annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
+ .write("data/example_lmmreg.vds", overwrite=True))
+
+(hc.import_vcf('data/example_burden.vcf')
+ .annotate_samples_table(hc.import_table('data/example_burden.tsv', 'Sample', impute=True), root='sa.burden')
+ .annotate_variants_expr('va.weight = v.start.toFloat64()')
+ .variant_qc()
+ .annotate_variants_table(KeyTable.import_interval_list('data/genes.interval_list'), root='va.genes', product=True)
+ .annotate_variants_table(KeyTable.import_interval_list('data/gene.interval_list'), root='va.gene', product=False)
+ .write('data/example_burden.vds', overwrite=True))
+
+vds = hc.read('data/example.vds')
+
+vds.split_multi().ld_matrix().write("data/ld_matrix")
+
+"""
 
 doctest_global_cleanup = """import shutil, os
 
@@ -81,10 +117,12 @@ hc.stop()
 if os.path.isdir("output/"):
     shutil.rmtree("output/")
 
-vds_files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
-for f in vds_files:
+files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds", "data/ld_matrix"]
+for f in files:
     if os.path.isdir(f):
-        shutil.rmtree(f)"""
+        shutil.rmtree(f)
+
+"""
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -207,7 +245,7 @@ html_title = u'Hail'
 # the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
 #
-html_favicon = "hail_logo_sq.ico"
+html_favicon = "misc/hail_logo_sq.ico"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -219,7 +257,8 @@ html_static_path = ['_static']
 # directly to the root of the documentation.
 #
 html_extra_path = ['../../../../../www/hail-logo-cropped.png',
-                   '../../../../../www/navbar.css']
+                   '../../../../../www/navbar.css',
+                   'misc/']
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
 # bottom, using the given strftime format.

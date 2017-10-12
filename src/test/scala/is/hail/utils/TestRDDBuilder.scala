@@ -99,33 +99,32 @@ object TestRDDBuilder {
         (gtArray.map(_(i)),
           gqArray.map(_(i)),
           dpArray.map(_(i)))))
-      .toArray
+      .map {
+        case (variant, (gtArr, gqArr, dpArr)) =>
+          val b = new ArrayBuilder[Genotype]()
+          for (sample <- 0 until nSamples) {
+            val gt = gtArr match {
+              case Some(arr) => Some(arr(sample))
+              case None => Some(pullGT())
+            }
+            val gq = gqArr match {
+              case Some(arr) => arr(sample)
+              case None => normInt(gqMean, gqStDev, floor = gqMin, ceil = gqMax)
+            }
+            val dp = dpArr match {
+              case Some(arr) => arr(sample)
+              case None => normInt(dpMean, dpStDev, floor = dpMin, ceil = dpMax)
+            }
+            val ad = adFromDP(dp, gt)
+            val pl = plFromGQ(gq, gt)
+
+            // FIXME gq
+            b += Genotype(gt, ad, Some(dp), Some(gq), pl)
+          }
+          (variant, (Annotation.empty, b.result(): Iterable[Genotype]))
+      }.toArray
 
     val variantRDD = hc.sc.parallelize(variantArray)
-    val streamRDD = variantRDD.map {
-      case (variant, (gtArr, gqArr, dpArr)) =>
-        val b = new GenotypeStreamBuilder(variant.nAlleles)
-        for (sample <- 0 until nSamples) {
-          val gt = gtArr match {
-            case Some(arr) => Some(arr(sample))
-            case None => Some(pullGT())
-          }
-          val gq = gqArr match {
-            case Some(arr) => arr(sample)
-            case None => normInt(gqMean, gqStDev, floor=gqMin, ceil=gqMax)
-          }
-          val dp = dpArr match {
-            case Some(arr) => arr(sample)
-            case None => normInt(dpMean, dpStDev, floor=dpMin, ceil=dpMax)
-          }
-          val ad = adFromDP(dp, gt)
-          val pl = plFromGQ(gq, gt)
-
-          // FIXME gq
-          b += Genotype(gt, ad, Some(dp), Some(gq), pl)
-        }
-        (variant, (Annotation.empty, b.result(): Iterable[Genotype]))
-    }
-    new VariantSampleMatrix(hc, VSMFileMetadata(sampleList), streamRDD.toOrderedRDD)
+    new VariantSampleMatrix(hc, VSMFileMetadata(sampleList), variantRDD.toOrderedRDD)
   }
 }

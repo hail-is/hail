@@ -4,9 +4,9 @@ import breeze.linalg.{DenseVector, sum, _}
 import breeze.stats.distributions._
 import is.hail.HailContext
 import is.hail.annotations.Annotation
-import is.hail.expr.{TArray, TDouble, TInt, TString, TStruct, TVariant}
+import is.hail.expr.{TArray, TFloat64, TInt32, TString, TStruct, TVariant}
 import is.hail.utils._
-import is.hail.variant.{Genotype, VSMLocalValue, VSMMetadata, Variant, VariantDataset}
+import is.hail.variant.{GenomeReference, Genotype, VSMLocalValue, VSMMetadata, Variant, VariantDataset}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
@@ -120,25 +120,25 @@ object BaldingNicholsModel {
     val globalAnnotation =
       Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
 
-    val saSignature = TStruct("pop" -> TInt)
-    val vaSignature = TStruct("ancestralAF" -> TDouble, "AF" -> TArray(TDouble))
+    val saSignature = TStruct("pop" -> TInt32)
+    val vaSignature = TStruct("ancestralAF" -> TFloat64, "AF" -> TArray(TFloat64))
 
     val ancestralAFAnnotationSignature = af_dist match {
-      case UniformDist(minVal, maxVal) => TStruct("type" -> TString, "minVal" -> TDouble, "maxVal" -> TDouble)
-      case BetaDist(a, b) => TStruct("type" -> TString, "a" -> TDouble, "b" -> TDouble)
-      case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString, "a" -> TDouble, "b" -> TDouble, "minVal" -> TDouble, "maxVal" -> TDouble)
+      case UniformDist(minVal, maxVal) => TStruct("type" -> TString, "minVal" -> TFloat64, "maxVal" -> TFloat64)
+      case BetaDist(a, b) => TStruct("type" -> TString, "a" -> TFloat64, "b" -> TFloat64)
+      case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString, "a" -> TFloat64, "b" -> TFloat64, "minVal" -> TFloat64, "maxVal" -> TFloat64)
     }
 
     val globalSignature = TStruct(
-      "nPops" -> TInt,
-      "nSamples" -> TInt,
-      "nVariants" -> TInt,
-      "popDist" -> TArray(TDouble),
-      "Fst" -> TArray(TDouble),
+      "nPops" -> TInt32,
+      "nSamples" -> TInt32,
+      "nVariants" -> TInt32,
+      "popDist" -> TArray(TFloat64),
+      "Fst" -> TArray(TFloat64),
       "ancestralAFDist" -> ancestralAFAnnotationSignature,
-      "seed" -> TInt)
+      "seed" -> TInt32)
     new VariantDataset(hc,
-      VSMMetadata(TString, saSignature, TVariant, vaSignature, globalSignature, wasSplit = true),
+      VSMMetadata(TString, saSignature, TVariant(GenomeReference.GRCh37), vaSignature, globalSignature, wasSplit = true),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
   }
 }

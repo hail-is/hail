@@ -10,42 +10,42 @@ from hail.java import *
 from hail.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
 from hail.utils import wrap_to_list
+from hail.history import *
 
 
-class HailContext(object):
+class HailContext(HistoryMixin):
     """The main entry point for Hail functionality.
 
     .. warning::
         Only one Hail context may be running in a Python session at any time. If you
         need to reconfigure settings, restart the Python session or use the :py:meth:`.HailContext.stop` method.
 
-    :param sc: spark context, will be auto-generated if None
+    :param sc: Spark context, one will be created if None.
     :type sc: :class:`.pyspark.SparkContext`
 
-    :param appName: Spark application identifier
+    :param appName: Spark application identifier.
 
-    :param master: Spark cluster master
+    :param master: Spark cluster master.
 
-    :param local: local resources to use
+    :param local: Local resources to use.
 
-    :param log: log path
+    :param log: Log path.
 
-    :param quiet: suppress log messages
+    :param bool quiet: Don't write logging information to standard error.
 
-    :param append: write to end of log file instead of overwriting
+    :param append: Write to end of log file instead of overwriting.
 
-    :param parquet_compression: level of on-disk annotation compression
+    :param min_block_size: Minimum file split size in MB.
 
-    :param min_block_size: minimum file split size in MB
+    :param branching_factor: Branching factor for tree aggregation.
 
-    :param branching_factor: branching factor for tree aggregation
-
-    :param tmp_dir: temporary directory for file merging
+    :param tmp_dir: Temporary directory for file merging.
 
     :ivar sc: Spark context
     :vartype sc: :class:`.pyspark.SparkContext`
     """
 
+    @record_init
     @typecheck_method(sc=nullable(SparkContext),
                       app_name=strlike,
                       master=nullable(strlike),
@@ -53,12 +53,11 @@ class HailContext(object):
                       log=strlike,
                       quiet=bool,
                       append=bool,
-                      parquet_compression=strlike,
                       min_block_size=integral,
                       branching_factor=integral,
                       tmp_dir=strlike)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
-                 log='hail.log', quiet=False, append=False, parquet_compression='snappy',
+                 log='hail.log', quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
 
         if Env._hc:
@@ -78,18 +77,42 @@ class HailContext(object):
 
         jsc = sc._jsc.sc() if sc else None
 
-        self._jhc = scala_object(self._hail, 'HailContext').apply(
-            jsc, app_name, joption(master), local, log, quiet, append,
-            parquet_compression, min_block_size, branching_factor, tmp_dir)
+        # we always pass 'quiet' to the JVM because stderr output needs
+        # to be routed through Python separately.
+        self._jhc = self._hail.HailContext.apply(
+            jsc, app_name, joption(master), local, log, True, append,
+            min_block_size, branching_factor, tmp_dir)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
+        super(HailContext, self).__init__()
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
 
+        sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
+        if self._jsc.uiWebUrl().isDefined():
+            sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
+
+        if not quiet:
+            connect_logger('localhost', 12888)
+
+        sys.stderr.write(
+            'Welcome to\n'
+            '     __  __     <>__\n'
+            '    / /_/ /__  __/ /\n'
+            '   / __  / _ `/ / /\n'
+            '  /_/ /_/\_,_/_/_/   version {}\n'.format(self.version))
+
+        if self.version.startswith('devel'):
+            sys.stderr.write('WARNING: This is an unstable development build.\n')
+
+    def _set_history(self, history):
+        assert self._history is None, "Cannot set history for HailContext more than once."
+        self._history = history.set_varid("hc")
+        
     @staticmethod
     def get_running():
         """Return the running Hail context in this Python session.
@@ -108,7 +131,7 @@ class HailContext(object):
         :rtype: :class:`.HailContext`
         """
 
-        return Env.hc
+        return Env.hc()
 
     @property
     def version(self):
@@ -137,7 +160,7 @@ class HailContext(object):
 
         **Background**
 
-        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`__.
+        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Hail uses `Java regular expression patterns <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__. The `RegExr sandbox <http://regexr.com/>`__ may be helpful.
 
         :param str regex: The regular expression to match.
 
@@ -150,6 +173,7 @@ class HailContext(object):
         self._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       tolerance=numeric,
                       sample_file=nullable(strlike),
@@ -217,6 +241,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       sample_file=nullable(strlike),
                       tolerance=numeric,
@@ -281,6 +306,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(paths=oneof(strlike, listof(strlike)),
                       key=oneof(strlike, listof(strlike)),
                       min_partitions=nullable(int),
@@ -317,7 +343,7 @@ class HailContext(object):
         
         Pass the types ourselves:
         
-        >>> table = hc.import_table('data/samples1.tsv', types={'Height': TDouble(), 'Age': TInt()})
+        >>> table = hc.import_table('data/samples1.tsv', types={'Height': TFloat64(), 'Age': TInt32()})
         
         Note that string columns like ``Sample`` and ``Status`` do not need to be typed, because ``String``
         is the default type.
@@ -445,14 +471,17 @@ class HailContext(object):
         return KeyTable(self, jkt)
 
     @handle_py4j
+    @record_method
     @typecheck_method(bed=strlike,
                       bim=strlike,
                       fam=strlike,
                       min_partitions=nullable(integral),
                       delimiter=strlike,
                       missing=strlike,
-                      quantpheno=bool)
-    def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
+                      quant_pheno=bool,
+                      a2_reference=bool)
+    def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
+                     missing='NA', quant_pheno=False, a2_reference=True):
         """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
 
         **Examples**
@@ -511,17 +540,20 @@ class HailContext(object):
 
         :param str delimiter: FAM file field delimiter regex.
 
-        :param bool quantpheno: If True, FAM phenotype is interpreted as quantitative.
+        :param bool quant_pheno: If True, FAM phenotype is interpreted as quantitative.
+
+        :param bool a2_reference: If True, A2 is treated as the reference allele. If False, A1 is treated as the reference allele.
 
         :return: Variant dataset imported from PLINK binary file.
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter, missing, quantpheno)
+        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter, missing, quant_pheno, a2_reference)
 
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       drop_samples=bool,
                       drop_variants=bool)
@@ -551,30 +583,17 @@ class HailContext(object):
             self._jhc.readAll(jindexed_seq_args(path), drop_samples, drop_variants))
 
     @handle_py4j
-    @typecheck_method(path=strlike)
-    def write_partitioning(self, path):
-        """Write partitioning.json.gz file for legacy VDS file.
-
-        :param str path: path to VDS file.
-        """
-
-        self._jhc.writePartitioning(path)
-
-    @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       force=bool,
                       force_bgz=bool,
                       header_file=nullable(strlike),
                       min_partitions=nullable(integral),
                       drop_samples=bool,
-                      store_gq=bool,
-                      pp_as_pl=bool,
-                      skip_bad_ad=bool,
                       generic=bool,
                       call_fields=oneof(strlike, listof(strlike)))
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-                   drop_samples=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, generic=False,
-                   call_fields=[]):
+                   drop_samples=False, generic=False, call_fields=[]):
         """Import VCF file(s) as variant dataset.
 
         **Examples**
@@ -679,18 +698,10 @@ class HailContext(object):
             dataset.  Don't load sample ids, sample annotations or
             genotypes.
 
-        :param bool store_gq: If True, store GQ FORMAT field instead of computing from PL. Only applies if ``generic=False``.
-
-        :param bool pp_as_pl: If True, store PP FORMAT field as PL.  EXPERIMENTAL. Only applies if ``generic=False``.
-
-        :param bool skip_bad_ad: If True, set AD FORMAT field with
-            wrong number of elements to missing, rather than setting
-            the entire genotype to missing. Only applies if ``generic=False``.
-
-        :param bool generic: If True, read the genotype with a generic schema.
-
         :param call_fields: FORMAT fields in VCF to treat as a :py:class:`~hail.type.TCall`. Only applies if ``generic=True``.
         :type call_fields: str or list of str
+
+        :param bool generic: If True, read the genotype with a generic schema.
 
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
@@ -702,8 +713,7 @@ class HailContext(object):
                                                joption(min_partitions), drop_samples, jset_args(call_fields))
         else:
             jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                        joption(min_partitions), drop_samples, store_gq,
-                                        pp_as_pl, skip_bad_ad)
+                                        joption(min_partitions), drop_samples)
 
         return VariantDataset(self, jvds)
 
@@ -730,6 +740,7 @@ class HailContext(object):
         self._jhc.indexBgen(jindexed_seq_args(path))
 
     @handle_py4j
+    @record_method
     @typecheck_method(populations=integral,
                       samples=integral,
                       variants=integral,
@@ -890,6 +901,7 @@ class HailContext(object):
         Env._hc = None
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=strlike)
     def read_table(self, path):
         """Read a KT file as key table.
@@ -902,8 +914,3 @@ class HailContext(object):
 
         jkt = self._jhc.readTable(path)
         return KeyTable(self, jkt)
-
-    @handle_py4j
-    def report(self):
-        """Print information and warnings about VCF + GEN import and deduplication."""
-        self._jhc.report()

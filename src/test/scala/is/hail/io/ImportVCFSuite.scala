@@ -1,8 +1,9 @@
 package is.hail.io
 
+import is.hail.check.Prop._
 import is.hail.SparkSuite
-import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF, VCFReport}
-import is.hail.variant.{Call, Genotype, Variant}
+import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF}
+import is.hail.variant.{Call, Genotype, VSMSubgen, Variant, VariantSampleMatrix}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
@@ -14,7 +15,6 @@ class ImportVCFSuite extends SparkSuite {
   }
 
   @Test def lineRef() {
-
     val line1 = "20\t10280082\t.\tA\tG\t844.69\tPASS\tAC=1;..."
     assert(LoadVCF.lineRef(line1) == "A")
 
@@ -37,33 +37,9 @@ class ImportVCFSuite extends SparkSuite {
     val n = vds.countVariants()
 
     assert(n == 1)
-    assert(VCFReport.accumulators.head._2.value(VCFReport.Symbolic) == 2)
-  }
-
-  @Test def testStoreGQ() {
-    var vds = hc.importVCF("src/test/resources/store_gq.vcf", storeGQ = true)
-
-    val gqs = vds.flatMapWithKeys { case (v, s, g) =>
-      g.gq.map { gqx => ((v.start, s), gqx) }
-    }.collectAsMap()
-    val expectedGQs = Map(
-      (16050612, "S") -> 27,
-      (16050612, "T") -> 15,
-      (16051453, "S") -> 37,
-      (16051453, "T") -> 52)
-    assert(gqs == expectedGQs)
-
-    vds = vds.splitMulti(propagateGQ = true)
-
-    val f = tmpDir.createTempFile("store_gq", ".vcf")
-    vds.exportVCF(f)
-
-    hc.importVCF("src/test/resources/store_gq_split.vcf", storeGQ = true)
-      .same(vds.eraseSplit)
   }
 
   @Test def testGlob() {
-
     val n1 = hc.importVCF("src/test/resources/sample.vcf").countVariants()
     val n2 = hc.importVCF("src/test/resources/samplepart*.vcf").countVariants()
     assert(n1 == n2)
@@ -87,36 +63,13 @@ class ImportVCFSuite extends SparkSuite {
   }
 
   @Test def testMalformed() {
-
     // FIXME abstract
     val e = intercept[SparkException] {
       hc.importVCF("src/test/resources/malformed.vcf").countVariants()
     }
     assert(e.getMessage.contains("caught htsjdk.tribble.TribbleException$InternalCodecException: "))
   }
-
-  @Test def testPPs() {
-    assert(hc.importVCF("src/test/resources/sample.PPs.vcf", ppAsPL = true)
-      .same(hc.importVCF("src/test/resources/sample.vcf")))
-  }
-
-  @Test def testBadAD() {
-    val vds = hc.importVCF("src/test/resources/sample_bad_AD.vcf", skipBadAD = true)
-    assert(vds.expand()
-      .map(_._3)
-      .collect()
-      .contains(Genotype(Some(0), None, Some(30), Some(72), Some(Array(0, 72, 1080)))))
-
-    val failVDS = hc.importVCF("src/test/resources/sample_bad_AD.vcf")
-    val e = intercept[SparkException] {
-      failVDS.expand()
-        .map(_._3)
-        .collect()
-        .contains(Genotype(Some(0), None, Some(30), Some(72), Some(Array(0, 72, 1080))))
-    }
-    assert(e.getMessage.contains("is.hail.utils.HailException: sample_bad_AD.vcf: invalid AD field"))
-  }
-
+  
   @Test def testHaploid() {
     val vds = hc.importVCF("src/test/resources/haploid.vcf")
     val r = vds
@@ -125,7 +78,6 @@ class ImportVCFSuite extends SparkSuite {
       .map { case (v, s, g) => ((v, s), g) }
       .toMap
 
-    hc.report()
     val v1 = Variant("X", 16050036, "A", "C")
     val v2 = Variant("X", 16061250, "T", Array("A", "C"))
 
@@ -170,8 +122,8 @@ class ImportVCFSuite extends SparkSuite {
     val vds = hc.importVCF(vcf)
 
     val (_, qGT) = gds.queryGA("g.GT")
-    val callVDS = vds.expand().map { case (v, s, g) => ((v, s), g.call) }
-    val callGDS = gds.expand().map { case (v, s, g) => ((v, s), qGT(g).asInstanceOf[Call]) }
+    val callVDS = vds.expand().map { case (v, s, g) => ((v, s), Genotype.call(g)) }
+    val callGDS = gds.expand().map { case (v, s, g) => ((v.asInstanceOf[Variant], s), qGT(g).asInstanceOf[Call]) }
 
     assert(callVDS.fullOuterJoin(callGDS).forall { case ((v, s), (c1, c2)) => c1 == c2 })
 
@@ -203,17 +155,17 @@ class ImportVCFSuite extends SparkSuite {
     assert(r2(v2, s1) == (5, 4, 2))
     assert(r2(v2, s2) == (5, null, 2))
 
-    import is.hail.io.vcf.GenericRecordReader._
-    assert(getCall("0/0", 2) == Call(0))
-    assert(getCall("1/0", 2) == Call(1))
-    assert(getCall("0", 2) == Call(0))
-    assert(getCall(".", 2) == null)
-    assert(getCall("./.", 2) == null)
+    import is.hail.io.vcf.HtsjdkRecordReader._
+    assert(parseCall("0/0", 2) == Call(0))
+    assert(parseCall("1/0", 2) == Call(1))
+    assert(parseCall("0", 2) == Call(0))
+    assert(parseCall(".", 2) == null)
+    assert(parseCall("./.", 2) == null)
     intercept[HailException] {
-      getCall("./0", 2) == Call(0)
+      parseCall("./0", 2) == Call(0)
     }
     intercept[HailException] {
-      getCall("""0\0""", 2) == Call(0)
+      parseCall("""0\0""", 2) == Call(0)
     }
   }
 
@@ -230,5 +182,39 @@ class ImportVCFSuite extends SparkSuite {
       Variant("X", 16050036, "A", "C") -> (IndexedSeq(1, null), IndexedSeq(2, null, null)),
       Variant("X", 16061250, "T", Array("A", "C")) -> (IndexedSeq(null, 2, null), IndexedSeq(null, 1.0, null))
     ))
+  }
+
+  @Test def randomExportImportIsIdentity() {
+    forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+
+      val truth = {
+        val f = tmpDir.createTempFile(extension="vcf")
+        vds.exportVCF(f)
+        hc.importVCF(f)
+      }
+
+      val actual = {
+        val f = tmpDir.createTempFile(extension="vcf")
+        truth.toVDS.exportVCF(f)
+        hc.importVCF(f)
+      }
+
+      truth.same(actual)
+    }.check()
+  }
+
+  @Test def notIdenticalHeaders() {
+    val tmp1 = tmpDir.createTempFile("sample1", ".vcf")
+    val tmp2 = tmpDir.createTempFile("sample2", ".vcf")
+    val tmp3 = tmpDir.createTempFile("sample3", ".vcf")
+
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val sampleIds = vds.sampleIds
+    vds.filterSamplesList(Set(sampleIds(0))).exportVCF(tmp1)
+    vds.filterSamplesList(Set(sampleIds(1))).exportVCF(tmp2)
+    assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp2))).getMessage.contains("invalid sample ids"))
+
+    vds.filterSamplesList(Set(sampleIds(0),sampleIds(1))).exportVCF(tmp3)
+    assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp3))).getMessage.contains("invalid sample ids"))
   }
 }

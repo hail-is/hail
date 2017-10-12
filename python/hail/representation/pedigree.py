@@ -1,7 +1,8 @@
 from hail.java import *
 from hail.typecheck import *
+from hail.history import *
 
-class Trio(object):
+class Trio(HistoryMixin):
     """Class containing information about nuclear family relatedness and sex.
 
     :param str proband: Sample ID of proband.
@@ -20,6 +21,7 @@ class Trio(object):
     """
 
     @handle_py4j
+    @record_init
     @typecheck_method(proband=strlike,
                       fam=nullable(strlike),
                       father=nullable(strlike),
@@ -40,6 +42,7 @@ class Trio(object):
         self._is_female = is_female
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         trio = Trio.__new__(cls)
         trio._jrep = jrep
@@ -161,7 +164,7 @@ class Trio(object):
         return self._complete
 
 
-class Pedigree(object):
+class Pedigree(HistoryMixin):
     """Class containing a list of trios, with extra functionality.
 
     :param trios: list of trio objects to include in pedigree
@@ -169,12 +172,13 @@ class Pedigree(object):
     """
 
     @handle_py4j
+    @record_init
     def __init__(self, trios):
-
         self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
         self._trios = trios
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         ped = Pedigree.__new__(cls)
         ped._jrep = jrep
@@ -191,11 +195,12 @@ class Pedigree(object):
     def __hash__(self):
         return self._jrep.hashCode()
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(fam_path=strlike,
-               delimiter=strlike)
-    def read(fam_path, delimiter='\\s+'):
+    @record_classmethod
+    @typecheck_method(fam_path=strlike,
+                      delimiter=strlike)
+    def read(cls, fam_path, delimiter='\\s+'):
         """Read a .fam file and return a pedigree object.
 
         **Examples**
@@ -238,6 +243,7 @@ class Pedigree(object):
         return filter(lambda t: t.is_complete(), self.trios)
 
     @handle_py4j
+    @record_method
     @typecheck_method(samples=listof(strlike))
     def filter_to(self, samples):
         """Filter the pedigree to a given list of sample IDs.
@@ -259,6 +265,7 @@ class Pedigree(object):
         return Pedigree._from_java(self._jrep.filterTo(jset(samples)))
 
     @handle_py4j
+    @write_history('path')
     @typecheck_method(path=strlike)
     def write(self, path):
         """Write a .fam file to the given path.
@@ -278,6 +285,8 @@ class Pedigree(object):
             Reading and writing a PLINK .fam file will result in loss of this information.
             Use the key table method :py:meth:`~hail.KeyTable.import_fam` to manipulate this
             information.
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
 
         :param path: output path
         :type path: str

@@ -1,7 +1,8 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
-import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable}
+import is.hail.annotations.{RichRDDUnsafeRow, UnsafeRow}
+import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import is.hail.variant.Variant
 import org.apache.hadoop
 import org.apache.spark.SparkContext
@@ -38,7 +39,7 @@ trait Implicits {
   implicit def toRichIndexedRow(r: IndexedRow): RichIndexedRow = new RichIndexedRow(r)
 
   implicit def toRichInt(i: Int): RichInt = new RichInt(i)
-  
+
   implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix = new RichIndexedRowMatrix(irm)
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
@@ -47,6 +48,8 @@ trait Implicits {
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichIterable[T](a: Array[T]): RichIterable[T] = new RichIterable(a)
+
+  implicit def toRichContextIterator[T](it: Iterator[WithContext[T]]): RichContextIterator[T] = new RichContextIterator[T](it)
 
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
@@ -81,6 +84,8 @@ trait Implicits {
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
+  implicit def toRichRDDUnsafeRow(r: RDD[UnsafeRow]): RichRDDUnsafeRow = new RichRDDUnsafeRow(r)
+
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 
   implicit def toRichRegex(r: Regex): RichRegex = new RichRegex(r)
@@ -88,8 +93,6 @@ trait Implicits {
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
 
   implicit def toRichSC(sc: SparkContext): RichSparkContext = new RichSparkContext(sc)
-
-  implicit def toRichSQLContext(sqlContext: SQLContext): RichSQLContext = new RichSQLContext(sqlContext)
 
   implicit def toRichSortedPairIterator[K, V](it: Iterator[(K, V)]): RichPairIterator[K, V] = new RichPairIterator(it)
 
