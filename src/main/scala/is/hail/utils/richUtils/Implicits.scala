@@ -1,5 +1,7 @@
 package is.hail.utils.richUtils
 
+import java.io.InputStream
+
 import breeze.linalg.DenseMatrix
 import is.hail.annotations.{RichRDDUnsafeRow, UnsafeRow}
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
@@ -116,4 +118,6 @@ trait Implicits {
     override def next(): Double = it.next().toDouble
     override def hasNext: Boolean = it.hasNext
   }
+
+  implicit def toRichInputStream(in: InputStream): RichInputStream = new RichInputStream(in)
 }
