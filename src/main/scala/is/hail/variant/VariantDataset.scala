@@ -340,15 +340,14 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
     val noCall = Genotype()
     val localKeep = keep
-    vds.mapValuesWithAll(
-      (v: Variant, va: Annotation, s: Annotation, sa: Annotation, g: Genotype) => {
-        ec.setAll(v, va, s, sa, g)
+    vds.mapValuesWithAll(vds.genotypeSignature, { (v: Variant, va: Annotation, s: Annotation, sa: Annotation, g: Genotype) =>
+      ec.setAll(v, va, s, sa, g)
 
-        if (Filter.boxedKeepThis(f(), localKeep))
-          g
-        else
-          noCall
-      })
+      if (Filter.boxedKeepThis(f(), localKeep))
+        g
+      else
+        noCall
+    })
   }
 
   def grm(): KinshipMatrix = {
@@ -358,12 +357,12 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def hardCalls(): VariantDataset = {
-    vds.mapValues { g =>
+    vds.mapValues(TGenotype, { g =>
       if (g == null)
         g
       else
         Genotype(g._unboxedGT, g._fakeRef)
-    }
+    })
   }
 
   /**
