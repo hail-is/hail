@@ -364,7 +364,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
         "Either rename manually or use the 'mangle' option to handle duplicates.\n Overlapping fields:\n  " +
         s"@1", overlappingPaths.truncatable("\n  "))
 
-    val inserterBuilder = ArrayBuilder[Inserter]()
+    val inserterBuilder = new ArrayBuilder[Inserter]()
 
     val finalSignature = (paths, types).zipped.foldLeft(TStruct()) { case (vs, (p, sig)) =>
       val (s: TStruct, i) = vs.insert(sig, p)
