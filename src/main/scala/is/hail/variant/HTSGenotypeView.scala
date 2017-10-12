@@ -22,6 +22,8 @@ sealed abstract class HTSGenotypeView {
 
   def setGenotype(idx: Int)
 
+  def gIsDefined: Boolean
+
   def hasGT: Boolean
 
   def hasAD: Boolean
@@ -41,9 +43,11 @@ sealed abstract class HTSGenotypeView {
   def getGQ: Int
 
   def getPL(idx: Int): Int
+
+  def isLinearScale: Boolean
 }
 
-private class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
+class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
   private val tgs = rs.fields(2).typ.asInstanceOf[TArray]
   private val tg = TGenotype.representation
 
@@ -58,7 +62,8 @@ private class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
   private var gsOffset: Long = _
   private var gsLength: Int = _
   private var gOffset: Long = _
-  private var gIsDefined: Boolean = _
+
+  var gIsDefined: Boolean = _
 
   def setRegion(mb: MemoryBuffer, offset: Long) {
     this.m = mb
@@ -81,7 +86,9 @@ private class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
   def hasGQ: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, gqIndex)
 
   def hasPL: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, pxIndex) &&
-    m.loadBoolean(tg.loadField(m, gOffset, linearScaleIndex))
+    !m.loadBoolean(tg.loadField(m, gOffset, linearScaleIndex))
+
+  def hasPX: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, pxIndex)
 
   def getGT: Int = {
     val callOffset = tg.loadField(m, gOffset, gtIndex)
@@ -95,7 +102,7 @@ private class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
       throw new ArrayIndexOutOfBoundsException(idx)
     assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, adOffset, idx))
 
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(gOffset + adOffset, length, idx)
+    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(adOffset, length, idx)
     m.loadInt(elementOffset)
   }
 
@@ -109,14 +116,21 @@ private class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
     m.loadInt(gqOffset)
   }
 
-  def getPL(idx: Int): Int = {
+  def getPX(idx: Int): Int = {
     val pxOffset = tg.loadField(m, gOffset, pxIndex)
     val length = HTSGenotypeView.tArrayInt32.loadLength(m, pxOffset)
     if (idx < 0 || idx >= length)
       throw new ArrayIndexOutOfBoundsException(idx)
     assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, pxOffset, idx))
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(gOffset + pxOffset, length, idx)
+    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(pxOffset, length, idx)
     m.loadInt(elementOffset)
+  }
+
+  def getPL(idx: Int): Int = getPX(idx)
+
+  def isLinearScale: Boolean = {
+    assert(gIsDefined)
+    m.loadBoolean(tg.loadField(m, gOffset, linearScaleIndex))
   }
 }
 
@@ -141,7 +155,8 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
   private var gsOffset: Long = _
   private var gsLength: Int = _
   private var gOffset: Long = _
-  private var gIsDefined: Boolean = _
+
+  var gIsDefined: Boolean = _
 
   def setRegion(mb: MemoryBuffer, offset: Long) {
     this.m = mb
@@ -177,7 +192,7 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
       throw new ArrayIndexOutOfBoundsException(idx)
     assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, adOffset, idx))
 
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(gOffset + adOffset, length, idx)
+    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(adOffset, length, idx)
     m.loadInt(elementOffset)
   }
 
@@ -197,7 +212,9 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
     if (idx < 0 || idx >= length)
       throw new ArrayIndexOutOfBoundsException(idx)
     assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, pxOffset, idx))
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(gOffset + pxOffset, length, idx)
+    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(pxOffset, length, idx)
     m.loadInt(elementOffset)
   }
+
+  def isLinearScale: Boolean = false
 }
