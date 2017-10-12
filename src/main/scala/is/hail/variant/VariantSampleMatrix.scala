@@ -78,7 +78,7 @@ object VariantSampleMatrix {
           s"""corrupt or outdated VDS: invalid metadata
              |  Recreate VDS with current version of Hail.
              |  Detailed exception:
-             |  ${e.getMessage}""".stripMargin)
+             |  ${ e.getMessage }""".stripMargin)
       }
     }
 
@@ -268,6 +268,42 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
+
+  def rdd2: RDD[RegionValue] = {
+    val localRowSignature = rowSignature
+    val localGSignature = genotypeSignature
+    val localNSamples = nSamples
+    rdd.mapPartitions { it =>
+      val region = MemoryBuffer()
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+
+      val a = new Array[Any](localNSamples)
+      val t = localRowSignature
+
+      it.map { case (v, (va, gs)) =>
+        region.clear()
+        rvb.start(t)
+        rvb.startStruct()
+        rvb.addAnnotation(t.fields(0).typ, v)
+        rvb.addAnnotation(t.fields(1).typ, va)
+        rvb.startArray(localNSamples)
+        var i = 0
+        val git = gs.iterator
+        while (i < localNSamples) {
+          val b = git.hasNext
+          assert(b)
+          val g = git.next()
+          rvb.addAnnotation(localGSignature, g)
+          i += 1
+        }
+        rvb.endArray()
+        rvb.endStruct()
+        rv.setOffset(rvb.end())
+        rv
+      }
+    }
+  }
 
   def unsafeRowRDD: RDD[UnsafeRow] = {
     val ttBc = BroadcastTypeTree(hc.sc, rowSignature)
@@ -1067,7 +1103,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }.toArray
     filterSamplesMask(mask)
   }
-  
+
   /**
     * Filter samples using the Hail expression language.
     *
@@ -1256,7 +1292,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
   def flatMapVariants(f: (RK, Annotation, Iterable[T]) => TraversableOnce[(RK, (Annotation, Iterable[T]))]): VariantSampleMatrix[RPK, RK, T] =
-  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
@@ -1639,7 +1675,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         case (None, Some(j)) => notInDataset += s
       }
     }
-    
+
     if (missingSamples.nonEmpty)
       fatal(s"Found ${ missingSamples.size } ${ plural(missingSamples.size, "sample ID") } in dataset that are not in new ordering:\n  " +
         s"@1", missingSamples.truncatable("\n  "))
@@ -2136,7 +2172,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     val localNSamples = nSamples
     val localGenotypeSignature = genotypeSignature
-    unsafeRowRDD.writeRows(dirname, rowSignature)
+    rdd2.writeRows(dirname, rowSignature)
   }
 
   def makeSchema(): StructType = {

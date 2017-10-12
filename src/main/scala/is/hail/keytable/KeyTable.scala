@@ -2,7 +2,7 @@ package is.hail.keytable
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{TStruct, _}
+import is.hail.expr._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
@@ -82,9 +82,13 @@ object KeyTable {
     }
 
     val schema = Parser.parseType(metadata.schema).asInstanceOf[TStruct]
+    val ttBc = BroadcastTypeTree(hc.sc, schema)
 
     KeyTable(hc,
-      new ReadRowsRDD(hc.sc, path, schema, metadata.n_partitions),
+      new ReadRowsRDD(hc.sc, path, schema, metadata.n_partitions)
+        .map { rv =>
+          new UnsafeRow(ttBc, rv.region.copy(), rv.offset)
+        },
       schema,
       metadata.key)
   }
@@ -182,21 +186,19 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
-  def unsafeRowRDD: RDD[UnsafeRow] = {
-    val ttBc = BroadcastTypeTree(hc.sc, signature)
-
+  def rdd2: RDD[RegionValue] = {
+    val localSignature = signature
     rdd.mapPartitions { it =>
       val region = MemoryBuffer(8 * 1024)
       val rvb = new RegionValueBuilder(region)
-
-      val t = ttBc.value.typ.asInstanceOf[TStruct]
+      val rv = RegionValue(region)
 
       it.map { r =>
         region.clear()
-        rvb.start(t)
-        rvb.addRow(t, r)
-        val offset = rvb.end()
-        new UnsafeRow(ttBc, region.copy(), offset)
+        rvb.start(localSignature)
+        rvb.addRow(localSignature, r)
+        rv.setOffset(rvb.end())
+        rv
       }
     }
   }
@@ -658,7 +660,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))
 
-    unsafeRowRDD.writeRows(path, signature)
+    rdd2.writeRows(path, signature)
   }
 
   def cache(): KeyTable = persist("MEMORY_ONLY")
@@ -773,7 +775,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     /**
       * Parts of this method are lifted from:
       *   org.apache.spark.sql.Dataset.showString
-      *   Spark version 2.0.2
+      * Spark version 2.0.2
       */
 
     require(n >= 0, s"number of rows to show must be non-negative, found $n")

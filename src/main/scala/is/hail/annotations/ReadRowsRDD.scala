@@ -1,22 +1,199 @@
 package is.hail.annotations
 
-import java.io.{DataInputStream, DataOutputStream}
+import java.io.{InputStream, OutputStream}
+import java.util
 
 import is.hail.expr._
 import is.hail.utils.{SerializableHadoopConfiguration, _}
-import net.jpountz.lz4.{LZ4BlockInputStream, LZ4Factory}
+import is.hail.variant.LZ4Utils
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 
-class Decoder(in: DataInputStream) {
+class ArrayInputStream(var a: Array[Byte], var end: Int) extends InputStream {
+  var off: Int = 0
 
-  def readByte(): Byte = {
-    val i = in.read()
-    assert(i != -1)
-    i.toByte
+  def this(a: Array[Byte]) = this(a, a.length)
+
+  def clear() {
+    off = 0
   }
+
+  def read(): Int = {
+    if (off == end)
+      -1
+    else {
+      val c = a(off) & 0xff
+      off += 1
+      c
+    }
+  }
+
+  override def read(to: Array[Byte], toOff: Int, len: Int): Int = {
+    if (end == off)
+      -1
+    else {
+      val p = math.min(len, end - off)
+      System.arraycopy(a, off, to, toOff, p)
+      off += p
+      p
+    }
+  }
+
+  override def skip(n: Long): Long = {
+    assert(end != off)
+    assert(n <= Int.MaxValue)
+    val p = math.min(n.toInt, end - off)
+    off += p
+    p
+  }
+
+  override def available(): Int = end - off
+}
+
+class ArrayOutputStream(sizeHint: Int = 32) extends OutputStream {
+  var a: Array[Byte] = new Array[Byte](sizeHint)
+  var off: Int = 0
+
+  private def ensure(n: Int) {
+    val newEnd = off + n
+    if (newEnd > a.length) {
+      val newLength = math.max((a.length * 3) / 2, off + n)
+      val newA = new Array[Byte](newLength)
+      System.arraycopy(a, 0, newA, 0, off)
+      a = newA
+    }
+  }
+
+  def clear() {
+    off = 0
+  }
+
+  def write(b: Int) {
+    ensure(1)
+    a(off) = b.toByte
+    off += 1
+  }
+
+  override def write(from: Array[Byte], fromOff: Int, len: Int) {
+    ensure(len)
+    System.arraycopy(from, fromOff, a, off, len)
+    off += len
+  }
+}
+
+abstract class OutputBuffer {
+  def flush(): Unit
+
+  def writeByte(b: Byte): Unit
+
+  def writeFloat(f: Float): Unit
+
+  def writeDouble(d: Double): Unit
+
+  def writeBytes(mem: Long, off: Long, n: Int): Unit
+
+  def writeBoolean(b: Boolean) {
+    writeByte(b.toByte)
+  }
+
+  def writeInt(i: Int) {
+    var j = i
+    do {
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      writeByte(b.toByte)
+    } while (j != 0)
+  }
+
+  def writeLong(l: Long) {
+    var j = l
+    do {
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      writeByte(b.toByte)
+    } while (j != 0)
+  }
+}
+
+object LZ4Buffer {
+  final val blockSize = 128 * 1024
+  // final val blockSize = 16
+}
+
+class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
+  val buf: Array[Byte] = new Array[Byte](LZ4Buffer.blockSize)
+  var off: Int = 0
+
+  val comp = new Array[Byte](8 + LZ4Utils.maxCompressedLength(LZ4Buffer.blockSize))
+
+  private def writeBlock() {
+    if (off > 0) {
+      val compLen = LZ4Utils.compress(comp, 8, buf, off)
+      Memory.storeInt(comp, 0, compLen)
+      Memory.storeInt(comp, 4, off) // decompLen
+
+      out.write(comp, 0, 8 + compLen)
+
+      off = 0
+    }
+  }
+
+  def flush() {
+    writeBlock()
+  }
+
+  def writeByte(b: Byte) {
+    if (off + 1 > buf.length)
+      writeBlock()
+    Memory.storeByte(buf, off, b)
+    off += 1
+  }
+
+  def writeFloat(f: Float) {
+    if (off + 4 > buf.length)
+      writeBlock()
+    Memory.storeFloat(buf, off, f)
+    off += 4
+  }
+
+  def writeDouble(d: Double) {
+    if (off + 8 > buf.length)
+      writeBlock()
+    Memory.storeDouble(buf, off, d)
+    off += 8
+  }
+
+  def writeBytes(from0: Long, from0Off: Long, n0: Int) {
+    var from = from0 + from0Off
+    var n = n0
+
+    while (off + n > buf.length) {
+      val p = buf.length - off
+      Memory.memcpy(buf, off, from, p)
+      off += p
+      from += p
+      n -= p
+      assert(off == buf.length)
+      writeBlock()
+    }
+    Memory.memcpy(buf, off, from, n)
+    off += n
+  }
+}
+
+abstract class InputBuffer {
+  def readByte(): Byte
+
+  def readFloat(): Float
+
+  def readDouble(): Double
+
+  def readBytes(to: Long, toOff: Long, n: Int)
 
   def readBoolean(): Boolean = readByte() != 0
 
@@ -45,30 +222,89 @@ class Decoder(in: DataInputStream) {
 
     x
   }
+}
 
-  def readFloat(): Float = in.readFloat()
+class LZ4InputBuffer(in: InputStream) extends InputBuffer {
+  private var buf = new Array[Byte](LZ4Buffer.blockSize)
+  private var end: Int = 0
+  private var off: Int = 0
 
-  def readDouble(): Double = in.readDouble()
+  private val comp = new Array[Byte](8 + LZ4Utils.maxCompressedLength(LZ4Buffer.blockSize))
 
-  def readBytes(mem: Long, off: Long, n: Long) {
-    var i = 0
-    while (i < n) {
-      Memory.storeByte(mem + off + i, in.readByte())
-      i += 1
-    }
+  private def readBlock() {
+    assert(off == end)
+
+    // read the header
+    in.readFully(comp, 0, 4)
+    val compLen = Memory.loadInt(comp, 0)
+
+    in.readFully(comp, 4, 4 + compLen)
+    val decompLen = Memory.loadInt(comp, 4)
+
+    LZ4Utils.decompress(buf, 0, decompLen, comp, 8, compLen)
+
+    off = 0
+    end = decompLen
   }
 
+  private def ensure(n: Int) {
+    if (off == end)
+      readBlock()
+    assert(off + n <= end)
+  }
+
+  def readByte(): Byte = {
+    ensure(1)
+    val b = Memory.loadByte(buf, off)
+    off += 1
+    b
+  }
+
+  def readFloat(): Float = {
+    ensure(4)
+    val d = Memory.loadFloat(buf, off)
+    off += 4
+    d
+  }
+
+  def readDouble(): Double = {
+    ensure(8)
+    val d = Memory.loadDouble(buf, off)
+    off += 8
+    d
+  }
+
+  def readBytes(to0: Long, toOff0: Long, n0: Int) {
+    var to = to0 + toOff0
+    var n = n0
+
+    while (n > 0) {
+      if (end == off)
+        readBlock()
+      val p = math.min(end - off, n)
+      assert(p > 0)
+      Memory.memcpy(to, buf, off, p)
+      to += p
+      n -= p
+      off += p
+    }
+  }
+}
+
+final class Decoder(in: InputBuffer) {
+  def readByte(): Byte = in.readByte()
+
   def readBinary(region: MemoryBuffer, off: Long) {
-    val length = readInt()
+    val length = in.readInt()
     region.align(4)
     val boff = region.allocate(4 + length)
     region.storeAddress(off, boff)
     region.storeInt(boff, length)
-    readBytes(region.mem, boff + 4, length)
+    in.readBytes(region.mem, boff + 4, length)
   }
 
   def readArray(t: TArray, region: MemoryBuffer): Long = {
-    val length = readInt()
+    val length = in.readInt()
 
     val contentSize = t.contentsByteSize(length)
     region.align(t.contentsAlignment)
@@ -76,29 +312,40 @@ class Decoder(in: DataInputStream) {
 
     val nMissingBytes = (length + 7) / 8
     region.storeInt(aoff, length)
-    readBytes(region.mem, aoff + 4, nMissingBytes)
+    in.readBytes(region.mem, aoff + 4, nMissingBytes)
 
     val elemsOff = aoff + t.elementsOffset(length)
-    val elemSize = UnsafeUtils.arrayElementSize(t.elementType)
+    val elemSize = t.elementByteSize
 
-    var i = 0
-    while (i < length) {
-      if (!region.loadBit(aoff + 4, i)) {
-        val off = elemsOff + i * elemSize
-        t.elementType match {
-          case t2: TStruct => readStruct(t2, region, off)
-          case t2: TArray =>
-            val aoff = readArray(t2, region)
-            region.storeAddress(off, aoff)
-          case TBoolean => region.storeByte(off, readBoolean().toByte)
-          case TInt32 => region.storeInt(off, readInt())
-          case TInt64 => region.storeLong(off, readLong())
-          case TFloat32 => region.storeFloat(off, readFloat())
-          case TFloat64 => region.storeDouble(off, readDouble())
-          case TBinary => readBinary(region, off)
+    if (t.elementType == TInt32) { // fast path
+      var i = 0
+      while (i < length) {
+        if (!region.loadBit(aoff + 4, i)) {
+          val off = elemsOff + i * elemSize
+          region.storeInt(off, in.readInt())
         }
+        i += 1
       }
-      i += 1
+    } else {
+      var i = 0
+      while (i < length) {
+        if (!region.loadBit(aoff + 4, i)) {
+          val off = elemsOff + i * elemSize
+          t.elementType match {
+            case t2: TStruct => readStruct(t2, region, off)
+            case t2: TArray =>
+              val aoff = readArray(t2, region)
+              region.storeAddress(off, aoff)
+            case TBoolean => region.storeByte(off, in.readBoolean().toByte)
+            case TInt32 => region.storeInt(off, in.readInt())
+            case TInt64 => region.storeLong(off, in.readLong())
+            case TFloat32 => region.storeFloat(off, in.readFloat())
+            case TFloat64 => region.storeDouble(off, in.readDouble())
+            case TBinary => readBinary(region, off)
+          }
+        }
+        i += 1
+      }
     }
 
     aoff
@@ -106,7 +353,7 @@ class Decoder(in: DataInputStream) {
 
   def readStruct(t: TStruct, region: MemoryBuffer, offset: Long) {
     val nMissingBytes = (t.size + 7) / 8
-    readBytes(region.mem, offset, nMissingBytes)
+    in.readBytes(region.mem, offset, nMissingBytes)
 
     var i = 0
     while (i < t.size) {
@@ -118,11 +365,11 @@ class Decoder(in: DataInputStream) {
           case t2: TArray =>
             val aoff = readArray(t2, region)
             region.storeAddress(off, aoff)
-          case TBoolean => region.storeByte(off, readBoolean().toByte)
-          case TInt32 => region.storeInt(off, readInt())
-          case TInt64 => region.storeLong(off, readLong())
-          case TFloat32 => region.storeFloat(off, readFloat())
-          case TFloat64 => region.storeDouble(off, readDouble())
+          case TBoolean => region.storeByte(off, in.readBoolean().toByte)
+          case TInt32 => region.storeInt(off, in.readInt())
+          case TInt64 => region.storeLong(off, in.readLong())
+          case TFloat32 => region.storeFloat(off, in.readFloat())
+          case TFloat64 => region.storeDouble(off, in.readDouble())
           case TBinary => readBinary(region, off)
         }
       }
@@ -145,93 +392,61 @@ class Decoder(in: DataInputStream) {
   }
 }
 
-class Encoder(out: DataOutputStream) {
+final class Encoder(out: OutputBuffer) {
+  def flush() { out.flush() }
 
-  def writeByte(b: Byte) {
-    out.write(b)
-  }
-
-  def writeBoolean(b: Boolean) {
-    writeByte(b.toByte)
-  }
-
-  def writeInt(i: Int) {
-    var j = i
-    do {
-      var b = j & 0x7f
-      j >>>= 7
-      if (j != 0)
-        b |= 0x80
-      writeByte(b.toByte)
-    } while (j != 0)
-  }
-
-  def writeLong(l: Long) {
-    var j = l
-    do {
-      var b = j & 0x7f
-      j >>>= 7
-      if (j != 0)
-        b |= 0x80
-      writeByte(b.toByte)
-    } while (j != 0)
-  }
-
-  def writeFloat(f: Float) {
-    out.writeFloat(f)
-  }
-
-  def writeDouble(d: Double) {
-    out.writeDouble(d)
-  }
-
-  def writeBytes(mem: Long, off: Long, n: Int) {
-    var i = 0
-    while (i < n) {
-      out.writeByte(Memory.loadByte(mem + off + i))
-      i += 1
-    }
-  }
+  def writeByte(b: Byte): Unit = out.writeByte(b)
 
   def writeBinary(region: MemoryBuffer, offset: Long) {
     val boff = region.loadAddress(offset)
     val length = region.loadInt(boff)
-    writeInt(length)
-    writeBytes(region.mem, boff + 4, length)
+    out.writeInt(length)
+    out.writeBytes(region.mem, boff + 4, length)
   }
 
   def writeArray(t: TArray, region: MemoryBuffer, aoff: Long) {
     val length = region.loadInt(aoff)
 
     val nMissingBytes = (length + 7) / 8
-    writeInt(length)
-    writeBytes(region.mem, aoff + 4, nMissingBytes)
+    out.writeInt(length)
+    out.writeBytes(region.mem, aoff + 4, nMissingBytes)
 
     val elemsOff = aoff + t.elementsOffset(length)
-    val elemSize = UnsafeUtils.arrayElementSize(t.elementType)
-    var i = 0
-    while (i < length) {
-      if (!region.loadBit(aoff + 4, i)) {
-        val off = elemsOff + i * elemSize
-        t.elementType match {
-          case t2: TStruct => writeStruct(t2, region, off)
-          case t2: TArray => writeArray(t2, region, region.loadAddress(off))
-          case TBoolean => writeBoolean(region.loadByte(off) != 0)
-          case TInt32 => writeInt(region.loadInt(off))
-          case TInt64 => writeLong(region.loadLong(off))
-          case TFloat32 => writeFloat(region.loadFloat(off))
-          case TFloat64 => writeDouble(region.loadDouble(off))
-          case TBinary => writeBinary(region, off)
+    val elemSize = t.elementByteSize
+    if (t.elementType == TInt32) { // fast case
+      var i = 0
+      while (i < length) {
+        if (t.isElementDefined(region, aoff, i)) {
+          val off = elemsOff + i * elemSize
+          out.writeInt(region.loadInt(off))
         }
+        i += 1
       }
+    } else {
+      var i = 0
+      while (i < length) {
+        if (t.isElementDefined(region, aoff, i)) {
+          val off = elemsOff + i * elemSize
+          t.elementType match {
+            case t2: TStruct => writeStruct(t2, region, off)
+            case t2: TArray => writeArray(t2, region, region.loadAddress(off))
+            case TBoolean => out.writeBoolean(region.loadByte(off) != 0)
+            case TInt32 => out.writeInt(region.loadInt(off))
+            case TInt64 => out.writeLong(region.loadLong(off))
+            case TFloat32 => out.writeFloat(region.loadFloat(off))
+            case TFloat64 => out.writeDouble(region.loadDouble(off))
+            case TBinary => writeBinary(region, off)
+          }
+        }
 
-      i += 1
+        i += 1
+      }
     }
   }
 
   def writeStruct(t: TStruct, region: MemoryBuffer, offset: Long) {
     val nMissingBytes = (t.size + 7) / 8
-    writeBytes(region.mem, offset, nMissingBytes)
+    out.writeBytes(region.mem, offset, nMissingBytes)
 
     var i = 0
     while (i < t.size) {
@@ -240,11 +455,11 @@ class Encoder(out: DataOutputStream) {
         t.fields(i).typ match {
           case t2: TStruct => writeStruct(t2, region, off)
           case t2: TArray => writeArray(t2, region, region.loadAddress(off))
-          case TBoolean => writeBoolean(region.loadByte(off) != 0)
-          case TInt32 => writeInt(region.loadInt(off))
-          case TInt64 => writeLong(region.loadLong(off))
-          case TFloat32 => writeFloat(region.loadFloat(off))
-          case TFloat64 => writeDouble(region.loadDouble(off))
+          case TBoolean => out.writeBoolean(region.loadByte(off) != 0)
+          case TInt32 => out.writeInt(region.loadInt(off))
+          case TInt64 => out.writeLong(region.loadLong(off))
+          case TFloat32 => out.writeFloat(region.loadFloat(off))
+          case TFloat64 => out.writeDouble(region.loadDouble(off))
           case TBinary => writeBinary(region, off)
         }
       }
@@ -264,7 +479,7 @@ class Encoder(out: DataOutputStream) {
   }
 }
 
-class RichRDDUnsafeRow(val rdd: RDD[UnsafeRow]) extends AnyVal {
+class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
   def writeRows(path: String, t: TStruct) {
     val sc = rdd.sparkContext
     val hadoopConf = sc.hadoopConfiguration
@@ -283,22 +498,18 @@ class RichRDDUnsafeRow(val rdd: RDD[UnsafeRow]) extends AnyVal {
       assert(is.length <= d)
       val pis = StringUtils.leftPad(is, d, "0")
 
-      sHadoopConfBc.value.value.writeLZ4DataFile(path + "/rowstore/part-" + pis,
-        64 * 1024,
-        LZ4Factory.fastestInstance().highCompressor()) { out =>
-        val en = new Encoder(out)
+      sHadoopConfBc.value.value.writeFile(path + "/rowstore/part-" + pis) { out =>
+        val en = new Encoder(new LZ4OutputBuffer(out))
 
-        it.foreach { r =>
-
-          val rowSize = r.region.offset
-          out.writeLong(rowSize)
-
-          en.writeRegionValue(t, r.region, r.offset)
-
+        it.foreach { rv =>
+          // println("write rv", rv.pretty(t))
+          en.writeByte(1)
+          en.writeRegionValue(t, rv.region, rv.offset)
           rowCount += 1
         }
 
-        out.writeLong(-1)
+        en.writeByte(0) // end
+        en.flush()
       }
 
       Iterator(rowCount)
@@ -312,52 +523,48 @@ class RichRDDUnsafeRow(val rdd: RDD[UnsafeRow]) extends AnyVal {
 case class ReadRowsRDDPartition(index: Int) extends Partition
 
 class ReadRowsRDD(sc: SparkContext,
-  path: String, t: TStruct, nPartitions: Int) extends RDD[Row](sc, Nil) {
-  val ttBc = BroadcastTypeTree(sc, t)
+  path: String, t: TStruct, nPartitions: Int) extends RDD[RegionValue](sc, Nil) {
 
   override def getPartitions: Array[Partition] =
     Array.tabulate(nPartitions)(i => ReadRowsRDDPartition(i))
 
   private val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
-  override def compute(split: Partition, context: TaskContext): Iterator[UnsafeRow] = {
+  override def compute(split: Partition, context: TaskContext): Iterator[RegionValue] = {
     val d = digitsNeeded(nPartitions)
     val localPath = path
+    val localT = t
 
-    new Iterator[UnsafeRow] {
+    new Iterator[RegionValue] {
       private val in = {
         val is = split.index.toString
         assert(is.length <= d)
         val pis = StringUtils.leftPad(is, d, "0")
-        new DataInputStream(
-          new LZ4BlockInputStream(sHadoopConfBc.value.value.unsafeReader(localPath + "/rowstore/part-" + pis),
-            LZ4Factory.fastestInstance().fastDecompressor()))
+        sHadoopConfBc.value.value.unsafeReader(localPath + "/rowstore/part-" + pis)
       }
 
-      private var rowSize = in.readLong()
+      private val region = MemoryBuffer()
+      private val rv = RegionValue(region)
 
-      private val region = MemoryBuffer(rowSize.max(8 * 1024))
+      private val dec = new Decoder(new LZ4InputBuffer(in))
 
-      private val dec = new Decoder(in)
+      private var cont = dec.readByte()
 
-      private val t = ttBc.value.typ.asInstanceOf[TStruct]
+      def hasNext: Boolean = cont != 0
 
-      def hasNext: Boolean = rowSize != -1
-
-      def next(): UnsafeRow = {
+      def next(): RegionValue = {
         if (!hasNext)
           throw new NoSuchElementException("next on empty iterator")
 
         region.clear()
-        region.ensure(rowSize)
+        rv.setOffset(dec.readRegionValue(localT, region))
 
-        dec.readRegionValue(t, region)
-
-        rowSize = in.readLong()
-        if (rowSize == -1)
+        // println("read rv", rv.pretty(t))
+        cont = dec.readByte()
+        if (cont == 0)
           in.close()
 
-        new UnsafeRow(ttBc, region.copy(), 0)
+        rv
       }
     }
   }

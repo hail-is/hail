@@ -3,7 +3,7 @@ package is.hail.expr
 import java.io.FileNotFoundException
 
 import is.hail.HailContext
-import is.hail.annotations.{Annotation, ReadRowsRDD}
+import is.hail.annotations.{Annotation, BroadcastTypeTree, ReadRowsRDD, UnsafeRow}
 import is.hail.methods.Aggregators
 import is.hail.sparkextras.{OrderedKey, OrderedPartitioner, OrderedRDD}
 import is.hail.variant.{Genotype, Locus, VSMFileMetadata, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
@@ -269,8 +269,12 @@ case class MatrixRead(
       if (dropVariants)
         OrderedRDD.empty[Annotation, Annotation, (Annotation, Iterable[Annotation])](hc.sc)
       else {
+        val rowTTBc = BroadcastTypeTree(hc.sc, typ.rowType)
         val rdd = new ReadRowsRDD(hc.sc, path, typ.rowType, nPartitions)
-        .map { ur =>
+        .map { rv =>
+          // FIXME expensive
+          val ur = new UnsafeRow(rowTTBc, rv.region.copy(), rv.offset)
+
           val v = ur.get(0)
           val va = ur.get(1)
           val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
