@@ -1,5 +1,7 @@
 package is.hail.utils.richUtils
 
+import java.io.InputStream
+
 import breeze.linalg.DenseMatrix
 import is.hail.annotations.{RichRDDUnsafeRow, UnsafeRow}
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
