@@ -1,9 +1,8 @@
 package is.hail.utils.richUtils
 
+import is.hail.utils.ArrayBuilder
 import is.hail.variant.Variant
 import org.apache.spark.sql.Row
-
-import scala.collection.mutable
 
 class RichRow(r: Row) {
 
@@ -32,7 +31,7 @@ class RichRow(r: Row) {
   }
 
   def delete(i: Int): Row = {
-    val ab = mutable.ArrayBuilder.make[Any]
+    val ab = new ArrayBuilder[Any]()
     (0 until i).foreach(ab += r.get(_))
     (i + 1 until r.size).foreach(ab += r.get(_))
     val result = ab.result()
@@ -43,19 +42,19 @@ class RichRow(r: Row) {
   }
 
   def append(a: Any): Row = {
-    val ab = mutable.ArrayBuilder.make[Any]
+    val ab = new ArrayBuilder[Any]()
     ab ++= r.toSeq
     ab += a
     Row.fromSeq(ab.result())
   }
 
   def insertBefore(i: Int, a: Any): Row = {
-    val ab = mutable.ArrayBuilder.make[Any]
+    val ab = new ArrayBuilder[Any]()
     (0 until i).foreach(ab += r.get(_))
     ab += a
     (i until r.size).foreach(ab += r.get(_))
     Row.fromSeq(ab.result())
   }
 
-  def getVariant(i: Int) = Variant.fromRow(r.getAs[Row](i))
+  def getVariant(i: Int): Variant = Variant.fromRow(r.getAs[Row](i))
 }

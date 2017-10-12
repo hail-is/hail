@@ -1,11 +1,9 @@
 package is.hail.annotations
 
 import is.hail.expr._
-import is.hail.utils.Interval
+import is.hail.utils.{ArrayBuilder, Interval}
 import is.hail.variant._
 import org.apache.spark.sql.Row
-
-import scala.collection.mutable
 
 object Annotation {
 
@@ -133,7 +131,7 @@ object Annotation {
   def buildInserter(code: String, t: Type, ec: EvalContext, expectedHead: String): (Type, Inserter) = {
     val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, Some(expectedHead))
 
-    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val inserterBuilder = new ArrayBuilder[Inserter]()
     val finalType = (paths, types).zipped.foldLeft(t) { case (t, (ids, signature)) =>
       val (s, i) = t.insert(signature, ids)
       inserterBuilder += i
