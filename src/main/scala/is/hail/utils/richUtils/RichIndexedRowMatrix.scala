@@ -9,9 +9,9 @@ object RichIndexedRowMatrix {
   private def seqOp(truncatedBlockRow: Int, truncatedBlockCol: Int, excessRows: Int, excessCols: Int, blockSize: Int)
     (block: Array[Double], row: (Int, Int, Int, Array[Double])): Array[Double] = row match {
     case (i, j, ii, a) =>
-      val block2 = if (block == null) new Array[Double](blockSize * blockSize) else block
       val rowsInBlock: Int = if (i == truncatedBlockRow) excessRows else blockSize
       val colsInBlock: Int = if (j == truncatedBlockCol) excessCols else blockSize
+      val block2 = if (block == null) new Array[Double](rowsInBlock * colsInBlock) else block
 
       var jj = 0
       while (jj < a.length) {
@@ -63,12 +63,15 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
 
       var j = 0
       while (j < colPartitions) {
-        val group = new Array[Double](blockSize)
-        grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
-        if (j != truncatedBlockCol)
+        if (j != truncatedBlockCol) {
+          val group = new Array[Double](blockSize)
+          grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
           System.arraycopy(a, j*blockSize, group, 0, blockSize)
-        else
+        } else {
+          val group = new Array[Double](excessCols)
+          grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
           System.arraycopy(a, j*blockSize, group, 0, excessCols)
+        }
         j += 1
       }
 
@@ -76,25 +79,9 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     }.aggregateByKey(null: Array[Double], partitioner)(
       seqOp(truncatedBlockRow, truncatedBlockCol, excessRows, excessCols, blockSize), combOp)
       .mapValuesWithKey { case ((i, j), a) =>
-        if (j == truncatedBlockCol) {
-          if (i == truncatedBlockRow) {
-            val a2 = new Array[Double](excessRows * excessCols)
-            System.arraycopy(a, 0, a2, 0, a2.length)
-            new BDM[Double](excessRows, excessCols, a2)
-          } else {
-            val a2 = new Array[Double](blockSize * excessCols)
-            System.arraycopy(a, 0, a2, 0, a2.length)
-            new BDM[Double](blockSize, excessCols, a2)
-          }
-        } else {
-          if (i == truncatedBlockRow) {
-            val a2 = new Array[Double](excessRows * blockSize)
-            System.arraycopy(a, 0, a2, 0, a2.length)
-            new BDM[Double](excessRows, blockSize, a2)
-          } else {
-            new BDM[Double](blockSize, blockSize, a)
-          }
-        }
+        val rowsInBlock: Int = if (i == truncatedBlockRow) excessRows else blockSize
+        val colsInBlock: Int = if (j == truncatedBlockCol) excessCols else blockSize
+        new BDM[Double](rowsInBlock, colsInBlock, a)
     }
 
     new BlockMatrix(blocks, blockSize, rows, cols)
