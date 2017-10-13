@@ -61,18 +61,18 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
       val a = ir.vector.toArray
       val grouped = new Array[((Int, Int), (Int, Int, Int, Array[Double]))](colPartitions)
 
+      val fullColPartitions = if (excessCols == 0) colPartitions else colPartitions - 1
       var j = 0
-      while (j < colPartitions) {
-        if (j != truncatedBlockCol) {
-          val group = new Array[Double](blockSize)
-          grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
-          System.arraycopy(a, j * blockSize, group, 0, blockSize)
-        } else {
-          val group = new Array[Double](excessCols)
-          grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
-          System.arraycopy(a, j * blockSize, group, 0, excessCols)
-        }
+      while (j < fullColPartitions) {
+        val group = new Array[Double](blockSize)
+        grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
+        System.arraycopy(a, j * blockSize, group, 0, excessCols)
         j += 1
+      }
+      if (excessCols > 0) {
+        val group = new Array[Double](excessCols)
+        grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
+        System.arraycopy(a, j * blockSize, group, 0, excessCols)
       }
 
       grouped.iterator
