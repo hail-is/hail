@@ -56,37 +56,46 @@ class UnsafeSuite extends SparkSuite {
     val rvb = new RegionValueBuilder(region)
     val rvb2 = new RegionValueBuilder(region2)
 
-    val g = Type.genStruct
+    val g = Type.genArb
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
       .filter { case (t, a) => a != null }
       .resize(10)
     val p = Prop.forAll(g) { case (t, a) =>
+      val ttBc = BroadcastTypeTree(sc, t)
+
       t.typeCheck(a)
-      val f = t.fundamentalType
 
       region.clear()
-      rvb.start(f)
-      rvb.addRow(t, a.asInstanceOf[Row])
+      rvb.start(t)
+      rvb.addAnnotation(t, a)
       val offset = rvb.end()
 
-      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur = UnsafeRow.read(region, offset, t, ttBc)
       assert(t.valuesSimilar(a, ur))
 
+      // test visitor
+      val rv = RegionValue(region, offset)
+      rv.pretty(t)
+
       region2.clear()
-      rvb2.start(f)
-      rvb2.addRow(t, ur)
+      rvb2.start(t)
+      rvb2.addAnnotation(t, ur)
       val offset2 = rvb2.end()
 
-      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      val ur2 = UnsafeRow.read(region2, offset2, t, ttBc)
       assert(t.valuesSimilar(a, ur2))
 
-      // don't clear, just add on
-      rvb2.start(f)
-      rvb2.addUnsafeRow(t, ur)
-      val offset3 = rvb2.end()
+      t match {
+        case t: TStruct =>
+          // don't clear, just add on
+          rvb2.start(t)
+          rvb2.addUnsafeRow(t, ur.asInstanceOf[UnsafeRow])
+          val offset3 = rvb2.end()
 
-      val ur3 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset3)
-      assert(t.valuesSimilar(a, ur2))
+          val ur3 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset3)
+          assert(t.valuesSimilar(a, ur2))
+        case _ =>
+      }
 
       true
     }

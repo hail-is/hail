@@ -286,22 +286,22 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
       case TFloat32 => v.visitFloat32(loadFloat(off))
       case TFloat64 => v.visitFloat64(loadDouble(off))
       case TString =>
-        val boff = loadAddress(off)
+        val boff = off
         v.visitString(TString.loadString(this, boff))
       case TBinary =>
-        val boff = loadAddress(off)
+        val boff = off
         val length = TBinary.loadLength(this, boff)
         val b = loadBytes(TBinary.bytesOffset(boff), length)
         v.visitBinary(b)
       case t: TContainer =>
-        val aoff = loadAddress(off)
+        val aoff = off
         val length = t.loadLength(this, aoff)
         v.enterArray(t, length)
         var i = 0
         while (i < length) {
           v.enterElement(i)
           if (t.isElementDefined(this, aoff, i))
-            visit(t.elementType, t.elementOffset(aoff, length, i), v)
+            visit(t.elementType, t.loadElement(this, aoff, length, i), v)
           else
             v.visitMissing(t.elementType)
           i += 1
@@ -314,7 +314,7 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
           val f = t.fields(i)
           v.enterField(f)
           if (t.isFieldDefined(this, off, i))
-            visit(f.typ, t.fieldOffset(off, i), v)
+            visit(f.typ, t.loadField(this, off, i), v)
           else
             v.visitMissing(f.typ)
           v.leaveField()
@@ -372,23 +372,41 @@ final class PrettyVisitor extends ValueVisitor {
 
   def result(): String = sb.result()
 
-  def visitMissing(t: Type) { sb.append("NA") }
+  def visitMissing(t: Type) {
+    sb.append("NA")
+  }
 
-  def visitBoolean(b: Boolean) { sb.append(b) }
+  def visitBoolean(b: Boolean) {
+    sb.append(b)
+  }
 
-  def visitInt32(i: Int) { sb.append(i) }
+  def visitInt32(i: Int) {
+    sb.append(i)
+  }
 
-  def visitInt64(l: Long) { sb.append(l) }
+  def visitInt64(l: Long) {
+    sb.append(l)
+  }
 
-  def visitFloat32(f: Float) { sb.append(f) }
+  def visitFloat32(f: Float) {
+    sb.append(f)
+  }
 
-  def visitFloat64(d: Double) { sb.append(d) }
+  def visitFloat64(d: Double) {
+    sb.append(d)
+  }
 
-  def visitBinary(a: Array[Byte]) { sb.append("bytes...") }
+  def visitBinary(a: Array[Byte]) {
+    sb.append("bytes...")
+  }
 
-  def visitString(s: String) { sb.append(s) }
+  def visitString(s: String) {
+    sb.append(s)
+  }
 
-  def enterStruct(t: TStruct) { sb.append("{") }
+  def enterStruct(t: TStruct) {
+    sb.append("{")
+  }
 
   def enterField(f: Field) {
     if (f.index > 0)
@@ -400,7 +418,9 @@ final class PrettyVisitor extends ValueVisitor {
 
   def leaveField() {}
 
-  def leaveStruct() { sb.append(" }") }
+  def leaveStruct() {
+    sb.append(" }")
+  }
 
   def enterArray(t: TContainer, length: Int) {
     t match {
@@ -415,7 +435,9 @@ final class PrettyVisitor extends ValueVisitor {
     sb.append(";")
   }
 
-  def leaveArray() { sb.append("]") }
+  def leaveArray() {
+    sb.append("]")
+  }
 
   def enterElement(i: Int) {
     if (i > 0)
@@ -640,7 +662,10 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     region.appendInt(bytes.length)
     region.appendBytes(bytes)
 
-    region.storeAddress(off, boff)
+    if (typestk.nonEmpty)
+      region.storeAddress(off, boff)
+    else
+      assert(boff == start)
 
     advance()
   }
