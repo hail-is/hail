@@ -4217,7 +4217,7 @@ class VariantDataset(HistoryMixin):
         The namespace of the expressions includes:
 
         - ``global``: global annotations
-        - ``variants`` (*Aggregable[Variant]*): aggregable of :ref:`variant(GR)`
+        - ``variants`` (*Aggregable[Variant(GR)]*): aggregable of :ref:`variant(GR)`
 
         Map and filter expressions on this aggregable have the additional
         namespace:
