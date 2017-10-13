@@ -264,6 +264,7 @@ case class Variant(contig: String,
   start: Int,
   ref: String,
   altAlleles: IndexedSeq[AltAllele]) {
+  require(altAlleles.forall(_.ref == ref))
 
   /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
@@ -377,19 +378,7 @@ case class Variant(contig: String,
     if (c != 0)
       return c
 
-    c = nAltAlleles.compare(that.nAltAlleles)
-    if (c != 0)
-      return c
-
-    var i = 0
-    while (i < altAlleles.length) {
-      c = altAlleles(i).alt.compare(that.altAlleles(i).alt)
-      if (c != 0)
-        return c
-      i += 1
-    }
-
-    0
+    Ordering.Iterable[AltAllele].compare(altAlleles, that.altAlleles)
   }
 
   def minRep: Variant = {

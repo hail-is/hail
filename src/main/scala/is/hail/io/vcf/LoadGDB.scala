@@ -119,7 +119,7 @@ object LoadGDB {
       "va" -> variantAnnotationSignatures,
       "gs" -> TArray(genotypeSignature))
 
-    val rowTypeTreeBc = BroadcastTypeTree(sc, rowType)
+    val localRowType = rowType
 
     val region = MemoryBuffer()
     val rvb = new RegionValueBuilder(region)
@@ -132,7 +132,7 @@ object LoadGDB {
         rvb.start(rowType.fundamentalType)
         reader.readRecord(vc, rvb, infoSignature, genotypeSignature, canonicalFlags)
 
-        val ur = new UnsafeRow(rowTypeTreeBc, region.copy(), rvb.end())
+        val ur = new UnsafeRow(localRowType, region.copy(), rvb.end())
 
         val v = ur.getAs[Variant](0)
         val va = ur.get(1)

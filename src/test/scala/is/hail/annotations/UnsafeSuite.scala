@@ -5,6 +5,7 @@ import is.hail.check._
 import is.hail.check.Arbitrary._
 import is.hail.expr._
 import is.hail.utils._
+import is.hail.variant.{GenomeReference, Variant}
 import org.apache.spark.SparkEnv
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.Row
@@ -29,8 +30,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.start(f)
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
-      val ttBc = BroadcastTypeTree(sc, t)
-      val ur = new UnsafeRow(ttBc, region, offset)
+      val ur = new UnsafeRow(t, region, offset)
 
       val aos = new ArrayOutputStream()
       val en = new Encoder(new LZ4OutputBuffer(aos))
@@ -41,7 +41,7 @@ class UnsafeSuite extends SparkSuite {
       val ais = new ArrayInputStream(aos.a, aos.off)
       val dec = new Decoder(new LZ4InputBuffer(ais))
       val offset2 = dec.readRegionValue(f, region2)
-      val ur2 = new UnsafeRow(ttBc, region2, offset2)
+      val ur2 = new UnsafeRow(t, region2, offset2)
 
       assert(t.valuesSimilar(a, ur2))
 
@@ -60,8 +60,6 @@ class UnsafeSuite extends SparkSuite {
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue, Gen.choose(0, 100), Gen.choose(0, 100)))
       .filter { case (t, a, n, n2) => a != null }
     val p = Prop.forAll(g) { case (t, a, n, n2) =>
-      val ttBc = BroadcastTypeTree(sc, t)
-
       t.typeCheck(a)
 
       // test addAnnotation
@@ -72,7 +70,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.addAnnotation(t, a)
       val offset = rvb.end()
 
-      val ur = UnsafeRow.read(region, offset, t, ttBc)
+      val ur = UnsafeRow.read(t, region, offset)
       assert(t.valuesSimilar(a, ur))
 
       // test visitor
@@ -86,7 +84,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addAnnotation(t, ur)
       val offset2 = rvb2.end()
 
-      val ur2 = UnsafeRow.read(region2, offset2, t, ttBc)
+      val ur2 = UnsafeRow.read(t, region2, offset2)
       assert(t.valuesSimilar(a, ur2))
 
       // test addRegionValue
@@ -95,7 +93,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.start(t)
       rvb2.addRegionValue(t, region, offset)
       val offset3 = rvb2.end()
-      val ur3 = UnsafeRow.read(region2, offset3, t, ttBc)
+      val ur3 = UnsafeRow.read(t, region2, offset3)
       assert(t.valuesSimilar(a, ur3))
 
       // test addRegionValue nested
@@ -106,7 +104,7 @@ class UnsafeSuite extends SparkSuite {
           rvb2.start(t)
           rvb2.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset4 = rvb2.end()
-          val ur4 = new UnsafeRow(ttBc, region2, offset4)
+          val ur4 = new UnsafeRow(t, region2, offset4)
           assert(t.valuesSimilar(a, ur4))
         case _ =>
       }
@@ -115,7 +113,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.start(t)
       rvb.addRegionValue(t, region, offset)
       val offset5 = rvb.end()
-      val ur5 = UnsafeRow.read(region, offset5, t, ttBc)
+      val ur5 = UnsafeRow.read(t, region, offset5)
       assert(t.valuesSimilar(a, ur5))
 
       // test addRegionValue to same region nested
@@ -124,7 +122,7 @@ class UnsafeSuite extends SparkSuite {
           rvb.start(t)
           rvb.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset6 = rvb.end()
-          val ur6 = new UnsafeRow(ttBc, region, offset6)
+          val ur6 = new UnsafeRow(t, region, offset6)
           assert(t.valuesSimilar(a, ur6))
         case _ =>
       }
@@ -206,6 +204,29 @@ class UnsafeSuite extends SparkSuite {
     assert(TStruct().byteSize == 0)
   }
 
+  @Test def orderingRegression() {
+    val region = MemoryBuffer()
+    val region2 = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+    val rvb2 = new RegionValueBuilder(region2)
+
+    val v1 = Variant("1", 1, "T", Array("A", "G"))
+    val v2 = Variant("1", 1, "T", "C")
+
+    val t = TVariant(GenomeReference.GRCh37)
+
+    rvb.start(t)
+    rvb.addAnnotation(t, v1)
+    val rv = RegionValue(region, rvb.end())
+
+    rvb2.start(t)
+    rvb2.addAnnotation(t, v2)
+    val rv2 = RegionValue(region2, rvb2.end())
+
+    assert(math.signum(t.ordering(missingGreatest = true).compare(v1, v2)) ==
+      math.signum(t.unsafeOrdering(missingGreatest = true).compare(rv, rv2)))
+  }
+
   @Test def testUnsafeOrdering() {
     val region = MemoryBuffer()
     val region2 = MemoryBuffer()
@@ -226,7 +247,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.addRow(t, a1.asInstanceOf[Row])
       val offset = rvb.end()
 
-      val ur1 = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur1 = new UnsafeRow(t, region, offset)
       assert(t.valuesSimilar(a1, ur1))
 
       region2.clear()
@@ -234,7 +255,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addRow(t, a2.asInstanceOf[Row])
       val offset2 = rvb2.end()
 
-      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      val ur2 = new UnsafeRow(t, region2, offset2)
       assert(t.valuesSimilar(a2, ur2))
 
       val ord = t.ordering(b)
@@ -273,7 +294,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.start(t)
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
-      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur = new UnsafeRow(t, region, offset)
 
       hadoopConf.writeObjectFile(path) { out =>
         out.writeObject(ur)
@@ -306,7 +327,7 @@ class UnsafeSuite extends SparkSuite {
       rvb.start(t)
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
-      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ur = new UnsafeRow(t, region, offset)
 
       hadoopConf.writeKryoFile(path) { out =>
         kryo.writeObject(out, ur)
