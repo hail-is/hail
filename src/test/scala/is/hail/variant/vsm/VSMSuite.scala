@@ -52,111 +52,140 @@ class VSMSuite extends SparkSuite {
     val vds2 = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
     assert(vds1.same(vds2))
 
-    val mdata1 = VSMFileMetadata(Array("S1", "S2", "S3"))
-    val mdata2 = VSMFileMetadata(Array("S1", "S2"))
-    val mdata3 = VSMFileMetadata(
+    val s1mdata = VSMFileMetadata(Array("S1", "S2", "S3"))
+    val s1va1: Annotation = null
+    val s1va2 = Annotation()
+    val s1va3 = Annotation()
+
+    val s2mdata = VSMFileMetadata(Array("S1", "S2"))
+    val s2va1: Annotation = null
+    val s2va2: Annotation = null
+    val s2va3 = Annotation()
+
+    val s3mdata = VSMFileMetadata(
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
-      Annotation.empty,
-      sSignature = TStruct(
+      vaSignature = TStruct(
         "inner" -> TStruct(
           "thing1" -> TString),
         "thing2" -> TString))
-    val mdata4 = VSMFileMetadata(
+    val s3va1 = Annotation(Annotation("yes"), "yes")
+    val s3va2 = Annotation(Annotation("yes"), "no")
+    val s3va3 = Annotation(Annotation("no"), "yes")
+
+    val s4mdata = VSMFileMetadata(
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
-      Annotation.empty,
-      sSignature = TStruct(
+      vaSignature = TStruct(
         "inner" -> TStruct(
           "thing1" -> TString),
         "thing2" -> TString,
         "dummy" -> TString))
+    val s4va1 = Annotation(Annotation("yes"), "yes", null)
+    val s4va2 = Annotation(Annotation("yes"), "no", "dummy")
+    val s4va3 = Annotation(Annotation("no"), "yes", null)
 
-    assert(mdata1 != mdata2)
-    assert(mdata1 != mdata3)
-    assert(mdata2 != mdata3)
-    assert(mdata1 != mdata4)
-    assert(mdata2 != mdata4)
-    assert(mdata3 != mdata4)
+    assert(s1mdata != s2mdata)
+    assert(s1mdata != s3mdata)
+    assert(s2mdata != s3mdata)
+    assert(s1mdata != s4mdata)
+    assert(s2mdata != s4mdata)
+    assert(s3mdata != s4mdata)
 
     val v1 = Variant("1", 1, "A", "T")
     val v2 = Variant("1", 2, "T", "G")
     val v3 = Variant("1", 2, "T", "A")
 
-    val r1 = Annotation(Annotation("yes"), "yes")
-    val r2 = Annotation(Annotation("yes"), "no")
-    val r3 = Annotation(Annotation("no"), "yes")
-
-
-    val va1 = r1
-    val va2 = r2
-    val va3 = r3
-
-    val rdd1 = sc.parallelize(Seq((v1, (va1,
+    val s3rdd1 = sc.parallelize(Seq((v1, (s3va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2)))),
-      (v2, (va2,
+      (v2, (s3va2,
         Iterable(Genotype(0),
           Genotype(0),
           Genotype(1)))))).toOrderedRDD
 
     // differ in variant
-    val rdd2 = sc.parallelize(Seq((v1, (va1,
+    val s3rdd2 = sc.parallelize(Seq((v1, (s3va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2)))),
-      (v3, (va2,
+      (v3, (s3va2,
         Iterable(Genotype(0),
           Genotype(0),
           Genotype(1)))))).toOrderedRDD
 
     // differ in genotype
-    val rdd3 = sc.parallelize(Seq((v1, (va1,
+    val s3rdd3 = sc.parallelize(Seq((v1, (s3va1,
       Iterable(Genotype(),
         Genotype(1),
         Genotype(2)))),
-      (v2, (va2,
+      (v2, (s3va2,
         Iterable(Genotype(0),
           Genotype(0),
           Genotype(1)))))).toOrderedRDD
 
     // for mdata2
-    val rdd4 = sc.parallelize(Seq((v1, (va1,
+    val s2rdd4 = sc.parallelize(Seq((v1, (s2va1,
       Iterable(Genotype(),
         Genotype(0)))),
-      (v2, (va2, Iterable(
+      (v2, (s2va2, Iterable(
         Genotype(0),
         Genotype(0)))))).toOrderedRDD
 
     // differ in number of variants
-    val rdd5 = sc.parallelize(Seq((v1, (va1,
+    val s3rdd5 = sc.parallelize(Seq((v1, (s3va1,
       Iterable(Genotype(),
         Genotype(0)))))).toOrderedRDD
 
     // differ in annotations
-    val rdd6 = sc.parallelize(Seq((v1, (va1,
+    val s3rdd6 = sc.parallelize(Seq((v1, (s3va1,
       Iterable(Genotype(),
         Genotype(0),
         Genotype(2)))),
-      (v2, (va3,
+      (v2, (s3va3,
         Iterable(Genotype(0),
           Genotype(0),
           Genotype(1)))))).toOrderedRDD
 
-    val vdss = Array(new VariantDataset(hc, mdata1, rdd1),
-      new VariantDataset(hc, mdata1, rdd2),
-      new VariantDataset(hc, mdata1, rdd3),
-      new VariantDataset(hc, mdata2, rdd1),
-      new VariantDataset(hc, mdata2, rdd2),
-      new VariantDataset(hc, mdata2, rdd3),
-      new VariantDataset(hc, mdata2, rdd4),
-      new VariantDataset(hc, mdata2, rdd5),
-      new VariantDataset(hc, mdata3, rdd1),
-      new VariantDataset(hc, mdata3, rdd2),
-      new VariantDataset(hc, mdata4, rdd1),
-      new VariantDataset(hc, mdata4, rdd2),
-      new VariantDataset(hc, mdata1, rdd6))
+    val s1rdd7 = sc.parallelize(Seq((v1, (s1va1,
+      Iterable(Genotype(),
+        Genotype(0),
+        Genotype(2)))),
+      (v2, (s1va2,
+        Iterable(Genotype(0),
+          Genotype(0),
+          Genotype(1)))))).toOrderedRDD
+
+    val s2rdd8 = sc.parallelize(Seq((v1, (s2va1,
+      Iterable(Genotype(),
+        Genotype(0),
+        Genotype(2)))),
+      (v2, (s2va2,
+        Iterable(Genotype(0),
+          Genotype(0),
+          Genotype(1)))))).toOrderedRDD
+
+    val s4rdd9 = sc.parallelize(Seq((v1, (s4va1,
+      Iterable(Genotype(),
+        Genotype(0),
+        Genotype(2)))),
+      (v2, (s4va2,
+        Iterable(Genotype(0),
+          Genotype(0),
+          Genotype(1)))))).toOrderedRDD
+
+    val vdss = Array(new VariantDataset(hc, s3mdata, s3rdd1),
+      new VariantDataset(hc, s3mdata, s3rdd2),
+      new VariantDataset(hc, s3mdata, s3rdd3),
+      new VariantDataset(hc, s2mdata, s2rdd4),
+      new VariantDataset(hc, s3mdata, s3rdd5),
+      new VariantDataset(hc, s3mdata, s3rdd6),
+      new VariantDataset(hc, s1mdata, s1rdd7),
+      new VariantDataset(hc, s4mdata, s4rdd9))
+
+    for (vds <- vdss)
+      vds.typecheck()
 
     for (i <- vdss.indices;
       j <- vdss.indices) {
@@ -176,7 +205,7 @@ class VSMSuite extends SparkSuite {
 
     p.check()
   }
-  
+
   @Test def testFilterSamples() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
@@ -337,7 +366,7 @@ class VSMSuite extends SparkSuite {
 
     vds.write(out, overwrite = true)
   }
-  
+
   @Test def testInvalidMetadata() {
     TestUtils.interceptFatal("""invalid metadata""") {
       hc.readVDS("src/test/resources/0.1-1fd5cc7.vds").count()
@@ -439,7 +468,7 @@ class VSMSuite extends SparkSuite {
     }
 
     assert(getGenotypes(filteredVds).fullOuterJoin(getGenotypes(reorderedVds)).forall { case ((v, s), (g1, g2)) =>
-        g1 == g2
+      g1 == g2
     })
 
     assert(reorderedVds.sampleIds sameElements newOrder)
