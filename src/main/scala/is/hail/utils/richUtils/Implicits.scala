@@ -3,7 +3,7 @@ package is.hail.utils.richUtils
 import java.io.InputStream
 
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.{RichRDDUnsafeRow, UnsafeRow}
+import is.hail.annotations.{RegionValue, RichRDDRegionValue}
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import is.hail.variant.Variant
 import org.apache.hadoop
@@ -86,7 +86,7 @@ trait Implicits {
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
-  implicit def toRichRDDUnsafeRow(r: RDD[UnsafeRow]): RichRDDUnsafeRow = new RichRDDUnsafeRow(r)
+  implicit def toRichRDDRegionValue(r: RDD[RegionValue]): RichRDDRegionValue = new RichRDDRegionValue(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 

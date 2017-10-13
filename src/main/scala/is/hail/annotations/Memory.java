@@ -11,6 +11,10 @@ public final class Memory {
         unsafe.putByte(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, b);
     }
 
+    public static void storeInt(byte[] mem, long off, int i) {
+        unsafe.putInt(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, i);
+    }
+
     public static void storeFloat(byte[] mem, long off, float f) {
         unsafe.putFloat(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, f);
     }
@@ -25,6 +29,10 @@ public final class Memory {
 
     public static float loadFloat(byte[] mem, long off) {
         return unsafe.getFloat(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off);
+    }
+
+    public static int loadInt(byte[] mem, long off) {
+        return unsafe.getInt(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off);
     }
 
     public static double loadDouble(byte[] mem, long off) {

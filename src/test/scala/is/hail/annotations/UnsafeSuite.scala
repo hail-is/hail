@@ -29,20 +29,19 @@ class UnsafeSuite extends SparkSuite {
       rvb.start(f)
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
-      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      val ttBc = BroadcastTypeTree(sc, t)
+      val ur = new UnsafeRow(ttBc, region, offset)
 
-      hadoopConf.writeDataFile(path) { out =>
-        val en = new Encoder(out)
-        en.writeRegionValue(t, region, offset)
-      }
+      val aos = new ArrayOutputStream()
+      val en = new Encoder(new LZ4OutputBuffer(aos))
+      en.writeRegionValue(f, region, offset)
+      en.flush()
 
       region2.clear()
-      val offset2 = hadoopConf.readDataFile(path) { in =>
-        val dec = new Decoder(in)
-        dec.readRegionValue(t, region2)
-      }
-
-      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      val ais = new ArrayInputStream(aos.a, aos.off)
+      val dec = new Decoder(new LZ4InputBuffer(ais))
+      val offset2 = dec.readRegionValue(f, region2)
+      val ur2 = new UnsafeRow(ttBc, region2, offset2)
 
       assert(t.valuesSimilar(a, ur2))
 

@@ -5,7 +5,7 @@ import java.io.{DataInputStream, DataOutputStream, ObjectInputStream, ObjectOutp
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr._
-import is.hail.utils.Interval
+import is.hail.utils._
 import is.hail.variant.{AltAllele, GenericGenotype, GenomeReference, Locus, Variant}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
@@ -22,23 +22,34 @@ class UnsafeIndexedSeqAnnotation(
     if (region.loadBit(aoff + 4, i))
       null
     else {
-      UnsafeRow.read(region, elemsOffset + i * elemSize,
-        ttBc.value.typ.asInstanceOf[TContainer].elementType,
-        ttBc.value.subtree(0))
+      val t = ttBc.value.typ.asInstanceOf[TContainer]
+      UnsafeRow.read(region, t.loadElement(region, aoff, length, i),
+        t.elementType, ttBc.value.subtree(0))
     }
   }
 
   override def write(kryo: Kryo, output: Output) {
     kryo.writeObject(output, ttBc)
-    val enc = new Encoder(new DataOutputStream(output))
+
+    val aos = new ArrayOutputStream()
+    val enc = new Encoder(new LZ4OutputBuffer(aos))
     enc.writeRegionValue(ttBc.value.typ, region, aoff)
+    enc.flush()
+
+    output.writeInt(aos.off)
+    output.write(aos.a, 0, aos.off)
   }
 
   private def writeObject(out: ObjectOutputStream) {
     out.writeObject(ttBc)
 
-    val enc = new Encoder(new DataOutputStream(out))
+    val aos = new ArrayOutputStream()
+    val enc = new Encoder(new LZ4OutputBuffer(aos))
     enc.writeRegionValue(ttBc.value.typ, region, aoff)
+    enc.flush()
+
+    out.writeInt(aos.off)
+    out.write(aos.a, 0, aos.off)
   }
 
   override def read(kryo: Kryo, input: Input) {
@@ -46,7 +57,13 @@ class UnsafeIndexedSeqAnnotation(
     ttBc = kryo.readObject(input, cTorrentBroadcast).asInstanceOf[Broadcast[TypeTree]]
     val t = ttBc.value.typ.asInstanceOf[TArray]
 
-    val dec = new Decoder(new DataInputStream(input))
+    val smallInOff = input.readInt()
+    val a = new Array[Byte](smallInOff)
+    input.readFully(a, 0, smallInOff)
+    val dec = new Decoder(
+      new LZ4InputBuffer(
+        new ArrayInputStream(a)))
+
     region = MemoryBuffer()
     aoff = dec.readRegionValue(t, region)
 
@@ -60,7 +77,13 @@ class UnsafeIndexedSeqAnnotation(
     ttBc = in.readObject().asInstanceOf[Broadcast[TypeTree]]
     val t = ttBc.value.typ.asInstanceOf[TArray]
 
-    val dec = new Decoder(new DataInputStream(in))
+    val smallInOff = in.readInt()
+    val a = new Array[Byte](smallInOff)
+    in.readFully(a, 0, smallInOff)
+    val dec = new Decoder(
+      new LZ4InputBuffer(
+        new ArrayInputStream(a)))
+
     region = MemoryBuffer()
     aoff = dec.readRegionValue(ttBc.value.typ, region)
 
@@ -72,16 +95,12 @@ class UnsafeIndexedSeqAnnotation(
 }
 
 object UnsafeRow {
-  def readBinary(region: MemoryBuffer, offset: Long): Array[Byte] = {
-    val start = region.loadAddress(offset)
-    assert(offset > 0 && (offset & 0x3) == 0, s"invalid binary start: $offset")
-    val binLength = region.loadInt(start)
-    region.loadBytes(start + 4, binLength)
+  def readBinary(region: MemoryBuffer, boff: Long): Array[Byte] = {
+    val length = TBinary.loadLength(region, boff)
+    region.loadBytes(TBinary.bytesOffset(boff), length)
   }
 
-  def readArray(region: MemoryBuffer, offset: Long, elemType: Type, arrayTTBc: Broadcast[TypeTree]): IndexedSeq[Any] = {
-    val aoff = region.loadAddress(offset)
-
+  def readArray(region: MemoryBuffer, aoff: Long, elemType: Type, arrayTTBc: Broadcast[TypeTree]): IndexedSeq[Any] = {
     val length = region.loadInt(aoff)
     val elemsOffset = arrayTTBc.value.typ.asInstanceOf[TContainer].elementsOffset(length)
     val elemSize = UnsafeUtils.arrayElementSize(elemType)
@@ -93,28 +112,26 @@ object UnsafeRow {
     new UnsafeRow(ttBc, region, offset)
   }
 
-  def readString(region: MemoryBuffer, offset: Long): String =
-    new String(readBinary(region, offset))
+  def readString(region: MemoryBuffer, boff: Long): String =
+    new String(readBinary(region, boff))
 
   def readLocus(region: MemoryBuffer, offset: Long): Locus = {
     val ft = TLocus(GenomeReference.GRCh37).fundamentalType.asInstanceOf[TStruct]
     Locus(
-      readString(region, offset + ft.byteOffsets(0)),
-      region.loadInt(offset + ft.byteOffsets(1)))
+      readString(region, ft.loadField(region, offset, 0)),
+      region.loadInt(ft.loadField(region, offset, 1)))
   }
 
   def readAltAllele(region: MemoryBuffer, offset: Long): AltAllele = {
     val ft = TAltAllele.fundamentalType.asInstanceOf[TStruct]
     AltAllele(
-      readString(region, offset + ft.byteOffsets(0)),
-      readString(region, offset + ft.byteOffsets(1)))
+      readString(region, ft.loadField(region, offset, 0)),
+      readString(region, ft.loadField(region, offset, 1)))
   }
 
-  def readArrayAltAllele(region: MemoryBuffer, offset: Long): Array[AltAllele] = {
+  def readArrayAltAllele(region: MemoryBuffer, aoff: Long): Array[AltAllele] = {
     val elemType = TAltAllele
     val t = TArray(elemType)
-
-    val aoff = region.loadAddress(offset)
 
     val length = region.loadInt(aoff)
     val elemOffset = t.elementsOffset(length)
@@ -123,17 +140,15 @@ object UnsafeRow {
     val a = new Array[AltAllele](length)
     var i = 0
     while (i < length) {
-      a(i) = readAltAllele(region, aoff + elemOffset + i * elemSize)
+      a(i) = readAltAllele(region, t.loadElement(region, aoff, length, i))
       i += 1
     }
     a
   }
 
-  def readArrayInt(region: MemoryBuffer, offset: Long): Array[Int] = {
+  def readArrayInt(region: MemoryBuffer, aoff: Long): Array[Int] = {
     val elemType = TInt32
     val t = TArray(elemType)
-
-    val aoff = region.loadInt(offset)
 
     val length = region.loadInt(aoff)
     val elemOffset = t.elementsOffset(length)
@@ -170,46 +185,46 @@ object UnsafeRow {
       case x: TVariant =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]
         Variant(
-          readString(region, offset + ft.byteOffsets(0)),
-          region.loadInt(offset + ft.byteOffsets(1)),
-          readString(region, offset + ft.byteOffsets(2)),
-          readArrayAltAllele(region, offset + ft.byteOffsets(3)))
+          readString(region, ft.loadField(region, offset, 0)),
+          region.loadInt(ft.loadField(region, offset, 1)),
+          readString(region, ft.loadField(region, offset, 2)),
+          readArrayAltAllele(region, ft.loadField(region, offset, 3)))
       case x: TLocus => readLocus(region, offset)
       case TAltAllele => readAltAllele(region, offset)
       case x: TInterval =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]
         Interval[Locus](
-          readLocus(region, offset + ft.byteOffsets(0)),
-          readLocus(region, offset + ft.byteOffsets(1)))
+          readLocus(region, ft.loadField(region, offset, 0)),
+          readLocus(region, ft.loadField(region, offset, 1)))
       case TGenotype =>
         val ft = TGenotype.fundamentalType.asInstanceOf[TStruct]
         val gt: Int =
-          if (region.loadBit(offset, 0))
-            -1
+          if (ft.isFieldDefined(region, offset, 0))
+            region.loadInt(ft.loadField(region, offset, 0))
           else
-            region.loadInt(offset + ft.byteOffsets(0))
+            -1
         val ad =
-          if (region.loadBit(offset, 1))
-            null
+          if (ft.isFieldDefined(region, offset, 1))
+            readArrayInt(region, ft.loadField(region, offset, 1))
           else
-            readArrayInt(region, offset + ft.byteOffsets(1))
+            null
         val dp: Int =
-          if (region.loadBit(offset, 2))
-            -1
+          if (ft.isFieldDefined(region, offset, 2))
+            region.loadInt(ft.loadField(region, offset, 2))
           else
-            region.loadInt(offset + ft.byteOffsets(2))
+            -1
         val gq: Int =
-          if (region.loadBit(offset, 3))
+          if (ft.isFieldDefined(region, offset, 3))
+            region.loadInt(ft.loadField(region, offset, 3))
+          else
             -1
-          else
-            region.loadInt(offset + ft.byteOffsets(3))
         val px =
-          if (region.loadBit(offset, 4))
-            null
+          if (ft.isFieldDefined(region, offset, 4))
+            readArrayInt(region, ft.loadField(region, offset, 4))
           else
-            readArrayInt(region, offset + ft.byteOffsets(4))
-        val fakeRef = region.loadByte(offset + ft.byteOffsets(5)) != 0
-        val isLinearScale = region.loadByte(offset + ft.byteOffsets(6)) != 0
+            null
+        val fakeRef = region.loadByte(ft.loadField(region, offset, 5)) != 0
+        val isLinearScale = region.loadByte(ft.loadField(region, offset, 6)) != 0
 
         new GenericGenotype(gt, ad, dp, gq, px, fakeRef, isLinearScale)
     }
@@ -234,70 +249,96 @@ class UnsafeRow(var ttBc: Broadcast[TypeTree],
     if (isNullAt(i))
       null
     else
-      UnsafeRow.read(region, offset + t.byteOffsets(i), t.fields(i).typ, ttBc.value.subtree(i))
+      UnsafeRow.read(region, t.loadField(region, offset, i), t.fields(i).typ, ttBc.value.subtree(i))
   }
 
   def copy(): Row = new UnsafeRow(ttBc, region, offset)
 
   override def getInt(i: Int): Int = {
     assertDefined(i)
-    region.loadInt(offset + t.byteOffsets(i))
+    region.loadInt(t.loadField(region, offset, i))
   }
 
   override def getLong(i: Int): Long = {
     assertDefined(i)
-    region.loadLong(offset + t.byteOffsets(i))
+    region.loadLong(t.loadField(region, offset, i))
   }
 
   override def getFloat(i: Int): Float = {
     assertDefined(i)
-    region.loadFloat(offset + t.byteOffsets(i))
+    region.loadFloat(t.loadField(region, offset, i))
   }
 
   override def getDouble(i: Int): Double = {
     assertDefined(i)
-    region.loadDouble(offset + t.byteOffsets(i))
+    region.loadDouble(t.loadField(region, offset, i))
   }
 
   override def getBoolean(i: Int): Boolean = {
     assertDefined(i)
-    getByte(i) == 1
+    region.loadBoolean(t.loadField(region, offset, i))
   }
 
   override def getByte(i: Int): Byte = {
     assertDefined(i)
-    region.loadByte(offset + t.byteOffsets(i))
+    region.loadByte(t.loadField(region, offset, i))
   }
 
   override def isNullAt(i: Int): Boolean = {
     if (i < 0 || i >= t.size)
       throw new IndexOutOfBoundsException(i.toString)
-    region.loadBit(offset, i)
+    !t.isFieldDefined(region, offset, i)
   }
 
   override def write(kryo: Kryo, output: Output) {
     kryo.writeObject(output, ttBc)
-    val enc = new Encoder(new DataOutputStream(output))
-    enc.writeRegionValue(ttBc.value.typ, region, offset)
+
+    val aos = new ArrayOutputStream()
+    val enc = new Encoder(new LZ4OutputBuffer(aos))
+    enc.writeRegionValue(t, region, offset)
+    enc.flush()
+
+    output.writeInt(aos.off)
+    output.write(aos.a, 0, aos.off)
   }
 
   private def writeObject(out: ObjectOutputStream) {
     out.writeObject(ttBc)
-    val enc = new Encoder(new DataOutputStream(out))
-    enc.writeRegionValue(ttBc.value.typ, region, offset)
+
+    val aos = new ArrayOutputStream()
+    val enc = new Encoder(new LZ4OutputBuffer(aos))
+    enc.writeRegionValue(t, region, offset)
+    enc.flush()
+
+    out.writeInt(aos.off)
+    out.write(aos.a, 0, aos.off)
   }
 
   override def read(kryo: Kryo, input: Input) {
     val cTorrentBroadcast = Class.forName("org.apache.spark.broadcast.TorrentBroadcast")
     ttBc = kryo.readObject(input, cTorrentBroadcast).asInstanceOf[Broadcast[TypeTree]]
-    val dec = new Decoder(new DataInputStream(input))
+
+    val smallInOff = input.readInt()
+    val a = new Array[Byte](smallInOff)
+    input.readFully(a, 0, smallInOff)
+    val dec = new Decoder(
+      new LZ4InputBuffer(
+        new ArrayInputStream(a)))
+
     region = MemoryBuffer()
     offset = dec.readRegionValue(ttBc.value.typ, region)
   }
 
   private def readObject(in: ObjectInputStream) {
     ttBc = in.readObject().asInstanceOf[Broadcast[TypeTree]]
-    val dec = new Decoder(new DataInputStream(in))
+
+    val smallInOff = in.readInt()
+    val a = new Array[Byte](smallInOff)
+    in.readFully(a, 0, smallInOff)
+    val dec = new Decoder(
+      new LZ4InputBuffer(
+        new ArrayInputStream(a)))
+
     region = MemoryBuffer()
     offset = dec.readRegionValue(ttBc.value.typ, region)
   }
