@@ -66,7 +66,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
       while (j < fullColPartitions) {
         val group = new Array[Double](blockSize)
         grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
-        System.arraycopy(a, j * blockSize, group, 0, excessCols)
+        System.arraycopy(a, j * blockSize, group, 0, blockSize)
         j += 1
       }
       if (excessCols > 0) {
