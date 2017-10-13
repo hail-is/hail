@@ -1,7 +1,6 @@
 package is.hail.annotations
 
 import java.io.{InputStream, OutputStream}
-import java.util
 
 import is.hail.expr._
 import is.hail.utils.{SerializableHadoopConfiguration, _}
@@ -339,7 +338,6 @@ final class Decoder(in: InputBuffer) {
               val aoff = readArray(t2, region)
               region.storeAddress(off, aoff)
             case TBoolean => region.storeByte(off, in.readBoolean().toByte)
-            case TInt32 => region.storeInt(off, in.readInt())
             case TInt64 => region.storeLong(off, in.readLong())
             case TFloat32 => region.storeFloat(off, in.readFloat())
             case TFloat64 => region.storeDouble(off, in.readDouble())
@@ -433,7 +431,6 @@ final class Encoder(out: OutputBuffer) {
             case t2: TStruct => writeStruct(t2, region, off)
             case t2: TArray => writeArray(t2, region, region.loadAddress(off))
             case TBoolean => out.writeBoolean(region.loadByte(off) != 0)
-            case TInt32 => out.writeInt(region.loadInt(off))
             case TInt64 => out.writeLong(region.loadLong(off))
             case TFloat32 => out.writeFloat(region.loadFloat(off))
             case TFloat64 => out.writeDouble(region.loadDouble(off))

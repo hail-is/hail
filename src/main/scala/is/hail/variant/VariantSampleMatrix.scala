@@ -278,7 +278,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
-      val a = new Array[Any](localNSamples)
       val t = localRowSignature
 
       it.map { case (v, (va, gs)) =>
