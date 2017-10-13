@@ -1621,7 +1621,16 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  def filter(f: (Field) => Boolean): (TStruct, Deleter) = {
+  def ++(that: TStruct): TStruct = {
+    val overlapping = fields.map(_.name).toSet.intersect(
+      that.fields.map(_.name).toSet)
+    if (overlapping.nonEmpty)
+      fatal(s"overlapping fields in struct concatenation: ${ overlapping.mkString(", ") }")
+
+    TStruct(fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*)
+  }
+
+  def filter(f: (Field) => Boolean): (TStruct, (Annotation) => Annotation) = {
     val included = fields.map(f)
 
     val newFields = fields.zip(included)
@@ -1852,6 +1861,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   def fieldOffset(offset: Long, fieldIdx: Int): Long =
     offset + byteOffsets(fieldIdx)
+
+  def loadField(rv: RegionValue, fieldIdx: Int): Long = loadField(rv.region, rv.offset, fieldIdx)
 
   def loadField(region: MemoryBuffer, offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
