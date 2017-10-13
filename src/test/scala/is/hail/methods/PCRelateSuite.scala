@@ -31,22 +31,37 @@ import is.hail.distributedmatrix.DistributedMatrix.implicits._
 class PCRelateSuite extends SparkSuite {
   private val blockSize: Int = 8192
 
-  private def toI(a: Any): Int =
-    a.asInstanceOf[Int]
+  private def toD(a: java.lang.Double): Double =
+    a.asInstanceOf[Double]
 
   private def toD(a: Any): Double =
     a.asInstanceOf[Double]
 
+  private def toBoxedD(a: Any): java.lang.Double =
+    a.asInstanceOf[java.lang.Double]
+
   private def toS(a: Any): String =
     a.asInstanceOf[String]
 
-  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double, minKinship: Double = PCRelate.defaultMinKinship): Map[(String, String), (Double, Double, Double, Double)] =
-    PCRelate.toKeyTable(vds, pcs, maf, blockSize, minKinship)
+  private def quadMap[T,U](f: T => U): (T, T, T, T) => (U, U, U, U) =
+    { case (x, y, z, w) => (f(x), f(y), f(z), f(w)) }
+
+  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double): Map[(String, String), (Double, Double, Double, Double)] =
+    runPcRelateHail(vds, pcs, maf, PCRelate.defaultMinKinship, PCRelate.defaultStatisticSubset)
+      .mapValues(quadMap(toD).tupled)
+
+  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double, minKinship: Double): Map[(String, String), (Double, Double, Double, Double)] =
+    runPcRelateHail(vds, pcs, maf, minKinship, PCRelate.defaultStatisticSubset)
+      .mapValues(quadMap(toD).tupled)
+
+  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double, minKinship: Double, statistics: PCRelate.StatisticSubset): Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)] =
+    PCRelate.toKeyTable(vds, pcs, maf, blockSize, minKinship, statistics)
       .collect()
       .map(x => x.asInstanceOf[Row])
-      .map(r => ((r(0), r(1)), (r(2).asInstanceOf[Double], r(3).asInstanceOf[Double], r(4).asInstanceOf[Double], r(5).asInstanceOf[Double])))
+      .map(r => ((r(0), r(1)), (r(2), r(3), r(4), r(5))))
       .toMap
-      .asInstanceOf[Map[(String, String), (Double, Double, Double, Double)]]
+      .mapValues(quadMap(toBoxedD).tupled)
+      .asInstanceOf[Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)]]
 
   def runPcRelateR(
     vds: VariantDataset,
@@ -218,6 +233,50 @@ class PCRelateSuite extends SparkSuite {
 
     assert(truth.size > 0)
     assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-2)))
+  }
+
+  @Test
+  def desire() {
+    val seed = 0
+    val n = 100
+    val nVariants = 1000
+    val vds = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
+    val pcs = SamplePCA.justScores(vds, 10)
+    val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
+      .mapValues(quadMap(toBoxedD).tupled)
+    val phionly = runPcRelateHail(vds, pcs, 0.01, PCRelate.defaultMinKinship, statistics=PCRelate.PhiOnly)
+
+    assert(mapSameElements(phionly, truth,
+      { (l: (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double), r: (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)) =>
+        math.abs(l._1 - r._1) < 1e-14 &&
+        l._2 == null &&
+        l._3 == null &&
+        l._4 == null }))
+
+    val phik2 = runPcRelateHail(vds, pcs, 0.01, PCRelate.defaultMinKinship, statistics=PCRelate.PhiK2)
+
+    assert(mapSameElements(phik2, truth,
+      { (l: (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double), r: (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)) =>
+        math.abs(l._1 - r._1) < 1e-14 &&
+        l._2 == null &&
+        l._3 == null &&
+        math.abs(l._4 - r._4) < 1e-14}))
+
+    val phik2k0 = runPcRelateHail(vds, pcs, 0.01, PCRelate.defaultMinKinship, statistics=PCRelate.PhiK2K0)
+
+    assert(mapSameElements(phik2k0, truth,
+      { (l: (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double), r: (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)) =>
+        math.abs(l._1 - r._1) < 1e-14 &&
+        math.abs(l._2 - r._2) < 1e-14 &&
+        l._3 == null &&
+        math.abs(l._4 - r._4) < 1e-14}))
+
+    val phik2k0k1 = runPcRelateHail(vds, pcs, 0.01, PCRelate.defaultMinKinship, PCRelate.PhiK2K0K1)
+
+    assert(mapSameElements(
+      phik2k0k1.mapValues(quadMap(toD).tupled),
+      truth.mapValues(quadMap(toD).tupled),
+      compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
   }
 
 }
