@@ -169,6 +169,7 @@ class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
   }
 
   def writeBytes(from0: Long, from0Off: Long, n0: Int) {
+    assert(n0 >= 0)
     var from = from0 + from0Off
     var n = n0
 
@@ -262,9 +263,9 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
 
   def readFloat(): Float = {
     ensure(4)
-    val d = Memory.loadFloat(buf, off)
+    val f = Memory.loadFloat(buf, off)
     off += 4
-    d
+    f
   }
 
   def readDouble(): Double = {
@@ -275,6 +276,7 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
   }
 
   def readBytes(to0: Long, toOff0: Long, n0: Int) {
+    assert(n0 >= 0)
     var to = to0 + toOff0
     var n = n0
 
@@ -502,7 +504,6 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
         val en = new Encoder(new LZ4OutputBuffer(out))
 
         it.foreach { rv =>
-          // println("write rv", rv.pretty(t))
           en.writeByte(1)
           en.writeRegionValue(t, rv.region, rv.offset)
           rowCount += 1
@@ -559,7 +560,6 @@ class ReadRowsRDD(sc: SparkContext,
         region.clear()
         rv.setOffset(dec.readRegionValue(localT, region))
 
-        // println("read rv", rv.pretty(t))
         cont = dec.readByte()
         if (cont == 0)
           in.close()
