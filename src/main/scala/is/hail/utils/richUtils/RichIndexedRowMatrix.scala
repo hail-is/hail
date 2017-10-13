@@ -29,8 +29,7 @@ object RichIndexedRowMatrix {
     else {
       var k = 0
       while (k < l.length) {
-        if (r(k) != 0)
-          l(k) = r(k)
+        l(k) += r(k)
         k += 1
       }
       l
