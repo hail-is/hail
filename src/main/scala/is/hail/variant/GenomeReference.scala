@@ -3,7 +3,7 @@ package is.hail.variant
 import java.io.InputStream
 
 import is.hail.check.Gen
-import is.hail.expr.JSONExtractGenomeReference
+import is.hail.expr.{JSONExtractGenomeReference, TInterval, TLocus, TVariant}
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods
@@ -12,6 +12,10 @@ import scala.collection.JavaConverters._
 import scala.language.implicitConversions
 
 abstract class GRBase extends Serializable {
+  val variant: TVariant = TVariant(this)
+  val locus: TLocus = TLocus(this)
+  val interval: TInterval = TInterval(this)
+
   def isValidContig(contig: String): Boolean
 
   def contigLength(contig: String): Int
@@ -36,13 +40,13 @@ abstract class GRBase extends Serializable {
 
   def toJSON: JValue
 
-  def unify(concrete: GenomeReference): Boolean
+  def unify(concrete: GRBase): Boolean
 
   def isBound: Boolean
 
   def clear(): Unit
 
-  def subst(): GenomeReference
+  def subst(): GRBase
 }
 
 case class GenomeReference(name: String, contigs: Array[String], lengths: Map[String, Int], xContigs: Set[String],
@@ -157,20 +161,34 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def unify(concrete: GenomeReference): Boolean = this == concrete
+  def unify(concrete: GRBase): Boolean = this eq concrete
 
   def isBound: Boolean = true
 
   def clear() {}
 
   def subst(): GenomeReference = this
+
+  override def toString: String = name
 }
 
 object GenomeReference {
+  val GRCh37: GenomeReference = fromResource("reference/grch37.json")
+  val GRCh38: GenomeReference = fromResource("reference/grch38.json")
+  var references: Map[String, GenomeReference] = Map("GRCh37" -> GRCh37, "GRCh38" -> GRCh38)
 
-  def GRCh37: GenomeReference = fromResource("reference/grch37.json")
+  def addReference(gr: GenomeReference) {
+    if (references.contains(gr.name))
+      fatal(s"Cannot add reference genome. Reference genome `${ gr.name }' already exists.")
+    references += (gr.name -> gr)
+  }
 
-  def GRCh38: GenomeReference = fromResource("reference/grch38.json")
+  def getReference(name: String): GenomeReference = {
+    references.get(name) match {
+      case Some(gr) => gr
+      case None => fatal(s"No genome reference with name `$name' exists. Available references: `${ references.keys.mkString(", ") }'.")
+    }
+  }
 
   def fromJSON(json: JValue): GenomeReference = json.extract[JSONExtractGenomeReference].toGenomeReference
 
@@ -197,16 +215,16 @@ object GenomeReference {
       par.asScala.toArray)
 }
 
-case class GRVariable(var gr: GenomeReference = null) extends GRBase {
+case class GRVariable(var gr: GRBase = null) extends GRBase {
 
-  override def toString = "GenomeReference"
+  override def toString = "?GR"
 
-  def unify(concrete: GenomeReference): Boolean = {
+  def unify(concrete: GRBase): Boolean = {
     if (gr == null) {
       gr = concrete
       true
     } else
-      gr == concrete
+      gr eq concrete
   }
 
   def isBound: Boolean = gr != null
@@ -215,7 +233,7 @@ case class GRVariable(var gr: GenomeReference = null) extends GRBase {
     gr = null
   }
 
-  def subst(): GenomeReference = {
+  def subst(): GRBase = {
     assert(gr != null)
     gr
   }

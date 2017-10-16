@@ -236,7 +236,7 @@ class VariantDataset(HistoryMixin):
         ``expr`` is in genotype context so the following symbols are in scope:
 
           - ``g``: genotype annotation
-          - ``v`` (*Variant*): :ref:`variant`
+          - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
           - ``va``: variant annotations
           - ``s`` (*Sample*): sample
           - ``sa``: sample annotations
@@ -603,7 +603,7 @@ class VariantDataset(HistoryMixin):
 
         ``expr`` is in variant context so the following symbols are in scope:
 
-          - ``v`` (*Variant*): :ref:`variant`
+          - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
           - ``va``: variant annotations
           - ``global``: global annotations
           - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
@@ -695,7 +695,7 @@ class VariantDataset(HistoryMixin):
         Each expression in the list ``vds_key`` has the following symbols in
         scope:
 
-          - ``v`` (*Variant*): :ref:`variant`
+          - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
           - ``va``: variant annotations
         
         **The** ``root`` **and** ``expr`` **arguments**
@@ -1776,13 +1776,13 @@ class VariantDataset(HistoryMixin):
 
         The following symbols are in scope for ``expr``:
 
-        - ``v`` (*Variant*): :ref:`variant`
+        - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
         - ``va``: variant annotations
         - ``aIndex`` (*Int*): the index of the allele being tested
 
         The following symbols are in scope for ``annotation``:
 
-        - ``v`` (*Variant*): :ref:`variant`
+        - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
         - ``va``: variant annotations
         - ``aIndices`` (*Array[Int]*): the array of old indices (such that ``aIndices[newIndex] = oldIndex`` and ``aIndices[0] = 0``)
 
@@ -1835,7 +1835,7 @@ class VariantDataset(HistoryMixin):
         ``expr`` is in genotype context so the following symbols are in scope:
 
         - ``s`` (*Sample*): sample
-        - ``v`` (*Variant*): :ref:`variant`
+        - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
         - ``sa``: sample annotations
         - ``va``: variant annotations
         - ``global``: global annotations
@@ -2065,7 +2065,7 @@ class VariantDataset(HistoryMixin):
 
         The following symbols are in scope for ``expr``:
 
-        - ``v`` (*Variant*): :ref:`variant`
+        - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
         - ``va``: variant annotations
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
@@ -4217,13 +4217,13 @@ class VariantDataset(HistoryMixin):
         The namespace of the expressions includes:
 
         - ``global``: global annotations
-        - ``variants`` (*Aggregable[Variant]*): aggregable of :ref:`variant`
+        - ``variants`` (*Aggregable[Variant(GR)]*): aggregable of :ref:`variant(GR)`
 
         Map and filter expressions on this aggregable have the additional
         namespace:
 
         - ``global``: global annotations
-        - ``v``: :ref:`variant`
+        - ``v``: :ref:`variant(GR)`
         - ``va``: variant annotations
 
         **Performance Note**
@@ -4277,7 +4277,7 @@ class VariantDataset(HistoryMixin):
 
         - ``global``: global annotations
         - ``g``: :ref:`genotype`
-        - ``v``: :ref:`variant`
+        - ``v``: :ref:`variant(GR)`
         - ``va``: variant annotations
         - ``s``: sample
         - ``sa``: sample annotations

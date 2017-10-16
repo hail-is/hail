@@ -622,7 +622,8 @@ object FunctionRegistry {
     def typ = TTBoxed
   }
 
-  val GR = GRVariable(GenomeReference.GRCh37)
+  val GR = GRVariable()
+
   private def nonceToNullable[T : TypeInfo, U >: Null](check: Code[T] => Code[Boolean], v: Code[T], ifPresent: Code[T] => Code[U]): CM[Code[U]] = for (
     (stx, x) <- CM.memoize(v)
   ) yield Code(stx, check(x).mux(Code._null[U], ifPresent(x)))
@@ -653,7 +654,7 @@ object FunctionRegistry {
     """
     Produce an array of called counts for each allele in the variant (including reference). For example, calling this function with a biallelic variant on hom-ref, het, and hom-var calls will produce ``[2, 0]``, ``[1, 1]``, and ``[0, 2]`` respectively.
     """,
-    "v" -> ":ref:`variant`")(callHr, variantHr(GR), arrayHr(int32Hr))
+    "v" -> ":ref:`variant(gr)`")(callHr, variantHr(GR), arrayHr(int32Hr))
   registerMethodSpecial("oneHotGenotype", { (c: () => Any, v: () => Any) =>
     val call = c().asInstanceOf[Call]
     val variant = v().asInstanceOf[Variant]
@@ -665,7 +666,7 @@ object FunctionRegistry {
     """
     Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0. For example, calling this function with a biallelic variant on hom-ref, het, and hom-var calls will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
     """,
-    "v" -> ":ref:`variant`")(callHr, variantHr(GR), arrayHr(int32Hr))
+    "v" -> ":ref:`variant(gr)`")(callHr, variantHr(GR), arrayHr(int32Hr))
 
   registerFieldCode("gt", { (x: Code[Genotype]) =>
     nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("_unboxedGT"), boxInt(_))
@@ -797,8 +798,8 @@ object FunctionRegistry {
   registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal }, "True if chromosome is not X, not Y, and not MT.")(variantHr(GR), boolHr)
   registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")(locusHr(GR), stringHr)
   registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")(locusHr(GR), int32Hr)
-  registerField("start", { (x: Interval[Locus]) => x.start }, ":ref:`locus` at the start of the interval (inclusive).")(locusIntervalHr(GR), locusHr(GR))
-  registerField("end", { (x: Interval[Locus]) => x.end }, ":ref:`locus` at the end of the interval (exclusive).")(locusIntervalHr(GR), locusHr(GR))
+  registerField("start", { (x: Interval[Locus]) => x.start }, ":ref:`locus(gr)` at the start of the interval (inclusive).")(locusIntervalHr(GR), locusHr(GR))
+  registerField("end", { (x: Interval[Locus]) => x.end }, ":ref:`locus(gr)` at the end of the interval (exclusive).")(locusIntervalHr(GR), locusHr(GR))
   registerField("ref", { (x: AltAllele) => x.ref }, "Reference allele base sequence.")
   registerField("alt", { (x: AltAllele) => x.alt }, "Alternate allele base sequence.")
   registerMethod("isSNP", { (x: AltAllele) => x.isSNP }, "True if ``v.ref`` and ``v.alt`` are the same length and differ in one position.")
@@ -973,7 +974,7 @@ object FunctionRegistry {
 
   register("Variant", { (x: String) => Variant.parse(x) },
     """
-    Construct a :ref:`variant` object.
+    Construct a :ref:`variant(gr)` object.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -981,10 +982,10 @@ object FunctionRegistry {
         let v = Variant("7:76324539:A:G") in v.contig
         result: "7"
     """,
-    "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")(stringHr, variantHr(GR))
+    "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")(stringHr, variantHr(GenomeReference.GRCh37))
   register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) },
     """
-    Construct a :ref:`variant` object.
+    Construct a :ref:`variant(gr)` object.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -995,10 +996,10 @@ object FunctionRegistry {
     "contig" -> "String representation of contig.",
     "pos" -> "SNP position or start of an indel.",
     "ref" -> "Reference allele sequence.",
-    "alt" -> "Alternate allele sequence.")(stringHr, int32Hr, stringHr, stringHr, variantHr(GR))
+    "alt" -> "Alternate allele sequence.")(stringHr, int32Hr, stringHr, stringHr, variantHr(GenomeReference.GRCh37))
   register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray) },
     """
-    Construct a :ref:`variant` object.
+    Construct a :ref:`variant(gr)` object.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -1010,7 +1011,7 @@ object FunctionRegistry {
     "pos" -> "SNP position or start of an indel.",
     "ref" -> "Reference allele sequence.",
     "alts" -> "Array of alternate allele sequences."
-  )(stringHr, int32Hr, stringHr, arrayHr(stringHr), variantHr(GR))
+  )(stringHr, int32Hr, stringHr, arrayHr(stringHr), variantHr(GenomeReference.GRCh37))
 
   register("Dict", { (keys: IndexedSeq[Annotation], values: IndexedSeq[Annotation]) =>
     if (keys.length != values.length)
@@ -1020,7 +1021,7 @@ object FunctionRegistry {
     "keys" -> "Keys of Dict.",
     "values" -> "Values of Dict.")(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
 
-  val combineVariantsStruct = TStruct(Array(("variant", TVariant(GenomeReference.GRCh37), "Resulting combined variant."),
+  val combineVariantsStruct = TStruct(Array(("variant", TVariant(GR), "Resulting combined variant."),
     ("laIndices", TDict(TInt32, TInt32), "Mapping from new to old allele index for the left variant."),
     ("raIndices", TDict(TInt32, TInt32), "Mapping from new to old allele index for the right variant.")
   ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
@@ -1076,7 +1077,7 @@ object FunctionRegistry {
     Locus(chr, pos.toInt)
   },
     """
-    Construct a :ref:`locus` object.
+    Construct a :ref:`locus(gr)` object.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -1085,11 +1086,11 @@ object FunctionRegistry {
         result: 10040532
     """,
     ("s", "String of the form ``CHR:POS``")
-  )(stringHr, locusHr(GR))
+  )(stringHr, locusHr(GenomeReference.GRCh37))
 
   register("Locus", { (x: String, y: Int) => Locus(x, y) },
     """
-    Construct a :ref:`locus` object.
+    Construct a :ref:`locus(gr)` object.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -1098,10 +1099,10 @@ object FunctionRegistry {
         result: 10040532
     """,
     "contig" -> "String representation of contig.",
-    "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GR))
+    "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GenomeReference.GRCh37))
   register("Interval", { (x: Locus, y: Locus) => Interval(x, y) },
     """
-    Construct a :ref:`interval` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
+    Construct a :ref:`interval(gr)` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
     """,
     "startLocus" -> "Start position of interval",
     "endLocus" -> "End position of interval")(locusHr(GR), locusHr(GR), locusIntervalHr(GR))
@@ -1264,7 +1265,7 @@ object FunctionRegistry {
     Returns an interval parsed in the same way as :py:meth:`~hail.representation.Interval.parse`
     """,
     "s" -> "The string to parse."
-  )(stringHr, locusIntervalHr(GR))
+  )(stringHr, locusIntervalHr(GenomeReference.GRCh37))
 
   register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
     """
@@ -1272,7 +1273,7 @@ object FunctionRegistry {
     """,
     "chr" -> "Chromosome.",
     "start" -> "Starting position.",
-    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, locusIntervalHr(GR))
+    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, locusIntervalHr(GenomeReference.GRCh37))
 
   register("pcoin", { (p: Double) => math.random < p },
     """
@@ -1511,13 +1512,13 @@ object FunctionRegistry {
     """
     Produce an array of called counts for each allele in the variant (including reference). For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[2, 0]``, ``[1, 1]``, and ``[0, 2]`` respectively.
     """,
-    "v" -> ":ref:`variant`")(genotypeHr, variantHr(GR), arrayHr(int32Hr))
+    "v" -> ":ref:`variant(gr)`")(genotypeHr, variantHr(GR), arrayHr(int32Hr))
 
   registerMethod("oneHotGenotype", (g: Genotype, v: Variant) => Genotype.oneHotGenotype(v, g).orNull,
     """
     Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0. For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
     """,
-    "v" -> ":ref:`variant`"
+    "v" -> ":ref:`variant(gr)`"
   )(genotypeHr, variantHr(GR), arrayHr(int32Hr))
 
   registerMethod("replace", (str: String, pattern1: String, pattern2: String) =>
@@ -1544,7 +1545,7 @@ object FunctionRegistry {
         let i = Interval(Locus("1", 1000), Locus("1", 2000)) in i.contains(Locus("1", 1500))
         result: true
     """,
-    "locus" -> ":ref:`locus`")(locusIntervalHr(GR), locusHr(GR), boolHr)
+    "locus" -> ":ref:`locus(gr)`")(locusIntervalHr(GR), locusHr(GR), boolHr)
 
   val sizeDocstring = "Number of elements in the collection."
   registerMethod("length", (a: IndexedSeq[Any]) => a.length, sizeDocstring)(arrayHr(TTHr), int32Hr)

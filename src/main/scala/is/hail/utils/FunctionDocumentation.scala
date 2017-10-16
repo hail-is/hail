@@ -49,7 +49,13 @@ object DocumentationEntry {
     val isMethod = tt.isInstanceOf[MethodType]
     val isField = tt.isInstanceOf[FieldType]
 
-    val argTypes = (if (isMethod || isField) tt.xs.tail else tt.xs).map { t => t.toString.replaceAll("\\?", "").replaceAll("\\(", "").replaceAll("\\)", "") }.toArray
+    val argTypes = (if (isMethod || isField) tt.xs.tail else tt.xs).map { t =>
+      t match {
+        case TVariant(_) | TLocus(_) | TInterval(_) => t.toString.replaceAll("\\?", "")
+        case _ => t.toString.replaceAll("\\?", "").replaceAll("\\(", "").replaceAll("\\)", "")
+      }
+    }.toArray
+
     val nArgs = argTypes.length
     val argNames = if (md.args.nonEmpty) md.args.map(_._1).toArray else ('a' to 'z').take(nArgs).map(_.toString).toArray
     val argDescs = if (md.args.nonEmpty) md.args.map(_._2).toArray else Array.fill[String](nArgs)(null)
@@ -89,11 +95,11 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
   val objCategory = {
     objType match {
       case Some(ot) => ot match {
-        case x: TAggregable => Some("Aggregable")
-        case x: TAggregableVariable => Some("Aggregable")
-        case x: TArray => Some("Array")
-        case x: TSet => Some("Set")
-        case x: TDict => Some("Dict")
+        case TAggregable(_) => Some("Aggregable")
+        case TAggregableVariable(_, _) => Some("Aggregable")
+        case TArray(_) => Some("Array")
+        case TSet(_) => Some("Set")
+        case TDict(_, _) => Some("Dict")
         case _ => Some(ot.toString.replaceAll("\\?", ""))
       }
       case None => None
@@ -173,7 +179,7 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
     retType match {
       case rt: TStruct =>
         if (rt.fields.nonEmpty) {
-          val fields = rt.fields.flatMap(fd => emitField(sb, fd, None)).map(s => "\t" + s)
+          val fields = rt.fields.flatMap(fd => emitField(sb, fd, None)).map(s => "\t" + s.replaceAll("\\?", ""))
           val output = (Array(".. container:: annotation\n") ++ fields).map(s => "\t" + s).mkString("\n")
 
           sb.append(output)

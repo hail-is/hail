@@ -246,13 +246,13 @@ class AggregatorSuite extends SparkSuite {
       vds.annotateVariantsExpr("va = gs.map(g => 5)"))
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
       vds.annotateVariantsExpr("va = gs.filter(g => true)"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant\\]")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant\\(GRCh37\\)\\]")(
       vds.queryVariants("variants")
     )
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[String\\]")(
       vds.queryVariants("variants.map(v => v.contig)")
     )
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant\\]")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant\\(GRCh37\\)\\]")(
       vds.queryVariants("variants.filter(v => false)")
     )
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[String\\]")(

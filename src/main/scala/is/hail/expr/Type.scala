@@ -6,7 +6,7 @@ import is.hail.check.{Gen, _}
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils
 import is.hail.utils.{Interval, StringEscapeUtils, _}
-import is.hail.variant.{AltAllele, Call, Contig, GenomeReference, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, Contig, GRBase, GenomeReference, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
 import org.json4s._
@@ -982,8 +982,8 @@ case object TAltAllele extends ComplexType {
     "alt" -> TString)
 }
 
-case class TVariant(gr: GenomeReference) extends ComplexType {
-  override def toString = "Variant"
+case class TVariant(gr: GRBase) extends ComplexType {
+  override def toString = s"""Variant($gr)"""
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 
@@ -991,7 +991,7 @@ case class TVariant(gr: GenomeReference) extends ComplexType {
 
   override def desc: String =
     """
-    A ``Variant`` is a Hail data type representing a variant in the Variant Dataset. It is referred to as ``v`` in the expression language.
+    A ``Variant(GR)`` is a Hail data type representing a variant in the dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38. It is referred to as ``v`` in the expression language.
 
     The `pseudoautosomal region <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`_ (PAR) is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
 
@@ -1063,16 +1063,20 @@ case class TVariant(gr: GenomeReference) extends ComplexType {
     case TVariant(cgr) => gr.unify(cgr)
     case _ => false
   }
+
+  override def clear(): Unit = gr.clear()
+
+  override def subst() = gr.subst().variant
 }
 
-case class TLocus(gr: GenomeReference) extends ComplexType {
-  override def toString = "Locus"
+case class TLocus(gr: GRBase) extends ComplexType {
+  override def toString = s"Locus($gr)"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
 
   override def genNonmissingValue: Gen[Annotation] = Locus.gen
 
-  override def desc: String = "A ``Locus`` is a Hail data type representing a specific genomic location in the Variant Dataset."
+  override def desc: String = "A ``Locus(GR)`` is a Hail data type representing a specific genomic location in the Variant Dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38."
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
@@ -1111,16 +1115,20 @@ case class TLocus(gr: GenomeReference) extends ComplexType {
     case TLocus(cgr) => gr.unify(cgr)
     case _ => false
   }
+
+  override def clear(): Unit = gr.clear()
+
+  override def subst() = gr.subst().locus
 }
 
-case class TInterval(gr: GenomeReference) extends ComplexType {
-  override def toString = "Interval"
+case class TInterval(gr: GRBase) extends ComplexType {
+  override def toString = s"""Interval($gr)"""
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(Locus.gen)
 
-  override def desc: String = "An ``Interval`` is a Hail data type representing a range of genomic locations in the Variant Dataset."
+  override def desc: String = "An ``Interval(GR)`` is a Hail data type representing a range of genomic locations in the dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38."
 
   override def scalaClassTag: ClassTag[Interval[Locus]] = classTag[Interval[Locus]]
 
@@ -1156,6 +1164,10 @@ case class TInterval(gr: GenomeReference) extends ComplexType {
     case TInterval(cgr) => gr.unify(cgr)
     case _ => false
   }
+
+  override def clear(): Unit = gr.clear()
+
+  override def subst() = gr.subst().interval
 }
 
 final case class Field(name: String, typ: Type,
