@@ -174,7 +174,7 @@ class BlockMatrixSuite extends SparkSuite {
 
       assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
       true
-    }
+    }.check()
 
     forAll(Gen.twoMultipliableDenseMatrices[Double], Gen.interestingPosInt) { case ((ll, lr), blockSize) =>
       val l = toBM(ll, blockSize)
@@ -183,7 +183,7 @@ class BlockMatrixSuite extends SparkSuite {
       assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
 
       true
-    }
+    }.check()
   }
 
   @Test
@@ -356,12 +356,13 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def fromLocalTest() {
-    Rand.generator.setSeed(Prop.seed)
-
-    val rows = 100
-    val cols = 100
-    val local = BDM.rand[Double](rows, cols)
-    assert(local === BlockMatrix.from(sc, local, rows - 1).toLocalMatrix())
+    forAll(Gen.denseMatrix[Double]) { lm =>
+      assert(lm === BlockMatrix.from(sc, lm, lm.rows + 1).toLocalMatrix())
+      assert(lm === BlockMatrix.from(sc, lm, lm.rows).toLocalMatrix())
+      assert(lm === BlockMatrix.from(sc, lm, lm.rows - 1).toLocalMatrix())
+      assert(lm === BlockMatrix.from(sc, lm, math.max(1, math.sqrt(lm.rows).toInt)).toLocalMatrix())
+      true
+    }.check()
   }
 
   @Test
