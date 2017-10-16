@@ -10,7 +10,7 @@ abstract class Prop {
 
   def check() {
     val size = System.getProperty("check.size", "1000").toInt
-    val count = System.getProperty("check.count", "1000").toInt
+    val count = System.getProperty("check.count", "10").toInt
 
     println(s"check: size = $size, count = $count")
 
