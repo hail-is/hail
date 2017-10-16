@@ -526,6 +526,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def allocateRoot() {
+    assert(typestk.isEmpty)
     root match {
       case t: TArray =>
       case TBinary =>
@@ -536,6 +537,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def end(): Long = {
+    assert(root != null)
     root = null
     assert(inactive)
     start
@@ -799,9 +801,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def addRegionValue(t: Type, fromRegion: MemoryBuffer, fromOff: Long) {
     val toT = currentType()
-    val toOff = currentOffset()
     assert(toT == t.fundamentalType)
-    assert(typestk.nonEmpty || toOff == start)
 
     if (typestk.isEmpty) {
       if (region.eq(fromRegion)) {
@@ -812,6 +812,9 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
       allocateRoot()
     }
+
+    val toOff = currentOffset()
+    assert(typestk.nonEmpty || toOff == start)
 
     t.fundamentalType match {
       case t: TStruct =>

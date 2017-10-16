@@ -409,6 +409,14 @@ object Gen {
     z <- g3.resize(s3)
   } yield (x, y, z)
 
+  def zip[T1, T2, T3, T4](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], g4: Gen[T4]): Gen[(T1, T2, T3, T4)] = for {
+    Array(s1, s2, s3, s4) <- partitionSize(4)
+    x <- g1.resize(s1)
+    y <- g2.resize(s2)
+    z <- g3.resize(s3)
+    w <- g4.resize(s4)
+  } yield (x, y, z, w)
+
   def parameterized[T](f: (Parameters => Gen[T])) = Gen { p => f(p)(p) }
 
   def sized[T](f: (Int) => Gen[T]): Gen[T] = Gen { (p: Parameters) => f(p.size)(p) }

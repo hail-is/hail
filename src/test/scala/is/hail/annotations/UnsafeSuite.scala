@@ -57,16 +57,17 @@ class UnsafeSuite extends SparkSuite {
     val rvb2 = new RegionValueBuilder(region2)
 
     val g = Type.genArb
-      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
-      .filter { case (t, a) => a != null }
-      .resize(10)
-    val p = Prop.forAll(g) { case (t, a) =>
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue, Gen.choose(0, 100), Gen.choose(0, 100)))
+      .filter { case (t, a, n, n2) => a != null }
+    val p = Prop.forAll(g) { case (t, a, n, n2) =>
       val ttBc = BroadcastTypeTree(sc, t)
 
       t.typeCheck(a)
 
       // test addAnnotation
       region.clear()
+      region.allocate(n) // preallocate
+
       rvb.start(t)
       rvb.addAnnotation(t, a)
       val offset = rvb.end()
@@ -80,6 +81,7 @@ class UnsafeSuite extends SparkSuite {
 
       // test addAnnotation from ur
       region2.clear()
+      region2.allocate(n2) // preallocate
       rvb2.start(t)
       rvb2.addAnnotation(t, ur)
       val offset2 = rvb2.end()
@@ -89,18 +91,43 @@ class UnsafeSuite extends SparkSuite {
 
       // test addRegionValue
       region2.clear()
+      region2.allocate(n2) // preallocate
       rvb2.start(t)
       rvb2.addRegionValue(t, region, offset)
       val offset3 = rvb2.end()
       val ur3 = UnsafeRow.read(region2, offset3, t, ttBc)
       assert(t.valuesSimilar(a, ur3))
 
+      // test addRegionValue nested
+      t match {
+        case t: TStruct =>
+          region2.clear()
+          region2.allocate(n) // preallocate
+          rvb2.start(t)
+          rvb2.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
+          val offset4 = rvb2.end()
+          val ur4 = new UnsafeRow(ttBc, region2, offset4)
+          assert(t.valuesSimilar(a, ur4))
+        case _ =>
+      }
+
       // test addRegionValue to same region
       rvb.start(t)
       rvb.addRegionValue(t, region, offset)
-      val offset4 = rvb.end()
-      val ur4 = UnsafeRow.read(region, offset4, t, ttBc)
-      assert(t.valuesSimilar(a, ur4))
+      val offset5 = rvb.end()
+      val ur5 = UnsafeRow.read(region, offset5, t, ttBc)
+      assert(t.valuesSimilar(a, ur5))
+
+      // test addRegionValue to same region nested
+      t match {
+        case t: TStruct =>
+          rvb.start(t)
+          rvb.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
+          val offset6 = rvb.end()
+          val ur6 = new UnsafeRow(ttBc, region, offset6)
+          assert(t.valuesSimilar(a, ur6))
+        case _ =>
+      }
 
       true
     }
