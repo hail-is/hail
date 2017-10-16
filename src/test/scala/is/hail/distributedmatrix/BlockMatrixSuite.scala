@@ -536,6 +536,15 @@ class BlockMatrixSuite extends SparkSuite {
     assert(m.t.mapWithIndex((_,_,x) => x * 4).toLocalMatrix() === lm.t.map(_ * 4))
     assert(m.t.t.mapWithIndex((_,_,x) => x * 4).toLocalMatrix() === lm.map(_ * 4))
     assert(mt.t.mapWithIndex((_,_,x) => x * 4).toLocalMatrix() === lm.map(_ * 4))
+
+    assert(m.t.mapWithIndex((i,j,x) => i * 10 + j + x).toLocalMatrix() ===
+      mt.mapWithIndex((i,j,x) => i * 10 + j + x).toLocalMatrix())
+    assert(m.t.mapWithIndex((i,j,x) => x + j * 2 + i + 1).toLocalMatrix() ===
+      lm.t + lm.t)
+    assert(mt.mapWithIndex((i,j,x) => x + j * 2 + i + 1).toLocalMatrix() ===
+      lm.t + lm.t)
+    assert(mt.t.mapWithIndex((i,j,x) => x + i * 2 + j + 1).toLocalMatrix() ===
+      lm + lm)
   }
 
   @Test
@@ -556,6 +565,17 @@ class BlockMatrixSuite extends SparkSuite {
     assert(mt.map2WithIndex(m.t, (_,_,x,y) => x + y).toLocalMatrix() === lm.t + lm.t)
     assert(mt.t.map2WithIndex(m, (_,_,x,y) => x + y).toLocalMatrix() === lm + lm)
     assert(m.t.t.map2WithIndex(mt.t, (_,_,x,y) => x + y).toLocalMatrix() === lm + lm)
+
+    assert(m.t.map2WithIndex(mt, (i,j,x,y) => i * 10 + j + x + y).toLocalMatrix() ===
+      mt.map2WithIndex(m.t, (i,j,x,y) => i * 10 + j + x + y).toLocalMatrix())
+    assert(m.t.map2WithIndex(m.t, (i,j,x,y) => i * 10 + j + x + y).toLocalMatrix() ===
+      mt.map2WithIndex(mt, (i,j,x,y) => i * 10 + j + x + y).toLocalMatrix())
+    assert(m.t.map2WithIndex(mt, (i,j,x,y) => x + 2 * y + j * 2 + i + 1).toLocalMatrix() ===
+      4.0 * lm.t)
+    assert(mt.map2WithIndex(m.t, (i,j,x,y) => x + 2 * y + j * 2 + i + 1).toLocalMatrix() ===
+      4.0 * lm.t)
+    assert(mt.t.map2WithIndex(m.t.t, (i,j,x,y) => 3 * x + 5 * y + i * 2 + j + 1).toLocalMatrix() ===
+      9.0 * lm)
   }
 
 }
