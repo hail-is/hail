@@ -522,15 +522,13 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def start(newRoot: Type) {
     assert(inactive)
-
     root = newRoot.fundamentalType
+  }
+
+  def allocateRoot() {
     root match {
       case t: TArray =>
-        region.align(t.contentsAlignment)
-        start = region.offset
       case TBinary =>
-        region.align(TBinary.contentAlignment)
-        start = region.offset
       case _ =>
         region.align(root.alignment)
         start = region.allocate(root.byteSize)
@@ -549,6 +547,9 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def startStruct(init: Boolean = true) {
+    if (typestk.isEmpty)
+      allocateRoot()
+
     val t = currentType().asInstanceOf[TStruct]
     val off = currentOffset()
     typestk.push(t)
@@ -591,19 +592,17 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def endArray() {
-    typestk.top match {
-      case t: TArray =>
-        val aoff = offsetstk.top
-        val length = t.loadLength(region, aoff)
-        assert(length == indexstk.top)
+    val t = typestk.top.asInstanceOf[TArray]
+    val aoff = offsetstk.top
+    val length = t.loadLength(region, aoff)
+    assert(length == indexstk.top)
 
-        typestk.pop()
-        offsetstk.pop()
-        elementsOffsetstk.pop()
-        indexstk.pop()
+    typestk.pop()
+    offsetstk.pop()
+    elementsOffsetstk.pop()
+    indexstk.pop()
 
-        advance()
-    }
+    advance()
   }
 
   def setMissing() {
@@ -620,6 +619,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def addBoolean(b: Boolean) {
     assert(currentType() == TBoolean)
+    if (typestk.isEmpty)
+      allocateRoot()
     val off = currentOffset()
     region.storeByte(off, b.toByte)
     advance()
@@ -627,6 +628,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def addInt(i: Int) {
     assert(currentType() == TInt32)
+    if (typestk.isEmpty)
+      allocateRoot()
     val off = currentOffset()
     region.storeInt(off, i)
     advance()
@@ -634,6 +637,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def addLong(l: Long) {
     assert(currentType() == TInt64)
+    if (typestk.isEmpty)
+      allocateRoot()
     val off = currentOffset()
     region.storeLong(off, l)
     advance()
@@ -641,6 +646,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def addFloat(f: Float) {
     assert(currentType() == TFloat32)
+    if (typestk.isEmpty)
+      allocateRoot()
     val off = currentOffset()
     region.storeFloat(off, f)
     advance()
@@ -648,6 +655,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def addDouble(d: Double) {
     assert(currentType() == TFloat64)
+    if (typestk.isEmpty)
+      allocateRoot()
     val off = currentOffset()
     region.storeDouble(off, d)
     advance()
@@ -791,24 +800,43 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     assert(toT == t.fundamentalType)
     assert(typestk.nonEmpty || toOff == start)
 
+    if (typestk.isEmpty) {
+      if (region.eq(fromRegion)) {
+        start = fromOff
+        advance()
+        return
+      }
+
+      allocateRoot()
+    }
+
     t.fundamentalType match {
       case t: TStruct =>
         region.copyFrom(fromRegion, fromOff, toOff, t.byteSize)
         if (region.ne(fromRegion))
           fixupStruct(t, toOff, fromRegion, fromOff)
       case t: TArray =>
-        // FIXME shouldn't copy if in same region (set start to fromOff?)
-        val toAOff = fixupArray(t, fromRegion, fromOff)
-        if (typestk.nonEmpty)
-          region.storeAddress(toOff, toAOff)
-        else
-          assert(toAOff == start)
+        if (region.eq(fromRegion)) {
+          assert(!typestk.isEmpty)
+          region.storeAddress(toOff, fromOff)
+        } else {
+          val toAOff = fixupArray(t, fromRegion, fromOff)
+          if (typestk.nonEmpty)
+            region.storeAddress(toOff, toAOff)
+          else
+            assert(start == toAOff)
+        }
       case TBinary =>
-        val toBOff = fixupBinary(fromRegion, fromOff)
-        if (typestk.nonEmpty)
-          region.storeAddress(toOff, toBOff)
-        else
-          assert(toBOff == start)
+        if (region.eq(fromRegion)) {
+          assert(!typestk.isEmpty)
+          region.storeAddress(toOff, fromOff)
+        } else {
+          val toBOff = fixupBinary(fromRegion, fromOff)
+          if (typestk.nonEmpty)
+            region.storeAddress(toOff, toBOff)
+          else
+            assert(toBOff == start)
+        }
       case _ =>
         region.copyFrom(fromRegion, fromOff, toOff, t.byteSize)
     }

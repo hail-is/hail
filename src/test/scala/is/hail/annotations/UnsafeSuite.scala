@@ -65,6 +65,7 @@ class UnsafeSuite extends SparkSuite {
 
       t.typeCheck(a)
 
+      // test addAnnotation
       region.clear()
       rvb.start(t)
       rvb.addAnnotation(t, a)
@@ -77,6 +78,7 @@ class UnsafeSuite extends SparkSuite {
       val rv = RegionValue(region, offset)
       rv.pretty(t)
 
+      // test addAnnotation from ur
       region2.clear()
       rvb2.start(t)
       rvb2.addAnnotation(t, ur)
@@ -85,17 +87,20 @@ class UnsafeSuite extends SparkSuite {
       val ur2 = UnsafeRow.read(region2, offset2, t, ttBc)
       assert(t.valuesSimilar(a, ur2))
 
-      t match {
-        case t: TStruct =>
-          // don't clear, just add on
-          rvb2.start(t)
-          rvb2.addUnsafeRow(t, ur.asInstanceOf[UnsafeRow])
-          val offset3 = rvb2.end()
+      // test addRegionValue
+      region2.clear()
+      rvb2.start(t)
+      rvb2.addRegionValue(t, region, offset)
+      val offset3 = rvb2.end()
+      val ur3 = UnsafeRow.read(region2, offset3, t, ttBc)
+      assert(t.valuesSimilar(a, ur3))
 
-          val ur3 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset3)
-          assert(t.valuesSimilar(a, ur2))
-        case _ =>
-      }
+      // test addRegionValue to same region
+      rvb.start(t)
+      rvb.addRegionValue(t, region, offset)
+      val offset4 = rvb.end()
+      val ur4 = UnsafeRow.read(region, offset4, t, ttBc)
+      assert(t.valuesSimilar(a, ur4))
 
       true
     }
