@@ -55,12 +55,10 @@ class VSMSuite extends SparkSuite {
     val s1mdata = VSMFileMetadata(Array("S1", "S2", "S3"))
     val s1va1: Annotation = null
     val s1va2 = Annotation()
-    val s1va3 = Annotation()
 
     val s2mdata = VSMFileMetadata(Array("S1", "S2"))
     val s2va1: Annotation = null
     val s2va2: Annotation = null
-    val s2va3 = Annotation()
 
     val s3mdata = VSMFileMetadata(
       Array("S1", "S2"),
@@ -83,7 +81,6 @@ class VSMSuite extends SparkSuite {
         "dummy" -> TString))
     val s4va1 = Annotation(Annotation("yes"), "yes", null)
     val s4va2 = Annotation(Annotation("yes"), "no", "dummy")
-    val s4va3 = Annotation(Annotation("no"), "yes", null)
 
     assert(s1mdata != s2mdata)
     assert(s1mdata != s3mdata)
@@ -125,7 +122,6 @@ class VSMSuite extends SparkSuite {
           Genotype(0),
           Genotype(1)))))).toOrderedRDD
 
-    // for mdata2
     val s2rdd4 = sc.parallelize(Seq((v1, (s2va1,
       Iterable(Genotype(),
         Genotype(0)))),
@@ -138,7 +134,7 @@ class VSMSuite extends SparkSuite {
       Iterable(Genotype(),
         Genotype(0)))))).toOrderedRDD
 
-    // differ in annotations
+    // differ in variant annotations
     val s3rdd6 = sc.parallelize(Seq((v1, (s3va1,
       Iterable(Genotype(),
         Genotype(0),
@@ -182,6 +178,7 @@ class VSMSuite extends SparkSuite {
       new VariantDataset(hc, s3mdata, s3rdd5),
       new VariantDataset(hc, s3mdata, s3rdd6),
       new VariantDataset(hc, s1mdata, s1rdd7),
+      new VariantDataset(hc, s2mdata, s2rdd8),
       new VariantDataset(hc, s4mdata, s4rdd9))
 
     for (vds <- vdss)
