@@ -580,7 +580,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     if (typestk.nonEmpty) {
       val off = currentOffset()
       region.storeAddress(off, aoff)
-    }
+    } else
+      start = aoff
 
     typestk.push(t)
     elementsOffsetstk.push(aoff + t.elementsOffset(length))
@@ -664,17 +665,17 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def addBinary(bytes: Array[Byte]) {
     assert(currentType() == TBinary)
-    val off = currentOffset()
 
     region.align(TBinary.contentAlignment)
     val boff = region.offset
     region.appendInt(bytes.length)
     region.appendBytes(bytes)
 
-    if (typestk.nonEmpty)
+    if (typestk.nonEmpty) {
+      val off = currentOffset()
       region.storeAddress(off, boff)
-    else
-      assert(boff == start)
+    } else
+      start = boff
 
     advance()
   }
@@ -697,6 +698,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def fixupBinary(fromRegion: MemoryBuffer, fromBOff: Long): Long = {
     val length = TBinary.loadLength(fromRegion, fromBOff)
+    region.align(TBinary.contentAlignment)
     val toBOff = TBinary.allocate(region, length)
     region.copyFrom(fromRegion, fromBOff, toBOff, TBinary.contentByteSize(length))
     toBOff
@@ -712,6 +714,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def fixupArray(t: TArray, fromRegion: MemoryBuffer, fromAOff: Long): Long = {
     val length = t.loadLength(fromRegion, fromAOff)
+    region.align(t.contentsAlignment)
     val toAOff = t.allocate(region, length)
 
     region.copyFrom(fromRegion, fromAOff, toAOff, t.contentsByteSize(length))
@@ -824,7 +827,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
           if (typestk.nonEmpty)
             region.storeAddress(toOff, toAOff)
           else
-            assert(start == toAOff)
+            start = toAOff
         }
       case TBinary =>
         if (region.eq(fromRegion)) {
@@ -835,7 +838,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
           if (typestk.nonEmpty)
             region.storeAddress(toOff, toBOff)
           else
-            assert(toBOff == start)
+            start = toBOff
         }
       case _ =>
         region.copyFrom(fromRegion, fromOff, toOff, t.byteSize)
