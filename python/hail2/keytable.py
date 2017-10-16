@@ -233,7 +233,7 @@ class KeyTable(KeyTableTemplate):
 
     Select columns:
 
-    >>> kt.select('a', 'e')
+    >>> kt.select(True, kt.a, kt.e, *kt.h, foo = kt.a + kt.b)
 
     Filter:
 
@@ -571,8 +571,10 @@ class KeyTable(KeyTableTemplate):
 
     @handle_py4j
     @record_method
-    @typecheck_method(column_names=tupleof(strlike))
-    def select(self, *column_names):
+    @typecheck_method(qualified_name=bool,
+                      exprs=tupleof(Column),
+                      named_exprs=dictof(strlike, anytype))
+    def select(self, qualified_name, *exprs, **named_exprs):
         """Select a subset of columns.
 
         **Examples**
@@ -582,23 +584,27 @@ class KeyTable(KeyTableTemplate):
 
         Select/drop columns:
 
-        >>> kt_result = kt1.select('C1')
+        >>> kt_result = kt1.select(False, kt1.C1)
 
         Reorder the columns:
 
-        >>> kt_result = kt1.select('C3', 'C1', 'C2')
+        >>> kt_result = kt1.select(False, kt1.C3, kt1.C1, kt1.C2)
 
         Drop all columns:
 
-        >>> kt_result = kt1.select()
+        >>> kt_result = kt1.select(False)
 
-        :param selected_columns: Names of columns to be selected. Multiple arguments allowed.
-        :type: str
+        Create a new column computed from existing columns:
+
+        >>> kt_result = kt1.select(False, C_NEW = kt1.C1 + kt1.C2 + kt1.C3)
 
         :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
         """
-        return KeyTable(self.hc, self._jkt.select(list(column_names)))
+
+        exprs = [to_expr(e) for e in exprs]
+        exprs.extend([k + " = " + to_expr(v) for k, v in named_exprs.iteritems()])
+        return KeyTable(self.hc, self._jkt.select(exprs, qualified_name))
 
     @handle_py4j
     @write_history('output', is_dir=False)

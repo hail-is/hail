@@ -155,17 +155,19 @@ class KeyTableTests(unittest.TestCase):
         self.assertEqual(kt.filter(True).count(), 3)
 
     def test_select(self):
-        schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f'],
-                         [TInt32(), TInt32(), TInt32(), TInt32(), TString(), TArray(TInt32())])
+        schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+                         [TInt32(), TInt32(), TInt32(), TInt32(), TString(), TArray(TInt32()), TStruct(['x', 'y'], [TBoolean(), TInt32()])])
 
-        rows = [{'a':4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
-                {'a':0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
-                {'a':4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
+        rows = [{'a':4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'g': {'x': True, 'y': 2}},
+                {'a':0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': [], 'g': {'x': True, 'y': 2}},
+                {'a':4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7], 'g': None}]
 
         kt = KeyTable.parallelize(rows, schema)
 
-        self.assertEqual(kt.select('a', 'e').columns, ['a', 'e'])
-        self.assertEqual(kt.select(*['a', 'e']).columns, ['a', 'e'])
+        self.assertEqual(kt.select(False, kt.a, kt.e).columns, ['a', 'e'])
+        self.assertEqual(kt.select(False, *[kt.a, kt.e]).columns, ['a', 'e'])
+        self.assertEqual(kt.select(False, kt.a, foo = kt.a + kt.b - kt.c - kt.d).columns, ['a', 'foo'])
+        self.assertEqual(kt.select(False, kt.a, *kt.g, foo=kt.a + kt.b - kt.c - kt.d).columns, ['a', 'x', 'y', 'foo'])
 
     def test_aggregate(self):
         schema = TStruct(['status', 'gt', 'qPheno'],
