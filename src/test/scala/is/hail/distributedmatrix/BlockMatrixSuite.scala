@@ -142,42 +142,47 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def multiplySameAsBreeze() {
-    Rand.generator.setSeed(Prop.seed)
+    def randomLm(n: Int, m: Int) = Gen.denseMatrix[Double](n,m)
 
-    {
-      val ll = BDM.rand[Double](4, 4)
-      val lr = BDM.rand[Double](4, 4)
+    forAll(randomLm(4,4), randomLm(4,4)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
       assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
-    }
+      true
+    }.check()
 
-    {
-      val ll = BDM.rand[Double](9, 9)
-      val lr = BDM.rand[Double](9, 9)
+    forAll(randomLm(9,9), randomLm(9,9)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
       assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
-    }
+      true
+    }.check()
 
-    {
-      val ll = BDM.rand[Double](9, 9)
-      val lr = BDM.rand[Double](9, 9)
+    forAll(randomLm(9,9), randomLm(9,9)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
       assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
-    }
+      true
+    }.check()
 
-    {
-      val ll = BDM.rand[Double](2, 10)
-      val lr = BDM.rand[Double](10, 2)
+    forAll(randomLm(2,10), randomLm(10,2)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
       assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
+      true
+    }
+
+    forAll(Gen.twoMultipliableDenseMatrices[Double], Gen.interestingPosInt) { case ((ll, lr), blockSize) =>
+      val l = toBM(ll, blockSize)
+      val r = toBM(lr, blockSize)
+
+      assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
+
+      true
     }
   }
 

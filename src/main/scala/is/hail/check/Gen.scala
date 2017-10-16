@@ -4,6 +4,7 @@ import breeze.linalg.DenseMatrix
 import breeze.storage.Zero
 import is.hail.utils.UInt
 import is.hail.utils.roundWithConstantSum
+import is.hail.check.Arbitrary.arbitrary
 import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
@@ -212,18 +213,22 @@ object Gen {
       b.result()
     }
 
-  def denseMatrix[T](n: Int, m: Int)(implicit tct: ClassTag[T], tzero: Zero[T], arb: Arbitrary[T]): Gen[DenseMatrix[T]] =
-    denseMatrix[T](n, m, arb.arbitrary)
+  def denseMatrix[T : ClassTag : Zero : Arbitrary](): Gen[DenseMatrix[T]] = for {
+    (l, w) <- Gen.nonEmptySquareOfAreaAtMostSize
+    m <- denseMatrix(l, w)
+  } yield m
 
-  def denseMatrix[T](n: Int, m: Int, g: Gen[T])(implicit tct: ClassTag[T], tzero: Zero[T]): Gen[DenseMatrix[T]] =
-    Gen { (p: Parameters) =>
-      DenseMatrix.fill[T](n, m)(g.resize(p.size / (n * m))(p))
-    }
+  def denseMatrix[T : ClassTag : Zero : Arbitrary](n: Int, m: Int): Gen[DenseMatrix[T]] =
+    denseMatrix[T](n, m, arbitrary[T])
 
-  def twoMultipliableDenseMatrices[T](implicit tct: ClassTag[T], tzero: Zero[T], arb: Arbitrary[T]): Gen[(DenseMatrix[T], DenseMatrix[T])] =
-    twoMultipliableDenseMatrices(arb.arbitrary)
+  def denseMatrix[T : ClassTag : Zero](n: Int, m: Int, g: Gen[T]): Gen[DenseMatrix[T]] = Gen { (p: Parameters) =>
+    DenseMatrix.fill[T](n, m)(g.resize(p.size / (n * m))(p))
+  }
 
-  def twoMultipliableDenseMatrices[T](g: Gen[T])(implicit tct: ClassTag[T], tzero: Zero[T]): Gen[(DenseMatrix[T], DenseMatrix[T])] = for {
+  def twoMultipliableDenseMatrices[T : ClassTag : Zero : Arbitrary](): Gen[(DenseMatrix[T], DenseMatrix[T])] =
+    twoMultipliableDenseMatrices(arbitrary[T])
+
+  def twoMultipliableDenseMatrices[T : ClassTag : Zero](g: Gen[T]): Gen[(DenseMatrix[T], DenseMatrix[T])] = for {
     Array(rows, inner, columns) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
     l <- denseMatrix(rows, inner, g)
     r <- denseMatrix(inner, columns, g)
