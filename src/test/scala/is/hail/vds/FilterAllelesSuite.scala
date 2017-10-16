@@ -38,8 +38,7 @@ class FilterAllelesSuite extends SparkSuite {
       IndexedSeq[Annotation](null, null, null),
       null,
       TString,
-      TStruct.empty,
-      TString),
+      TStruct.empty),
       sc.parallelize(Seq(row1)).toOrderedRDD)
       .filterAlleles("aIndex == 2", subset = false, keep = false)
 
@@ -67,8 +66,7 @@ class FilterAllelesSuite extends SparkSuite {
       IndexedSeq[Annotation](null, null, null),
       null,
       TString,
-      TStruct.empty,
-      TString),
+      TStruct.empty),
       sc.parallelize(Seq(row1)).toOrderedRDD)
       .filterAlleles("aIndex == 1", subset = false, keep = false)
 
@@ -96,8 +94,7 @@ class FilterAllelesSuite extends SparkSuite {
       IndexedSeq[Annotation](null, null, null),
       null,
       TString,
-      TStruct.empty,
-      TString),
+      TStruct.empty),
       sc.parallelize(Seq(row1)).toOrderedRDD)
       .filterAlleles("aIndex == 1", subset = true, keep = false)
 
@@ -125,8 +122,7 @@ class FilterAllelesSuite extends SparkSuite {
       IndexedSeq[Annotation](null, null, null),
       null,
       TString,
-      TStruct.empty,
-      TString),
+      TStruct.empty),
       sc.parallelize(Seq(row1)).toOrderedRDD)
       .filterAlleles("aIndex == 2", subset = true, keep = false)
 
@@ -154,8 +150,7 @@ class FilterAllelesSuite extends SparkSuite {
       IndexedSeq[Annotation](null, null, null),
       null,
       TString,
-      TStruct.empty,
-      TString),
+      TStruct.empty),
       sc.parallelize(Seq(row1)).toOrderedRDD)
       .filterAlleles("aIndex == 2", subset = true, keep = false, filterAlteredGenotypes = true)
 
@@ -180,8 +175,7 @@ class FilterAllelesSuite extends SparkSuite {
       IndexedSeq[Annotation](null, null, null),
       null,
       TString,
-      TStruct.empty,
-      TString),
+      TStruct.empty),
       sc.parallelize(Seq(row1)).toOrderedRDD)
       .filterAlleles("aIndex == 2", keep = false, subset = false, annotationExpr = "va = aIndices")
 
