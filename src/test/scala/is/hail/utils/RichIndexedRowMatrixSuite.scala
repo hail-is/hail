@@ -53,13 +53,12 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
 
   @Test def emptyBlocks() {
     val rows = 9L
-    val cols = 3L
+    val cols = 2L
     val data = Seq(
-      (3L, Vectors.dense(1.0, 2.0, 3.0)),
-      (4L, Vectors.dense(1.0, 2.0, 3.0)),
-      (5L, Vectors.dense(1.0, 2.0, 3.0)),
-      (8L, Vectors.dense(1.0, 2.0, 3.0)),
-      (9L, Vectors.dense(1.0, 2.0, 3.0))
+      (3L, Vectors.dense(1.0, 2.0)),
+      (4L, Vectors.dense(1.0, 2.0)),
+      (5L, Vectors.dense(1.0, 2.0)),
+      (8L, Vectors.dense(1.0, 2.0))
     ).map(IndexedRow.tupled)
 
     val idxRowMat = new IndexedRowMatrix(sc.parallelize(data))
@@ -68,6 +67,7 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
     assert(m.rows == rows)
     assert(m.cols == cols)
     assert(m.toLocalMatrix() == convertDistributedMatrixToBreeze(idxRowMat))
+    assert(m.blocks.count() == 5)
   }
 
 }
