@@ -1,7 +1,8 @@
 package is.hail.utils
 
-import breeze.linalg.Matrix
+import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.SparkSuite
+import is.hail.distributedmatrix.BlockMatrix.ops._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{DistributedMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
@@ -52,8 +53,8 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
   }
 
   @Test def emptyBlocks() {
-    val rows = 9L
-    val cols = 2L
+    val rows = 9
+    val cols = 2
     val data = Seq(
       (3L, Vectors.dense(1.0, 2.0)),
       (4L, Vectors.dense(1.0, 2.0)),
@@ -68,6 +69,14 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
     assert(m.cols == cols)
     assert(m.toLocalMatrix() == convertDistributedMatrixToBreeze(idxRowMat))
     assert(m.blocks.count() == 5)
+
+    (m * m.t).toLocalMatrix() // assert no exception
+
+    assert(m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toLocalMatrix() ===
+      new BDM[Double](rows, cols, Array[Double](
+        0.0, 1.0, 2.0, 4.0, 5.0, 6.0, 6.0, 7.0, 9.0,
+        10.0, 11.0, 12.0, 14.0, 15.0, 16.0, 16.0, 17.0, 20.0
+      )))
   }
 
 }

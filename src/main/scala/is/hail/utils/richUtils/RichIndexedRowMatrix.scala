@@ -1,5 +1,7 @@
 package is.hail.utils.richUtils
 
+import org.apache.spark._
+import org.apache.spark.rdd.RDD
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.distributedmatrix._
 import is.hail.utils._
@@ -83,8 +85,31 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         new BDM[Double](rowsInBlock, colsInBlock, a)
     }
 
-    new BlockMatrix(blocks, blockSize, rows, cols)
+    new BlockMatrix(new EmptyPartitionIsAZeroMatrixRDD(blocks), blockSize, rows, cols)
   }
+
+}
+
+private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double])])
+    extends RDD[((Int, Int), BDM[Double])](blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(blocks))) {
+  assert(!blocks.partitioner.isEmpty)
+  assert(blocks.partitioner.get.isInstanceOf[GridPartitioner])
+
+  val gp = blocks.partitioner.get.asInstanceOf[GridPartitioner]
+
+  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
+    val it = blocks.iterator(split, context)
+    if (it.hasNext)
+      it
+    else
+      Iterator.single(gp.blockCoordinates(split.index) -> BDM.zeros[Double](gp.blockSize, gp.blockSize))
+  }
+
+  protected def getPartitions: Array[Partition] =
+    blocks.partitions
+
+  @transient override val partitioner: Option[Partitioner] =
+    Some(gp)
 }
 
 
