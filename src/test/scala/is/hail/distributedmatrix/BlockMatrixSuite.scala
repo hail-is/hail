@@ -56,9 +56,9 @@ class BlockMatrixSuite extends SparkSuite {
     size <- Gen.size
     l <- Gen.interestingPosInt
     s = math.sqrt(math.min(l, size)).toInt
-    blockSize <- Gen.interestingPosInt
+    preBlockSize <- Gen.interestingPosInt
+    blockSize = math.sqrt(preBlockSize).toInt
     m <- blockMatrixPreGen(s, s, blockSize)
-    _ = println(s"$l $s $blockSize")
   } yield m
 
   val blockMatrixGen = for {
@@ -68,14 +68,43 @@ class BlockMatrixSuite extends SparkSuite {
 
   val twoMultipliableBlockMatrices = for {
     Array(rows, inner, columns) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
-    blockSize <- Gen.interestingPosInt
+    preBlockSize <- Gen.interestingPosInt
+    blockSize = math.pow(preBlockSize, 1.0/3.0).toInt
     transposed <- Gen.coin()
     l <- blockMatrixPreGen(rows, inner, blockSize, transposed)
     r <- blockMatrixPreGen(inner, columns, blockSize, transposed)
   } yield if (transposed) (r, l) else (l, r)
 
-  implicit val arbitraryHailBlockMatrix =
+  implicit val arbitraryBlockMatrix =
     Arbitrary(blockMatrixGen)
+
+  private val defaultRelTolerance = 1e-14
+
+  private def sameDoubleMatrixNaNEqualsNaN(x: BDM[Double], y: BDM[Double], relTolerance: Double = defaultRelTolerance): Boolean =
+    findDoubleMatrixMismatchNaNEqualsNaN(x, y, relTolerance) match {
+      case Some(_) => true
+      case None => false
+    }
+
+  private def findDoubleMatrixMismatchNaNEqualsNaN(x: BDM[Double], y: BDM[Double], relTolerance: Double = defaultRelTolerance): Option[(Int, Int)] = {
+    assert(x.rows == y.rows && x.cols == y.cols,
+      s"dimension mismatch: ${x.rows} x ${x.cols} vs ${y.rows} x ${y.cols}")
+    var j = 0
+    while (j < x.cols) {
+      var i = 0
+      while (i < x.rows) {
+        if (D_==(x(i, j) - y(i, j), relTolerance) && !(x(i, j).isNaN && y(i, j).isNaN)) {
+          println(x.toString(1000, 1000))
+          println(y.toString(1000, 1000))
+          println(s"inequality found at ($i, $j): ${x(i, j)} and ${y(i, j)}")
+          return Some((i, j))
+        }
+        i += 1
+      }
+      j += 1
+    }
+    None
+  }
 
   @Test
   def pointwiseSubtractCorrect() {
@@ -117,27 +146,8 @@ class BlockMatrixSuite extends SparkSuite {
   def randomMultiplyByLocalMatrix() {
     forAll(Gen.twoMultipliableDenseMatrices[Double]) { case (ll, lr) =>
       val l = toBM(ll)
-      assert(arrayEqualNaNEqualsNaN((ll * lr).toArray, (l * lr).toLocalMatrix().toArray))
-      true
+      sameDoubleMatrixNaNEqualsNaN((ll * lr), (l * lr).toLocalMatrix())
     }.check()
-  }
-
-  private def arrayEqualNaNEqualsNaN(x: Array[Double], y: Array[Double], absoluteTolerance: Double = 1e-15): Boolean = {
-    if (x.length != y.length) {
-      false
-    } else {
-      var i = 0
-      while (i < x.length) {
-        if (math.abs(x(i) - y(i)) > absoluteTolerance && !(x(i).isNaN && y(i).isNaN)) {
-          println(x: IndexedSeq[Double])
-          println(y: IndexedSeq[Double])
-          println(s"inequality found at $i: ${x(i)} and ${y(i)}")
-          return false
-        }
-        i += 1
-      }
-      true
-    }
   }
 
   @Test
@@ -148,41 +158,35 @@ class BlockMatrixSuite extends SparkSuite {
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
-      assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
-      true
+      sameDoubleMatrixNaNEqualsNaN((l * r).toLocalMatrix(), (ll * lr))
     }.check()
 
     forAll(randomLm(9,9), randomLm(9,9)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
-      assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
-      true
+      sameDoubleMatrixNaNEqualsNaN((l * r).toLocalMatrix(), (ll * lr))
     }.check()
 
     forAll(randomLm(9,9), randomLm(9,9)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
-      assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
-      true
+      sameDoubleMatrixNaNEqualsNaN((l * r).toLocalMatrix(), (ll * lr))
     }.check()
 
     forAll(randomLm(2,10), randomLm(10,2)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
-      assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
-      true
+      sameDoubleMatrixNaNEqualsNaN((l * r).toLocalMatrix(), (ll * lr))
     }.check()
 
     forAll(Gen.twoMultipliableDenseMatrices[Double], Gen.interestingPosInt) { case ((ll, lr), blockSize) =>
       val l = toBM(ll, blockSize)
       val r = toBM(lr, blockSize)
 
-      assert(arrayEqualNaNEqualsNaN((l * r).toLocalMatrix().toArray, (ll * lr).toArray))
-
-      true
+      sameDoubleMatrixNaNEqualsNaN((l * r).toLocalMatrix(), (ll * lr))
     }.check()
   }
 
@@ -192,13 +196,16 @@ class BlockMatrixSuite extends SparkSuite {
       val actual = (l * r).toLocalMatrix()
       val expected = l.toLocalMatrix() * r.toLocalMatrix()
 
-      if (arrayEqualNaNEqualsNaN(actual.toArray, expected.toArray))
-        true
-      else {
-        println(s"${l.toLocalMatrix()}")
-        println(s"${r.toLocalMatrix()}")
-        println(s"$actual != $expected")
-        false
+      findDoubleMatrixMismatchNaNEqualsNaN(actual, expected) match {
+        case Some((i, j)) =>
+          println(s"blockSize: ${l.blockSize}")
+          println(s"${l.toLocalMatrix()}")
+          println(s"${r.toLocalMatrix()}")
+          println(s"row: ${l.toLocalMatrix()(i,::)}")
+          println(s"col: ${r.toLocalMatrix()(::,j)}")
+          false
+        case None =>
+          true
       }
     }.check()
   }
@@ -236,12 +243,7 @@ class BlockMatrixSuite extends SparkSuite {
       val repeatedRMatrix = new BDM(v.length, l.rows.toInt, repeatedR).t
       val expected = l.toLocalMatrix() :* repeatedRMatrix
 
-      if (arrayEqualNaNEqualsNaN(actual.toArray, expected.toArray))
-        true
-      else {
-        println(s"$actual != $expected")
-        false
-      }
+      sameDoubleMatrixNaNEqualsNaN(actual, expected)
     }.check()
   }
 
@@ -278,11 +280,10 @@ class BlockMatrixSuite extends SparkSuite {
       val repeatedRMatrix = new BDM(v.length, l.cols.toInt, repeatedR)
       val expected = l.toLocalMatrix() :* repeatedRMatrix
 
-      if (arrayEqualNaNEqualsNaN(actual.toArray, expected.toArray))
+      if (sameDoubleMatrixNaNEqualsNaN(actual, expected))
         true
       else {
         println(s"${l.toLocalMatrix().toArray.toSeq}\n*\n${v.toSeq}")
-        println(s"${actual.toString(10000,10000)}\n!=\n${expected.toString(10000,10000)}")
         false
       }
     }.check()
@@ -359,8 +360,10 @@ class BlockMatrixSuite extends SparkSuite {
     forAll(Gen.denseMatrix[Double]) { lm =>
       assert(lm === BlockMatrix.from(sc, lm, lm.rows + 1).toLocalMatrix())
       assert(lm === BlockMatrix.from(sc, lm, lm.rows).toLocalMatrix())
-      assert(lm === BlockMatrix.from(sc, lm, lm.rows - 1).toLocalMatrix())
-      assert(lm === BlockMatrix.from(sc, lm, math.max(1, math.sqrt(lm.rows).toInt)).toLocalMatrix())
+      if (lm.rows > 1) {
+        assert(lm === BlockMatrix.from(sc, lm, lm.rows - 1).toLocalMatrix())
+        assert(lm === BlockMatrix.from(sc, lm, math.sqrt(lm.rows).toInt).toLocalMatrix())
+      }
       true
     }.check()
   }
@@ -396,7 +399,7 @@ class BlockMatrixSuite extends SparkSuite {
     forAll(blockMatrixGen) { (m: BlockMatrix) =>
       val fname = tmpDir.createTempFile("test")
       BlockMatrix.write(m, fname)
-      assert(arrayEqualNaNEqualsNaN(m.toLocalMatrix().toArray, BlockMatrix.read(hc, fname).toLocalMatrix().toArray))
+      assert(sameDoubleMatrixNaNEqualsNaN(m.toLocalMatrix(), BlockMatrix.read(hc, fname).toLocalMatrix()))
       true
     }.check()
   }
@@ -419,8 +422,8 @@ class BlockMatrixSuite extends SparkSuite {
       val mtt = m.t.t.cache()
       assert(mtt.rows == m.rows)
       assert(mtt.cols == m.cols)
-      assert(arrayEqualNaNEqualsNaN(mtt.toLocalMatrix().toArray, m.toLocalMatrix().toArray))
-      assert(arrayEqualNaNEqualsNaN((mt * mtt).toLocalMatrix().toArray, (mt * m).toLocalMatrix().toArray))
+      assert(sameDoubleMatrixNaNEqualsNaN(mtt.toLocalMatrix(), m.toLocalMatrix()))
+      assert(sameDoubleMatrixNaNEqualsNaN((mt * mtt).toLocalMatrix(), (mt * m).toLocalMatrix()))
       true
     }.check()
   }
@@ -434,17 +437,15 @@ class BlockMatrixSuite extends SparkSuite {
       val actual = (l * r).toLocalMatrix()
       val expected = l.toLocalMatrix() * r.toLocalMatrix()
 
-      if (!arrayEqualNaNEqualsNaN(actual.toArray, expected.toArray)) {
+      if (!sameDoubleMatrixNaNEqualsNaN(actual, expected)) {
         println(s"${l.toLocalMatrix()}")
         println(s"${r.toLocalMatrix()}")
-        println(s"$actual != $expected")
         assert(false)
       }
 
-      if (!arrayEqualNaNEqualsNaN(l.t.cache().t.toLocalMatrix().toArray, l.toLocalMatrix.toArray)) {
+      if (!sameDoubleMatrixNaNEqualsNaN(l.t.cache().t.toLocalMatrix(), l.toLocalMatrix)) {
         println(s"${l.t.cache().t.toLocalMatrix()}")
         println(s"${l.toLocalMatrix()}")
-        println(s"$actual != $expected")
         assert(false)
       }
 
