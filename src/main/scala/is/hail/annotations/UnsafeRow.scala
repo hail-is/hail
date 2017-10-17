@@ -50,7 +50,7 @@ object UnsafeIndexedSeq {
 }
 
 class UnsafeIndexedSeq(
-  var t: TArray,
+  var t: TContainer,
   var region: MemoryBuffer, var aoff: Long) extends IndexedSeq[Annotation] with KryoSerializable with Serializable {
 
   var length: Int = t.loadLength(region, aoff)
@@ -127,7 +127,7 @@ object UnsafeRow {
     region.loadBytes(TBinary.bytesOffset(boff), binLength)
   }
 
-  def readArray(t: TArray, region: MemoryBuffer, aoff: Long): IndexedSeq[Any] =
+  def readArray(t: TContainer, region: MemoryBuffer, aoff: Long): IndexedSeq[Any] =
     new UnsafeIndexedSeq(t, region, aoff)
 
   def readStruct(t: TStruct, region: MemoryBuffer, offset: Long): UnsafeRow =
@@ -191,10 +191,10 @@ object UnsafeRow {
       case t: TArray =>
         readArray(t, region, offset)
       case t: TSet =>
-        readArray(t.fundamentalType, region, offset).toSet
+        readArray(t, region, offset).toSet
       case TString => readString(region, offset)
       case td: TDict =>
-        val a = readArray(td.fundamentalType, region, offset)
+        val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
       case t: TStruct =>
         readStruct(t, region, offset)
