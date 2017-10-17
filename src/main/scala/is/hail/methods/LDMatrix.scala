@@ -88,8 +88,9 @@ object LDMatrix {
 case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) {
   import LDMatrix._
 
-  def toLocalMatrix: BDM[Double] = {
-    matrix.toHailBlockMatrix().toLocalMatrix()
+  def toLocalMatrix: DenseMatrix = {
+    val lm = matrix.toHailBlockMatrix().toLocalMatrix()
+    new DenseMatrix(lm.rows, lm.cols, lm.toArray)
   }
 
   def write(uri: String) {
