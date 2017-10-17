@@ -19,6 +19,7 @@ import scala.language.higherKinds
 import scala.reflect.ClassTag
 import org.apache.commons.math3.stat.inference.ChiSquareTest
 import org.apache.commons.math3.special.Gamma
+import org.json4s.jackson.JsonMethods
 
 case class MetaData(docstring: Option[String], args: Seq[(String, String)] = Seq.empty[(String, String)])
 
@@ -2934,6 +2935,18 @@ object FunctionRegistry {
     (v: Code[Any]) => CM.invokePrimitive1(t.str)(v) },
     """
     Convert the argument to a human-readable string representation
-    """, "x" -> "the value to be stringified")(TTHr, stringHr)
 
+    .. code-block:: text
+          :emphasize-lines: 2
+
+          let v = Variant("1", 278653, "A", "T") in str(v)
+          result: "1:278653:A:T"
+    """, "x" -> "Value to be stringified.")(TTHr, stringHr)
+
+  registerDependentCode("json", { () =>
+    val t = TT.t
+    (v: Code[Any]) => CM.invokePrimitive1({(x: Any) => JsonMethods.compact(t.toJSON(x))})(v) },
+    """
+    Return the JSON representation of a data type.
+    """, "x" -> "Value to be converted to json.")(TTHr, stringHr)
 }

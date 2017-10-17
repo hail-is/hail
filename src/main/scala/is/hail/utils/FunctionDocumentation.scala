@@ -342,22 +342,6 @@ object FunctionDocumentation {
               d = index(a, genename) in global.gene_dict["gene1"]
 
           result: {PLI: 0.998, hits_in_exac: 1}
-      """),
-    DocumentationEntry("str", "function", None, TString,
-      Array(Argument("x", "T")),
-      """
-      Returns the string representation of a data type.
-
-      .. code-block:: text
-          :emphasize-lines: 2
-
-          let v = Variant("1", 278653, "A", "T") in str(v)
-          result: "1:278653:A:T"
-      """),
-    DocumentationEntry("json", "function", None, TString,
-      Array(Argument("x", "T")),
-      """
-      Returns the JSON representation of a data type.
       """)
   )
 
