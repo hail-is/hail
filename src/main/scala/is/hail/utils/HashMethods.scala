@@ -121,3 +121,22 @@ class FiveIndepTabulationHash32(keyTable: Array[Long], derivedKeyTable: Array[In
     out
   }
 }
+
+class PolyHash {
+
+  // Can be done by the PCLMULQDQ "carryless multiply" instruction on x86 processors post ~2010.
+  // This would give a significant speed boost. Any way to do this from JVM?
+  def polyMult(a: Int, b: Int): Long = {
+    var result: Long = 0
+    if (b != 0) {
+      var aBuf: Int = a
+      var bBuf: Long = b & 0xffffffffL
+      while (aBuf != 0) {
+        if ((aBuf & 1) == 1) result ^= bBuf
+        aBuf >>>= 1
+        bBuf <<= 1
+      }
+    }
+    result
+  }
+}
