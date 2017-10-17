@@ -2945,7 +2945,7 @@ object FunctionRegistry {
 
   registerDependentCode("json", { () =>
     val t = TT.t
-    (v: Code[Any]) => CM.invokePrimitive1({(x: Any) => JsonMethods.compact(t.toJSON(x))})(v) },
+    (v: Code[Any]) => CM.invokePrimitive1((x: Any) => JsonMethods.compact(t.toJSON(x)))(v) },
     """
     Return the JSON representation of a data type.
     """, "x" -> "Value to be converted to json.")(TTHr, stringHr)
