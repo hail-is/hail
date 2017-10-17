@@ -130,7 +130,7 @@ object LoadGDB {
       .map { vc =>
         region.clear()
         rvb.start(rowType.fundamentalType)
-        reader.readRecord(vc, rvb, infoSignature, genotypeSignature, canonicalFlags)
+        reader.readRecord(vc, rvb, infoSignature, genotypeSignature, dropSamples, canonicalFlags)
 
         val ur = new UnsafeRow(localRowType, region.copy(), rvb.end())
 

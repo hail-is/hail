@@ -181,6 +181,18 @@ sealed abstract class Type extends Serializable { self =>
 
   val partitionKey: Type = this
 
+  def typedOrderedKey[PK, K] = new OrderedKey[PK, K] {
+    def project(key: K): PK = key.asInstanceOf[PK]
+
+    val kOrd: Ordering[K] = ordering(missingGreatest = true).asInstanceOf[Ordering[K]]
+
+    val pkOrd: Ordering[PK] = ordering(missingGreatest = true).asInstanceOf[Ordering[PK]]
+
+    val kct: ClassTag[K] = scalaClassTag.asInstanceOf[ClassTag[K]]
+
+    val pkct: ClassTag[PK] = scalaClassTag.asInstanceOf[ClassTag[PK]]
+  }
+
   def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
     def project(key: Annotation): Annotation = key
 
@@ -1022,6 +1034,18 @@ case class TVariant(gr: GRBase) extends ComplexType {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Variant]]))
 
   override val partitionKey: Type = TLocus(gr)
+
+  override def typedOrderedKey[PK, K]: OrderedKey[PK, K] = new OrderedKey[PK, K] {
+    def project(key: K): PK = key.asInstanceOf[Variant].locus.asInstanceOf[PK]
+
+    val kOrd: Ordering[K] = ordering(missingGreatest = true).asInstanceOf[Ordering[K]]
+
+    val pkOrd: Ordering[PK] = TLocus(gr).ordering(missingGreatest = true).asInstanceOf[Ordering[PK]]
+
+    val kct: ClassTag[K] = classTag[Variant].asInstanceOf[ClassTag[K]]
+
+    val pkct: ClassTag[PK] = classTag[Locus].asInstanceOf[ClassTag[PK]]
+  }
 
   override def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
     def project(key: Annotation): Annotation = key.asInstanceOf[Variant].locus

@@ -238,7 +238,7 @@ object Genotype {
       val dpq = queryInt("DP")
       val gqq = queryInt("GQ")
 
-      if (s.hasField("PL") || !s.hasField("GT")) {
+      if (s.hasField("PL") || !s.hasField("GP")) {
         val plq = queryArrayInt("PL")
 
         (a: Any) =>
@@ -928,13 +928,8 @@ class GenericGenotype(val _unboxedGT: Int,
   require(_unboxedDP >= -1, s"invalid _unboxedDP value: ${ _unboxedDP }")
 
   if (_isLinearScale) {
-    require(_unboxedGQ == -1)
-    if (_unboxedPX == null)
-      require(_unboxedGT == -1)
-    else {
+    if (_unboxedPX != null)
       require(_unboxedPX.sum == 32768)
-      require(_unboxedGT == Genotype.gtFromLinear(_unboxedPX).getOrElse(-1))
-    }
   }
 }
 

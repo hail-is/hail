@@ -158,17 +158,17 @@ class SampleQCCombiner extends Serializable {
 object SampleQC {
   def results(vds: GenericDataset): Array[SampleQCCombiner] = {
     val depth = treeAggDepth(vds.hc, vds.nPartitions)
-    val rowSignature = vds.rowSignature
+    val rowType = vds.rowType
     val nSamples = vds.nSamples
     if (vds.rdd.partitions.nonEmpty)
       vds.unsafeRowRDD
           .mapPartitions { it =>
-            val view = HTSGenotypeView(rowSignature)
+            val view = HTSGenotypeView(rowType)
             val acc = Array.fill[SampleQCCombiner](nSamples)(new SampleQCCombiner)
 
             it.foreach { r =>
               view.setRegion(r.region, r.offset)
-              val v = r.getAs[Variant](0)
+              val v = r.getAs[Variant](1)
               val ais = SampleQCCombiner.alleleIndices(v)
               val acs = Array.fill(v.asInstanceOf[Variant].nAlleles)(0)
 

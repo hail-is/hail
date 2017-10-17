@@ -18,7 +18,7 @@ import scala.reflect.ClassTag
 object Aggregators {
 
   def buildVariantAggregations[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], ec: EvalContext): Option[(RK, Annotation, Iterable[T]) => Unit] =
-    buildVariantAggregations(vsm.sparkContext, vsm.value.localValue, ec)
+    buildVariantAggregations[RPK, RK, T](vsm.sparkContext, vsm.value.localValue, ec)
 
   def buildVariantAggregations[RPK, RK, T >: Null](sc: SparkContext,
     localValue: VSMLocalValue,
@@ -64,7 +64,7 @@ object Aggregators {
     })
   }
 
-  def buildSampleAggregations[RPK, RK, T >: Null](hc: HailContext, value: MatrixValue[RPK, RK, T], ec: EvalContext): Option[(Annotation) => Unit] = {
+  def buildSampleAggregations[RPK, RK, T >: Null](hc: HailContext, value: MatrixValue, ec: EvalContext): Option[(Annotation) => Unit] = {
 
     val aggregations = ec.aggregations
 
@@ -86,7 +86,7 @@ object Aggregators {
       baseArray.update(i, j, aggregations(j)._3.copy())
     }
 
-    val result = value.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
+    val result = value.rdd[RPK, RK, T].treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
       localA(0) = localGlobalAnnotations
       localA(4) = v
       localA(5) = va

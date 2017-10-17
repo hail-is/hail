@@ -309,7 +309,7 @@ object LoadVCF {
                 region.clear()
                 rvb.start(rowType.fundamentalType)
                 rvb.startStruct()
-                reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, canonicalFlags)
+                reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, dropSamples, canonicalFlags)
                 rvb.endStruct()
 
                 val ur = new UnsafeRow(localRowType, region.copy(), rvb.end())

@@ -104,9 +104,9 @@ object VariantQC {
     val (newVAS, insertQC) = vds.vaSignature.insert(VariantQC.signature,
       Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
     val nSamples = vds.nSamples
-    val rowSignature = vds.rowSignature
+    val rowType = vds.rowType
     val rdd = vds.unsafeRowRDD.mapPartitions { it =>
-      val view = HTSGenotypeView(rowSignature)
+      val view = HTSGenotypeView(rowType)
       it.map { r =>
         view.setRegion(r.region, r.offset)
         val comb = new VariantQCCombiner
@@ -126,7 +126,7 @@ object VariantQC {
           i += 1
         }
 
-        (r.get(0): Annotation) -> (insertQC(r.get(1), comb.result()) -> r.getAs[Iterable[Annotation]](2))
+        (r.get(1): Annotation) -> (insertQC(r.get(2), comb.result()) -> r.getAs[Iterable[Annotation]](3))
       }
     }
     val ord = OrderedRDD.apply(rdd, vds.rdd.orderedPartitioner)(vds.rdd.kOk, classTag[(Annotation, Iterable[Annotation])])
