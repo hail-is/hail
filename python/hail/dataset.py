@@ -4709,7 +4709,7 @@ class VariantDataset(HistoryMixin):
         :rtype: list of :py:class:`.hail.representation.Struct`
         """
 
-        schema = Type._from_java(self._jvds.rowSignature())
+        schema = Type._from_java(self._jvds.rowType())
         return [schema._convert_to_py(r) for r in self._jvds.collect()]
 
 
@@ -4740,7 +4740,7 @@ class VariantDataset(HistoryMixin):
         :rtype: list of :py:class:`.hail.representation.Struct`
         """
 
-        schema = Type._from_java(self._jvds.rowSignature())
+        schema = Type._from_java(self._jvds.rowType())
         return [schema._convert_to_py(r) for r in self._jvds.take(n)]
 
     @handle_py4j
