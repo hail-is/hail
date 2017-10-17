@@ -1,12 +1,10 @@
 package is.hail.expr
 
-import java.io.FileNotFoundException
-
 import is.hail.HailContext
 import is.hail.annotations.{Annotation, ReadRowsRDD, UnsafeRow}
 import is.hail.methods.Aggregators
 import is.hail.sparkextras.{OrderedKey, OrderedPartitioner, OrderedRDD}
-import is.hail.variant.{Genotype, Locus, VSMFileMetadata, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
+import is.hail.variant.{VSMFileMetadata, VSMLocalValue, VSMMetadata}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.utils._

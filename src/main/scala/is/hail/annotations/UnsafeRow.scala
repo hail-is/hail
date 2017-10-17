@@ -89,7 +89,6 @@ class UnsafeIndexedSeq(
   }
 
   override def read(kryo: Kryo, input: Input) {
-    val cTorrentBroadcast = Class.forName("org.apache.spark.broadcast.TorrentBroadcast")
     t = kryo.readObject(input, classOf[TArray])
 
     val smallInOff = input.readInt()
