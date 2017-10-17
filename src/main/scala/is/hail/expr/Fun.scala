@@ -52,6 +52,19 @@ case class BinarySpecialCode[T, U, V](retType: Type, code: (Code[T], Code[U]) =>
   def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = ???
 }
 
+case class BinaryDependentFunCode[T, U, V](retType: Type, code: () => (Code[T], Code[U]) => CM[Code[V]]) extends Fun {
+  override def captureType() = BinaryFunCode(retType, code())
+
+  def apply(ct: Code[T], cu: Code[U]): CM[Code[V]] =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def subst() =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun =
+    throw new UnsupportedOperationException("must captureType first")
+}
+
 case class BinaryFunCode[T, U, V](retType: Type, code: (Code[T], Code[U]) => CM[Code[V]]) extends Fun with Serializable with ((Code[T], Code[U]) => CM[Code[V]]) {
   def apply(t: Code[T], u: Code[U]): CM[Code[V]] = code(t, u)
 

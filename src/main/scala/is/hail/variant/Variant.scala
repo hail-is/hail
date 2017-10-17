@@ -296,18 +296,18 @@ case class Variant(contig: String,
   def isAutosomalOrPseudoAutosomal: Boolean =
     isAutosomal || inXPar || inYPar
 
-  def isAutosomalOrPseudoAutosomal(gr: GenomeReference): Boolean = isAutosomal(gr) || inXPar(gr) || inYPar(gr)
+  def isAutosomalOrPseudoAutosomal(gr: GRBase): Boolean = isAutosomal(gr) || inXPar(gr) || inYPar(gr)
 
   def isAutosomal = !(inX || inY || isMitochondrial)
 
-  def isAutosomal(gr: GenomeReference): Boolean = !(inX(gr) || inY(gr) || isMitochondrial(gr))
+  def isAutosomal(gr: GRBase): Boolean = !(inX(gr) || inY(gr) || isMitochondrial(gr))
 
   def isMitochondrial = {
     val c = contig.toUpperCase
     c == "MT" || c == "M" || c == "26"
   }
 
-  def isMitochondrial(gr: GenomeReference): Boolean = gr.isMitochondrial(contig)
+  def isMitochondrial(gr: GRBase): Boolean = gr.isMitochondrial(contig)
 
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
@@ -318,27 +318,27 @@ case class Variant(contig: String,
   // FIXME: will replace with contig == "X" etc once bgen/plink support is merged and conversion is handled by import
   def inXPar: Boolean = inX && inXParPos
 
-  def inXPar(gr: GenomeReference): Boolean = gr.inXPar(locus)
+  def inXPar(gr: GRBase): Boolean = gr.inXPar(locus)
 
   def inYPar: Boolean = inY && inYParPos
 
-  def inYPar(gr: GenomeReference): Boolean = gr.inYPar(locus)
+  def inYPar(gr: GRBase): Boolean = gr.inYPar(locus)
 
   def inXNonPar: Boolean = inX && !inXParPos
 
-  def inXNonPar(gr: GenomeReference): Boolean = inX(gr) && !inXPar(gr)
+  def inXNonPar(gr: GRBase): Boolean = inX(gr) && !inXPar(gr)
 
   def inYNonPar: Boolean = inY && !inYParPos
 
-  def inYNonPar(gr: GenomeReference): Boolean = inY(gr) && !inYPar(gr)
+  def inYNonPar(gr: GRBase): Boolean = inY(gr) && !inYPar(gr)
 
   private def inX: Boolean = contig.toUpperCase == "X" || contig == "23" || contig == "25"
 
-  private def inX(gr: GenomeReference): Boolean = gr.inX(contig)
+  private def inX(gr: GRBase): Boolean = gr.inX(contig)
 
   private def inY: Boolean = contig.toUpperCase == "Y" || contig == "24"
 
-  private def inY(gr: GenomeReference): Boolean = gr.inY(contig)
+  private def inY(gr: GRBase): Boolean = gr.inY(contig)
 
   import CopyState._
 
