@@ -13,14 +13,18 @@ import org.testng.annotations.Test
 class RichIndexedRowMatrixSuite extends SparkSuite {
 
   @Test def testToBlockMatrixDense() {
-    val rows = 6L
-    val cols = 3L
+    val rows = 9L
+    val cols = 6L
     val data = Seq(
       (0L, Vectors.dense(0.0, 1.0, 2.0)),
       (1L, Vectors.dense(3.0, 4.0, 5.0)),
       (3L, Vectors.dense(9.0, 0.0, 1.0)),
       (4L, Vectors.dense(9.0, 0.0, 1.0)),
-      (5L, Vectors.dense(9.0, 0.0, 1.0))
+      (5L, Vectors.dense(9.0, 0.0, 1.0)),
+      (6L, Vectors.dense(1.0, 2.0, 3.0)),
+      (7L, Vectors.dense(4.0, 5.0, 6.0)),
+      (8L, Vectors.dense(7.0, 8.0, 9.0)),
+      (9L, Vectors.dense(10.0, 11.0, 12.0))
     ).map(IndexedRow.tupled)
     val indexedRows: RDD[IndexedRow] = sc.parallelize(data)
 
@@ -31,20 +35,14 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
       breezeConverter.invoke(sparkMatrix).asInstanceOf[Matrix[Double]]
     }
 
-    val blockMat = idxRowMat.toHailBlockMatrix(2)
-    assert(blockMat.rows === rows)
-    assert(blockMat.cols === cols)
-    assert(blockMat.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
-
-    val blockMat2 = idxRowMat.toHailBlockMatrix(4)
-    assert(blockMat2.rows === rows)
-    assert(blockMat2.cols === cols)
-    assert(blockMat2.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
-
-    val blockMat3 = idxRowMat.toHailBlockMatrix(10)
-    assert(blockMat2.rows === rows)
-    assert(blockMat2.cols === cols)
-    assert(blockMat2.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
+    for {
+      blockSize <- Seq(1,2,3,4,6,7,9,10)
+    } {
+      val blockMat = idxRowMat.toHailBlockMatrix(blockSize)
+      assert(blockMat.rows === rows)
+      assert(blockMat.cols === cols)
+      assert(blockMat.toLocalMatrix() === convertDistributedMatrixToBreeze(idxRowMat))
+    }
 
     intercept[IllegalArgumentException] {
       idxRowMat.toHailBlockMatrix(-1)

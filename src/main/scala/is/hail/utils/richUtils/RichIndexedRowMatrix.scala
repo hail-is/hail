@@ -53,24 +53,24 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     val truncatedBlockCol = (cols / blockSize).toInt
     val excessRows = (rows % blockSize).toInt
     val excessCols = (cols % blockSize).toInt
+    val fullColPartitions = if (excessCols == 0) colPartitions else colPartitions - 1
 
     val blocks = indexedRowMatrix.rows.flatMap { ir =>
-      val i = ir.index / blockSize
-      val ii = ir.index % blockSize
+      val i = (ir.index / blockSize).toInt
+      val ii = (ir.index % blockSize).toInt
       val a = ir.vector.toArray
       val grouped = new Array[((Int, Int), (Int, Int, Int, Array[Double]))](colPartitions)
 
-      val fullColPartitions = if (excessCols == 0) colPartitions else colPartitions - 1
       var j = 0
       while (j < fullColPartitions) {
         val group = new Array[Double](blockSize)
-        grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
+        grouped(j) = ((i, j), (i, j, ii, group))
         System.arraycopy(a, j * blockSize, group, 0, blockSize)
         j += 1
       }
       if (excessCols > 0) {
         val group = new Array[Double](excessCols)
-        grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
+        grouped(j) = ((i, j), (i, j, ii, group))
         System.arraycopy(a, j * blockSize, group, 0, excessCols)
       }
 
