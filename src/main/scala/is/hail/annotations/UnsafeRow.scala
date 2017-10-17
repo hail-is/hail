@@ -193,6 +193,7 @@ object UnsafeRow {
       case t: TSet =>
         readArray(t, region, offset).toSet
       case TString => readString(region, offset)
+      case TBinary => readBinary(region, offset)
       case td: TDict =>
         val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
