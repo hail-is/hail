@@ -34,11 +34,8 @@ class TwoIndepHash32(outBits: Int, a: Long, b: Long) extends (Int => Int) {
 }
 
 object SimpleTabulationHash32 {
-
-  //TODO: replace java.util.Random with a better PRNG
-  def apply(seed: Long): SimpleTabulationHash32 = {
-    val random = new Random(seed)
-    new SimpleTabulationHash32(Array.fill[Array[Int]](4)(random.ints(256).toArray()))
+  def apply(rand: RandomDataGenerator): SimpleTabulationHash32 = {
+    new SimpleTabulationHash32(Array.fill[Array[Int]](4)(Array.fill[Int](256)(rand.getRandomGenerator.nextInt())))
   }
 }
 
@@ -62,17 +59,14 @@ class SimpleTabulationHash32(table: Array[Array[Int]]) extends (Int => Int) {
 }
 
 object TwistedTabulationHash32 {
-
-  //TODO: replace java.util.Random with a better PRNG
-  def apply(seed: Long): TwistedTabulationHash32 = {
-    val random = new Random(seed)
-    new TwistedTabulationHash32(Array.fill[Array[Long]](4)(random.longs(256).toArray()))
+  def apply(rand: RandomDataGenerator): TwistedTabulationHash32 = {
+    new TwistedTabulationHash32(Array.fill[Array[Long]](4)(Array.fill[Long](256)(rand.getRandomGenerator.nextLong())))
   }
 }
 
 class TwistedTabulationHash32(table: Array[Array[Long]]) extends (Int => Int) {
   require(table.length == 4)
-  for (i <- 0 to 3) require(table(i).length == 256)
+  require(table.forall(_.length == 256))
 
   override def apply(key: Int): Int = {
     var out: Long = 0
