@@ -412,13 +412,6 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
   override def typecheckThis(): Type = {
     (fn, args) match {
-      case ("json", rhs) =>
-        if (rhs.length != 1)
-          parseError("json expects 1 argument")
-        if (!rhs.head.`type`.isRealizable)
-          parseError(s"Argument to json has unrealizable type: ${ rhs.head.`type` }")
-        TString
-
       case ("merge", rhs) =>
         val (t1, t2) = args.map(_.`type`) match {
           case Array(t1: TStruct, t2: TStruct) => (t1, t2)
@@ -610,12 +603,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
   def compile() = ((fn, args): @unchecked) match {
-    case ("json", Array(a)) => for (
-      v <- a.compile();
-      t = a.`type`;
-      result <- CM.invokePrimitive1((x: AnyRef) => JsonMethods.compact(t.toJSON(x)))(v)
-    ) yield result
-
     case ("merge", Array(struct1, struct2)) => for (
       f1 <- struct1.compile();
       f2 <- struct2.compile();

@@ -452,6 +452,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Double]("""a.mean()""").contains(22 / 7.0))
     assert(eval[Int]("""a.sum()""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
     assert(eval[String]("""str(i)""").contains("5"))
+    assert(eval[String]("""let l = Locus("1", 1000) in json(l)""").contains("""{"contig":"1","position":1000}"""))
     assert(eval[String](""" "" + 5 + "5" """) == eval[String](""" "5" + 5 """))
     assert(eval[Int]("""iset.min()""").contains(0))
     assert(eval[Int]("""iset.max()""").contains(2))
