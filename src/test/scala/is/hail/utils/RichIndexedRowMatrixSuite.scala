@@ -16,15 +16,15 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
     val rows = 9L
     val cols = 6L
     val data = Seq(
-      (0L, Vectors.dense(0.0, 1.0, 2.0)),
-      (1L, Vectors.dense(3.0, 4.0, 5.0)),
-      (3L, Vectors.dense(9.0, 0.0, 1.0)),
-      (4L, Vectors.dense(9.0, 0.0, 1.0)),
-      (5L, Vectors.dense(9.0, 0.0, 1.0)),
-      (6L, Vectors.dense(1.0, 2.0, 3.0)),
-      (7L, Vectors.dense(4.0, 5.0, 6.0)),
-      (8L, Vectors.dense(7.0, 8.0, 9.0)),
-      (9L, Vectors.dense(10.0, 11.0, 12.0))
+      (0L, Vectors.dense(0.0, 1.0, 2.0, 1.0, 3.0, 4.0)),
+      (1L, Vectors.dense(3.0, 4.0, 5.0, 1.0, 1.0, 1.0)),
+      (3L, Vectors.dense(9.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
+      (4L, Vectors.dense(9.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
+      (5L, Vectors.dense(9.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
+      (6L, Vectors.dense(1.0, 2.0, 3.0, 1.0, 1.0, 1.0)),
+      (7L, Vectors.dense(4.0, 5.0, 6.0, 1.0, 1.0, 1.0)),
+      (8L, Vectors.dense(7.0, 8.0, 9.0, 1.0, 1.0, 1.0)),
+      (9L, Vectors.dense(10.0, 11.0, 12.0, 1.0, 1.0, 1.0))
     ).map(IndexedRow.tupled)
     val indexedRows: RDD[IndexedRow] = sc.parallelize(data)
 
