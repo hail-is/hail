@@ -188,13 +188,13 @@ object UnsafeRow {
       case TInt64 => region.loadLong(offset)
       case TFloat32 => region.loadFloat(offset)
       case TFloat64 => region.loadDouble(offset)
-      case t@TArray(elementType) =>
+      case t: TArray =>
         readArray(t, region, offset)
-      case t@TSet(elementType) =>
-        readArray(TArray(elementType), region, offset).toSet
+      case t: TSet =>
+        readArray(t.fundamentalType, region, offset).toSet
       case TString => readString(region, offset)
       case td: TDict =>
-        val a = readArray(TArray(td.elementType), region, offset)
+        val a = readArray(td.fundamentalType, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
       case t: TStruct =>
         readStruct(t, region, offset)
