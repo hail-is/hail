@@ -60,24 +60,23 @@ class SimpleTabulationHash32(table: Array[Array[Int]]) extends (Int => Int) {
 
 object TwistedTabulationHash32 {
   def apply(rand: RandomDataGenerator): TwistedTabulationHash32 = {
-    new TwistedTabulationHash32(Array.fill[Array[Long]](4)(Array.fill[Long](256)(rand.getRandomGenerator.nextLong())))
+    new TwistedTabulationHash32(Array.fill[Long](256 * 4)(rand.getRandomGenerator.nextLong()))
   }
 }
 
-class TwistedTabulationHash32(table: Array[Array[Long]]) extends (Int => Int) {
-  require(table.length == 4)
-  require(table.forall(_.length == 256))
+class TwistedTabulationHash32(table: Array[Long]) extends (Int => Int) {
+  require(table.length == 256 * 4)
 
   override def apply(key: Int): Int = {
     var out: Long = 0
     var keyBuffer: Int = key
-    var i = 0
-    while (i < 3) {
-      out ^= table(i)(keyBuffer & 255)
-      i += 1
+    var offset = 0
+    while (offset < 768) {
+      out ^= table(offset + (keyBuffer & 0xff))
+      offset += 256
       keyBuffer >>>= 8
     }
-    out ^= table(i)((keyBuffer ^ out.toInt) & 255)
+    out ^= table(offset + ((keyBuffer ^ out.toInt) & 0xff))
     (out >>> 32).toInt
   }
 }
