@@ -23,10 +23,8 @@ case class MatrixType(
   def saType: Type = metadata.saSignature
 
   def locusType: Type = vType match {
-    case t: TVariant =>
-      TLocus(vType.asInstanceOf[TVariant].gr)
-    case _ =>
-      vType
+    case t: TVariant => TLocus(t.gr)
+    case _ => vType
   }
 
   def vType: Type = metadata.vSignature
@@ -400,7 +398,7 @@ case class MatrixRead(
         if (dropSamples) {
           val localRowType = typ.rowType
           rdd = rdd.mapPartitionsPreservesPartitioning { it =>
-            var rv2b = new RegionValueBuilder(null)
+            var rv2b = new RegionValueBuilder()
             var rv2 = RegionValue()
 
             it.map { rv =>
