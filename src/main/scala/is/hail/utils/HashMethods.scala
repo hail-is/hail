@@ -32,3 +32,45 @@ class TwoIndepHash32(outBits: Int, a: Long, b: Long) extends (Int => Int) {
 
   override def apply(key: Int): Int = ((a * key + b) >>> shift).toInt
 }
+
+object FiveIndepTabulationHash32 {
+  def apply(rand: RandomDataGenerator): FiveIndepTabulationHash32 =
+    new FiveIndepTabulationHash32(
+      Array.fill[Long](256 * 4)(rand.getRandomGenerator.nextLong()),
+      Array.fill[Int](259 * 3)(rand.getRandomGenerator.nextInt())
+    )
+}
+
+// compare to Thorup and Zhang, "Tabulation-Based 5-Independent Hashing with Applications to Linear Probing and
+// Second Moment Estimation", section A.7
+class FiveIndepTabulationHash32(keyTable: Array[Long], derivedKeyTable: Array[Int]) extends (Int => Int) {
+  require(keyTable.length == 256 * 4)
+  require(derivedKeyTable.length == 259 * 3)
+
+  override def apply(key: Int): Int = {
+    var out: Int = 0
+    var derivedKeys: Int = 0
+    var keyBuffer: Int = key
+    var offset = 0
+
+    while (offset < 1024) {
+      val compoundEntry: Long = keyTable(offset + (keyBuffer & 0xff))
+      out ^= (compoundEntry & 0xffffffffL).toInt
+      derivedKeys += (compoundEntry >>> 32).toInt
+      offset += 256
+      keyBuffer >>>= 8
+    }
+
+    def mask1: Int = 0x00300c03 // == (3 << 20) + (3 << 10) + 3
+    def mask2: Int = 0x0ff3fcff // == (255 << 20) + (255 << 10) + 255
+    derivedKeys = mask1 + (derivedKeys & mask2) - ((derivedKeys >> 8) & mask1)
+
+    offset = 0
+    while (offset < 3) {
+      out ^= derivedKeyTable(offset + (derivedKeys & 0x3ff))
+      offset += 261
+      derivedKeys >>> 10
+    }
+    out
+  }
+}
