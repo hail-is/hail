@@ -1495,7 +1495,7 @@ class KeyTable(HistoryMixin):
     @typecheck_method(i=strlike,j=strlike)
     def maximal_independent_set(self, i, j):
         """Compute a `maximal independent set
-        <https://en.wikipedia.org/wiki/Maximal_independent_set>__` of vertices
+        <https://en.wikipedia.org/wiki/Maximal_independent_set>`__ of vertices
         in an undirected graph whose edges are given by this key table.
 
         **Examples**
