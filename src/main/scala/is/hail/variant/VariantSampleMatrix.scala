@@ -305,15 +305,14 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   def unsafeRowRDD: RDD[UnsafeRow] = {
-    val ttBc = BroadcastTypeTree(hc.sc, rowSignature)
-
+    val localRowSignature = rowSignature
     val localNSamples = nSamples
     rdd.mapPartitions { it =>
       val region = MemoryBuffer(8 * 1024)
       val rvb = new RegionValueBuilder(region)
 
       val a = new Array[Any](localNSamples)
-      val t = ttBc.value.typ.asInstanceOf[TStruct]
+      val t = localRowSignature
 
       it.map { case (v, (va, gs)) =>
 
@@ -338,7 +337,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         rvb.addAnnotation(t.fields(2).typ, gis)
         rvb.endStruct()
         val offset = rvb.end()
-        new UnsafeRow(ttBc, region.copy(), offset)
+        new UnsafeRow(t, region.copy(), offset)
       }
     }
   }

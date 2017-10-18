@@ -285,7 +285,7 @@ object LoadVCF {
       "va" -> vaSignature,
       "gs" -> TArray(genotypeSignature))
 
-    val rowTypeTreeBc = BroadcastTypeTree(sc, rowType)
+    val localRowType = rowType
 
     val rdd = lines
       .mapPartitions { lines =>
@@ -312,7 +312,7 @@ object LoadVCF {
                 reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, canonicalFlags)
                 rvb.endStruct()
 
-                val ur = new UnsafeRow(rowTypeTreeBc, region.copy(), rvb.end())
+                val ur = new UnsafeRow(localRowType, region.copy(), rvb.end())
 
                 val v = ur.getAs[Variant](0)
                 val va = ur.get(1)

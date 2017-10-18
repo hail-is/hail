@@ -853,7 +853,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     addRegionValue(t, ur.region, ur.offset)
   }
 
-  def addUnsafeArray(t: TArray, uis: UnsafeIndexedSeqAnnotation) {
+  def addUnsafeArray(t: TArray, uis: UnsafeIndexedSeq) {
     addRegionValue(t, uis.region, uis.aoff)
   }
 
@@ -872,7 +872,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
         case t: TArray =>
           a match {
-            case uis: UnsafeIndexedSeqAnnotation =>
+            case uis: UnsafeIndexedSeq =>
               addUnsafeArray(t, uis)
 
             case is: IndexedSeq[Annotation] =>
