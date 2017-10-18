@@ -18,7 +18,9 @@ class KeyTableSuite extends SparkSuite {
     val signature = TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32))
     val keyNames = Array("Sample")
 
-    KeyTable(hc, rdd, signature, keyNames)
+    val kt = KeyTable(hc, rdd, signature, keyNames)
+    kt.typeCheck()
+    kt
   }
 
   def sampleKT2: KeyTable = {
@@ -27,7 +29,9 @@ class KeyTableSuite extends SparkSuite {
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString), ("field1", TArray(TInt32)), ("field2", TInt32))
     val keyNames = Array("Sample")
-    KeyTable(hc, rdd, signature, keyNames)
+    val kt = KeyTable(hc, rdd, signature, keyNames)
+    kt.typeCheck()
+    kt
   }
 
   def sampleKT3: KeyTable = {
@@ -36,7 +40,9 @@ class KeyTableSuite extends SparkSuite {
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString), ("field1", TArray(TArray(TInt32))), ("field2", TArray(TInt32)))
     val keyNames = Array("Sample")
-    KeyTable(hc, rdd, signature, keyNames)
+    val kt = KeyTable(hc, rdd, signature, keyNames)
+    kt.typeCheck()
+    kt
   }
 
   @Test def testImportExport() {
@@ -96,6 +102,7 @@ class KeyTableSuite extends SparkSuite {
     val keyNames = Array("field1")
 
     val kt1 = KeyTable(hc, rdd, signature, keyNames)
+    kt1.typeCheck()
     val kt2 = kt1.filter("field1 < 3", keep = true)
     val kt3 = kt1.filter("field1 < 3 && field3 == 4", keep = true)
     val kt4 = kt1.filter("field1 == 5 && field2 == 9 && field3 == 0", keep = false)
@@ -193,6 +200,7 @@ class KeyTableSuite extends SparkSuite {
     val keyNames = Array("field1")
 
     val kt1 = KeyTable(hc, rdd, signature, keyNames)
+    kt1.typeCheck()
     val kt2 = kt1.aggregate("Status = field1",
       "A = field2.sum(), " +
         "B = field2.map(f => field2).sum(), " +
@@ -206,6 +214,7 @@ class KeyTableSuite extends SparkSuite {
     val resRDD = sc.parallelize(result.map(Row.fromSeq(_)))
     val resSignature = TStruct(("Status", TString), ("A", TInt32), ("B", TInt32), ("C", TInt32), ("D", TInt64), ("E", TInt64))
     val ktResult = KeyTable(hc, resRDD, resSignature, key = Array("Status"))
+    ktResult.typeCheck()
 
     assert(kt2 same ktResult)
 
@@ -220,6 +229,7 @@ class KeyTableSuite extends SparkSuite {
     val keyNames = Array("Sample")
 
     val kt = KeyTable(hc, rdd, signature, keyNames)
+    kt.typeCheck()
     assert(kt.forall("field2 == 5 && field1 != 0"))
     assert(!kt.forall("field2 == 0 && field1 == 5"))
     assert(kt.exists("""Sample == "Sample1" && field1 == 9 && field2 == 5"""))
@@ -233,6 +243,7 @@ class KeyTableSuite extends SparkSuite {
     val keyNames = Array("Sample")
 
     val kt = KeyTable(hc, rdd, signature, keyNames)
+    kt.typeCheck()
 
     val rename1 = kt.rename(Array("ID1", "ID2", "ID3"))
     assert(rename1.columns sameElements Array("ID1", "ID2", "ID3"))
@@ -295,6 +306,7 @@ class KeyTableSuite extends SparkSuite {
     val signature = TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32))
 
     val kt = KeyTable(hc, rdd, signature, Array("Sample"))
+    kt.typeCheck()
     val drop0 = kt.drop(Array.empty[String])
     assert((drop0.key sameElements Array("Sample")) && (drop0.columns sameElements Array("Sample", "field1", "field2")))
     val drop1 = kt.drop(Array("Sample"))
@@ -328,11 +340,13 @@ class KeyTableSuite extends SparkSuite {
       Array("Sample3", 3, 5), Array("Sample3", 4, 5))
     val resRDD2 = sc.parallelize(result2.map(Row.fromSeq(_)))
     val ktResult2 = KeyTable(hc, resRDD2, TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32)), key = Array("Sample"))
+    ktResult2.typeCheck()
 
     val result3 = Array(Array("Sample1", 9, 5), Array("Sample1", 10, 5), Array("Sample1", 9, 6), Array("Sample1", 10, 6),
       Array("Sample1", 1, 5), Array("Sample1", 1, 6), Array("Sample2", 3, 5), Array("Sample2", 3, 3))
     val resRDD3 = sc.parallelize(result3.map(Row.fromSeq(_)))
     val ktResult3 = KeyTable(hc, resRDD3, TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32)), key = Array("Sample"))
+    ktResult3.typeCheck()
 
     intercept[HailException](kt1.explode(Array("Sample")))
     assert(ktResult2.same(kt2.explode(Array("field1"))))
@@ -407,6 +421,7 @@ class KeyTableSuite extends SparkSuite {
         "f4" -> TString
       ),
       Array("f3", "f2", "f1"))
+    kt1.typeCheck()
 
     val kt2 = KeyTable(hc,
       sc.parallelize(Array(Row(3, "foo", "bar", "qux"))),
@@ -417,6 +432,7 @@ class KeyTableSuite extends SparkSuite {
         "f5" -> TString
       ),
       Array("f3", "f2", "f1"))
+    kt2.typeCheck()
 
     assert(kt1.join(kt2, "inner").count() == 1L)
     kt1.join(kt2, "outer").typeCheck()
@@ -436,7 +452,7 @@ class KeyTableSuite extends SparkSuite {
   @Test def testUngroup() {
     // test KeyTable method
     val data1 = Array(
-      Array("Sample1", 5, Row(23.0, "rabbit"), Row(1, "foo")),
+      Array("Sample1", 5, Row(23.0f, "rabbit"), Row(1, "foo")),
       Array("Sample1", 5, null, Row(1, "foo")))
     val sig1 = TStruct(
       ("field0", TString),
@@ -444,9 +460,10 @@ class KeyTableSuite extends SparkSuite {
       ("field2", TStruct(("1", TFloat32), ("2", TString))),
       ("field3", TStruct(("1", TInt32), ("2", TString))))
     val kt1 = KeyTable(hc, sc.parallelize(data1.map(Row.fromSeq(_))), sig1)
+    kt1.typeCheck()
 
     val ungroupedData1 = Array(
-      Array("Sample1", 5, 1, "foo", 23.0, "rabbit"),
+      Array("Sample1", 5, 1, "foo", 23.0f, "rabbit"),
       Array("Sample1", 5, 1, "foo", null, null))
     val ungroupedSig1 = TStruct(
       ("field0", TString),
@@ -457,6 +474,7 @@ class KeyTableSuite extends SparkSuite {
       ("field2.2", TString)
     )
     val ungroupedKt1 = KeyTable(hc, sc.parallelize(ungroupedData1.map(Row.fromSeq(_))), ungroupedSig1)
+    ungroupedKt1.typeCheck()
 
     assert(kt1.ungroup("field3").ungroup("field2", mangle = true).same(ungroupedKt1))
 
@@ -468,16 +486,19 @@ class KeyTableSuite extends SparkSuite {
     val data2 = Array(Array(Row(23, 1)))
     val rdd2 = sc.parallelize(data2.map(Row.fromSeq(_)))
     val kt2 = KeyTable(hc, rdd2, TStruct(("A", TStruct(("c1", TInt32), ("c2", TInt32)))))
+    kt2.typeCheck()
     assert(kt2.ungroup("A").group("A", Array("c1", "c2")).same(kt2))
 
     // test function registry method
     val data3 = Array(Array(Row(6, Row("hello"))))
     val sig3 = TStruct(("foo", TStruct(("a", TInt32), ("b", TStruct(("i", TString))))))
     val kt3 = KeyTable(hc, sc.parallelize(data3.map(Row.fromSeq(_))), sig3)
+    kt3.typeCheck()
 
     val ungroupedData3 = Array(Array(Row(6, "hello")))
     val ungroupedSig3 = TStruct(("foo", TStruct(("a", TInt32), ("i", TString))))
     val ungroupedKt3 = KeyTable(hc, sc.parallelize(ungroupedData3.map(Row.fromSeq(_))), ungroupedSig3)
+    ungroupedKt3.typeCheck()
 
     assert(kt3.annotate("foo = ungroup(foo, b, false)").same(ungroupedKt3))
     assert(!kt3.annotate("foo = ungroup(foo, b, false)").same(kt3.annotate("foo = ungroup(foo, b, true)")))
@@ -491,15 +512,16 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testGroup() {
     val data = Array(
-      Array("Sample1", Row(23.0, "rabbit"), 9, 5),
-      Array(null))
+      Array("Sample1", Row(23.0f, "rabbit"), 9, 5),
+      null)
 
-    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
+    val rdd = sc.parallelize(data.map(d => if (d == null) null else Row.fromSeq(d)))
     val kt = KeyTable(hc, rdd, TStruct(
       ("Sample", TString),
       ("field0", TStruct(("1", TFloat32), ("2", TString))),
       ("field1", TInt32),
       ("field2", TInt32)), key = Array("Sample"))
+    kt.typeCheck()
 
     assert(kt.group("dest", Array("Sample", "field0")).signature == TStruct(("field1", TInt32), ("field2", TInt32),
       ("dest", TStruct(("Sample", TString), ("field0", TStruct(("1", TFloat32), ("2", TString)))))))
@@ -512,10 +534,12 @@ class KeyTableSuite extends SparkSuite {
     val data2 = Array(Array(Row("Sample1", 5)))
     val rdd2 = sc.parallelize(data2.map(Row.fromSeq(_)))
     val kt2 = KeyTable(hc, rdd2, TStruct(("foo", TStruct(("a", TString), ("b", TInt32)))))
+    kt2.typeCheck()
 
     val dataExpected = Array(Array(Row("Sample1", 5), Row(Row(5, "Sample1"))))
     val sigExpected = TStruct(("foo", TStruct(("a", TString), ("b", TInt32))), ("X", TStruct(("a", TStruct(("b", TInt32), ("a", TString))))))
     val kt2Expected = KeyTable(hc, sc.parallelize(dataExpected.map(Row.fromSeq(_))), sigExpected)
+    kt2Expected.typeCheck()
 
     assert(kt2.annotate("X = group(foo, a, b, a)").same(kt2Expected))
 
