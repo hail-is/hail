@@ -37,7 +37,7 @@ object FiveIndepTabulationHash32 {
   def apply(rand: RandomDataGenerator): FiveIndepTabulationHash32 =
     new FiveIndepTabulationHash32(
       Array.fill[Long](256 * 4)(rand.getRandomGenerator.nextLong()),
-      Array.fill[Int](261 * 3)(rand.getRandomGenerator.nextInt())
+      Array.fill[Int](259 * 3)(rand.getRandomGenerator.nextInt())
     )
 }
 
@@ -45,7 +45,7 @@ object FiveIndepTabulationHash32 {
 // Second Moment Estimation", section A.7
 class FiveIndepTabulationHash32(keyTable: Array[Long], derivedKeyTable: Array[Int]) extends (Int => Int) {
   require(keyTable.length == 256 * 4)
-  require(derivedKeyTable.length == 261 * 3)
+  require(derivedKeyTable.length == 259 * 3)
 
   override def apply(key: Int): Int = {
     var out: Int = 0
