@@ -133,7 +133,7 @@ class PCRelateSuite extends SparkSuite {
   }
 
   private def compareBDMs(l: BDM[Double], r: BDM[Double], tolerance: Double) {
-    val fails = l.data.zip(r.data).zipWithIndex.flatMap { case ((actual, truth), idx) =>
+    val fails = l.toArray.zip(r.toArray).zipWithIndex.flatMap { case ((actual, truth), idx) =>
       val row = idx % l.rows
       val col = idx / l.rows
       if (math.abs(actual - truth) >= tolerance)
