@@ -3992,7 +3992,7 @@ class VariantDataset(HistoryMixin):
         a VDS when you are done with it.
          
         """
-        self._jvds.unpersist()
+        return VariantDataset(self.hc, self._jvds.unpersist())
 
     @property
     @handle_py4j
