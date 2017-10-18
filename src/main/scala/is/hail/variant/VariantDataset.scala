@@ -200,7 +200,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     writeGenFile()
   }
 
-  def exportPlink(path: String, famExpr: String = "id = s") {
+  def exportPlink(path: String, famExpr: String = "id = s", parallelWrite: Boolean = false) {
     require(vds.wasSplit)
     vds.requireSampleTString("export plink")
 
@@ -272,10 +272,10 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       .persist(StorageLevel.MEMORY_AND_DISK)
 
     plinkRDD.map { case (v, bed) => bed }
-      .saveFromByteArrays(path + ".bed", vds.hc.tmpDir, header = Some(bedHeader))
+      .saveFromByteArrays(path + ".bed", vds.hc.tmpDir, header = Some(bedHeader), parallelWrite = parallelWrite)
 
     plinkRDD.map { case (v, bed) => ExportBedBimFam.makeBimRow(v) }
-      .writeTable(path + ".bim", vds.hc.tmpDir)
+      .writeTable(path + ".bim", vds.hc.tmpDir, parallelWrite = parallelWrite)
 
     plinkRDD.unpersist()
 

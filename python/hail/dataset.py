@@ -1506,8 +1506,9 @@ class VariantDataset(HistoryMixin):
     @require_biallelic
     @write_history('output')
     @typecheck_method(output=strlike,
-                      fam_expr=strlike)
-    def export_plink(self, output, fam_expr='id = s'):
+                      fam_expr=strlike,
+                      parallel=bool)
+    def export_plink(self, output, fam_expr='id = s', parallel=False):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
@@ -1567,9 +1568,11 @@ class VariantDataset(HistoryMixin):
         :param str output: Output file base.  Will write BED, BIM, and FAM files.
 
         :param str fam_expr: Expression for FAM file fields.
+
+        :param bool parallel: If true, return a set of BED and BIM files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jvdf.exportPlink(output, fam_expr)
+        self._jvdf.exportPlink(output, fam_expr, parallel)
 
     @handle_py4j
     @write_history('output')

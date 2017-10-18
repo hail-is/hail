@@ -83,4 +83,17 @@ class ExportPlinkSuite extends SparkSuite {
       .toVDS
       .same(vds))
   }
+
+  @Test def testParallelExport() {
+    val fParallel = tmpDir.createTempFile("exportPlinkParallel")
+    val fNotParallel = tmpDir.createTempFile("exportPlinkNotParallel")
+
+    val vds = hc.importVCF("src/test/resources/sample.vcf").splitMulti()
+    vds.exportPlink(fNotParallel, parallelWrite = false)
+    vds.exportPlink(fParallel, parallelWrite = true)
+
+    val notParallel = hc.importPlinkBFile(fNotParallel)
+    val parallel = hc.importPlinkBFile(fParallel)
+    assert(notParallel.same(parallel))
+  }
 }

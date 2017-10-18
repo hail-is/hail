@@ -203,17 +203,7 @@ class HailContext private(val sc: SparkContext,
     tolerance: Double = 0.2,
     nPartitions: Option[Int] = None): GenericDataset = {
 
-    val inputs = hadoopConf.globAll(files).flatMap { file =>
-      if (!file.endsWith(".bgen"))
-        warn(s"Input file does not have .bgen extension: $file")
-
-      if (hadoopConf.isDir(file))
-        hadoopConf.listStatus(file)
-          .map(_.getPath.toString)
-          .filter(p => ".*part-[0-9]+".r.matches(p))
-      else
-        Array(file)
-    }
+    val inputs = hadoopConf.globAllPartWithExt(files, Some(".bgen"))
 
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
@@ -339,8 +329,14 @@ class HailContext private(val sc: SparkContext,
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
-    PlinkLoader(this, bed, bim, fam,
-      ffConfig, nPartitions, a2Reference)
+    val bedInputs = hadoopConf.globAllPartWithExt(Array(bed), Some(".bed")).sortBy(getPartNumber)
+    val bimInputs = hadoopConf.globAllPartWithExt(Array(bim), Some(".bim")).sortBy(getPartNumber)
+
+    if (bedInputs.length != bimInputs.length)
+      fatal(s"Number of BED files must equal the number of BIM files. " +
+        s"Found ${ bedInputs.length } ${ plural(bedInputs.length, "BED file") } and ${ bimInputs.length } ${ plural(bimInputs.length, "BIM file") }.")
+
+    PlinkLoader(this, bedInputs, bimInputs, fam, ffConfig, nPartitions, a2Reference)
   }
 
   def importPlinkBFile(bfileRoot: String,
