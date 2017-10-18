@@ -35,23 +35,22 @@ class TwoIndepHash32(outBits: Int, a: Long, b: Long) extends (Int => Int) {
 
 object SimpleTabulationHash32 {
   def apply(rand: RandomDataGenerator): SimpleTabulationHash32 = {
-    new SimpleTabulationHash32(Array.fill[Array[Int]](4)(Array.fill[Int](256)(rand.getRandomGenerator.nextInt())))
+    new SimpleTabulationHash32(Array.fill[Int](256 * 4)(rand.getRandomGenerator.nextInt()))
   }
 }
 
 // see e.g. Thorup, "Fast and Powerful Hashing using Tabulation", for explanation of both simple and twisted tabulation
 // hashing
-class SimpleTabulationHash32(table: Array[Array[Int]]) extends (Int => Int) {
-  require(table.length == 4)
-  require(table(0).length == 256)
+class SimpleTabulationHash32(table: Array[Int]) extends (Int => Int) {
+  require(table.length == 256 * 4)
 
   override def apply(key: Int): Int = {
     var out: Int = 0
     var keyBuffer: Int = key
-    var i = 0
-    while (i < 4) {
-      out ^= table(i)(keyBuffer & 255)
-      i += 1
+    var offset = 0
+    while (offset < 1024) {
+      out ^= table(offset + (keyBuffer & 0xff))
+      offset += 256
       keyBuffer >>>= 8
     }
     out
