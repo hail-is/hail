@@ -427,7 +427,6 @@ class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
 
   def length(): Code[Int] =
     Code(lhs, new InsnNode(ARRAYLENGTH))
-
 }
 
 object Invokeable {
