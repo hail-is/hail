@@ -1,32 +1,18 @@
 package is.hail.methods
 
-import java.io.InputStream
-import java.io.OutputStream
-import java.nio.file.Files
-import java.nio.file.Paths
-
-import breeze.linalg.{DenseMatrix => BDM, _}
-import is.hail.keytable._
-import is.hail.annotations.Annotation
-import is.hail.expr.{TStruct, _}
-import org.apache.spark.mllib.linalg.distributed._
+import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.SparkSuite
-import org.apache.hadoop
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
-import org.apache.spark.mllib.linalg._
-import org.testng.annotations.Test
-import is.hail.check._
-import is.hail.check.Prop._
+import is.hail.distributedmatrix.BlockMatrix
+import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.expr.{TDouble, TString}
-import is.hail.variant.VariantDataset
-import is.hail.variant.VSMSubgen
 import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}
+import is.hail.variant.VariantDataset
+import org.apache.spark.mllib.linalg._
+import org.apache.spark.sql.Row
+import org.testng.annotations.Test
 
 import scala.sys.process._
-import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
-import is.hail.distributedmatrix.DistributedMatrix.implicits._
 
 class PCRelateSuite extends SparkSuite {
   private val blockSize: Int = 8192
@@ -160,20 +146,11 @@ class PCRelateSuite extends SparkSuite {
     assert(fails.isEmpty)
   }
 
-  private def blockMatrixToBDM(m: BlockMatrix): BDM[Double] = {
-    val foo = m.toLocalMatrix().asInstanceOf[DenseMatrix]
-    new BDM[Double](foo.numRows, foo.numCols, foo.toArray)
-  }
-
-
   @Test
   def sampleVcfMatchesReference() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
     val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
-
-    val dm = BlockMatrixIsDistributedMatrix
-    import dm.ops._
 
     val (truth, truth_g, truth_ibs0, truth_mu) = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
 
@@ -181,11 +158,11 @@ class PCRelateSuite extends SparkSuite {
     val g = PCRelate.vdsToMeanImputedMatrix(vds)
     val dmu = pcr.mu(g, pcs)
     // blockedG : variant x sample
-    val blockedG = dm.from(g, blockSize, blockSize)
+    val blockedG = BlockMatrix.from(g, blockSize)
     val actual = runPcRelateHail(vds, pcs, 0.01)
-    val actual_g = blockMatrixToBDM(blockedG.t)
-    val actual_ibs0 = blockMatrixToBDM(pcr.ibs0(blockedG, dmu, blockSize))
-    val actual_mean = blockMatrixToBDM(dmu)
+    val actual_g = blockedG.toLocalMatrix().t
+    val actual_ibs0 = pcr.ibs0(blockedG, dmu, blockSize).toLocalMatrix()
+    val actual_mean = dmu.toLocalMatrix()
 
     compareBDMs(actual_mean, truth_mu, tolerance=1e-14)
     compareBDMs(actual_ibs0, truth_ibs0, tolerance=1e-14)

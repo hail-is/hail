@@ -121,6 +121,12 @@ object Gen {
 
   def const[T](x: T): Gen[T] = Gen { (p: Parameters) => x }
 
+  def coin(p: Double = 0.5): Gen[Boolean] = {
+    require(0.0 < p)
+    require(p < 1.0)
+    choose(0.0, 1.0).map(_ <= p)
+  }
+
   def oneOfSeq[T](xs: Seq[T]): Gen[T] = {
     assert(xs.nonEmpty)
     Gen { (p: Parameters) =>
@@ -206,11 +212,22 @@ object Gen {
       b.result()
     }
 
-  def denseMatrix[T](n: Int, m: Int)(g: Gen[T])(implicit tct: ClassTag[T], tzero: Zero[T]): Gen[DenseMatrix[T]] =
+  def denseMatrix[T](n: Int, m: Int)(implicit tct: ClassTag[T], tzero: Zero[T], arb: Arbitrary[T]): Gen[DenseMatrix[T]] =
+    denseMatrix[T](n, m, arb.arbitrary)
+
+  def denseMatrix[T](n: Int, m: Int, g: Gen[T])(implicit tct: ClassTag[T], tzero: Zero[T]): Gen[DenseMatrix[T]] =
     Gen { (p: Parameters) =>
       DenseMatrix.fill[T](n, m)(g.resize(p.size / (n * m))(p))
     }
 
+  def twoMultipliableDenseMatrices[T](implicit tct: ClassTag[T], tzero: Zero[T], arb: Arbitrary[T]): Gen[(DenseMatrix[T], DenseMatrix[T])] =
+    twoMultipliableDenseMatrices(arb.arbitrary)
+
+  def twoMultipliableDenseMatrices[T](g: Gen[T])(implicit tct: ClassTag[T], tzero: Zero[T]): Gen[(DenseMatrix[T], DenseMatrix[T])] = for {
+    Array(rows, inner, columns) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
+    l <- denseMatrix(rows, inner, g)
+    r <- denseMatrix(inner, columns, g)
+  } yield (l, r)
 
   /**
     * In general, for any Traversable type T and any Monad M, we may convert an {@code F[M[T]]} to an {@code M[F[T]]} by

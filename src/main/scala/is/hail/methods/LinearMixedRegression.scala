@@ -74,7 +74,7 @@ object LinearMixedRegression {
 
     info(s"lmmreg: running lmmreg on $n samples with $k sample ${ plural(k, "covariate") } including intercept...")
 
-    val K = new DenseMatrix[Double](n, n, filteredKinshipMatrix.matrix.toBlockMatrixDense().toLocalMatrix().toArray)
+    val K = filteredKinshipMatrix.matrix.toHailBlockMatrix().toLocalMatrix()
 
     info(s"lmmreg: Computing eigendecomposition of kinship matrix...")
 
