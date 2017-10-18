@@ -82,8 +82,8 @@ class BlockMatrixSuite extends SparkSuite {
 
   private def sameDoubleMatrixNaNEqualsNaN(x: BDM[Double], y: BDM[Double], relTolerance: Double = defaultRelTolerance): Boolean =
     findDoubleMatrixMismatchNaNEqualsNaN(x, y, relTolerance) match {
-      case Some(_) => true
-      case None => false
+      case Some(_) => false
+      case None => true
     }
 
   private def findDoubleMatrixMismatchNaNEqualsNaN(x: BDM[Double], y: BDM[Double], relTolerance: Double = defaultRelTolerance): Option[(Int, Int)] = {
