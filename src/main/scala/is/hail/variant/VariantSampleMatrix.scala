@@ -628,25 +628,41 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val ec = variantEC
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
 
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-    val finalType = (paths, types).zipped.foldLeft(vaSignature) { case (vas, (ids, signature)) =>
-      val (s, i) = vas.insert(signature, ids)
-      inserterBuilder += i
-      s
+    var newVASignature = vaSignature
+    val inserters = new Array[Inserter](types.length)
+    var i = 0
+    while (i < types.length) {
+      val (newSig, ins) = newVASignature.insert(types(i), paths(i))
+      inserters(i) = ins
+      newVASignature = newSig
+      i += 1
     }
-    val inserters = inserterBuilder.result()
 
     val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
 
-    mapAnnotations(finalType, { case (v, va, gs) =>
-      ec.setAll(localGlobalAnnotation, v, va)
+    val localRowType = rowType
+    insertIntoRow[UnsafeRow](newVASignature, List("va"),
+      () => new UnsafeRow(localRowType), { (ur, rv, rvb) =>
+        ur.set(rv)
 
-      aggregateOption.foreach(f => f(v, va, gs))
-      f().zip(inserters)
-        .foldLeft(va) { case (va, (v, inserter)) =>
-          inserter(va, v)
+        val v = ur.getAs[RK](1)
+        val va = ur.get(2)
+        val gs = ur.getAs[Iterable[T]](3)
+
+        ec.setAll(localGlobalAnnotation, v, va)
+
+        aggregateOption.foreach(f => f(v, va, gs))
+
+        var newVA = va
+        var i = 0
+        var newA = f()
+        while (i < newA.length) {
+          newVA = inserters(i)(newVA, newA(i))
+          i += 1
         }
-    })
+
+        rvb.addAnnotation(newVASignature, newVA)
+      })
   }
 
   def annotateVariantsTable(kt: KeyTable, vdsKey: java.util.ArrayList[String],
