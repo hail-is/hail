@@ -242,9 +242,8 @@ object UnsafeRow {
           else
             null
         val fakeRef = region.loadByte(ft.loadField(region, offset, 5)) != 0
-        val isLinearScale = region.loadByte(ft.loadField(region, offset, 6)) != 0
 
-        new GenericGenotype(gt, ad, dp, gq, px, fakeRef, isLinearScale)
+        new GenericGenotype(gt, ad, dp, gq, px, fakeRef)
     }
   }
 }

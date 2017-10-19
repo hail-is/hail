@@ -21,8 +21,7 @@ class HardCallsSuite extends SparkSuite {
           Genotype.ad(g).isEmpty &&
             Genotype.dp(g).isEmpty &&
             Genotype.gq(g).isEmpty &&
-            Genotype.pl(g).isEmpty &&
-            !Genotype.isLinearScale(g).getOrElse(false)
+            Genotype.pl(g).isEmpty
         }
       } && gtTriples(vds) == gtTriples(vds)
     }

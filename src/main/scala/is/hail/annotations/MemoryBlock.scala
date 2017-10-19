@@ -1001,7 +1001,6 @@ class RegionValueBuilder(var region: MemoryBuffer) {
           }
 
           addBoolean(g._fakeRef)
-          addBoolean(g._isLinearScale)
           endStruct()
 
         case t: TLocus =>

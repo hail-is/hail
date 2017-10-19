@@ -7,6 +7,7 @@ import scala.language.implicitConversions
 
 package object variant {
   type VariantDataset = VariantSampleMatrix[Locus, Variant, Genotype]
+  type VariantKeyDataset = VariantSampleMatrix[Locus, Variant, Annotation]
   type GenericDataset = VariantSampleMatrix[Annotation, Annotation, Annotation]
   type Call = java.lang.Integer
 

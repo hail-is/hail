@@ -919,46 +919,6 @@ object FunctionRegistry {
     Construct a :ref:`call` from an integer.
     """, "gt" -> "integer")(boxedInt32Hr, callHr)
 
-  registerSpecial("Genotype", { (vF: () => Any, dosF: () => Any) =>
-    val v = vF()
-    val dos = dosF()
-
-    if (v == null)
-      throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
-
-    Genotype(v.asInstanceOf[Variant].nAlleles, if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray)
-  },
-    """
-    Construct a :ref:`genotype` object from a variant and an array of genotype probabilities.
-
-    .. code-block:: text
-        :emphasize-lines: 3
-
-        let v = Variant("7:76324539:A:G") and prob = [0.2, 0.7, 0.1] and
-          g = Genotype(v, prob) in g.isHet()
-        result: true
-    """, "v" -> "Variant", "prob" -> "Genotype probabilities")(variantHr(GR), arrayHr[Double], genotypeHr)
-
-  registerSpecial("Genotype", { (vF: () => Any, gtF: () => Any, dosF: () => Any) =>
-    val v = vF()
-    val dos = dosF()
-
-    if (v == null)
-      throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
-
-    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[Call], if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray)
-  },
-    """
-    Construct a :ref:`genotype` object from a variant, a genotype call, and an array of genotype probabilities.
-
-    .. code-block:: text
-        :emphasize-lines: 3
-
-        let v = Variant("7:76324539:A:G") and gt = Call(0) and prob = [0.8, 0.1, 0.1] and
-          g = Genotype(v, gt, prob) in g.isHomRef()
-        result: true
-    """, "v" -> "Variant", "gt" -> "Genotype call integer", "prob" -> "Genotype probabilities")(variantHr(GR), callHr, arrayHr[Double], genotypeHr)
-
   registerSpecial("Genotype", { (gtF: () => Any) =>
     Genotype(gtF().asInstanceOf[java.lang.Integer])
   },

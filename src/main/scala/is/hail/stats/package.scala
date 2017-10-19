@@ -2,9 +2,10 @@ package is.hail
 
 import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
+import is.hail.expr.{TArray, TFloat64, TStruct}
 import is.hail.utils._
-import is.hail.variant.{Genotype, VSMFileMetadata, Variant, VariantDataset}
-import net.sourceforge.jdistlib.{ChiSquare, Normal, Poisson, Beta}
+import is.hail.variant.{Genotype, VSMFileMetadata, Variant, VariantDataset, VariantKeyDataset}
+import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 
 package object stats {
@@ -319,15 +320,15 @@ package object stats {
             (0 until gtMat.rows).map { i =>
               Genotype(gtMat(i, j))
             }: Iterable[Genotype]
-            )
           )
+        )
       },
       nPartitions
     ).toOrderedRDD
 
     new VariantDataset(hc, VSMFileMetadata(sampleIds, wasSplit = true), rdd)
   }
-  
+
   // genotypes(i,j) is genotype of variant j in sample i; i and j are 0-based indices
   // sample i is "i" by default
   // variant j is ("1", j + 1, "A", C") since 0 is not a valid position.
@@ -335,7 +336,7 @@ package object stats {
     nAlleles: Int,
     gpMat: Matrix[Array[Double]],
     samplesIdsOpt: Option[Array[String]] = None,
-    nPartitions: Int = hc.sc.defaultMinPartitions): VariantDataset = {
+    nPartitions: Int = hc.sc.defaultMinPartitions): VariantKeyDataset = {
 
     require(samplesIdsOpt.forall(_.length == gpMat.rows))
     require(samplesIdsOpt.forall(_.areDistinct()))
@@ -347,14 +348,16 @@ package object stats {
         (Variant("1", j + 1, "A", "C"),
           (Annotation.empty,
             (0 until gpMat.rows).map { i =>
-              Genotype(nAlleles = nAlleles, dos = gpMat(i,j))
-            }: Iterable[Genotype]
-            )
-          )
+              gpMat(i, j).map(a => a: Annotation): IndexedSeq[Annotation]
+            }: Iterable[Annotation]))
       },
       nPartitions
     ).toOrderedRDD
 
-    new VariantDataset(hc, VSMFileMetadata(sampleIds, wasSplit = true), rdd)
+    new VariantKeyDataset(hc, VSMFileMetadata(sampleIds,
+      genotypeSignature = TStruct(
+        "GP" -> TArray(TFloat64)),
+      wasSplit = true),
+      rdd)
   }
 }

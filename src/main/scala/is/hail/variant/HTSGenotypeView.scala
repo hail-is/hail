@@ -43,8 +43,6 @@ sealed abstract class HTSGenotypeView {
   def getGQ: Int
 
   def getPL(idx: Int): Int
-
-  def isLinearScale: Boolean
 }
 
 class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
@@ -56,7 +54,6 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
   private val dpIndex = 2
   private val gqIndex = 3
   private val pxIndex = 4
-  private val linearScaleIndex = 6
 
   private var m: MemoryBuffer = _
   private var gsOffset: Long = _
@@ -85,8 +82,7 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
 
   def hasGQ: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, gqIndex)
 
-  def hasPL: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, pxIndex) &&
-    !m.loadBoolean(tg.loadField(m, gOffset, linearScaleIndex))
+  def hasPL: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, pxIndex)
 
   def hasPX: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, pxIndex)
 
@@ -127,11 +123,6 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
   }
 
   def getPL(idx: Int): Int = getPX(idx)
-
-  def isLinearScale: Boolean = {
-    assert(gIsDefined)
-    m.loadBoolean(tg.loadField(m, gOffset, linearScaleIndex))
-  }
 }
 
 private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
@@ -215,6 +206,4 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
     val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(pxOffset, length, idx)
     m.loadInt(elementOffset)
   }
-
-  def isLinearScale: Boolean = false
 }
