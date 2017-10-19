@@ -31,43 +31,43 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
 
   def loadInt(off: Long): Int = {
     assert(size <= length)
-    assert(off >= 0 && off + 4 <= size, s"tried to read int at $off from region with size $size")
+    assert(off >= 0 && off + 4 <= size)
     Memory.loadInt(mem + off)
   }
 
   def loadLong(off: Long): Long = {
     assert(size <= length)
-    assert(off >= 0 && off + 8 <= size, s"tried to read long at $off from region with size $size")
+    assert(off >= 0 && off + 8 <= size)
     Memory.loadLong(mem + off)
   }
 
   def loadFloat(off: Long): Float = {
     assert(size <= length)
-    assert(off >= 0 && off + 4 <= size, s"tried to read float at $off from region with size $size")
+    assert(off >= 0 && off + 4 <= size)
     Memory.loadFloat(mem + off)
   }
 
   def loadDouble(off: Long): Double = {
     assert(size <= length)
-    assert(off >= 0 && off + 8 <= size, s"tried to read double at $off from region with size $size")
+    assert(off >= 0 && off + 8 <= size)
     Memory.loadDouble(mem + off)
   }
 
   def loadAddress(off: Long): Long = {
     assert(size <= length)
-    assert(off >= 0 && off + 8 <= size, s"tried to read double at $off from region with size $size")
+    assert(off >= 0 && off + 8 <= size)
     Memory.loadAddress(mem + off)
   }
 
   def loadByte(off: Long): Byte = {
     assert(size <= length)
-    assert(off >= 0 && off + 1 <= size, s"tried to read byte at $off from region of size $size")
+    assert(off >= 0 && off + 1 <= size)
     Memory.loadByte(mem + off)
   }
 
   def loadBytes(off: Long, n: Int): Array[Byte] = {
     assert(size <= length)
-    assert(off >= 0 && off + n <= size, s"tried to read bytes of size $n at $off from region of size $size")
+    assert(off >= 0 && off + n <= size)
     val a = new Array[Byte](n)
     Memory.copyToArray(a, 0, mem + off, n)
     a
@@ -75,44 +75,44 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
 
   def loadBytes(off: Long, n: Long, dst: Array[Byte]) {
     assert(size <= length)
-    assert(off >= 0 && off + n <= size, s"tried to read bytes of size $n at $off from region of size $size")
+    assert(off >= 0 && off + n <= size)
     assert(n <= dst.length)
     Memory.copyToArray(dst, 0, mem + off, n)
   }
 
   def storeInt(off: Long, i: Int) {
     assert(size <= length)
-    assert(off >= 0 && off + 4 <= size, s"tried to store int at $off to region of size $size")
+    assert(off >= 0 && off + 4 <= size)
     Memory.storeInt(mem + off, i)
   }
 
   def storeLong(off: Long, l: Long) {
     assert(size <= length)
-    assert(off >= 0 && off + 8 <= size, s"tried to store long at $off to region of size $size")
+    assert(off >= 0 && off + 8 <= size)
     Memory.storeLong(mem + off, l)
   }
 
   def storeFloat(off: Long, f: Float) {
     assert(size <= length)
-    assert(off >= 0 && off + 4 <= size, s"tried to store float at $off to region of size $size")
+    assert(off >= 0 && off + 4 <= size)
     Memory.storeFloat(mem + off, f)
   }
 
   def storeDouble(off: Long, d: Double) {
     assert(size <= length)
-    assert(off >= 0 && off + 8 <= size, s"tried to store double at $off to region of size $size")
+    assert(off >= 0 && off + 8 <= size)
     Memory.storeDouble(mem + off, d)
   }
 
   def storeAddress(off: Long, a: Long) {
     assert(size <= length)
-    assert(off >= 0 && off + 8 <= size, s"tried to store address at $off to region of size $size")
+    assert(off >= 0 && off + 8 <= size)
     Memory.storeAddress(mem + off, a)
   }
 
   def storeByte(off: Long, b: Byte) {
     assert(size <= length)
-    assert(off >= 0 && off + 1 <= size, s"tried to store byte at $off to region of size $size")
+    assert(off >= 0 && off + 1 <= size)
     Memory.storeByte(mem + off, b)
   }
 
@@ -122,7 +122,7 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
 
   def storeBytes(off: Long, bytes: Array[Byte], bytesOff: Long, n: Int) {
     assert(size <= length)
-    assert(off >= 0 && off + n <= size, s"tried to store $n bytes at $off to region of size $size")
+    assert(off >= 0 && off + n <= size)
     assert(bytesOff + n <= bytes.length)
     Memory.copyFromArray(mem + off, bytes, bytesOff, n)
   }
@@ -137,8 +137,8 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
   }
 
   def align(alignment: Long) {
-    assert(alignment > 0, s"invalid alignment: $alignment")
-    assert((alignment & (alignment - 1)) == 0, s"invalid alignment: $alignment") // power of 2
+    assert(alignment > 0)
+    assert((alignment & (alignment - 1)) == 0) // power of 2
     offset = (offset + (alignment - 1)) & ~(alignment - 1)
   }
 
@@ -157,7 +157,7 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
 
   def loadBoolean(off: Long): Boolean = {
     val b = loadByte(off)
-    assert(b == 1 || b == 0, s"invalid boolean byte: $b")
+    assert(b == 1 || b == 0)
     b != 0
   }
 
