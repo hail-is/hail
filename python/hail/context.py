@@ -87,6 +87,7 @@ class HailContext(HistoryMixin):
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
+        self._counter = 1
         super(HailContext, self).__init__()
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
@@ -914,3 +915,7 @@ class HailContext(HistoryMixin):
 
         jkt = self._jhc.readTable(path)
         return KeyTable(self, jkt)
+
+    def _get_unique_id(self):
+        self._counter += 1
+        return "__uid_{}".format(self._counter)
