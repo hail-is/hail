@@ -831,9 +831,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     annotateVariants(other.variantsAndAnnotations, finalType, inserter, product = false)
   }
 
-  def count(): (Long, Long) = (nSamples, variants.count())
+  def count(): (Long, Long) = (nSamples, countVariants())
 
-  def countVariants(): Long = variants.count()
+  def countVariants(): Long = rdd2.count()
 
   def variants: RDD[RK] = rdd.keys
 
