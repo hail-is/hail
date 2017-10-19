@@ -208,7 +208,7 @@ trait CodeConditional extends Code[Boolean] { self =>
   def unary_!(): CodeConditional =
     new CodeConditional {
       def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) {
-        self.emitConditional(il, ltrue, lfalse)
+        self.emitConditional(il, lfalse, ltrue)
       }
     }
 
