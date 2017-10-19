@@ -286,7 +286,7 @@ object FunctionRegistry {
             invokePrimitive2[AnyRef, AnyRef, AnyRef](g)(xs, lamc)
           }
         ) yield res
-      case f: Arity3LambdaFun[t, _, v, _] =>
+      case f: Arity3LambdaMethod[t, _, v, _] =>
         val Lambda(_, param, body) = args(1)
         val TFunction(Seq(paramType), _) = argTypes(1)
         args(0).`type` match {
@@ -303,6 +303,19 @@ object FunctionRegistry {
           lamc <- createLambda(param, paramType, body.compile());
           res <- AST.evalComposeCodeM(args(0), args(2)) { (xs, y) =>
             invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef](g)(xs, lamc, y)
+          }
+        ) yield res
+      case f: Arity3LambdaFun[_, u, v, _] =>
+        val Lambda(_, param, body) = args(0)
+        val TFunction(Seq(paramType), _) = argTypes(0)
+
+        val g = ((lam: AnyRef, x: AnyRef, y: AnyRef) =>
+          f(lam.asInstanceOf[Any => Any], x.asInstanceOf[u], y.asInstanceOf[v]).asInstanceOf[AnyRef])
+
+        for (
+          lamc <- createLambda(param, paramType, body.compile());
+          res <- AST.evalComposeCodeM(args(1), args(2)) { (x, y) =>
+            invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef](g)(lamc, x, y)
           }
         ) yield res
       case f: Arity3Fun[_, _, _, _] =>
@@ -452,13 +465,19 @@ object FunctionRegistry {
 
   def registerLambdaMethod[T, U, V, W](name: String, impl: (T, (Any) => Any, V) => W, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
+    val m = Arity3LambdaMethod[T, U, V, W](hrw.typ, impl)
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), m, MetaData(Option(docstring), argNames))
+  }
+
+  def registerLambda[T, U, V, W](name: String, impl: ((Any) => Any, U, V) => W, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
     val m = Arity3LambdaFun[T, U, V, W](hrw.typ, impl)
     bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), m, MetaData(Option(docstring), argNames))
   }
 
   def registerLambdaAggregatorTransformer[T, U, V](name: String, impl: (CPS[Any], (Any) => Any) => CPS[V],
-      codeImpl: (Code[AnyRef], Code[AnyRef] => CM[Code[AnyRef]]) => CMCodeCPS[AnyRef],
-      docstring: String, argNames: (String, String)*)
+    codeImpl: (Code[AnyRef], Code[AnyRef] => CM[Code[AnyRef]]) => CMCodeCPS[AnyRef],
+    docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     val m = BinaryLambdaAggregatorTransformer[T, U, V](hrv.typ, impl, codeImpl)
     bind(name, MethodType(hrt.typ, hru.typ), m, MetaData(Option(docstring), argNames))
@@ -1665,6 +1684,25 @@ object FunctionRegistry {
     """,
     "k" -> "Key name to query."
   )(dictHr(TTHr, TUHr), TTHr, boolHr)
+
+  registerLambda("uniroot", { (f: (Any) => Any, min: Double, max: Double) =>
+    val r = uniroot({ (x: Double) =>
+      val y = f(x)
+      if (y == null)
+        fatal(s"result of f($x) missing in uniroot")
+      y.asInstanceOf[Double]
+    }, min, max)
+    (r match {
+      case Some(r) => r
+      case None => null
+    }): java.lang.Double
+  },
+    """
+       Search the interval from lower to upper to find a root of the given function.
+    """,
+    "f" -> "function for which to find the root",
+    "max" -> "upper endpoint of interval to be searched"
+  )(unaryHr(float64Hr, float64Hr), float64Hr, float64Hr, boxedFloat64Hr)
 
   registerLambdaMethod("find", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.find { elt =>
