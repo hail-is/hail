@@ -373,11 +373,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       }.foldByKey(zeroValue)(combOp)
   }
 
-  def aggregateByVariant[U](zeroValue: U)(
-    seqOp: (U, T) => U,
-    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(RK, U)] =
-    aggregateByVariantWithAll(zeroValue)((e, v, va, s, sa, g) => seqOp(e, g), combOp)
-
   def aggregateByVariantWithAll[U](zeroValue: U)(
     seqOp: (U, RK, Annotation, Annotation, Annotation, T) => U,
     combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(RK, U)] = {
@@ -848,14 +843,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     })
   }
 
-  def deleteGlobal(args: String*): (Type, Deleter) = deleteGlobal(args.toList)
-
-  def deleteGlobal(path: List[String]): (Type, Deleter) = globalSignature.delete(path)
-
-  def deleteSA(args: String*): (Type, Deleter) = deleteSA(args.toList)
-
-  def deleteSA(path: List[String]): (Type, Deleter) = saSignature.delete(path)
-
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
   def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
@@ -1125,24 +1112,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def sparkContext: SparkContext = hc.sc
 
-  def flatMap[U](f: T => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
-    flatMapWithKeys((v, s, g) => f(g))
-
-  def flatMapWithKeys[U](f: (RK, Annotation, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] = {
-    val localSampleIdsBc = sampleIdsBc
-
-    rdd
-      .flatMap { case (v, (va, gs)) => localSampleIdsBc.value.lazyFlatMapWith(gs,
-        (s: Annotation, g: T) => f(v, s, g))
-      }
-  }
-
-  /**
-    * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
-    */
-  def flatMapVariants(f: (RK, Annotation, Iterable[T]) => TraversableOnce[(RK, (Annotation, Iterable[T]))]): VariantSampleMatrix[RPK, RK, T] =
-    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
-
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
   def head(n: Long): VariantSampleMatrix[RPK, RK, T] = {
@@ -1150,8 +1119,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       fatal(s"n must be non-negative! Found `$n'.")
     copy(rdd = rdd.head(n))
   }
-
-  def insertGlobal(sig: Type, args: String*): (Type, Inserter) = insertGlobal(sig, args.toList)
 
   def insertSA(sig: Type, args: String*): (Type, Inserter) = insertSA(sig, args.toList)
 
@@ -1279,9 +1246,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       sig,
       keyNames)
   }
-
-  def map[U](f: T => U)(implicit uct: ClassTag[U]): RDD[U] =
-    mapWithKeys((v, s, g) => f(g))
 
   def mapWithKeys[U](f: (RK, Annotation, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = sampleIdsBc
