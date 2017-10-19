@@ -106,13 +106,13 @@ object Code {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         val l1 = new LabelNode
         val l2 = new LabelNode
+        val l3 = new LabelNode
         il += l1
-        condition.emit(il)
-        il += new LdcInsnNode(0)
-        il += new JumpInsnNode(IF_ICMPEQ, l2)
+        condition.toConditional.emitConditional(il, l2, l3)
+        il += l2
         body.emit(il)
         il += new JumpInsnNode(GOTO, l1)
-        il += l2
+        il += l3
       }
     }
   }
@@ -497,7 +497,7 @@ object FieldRef {
   }
 }
 
-class LocalRef[T](i: Int)(implicit tti: TypeInfo[T]) {
+class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) {
   def load(): Code[T] =
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {

@@ -3,7 +3,8 @@ package is.hail.utils.richUtils
 import java.io.InputStream
 
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.{RegionValue, RichRDDRegionValue}
+import is.hail.annotations.{MemoryBuffer, RegionValue, RichRDDRegionValue}
+import is.hail.asm4s.Code
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import is.hail.variant.Variant
 import org.apache.hadoop
@@ -120,4 +121,7 @@ trait Implicits {
   }
 
   implicit def toRichInputStream(in: InputStream): RichInputStream = new RichInputStream(in)
+
+  implicit def toRichCodeMemoryBuffer(r: Code[MemoryBuffer]): RichCodeMemoryBuffer = new RichCodeMemoryBuffer(r)
+
 }
