@@ -3,7 +3,7 @@ package is.hail.methods
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import is.hail.HailContext
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, RegionValue, UnsafeRow}
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
@@ -17,33 +17,41 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def buildVariantAggregations[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], ec: EvalContext): Option[(RK, Annotation, Iterable[T]) => Unit] =
-    buildVariantAggregations[RPK, RK, T](vsm.sparkContext, vsm.value.localValue, ec)
+  def buildVariantAggregations[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], ec: EvalContext): Option[(RegionValue) => Unit] =
+    buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, ec)
 
-  def buildVariantAggregations[RPK, RK, T >: Null](sc: SparkContext,
+  def buildVariantAggregations(sc: SparkContext,
+    typ: MatrixType,
     localValue: VSMLocalValue,
-    ec: EvalContext): Option[(RK, Annotation, Iterable[T]) => Unit] = {
+    ec: EvalContext): Option[(RegionValue) => Unit] = {
 
     val aggregations = ec.aggregations
     if (aggregations.isEmpty)
       return None
 
     val localA = ec.a
+    val localNSamples = localValue.nSamples
     val localSamplesBc = sc.broadcast(localValue.sampleIds)
     val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
     val localGlobalAnnotations = localValue.globalAnnotation
+    val localRowType = typ.rowType
 
-    Some({ (v: RK, va: Annotation, gs: Iterable[T]) =>
+    Some({ (rv: RegionValue) =>
+      val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
+
+      val v = ur.get(1)
+      val va = ur.get(2)
+      val gs = ur.getAs[IndexedSeq[Annotation]](3)
+
       val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
       localA(0) = localGlobalAnnotations
       localA(1) = v
       localA(2) = va
 
-      val gsIt = gs.iterator
       var i = 0
-      // gsIt assume hasNext is always called before next
-      while (gsIt.hasNext) {
-        localA(3) = gsIt.next
+      val git = gs.iterator
+      while (i < localNSamples) {
+        localA(3) = git.next()
         localA(4) = localSamplesBc.value(i)
         localA(5) = localAnnotationsBc.value(i)
 
@@ -64,7 +72,7 @@ object Aggregators {
     })
   }
 
-  def buildSampleAggregations[RPK, RK, T >: Null](hc: HailContext, value: MatrixValue, ec: EvalContext): Option[(Annotation) => Unit] = {
+  def buildSampleAggregations(hc: HailContext, value: MatrixValue, ec: EvalContext): Option[(Annotation) => Unit] = {
 
     val aggregations = ec.aggregations
 
@@ -86,17 +94,25 @@ object Aggregators {
       baseArray.update(i, j, aggregations(j)._3.copy())
     }
 
-    val result = value.rdd[RPK, RK, T].treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
+    val localRowType = value.typ.rowType
+
+    val result = value.rdd2.treeAggregate(baseArray)({ case (arr, rv) =>
+      val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
+
+      val v = ur.get(1)
+      val va = ur.get(2)
+      val gs = ur.getAs[IndexedSeq[Annotation]](3)
+
       localA(0) = localGlobalAnnotations
       localA(4) = v
       localA(5) = va
 
-      val gsIt = gs.iterator
+      var git = gs.iterator
       var i = 0
       while (i < localNSamples) {
         localA(1) = localSamplesBc.value(i)
         localA(2) = localSampleAnnotationsBc.value(i)
-        localA(3) = gsIt.next
+        localA(3) = git.next()
 
         var j = 0
         while (j < nAggregations) {
@@ -349,13 +365,15 @@ class StatAggregator() extends TypedAggregator[Annotation] {
   def copy() = new StatAggregator()
 }
 
-class CounterAggregator extends TypedAggregator[Map[Annotation, Long]] {
+class CounterAggregator(t: Type) extends TypedAggregator[Map[Annotation, Long]] {
   var m = new mutable.HashMap[Any, Long]
 
   def result: Map[Annotation, Long] = m.toMap
 
   def seqOp(x: Any) {
-    m.updateValue(x, 0L, _ + 1)
+    // FIXME only need to copy on the first one
+    val cx = Annotation.copy(t, x)
+    m.updateValue(cx, 0L, _ + 1)
   }
 
   def combOp(agg2: this.type) {
@@ -364,7 +382,7 @@ class CounterAggregator extends TypedAggregator[Map[Annotation, Long]] {
     }
   }
 
-  def copy() = new CounterAggregator()
+  def copy() = new CounterAggregator(t)
 }
 
 class HistAggregator(indices: Array[Double])
@@ -386,34 +404,34 @@ class HistAggregator(indices: Array[Double])
   def copy() = new HistAggregator(indices)
 }
 
-class CollectSetAggregator extends TypedAggregator[Set[Any]] {
+class CollectSetAggregator(t: Type) extends TypedAggregator[Set[Any]] {
 
   var _state = new mutable.HashSet[Any]
 
   def result = _state.toSet
 
   def seqOp(x: Any) {
-    _state += x
+    _state += Annotation.copy(t, x)
   }
 
   def combOp(agg2: this.type) = _state ++= agg2._state
 
-  def copy() = new CollectSetAggregator()
+  def copy() = new CollectSetAggregator(t)
 }
 
-class CollectAggregator extends TypedAggregator[ArrayBuffer[Any]] {
+class CollectAggregator(t: Type) extends TypedAggregator[ArrayBuffer[Any]] {
 
   var _state = new ArrayBuffer[Any]
 
   def result = _state
 
   def seqOp(x: Any) {
-    _state += x
+    _state += Annotation.copy(t, x)
   }
 
   def combOp(agg2: this.type) = _state ++= agg2._state
 
-  def copy() = new CollectAggregator()
+  def copy() = new CollectAggregator(t)
 }
 
 class InfoScoreAggregator extends TypedAggregator[Annotation] {
@@ -650,25 +668,25 @@ class InbreedingAggregator(getAF: (Genotype) => Any) extends TypedAggregator[Ann
   def copy() = new InbreedingAggregator(getAF)
 }
 
-class TakeAggregator(n: Int) extends TypedAggregator[IndexedSeq[Any]] {
+class TakeAggregator(t: Type, n: Int) extends TypedAggregator[IndexedSeq[Any]] {
   var _state = new ArrayBuffer[Any]()
 
   def result = _state.toArray[Any]: IndexedSeq[Any]
 
   def seqOp(x: Any) = {
     if (_state.length < n)
-      _state += x
+      _state += Annotation.copy(t, x)
   }
 
   def combOp(agg2: this.type) {
     agg2._state.foreach(seqOp)
   }
 
-  def copy() = new TakeAggregator(n)
+  def copy() = new TakeAggregator(t, n)
 }
 
-class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Ordering[T]) extends TypedAggregator[IndexedSeq[Any]] {
-  def this() = this(null, 0)(null)
+class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit var tord: Ordering[T]) extends TypedAggregator[IndexedSeq[Any]] {
+  def this() = this(null, null, 0)(null)
 
   def makeOrd(): Ordering[(Any, Any)] =
     if (tord != null)
@@ -689,7 +707,10 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
 
   def result = _state.clone.dequeueAll.toArray[(Any, Any)].map(_._1).reverse: IndexedSeq[Any]
 
-  def seqOp(x: Any) = seqOp(x, f(x))
+  def seqOp(x: Any) = {
+    val cx = Annotation.copy(t, x)
+    seqOp(cx, f(cx))
+  }
 
   private def seqOp(x: Any, sortKey: Any) = {
     val p = (x, sortKey)
@@ -707,9 +728,10 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
     agg2._state.foreach { case (x, p) => seqOp(x, p) }
   }
 
-  def copy() = new TakeByAggregator(f, n)
+  def copy() = new TakeByAggregator(t, f, n)
 
   private def writeObject(oos: ObjectOutputStream) {
+    oos.writeObject(t)
     oos.writeObject(f)
     oos.writeInt(n)
     oos.writeObject(tord)
@@ -717,6 +739,7 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
   }
 
   private def readObject(ois: ObjectInputStream) {
+    t = ois.readObject().asInstanceOf[Type]
     f = ois.readObject().asInstanceOf[(Any) => Any]
     n = ois.readInt()
     tord = ois.readObject().asInstanceOf[Ordering[T]]

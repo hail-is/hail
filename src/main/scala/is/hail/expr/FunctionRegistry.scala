@@ -608,6 +608,11 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ), Arity0Aggregator[T, U](hru.typ, ctor), MetaData(Option(docstring), argNames))
   }
 
+  def registerDependentAggregator[T, U](name: String, ctor: () => (() => TypedAggregator[U]), docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, MethodType(hrt.typ), Arity0DependentAggregator[T, U](hru.typ, ctor), MetaData(Option(docstring), argNames))
+  }
+
   def registerLambdaAggregator[T, U, V](name: String, ctor: ((Any) => Any) => TypedAggregator[V], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     bind(name, MethodType(hrt.typ, hru.typ), UnaryLambdaAggregator[T, U, V](hrv.typ, ctor), MetaData(Option(docstring), argNames))
@@ -618,9 +623,19 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), BinaryLambdaAggregator[T, U, V, W](hrw.typ, ctor), MetaData(Option(docstring), argNames))
   }
 
+  def registerDependentLambdaAggregator[T, U, V, W](name: String, ctor: () => (((Any) => Any, V) => TypedAggregator[W]), docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), BinaryDependentLambdaAggregator[T, U, V, W](hrw.typ, ctor), MetaData(Option(docstring), argNames))
+  }
+
   def registerAggregator[T, U, V](name: String, ctor: (U) => TypedAggregator[V], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     bind(name, MethodType(hrt.typ, hru.typ), Arity1Aggregator[T, U, V](hrv.typ, ctor), MetaData(Option(docstring), argNames))
+  }
+
+  def registerDependentAggregator[T, U, V](name: String, ctor: () => ((U) => TypedAggregator[V]), docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
+    bind(name, MethodType(hrt.typ, hru.typ), Arity1DependentAggregator[T, U, V](hrv.typ, ctor), MetaData(Option(docstring), argNames))
   }
 
   def registerAggregator[T, U, V, W, X](name: String, ctor: (U, V, W) => TypedAggregator[X], docstring: String, argNames: (String, String)*)
@@ -1951,7 +1966,10 @@ object FunctionRegistry {
     """
   )(aggregableHr(TTHr), int64Hr)
 
-  registerAggregator[Any, IndexedSeq[Any]]("collect", () => new CollectAggregator(),
+  registerDependentAggregator[Any, IndexedSeq[Any]]("collect", () => {
+    val t = TT.t
+    () => new CollectAggregator(t)
+  },
     """
     Returns an array with all of the elements in the aggregable. Order is not guaranteed.
 
@@ -1965,7 +1983,10 @@ object FunctionRegistry {
     """
   )(aggregableHr(TTHr), arrayHr(TTHr))
 
-  registerAggregator[Any, Set[Any]]("collectAsSet", () => new CollectSetAggregator(),
+  registerDependentAggregator[Any, Set[Any]]("collectAsSet", () => {
+    val t = TT.t
+    () => new CollectSetAggregator(t)
+  },
     """
     Returns the vset of all unique elements in the aggregable.
     """
@@ -2102,7 +2123,10 @@ object FunctionRegistry {
       def typ = HWECombiner.signature
     })
 
-  registerAggregator[Any, Any]("counter", () => new CounterAggregator(),
+  registerDependentAggregator[Any, Any]("counter", () => {
+    val t = TT.t
+    () => new CounterAggregator(t)
+  },
     """
     Counts the number of occurrences of each element in an aggregable.
 
@@ -2286,7 +2310,10 @@ object FunctionRegistry {
     """,
     "expr" -> "Lambda expression.")(aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boolHr)
 
-  registerAggregator("take", (n: Int) => new TakeAggregator(n),
+  registerDependentAggregator("take", () => {
+    val t = TT.t
+    (n: Int) => new TakeAggregator(t, n)
+  },
     """
     Take the first ``n`` items of an aggregable.
 
@@ -2298,7 +2325,8 @@ object FunctionRegistry {
     """, "n" -> "Number of items to take.")(
     aggregableHr(TTHr), int32Hr, arrayHr(TTHr))
 
-  private val genericTakeByDocs = """
+  private val genericTakeByDocs =
+    """
     Returns the first ``n`` items of an aggregable in ascending order, ordered
     by the result of ``f``. ``NA`` always appears last. If the aggregable
     contains less than ``n`` items, then the result will contain as many
@@ -2306,7 +2334,8 @@ object FunctionRegistry {
 
     """
 
-  private val integralTakeByDocs = genericTakeByDocs ++ """
+  private val integralTakeByDocs = genericTakeByDocs ++
+    """
     **Examples**
 
     Consider an aggregable ``gs`` containing these elements::
@@ -2333,14 +2362,22 @@ object FunctionRegistry {
 
     """
 
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Int](f, n),
+  registerDependentLambdaAggregator("takeBy", () => {
+    val t = TT.t
+    (f: (Any) => Any, n: Int) => new TakeByAggregator[Int](t, f, n)
+  },
     integralTakeByDocs, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
   )(aggregableHr(TTHr), unaryHr(TTHr, boxedInt32Hr), int32Hr, arrayHr(TTHr))
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Long](f, n),
+
+  registerDependentLambdaAggregator("takeBy", () => {
+    val t = TT.t
+    (f: (Any) => Any, n: Int) => new TakeByAggregator[Long](t, f, n)
+  },
     integralTakeByDocs, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
   )(aggregableHr(TTHr), unaryHr(TTHr, boxedInt64Hr), int32Hr, arrayHr(TTHr))
 
-  private val floatingPointTakeByDocs = genericTakeByDocs ++ """
+  private val floatingPointTakeByDocs = genericTakeByDocs ++
+    """
     Note that ``NaN`` always appears after any finite or infinite floating-point
     numbers but before ``NA``. For example, consider an aggregable containing
     these elements::
@@ -2357,14 +2394,24 @@ object FunctionRegistry {
 
     """
 
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Float](f, n),
+  registerDependentLambdaAggregator("takeBy", () => {
+    val t = TT.t
+    (f: (Any) => Any, n: Int) => new TakeByAggregator[Float](t, f, n)
+  },
     floatingPointTakeByDocs, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
   )(aggregableHr(TTHr), unaryHr(TTHr, boxedFloat32Hr), int32Hr, arrayHr(TTHr))
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Double](f, n),
+
+  registerDependentLambdaAggregator("takeBy", () => {
+    val t = TT.t
+    (f: (Any) => Any, n: Int) => new TakeByAggregator[Double](t, f, n)
+  },
     floatingPointTakeByDocs, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
   )(aggregableHr(TTHr), unaryHr(TTHr, boxedFloat64Hr), int32Hr, arrayHr(TTHr))
 
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[String](f, n),
+  registerDependentLambdaAggregator("takeBy", () => {
+    val t = TT.t
+    (f: (Any) => Any, n: Int) => new TakeByAggregator[String](t, f, n)
+  },
     genericTakeByDocs, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
   )(aggregableHr(TTHr), unaryHr(TTHr, stringHr), int32Hr, arrayHr(TTHr))
 

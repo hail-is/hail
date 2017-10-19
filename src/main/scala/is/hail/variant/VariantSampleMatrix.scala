@@ -576,7 +576,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
     val inserters = inserterBuilder.result()
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations[RPK, RK, T](hc, value, ec)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, value, ec)
 
     ec.set(0, globalAnnotation)
     val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) =>
@@ -734,7 +734,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
         ec.setAll(localGlobalAnnotation, v, va)
 
-        aggregateOption.foreach(f => f(v, va, gs))
+        aggregateOption.foreach(f => f(rv))
 
         var newVA = va
         var i = 0
