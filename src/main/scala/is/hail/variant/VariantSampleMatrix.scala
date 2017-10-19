@@ -1144,6 +1144,15 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     vaSignature.insert(sig, path)
   }
 
+  def insertIntoRow[PC](typeToInsert: Type, path: List[String], makePartitionContext: () => PC,
+    inserter: (PC, RegionValue, RegionValueBuilder) => Unit): VariantSampleMatrix[RPK, RK, T] = {
+    val newRDD2 = rdd2.insert(typeToInsert, path, makePartitionContext, inserter)
+    copy2(rdd2 = newRDD2,
+      // don't need to update vSignature, insert can't change the keys
+      vaSignature = newRDD2.typ.rowType.fieldType(2),
+      genotypeSignature = newRDD2.typ.rowType.fieldType(3).asInstanceOf[TArray].elementType)
+  }
+
   /**
     *
     * @param right right-hand dataset with which to join
@@ -1492,7 +1501,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val notInDataset = mutable.Set[Annotation]()
 
     oldOrder.outerJoin(newOrder).foreach { case (s, (oldIdx, newIdx)) =>
-      (oldIdx: @unchecked, newIdx: @unchecked) match {
+      ((oldIdx, newIdx): @unchecked) match {
         case (Some(i), Some(j)) => newIndices(i) = j
         case (Some(i), None) => missingSamples += s
         case (None, Some(j)) => notInDataset += s

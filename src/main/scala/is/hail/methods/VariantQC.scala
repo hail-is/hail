@@ -1,11 +1,11 @@
 package is.hail.methods
 
-import is.hail.annotations.Annotation
+import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
-import is.hail.sparkextras.OrderedRDD
+import is.hail.sparkextras.{OrderedRDD, OrderedRDD2}
 import is.hail.stats.LeveneHaldane
 import is.hail.utils._
-import is.hail.variant.{HTSGenotypeView, GenericDataset, Genotype, Variant, VariantDataset}
+import is.hail.variant.{GenericDataset, Genotype, HTSGenotypeView, Variant, VariantDataset}
 import org.apache.spark.util.StatCounter
 
 import scala.reflect.classTag
@@ -40,43 +40,76 @@ final class VariantQCCombiner {
     gqSC.merge(gq)
   }
 
-  def result(): Annotation = {
-    val af = {
-      val refAlleles = nHomRef * 2 + nHet
-      val altAlleles = nHomVar * 2 + nHet
-      divNull(altAlleles, refAlleles + altAlleles)
-    }
-
+  def add(rvb: RegionValueBuilder) {
     val nCalled = nHomRef + nHet + nHomVar
-    val callrate = divOption(nCalled, nCalled + nNotCalled)
+    val n = nCalled + nNotCalled
+
     val ac = nHet + 2 * nHomVar
 
-    val n = nHomRef + nHet + nHomVar
     val nAB = nHet
-    val nA = nAB + 2 * nHomRef.min(nHomVar)
+    val nA = nAB + 2 * math.min(nHomRef, nHomVar)
 
-    val LH = LeveneHaldane(n, nA)
-    val rExpectedHetFreq = divNull(LH.getNumericalMean, n)
+    val LH = LeveneHaldane(nCalled, nA)
     val hweP = LH.exactMidP(nAB)
 
-    Annotation(
-      divNull(nCalled, nCalled + nNotCalled),
-      ac,
-      af,
-      nCalled,
-      nNotCalled,
-      nHomRef,
-      nHet,
-      nHomVar,
-      nullIfNot(dpSC.count > 0, dpSC.mean),
-      nullIfNot(dpSC.count > 0, dpSC.stdev),
-      nullIfNot(gqSC.count > 0, gqSC.mean),
-      nullIfNot(gqSC.count > 0, gqSC.stdev),
-      nHet + nHomVar,
-      divNull(nHet, nHomRef + nHet + nHomVar),
-      divNull(nHet, nHomVar),
-      rExpectedHetFreq,
-      hweP)
+    rvb.startStruct() // qc
+
+    // callRate
+    if (n != 0)
+      rvb.addDouble(nCalled.toDouble / n)
+    else
+      rvb.setMissing()
+
+    rvb.addInt(ac)
+
+    // af
+    if (nCalled != 0)
+      rvb.addDouble(ac.toDouble / (2 * nCalled))
+    else
+      rvb.setMissing()
+
+    rvb.addInt(nCalled)
+    rvb.addInt(nNotCalled)
+    rvb.addInt(nHomRef)
+    rvb.addInt(nHet)
+    rvb.addInt(nHomVar)
+
+    if (dpSC.count > 0) {
+      rvb.addDouble(dpSC.mean)
+      rvb.addDouble(dpSC.stdev)
+    } else {
+      rvb.setMissing()
+      rvb.setMissing()
+    }
+
+    if (gqSC.count > 0) {
+      rvb.addDouble(gqSC.mean)
+      rvb.addDouble(gqSC.stdev)
+    } else {
+      rvb.setMissing()
+      rvb.setMissing()
+    }
+
+    rvb.addInt(nHet + nHomVar)
+
+    if (nCalled != 0)
+      rvb.addDouble(nHet.toDouble / nCalled)
+    else
+      rvb.setMissing()
+
+    if (nHomVar != 0)
+      rvb.addDouble(nHet.toDouble / nHomVar)
+    else
+      rvb.setMissing()
+
+    // rExpectedHetFreq
+    if (nCalled != 0)
+      rvb.addDouble(LH.getNumericalMean / nCalled)
+    else
+      rvb.setMissing()
+
+    rvb.addDouble(hweP)
+    rvb.endStruct()
   }
 }
 
@@ -101,17 +134,16 @@ object VariantQC {
     "pHWE" -> TFloat64)
 
   def apply(vds: GenericDataset, root: String): GenericDataset = {
-    val (newVAS, insertQC) = vds.vaSignature.insert(VariantQC.signature,
-      Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
-    val nSamples = vds.nSamples
-    val rowType = vds.rowType
-    val rdd = vds.unsafeRowRDD.mapPartitions { it =>
-      val view = HTSGenotypeView(rowType)
-      it.map { r =>
-        view.setRegion(r.region, r.offset)
+    val localNSamples = vds.nSamples
+    val localRowType = vds.rowType
+
+    vds.insertIntoRow[HTSGenotypeView](VariantQC.signature,
+      "va" :: Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD),
+      () => HTSGenotypeView(localRowType), { (view, rv, rvb) =>
+        view.setRegion(rv.region, rv.offset)
         val comb = new VariantQCCombiner
         var i = 0
-        while (i < nSamples) {
+        while (i < localNSamples) {
           view.setGenotype(i)
           if (view.hasGT)
             comb.mergeGT(view.getGT)
@@ -126,10 +158,7 @@ object VariantQC {
           i += 1
         }
 
-        (r.get(1): Annotation) -> (insertQC(r.get(2), comb.result()) -> r.getAs[Iterable[Annotation]](3))
-      }
-    }
-    val ord = OrderedRDD.apply(rdd, vds.rdd.orderedPartitioner)(vds.rdd.kOk, classTag[(Annotation, Iterable[Annotation])])
-    vds.copy[Annotation, Annotation, Annotation](rdd = ord, vaSignature = newVAS)
+        comb.add(rvb)
+      })
   }
 }
