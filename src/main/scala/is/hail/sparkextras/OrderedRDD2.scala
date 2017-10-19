@@ -72,7 +72,7 @@ class WritableRegionValue(val t: Type,
   def offset: Long = value.offset
 
   def setSelect(fromT: TStruct, toFromFieldIdx: Array[Int], fromRV: RegionValue) {
-    t match {
+    (t: @unchecked) match {
       case t: TStruct =>
         region.clear()
         rvb.start(t)
@@ -239,6 +239,15 @@ class OrderedRDD2Type(
   val pkInRowOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(rowType, pkRowFieldIdx, rowType, pkRowFieldIdx)
   val kInRowOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(rowType, kRowFieldIdx, rowType, kRowFieldIdx)
   val pkInKOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(kType, pkKFieldIdx, kType, pkKFieldIdx)
+
+  def insert(typeToInsert: Type, path: List[String]): (OrderedRDD2Type, UnsafeInserter) = {
+    assert(path.nonEmpty)
+    assert(!key.contains(path.head))
+
+    val (newRowType, inserter) = rowType.unsafeInsert(typeToInsert, path)
+
+    (new OrderedRDD2Type(partitionKey, key, newRowType.asInstanceOf[TStruct]), inserter)
+  }
 
   def toJSON: JValue =
     JObject(List(
@@ -646,6 +655,31 @@ class OrderedRDD2 private(
   override def compute(split: Partition, context: TaskContext): Iterator[RegionValue] = rdd.iterator(split, context)
 
   override def getPreferredLocations(split: Partition): Seq[String] = rdd.preferredLocations(split)
+
+  def insert[PC](typeToInsert: Type,
+    path: List[String],
+    newContext: () => PC,
+    // rv argument to add is the entire row
+    add: (PC, RegionValue, RegionValueBuilder) => Unit): OrderedRDD2 = {
+
+    val (insTyp, inserter) = typ.insert(typeToInsert, path)
+    OrderedRDD2(insTyp,
+      orderedPartitioner,
+      rdd.mapPartitions { it =>
+        val c = newContext()
+        val rv2b = new RegionValueBuilder()
+        val rv2 = RegionValue()
+
+        it.map { rv =>
+          rv2b.set(rv.region)
+          rv2b.start(insTyp.rowType)
+          inserter(rv.region, rv.offset, rv2b, () => add(c, rv, rv2b))
+          rv2.set(rv.region, rv2b.end())
+          rv2
+        }
+      }
+    )
+  }
 
   def mapPreservesPartitioning(f: (RegionValue) => RegionValue): OrderedRDD2 =
     OrderedRDD2(typ,

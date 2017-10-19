@@ -17,4 +17,6 @@ package object annotations {
   type Merger = (Annotation, Annotation) => Annotation
 
   type Filterer = (Annotation) => Annotation
+
+  type UnsafeInserter = (MemoryBuffer, Long, RegionValueBuilder, () => Unit) => Unit
 }

@@ -115,6 +115,13 @@ sealed abstract class Type extends Serializable { self =>
       (TStruct.empty, a => null)
   }
 
+  def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) = {
+    if (path.nonEmpty)
+      TStruct.empty.unsafeInsert(typeToInsert, path)
+    else
+      (typeToInsert, (region, offset, rvb, inserter) => inserter())
+  }
+
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
 
   def insert(signature: Type, path: List[String]): (Type, Inserter) = {
@@ -1443,6 +1450,50 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
         }
       }
       (newType, deleter)
+    }
+  }
+
+  override def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) = {
+    if (path.isEmpty) {
+      (typeToInsert, (region, offset, rvb, inserter) => inserter())
+    } else {
+      val localSize = size
+      val key = path.head
+      selfField(key) match {
+        case Some(f) =>
+          val j = f.index
+          val (insertedFieldType, fieldInserter) = f.typ.unsafeInsert(typeToInsert, path.tail)
+
+          (updateKey(key, j, insertedFieldType), { (region, offset, rvb, inserter) =>
+            rvb.startStruct()
+            var i = 0
+            while (i < j) {
+              rvb.addField(this, region, offset, i)
+              i += 1
+            }
+            fieldInserter(region, loadField(region, offset, j), rvb, inserter)
+            i += 1
+            while (i < localSize) {
+              rvb.addField(this, region, offset, i)
+              i += 1
+            }
+            rvb.endStruct()
+          })
+
+        case None =>
+          val (insertedFieldType, fieldInserter) = TStruct.empty.unsafeInsert(typeToInsert, path.tail)
+
+          (appendKey(key, insertedFieldType), { (region, offset, rvb, inserter) =>
+            rvb.startStruct()
+            var i = 0
+            while (i < localSize) {
+              rvb.addField(this, region, offset, i)
+              i += 1
+            }
+            fieldInserter(null, 0, rvb, inserter)
+            rvb.endStruct()
+          })
+      }
     }
   }
 
