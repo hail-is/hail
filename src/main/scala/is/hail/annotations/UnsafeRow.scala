@@ -252,7 +252,15 @@ object UnsafeRow {
 class UnsafeRow(var t: TStruct,
   var region: MemoryBuffer, var offset: Long) extends Row with KryoSerializable {
 
-  def this() = this(null, null, 0L)
+  def this(t: TStruct) = this(t, null, 0)
+  def this() = this(null, null, 0)
+
+  def set(newRegion: MemoryBuffer, newOffset: Long) {
+    region = newRegion
+    offset = newOffset
+  }
+
+  def set(rv: RegionValue): Unit = set(rv.region, rv.offset)
 
   def length: Int = t.size
 

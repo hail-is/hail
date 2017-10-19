@@ -677,8 +677,7 @@ class OrderedRDD2 private(
           rv2.set(rv.region, rv2b.end())
           rv2
         }
-      }
-    )
+      })
   }
 
   def mapPreservesPartitioning(f: (RegionValue) => RegionValue): OrderedRDD2 =
