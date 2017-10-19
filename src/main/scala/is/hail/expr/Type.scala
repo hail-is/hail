@@ -213,7 +213,7 @@ sealed abstract class Type extends Serializable { self =>
     def toJSON(pk: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(pk, self)
   }
 
-  def byteSize: Long = throw new NotImplementedError(toString)
+  def byteSize: Long = 1
 
   def alignment: Long = byteSize
 
@@ -223,7 +223,7 @@ sealed abstract class Type extends Serializable { self =>
 }
 
 abstract class ComplexType extends Type {
-  def representation: Type
+  val representation: Type
 
   override def byteSize: Long = representation.byteSize
 
@@ -231,7 +231,7 @@ abstract class ComplexType extends Type {
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = representation.unsafeOrdering(missingGreatest)
 
-  override lazy val fundamentalType: Type = representation.fundamentalType
+  override def fundamentalType: Type = representation.fundamentalType
 }
 
 case object TBinary extends Type {
@@ -279,7 +279,7 @@ case object TBinary extends Type {
 
   def contentAlignment: Long = 4
 
-  def contentByteSize(length: Int): Int = 4 + length
+  def contentByteSize(length: Int): Long = 4 + length
 
   def loadLength(region: MemoryBuffer, boff: Long): Int =
     region.loadInt(boff)
@@ -466,11 +466,11 @@ case object TString extends Type {
 
   override def byteSize: Long = 8
 
-  override lazy val fundamentalType: Type = TBinary
+  override def fundamentalType: Type = TBinary
 
-  def loadString(region: MemoryBuffer, offset: Long): String = {
-    val length = TBinary.loadLength(region, offset)
-    new String(region.loadBytes(TBinary.bytesOffset(offset), length))
+  def loadString(region: MemoryBuffer, boff: Long): String = {
+    val length = TBinary.loadLength(region, boff)
+    new String(region.loadBytes(TBinary.bytesOffset(boff), length))
   }
 }
 
@@ -604,6 +604,12 @@ object TAggregable {
 }
 
 final case class TAggregable(elementType: Type) extends TContainer {
+  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
+
+  val contentsAlignment: Long = elementType.alignment.max(4)
+
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
+
   // FIXME does symTab belong here?
   // not used for equality
   var symTab: SymbolTable = _
@@ -636,17 +642,28 @@ final case class TAggregable(elementType: Type) extends TContainer {
 abstract class TContainer extends Type {
   def elementType: Type
 
+  def elementByteSize: Long
+
   override def byteSize: Long = 8
+
+  def contentsAlignment: Long
 
   override def children = Seq(elementType)
 
-  // FIXME LCM
-  def contentsAlignment: Long = elementType.alignment.max(4)
+  def _elementsOffset(length: Int): Long =
+    UnsafeUtils.roundUpAlignment(4 + ((length + 7) >>> 3), elementType.alignment)
 
-  def elementsOffset(length: Int): Long =
-    UnsafeUtils.roundUpAlignment(4 + (length + 7) / 8, elementType.alignment)
+  var elementsOffsetTable: Array[Long] = _
 
-  def elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
+  def elementsOffset(length: Int): Long = {
+    if (elementsOffsetTable == null)
+      elementsOffsetTable = Array.tabulate[Long](10)(i => _elementsOffset(i))
+
+    if (length < 10)
+      elementsOffsetTable(length)
+    else
+      _elementsOffset(length)
+  }
 
   def contentsByteSize(length: Int): Long =
     elementsOffset(length) + length * elementByteSize
@@ -662,7 +679,7 @@ abstract class TContainer extends Type {
   }
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
-    aoff + elementsOffset(length) + i * UnsafeUtils.arrayElementSize(elementType)
+    aoff + elementsOffset(length) + i * elementByteSize
 
   def elementOffset(region: MemoryBuffer, aoff: Long, i: Int): Long =
     elementOffset(aoff, region.loadInt(aoff), i)
@@ -729,12 +746,9 @@ abstract class TContainer extends Type {
       }
     }
   }
-
-  override lazy val fundamentalType: TArray = TArray(elementType.fundamentalType)
 }
 
 abstract class TIterable extends TContainer {
-
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null
       && (a1.asInstanceOf[Iterable[_]].size == a2.asInstanceOf[Iterable[_]].size)
@@ -743,6 +757,17 @@ abstract class TIterable extends TContainer {
 }
 
 final case class TArray(elementType: Type) extends TIterable {
+  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
+
+  val contentsAlignment: Long = elementType.alignment.max(4)
+
+  override val fundamentalType: TArray = {
+    if (elementType == elementType.fundamentalType)
+      this
+    else
+      TArray(elementType.fundamentalType)
+  }
+
   override def toString = s"Array[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
@@ -802,6 +827,12 @@ final case class TArray(elementType: Type) extends TIterable {
 }
 
 final case class TSet(elementType: Type) extends TIterable {
+  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
+
+  val contentsAlignment: Long = elementType.alignment.max(4)
+
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
+
   override def toString = s"Set[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
@@ -867,13 +898,18 @@ final case class TSet(elementType: Type) extends TIterable {
 }
 
 final case class TDict(keyType: Type, valueType: Type) extends TContainer {
+  val elementType: Type = TStruct("key" -> keyType, "value" -> valueType)
+
+  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
+
+  val contentsAlignment: Long = elementType.alignment.max(4)
+
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
 
   override def canCompare(other: Type): Boolean = other match {
     case TDict(okt, ovt) => keyType.canCompare(okt) && valueType.canCompare(ovt)
     case _ => false
   }
-
-  val elementType: Type = TStruct("key" -> keyType, "value" -> valueType)
 
   override def children = Seq(keyType, valueType)
 
@@ -940,7 +976,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 case object TGenotype extends ComplexType {
   override def toString = "Genotype"
 
-  override lazy val representation: TStruct = TStruct(
+  val representation: TStruct = TStruct(
     "gt" -> TInt32,
     "ad" -> TArray(TInt32),
     "dp" -> TInt32,
@@ -973,7 +1009,7 @@ case object TGenotype extends ComplexType {
 case object TCall extends ComplexType {
   override def toString = "Call"
 
-  override lazy val representation: Type = TInt32
+  val representation: Type = TInt32
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
@@ -1003,7 +1039,7 @@ case object TAltAllele extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
 
-  override lazy val representation: TStruct = TStruct(
+  val representation: TStruct = TStruct(
     "ref" -> TString,
     "alt" -> TString)
 }
@@ -1091,7 +1127,7 @@ case class TVariant(gr: GRBase) extends ComplexType {
     }
   }
 
-  override lazy val representation: TStruct = TStruct(
+  val representation: TStruct = TStruct(
     "contig" -> TString,
     "start" -> TInt32,
     "ref" -> TString,
@@ -1145,7 +1181,7 @@ case class TLocus(gr: GRBase) extends ComplexType {
     }
   }
 
-  override lazy val representation: TStruct = TStruct(
+  val representation: TStruct = TStruct(
     "contig" -> TString,
     "position" -> TInt32)
 
@@ -1194,7 +1230,7 @@ case class TInterval(gr: GRBase) extends ComplexType {
     }
   }
 
-  override lazy val representation: TStruct = TStruct(
+  val representation: TStruct = TStruct(
     "start" -> TLocus(gr).representation,
     "end" -> TLocus(gr).representation)
 
@@ -1477,7 +1513,6 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   }
 
   def merge(other: TStruct): (TStruct, Merger) = {
-
     val intersect = fields.map(_.name).toSet
       .intersect(other.fields.map(_.name).toSet)
 
@@ -1816,8 +1851,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     (t, selectF)
   }
 
-  // needs to be lazy, because the compiler uses placeholders
-  lazy val (byteOffsets, _byteSize): (Array[Long], Long) = {
+  var byteOffsets: Array[Long] = _
+  override val byteSize: Long = {
     val a = new Array[Long](size)
 
     val bp = new BytePacker()
@@ -1842,18 +1877,18 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
           offset += fSize
       }
     }
-    a -> offset
+    byteOffsets = a
+    offset
   }
 
-  override def byteSize: Long = _byteSize
-
-  override lazy val alignment: Long =
+  override val alignment: Long = {
     if (fields.isEmpty)
       1
     else
       fields.map(_.typ.alignment).max
+  }
 
-  override lazy val fundamentalType: TStruct = {
+  override val fundamentalType: TStruct = {
     val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
     if ((fields, fundamentalFieldTypes).zipped
       .forall { case (f, ft) => f.typ == ft })
