@@ -924,8 +924,8 @@ class GenericGenotype(val _unboxedGT: Int,
   val _fakeRef: Boolean,
   val _isLinearScale: Boolean) extends Genotype {
 
-  require(_unboxedGT >= -1, s"invalid _unboxedGT value: ${ _unboxedGT }")
-  require(_unboxedDP >= -1, s"invalid _unboxedDP value: ${ _unboxedDP }")
+  require(_unboxedGT >= -1)
+  require(_unboxedDP >= -1)
 
   if (_isLinearScale) {
     if (_unboxedPX != null)

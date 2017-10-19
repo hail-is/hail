@@ -14,8 +14,8 @@ object UnsafeUtils {
   }
 
   def roundUpAlignment(offset: Long, alignment: Long): Long = {
-    assert(alignment > 0, s"invalid alignment: $alignment")
-    assert((alignment & (alignment - 1)) == 0, s"invalid alignment: $alignment") // power of 2
+    assert(alignment > 0)
+    assert((alignment & (alignment - 1)) == 0) // power of 2
     (offset + (alignment - 1)) & ~(alignment - 1)
   }
 }
