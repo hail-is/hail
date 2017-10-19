@@ -1,66 +1,49 @@
 package is.hail.utils.richUtils
 
-import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRowMatrix}
-import org.apache.spark.rdd.RDD
-
+import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
+import breeze.linalg.{DenseMatrix => BDM}
+import is.hail.distributedmatrix._
 import is.hail.utils._
 
-/**
-  * Adds toBlockMatrixDense method to IndexedRowMatrix
-  *
-  * The hope is that this class is temporary, as I'm going to make a PR to Spark with this method
-  * since it seems broadly useful.
-  */
-
 class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
-  def toBlockMatrixDense(): BlockMatrix = {
-    toBlockMatrixDense(1024, 1024)
-  }
+  def toHailBlockMatrix(blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix = {
+    require(blockSize > 0,
+      s"blockSize needs to be greater than 0. blockSize: $blockSize")
 
-  def toBlockMatrixDense(rowsPerBlock: Int, colsPerBlock: Int): BlockMatrix = {
-    require(rowsPerBlock > 0,
-      s"rowsPerBlock needs to be greater than 0. rowsPerBlock: $rowsPerBlock")
-    require(colsPerBlock > 0,
-      s"colsPerBlock needs to be greater than 0. colsPerBlock: $colsPerBlock")
+    val rows = indexedRowMatrix.numRows()
+    val cols = indexedRowMatrix.numCols()
+    // NB: if excessRows == 0, we never reach the truncatedBlockRow
+    val truncatedBlockRow = rows / blockSize
+    val truncatedBlockCol = cols / blockSize
+    val excessRows = (rows % blockSize).toInt
+    val excessCols = (cols % blockSize).toInt
 
-    val m = indexedRowMatrix.numRows()
-    val n = indexedRowMatrix.numCols()
-    val lastRowBlockIndex = m / rowsPerBlock
-    val lastColBlockIndex = n / colsPerBlock
-    val lastRowBlockSize = (m % rowsPerBlock).toInt
-    val lastColBlockSize = (n % colsPerBlock).toInt
-    val numRowBlocks = (m / rowsPerBlock + (if (m % rowsPerBlock == 0) 0 else 1)).toInt
-    val numColBlocks = (n / colsPerBlock + (if (n % colsPerBlock == 0) 0 else 1)).toInt
-
-
-    val blocks: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap{ ir =>
-      val blockRow = ir.index / rowsPerBlock
-      val rowInBlock = ir.index % rowsPerBlock
+    val blocks = indexedRowMatrix.rows.flatMap { ir =>
+      val i = ir.index / blockSize
+      val ii = ir.index % blockSize
 
       ir.vector.toArray
-        .grouped(colsPerBlock)
+        .grouped(blockSize)
         .zipWithIndex
-        .map{ case (values, blockColumn) =>
-          ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
+        .map { case (values, blockColumn) =>
+          ((i.toInt, blockColumn), (ii.toInt, values))
         }
-    }.groupByKey(GridPartitioner(numRowBlocks, numColBlocks)).mapValuesWithKey{
-      case ((blockRow, blockColumn), itr) =>
-        val actualNumRows: Int = if (blockRow == lastRowBlockIndex) lastRowBlockSize else rowsPerBlock
-        val actualNumColumns: Int = if (blockColumn == lastColBlockIndex) lastColBlockSize else colsPerBlock
+    }.groupByKey(GridPartitioner(rows, cols, blockSize)).mapValuesWithKey {
+      case ((i, j), it) =>
+        val rowsInBlock: Int = if (i == truncatedBlockRow) excessRows else blockSize
+        val colsInBlock: Int = if (j == truncatedBlockCol) excessCols else blockSize
 
-        val arraySize = actualNumRows * actualNumColumns
-        val matrixAsArray = new Array[Double](arraySize)
-        itr.foreach{ case (rowWithinBlock, values) =>
-          var i = 0
-          while (i < values.length) {
-            matrixAsArray.update(i * actualNumRows + rowWithinBlock, values(i))
-            i += 1
+        val a = new Array[Double](rowsInBlock * colsInBlock)
+        it.foreach{ case (ii, values) =>
+          var jj = 0
+          while (jj < values.length) {
+            a(jj * rowsInBlock + ii) = values(jj)
+            jj += 1
           }
         }
-        new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray)
+        new BDM[Double](rowsInBlock, colsInBlock, a)
     }
-    new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, m, n)
+    new BlockMatrix(blocks, blockSize, rows, cols)
   }
 }
 
