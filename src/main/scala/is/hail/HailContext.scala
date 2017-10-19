@@ -175,6 +175,7 @@ object HailContext {
     new Iterator[RegionValue] {
       val region = Region()
       val rv = RegionValue(region)
+      val f = StagedDecoder.getRVReader(t)()
 
       val dec = new Decoder(new LZ4InputBuffer(in))
 
@@ -187,7 +188,8 @@ object HailContext {
           throw new NoSuchElementException("next on empty iterator")
 
         region.clear()
-        rv.setOffset(dec.readRegionValue(t, region))
+        rv.setOffset(f(region, dec))
+//        rv.setOffset(dec.readRegionValue(t, region))
 
         cont = dec.readByte()
         if (cont == 0)

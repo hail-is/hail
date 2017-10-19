@@ -317,6 +317,16 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
 final class Decoder(in: InputBuffer) {
   def readByte(): Byte = in.readByte()
 
+  def readInt(): Int = in.readInt()
+
+  def readLong(): Long = in.readLong()
+
+  def readFloat(): Float = in.readFloat()
+
+  def readDouble(): Double = in.readDouble()
+
+  def readBytes(region:Region, toOff: Long, n: Int): Unit = in.readBytes(region, toOff, n)
+
   def readBinary(region: Region, off: Long) {
     val length = in.readInt()
     val boff = region.allocate(4, 4 + length)
