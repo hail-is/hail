@@ -180,13 +180,10 @@ trait Code[+T] {
   def compare[U >: T](opcode: Int, rhs: Code[U]): CodeConditional =
     new CodeConditional {
       def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) {
-        val ltrue = new LabelNode
-        val lfalse = new LabelNode
         self.emit(il)
         rhs.emit(il)
         il += new JumpInsnNode(opcode, ltrue)
         il += new JumpInsnNode(GOTO, lfalse)
-        (ltrue, lfalse)
       }
     }
 }
