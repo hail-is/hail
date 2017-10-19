@@ -1,12 +1,14 @@
 package is.hail.methods
 
+import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.HailContext
-import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
+import is.hail.distributedmatrix.BlockMatrix
+import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.hadoop.io._
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, Matrix, Vectors}
 import org.json4s._
 
@@ -33,7 +35,7 @@ object LDMatrix {
     val normalizedIndexedRows = filteredNormalizedHardCalls.map(_._2).zipWithIndex()
       .map{ case (values, idx) => IndexedRow(idx, Vectors.dense(values))}
 
-    val normalizedBlockMatrix = new IndexedRowMatrix(normalizedIndexedRows, nVariantsKept, nSamples).toBlockMatrixDense()
+    val normalizedBlockMatrix = new IndexedRowMatrix(normalizedIndexedRows, nVariantsKept, nSamples).toHailBlockMatrix()
 
     filteredNormalizedHardCalls.unpersist()
 
@@ -46,18 +48,12 @@ object LDMatrix {
 
     val irm: IndexedRowMatrix =
       if (computeProductLocally) {
-        val localMat: DenseMatrix = normalizedBlockMatrix.toLocalMatrix().asInstanceOf[DenseMatrix]
-        val product = localMat multiply localMat.transpose
-
-        BlockMatrixIsDistributedMatrix.from(vds.sparkContext, product, normalizedBlockMatrix.rowsPerBlock,
-          normalizedBlockMatrix.colsPerBlock).toIndexedRowMatrix() 
-      } else {
-        import is.hail.distributedmatrix.DistributedMatrix.implicits._
-        val dm = DistributedMatrix[BlockMatrix]
-        import dm.ops._
+        val localMat = normalizedBlockMatrix.toLocalMatrix()
+        val product = localMat * localMat.t
+        BlockMatrix.from(vds.sparkContext, product, normalizedBlockMatrix.blockSize).toIndexedRowMatrix()
+      } else
         (normalizedBlockMatrix * normalizedBlockMatrix.t).toIndexedRowMatrix()
-      }
-    
+
     val scaledIRM = new IndexedRowMatrix(irm.rows
       .map{case IndexedRow(idx, vec) => IndexedRow(idx, vec.map(d => d * nSamplesInverse))})
 
@@ -92,8 +88,8 @@ object LDMatrix {
 case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) {
   import LDMatrix._
 
-  def toLocalMatrix: Matrix = {
-    matrix.toBlockMatrixDense().toLocalMatrix()
+  def toLocalMatrix: BDM[Double] = {
+    matrix.toHailBlockMatrix().toLocalMatrix()
   }
 
   def write(uri: String) {
