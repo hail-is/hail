@@ -97,8 +97,8 @@ class ContextTests(unittest.TestCase):
             else:
                 gt = 'g.GT'
 
-            dataset.cache()
-            dataset2.persist()
+            dataset = dataset.cache()
+            dataset2 = dataset2.persist()
 
             dataset.write('/tmp/sample.vds', overwrite=True)
 
@@ -276,15 +276,14 @@ class ContextTests(unittest.TestCase):
 
             print(dataset.storage_level())
 
-            dataset.unpersist()
-            dataset2.unpersist()
+            dataset = dataset.unpersist()
+            dataset2 = dataset2.unpersist()
 
             new_sample_order = dataset.sample_ids[:]
             random.shuffle(new_sample_order)
             self.assertEqual(vds.reorder_samples(new_sample_order).sample_ids, new_sample_order)
 
-        sample = hc.import_vcf(test_resources + '/sample.vcf')
-        sample.cache()
+        sample = hc.import_vcf(test_resources + '/sample.vcf').cache()
 
         sample.summarize().report()
         sample.drop_samples().summarize().report()
@@ -294,7 +293,7 @@ class ContextTests(unittest.TestCase):
         sample_split = sample.split_multi()
 
         sample2 = hc.import_vcf(test_resources + '/sample2.vcf')
-        sample2.persist()
+        sample2 = sample2.persist()
 
         sample2_split = sample2.split_multi()
 

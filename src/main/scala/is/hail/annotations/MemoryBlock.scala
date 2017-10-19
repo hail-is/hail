@@ -218,6 +218,18 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
     offset = 0
   }
 
+  def setFrom(from: MemoryBuffer) {
+    if (from.offset > length) {
+      Memory.free(mem)
+
+      val newLength = math.max((length * 3) / 2, from.offset)
+      mem = Memory.malloc(newLength)
+      length = newLength
+    }
+    Memory.memcpy(mem, from.mem, from.offset)
+    offset = from.offset
+  }
+
   def copy(): MemoryBuffer = {
     val newMem = Memory.malloc(offset)
     Memory.memcpy(newMem, mem, offset)

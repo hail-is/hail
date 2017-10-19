@@ -86,8 +86,14 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     rvb.endStruct() // va
   }
 
-  def readRecord(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct, gType: TStruct, canonicalFlags: Int): Unit = {
+  def readRecord(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct, gType: TStruct, dropSamples: Boolean, canonicalFlags: Int): Unit = {
     readVariantInfo(vc, rvb, infoType)
+
+    if (dropSamples) {
+      rvb.startArray(0) // gs
+      rvb.endArray()
+      return
+    }
 
     val nAlleles = vc.getNAlleles
     val nGenotypes = Variant.nGenotypes(nAlleles)
