@@ -33,6 +33,53 @@ class TwoIndepHash32(outBits: Int, a: Long, b: Long) extends (Int => Int) {
   override def apply(key: Int): Int = ((a * key + b) >>> shift).toInt
 }
 
+object SimpleTabulationHash32 {
+  def apply(rand: RandomDataGenerator): SimpleTabulationHash32 = {
+    new SimpleTabulationHash32(Array.fill[Int](256 * 4)(rand.getRandomGenerator.nextInt()))
+  }
+}
+
+// see e.g. Thorup, "Fast and Powerful Hashing using Tabulation", for explanation of both simple and twisted tabulation
+// hashing
+class SimpleTabulationHash32(table: Array[Int]) extends (Int => Int) {
+  require(table.length == 256 * 4)
+
+  override def apply(key: Int): Int = {
+    var out: Int = 0
+    var keyBuffer: Int = key
+    var offset = 0
+    while (offset < 1024) {
+      out ^= table(offset + (keyBuffer & 0xff))
+      offset += 256
+      keyBuffer >>>= 8
+    }
+    out
+  }
+}
+
+object TwistedTabulationHash32 {
+  def apply(rand: RandomDataGenerator): TwistedTabulationHash32 = {
+    new TwistedTabulationHash32(Array.fill[Long](256 * 4)(rand.getRandomGenerator.nextLong()))
+  }
+}
+
+class TwistedTabulationHash32(table: Array[Long]) extends (Int => Int) {
+  require(table.length == 256 * 4)
+
+  override def apply(key: Int): Int = {
+    var out: Long = 0
+    var keyBuffer: Int = key
+    var offset = 0
+    while (offset < 768) {
+      out ^= table(offset + (keyBuffer & 0xff))
+      offset += 256
+      keyBuffer >>>= 8
+    }
+    out ^= table(offset + ((keyBuffer ^ out.toInt) & 0xff))
+    (out >>> 32).toInt
+  }
+}
+
 object FiveIndepTabulationHash32 {
   def apply(rand: RandomDataGenerator): FiveIndepTabulationHash32 =
     new FiveIndepTabulationHash32(
