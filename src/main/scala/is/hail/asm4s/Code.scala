@@ -179,7 +179,7 @@ trait Code[+T] {
 
   def compare[U >: T](opcode: Int, rhs: Code[U]): CodeConditional =
     new CodeConditional {
-      def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode) = {
+      def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) {
         val ltrue = new LabelNode
         val lfalse = new LabelNode
         self.emit(il)
@@ -194,7 +194,9 @@ trait Code[+T] {
 trait CodeConditional extends Code[Boolean] { self =>
   def emit(il: Growable[AbstractInsnNode]): Unit = {
     val lafter = new LabelNode
-    val (ltrue, lfalse) = emitConditional(il)
+    val ltrue = new LabelNode
+    val lfalse = new LabelNode
+    emitConditional(il, ltrue, lfalse)
     il += lfalse
     il += new LdcInsnNode(0)
     il += new JumpInsnNode(GOTO, lafter)
@@ -204,15 +206,32 @@ trait CodeConditional extends Code[Boolean] { self =>
   }
 
   // returns (ltrue, lfalse)
-  def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode)
+  def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode): Unit
 
   def unary_!(): CodeConditional =
     new CodeConditional {
-      def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode) = {
-        val (ltrue, lfalse) = self.emitConditional(il)
-        (lfalse, ltrue)
+      def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) {
+        self.emitConditional(il, ltrue, lfalse)
       }
     }
+
+  def &&(rhs: CodeConditional) = new CodeConditional {
+    def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) = {
+      val lt2 = new LabelNode
+      self.emitConditional(il, lt2, lfalse)
+      il += lt2
+      rhs.emitConditional(il, ltrue, lfalse)
+    }
+  }
+
+  def ||(rhs: CodeConditional) = new CodeConditional {
+    def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) = {
+      val lf2 = new LabelNode
+      self.emitConditional(il, ltrue, lf2)
+      il += lf2
+      rhs.emitConditional(il, ltrue, lfalse)
+    }
+  }
 }
 
 class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
@@ -222,13 +241,10 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
     case _ =>
       new CodeConditional {
-        def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode) = {
-          val ltrue = new LabelNode
-          val lfalse = new LabelNode
+        def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) {
           lhs.emit(il)
           il += new JumpInsnNode(IFEQ, lfalse)
           il += new JumpInsnNode(GOTO, ltrue)
-          (ltrue, lfalse)
         }
       }
   }
@@ -241,7 +257,9 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         val lafter = new LabelNode
-        val (ltrue, lfalse) = cond.emitConditional(il)
+        val ltrue = new LabelNode
+        val lfalse = new LabelNode
+        cond.emitConditional(il, ltrue, lfalse)
         il += lfalse
         celse.emit(il)
         il += new JumpInsnNode(GOTO, lafter)
@@ -257,43 +275,14 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     Code(lhs, rhs, new InsnNode(IAND))
 
   def &&(rhs: Code[Boolean]): Code[Boolean] = {
-    new Code[Boolean] {
-      def emit(il: Growable[AbstractInsnNode]) {
-        val lfalse = new LabelNode()
-        val lafter = new LabelNode()
-        lhs.emit(il)
-        il += new JumpInsnNode(IFEQ, lfalse)
-        rhs.emit(il)
-        il += new JumpInsnNode(IFEQ, lfalse)
-        il += new LdcInsnNode(1)
-        il += new JumpInsnNode(GOTO, lafter)
-        il += lfalse
-        il += new LdcInsnNode(0)
-        il += lafter
-      }
-    }
+    lhs.toConditional && rhs.toConditional
   }
 
   def |(rhs: Code[Boolean]): Code[Boolean] =
     Code(lhs, rhs, new InsnNode(IOR))
 
   def ||(rhs: Code[Boolean]): Code[Boolean] =
-    new Code[Boolean] {
-      def emit(il: Growable[AbstractInsnNode]) {
-        val ltrue = new LabelNode()
-        val lafter = new LabelNode()
-        lhs.emit(il)
-        il += new JumpInsnNode(IFNE, ltrue)
-        rhs.emit(il)
-        il += new JumpInsnNode(IFNE, ltrue)
-        il += new LdcInsnNode(0)
-        il += new JumpInsnNode(GOTO, lafter)
-        il += ltrue
-        il += new LdcInsnNode(1)
-        il += lafter
-      }
-    }
-
+    lhs.toConditional || rhs.toConditional
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
