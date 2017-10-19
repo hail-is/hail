@@ -309,46 +309,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     FilterAlleles(vds, filterExpr, annotationExpr, filterAlteredGenotypes, keep, subset, maxShift, keepStar)
   }
 
-  /**
-    *
-    * @param filterExpr filter expression involving v (Variant), va (variant annotations), s (sample),
-    * sa (sample annotations), and g (genotype), which returns a boolean value
-    * @param keep keep genotypes where filterExpr evaluates to true
-    */
-  def filterGenotypes(filterExpr: String, keep: Boolean = true): VariantDataset = {
-    val vas = vds.vaSignature
-    val sas = vds.saSignature
-
-    val symTab = Map(
-      "v" -> (0, TVariant(GenomeReference.GRCh37)),
-      "va" -> (1, vas),
-      "s" -> (2, TString),
-      "sa" -> (3, sas),
-      "g" -> (4, TGenotype),
-      "global" -> (5, vds.globalSignature))
-
-
-    val ec = EvalContext(symTab)
-    ec.set(5, vds.globalAnnotation)
-    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
-
-    val sampleIdsBc = vds.sampleIdsBc
-    val sampleAnnotationsBc = vds.sampleAnnotationsBc
-
-    (vds.sampleIds, vds.sampleAnnotations).zipped.map((_, _))
-
-    val noCall = Genotype()
-    val localKeep = keep
-    vds.mapValuesWithAll(vds.genotypeSignature, { (v: Variant, va: Annotation, s: Annotation, sa: Annotation, g: Genotype) =>
-      ec.setAll(v, va, s, sa, g)
-
-      if (Filter.boxedKeepThis(f(), localKeep))
-        g
-      else
-        noCall
-    })
-  }
-
   def grm(): KinshipMatrix = {
     require(vds.wasSplit)
     info("Computing GRM...")

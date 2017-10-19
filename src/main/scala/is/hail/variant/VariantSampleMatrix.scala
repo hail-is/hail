@@ -1325,21 +1325,8 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       val v = ur.getAs[RK](1)
       val va = ur.get(2)
       val gs = ur.getAs[Iterable[T]](3)
-        rvb.addAnnotation(newVASignature, f(v, va, gs))
+      rvb.addAnnotation(newVASignature, f(v, va, gs))
     })
-  }
-
-  def mapPartitionsWithAll[U](f: Iterator[(RK, Annotation, Annotation, Annotation, T)] => Iterator[U])
-    (implicit uct: ClassTag[U]): RDD[U] = {
-    val localSampleIdsBc = sampleIdsBc
-    val localSampleAnnotationsBc = sampleAnnotationsBc
-
-    rdd.mapPartitions { it =>
-      f(it.flatMap { case (v, (va, gs)) =>
-        localSampleIdsBc.value.lazyMapWith2[Annotation, T, (RK, Annotation, Annotation, Annotation, T)](
-          localSampleAnnotationsBc.value, gs, { case (s, sa, g) => (v, va, s, sa, g) })
-      })
-    }
   }
 
   def mapValues[U >: Null](newGSignature: Type, f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
@@ -1348,12 +1335,54 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def mapValuesWithAll[U >: Null](newGSignature: Type, f: (RK, Annotation, Annotation, Annotation, T) => U)
     (implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
+    val localRowType = rowType
+    val gsType = rowType.fieldType(3).asInstanceOf[TArray]
+    val gType = gsType.elementType
+
+    val localNSamples = nSamples
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
-    copy(genotypeSignature = newGSignature,
-      rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
-        (va, localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](
-          localSampleAnnotationsBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g) }))
+    copy2(genotypeSignature = newGSignature,
+      rdd2 = rdd2.mapPartitionsPreservesPartitioning { it =>
+        val rv2b = new RegionValueBuilder()
+        val rv2 = RegionValue()
+        val ur = new UnsafeRow(localRowType)
+
+        it.map { rv =>
+          ur.set(rv)
+
+          val v = ur.getAs[RK](1)
+          val va = ur.get(2)
+          val gs = ur.getAs[Iterable[T]](3)
+
+          rv2b.set(rv.region)
+          rv2b.start(localRowType)
+          rv2b.startStruct()
+          rv2b.addField(localRowType, rv, 0) // locus
+          rv2b.addField(localRowType, rv, 1) // v
+          rv2b.addField(localRowType, rv, 2) // va
+
+          rv2b.startArray(localNSamples) // gs
+          val gsAOff = localRowType.loadField(rv, 3)
+          var i = 0
+          while (i < localNSamples) {
+            if (gsType.isElementDefined(rv.region, gsAOff, i)) {
+              val gOff = gsType.loadElement(rv.region, gsAOff, localNSamples, i)
+
+              val s = localSampleIdsBc.value(i)
+              val sa = localSampleAnnotationsBc.value(i)
+              val g = UnsafeRow.read(gType, rv.region, gOff).asInstanceOf[T]
+              rv2b.addAnnotation(gType, f(v, va, s, sa, g))
+            } else
+              rv2b.setMissing()
+
+            i += 1
+          }
+          rv2b.endArray()
+          rv2b.endStruct()
+          rv2.set(rv.region, rv2b.end())
+          rv2
+        }
       })
   }
 
@@ -1969,7 +1998,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     * @param keep       keep genotypes where filterExpr evaluates to true
     */
   def filterGenotypes(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[RPK, RK, T] = {
-
     val symTab = Map(
       "v" -> (0, vSignature),
       "va" -> (1, vaSignature),
@@ -1977,7 +2005,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       "sa" -> (3, saSignature),
       "g" -> (4, genotypeSignature),
       "global" -> (5, globalSignature))
-
 
     val ec = EvalContext(symTab)
     ec.set(5, globalAnnotation)
