@@ -27,22 +27,7 @@ object LinearRegression {
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
 
     val ec = vsm.matrixType.genotypeEC
-    val (xt, xf0) = Parser.parseExpr(xExpr, ec)
-    def castToDouble[T](f: (T) => Double): () => java.lang.Double = { () =>
-      val a = xf0()
-      if (a == null)
-        null
-      else
-        f(a.asInstanceOf[T])
-    }
-    val xf: () => java.lang.Double = xt match {
-      case TInt32 => castToDouble[Int](_.toDouble)
-      case TInt64 => castToDouble[Long](_.toDouble)
-      case TFloat32 => castToDouble[Float](_.toDouble)
-      case TFloat64 => () => xf0().asInstanceOf[java.lang.Double]
-      case TBoolean => castToDouble[Boolean](_.toDouble)
-      case _ => fatal(s"x expression `$xExpr' must be numeric or Boolean, got $xt")
-    }
+    val xf = RegressionUtils.parseXExpr(xExpr, ec)
 
     val completeSampleSet = completeSampleIndex.toSet
     val sampleMask = (0 until vsm.nSamples).map(completeSampleSet).toArray
