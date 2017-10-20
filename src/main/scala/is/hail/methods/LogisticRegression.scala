@@ -20,24 +20,7 @@ object LogisticRegression {
     root: String
   )(implicit tct: ClassTag[T]): VariantSampleMatrix[RPK, RK, T] = {
     val ec = vsm.matrixType.genotypeEC
-    val (xt, xf0) = Parser.parseExpr(xExpr, ec)
-
-    def castToDouble[T](f: (T) => Double): () => java.lang.Double = { () =>
-      val a = xf0()
-      if (a == null)
-        null
-      else
-        f(a.asInstanceOf[T])
-    }
-
-    val xf: () => java.lang.Double = xt match {
-      case TInt32 => castToDouble[Int](_.toDouble)
-      case TInt64 => castToDouble[Long](_.toDouble)
-      case TFloat32 => castToDouble[Float](_.toDouble)
-      case TFloat64 => () => xf0().asInstanceOf[java.lang.Double]
-      case TBoolean => castToDouble[Boolean](_.toDouble)
-      case _ => fatal(s"x expression `$xExpr' must be numeric or Boolean, got $xt")
-    }
+    val xf = RegressionUtils.parseXExpr(xExpr, ec)
 
     val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
       fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
