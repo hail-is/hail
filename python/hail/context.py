@@ -39,10 +39,13 @@ class HailContext(HistoryMixin):
 
     :param branching_factor: Branching factor for tree aggregation.
 
-    :param tmp_dir: Temporary directory for file merging.
+    :param tmp_dir: Temporary directory for file merging. If None, use the value
+                    of the environment variable TMPDIR, unless TMPDIR is unset
+                    or the empty string, in which case use '/tmp'.
 
     :ivar sc: Spark context
     :vartype sc: :class:`.pyspark.SparkContext`
+
     """
 
     @record_init
@@ -55,10 +58,10 @@ class HailContext(HistoryMixin):
                       append=bool,
                       min_block_size=integral,
                       branching_factor=integral,
-                      maybe_tmp_dir=nullable(strlike))
+                      tmp_dir=nullable(strlike))
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
-                 min_block_size=1, branching_factor=50, maybe_tmp_dir=None):
+                 min_block_size=1, branching_factor=50, tmp_dir=None):
 
         if Env._hc:
             raise FatalError('Hail Context has already been created, restart session '
@@ -77,7 +80,7 @@ class HailContext(HistoryMixin):
 
         jsc = sc._jsc.sc() if sc else None
 
-        tmp_dir = get_env_or_default(maybe_tmp_dir, 'TMPDIR', '/tmp')
+        tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
 
         # we always pass 'quiet' to the JVM because stderr output needs
         # to be routed through Python separately.
