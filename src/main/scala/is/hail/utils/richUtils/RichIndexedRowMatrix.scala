@@ -66,11 +66,11 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         if (j != truncatedBlockCol) {
           val group = new Array[Double](blockSize)
           grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
-          System.arraycopy(a, j*blockSize, group, 0, blockSize)
+          System.arraycopy(a, j * blockSize, group, 0, blockSize)
         } else {
           val group = new Array[Double](excessCols)
           grouped(j) = ((i.toInt, j.toInt), (i.toInt, j.toInt, ii.toInt, group))
-          System.arraycopy(a, j*blockSize, group, 0, excessCols)
+          System.arraycopy(a, j * blockSize, group, 0, excessCols)
         }
         j += 1
       }
