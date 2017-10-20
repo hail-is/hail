@@ -91,8 +91,6 @@ object RegressionUtils {
       assert(completeSampleIndex(j) == i)
 
       val g = git.next()
-      i += 1
-
       ec.set(3, sampleIds(i))
       ec.set(4, sampleAnnotations(i))
       ec.set(5, g)
@@ -102,6 +100,7 @@ object RegressionUtils {
         x(j) = dosage
       } else
         missingSamples += j
+      i += 1
       j += 1
     }
 
