@@ -2946,19 +2946,15 @@ class VariantDataset(HistoryMixin):
                       covariates=listof(strlike),
                       root=strlike,
                       use_dosages=bool)
-    def logreg(self, test, y, covariates=[], root='va.logreg', use_dosages=False):
+    def logreg(self, test, y, x, covariates=[], root='va.logreg'):
         """Test each variant for association using logistic regression.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
         Run the logistic regression Wald test per variant using a Boolean phenotype and two covariates stored
         in sample annotations:
 
-        >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
+        >>> vds_result = vds.logreg('wald', 'g.nNonRefAlleles()', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
         **Notes**
 
@@ -3076,7 +3072,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.logreg(test, y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages)
+        jvds = self._jvdf.logreg(test, y, x, jarray(Env.jvm().java.lang.String, covariates), root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

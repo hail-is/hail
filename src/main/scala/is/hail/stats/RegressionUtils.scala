@@ -282,24 +282,24 @@ object RegressionUtils {
     }
   }
 
-  def getPhenoCovCompleteSamples(
-    vds: VariantDataset,
+  def getPhenoCovCompleteSamples[RPK, RK, T >: Null](
+    vsm: VariantSampleMatrix[RPK, RK, T],
     yExpr: String,
     covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
 
     val nCovs = covExpr.size + 1 // intercept
 
     val symTab = Map(
-      "s" -> (0, TString),
-      "sa" -> (1, vds.saSignature))
+      "s" -> (0, vsm.sSignature),
+      "sa" -> (1, vsm.saSignature))
 
     val ec = EvalContext(symTab)
 
-    val yIS = getSampleAnnotation(vds, yExpr, ec)
-    val covIS = getSampleAnnotations(vds, covExpr, ec)
+    val yIS = getSampleAnnotation(vsm, yExpr, ec)
+    val covIS = getSampleAnnotations(vsm, covExpr, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
-      (yIS, covIS, 0 until vds.nSamples)
+      (yIS, covIS, 0 until vsm.nSamples)
         .zipped
         .filter((y, c, s) => y.isDefined && c.forall(_.isDefined))
 
@@ -315,8 +315,8 @@ object RegressionUtils {
     val covArray = covForCompleteSamples.flatMap(1.0 +: _.map(_.get)).toArray
     val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0, majorStride = nCovs, isTranspose = true)
 
-    if (n < vds.nSamples)
-      warn(s"${ vds.nSamples - n } of ${ vds.nSamples } samples have a missing phenotype or covariate.")
+    if (n < vsm.nSamples)
+      warn(s"${ vsm.nSamples - n } of ${ vsm.nSamples } samples have a missing phenotype or covariate.")
 
     (y, cov, completeSamples.toArray)
   }

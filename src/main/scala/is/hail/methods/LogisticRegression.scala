@@ -8,24 +8,44 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 
+import scala.reflect.ClassTag
+
 object LogisticRegression {
 
-  def apply(vds: VariantDataset,
+  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
     test: String,
     yExpr: String,
+    xExpr: String,
     covExpr: Array[String],
-    root: String,
-    useDosages: Boolean): VariantDataset = {
+    root: String
+  )(implicit tct: ClassTag[T]): VariantSampleMatrix[RPK, RK, T] = {
+    val ec = vsm.matrixType.genotypeEC
+    val (xt, xf0) = Parser.parseExpr(xExpr, ec)
 
-    require(vds.wasSplit)
+    def castToDouble[T](f: (T) => Double): () => java.lang.Double = { () =>
+      val a = xf0()
+      if (a == null)
+        null
+      else
+        f(a.asInstanceOf[T])
+    }
+
+    val xf: () => java.lang.Double = xt match {
+      case TInt32 => castToDouble[Int](_.toDouble)
+      case TInt64 => castToDouble[Long](_.toDouble)
+      case TFloat32 => castToDouble[Float](_.toDouble)
+      case TFloat64 => () => xf0().asInstanceOf[java.lang.Double]
+      case TBoolean => castToDouble[Boolean](_.toDouble)
+      case _ => fatal(s"x expression `$xExpr' must be numeric or Boolean, got $xt")
+    }
 
     val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
       fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
 
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-    val completeSamples = completeSampleIndex.map(vds.sampleIds)
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yExpr, covExpr)
+    val completeSamples = completeSampleIndex.map(vsm.sampleIds)
     val completeSamplesSet = completeSamples.toSet
-    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
+    val sampleMask = vsm.sampleIds.map(completeSamplesSet).toArray
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
       fatal(s"For logistic regression, phenotype must be Boolean or numeric with all present values equal to 0 or 1")
@@ -49,7 +69,12 @@ object LogisticRegression {
         else
           "Newton iteration failed to converge"))
 
-    val sc = vds.sparkContext
+    val sc = vsm.sparkContext
+
+    val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
+    val sampleIdsBc = vsm.sampleIdsBc
+    val sampleAnnotationsBc = vsm.sampleAnnotationsBc
+
     val sampleMaskBc = sc.broadcast(sampleMask)
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
     val yBc = sc.broadcast(y)
@@ -58,31 +83,27 @@ object LogisticRegression {
     val logRegTestBc = sc.broadcast(logRegTest)
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vds.insertVA(logRegTest.schema, pathVA)
+    val (newVAS, inserter) = vsm.insertVA(logRegTest.schema, pathVA)
 
-    vds.copy(vaSignature = newVAS,
-      rdd = vds.rdd.mapPartitions( { it =>
-      val  missingSamples = new ArrayBuilder[Int]()
+    val newRDD = vsm.rdd.mapPartitionsPreservingPartitioning { it =>
+      val missingSamples = new ArrayBuilder[Int]()
 
       val X = XBc.value.copy
-      it.map { case (v, (va, gs)) =>
-        val x: Vector[Double] = 
-          if (!useDosages)
-            RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
-          else
-            RegressionUtils.dosages(gs, completeSampleIndexBc.value)
+      it.map { case row@(v, (va, gs)) =>
+        RegressionUtils.exprDosages(X(::, -1),
+          localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, row,
+          ec, xf,
+          completeSampleIndexBc.value, missingSamples)
 
-        X(::, -1) := x
-
-        // constant checking to be removed in 0.2
-        val nonConstant = useDosages || !RegressionUtils.constantVector(x)
-        
-        val logregAnnot = if (nonConstant) logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation else null
+        val logregAnnot = logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
         val newAnnotation = inserter(va, logregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
         (v, (newAnnotation, gs))
       }
-    }, preservesPartitioning = true).asOrderedRDD)
+    }
+
+    vsm.copy(vaSignature = newVAS,
+      rdd = newRDD)
   }
 }
 

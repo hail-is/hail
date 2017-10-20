@@ -430,15 +430,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       runAssoc, delta, sparsityThreshold, useDosages, nEigs, optDroppedVarianceFraction)
   }
 
-  def logreg(test: String,
-    y: String,
-    covariates: Array[String] = Array.empty[String],
-    root: String = "va.logreg",
-    useDosages: Boolean = false): VariantDataset = {
-    require(vds.wasSplit)
-    LogisticRegression(vds, test, y, covariates, root, useDosages)
-  }
-
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
     require(vds.wasSplit)
     vds.requireSampleTString("mendel errors")
