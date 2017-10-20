@@ -1,5 +1,6 @@
 package is.hail.variant
 
+import is.hail.annotations.UnsafeRow
 import is.hail.io.vcf.ExportVCF
 import is.hail.methods.VEP
 import is.hail.utils._
@@ -67,7 +68,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
     } else {
       vsm.filterVariants {
         case (v, va, gs) => v.isBiallelic
-      }.copy(wasSplit = true)
+      }.copy2(wasSplit = true)
     }
   }
 
@@ -79,12 +80,15 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
       warn("called redundant `$method' on biallelic VDS")
       vsm
     } else {
-      vsm.copy(
-        rdd = vsm.rdd.map { case vvags@(v, _) =>
+      val localRowType = vsm.rowType
+      vsm.copy2(
+        rdd2 = vsm.rdd2.mapPreservesPartitioning { rv =>
+          val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
+          val v = ur.getAs[Variant](1)
           if (!v.isBiallelic)
             fatal("in $method: found non-biallelic variant: $v")
-          vvags
-        }.toOrderedRDD,
+          rv
+        },
         wasSplit = true)
     }
   }
