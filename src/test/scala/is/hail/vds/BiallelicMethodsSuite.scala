@@ -46,10 +46,6 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     interceptRequire {
-      multi.linreg(Array("foo"))
-    }
-
-    interceptRequire {
       multi.logreg("foo", "foo")
     }
 

@@ -5,7 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.io.bgen.Bgen12GenotypeIterator
 import is.hail.utils._
-import is.hail.variant.{Genotype, VariantDataset}
+import is.hail.variant.{Genotype, VariantDataset, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 
 object RegressionUtils {
@@ -53,7 +53,7 @@ object RegressionUtils {
   }
 
   def dosages(x: DenseVector[Double], gs: Iterable[Genotype], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
-     genericDosages(x, gs, completeSampleIndex, missingSamples)
+    genericDosages(x, gs, completeSampleIndex, missingSamples)
   }
 
   def dosages(gs: Iterable[Genotype], completeSampleIndex: Array[Int]): DenseVector[Double] = {
@@ -62,6 +62,56 @@ object RegressionUtils {
     val missingSamples = new ArrayBuilder[Int]()
     RegressionUtils.dosages(x, gs, completeSampleIndex, missingSamples)
     x
+  }
+
+  def exprDosages(x: DenseVector[Double],
+    globalAnnotation: Annotation, sampleIds: IndexedSeq[Annotation], sampleAnnotations: IndexedSeq[Annotation],
+    row: (Annotation, (Annotation, Iterable[Annotation])),
+    ec: EvalContext,
+    xf: () => java.lang.Double,
+    completeSampleIndex: Array[Int],
+    missingSamples: ArrayBuilder[Int]) {
+    require(x.length == completeSampleIndex.length)
+
+    val (v, (va, gs)) = row
+
+    ec.setAll(globalAnnotation, v, va)
+
+    missingSamples.clear()
+    val n = completeSampleIndex.length
+    val git = gs.iterator
+    var i = 0
+    var j = 0
+    var sum = 0d
+    while (j < n) {
+      while (completeSampleIndex(j) > i) {
+        git.next()
+        i += 1
+      }
+      assert(completeSampleIndex(j) == i)
+
+      val g = git.next()
+      i += 1
+
+      ec.set(3, sampleIds(i))
+      ec.set(4, sampleAnnotations(i))
+      ec.set(5, g)
+      val dosage = xf()
+      if (dosage != null) {
+        sum += dosage
+        x(j) = dosage
+      } else
+        missingSamples += j
+      j += 1
+    }
+
+    val nMissing = missingSamples.size
+    val meanValue = sum / (n - nMissing)
+    i = 0
+    while (i < nMissing) {
+      x(missingSamples(i)) = meanValue
+      i += 1
+    }
   }
 
   def genericDosages(x: DenseVector[Double], gs: Iterable[Genotype], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
@@ -79,7 +129,6 @@ object RegressionUtils {
         i += 1
       }
       assert(completeSampleIndex(j) == i)
-
 
       val gt = gts.next()
       i += 1
@@ -205,7 +254,7 @@ object RegressionUtils {
   }
 
   // IndexedSeq indexed by samples, Array by annotations
-  def getSampleAnnotations(vds: VariantDataset, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
+  def getSampleAnnotations[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T], annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
     val (aT, aQ0) = annots.map(Parser.parseExpr(_, ec)).unzip
     val aQ = () => aQ0.map(_.apply())
     val aToDouble = (aT, annots).zipped.map(toDouble)
@@ -255,8 +304,8 @@ object RegressionUtils {
     (y, cov, completeSamples.toArray)
   }
 
-  def getPhenosCovCompleteSamples(
-    vds: VariantDataset,
+  def getPhenosCovCompleteSamples[RPK, RK, T >: Null](
+    vsm: VariantSampleMatrix[RPK, RK, T],
     yExpr: Array[String],
     covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
 
@@ -268,15 +317,15 @@ object RegressionUtils {
 
     val symTab = Map(
       "s" -> (0, TString),
-      "sa" -> (1, vds.saSignature))
+      "sa" -> (1, vsm.saSignature))
 
     val ec = EvalContext(symTab)
 
-    val yIS = getSampleAnnotations(vds, yExpr, ec)
-    val covIS = getSampleAnnotations(vds, covExpr, ec)
+    val yIS = getSampleAnnotations(vsm, yExpr, ec)
+    val covIS = getSampleAnnotations(vsm, covExpr, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
-      (yIS, covIS, 0 until vds.nSamples)
+      (yIS, covIS, 0 until vsm.nSamples)
         .zipped
         .filter((y, c, s) => y.forall(_.isDefined) && c.forall(_.isDefined))
 
@@ -290,8 +339,8 @@ object RegressionUtils {
     val covArray = covForCompleteSamples.flatMap(1.0 +: _.map(_.get)).toArray
     val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0, majorStride = nCovs, isTranspose = true)
 
-    if (n < vds.nSamples)
-      warn(s"${ vds.nSamples - n } of ${ vds.nSamples } samples have a missing phenotype or covariate.")
+    if (n < vsm.nSamples)
+      warn(s"${ vsm.nSamples - n } of ${ vsm.nSamples } samples have a missing phenotype or covariate.")
 
     (y, cov, completeSamples.toArray)
   }

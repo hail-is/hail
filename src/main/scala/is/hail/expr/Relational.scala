@@ -87,6 +87,16 @@ case class MatrixType(
       "gs" -> (3, TAggregable(genotypeType, aggregationST))))
   }
 
+  def genotypeEC: EvalContext = {
+    EvalContext(Map(
+      "global" -> (0, globalType),
+      "v" -> (1, vType),
+      "va" -> (2, vaType),
+      "s" -> (3, sType),
+      "sa" -> (4, saType),
+      "g" -> (5, genotypeType)))
+  }
+
   def copy(globalType: Type = globalType,
     sType: Type = sType, saType: Type = saType,
     vType: Type = vType, vaType: Type = vaType,

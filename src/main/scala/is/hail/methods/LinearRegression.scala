@@ -9,6 +9,8 @@ import is.hail.utils._
 import is.hail.variant._
 import net.sourceforge.jdistlib.T
 
+import scala.reflect.ClassTag
+
 object LinearRegression {
   def schema = TStruct(
     ("nCompleteSamples", TInt32),
@@ -19,13 +21,31 @@ object LinearRegression {
     ("tstat", TArray(TFloat64)),
     ("pval", TArray(TFloat64)))
 
-  def apply(vds: VariantDataset, ysExpr: Array[String], covExpr: Array[String], root: String, useDosages: Boolean, variantBlockSize: Int): VariantDataset = {
-    require(vds.wasSplit)
+  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
+    ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int
+  )(implicit tct: ClassTag[T]): VariantSampleMatrix[RPK, RK, T] = {
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
 
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vds, ysExpr, covExpr)
+    val ec = vsm.matrixType.genotypeEC
+    val (xt, xf0) = Parser.parseExpr(xExpr, ec)
+    def castToDouble[T](f: (T) => Double): () => java.lang.Double = { () =>
+      val a = xf0()
+      if (a == null)
+        null
+      else
+        f(a.asInstanceOf[T])
+    }
+    val xf: () => java.lang.Double = xt match {
+      case TInt32 => castToDouble[Int](_.toDouble)
+      case TInt64 => castToDouble[Long](_.toDouble)
+      case TFloat32 => castToDouble[Float](_.toDouble)
+      case TFloat64 => () => xf0().asInstanceOf[java.lang.Double]
+      case TBoolean => castToDouble[Boolean](_.toDouble)
+      case _ => fatal(s"x expression `$xExpr' must be numeric or Boolean, got $xt")
+    }
 
     val completeSampleSet = completeSampleIndex.toSet
-    val sampleMask = (0 until vds.nSamples).map(completeSampleSet).toArray
+    val sampleMask = (0 until vsm.nSamples).map(completeSampleSet).toArray
     val n = y.rows // nCompleteSamples
     val k = cov.cols // nCovariates
     val d = n - k - 1
@@ -39,7 +59,12 @@ object LinearRegression {
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
 
-    val sc = vds.sparkContext
+    val sc = vsm.sparkContext
+
+    val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
+    val sampleIdsBc = vsm.sampleIdsBc
+    val sampleAnnotationsBc = vsm.sampleAnnotationsBc
+
     val sampleMaskBc = sc.broadcast(sampleMask)
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
     val yBc = sc.broadcast(y)
@@ -48,9 +73,9 @@ object LinearRegression {
     val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vds.insertVA(LinearRegression.schema, pathVA)
+    val (newVAS, inserter) = vsm.insertVA(LinearRegression.schema, pathVA)
 
-    val newRDD = vds.rdd.mapPartitions({ it =>
+    val newRDD = vsm.rdd.mapPartitionsPreservingPartitioning { it =>
       val missingSamples = new ArrayBuilder[Int]
 
       // columns are genotype vectors
@@ -66,13 +91,10 @@ object LinearRegression {
 
           var i = 0
           while (i < blockLength) {
-            val (_, (_, gs)) = block(i)
-
-            if (useDosages)
-              RegressionUtils.dosages(X(::, i), gs, completeSampleIndexBc.value, missingSamples)
-            else
-              X(::, i) := RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
-
+            RegressionUtils.exprDosages(X(::, i),
+              localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, block(i),
+              ec, xf,
+              completeSampleIndexBc.value, missingSamples)
             i += 1
           }
 
@@ -115,10 +137,10 @@ object LinearRegression {
             (v, (newVA, gs))
           }
         }
-    }, preservesPartitioning = true)
+    }
 
-    vds.copy(
-      rdd = newRDD.asOrderedRDD,
+    vsm.copy(
+      rdd = newRDD,
       vaSignature = newVAS)
   }
 }

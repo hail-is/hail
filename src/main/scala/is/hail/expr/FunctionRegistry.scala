@@ -117,15 +117,20 @@ object FunctionRegistry {
     lookup(name, FieldType(typ +: typs: _*)).map(_.retType)
 
   def lookupField(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): Err[CM[Code[AnyRef]]] = {
+    import is.hail.expr.CM._
+
     require(args.isEmpty)
 
-    val m = lookup(name, FieldType(typ +: typs: _*))
+    val m = FunctionRegistry.lookup(name, FieldType(typ +: typs: _*))
     m.map { f =>
       (f match {
         case f: UnaryFun[_, _] =>
           AST.evalComposeCodeM(lhs)(CM.invokePrimitive1(f.asInstanceOf[AnyRef => AnyRef]))
         case f: UnaryFunCode[t, u] =>
           AST.evalComposeCodeM[t](lhs)(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
+        case f: UnarySpecial[_, _] =>
+          // FIXME: don't thunk the argument
+          lhs.compile().flatMap(invokePrimitive1(x => f.asInstanceOf[(() => AnyRef) => AnyRef](() => x)))
         case fn =>
           throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
       }).map(Code.checkcast(_)(f.retType.scalaClassTag))
@@ -813,6 +818,16 @@ object FunctionRegistry {
   registerMethod("isTransition", { (x: AltAllele) => x.isTransition }, "True if a purine-purine or pyrimidine-pyrimidine SNP.")
   registerMethod("isTransversion", { (x: AltAllele) => x.isTransversion }, "True if a purine-pyrimidine SNP.")
   registerMethod("category", { (x: AltAllele) => x.altAlleleType.toString }, "the alt allele type, i.e one of SNP, Insertion, Deletion, Star, MNP, Complex")
+
+  register("plDosage", { (pl: IndexedSeq[Int]) =>
+    if (pl.length != 3)
+      fatal(s"length of pl array must be 3, got ${ pl.length }")
+    Genotype.plToDosage(pl(0), pl(1), pl(2))
+  },
+    """
+    Return expected genotype dosage from array of Phred-scaled genotype likelihoods with uniform prior.  Only defined for bi-allelic variants.  The PL argument must be length 3.
+    """",
+    "PL" -> "array of bi-allelic Phred-scaled genotype likelihoods")
 
   registerMethod("length", { (x: String) => x.length }, "Length of the string.")
 
