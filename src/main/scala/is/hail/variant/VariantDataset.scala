@@ -413,12 +413,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     LDPrune(vds, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
   }
 
-  def linregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
-    require(vds.wasSplit)
-    vds.requireSampleTString("linear burden regression")
-    LinearRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, y, covariates)
-  }
-
   def lmmreg(kinshipMatrix: KinshipMatrix,
     y: String,
     covariates: Array[String] = Array.empty[String],
@@ -443,12 +437,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     useDosages: Boolean = false): VariantDataset = {
     require(vds.wasSplit)
     LogisticRegression(vds, test, y, covariates, root, useDosages)
-  }
-
-  def logregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, test: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
-    require(vds.wasSplit)
-    vds.requireSampleTString("logistic burden regression")
-    LogisticRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, test, y, covariates)
   }
 
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
