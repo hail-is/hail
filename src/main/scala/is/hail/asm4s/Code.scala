@@ -135,6 +135,9 @@ object Code {
   def invokeStatic[T, A1, A2, A3, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3]): Code[S] =
     invokeStatic[T, S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))(tct, sct)
 
+  def invokeStatic[T, A1, A2, A3, A4, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4]): Code[S] =
+    invokeStatic[T, S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4))(tct, sct)
+
   def _null[T >: Null]: Code[T] = Code(new InsnNode(ACONST_NULL))
 
   // FIXME: code should really carry around the stack so this type can be correct
@@ -176,14 +179,11 @@ trait Code[+T] {
 
   def compare[U >: T](opcode: Int, rhs: Code[U]): CodeConditional =
     new CodeConditional {
-      def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode) = {
-        val ltrue = new LabelNode
-        val lfalse = new LabelNode
+      def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) {
         self.emit(il)
         rhs.emit(il)
         il += new JumpInsnNode(opcode, ltrue)
         il += new JumpInsnNode(GOTO, lfalse)
-        (ltrue, lfalse)
       }
     }
 }
@@ -191,7 +191,9 @@ trait Code[+T] {
 trait CodeConditional extends Code[Boolean] { self =>
   def emit(il: Growable[AbstractInsnNode]): Unit = {
     val lafter = new LabelNode
-    val (ltrue, lfalse) = emitConditional(il)
+    val ltrue = new LabelNode
+    val lfalse = new LabelNode
+    emitConditional(il, ltrue, lfalse)
     il += lfalse
     il += new LdcInsnNode(0)
     il += new JumpInsnNode(GOTO, lafter)
@@ -200,16 +202,32 @@ trait CodeConditional extends Code[Boolean] { self =>
     il += lafter
   }
 
-  // returns (ltrue, lfalse)
-  def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode)
+  def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode): Unit
 
   def unary_!(): CodeConditional =
     new CodeConditional {
-      def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode) = {
-        val (ltrue, lfalse) = self.emitConditional(il)
-        (lfalse, ltrue)
+      def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) {
+        self.emitConditional(il, lfalse, ltrue)
       }
     }
+
+  def &&(rhs: CodeConditional) = new CodeConditional {
+    def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) = {
+      val lt2 = new LabelNode
+      self.emitConditional(il, lt2, lfalse)
+      il += lt2
+      rhs.emitConditional(il, ltrue, lfalse)
+    }
+  }
+
+  def ||(rhs: CodeConditional) = new CodeConditional {
+    def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) = {
+      val lf2 = new LabelNode
+      self.emitConditional(il, ltrue, lf2)
+      il += lf2
+      rhs.emitConditional(il, ltrue, lfalse)
+    }
+  }
 }
 
 class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
@@ -219,13 +237,10 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
     case _ =>
       new CodeConditional {
-        def emitConditional(il: Growable[AbstractInsnNode]): (LabelNode, LabelNode) = {
-          val ltrue = new LabelNode
-          val lfalse = new LabelNode
+        def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode) {
           lhs.emit(il)
           il += new JumpInsnNode(IFEQ, lfalse)
           il += new JumpInsnNode(GOTO, ltrue)
-          (ltrue, lfalse)
         }
       }
   }
@@ -238,7 +253,9 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         val lafter = new LabelNode
-        val (ltrue, lfalse) = cond.emitConditional(il)
+        val ltrue = new LabelNode
+        val lfalse = new LabelNode
+        cond.emitConditional(il, ltrue, lfalse)
         il += lfalse
         celse.emit(il)
         il += new JumpInsnNode(GOTO, lafter)
@@ -250,11 +267,18 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     }
   }
 
-  def &&(rhs: Code[Boolean]): Code[Boolean] =
+  def &(rhs: Code[Boolean]): Code[Boolean] =
     Code(lhs, rhs, new InsnNode(IAND))
 
-  def ||(rhs: Code[Boolean]): Code[Boolean] =
+  def &&(rhs: Code[Boolean]): Code[Boolean] = {
+    lhs.toConditional && rhs.toConditional
+  }
+
+  def |(rhs: Code[Boolean]): Code[Boolean] =
     Code(lhs, rhs, new InsnNode(IOR))
+
+  def ||(rhs: Code[Boolean]): Code[Boolean] =
+    lhs.toConditional || rhs.toConditional
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
@@ -278,16 +302,21 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def <<(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(ISHL))
 
+  def >>>(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IUSHR))
+
   def &(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IAND))
 
   def ceq(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPEQ, rhs)
 
   def cne(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPNE, rhs)
 
+  def negate(): Code[Int] = Code(lhs, new InsnNode(INEG))
+
   def toI: Code[Int] = lhs
   def toL: Code[Long] = Code(lhs, new InsnNode(I2L))
   def toF: Code[Float] = Code(lhs, new InsnNode(I2F))
   def toD: Code[Double] = Code(lhs, new InsnNode(I2D))
+  def toB: Code[Byte] = Code(lhs, new InsnNode(I2B))
 }
 
 class CodeLong(val lhs: Code[Long]) extends AnyVal {
@@ -303,6 +332,16 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def <(rhs: Code[Long]): Code[Boolean] = compare(rhs) < 0
   def >(rhs: Code[Long]): Code[Boolean] = compare(rhs) > 0
+  def ceq(rhs: Code[Long]): Code[Boolean] = compare(rhs) ceq 0
+  def cne(rhs: Code[Long]): Code[Boolean] = compare(rhs) cne 0
+
+  def >>(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHR))
+
+  def <<(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHL))
+
+  def >>>(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LUSHR))
+
+  def &(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LAND))
 
   def toI: Code[Int] = Code(lhs, new InsnNode(L2I))
   def toL: Code[Long] = lhs
@@ -531,7 +570,7 @@ class CodeObject[T >: Null](val lhs: Code[T])(implicit tct: ClassTag[T], tti: Ty
     invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
 
   def invoke[A1, A2, A3, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3])
-    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A2], sct: ClassTag[S]): Code[S] =
+    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], sct: ClassTag[S]): Code[S] =
     invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))
 
   def ifNull[T](cnullcase: Code[T], cnonnullcase: Code[T]): Code[T] =
