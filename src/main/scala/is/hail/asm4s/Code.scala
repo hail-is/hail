@@ -202,7 +202,6 @@ trait CodeConditional extends Code[Boolean] { self =>
     il += lafter
   }
 
-  // returns (ltrue, lfalse)
   def emitConditional(il: Growable[AbstractInsnNode], ltrue: LabelNode, lfalse: LabelNode): Unit
 
   def unary_!(): CodeConditional =
