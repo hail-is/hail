@@ -232,3 +232,13 @@ def wrap_to_list(s):
         return s
     else:
         return [s]
+
+def get_env_or_default(maybe, envvar, default):
+    import os
+
+    if (maybe != None):
+        return maybe
+    elif (envvar in os.environ and os.environ[envvar] != ""):
+        return os.environ[envvar]
+    else:
+        return default

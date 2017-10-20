@@ -9,7 +9,7 @@ from hail.expr import Type
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
-from hail.utils import wrap_to_list
+from hail.utils import wrap_to_list, get_env_or_default
 from hail.history import *
 
 
@@ -55,10 +55,10 @@ class HailContext(HistoryMixin):
                       append=bool,
                       min_block_size=integral,
                       branching_factor=integral,
-                      tmp_dir=strlike)
+                      maybe_tmp_dir=nullable(strlike))
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
-                 min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
+                 min_block_size=1, branching_factor=50, maybe_tmp_dir=None):
 
         if Env._hc:
             raise FatalError('Hail Context has already been created, restart session '
@@ -76,6 +76,8 @@ class HailContext(HistoryMixin):
         Env._gateway = self._gateway
 
         jsc = sc._jsc.sc() if sc else None
+
+        tmp_dir = get_env_or_default(maybe_tmp_dir, 'TMPDIR', '/tmp')
 
         # we always pass 'quiet' to the JVM because stderr output needs
         # to be routed through Python separately.
