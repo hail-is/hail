@@ -96,11 +96,11 @@ class LogisticRegressionSuite extends SparkSuite {
     assert(!qConverged(a(v3)).asInstanceOf[Boolean])
 
     // constant genotypes after imputation
-    assert(qConverged(a(v6)) == null)
-    assert(qConverged(a(v7)) == null)
-    assert(qConverged(a(v8)) == null)
-    assert(qConverged(a(v9)) == null)
-    assert(qConverged(a(v10)) == null)
+    assert(!qConverged(a(v6)).asInstanceOf[Boolean])
+    assert(!qConverged(a(v7)).asInstanceOf[Boolean])
+    assert(!qConverged(a(v8)).asInstanceOf[Boolean])
+    assert(!qConverged(a(v9)).asInstanceOf[Boolean])
+    assert(!qConverged(a(v10)).asInstanceOf[Boolean])
   }
 
   @Test def waldTestWithTwoCovPhred() {
@@ -113,7 +113,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .verifyBiallelic()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .logreg("wald", "sa.pheno", "plDosagee(g.pl)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .logreg("wald", "sa.pheno", "plDosage(g.pl)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.se")._2
@@ -284,11 +284,11 @@ class LogisticRegressionSuite extends SparkSuite {
     assert(!qConverged(a(v3)).asInstanceOf[Boolean])
 
     // constant genotypes after imputation
-    assert(qConverged(a(v6)) == null)
-    assert(qConverged(a(v7)) == null)
-    assert(qConverged(a(v8)) == null)
-    assert(qConverged(a(v9)) == null)
-    assert(qConverged(a(v10)) == null)
+    assert(!qConverged(a(v6)).asInstanceOf[Boolean])
+    assert(!qConverged(a(v7)).asInstanceOf[Boolean])
+    assert(!qConverged(a(v8)).asInstanceOf[Boolean])
+    assert(!qConverged(a(v9)).asInstanceOf[Boolean])
+    assert(!qConverged(a(v10)).asInstanceOf[Boolean])
   }
 
   @Test def scoreTestWithTwoCov() {
@@ -338,11 +338,11 @@ class LogisticRegressionSuite extends SparkSuite {
     assertDouble(qPVal(a(v3)), 0.007938182229)
 
     // constant genotypes after imputation
-    assert(qChi2(a(v6)) == null)
-    assert(qChi2(a(v7)) == null)
-    assert(qChi2(a(v8)) == null)
-    assert(qChi2(a(v9)) == null)
-    assert(qChi2(a(v10)) == null)
+    assert(qChi2(a(v6)) == null || (qChi2(a(v6)).asInstanceOf[Double] < 1e-6))
+    assert(qChi2(a(v7)) == null || (qChi2(a(v7)).asInstanceOf[Double] < 1e-6))
+    assert(qChi2(a(v8)) == null || (qChi2(a(v8)).asInstanceOf[Double] < 1e-6))
+    assert(qChi2(a(v9)) == null || (qChi2(a(v9)).asInstanceOf[Double] < 1e-6))
+    assert(qChi2(a(v10)) == null || (qChi2(a(v10)).asInstanceOf[Double] < 1e-6))
   }
 
   @Test def waldEpactsTest() {
