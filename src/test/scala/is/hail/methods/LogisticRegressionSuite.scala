@@ -173,11 +173,9 @@ class LogisticRegressionSuite extends SparkSuite {
     // .gen and .sample files created from regressionLogistic.vcf
     // dosages are derived from PLs so results should agree with testWithTwoCovPhred
     val vds =  hc.importGen("src/test/resources/regressionLogistic.gen", "src/test/resources/regressionLogistic.sample")
-      .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
-      .toVDS
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .logreg("wald", "sa.pheno", "plDosage(g.pl)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .logreg("wald", "sa.pheno", "dosage(g.GP)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.se")._2

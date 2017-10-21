@@ -7,6 +7,7 @@ import is.hail.utils._
 import is.hail.variant.{Genotype, VSMFileMetadata, Variant, VariantDataset, VariantKeyDataset}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
+import org.apache.spark.sql.Row
 
 package object stats {
 
@@ -348,7 +349,7 @@ package object stats {
         (Variant("1", j + 1, "A", "C"),
           (Annotation.empty,
             (0 until gpMat.rows).map { i =>
-              gpMat(i, j).map(a => a: Annotation): IndexedSeq[Annotation]
+              Row(gpMat(i, j): IndexedSeq[Annotation])
             }: Iterable[Annotation]))
       },
       nPartitions

@@ -955,11 +955,6 @@ class ExprSuite extends SparkSuite {
       eval("str(1) == 1")
     }
 
-    assert(D_==(
-      eval[Double]("""Genotype(Variant("1", 1, "A", "T"), [0.01, 0.95, 0.04]).dosage()""").get,
-      eval[Double]("""([0.01, 0.95, 0.04] * [0, 1, 2]).sum()""").get,
-      tolerance = 0.01))
-
     assert(eval("Dict([1,2,3], [1,2,3])").contains(Map(1 -> 1, 2 -> 2, 3 -> 3)))
     assert(eval("""Dict(["foo", "bar"], [1,2])""").contains(Map("foo" -> 1, "bar" -> 2)))
 

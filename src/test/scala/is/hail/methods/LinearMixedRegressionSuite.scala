@@ -149,7 +149,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(vds0.sampleIds.zip(pheno).toMap, TFloat64, "sa.pheno")
       .annotateSamples(vds0.sampleIds.zip(cov1).toMap, TFloat64, "sa.cov1")
       .annotateSamples(vds0.sampleIds.zip(cov2).toMap, TFloat64, "sa.cov2")
-      .lmmreg(kinshipVds.rrm(), "sa.pheno", "dosage(g.gp)", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta), optDroppedVarianceFraction = Some(0))
+      .lmmreg(kinshipVds.rrm(), "sa.pheno", "dosage(g.GP)", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta), optDroppedVarianceFraction = Some(0))
     
     val directResult1 = (0 until 2).map { j => (Variant("1", j + 1, "A", "C"), lmmfit(dosageMat(::, j to j))) }.toMap
     
