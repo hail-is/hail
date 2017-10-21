@@ -2954,7 +2954,7 @@ class VariantDataset(HistoryMixin):
         Run the logistic regression Wald test per variant using a Boolean phenotype and two covariates stored
         in sample annotations:
 
-        >>> vds_result = vds.logreg('wald', 'g.nNonRefAlleles()', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
+        >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', 'g.nNonRefAlleles()', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
         **Notes**
 
