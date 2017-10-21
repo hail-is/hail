@@ -1975,4 +1975,20 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     root: String = "va.logreg"): VariantSampleMatrix[RPK, RK, T] = {
     LogisticRegression(this, test, y, x, covariates, root)
   }
+
+  def lmmreg(kinshipMatrix: KinshipMatrix,
+    y: String,
+    x: String,
+    covariates: Array[String] = Array.empty[String],
+    useML: Boolean = false,
+    rootGA: String = "global.lmmreg",
+    rootVA: String = "va.lmmreg",
+    runAssoc: Boolean = true,
+    delta: Option[Double] = None,
+    sparsityThreshold: Double = 1.0,
+    nEigs: Option[Int] = None,
+    optDroppedVarianceFraction: Option[Double] = None): VariantSampleMatrix[RPK, RK, T] = {
+    LinearMixedRegression(this, kinshipMatrix, y, x, covariates, useML, rootGA, rootVA,
+      runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
+  }
 }
