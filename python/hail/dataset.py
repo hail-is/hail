@@ -2943,9 +2943,9 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(test=strlike,
                       y=strlike,
+                      x=strlike,
                       covariates=listof(strlike),
-                      root=strlike,
-                      use_dosages=bool)
+                      root=strlike)
     def logreg(self, test, y, x, covariates=[], root='va.logreg'):
         """Test each variant for association using logistic regression.
 
@@ -3072,7 +3072,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.logreg(test, y, x, jarray(Env.jvm().java.lang.String, covariates), root)
+        jvds = self._jvds.logreg(test, y, x, jarray(Env.jvm().java.lang.String, covariates), root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
