@@ -2,7 +2,7 @@ package is.hail.variant
 
 import java.util
 
-import is.hail.annotations.{Annotation, AnnotationPathException}
+import is.hail.annotations.Annotation
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.utils._
@@ -13,7 +13,6 @@ import org.apache.spark.sql.types._
 import org.json4s._
 
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 
 object GenotypeType extends Enumeration {
   type GenotypeType = Value

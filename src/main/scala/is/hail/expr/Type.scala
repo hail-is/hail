@@ -982,8 +982,7 @@ case object TGenotype extends ComplexType {
     "dp" -> TInt32,
     "gq" -> TInt32,
     "px" -> TArray(TInt32),
-    "fakeRef" -> TBoolean,
-    "isLinearScale" -> TBoolean)
+    "fakeRef" -> TBoolean)
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
