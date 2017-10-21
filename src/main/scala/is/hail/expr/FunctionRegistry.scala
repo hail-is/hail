@@ -926,7 +926,7 @@ object FunctionRegistry {
     Construct a :ref:`genotype` object from a genotype call.
 
     .. code-block:: text
-        :emphasize-lines: 3
+        :emphasize-lines: 2
 
         Genotype(Call(0)).isHomRef()
         result: true
