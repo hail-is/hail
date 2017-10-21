@@ -1499,7 +1499,7 @@ class VariantDataset(HistoryMixin):
         :param int precision: Number of digits after the decimal point each probability is truncated to.
         """
 
-        self._jvdf.exportGen(output, precision)
+        self._jvkdf.exportGen(output, precision)
 
     @handle_py4j
     @require_biallelic
