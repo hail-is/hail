@@ -47,7 +47,7 @@ class Genotype(HistoryMixin):
             jpl = jnone()
 
         self._jgenotype = Genotype._genotype_jobject
-        jrep = self._jgenotype.apply(jgt, jad, jdp, jgq, jpl, False, False)
+        jrep = self._jgenotype.apply(jgt, jad, jdp, jgq, jpl, False)
         self._gt = gt
         self._ad = ad
         self._dp = dp
