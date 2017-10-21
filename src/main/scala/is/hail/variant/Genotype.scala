@@ -2,7 +2,7 @@ package is.hail.variant
 
 import java.util
 
-import is.hail.annotations.AnnotationPathException
+import is.hail.annotations.{Annotation, AnnotationPathException}
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.utils._
@@ -818,6 +818,21 @@ object Genotype {
     ) yield
       Genotype(gt, ad, dp, gq, pl)
 
+    Gen.frequency(
+      (100, gg),
+      (1, Gen.const(null)))
+  }
+
+
+  def genGenericDosageGenotype(v: Variant): Gen[Annotation] = {
+    val nAlleles = v.nAlleles
+    val nGenotypes = triangle(nAlleles)
+    val gg = for (gp <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
+      val gt = gp.flatMap(gtFromLinear)
+      Row(
+        gt.orNull,
+        gp.map(gpx => gpx.map(p => p.toDouble / 32768): IndexedSeq[Double]).orNull)
+    }
     Gen.frequency(
       (100, gg),
       (1, Gen.const(null)))

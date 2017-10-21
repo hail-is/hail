@@ -216,6 +216,23 @@ object VSMSubgen {
     vGen = (t: Type) => VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2)).gen,
     wasSplit = true)
 
+  val dosage = VSMSubgen[Locus, Variant, Annotation](
+    sSigGen = Gen.const(TString),
+    saSigGen = Type.genArb,
+    vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
+    vaSigGen = Type.genArb,
+    globalSigGen = Type.genArb,
+    tSigGen = Gen.const(TStruct(
+      "GT" -> TCall,
+      "GP" -> TArray(TFloat64))),
+    sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
+    saGen = (t: Type) => t.genValue,
+    vaGen = (t: Type) => t.genValue,
+    globalGen = (t: Type) => t.genValue,
+    vGen = (t: Type) => Variant.gen,
+    tGen = (t: Type, v: Variant) => Genotype.genGenericDosageGenotype(v),
+    makeKOk = _ => Variant.orderedKey)
+
   val realistic = random.copy(
     tGen = (t: Type, v: Variant) => Genotype.genRealistic(v))
 }
