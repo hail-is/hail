@@ -3,7 +3,6 @@ package is.hail.stats
 import breeze.linalg._
 import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.hail.io.bgen.Bgen12GenotypeIterator
 import is.hail.utils._
 import is.hail.variant.{Genotype, VariantDataset, VariantSampleMatrix}
 import org.apache.spark.sql.Row
@@ -84,7 +83,7 @@ object RegressionUtils {
     var j = 0
     var sum = 0d
     while (j < n) {
-      while (completeSampleIndex(j) > i) {
+      while (i < completeSampleIndex(j)) {
         git.next()
         i += 1
       }
@@ -123,7 +122,7 @@ object RegressionUtils {
     var j = 0
     var sum = 0d
     while (j < n) {
-      while (completeSampleIndex(j) > i) {
+      while (i < completeSampleIndex(j)) {
         gts.next()
         i += 1
       }
@@ -233,8 +232,8 @@ object RegressionUtils {
       None
   }
 
-  def parseXExpr(xExpr: String, ec: EvalContext): () => java.lang.Double = {
-    val (xt, xf0) = Parser.parseExpr(xExpr, ec)
+  def parseExprAsDouble(expr: String, ec: EvalContext): () => java.lang.Double = {
+    val (xt, xf0) = Parser.parseExpr(expr, ec)
 
     def castToDouble[T](f: (T) => Double): () => java.lang.Double = { () =>
       val a = xf0()
@@ -250,38 +249,36 @@ object RegressionUtils {
       case TFloat32 => castToDouble[Float](_.toDouble)
       case TFloat64 => () => xf0().asInstanceOf[java.lang.Double]
       case TBoolean => castToDouble[Boolean](_.toDouble)
-      case _ => fatal(s"x expression `$xExpr' must be numeric or Boolean, got $xt")
+      case _ => fatal(s"x expression `$expr' must be numeric or Boolean, got $xt")
     }
   }
 
-  def toDouble(t: Type, code: String): Any => Double = t match {
-    case TInt32 => _.asInstanceOf[Int].toDouble
-    case TInt64 => _.asInstanceOf[Long].toDouble
-    case TFloat32 => _.asInstanceOf[Float].toDouble
-    case TFloat64 => _.asInstanceOf[Double]
-    case TBoolean => _.asInstanceOf[Boolean].toDouble
-    case _ => fatal(s"Sample annotation `$code' must be numeric or Boolean, got $t")
-  }
-
   def getSampleAnnotation(vds: VariantDataset, annot: String, ec: EvalContext): IndexedSeq[Option[Double]] = {
-    val (aT, aQ) = Parser.parseExpr(annot, ec)
-    val aToDouble = toDouble(aT, annot)
+    val aQ = parseExprAsDouble(annot, ec)
 
     vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       ec.setAll(s, sa)
-      Option(aQ()).map(aToDouble)
+      val a = aQ()
+      if (a != null)
+        Some(a: Double)
+      else
+        None
     }
   }
 
   // IndexedSeq indexed by samples, Array by annotations
   def getSampleAnnotations[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T], annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
-    val (aT, aQ0) = annots.map(Parser.parseExpr(_, ec)).unzip
-    val aQ = () => aQ0.map(_.apply())
-    val aToDouble = (aT, annots).zipped.map(toDouble)
+    val aQs = annots.map(parseExprAsDouble(_, ec))
 
     vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       ec.setAll(s, sa)
-      (aQ().map(Option(_)), aToDouble).zipped.map(_.map(_))
+      aQs.map { aQ =>
+        val a = aQ()
+        if (a != null)
+          Some(a: Double)
+        else
+          None
+      }
     }
   }
 

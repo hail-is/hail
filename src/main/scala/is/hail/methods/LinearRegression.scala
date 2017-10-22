@@ -22,15 +22,13 @@ object LinearRegression {
     ("pval", TArray(TFloat64)))
 
   def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
-    ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int
+    ysExpr: Array[String], xExpr: String, convExpr: Array[String], root: String, variantBlockSize: Int
   )(implicit tct: ClassTag[T]): VariantSampleMatrix[RPK, RK, T] = {
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, convExpr)
 
     val ec = vsm.matrixType.genotypeEC
-    val xf = RegressionUtils.parseXExpr(xExpr, ec)
+    val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
 
-    val completeSampleSet = completeSampleIndex.toSet
-    val sampleMask = (0 until vsm.nSamples).map(completeSampleSet).toArray
     val n = y.rows // nCompleteSamples
     val k = cov.cols // nCovariates
     val d = n - k - 1
@@ -50,7 +48,6 @@ object LinearRegression {
     val sampleIdsBc = vsm.sampleIdsBc
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
 
-    val sampleMaskBc = sc.broadcast(sampleMask)
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
     val yBc = sc.broadcast(y)
     val QtBc = sc.broadcast(Qt)
