@@ -179,10 +179,7 @@ object ExportVCF {
     (Genotype.ad(g),
       Genotype.dp(g),
       Genotype.gq(g),
-      if (g._isLinearScale)
-        Genotype.gp(g).map(Left(_))
-      else
-        Genotype.pl(g).map(Right(_))) match {
+      Genotype.pl(g)) match {
       case (None, None, None, None) =>
       case (Some(ad), None, None, None) =>
         sb += ':'
@@ -199,7 +196,7 @@ object ExportVCF {
         appendIntOption(sb, dp)
         sb += ':'
         sb.append(gq)
-      case (ad, dp, gq, Some(gpOrPL)) =>
+      case (ad, dp, gq, Some(pl)) =>
         sb += ':'
         appendIntArrayOption(sb, ad)
         sb += ':'
@@ -207,10 +204,7 @@ object ExportVCF {
         sb += ':'
         appendIntOption(sb, gq)
         sb += ':'
-        gpOrPL match {
-          case Left(gp) => appendDoubleArray(sb, gp)
-          case Right(pl) => appendIntArray(sb, pl)
-        }
+        appendIntArray(sb, pl)
     }
   }
 

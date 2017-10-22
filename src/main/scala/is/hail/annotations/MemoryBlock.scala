@@ -1001,7 +1001,6 @@ class RegionValueBuilder(var region: MemoryBuffer) {
           }
 
           addBoolean(g._fakeRef)
-          addBoolean(g._isLinearScale)
           endStruct()
 
         case t: TLocus =>
@@ -1018,6 +1017,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
           addAnnotation(TLocus(t.gr), i.end)
           endStruct()
       }
+
   }
 
   def result(): RegionValue = RegionValue(region, start)

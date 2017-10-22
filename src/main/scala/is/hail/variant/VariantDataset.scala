@@ -359,44 +359,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     LDPrune(vds, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
   }
 
-  def linregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
-    require(vds.wasSplit)
-    vds.requireSampleTString("linear burden regression")
-    LinearRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, y, covariates)
-  }
-
-  def lmmreg(kinshipMatrix: KinshipMatrix,
-    y: String,
-    covariates: Array[String] = Array.empty[String],
-    useML: Boolean = false,
-    rootGA: String = "global.lmmreg",
-    rootVA: String = "va.lmmreg",
-    runAssoc: Boolean = true,
-    delta: Option[Double] = None,
-    sparsityThreshold: Double = 1.0,
-    useDosages: Boolean = false,
-    nEigs: Option[Int] = None,
-    optDroppedVarianceFraction: Option[Double] = None): VariantDataset = {
-    require(vds.wasSplit)
-    LinearMixedRegression(vds, kinshipMatrix, y, covariates, useML, rootGA, rootVA,
-      runAssoc, delta, sparsityThreshold, useDosages, nEigs, optDroppedVarianceFraction)
-  }
-
-  def logreg(test: String,
-    y: String,
-    covariates: Array[String] = Array.empty[String],
-    root: String = "va.logreg",
-    useDosages: Boolean = false): VariantDataset = {
-    require(vds.wasSplit)
-    LogisticRegression(vds, test, y, covariates, root, useDosages)
-  }
-
-  def logregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, test: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
-    require(vds.wasSplit)
-    vds.requireSampleTString("logistic burden regression")
-    LogisticRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, test, y, covariates)
-  }
-
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
     require(vds.wasSplit)
     vds.requireSampleTString("mendel errors")
@@ -480,22 +442,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false,
     maxShift: Int = 100): VariantDataset = {
     SplitMulti(vds, propagateGQ, keepStar, maxShift)
-  }
-
-  def skat(variantKeys: String,
-    singleKey: Boolean,
-    weightExpr: String,
-    y: String,
-    covariates: Array[String] = Array.empty[String],
-    logistic: Boolean = false,
-    useDosages: Boolean = false,
-    maxSize: Int = 46340, // floor(sqrt(Int.MaxValue))
-    accuracy: Double = 1e-6,
-    iterations: Int = 10000): KeyTable = {
-
-    require(vds.wasSplit)
-
-    Skat(vds, variantKeys, singleKey,  weightExpr, y, covariates, logistic, useDosages, maxSize, accuracy, iterations)
   }
 
   def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {

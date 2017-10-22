@@ -2,7 +2,7 @@ package is.hail.variant
 
 import java.util
 
-import is.hail.annotations.AnnotationPathException
+import is.hail.annotations.Annotation
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.utils._
@@ -13,7 +13,6 @@ import org.apache.spark.sql.types._
 import org.json4s._
 
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 
 object GenotypeType extends Enumeration {
   type GenotypeType = Value
@@ -69,8 +68,6 @@ abstract class Genotype extends Serializable {
 
   def _fakeRef: Boolean
 
-  def _isLinearScale: Boolean
-
   def check(nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
     assert(Genotype.gt(this).forall(i => i >= 0 && i < nGenotypes))
@@ -83,8 +80,7 @@ abstract class Genotype extends Serializable {
     dp: Option[Int] = Genotype.dp(this),
     gq: Option[Int] = Genotype.gq(this),
     px: Option[Array[Int]] = Genotype.px(this),
-    fakeRef: Boolean = this._fakeRef,
-    isLinearScale: Boolean = this._isLinearScale): Genotype = Genotype(gt, ad, dp, gq, px, fakeRef, isLinearScale)
+    fakeRef: Boolean = this._fakeRef): Genotype = Genotype(gt, ad, dp, gq, px, fakeRef)
 
   override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
@@ -93,8 +89,7 @@ abstract class Genotype extends Serializable {
         _unboxedDP == g._unboxedDP &&
         _unboxedGQ == g._unboxedGQ &&
         util.Arrays.equals(_unboxedPX, g._unboxedPX) &&
-        _fakeRef == g._fakeRef &&
-        _isLinearScale == g._isLinearScale
+        _fakeRef == g._fakeRef
 
     case _ => false
   }
@@ -107,7 +102,6 @@ abstract class Genotype extends Serializable {
       .append(_unboxedGQ)
       .append(util.Arrays.hashCode(_unboxedPX))
       .append(_fakeRef)
-      .append(_isLinearScale)
       .toHashCode
 
   override def toString: String = {
@@ -129,11 +123,7 @@ abstract class Genotype extends Serializable {
     b += ':'
     b.append(Genotype.gq(this).map(_.toString).getOrElse("."))
     b += ':'
-    if (!_isLinearScale) {
-      b.append("PL=" + Genotype.pl(this).map(_.mkString(",")).getOrElse("."))
-    } else {
-      b.append("GP=" + Genotype.gp(this).map(_.mkString(",")).getOrElse("."))
-    }
+    b.append("PL=" + Genotype.pl(this).map(_.mkString(",")).getOrElse("."))
 
     b.result()
   }
@@ -237,39 +227,17 @@ object Genotype {
       val adq = queryArrayInt("AD")
       val dpq = queryInt("DP")
       val gqq = queryInt("GQ")
-
-      if (s.hasField("PL") || !s.hasField("GP")) {
-        val plq = queryArrayInt("PL")
-
-        (a: Any) =>
-          if (a == null)
-            null
-          else {
-            val r = a.asInstanceOf[Row]
-            val g = new GenericGenotype(gtq(r), adq(r), dpq(r), gqq(r), plq(r),
-              _fakeRef = false,
-              _isLinearScale = false)
-            g
-          }
-      } else {
-        val gpq = queryArrayDouble("GP")
-
-        (a: Any) =>
-          if (a == null)
-            null
-          else {
-            val r = a.asInstanceOf[Row]
-            val gp = gpq(r)
-            val g = new GenericGenotype(gtq(r), adq(r), dpq(r), gqq(r),
-              if (gp != null)
-                Genotype.weightsToLinear(gp)
-              else
-                null,
-              _fakeRef = false,
-              _isLinearScale = true)
-            g
-          }
-      }
+      val plq = queryArrayInt("PL")
+          
+      (a: Any) =>
+        if (a == null)
+          null
+        else {
+          val r = a.asInstanceOf[Row]
+          val g = new GenericGenotype(gtq(r), adq(r), dpq(r), gqq(r), plq(r),
+            _fakeRef = false)
+          g
+        }
     }
   }
 
@@ -290,8 +258,6 @@ object Genotype {
       val upx = g._unboxedPX
       if (upx == null)
         null
-      else if (g._isLinearScale)
-        Genotype.linearToPhred(upx)
       else
         upx
     }
@@ -300,8 +266,6 @@ object Genotype {
     val upx = unboxedPX(g)
     if (upx == null)
       null
-    else if (g._isLinearScale)
-      upx.map(_ * Genotype.gpNorm)
     else
       Genotype.plToGP(upx)
   }
@@ -338,18 +302,8 @@ object Genotype {
       -1d
     else if (upx.size != 3)
       fatal("Genotype dosage is not defined for multi-allelic variants")
-    else if (g._isLinearScale)
-      (upx(1) + 2 * upx(2)) * Genotype.gpNorm
     else
       Genotype.plToDosage(upx(0), upx(1), upx(2))
-  }
-
-  def dosage(g: Genotype): Option[Double] = {
-    val ud = unboxedDosage(g)
-    if (ud == -1d)
-      None
-    else
-      Some(ud)
   }
 
   def call(g: Genotype): Call = {
@@ -421,8 +375,6 @@ object Genotype {
       None
 
   def fakeRef(g: Genotype): Option[Boolean] = if (g == null) None else Some(g._fakeRef)
-
-  def isLinearScale(g: Genotype): Option[Boolean] = if (g == null) None else Some(g._isLinearScale)
 
   def fractionReadsRef(g: Genotype): Option[Double] = {
     val uad = unboxedAD(g)
@@ -500,7 +452,7 @@ object Genotype {
     else
       None
 
-  def apply(gtx: Int): Genotype = new GenericGenotype(gtx, null, -1, -1, null, false, false)
+  def apply(gtx: Int): Genotype = new GenericGenotype(gtx, null, -1, -1, null, false)
 
   def toRow(g: Genotype): Row =
     if (g == null)
@@ -515,8 +467,7 @@ object Genotype {
         if (dp == -1) null else dp,
         if (gq == -1) null else gq,
         unboxedPX(g): IndexedSeq[Int],
-        g._fakeRef,
-        g._isLinearScale)
+        g._fakeRef)
     }
 
   def toJSON(g: Genotype): JValue =
@@ -529,27 +480,11 @@ object Genotype {
         ("dp", Genotype.dp(g).map(JInt(_)).getOrElse(JNull)),
         ("gq", Genotype.gq(g).map(JInt(_)).getOrElse(JNull)),
         ("px", Genotype.px(g).map(pxs => JArray(pxs.map(JInt(_)).toList)).getOrElse(JNull)),
-        ("fakeRef", JBool(g._fakeRef)),
-        ("isLinearScale", JBool(g._isLinearScale)))
+        ("fakeRef", JBool(g._fakeRef)))
 
   def apply(call: Call): Genotype = {
     val gtx: Int = if (call == null) -1 else call
     Genotype(gtx)
-  }
-
-  def apply(nAlleles: Int, gt: java.lang.Integer, dos: Array[Double]): Genotype = {
-    val gtx: Int = if (gt == null) -1 else gt
-    val g = new DosageGenotype(gtx, if (dos == null) null else Genotype.weightsToLinear(dos))
-    g.check(nAlleles)
-    g
-  }
-
-  def apply(nAlleles: Int, dos: Array[Double]): Genotype = {
-    val px = if (dos == null) null else Genotype.weightsToLinear(dos)
-    val gtx = if (dos == null) -1 else Genotype.unboxedGTFromLinear(px)
-    val g = new DosageGenotype(gtx, px)
-    g.check(nAlleles)
-    g
   }
 
   def apply(nAlleles: Int, gt: java.lang.Integer, ad: Array[Int], dp: java.lang.Integer, gq: java.lang.Integer, pl: Array[Int]): Genotype = {
@@ -557,22 +492,21 @@ object Genotype {
     val dpx: Int = if (dp == null) -1 else dp
     val gqx: Int = if (gq == null) -1 else gq
 
-    val g = new GenericGenotype(gtx, ad, dpx, gqx, pl, _fakeRef = false, _isLinearScale = false)
+    val g = new GenericGenotype(gtx, ad, dpx, gqx, pl, _fakeRef = false)
     g.check(nAlleles)
     g
   }
 
   def apply(unboxedGT: Int, fakeRef: Boolean): Genotype =
-    new GenericGenotype(unboxedGT, null, -1, -1, null, fakeRef, false)
+    new GenericGenotype(unboxedGT, null, -1, -1, null, fakeRef)
 
   def apply(gt: Option[Int] = None,
     ad: Option[Array[Int]] = None,
     dp: Option[Int] = None,
     gq: Option[Int] = None,
     px: Option[Array[Int]] = None,
-    fakeRef: Boolean = false,
-    isLinearScale: Boolean = false): Genotype = {
-    new GenericGenotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), px.map(_.toArray).orNull, fakeRef, isLinearScale)
+    fakeRef: Boolean = false): Genotype = {
+    new GenericGenotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), px.map(_.toArray).orNull, fakeRef)
   }
 
   def sparkSchema: DataType = StructType(Array(
@@ -581,8 +515,7 @@ object Genotype {
     StructField("dp", IntegerType),
     StructField("gq", IntegerType),
     StructField("px", ArrayType(IntegerType, containsNull = false)),
-    StructField("fakeRef", BooleanType, nullable = false),
-    StructField("isLinearScale", BooleanType, nullable = false)))
+    StructField("fakeRef", BooleanType, nullable = false)))
 
   def fromRow(r: Row): Genotype = {
     new GenericGenotype(
@@ -591,8 +524,7 @@ object Genotype {
       if (r.isNullAt(2)) -1 else r.getInt(2),
       if (r.isNullAt(3)) -1 else r.getInt(3),
       if (r.isNullAt(4)) null else r.getAs[IndexedSeq[Int]](4).toArray,
-      r.getBoolean(5),
-      r.getBoolean(6))
+      r.getBoolean(5))
   }
 
   def gqFromPL(pl: Array[Int]): Int = {
@@ -825,20 +757,6 @@ object Genotype {
       gtIndex(i, j)
   }
 
-  def genDosageGenotype(v: Variant): Gen[Genotype] = {
-    val nAlleles = v.nAlleles
-    val nGenotypes = triangle(nAlleles)
-    val gg = for (px <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
-      val gt = px.flatMap(gtFromLinear)
-      val g = Genotype(gt = gt, px = px, isLinearScale = true)
-      g.check(nAlleles)
-      g
-    }
-    Gen.frequency(
-      (100, gg),
-      (1, Gen.const(null)))
-  }
-
   def genExtreme(v: Variant): Gen[Genotype] = {
     val nAlleles = v.nAlleles
     val m = Int.MaxValue / (nAlleles + 1)
@@ -903,14 +821,29 @@ object Genotype {
       (1, Gen.const(null)))
   }
 
+
+  def genGenericDosageGenotype(v: Variant): Gen[Annotation] = {
+    val nAlleles = v.nAlleles
+    val nGenotypes = triangle(nAlleles)
+    val gg = for (gp <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
+      val gt = gp.flatMap(gtFromLinear)
+      Row(
+        gt.orNull,
+        gp.map(gpx => gpx.map(p => p.toDouble / 32768): IndexedSeq[Double]).orNull)
+    }
+    Gen.frequency(
+      (100, gg),
+      (1, Gen.const(null)))
+  }
+
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosageGenotype(v)))
+      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v)))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosageGenotype(v)))
+      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v)))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)
@@ -921,33 +854,12 @@ class GenericGenotype(val _unboxedGT: Int,
   val _unboxedDP: Int,
   val _unboxedGQ: Int,
   val _unboxedPX: Array[Int],
-  val _fakeRef: Boolean,
-  val _isLinearScale: Boolean) extends Genotype {
-
-  require(_unboxedGT >= -1)
-  require(_unboxedDP >= -1)
-
-  if (_isLinearScale) {
-    if (_unboxedPX != null)
-      require(_unboxedPX.sum == 32768)
-  }
+  val _fakeRef: Boolean) extends Genotype {
+  require(_unboxedGT >= -1, s"invalid _unboxedGT value: ${ _unboxedGT }")
+  require(_unboxedDP >= -1, s"invalid _unboxedDP value: ${ _unboxedDP }")
 }
 
-class DosageGenotype(var _unboxedGT: Int,
-  var _unboxedPX: Array[Int]) extends Genotype {
-
-  def _unboxedAD: Array[Int] = null
-
-  def _unboxedDP: Int = -1
-
-  def _unboxedGQ: Int = -1
-
-  def _fakeRef: Boolean = false
-
-  def _isLinearScale = true
-}
-
-class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
+class GenotypeBuilder(nAlleles: Int) {
   require(nAlleles > 0, s"tried to create genotype builder with $nAlleles ${ plural(nAlleles, "allele") }")
   val isBiallelic = nAlleles == 2
   val nGenotypes = triangle(nAlleles)
@@ -1015,8 +927,6 @@ class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
   }
 
   def set(g: Genotype) {
-    assert(g._isLinearScale == isLinearScale)
-
     if (g == null) {
       setMissing()
     } else {
@@ -1035,6 +945,6 @@ class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
     if (missing)
       null
     else
-      new GenericGenotype(gt, ad, dp, gq, px, fakeRef, isLinearScale)
+      new GenericGenotype(gt, ad, dp, gq, px, fakeRef)
   }
 }

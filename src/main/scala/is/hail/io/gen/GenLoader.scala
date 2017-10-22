@@ -75,11 +75,11 @@ object GenLoader {
 
       val a =
         if (math.abs(sumDosages - 1.0) <= tolerance) {
-        val gp = Array(d0, d1, d2)
-        val gt = Genotype.unboxedGTFromLinear(gp)
+          val gp = Array(d0 / sumDosages, d1 / sumDosages, d2 / sumDosages)
+          val gt = Genotype.unboxedGTFromLinear(gp)
           Annotation(gt, gp: IndexedSeq[Double])
-      } else
-        null
+        } else
+          null
 
       gsb += a
     }

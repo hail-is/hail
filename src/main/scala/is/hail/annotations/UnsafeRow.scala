@@ -242,9 +242,8 @@ object UnsafeRow {
           else
             null
         val fakeRef = region.loadByte(ft.loadField(region, offset, 5)) != 0
-        val isLinearScale = region.loadByte(ft.loadField(region, offset, 6)) != 0
 
-        new GenericGenotype(gt, ad, dp, gq, px, fakeRef, isLinearScale)
+        new GenericGenotype(gt, ad, dp, gq, px, fakeRef)
     }
   }
 }
@@ -252,6 +251,7 @@ object UnsafeRow {
 class UnsafeRow(var t: TStruct,
   var region: MemoryBuffer, var offset: Long) extends Row with KryoSerializable {
 
+  def this(t: TStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
   def this() = this(null, null, 0L)
 
   def length: Int = t.size

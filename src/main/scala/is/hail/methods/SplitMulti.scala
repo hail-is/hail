@@ -52,7 +52,7 @@ object SplitMulti {
 
         if (g == null)
           gb.setMissing()
-        else if (!g._isLinearScale) {
+        else {
           Genotype.gt(g).foreach { ggtx =>
             val gtx = splitGT(ggtx, i)
             gb.setGT(gtx)
@@ -83,29 +83,6 @@ object SplitMulti {
               val gq = Genotype.gqFromPL(plx)
               gb.setGQ(gq)
             }
-          }
-        } else {
-          val newpx = Genotype.px(g).map { gpx =>
-            val splitpx = gpx.iterator.zipWithIndex
-              .map { case (p, k) => (splitGT(k, i), p) }
-              .reduceByKeyToArray(3, 0)(_ + _)
-
-            val px = Genotype.weightsToLinear(splitpx)
-            gb.setPX(px)
-            px
-          }
-
-          val newgt = newpx
-            .flatMap { px => Genotype.gtFromLinear(px) }
-            .getOrElse(-1)
-
-          if (newgt != -1)
-            gb.setGT(newgt)
-
-          Genotype.gt(g).foreach { gtx =>
-            val p = Genotype.gtPair(gtx)
-            if (newgt != p.nNonRefAlleles && newgt != -1)
-              gb.setFakeRef()
           }
         }
 

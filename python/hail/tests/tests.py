@@ -345,7 +345,7 @@ class ContextTests(unittest.TestCase):
         (regression.linreg(['sa.pheno.Pheno'], 'g.nNonRefAlleles()', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
-        (regression.logreg('wald', 'sa.pheno.isCase', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
+        (regression.logreg('wald', 'sa.pheno.isCase', 'g.nNonRefAlleles()', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
         vds_assoc = (regression
@@ -375,18 +375,18 @@ class ContextTests(unittest.TestCase):
         (skatVds.skat(variant_keys='va.genes',
                       single_key=False,
                       y='sa.pheno',
+                      x='g.nNonRefAlleles()',
                       covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
                       weight_expr='va.weight',
-                      logistic=False,
-                      use_dosages=False).count())
+                      logistic=False).count())
 
         (skatVds.skat(variant_keys='va.genes',
                       single_key=False,
                       y='sa.pheno',
+                      x='plDosage(g.pl)',
                       covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
                       weight_expr='va.weight',
-                      logistic=True,
-                      use_dosages=True).count())
+                      logistic=True).count())
 
         vds_kinship = vds_assoc.filter_variants_expr('v.start < 4')
 
@@ -399,7 +399,7 @@ class ContextTests(unittest.TestCase):
         ldMatrix.write(ld_matrix_path)
         LDMatrix.read(ld_matrix_path).to_local_matrix()
 
-        vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', ['sa.cov.Cov1', 'sa.cov.Cov2'])
+        vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', 'g.nNonRefAlleles()', ['sa.cov.Cov1', 'sa.cov.Cov2'])
 
         vds_assoc.variants_table().select(['Variant = v', 'va.lmmreg.*']).export('/tmp/lmmreg.tsv')
 
@@ -686,13 +686,6 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(g2.gq, None)
         self.assertEqual(g2.pl, None)
 
-        gpNorm = 1 / (10 ** -4 + 1 + 10 ** -9.9)
-        self.assertTrue(float_eq(g.gp[0], 10 ** -4 * gpNorm))
-        self.assertTrue(float_eq(g.gp[1], gpNorm))
-        self.assertTrue(float_eq(g.gp[2], 10 ** -9.9 * gpNorm))
-        self.assertEqual(g2.gp, None)
-        self.assertTrue(float_eq(g.dosage(), (1 + 2 * 10 ** -9.9) * gpNorm))
-        self.assertEqual(g2.dosage(), None)
         self.assertEqual(g.od(), 3)
         self.assertFalse(g.is_hom_ref())
         self.assertFalse(g2.is_hom_ref())

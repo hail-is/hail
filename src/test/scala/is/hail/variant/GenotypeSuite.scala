@@ -11,11 +11,7 @@ import scala.collection.mutable
 object GenotypeSuite {
   def readWriteEqual(nAlleles: Int, g: Genotype): Boolean = {
     
-    val gb = if (g == null) {
-      new GenotypeBuilder(nAlleles, false)
-    } else {
-      new GenotypeBuilder(nAlleles, g._isLinearScale)
-    }
+    val gb = new GenotypeBuilder(nAlleles)
 
     gb.set(g)
     val g2 = gb.result()
@@ -136,16 +132,6 @@ class GenotypeSuite extends TestNGSuite {
       check1 && check2
     }
     p.check()
-  }
-
-  @Test def testUnboxedDosage() {
-    val g0 = Genotype.apply(gt = Some(0), px = Some(Array(32648, 20, 100)), isLinearScale = true)
-    val g1 = Genotype.apply(gt = Some(1), px = Some(Array(20, 32648, 100)), isLinearScale = true)
-    val g2 = Genotype.apply(gt = Some(2), px = Some(Array(20, 100, 32648)), isLinearScale = true)
-
-    assert(D_==(Genotype.unboxedDosage(g0), (20 + 2 * 100) / 32768d))
-    assert(D_==(Genotype.unboxedDosage(g1), (32648 + 2 * 100) / 32768d))
-    assert(D_==(Genotype.unboxedDosage(g2), (100 + 2 * 32648) / 32768d))
   }
 
   @Test def testPlToDosage() {
