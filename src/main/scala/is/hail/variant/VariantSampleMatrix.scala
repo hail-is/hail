@@ -1970,12 +1970,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     LinearRegression(this, ysExpr, xExpr, covExpr, root, variantBlockSize)
   }
 
-  def logreg(test: String,
-    y: String, x: String, covariates: Array[String] = Array.empty[String],
-    root: String = "va.logreg"): VariantSampleMatrix[RPK, RK, T] = {
-    LogisticRegression(this, test, y, x, covariates, root)
-  }
-
   def lmmreg(kinshipMatrix: KinshipMatrix,
     y: String,
     x: String,

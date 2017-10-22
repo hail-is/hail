@@ -115,7 +115,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(vds0.sampleIds.zip(cov2).toMap, TFloat64, "sa.cov2")
     val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= 2)
 
-    val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", "g.nNonRefAlleles", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta))
+    val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", "g.nNonRefAlleles()", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
     val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2

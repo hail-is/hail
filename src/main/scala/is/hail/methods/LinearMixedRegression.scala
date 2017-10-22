@@ -40,12 +40,10 @@ object LinearMixedRegression {
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
 
     val ec = assocVSM.matrixType.genotypeEC
-    val xf = RegressionUtils.parseXExpr(xExpr, ec)
+    val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
 
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(assocVSM, yExpr, covExpr)
-    val completeSampleSet = completeSampleIndex.toSet
-    val completeSampleStrings = completeSampleIndex.map(assocVSM.sampleIds)
-    val sampleMask = (0 until assocVSM.nSamples).map(completeSampleSet).toArray
+    val completeSampleIds = completeSampleIndex.map(assocVSM.sampleIds)
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
@@ -53,11 +51,11 @@ object LinearMixedRegression {
 
     val covNames = "intercept" +: covExpr
 
-    val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSampleStrings)
+    val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSampleIds)
       kinshipMatrix
     else {
-      val fkm = kinshipMatrix.filterSamples(completeSampleStrings.toSet)
-      if (!(fkm.sampleIds sameElements completeSampleStrings))
+      val fkm = kinshipMatrix.filterSamples(completeSampleIds.toSet)
+      if (!(fkm.sampleIds sameElements completeSampleIds))
         fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
           "samples in assoc_vds) do not agree. This should not happen when kinship_matrix is computed from a filtered version of assoc_vds.")
       fkm
@@ -148,7 +146,6 @@ object LinearMixedRegression {
       val sampleIdsBc = assocVSM.sampleIdsBc
       val sampleAnnotationsBc = assocVSM.sampleAnnotationsBc
 
-      val sampleMaskBc = sc.broadcast(sampleMask)
       val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
 
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
