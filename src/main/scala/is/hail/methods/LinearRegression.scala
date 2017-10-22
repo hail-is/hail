@@ -125,4 +125,5 @@ object LinearRegression {
       rdd = newRDD,
       vaSignature = newVAS)
   }
+
 }

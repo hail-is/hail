@@ -4,7 +4,7 @@ import breeze.linalg._
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Genotype, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{Genotype, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 
 object RegressionUtils {
@@ -253,10 +253,10 @@ object RegressionUtils {
     }
   }
 
-  def getSampleAnnotation(vds: VariantDataset, annot: String, ec: EvalContext): IndexedSeq[Option[Double]] = {
+  def getSampleAnnotation[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], annot: String, ec: EvalContext): IndexedSeq[Option[Double]] = {
     val aQ = parseExprAsDouble(annot, ec)
 
-    vds.sampleIdsAndAnnotations.map { case (s, sa) =>
+    vsm.sampleIdsAndAnnotations.map { case (s, sa) =>
       ec.setAll(s, sa)
       val a = aQ()
       if (a != null)

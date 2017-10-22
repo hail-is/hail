@@ -2968,12 +2968,6 @@ class VariantDataset(HistoryMixin):
         and Firth test ('firth'). Hail only includes samples for which the phenotype and all covariates are
         defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
 
-        By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values are defined by the dosage
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
-        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
-        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
-
         The example above considers a model of the form
 
         .. math::
@@ -3058,6 +3052,8 @@ class VariantDataset(HistoryMixin):
 
         :param str test: Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
 
+        :param str x: expression for input variable
+
         :param str y: Response expression.  Must evaluate to Boolean or
             numeric with all values 0 or 1.
 
@@ -3065,8 +3061,6 @@ class VariantDataset(HistoryMixin):
         :type covariates: list of str
 
         :param str root: Variant annotation path to store result of logistic regression.
-
-        :param bool use_dosages: If true, use genotype dosage rather than hard call.
 
         :return: Variant dataset with logistic regression variant annotations.
         :rtype: :py:class:`.VariantDataset`

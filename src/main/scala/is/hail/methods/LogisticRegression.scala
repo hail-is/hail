@@ -19,16 +19,13 @@ object LogisticRegression {
     covExpr: Array[String],
     root: String
   )(implicit tct: ClassTag[T]): VariantSampleMatrix[RPK, RK, T] = {
-    val ec = vsm.matrixType.genotypeEC
-    val xf = RegressionUtils.parseXExpr(xExpr, ec)
-
     val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
       fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
 
+    val ec = vsm.matrixType.genotypeEC
+    val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
+
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yExpr, covExpr)
-    val completeSamples = completeSampleIndex.map(vsm.sampleIds)
-    val completeSamplesSet = completeSamples.toSet
-    val sampleMask = vsm.sampleIds.map(completeSamplesSet).toArray
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
       fatal(s"For logistic regression, phenotype must be Boolean or numeric with all present values equal to 0 or 1")
@@ -58,7 +55,6 @@ object LogisticRegression {
     val sampleIdsBc = vsm.sampleIdsBc
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
 
-    val sampleMaskBc = sc.broadcast(sampleMask)
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
     val yBc = sc.broadcast(y)
     val XBc = sc.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
