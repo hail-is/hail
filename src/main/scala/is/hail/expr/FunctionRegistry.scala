@@ -472,7 +472,7 @@ object FunctionRegistry {
   def registerLambda[T, U, V, W](name: String, impl: ((Any) => Any, U, V) => W, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
     val m = Arity3LambdaFun[T, U, V, W](hrw.typ, impl)
-    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), m, MetaData(Option(docstring), argNames))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), m, MetaData(Option(docstring), argNames))
   }
 
   def registerLambdaAggregatorTransformer[T, U, V](name: String, impl: (CPS[Any], (Any) => Any) => CPS[V],
@@ -1687,9 +1687,12 @@ object FunctionRegistry {
 
   registerLambda("uniroot", { (f: (Any) => Any, min: Double, max: Double) =>
     val r = uniroot({ (x: Double) =>
+      if (! (min < max))
+        fatal(s"min must be less than max in call to uniroot, got: min $min, max $max")
+
       val y = f(x)
       if (y == null)
-        fatal(s"result of f($x) missing in uniroot")
+        fatal(s"result of f($x) missing in call to uniroot")
       y.asInstanceOf[Double]
     }, min, max)
     (r match {
@@ -1698,9 +1701,16 @@ object FunctionRegistry {
     }): java.lang.Double
   },
     """
-       Search the interval from lower to upper to find a root of the given function.
+       Search the interval from min to max to find a root of the given function.  min must be less than max.  The function is assumed continuous.
+
+       .. code-block:: text
+           :emphasize-lines: 2
+
+           uniroot(x => x*x + 3*x - 4, 0, 2)
+           result: 1.0
     """,
     "f" -> "function for which to find the root",
+    "min" -> "lower endpoint of interval to be searched",
     "max" -> "upper endpoint of interval to be searched"
   )(unaryHr(float64Hr, float64Hr), float64Hr, float64Hr, boxedFloat64Hr)
 

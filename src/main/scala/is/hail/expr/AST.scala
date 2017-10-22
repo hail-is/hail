@@ -597,8 +597,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         `type` = tNew
 
       case "uniroot" =>
-        `type` = TFloat64
-
         if (args.length != 3)
           parseError("wrong number of arguments to uniroot")
 
@@ -608,6 +606,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
             f.`type` = TFunction(Array(TFloat64), body.`type`)
 
           case _ =>
+            fatal("first argument to uniroot must be lambda expression")
         }
 
         args(1).typecheck(ec)
