@@ -1966,7 +1966,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     rdd2.writeRows(dirname, rowType)
   }
 
-  def linreg(ysExpr: Array[String], xExpr: String, convExpr: Array[String] = Array.empty[String], root: String = "va.linreg", variantBlockSize: Int = 16): VariantSampleMatrix[RPK, RK, T] = {
-    LinearRegression(this, ysExpr, xExpr, convExpr, root, variantBlockSize)
+  def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "va.linreg", variantBlockSize: Int = 16): VariantSampleMatrix[RPK, RK, T] = {
+    LinearRegression(this, ysExpr, xExpr, covExpr, root, variantBlockSize)
   }
 }
