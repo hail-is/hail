@@ -1,25 +1,23 @@
 package is.hail.methods
 
+import breeze.linalg.{DenseMatrix => BDM, _}
+import is.hail.annotations.Annotation
+import is.hail.distributedmatrix.BlockMatrix
+import is.hail.distributedmatrix.BlockMatrix.ops._
+import is.hail.expr.{TFloat64, TString, TStruct}
+import is.hail.keytable.KeyTable
+import is.hail.utils._
+import is.hail.variant.VariantDataset
+import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
+import org.apache.spark.mllib.linalg.DenseMatrix
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import is.hail.annotations.Annotation
-import is.hail.expr.{TStruct, TString, TFloat64}
-import is.hail.utils._
-import is.hail.keytable.KeyTable
-import is.hail.variant.{Variant, VariantDataset}
-import is.hail.distributedmatrix.BlockMatrixIsDistributedMatrix
-import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
-import org.apache.spark.mllib.linalg._
-import org.apache.spark.mllib.linalg.distributed._
 
-import scala.collection.generic.CanBuildFrom
-import scala.language.higherKinds
-import scala.language.implicitConversions
+import scala.language.{higherKinds, implicitConversions}
 
 object PCRelate {
-  type M = BlockMatrixIsDistributedMatrix.M
-  val dm = BlockMatrixIsDistributedMatrix
-  import dm.ops._
+  type M = BlockMatrix
 
   type StatisticSubset = Int
   val PhiOnly: StatisticSubset = 0
@@ -45,30 +43,28 @@ object PCRelate {
     val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
     val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, statistics)
 
-    def fuseBlocks(blocki: Int, blockj: Int, mphi: Matrix, mk0: Matrix, mk1: Matrix, mk2: Matrix) = {
-      val i = blocki * phi.rowsPerBlock
-      val j = blockj * phi.colsPerBlock
-      val i2 = i + phi.rowsPerBlock
-      val j2 = j + phi.colsPerBlock
+    def fuseBlocks(i: Int, j: Int, lmPhi: BDM[Double], lmK0: BDM[Double], lmK1: BDM[Double], lmK2: BDM[Double]) = {
+      val iOffset = i * blockSize
+      val jOffset = j * blockSize
 
-      if (blocki <= blockj) {
-        val size = mphi.numRows * mphi.numCols
+      if (i <= j) {
+        val size = lmPhi.rows * lmPhi.cols
         val ab = new ArrayBuilder[Row]()
-          var jj = 1
-          while (jj < mphi.numCols) {
-            // fixme: broken for non-square blocks
-            var ii = 0
-            val rowsAboveDiagonal = if (blocki < blockj) mphi.numRows else jj
-            while (ii < rowsAboveDiagonal) {
-              val kin = mphi(ii, jj)
-              if (kin >= minKinship) {
-                val k0 = if (mk0 == null) null else mk0(ii, jj)
-                val k1 = if (mk1 == null) null else mk1(ii, jj)
-                val k2 = if (mk2 == null) null else mk2(ii, jj)
-                ab += Annotation(indexToId(i + ii), indexToId(j + jj), kin, k0, k1, k2).asInstanceOf[Row]
-              }
-              ii += 1
+        var jj = 1
+        while (jj < lmPhi.cols) {
+          var ii = 0
+          // assumes square blocks
+          val rowsAboveDiagonal = if (i < j) lmPhi.rows else jj
+          while (ii < rowsAboveDiagonal) {
+            val kin = lmPhi(ii, jj)
+            if (kin >= minKinship) {
+              val k0 = if (lmK0 == null) null else lmK0(ii, jj)
+              val k1 = if (lmK1 == null) null else lmK1(ii, jj)
+              val k2 = if (lmK2 == null) null else lmK2(ii, jj)
+              ab += Annotation(indexToId(iOffset + ii), indexToId(jOffset + jj), kin, k0, k1, k2).asInstanceOf[Row]
             }
+            ii += 1
+          }
           jj += 1
         }
         ab.result()
@@ -161,7 +157,7 @@ object PCRelate {
       val a = ols.estimateRegressionParameters()
       IndexedRow(i, new DenseVector(a))
     }
-    dm.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize, blockSize)
+    BlockMatrix.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize)
   }
 
   def k1(k2: M, k0: M): M = {
@@ -172,7 +168,6 @@ object PCRelate {
 
 class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   import PCRelate._
-  import dm.ops._
 
   require(maf >= 0.0)
   require(maf <= 1.0)
@@ -187,14 +182,14 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val g = vdsToMeanImputedMatrix(vds)
 
     val mu = this.mu(g, pcs)
-    val blockedG = dm.from(g, blockSize, blockSize)
+    val blockedG = BlockMatrix.from(g, blockSize)
 
-    val variance = dm.map2 { (g, mu) =>
+    val variance = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         mu * (1.0 - mu)
-    }(blockedG, mu)
+    } (blockedG, mu)
 
     val phi = this.phi(mu, variance, blockedG)
 
@@ -223,34 +218,34 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
     val pcsWithIntercept = prependConstantColumn(1.0, pcs)
 
-    ((beta * pcsWithIntercept.transpose) / 2.0)
+    (beta * new BDM[Double](pcsWithIntercept.numRows, pcsWithIntercept.numCols, pcsWithIntercept.values).t) / 2.0
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
-    val centeredG = dm.map2 { (g,mu) =>
+    val centeredG = BlockMatrix.map2 { (g,mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         g - mu * 2.0
     }(g, mu)
-    val stddev = dm.map(math.sqrt _)(variance)
+    val stddev = variance.map(math.sqrt _)
 
     ((centeredG.t * centeredG) :/ (stddev.t * stddev)) / 4.0
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
-    val homalt = dm.map2 { (g, mu) =>
+    val homalt = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 2.0) 0.0 else 1.0
     } (g, mu)
-    val homref = dm.map2 { (g, mu) =>
+    val homref = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
     } (g, mu)
     (homalt.t * homref) :+ (homref.t * homalt)
   }
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
-    val twoPhi_ii = dm.diagonal(phi).map(2.0 * _)
-    val normalizedGD = dm.map2WithIndex { (_, i, g, mu) =>
+    val twoPhi_ii = phi.diagonal.map(2.0 * _)
+    val normalizedGD = g.map2WithIndex(mu, { case (_, i, g, mu) =>
         if (badmu(mu) || badgt(g))
           0.0  // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
         else {
@@ -260,26 +255,26 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
           gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
         }
-    } (g, mu)
+    })
 
     (normalizedGD.t * normalizedGD) :/ (variance.t * variance)
   }
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
-    val mu2 = dm.map2 { (g, mu) =>
+    val mu2 = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         mu * mu
     }(g, mu)
-    val oneMinusMu2 = dm.map2 { (g, mu) =>
+    val oneMinusMu2 = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         (1.0 - mu) * (1.0 - mu)
     }(g, mu)
     val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
-    dm.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
+    BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phi <= k0cutoff)
         1.0 - 4.0 * phi + k2
       else
