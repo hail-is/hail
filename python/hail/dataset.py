@@ -2830,16 +2830,12 @@ class VariantDataset(HistoryMixin):
     @require_biallelic
     @record_method
     @typecheck_method(ys=listof(strlike),
+                      x=strlike,
                       covariates=listof(strlike),
                       root=strlike,
-                      use_dosages=bool,
                       variant_block_size=integral)
-    def linreg(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
+    def linreg(self, ys, x, covariates=[], root='va.linreg', variant_block_size=16):
         r"""Test each variant for association with multiple phenotypes using linear regression.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
 
         .. warning::
 
@@ -2852,9 +2848,9 @@ class VariantDataset(HistoryMixin):
         The indexing of the array annotations corresponds to that of ``y``.
 
         - **va.linreg.nCompleteSamples** (*Int*) -- number of samples used
-        - **va.linreg.AC** (*Double*) -- sum of the genotype values ``x``
-        - **va.linreg.ytx** (*Array[Double]*) -- array of dot products of each phenotype vector ``y`` with the genotype vector ``x``
-        - **va.linreg.beta** (*Array[Double]*) -- array of fit genotype coefficients, :math:`\hat\beta_1`
+        - **va.linreg.AC** (*Double*) -- sum of input values ``x``
+        - **va.linreg.ytx** (*Array[Double]*) -- array of dot products of each response vector ``y`` with the input vector ``x``
+        - **va.linreg.beta** (*Array[Double]*) -- array of fit effect coefficients, :math:`\hat\beta_1`
         - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
         - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
         - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
@@ -2862,12 +2858,12 @@ class VariantDataset(HistoryMixin):
         :param ys: list of one or more response expressions.
         :type ys: list of str
 
+        :param str x: expression for input variable
+
         :param covariates: list of covariate expressions.
         :type covariates: list of str
 
         :param str root: Variant annotation path to store result of linear regression.
-
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
         :param int variant_block_size: Number of variant regressions to perform simultaneously.  Larger block size requires more memmory.
 
@@ -2876,8 +2872,8 @@ class VariantDataset(HistoryMixin):
 
         """
 
-        jvds = self._jvdf.linreg(jarray(Env.jvm().java.lang.String, ys),
-                                 jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, variant_block_size)
+        jvds = self._jvds.linreg(jarray(Env.jvm().java.lang.String, ys), x,
+                                 jarray(Env.jvm().java.lang.String, covariates), root, variant_block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3962,7 +3958,7 @@ class VariantDataset(HistoryMixin):
             Persist, like all other :class:`.VariantDataset` functions, is functional.
             Its output must be captured. This is wrong:
             
-            >>> vds = vds.linreg(['sa.phenotype']) # doctest: +SKIP
+            >>> vds = vds.linreg(['sa.phenotype'], 'g.nNonRefAlleles()') # doctest: +SKIP
             >>> vds.persist() # doctest: +SKIP
             
             The above code does NOT persist ``vds``. Instead, it copies ``vds`` and persists that result. 

@@ -10,7 +10,7 @@ import is.hail.io._
 import is.hail.io.vcf.LoadVCF
 import is.hail.keytable.{KeyTable, KeyTableMetadata}
 import is.hail.methods.Aggregators.SampleFunctions
-import is.hail.methods.{Aggregators, Filter, VEP}
+import is.hail.methods.{Aggregators, Filter, LinearRegression, VEP}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
@@ -1964,5 +1964,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
 
     rdd2.writeRows(dirname, rowType)
+  }
+
+  def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "va.linreg", variantBlockSize: Int = 16): VariantSampleMatrix[RPK, RK, T] = {
+    LinearRegression(this, ysExpr, xExpr, covExpr, root, variantBlockSize)
   }
 }
