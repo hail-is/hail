@@ -137,7 +137,7 @@ object VariantQC {
     val localNSamples = vds.nSamples
     val localRowType = vds.rowType
 
-    vds.insertIntoRow[HTSGenotypeView](() => HTSGenotypeView(localRowType))(VariantQC.signature,
+    vds.insertIntoRow(() => HTSGenotypeView(localRowType))(VariantQC.signature,
       "va" :: Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD), { (view, rv, rvb) =>
         view.setRegion(rv.region, rv.offset)
         val comb = new VariantQCCombiner
