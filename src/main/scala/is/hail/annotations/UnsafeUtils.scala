@@ -3,15 +3,7 @@ package is.hail.annotations
 import is.hail.expr.Type
 
 object UnsafeUtils {
-  def arrayElementSize(t: Type): Long = {
-    var eltSize = t.byteSize
-    if (eltSize > 0) {
-      val mod = eltSize % t.alignment
-      if (mod != 0)
-        eltSize += (t.alignment - mod)
-    }
-    eltSize
-  }
+  def arrayElementSize(t: Type): Long = roundUpAlignment(t.byteSize, t.alignment)
 
   def roundUpAlignment(offset: Long, alignment: Long): Long = {
     assert(alignment > 0)
