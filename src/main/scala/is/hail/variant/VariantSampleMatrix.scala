@@ -1335,6 +1335,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def mapValuesWithAll[U >: Null](newGSignature: Type, f: (RK, Annotation, Annotation, Annotation, T) => U)
     (implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
+    val newMatrixType = matrixType.copy(genotypeType = newGSignature)
+    val newRowType = newMatrixType.rowType
+
     val localRowType = rowType
     val gsType = rowType.fieldType(3).asInstanceOf[TArray]
     val gType = gsType.elementType
@@ -1356,7 +1359,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           val gs = ur.getAs[Iterable[T]](3)
 
           rv2b.set(rv.region)
-          rv2b.start(localRowType)
+          rv2b.start(newRowType)
           rv2b.startStruct()
           rv2b.addField(localRowType, rv, 0) // locus
           rv2b.addField(localRowType, rv, 1) // v
@@ -1372,7 +1375,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
               val s = localSampleIdsBc.value(i)
               val sa = localSampleAnnotationsBc.value(i)
               val g = UnsafeRow.read(gType, rv.region, gOff).asInstanceOf[T]
-              rv2b.addAnnotation(gType, f(v, va, s, sa, g))
+              rv2b.addAnnotation(newGSignature, f(v, va, s, sa, g))
             } else
               rv2b.setMissing()
 
