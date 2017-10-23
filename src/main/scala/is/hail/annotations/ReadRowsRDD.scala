@@ -295,16 +295,6 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
 final class Decoder(in: InputBuffer) {
   def readByte(): Byte = in.readByte()
 
-  def readInt(): Int = in.readInt()
-
-  def readLong(): Long = in.readLong()
-
-  def readFloat(): Float = in.readFloat()
-
-  def readDouble(): Double = in.readDouble()
-
-  def readBytes(region:MemoryBuffer, toOff: Long, n: Int): Unit = in.readBytes(region.mem, toOff, n)
-
   def readBinary(region: MemoryBuffer, off: Long) {
     val length = in.readInt()
     region.align(4)
@@ -537,15 +527,13 @@ class ReadRowsRDD(sc: SparkContext,
     Array.tabulate(nPartitions)(i => ReadRowsRDDPartition(i))
 
   private val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
-//  private val readRVs = StagedDecoder.getRVReaderSerializable(t)
 
   override def compute(split: Partition, context: TaskContext): Iterator[RegionValue] = {
     val d = digitsNeeded(nPartitions)
     val localPath = path
     val localT = t
-//    val readRV: ((Decoder, MemoryBuffer) => Long) = (dec, region) => readRVs()(dec, region)
 
-      new Iterator[RegionValue] {
+    new Iterator[RegionValue] {
       private val in = {
         val is = split.index.toString
         assert(is.length <= d)
@@ -567,7 +555,6 @@ class ReadRowsRDD(sc: SparkContext,
           throw new NoSuchElementException("next on empty iterator")
 
         region.clear()
-//        rv.setOffset(readRV(dec, region))
         rv.setOffset(dec.readRegionValue(localT, region))
 
         cont = dec.readByte()
