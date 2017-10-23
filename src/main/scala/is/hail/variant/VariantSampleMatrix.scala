@@ -1365,7 +1365,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           rv2b.addField(localRowType, rv, 2) // va
 
           rv2b.startArray(localNSamples) // gs
-          val gsAOff = localRowType.loadField(rv, 3)
+        val gsAOff = localRowType.loadField(rv, 3)
           var i = 0
           while (i < localNSamples) {
             if (gsType.isElementDefined(rv.region, gsAOff, i)) {
@@ -1841,7 +1841,13 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def setVaAttributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[RPK, RK, T] = {
     vaSignature match {
-      case t: TStruct => copy2(vaSignature = t.setFieldAttributes(path, kv))
+      case t: TStruct =>
+        val newVAType = t.setFieldAttributes(path, kv)
+        val newMatrixType = matrixType.copy(vaType = newVAType)
+        copy2(vaSignature = newVAType,
+          rdd2 = OrderedRDD2(newMatrixType.orderedRDD2Type,
+            rdd2.orderedPartitioner,
+            rdd2))
       case t => fatal(s"Cannot set va attributes to ${ path.mkString(".") } since va is not a Struct.")
     }
   }
@@ -1852,7 +1858,13 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def deleteVaAttribute(path: List[String], attribute: String): VariantSampleMatrix[RPK, RK, T] = {
     vaSignature match {
-      case t: TStruct => copy2(vaSignature = t.deleteFieldAttribute(path, attribute))
+      case t: TStruct =>
+        val newVAType = t.deleteFieldAttribute(path, attribute)
+        val newMatrixType = matrixType.copy(vaType = newVAType)
+        copy2(vaSignature = newVAType,
+          rdd2 = OrderedRDD2(newMatrixType.orderedRDD2Type,
+            rdd2.orderedPartitioner,
+            rdd2))
       case t => fatal(s"Cannot delete va attributes from ${ path.mkString(".") } since va is not a Struct.")
     }
   }
