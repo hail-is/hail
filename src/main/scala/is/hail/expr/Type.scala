@@ -118,12 +118,8 @@ sealed abstract class Type extends Serializable {
       (TStruct.empty, a => null)
   }
 
-  def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) = {
-    if (path.nonEmpty)
-      TStruct.empty.unsafeInsert(typeToInsert, path)
-    else
-      (typeToInsert, (region, offset, rvb, inserter) => inserter())
-  }
+  def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) =
+    TStruct.empty.unsafeInsert(typeToInsert, path)
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
 
