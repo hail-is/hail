@@ -413,23 +413,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     LDPrune(vds, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
   }
 
-  def lmmreg(kinshipMatrix: KinshipMatrix,
-    y: String,
-    covariates: Array[String] = Array.empty[String],
-    useML: Boolean = false,
-    rootGA: String = "global.lmmreg",
-    rootVA: String = "va.lmmreg",
-    runAssoc: Boolean = true,
-    delta: Option[Double] = None,
-    sparsityThreshold: Double = 1.0,
-    useDosages: Boolean = false,
-    nEigs: Option[Int] = None,
-    optDroppedVarianceFraction: Option[Double] = None): VariantDataset = {
-    require(vds.wasSplit)
-    LinearMixedRegression(vds, kinshipMatrix, y, covariates, useML, rootGA, rootVA,
-      runAssoc, delta, sparsityThreshold, useDosages, nEigs, optDroppedVarianceFraction)
-  }
-
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
     require(vds.wasSplit)
     vds.requireSampleTString("mendel errors")

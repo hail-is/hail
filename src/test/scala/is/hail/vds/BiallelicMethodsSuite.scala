@@ -46,10 +46,6 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     interceptRequire {
-      multi.lmmreg(null, "foo")
-    }
-
-    interceptRequire {
       multi.rrm()
     }
 
