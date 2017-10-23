@@ -276,7 +276,7 @@ case class MatrixValue(
       localValue.copy(
         sampleIds = keep.map(sampleIds),
         sampleAnnotations = keep.map(sampleAnnotations)),
-      rdd2 = rdd2.mapPartitionsPreservesPartitioning { it =>
+      rdd2 = rdd2.mapPartitionsPreservesPartitioning(typ.orderedRDD2Type, { it =>
         var rv2b = new RegionValueBuilder()
         var rv2 = RegionValue()
 
@@ -305,7 +305,7 @@ case class MatrixValue(
 
           rv2
         }
-      })
+      }))
   }
 }
 
@@ -397,7 +397,7 @@ case class MatrixRead(
           new ReadRowsRDD(hc.sc, path, typ.rowType, nPartitions))
         if (dropSamples) {
           val localRowType = typ.rowType
-          rdd = rdd.mapPartitionsPreservesPartitioning { it =>
+          rdd = rdd.mapPartitionsPreservesPartitioning(typ.orderedRDD2Type, { it =>
             var rv2b = new RegionValueBuilder()
             var rv2 = RegionValue()
 
@@ -419,7 +419,7 @@ case class MatrixRead(
 
               rv2
             }
-          }
+          })
         }
 
         rdd

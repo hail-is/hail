@@ -680,13 +680,8 @@ class OrderedRDD2 private(
       })
   }
 
-  def mapPreservesPartitioning(f: (RegionValue) => RegionValue): OrderedRDD2 =
-    OrderedRDD2(typ,
-      orderedPartitioner,
-      rdd.map(f))
-
-  def mapPartitionsPreservesPartitioning(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRDD2 =
-    OrderedRDD2(typ,
+  def mapPartitionsPreservesPartitioning(newType: OrderedRDD2Type, f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRDD2 =
+    OrderedRDD2(newType,
       orderedPartitioner,
       rdd.mapPartitions(f))
 

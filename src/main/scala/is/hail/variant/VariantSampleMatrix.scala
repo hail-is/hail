@@ -1,13 +1,10 @@
 package is.hail.variant
 
-import java.io.FileNotFoundException
 import java.nio.ByteBuffer
 
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr._
-import is.hail.io._
-import is.hail.io.vcf.LoadVCF
 import is.hail.keytable.{KeyTable, KeyTableMetadata}
 import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods.{Aggregators, Filter, VEP}
@@ -261,7 +258,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   lazy val value: MatrixValue = {
     val opt = MatrixAST.optimize(ast)
-    opt.execute(hc)
+    val v = opt.execute(hc)
+    assert(v.rdd2.typ == ast.typ.orderedRDD2Type)
+    v
   }
 
   lazy val MatrixValue(matrixType, VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd2) = value
@@ -1346,7 +1345,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
     copy2(genotypeSignature = newGSignature,
-      rdd2 = rdd2.mapPartitionsPreservesPartitioning { it =>
+      rdd2 = rdd2.mapPartitionsPreservesPartitioning(newMatrixType.orderedRDD2Type, { it =>
         val rv2b = new RegionValueBuilder()
         val rv2 = RegionValue()
         val ur = new UnsafeRow(localRowType)
@@ -1386,7 +1385,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           rv2.set(rv.region, rv2b.end())
           rv2
         }
-      })
+      }))
   }
 
   def queryGenotypes(expr: String): (Annotation, Type) = {
