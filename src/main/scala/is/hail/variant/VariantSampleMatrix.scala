@@ -10,7 +10,7 @@ import is.hail.io._
 import is.hail.io.vcf.LoadVCF
 import is.hail.keytable.{KeyTable, KeyTableMetadata}
 import is.hail.methods.Aggregators.SampleFunctions
-import is.hail.methods.{Aggregators, Filter, LinearRegression, VEP}
+import is.hail.methods._
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
@@ -1968,5 +1968,27 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "va.linreg", variantBlockSize: Int = 16): VariantSampleMatrix[RPK, RK, T] = {
     LinearRegression(this, ysExpr, xExpr, covExpr, root, variantBlockSize)
+  }
+
+  def logreg(test: String,
+    y: String, x: String, covariates: Array[String] = Array.empty[String],
+    root: String = "va.logreg"): VariantSampleMatrix[RPK, RK, T] = {
+    LogisticRegression(this, test, y, x, covariates, root)
+  }
+
+  def lmmreg(kinshipMatrix: KinshipMatrix,
+    y: String,
+    x: String,
+    covariates: Array[String] = Array.empty[String],
+    useML: Boolean = false,
+    rootGA: String = "global.lmmreg",
+    rootVA: String = "va.lmmreg",
+    runAssoc: Boolean = true,
+    delta: Option[Double] = None,
+    sparsityThreshold: Double = 1.0,
+    nEigs: Option[Int] = None,
+    optDroppedVarianceFraction: Option[Double] = None): VariantSampleMatrix[RPK, RK, T] = {
+    LinearMixedRegression(this, kinshipMatrix, y, x, covariates, useML, rootGA, rootVA,
+      runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
   }
 }

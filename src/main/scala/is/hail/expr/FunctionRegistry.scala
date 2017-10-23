@@ -829,6 +829,16 @@ object FunctionRegistry {
     """",
     "PL" -> "array of bi-allelic Phred-scaled genotype likelihoods")
 
+  register("dosage", { (gp: IndexedSeq[Double]) =>
+    if (gp.length != 3)
+      fatal(s"length of gp array must be 3, got ${ gp.length }")
+    gp(1) + 2.0 * gp(2)
+  },
+    """
+    Return expected genotype dosage from array of genotype probabilities.  Only defined for bi-allelic variants.  The GP argument must be length 3.
+    """",
+    "GP" -> "array of bi-allelic genotype probabilities")
+
   registerMethod("length", { (x: String) => x.length }, "Length of the string.")
 
   val sumDocstring = "Sum of all elements in the collection."

@@ -2680,10 +2680,10 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @require_biallelic
     @record_method
     @typecheck_method(kinshipMatrix=KinshipMatrix,
                       y=strlike,
+                      x=strlike,
                       covariates=listof(strlike),
                       global_root=strlike,
                       va_root=strlike,
@@ -2691,17 +2691,12 @@ class VariantDataset(HistoryMixin):
                       use_ml=bool,
                       delta=nullable(numeric),
                       sparsity_threshold=numeric,
-                      use_dosages=bool,
                       n_eigs=nullable(integral),
                       dropped_variance_fraction=(nullable(float)))
-    def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False,
+    def lmmreg(self, kinshipMatrix, y, x, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0,
                n_eigs=None, dropped_variance_fraction=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2709,7 +2704,7 @@ class VariantDataset(HistoryMixin):
 
         >>> assoc_vds = hc.read("data/example_lmmreg.vds")
         >>> kinship_matrix = assoc_vds.filter_variants_expr('va.useInKinship').rrm()
-        >>> lmm_vds = assoc_vds.lmmreg(kinship_matrix, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
+        >>> lmm_vds = assoc_vds.lmmreg(kinship_matrix, 'sa.pheno', 'g.nNonRefAlleles()', ['sa.cov1', 'sa.cov2'])
 
         will execute the following four steps in order:
 
@@ -2786,12 +2781,6 @@ class VariantDataset(HistoryMixin):
         ...        .export('output/lmmreg.tsv.bgz')
         >>> lmmreg_results = lmm_vds.globals['lmmreg']
         
-        By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values for per-variant association are defined by the dosage
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
-        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
-        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
-
         **Performance**
 
         Hail's initial version of :py:meth:`.lmmreg` scales beyond 15k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. Analysts have used :py:meth:`.lmmreg` in research to compute kinship from 100k common variants and test 32 million non-rare variants on 8k whole genomes in about 10 minutes on `Google cloud <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__.
@@ -2907,6 +2896,8 @@ class VariantDataset(HistoryMixin):
 
         :param str y: Response sample annotation.
 
+        :param str x: Expression for the input variable.
+
         :param covariates: List of covariate sample annotations.
         :type covariates: list of str
 
@@ -2923,8 +2914,6 @@ class VariantDataset(HistoryMixin):
 
         :param float sparsity_threshold: Genotype vector sparsity at or below which to use sparse genotype vector in rotation (advanced).
 
-        :param bool use_dosages: If true, use dosages rather than hard call genotypes.
-
         :param int n_eigs: Number of eigenvectors of the kinship matrix used to fit the model.
 
         :param float dropped_variance_fraction: Upper bound on fraction of sample variance lost by dropping eigenvectors with small eigenvalues.
@@ -2933,9 +2922,9 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
+        jvds = self._jvds.lmmreg(kinshipMatrix._jkm, y, x, jarray(Env.jvm().java.lang.String, covariates),
                                  use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
-                                 use_dosages, joption(n_eigs), joption(dropped_variance_fraction))
+                                 joption(n_eigs), joption(dropped_variance_fraction))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2943,22 +2932,18 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(test=strlike,
                       y=strlike,
+                      x=strlike,
                       covariates=listof(strlike),
-                      root=strlike,
-                      use_dosages=bool)
-    def logreg(self, test, y, covariates=[], root='va.logreg', use_dosages=False):
+                      root=strlike)
+    def logreg(self, test, y, x, covariates=[], root='va.logreg'):
         """Test each variant for association using logistic regression.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
         Run the logistic regression Wald test per variant using a Boolean phenotype and two covariates stored
         in sample annotations:
 
-        >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
+        >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', 'g.nNonRefAlleles()', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
         **Notes**
 
@@ -2971,12 +2956,6 @@ class VariantDataset(HistoryMixin):
         Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao score test ('score'),
         and Firth test ('firth'). Hail only includes samples for which the phenotype and all covariates are
         defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
-
-        By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values are defined by the dosage
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
-        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
-        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
 
         The example above considers a model of the form
 
@@ -3062,6 +3041,8 @@ class VariantDataset(HistoryMixin):
 
         :param str test: Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
 
+        :param str x: expression for input variable
+
         :param str y: Response expression.  Must evaluate to Boolean or
             numeric with all values 0 or 1.
 
@@ -3070,13 +3051,11 @@ class VariantDataset(HistoryMixin):
 
         :param str root: Variant annotation path to store result of logistic regression.
 
-        :param bool use_dosages: If true, use genotype dosage rather than hard call.
-
         :return: Variant dataset with logistic regression variant annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.logreg(test, y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages)
+        jvds = self._jvds.logreg(test, y, x, jarray(Env.jvm().java.lang.String, covariates), root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

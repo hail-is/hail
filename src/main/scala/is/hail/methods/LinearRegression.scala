@@ -24,10 +24,10 @@ object LinearRegression {
   def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
     ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int
   )(implicit tct: ClassTag[T]): VariantSampleMatrix[RPK, RK, T] = {
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
-
     val ec = vsm.matrixType.genotypeEC
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
+
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
 
     val n = y.rows // nCompleteSamples
     val k = cov.cols // nCovariates
@@ -125,4 +125,5 @@ object LinearRegression {
       rdd = newRDD,
       vaSignature = newVAS)
   }
+
 }

@@ -345,7 +345,7 @@ class ContextTests(unittest.TestCase):
         (regression.linreg(['sa.pheno.Pheno'], 'g.nNonRefAlleles()', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
-        (regression.logreg('wald', 'sa.pheno.isCase', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
+        (regression.logreg('wald', 'sa.pheno.isCase', 'g.nNonRefAlleles()', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
         vds_assoc = (regression
@@ -399,7 +399,7 @@ class ContextTests(unittest.TestCase):
         ldMatrix.write(ld_matrix_path)
         LDMatrix.read(ld_matrix_path).to_local_matrix()
 
-        vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', ['sa.cov.Cov1', 'sa.cov.Cov2'])
+        vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', 'g.nNonRefAlleles()', ['sa.cov.Cov1', 'sa.cov.Cov2'])
 
         vds_assoc.variants_table().select(['Variant = v', 'va.lmmreg.*']).export('/tmp/lmmreg.tsv')
 
