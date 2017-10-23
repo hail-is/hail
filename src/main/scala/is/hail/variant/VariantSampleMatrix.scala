@@ -1163,9 +1163,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     vaSignature.insert(sig, path)
   }
 
-  def insertIntoRow[PC](typeToInsert: Type, path: List[String], makePartitionContext: () => PC,
+  def insertIntoRow[PC](makePartitionContext: () => PC)(typeToInsert: Type, path: List[String],
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): VariantSampleMatrix[RPK, RK, T] = {
-    val newRDD2 = rdd2.insert(typeToInsert, path, makePartitionContext, inserter)
+    val newRDD2 = rdd2.insert(makePartitionContext)(typeToInsert, path, inserter)
     copy2(rdd2 = newRDD2,
       // don't need to update vSignature, insert can't change the keys
       vaSignature = newRDD2.typ.rowType.fieldType(2),

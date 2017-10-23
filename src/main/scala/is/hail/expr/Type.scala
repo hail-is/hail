@@ -69,7 +69,8 @@ object Type {
   def parseMap(s: String): Map[String, Type] = Parser.parseAnnotationTypes(s)
 }
 
-sealed abstract class Type extends Serializable { self =>
+sealed abstract class Type extends Serializable {
+  self =>
 
   def children: Seq[Type] = Seq()
 
@@ -115,12 +116,8 @@ sealed abstract class Type extends Serializable { self =>
       (TStruct.empty, a => null)
   }
 
-  def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) = {
-    if (path.nonEmpty)
-      TStruct.empty.unsafeInsert(typeToInsert, path)
-    else
-      (typeToInsert, (region, offset, rvb, inserter) => inserter())
-  }
+  def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) =
+    TStruct.empty.unsafeInsert(typeToInsert, path)
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
 

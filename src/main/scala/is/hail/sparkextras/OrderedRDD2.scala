@@ -656,9 +656,8 @@ class OrderedRDD2 private(
 
   override def getPreferredLocations(split: Partition): Seq[String] = rdd.preferredLocations(split)
 
-  def insert[PC](typeToInsert: Type,
+  def insert[PC](newContext: () => PC)(typeToInsert: Type,
     path: List[String],
-    newContext: () => PC,
     // rv argument to add is the entire row
     add: (PC, RegionValue, RegionValueBuilder) => Unit): OrderedRDD2 = {
 
