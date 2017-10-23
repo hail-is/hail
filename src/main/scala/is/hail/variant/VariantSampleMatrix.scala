@@ -2005,4 +2005,17 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     LinearMixedRegression(this, kinshipMatrix, y, x, covariates, useML, rootGA, rootVA,
       runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
   }
+
+  def skat(variantKeys: String,
+    singleKey: Boolean,
+    weightExpr: String,
+    y: String,
+    x: String,
+    covariates: Array[String] = Array.empty[String],
+    logistic: Boolean = false,
+    maxSize: Int = 46340, // floor(sqrt(Int.MaxValue))
+    accuracy: Double = 1e-6,
+    iterations: Int = 10000): KeyTable = {
+    Skat(this, variantKeys, singleKey,  weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
+  }
 }

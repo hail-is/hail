@@ -4573,19 +4573,15 @@ class VariantDataset(HistoryMixin):
                       single_key=bool,
                       weight_expr=strlike,
                       y=strlike,
+                      x=strlike,
                       covariates=listof(strlike),
                       logistic=bool,
-                      use_dosages=bool,
                       max_size=integral,
                       accuracy=numeric,
                       iterations=integral)
-    def skat(self, variant_keys, single_key, weight_expr, y, covariates=[], logistic=False, use_dosages=False,
+    def skat(self, variant_keys, single_key, weight_expr, y, x, covariates=[], logistic=False,
              max_size=46340, accuracy=1e-6, iterations=10000):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -4597,6 +4593,7 @@ class VariantDataset(HistoryMixin):
         ...                    weight_expr='va.weight',
         ...                    single_key=False,
         ...                    y='sa.burden.pheno',
+        ...                    x='g.nNonRefAlleles()',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         .. caution::
@@ -4692,12 +4689,12 @@ class VariantDataset(HistoryMixin):
 
         :param str y: Response expression.
 
+        :param str x: expression for input variable
+
         :param covariates: List of covariate expressions.
         :type covariates: List of str
 
         :param bool logistic: If true, use the logistic test rather than the linear test. 
-
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
         :param int max_size: Maximum size of group on which to run the test.
 
@@ -4709,9 +4706,9 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, weight_expr, y,
+        return KeyTable(self.hc, self._jvds.skat(variant_keys, single_key, weight_expr, y, x,
                                                  jarray(Env.jvm().java.lang.String, covariates),
-                                                 logistic, use_dosages, max_size, accuracy, iterations))
+                                                 logistic, max_size, accuracy, iterations))
 
     @handle_py4j
     @record_method
