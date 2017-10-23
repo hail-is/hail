@@ -31,3 +31,4 @@ on the Python programming interface.
     representation <representation/index>
     expr <expr/index>
     utils <utils/index>
+    hail2 (Experimental) <hail2/index>

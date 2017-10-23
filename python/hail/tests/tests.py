@@ -8,7 +8,7 @@ import unittest
 from hail import HailContext, KeyTable, VariantDataset, LDMatrix
 from hail.representation import *
 
-from hail.expr import *
+from hail.typ import *
 from hail.java import *
 from hail.keytable import asc, desc
 from hail.utils import *

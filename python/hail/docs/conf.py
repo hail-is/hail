@@ -21,6 +21,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath('./_ext'))
+sys.path.insert(0, os.path.abspath('../../hail2'))
 
 # sys.path.insert(0, os.path.abspath('.'))
 #import sphinx_rtd_theme
@@ -52,7 +53,7 @@ nbsphinx_allow_errors = False
 if not tags.has('checktutorial'):
     nbsphinx_execute = 'never'
 
-autosummary_generate = ['api.rst', 'expr/index.rst', 'representation/index.rst']
+autosummary_generate = ['api.rst', 'expr/index.rst', 'representation/index.rst', 'hail2/index.rst']
 # autoclass_content = "both"
 autodoc_default_flags = ['members', 'undoc-members']
 
@@ -61,8 +62,8 @@ templates_path = ['_templates', '_templates/_autosummary']
 
 doctest_global_setup = """import os, shutil
 from hail import *
+from hail.typ import *
 from hail.representation import *
-from hail.expr import *
 from hail.stats import *
 
 if not os.path.isdir("output/"):
