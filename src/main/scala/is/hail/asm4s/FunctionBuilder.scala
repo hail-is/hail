@@ -143,7 +143,11 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     c.emit(l)
   }
 
-  def classAsBytes(): Array[Byte] = {
+  def emit(insn: AbstractInsnNode) {
+    l += insn
+  }
+
+  def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
     mn.instructions.add(start)
     val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
     assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${dupes: Seq[Any]}")
@@ -151,61 +155,53 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
     mn.instructions.add(end)
 
-    // The following block of code can help when the output of Verification 2 is
-    // inscrutable; however, it is prone to false rejections (i.e. good code is
-    // rejected) so we leave it disabled.
-
-    if (false) {
-      // compute without frames first in case frame tester fails miserably
-      val cwNoMaxesNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
-      cn.accept(cwNoMaxesNoFrames)
-      val cr = new ClassReader(cwNoMaxesNoFrames.toByteArray)
-      val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(System.out))
-      cr.accept(tcv, 0)
-
-      val sw = new StringWriter()
-      CheckClassAdapter.verify(cr, false, new PrintWriter(sw))
-      if (sw.toString().length() != 0) {
-        println("Verify Output for " + name + ":")
-        try {
-          val out = new BufferedWriter(new FileWriter("ByteCodeOutput.txt"))
-          out.write(sw.toString())
-          out.close()
-        } catch {
-          case e: IOException => System.out.println("Exception " + e)
-        }
-        println(sw)
-        println("Bytecode failed verification 1")
-      }
-    }
-    {
-      val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
-      cn.accept(cw)
-
-      val sw = new StringWriter()
-      CheckClassAdapter.verify(new ClassReader(cw.toByteArray), false, new PrintWriter(sw))
-      if (sw.toString.length != 0) {
-        println("Verify Output for " + name + ":")
-        try {
-          val out = new BufferedWriter(new FileWriter("ByteCodeOutput.txt"))
-          out.write(sw.toString)
-          out.close
-        } catch {
-          case e: IOException => System.out.println("Exception " + e)
-        }
-        throw new IllegalStateException("Bytecode failed verification 2")
-      }
-    }
-
     val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
-    cn.accept(cw)
-    cw.toByteArray
+    val sw1 = new StringWriter()
+    var bytes: Array[Byte] = new Array[Byte](0)
+    try {
+      cn.accept(cw)
+      bytes = cw.toByteArray
+      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
+    } catch {
+      case e: Exception =>
+        // if we fail with frames, try without frames for better error message
+        val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
+        val sw2 = new StringWriter()
+        cn.accept(cwNoFrames)
+        CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
+
+        if (sw2.toString().length() != 0) {
+          System.err.println("Verify Output 2 for " + name + ":")
+          System.err.println(sw2)
+          throw new IllegalStateException("Bytecode failed verification 1", e)
+        } else {
+          if (sw1.toString().length() != 0) {
+            System.err.println("Verifiy Output 1 for " + name + ":")
+            System.err.println(sw1)
+          }
+          throw e
+        }
+    }
+
+    if (sw1.toString.length != 0) {
+      System.err.println("Verify Output 1 for " + name + ":")
+      System.err.println(sw1)
+      throw new IllegalStateException("Bytecode failed verification 2")
+    }
+
+    print.foreach { pw =>
+      val cr = new ClassReader(bytes)
+      val tcv = new TraceClassVisitor(null, new Textifier, pw)
+      cr.accept(tcv, 0)
+    }
+
+    bytes
   }
 
   cn.interfaces.asInstanceOf[java.util.List[String]].add(interfaceTi.iname)
 
-  def result(): () => F = {
-    val bytes = classAsBytes()
+  def result(print: Option[PrintWriter] = None): () => F = {
+    val bytes = classAsBytes(print)
     val localName = name.replaceAll("/",".")
 
     new (() => F) with java.io.Serializable {
