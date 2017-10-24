@@ -408,4 +408,14 @@ class KeyTableSuite extends SparkSuite {
     assert(kt1.join(kt2, "inner").count() == 1L)
     kt1.join(kt2, "outer").typeCheck()
   }
+
+  @Test def mis() {
+    // prefer to remove nodes with higher index
+    assert(KeyTable.range(hc, 10)
+      .annotate("i = index, j = index + 10")
+      .maximalIndependentSet("i", "j", Some("l - r"))
+      .toSet
+      ===
+      Set(0,1,2,3,4,5,6,7,8,9))
+  }
 }
