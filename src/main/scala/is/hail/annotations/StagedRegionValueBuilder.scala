@@ -10,19 +10,35 @@ import org.objectweb.asm.tree.{AbstractInsnNode, IincInsnNode}
 import scala.collection.generic.Growable
 import scala.reflect.ClassTag
 
-class StagedRegionValueBuilder[T] private (val fb: FunctionBuilder[AsmFunction2[T, MemoryBuffer, Long]], val rowType: Type, var region: Code[MemoryBuffer], val pOffset: Code[Long])(implicit tti: TypeInfo[T]) {
+class StagedRegionValueBuilder[T] private (val fb: FunctionBuilder[AsmFunction2[T, MemoryBuffer, Long]], val rowType: Type, var unstagedRegion: Code[MemoryBuffer], val pOffset: Code[Long])(implicit tti: TypeInfo[T]) {
 
   private def this(fb: FunctionBuilder[AsmFunction2[T, MemoryBuffer, Long]], rowType: Type, parent: StagedRegionValueBuilder[T])(implicit tti: TypeInfo[T]) = {
-    this(fb, rowType, parent.region, parent.currentOffset)
+    this(fb, rowType, parent.unstagedRegion, parent.currentOffset)
+    region = parent.region
+    extraInt = parent.extraInt
+    extraLong = parent.extraLong
   }
   def this(fb: FunctionBuilder[AsmFunction2[T, MemoryBuffer, Long]], rowType: Type)(implicit tti: TypeInfo[T]) = {
     this(fb, rowType, fb.getArg[MemoryBuffer](2), null)
+    region = new StagedMemoryBuffer(fb.newLocal[Long],fb.newLocal[Long],fb.newLocal[Long])
+    extraInt = fb.newLocal[Int]
+    extraLong = fb.newLocal[Long]
+    fb.emit(Code(
+      region.mem := unstagedRegion.invoke[Long]("mem"),
+      region.offset := unstagedRegion.invoke[Long]("offset"),
+      region.length := unstagedRegion.invoke[Long]("length")
+    ))
   }
 
   val input: LocalRef[T] = fb.getArg[T](1)
   var staticIdx: Int = 0
   var idx: LocalRef[Int] = _
   var elementsOffset: LocalRef[Long] = _
+
+  var extraInt: LocalRef[Int] = _
+  var extraLong: LocalRef[Long] = _
+
+  var region: StagedMemoryBuffer = _
 
   var elementsOffsetArray: LocalRef[Array[Long]] = _
 
@@ -160,6 +176,9 @@ class StagedRegionValueBuilder[T] private (val fb: FunctionBuilder[AsmFunction2[
   }
 
   def build() {
+    emit(unstagedRegion.invoke[Long, Unit]("mem_$eq", region.mem))
+    emit(unstagedRegion.invoke[Long, Unit]("offset_$eq", region.offset))
+    emit(unstagedRegion.invoke[Long, Unit]("length_$eq", region.length))
     emit(_return(startOffset))
     transform = fb.result()
   }
@@ -170,5 +189,105 @@ class StagedRegionValueBuilder[T] private (val fb: FunctionBuilder[AsmFunction2[
     for (c <- cs) {
       fb.emit(c)
     }
+  }
+}
+
+class StagedMemoryBuffer(val mem: LocalRef[Long], val offset: LocalRef[Long], val length: LocalRef[Long]) {
+
+  def size: Code[Long] = offset
+
+  def storeInt32(off: Code[Long], v: Code[Int]): Code[Unit] = invokeStatic[Memory, Long, Int, Unit]("storeInt",mem + off, v)
+
+  def storeInt64(off: Code[Long], v: Code[Long]): Code[Unit] = invokeStatic[Memory, Long, Long, Unit]("storeLong",mem + off, v)
+
+  def storeFloat32(off: Code[Long], v: Code[Float]): Code[Unit] = invokeStatic[Memory, Long, Float, Unit]("storeFloat",mem + off, v)
+
+  def storeFloat64(off: Code[Long], v: Code[Double]): Code[Unit] = invokeStatic[Memory, Long, Double, Unit]("storeDouble",mem + off, v)
+
+  def storeAddress(off: Code[Long], a: Code[Long]): Code[Unit] = invokeStatic[Memory, Long, Long, Unit]("storeAddress",mem + off, a)
+
+  def storeByte(off: Code[Long], b: Code[Byte]): Code[Unit] = invokeStatic[Memory, Long, Byte, Unit]("storeByte",mem + off, b)
+
+  def storeBytes(off: Code[Long], bytes: Code[Array[Byte]], bytesOff: Code[Long], n: Code[Int]): Code[Unit] = invokeStatic[Memory, Long, Array[Byte], Long, Long, Unit]("copyFromArray", mem + off, bytes, bytesOff, n.toL) // [Memory, Long, Array[Byte], Long, Int, Unit]
+  def storeBytes(off: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] = storeBytes(off, bytes, 0L, bytes.length()) // [Memory, Long, Array[Byte], Long, Int, Unit]
+
+  def ensure(n: Code[Long]):Code[Unit] = {
+    val required = offset + n
+    (length < required).mux(
+      Code(
+        length := invokeStatic[Math, Long, Long, Long]("max", length + length, required),
+        mem := invokeStatic[Memory, Long, Long, Long]("realloc", mem, length)
+      ),
+      _empty
+    )
+  }
+
+  def align(alignment: Code[Long]): Code[Unit] = offset := (offset + (alignment - 1L)) & alignment.negate()//& ((alignment - 1L) xor 0xffffffffL)
+
+  def allocate(n: Code[Long]): Code[Long] = {
+    Code(
+      offset := offset + n,
+      ensure(n),
+      offset - n
+    )
+  }
+
+  def alignAndAllocate(n: Code[Long]): Code[Long] = Code(align(n), allocate(n))
+
+  def loadBoolean(off: Code[Long]): Code[Boolean] = loadByte(off).cne(0)
+
+  def loadByte(off: Code[Long]): Code[Byte] =
+    invokeStatic[Memory, Long, Byte]("loadByte",mem + off)
+
+  def loadInt32(off: Code[Long]): Code[Int] =
+    invokeStatic[Memory, Long, Int]("loadInt",mem + off)
+
+  def loadBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Boolean] =
+    (loadByte(byteOff + (bitOff >> 3)) & (const(1) << (bitOff & 7L).toI)).cne(0)
+
+  def setBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] = {
+    val b = byteOff + (bitOff >> 3)
+    storeByte(b,
+      (loadByte(b) | (const(1) << (bitOff & 7L).toI)).toB)
+  }
+
+  def clearBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] = {
+    val b = byteOff + (bitOff >> 3)
+    storeByte(b,
+      (loadByte(b) & (const(1) << (bitOff & 7L).toI xor 0xffff)).toB)
+  }
+
+  def storeBit(byteOff: Code[Long], bitOff: Code[Long], b: Code[Boolean]): Code[Unit] = b.mux(setBit(byteOff, bitOff), clearBit(byteOff, bitOff))
+
+  def appendInt32(i: Code[Int]): Code[Unit] = {
+    storeInt32(alignAndAllocate(4L), i)
+  }
+
+  def appendInt64(l: Code[Long]): Code[Unit] = {
+    storeInt64(alignAndAllocate(8L), l)
+  }
+
+  def appendFloat32(f: Code[Float]): Code[Unit] = {
+    storeFloat32(alignAndAllocate(4L), f)
+  }
+
+  def appendFloat64(d: Code[Double]): Code[Unit] = {
+    storeFloat64(alignAndAllocate(8L), d)
+  }
+
+  def appendByte(b: Code[Byte]): Code[Unit] = {
+    storeByte(allocate(1L), b)
+  }
+
+  def appendBytes(bytes: Code[Array[Byte]]): Code[Unit] = {
+    storeBytes(allocate(bytes.length().toL), bytes)
+  }
+
+  def appendBytes(bytes: Code[Array[Byte]], bytesOff: Code[Long], n: Code[Int]): Code[Unit] = {
+    storeBytes(allocate(n.toL), bytes, bytesOff, n)
+  }
+
+  def clear(): Code[Unit] = {
+    offset := 0L
   }
 }

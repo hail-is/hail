@@ -4,7 +4,10 @@ import is.hail.asm4s._
 import is.hail.asm4s.Code._
 import is.hail.expr._
 import is.hail.utils._
+import org.objectweb.asm.tree.{AbstractInsnNode, InsnNode}
+import org.objectweb.asm.Opcodes._
 
+import scala.collection.generic.Growable
 import scala.language.implicitConversions
 
 class StagedEncoder {
@@ -12,6 +15,21 @@ class StagedEncoder {
 }
 
 object StagedDecoder {
+
+  private def storeBinary(srvb: StagedRegionValueBuilder[Decoder]): Code[Unit] = {
+    val dec = srvb.input
+    val off = srvb.currentOffset
+    val length = srvb.extraInt
+    val boff = srvb.extraLong
+    Code(
+      length := dec.invoke[Int]("readInt"),
+      srvb.region.align(4L),
+      boff := srvb.region.allocate(length.toL + 4L),
+      srvb.region.storeAddress(off, boff),
+      srvb.region.storeInt32(boff, length),
+      dec.invoke[Long, Long, Int, Unit]("readBytes",srvb.region.mem, boff + 4L, length)
+    )
+  }
 
   private def storeType(typ: Type, srvb: StagedRegionValueBuilder[Decoder]): Code[Unit] = {
     assert(!typ.isInstanceOf[TStruct])
@@ -22,7 +40,7 @@ object StagedDecoder {
       case TInt64 => srvb.addInt64(srvb.input.invoke[Long]("readLong"))
       case TFloat32 => srvb.addFloat32(srvb.input.invoke[Float]("readFloat"))
       case TFloat64 => srvb.addFloat64(srvb.input.invoke[Double]("readDouble"))
-      case TBinary => srvb.input.invoke[MemoryBuffer, Long, Unit]("readBinary", srvb.region, srvb.currentOffset)
+      case TBinary => storeBinary(srvb)
     }
   }
 
@@ -31,11 +49,11 @@ object StagedDecoder {
     val fb = srvb.fb
 
     val codeDec: LocalRef[Decoder] = srvb.input
-    val region: Code[MemoryBuffer] = srvb.region
+    val region: StagedMemoryBuffer = srvb.region
 
     var c = Code(
       srvb.start(init = false),
-      codeDec.invoke[MemoryBuffer, Long, Int, Unit]("readBytes", region, srvb.startOffset, (t.size + 7) >>> 3)
+      codeDec.invoke[Long, Long, Int, Unit]("readBytes", region.mem, srvb.startOffset, (t.size + 7) >>> 3)
     )
     for (i <- 0 until t.size) {
       c = Code(c,
@@ -69,12 +87,12 @@ object StagedDecoder {
     val fb = srvb.fb
 
     val codeDec: LocalRef[Decoder] = srvb.input
-    val region: Code[MemoryBuffer] = srvb.region
+    val region: StagedMemoryBuffer = srvb.region
 
     val c = Code(
       srvb.start(length, init = false),
       region.storeInt32(srvb.startOffset, length),
-      codeDec.invoke[MemoryBuffer, Long, Int, Unit]("readBytes", region, srvb.startOffset + 4L, (length + 7) >>> 3)
+      codeDec.invoke[Long, Long, Int, Unit]("readBytes", region.mem, srvb.startOffset + 4L, (length + 7) >>> 3)
     )
     val d = t.elementType match {
       case t2: TArray =>

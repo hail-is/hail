@@ -211,6 +211,8 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     val bytes = classAsBytes()
     val localName = name.replaceAll("/",".")
 
+//    FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+
     new (() => F) with java.io.Serializable {
       @transient @volatile private var f: F = null
       def apply(): F = {

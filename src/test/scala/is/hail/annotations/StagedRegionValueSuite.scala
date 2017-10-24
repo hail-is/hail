@@ -205,7 +205,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     if (showRVInfo) {
       printRegionValue(region, "array of struct")
-      println(rv.pretty(rt))
+//      println(rv.pretty(rt))
     }
 
     val region2 = MemoryBuffer()
@@ -225,7 +225,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     if (showRVInfo) {
       printRegionValue(region2, "array of struct")
-      println(rv2.pretty(rt))
+//      println(rv2.pretty(rt))
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
