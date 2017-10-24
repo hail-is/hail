@@ -40,8 +40,8 @@ class HailContext(HistoryMixin):
     :param branching_factor: Branching factor for tree aggregation.
 
     :param tmp_dir: Temporary directory for file merging. If None, use the value
-                    of the environment variable TMPDIR, unless TMPDIR is unset
-                    or the empty string, in which case use '/tmp'.
+                    of the environment variable TMPDIR, unless TMPDIR is unset,
+                    in which case use '/tmp'.
 
     :ivar sc: Spark context
     :vartype sc: :class:`.pyspark.SparkContext`
