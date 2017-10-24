@@ -134,7 +134,6 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
 
       val localNSamples = vsm.nSamples
       val localRowType = vsm.rowType
-      println(localRowType)
       vsm.rdd2.mapPartitions { it =>
         val sb = new StringBuilder
         val view = new ArrayGenotypeView(localRowType)

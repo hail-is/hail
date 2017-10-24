@@ -227,9 +227,8 @@ object Genotype {
       val adq = queryArrayInt("AD")
       val dpq = queryInt("DP")
       val gqq = queryInt("GQ")
-
       val plq = queryArrayInt("PL")
-
+          
       (a: Any) =>
         if (a == null)
           null
