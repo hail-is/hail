@@ -10,88 +10,75 @@ import org.objectweb.asm.tree.{AbstractInsnNode, IincInsnNode}
 import scala.collection.generic.Growable
 import scala.reflect.ClassTag
 
-class StagedRegionValueBuilder[T] private (val fb: FunctionBuilder[AsmFunction2[T, MemoryBuffer, Long]], val rowType: Type, var region: Code[MemoryBuffer], val pOffset: Code[Long])(implicit tti: TypeInfo[T]) {
+class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type, var region: Code[MemoryBuffer], val pOffset: Code[Long]) {
 
-  private def this(fb: FunctionBuilder[AsmFunction2[T, MemoryBuffer, Long]], rowType: Type, parent: StagedRegionValueBuilder[T])(implicit tti: TypeInfo[T]) = {
-    this(fb, rowType, parent.region, parent.currentOffset)
-  }
-  def this(fb: FunctionBuilder[AsmFunction2[T, MemoryBuffer, Long]], rowType: Type)(implicit tti: TypeInfo[T]) = {
-    this(fb, rowType, fb.getArg[MemoryBuffer](2), null)
+  private def this(fb: FunctionBuilder[_], typ: Type, parent: StagedRegionValueBuilder) = {
+    this(fb, typ, parent.region, parent.currentOffset)
   }
 
-  val input: LocalRef[T] = fb.getArg[T](1)
-  var staticIdx: Int = 0
-  var idx: LocalRef[Int] = _
-  var elementsOffset: LocalRef[Long] = _
+  def this(fb: FunctionBuilder[_], rowType: Type) = {
+    this(fb, rowType, fb.getArg[MemoryBuffer](1), null)
+  }
 
-  var elementsOffsetArray: LocalRef[Array[Long]] = _
+  private var staticIdx: Int = 0
+  private var idx: LocalRef[Int] = _
+  private var elementsOffset: LocalRef[Long] = _
+  private val startOffset: LocalRef[Long] = fb.newLocal[Long]
 
-  rowType match {
+  typ match {
     case t: TStruct => elementsOffset = fb.newLocal[Long]
     case t: TArray => {
       elementsOffset = fb.newLocal[Long]
-      elementsOffsetArray = fb.newLocal[Array[Long]]
       idx = fb.newLocal[Int]
-      var c = elementsOffsetArray := Code.newArray[Long](10)
-      var i = 0
-      while (i < 10) {
-        c = Code(c, elementsOffsetArray.update(i, t._elementsOffset(i)))
-        i += 1
-      }
-      fb.emit(c)
     }
     case _ =>
   }
 
-  var transform: () => AsmFunction2[T, MemoryBuffer, Long] = _
+  def offset: Code[Long] = startOffset.load()
 
-  val startOffset: LocalRef[Long] = fb.newLocal[Long]
   def endOffset: Code[Long] = region.size
 
+  def arrayIdx: Code[Int] = idx.load()
+
   def currentOffset: Code[Long] = {
-    rowType match {
+    typ match {
       case _: TStruct => elementsOffset
-      case t: TArray => elementsOffset// + (idx.toL * t.elementByteSize)
+      case _: TArray => elementsOffset
       case _ => startOffset
     }
   }
 
   def start(): Code[Unit] = {
-    assert(!rowType.isInstanceOf[TArray])
-    rowType.fundamentalType match {
+    assert(!typ.isInstanceOf[TArray])
+    typ.fundamentalType match {
       case _: TStruct => start(true)
       case TBinary =>
-        assert (pOffset == null)
+        assert(pOffset == null)
         startOffset.store(endOffset)
       case _ => Code(
-        region.align(rowType.alignment),
-        startOffset.store(region.allocate(rowType.byteSize))
+        region.align(typ.alignment),
+        startOffset.store(region.allocate(typ.byteSize))
       )
     }
   }
 
   def start(length: Code[Int], init: Boolean = true): Code[Unit] = {
-    val t = rowType.asInstanceOf[TArray]
+    val t = typ.asInstanceOf[TArray]
     var c = Code(
-        region.align(t.contentsAlignment),
-        startOffset.store(region.allocate(t.contentsByteSize(length)))
+      region.align(t.contentsAlignment),
+      startOffset.store(region.allocate(t.contentsByteSize(length)))
     )
     if (pOffset != null) {
       c = Code(c, region.storeAddress(pOffset, startOffset))
     }
     if (init)
       c = Code(c, t.initialize(region, startOffset.load(), length, idx))
-    c = Code(c,
-      (length < 10).mux(
-        elementsOffset.store(startOffset.load() + elementsOffsetArray(length)),
-        elementsOffset.store(startOffset.load() + t.elementsOffset(length))
-      )
-    )
+    c = Code(c, elementsOffset.store(startOffset.load() + t.elementsOffset(length)))
     Code(c, idx.store(0))
   }
 
   def start(init: Boolean): Code[Unit] = {
-    val t = rowType.asInstanceOf[TStruct]
+    val t = typ.asInstanceOf[TStruct]
     var c = if (pOffset == null)
       Code(
         region.align(t.alignment),
@@ -101,12 +88,12 @@ class StagedRegionValueBuilder[T] private (val fb: FunctionBuilder[AsmFunction2[
       startOffset.store(pOffset)
     c = Code(c, elementsOffset.store(startOffset + t.byteOffsets(0)))
     if (init)
-      c = Code(c,t.clearMissingBits(region, startOffset))
+      c = Code(c, t.clearMissingBits(region, startOffset))
     c
   }
 
   def setMissing(): Code[Unit] = {
-    rowType match {
+    typ match {
       case t: TArray => t.setElementMissing(region, startOffset, idx)
       case t: TStruct => t.setFieldMissing(region, startOffset, staticIdx)
     }
@@ -123,10 +110,10 @@ class StagedRegionValueBuilder[T] private (val fb: FunctionBuilder[AsmFunction2[
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
     Code(
       region.align(TBinary.contentAlignment),
-      rowType.fundamentalType match {
+      typ.fundamentalType match {
         case TBinary => _empty
         case _ =>
-          region.storeAddress(currentOffset,endOffset)
+          region.storeAddress(currentOffset, endOffset)
       },
       region.appendInt32(bytes.length()),
       region.appendBytes(bytes)
@@ -135,19 +122,19 @@ class StagedRegionValueBuilder[T] private (val fb: FunctionBuilder[AsmFunction2[
 
   def addString(str: Code[String]): Code[Unit] = addBinary(str.invoke[Array[Byte]]("getBytes"))
 
-  def addArray(t: TArray, f: (StagedRegionValueBuilder[T] => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder[T](fb, t, this))
+  def addArray(t: TArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
 
-  def addStruct(t: TStruct, f: (StagedRegionValueBuilder[T] => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder[T](fb, t, this))
+  def addStruct(t: TStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
 
   def advance(): Code[Unit] = {
-    rowType match {
+    typ match {
       case t: TArray => Code(
         elementsOffset := elementsOffset + t.elementByteSize,
         new Code[Unit] {
-          def emit(il: Growable[AbstractInsnNode]):Unit = {
+          def emit(il: Growable[AbstractInsnNode]): Unit = {
             il += new IincInsnNode(idx.i, 1)
           }
-      }
+        }
       )
       case t: TStruct => {
         staticIdx += 1
@@ -155,20 +142,8 @@ class StagedRegionValueBuilder[T] private (val fb: FunctionBuilder[AsmFunction2[
           elementsOffset.store(startOffset + t.byteOffsets(staticIdx))
         else _empty
       }
-      case _ => _empty
     }
   }
 
-  def build() {
-    emit(_return(startOffset))
-    transform = fb.result()
-  }
-
-  def emit(c: Code[_]) {fb.emit(c)}
-
-  def emit(cs: Array[Code[_]]) {
-    for (c <- cs) {
-      fb.emit(c)
-    }
-  }
+  def returnStart(): Code[Unit] = _return(startOffset)
 }

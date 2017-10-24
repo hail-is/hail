@@ -71,7 +71,8 @@ object Type {
   def parseMap(s: String): Map[String, Type] = Parser.parseAnnotationTypes(s)
 }
 
-sealed abstract class Type extends Serializable { self =>
+sealed abstract class Type extends Serializable {
+  self =>
 
   def children: Seq[Type] = Seq()
 
@@ -669,9 +670,8 @@ abstract class TContainer extends Type {
 
   def elementsOffset(length: Code[Int]): Code[Long] = {
     val alignment = elementType.alignment
-    assert(alignment > 0, s"invalid alignment: $alignment")
-    assert((alignment & (alignment - 1)) == 0, s"invalid alignment: $alignment") // power of 2
-
+    assert(alignment > 0)
+    assert((alignment & (alignment - 1)) == 0) // power of 2
     ((((length + 7) >>> 3) + 4).toL + (alignment - 1)) & ~(alignment - 1)
   }
 
@@ -735,7 +735,7 @@ abstract class TContainer extends Type {
     clearMissingBits(region, aoff, length)
   }
 
-  def initialize(region: Code[MemoryBuffer], aoff: Code[Long], length: Code[Int], a: LocalRef[Int]): Code[Unit] = {
+  def initialize(region: Code[MemoryBuffer], aoff: Code[Long], length: Code[Int], a: LocalRef[Int]): Code[Unit] =
     Code(
       region.storeInt32(aoff, length),
       a.store((length + 7) >>> 3),
@@ -746,7 +746,6 @@ abstract class TContainer extends Type {
         )
       )
     )
-  }
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
     val eltOrd = elementType.unsafeOrdering(missingGreatest)
