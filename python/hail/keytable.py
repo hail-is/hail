@@ -1512,7 +1512,7 @@ class KeyTable(HistoryMixin):
 
         Prune individuals from a dataset, prefering to keep cases over controls.
 
-        >>> vds = hc.import_vcf("data/sample.vcf.bgz")
+        >>> vds = hc.read("data/example.vds")
         >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
         >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
         >>> related_samples_to_keep = (related_pairs
