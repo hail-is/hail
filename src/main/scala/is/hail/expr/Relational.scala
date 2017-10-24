@@ -271,14 +271,13 @@ case class MatrixValue(
       .map(_._2)
     val keepBc = sparkContext.broadcast(keep)
     val localRowType = typ.rowType
-    val localNSamples = nSamples
     copy(localValue =
       localValue.copy(
         sampleIds = keep.map(sampleIds),
         sampleAnnotations = keep.map(sampleAnnotations)),
       rdd2 = rdd2.mapPartitionsPreservesPartitioning(typ.orderedRDD2Type, { it =>
-        var rv2b = new RegionValueBuilder()
-        var rv2 = RegionValue()
+        val rv2b = new RegionValueBuilder()
+        val rv2 = RegionValue()
 
         it.map { rv =>
           rv2b.set(rv.region)
@@ -290,7 +289,6 @@ case class MatrixValue(
 
           rv2b.startArray(keepBc.value.length)
           val gst = localRowType.fieldType(3).asInstanceOf[TArray]
-          val gt = gst.elementType
           val aoff = localRowType.loadField(rv, 3)
           var i = 0
           val length = keepBc.value.length
@@ -379,7 +377,6 @@ case class MatrixRead(
   }
 
   def execute(hc: HailContext): MatrixValue = {
-    val metadata = fileMetadata.metadata
     val localValue =
       if (dropSamples)
         fileMetadata.localValue.dropSamples()
@@ -398,8 +395,8 @@ case class MatrixRead(
         if (dropSamples) {
           val localRowType = typ.rowType
           rdd = rdd.mapPartitionsPreservesPartitioning(typ.orderedRDD2Type, { it =>
-            var rv2b = new RegionValueBuilder()
-            var rv2 = RegionValue()
+            val rv2b = new RegionValueBuilder()
+            val rv2 = RegionValue()
 
             it.map { rv =>
               rv2b.set(rv.region)

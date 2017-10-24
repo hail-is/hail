@@ -1355,7 +1355,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
           val v = ur.getAs[RK](1)
           val va = ur.get(2)
-          val gs = ur.getAs[Iterable[T]](3)
 
           rv2b.set(rv.region)
           rv2b.start(newRowType)
@@ -1365,7 +1364,8 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           rv2b.addField(localRowType, rv, 2) // va
 
           rv2b.startArray(localNSamples) // gs
-        val gsAOff = localRowType.loadField(rv, 3)
+
+          val gsAOff = localRowType.loadField(rv, 3)
           var i = 0
           while (i < localNSamples) {
             if (gsType.isElementDefined(rv.region, gsAOff, i)) {
