@@ -67,6 +67,13 @@ object Code {
       }
     }
 
+  def apply(cs: Code[_]*): Code[_] =
+    new Code[Unit] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        cs.foreach(_.emit(il))
+      }
+    }
+
   def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] = {
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -92,7 +99,7 @@ object Code {
     a3ct: ClassTag[A3], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))
 
-  def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T], atti: TypeInfo[Array[T]]): Code[Array[T]] = {
+  def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T]): Code[Array[T]] = {
     new Code[Array[T]] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         size.emit(il)
@@ -101,7 +108,7 @@ object Code {
     }
   }
 
-  def whileLoop(condition: Code[Boolean], body: Code[_]): Code[Unit] = {
+  def whileLoop(condition: Code[Boolean], body: Code[_]*): Code[Unit] = {
     new Code[Unit] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         val l1 = new LabelNode
@@ -110,7 +117,7 @@ object Code {
         il += l1
         condition.toConditional.emitConditional(il, l2, l3)
         il += l2
-        body.emit(il)
+        body.foreach(_.emit(il))
         il += new JumpInsnNode(GOTO, l1)
         il += l3
       }
@@ -315,6 +322,10 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def &(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IAND))
 
+  def ^(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IXOR))
+
+  def unary_~(): Code[Int] = lhs ^ const(-1)
+
   def ceq(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPEQ, rhs)
 
   def cne(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPNE, rhs)
@@ -355,9 +366,13 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def <<(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHL))
 
-  def >>>(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LUSHR))
+  def >>>(rhs: Code[Int]): Code[Long] = Code(lhs, rhs, new InsnNode(LUSHR))
 
   def &(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LAND))
+
+  def ^(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LXOR))
+
+  def unary_~(): Code[Long] = lhs ^ const(-1L)
 
   def toI: Code[Int] = Code(lhs, new InsnNode(L2I))
 
