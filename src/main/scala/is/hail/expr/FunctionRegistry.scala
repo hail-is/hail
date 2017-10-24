@@ -1690,6 +1690,15 @@ object FunctionRegistry {
       if (! (min < max))
         fatal(s"min must be less than max in call to uniroot, got: min $min, max $max")
 
+      val fmin = f(min)
+      val fmax = f(max)
+
+      if (fmin == null || fmax == null)
+        fatal(s"result of f($x) missing in call to uniroot")
+
+      if (fmin.asInstanceOf[Double] * fmax.asInstanceOf[Double] > 0.0)
+        fatal(s"sign of endpoints must have opposite signs, got: f(min) = $fmin, f(max) = $fmax")
+
       val y = f(x)
       if (y == null)
         fatal(s"result of f($x) missing in call to uniroot")
@@ -1701,7 +1710,9 @@ object FunctionRegistry {
     }): java.lang.Double
   },
     """
-       Search the interval from min to max to find a root of the given function.  min must be less than max.  The function is assumed continuous.
+       Search the interval from min to max to find a root of the given function.  min must be less than max.
+       The value of the function on the endpoints must have opposite signs.  The function is assumed continuous.
+       uniroot performs a maximum of 1000 iterations.
 
        .. code-block:: text
            :emphasize-lines: 2
