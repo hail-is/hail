@@ -130,11 +130,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     typ match {
       case t: TArray => Code(
         elementsOffset := elementsOffset + t.elementByteSize,
-        new Code[Unit] {
-          def emit(il: Growable[AbstractInsnNode]): Unit = {
-            il += new IincInsnNode(idx.i, 1)
-          }
-        }
+        idx++
       )
       case t: TStruct => {
         staticIdx += 1

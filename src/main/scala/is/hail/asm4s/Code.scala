@@ -518,6 +518,18 @@ class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) {
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
 }
 
+class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {
+  def +=(i: Int): Code[Unit] = {
+    new Code[Unit] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        il += new IincInsnNode(v.i, i)
+      }
+    }
+  }
+
+  def ++(): Code[Unit] = +=(1)
+}
+
 class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
   def isStatic: Boolean = Modifier.isStatic(f.getModifiers)
 
