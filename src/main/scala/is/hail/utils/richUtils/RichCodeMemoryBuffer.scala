@@ -55,6 +55,26 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
     region.invoke[Long, Boolean]("loadBoolean", off)
   }
 
+  def loadInt(off: Code[Long]): Code[Int] = {
+    region.invoke[Long, Int]("loadInt", off)
+  }
+
+  def loadLong(off: Code[Long]): Code[Long] = {
+    region.invoke[Long, Long]("loadLong", off)
+  }
+
+  def loadFloat(off: Code[Long]): Code[Float] = {
+    region.invoke[Long, Float]("loadFloat", off)
+  }
+
+  def loadDouble(off: Code[Long]): Code[Double] = {
+    region.invoke[Long, Double]("loadDouble", off)
+  }
+
+  def loadAddress(off: Code[Long]): Code[Long] = {
+    region.invoke[Long, Long]("loadAddress", off)
+  }
+
   def loadBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Boolean] = {
     region.invoke[Long, Long, Boolean]("loadBit", byteOff, bitOff)
   }
