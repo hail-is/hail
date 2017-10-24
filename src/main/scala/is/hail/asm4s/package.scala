@@ -11,10 +11,13 @@ import org.objectweb.asm.tree._
 import scala.collection.generic.Growable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.reflect
 
 package object asm4s {
 
-  trait TypeInfo[T] {
+  def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
+
+  abstract class TypeInfo[T : ClassTag] {
     val name: String
     val iname: String = name
     val loadOp: Int
@@ -25,9 +28,10 @@ package object asm4s {
     val slots: Int = 1
 
     def newArray(): AbstractInsnNode
+    def classTag: ClassTag[T] = reflect.classTag
   }
 
-  sealed trait MaybeGenericTypeInfo[T] extends TypeInfo[T] {
+  sealed abstract class MaybeGenericTypeInfo[T : TypeInfo] extends TypeInfo[T]()(typeInfo[T].classTag) {
     def castFromGeneric: Code[_] => Code[T]
     def castToGeneric: Code[T] => Code[_]
 
@@ -35,7 +39,8 @@ package object asm4s {
     val isGeneric: Boolean
   }
 
-  final case class GenericTypeInfo[T](implicit ti: TypeInfo[T]) extends MaybeGenericTypeInfo[T] {
+  final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T] {
+    private val ti = typeInfo[T]
 
     val name = ti.name
     val loadOp = ti.loadOp
@@ -101,7 +106,9 @@ package object asm4s {
 
   }
 
-  final case class NotGenericTypeInfo[T](implicit ti: TypeInfo[T]) extends MaybeGenericTypeInfo[T] {
+  final case class NotGenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T] {
+    private val ti = typeInfo[T]
+
     val name = ti.name
     val loadOp = ti.loadOp
     val storeOp = ti.storeOp
@@ -232,7 +239,12 @@ package object asm4s {
   implicit def arrayInfo[T](implicit cct: ClassTag[Array[T]]): TypeInfo[Array[T]] =
     new ArrayInfo
 
+  implicit def arrayInfo[T](implicit tti: TypeInfo[T]): TypeInfo[Array[T]] =
+    new ArrayInfo(tti)
+
   class ArrayInfo[T](implicit val tct: ClassTag[Array[T]]) extends TypeInfo[Array[T]] {
+    def this(tti: TypeInfo[T]) = this()(tti.classTag.wrap)
+
     val name = Type.getDescriptor(tct.runtimeClass)
     override val iname = Type.getInternalName(tct.runtimeClass)
     val loadOp = ALOAD
