@@ -305,6 +305,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
   def >>>(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IUSHR))
 
   def &(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IAND))
+  def |(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IOR))
+  def xor(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IXOR))
 
   def ceq(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPEQ, rhs)
 
@@ -335,13 +337,16 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def ceq(rhs: Code[Long]): Code[Boolean] = compare(rhs) ceq 0
   def cne(rhs: Code[Long]): Code[Boolean] = compare(rhs) cne 0
 
-  def >>(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHR))
+  def negate(): Code[Long] = Code(lhs, new InsnNode(LNEG))
+
+  def >>(rhs: Code[Int]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHR))
 
   def <<(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHL))
 
   def >>>(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LUSHR))
 
   def &(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LAND))
+  def xor(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LXOR))
 
   def toI: Code[Int] = Code(lhs, new InsnNode(L2I))
   def toL: Code[Long] = lhs
