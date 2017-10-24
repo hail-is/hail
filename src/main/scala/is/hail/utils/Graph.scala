@@ -31,8 +31,12 @@ object Graph {
     maximalIndependentSet(mkGraph(edges))
   }
 
-  def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T]): Array[T] = {
-    val verticesByDegree = new BinaryHeap[T]()
+  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)], tieBreaker: (T, T) => Int): Array[T] = {
+    maximalIndependentSet(mkGraph(edges), Some(tieBreaker))
+  }
+
+  def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T], maybeTieBreaker: Option[(T, T) => Int] = None): Array[T] = {
+    val verticesByDegree = new BinaryHeap[T](maybeTieBreaker = maybeTieBreaker.orNull)
 
     g.foreach { case (v, neighbors) =>
       verticesByDegree.insert(v, neighbors.size)

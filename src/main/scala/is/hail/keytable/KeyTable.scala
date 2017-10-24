@@ -785,7 +785,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
   }
 
-  def maximalIndependentSet(iExpr: String, jExpr: String): Array[Any] = {
+  def maximalIndependentSet(iExpr: String, jExpr: String, tieBreakerExpr: Option[String] = None): Array[Any] = {
     val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
 
     val (iType, iThunk) = Parser.parseExpr(iExpr, ec)
@@ -793,6 +793,16 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     if (iType != jType)
       fatal(s"node expressions must have the same type: type of `i' is $iType, but type of `j' is $jType")
+
+    val tieBreakerEc = EvalContext("l" -> iType, "r" -> iType)
+
+    val maybeTieBreaker = tieBreakerExpr.map { e =>
+      val tieBreakerThunk = Parser.parseTypedExpr[Int](e, tieBreakerEc)
+
+      { (l:Any, r: Any) =>
+        tieBreakerEc.setAll(l, r)
+        tieBreakerThunk() }
+    }.getOrElse(null)
 
     val edgeRdd = mapAnnotations { r =>
       ec.setAllFromRow(r)
@@ -802,7 +812,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     if (edgeRdd.count() > 400000)
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
-    Graph.maximalIndependentSet(edgeRdd.collect())
+    Graph.maximalIndependentSet(edgeRdd.collect(), maybeTieBreaker)
   }
 
   def showString(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true): String = {
