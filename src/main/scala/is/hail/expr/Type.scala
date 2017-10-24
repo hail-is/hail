@@ -1,6 +1,8 @@
 package is.hail.expr
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
+import is.hail.asm4s.Code
+import is.hail.asm4s._
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
 import is.hail.sparkextras.OrderedKey
@@ -69,7 +71,8 @@ object Type {
   def parseMap(s: String): Map[String, Type] = Parser.parseAnnotationTypes(s)
 }
 
-sealed abstract class Type extends Serializable { self =>
+sealed abstract class Type extends Serializable {
+  self =>
 
   def children: Seq[Type] = Seq()
 
@@ -665,17 +668,35 @@ abstract class TContainer extends Type {
       _elementsOffset(length)
   }
 
+  def elementsOffset(length: Code[Int]): Code[Long] = {
+    val alignment = elementType.alignment
+    assert(alignment > 0)
+    assert((alignment & (alignment - 1)) == 0) // power of 2
+    ((((length + 7) >>> 3) + 4).toL + (alignment - 1)) & ~(alignment - 1)
+  }
+
   def contentsByteSize(length: Int): Long =
     elementsOffset(length) + length * elementByteSize
 
+  def contentsByteSize(length: Code[Int]): Code[Long] = {
+    elementsOffset(length) + length.toL * elementByteSize
+  }
+
   def loadLength(region: MemoryBuffer, aoff: Long): Int =
     region.loadInt(aoff)
+
+  def loadLength(region: Code[MemoryBuffer], aoff: Code[Long]): Code[Int] =
+    region.invoke[Long, Int]("loadInt", aoff)
 
   def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
     !region.loadBit(aoff + 4, i)
 
   def setElementMissing(region: MemoryBuffer, aoff: Long, i: Int) {
     region.setBit(aoff + 4, i)
+  }
+
+  def setElementMissing(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
+    region.setBit(aoff + 4L, i.toL)
   }
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
@@ -713,6 +734,18 @@ abstract class TContainer extends Type {
     region.storeInt(aoff, length)
     clearMissingBits(region, aoff, length)
   }
+
+  def initialize(region: Code[MemoryBuffer], aoff: Code[Long], length: Code[Int], a: LocalRef[Int]): Code[Unit] =
+    Code(
+      region.storeInt32(aoff, length),
+      a.store((length + 7) >>> 3),
+      Code.whileLoop(a > 0,
+        Code(
+          a.store(a - 1),
+          region.storeByte(aoff + 4L + a.toL, const(0))
+        )
+      )
+    )
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
     val eltOrd = elementType.unsafeOrdering(missingGreatest)
@@ -1857,7 +1890,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
     val bp = new BytePacker()
 
-    val nMissingBytes: Long = (size + 7) / 8
+    val nMissingBytes: Long = (size + 7) >>> 3
     var offset = nMissingBytes
     fields.foreach { f =>
       val fSize = f.typ.byteSize
@@ -1903,7 +1936,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   }
 
   def clearMissingBits(region: MemoryBuffer, off: Long) {
-    val nMissingBytes = (size + 7) / 8
+    val nMissingBytes = (size + 7) >>> 3
     var i = 0
     while (i < nMissingBytes) {
       region.storeByte(off + i, 0)
@@ -1911,11 +1944,26 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
+  def clearMissingBits(region: Code[MemoryBuffer], off: Code[Long]): Code[Unit] = {
+    var c: Code[Unit] = Code._empty
+    val nMissingBytes = (size + 7) >>> 3
+    var i = 0
+    while (i < nMissingBytes) {
+      c = Code(c, region.storeByte(off + i.toLong, const(0)))
+      i += 1
+    }
+    c
+  }
+
   def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =
     !region.loadBit(offset, fieldIdx)
 
   def setFieldMissing(region: MemoryBuffer, offset: Long, fieldIdx: Int) {
     region.setBit(offset, fieldIdx)
+  }
+
+  def setFieldMissing(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Code[Int]): Code[Unit] = {
+    region.setBit(offset, fieldIdx.toL)
   }
 
   def fieldOffset(offset: Long, fieldIdx: Int): Long =

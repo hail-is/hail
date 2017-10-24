@@ -311,6 +311,8 @@ package object asm4s {
 
   implicit def toCodeObject[T >: Null](f: LocalRef[T])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CodeObject[T] = new CodeObject[T](f.load())
 
+  implicit def toLocalRefInt(f: LocalRef[Int]): LocalRefInt = new LocalRefInt(f)
+
   implicit def const(s: String): Code[String] = Code(new LdcInsnNode(s))
 
   implicit def const(b: Boolean): Code[Boolean] = Code(new LdcInsnNode(if (b) 1 else 0))

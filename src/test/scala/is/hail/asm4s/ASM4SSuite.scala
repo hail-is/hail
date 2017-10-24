@@ -32,6 +32,14 @@ class ASM4SSuite extends TestNGSuite {
     assert(f(-2) == 3)
   }
 
+  @Test def iinc(): Unit = {
+    val fb = functionBuilder[Int]
+    val l = fb.newLocal[Int]
+    fb.emit(_return(Code(l := 0, l++, l += 2, l)))
+    val f = fb.result()()
+    assert(f() == 3)
+  }
+
   @Test def array(): Unit = {
     val hb = functionBuilder[Int, Int]
     val arr = hb.newLocal[Array[Int]]()
