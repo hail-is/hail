@@ -161,15 +161,23 @@ object Code {
     new TypeInsnNode(CHECKCAST, Type.getInternalName(tct.runtimeClass)))
 
   def boxBoolean(cb: Code[Boolean]): Code[java.lang.Boolean] = Code.newInstance[java.lang.Boolean, Boolean](cb)
+
   def boxInt(ci: Code[Int]): Code[java.lang.Integer] = Code.newInstance[java.lang.Integer, Int](ci)
+
   def boxLong(cl: Code[Long]): Code[java.lang.Long] = Code.newInstance[java.lang.Long, Long](cl)
+
   def boxFloat(cf: Code[Float]): Code[java.lang.Float] = Code.newInstance[java.lang.Float, Float](cf)
+
   def boxDouble(cd: Code[Double]): Code[java.lang.Double] = Code.newInstance[java.lang.Double, Double](cd)
 
   def booleanValue(x: Code[java.lang.Boolean]): Code[Boolean] = x.invoke[Boolean]("booleanValue")
+
   def intValue(x: Code[java.lang.Number]): Code[Int] = x.invoke[Int]("intValue")
+
   def longValue(x: Code[java.lang.Number]): Code[Long] = x.invoke[Long]("longValue")
+
   def floatValue(x: Code[java.lang.Number]): Code[Float] = x.invoke[Float]("floatValue")
+
   def doubleValue(x: Code[java.lang.Number]): Code[Double] = x.invoke[Double]("doubleValue")
 }
 
@@ -188,7 +196,8 @@ trait Code[+T] {
     }
 }
 
-trait CodeConditional extends Code[Boolean] { self =>
+trait CodeConditional extends Code[Boolean] {
+  self =>
   def emit(il: Growable[AbstractInsnNode]): Unit = {
     val lafter = new LabelNode
     val ltrue = new LabelNode
@@ -313,9 +322,13 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
   def negate(): Code[Int] = Code(lhs, new InsnNode(INEG))
 
   def toI: Code[Int] = lhs
+
   def toL: Code[Long] = Code(lhs, new InsnNode(I2L))
+
   def toF: Code[Float] = Code(lhs, new InsnNode(I2F))
+
   def toD: Code[Double] = Code(lhs, new InsnNode(I2D))
+
   def toB: Code[Byte] = Code(lhs, new InsnNode(I2B))
 }
 
@@ -331,8 +344,11 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def compare(rhs: Code[Long]): Code[Int] = Code(lhs, rhs, new InsnNode(LCMP))
 
   def <(rhs: Code[Long]): Code[Boolean] = compare(rhs) < 0
+
   def >(rhs: Code[Long]): Code[Boolean] = compare(rhs) > 0
+
   def ceq(rhs: Code[Long]): Code[Boolean] = compare(rhs) ceq 0
+
   def cne(rhs: Code[Long]): Code[Boolean] = compare(rhs) cne 0
 
   def >>(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHR))
@@ -344,8 +360,11 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def &(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LAND))
 
   def toI: Code[Int] = Code(lhs, new InsnNode(L2I))
+
   def toL: Code[Long] = lhs
+
   def toF: Code[Float] = Code(lhs, new InsnNode(L2F))
+
   def toD: Code[Double] = Code(lhs, new InsnNode(L2D))
 }
 
@@ -371,8 +390,11 @@ class CodeFloat(val lhs: Code[Float]) extends AnyVal {
   def cne(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPL)).cne(0)
 
   def toI: Code[Int] = Code(lhs, new InsnNode(F2I))
+
   def toL: Code[Long] = Code(lhs, new InsnNode(F2L))
+
   def toF: Code[Float] = lhs
+
   def toD: Code[Double] = Code(lhs, new InsnNode(F2D))
 }
 
@@ -398,8 +420,11 @@ class CodeDouble(val lhs: Code[Double]) extends AnyVal {
   def cne(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPL)).cne(0)
 
   def toI: Code[Int] = Code(lhs, new InsnNode(D2I))
+
   def toL: Code[Long] = Code(lhs, new InsnNode(D2L))
+
   def toF: Code[Float] = Code(lhs, new InsnNode(D2F))
+
   def toD: Code[Double] = lhs
 }
 
@@ -442,13 +467,13 @@ object Invokeable {
   def lookupMethod[T, S](method: String, parameterTypes: Array[Class[_]])(implicit tct: ClassTag[T], sct: ClassTag[S]): Invokeable[T, S] = {
     val m = tct.runtimeClass.getMethod(method, parameterTypes: _*)
     assert(m != null,
-      s"no such method ${tct.runtimeClass.getName}.$method(${
+      s"no such method ${ tct.runtimeClass.getName }.$method(${
         parameterTypes.map(_.getName).mkString(", ")
       })")
 
     // generic type parameters return java.lang.Object instead of the correct class
     assert(m.getReturnType.isAssignableFrom(sct.runtimeClass),
-      s"when invoking ${tct.runtimeClass.getName}.$method(): ${m.getReturnType.getName}: wrong return type ${sct.runtimeClass.getName}")
+      s"when invoking ${ tct.runtimeClass.getName }.$method(): ${ m.getReturnType.getName }: wrong return type ${ sct.runtimeClass.getName }")
 
     Invokeable(m)
   }
@@ -456,7 +481,7 @@ object Invokeable {
   def lookupConstructor[T](parameterTypes: Array[Class[_]])(implicit tct: ClassTag[T]): Invokeable[T, Unit] = {
     val c = tct.runtimeClass.getDeclaredConstructor(parameterTypes: _*)
     assert(c != null,
-      s"no such method ${tct.runtimeClass.getName}(${
+      s"no such method ${ tct.runtimeClass.getName }(${
         parameterTypes.map(_.getName).mkString(", ")
       })")
 
@@ -465,11 +490,11 @@ object Invokeable {
 }
 
 class Invokeable[T, S](val name: String,
-                       val isStatic: Boolean,
-                       val isInterface: Boolean,
-                       val invokeOp: Int,
-                       val descriptor: String,
-                       val concreteReturnType: Class[_])(implicit tct: ClassTag[T], sct: ClassTag[S]) {
+  val isStatic: Boolean,
+  val isInterface: Boolean,
+  val invokeOp: Int,
+  val descriptor: String,
+  val concreteReturnType: Class[_])(implicit tct: ClassTag[T], sct: ClassTag[S]) {
   def invoke(lhs: Code[T], args: Array[Code[_]]): Code[S] =
     new Code[S] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -491,7 +516,7 @@ object FieldRef {
   def apply[T, S](field: String)(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S]): FieldRef[T, S] = {
     val f = tct.runtimeClass.getDeclaredField(field)
     assert(f.getType == sct.runtimeClass,
-      s"when getting field ${tct.runtimeClass.getName}.$field: ${f.getType.getName}: wrong type ${sct.runtimeClass.getName} ")
+      s"when getting field ${ tct.runtimeClass.getName }.$field: ${ f.getType.getName }: wrong type ${ sct.runtimeClass.getName } ")
 
     new FieldRef(f)
   }
@@ -567,18 +592,18 @@ class CodeObject[T >: Null](val lhs: Code[T])(implicit tct: ClassTag[T], tti: Ty
     FieldRef[T, S](field).put(lhs, rhs)
 
   def invoke[S](method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])
-               (implicit sct: ClassTag[S]): Code[S] =
+    (implicit sct: ClassTag[S]): Code[S] =
     Invokeable.lookupMethod[T, S](method, parameterTypes).invoke(lhs, args)
 
   def invoke[S](method: String)(implicit sct: ClassTag[S]): Code[S] =
     invoke[S](method, Array[Class[_]](), Array[Code[_]]())
 
   def invoke[A1, S](method: String, a1: Code[A1])(implicit a1ct: ClassTag[A1],
-                                                  sct: ClassTag[S]): Code[S] =
+    sct: ClassTag[S]): Code[S] =
     invoke[S](method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
 
   def invoke[A1, A2, S](method: String, a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
-                                                                    sct: ClassTag[S]): Code[S] =
+    sct: ClassTag[S]): Code[S] =
     invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
 
   def invoke[A1, A2, A3, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3])

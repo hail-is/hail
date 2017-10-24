@@ -130,14 +130,13 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     typ match {
       case t: TArray => Code(
         elementsOffset := elementsOffset + t.elementByteSize,
-        idx++
+        idx ++
       )
-      case t: TStruct => {
+      case t: TStruct =>
         staticIdx += 1
         if (staticIdx < t.size)
           elementsOffset.store(startOffset + t.byteOffsets(staticIdx))
         else _empty
-      }
     }
   }
 
