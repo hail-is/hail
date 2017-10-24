@@ -1393,6 +1393,7 @@ class KeyTable(object):
         >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
         >>> related_samples_to_keep = (related_pairs
         ...   .key_by("i").join(vds.samples_table()).annotate('iAndCase = { id: i, isCase: sa.isCase }')
+        ...   .select(['j', 'iAndCase'])
         ...   .key_by("j").join(vds.samples_table()).annotate('jAndCase = { id: j, isCase: sa.isCase }')
         ...   .select(['iAndCase', 'jAndCase'])
         ...   .maximal_independent_set("iAndCase", "jAndCase",
