@@ -1,9 +1,11 @@
 package is.hail
 
+import java.io.InputStream
 import java.util.Properties
 
-import is.hail.annotations.Annotation
+import is.hail.annotations._
 import is.hail.expr.{EvalContext, Parser, TStruct, Type, _}
+import is.hail.io.{Decoder, LZ4InputBuffer}
 import is.hail.io.bgen.BgenLoader
 import is.hail.io.gen.{GenLoader, GenReport}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
@@ -13,19 +15,22 @@ import is.hail.methods.DuplicateReport
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
 import is.hail.variant.{GenericDataset, Genotype, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
-import org.apache.spark.deploy.SparkHadoopUtil
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
+import org.apache.spark._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
 
+import scala.reflect.ClassTag
+
 object HailContext {
 
-  val tera = 1024L * 1024L * 1024L * 1024L
+  val tera: Long = 1024L * 1024L * 1024L * 1024L
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
 
@@ -180,6 +185,33 @@ object HailContext {
 
     info(s"Running Hail version ${hc.version}")
     hc
+  }
+  
+  def readRowsPartition(t: TStruct)(i: Int, in: InputStream): Iterator[RegionValue] = {
+    new Iterator[RegionValue] {
+      val region = MemoryBuffer()
+      val rv = RegionValue(region)
+
+      val dec = new Decoder(new LZ4InputBuffer(in))
+
+      var cont: Byte = dec.readByte()
+
+      def hasNext: Boolean = cont != 0
+
+      def next(): RegionValue = {
+        if (!hasNext)
+          throw new NoSuchElementException("next on empty iterator")
+
+        region.clear()
+        rv.setOffset(dec.readRegionValue(t, region))
+
+        cont = dec.readByte()
+        if (cont == 0)
+          in.close()
+
+        rv
+      }
+    }
   }
 }
 
@@ -484,6 +516,39 @@ class HailContext private(val sc: SparkContext,
   def writePartitioning(path: String) {
     VariantSampleMatrix.writePartitioning(sqlContext, path)
   }
+
+  def readPartitions[T: ClassTag](
+    path: String,
+    nPartitions: Int,
+    read: (Int, InputStream) => Iterator[T],
+    optPartitioner: Option[Partitioner] = None): RDD[T] = {
+    
+    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+    val d = digitsNeeded(nPartitions)
+
+    new RDD[T](sc, Nil) {
+      def getPartitions: Array[Partition] =
+        Array.tabulate(nPartitions)(i =>
+          new Partition { def index: Int = i } )
+
+      override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+        val i = split.index
+        val is = i.toString
+        assert(is.length <= d)
+        val pis = StringUtils.leftPad(is, d, "0")
+
+        val filename = path + "/parts/part-" + pis
+        val in = sHadoopConfBc.value.value.unsafeReader(filename)
+
+        read(i, in)
+      }
+
+      @transient override val partitioner: Option[Partitioner] = optPartitioner
+    }
+  }
+
+  def readRows(path: String, t: TStruct, nPartitions: Int): RDD[RegionValue] =
+    readPartitions(path, nPartitions, HailContext.readRowsPartition(t))
 
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,

@@ -16,7 +16,7 @@ class GridPartitionerSuite extends TestNGSuite {
 
   @Test
   def untransposedSquareIsColumnMajor() {
-    assertLayout(GridPartitioner(4, 4, 2),
+    assertLayout(GridPartitioner(2, 4, 4),
       (0, 0) -> 0,
       (1, 0) -> 1,
       (0, 1) -> 2,
@@ -26,7 +26,7 @@ class GridPartitionerSuite extends TestNGSuite {
 
   @Test
   def untransposedRectangleMoreRowsIsColumnMajor() {
-    assertLayout(GridPartitioner(6, 4, 2),
+    assertLayout(GridPartitioner(2, 6, 4),
       (0, 0) -> 0,
       (1, 0) -> 1,
       (2, 0) -> 2,
@@ -38,7 +38,7 @@ class GridPartitionerSuite extends TestNGSuite {
 
   @Test
   def untransposedRectangleMoreColsIsColumnMajor() {
-    assertLayout(GridPartitioner(4, 6, 2),
+    assertLayout(GridPartitioner(2, 4, 6),
       (0, 0) -> 0,
       (1, 0) -> 1,
       (0, 1) -> 2,
@@ -50,7 +50,7 @@ class GridPartitionerSuite extends TestNGSuite {
 
   @Test
   def transposedSquare() {
-    assertLayout(GridPartitioner(4, 4, 2, transposed=true),
+    assertLayout(GridPartitioner(2, 4, 4, transposed=true),
       (0, 0) -> 0,
       (1, 0) -> 2,
       (0, 1) -> 1,
@@ -60,7 +60,7 @@ class GridPartitionerSuite extends TestNGSuite {
 
   @Test
   def transposedRectangleMoreRows() {
-    assertLayout(GridPartitioner(6, 4, 2, transposed=true),
+    assertLayout(GridPartitioner(2, 6, 4, transposed=true),
       // 0 1
       // 2 3
       // 4 5
@@ -75,7 +75,7 @@ class GridPartitionerSuite extends TestNGSuite {
 
   @Test
   def transposedRectangleMoreCols() {
-    assertLayout(GridPartitioner(4, 6, 2, transposed=true),
+    assertLayout(GridPartitioner(2, 4, 6, transposed=true),
       // 0 1 2
       // 3 4 5
       (0, 0) -> 0,
@@ -86,5 +86,4 @@ class GridPartitionerSuite extends TestNGSuite {
       (1, 2) -> 5
     )
   }
-
 }

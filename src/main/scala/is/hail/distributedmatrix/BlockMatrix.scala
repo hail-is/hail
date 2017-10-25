@@ -5,7 +5,7 @@ import java.io._
 import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail._
 import is.hail.utils._
-import org.apache.hadoop.io._
+import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.spark._
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
@@ -21,7 +21,7 @@ object BlockMatrix {
 
   def from(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
     assertCompatibleLocalMatrix(lm)
-    val partitioner = GridPartitioner(lm.rows, lm.cols, blockSize)
+    val partitioner = GridPartitioner(blockSize, lm.rows, lm.cols)
     val lmBc = sc.broadcast(lm)
     val rowPartitions = partitioner.rowPartitions
     val colPartitions = partitioner.colPartitions
@@ -63,99 +63,36 @@ object BlockMatrix {
     a.map4(b, c, d, f)
 
   def map2(f: (Double, Double) => Double)(l: M, r: M): M =
-    l.map2(r, f)
-
-  private class PairWriter(var i: Int, var j: Int) extends Writable {
-    def this() {
-      this(0, 0)
-    }
-
-    def write(out: DataOutput) {
-      out.writeInt(i)
-      out.writeInt(j)
-    }
-
-    def readFields(in: DataInput) {
-      i = in.readInt()
-      j = in.readInt()
-    }
-  }
-
-  private class MatrixWriter(var rows: Int, var cols: Int, var a: Array[Double]) extends Writable {
-    def this() {
-      this(0, 0, null)
-    }
-
-    def write(out: DataOutput) {
-      out.writeInt(rows)
-      out.writeInt(cols)
-      var i = 0
-      while (i < rows * cols) {
-        out.writeDouble(a(i))
-        i += 1
-      }
-    }
-
-    def readFields(in: DataInput) {
-      rows = in.readInt()
-      cols = in.readInt()
-      a = new Array[Double](rows * cols)
-      var i = 0
-      while (i < rows * cols) {
-        a(i) = in.readDouble()
-        i += 1
-      }
-    }
-
-    def toDenseMatrix(): BDM[Double] = {
-      new BDM[Double](rows, cols, a)
-    }
-  }
-
+    l.map2(r, f)  
+  
   private val metadataRelativePath = "/metadata.json"
-  private val matrixRelativePath = "/matrix"
-
+  
   /**
-    * Writes the matrix {@code m} to a Hadoop sequence file at location {@code
-    * uri}.
-    *
-    **/
-  def write(dm: M, uri: String) {
-    val hadoop = dm.blocks.sparkContext.hadoopConfiguration
-    hadoop.mkDir(uri)
-
-    dm.blocks.map { case ((i, j), lm) =>
-      (new PairWriter(i, j), new MatrixWriter(lm.rows, lm.cols, lm.toArray))
-    }
-      .saveAsSequenceFile(uri + matrixRelativePath)
-
-    hadoop.writeDataFile(uri + metadataRelativePath) { os =>
-      jackson.Serialization.write(
-        BlockMatrixMetadata(dm.blockSize, dm.rows, dm.cols),
-        os)
-    }
-  }
-
-  /**
-    * Reads a BlockMatrix matrix written by {@code write} at location {@code
-    * uri}.
-    *
+    * Reads a BlockMatrix matrix written by {@code write} at location {@code uri}.
     **/
   def read(hc: HailContext, uri: String): M = {
     val hadoop = hc.hadoopConf
     hadoop.mkDir(uri)
-
-    val blocks = hc.sc.sequenceFile[PairWriter, MatrixWriter](uri + matrixRelativePath).map { case (pw, mw) =>
-      ((pw.i, pw.j), mw.toDenseMatrix())
-    }
-
-    val BlockMatrixMetadata(blockSize, rows, cols) =
-      hadoop.readTextFile(uri + metadataRelativePath) { isr =>
+    
+    val BlockMatrixMetadata(blockSize, rows, cols, transposed) =
+      hadoop.readTextFile(uri + metadataRelativePath) { isr  =>
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
+    
+    val gp = GridPartitioner(blockSize, rows, cols, transposed)    
+    
+    def readBlock(i: Int, is: InputStream): Iterator[((Int, Int), BDM[Double])] = {
+      val dis = new DataInputStream(is)
+      val bdm = RichDenseMatrixDouble.read(dis)
+      dis.close()
 
-    new BlockMatrix(blocks.partitionBy(GridPartitioner(rows, cols, blockSize)), blockSize, rows, cols)
-  }
+      Iterator.single(gp.blockCoordinates(i), bdm)
+    }
+    
+    val blocks = hc.readPartitions(uri, gp.numPartitions, readBlock, Some(gp))
+    
+    new BlockMatrix(blocks, blockSize, rows, cols)
+  } 
 
   private[distributedmatrix] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
     assert(lm.offset == 0, s"${lm.offset}")
@@ -229,7 +166,7 @@ object BlockMatrix {
 }
 
 // must be top-level for Jackson to serialize correctly
-case class BlockMatrixMetadata(blockSize: Int, rows: Long, cols: Long)
+case class BlockMatrixMetadata(blockSize: Int, rows: Long, cols: Long, transposed: Boolean)
 
 class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val blockSize: Int,
@@ -305,6 +242,34 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     require(v.length == cols, s"vector length, ${ v.length }, must equal number of matrix columns, ${ cols }; v: ${v: IndexedSeq[Double]}, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
     mapWithIndex((_, j, x) => x * vBc.value(j.toInt))
+  }
+  
+  /**
+  * Writes the matrix {@code m} to a Hadoop sequence file at location {@code uri}.
+  **/
+  def write(uri: String) {
+    val hadoop = blocks.sparkContext.hadoopConfiguration
+    hadoop.mkDir(uri)
+
+    def writeBlock(i: Int, it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
+      assert(it.hasNext)
+      val (_, bdm) = it.next()
+      assert(!it.hasNext)
+      
+      val dos = new DataOutputStream(os)
+      bdm.write(dos)
+      dos.close()
+      
+      1
+    }
+    
+    blocks.writePartitions(uri, writeBlock)
+    
+    hadoop.writeDataFile(uri + metadataRelativePath) { os =>
+      jackson.Serialization.write(
+        BlockMatrixMetadata(blockSize, rows, cols, partitioner.transposed),
+        os)
+    }
   }
 
   def cache(): this.type = {
@@ -715,7 +680,7 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
   protected def getPartitions: Array[Partition] =
     (0 until nPartitions).map(IntPartition).toArray[Partition]
 
-  private val _partitioner = GridPartitioner(rows, cols, blockSize)
+  private val _partitioner = GridPartitioner(blockSize, rows, cols)
   /** Optionally overridden by subclasses to specify how they are partitioned. */
   @transient override val partitioner: Option[Partitioner] =
     Some(_partitioner)
