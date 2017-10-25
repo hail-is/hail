@@ -69,7 +69,7 @@ object LogisticRegression {
 
       val X = XBc.value.copy
       it.map { case row@(v, (va, gs)) =>
-        RegressionUtils.exprDosages(X(::, -1),
+        RegressionUtils.inputVector(X(::, -1),
           localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, row,
           ec, xf,
           completeSampleIndexBc.value, missingSamples)

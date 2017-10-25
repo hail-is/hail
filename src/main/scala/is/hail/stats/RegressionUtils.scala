@@ -8,7 +8,7 @@ import is.hail.variant.{Genotype, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 
 object RegressionUtils {
-  def exprDosages(x: DenseVector[Double],
+  def inputVector(x: DenseVector[Double],
     globalAnnotation: Annotation, sampleIds: IndexedSeq[Annotation], sampleAnnotations: IndexedSeq[Annotation],
     row: (Annotation, (Annotation, Iterable[Annotation])),
     ec: EvalContext,

@@ -170,7 +170,7 @@ object LinearMixedRegression {
 
         val missingSamples = new ArrayBuilder[Int]()
 
-        RegressionUtils.exprDosages(x,
+        RegressionUtils.inputVector(x,
           localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
           ec, xf,
           completeSampleIndexBc.value, missingSamples)
