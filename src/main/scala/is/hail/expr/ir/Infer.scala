@@ -19,13 +19,20 @@ object Infer {
       }
     }
     ir match {
-      case NA(t) =>
       case I32(x) =>
       case I64(x) =>
       case F32(x) =>
       case F64(x) =>
       case True() =>
       case False() =>
+
+      case NA(t) =>
+      case x@MapNA(name, value, body, _) =>
+        infer(value)
+        infer(body, env = env + (name -> value.typ))
+        x.typ = body.typ
+      case IsNA(v) =>
+        infer(v)
 
       case x@If(cond, cnsq, altr, _) =>
         infer(cond)
@@ -34,10 +41,7 @@ object Infer {
         assert(cond.typ == TBoolean)
         assert(cnsq.typ == altr.typ)
         x.typ = cnsq.typ
-      case x@MapNA(name, value, body, _) =>
-        infer(value)
-        infer(body, env = env + (name -> value.typ))
-        x.typ = body.typ
+
       case x@Let(name, value, body, _) =>
         infer(value)
         infer(body, env = env + (name -> value.typ))
@@ -70,17 +74,17 @@ object Infer {
       case ArrayLen(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TArray])
-      case ArraySet(a, idx, v) =>
-        infer(idx)
-        assert(idx.typ == TInt32)
+      case ArraySet(a, i, v) =>
+        infer(i)
+        assert(i.typ == TInt32)
         infer(a)
         val t = a.typ.asInstanceOf[TArray].elementType
         infer(v)
         assert(v.typ == t)
-      case x@For(value, idx, array, body) =>
+      case x@For(value, i, array, body) =>
         infer(array)
         val t = array.typ.asInstanceOf[TArray].elementType
-        infer(body, env = env + (value -> t) + (idx -> TInt32))
+        infer(body, env = env + (value -> t) + (i -> TInt32))
       case MakeStruct(fields) =>
         fields.map { case (_, typ, v) =>
           infer(v)
