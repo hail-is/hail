@@ -1082,3 +1082,17 @@ class ContextTests(unittest.TestCase):
         from_kt = {(x.v, x.s) : x.g for x in vds.genotypes_table().collect()}
         from_vds = {(x.v, sample_ids[i]) : x.gs[i] for i in range(n_samples) for x in vds.collect()}
         self.assertEqual(from_kt, from_vds)
+
+    def test_union(self):
+        vds = hc.import_vcf('src/test/resources/sample2.vcf')
+        vds_1 = vds.filter_variants_expr('v.start % 2 == 1')
+        vds_2 = vds.filter_variants_expr('v.start % 2 == 0')
+
+        vdses = [vds_1, vds_2]
+        r1 = vds_1.union(vds_2)
+        r2 = vdses[0].union(*vdses[1:])
+        r3 = VariantDataset.union(*vdses)
+
+        self.assertTrue(r1.same(r2))
+        self.assertTrue(r1.same(r3))
+        self.assertTrue(r1.same(vds))
