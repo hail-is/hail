@@ -28,7 +28,7 @@ class CompileSuite {
         seq(
           For("v", "i", Ref("x"),
             Set("sum", ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))),
-          ApplyPrimitive("/", Array(Ref("sum"), ArrayLen(Ref("x")))))))
+          Out(ApplyPrimitive("/", Array(Ref("sum"), ArrayLen(Ref("x"))))))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Double]
     Infer(meanIr)

@@ -21,6 +21,20 @@ object Compile {
     case _ => typeInfo[Long] // reference types
   }
 
+  private def loadAnnotation(region: Code[MemoryBuffer], typ: expr.Type): Code[Long] => Code[_] = typ match {
+    case TInt32 =>
+      region.loadInt(_)
+    case TInt64 =>
+      region.loadLong(_)
+    case TFloat32 =>
+      region.loadFloat(_)
+    case TFloat64 =>
+      region.loadDouble(_)
+    case _ =>
+      off => off
+  }
+
+
   def apply(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], LocalRef[_])]) {
     fb.emit(expression(ir, fb, env))
   }
@@ -80,33 +94,26 @@ object Compile {
         val idx = expression(i).asInstanceOf[Code[Int]]
         val eoff = TArray(typ).loadElement(region, arr, idx)
 
-        typ match {
-          case TInt32 =>
-            region.loadInt(eoff)
-          case TInt64 =>
-            region.loadLong(eoff)
-          case TFloat32 =>
-            region.loadFloat(eoff)
-          case TFloat64 =>
-            region.loadDouble(eoff)
-        }
+        loadAnnotation(region, typ)(eoff)
       case ArrayLen(a) =>
         val arr = expression(a).asInstanceOf[Code[Long]]
 
         TContainer.loadLength(region, arr)
-      case For(value, idx, array, body) => typeToTypeInfo(array.typ.asInstanceOf[TArray].elementType) match { case ti: TypeInfo[t] =>
+      case For(value, idx, array, body) =>
+        val tarray = array.typ.asInstanceOf[TArray]
+        val t = tarray.elementType
+        typeToTypeInfo(t) match { case ti: TypeInfo[t] =>
         implicit val tti: TypeInfo[t] = ti
-        implicit val atti: TypeInfo[Array[t]] = arrayInfo(ti)
-        val a = fb.newLocal[Array[t]]
+        val a = fb.newLocal[Long]
         val i = fb.newLocal[Int]
         val x = fb.newLocal[t]
         val len = fb.newLocal[Int]
         Code(
-          a := expression(array).asInstanceOf[Code[Array[t]]],
+          a := expression(array).asInstanceOf[Code[Long]],
           i := 0,
-          len := a.length(),
+          len := TContainer.loadLength(region, a),
           Code.whileLoop(i < len,
-            x.store(a(i)),
+            x.store(loadAnnotation(region, t)(tarray.loadElement(region, a, i)).asInstanceOf[Code[t]]),
             expression(body, env = env + (value -> (ti, x)) + (idx -> (typeInfo[Int], i))),
             i := i + 1))
       }
