@@ -2858,7 +2858,7 @@ class VariantDataset(HistoryMixin):
 
         Fixing a single variant, we define:
 
-        - :math:`v = n \\times 1` vector of genotypes, with missing genotypes imputed as the mean of called genotypes
+        - :math:`v = n \\times 1` input vector, with missing values imputed as the mean of the non-missing values
         - :math:`X_v = \\left[v | X \\right] = n \\times (1 + c)` matrix concatenating :math:`v` and :math:`X`
         - :math:`\\beta_v = (\\beta^0_v, \\beta^1_v, \\ldots, \\beta^c_v) = (1 + c) \\times 1` vector of covariate coefficients
 
@@ -2954,7 +2954,7 @@ class VariantDataset(HistoryMixin):
 
         Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao score test ('score'),
         and Firth test ('firth'). Hail only includes samples for which the phenotype and all covariates are
-        defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
+        defined. For each variant, Hail imputes missing input values as the mean of the non-missing values.
 
         The example above considers a model of the form
 
@@ -3036,7 +3036,7 @@ class VariantDataset(HistoryMixin):
 
         For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
 
-        Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`__. For each variant, Hail imputes missing genotypes as the mean of called genotypes, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
+        Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`__. For each variant, Hail imputes missing input values as the mean of non-missing input values, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
 
         :param str test: Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
 
@@ -4573,19 +4573,15 @@ class VariantDataset(HistoryMixin):
                       single_key=bool,
                       weight_expr=strlike,
                       y=strlike,
+                      x=strlike,
                       covariates=listof(strlike),
                       logistic=bool,
-                      use_dosages=bool,
                       max_size=integral,
                       accuracy=numeric,
                       iterations=integral)
-    def skat(self, variant_keys, single_key, weight_expr, y, covariates=[], logistic=False, use_dosages=False,
+    def skat(self, variant_keys, single_key, weight_expr, y, x, covariates=[], logistic=False,
              max_size=46340, accuracy=1e-6, iterations=10000):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -4597,6 +4593,7 @@ class VariantDataset(HistoryMixin):
         ...                    weight_expr='va.weight',
         ...                    single_key=False,
         ...                    y='sa.burden.pheno',
+        ...                    x='g.nNonRefAlleles()',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         .. caution::
@@ -4628,7 +4625,7 @@ class VariantDataset(HistoryMixin):
         <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
         The test is run on complete samples (i.e., phenotype and all covariates non-missing).
-        For each variant, missing genotypes are imputed as the mean of all non-missing genotypes.
+        For each variant, missing input values are imputed as the mean of all non-missing input values.
 
         Variant weights must be non-negative. Variants with missing weights are ignored.
         In the R package ``skat``, default weights are given by evaluating the Beta(1, 25) density at
@@ -4692,12 +4689,12 @@ class VariantDataset(HistoryMixin):
 
         :param str y: Response expression.
 
+        :param str x: expression for input variable
+
         :param covariates: List of covariate expressions.
         :type covariates: List of str
 
         :param bool logistic: If true, use the logistic test rather than the linear test. 
-
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
         :param int max_size: Maximum size of group on which to run the test.
 
@@ -4709,9 +4706,9 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, weight_expr, y,
+        return KeyTable(self.hc, self._jvds.skat(variant_keys, single_key, weight_expr, y, x,
                                                  jarray(Env.jvm().java.lang.String, covariates),
-                                                 logistic, use_dosages, max_size, accuracy, iterations))
+                                                 logistic, max_size, accuracy, iterations))
 
     @handle_py4j
     @record_method

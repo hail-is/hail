@@ -375,18 +375,18 @@ class ContextTests(unittest.TestCase):
         (skatVds.skat(variant_keys='va.genes',
                       single_key=False,
                       y='sa.pheno',
+                      x='g.nNonRefAlleles()',
                       covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
                       weight_expr='va.weight',
-                      logistic=False,
-                      use_dosages=False).count())
+                      logistic=False).count())
 
         (skatVds.skat(variant_keys='va.genes',
                       single_key=False,
                       y='sa.pheno',
+                      x='plDosage(g.pl)',
                       covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
                       weight_expr='va.weight',
-                      logistic=True,
-                      use_dosages=True).count())
+                      logistic=True).count())
 
         vds_kinship = vds_assoc.filter_variants_expr('v.start < 4')
 
