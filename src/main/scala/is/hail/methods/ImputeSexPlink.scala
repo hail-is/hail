@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.stats.InbreedingCombiner
 import is.hail.utils._
-import is.hail.variant.{Genotype, VariantDataset}
+import is.hail.variant.{GenomeReference, Genotype, Locus, VariantDataset}
 
 object ImputeSexPlink {
 
@@ -41,12 +41,15 @@ object ImputeSexPlink {
       }
     }
 
-    vds.filterVariants { case (v, _, _) =>
-      if (!includePar)
-        v.inXNonPar
-      else
-        v.contig == "X" || v.contig == "23" || v.contig == "25"
-    }
+    val gr = GenomeReference.GRCh37
+
+    val xIntervals = IntervalTree(gr.xContigs.map(contig => Interval(Locus(contig, 0), Locus(contig, gr.contigLength(contig)))).toArray)
+    var xVds = vds.filterIntervals(xIntervals, keep = true)
+
+    if (!includePar)
+      xVds = xVds.filterIntervals(IntervalTree(gr.par), keep = false)
+
+    xVds
       .mapAnnotations(TFloat64, { case (v, va, gs) =>
         query.map(_.apply(va))
           .getOrElse {
