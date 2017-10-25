@@ -842,7 +842,7 @@ final case class TArray(elementType: Type, elementsRequired: Boolean = false) ex
     if (elementType == elementType.fundamentalType)
       this
     else
-      TArray(elementType.fundamentalType)
+      TArray(elementType.fundamentalType, elementsRequired)
   }
 
   override def toString = s"Array[$elementType]"
@@ -868,7 +868,8 @@ final case class TArray(elementType: Type, elementsRequired: Boolean = false) ex
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
-    a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck))
+    a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck) &&
+    (!elementsRequired || a.asInstanceOf[IndexedSeq[_]].forall(i => {assert(i != null); true})))
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
@@ -908,7 +909,7 @@ final case class TSet(elementType: Type, elementsRequired: Boolean = false) exte
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
-  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType, elementsRequired)
 
   override def toString = s"Set[$elementType]"
 
@@ -925,7 +926,8 @@ final case class TSet(elementType: Type, elementsRequired: Boolean = false) exte
   override def subst() = TSet(elementType.subst())
 
   def typeCheck(a: Any): Boolean =
-    a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck))
+    a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck)) &&
+      (!elementsRequired || a.asInstanceOf[IndexedSeq[_]].forall(i => {assert(i != null); true}))
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Set[")
@@ -981,7 +983,7 @@ final case class TDict(keyType: Type, valueType: Type, elementsRequired: Boolean
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
-  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType, elementsRequired)
 
   override def canCompare(other: Type): Boolean = other match {
     case TDict(okt, ovt, _) => keyType.canCompare(okt) && valueType.canCompare(ovt)
@@ -1013,7 +1015,8 @@ final case class TDict(keyType: Type, valueType: Type, elementsRequired: Boolean
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
-    a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
+    a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) }) &&
+    (!elementsRequired || a.asInstanceOf[Map[_,_]].forall({case (k,v) => {assert(k != null); true}}))
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 

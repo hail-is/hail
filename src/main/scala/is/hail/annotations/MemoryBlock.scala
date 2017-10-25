@@ -626,6 +626,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
       case t: TStruct =>
         t.setFieldMissing(region, offsetstk.top, i)
       case t: TArray =>
+        assert(!t.elementsRequired)
         t.setElementMissing(region, offsetstk.top, i)
     }
 
