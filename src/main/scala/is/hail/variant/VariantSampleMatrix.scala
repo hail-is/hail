@@ -724,7 +724,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
 
     val localRowType = rowType
-    insertIntoRow[UnsafeRow](() => new UnsafeRow(localRowType))(
+    insertIntoRow(() => new UnsafeRow(localRowType))(
       newVASignature, List("va"), { (ur, rv, rvb) =>
         ur.set(rv)
         

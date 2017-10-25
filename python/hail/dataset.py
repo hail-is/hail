@@ -4768,13 +4768,14 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(propagate_gq=bool,
+    @typecheck_method(variant_expr=oneof(strlike, listof(strlike)),
+                      genotype_expr=oneof(strlike, listof(strlike)),
                       keep_star_alleles=bool,
-                      max_shift=integral)
-    def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
+                      left_aligned=bool)
+    # FIXME default split for HTS genotype + GP
+    def split_multi(self, variant_expr='', genotype_expr='', keep_star_alleles=False, left_aligned=False):
+        # FIXME update docs
         """Split multiallelic variants.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -4898,7 +4899,13 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.splitMulti(propagate_gq, keep_star_alleles, max_shift)
+        if isinstance(variant_expr, list):
+            variant_expr = ",".join(variant_expr)
+
+        if isinstance(genotype_expr, list):
+            genotype_expr = ",".join(genotype_expr)
+
+        jvds = self._jvdf.splitMulti(variant_expr, genotype_expr, keep_star_alleles, left_aligned)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

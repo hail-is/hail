@@ -78,6 +78,10 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
     vds.mapAnnotations(finalType, { case (v, va, gs) =>
 
+      // FIXME
+      val annotations: Array[Array[Any]] = ???
+
+      /*
       val annotations = SplitMulti.split(v, va, gs,
         propagateGQ = propagateGQ,
         keepStar = true,
@@ -90,7 +94,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
             ec.setAll(localGlobalAnnotation, v, va)
             aggregateOption.foreach(f => f(v, va, gs))
             f()
-        }).toArray
+        }).toArray */
 
       inserters.zipWithIndex.foldLeft(va) {
         case (va, (inserter, i)) =>
@@ -432,16 +436,13 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     KinshipMatrix(vds.hc, vds.sSignature, rrm, vds.sampleIds.toArray, m)
   }
 
+  def splitMulti(keepStar: Boolean = false, leftAligned: Boolean = false): VariantDataset = {
+    ???
+  }
 
-  /**
-    *
-    * @param propagateGQ Propagate GQ instead of computing from PL
-    * @param keepStar Do not filter * alleles
-    * @param maxShift Maximum possible position change during minimum representation calculation
-    */
-  def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false,
-    maxShift: Int = 100): VariantDataset = {
-    SplitMulti(vds, propagateGQ, keepStar, maxShift)
+  def splitMulti(variantExpr: String, genotypeExpr: String, keepStar: Boolean = false, leftAligned: Boolean = false): VariantDataset = {
+    val splitmulti = new SplitMulti(vds, variantExpr, genotypeExpr, keepStar, leftAligned)
+    splitmulti.split()
   }
 
   def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {
