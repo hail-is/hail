@@ -184,19 +184,6 @@ object UnsafeRow {
     a
   }
 
-  def readArrayInt(region: MemoryBuffer, aoff: Long): Array[Int] = {
-    val t = tArrayInt32
-
-    val length = region.loadInt(aoff)
-    val a = new Array[Int](length)
-    var i = 0
-    while (i < length) {
-      a(i) = region.loadInt(t.loadElement(region, aoff, length, i))
-      i += 1
-    }
-    a
-  }
-
   def read(t: Type, region: MemoryBuffer, offset: Long): Any = {
     t match {
       case TBoolean =>

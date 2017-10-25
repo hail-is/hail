@@ -641,8 +641,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     advance()
   }
 
-  def
-  addInt(i: Int) {
+  def addInt(i: Int) {
     assert(currentType() == TInt32)
     if (typestk.isEmpty)
       allocateRoot()
