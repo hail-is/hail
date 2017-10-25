@@ -225,6 +225,13 @@ sealed abstract class Type extends Serializable {
   def fundamentalType: Type = this
 }
 
+case object TUnit extends Type {
+  override def toString = "Unit"
+  override def ordering(missingGreatest: Boolean): Ordering[is.hail.annotations.Annotation] = throw new UnsupportedOperationException("No ordering on Unit")
+  override def scalaClassTag: scala.reflect.ClassTag[_ <: AnyRef] = throw new UnsupportedOperationException("No ClassTag for Unit")
+  override def typeCheck(a: Any): Boolean = throw new UnsupportedOperationException("No elements of Unit")
+}
+
 abstract class ComplexType extends Type {
   val representation: Type
 
