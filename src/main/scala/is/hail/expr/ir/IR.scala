@@ -13,16 +13,16 @@ sealed trait IR extends NewAST {
 
   override def copy(newChildren: IndexedSeq[NewAST]): NewAST = ???
 }
-sealed case class NA(typ: Type) extends IR
-sealed case class MapNA(name: String, value: IR, body: IR, var typ: Type = null) extends IR
-sealed case class IsNA(value: IR) extends IR { val typ = TBoolean }
-
 sealed case class I32(x: Int) extends IR { val typ = TInt32 }
 sealed case class I64(x: Long) extends IR { val typ = TInt64 }
 sealed case class F32(x: Float) extends IR { val typ = TFloat32 }
 sealed case class F64(x: Double) extends IR { val typ = TFloat64 }
 sealed case class True() extends IR { val typ = TBoolean }
 sealed case class False() extends IR { val typ = TBoolean }
+
+sealed case class NA(typ: Type) extends IR
+sealed case class MapNA(name: String, value: IR, body: IR, var typ: Type = null) extends IR
+sealed case class IsNA(value: IR) extends IR { val typ = TBoolean }
 
 sealed case class If(cond: IR, cnsq: IR, altr: IR, var typ: Type = null) extends IR
 
@@ -39,7 +39,7 @@ sealed case class MakeArray(args: Array[IR], var typ: TArray = null) extends IR
 sealed case class MakeArrayN(len: IR, elementType: Type) extends IR { def typ: TArray = TArray(elementType) }
 sealed case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 sealed case class ArrayLen(a: IR) extends IR { val typ = TInt32 }
-sealed case class ArraySet(a: IR, idx: IR, v: IR) extends IR { val typ = TVoid }
+sealed case class ArraySet(a: IR, i: IR, v: IR) extends IR { val typ = TVoid }
 sealed case class For(value: String, idx: String, array: IR, body: IR) extends IR { val typ = TVoid }
 
 sealed case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR { val typ: TStruct = TStruct(fields.map(x => x._1 -> x._2):_*) }

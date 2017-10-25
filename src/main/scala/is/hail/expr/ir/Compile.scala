@@ -34,6 +34,18 @@ object Compile {
       off => off
   }
 
+  private def storeAnnotation(region: Code[MemoryBuffer], typ: expr.Type): (Code[Long], Code[_]) => Code[_] = typ match {
+    case TInt32 =>
+      (off, v) => region.storeInt32(off, v.asInstanceOf[Code[Int]])
+    case TInt64 =>
+      region.loadLong(_)
+    case TFloat32 =>
+      region.loadFloat(_)
+    case TFloat64 =>
+      region.loadDouble(_)
+    case _ =>
+      off => off
+  }
 
   def apply(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], LocalRef[_])]) {
     fb.emit(expression(ir, fb, env))
@@ -44,8 +56,6 @@ object Compile {
     def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: Map[String, (TypeInfo[_], LocalRef[_])] = env): Code[_] =
       Compile.expression(ir, fb, env)
     ir match {
-      case NA(typ) =>
-        ???
       case I32(x) =>
         const(x)
       case I64(x) =>
@@ -58,13 +68,20 @@ object Compile {
         const(true)
       case False() =>
         const(false)
+
+      case NA(typ) =>
+        ???
+      case IsNA(typ) =>
+        ???
+      case MapNA(name, value, body, typ) =>
+        ???
+
       case expr.ir.If(cond, cnsq, altr, typ) =>
         val x = fb.newLocal[Boolean]
 
         Code(x := expression(cond).asInstanceOf[Code[Boolean]],
           x.mux(expression(cnsq), expression(altr)))
-      case MapNA(name, value, body, typ) =>
-        ???
+
       case expr.ir.Let(name, value, body, typ) =>
         // FIXME: value could be a pointer
         fb.newLocal()(typeToTypeInfo(value.typ)) match { case x: LocalRef[t] =>
@@ -99,23 +116,32 @@ object Compile {
         val arr = expression(a).asInstanceOf[Code[Long]]
 
         TContainer.loadLength(region, arr)
-      case For(value, idx, array, body) =>
+      case ArraySet(a, i, v) =>
+        val arrayt = a.typ.asInstanceOf[TArray]
+        val t = arrayt.elementType
+        val arr = expression(a).asInstanceOf[Code[Long]]
+        val idx = expression(i).asInstanceOf[Code[Int]]
+
+        val ptr = arrayt.elementOffsetInRegion(region, arr, idx)
+        val srvb = new StagedRegionValueBuilder(fb, t)
+        srvb.start()
+      case For(value, i, array, body) =>
         val tarray = array.typ.asInstanceOf[TArray]
         val t = tarray.elementType
         typeToTypeInfo(t) match { case ti: TypeInfo[t] =>
         implicit val tti: TypeInfo[t] = ti
         val a = fb.newLocal[Long]
-        val i = fb.newLocal[Int]
+        val idx = fb.newLocal[Int]
         val x = fb.newLocal[t]
         val len = fb.newLocal[Int]
         Code(
           a := expression(array).asInstanceOf[Code[Long]],
-          i := 0,
+          idx := 0,
           len := TContainer.loadLength(region, a),
-          Code.whileLoop(i < len,
-            x.store(loadAnnotation(region, t)(tarray.loadElement(region, a, i)).asInstanceOf[Code[t]]),
-            expression(body, env = env + (value -> (ti, x)) + (idx -> (typeInfo[Int], i))),
-            i := i + 1))
+          Code.whileLoop(idx < len,
+            x.store(loadAnnotation(region, t)(tarray.loadElement(region, a, idx)).asInstanceOf[Code[t]]),
+            expression(body, env = env + (value -> (ti, x)) + (i -> (typeInfo[Int], idx))),
+            idx := idx + 1))
       }
       case MakeStruct(fields) =>
         val t = TStruct(fields.map { case (name, t, _) => (name, t) }: _*)
