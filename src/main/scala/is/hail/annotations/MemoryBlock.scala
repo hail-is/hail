@@ -739,15 +739,15 @@ class RegionValueBuilder(var region: MemoryBuffer) {
         if (t.isElementDefined(fromRegion, fromAOff, i)) {
           t.elementType match {
             case t2: TStruct =>
-              fixupStruct(t2, t.elementOffsetInRegion(toAOff, length, i), fromRegion, t.elementOffsetInRegion(fromAOff, length, i))
+              fixupStruct(t2, t.elementOffset(toAOff, length, i), fromRegion, t.elementOffset(fromAOff, length, i))
 
             case t2: TArray =>
               val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
-              region.storeAddress(t.elementOffsetInRegion(toAOff, length, i), toAOff2)
+              region.storeAddress(t.elementOffset(toAOff, length, i), toAOff2)
 
             case TBinary =>
               val toBOff = fixupBinary(fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
-              region.storeAddress(t.elementOffsetInRegion(toAOff, length, i), toBOff)
+              region.storeAddress(t.elementOffset(toAOff, length, i), toBOff)
 
             case _ =>
           }

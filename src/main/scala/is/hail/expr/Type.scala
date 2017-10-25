@@ -708,20 +708,20 @@ abstract class TContainer extends Type {
     region.setBit(aoff + 4L, i.toL)
   }
 
-  def elementOffsetInRegion(aoff: Long, length: Int, i: Int): Long =
+  def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * elementByteSize
 
   def elementOffsetInRegion(region: MemoryBuffer, aoff: Long, i: Int): Long =
-    elementOffsetInRegion(aoff, region.loadInt(aoff), i)
+    elementOffset(aoff, region.loadInt(aoff), i)
 
-  def elementOffsetInRegion(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
+  def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
     aoff + elementsOffset(length) + i.toL * const(elementByteSize)
 
   def elementOffsetInRegion(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    elementOffsetInRegion(aoff, region.loadInt(aoff), i)
+    elementOffset(aoff, region.loadInt(aoff), i)
 
   def loadElement(region: MemoryBuffer, aoff: Long, length: Int, i: Int): Long = {
-    val off = elementOffsetInRegion(aoff, length, i)
+    val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: TArray | TBinary => region.loadAddress(off)
       case _ => off
@@ -729,7 +729,7 @@ abstract class TContainer extends Type {
   }
 
   def loadElement(region: Code[MemoryBuffer], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
-    val off = elementOffsetInRegion(aoff, length, i)
+    val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: TArray | TBinary => region.loadAddress(off)
       case _ => off
