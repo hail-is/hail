@@ -141,7 +141,6 @@ object VariantSampleMatrix {
       makeKOk = (vSig: Type) => vSig.orderedKey)
       .gen(hc)
 
-
   def checkDatasetSchemasCompatible(datasets: Array[VariantSampleMatrix[Annotation, Annotation, Annotation]]) {
     val first = datasets(0)
     val sampleIds = first.sampleIds

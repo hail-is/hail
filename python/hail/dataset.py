@@ -2709,13 +2709,13 @@ class VariantDataset(HistoryMixin):
         **Notes**
 
         In order to union two datasets, four requirements must be met:
-         - the sample IDs must be identical (order and identity both matter).
-         - the row (variant) schemas must match (field order within structs matters).
+         - the column keys must be identical (both type and identity, field order within structs matters).
+         - the row key and annotation schemas must match (field order within structs matters).
          - the row (variant) annotation schemas must match (field order within structs matters).
          - the cell (genotype) schemas must match (field order within structs matters).
 
-        The sample annotations in the resulting dataset are simply the sample annotations
-        from the first dataset; the sample annotation schemas do not need to match.
+        The column annotations in the resulting dataset are simply the column annotations
+        from the first dataset; the column annotation schemas do not need to match.
 
         This method can trigger a shuffle, if partitions from two datasets overlap.
 
@@ -2728,8 +2728,7 @@ class VariantDataset(HistoryMixin):
         if len(datasets) < 2:
             raise ValueError('Expected at least 2 arguments, found {}'.format(len(datasets)))
 
-        return Env.hail().variant.VariantSampleMatrix.union(list(datasets))
-
+        return VariantDataset(Env.hc(), Env.hail().variant.VariantSampleMatrix.union([d._jvds for d in datasets]))
 
 
     @handle_py4j
