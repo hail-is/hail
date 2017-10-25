@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.utils._
 import is.hail.annotations.MemoryBuffer
 import is.hail.asm4s._
-import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type}
+import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid}
 import is.hail.annotations.StagedRegionValueBuilder
 
 object Infer {
@@ -39,7 +39,7 @@ object Infer {
         infer(cnsq)
         infer(altr)
         assert(cond.typ == TBoolean)
-        assert(cnsq.typ == altr.typ)
+        assert(cnsq.typ == altr.typ, s"${cnsq.typ}, ${altr.typ}")
         x.typ = cnsq.typ
 
       case x@Let(name, value, body, _) =>
@@ -97,7 +97,7 @@ object Infer {
         x.typ = t.field(name).typ
       case x@Seq(stmts, _) =>
         stmts.foreach(infer(_))
-        x.typ = stmts.last.typ
+        x.typ = if (stmts.isEmpty) TVoid else stmts.last.typ
       case In(i, typ) =>
       case Out(v) =>
         infer(v)

@@ -66,15 +66,20 @@ class CompileSuite {
     val meanImputeIr =
       Let("in", In(0, TArray(TFloat64)),
         Let("out", MakeArrayN(ArrayLen(Ref("in")), TFloat64),
-          seq(Let("sum", F64(0),
-            seq(
-              For("v", "i", Ref("in"),
-                Set("sum", ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))),
-              Let("mean", ApplyPrimitive("/", Array(Ref("sum"), ArrayLen(Ref("in")))),
-                For("v", "i", Ref("in"),
-                  If(IsNA(Ref("v")),
-                    ArraySet(Ref("out"), Ref("i"), Ref("mean")),
-                    ArraySet(Ref("out"), Ref("i"), Ref("v"))))))),
+          seq(
+            Let("sum", F64(0),
+              Let("nonMissing", F64(0),
+                seq(
+                  For("v", "i", Ref("in"),
+                    If(IsNA(Ref("v")),
+                      seq(),
+                      seq(Set("nonMissing", ApplyPrimitive("+", Array(Ref("nonMissing"), I32(1)))),
+                        Set("sum", ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))))),
+                  Let("mean", ApplyPrimitive("/", Array(Ref("sum"), Ref("nonMissing"))),
+                    For("v", "i", Ref("in"),
+                      If(IsNA(Ref("v")),
+                        ArraySet(Ref("out"), Ref("i"), Ref("mean")),
+                        ArraySet(Ref("out"), Ref("i"), Ref("v")))))))),
             Out(Ref("out")))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Long]
