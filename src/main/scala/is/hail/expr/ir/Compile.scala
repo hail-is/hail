@@ -22,13 +22,13 @@ object Compile {
   }
 
   def apply(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], LocalRef[_])]) {
-    fb.emit(expression(ir, fb, env, new StagedRegionValueBuilder(fb)))
+    fb.emit(expression(ir, fb, env))
   }
 
-  def expression(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], LocalRef[_])], srvb: StagedRegionValueBuilder): Code[_] = {
+  def expression(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], LocalRef[_])]): Code[_] = {
     val region = fb.getArg[MemoryBuffer](1).load()
     def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: Map[String, (TypeInfo[_], LocalRef[_])] = env): Code[_] =
-      Compile.expression(ir, fb, env, srvb)
+      Compile.expression(ir, fb, env)
     ir match {
       case NA(typ) =>
         ???
@@ -69,49 +69,56 @@ object Compile {
       case expr.ir.Lambda(name, paramTyp, body, typ) =>
         ???
       case MakeArray(args, typ) =>
+        val srvb = new StagedRegionValueBuilder(fb, typ)
+        val addElement = srvb.addAnnotation(typ.elementType)
         Code(
-          srvb.start(TArray(typ), args.length, init = false),
-          Code(args.map(expression(_)).map(srvb.addAnnotation(typ, _)): _*),
-          srvb.build())
+          srvb.start(args.length, init = false),
+          Code(args.map(expression(_)).map(addElement): _*),
+          srvb.offset)
       case ArrayRef(a, i, typ) =>
         val arr = expression(a).asInstanceOf[Code[Long]]
         val idx = expression(i).asInstanceOf[Code[Int]]
+        val eoff = TArray(typ).loadElement(region, arr, idx)
 
         typ match {
           case TInt32 =>
-            region.loadInt(TArray(typ).loadElement(region, arr, idx))
+            region.loadInt(eoff)
           case TInt64 =>
-            region.loadLong(TArray(typ).loadElement(region, arr, idx))
+            region.loadLong(eoff)
           case TFloat32 =>
-            region.loadFloat(TArray(typ).loadElement(region, arr, idx))
+            region.loadFloat(eoff)
           case TFloat64 =>
-            region.loadDouble(TArray(typ).loadElement(region, arr, idx))
+            region.loadDouble(eoff)
         }
       case ArrayLen(a) =>
         val arr = expression(a).asInstanceOf[Code[Long]]
 
         TContainer.loadLength(region, arr)
       case For(value, idx, array, body) => typeToTypeInfo(array.typ.asInstanceOf[TArray].elementType) match { case ti: TypeInfo[t] =>
-        implicit val tti = ti
-        val a = fb.newLocal()(arrayInfo(ti))
-        val vi = fb.newLocal[Int]
+        implicit val tti: TypeInfo[t] = ti
+        implicit val atti: TypeInfo[Array[t]] = arrayInfo(ti)
+        val a = fb.newLocal[Array[t]]
+        val i = fb.newLocal[Int]
+        val x = fb.newLocal[t]
         val len = fb.newLocal[Int]
         Code(
           a := expression(array).asInstanceOf[Code[Array[t]]],
-          vi := 0,
+          i := 0,
           len := a.length(),
-          Code.whileLoop(vi < len,
-            expression(body, env = env + (value -> (ti, a(vi))) + (idx -> (typeInfo[Int], vi))),
-            vi := vi + 1))
+          Code.whileLoop(i < len,
+            x.store(a(i)),
+            expression(body, env = env + (value -> (ti, x)) + (idx -> (typeInfo[Int], i))),
+            i := i + 1))
       }
       case MakeStruct(fields) =>
         val t = TStruct(fields.map { case (name, t, _) => (name, t) }: _*)
         val initializers = fields.map { case (_, t, v) => (t, expression(v)) }
+        val srvb = new StagedRegionValueBuilder(fb, t)
 
         Code(
-          srvb.start(t),
-          Code(initializers.map { case (t, v) => srvb.addAnnotation(t, v) }: _*),
-          srvb.build())
+          srvb.start(false),
+          Code(initializers.map { case (t, v) => srvb.addAnnotation(t)(v) }: _*),
+          srvb.offset)
       case GetField(o, name, _) =>
         val t = o.typ.asInstanceOf[TStruct]
         val struct = expression(o).asInstanceOf[Code[Long]]
