@@ -1281,7 +1281,7 @@ def ADsplit(ad:String,gt:String)={
     """,
     "ad" -> "ad comma separates.",
     "gt" -> "geno type")
-}
+
 
   def ToGenotype(gt:Int)={
     gt match {
@@ -1296,7 +1296,7 @@ def ADsplit(ad:String,gt:String)={
     remove dot
     """,
     "gt" -> "agt")
-}
+
 
 
   register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
