@@ -1,8 +1,9 @@
 package is.hail.io.bgen
 
 import is.hail.annotations._
+import is.hail.expr.TString
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, VariantDataset}
+import is.hail.variant.{ArrayGenotypeView, Locus, Variant, VariantSampleMatrix}
 
 object BgenWriter {
   val ploidy: Byte = 2
@@ -27,7 +28,7 @@ object BgenWriter {
     bb(pos + 3) = ((i >>> 24) & 0xff).toByte
   }
 
-  def stringToBytesWShortLength(bb: ArrayBuilder[Byte], s: String): Int = {
+  def stringToBytesWithShortLength(bb: ArrayBuilder[Byte], s: String): Int = {
     val bytes = s.getBytes
     val l = bytes.length
     shortToBytesLE(bb, l)
@@ -35,7 +36,7 @@ object BgenWriter {
     2 + l
   }
 
-  def stringToBytesWIntLength(bb: ArrayBuilder[Byte], s: String): Int = {
+  def stringToBytesWithIntLength(bb: ArrayBuilder[Byte], s: String): Int = {
     val bytes = s.getBytes
     val l = bytes.length
     intToBytesLE(bb, l)
@@ -89,58 +90,17 @@ object BgenWriter {
   def sortedIndex(a: Array[Double], idx: Array[Int]) {
     val n = a.length
     assert(idx.length == n)
-
     resetIndex(idx)
-
-    if (n != 3) {
-      quickSortWithIndex(a, idx, 0, n)
-    } else {
-      if (a(0) >= a(1)) {
-        if (a(1) >= a(2)) {
-          idx(0) = 0
-          idx(1) = 1
-          idx(2) = 2
-        } else {
-          if (a(0) >= a(2)) {
-            idx(0) = 0
-            idx(1) = 2
-            idx(2) = 1
-          } else {
-            idx(0) = 2
-            idx(1) = 0
-            idx(2) = 1
-          }
-        }
-      } else {
-        if (a(0) >= a(2)) {
-          idx(0) = 1
-          idx(1) = 0
-          idx(2) = 2
-        } else {
-          if (a(1) >= a(2)) {
-            idx(0) = 1
-            idx(1) = 2
-            idx(2) = 0
-          } else {
-            idx(0) = 2
-            idx(1) = 1
-            idx(2) = 0
-          }
-        }
-      }
-    }
+    quickSortWithIndex(a, idx, 0, n)
   }
 
-  def resizeAndComputeFractional(input: Array[Int], resized: Array[Double], fractional: Array[Double], conversionFactor: Double): Int = {
+  def computeFractional(input: Array[Double], fractional: Array[Double]): Int = {
     val n = input.length
-    assert(resized.length == n)
-
     var totalFractional = 0d
     var i = 0
     while (i < n) {
-      val x = input(i).toUIntFromRep * conversionFactor
+      val x = input(i)
       val f = x - x.floor
-      resized(i) = x
       fractional(i) = f
       totalFractional += f
       i += 1
@@ -151,29 +111,10 @@ object BgenWriter {
     F
   }
 
-  def resizeAndComputeFractional(input: Array[Double], resized: Array[Double], fractional: Array[Double], conversionFactor: Double): Int = {
-    val n = input.length
-    assert(resized.length == n)
-
-    var totalFractional = 0d
-    var i = 0
-    while (i < n) {
-      val x = input(i) * conversionFactor
-      val f = x - x.floor
-      resized(i) = x
-      fractional(i) = f
-      totalFractional += f
-      i += 1
-    }
-
-    val F = (totalFractional + 0.5).toInt
-    assert(F >= 0 && F <= n)
-    F
-  }
-
-  def roundWithConstantSum(resized: Array[Double], fractional: Array[Double], index: Array[Int], indexInverse: Array[Int], output: IntConsumer, F: Int, expectedSize: Long, keepLast: Boolean = true) {
+  def roundWithConstantSum(resized: Array[Double], fractional: Array[Double], index: Array[Int],
+    indexInverse: Array[Int], output: IntConsumer, F: Int, expectedSize: Long, keepLast: Boolean = true) {
     val n = resized.length
-    assert(index.length == n)
+    assert(fractional.length == n && index.length == n && indexInverse.length == n)
     sortedIndex(fractional, index)
 
     var i = 0
@@ -221,7 +162,7 @@ object BgenWriter {
     var i = 0
     var sampleBlockLength = 8
     while (i < nSamples) {
-      sampleBlockLength += stringToBytesWShortLength(bb, sampleIds(i))
+      sampleBlockLength += stringToBytesWithShortLength(bb, sampleIds(i))
       i += 1
     }
 
@@ -230,7 +171,7 @@ object BgenWriter {
     updateIntToBytesLE(bb, sampleBlockLength, 24)
   }
 
-  def emitVariant(bb: ArrayBuilder[Byte], v: Variant, va: Annotation, gs: Iterable[Genotype],
+  def emitVariant(bb: ArrayBuilder[Byte], v: Variant, va: Annotation, view: ArrayGenotypeView,
     rsidQuery: Option[Querier], varidQuery: Option[Querier], nSamples: Int, nBitsPerProb: Int) {
     val nAlleles = v.nAlleles
     require(nAlleles <= 0xffff, s"Maximum number of alleles per variant is ${ 0xffff }. Found ${ v.nAlleles }.")
@@ -238,19 +179,19 @@ object BgenWriter {
     val varid = varidQuery.flatMap(q => Option(q(va))).map(_.asInstanceOf[String]).getOrElse(v.toString)
     val rsid = rsidQuery.flatMap(q => Option(q(va))).map(_.asInstanceOf[String]).getOrElse(".")
 
-    stringToBytesWShortLength(bb, varid)
-    stringToBytesWShortLength(bb, rsid)
-    stringToBytesWShortLength(bb, v.contig)
+    stringToBytesWithShortLength(bb, varid)
+    stringToBytesWithShortLength(bb, rsid)
+    stringToBytesWithShortLength(bb, v.contig)
     intToBytesLE(bb, v.start)
     shortToBytesLE(bb, nAlleles)
-    stringToBytesWIntLength(bb, v.ref)
-    v.altAlleles.foreach(a => stringToBytesWIntLength(bb, a.alt))
+    stringToBytesWithIntLength(bb, v.ref)
+    v.altAlleles.foreach(a => stringToBytesWithIntLength(bb, a.alt))
 
     val gtDataBlockStart = bb.length
     intToBytesLE(bb, 0) // placeholder for length of compressed data
     intToBytesLE(bb, 0) // placeholder for length of uncompressed data
 
-    val uncompressedData = emitGenotypeData(gs, nSamples, nAlleles, nBitsPerProb)
+    val uncompressedData = emitGPData(view, nSamples, nAlleles, nBitsPerProb)
 
     val uncompressedLength = uncompressedData.length
     val compressedLength = compress(bb, uncompressedData)
@@ -259,7 +200,7 @@ object BgenWriter {
     updateIntToBytesLE(bb, uncompressedLength, gtDataBlockStart + 4)
   }
 
-  def emitGenotypeData(gs: Iterable[Genotype], nSamples: Int, nAlleles: Int, nBitsPerProb: Int): Array[Byte] = {
+  def emitGPData(view: ArrayGenotypeView, nSamples: Int, nAlleles: Int, nBitsPerProb: Int): Array[Byte] = {
     val bb = new ArrayBuilder[Byte]
 
     val nGenotypes = triangle(nAlleles)
@@ -270,7 +211,7 @@ object BgenWriter {
     bb += ploidy
     bb += ploidy
 
-    val resized = new Array[Double](nGenotypes)
+    val gpResized = new Array[Double](nGenotypes)
     val index = new Array[Int](nGenotypes)
     val indexInverse = new Array[Int](nGenotypes)
     val fractional = new Array[Double](nGenotypes)
@@ -286,34 +227,86 @@ object BgenWriter {
     bb += nBitsPerProb.toByte
 
     val bitPacker = new BitPacker(bb, nBitsPerProb)
-    var idx = 0
-    val gsIt = gs.iterator
-    while (gsIt.hasNext) {
-      val gt = gsIt.next()
-      val px = Genotype.unboxedPX(gt)
-      if (px == null) {
-        var i = 0
-        while (i < nGenotypes - 1) {
-          bitPacker += 0
-          i += 1
+    i = 0
+    while (i < nSamples) {
+      view.setGenotype(i)
+
+      if (view.hasGP) {
+        var idx = 0
+        while (idx < nGenotypes) {
+          gpResized(idx) = view.getGP(idx) * newSize // Assuming sum(GP) == 1
+          idx += 1
         }
+
+        bb(samplePloidyStart + i) = ploidy
+        val F = computeFractional(gpResized, fractional)
+        roundWithConstantSum(gpResized, fractional, index, indexInverse, bitPacker, F, newSize, keepLast = false)
       } else {
-        bb(samplePloidyStart + idx) = ploidy
-
-        val F = if (gt._isLinearScale) {
-          val conversionFactor = newSize.toDouble / 32768
-          resizeAndComputeFractional(px, resized, fractional, conversionFactor)
-        } else {
-          resizeAndComputeFractional(Genotype.plToGP(px), resized, fractional, newSize)
+        var gIdx = 0
+        while (gIdx < nGenotypes - 1) {
+          bitPacker += 0
+          gIdx += 1
         }
-
-        roundWithConstantSum(resized, fractional, index, indexInverse, bitPacker, F, newSize, keepLast = false)
       }
-      idx += 1
+
+      i += 1
     }
 
     bitPacker.flush()
     bb.result()
+  }
+
+  def apply[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], path: String, nBitsPerProb: Int = 8, parallel: Boolean = false) {
+      val rsidQuery: Option[Querier] = vsm.vaSignature.getOption("rsid")
+        .filter {
+          case TString => true
+          case t => warn(
+            s"""found `rsid' field, but it was an unexpected type `$t'.  Emitting missing rsID.
+             |  Expected ${ TString }""".stripMargin)
+            false
+        }.map(_ => vsm.queryVA("va.rsid")._2)
+
+      val varidQuery: Option[Querier] = vsm.vaSignature.getOption("varid")
+        .filter {
+          case TString => true
+          case t => warn(
+            s"""found `varid' field, but it was an unexpected type `$t'.  Emitting missing variant ID.
+             |  Expected ${ TString }""".stripMargin)
+            false
+        }.map(_ => vsm.queryVA("va.varid")._2)
+
+      val sampleIds = vsm.stringSampleIds.toArray
+      val partitionSizes = vsm.hc.sc.runJob(vsm.rdd, getIteratorSize _)
+      val nVariants = partitionSizes.sum
+      val nSamples = vsm.nSamples
+      val localRowType = vsm.rowType
+
+      val header = BgenWriter.headerBlock(sampleIds, nVariants)
+
+      vsm.rdd2.mapPartitionsWithIndex { case (i: Int, it: Iterator[RegionValue]) =>
+        val bb = new ArrayBuilder[Byte]
+        val view = new ArrayGenotypeView(localRowType)
+
+        val partHeader = if (parallel) {
+          bb.clear()
+          BgenWriter.emitHeaderBlock(bb, sampleIds, partitionSizes(i))
+          bb.result()
+        } else
+          Array.empty[Byte]
+
+        Iterator(partHeader) ++ it.map { rv =>
+          view.setRegion(rv)
+          val ur = new UnsafeRow(localRowType, rv)
+          val v = ur.getAs[Variant](1)
+          val va = ur.get(2)
+          bb.clear()
+          BgenWriter.emitVariant(bb, v, va, view, rsidQuery, varidQuery, nSamples, nBitsPerProb)
+          bb.result()
+        }
+      }.saveFromByteArrays(path + ".bgen", vsm.hc.tmpDir,
+        header = if (parallel && vsm.nPartitions != 0) None else Some(header), parallelWrite = parallel)
+
+      vsm.writeSampleFile(path)
   }
 }
 

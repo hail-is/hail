@@ -42,8 +42,7 @@ class ContextTests(unittest.TestCase):
         hc.index_bgen(test_resources + '/example.v11.bgen')
 
         bgen = (hc.import_bgen(test_resources + '/example.v11.bgen',
-                              sample_file=test_resources + '/example.sample')
-                .annotate_genotypes_expr("g = Genotype(v, g.GT, g.GP)"))
+                              sample_file=test_resources + '/example.sample'))
         self.assertEqual(bgen.count()[1], 199)
 
         bgen.export_bgen('/tmp/sample_bgen', nbits_per_prob=32)
@@ -52,9 +51,8 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(bgen.same(exported_bgen))
 
         bgen.export_bgen('/tmp/sample_bgen_parallel', nbits_per_prob=32, parallel=True)
-        hc.index_bgen('/tmp/sample_bgen_parallel.bgen/part-*')
-        part_bgen_files = ["/tmp/sample_bgen_parallel.bgen/" + f for f in os.listdir("/tmp/sample_bgen_parallel.bgen/") if f.startswith("part") and not f.endswith(".idx")]
-        exported_bgen_parallel = hc.import_bgen(part_bgen_files, sample_file='/tmp/sample_bgen_parallel.sample')
+        hc.index_bgen('/tmp/sample_bgen_parallel.bgen')
+        exported_bgen_parallel = hc.import_bgen("/tmp/sample_bgen_parallel.bgen", sample_file='/tmp/sample_bgen_parallel.sample')
         self.assertTrue(bgen.same(exported_bgen_parallel))
 
         gen = hc.import_gen(test_resources + '/example.gen',

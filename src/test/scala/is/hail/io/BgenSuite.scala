@@ -33,22 +33,35 @@ class BgenSuite extends SparkSuite {
     }
 
     val n = input.length
-    val resized = new Array[Double](n)
+    val resized = input.map(_.toDouble / input.sum * newSize)
     val fractional = new Array[Double](n)
     val index = new Array[Int](n)
     val indexInverse = new Array[Int](n)
     val output = new Output(new ArrayBuilder[Int])
 
-    val conversionFactor = newSize.toDouble / input.sum
-    val F = BgenWriter.resizeAndComputeFractional(input, resized, fractional, conversionFactor)
+    val F = BgenWriter.computeFractional(resized, fractional)
     BgenWriter.roundWithConstantSum(resized, fractional, index, indexInverse, output, F, newSize)
     new ArrayUInt(output.result())
   }
 
-  def isGPSame(vds1: VariantKeyDataset, vds2: VariantKeyDataset, tolerance: Double): Boolean = {
-    val vds1Expanded = vds1.expandWithAll().map { case (v, va, s, sa, g) => ((v.toString, s), g) }
-    val vds2Expanded = vds2.expandWithAll().map { case (v, va, s, sa, g) => ((v.toString, s), g) }
-    isGPSame(vds1Expanded, vds2Expanded, tolerance)
+  def verifyGPs(vds: VariantKeyDataset) {
+    assert(vds.rdd.forall { case (v, (va, gs)) =>
+      gs.forall { g =>
+        val gp =
+          if (g != null)
+            g.asInstanceOf[Row].getAs[IndexedSeq[Double]](1)
+          else
+            null
+        gp == null || (gp.forall(d => d >= 0.0 && d <= 1.0)
+          && D_==(gp.sum, 1.0))
+      }
+    })
+  }
+
+  def isGPSame(ds1: VariantKeyDataset, ds2: VariantKeyDataset, tolerance: Double): Boolean = {
+    val ds1Expanded = ds1.expandWithAll().map { case (v, va, s, sa, g) => ((v.toString, s), g) }
+    val ds2Expanded = ds2.expandWithAll().map { case (v, va, s, sa, g) => ((v.toString, s), g) }
+    isGPSame(ds1Expanded, ds2Expanded, tolerance)
   }
 
   def isGPSame(ds1: RDD[((String, Annotation), Annotation)], ds2: RDD[((String, Annotation), Annotation)], tolerance: Double): Boolean = {
@@ -56,9 +69,11 @@ class BgenSuite extends SparkSuite {
       g1 == g2 || {
         val r1 = g1.get.asInstanceOf[Row]
         val r2 = g2.get.asInstanceOf[Row]
+
         val gp1 = if (r1 != null) r1.getAs[IndexedSeq[Double]](1) else null
         val gp2 = if (r2 != null) r2.getAs[IndexedSeq[Double]](1) else null
-        gp1 == gp2 || (gp1.zip(gp2).forall { case (d1, d2) => math.abs(d1 - d2) <= tolerance })
+
+        gp1 == gp2 || gp1.zip(gp2).forall { case (d1, d2) => math.abs(d1 - d2) <= tolerance }
       }
     }
   }
@@ -133,17 +148,7 @@ class BgenSuite extends SparkSuite {
     property("bgen v1.1 import") =
       forAll(compGen) { case (vds, nPartitions) =>
 
-        assert(vds.rdd.forall { case (v, (va, gs)) =>
-          gs.forall { g =>
-            val gp =
-              if (g != null)
-                g.asInstanceOf[Row].getAs[IndexedSeq[Double]](1)
-              else
-                null
-            gp == null || (gp.forall(d => d >= 0.0 && d <= 1.0)
-              && D_==(gp.sum, 1.0))
-          }
-        })
+        verifyGPs(vds)
 
         val fileRoot = tmpDir.createTempFile("testImportBgen")
         val sampleFile = fileRoot + ".sample"
@@ -198,18 +203,19 @@ class BgenSuite extends SparkSuite {
 
     property("bgen v1.2 export/import") =
       forAll(compGen2) { case (vds, nPartitions, nBitsPerProb) =>
+        verifyGPs(vds)
+
         val fileRoot = tmpDir.createTempFile("testImportBgen")
         val sampleFile = fileRoot + ".sample"
         val bgenFile = fileRoot + ".bgen"
 
         def test(parallel: Boolean): Boolean = {
-          vds.exportBgen(fileRoot, nBitsPerProb)
+          vds.exportBGEN(fileRoot, nBitsPerProb)
           hc.indexBgen(bgenFile)
 
           val importedVds = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), nPartitions = Some(nPartitions))
-            .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
-            .toVDS
-            .cache()
+              .toVKDS
+              .cache()
 
           assert(importedVds.nSamples == vds.nSamples)
           assert(importedVds.countVariants() == vds.countVariants())
@@ -280,7 +286,7 @@ class BgenSuite extends SparkSuite {
 
   @Test def testResizeWeights() {
     assert(resizeWeights(Array(0, 32768, 0), (1L << 32) - 1).intArrayRep sameElements Array(0, UInt(4294967295L).intRep, 0))
-    assert(resizeWeights(Array(1, 1, 1), 32768).intArrayRep sameElements Array(10923, 10923, 10922))
+    assert(resizeWeights(Array(1, 1, 1), 32768).intArrayRep.toSet sameElements Set(10923, 10923, 10922))
     assert(resizeWeights(Array(2, 3, 1), 32768).intArrayRep sameElements Array(10923, 16384, 5461))
   }
 

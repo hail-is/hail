@@ -97,12 +97,6 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
   def exportGen(path: String, precision: Int = 4) {
     require(vsm.wasSplit)
 
-    def writeSampleFile() {
-      // FIXME: should output all relevant sample annotations such as phenotype, gender, ...
-      vsm.hc.hadoopConf.writeTable(path + ".sample",
-        "ID_1 ID_2 missing" :: "0 0 0" :: vsm.sampleIds.map(s => s"$s $s 0").toList)
-    }
-
     def writeGenFile() {
       val varidSignature = vsm.vaSignature.getOption("varid")
       val varidQuery: Querier = varidSignature match {
@@ -170,7 +164,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
       }.writeTable(path + ".gen", vsm.hc.tmpDir, None)
     }
 
-    writeSampleFile()
+    vsm.writeSampleFile(path)
     writeGenFile()
   }
 

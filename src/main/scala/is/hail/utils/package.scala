@@ -209,7 +209,7 @@ package object utils extends Logging
     else
       s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
   }
-
+  
   def formatDouble(d: Double, precision: Int): String = d.formatted(s"%.${ precision }f")
 
   def uriPath(uri: String): String = new URI(uri).getPath
@@ -446,6 +446,16 @@ package object utils extends Logging
 
   def intArraySum(a: Array[Int]): Int = {
     var s = 0
+    var i = 0
+    while (i < a.length) {
+      s += a(i)
+      i += 1
+    }
+    s
+  }
+
+  def doubleArraySum(a: Array[Double]): Double = {
+    var s = 0d
     var i = 0
     while (i < a.length) {
       s += a(i)

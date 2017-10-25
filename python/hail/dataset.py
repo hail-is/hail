@@ -1457,16 +1457,15 @@ class VariantDataset(HistoryMixin):
     def export_bgen(self, output, nbits_per_prob=8, parallel=False):
         """Export variant dataset as v1.2 BGEN and SAMPLE file.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
         Import dosage data, filter variants based on INFO score, and export data to a BGEN and SAMPLE file:
 
-        >>> vds3 = (hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
-        ...           .annotate_genotypes_expr("g = Genotype(v, g.GT, g.GP)"))
-        >>> (vds3.filter_variants_expr("gs.map(g => g.gp).infoScore().score >= 0.9")
-        ...      .export_bgen("output/infoscore_filtered"))
+        >>> (hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+        ...    .filter_variants_expr("gs.map(g => g.GP).infoScore().score >= 0.9")
+        ...    .export_bgen("output/infoscore_filtered"))
 
         **Notes**
 
@@ -1475,6 +1474,7 @@ class VariantDataset(HistoryMixin):
         The maximum rounding error is given by :math:`\\frac{1}{2^{B} - 1}` where :math:`B` is specified by the parameter ``nbits_per_prob``. For example, if :math:`B = 8`, the maximum rounding error is 1/255 or 0.0039.
 
         The information describing each variant is as follows:
+
         - Chromosome (``v.contig``)
         - Variant ID (``va.varid`` if defined, else Chromosome:Position:Ref:Alt)
         - rsID (``va.rsid`` if defined, else ".")
@@ -1482,7 +1482,12 @@ class VariantDataset(HistoryMixin):
         - reference allele (``v.ref``)
         - alternate alleles (``v.altAlleles``)
 
+        Genotype probabilities:
+
+        - Read from ``g.GP``. If ``g.GP`` is not of type Array[Float64] or is not a defined field, the probabilities will be output as missing.
+
         The sample file has 3 columns:
+
         - ID_1 and ID_2 are identical and set to the sample ID (``s``).
         - The third column ("missing") is set to NA for all samples.
 
@@ -1491,7 +1496,7 @@ class VariantDataset(HistoryMixin):
         :param bool parallel: If true, return a set of BGEN files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jvdf.exportBgen(output, nbits_per_prob, parallel)
+        self._jvds.exportBGEN(output, nbits_per_prob, parallel)
 
     @handle_py4j
     @require_biallelic
@@ -1509,10 +1514,9 @@ class VariantDataset(HistoryMixin):
 
         Import genotype probability data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
 
-        >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
-
-        >>> (vds3.filter_variants_expr('gs.map(g => g.GP).infoScore().score >= 0.9')
-        ...      .export_gen('output/infoscore_filtered'))
+        >>> vds3 = (hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+        ...           .filter_variants_expr('gs.map(g => g.GP).infoScore().score >= 0.9')
+        ...           .export_gen('output/infoscore_filtered'))
 
         **Notes**
 
@@ -1529,10 +1533,10 @@ class VariantDataset(HistoryMixin):
 
         Genotype probabilities:
 
+        - Read from ``g.GP``. If ``g.GP`` is not of type Array[Float64] or is not a defined field, the probabilities will be output as missing ``(0.0, 0.0, 0.0)``.
         - 3 probabilities per sample ``(pHomRef, pHet, pHomVar)``.
         - Any filtered genotypes will be output as ``(0.0, 0.0, 0.0)``.
         - If the input data contained Phred-scaled likelihoods, the probabilities in the GEN file will be the normalized genotype probabilities assuming a uniform prior.
-        - If the input data did not have genotype probabilities such as data imported using :py:meth:`~hail.HailContext.import_plink`, all genotype probabilities will be ``(0.0, 0.0, 0.0)``.
 
         The sample file has 3 columns:
 

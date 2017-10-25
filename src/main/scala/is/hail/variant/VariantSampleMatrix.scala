@@ -7,6 +7,7 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr._
 import is.hail.io._
+import is.hail.io.bgen.BgenWriter
 import is.hail.io.vcf.LoadVCF
 import is.hail.keytable.{KeyTable, KeyTableMetadata}
 import is.hail.methods.Aggregators.SampleFunctions
@@ -343,6 +344,13 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   def requireSampleTString(method: String) {
     if (!sSignature.isOfType(TString()))
       fatal(s"in $method: column key (sample) schema must be String, but found: $sSignature")
+  }
+
+  def requireRowTypeTVariant(method: String) {
+    vSignature match {
+      case TVariant(_) =>
+      case _ => fatal(s"in $method: row key schema must be Variant, but found: $vSignature")
+    }
   }
 
   val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit) = metadata
@@ -2167,5 +2175,16 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     accuracy: Double = 1e-6,
     iterations: Int = 10000): KeyTable = {
     Skat(this, variantKeys, singleKey,  weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
+  }
+
+  def writeSampleFile(path: String) {
+    //FIXME: should output all relevant sample annotations such as phenotype, gender, ...
+    hc.hadoopConf.writeTable(path + ".sample",
+      "ID_1 ID_2 missing" :: "0 0 0" :: sampleIds.map(s => s"$s $s 0").toList)
+  }
+
+  def exportBGEN(path: String, nBitsPerProb: Int = 8, parallel: Boolean = false) {
+    requireRowTypeTVariant("export_bgen")
+    BgenWriter(this.toVKDS, path, nBitsPerProb, parallel)
   }
 }
