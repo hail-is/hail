@@ -1261,6 +1261,44 @@ object FunctionRegistry {
     "value" -> "Chromosome.",
     "precision" -> "Starting position.")
 
+  
+def ADsplit(ad:String,gt:String)={
+  def truncateAt(n: Double, p: Int): Double = {
+    //exponsive but the other way with bigdecimal causes an issue with spark sql
+    val s = math pow (10, p); (math floor n * s) / s
+  }
+  if (ad=="") ad
+  else{
+  val adArray= ad.split(",")
+  val total=adArray.map(_.toInt).sum
+  val altAD=adArray(gt.split("/")(1).toInt).toInt/total.toDouble
+    /*BigDecimal(altAD).setScale(3, BigDecimal.RoundingMode.HALF_DOWN).*/
+    truncateAt(altAD,3).toString}
+}
+  register("ADsplit", {(ad: String, gt: String) => ADsplit(ad,gt)},
+    """
+    remove dot
+    """,
+    "ad" -> "ad comma separates.",
+    "gt" -> "geno type")
+}
+
+  def intToGenotype(gt:Int)={
+    gt match {
+     case 0 => "0/0" 
+     case 1 => "0/1"
+     case 2=>"1/1"
+
+    }
+  }
+  register("intToGenotype", {(gt: Int) => intToGenotype(gt)},
+    """
+    remove dot
+    """,
+    "gt" -> "agt")
+}
+
+
   register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
     """
     Constructs an interval from a given chromosome, start, and end.
