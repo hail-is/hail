@@ -2858,7 +2858,7 @@ class VariantDataset(HistoryMixin):
 
         Fixing a single variant, we define:
 
-        - :math:`v = n \\times 1` vector of genotypes, with missing genotypes imputed as the mean of called genotypes
+        - :math:`v = n \\times 1` input vector, with missing values imputed as the mean of the non-missing values
         - :math:`X_v = \\left[v | X \\right] = n \\times (1 + c)` matrix concatenating :math:`v` and :math:`X`
         - :math:`\\beta_v = (\\beta^0_v, \\beta^1_v, \\ldots, \\beta^c_v) = (1 + c) \\times 1` vector of covariate coefficients
 
@@ -2954,7 +2954,7 @@ class VariantDataset(HistoryMixin):
 
         Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao score test ('score'),
         and Firth test ('firth'). Hail only includes samples for which the phenotype and all covariates are
-        defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
+        defined. For each variant, Hail imputes missing input values as the mean of the non-missing values.
 
         The example above considers a model of the form
 
@@ -3036,7 +3036,7 @@ class VariantDataset(HistoryMixin):
 
         For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
 
-        Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`__. For each variant, Hail imputes missing genotypes as the mean of called genotypes, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
+        Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`__. For each variant, Hail imputes missing input values as the mean of non-missing input values, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
 
         :param str test: Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
 
@@ -4625,7 +4625,7 @@ class VariantDataset(HistoryMixin):
         <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
         The test is run on complete samples (i.e., phenotype and all covariates non-missing).
-        For each variant, missing genotypes are imputed as the mean of all non-missing genotypes.
+        For each variant, missing input values are imputed as the mean of all non-missing input values.
 
         Variant weights must be non-negative. Variants with missing weights are ignored.
         In the R package ``skat``, default weights are given by evaluating the Beta(1, 25) density at
