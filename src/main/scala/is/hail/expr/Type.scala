@@ -33,9 +33,9 @@ object Type {
         genScalar,
         genScalar,
         genScalar,
-        genArb.resize(size - 1).map(TArray.apply),
-        genArb.resize(size - 1).map(TSet.apply),
-        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v) },
+        genArb.resize(size - 1).map(TArray.apply(_, elementsRequired = false)),
+        genArb.resize(size - 1).map(TSet.apply(_, elementsRequired = false)),
+        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v, elementsRequired = false) },
         genStruct.resize(size))
   }
 
@@ -602,26 +602,14 @@ final case class TVariable(name: String, var t: Type = null) extends Type {
 object TAggregable {
   val desc = """An ``Aggregable`` is a Hail data type representing a distributed row or column of a matrix. Hail exposes a number of methods to compute on aggregables depending on the data type."""
 
-  def apply(elementType: Type, symTab: SymbolTable): TAggregable = {
-    val agg = TAggregable(elementType)
+  def apply(elementType: Type, symTab: SymbolTable, elementsRequired: Boolean = false): TAggregable = {
+    val agg = TAggregable(elementType, elementsRequired = elementsRequired)
     agg.symTab = symTab
     agg
   }
-
-  def apply(elementType: Type, elementsRequired: Boolean): TAggregable = {
-    val t = TAggregable(elementType)
-    t.elementsRequired = elementsRequired
-    t
-  }
-
-  def apply(elementType: Type, symTable: SymbolTable, elementsRequired: Boolean): TAggregable = {
-    val t = TAggregable(elementType, symTable)
-    t.elementsRequired = elementsRequired
-    t
-  }
 }
 
-final case class TAggregable(elementType: Type) extends TContainer {
+final case class TAggregable(elementType: Type, elementsRequired: Boolean = false) extends TContainer {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
@@ -634,7 +622,7 @@ final case class TAggregable(elementType: Type) extends TContainer {
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TAggregable(celementType) => elementType.unify(celementType)
+      case TAggregable(celementType, req) => elementType.unify(celementType) && (req == elementsRequired)
       case _ => false
     }
   }
@@ -667,7 +655,7 @@ object TContainer {
 
 abstract class TContainer extends Type {
 
-  var elementsRequired: Boolean = false
+  def elementsRequired: Boolean
 
   def elementType: Type
 
@@ -839,7 +827,7 @@ abstract class TIterable extends TContainer {
       .forall { case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance) })
 }
 
-final case class TArray(elementType: Type) extends TIterable {
+final case class TArray(elementType: Type, elementsRequired: Boolean = false) extends TIterable {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
@@ -854,13 +842,13 @@ final case class TArray(elementType: Type) extends TIterable {
   override def toString = s"Array[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
-    case TArray(otherType) => elementType.canCompare(otherType)
+    case TArray(otherType, _) => elementType.canCompare(otherType)
     case _ => false
   }
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TArray(celementType) => elementType.unify(celementType)
+      case TArray(celementType, req) => elementType.unify(celementType) && (req == elementsRequired)
       case _ => false
     }
   }
@@ -909,15 +897,7 @@ final case class TArray(elementType: Type) extends TIterable {
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 }
 
-object TArray {
-  def apply(elementType: Type, elementsRequired: Boolean): TArray = {
-    val t = new TArray(elementType)
-    t.elementsRequired = elementsRequired
-    t
-  }
-}
-
-final case class TSet(elementType: Type) extends TIterable {
+final case class TSet(elementType: Type, elementsRequired: Boolean = false) extends TIterable {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
@@ -927,12 +907,12 @@ final case class TSet(elementType: Type) extends TIterable {
   override def toString = s"Set[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
-    case TSet(otherType) => elementType.canCompare(otherType)
+    case TSet(otherType, _) => elementType.canCompare(otherType)
     case _ => false
   }
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TSet(celementType) => elementType.unify(celementType)
+    case TSet(celementType, req) => elementType.unify(celementType) && (req == elementsRequired)
     case _ => false
   }
 
@@ -988,15 +968,7 @@ final case class TSet(elementType: Type) extends TIterable {
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 }
 
-object TSet {
-  def apply(elementType: Type, elementsRequired: Boolean): TSet = {
-    val t = new TSet(elementType)
-    t.elementsRequired = elementsRequired
-    t
-  }
-}
-
-final case class TDict(keyType: Type, valueType: Type) extends TContainer {
+final case class TDict(keyType: Type, valueType: Type, elementsRequired: Boolean = false) extends TContainer {
   val elementType: Type = TStruct("key" -> keyType, "value" -> valueType)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
@@ -1006,7 +978,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
   override val fundamentalType: TArray = TArray(elementType.fundamentalType)
 
   override def canCompare(other: Type): Boolean = other match {
-    case TDict(okt, ovt) => keyType.canCompare(okt) && valueType.canCompare(ovt)
+    case TDict(okt, ovt, _) => keyType.canCompare(okt) && valueType.canCompare(ovt)
     case _ => false
   }
 
@@ -1014,7 +986,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TDict(kt, vt) => keyType.unify(kt) && valueType.unify(vt)
+      case TDict(kt, vt, req) => keyType.unify(kt) && valueType.unify(vt) && (req == elementsRequired)
       case _ => false
     }
   }
@@ -1069,14 +1041,6 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
     }
 
     annotationOrdering(extendOrderingToNull(missingGreatest)(dict))
-  }
-}
-
-object TDict {
-  def apply(keyType: Type, valueType: Type, elementsRequired: Boolean): TDict = {
-    val t = new TDict(keyType, valueType)
-    t.elementsRequired = elementsRequired
-    t
   }
 }
 

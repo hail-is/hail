@@ -165,14 +165,10 @@ object UnsafeRow {
     a
   }
 
-  private val tArrayInt32 = TArray(TInt32)
   private val tArrayInt32Req = TArray(TInt32, elementsRequired = true)
 
-  def readArrayInt(region: MemoryBuffer, aoff: Long, elementsRequired: Boolean = false): Array[Int] = {
-    val t = if (elementsRequired)
-      tArrayInt32Req
-    else
-      tArrayInt32
+  def readArrayInt(region: MemoryBuffer, aoff: Long): Array[Int] = {
+    val t = tArrayInt32Req
 
     val length = region.loadInt(aoff)
     val a = new Array[Int](length)
@@ -227,7 +223,7 @@ object UnsafeRow {
             -1
         val ad =
           if (ft.isFieldDefined(region, offset, 1))
-            readArrayInt(region, ft.loadField(region, offset, 1), ft.fieldType(1).asInstanceOf[TArray].elementsRequired)
+            readArrayInt(region, ft.loadField(region, offset, 1))
           else
             null
         val dp: Int =
@@ -242,7 +238,7 @@ object UnsafeRow {
             -1
         val px =
           if (ft.isFieldDefined(region, offset, 4))
-            readArrayInt(region, ft.loadField(region, offset, 4), ft.fieldType(4).asInstanceOf[TArray].elementsRequired)
+            readArrayInt(region, ft.loadField(region, offset, 4))
           else
             null
         val fakeRef = region.loadByte(ft.loadField(region, offset, 5)) != 0
