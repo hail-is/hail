@@ -57,14 +57,14 @@ case class SkatTuple(q: Double, a: Vector[Double], b: DenseVector[Double])
 object Skat {
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
   
-  def apply(vds: VariantDataset,
+  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
     variantKeys: String,
     singleKey: Boolean,
     weightExpr: String,
     yExpr: String,
+    xExpr: String,
     covExpr: Array[String],
     logistic: Boolean,
-    useDosages: Boolean,
     maxSize: Int,
     accuracy: Double,
     iterations: Int): KeyTable = {
@@ -79,7 +79,7 @@ object Skat {
     if (iterations <= 0)
       fatal(s"iterations must be positive, default is 10000, got $iterations")
     
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yExpr, covExpr)
 
     val n = y.size
     val k = cov.cols
@@ -95,7 +95,7 @@ object Skat {
     }
     
     val (keyGsWeightRdd, keyType) =
-      computeKeyGsWeightRdd(vds, completeSampleIndex, variantKeys, singleKey, weightExpr, useDosages)
+      computeKeyGsWeightRdd(vsm, xExpr, completeSampleIndex, variantKeys, singleKey, weightExpr)
 
     val sc = keyGsWeightRdd.sparkContext
 
@@ -196,18 +196,21 @@ object Skat {
       ("pval", TFloat64),
       ("fault", TInt32))
 
-    new KeyTable(vds.hc, skatRdd, skatSignature, Array("key"))
+    new KeyTable(vsm.hc, skatRdd, skatSignature, Array("key"))
   }
 
-  def computeKeyGsWeightRdd(vds: VariantDataset,
-    completeSamplesIndex: Array[Int],
+  def computeKeyGsWeightRdd[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
+    xExpr: String,
+    completeSampleIndex: Array[Int],
     variantKeys: String,
     singleKey: Boolean,
-    weightExpr: String, // returns ((key, [(gs_v, weight_v)]), keyType)
-    useDosages: Boolean): (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
-    
-    val (keysType, keysQuerier) = vds.queryVA(variantKeys)
-    val (weightType, weightQuerier) = vds.queryVA(weightExpr)
+    // returns ((key, [(gs_v, weight_v)]), keyType)
+    weightExpr: String): (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
+    val ec = vsm.matrixType.genotypeEC
+    val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
+
+    val (keysType, keysQuerier) = vsm.queryVA(variantKeys)
+    val (weightType, weightQuerier) = vsm.queryVA(weightExpr)
 
     val typedWeightQuerier = weightType match {
       case _: TNumeric => (a: Annotation) => Option(weightQuerier(a)).map(DoubleNumericConversion.to)
@@ -224,26 +227,33 @@ object Skat {
       (keyType, (keys: Annotation) => keys.asInstanceOf[Iterable[Annotation]].iterator)
     }
     
-    val nSamples = completeSamplesIndex.length
+    val nSamples = completeSampleIndex.length
 
-    val sampleMask = new Array[Boolean](vds.nSamples)
-    completeSamplesIndex.foreach(i => sampleMask(i) = true)
-   
-    val sampleMaskBc = vds.sparkContext.broadcast(sampleMask)    
-    val completeSamplesBc = vds.sparkContext.broadcast(completeSamplesIndex)
+    val sc = vsm.sparkContext
 
-    (vds.rdd.flatMap { case (_, (va, gs)) =>
+    val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
+    val sampleIdsBc = vsm.sampleIdsBc
+    val sampleAnnotationsBc = vsm.sampleAnnotationsBc
+
+    val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
+
+    (vsm.rdd.flatMap { case (v, (va, gs)) =>
       (Option(keysQuerier(va)), typedWeightQuerier(va)) match {
         case (Some(key), Some(w)) =>
           if (w < 0)
             fatal(s"Variant weights must be non-negative, got $w")
-          val x: Vector[Double] =
-            if (useDosages) {
-              RegressionUtils.dosages(gs, completeSamplesBc.value)
-            } else {
-              RegressionUtils.hardCalls(gs, nSamples, sampleMaskBc.value)
-            }
-          keyIterator(key).map((_, (x, w)))
+
+          val n = completeSampleIndexBc.value.length
+          val x = new DenseVector[Double](n)
+
+          val missingSamples = new ArrayBuilder[Int]()
+
+          RegressionUtils.inputVector(x,
+            localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
+            ec, xf,
+            completeSampleIndexBc.value, missingSamples)
+
+          keyIterator(key).map((_, (x: Vector[Double], w)))
         case _ => Iterator.empty
       }
     }.groupByKey(), keyType)

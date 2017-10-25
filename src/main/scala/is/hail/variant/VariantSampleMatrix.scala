@@ -10,7 +10,7 @@ import is.hail.io._
 import is.hail.io.vcf.LoadVCF
 import is.hail.keytable.{KeyTable, KeyTableMetadata}
 import is.hail.methods.Aggregators.SampleFunctions
-import is.hail.methods.{Aggregators, Filter, LinearRegression, VEP}
+import is.hail.methods._
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
@@ -216,11 +216,25 @@ object VSMSubgen {
     vGen = (t: Type) => VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2)).gen,
     wasSplit = true)
 
+  val dosage = VSMSubgen[Locus, Variant, Annotation](
+    sSigGen = Gen.const(TString),
+    saSigGen = Type.genArb,
+    vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
+    vaSigGen = Type.genArb,
+    globalSigGen = Type.genArb,
+    tSigGen = Gen.const(TStruct(
+      "GT" -> TCall,
+      "GP" -> TArray(TFloat64))),
+    sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
+    saGen = (t: Type) => t.genValue,
+    vaGen = (t: Type) => t.genValue,
+    globalGen = (t: Type) => t.genValue,
+    vGen = (t: Type) => Variant.gen,
+    tGen = (t: Type, v: Variant) => Genotype.genGenericDosageGenotype(v),
+    makeKOk = _ => Variant.orderedKey)
+
   val realistic = random.copy(
     tGen = (t: Type, v: Variant) => Genotype.genRealistic(v))
-
-  val dosageGenotype = random.copy(
-    tGen = (t: Type, v: Variant) => Genotype.genDosageGenotype(v))
 }
 
 class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata: VSMMetadata,
@@ -1968,5 +1982,40 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "va.linreg", variantBlockSize: Int = 16): VariantSampleMatrix[RPK, RK, T] = {
     LinearRegression(this, ysExpr, xExpr, covExpr, root, variantBlockSize)
+  }
+
+  def logreg(test: String,
+    y: String, x: String, covariates: Array[String] = Array.empty[String],
+    root: String = "va.logreg"): VariantSampleMatrix[RPK, RK, T] = {
+    LogisticRegression(this, test, y, x, covariates, root)
+  }
+
+  def lmmreg(kinshipMatrix: KinshipMatrix,
+    y: String,
+    x: String,
+    covariates: Array[String] = Array.empty[String],
+    useML: Boolean = false,
+    rootGA: String = "global.lmmreg",
+    rootVA: String = "va.lmmreg",
+    runAssoc: Boolean = true,
+    delta: Option[Double] = None,
+    sparsityThreshold: Double = 1.0,
+    nEigs: Option[Int] = None,
+    optDroppedVarianceFraction: Option[Double] = None): VariantSampleMatrix[RPK, RK, T] = {
+    LinearMixedRegression(this, kinshipMatrix, y, x, covariates, useML, rootGA, rootVA,
+      runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
+  }
+
+  def skat(variantKeys: String,
+    singleKey: Boolean,
+    weightExpr: String,
+    y: String,
+    x: String,
+    covariates: Array[String] = Array.empty[String],
+    logistic: Boolean = false,
+    maxSize: Int = 46340, // floor(sqrt(Int.MaxValue))
+    accuracy: Double = 1e-6,
+    iterations: Int = 10000): KeyTable = {
+    Skat(this, variantKeys, singleKey,  weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
   }
 }

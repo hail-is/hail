@@ -111,8 +111,8 @@ class SkatSuite extends SparkSuite {
     val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
     val (keyGsWeightRdd, keyType) =
-      Skat.computeKeyGsWeightRdd(vds, completeSampleIndex, variantKeys, singleKey, weightExpr, useDosages)
-    
+      Skat.computeKeyGsWeightRdd(vds, if (useDosages) "plDosage(g.pl)" else "g.nNonRefAlleles()", completeSampleIndex, variantKeys, singleKey, weightExpr)
+
     runInR(keyGsWeightRdd, keyType, y, cov)
   }
 
@@ -177,7 +177,8 @@ class SkatSuite extends SparkSuite {
     val (vds, singleKey) = if (useBN) (vdsBN, false) else (vdsSkat, true)
     
     val hailKT = vds.skat("va.genes", singleKey = singleKey, "va.weight", "sa.pheno",
-      Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic, useDosages)
+      if (useDosages) "plDosage(g.pl)" else "g.nNonRefAlleles()",
+      Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic)
 
     hailKT.typeCheck()
     
@@ -223,7 +224,7 @@ class SkatSuite extends SparkSuite {
   @Test def maxSizeTest() {
     val maxSize = 27
     
-    val kt = vdsSkat.skat("va.genes", singleKey = true, y = "sa.pheno", weightExpr = "1", maxSize = maxSize)
+    val kt = vdsSkat.skat("va.genes", singleKey = true, y = "sa.pheno", x = "g.nNonRefAlleles()", weightExpr = "1", maxSize = maxSize)
       
     val ktMap = kt.rdd.collect().map{ case Row(key, size, qstat, pval, fault) => 
         key.asInstanceOf[String] -> (size.asInstanceOf[Int], qstat == null, pval == null, fault == null) }.toMap
@@ -274,8 +275,8 @@ class SkatSuite extends SparkSuite {
     val vds = vdsFromGtMatrix(hc)(G)
       .annotateVariantsExpr("va.intkey = v.start % 2, va.weight = v.start") // 1 = {v1, v3}, 0 = {v2}
     
-    val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, completeSamplesIndex = Array(1, 3),
-      variantKeys = "va.intkey", singleKey = true, weightExpr = "va.weight", useDosages = false)
+    val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, "g.nNonRefAlleles()", completeSampleIndex = Array(1, 3),
+      variantKeys = "va.intkey", singleKey = true, weightExpr = "va.weight")
         
     val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => 
         key.asInstanceOf[Int] -> it.toSet }.toMap

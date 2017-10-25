@@ -47,7 +47,7 @@ class Genotype(HistoryMixin):
             jpl = jnone()
 
         self._jgenotype = Genotype._genotype_jobject
-        jrep = self._jgenotype.apply(jgt, jad, jdp, jgq, jpl, False, False)
+        jrep = self._jgenotype.apply(jgt, jad, jdp, jgq, jpl, False)
         self._gt = gt
         self._ad = ad
         self._dp = dp
@@ -60,12 +60,8 @@ class Genotype(HistoryMixin):
 
     def __repr__(self):
         fake_ref = 'FakeRef=True' if self._jrep._fakeRef() else ''
-        if self._jrep._isLinearScale():
-            return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, GP=%s%s)' %\
-                   (self.gt, self.ad, self.dp, self.gq, self.gp, fake_ref)
-        else:
-            return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PL=%s%s)' % \
-                   (self.gt, self.ad, self.dp, self.gq, self.pl, fake_ref)
+        return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PL=%s%s)' % \
+            (self.gt, self.ad, self.dp, self.gq, self.pl, fake_ref)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
@@ -151,24 +147,6 @@ class Genotype(HistoryMixin):
         """
 
         return from_option(self._jgenotype.od(self._jrep))
-
-    @property
-    def gp(self):
-        """Returns the linear-scaled genotype probabilities.
-
-        :rtype: list of float of None
-        """
-
-        return jarray_to_list(from_option(self._jgenotype.gp(self._jrep)))
-
-    def dosage(self):
-        """Returns the expected value of the genotype based on genotype probabilities,
-        :math:`\\mathrm{P}(\\mathrm{Het}) + 2 \\mathrm{P}(\\mathrm{HomVar})`. Genotype must be bi-allelic.
-
-        :rtype: float
-        """
-
-        return from_option(self._jgenotype.dosage(self._jrep))
 
     def is_hom_ref(self):
         """True if the genotype call is 0/0

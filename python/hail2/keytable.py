@@ -370,10 +370,8 @@ class KeyTable(KeyTableTemplate):
     ...                    i2 = IntervalColumn.from_args("1", 51, 56),
     ...                    i3 = IntervalColumn.from_loci(LocusColumn.from_args("1", 51), LocusColumn.from_args("1", 56)))
 
-    >>> ktx = ktx.annotate(g1 = GenotypeColumn.dosage_genotype(ktx.v1, [0.0, 1.0, 0.0]),
-    ...                    g2 = GenotypeColumn.dosage_genotype(ktx.v1, [0.0, 1.0, 0.0], call=CallColumn.from_int32(1)),
-    ...                    g3 = GenotypeColumn.from_call(CallColumn.from_int32(1)),
-    ...                    g4 = GenotypeColumn.pl_genotype(ktx.v1, CallColumn.from_int32(1), [6, 7], 13, 20, [20, 0, 1000]))
+    >>> ktx = ktx.annotate(g1 = GenotypeColumn.from_call(CallColumn.from_int32(1)),
+    ...                    g2 = GenotypeColumn.pl_genotype(ktx.v1, CallColumn.from_int32(1), [6, 7], 13, 20, [20, 0, 1000]))
 
 
     Aggregate by key:
@@ -401,7 +399,6 @@ class KeyTable(KeyTableTemplate):
     ...     x9 = kt_grp.qPheno.fraction(lambda x, _: x == 1),
     ...     x10 = kt_grp.qPheno.map(lambda x, _: x.to_float64()).stats(),
     ...     x11 = kt_grp.gt.hardy_weinberg(),
-    ...     x12 = kt_grp.gt.map(lambda x, _: x.gp).info_score(),
     ...     x13 = kt_grp.gt.inbreeding(lambda x, _: 0.1),
     ...     x14 = kt_grp.gt.call_stats(lambda g, _: Variant("1", 10000, "A", "T")),
     ...     x15 = kt_grp.gt.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})})).collect()[0],

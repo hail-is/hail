@@ -1,14 +1,13 @@
 package is.hail.io
 
-import breeze.linalg.DenseVector
 import is.hail.SparkSuite
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.io.bgen.{BGen12ProbabilityArray, Bgen12GenotypeIterator}
-import is.hail.stats.RegressionUtils
+import is.hail.io.bgen.BGen12ProbabilityArray
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -50,9 +49,8 @@ class LoadBgenSuite extends SparkSuite {
     val gen = "src/test/resources/example.gen"
     val sampleFile = "src/test/resources/example.sample"
     val inputs = Array(
-      ("src/test/resources/example.v11.bgen", 1e-6),
-      ("src/test/resources/example.10bits.bgen", 1d / ((1L << 10) - 1))
-    )
+      ("src/test/resources/example.v11.bgen", 1d / 32768),
+      ("src/test/resources/example.10bits.bgen", 1d / ((1L << 10) - 1)))
 
     def testBgen(bgen: String, tolerance: Double = 1e-6): Unit = {
       hadoopConf.delete(bgen + ".idx", recursive = true)
@@ -62,14 +60,12 @@ class LoadBgenSuite extends SparkSuite {
 
       hc.indexBgen(bgen)
       val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10))
-        .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
-        .toVDS
+        .toVKDS
         .verifyBiallelic()
       assert(bgenVDS.nSamples == nSamples && bgenVDS.countVariants() == nVariants)
 
       val genVDS = hc.importGen(gen, sampleFile)
-        .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
-        .toVDS
+        .toVKDS
 
       val varidBgenQuery = bgenVDS.vaSignature.query("varid")
       val varidGenQuery = genVDS.vaSignature.query("varid")
@@ -87,21 +83,19 @@ class LoadBgenSuite extends SparkSuite {
 
       val isSame = genFull.fullOuterJoin(bgenFull)
         .collect()
-        .forall { case ((v, i), (gt1, gt2)) =>
-          (gt1, gt2) match {
-            case (Some(x), Some(y)) =>
-              (Genotype.gp(x), Genotype.gp(y)) match {
-                case (Some(dos1), Some(dos2)) => dos1.zip(dos2).forall { case (d1, d2) => math.abs(d1 - d2) <= tolerance }
-                case (None, None) => true
-                case _ => false
-              }
-            case _ => false
+        .forall { case ((v, i), (g1, g2)) =>
+          g1 == g2 || {
+            val gp1 = g1.get.asInstanceOf[Row].getAs[IndexedSeq[Double]](1)
+            val gp2 = g2.get.asInstanceOf[Row].getAs[IndexedSeq[Double]](1)
+            gp1 == gp2 || (gp1.zip(gp2)
+              .forall { case (d1, d2) => math.abs(d1 - d2) <= tolerance })
           }
         }
 
       val vdsFile = tmpDir.createTempFile("bgenImportWriteRead", "vds")
       bgenVDS.write(vdsFile)
-      val bgenWriteVDS = hc.readVDS(vdsFile)
+      val bgenWriteVDS = hc.readGDS(vdsFile)
+        .toVKDS
       assert(bgenVDS
         .filterVariantsExpr("va.rsid != \"RSID_100\"")
         .same(bgenWriteVDS.filterVariantsExpr("va.rsid != \"RSID_100\"")
@@ -117,7 +111,7 @@ class LoadBgenSuite extends SparkSuite {
 
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds <- VariantSampleMatrix.gen(hc,
-      VSMSubgen.dosageGenotype.copy(
+      VSMSubgen.dosage.copy(
         vGen = _ => VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
         sGen = _ => Gen.identifier.filter(_ != "NA")))
       .filter(_.countVariants > 0)
@@ -133,7 +127,13 @@ class LoadBgenSuite extends SparkSuite {
 
         assert(vds.rdd.forall { case (v, (va, gs)) =>
           gs.forall { g =>
-            Genotype.gp(g).forall(_.forall(d => d >= 0.0 && d <= 1.0))
+            val gp =
+              if (g != null)
+                g.asInstanceOf[Row].getAs[IndexedSeq[Double]](1)
+              else
+                null
+            gp == null || (gp.forall(d => d >= 0.0 && d <= 1.0)
+              && D_==(gp.sum, 1.0))
           }
         })
 
@@ -161,9 +161,7 @@ class LoadBgenSuite extends SparkSuite {
 
         hc.indexBgen(bgenFile)
         val importedVds = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), nPartitions = Some(nPartitions))
-          .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
-          .toVDS
-          .cache()
+          .toVKDS
 
         assert(importedVds.nSamples == vds.nSamples)
         assert(importedVds.countVariants() == vds.countVariants())
@@ -178,18 +176,14 @@ class LoadBgenSuite extends SparkSuite {
         val originalFull = vds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
 
         originalFull.fullOuterJoin(importedFull).forall { case ((v, i), (g1, g2)) =>
-
-          // FIXME compare fail if 1 is null and other is all null
-          val r = g1 == g2 || {
-            val gp1 = Genotype.unboxedGP(g1.get)
-            val gp2 = Genotype.unboxedGP(g2.get)
-            gp1 == gp2 || gp1.zip(gp2)
-              .forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 }
+          g1 == g2 || {
+            val r1 = g1.get.asInstanceOf[Row]
+            val r2 = g2.get.asInstanceOf[Row]
+            val gp1 = if (r1 != null) r1.getAs[IndexedSeq[Double]](1) else null
+            val gp2 = if (r2 != null) r2.getAs[IndexedSeq[Double]](1) else null
+            gp1 == gp2 || (gp1.zip(gp2)
+              .forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 })
           }
-          if (!r)
-            println(g1, g2)
-
-          r
         }
       }
   }
@@ -273,11 +267,9 @@ class LoadBgenSuite extends SparkSuite {
   @Test def testReIterate() {
     hc.indexBgen("src/test/resources/example.v11.bgen")
     val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"))
-      .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
-      .toVDS
 
-    assert(vds.annotateVariantsExpr("va.cr1 = gs.fraction(g => g.isCalled())")
-      .annotateVariantsExpr("va.cr2 = gs.fraction(g => g.isCalled())")
+    assert(vds.annotateVariantsExpr("va.cr1 = gs.fraction(g => g.GT.isCalled())")
+      .annotateVariantsExpr("va.cr2 = gs.fraction(g => g.GT.isCalled())")
       .variantsKT()
       .forall("va.cr1 == va.cr2"))
   }

@@ -24,10 +24,10 @@ object LinearRegression {
   def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
     ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int
   )(implicit tct: ClassTag[T]): VariantSampleMatrix[RPK, RK, T] = {
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
-
     val ec = vsm.matrixType.genotypeEC
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
+
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vsm, ysExpr, covExpr)
 
     val n = y.rows // nCompleteSamples
     val k = cov.cols // nCovariates
@@ -73,7 +73,7 @@ object LinearRegression {
 
           var i = 0
           while (i < blockLength) {
-            RegressionUtils.exprDosages(X(::, i),
+            RegressionUtils.inputVector(X(::, i),
               localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, block(i),
               ec, xf,
               completeSampleIndexBc.value, missingSamples)
@@ -125,4 +125,5 @@ object LinearRegression {
       rdd = newRDD,
       vaSignature = newVAS)
   }
+
 }

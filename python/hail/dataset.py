@@ -1468,7 +1468,6 @@ class VariantDataset(HistoryMixin):
         >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
 
         >>> (vds3.filter_variants_expr('gs.map(g => g.GP).infoScore().score >= 0.9')
-        ...      .annotate_genotypes_expr('g = Genotype(v, g.GT, g.GP)')
         ...      .export_gen('output/infoscore_filtered'))
 
         **Notes**
@@ -1502,7 +1501,7 @@ class VariantDataset(HistoryMixin):
         :param int precision: Number of digits after the decimal point each probability is truncated to.
         """
 
-        self._jvdf.exportGen(output, precision)
+        self._jvkdf.exportGen(output, precision)
 
     @handle_py4j
     @require_biallelic
@@ -2634,203 +2633,6 @@ class VariantDataset(HistoryMixin):
     @handle_py4j
     @require_biallelic
     @record_method
-    @typecheck_method(key_name=strlike,
-                      variant_keys=strlike,
-                      single_key=bool,
-                      agg_expr=strlike,
-                      y=strlike,
-                      covariates=listof(strlike))
-    def linreg_burden(self, key_name, variant_keys, single_key, agg_expr, y, covariates=[]):
-        r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
-        linear regression model.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
-
-        **Examples**
-
-        Run a gene burden test using linear regression on the maximum genotype per gene. Here ``va.genes`` is a variant
-        annotation of type Set[String] giving the set of genes containing the variant (see **Extended example** below
-        for a deep dive):
-
-        >>> linreg_kt, sample_kt = (hc.read('data/example_burden.vds')
-        ...     .linreg_burden(key_name='gene',
-        ...                    variant_keys='va.genes',
-        ...                    single_key=False,
-        ...                    agg_expr='gs.map(g => g.gt).max()',
-        ...                    y='sa.burden.pheno',
-        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
-
-        Run a gene burden test using linear regression on the weighted sum of genotypes per gene. Here ``va.gene`` is
-        a variant annotation of type String giving a single gene per variant (or no gene if missing), and ``va.weight``
-        is a numeric variant annotation:
-
-        >>> linreg_kt, sample_kt = (hc.read('data/example_burden.vds')
-        ...     .linreg_burden(key_name='gene',
-        ...                    variant_keys='va.gene',
-        ...                    single_key=True,
-        ...                    agg_expr='gs.map(g => va.weight * g.gt).sum()',
-        ...                    y='sa.burden.pheno',
-        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
-
-        To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
-        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toFloat64(), 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
-        is the allele frequency over those samples that have no missing phenotype or covariates.
-
-        .. caution::
-
-          With ``single_key=False``, ``variant_keys`` expects a variant annotation of Set or Array type, in order to
-          allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
-          genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
-          variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
-          variant annotation whose value is itself the key of interest. In bose cases, variants with missing keys are
-          ignored.
-
-        **Notes**
-
-        This method modifies :py:meth:`.linreg` by replacing the genotype covariate per variant and sample with
-        an aggregated (i.e., collapsed) score per key and sample. This numeric score is computed from the sample's
-        genotypes and annotations over all variants with that key. Conceptually, the method proceeds as follows:
-
-        1) Filter to the set of samples for which all phenotype and covariates are defined.
-
-        2) For each key and sample, aggregate genotypes across variants with that key to produce a numeric score.
-           ``agg_expr`` must be of numeric type and has the following symbols are in scope:
-
-           - ``s`` (*Sample*): sample
-           - ``sa``: sample annotations
-           - ``global``: global annotations
-           - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
-
-           Note that ``v``, ``va``, and ``g`` are accessible through
-           `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on ``gs``.
-
-           The resulting **sample key table** has key column ``key_name`` and a numeric column of scores for each sample
-           named by the sample ID.
-
-        3) For each key, fit the linear regression model using the supplied phenotype and covariates.
-           The model is that of :py:meth:`.linreg` with sample genotype ``gt`` replaced by the score in the sample
-           key table. For each key, missing scores are mean-imputed across all samples.
-
-           The resulting **linear regression key table** has the following columns:
-
-           - value of ``key_name`` (*String*) -- descriptor of variant group key (key column)
-           - **beta** (*Double*) -- fit coefficient, :math:`\hat\beta_1`
-           - **se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
-           - **tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-           - **pval** (*Double*) -- :math:`p`-value
-
-        :py:meth:`.linreg_burden` returns both the linear regression key table and the sample key table.
-
-        **Extended example**
-
-        Let's walk through these steps in the ``max()`` toy example above.
-        There are six samples with the following annotations:
-
-        +--------+-------+------+------+
-        | Sample | pheno | cov1 | cov2 |
-        +========+=======+======+======+
-        |      A |     0 |    0 |   -1 |
-        +--------+-------+------+------+
-        |      B |     0 |    2 |    3 |
-        +--------+-------+------+------+
-        |      C |     1 |    1 |    5 |
-        +--------+-------+------+------+
-        |      D |     1 |   -2 |    0 |
-        +--------+-------+------+------+
-        |      E |     1 |   -2 |   -4 |
-        +--------+-------+------+------+
-        |      F |     1 |    4 |    3 |
-        +--------+-------+------+------+
-
-        There are three variants with the following ``gt`` values:
-
-        +---------+---+---+---+---+---+---+
-        | Variant | A | B | C | D | E | F |
-        +=========+===+===+===+===+===+===+
-        | 1:1:A:C | 0 | 1 | 0 | 0 | 0 | 1 |
-        +---------+---+---+---+---+---+---+
-        | 1:2:C:T | . | 2 | . | 2 | 0 | 0 |
-        +---------+---+---+---+---+---+---+
-        | 1:3:G:C | 0 | . | 1 | 1 | 1 | . |
-        +---------+---+---+---+---+---+---+
-
-        The ``va.genes`` annotation of type Set[String] on ``example_burden.vds`` was created
-        using :py:meth:`.annotate_variants_table` with ``product=True`` on the interval list:
-
-        .. literalinclude:: data/genes.interval_list
-
-        So there are three overlapping genes: gene A contains two variants,
-        gene B contains one variant, and gene C contains all three variants.
-
-        +--------+---------+---------+---------+
-        |  gene  | 1:1:A:C | 1:2:C:T | 1:3:G:C |
-        +========+=========+=========+=========+
-        |  geneA |    X    |    X    |         |
-        +--------+---------+---------+---------+
-        |  geneB |         |    X    |         |
-        +--------+---------+---------+---------+
-        |  geneC |    X    |    X    |    X    |
-        +--------+---------+---------+---------+
-
-        Therefore :py:meth:`.annotate_variants_table` with ``product=True`` creates
-        a variant annotation of type Set[String] with values ``Set('geneA', 'geneB')``,
-        ``Set('geneB')``, and ``Set('geneA', 'geneB', 'geneC')``.
-
-        So the sample aggregation key table is:
-
-        +-----+---+---+---+---+---+---+
-        | gene| A | B | C | D | E | F |
-        +=====+===+===+===+===+===+===+
-        |geneA|  0|  2|  0|  2|  0|  1|
-        +-----+---+---+---+---+---+---+
-        |geneB| NA|  2| NA|  2|  0|  0|
-        +-----+---+---+---+---+---+---+
-        |geneC|  0|  2|  1|  2|  1|  1|
-        +-----+---+---+---+---+---+---+
-
-        Linear regression is done for each row using the supplied phenotype, covariates, and implicit intercept.
-        The resulting linear regression key table is:
-
-        +------+-------+------+-------+------+
-        | gene |  beta |   se | tstat | pval |
-        +======+=======+======+=======+======+
-        | geneA| -0.084| 0.368| -0.227| 0.841|
-        +------+-------+------+-------+------+
-        | geneB| -0.542| 0.335| -1.617| 0.247|
-        +------+-------+------+-------+------+
-        | geneC|  0.075| 0.515|  0.145| 0.898|
-        +------+-------+------+-------+------+
-
-        :param str key_name: Name to assign to key column of returned key tables.
-
-        :param str variant_keys: Variant annotation path for the TArray or TSet of keys associated to each variant.
-
-        :param bool single_key: if true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
-                                rather than as a collection of keys.
-
-        :param str agg_expr: Sample aggregation expression (per key).
-
-        :param str y: Response expression.
-
-        :param covariates: list of covariate expressions.
-        :type covariates: list of str
-
-        :return: Tuple of linear regression key table and sample aggregation key table.
-        :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`)
-        """
-
-        r = self._jvdf.linregBurden(key_name, variant_keys, single_key, agg_expr, y,
-                                    jarray(Env.jvm().java.lang.String, covariates))
-        linreg_kt = KeyTable(self.hc, r._1())
-        sample_kt = KeyTable(self.hc, r._2())
-
-        return linreg_kt, sample_kt
-
-    @handle_py4j
-    @require_biallelic
-    @record_method
     @typecheck_method(ys=listof(strlike),
                       x=strlike,
                       covariates=listof(strlike),
@@ -2879,10 +2681,10 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @require_biallelic
     @record_method
     @typecheck_method(kinshipMatrix=KinshipMatrix,
                       y=strlike,
+                      x=strlike,
                       covariates=listof(strlike),
                       global_root=strlike,
                       va_root=strlike,
@@ -2890,17 +2692,12 @@ class VariantDataset(HistoryMixin):
                       use_ml=bool,
                       delta=nullable(numeric),
                       sparsity_threshold=numeric,
-                      use_dosages=bool,
                       n_eigs=nullable(integral),
                       dropped_variance_fraction=(nullable(float)))
-    def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False,
+    def lmmreg(self, kinshipMatrix, y, x, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0,
                n_eigs=None, dropped_variance_fraction=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2908,7 +2705,7 @@ class VariantDataset(HistoryMixin):
 
         >>> assoc_vds = hc.read("data/example_lmmreg.vds")
         >>> kinship_matrix = assoc_vds.filter_variants_expr('va.useInKinship').rrm()
-        >>> lmm_vds = assoc_vds.lmmreg(kinship_matrix, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
+        >>> lmm_vds = assoc_vds.lmmreg(kinship_matrix, 'sa.pheno', 'g.nNonRefAlleles()', ['sa.cov1', 'sa.cov2'])
 
         will execute the following four steps in order:
 
@@ -2985,12 +2782,6 @@ class VariantDataset(HistoryMixin):
         ...        .export('output/lmmreg.tsv.bgz')
         >>> lmmreg_results = lmm_vds.globals['lmmreg']
         
-        By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values for per-variant association are defined by the dosage
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
-        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
-        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
-
         **Performance**
 
         Hail's initial version of :py:meth:`.lmmreg` scales beyond 15k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. Analysts have used :py:meth:`.lmmreg` in research to compute kinship from 100k common variants and test 32 million non-rare variants on 8k whole genomes in about 10 minutes on `Google cloud <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__.
@@ -3069,7 +2860,7 @@ class VariantDataset(HistoryMixin):
 
         Fixing a single variant, we define:
 
-        - :math:`v = n \\times 1` vector of genotypes, with missing genotypes imputed as the mean of called genotypes
+        - :math:`v = n \\times 1` input vector, with missing values imputed as the mean of the non-missing values
         - :math:`X_v = \\left[v | X \\right] = n \\times (1 + c)` matrix concatenating :math:`v` and :math:`X`
         - :math:`\\beta_v = (\\beta^0_v, \\beta^1_v, \\ldots, \\beta^c_v) = (1 + c) \\times 1` vector of covariate coefficients
 
@@ -3106,6 +2897,8 @@ class VariantDataset(HistoryMixin):
 
         :param str y: Response sample annotation.
 
+        :param str x: Expression for the input variable.
+
         :param covariates: List of covariate sample annotations.
         :type covariates: list of str
 
@@ -3122,8 +2915,6 @@ class VariantDataset(HistoryMixin):
 
         :param float sparsity_threshold: Genotype vector sparsity at or below which to use sparse genotype vector in rotation (advanced).
 
-        :param bool use_dosages: If true, use dosages rather than hard call genotypes.
-
         :param int n_eigs: Number of eigenvectors of the kinship matrix used to fit the model.
 
         :param float dropped_variance_fraction: Upper bound on fraction of sample variance lost by dropping eigenvectors with small eigenvalues.
@@ -3132,9 +2923,9 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
+        jvds = self._jvds.lmmreg(kinshipMatrix._jkm, y, x, jarray(Env.jvm().java.lang.String, covariates),
                                  use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
-                                 use_dosages, joption(n_eigs), joption(dropped_variance_fraction))
+                                 joption(n_eigs), joption(dropped_variance_fraction))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3142,22 +2933,18 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(test=strlike,
                       y=strlike,
+                      x=strlike,
                       covariates=listof(strlike),
-                      root=strlike,
-                      use_dosages=bool)
-    def logreg(self, test, y, covariates=[], root='va.logreg', use_dosages=False):
+                      root=strlike)
+    def logreg(self, test, y, x, covariates=[], root='va.logreg'):
         """Test each variant for association using logistic regression.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
         Run the logistic regression Wald test per variant using a Boolean phenotype and two covariates stored
         in sample annotations:
 
-        >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
+        >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', 'g.nNonRefAlleles()', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
         **Notes**
 
@@ -3169,13 +2956,7 @@ class VariantDataset(HistoryMixin):
 
         Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao score test ('score'),
         and Firth test ('firth'). Hail only includes samples for which the phenotype and all covariates are
-        defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
-
-        By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values are defined by the dosage
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
-        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
-        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
+        defined. For each variant, Hail imputes missing input values as the mean of the non-missing values.
 
         The example above considers a model of the form
 
@@ -3257,9 +3038,11 @@ class VariantDataset(HistoryMixin):
 
         For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
 
-        Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`__. For each variant, Hail imputes missing genotypes as the mean of called genotypes, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
+        Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`__. For each variant, Hail imputes missing input values as the mean of non-missing input values, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
 
         :param str test: Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
+
+        :param str x: expression for input variable
 
         :param str y: Response expression.  Must evaluate to Boolean or
             numeric with all values 0 or 1.
@@ -3269,135 +3052,12 @@ class VariantDataset(HistoryMixin):
 
         :param str root: Variant annotation path to store result of logistic regression.
 
-        :param bool use_dosages: If true, use genotype dosage rather than hard call.
-
         :return: Variant dataset with logistic regression variant annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.logreg(test, y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages)
+        jvds = self._jvds.logreg(test, y, x, jarray(Env.jvm().java.lang.String, covariates), root)
         return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    @require_biallelic
-    @record_method
-    @typecheck_method(key_name=strlike,
-                      variant_keys=strlike,
-                      single_key=bool,
-                      agg_expr=strlike,
-                      test=strlike,
-                      y=strlike,
-                      covariates=listof(strlike))
-    def logreg_burden(self, key_name, variant_keys, single_key, agg_expr, test, y, covariates=[]):
-        r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
-        logistic regression model.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
-
-        **Examples**
-
-        Run a gene burden test using the logistic Wald test on the maximum genotype per gene. Here ``va.genes`` is
-        a variant annotation of type Set[String] giving the set of genes containing the variant
-        (see **Extended example** in :py:meth:`.linreg_burden` for a deeper  dive in the context of linear regression):
-
-        >>> logreg_kt, sample_kt = (hc.read('data/example_burden.vds')
-        ...     .logreg_burden(key_name='gene',
-        ...                    variant_keys='va.genes',
-        ...                    single_key=False,
-        ...                    agg_expr='gs.map(g => g.gt).max()',
-        ...                    test='wald',
-        ...                    y='sa.burden.pheno',
-        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
-
-        Run a gene burden test using the logistic score test on the weighted sum of genotypes per gene.
-        Here ``va.gene`` is a variant annotation of type String giving a single gene per variant (or no gene if
-        missing), and ``va.weight`` is a numeric variant annotation:
-
-        >>> logreg_kt, sample_kt = (hc.read('data/example_burden.vds')
-        ...     .logreg_burden(key_name='gene',
-        ...                    variant_keys='va.gene',
-        ...                    single_key=True,
-        ...                    agg_expr='gs.map(g => va.weight * g.gt).sum()',
-        ...                    test='score',
-        ...                    y='sa.burden.pheno',
-        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
-
-        To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
-        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toFloat64(), 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
-        is the allele frequency over those samples that have no missing phenotype or covariates.
-
-        .. caution::
-
-          With ``single_key=False``, ``variant_keys`` expects a variant annotation of Set or Array type, in order to
-          allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
-          genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
-          variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
-          variant annotation whose value is itself the key of interest. In bose cases, variants with missing keys are
-          ignored.
-
-        **Notes**
-
-        This method modifies :py:meth:`.logreg` by replacing the genotype covariate per variant and sample with
-        an aggregated (i.e., collapsed) score per key and sample. This numeric score is computed from the sample's
-        genotypes and annotations over all variants with that key. The phenotype type must either be numeric
-        (with all present values 0 or 1) or Boolean, in which case true and false are coded as 1 and 0, respectively.
-
-        Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao score test ('score'),
-        and Firth test ('firth') as the ``test`` parameter. Conceptually, the method proceeds as follows:
-
-        1) Filter to the set of samples for which all phenotype and covariates are defined.
-
-        2) For each key and sample, aggregate genotypes across variants with that key to produce a numeric score.
-           ``agg_expr`` must be of numeric type and has the following symbols are in scope:
-
-           - ``s`` (*Sample*): sample
-           - ``sa``: sample annotations
-           - ``global``: global annotations
-           - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
-
-           Note that ``v``, ``va``, and ``g`` are accessible through
-           `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on ``gs``.
-
-           The resulting **sample key table** has key column ``key_name`` and a numeric column of scores for each sample
-           named by the sample ID.
-
-        3) For each key, fit the logistic regression model using the supplied phenotype, covariates, and test.
-           The model and tests are those of :py:meth:`.logreg` with sample genotype ``gt`` replaced by the
-           score in the sample key table. For each key, missing scores are mean-imputed across all samples.
-
-           The resulting **logistic regression key table** has key column of type String given by the ``key_name``
-           parameter and additional columns corresponding to the fields of the ``va.logreg`` schema given for ``test``
-           in :py:meth:`.logreg`.
-
-        :py:meth:`.logreg_burden` returns both the logistic regression key table and the sample key table.
-
-        :param str key_name: Name to assign to key column of returned key tables.
-
-        :param str variant_keys: Variant annotation path for the TArray or TSet of keys associated to each variant.
-
-        :param bool single_key: if true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
-                                rather than as a collection of keys.
-
-        :param str agg_expr: Sample aggregation expression (per key).
-
-        :param str test: Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
-
-        :param str y: Response expression.
-
-        :param covariates: list of covariate expressions.
-        :type covariates: list of str
-
-        :return: Tuple of logistic regression key table and sample aggregation key table.
-        :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`)
-        """
-
-        r = self._jvdf.logregBurden(key_name, variant_keys, single_key, agg_expr, test, y, jarray(Env.jvm().java.lang.String, covariates))
-        logreg_kt = KeyTable(self.hc, r._1())
-        sample_kt = KeyTable(self.hc, r._2())
-
-        return logreg_kt, sample_kt
 
     @handle_py4j
     @require_biallelic
@@ -4915,19 +4575,15 @@ class VariantDataset(HistoryMixin):
                       single_key=bool,
                       weight_expr=strlike,
                       y=strlike,
+                      x=strlike,
                       covariates=listof(strlike),
                       logistic=bool,
-                      use_dosages=bool,
                       max_size=integral,
                       accuracy=numeric,
                       iterations=integral)
-    def skat(self, variant_keys, single_key, weight_expr, y, covariates=[], logistic=False, use_dosages=False,
+    def skat(self, variant_keys, single_key, weight_expr, y, x, covariates=[], logistic=False,
              max_size=46340, accuracy=1e-6, iterations=10000):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -4939,6 +4595,7 @@ class VariantDataset(HistoryMixin):
         ...                    weight_expr='va.weight',
         ...                    single_key=False,
         ...                    y='sa.burden.pheno',
+        ...                    x='g.nNonRefAlleles()',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         .. caution::
@@ -4970,7 +4627,7 @@ class VariantDataset(HistoryMixin):
         <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
         The test is run on complete samples (i.e., phenotype and all covariates non-missing).
-        For each variant, missing genotypes are imputed as the mean of all non-missing genotypes.
+        For each variant, missing input values are imputed as the mean of all non-missing input values.
 
         Variant weights must be non-negative. Variants with missing weights are ignored.
         In the R package ``skat``, default weights are given by evaluating the Beta(1, 25) density at
@@ -5034,12 +4691,12 @@ class VariantDataset(HistoryMixin):
 
         :param str y: Response expression.
 
+        :param str x: expression for input variable
+
         :param covariates: List of covariate expressions.
         :type covariates: List of str
 
         :param bool logistic: If true, use the logistic test rather than the linear test. 
-
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
         :param int max_size: Maximum size of group on which to run the test.
 
@@ -5051,9 +4708,9 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, weight_expr, y,
+        return KeyTable(self.hc, self._jvds.skat(variant_keys, single_key, weight_expr, y, x,
                                                  jarray(Env.jvm().java.lang.String, covariates),
-                                                 logistic, use_dosages, max_size, accuracy, iterations))
+                                                 logistic, max_size, accuracy, iterations))
 
     @handle_py4j
     @record_method

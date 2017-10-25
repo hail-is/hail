@@ -43,8 +43,6 @@ sealed abstract class HTSGenotypeView {
   def getGQ: Int
 
   def getPL(idx: Int): Int
-
-  def isLinearScale: Boolean
 }
 
 class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
@@ -55,8 +53,7 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
   private val adIndex = 1
   private val dpIndex = 2
   private val gqIndex = 3
-  private val pxIndex = 4
-  private val linearScaleIndex = 6
+  private val plIndex = 4
 
   private var m: MemoryBuffer = _
   private var gsOffset: Long = _
@@ -85,10 +82,7 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
 
   def hasGQ: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, gqIndex)
 
-  def hasPL: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, pxIndex) &&
-    !m.loadBoolean(tg.loadField(m, gOffset, linearScaleIndex))
-
-  def hasPX: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, pxIndex)
+  def hasPL: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, plIndex)
 
   def getGT: Int = {
     val callOffset = tg.loadField(m, gOffset, gtIndex)
@@ -116,32 +110,29 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
     m.loadInt(gqOffset)
   }
 
-  def getPX(idx: Int): Int = {
-    val pxOffset = tg.loadField(m, gOffset, pxIndex)
-    val length = HTSGenotypeView.tArrayInt32.loadLength(m, pxOffset)
+  def getPL(idx: Int): Int = {
+    val plOffset = tg.loadField(m, gOffset, plIndex)
+    val length = HTSGenotypeView.tArrayInt32.loadLength(m, plOffset)
     if (idx < 0 || idx >= length)
       throw new ArrayIndexOutOfBoundsException(idx)
-    assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, pxOffset, idx))
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(pxOffset, length, idx)
+    assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, plOffset, idx))
+    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(plOffset, length, idx)
     m.loadInt(elementOffset)
-  }
-
-  def getPL(idx: Int): Int = getPX(idx)
-
-  def isLinearScale: Boolean = {
-    assert(gIsDefined)
-    m.loadBoolean(tg.loadField(m, gOffset, linearScaleIndex))
   }
 }
 
 private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
-  private val tgs = rs.fields(2).asInstanceOf[TArray]
+  private val tgs = rs.fields(3).asInstanceOf[TArray]
   private val tg = tgs.elementType.asInstanceOf[TStruct]
 
   private def lookupField(name: String, expected: Type): (Boolean, Int) = {
-    tg.fieldIdx.get(name) match {
-      case Some(i) => (true, i)
-      case None => (false, uninitialized[Int])
+    tg.selfField(name) match {
+      case Some(f) =>
+        if (f.typ == expected)
+          (true, f.index)
+        else
+          (false, 0)
+      case None => (false, 0)
     }
   }
 
@@ -160,7 +151,7 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
 
   def setRegion(mb: MemoryBuffer, offset: Long) {
     this.m = mb
-    gsOffset = rs.loadField(m, offset, 2)
+    gsOffset = rs.loadField(m, offset, 3)
     gsLength = tgs.loadLength(m, gsOffset)
   }
 
@@ -207,14 +198,82 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
   }
 
   def getPL(idx: Int): Int = {
-    val pxOffset = tg.loadField(m, gOffset, plIndex)
-    val length = HTSGenotypeView.tArrayInt32.loadLength(m, pxOffset)
+    val plOffset = tg.loadField(m, gOffset, plIndex)
+    val length = HTSGenotypeView.tArrayInt32.loadLength(m, plOffset)
     if (idx < 0 || idx >= length)
       throw new ArrayIndexOutOfBoundsException(idx)
-    assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, pxOffset, idx))
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(pxOffset, length, idx)
+    assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, plOffset, idx))
+    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(plOffset, length, idx)
     m.loadInt(elementOffset)
   }
+}
 
-  def isLinearScale: Boolean = false
+object ArrayGenotypeView {
+  val tArrayFloat64 = TArray(TFloat64)
+}
+
+class ArrayGenotypeView(rowType: TStruct) {
+  private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
+  private val tg = tgs.elementType match {
+    case tg: TStruct => tg
+    case _ => null
+  }
+
+  private def lookupField(name: String, expected: Type): (Boolean, Int) = {
+    if (tg != null) {
+      tg.selfField(name) match {
+        case Some(f) =>
+          if (f.typ == expected)
+            (true, f.index)
+          else
+            (false, 0)
+        case None => (false, 0)
+      }
+    } else
+      (false, 0)
+  }
+
+  private val (gtExists, gtIndex) = lookupField("GT", TCall)
+  private val (gpExists, gpIndex) = lookupField("GP", ArrayGenotypeView.tArrayFloat64)
+
+  private var m: MemoryBuffer = _
+  private var gsOffset: Long = _
+  private var gsLength: Int = _
+  private var gOffset: Long = _
+
+  var gIsDefined: Boolean = _
+
+  def setRegion(mb: MemoryBuffer, offset: Long) {
+    this.m = mb
+    gsOffset = rowType.loadField(m, offset, 3)
+    gsLength = tgs.loadLength(m, gsOffset)
+  }
+
+  def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
+
+  def setGenotype(idx: Int) {
+    require(idx >= 0 && idx < gsLength)
+    gIsDefined = tgs.isElementDefined(m, gsOffset, idx)
+    gOffset = tgs.loadElement(m, gsOffset, gsLength, idx)
+  }
+
+  def hasGT: Boolean = gtExists && gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
+
+  def hasGP: Boolean = gpExists && gIsDefined && tg.isFieldDefined(m, gOffset, gpIndex)
+
+  def getGT: Int = {
+    val callOffset = tg.loadField(m, gOffset, gtIndex)
+    Call(m.loadInt(callOffset))
+  }
+
+  def getGP(idx: Int): Double = {
+    val adOffset = tg.loadField(m, gOffset, gpIndex)
+    val length = ArrayGenotypeView.tArrayFloat64.loadLength(m, adOffset)
+    if (idx < 0 || idx >= length)
+      throw new ArrayIndexOutOfBoundsException(idx)
+    assert(ArrayGenotypeView.tArrayFloat64.isElementDefined(m, adOffset, idx))
+
+    val elementOffset = ArrayGenotypeView.tArrayFloat64.elementOffset(adOffset, length, idx)
+    m.loadDouble(elementOffset)
+  }
 }
