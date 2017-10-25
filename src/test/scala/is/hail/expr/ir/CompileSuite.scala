@@ -47,4 +47,36 @@ class CompileSuite {
     assert(run(Array(-1.0,0.0,1.0)) == 0.0)
   }
 
+  @Test
+  def meanImpute() {
+    val meanIr =
+      Let("in", In(0, TArray(TFloat64)),
+        Let("out", MakeArrayN(ArrayLen(Ref("in")), TFloat64),
+          Let("sum", F64(0),
+            seq(
+              For("v", "i", Ref("in"),
+                Set("sum", ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))),
+              Let("mean", ApplyPrimitive("/", Array(Ref("sum"), ArrayLen(Ref("in")))),
+                For("v", "i", Ref("in"),
+                  If(IsNA(Ref("v")),
+                    ArraySet(Ref("out"), Ref("i"), Ref("mean")),
+                    ArraySet(Ref("out"), Ref("i"), Ref("v")))))))))
+
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Double]
+    Infer(meanIr)
+    println(s"typed:\n$meanIr")
+    Compile(meanIr, fb, Map())
+    val f = fb.result()()
+    def run(a: Array[Double]): Double = {
+      val mb = MemoryBuffer()
+      val aoff = addArray(mb, a)
+      f(mb, aoff)
+    }
+
+    assert(run(Array()).isNaN)
+    assert(run(Array(1.0)) == 1.0)
+    assert(run(Array(1.0,2.0,3.0)) == 2.0)
+    assert(run(Array(-1.0,0.0,1.0)) == 0.0)
+  }
+
 }
