@@ -91,25 +91,18 @@ object Compile {
         val arr = expression(a).asInstanceOf[Code[Long]]
 
         TContainer.loadLength(region, arr)
-      case For(name, start, end, body, nameTyp) => nameTyp match {
-        case TInt32 =>
-          val vi = fb.newLocal[Int]
-          val vend = fb.newLocal[Int]
-          Code(
-            vi := expression(start).asInstanceOf[Code[Int]],
-            vend := expression(end).asInstanceOf[Code[Int]],
-            Code.whileLoop(vi < vend,
-              expression(body, env = env + (name -> (typeInfo[Int], vi))),
-              vi := (vi + 1)))
-        case TInt64 =>
-          val vi = fb.newLocal[Long]
-          val vend = fb.newLocal[Long]
-          Code(
-            vi := expression(start).asInstanceOf[Code[Long]],
-            vend := expression(end).asInstanceOf[Code[Long]],
-            Code.whileLoop(vi < vend,
-              expression(body, env = env + (name -> (typeInfo[Long], vi))),
-              vi := (vi + 1L)))
+      case For(value, idx, array, body) => typeToTypeInfo(array.typ.asInstanceOf[TArray].elementType) match { case ti: TypeInfo[t] =>
+        implicit val tti = ti
+        val a = fb.newLocal()(arrayInfo(ti))
+        val vi = fb.newLocal[Int]
+        val len = fb.newLocal[Int]
+        Code(
+          a := expression(array).asInstanceOf[Code[Array[t]]],
+          vi := 0,
+          len := a.length(),
+          Code.whileLoop(vi < len,
+            expression(body, env = env + (value -> (ti, a(vi))) + (idx -> (typeInfo[Int], vi))),
+            vi := vi + 1))
       }
       case MakeStruct(fields) =>
         val t = TStruct(fields.map { case (name, t, _) => (name, t) }: _*)
