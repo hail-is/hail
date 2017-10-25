@@ -399,7 +399,6 @@ class KeyTable(KeyTableTemplate):
     ...     x9 = kt_grp.qPheno.fraction(lambda x, _: x == 1),
     ...     x10 = kt_grp.qPheno.map(lambda x, _: x.to_float64()).stats(),
     ...     x11 = kt_grp.gt.hardy_weinberg(),
-    ...     x12 = kt_grp.gt.map(lambda x, _: x.gp).info_score(),
     ...     x13 = kt_grp.gt.inbreeding(lambda x, _: 0.1),
     ...     x14 = kt_grp.gt.call_stats(lambda g, _: Variant("1", 10000, "A", "T")),
     ...     x15 = kt_grp.gt.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})})).collect()[0],
