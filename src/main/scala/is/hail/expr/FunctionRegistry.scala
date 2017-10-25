@@ -1269,7 +1269,7 @@ def ADsplit(ad:Array[Int],gt:String)={
   }
   
   //if (adOK=="") adOK
-  if (ad.length="")""
+  if (ad.length==0)""
   else{
   val adArray= ad
   val total=adArray.sum
