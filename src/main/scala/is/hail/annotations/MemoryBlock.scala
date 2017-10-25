@@ -905,7 +905,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
               addRow(t, r)
           }
 
-        case TSet(elementType) =>
+        case TSet(elementType, req) =>
+          assert(req == currentType().asInstanceOf[TSet].elementsRequired)
           val s = a.asInstanceOf[Set[Annotation]]
             .toArray
             .sorted(elementType.ordering(true))

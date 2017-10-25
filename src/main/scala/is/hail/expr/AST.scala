@@ -452,7 +452,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                |  Found ${ args.length } arguments""".stripMargin)
         args.head.typecheck(ec)
         val t = args.head.`type` match {
-          case TArray(t: TStruct) => t
+          case TArray(t: TStruct, _) => t
           case error => parseError(
             s"""invalid arguments for method `$fn'
                |  Expected Array[Struct] as first argument, found `$error'""".stripMargin)

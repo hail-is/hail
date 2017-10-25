@@ -35,16 +35,16 @@ object Annotation {
 
   def expandType(t: Type): Type = t match {
     case tc: ComplexType => expandType(tc.representation)
-    case TArray(elementType) =>
-      TArray(expandType(elementType))
+    case TArray(elementType, req) =>
+      TArray(expandType(elementType), req)
     case TStruct(fields) =>
       TStruct(fields.map { f => f.copy(typ = expandType(f.typ)) })
-    case TSet(elementType) =>
-      TArray(expandType(elementType))
-    case TDict(keyType, valueType) =>
+    case TSet(elementType, req) =>
+      TArray(expandType(elementType), req)
+    case TDict(keyType, valueType, req) =>
       TArray(TStruct(
         "key" -> expandType(keyType),
-        "value" -> expandType(valueType)))
+        "value" -> expandType(valueType)), req)
     case _ => t
   }
 
@@ -57,19 +57,19 @@ object Annotation {
         case TGenotype => Genotype.toRow(a.asInstanceOf[Genotype])
         case _: TLocus => a.asInstanceOf[Locus].toRow
 
-        case TArray(elementType) =>
+        case TArray(elementType, _) =>
           a.asInstanceOf[IndexedSeq[_]].map(expandAnnotation(_, elementType))
         case TStruct(fields) =>
           Row.fromSeq((a.asInstanceOf[Row].toSeq, fields).zipped.map { case (ai, f) =>
             expandAnnotation(ai, f.typ)
           })
 
-        case TSet(elementType) =>
+        case TSet(elementType, _) =>
           (a.asInstanceOf[Set[_]]
             .toArray[Any] : IndexedSeq[_])
             .map(expandAnnotation(_, elementType))
 
-        case TDict(keyType, valueType) =>
+        case TDict(keyType, valueType, _) =>
           (a.asInstanceOf[Map[String, _]]
 
             .toArray[(Any, Any)]: IndexedSeq[(Any, Any)])

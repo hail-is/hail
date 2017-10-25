@@ -602,8 +602,14 @@ final case class TVariable(name: String, var t: Type = null) extends Type {
 object TAggregable {
   val desc = """An ``Aggregable`` is a Hail data type representing a distributed row or column of a matrix. Hail exposes a number of methods to compute on aggregables depending on the data type."""
 
-  def apply(elementType: Type, symTab: SymbolTable, elementsRequired: Boolean = false): TAggregable = {
+  def apply(elementType: Type, symTab: SymbolTable, elementsRequired: Boolean): TAggregable = {
     val agg = TAggregable(elementType, elementsRequired = elementsRequired)
+    agg.symTab = symTab
+    agg
+  }
+
+  def apply(elementType: Type, symTab: SymbolTable): TAggregable = {
+    val agg = TAggregable(elementType)
     agg.symTab = symTab
     agg
   }

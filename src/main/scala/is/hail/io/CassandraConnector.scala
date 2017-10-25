@@ -54,9 +54,9 @@ object CassandraImpex {
     case TString => DataType.text()
     case TBinary => DataType.blob()
     case TCall => DataType.cint()
-    case TArray(elementType) => DataType.list(exportType(elementType, depth + 1), depth == 1)
-    case TSet(elementType) => DataType.set(exportType(elementType, depth + 1), depth == 1)
-    case TDict(keyType, valueType) =>
+    case TArray(elementType, _) => DataType.list(exportType(elementType, depth + 1), depth == 1)
+    case TSet(elementType, _) => DataType.set(exportType(elementType, depth + 1), depth == 1)
+    case TDict(keyType, valueType, _) =>
       DataType.map(exportType(keyType, depth + 1),
         exportType(valueType, depth + 1), depth == 1)
     case TAltAllele => DataType.text()
@@ -108,23 +108,31 @@ object CassandraImpex {
     case TString => a
     case TBinary => ByteBuffer.wrap(a.asInstanceOf[Array[Byte]])
     case TCall => a
-    case TArray(elementType) =>
+    case TArray(elementType, req) =>
       if (a == null)
         null
       else
-        a.asInstanceOf[Seq[_]].map(x => exportAnnotation(x, elementType)).asJava
-    case TSet(elementType) =>
+        a.asInstanceOf[Seq[_]].map(x => {
+          assert(!req || x != null)
+          exportAnnotation(x, elementType)
+        }).asJava
+    case TSet(elementType, req) =>
       if (a == null)
         null
       else
-        a.asInstanceOf[Set[_]].map(x => exportAnnotation(x, elementType)).asJava
-    case TDict(keyType, valueType) =>
+        a.asInstanceOf[Set[_]].map(x => {
+          assert(!req || x != null)
+          exportAnnotation(x, elementType)
+        }).asJava
+    case TDict(keyType, valueType, req) =>
       if (a == null)
         null
       else
-        a.asInstanceOf[Map[_, _]].map { case (k, v) =>
-          (exportAnnotation(k, keyType),
-            exportAnnotation(v, valueType))
+        a.asInstanceOf[Map[_, _]].map { case (k, v) => {
+          assert(!req || k != null)
+            (exportAnnotation(k, keyType),
+              exportAnnotation(v, valueType))
+          }
         }.asJava
     case TAltAllele | TVariant(_) | TLocus(_) | TInterval(_) | TGenotype =>
       JsonMethods.compact(t.toJSON(a))
