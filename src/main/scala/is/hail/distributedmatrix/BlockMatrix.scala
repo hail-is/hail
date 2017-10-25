@@ -7,7 +7,6 @@ import is.hail._
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.lang3.StringUtils
-import org.apache.hadoop.io._
 import org.apache.spark._
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
@@ -164,9 +163,7 @@ object BlockMatrix {
   private val matrixRelativePath = "/matrix"
   
     /**
-    * Writes the matrix {@code m} to a Hadoop sequence file at location {@code
-    * uri}.
-    *
+    * Writes the matrix {@code m} to a Hadoop sequence file at location {@code uri}.
     **/
   def write(m: M, uri: String) {
     val hadoop = m.blocks.sparkContext.hadoopConfiguration
@@ -176,7 +173,7 @@ object BlockMatrix {
     
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       jackson.Serialization.write(
-        BlockMatrixMetadata(m.blockSize, m.rows, m.cols),
+        BlockMatrixMetadata(m.blockSize, m.rows, m.cols, m.partitioner.transposed),
         os)
     }
   }
@@ -215,20 +212,18 @@ object BlockMatrix {
   }
   
   /**
-    * Reads a BlockMatrix matrix written by {@code write} at location
-    * {@code uri}.
-    *
+    * Reads a BlockMatrix matrix written by {@code write} at location {@code uri}.
     **/
   def read(hc: HailContext, uri: String): M = {
     val hadoop = hc.hadoopConf
     hadoop.mkDir(uri)
     
-    val BlockMatrixMetadata(blockSize, rows, cols) =
+    val BlockMatrixMetadata(blockSize, rows, cols, transposed) =
       hadoop.readTextFile(uri + metadataRelativePath) { isr  =>
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
     
-    val blocks = new ReadBlocksRDD(hc.sc, uri, blockSize, rows, cols)
+    val blocks = new ReadBlocksRDD(hc.sc, uri, blockSize, rows, cols, transposed)
     
     new BlockMatrix(blocks, blockSize, rows, cols)
   }  
@@ -305,7 +300,7 @@ object BlockMatrix {
 }
 
 // must be top-level for Jackson to serialize correctly
-case class BlockMatrixMetadata(blockSize: Int, rows: Long, cols: Long)
+case class BlockMatrixMetadata(blockSize: Int, rows: Long, cols: Long, transposed: Boolean)
 
 class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val blockSize: Int,
@@ -801,16 +796,16 @@ case class IntPartition(index: Int) extends Partition
 
 case class ReadBlocksRDDPartition(index: Int) extends Partition
 
-class ReadBlocksRDD(sc: SparkContext, uri: String, blockSize: Int, rows: Long, cols: Long) extends RDD[((Int, Int), BDM[Double])](sc, Nil) {
+class ReadBlocksRDD(sc: SparkContext, uri: String, blockSize: Int, rows: Long, cols: Long, transposed: Boolean) extends RDD[((Int, Int), BDM[Double])](sc, Nil) {
   private val blockRows: Int = ((rows - 1) / blockSize).toInt + 1
   private val blockCols: Int = ((cols - 1) / blockSize).toInt + 1
-  private val nBlocks = blockRows * blockCols  
+  private val nBlocks = blockRows * blockCols
   assert(nBlocks >= blockRows && nBlocks >= blockCols)
   
   override def getPartitions: Array[Partition] =
     Array.tabulate(nBlocks)(i => ReadBlocksRDDPartition(i))
   
-  private val sHadoopConf = new SerializableHadoopConfiguration(sc.hadoopConfiguration) // FIXME: broadcast , Kryo
+  private val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
   override def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val d = digitsNeeded(nBlocks)
@@ -821,7 +816,7 @@ class ReadBlocksRDD(sc: SparkContext, uri: String, blockSize: Int, rows: Long, c
     assert(is.length <= d)
     val pis = StringUtils.leftPad(is, d, "0")
 
-    Iterator.single(sHadoopConf.value.readDataFile(uri + "/blocks/block-" + pis) { in =>
+    Iterator.single(sHadoopConfBc.value.value.readDataFile(uri + "/blocks/block-" + pis) { in =>
       
       val bdm = RichDenseMatrixDouble.read(in)
       
@@ -830,5 +825,5 @@ class ReadBlocksRDD(sc: SparkContext, uri: String, blockSize: Int, rows: Long, c
     })
   }
 
-  override val partitioner: Option[Partitioner] = Some(GridPartitioner(rows, cols, blockSize))
+  override val partitioner: Option[Partitioner] = Some(GridPartitioner(rows, cols, blockSize, transposed))
 }

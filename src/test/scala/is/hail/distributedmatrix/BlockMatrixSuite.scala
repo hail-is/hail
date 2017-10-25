@@ -1,7 +1,6 @@
 package is.hail.distributedmatrix
 
 import breeze.linalg.{DenseMatrix => BDM}
-import breeze.stats.distributions.Rand
 import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
@@ -9,7 +8,6 @@ import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.utils._
-import org.apache.commons.math3.random.{RandomDataGenerator, RandomGenerator}
 import org.testng.annotations.Test
 
 class BlockMatrixSuite extends SparkSuite {
@@ -398,6 +396,7 @@ class BlockMatrixSuite extends SparkSuite {
   def readWriteIdentityRandom() {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val fname = tmpDir.createTempFile("test")
+      println(s"blockSize=${m.blockSize}", s"rows=${m.rows}", s"cols=${m.cols}", s"trans=${m.partitioner.transposed}")
       BlockMatrix.write(m, fname)
       assert(sameDoubleMatrixNaNEqualsNaN(m.toLocalMatrix(), BlockMatrix.read(hc, fname).toLocalMatrix()))
       true
