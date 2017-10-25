@@ -712,13 +712,13 @@ abstract class TContainer extends Type {
     aoff + elementsOffset(length) + i * elementByteSize
 
   def elementOffsetInRegion(region: MemoryBuffer, aoff: Long, i: Int): Long =
-    elementOffset(aoff, region.loadInt(aoff), i)
+    elementOffset(aoff, loadLength(region, aoff), i)
 
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
     aoff + elementsOffset(length) + i.toL * const(elementByteSize)
 
   def elementOffsetInRegion(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    elementOffset(aoff, region.loadInt(aoff), i)
+    elementOffset(aoff, loadLength(region, aoff), i)
 
   def loadElement(region: MemoryBuffer, aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
