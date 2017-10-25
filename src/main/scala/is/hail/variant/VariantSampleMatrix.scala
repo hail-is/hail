@@ -711,25 +711,41 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val ec = variantEC
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
 
-    val inserterBuilder = new ArrayBuilder[Inserter]()
-    val finalType = (paths, types).zipped.foldLeft(vaSignature) { case (vas, (ids, signature)) =>
-      val (s, i) = vas.insert(signature, ids)
-      inserterBuilder += i
-      s
+    var newVASignature = vaSignature
+    val inserters = new Array[Inserter](types.length)
+    var i = 0
+    while (i < types.length) {
+      val (newSig, ins) = newVASignature.insert(types(i), paths(i))
+      inserters(i) = ins
+      newVASignature = newSig
+      i += 1
     }
-    val inserters = inserterBuilder.result()
 
     val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
 
-    mapAnnotations(finalType, { case (v, va, gs) =>
-      ec.setAll(localGlobalAnnotation, v, va)
+    val localRowType = rowType
+    insertIntoRow[UnsafeRow](() => new UnsafeRow(localRowType))(
+      newVASignature, List("va"), { (ur, rv, rvb) =>
+        ur.set(rv)
+        
+        val v = ur.getAs[RK](1)
+        val va = ur.get(2)
+        val gs = ur.getAs[Iterable[T]](3)
 
-      aggregateOption.foreach(f => f(v, va, gs))
-      f().zip(inserters)
-        .foldLeft(va) { case (va, (v, inserter)) =>
-          inserter(va, v)
+        ec.setAll(localGlobalAnnotation, v, va)
+
+        aggregateOption.foreach(f => f(v, va, gs))
+
+        var newVA = va
+        var i = 0
+        var newA = f()
+        while (i < newA.length) {
+          newVA = inserters(i)(newVA, newA(i))
+          i += 1
         }
-    })
+
+        rvb.addAnnotation(newVASignature, newVA)
+      })
   }
 
   def annotateVariantsTable(kt: KeyTable, vdsKey: java.util.ArrayList[String],
@@ -1218,6 +1234,15 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     vaSignature.insert(sig, path)
   }
 
+  def insertIntoRow[PC](makePartitionContext: () => PC)(typeToInsert: Type, path: List[String],
+    inserter: (PC, RegionValue, RegionValueBuilder) => Unit): VariantSampleMatrix[RPK, RK, T] = {
+    val newRDD2 = rdd2.insert(makePartitionContext)(typeToInsert, path, inserter)
+    copy2(rdd2 = newRDD2,
+      // don't need to update vSignature, insert can't change the keys
+      vaSignature = newRDD2.typ.rowType.fieldType(2),
+      genotypeSignature = newRDD2.typ.rowType.fieldType(3).asInstanceOf[TArray].elementType)
+  }
+
   /**
     *
     * @param right right-hand dataset with which to join
@@ -1345,9 +1370,16 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       }
   }
 
-  def mapAnnotations(newVASignature: Type, f: (RK, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[RPK, RK, T] =
-    copy(vaSignature = newVASignature,
-      rdd = rdd.mapValuesWithKey { case (v, (va, gs)) => (f(v, va, gs), gs) })
+  def mapAnnotations(newVASignature: Type, f: (RK, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[RPK, RK, T] = {
+    val localRowType = rowType
+    insertIntoRow(() => new UnsafeRow(localRowType))(newVASignature, List("va"), { case (ur, rv, rvb) =>
+      ur.set(rv)
+      val v = ur.getAs[RK](1)
+      val va = ur.get(2)
+      val gs = ur.getAs[Iterable[T]](3)
+        rvb.addAnnotation(newVASignature, f(v, va, gs))
+    })
+  }
 
   def mapPartitionsWithAll[U](f: Iterator[(RK, Annotation, Annotation, Annotation, T)] => Iterator[U])
     (implicit uct: ClassTag[U]): RDD[U] = {
@@ -1566,7 +1598,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val notInDataset = mutable.Set[Annotation]()
 
     oldOrder.outerJoin(newOrder).foreach { case (s, (oldIdx, newIdx)) =>
-      (oldIdx: @unchecked, newIdx: @unchecked) match {
+      ((oldIdx, newIdx): @unchecked) match {
         case (Some(i), Some(j)) => newIndices(i) = j
         case (Some(i), None) => missingSamples += s
         case (None, Some(j)) => notInDataset += s
