@@ -80,7 +80,7 @@ object Compile {
       case NA(typ) =>
         (const(true), ???)
       case IsNA(v) =>
-        (const(true), expression(v)._1)
+        (const(false), expression(v)._1)
       case MapNA(name, value, body, typ) =>
         ???
 
