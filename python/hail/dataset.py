@@ -2536,6 +2536,59 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.join(right._jvds))
 
     @handle_py4j
+    @typecheck(datasets=tupleof(vds_type))
+    def union(*datasets):
+        """Take the union of datasets vertically (include all variants).
+
+        **Examples**
+
+        .. testsetup::
+
+            vds_autosomal = vds
+            vds_chromX = vds
+            vds_chromY = vds
+
+        Union two datasets:
+
+        >>> vds_union = vds_autosomal.union(vds_chromX)
+
+        Given a list of datasets, union them all:
+
+        >>> all_vds = [vds_autosomal, vds_chromX, vds_chromY]
+
+        The following three syntaxes are equivalent:
+
+        >>> vds_union1 = vds_autosomal.union(vds_chromX, vds_chromY)
+        >>> vds_union2 = all_vds[0].union(*all_vds[1:])
+        >>> vds_union3 = VariantDataset.union(*all_vds)
+
+        **Notes**
+
+        In order to combine two datasets, these requirements must be met:
+         - the samples must match
+         - the variant annotation schemas must match (field order within structs matters).
+         - the cell (genotype) schemas must match (field order within structs matters).
+
+        The column annotations in the resulting dataset are simply the column annotations
+        from the first dataset; the column annotation schemas do not need to match.
+
+        This method can trigger a shuffle, if partitions from two datasets overlap.
+
+        :param vds_type: Datasets to combine.
+        :type vds_type: tuple of :class:`.VariantDataset`
+
+        :return: Dataset with variants from all datasets.
+        :rtype: :class:`.VariantDataset`
+        """
+        if len(datasets) == 0:
+            raise ValueError('Expected at least one argument')
+        elif len(datasets) == 1:
+            return datasets[0]
+        else:
+            return VariantDataset(Env.hc(), Env.hail().variant.VariantSampleMatrix.union([d._jvds for d in datasets]))
+
+
+    @handle_py4j
     @requireTGenotype
     @typecheck_method(r2=numeric,
                       window=integral,
