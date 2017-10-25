@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.{NewAST, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TUnit, Type}
+import is.hail.expr.{NewAST, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type}
 
 object IR {
   def seq(stmts: IR*)  = new Seq(stmts.toArray)
@@ -26,7 +26,7 @@ sealed case class MapNA(name: String, value: IR, body: IR, var typ: Type = null)
 
 sealed case class Let(name: String, value: IR, body: IR, var typ: Type = null) extends IR
 sealed case class Ref(name: String, var typ: Type = null) extends IR
-sealed case class Set(name: String, v: IR) extends IR { val typ = TUnit }
+sealed case class Set(name: String, v: IR) extends IR { val typ = TVoid }
 
 sealed case class ApplyPrimitive(op: String, args: Array[IR], var typ: Type = null) extends IR
 sealed case class LazyApplyPrimitive(op: String, args: Array[IR], var typ: Type = null) extends IR
@@ -36,7 +36,7 @@ sealed case class Lambda(name: String, paramTyp: Type, body: IR, var typ: Type =
 sealed case class MakeArray(args: Array[IR], var typ: Type = null) extends IR
 sealed case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 sealed case class ArrayLen(a: IR) extends IR { val typ = TInt32 }
-sealed case class For(name: String, start: IR, end: IR, body: IR, var nameTyp: Type = null) extends IR { val typ = TUnit }
+sealed case class For(value: String, idx: String, array: IR, body: IR) extends IR { val typ = TVoid }
 
 sealed case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR { val typ = TStruct(fields.map(x => x._1 -> x._2):_*) }
 sealed case class GetField(o: IR, name: String, var typ: Type = null) extends IR
@@ -46,4 +46,4 @@ sealed case class Seq(stmts: Array[IR], var typ: Type = null) extends IR {
 }
 
 sealed case class In(i: Int, var typ: Type = null) extends IR
-sealed case class Out(v: IR) extends IR { val typ = TUnit }
+sealed case class Out(v: IR) extends IR { val typ = TVoid }

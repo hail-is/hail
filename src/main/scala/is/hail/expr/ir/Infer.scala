@@ -67,13 +67,10 @@ object Infer {
       case ArrayLen(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TArray])
-      case x@For(name, start, end, body, _) =>
-        infer(start)
-        infer(end)
-        assert(start.typ == TInt32 || start.typ == TInt64)
-        assert(start.typ == end.typ)
-        x.nameTyp = start.typ
-        infer(body, env = env + (name -> x.nameTyp))
+      case x@For(value, idx, array, body) =>
+        infer(array)
+        val t = body.typ.asInstanceOf[TArray].elementType
+        infer(body, env = env + (value -> t) + (idx -> TInt32))
       case MakeStruct(fields) =>
         fields.map { case (_, typ, v) =>
           infer(v)

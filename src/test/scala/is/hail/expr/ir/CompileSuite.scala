@@ -24,12 +24,11 @@ class CompileSuite {
   @Test
   def mean() {
     val meanIr = Let("x", In(0, TArray(TFloat64)),
-      Let("len", ArrayLen(Ref("x")),
-        Let("sum", F64(0),
-          seq(
-            For("i", I32(0), Ref("len"),
-              Set("sum", ApplyPrimitive("+", Array(Ref("sum"), ArrayRef(Ref("x"), Ref("i")))))),
-            ApplyPrimitive("/", Array(Ref("sum"), ArrayLen(Ref("x"))))))))
+      Let("sum", F64(0),
+        seq(
+          For("v", "i", Ref("x"),
+            Set("sum", ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))),
+          ApplyPrimitive("/", Array(Ref("sum"), ArrayLen(Ref("x")))))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Double]
     Infer(meanIr)
