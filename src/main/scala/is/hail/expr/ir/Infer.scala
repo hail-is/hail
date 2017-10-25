@@ -65,7 +65,7 @@ object Infer {
         x.typ = TArray(t)
       case MakeArrayN(len, _) =>
         infer(len)
-        assert(len.typ.isInstanceOf[TArray])
+        assert(len.typ == TInt32)
       case x@ArrayRef(a, i, _) =>
         infer(a)
         infer(i)
