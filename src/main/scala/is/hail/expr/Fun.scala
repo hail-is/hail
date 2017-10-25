@@ -185,14 +185,37 @@ case class BinaryLambdaFun[T, U, V](retType: Type, f: (T, (Any) => Any) => V)
   def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = ???
 }
 
-case class Arity3LambdaFun[T, U, V, W](retType: Type, f: (T, (Any) => Any, V) => W)
+case class Arity3LambdaMethod[T, U, V, W](retType: Type, f: (T, (Any) => Any, V) => W)
   extends Fun with Serializable with ((T, (Any) => Any, V) => W) {
   def apply(t: T, u: (Any) => Any, v: V): W = f(t, u, v)
 
+  def subst() = Arity3LambdaMethod(retType.subst(), f)
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = {
+    require(transformations.length == 3)
+
+    Arity3LambdaMethod[Any, Any, Any, Any](retType, (t, u, v) =>
+      f(transformations(0).f(t).asInstanceOf[T],
+        // conversion can't apply to function type
+        u,
+        transformations(2).f(v).asInstanceOf[V]))
+  }
+}
+
+case class Arity3LambdaFun[T, U, V, W](retType: Type, f: ((Any) => Any, U, V) => W)
+  extends Fun with Serializable with (((Any) => Any, U, V) => W) {
+  def apply(t: (Any) => Any, u: U, v: V): W = f(t, u, v)
+
   def subst() = Arity3LambdaFun(retType.subst(), f)
 
-  // conversion can't apply to function type
-  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = ???
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = {
+    require(transformations.length == 3)
+
+    Arity3LambdaFun[Any, Any, Any, Any](retType, (t, u, v) =>
+      f(t, // conversion can't apply to function type
+        transformations(1).f(u).asInstanceOf[U],
+        transformations(2).f(v).asInstanceOf[V]))
+  }
 }
 
 case class BinaryLambdaAggregatorTransformer[T, U, V](retType: Type, f: (CPS[Any], (Any) => Any) => CPS[V],

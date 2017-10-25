@@ -166,6 +166,10 @@ class ExprSuite extends SparkSuite {
     assert(D_==(eval[Double]("gamma(5)").get, 24))
     assert(D_==(eval[Double]("gamma(0.5)").get, 1.7724538509055159)) // python: math.gamma(0.5)
 
+    // uniroot (default) tolerance is ~1.22e-4
+    assert(D_==(eval[Double]("uniroot(x => x*x + 3*x - 4, 0, 2)").get, 1, tolerance = 1e-4))
+    assert(D_==(eval[Double]("uniroot(x => x*x + 3*x - 4, -5, -1)").get, -4, tolerance = 1e-4))
+
     assert(eval[Int]("is.toInt32()").contains(-37))
 
     assert(eval[Boolean]("!true").contains(false))

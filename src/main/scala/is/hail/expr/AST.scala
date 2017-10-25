@@ -596,6 +596,25 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
         `type` = tNew
 
+      case "uniroot" =>
+        if (args.length != 3)
+          parseError("wrong number of arguments to uniroot")
+
+        args(0) match {
+          case f@Lambda(_, param, body) =>
+            body.typecheck(ec.copy(st = ec.st + ((param, (-1, TFloat64)))))
+            f.`type` = TFunction(Array(TFloat64), body.`type`)
+
+          case _ =>
+            fatal("first argument to uniroot must be lambda expression")
+        }
+
+        args(1).typecheck(ec)
+        args(2).typecheck(ec)
+
+        `type` = FunctionRegistry.lookupFunReturnType("uniroot", args.map(_.`type`))
+          .valueOr(x => parseError(x.message))
+
       case _ => super.typecheck(ec)
     }
   }
