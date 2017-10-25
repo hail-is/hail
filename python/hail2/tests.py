@@ -192,7 +192,6 @@ class KeyTableTests(unittest.TestCase):
             x9 = g.qPheno.fraction(lambda x, _: x == 1),
             x10 = g.qPheno.map(lambda x, _: x.to_float64()).stats(),
             x11 = g.gt.hardy_weinberg(),
-            x12 = g.gt.map(lambda x, _: x.gp).info_score(),
             x13 = g.gt.inbreeding(lambda x, _: 0.1),
             x14 = g.gt.call_stats(lambda g, _: Variant("1", 10000, "A", "T")),
             x15 = g.gt.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})})).collect()[0],
@@ -205,7 +204,6 @@ class KeyTableTests(unittest.TestCase):
                     'x3': 3, 'x4': 13, 'x5': 16, 'x6': 39, 'x7': 2, 'x8': 1,
                     'x9': 0.0, 'x10': {'mean': 8, 'stdev': 5, 'min': 3, 'max': 13, 'nNotMissing': 2, 'sum': 16},
                     'x11': {'rExpectedHetFrequency': 1.0, 'pHWE': 0.5},
-                    'x12': {'score': None, 'nIncluded': 0},
                     'x13': {'nCalled': 1, 'expectedHoms': 0.82, 'Fstat': -4.5555555555555545, 'nTotal': 2, 'observedHoms': 0},
                     'x14': {'AC': [1, 1], "AF": [0.5, 0.5], "GC": [0, 1, 0], "AN": 2},
                     'x15': {'a': 5, 'b': 'foo', 'c': {'banana': 'apple'}},
@@ -512,10 +510,8 @@ class ColumnTests(unittest.TestCase):
                          i2 = IntervalColumn.from_args("1", 51, 56),
                          i3 = IntervalColumn.from_loci(LocusColumn.from_args("1", 51), LocusColumn.from_args("1", 56)))
 
-        kt = kt.annotate(g1 = GenotypeColumn.dosage_genotype(kt.v1, [0.0, 1.0, 0.0]),
-                         g2 = GenotypeColumn.dosage_genotype(kt.v1, [0.0, 1.0, 0.0], call=CallColumn.from_int32(1)),
-                         g3 = GenotypeColumn.from_call(CallColumn.from_int32(1)),
-                         g4 = GenotypeColumn.pl_genotype(kt.v1, CallColumn.from_int32(1), [6, 7], 13, 20, [20, 0, 1000]))
+        kt = kt.annotate(g1 = GenotypeColumn.from_call(CallColumn.from_int32(1)),
+                         g2 = GenotypeColumn.pl_genotype(kt.v1, CallColumn.from_int32(1), [6, 7], 13, 20, [20, 0, 1000]))
 
         expected_schema = {'a': TFloat64(), 'b': TFloat64(), 'c': TInt32(), 'd': TInt64(), 'v1': TVariant(),
                            'v2': TVariant(), 'v3': TVariant(), 'l1': TLocus(), 'l2': TLocus(), 'i1': TInterval(),

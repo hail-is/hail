@@ -921,9 +921,6 @@ class CallColumn(Column):
     def is_hom_var(self):
         return self._method("isHomVar", TBoolean())
 
-    def is_linear_scale(self):
-        return self._method("isLinearScale", TBoolean())
-
     def is_not_called(self):
         return self._method("isNotCalled", TBoolean())
 
@@ -954,25 +951,12 @@ class GenotypeColumn(Column):
         expr = "Genotype({}, {}, {}, {}, {}, {})".format(v, call, ad, dp, gq, pl)
         return GenotypeColumn(expr, TGenotype())
 
-    @staticmethod
-    @args_to_expr
-    def dosage_genotype(v, prob, call=None):
-        if call:
-            expr = "Genotype({}, {}, {})".format(v, call, prob)
-        else:
-            expr = "Genotype({}, {})".format(v, prob)
-        return GenotypeColumn(expr, TGenotype())
-
     @property
     def ad(self):
         return self._field("ad", TArray(TInt32()))
 
     def call(self):
         return self._method("call", TCall())
-
-    @property
-    def dosage(self):
-        return self._field("dosage", TFloat64())
 
     @property
     def dp(self):
@@ -984,10 +968,6 @@ class GenotypeColumn(Column):
 
     def fraction_reads_ref(self):
         return self._method("fractionReadsRef", TFloat64())
-
-    @property
-    def gp(self):
-        return self._field("gp", TArray(TFloat64()))
 
     @property
     def gq(self):
@@ -1023,9 +1003,6 @@ class GenotypeColumn(Column):
 
     def is_hom_var(self):
         return self._method("isHomVar", TBoolean())
-
-    def is_linear_scale(self):
-        return self._method("isLinearScale", TBoolean())
 
     def is_not_called(self):
         return self._method("isNotCalled", TBoolean())
