@@ -105,10 +105,6 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
 
     def formatGP(d: Double): String = d.formatted(s"%.${ precision }f")
 
-    def appendRow(sb: StringBuilder, nSamples: Int, rowType: TStruct, v: Variant, va: Annotation, rv: RegionValue, rsidQuery: Querier, varidQuery: Querier) {
-
-    }
-
     def writeGenFile() {
       val varidSignature = vsm.vaSignature.getOption("varid")
       val varidQuery: Querier = varidSignature match {
@@ -162,11 +158,11 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
             view.setGenotype(i)
             if (view.hasGP) {
               sb += ' '
-              sb.append(view.getGP(0))
+              sb.append(formatGP(view.getGP(0)))
               sb += ' '
-              sb.append(view.getGP(1))
+              sb.append(formatGP(view.getGP(1)))
               sb += ' '
-              sb.append(view.getGP(2))
+              sb.append(formatGP(view.getGP(2)))
             } else
               sb.append(" 0 0 0")
             i += 1
