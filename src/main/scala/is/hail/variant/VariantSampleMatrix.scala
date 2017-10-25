@@ -1298,7 +1298,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def mapAnnotations(newVASignature: Type, f: (RK, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[RPK, RK, T] = {
     val localRowType = rowType
-    insertIntoRow[UnsafeRow](newVASignature, List("va"), () => new UnsafeRow(localRowType), { case (ur, rv, rvb) =>
+    insertIntoRow(() => new UnsafeRow(localRowType))(newVASignature, List("va"), { case (ur, rv, rvb) =>
       ur.set(rv)
       val v = ur.getAs[RK](1)
       val va = ur.get(2)
