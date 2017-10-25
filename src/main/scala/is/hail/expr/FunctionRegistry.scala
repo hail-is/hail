@@ -1278,7 +1278,7 @@ def ADsplit(ad:Arrayhr[intHr],gt:String)={
     truncateAt(altAD,3).toString}
 }
 
-  register("ADsplit", {(ad: Array[Int], gt: String) => ADsplit(ad,gt)},
+  register("ADsplit", {(ad: Arrayhr[intHr], gt: String) => ADsplit(ad,gt)},
     """
     remove dot
     """,
