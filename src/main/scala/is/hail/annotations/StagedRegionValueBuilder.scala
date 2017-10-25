@@ -108,6 +108,14 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
 
   def addFloat64(v: Code[Double]): Code[Unit] = region.storeFloat64(currentOffset, v)
 
+  def addAnnotation(t: Type): (Code[_]) => Code[Unit] = t match {
+    case TInt32 => v => addInt32(v.asInstanceOf[Code[Int]])
+    case TInt64 => v => addInt64(v.asInstanceOf[Code[Long]])
+    case TFloat32 => v => addFloat32(v.asInstanceOf[Code[Float]])
+    case TFloat64 => v => addFloat64(v.asInstanceOf[Code[Double]])
+    case t => throw new RuntimeException("boom " + t)
+  }
+
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
     Code(
       region.align(TBinary.contentAlignment),

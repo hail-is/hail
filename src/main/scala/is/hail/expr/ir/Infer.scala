@@ -59,6 +59,9 @@ object Infer {
         val t = args.head.typ
         args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x == t, s"at position $i type mismatch: $t $x") }
         x.typ = TArray(t)
+      case MakeArrayN(len, _) =>
+        infer(len)
+        assert(len.typ.isInstanceOf[TArray])
       case x@ArrayRef(a, i, _) =>
         infer(a)
         infer(i)
@@ -67,9 +70,16 @@ object Infer {
       case ArrayLen(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TArray])
+      case ArraySet(a, idx, v) =>
+        infer(idx)
+        assert(idx.typ == TInt32)
+        infer(a)
+        val t = a.typ.asInstanceOf[TArray].elementType
+        infer(v)
+        assert(v.typ == t)
       case x@For(value, idx, array, body) =>
         infer(array)
-        val t = body.typ.asInstanceOf[TArray].elementType
+        val t = array.typ.asInstanceOf[TArray].elementType
         infer(body, env = env + (value -> t) + (idx -> TInt32))
       case MakeStruct(fields) =>
         fields.map { case (_, typ, v) =>
