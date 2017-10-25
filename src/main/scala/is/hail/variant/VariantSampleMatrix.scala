@@ -1318,9 +1318,16 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       }
   }
 
-  def mapAnnotations(newVASignature: Type, f: (RK, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[RPK, RK, T] =
-    copy(vaSignature = newVASignature,
-      rdd = rdd.mapValuesWithKey { case (v, (va, gs)) => (f(v, va, gs), gs) })
+  def mapAnnotations(newVASignature: Type, f: (RK, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[RPK, RK, T] = {
+    val localRowType = rowType
+    insertIntoRow[UnsafeRow](newVASignature, List("va"), () => new UnsafeRow(localRowType), { case (ur, rv, rvb) =>
+      ur.set(rv)
+      val v = ur.getAs[RK](1)
+      val va = ur.get(2)
+      val gs = ur.getAs[Iterable[T]](3)
+        rvb.addAnnotation(newVASignature, f(v, va, gs))
+    })
+  }
 
   def mapPartitionsWithAll[U](f: Iterator[(RK, Annotation, Annotation, Annotation, T)] => Iterator[U])
     (implicit uct: ClassTag[U]): RDD[U] = {
