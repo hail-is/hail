@@ -2709,9 +2709,8 @@ class VariantDataset(HistoryMixin):
         **Notes**
 
         In order to combine two datasets, four requirements must be met:
-         - the column keys must be identical (both type and identity, field order within structs matters).
+         - the column keys must be identical (in both type and equality, field order within structs matters).
          - the row key and annotation schemas must match (field order within structs matters).
-         - the row (variant) annotation schemas must match (field order within structs matters).
          - the cell (genotype) schemas must match (field order within structs matters).
 
         The column annotations in the resulting dataset are simply the column annotations
