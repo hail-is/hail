@@ -1262,20 +1262,22 @@ object FunctionRegistry {
     "precision" -> "Starting position.")
 
   
-def ADsplit(ad:String,gt:String)={
+def ADsplit(ad:Array[Int],gt:String)={
   def truncateAt(n: Double, p: Int): Double = {
     //exponsive but the other way with bigdecimal causes an issue with spark sql
     val s = math pow (10, p); (math floor n * s) / s
   }
-  if (ad=="") ad
+  
+  //if (adOK=="") adOK
+  if (ad.length="")""
   else{
-  val adArray= ad.split(",")
-  val total=adArray.map(_.toInt).sum
-  val altAD=adArray(gt.split("/")(1).toInt).toInt/total.toDouble
+  val adArray= ad
+  val total=adArray.sum
+  val altAD=adArray(gt.split("/")(1).toInt)/total.toDouble
     /*BigDecimal(altAD).setScale(3, BigDecimal.RoundingMode.HALF_DOWN).*/
     truncateAt(altAD,3).toString}
 }
-  register("ADsplit", {(ad: String, gt: String) => ADsplit(ad,gt)},
+  register("ADsplit", {(ad: Array[Int], gt: String) => ADsplit(ad,gt)},
     """
     remove dot
     """,
