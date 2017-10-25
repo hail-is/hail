@@ -2688,9 +2688,9 @@ class VariantDataset(HistoryMixin):
 
         .. testsetup::
 
-            vds_autosomal = vds1
-            vds_chromX = vds1
-            vds_chromY = vds1
+            vds_autosomal = vds
+            vds_chromX = vds
+            vds_chromY = vds
 
         Union two datasets:
 
