@@ -102,7 +102,7 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
       throw new ArrayIndexOutOfBoundsException(idx)
     assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, adOffset, idx))
 
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(adOffset, length, idx)
+    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffsetInRegion(adOffset, length, idx)
     m.loadInt(elementOffset)
   }
 
@@ -122,7 +122,7 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
     if (idx < 0 || idx >= length)
       throw new ArrayIndexOutOfBoundsException(idx)
     assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, pxOffset, idx))
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(pxOffset, length, idx)
+    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffsetInRegion(pxOffset, length, idx)
     m.loadInt(elementOffset)
   }
 
@@ -192,7 +192,7 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
       throw new ArrayIndexOutOfBoundsException(idx)
     assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, adOffset, idx))
 
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(adOffset, length, idx)
+    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffsetInRegion(adOffset, length, idx)
     m.loadInt(elementOffset)
   }
 
@@ -212,7 +212,7 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
     if (idx < 0 || idx >= length)
       throw new ArrayIndexOutOfBoundsException(idx)
     assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, pxOffset, idx))
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(pxOffset, length, idx)
+    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffsetInRegion(pxOffset, length, idx)
     m.loadInt(elementOffset)
   }
 

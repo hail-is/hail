@@ -739,15 +739,15 @@ class RegionValueBuilder(var region: MemoryBuffer) {
         if (t.isElementDefined(fromRegion, fromAOff, i)) {
           t.elementType match {
             case t2: TStruct =>
-              fixupStruct(t2, t.elementOffset(toAOff, length, i), fromRegion, t.elementOffset(fromAOff, length, i))
+              fixupStruct(t2, t.elementOffsetInRegion(toAOff, length, i), fromRegion, t.elementOffsetInRegion(fromAOff, length, i))
 
             case t2: TArray =>
               val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
-              region.storeAddress(t.elementOffset(toAOff, length, i), toAOff2)
+              region.storeAddress(t.elementOffsetInRegion(toAOff, length, i), toAOff2)
 
             case TBinary =>
               val toBOff = fixupBinary(fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
-              region.storeAddress(t.elementOffset(toAOff, length, i), toBOff)
+              region.storeAddress(t.elementOffsetInRegion(toAOff, length, i), toBOff)
 
             case _ =>
           }
@@ -798,7 +798,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   def addElement(t: TArray, fromRegion: MemoryBuffer, fromAOff: Long, i: Int) {
     if (t.isElementDefined(fromRegion, fromAOff, i))
       addRegionValue(t.elementType, fromRegion,
-        t.elementOffset(fromRegion, fromAOff, i))
+        t.elementOffsetInRegion(fromRegion, fromAOff, i))
     else
       setMissing()
   }
