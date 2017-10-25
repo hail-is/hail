@@ -8,62 +8,7 @@ import is.hail.variant.{Genotype, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 
 object RegressionUtils {
-  // mask == null is interpreted as no mask
-  // impute uses mean for missing gt rather than Double.NaN
-  def hardCalls(gs: Iterable[Genotype], nKept: Int, mask: Array[Boolean] = null, impute: Boolean = true): SparseVector[Double] = {
-    val gts = gs.hardCallIterator
-    val rows = new ArrayBuilder[Int]()
-    val vals = new ArrayBuilder[Double]()
-    val missingSparseIndices = new ArrayBuilder[Int]()
-    var i = 0
-    var row = 0
-    var sum = 0
-    while (gts.hasNext) {
-      val gt = gts.next()
-      if (mask == null || mask(i)) {
-        if (gt != 0) {
-          rows += row
-          if (gt != -1) {
-            sum += gt
-            vals += gt.toDouble
-          } else {
-            missingSparseIndices += vals.size
-            vals += Double.NaN
-          }
-        }
-        row += 1
-      }
-      i += 1
-    }
-    assert((mask == null || i == mask.size) && row == nKept)
-
-    val valsArray = vals.result()
-    val nMissing = missingSparseIndices.size
-    if (impute) {
-      val mean = sum.toDouble / (nKept - nMissing)
-      i = 0
-      while (i < nMissing) {
-        valsArray(missingSparseIndices(i)) = mean
-        i += 1
-      }
-    }
-
-    new SparseVector[Double](rows.result(), valsArray, row)
-  }
-
-  def dosages(x: DenseVector[Double], gs: Iterable[Genotype], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
-    genericDosages(x, gs, completeSampleIndex, missingSamples)
-  }
-
-  def dosages(gs: Iterable[Genotype], completeSampleIndex: Array[Int]): DenseVector[Double] = {
-    val n = completeSampleIndex.length
-    val x = new DenseVector[Double](n)
-    val missingSamples = new ArrayBuilder[Int]()
-    RegressionUtils.dosages(x, gs, completeSampleIndex, missingSamples)
-    x
-  }
-
-  def exprDosages(x: DenseVector[Double],
+  def inputVector(x: DenseVector[Double],
     globalAnnotation: Annotation, sampleIds: IndexedSeq[Annotation], sampleAnnotations: IndexedSeq[Annotation],
     row: (Annotation, (Annotation, Iterable[Annotation])),
     ec: EvalContext,
@@ -100,41 +45,6 @@ object RegressionUtils {
       } else
         missingSamples += j
       i += 1
-      j += 1
-    }
-
-    val nMissing = missingSamples.size
-    val meanValue = sum / (n - nMissing)
-    i = 0
-    while (i < nMissing) {
-      x(missingSamples(i)) = meanValue
-      i += 1
-    }
-  }
-
-  def genericDosages(x: DenseVector[Double], gs: Iterable[Genotype], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
-    require(x.length == completeSampleIndex.length)
-
-    missingSamples.clear()
-    val n = completeSampleIndex.length
-    val gts = gs.dosageIterator
-    var i = 0
-    var j = 0
-    var sum = 0d
-    while (j < n) {
-      while (i < completeSampleIndex(j)) {
-        gts.next()
-        i += 1
-      }
-      assert(completeSampleIndex(j) == i)
-
-      val gt = gts.next()
-      i += 1
-      if (gt != -1) {
-        sum += gt
-        x(j) = gt
-      } else
-        missingSamples += j
       j += 1
     }
 

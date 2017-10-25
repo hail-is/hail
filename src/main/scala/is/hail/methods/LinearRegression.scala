@@ -73,7 +73,7 @@ object LinearRegression {
 
           var i = 0
           while (i < blockLength) {
-            RegressionUtils.exprDosages(X(::, i),
+            RegressionUtils.inputVector(X(::, i),
               localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, block(i),
               ec, xf,
               completeSampleIndexBc.value, missingSamples)
