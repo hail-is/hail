@@ -1262,28 +1262,7 @@ object FunctionRegistry {
     "precision" -> "Starting position.")
 
   
-def ADsplit(ad:Arrayhr[intHr],gt:String)={
-  def truncateAt(n: Double, p: Int): Double = {
-    //exponsive but the other way with bigdecimal causes an issue with spark sql
-    val s = math pow (10, p); (math floor n * s) / s
-  }
-  
-  //if (adOK=="") adOK
-  if (ad.length==0)""
-  else{
-  val adArray= ad
-  val total=adArray.sum
-  val altAD=adArray(gt.split("/")(1).toInt)/total.toDouble
-    /*BigDecimal(altAD).setScale(3, BigDecimal.RoundingMode.HALF_DOWN).*/
-    truncateAt(altAD,3).toString}
-}
 
-  register("ADsplit", {(ad: Arrayhr[intHr], gt: String) => ADsplit(ad,gt)},
-    """
-    remove dot
-    """,
-    "ad" -> "ad comma separates.",
-    "gt" -> "geno type")
 
 
   def ToGenotype(gt:Int)={
