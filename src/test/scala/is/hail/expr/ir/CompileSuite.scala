@@ -21,6 +21,20 @@ class CompileSuite {
     rvb.end()
   }
 
+  private def addBoxedArray(mb: MemoryBuffer, a: Array[java.lang.Double]): Long = {
+    val rvb = new RegionValueBuilder(mb)
+    rvb.start(TArray(TFloat64))
+    rvb.startArray(a.length)
+    a.foreach { e =>
+      if (e == null)
+        rvb.setMissing()
+      else
+        rvb.addDouble(e)
+    }
+    rvb.endArray()
+    rvb.end()
+  }
+
   @Test
   def mean() {
     val meanIr = Let("x", In(0, TArray(TFloat64)),
@@ -49,10 +63,10 @@ class CompileSuite {
 
   @Test
   def meanImpute() {
-    val meanIr =
+    val meanImputeIr =
       Let("in", In(0, TArray(TFloat64)),
         Let("out", MakeArrayN(ArrayLen(Ref("in")), TFloat64),
-          Let("sum", F64(0),
+          seq(Let("sum", F64(0),
             seq(
               For("v", "i", Ref("in"),
                 Set("sum", ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))),
@@ -60,23 +74,34 @@ class CompileSuite {
                 For("v", "i", Ref("in"),
                   If(IsNA(Ref("v")),
                     ArraySet(Ref("out"), Ref("i"), Ref("mean")),
-                    ArraySet(Ref("out"), Ref("i"), Ref("v")))))))))
+                    ArraySet(Ref("out"), Ref("i"), Ref("v"))))))),
+            Out(Ref("out")))))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Double]
-    Infer(meanIr)
-    println(s"typed:\n$meanIr")
-    Compile(meanIr, fb, Map())
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Long]
+    Infer(meanImputeIr)
+    println(s"typed:\n$meanImputeIr")
+    Compile(meanImputeIr, fb, Map())
     val f = fb.result()()
-    def run(a: Array[Double]): Double = {
+    def run(a: Array[java.lang.Double]): Array[java.lang.Double] = {
       val mb = MemoryBuffer()
-      val aoff = addArray(mb, a)
-      f(mb, aoff)
+      val aoff = addBoxedArray(mb, a)
+      val t = TArray(TFloat64)
+      val roff = f(mb, aoff)
+      Array.tabulate[java.lang.Double](a.length) { i =>
+        if (t.isElementDefined(mb, roff, i))
+          mb.loadDouble(t.loadElement(mb, roff, i))
+        else
+          null
+      }
     }
 
-    assert(run(Array()).isNaN)
-    assert(run(Array(1.0)) == 1.0)
-    assert(run(Array(1.0,2.0,3.0)) == 2.0)
-    assert(run(Array(-1.0,0.0,1.0)) == 0.0)
+    assert(run(Array()) === Array())
+    assert(run(Array(1.0)) === Array(1.0))
+    assert(run(Array(1.0,2.0,3.0)) === Array(1.0,2.0,3.0))
+    assert(run(Array(-1.0,0.0,1.0)) === Array(-1.0,0.0,1.0))
+
+    assert(run(Array(-1.0,null,1.0)) === Array(-1.0,0.0,1.0))
+    assert(run(Array(-1.0,null,null)) === Array(-1.0,-1.0,-1.0))
   }
 
 }
