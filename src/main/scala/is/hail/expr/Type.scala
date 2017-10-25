@@ -33,8 +33,8 @@ object Type {
         genScalar,
         genScalar,
         genScalar,
-        genArb.resize(size - 1).map(TArray),
-        genArb.resize(size - 1).map(TSet),
+        genArb.resize(size - 1).map(TArray.apply),
+        genArb.resize(size - 1).map(TSet.apply),
         Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v) },
         genStruct.resize(size))
   }
@@ -607,6 +607,18 @@ object TAggregable {
     agg.symTab = symTab
     agg
   }
+
+  def apply(elementType: Type, elementsRequired: Boolean): TAggregable = {
+    val t = TAggregable(elementType)
+    t.elementsRequired = elementsRequired
+    t
+  }
+
+  def apply(elementType: Type, symTable: SymbolTable, elementsRequired: Boolean): TAggregable = {
+    val t = TAggregable(elementType, symTable)
+    t.elementsRequired = elementsRequired
+    t
+  }
 }
 
 final case class TAggregable(elementType: Type) extends TContainer {
@@ -654,6 +666,9 @@ object TContainer {
 }
 
 abstract class TContainer extends Type {
+
+  var elementsRequired: Boolean = false
+
   def elementType: Type
 
   def elementByteSize: Long
@@ -679,6 +694,9 @@ abstract class TContainer extends Type {
   var elementsOffsetTable: Array[Long] = _
 
   def elementsOffset(length: Int): Long = {
+    if (elementsRequired)
+      return UnsafeUtils.roundUpAlignment(4, elementType.alignment)
+
     if (elementsOffsetTable == null)
       elementsOffsetTable = Array.tabulate[Long](10)(i => _elementsOffset(i))
 
@@ -701,9 +719,10 @@ abstract class TContainer extends Type {
   }
 
   def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
-    !region.loadBit(aoff + 4, i)
+    elementsRequired || !region.loadBit(aoff + 4, i)
 
   def setElementMissing(region: MemoryBuffer, aoff: Long, i: Int) {
+    assert(!elementsRequired, "element is required")
     region.setBit(aoff + 4, i)
   }
 
@@ -751,6 +770,8 @@ abstract class TContainer extends Type {
   }
 
   def clearMissingBits(region: MemoryBuffer, aoff: Long, length: Int) {
+    if (elementsRequired)
+      return
     val nMissingBytes = (length + 7) / 8
     var i = 0
     while (i < nMissingBytes) {
@@ -888,6 +909,14 @@ final case class TArray(elementType: Type) extends TIterable {
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 }
 
+object TArray {
+  def apply(elementType: Type, elementsRequired: Boolean): TArray = {
+    val t = new TArray(elementType)
+    t.elementsRequired = elementsRequired
+    t
+  }
+}
+
 final case class TSet(elementType: Type) extends TIterable {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
@@ -957,6 +986,14 @@ final case class TSet(elementType: Type) extends TIterable {
     """
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
+}
+
+object TSet {
+  def apply(elementType: Type, elementsRequired: Boolean): TSet = {
+    val t = new TSet(elementType)
+    t.elementsRequired = elementsRequired
+    t
+  }
 }
 
 final case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -1032,6 +1069,14 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
     }
 
     annotationOrdering(extendOrderingToNull(missingGreatest)(dict))
+  }
+}
+
+object TDict {
+  def apply(keyType: Type, valueType: Type, elementsRequired: Boolean): TDict = {
+    val t = new TDict(keyType, valueType)
+    t.elementsRequired = elementsRequired
+    t
   }
 }
 

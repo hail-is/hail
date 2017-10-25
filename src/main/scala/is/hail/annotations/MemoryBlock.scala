@@ -641,7 +641,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     advance()
   }
 
-  def addInt(i: Int) {
+  def
+  addInt(i: Int) {
     assert(currentType() == TInt32)
     if (typestk.isEmpty)
       allocateRoot()
@@ -700,7 +701,6 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def addRow(t: TStruct, r: Row) {
     assert(r != null)
-
     startStruct()
     var i = 0
     while (i < t.size) {
@@ -888,6 +888,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
               addUnsafeArray(t, uis)
 
             case is: IndexedSeq[Annotation] =>
+              assert(t.elementsRequired == currentType().asInstanceOf[TArray].elementsRequired)
               startArray(is.length)
               var i = 0
               while (i < is.length) {
