@@ -722,7 +722,7 @@ abstract class TContainer extends Type {
     elementsRequired || !region.loadBit(aoff + 4, i)
 
   def setElementMissing(region: MemoryBuffer, aoff: Long, i: Int) {
-    assert(!elementsRequired, "element is required")
+    assert(!elementsRequired)
     region.setBit(aoff + 4, i)
   }
 
@@ -1085,10 +1085,10 @@ case object TGenotype extends ComplexType {
 
   val representation: TStruct = TStruct(
     "gt" -> TInt32,
-    "ad" -> TArray(TInt32),
+    "ad" -> TArray(TInt32, elementsRequired = true),
     "dp" -> TInt32,
     "gq" -> TInt32,
-    "pl" -> TArray(TInt32),
+    "pl" -> TArray(TInt32, elementsRequired = true),
     "fakeRef" -> TBoolean)
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
