@@ -1283,7 +1283,7 @@ def ADsplit(ad:String,gt:String)={
     "gt" -> "geno type")
 }
 
-  def intToGenotype(gt:Int)={
+  def ToGenotype(gt:Int)={
     gt match {
      case 0 => "0/0" 
      case 1 => "0/1"
@@ -1291,7 +1291,7 @@ def ADsplit(ad:String,gt:String)={
 
     }
   }
-  register("intToGenotype", {(gt: Int) => intToGenotype(gt)},
+  register("intToGenotype", {(gt: Int) => ToGenotype(gt)},
     """
     remove dot
     """,
