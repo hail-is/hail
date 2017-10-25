@@ -370,10 +370,8 @@ class KeyTable(KeyTableTemplate):
     ...                    i2 = IntervalColumn.from_args("1", 51, 56),
     ...                    i3 = IntervalColumn.from_loci(LocusColumn.from_args("1", 51), LocusColumn.from_args("1", 56)))
 
-    >>> ktx = ktx.annotate(g1 = GenotypeColumn.dosage_genotype(ktx.v1, [0.0, 1.0, 0.0]),
-    ...                    g2 = GenotypeColumn.dosage_genotype(ktx.v1, [0.0, 1.0, 0.0], call=CallColumn.from_int32(1)),
-    ...                    g3 = GenotypeColumn.from_call(CallColumn.from_int32(1)),
-    ...                    g4 = GenotypeColumn.pl_genotype(ktx.v1, CallColumn.from_int32(1), [6, 7], 13, 20, [20, 0, 1000]))
+    >>> ktx = ktx.annotate(g1 = GenotypeColumn.from_call(CallColumn.from_int32(1)),
+    ...                    g2 = GenotypeColumn.pl_genotype(ktx.v1, CallColumn.from_int32(1), [6, 7], 13, 20, [20, 0, 1000]))
 
 
     Aggregate by key:
