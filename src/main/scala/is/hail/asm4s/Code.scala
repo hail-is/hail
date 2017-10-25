@@ -362,9 +362,9 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def cne(rhs: Code[Long]): Code[Boolean] = compare(rhs) cne 0
 
-  def >>(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHR))
+  def >>(rhs: Code[Int]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHR))
 
-  def <<(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHL))
+  def <<(rhs: Code[Int]): Code[Long] = Code(lhs, rhs, new InsnNode(LSHL))
 
   def >>>(rhs: Code[Int]): Code[Long] = Code(lhs, rhs, new InsnNode(LUSHR))
 
