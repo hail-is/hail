@@ -2686,7 +2686,7 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        .. testsetup:: *
+        .. testsetup::
 
             vds_autosomal = vds1
             vds_chromX = vds1
