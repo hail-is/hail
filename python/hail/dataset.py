@@ -2708,7 +2708,7 @@ class VariantDataset(HistoryMixin):
 
         **Notes**
 
-        In order to union two datasets, four requirements must be met:
+        In order to combine two datasets, four requirements must be met:
          - the column keys must be identical (both type and identity, field order within structs matters).
          - the row key and annotation schemas must match (field order within structs matters).
          - the row (variant) annotation schemas must match (field order within structs matters).
@@ -2719,16 +2719,18 @@ class VariantDataset(HistoryMixin):
 
         This method can trigger a shuffle, if partitions from two datasets overlap.
 
-        :param vds_type: Datasets with which to take union.
+        :param vds_type: Datasets to combine.
         :type vds_type: tuple of :class:`.VariantDataset`
 
         :return: Dataset with variants from all datasets.
         :rtype: :class:`.VariantDataset`
         """
-        if len(datasets) < 2:
-            raise ValueError('Expected at least 2 arguments, found {}'.format(len(datasets)))
-
-        return VariantDataset(Env.hc(), Env.hail().variant.VariantSampleMatrix.union([d._jvds for d in datasets]))
+        if len(datasets) == 0:
+            raise ValueError('Expected at least one argument')
+        elif len(datasets) == 1:
+            return datasets[0]
+        else:
+            return VariantDataset(Env.hc(), Env.hail().variant.VariantSampleMatrix.union([d._jvds for d in datasets]))
 
 
     @handle_py4j

@@ -1099,3 +1099,4 @@ class ContextTests(unittest.TestCase):
 
         self.assertTrue(r1.same(r2))
         self.assertTrue(r1.same(r3))
+        self.assertTrue(r1.same(vds))

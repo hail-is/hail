@@ -212,7 +212,7 @@ object VariantSampleMatrix {
 
     checkDatasetSchemasCompatible(datasets)
     val (first, others) = (datasets.head, datasets.tail)
-    first.copy(rdd = first.sparkContext.union(others.map(_.rdd)).toOrderedRDD(first.rdd.orderedPartitioner.kOk, first.rdd.vct))
+    first.copy(rdd = first.sparkContext.union(datasets.map(_.rdd)).toOrderedRDD(first.rdd.orderedPartitioner.kOk, first.rdd.vct))
   }
 }
 
