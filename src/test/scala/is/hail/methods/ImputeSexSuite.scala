@@ -2,7 +2,8 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.check.Prop._
-import is.hail.check.Properties
+import is.hail.check.{Gen, Properties}
+import is.hail.expr.Type
 import is.hail.utils._
 import is.hail.variant._
 import org.testng.annotations.Test
@@ -32,18 +33,15 @@ class ImputeSexSuite extends SparkSuite {
     ).toMap)
 
   object Spec extends Properties("ImputeSex") {
-
-    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
+    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vGen = (t: Type) =>
+      VariantSubgen.biallelic.copy(contigGen = Contig.gen(GenomeReference.GRCh37, "X")).gen))
       .resize(1000)
-      .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal && v.contig.toUpperCase != "X" && v.contig.toUpperCase != "Y" })
       .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same results as PLINK v1.9") =
       forAll(plinkSafeBiallelicVDS) { case (vds: VariantDataset) =>
 
-        var mappedVDS = vds.copy(rdd =
-          vds.rdd.map { case (v, (va, gs)) => (v.copy(contig = "X"), (va, gs)) }
-            .toOrderedRDD)
+        var mappedVDS = vds
           .variantQC()
           .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && " +
             "va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")

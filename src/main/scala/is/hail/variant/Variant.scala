@@ -29,6 +29,11 @@ object Contig {
 
   def gen(gr: GenomeReference): Gen[(String, Int)] = Gen.oneOfSeq(gr.lengths.toSeq)
 
+  def gen(gr: GenomeReference, contig: String): Gen[(String, Int)] = {
+    assert(gr.isValidContig(contig), s"Contig $contig not found in genome reference.")
+    Gen.const((contig, gr.contigLength(contig)))
+  }
+
   def gen(nameGen: Gen[String] = Gen.identifier, lengthGen: Gen[Int] = Gen.choose(1000000, 500000000)): Gen[(String, Int)] = for {
     name <- nameGen
     length <- lengthGen
