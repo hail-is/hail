@@ -642,6 +642,14 @@ final case class TAggregable(elementType: Type) extends TContainer {
     throw new RuntimeException("TAggregable is not realizable")
 }
 
+object TContainer {
+  def loadLength(region: MemoryBuffer, aoff: Long): Int =
+    region.loadInt(aoff)
+
+  def loadLength(region: Code[MemoryBuffer], aoff: Code[Long]): Code[Int] =
+    region.loadInt(aoff)
+}
+
 abstract class TContainer extends Type {
   def elementType: Type
 
@@ -653,8 +661,17 @@ abstract class TContainer extends Type {
 
   override def children = Seq(elementType)
 
+  final def loadLength(region: MemoryBuffer, aoff: Long): Int =
+    TContainer.loadLength(region,  aoff)
+
+  final def loadLength(region: Code[MemoryBuffer], aoff: Code[Long]): Code[Int] =
+    TContainer.loadLength(region, aoff)
+
   def _elementsOffset(length: Int): Long =
     UnsafeUtils.roundUpAlignment(4 + ((length + 7) >>> 3), elementType.alignment)
+
+  def _elementsOffset(length: Code[Int]): Code[Long] =
+    UnsafeUtils.roundUpAlignment(((length.toL + 7) >>> 3) + 4, elementType.alignment)
 
   var elementsOffsetTable: Array[Long] = _
 
@@ -669,10 +686,8 @@ abstract class TContainer extends Type {
   }
 
   def elementsOffset(length: Code[Int]): Code[Long] = {
-    val alignment = elementType.alignment
-    assert(alignment > 0)
-    assert((alignment & (alignment - 1)) == 0) // power of 2
-    ((((length + 7) >>> 3) + 4).toL + (alignment - 1)) & ~(alignment - 1)
+    // FIXME: incorporate table, maybe?
+    _elementsOffset(length)
   }
 
   def contentsByteSize(length: Int): Long =
@@ -681,12 +696,6 @@ abstract class TContainer extends Type {
   def contentsByteSize(length: Code[Int]): Code[Long] = {
     elementsOffset(length) + length.toL * elementByteSize
   }
-
-  def loadLength(region: MemoryBuffer, aoff: Long): Int =
-    region.loadInt(aoff)
-
-  def loadLength(region: Code[MemoryBuffer], aoff: Code[Long]): Code[Int] =
-    region.invoke[Long, Int]("loadInt", aoff)
 
   def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
     !region.loadBit(aoff + 4, i)
@@ -702,18 +711,35 @@ abstract class TContainer extends Type {
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * elementByteSize
 
-  def elementOffset(region: MemoryBuffer, aoff: Long, i: Int): Long =
-    elementOffset(aoff, region.loadInt(aoff), i)
+  def elementOffsetInRegion(region: MemoryBuffer, aoff: Long, i: Int): Long =
+    elementOffset(aoff, loadLength(region, aoff), i)
+
+  def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
+    aoff + elementsOffset(length) + i.toL * const(elementByteSize)
+
+  def elementOffsetInRegion(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Long] =
+    elementOffset(aoff, loadLength(region, aoff), i)
 
   def loadElement(region: MemoryBuffer, aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
-      case _: TArray | TBinary => region.loadInt(off)
+      case _: TArray | TBinary => region.loadAddress(off)
+      case _ => off
+    }
+  }
+
+  def loadElement(region: Code[MemoryBuffer], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
+    val off = elementOffset(aoff, length, i)
+    elementType.fundamentalType match {
+      case _: TArray | TBinary => region.loadAddress(off)
       case _ => off
     }
   }
 
   def loadElement(region: MemoryBuffer, aoff: Long, i: Int): Long =
+    loadElement(region, aoff, region.loadInt(aoff), i)
+
+  def loadElement(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Long] =
     loadElement(region, aoff, region.loadInt(aoff), i)
 
   def allocate(region: MemoryBuffer, length: Int): Long = {
@@ -1967,6 +1993,9 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   }
 
   def fieldOffset(offset: Long, fieldIdx: Int): Long =
+    offset + byteOffsets(fieldIdx)
+
+  def fieldOffset(offset: Code[Long], fieldIdx: Int): Code[Long] =
     offset + byteOffsets(fieldIdx)
 
   def loadField(rv: RegionValue, fieldIdx: Int): Long = loadField(rv.region, rv.offset, fieldIdx)
