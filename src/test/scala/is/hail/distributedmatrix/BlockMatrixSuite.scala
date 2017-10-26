@@ -36,23 +36,23 @@ class BlockMatrixSuite extends SparkSuite {
   def toBM(lm: BDM[Double], blockSize: Int): BlockMatrix =
     BlockMatrix.from(sc, lm, blockSize)
 
-  def blockMatrixPreGen(blockSize: Int): Gen[BlockMatrix] =
-    Gen.coin().flatMap(blockMatrixPreGen(blockSize, _))
+  def blockMatrixPreGen(blockSize: Int, genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] =
+    Gen.coin().flatMap(blockMatrixPreGen(blockSize, _, genElement))
 
-  def blockMatrixPreGen(blockSize: Int, transposed: Boolean): Gen[BlockMatrix] = for {
+  def blockMatrixPreGen(blockSize: Int, transposed: Boolean, genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] = for {
     (l, w) <- Gen.nonEmptySquareOfAreaAtMostSize
-    m <- blockMatrixPreGen(l, w, blockSize, transposed)
+    m <- blockMatrixPreGen(l, w, blockSize, transposed, genElement)
   } yield m
 
-  def blockMatrixPreGen(rows: Int, columns: Int, blockSize: Int): Gen[BlockMatrix] =
-    Gen.coin().flatMap(blockMatrixPreGen(rows, columns, blockSize, _))
+  def blockMatrixPreGen(rows: Int, columns: Int, blockSize: Int, genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] =
+    Gen.coin().flatMap(blockMatrixPreGen(rows, columns, blockSize, _, genElement))
 
-  def blockMatrixPreGen(rows: Int, columns: Int, blockSize: Int, transposed: Boolean): Gen[BlockMatrix] = for {
-    arrays <- Gen.buildableOfN[Seq, Array[Double]](rows, Gen.buildableOfN(columns, arbDouble.arbitrary))
+  def blockMatrixPreGen(rows: Int, columns: Int, blockSize: Int, transposed: Boolean, genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] = for {
+    arrays <- Gen.buildableOfN[Seq, Array[Double]](rows, Gen.buildableOfN(columns, genElement))
     m = toBM(arrays, blockSize)
   } yield if (transposed) m.t else m
 
-  val squareBlockMatrixGen = for {
+  def squareBlockMatrixGen(genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] = for {
     size <- Gen.size
     l <- Gen.interestingPosInt
     s = math.sqrt(math.min(l, size)).toInt
@@ -61,22 +61,22 @@ class BlockMatrixSuite extends SparkSuite {
     m <- blockMatrixPreGen(s, s, blockSize)
   } yield m
 
-  val blockMatrixGen = for {
+  def blockMatrixGen(genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] = for {
     blockSize <- Gen.interestingPosInt
-    m <- blockMatrixPreGen(blockSize)
+    m <- blockMatrixPreGen(blockSize, genElement)
   } yield m
 
-  val twoMultipliableBlockMatrices = for {
+  def twoMultipliableBlockMatrices(genElement: Gen[Double] = arbitrary[Double]): Gen[(BlockMatrix, BlockMatrix)] = for {
     Array(rows, inner, columns) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
     preBlockSize <- Gen.interestingPosInt
     blockSize = math.pow(preBlockSize, 1.0/3.0).toInt
     transposed <- Gen.coin()
-    l <- blockMatrixPreGen(rows, inner, blockSize, transposed)
-    r <- blockMatrixPreGen(inner, columns, blockSize, transposed)
+    l <- blockMatrixPreGen(rows, inner, blockSize, transposed, genElement)
+    r <- blockMatrixPreGen(inner, columns, blockSize, transposed, genElement)
   } yield if (transposed) (r, l) else (l, r)
 
   implicit val arbitraryBlockMatrix =
-    Arbitrary(blockMatrixGen)
+    Arbitrary(blockMatrixGen())
 
   private val defaultRelTolerance = 1e-14
 
@@ -192,7 +192,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def multiplySameAsBreezeRandomized() {
-    forAll(twoMultipliableBlockMatrices) { case (l: BlockMatrix, r: BlockMatrix) =>
+    forAll(twoMultipliableBlockMatrices(Gen.nonExtremeDouble)) { case (l: BlockMatrix, r: BlockMatrix) =>
       val actual = (l * r).toLocalMatrix()
       val expected = l.toLocalMatrix() * r.toLocalMatrix()
 
@@ -340,7 +340,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def diagonalTestRandomized() {
-    forAll(squareBlockMatrixGen) { (m: BlockMatrix) =>
+    forAll(squareBlockMatrixGen()) { (m: BlockMatrix) =>
       val lm = m.toLocalMatrix()
       val diagonalLength = math.min(lm.rows, lm.cols)
       val diagonal = Array.tabulate(diagonalLength)(i => lm(i,i))
@@ -396,7 +396,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def readWriteIdentityRandom() {
-    forAll(blockMatrixGen) { (m: BlockMatrix) =>
+    forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val fname = tmpDir.createTempFile("test")
       BlockMatrix.write(m, fname)
       assert(sameDoubleMatrixNaNEqualsNaN(m.toLocalMatrix(), BlockMatrix.read(hc, fname).toLocalMatrix()))
@@ -406,7 +406,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def transpose() {
-    forAll(blockMatrixGen) { (m: BlockMatrix) =>
+    forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val transposed = m.toLocalMatrix().t
       assert(transposed.rows == m.cols)
       assert(transposed.cols == m.rows)
@@ -417,7 +417,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def doubleTransposeIsIdentity() {
-    forAll(blockMatrixGen) { (m: BlockMatrix) =>
+    forAll(blockMatrixGen(Gen.nonExtremeDouble)) { (m: BlockMatrix) =>
       val mt = m.t.cache()
       val mtt = m.t.t.cache()
       assert(mtt.rows == m.rows)
@@ -430,7 +430,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def cachedOpsOK() {
-    forAll(twoMultipliableBlockMatrices) { case (l: BlockMatrix, r: BlockMatrix) =>
+    forAll(twoMultipliableBlockMatrices(Gen.nonExtremeDouble)) { case (l: BlockMatrix, r: BlockMatrix) =>
       l.cache()
       r.cache()
 
@@ -455,7 +455,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def toIRMToHBMIdentity() {
-    forAll(blockMatrixGen) { (m: BlockMatrix) =>
+    forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val roundtrip = m.toIndexedRowMatrix().toHailBlockMatrix(m.blockSize)
 
       val roundtriplm = roundtrip.toLocalMatrix()
