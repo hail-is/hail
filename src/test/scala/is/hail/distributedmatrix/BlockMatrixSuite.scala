@@ -36,43 +36,51 @@ class BlockMatrixSuite extends SparkSuite {
   def toBM(lm: BDM[Double], blockSize: Int): BlockMatrix =
     BlockMatrix.from(sc, lm, blockSize)
 
-  def blockMatrixPreGen(blockSize: Int, genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] =
-    Gen.coin().flatMap(blockMatrixPreGen(blockSize, _, genElement))
-
-  def blockMatrixPreGen(blockSize: Int, transposed: Boolean, genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] = for {
-    (l, w) <- Gen.nonEmptySquareOfAreaAtMostSize
-    m <- blockMatrixPreGen(l, w, blockSize, transposed, genElement)
-  } yield m
-
-  def blockMatrixPreGen(rows: Int, columns: Int, blockSize: Int, genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] =
-    Gen.coin().flatMap(blockMatrixPreGen(rows, columns, blockSize, _, genElement))
-
-  def blockMatrixPreGen(rows: Int, columns: Int, blockSize: Int, transposed: Boolean, genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] = for {
-    arrays <- Gen.buildableOfN[Seq, Array[Double]](rows, Gen.buildableOfN(columns, genElement))
+  private val defaultBlockSize = Gen.choose(0, 1 << 15)
+  private val defaultDims = Gen.nonEmptySquareOfAreaAtMostSize
+  private val defaultTransposed = Gen.coin()
+  private val defaultElement = arbitrary[Double]
+  def blockMatrixGen(
+    blockSize: Gen[Int] = defaultBlockSize,
+    dims: Gen[(Int,Int)] = defaultDims,
+    transposed: Gen[Boolean] = defaultTransposed,
+    element: Gen[Double] = defaultElement
+  ): Gen[BlockMatrix] = for {
+    blockSize <- blockSize
+    (rows, columns) <- dims
+    transposed <- transposed
+    arrays <- Gen.buildableOfN[Seq, Array[Double]](rows, Gen.buildableOfN(columns, element))
     m = toBM(arrays, blockSize)
   } yield if (transposed) m.t else m
 
-  def squareBlockMatrixGen(genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] = for {
-    size <- Gen.size
-    l <- Gen.interestingPosInt
-    s = math.sqrt(math.min(l, size)).toInt
-    preBlockSize <- Gen.interestingPosInt
-    blockSize = math.sqrt(preBlockSize).toInt
-    m <- blockMatrixPreGen(s, s, blockSize)
-  } yield m
+  def squareBlockMatrixGen(
+    transposed: Gen[Boolean] = defaultTransposed,
+    element: Gen[Double] = defaultElement
+  ): Gen[BlockMatrix] = blockMatrixGen(
+    blockSize = Gen.interestingPosInt.map(math.sqrt(_).toInt),
+    dims = for {
+      size <- Gen.size
+      l <- Gen.interestingPosInt
+      s = math.sqrt(math.min(l, size)).toInt
+    } yield (s, s),
+    transposed = transposed,
+    element = element
+  )
 
-  def blockMatrixGen(genElement: Gen[Double] = arbitrary[Double]): Gen[BlockMatrix] = for {
-    blockSize <- Gen.interestingPosInt
-    m <- blockMatrixPreGen(blockSize, genElement)
-  } yield m
-
-  def twoMultipliableBlockMatrices(genElement: Gen[Double] = arbitrary[Double]): Gen[(BlockMatrix, BlockMatrix)] = for {
+  def twoMultipliableBlockMatrices(element: Gen[Double] = arbitrary[Double]): Gen[(BlockMatrix, BlockMatrix)] = for {
     Array(rows, inner, columns) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
-    preBlockSize <- Gen.interestingPosInt
-    blockSize = math.pow(preBlockSize, 1.0/3.0).toInt
+    blockSize = Gen.interestingPosInt.map(math.pow(_, 1.0/3.0).toInt)
     transposed <- Gen.coin()
-    l <- blockMatrixPreGen(rows, inner, blockSize, transposed, genElement)
-    r <- blockMatrixPreGen(inner, columns, blockSize, transposed, genElement)
+    l <- blockMatrixGen(
+      blockSize = blockSize,
+      dims = Gen.const(rows -> inner),
+      transposed = Gen.const(transposed),
+      element = element)
+    r <- blockMatrixGen(
+      blockSize = blockSize,
+      dims = Gen.const(inner -> columns),
+      transposed = Gen.const(transposed),
+      element = element)
   } yield if (transposed) (r, l) else (l, r)
 
   implicit val arbitraryBlockMatrix =
