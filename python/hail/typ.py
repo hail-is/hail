@@ -340,7 +340,7 @@ class TArray(Type):
             if not isinstance(annotation, list):
                 raise TypeCheckError("TArray expected type 'list', but found type '%s'" % type(annotation))
             for elt in annotation:
-                if self.elementsRequired && elt == None:
+                if self.elementsRequired and elt == None:
                     raise TypeCheckError("No missing values allowed in TArray with required elements.")
                 self.element_type._typecheck(elt)
 
@@ -401,7 +401,7 @@ class TSet(Type):
             if not isinstance(annotation, set):
                 raise TypeCheckError("TSet expected type 'set', but found type '%s'" % type(annotation))
             for elt in annotation:
-                if self.elementsRequired && elt == None:
+                if self.elementsRequired and elt == None:
                     raise TypeCheckError("No missing values allowed in TSet with required elements.")
                 self.element_type._typecheck(elt)
 
@@ -468,7 +468,7 @@ class TDict(Type):
             if not isinstance(annotation, dict):
                 raise TypeCheckError("TDict expected type 'dict', but found type '%s'" % type(annotation))
             for k, v in annotation.iteritems():
-                if self.elementsRequired && k == None:
+                if self.elementsRequired and k == None:
                     raise TypeCheckError("No missing values allowed in TDict with required elements.")
                 self.key_type._typecheck(k)
                 self.value_type._typecheck(v)
