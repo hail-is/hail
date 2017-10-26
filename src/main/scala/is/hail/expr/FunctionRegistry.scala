@@ -1262,8 +1262,16 @@ object FunctionRegistry {
     "precision" -> "Starting position.")
 
   
+def truncateAt(n: Double, p: Int): Double = {
+    //exponsive but the other way with bigdecimal causes an issue with spark sql
+    val s = math pow (10, p); (math floor n * s) / s
+  }
 
-
+  register("truncateAt", {(n: Double, p: Int) => truncateAt(n,p)},
+    """
+    round decimal dot
+    """,
+    "gt" -> "agt")  
 
   def ToGenotype(gt:Int)={
     gt match {
