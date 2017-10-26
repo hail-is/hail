@@ -354,11 +354,7 @@ class HailContext private(val sc: SparkContext,
   }
 
   def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] = {
-    val vsm = VariantSampleMatrix.read(this, file, dropSamples = dropSamples, dropVariants = dropVariants)
-
-    if (vsm.genotypeSignature == TGenotype)
-      vsm.asInstanceOf[VariantSampleMatrix[Annotation, Annotation, Annotation]]
-    else vsm.asInstanceOf[VariantDataset]
+    VariantSampleMatrix.read(this, file, dropSamples = dropSamples, dropVariants = dropVariants)
   }
 
   def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset =
