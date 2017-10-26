@@ -6,7 +6,6 @@ import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail._
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
-import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
@@ -86,16 +85,13 @@ object BlockMatrix {
     assert(nBlocks >= blockRows && nBlocks >= blockCols)
     
     def readBlock(dis: DataInputStream, i: Int): Iterator[((Int, Int), BDM[Double])] = {
-
       val bdm = RichDenseMatrixDouble.read(dis)
 
       Iterator.single(
-        // block indices are column major
         if (transposed)
           ((i / blockCols, i % blockCols), bdm)
         else
-          ((i % blockRows, i / blockRows), bdm)
-      )
+          ((i % blockRows, i / blockRows), bdm))
     }
     
     val gp = GridPartitioner(rows, cols, blockSize, transposed)
@@ -262,45 +258,23 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
 
-    writeBlocks(uri)
+    def writeBlock(dos: DataOutputStream, i: Int, it: Iterator[((Int, Int), BDM[Double])]): Int = {
+      assert(it.hasNext)
+      val (_, bdm) = it.next()
+      assert(!it.hasNext)
+      
+      bdm.write(dos)
+      
+      1
+    }
+    
+    blocks.writePartitions(uri, os => new DataOutputStream(os), writeBlock)
     
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, rows, cols, partitioner.transposed),
         os)
     }
-  }
-  
-  def writeBlocks(uri: String) {
-    val sc = blocks.sparkContext
-    val hadoopConf = sc.hadoopConfiguration
-    
-    hadoopConf.mkDir(uri + "/parts")
-    
-    val sHadoopConf = new SerializableHadoopConfiguration(hadoopConf)
-    
-    val nPartitions = blocks.getNumPartitions
-    val d = digitsNeeded(nPartitions)
-
-    val blockCount = blocks.mapPartitionsWithIndex { case (i, it) =>
-      val is = i.toString
-      assert(is.length <= d)
-      val pis = StringUtils.leftPad(is, d, "0")
-
-      sHadoopConf.value.writeDataFile(uri + "/parts/part-" + pis) { out =>
-        assert(it.hasNext)
-        val (_, bdm) = it.next()
-        assert(!it.hasNext)
-
-        bdm.write(out)
-      }
-
-      Iterator.single(1L)
-    }
-      .fold(0L)(_ + _)
-
-    info(s"wrote $blockCount blocks")
-    assert(blockCount == nPartitions)
   }
 
   def cache(): this.type = {
@@ -718,41 +692,3 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
 }
 
 case class IntPartition(index: Int) extends Partition
-
-//case class ReadBlocksRDDPartition(index: Int) extends Partition
-//
-//class ReadBlocksRDD(sc: SparkContext, uri: String, blockSize: Int, rows: Long, cols: Long, transposed: Boolean) extends RDD[((Int, Int), BDM[Double])](sc, Nil) {
-//  private val blockRows: Int = ((rows - 1) / blockSize).toInt + 1
-//  private val blockCols: Int = ((cols - 1) / blockSize).toInt + 1
-//  private val nBlocks = blockRows * blockCols
-//  assert(nBlocks >= blockRows && nBlocks >= blockCols)
-//  
-//  override def getPartitions: Array[Partition] =
-//    Array.tabulate(nBlocks)(i => ReadBlocksRDDPartition(i))
-//  
-//  private val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
-//
-//  override def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-//    val d = digitsNeeded(nBlocks)
-//    val i = split.index
-//    assert(i >= 0 && i < nBlocks)
-//
-//    val is = i.toString
-//    assert(is.length <= d)
-//    val pis = StringUtils.leftPad(is, d, "0")
-//
-//    Iterator.single(sHadoopConfBc.value.value.readDataFile(uri + "/blocks/block-" + pis) { in =>
-//      
-//      val bdm = RichDenseMatrixDouble.read(in)
-//      
-//      // block indices are column major
-//      if (transposed) {
-//        ((i / blockCols, i % blockCols), bdm)
-//      } else {
-//        ((i % blockRows, i / blockRows), bdm)
-//      }      
-//    })
-//  }
-//
-//  override val partitioner: Option[Partitioner] = Some(GridPartitioner(rows, cols, blockSize, transposed))
-//}

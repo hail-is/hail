@@ -3,11 +3,10 @@ package is.hail.annotations
 import java.io.{InputStream, OutputStream}
 
 import is.hail.expr._
-import is.hail.utils.{SerializableHadoopConfiguration, _}
+import is.hail.utils._
 import is.hail.variant.LZ4Utils
-import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{Partition, SparkContext, TaskContext}
+import org.apache.spark.Partition
 
 class ArrayInputStream(var a: Array[Byte], var end: Int) extends InputStream {
   var off: Int = 0
@@ -478,118 +477,28 @@ final class Encoder(out: OutputBuffer) {
   }
 }
 
-class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
-  def writeRows(path: String, t: TStruct) {
-    val sc = rdd.sparkContext
-    val hadoopConf = sc.hadoopConfiguration
-
-    hadoopConf.mkDir(path + "/parts")
-
-    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hadoopConf))
-
-    val nPartitions = rdd.partitions.length
-    val d = digitsNeeded(nPartitions)
-
-    val rowCount = rdd.mapPartitionsWithIndex { case (i, it) =>
-      var rowCount = 0L
-
-      val is = i.toString
-      assert(is.length <= d)
-      val pis = StringUtils.leftPad(is, d, "0")
-
-      sHadoopConfBc.value.value.writeFile(path + "/parts/part-" + pis) { out =>
-        val en = new Encoder(new LZ4OutputBuffer(out))
-
-        it.foreach { rv =>
-          en.writeByte(1)
-          en.writeRegionValue(t, rv.region, rv.offset)
-          rowCount += 1
-        }
-
-        en.writeByte(0) // end
-        en.flush()
-      }
-
-      Iterator(rowCount)
+object RichRDDRegionValue {
+  def writeRow(t: TStruct)(os: OutputStream, i: Int, it: Iterator[RegionValue]): Long = {
+    val en = new Encoder(new LZ4OutputBuffer(os))
+    var rowCount = 0L
+    
+    it.foreach { rv =>
+      en.writeByte(1)
+      en.writeRegionValue(t, rv.region, rv.offset)
+      rowCount += 1
     }
-      .fold(0L)(_ + _)
 
-    info(s"wrote $rowCount records")
+    en.writeByte(0) // end
+    en.flush()
+    
+    rowCount
   }
 }
 
-case class ReadRowsRDDPartition(index: Int) extends Partition
-
-class ReadRowsRDD(sc: SparkContext,
-  path: String, t: TStruct, nPartitions: Int) extends RDD[RegionValue](sc, Nil) {
-
-  override def getPartitions: Array[Partition] =
-    Array.tabulate(nPartitions)(i => ReadRowsRDDPartition(i))
-
-  private val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
-
-  override def compute(split: Partition, context: TaskContext): Iterator[RegionValue] = {
-    val d = digitsNeeded(nPartitions)
-    val localPath = path
-    val localT = t
-
-    new Iterator[RegionValue] {
-      private val in = {
-        val is = split.index.toString
-        assert(is.length <= d)
-        val pis = StringUtils.leftPad(is, d, "0")
-        sHadoopConfBc.value.value.unsafeReader(localPath + "/parts/part-" + pis)
-      }
-
-      private val region = MemoryBuffer()
-      private val rv = RegionValue(region)
-
-      private val dec = new Decoder(new LZ4InputBuffer(in))
-
-      private var cont = dec.readByte()
-
-      def hasNext: Boolean = cont != 0
-
-      def next(): RegionValue = {
-        if (!hasNext)
-          throw new NoSuchElementException("next on empty iterator")
-
-        region.clear()
-        rv.setOffset(dec.readRegionValue(localT, region))
-
-        cont = dec.readByte()
-        if (cont == 0)
-          in.close()
-
-        rv
-      }
-    }
+class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
+  def writeRows(path: String, t: TStruct) {
+    rdd.writePartitions(path, os => os, RichRDDRegionValue.writeRow(t))
   }
 }
 
 case class ReadRDDPartition(index: Int) extends Partition
-
-//object ReadRDD {
-//  def apply[T, S](sc: SparkContext, path: String, nPartitions: Int, 
-//    makeStream: (InputStream) => S,
-//    read: (S, Int) => Iterator[T]): RDD[T] = {
-//    
-//    new RDD[T](sc, Nil) {
-//      def getPartitions: Array[Partition] = Array.tabulate(nPartitions)(i => ReadRDDPartition(i))
-//    
-//      private val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
-//      private val d = digitsNeeded(nPartitions)  
-//      
-//      override def compute(split: Partition, context: TaskContext): Iterator[T] = {
-//        val i = split.index
-//        val is = i.toString
-//        assert(is.length <= d)
-//        val pis = StringUtils.leftPad(is, d, "0")
-//        
-//        val filename = path + "/rowstore/part-" + pis
-//        
-//        sHadoopConfBc.value.value.readPartition(filename)(makeStream, read)(i)
-//      }
-//    }
-//  }
-//}

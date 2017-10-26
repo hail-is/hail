@@ -16,7 +16,6 @@ import is.hail.variant.{GenericDataset, GenomeReference, Genotype, Locus, VSMFil
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
-import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.apache.spark._
@@ -408,7 +407,6 @@ class HailContext private(val sc: SparkContext,
     val d = digitsNeeded(nPartitions)
 
     new RDD[T](sc, Nil) {
-      
       def getPartitions: Array[Partition] = Array.tabulate(nPartitions)(i => ReadRDDPartition(i))
       
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
