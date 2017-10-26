@@ -232,8 +232,7 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def rowwiseMultiplicationRandom() {
     val g = for {
-      blockSize <- Gen.interestingPosInt
-      l <- blockMatrixPreGen(blockSize)
+      l <- blockMatrixGen()
       v <- Gen.buildableOfN[Array, Double](l.cols.toInt, arbitrary[Double])
     } yield (l, v)
 
@@ -269,8 +268,7 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def colwiseMultiplicationRandom() {
     val g = for {
-      blockSize <- Gen.interestingPosInt
-      l <- blockMatrixPreGen(blockSize)
+      l <- blockMatrixGen()
       v <- Gen.buildableOfN[Array, Double](l.rows.toInt, arbitrary[Double])
     } yield (l, v)
 
@@ -417,7 +415,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def doubleTransposeIsIdentity() {
-    forAll(blockMatrixGen(Gen.nonExtremeDouble)) { (m: BlockMatrix) =>
+    forAll(blockMatrixGen(element = Gen.nonExtremeDouble)) { (m: BlockMatrix) =>
       val mt = m.t.cache()
       val mtt = m.t.t.cache()
       assert(mtt.rows == m.rows)
