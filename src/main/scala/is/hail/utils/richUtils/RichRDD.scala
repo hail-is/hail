@@ -167,7 +167,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       .subsetPartitions((0 to idxLast).toArray)
   }
   
-  def writePartitions[S](makeStream: (OutputStream) => S, write: (S, Int, Iterator[T]) => ()) {
-    
-  }
+//  def writePartitions[S](makeStream: (OutputStream) => S, write: (S, Int, Iterator[T]) => ()) {
+//    
+//  }
 }

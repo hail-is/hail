@@ -483,7 +483,7 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
     val sc = rdd.sparkContext
     val hadoopConf = sc.hadoopConfiguration
 
-    hadoopConf.mkDir(path + "/rowstore")
+    hadoopConf.mkDir(path + "/parts")
 
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hadoopConf))
 
@@ -497,7 +497,7 @@ class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
       assert(is.length <= d)
       val pis = StringUtils.leftPad(is, d, "0")
 
-      sHadoopConfBc.value.value.writeFile(path + "/rowstore/part-" + pis) { out =>
+      sHadoopConfBc.value.value.writeFile(path + "/parts/part-" + pis) { out =>
         val en = new Encoder(new LZ4OutputBuffer(out))
 
         it.foreach { rv =>
@@ -538,7 +538,7 @@ class ReadRowsRDD(sc: SparkContext,
         val is = split.index.toString
         assert(is.length <= d)
         val pis = StringUtils.leftPad(is, d, "0")
-        sHadoopConfBc.value.value.unsafeReader(localPath + "/rowstore/part-" + pis)
+        sHadoopConfBc.value.value.unsafeReader(localPath + "/parts/part-" + pis)
       }
 
       private val region = MemoryBuffer()
@@ -565,10 +565,31 @@ class ReadRowsRDD(sc: SparkContext,
       }
     }
   }
-  
-  def makeStream(in: InputStream): InputStream = in
-  
-  def read(in: InputStream, i: Int): Iterator[RegionValue] = {
-    
-  }
 }
+
+case class ReadRDDPartition(index: Int) extends Partition
+
+//object ReadRDD {
+//  def apply[T, S](sc: SparkContext, path: String, nPartitions: Int, 
+//    makeStream: (InputStream) => S,
+//    read: (S, Int) => Iterator[T]): RDD[T] = {
+//    
+//    new RDD[T](sc, Nil) {
+//      def getPartitions: Array[Partition] = Array.tabulate(nPartitions)(i => ReadRDDPartition(i))
+//    
+//      private val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+//      private val d = digitsNeeded(nPartitions)  
+//      
+//      override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+//        val i = split.index
+//        val is = i.toString
+//        assert(is.length <= d)
+//        val pis = StringUtils.leftPad(is, d, "0")
+//        
+//        val filename = path + "/rowstore/part-" + pis
+//        
+//        sHadoopConfBc.value.value.readPartition(filename)(makeStream, read)(i)
+//      }
+//    }
+//  }
+//}

@@ -1,9 +1,9 @@
 package is.hail
 
-import java.io.InputStream
+import java.io.{Closeable, InputStream}
 import java.util.Properties
 
-import is.hail.annotations.Annotation
+import is.hail.annotations._
 import is.hail.expr.{EvalContext, Parser, TStruct, Type, _}
 import is.hail.io.bgen.BgenLoader
 import is.hail.io.gen.GenLoader
@@ -13,17 +13,18 @@ import is.hail.keytable.KeyTable
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
 import is.hail.variant.{GenericDataset, GenomeReference, Genotype, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
+import org.apache.spark._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
-import scala.reflect.classTag
+import scala.reflect.{ClassTag, classTag}
 
 object HailContext {
 
@@ -166,6 +167,34 @@ object HailContext {
 
     info(s"Running Hail version ${hc.version}")
     hc
+  }
+  
+  def readRow(t: TStruct)(in: InputStream, i: Int): Iterator[RegionValue] = {
+    
+    new Iterator[RegionValue] {
+      val region = MemoryBuffer()
+      val rv = RegionValue(region)
+
+      val dec = new Decoder(new LZ4InputBuffer(in))
+
+      var cont = dec.readByte()
+
+      def hasNext: Boolean = cont != 0
+
+      def next(): RegionValue = {
+        if (!hasNext)
+          throw new NoSuchElementException("next on empty iterator")
+
+        region.clear()
+        rv.setOffset(dec.readRegionValue(t, region))
+
+        cont = dec.readByte()
+        if (cont == 0)
+          in.close()
+
+        rv
+      }
+    }
   }
 }
 
@@ -368,12 +397,37 @@ class HailContext private(val sc: SparkContext,
   def readTable(path: String): KeyTable =
     KeyTable.read(this, path)
 
-  def readPartitions[T, S](
+  def readPartitions[T: ClassTag, S <: Closeable](
+    path: String,
+    nPartitions: Int,
     makeStream: (InputStream) => S,
-    read: (S, Int) => Iterator[T]): RDD[T] = {
+    read: (S, Int) => Iterator[T],
+    _partitioner: Option[Partitioner] = None): RDD[T] = {
     
-    
+    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+    val d = digitsNeeded(nPartitions)
+
+    new RDD[T](sc, Nil) {
+      
+      def getPartitions: Array[Partition] = Array.tabulate(nPartitions)(i => ReadRDDPartition(i))
+      
+      override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+        val i = split.index
+        val is = i.toString
+        assert(is.length <= d)
+        val pis = StringUtils.leftPad(is, d, "0")
+        
+        val filename = path + "/parts/part-" + pis
+        
+        sHadoopConfBc.value.value.readPartition(filename)(makeStream, i, read)
+      }
+      
+      @transient override val partitioner: Option[Partitioner] = _partitioner
+    }
   }
+  
+  def readRowsRDD(path: String, t: TStruct, nPartitions: Int): RDD[RegionValue] =
+    readPartitions(path, nPartitions, is => is, HailContext.readRow(t))
   
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
