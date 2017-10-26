@@ -5,6 +5,7 @@ import is.hail.expr.{EvalContext, Parser, TAggregable, TString, TStruct, Type, _
 import is.hail.io.plink.ExportBedBimFam
 import is.hail.keytable.KeyTable
 import is.hail.methods._
+import is.hail.sparkextras.OrderedRDD2
 import is.hail.stats.ComputeRRM
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
@@ -19,7 +20,7 @@ object VariantDataset {
     kt.keyFields.map(_.typ) match {
       case Array(TVariant(_)) =>
       case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
-        s"but found [ ${arr.mkString(", ")} ]")
+        s"but found [ ${ arr.mkString(", ") } ]")
     }
 
     val rdd = kt.keyedRDD()
@@ -41,21 +42,37 @@ object VariantDataset {
 class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
-    val (vas2, insertIndex) = vds.vaSignature.insert(TInt32, "aIndex")
-    val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
-    val localGlobalAnnotation = vds.globalAnnotation
+
+    val splitmulti = new SplitMulti(vds,
+      "va.aIndex = aIndex, va.wasSplit = wasSplit",
+      s"""
+g = let
+    newgt = downcode(Call(g.gt), aIndex) and
+    newad = if (isDefined(g.ad))
+        let sum = g.ad.sum() and adi = g.ad[aIndex] in [sum - adi, adi]
+      else
+        NA: Array[Int] and
+    newpl = if (isDefined(g.pl))
+        range(3).map(i => range(g.pl.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.pl[j]).min())
+      else
+        NA: Array[Int] and
+    newgq = ${ if (propagateGQ) "g.gq" else "gqFromPL(newpl)" }
+  in Genotype(v, newgt, newad, g.dp, newgq, newpl)
+    """, keepStar = true, leftAligned = false)
+
+    val splitMatrixType = splitmulti.newMatrixType
 
     val aggregationST = Map(
       "global" -> (0, vds.globalSignature),
       "v" -> (1, TVariant(GenomeReference.GRCh37)),
-      "va" -> (2, vas3),
+      "va" -> (2, splitMatrixType.vaType),
       "g" -> (3, TGenotype),
       "s" -> (4, TString),
       "sa" -> (5, vds.saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, vds.globalSignature),
       "v" -> (1, TVariant(GenomeReference.GRCh37)),
-      "va" -> (2, vas3),
+      "va" -> (2, splitMatrixType.vaType),
       "gs" -> (3, TAggregable(TGenotype, aggregationST))))
 
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
@@ -66,42 +83,78 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       inserterBuilder += i
       s
     }
-    val finalType = if (newType.isInstanceOf[TStruct])
-      paths.foldLeft(newType.asInstanceOf[TStruct]) {
-        case (res, path) => res.setFieldAttributes(path, Map("Number" -> "A"))
-      }
-    else newType
+
+    val finalType = newType match {
+      case t: TStruct =>
+        paths.foldLeft(t) { case (res, path) =>
+          res.setFieldAttributes(path, Map("Number" -> "A"))
+        }
+      case _ => newType
+    }
 
     val inserters = inserterBuilder.result()
 
     val aggregateOption = Aggregators.buildVariantAggregations(vds, ec)
 
-    vds.mapAnnotations(finalType, { case (v, va, gs) =>
+    val localNSamples = vds.nSamples
+    val localRowType = vds.rowType
 
-      // FIXME
-      val annotations: Array[Array[Any]] = ???
+    val localGlobalAnnotation = vds.globalAnnotation
+    val localVAnnotator = splitmulti.vAnnotator
+    val localGAnnotator = splitmulti.gAnnotator
+    val splitRowType = splitMatrixType.rowType
 
-      /*
-      val annotations = SplitMulti.split(v, va, gs,
-        propagateGQ = propagateGQ,
-        keepStar = true,
-        insertSplitAnnots = { (va, index, wasSplit) =>
-          insertSplit(insertIndex(va, index), wasSplit)
-        },
-        f = _ => true)
-        .map({
-          case (v, (va, gs)) =>
-            ec.setAll(localGlobalAnnotation, v, va)
-            aggregateOption.foreach(f => f(v, va, gs))
-            f()
-        }).toArray */
+    val newMatrixType = vds.matrixType.copy(vaType = finalType)
+    val newRowType = newMatrixType.rowType
 
-      inserters.zipWithIndex.foldLeft(va) {
-        case (va, (inserter, i)) =>
-          inserter(va, annotations.map(_ (i)).toArray[Any]: IndexedSeq[Any])
-      }
+    val newRDD2 = OrderedRDD2(
+      newMatrixType.orderedRDD2Type,
+      vds.rdd2.orderedPartitioner,
+      vds.rdd2.mapPartitions { it =>
+        val splitcontext = new SplitMultiPartitionContext(true, localNSamples, localGlobalAnnotation, localRowType,
+          localVAnnotator, localGAnnotator, splitRowType)
+        val rv2b = new RegionValueBuilder()
+        val rv2 = RegionValue()
+        it.map { rv =>
+          val annotations = splitcontext.splitRow(rv,
+            sortAlleles = false, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = false)
+            .map { splitrv =>
+              val splitur = new UnsafeRow(splitRowType, splitrv)
+              val v = splitur.getAs[Variant](1)
+              val va = splitur.get(2)
+              val gs = splitur.getAs[Iterable[Genotype]](3)
+              ec.setAll(localGlobalAnnotation, v, va)
+              aggregateOption.foreach(f => f(v, va, gs))
+              (f(), types).zipped.map { case (a, t) =>
+                Annotation.copy(t, a)
+              }
+            }
+            .toArray
 
-    })
+          rv2b.set(rv.region)
+          rv2b.start(newRowType)
+          rv2b.startStruct()
+
+          rv2b.addField(localRowType, rv, 0) // pk
+          rv2b.addField(localRowType, rv, 1) // v
+
+          val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
+          val va = ur.get(2)
+          val newVA = inserters.zipWithIndex.foldLeft(va) {
+            case (va, (inserter, i)) =>
+              inserter(va, annotations.map(_ (i)): IndexedSeq[Any])
+          }
+          rv2b.addAnnotation(finalType, newVA)
+
+          rv2b.addField(localRowType, rv, 3) // gs
+          rv2b.endStruct()
+
+          rv2.set(rv.region, rv2b.end())
+          rv2
+        }
+      })
+
+    vds.copy2(rdd2 = newRDD2, vaSignature = finalType)
   }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
@@ -127,7 +180,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     }
 
 
-    def formatGP(d: Double): String = d.formatted(s"%.${precision}f")
+    def formatGP(d: Double): String = d.formatted(s"%.${ precision }f")
 
     val emptyGP = Array(0d, 0d, 0d)
 
@@ -248,7 +301,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     val badSampleIds = vds.stringSampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
     if (badSampleIds.nonEmpty) {
       fatal(
-        s"""Found ${badSampleIds.length} sample IDs with whitespace
+        s"""Found ${ badSampleIds.length } sample IDs with whitespace
            |  Please run `renamesamples' to fix this problem before exporting to plink format
            |  Bad sample IDs: @1 """.stripMargin, badSampleIds)
     }
@@ -295,7 +348,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     * @param maxShift               Maximum possible position change during minimum representation calculation
     */
   def filterAlleles(filterExpr: String, annotationExpr: String = "va = va", filterAlteredGenotypes: Boolean = false,
-                    keep: Boolean = true, subset: Boolean = true, maxShift: Int = 100, keepStar: Boolean = false): VariantDataset = {
+    keep: Boolean = true, subset: Boolean = true, maxShift: Int = 100, keepStar: Boolean = false): VariantDataset = {
     FilterAlleles(vds, filterExpr, annotationExpr, filterAlteredGenotypes, keep, subset, maxShift, keepStar)
   }
 
@@ -310,7 +363,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       if (g == null)
         g
       else
-        Genotype(g._unboxedGT, g._fakeRef)
+        Genotype(g._unboxedGT)
     })
   }
 
@@ -324,7 +377,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     * @param maximum        Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
     */
   def ibd(computeMafExpr: Option[String] = None, bounded: Boolean = true,
-          minimum: Option[Double] = None, maximum: Option[Double] = None): KeyTable = {
+    minimum: Option[Double] = None, maximum: Option[Double] = None): KeyTable = {
     require(vds.wasSplit)
     IBD.toKeyTable(vds.hc, IBD.validateAndCall(vds, computeMafExpr, bounded, minimum, maximum))
   }
@@ -338,7 +391,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     * @param popFreqExpr      Use an annotation expression for estimate of MAF rather than computing from the data
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
-                fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
+    fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
     require(vds.wasSplit)
 
     val result = ImputeSexPlink(vds,
@@ -381,7 +434,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     * @param asArrays     Store score and loading results as arrays, rather than structs
     */
   def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
-          asArrays: Boolean = false): VariantDataset = {
+    asArrays: Boolean = false): VariantDataset = {
     require(vds.wasSplit)
 
     if (k < 1)
@@ -449,12 +502,12 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def deNovo(ped: Pedigree,
-             referenceAF: String,
-             minGQ: Int = 20,
-             minPDeNovo: Double = 0.05,
-             maxParentAB: Double = 0.05,
-             minChildAB: Double = 0.20,
-             minDepthRatio: Double = 0.10): KeyTable = {
+    referenceAF: String,
+    minGQ: Int = 20,
+    minPDeNovo: Double = 0.05,
+    maxParentAB: Double = 0.05,
+    minChildAB: Double = 0.20,
+    minDepthRatio: Double = 0.10): KeyTable = {
     require(vds.wasSplit)
     vds.requireSampleTString("de novo")
 

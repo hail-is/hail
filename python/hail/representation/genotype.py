@@ -47,7 +47,7 @@ class Genotype(HistoryMixin):
             jpl = jnone()
 
         self._jgenotype = Genotype._genotype_jobject
-        jrep = self._jgenotype.apply(jgt, jad, jdp, jgq, jpl, False)
+        jrep = self._jgenotype.apply(jgt, jad, jdp, jgq, jpl)
         self._gt = gt
         self._ad = ad
         self._dp = dp
@@ -59,9 +59,8 @@ class Genotype(HistoryMixin):
         return self._jrep.toString()
 
     def __repr__(self):
-        fake_ref = 'FakeRef=True' if self._jrep._fakeRef() else ''
-        return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PL=%s%s)' % \
-            (self.gt, self.ad, self.dp, self.gq, self.pl, fake_ref)
+        return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PL=%s)' % \
+            (self.gt, self.ad, self.dp, self.gq, self.pl)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)

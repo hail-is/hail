@@ -182,19 +182,19 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
 
   def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false, leftAligned: Boolean = false): VariantSampleMatrix[Locus, Variant, T] = {
     if (vsm.genotypeSignature == TGenotype) {
-      // FIXME fakeRef
-      vsm.splitMulti("", s"""
-let newgt = downcode(g.gt, aIndex) and
+      vsm.splitMulti("va.aIndex = aIndex, va.wasSplit = wasSplit", s"""
+g = let
+    newgt = downcode(Call(g.gt), aIndex) and
     newad = if (isDefined(g.ad))
         let sum = g.ad.sum() and adi = g.ad[aIndex] in [sum - adi, adi]
       else
         NA: Array[Int] and
     newpl = if (isDefined(g.pl))
-        range(3).map(i => range(v.nGenotypes).filter(g => downcode(Call(g), aIndex) == Call(i)).min())
+        range(3).map(i => range(g.pl.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.pl[j]).min())
       else
         NA: Array[Int] and
     newgq = ${ if (propagateGQ) "g.gq" else "gqFromPL(newpl)" }
-  in Genotype(newgt, newad, g.dp, newgq, newpl)
+  in Genotype(v, newgt, newad, g.dp, newgq, newpl)
     """,
         keepStar, leftAligned)
     } else {
@@ -222,12 +222,12 @@ else
       if (hasGenotypeFieldOfType("PL", TArray(TInt32)))
         b += """
 g.PL = if (isDefined(g.PL))
-  range(3).map(i => range(v.nGenotypes).filter(g => downcode(Call(g), aIndex) == Call(i)).min())
+  range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
 else
   NA: Array[Int]
         """
 
-      var vsm2 = vsm.splitMulti("", b.result().mkString(","), keepStar, leftAligned)
+      var vsm2 = vsm.splitMulti("va.aIndex = aIndex, va.wasSplit = wasSplit", b.result().mkString(","), keepStar, leftAligned)
 
       if (!propagateGQ && hasGenotypeFieldOfType("GQ", TInt32)) {
         val vsm3 = vsm2.annotateGenotypesExpr("g.GQ = gqFromPL(g.PL)")

@@ -8,9 +8,9 @@ import is.hail.variant.{VSMSubgen, VariantSampleMatrix, _}
 import org.testng.annotations.Test
 
 class HardCallsSuite extends SparkSuite {
-  def gtTriples(vds: VariantDataset): Set[(Variant, Annotation, (Option[Int], Option[Boolean]))] =
+  def gtTriples(vds: VariantDataset): Set[(Variant, Annotation, Option[Int])] =
     vds.expand()
-      .map { case (v, va, g) => (v, va, (Genotype.gt(g), Genotype.fakeRef(g))) }
+      .map { case (v, va, g) => (v, va, Genotype.gt(g)) }
       .collect()
       .toSet
 

@@ -793,8 +793,6 @@ object FunctionRegistry {
       (stsum, sum) <- CM.memoize(intArraySumCode(ad))
     ) yield Code(stad, stsum, sum.ceq(0).mux(Code._null, boxDouble(ad(0).toD / sum.toD)))
   }, "the ratio of ref reads to the sum of all *informative* reads.")
-  registerFieldCode("fakeRef", { (x: Code[Genotype]) => CM.ret(boxBoolean(x.invoke[Boolean]("_fakeRef"))) },
-    "True if this genotype was downcoded in :py:meth:`~hail.VariantDataset.split_multi`.  This can happen if a ``1/2`` call is split to ``0/1``, ``0/1``.")
   registerFieldCode("isLinearScale", { (x: Code[Genotype]) => CM.ret(boxBoolean(x.invoke[Boolean]("isLinearScale"))) },
     "True if the data was imported from :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen`.")
   registerFieldCode("contig", { (x: Code[Variant]) => CM.ret(x.invoke[String]("contig")) },

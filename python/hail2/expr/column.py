@@ -962,10 +962,6 @@ class GenotypeColumn(Column):
     def dp(self):
         return self._field("dp", TInt32())
 
-    @property
-    def fake_ref(self):
-        return self._field("fakeRef", TBoolean())
-
     def fraction_reads_ref(self):
         return self._method("fractionReadsRef", TFloat64())
 

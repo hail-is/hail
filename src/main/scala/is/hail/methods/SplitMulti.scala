@@ -13,7 +13,7 @@ class ExprAnnotator(val ec: EvalContext, t: Type, expr: String, head: Option[Str
   private val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, head)
 
   private val inserters = new Array[Inserter](types.length)
-  val newT = {
+  val newT: Type = {
     var newT = t
     var i = 0
     while (i < types.length) {
@@ -43,16 +43,15 @@ class SplitMultiPartitionContext(
   nSamples: Int, globalAnnotation: Annotation, rowType: TStruct,
   vAnnotator: ExprAnnotator, gAnnotator: ExprAnnotator, newRowType: TStruct) {
   var prevLocus: Locus = null
-  var rv: RegionValue = _
   var ur = new UnsafeRow(rowType)
   val splitRegion = MemoryBuffer()
   val rvb = new RegionValueBuilder()
   val splitrv = RegionValue()
 
-  def splitRow(sortAlleles: Boolean, removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): Iterator[RegionValue] = {
+  def splitRow(rv: RegionValue, sortAlleles: Boolean, removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): Iterator[RegionValue] = {
     require(!(removeMoving && verifyLeftAligned))
 
-    // FIXME check type, move to VSM
+    ur.set(rv)
     val v = ur.getAs[Variant](1)
 
     var isLeftAligned = true
@@ -123,11 +122,11 @@ class SplitMultiPartitionContext(
         rvb.addAnnotation(newRowType.fieldType(0), svj.locus)
         rvb.addAnnotation(newRowType.fieldType(1), svj)
 
-        vAnnotator.ec.setAll(globalAnnotation, v, va, i, true)
+        vAnnotator.ec.setAll(globalAnnotation, svj, va, i, true)
         rvb.addAnnotation(newRowType.fieldType(2), vAnnotator.insert(va))
 
         rvb.startArray(nSamples) // gs
-        gAnnotator.ec.setAll(globalAnnotation, v, va, i, true)
+        gAnnotator.ec.setAll(globalAnnotation, svj, va, i, true)
         var k = 0
         while (k < nSamples) {
           val g = gs(k)
@@ -144,7 +143,7 @@ class SplitMultiPartitionContext(
   }
 }
 
-class SplitMulti[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean)(implicit tct: ClassTag[T]) {
+class SplitMulti[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean)(implicit tct: ClassTag[T]) {
   val vEC = EvalContext(Map(
     "global" -> (0, vsm.globalSignature),
     "v" -> (1, vsm.vSignature),
@@ -181,16 +180,14 @@ class SplitMulti[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], varia
         localVAnnotator, localGAnnotator, newRowType)
 
       it.flatMap { rv =>
-        context.rv = rv
-        context.ur.set(rv)
-        val splitit = context.splitRow(sortAlleles, removeLeftAligned, removeMoving, verifyLeftAligned)
+        val splitit = context.splitRow(rv, sortAlleles, removeLeftAligned, removeMoving, verifyLeftAligned)
         context.prevLocus = context.ur.getAs[Locus](0)
         splitit
       }
     }
   }
 
-  def split(): VariantSampleMatrix[RPK, RK, T] = {
+  def split(): VariantSampleMatrix[Locus, Variant, T] = {
     val newRDD2: OrderedRDD2 =
       if (leftAligned) {
         OrderedRDD2(
@@ -211,6 +208,6 @@ class SplitMulti[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], varia
         leftAlignedVariants.partitionSortedUnion(movedVariants)
       }
 
-    vsm.copy2[RPK, RK, T](rdd2 = newRDD2, vaSignature = vAnnotator.newT, genotypeSignature = gAnnotator.newT, wasSplit = true)
+    vsm.copy2[Locus, Variant, T](rdd2 = newRDD2, vaSignature = vAnnotator.newT, genotypeSignature = gAnnotator.newT, wasSplit = true)
   }
 }
