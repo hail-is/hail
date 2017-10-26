@@ -85,6 +85,10 @@ abstract class OutputBuffer {
 
   def writeByte(b: Byte): Unit
 
+  def writeInt(i: Int): Unit
+
+  def writeLong(l: Long): Unit
+
   def writeFloat(f: Float): Unit
 
   def writeDouble(d: Double): Unit
@@ -93,28 +97,6 @@ abstract class OutputBuffer {
 
   def writeBoolean(b: Boolean) {
     writeByte(b.toByte)
-  }
-
-  def writeInt(i: Int) {
-    var j = i
-    do {
-      var b = j & 0x7f
-      j >>>= 7
-      if (j != 0)
-        b |= 0x80
-      writeByte(b.toByte)
-    } while (j != 0)
-  }
-
-  def writeLong(l: Long) {
-    var j = l
-    do {
-      var b = j & 0x7f
-      j >>>= 7
-      if (j != 0)
-        b |= 0x80
-      writeByte(b.toByte)
-    } while (j != 0)
   }
 }
 
@@ -149,6 +131,36 @@ class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
       writeBlock()
     Memory.storeByte(buf, off, b)
     off += 1
+  }
+
+  def writeInt(i: Int) {
+    if (off + 5 > buf.length)
+      writeBlock()
+
+    var j = i
+    do {
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      Memory.storeByte(buf, off, b.toByte)
+      off += 1
+    } while (j != 0)
+  }
+
+  def writeLong(l: Long) {
+    if (off + 10 > buf.length)
+      writeBlock()
+
+    var j = l
+    do {
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      Memory.storeByte(buf, off, b.toByte)
+      off += 1
+    } while (j != 0)
   }
 
   def writeFloat(f: Float) {
@@ -187,6 +199,10 @@ class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
 abstract class InputBuffer {
   def readByte(): Byte
 
+  def readInt(): Int
+
+  def readLong(): Long
+
   def readFloat(): Float
 
   def readDouble(): Double
@@ -194,32 +210,6 @@ abstract class InputBuffer {
   def readBytes(to: Long, toOff: Long, n: Int)
 
   def readBoolean(): Boolean = readByte() != 0
-
-  def readInt(): Int = {
-    var b: Byte = readByte()
-    var x: Int = b & 0x7f
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = readByte()
-      x |= ((b & 0x7f) << shift)
-      shift += 7
-    }
-
-    x
-  }
-
-  def readLong(): Long = {
-    var b: Byte = readByte()
-    var x: Long = b & 0x7fL
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = readByte()
-      x |= ((b & 0x7fL) << shift)
-      shift += 7
-    }
-
-    x
-  }
 }
 
 class LZ4InputBuffer(in: InputStream) extends InputBuffer {
@@ -256,6 +246,40 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
     val b = Memory.loadByte(buf, off)
     off += 1
     b
+  }
+
+  def readInt(): Int = {
+    ensure(1)
+
+    var b: Byte = Memory.loadByte(buf, off)
+    off += 1
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = Memory.loadByte(buf, off)
+      off += 1
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+
+    x
+  }
+
+  def readLong(): Long = {
+    ensure(1)
+
+    var b: Byte = Memory.loadByte(buf, off)
+    off += 1
+    var x: Long = b & 0x7fL
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = Memory.loadByte(buf, off)
+      off += 1
+      x |= ((b & 0x7fL) << shift)
+      shift += 7
+    }
+
+    x
   }
 
   def readFloat(): Float = {
