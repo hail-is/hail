@@ -353,94 +353,19 @@ class HailContext private(val sc: SparkContext,
       nPartitions, delimiter, missing, quantPheno, a2Reference)
   }
 
-  def checkDatasetSchemasCompatible(datasets: Array[VariantSampleMatrix[_, _, _]], inputs: Array[String]) {
-    val sampleIds = datasets.head.sampleIds
-    val vaSchema = datasets.head.vaSignature
-    val wasSplit = datasets.head.wasSplit
-    val genotypeSchema = datasets.head.genotypeSignature
-    val reference = inputs(0)
+  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] = {
+    val vsm = VariantSampleMatrix.read(this, file, dropSamples = dropSamples, dropVariants = dropVariants)
 
-    datasets.indices.tail.foreach { i =>
-      val vds = datasets(i)
-      val ids = vds.sampleIds
-      val vas = vds.vaSignature
-      val gsig = vds.genotypeSignature
-      val path = inputs(i)
-      if (ids != sampleIds) {
-        fatal(
-          s"""cannot read datasets with different sample IDs or sample ordering
-             |  IDs in reference file $reference: @1
-             |  IDs in file $path: @2""".stripMargin, sampleIds, ids)
-      } else if (wasSplit != vds.wasSplit) {
-        fatal(
-          s"""cannot combine split and unsplit datasets
-             |  Reference file $reference split status: $wasSplit
-             |  File $path split status: ${ vds.wasSplit }""".stripMargin)
-      } else if (vas != vaSchema) {
-        fatal(
-          s"""cannot read datasets with different variant annotation schemata
-             |  Schema in reference file $reference: @1
-             |  Schema in file $path: @2""".stripMargin,
-          vaSchema.toPrettyString(compact = true, printAttrs = true),
-          vas.toPrettyString(compact = true, printAttrs = true)
-        )
-      } else if (gsig != genotypeSchema) {
-        fatal(
-          s"""cannot read datasets with different genotype schemata
-             |  Schema in reference file $reference: @1
-             |  Schema in file $path: @2""".stripMargin,
-          genotypeSchema.toPrettyString(compact = true, printAttrs = true),
-          gsig.toPrettyString(compact = true, printAttrs = true)
-        )
-      }
-    }
-
-    if (datasets.length > 1)
-      info(s"Using sample and global annotations from ${ inputs(0) }")
-  }
-
-  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] =
-    readAll(List(file), dropSamples, dropVariants)
-
-  def readAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] = {
-    val inputs = hadoopConf.globAll(files)
-    if (inputs.isEmpty)
-      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
-
-    val vsms = inputs.map { input =>
-      VariantSampleMatrix.read(this, input, dropSamples = dropSamples, dropVariants = dropVariants)
-    }
-
-    if (vsms.length == 1)
-      return vsms(0)
-
-    checkDatasetSchemasCompatible(vsms, inputs)
-
-    // I can't figure out how to write this with existentials -cs
-    if (vsms(0).genotypeSignature == TGenotype) {
-      val gdses = vsms.asInstanceOf[Array[VariantSampleMatrix[Annotation, Annotation, Annotation]]]
-      implicit val kOk = gdses(0).kOk
-      gdses(0).copy(
-        rdd = sc.union(gdses.map(_.rdd)).toOrderedRDD)
-    } else {
-      val vdses = vsms.asInstanceOf[Array[VariantDataset]]
-      implicit val kOk = vdses(0).kOk
-      vdses(0).copy(
-        rdd = sc.union(vdses.map(_.rdd)).toOrderedRDD)
-    }
+    if (vsm.genotypeSignature == TGenotype)
+      vsm.asInstanceOf[VariantSampleMatrix[Annotation, Annotation, Annotation]]
+    else vsm.asInstanceOf[VariantDataset]
   }
 
   def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset =
-    readVDSAll(List(file), dropSamples, dropVariants)
-
-  def readVDSAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset =
-    readAll(files, dropSamples, dropVariants).toVDS
+    read(file, dropSamples, dropVariants).toVDS
 
   def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset =
-    readAllGDS(List(file), dropSamples, dropVariants)
-
-  def readAllGDS(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset =
-    readAll(files, dropSamples, dropVariants).toGDS
+    read(file, dropSamples, dropVariants).toGDS
 
   def readTable(path: String): KeyTable =
     KeyTable.read(this, path)

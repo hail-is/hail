@@ -555,17 +555,13 @@ class HailContext(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(path=oneof(strlike, listof(strlike)),
+    @typecheck_method(path=strlike,
                       drop_samples=bool,
                       drop_variants=bool)
     def read(self, path, drop_samples=False, drop_variants=False):
-        """Read .vds files as variant dataset.
+        """Read .vds file as a variant dataset.
 
-        When loading multiple VDS files, they must have the same
-        sample IDs, genotype schema, split status and variant metadata.
-
-        :param path: VDS files to read.
-        :type path: str or list of str
+        :param str path: VDS file to read.
 
         :param bool drop_samples: If True, create sites-only variant
           dataset.  Don't load sample ids, sample annotations
@@ -581,7 +577,7 @@ class HailContext(HistoryMixin):
 
         return VariantDataset(
             self,
-            self._jhc.readAll(jindexed_seq_args(path), drop_samples, drop_variants))
+            self._jhc.read(path, drop_samples, drop_variants))
 
     @handle_py4j
     @record_method
