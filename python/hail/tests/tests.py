@@ -960,3 +960,17 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(t1.is_complete(), False)
         self.assertEqual(t1.is_female, True)
         self.assertEqual(t1.is_male, False)
+
+    def test_union(self):
+        vds = hc.import_vcf('src/test/resources/sample2.vcf')
+        vds_1 = vds.filter_variants_expr('v.start % 2 == 1')
+        vds_2 = vds.filter_variants_expr('v.start % 2 == 0')
+
+        vdses = [vds_1, vds_2]
+        r1 = vds_1.union(vds_2)
+        r2 = vdses[0].union(*vdses[1:])
+        r3 = VariantDataset.union(*vdses)
+
+        self.assertTrue(r1.same(r2))
+        self.assertTrue(r1.same(r3))
+        self.assertTrue(r1.same(vds))
