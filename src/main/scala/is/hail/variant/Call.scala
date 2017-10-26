@@ -39,6 +39,17 @@ object Call extends Serializable {
       call
     }
 
+  def genNonmissingValue: Gen[Call] =
+    for (v <- Variant.gen;
+      nAlleles = v.nAlleles;
+      nGenotypes = triangle(nAlleles);
+      c <- Gen.choose(0, nGenotypes - 1);
+      call = c.asInstanceOf[java.lang.Integer]
+    ) yield {
+      check(call, nAlleles)
+      call
+    }
+
   def isHomRef(call: Call): Boolean = isCalled(call) && call == 0
 
   def isHet(call: Call): Boolean = isCalled(call) && call > 0 && {

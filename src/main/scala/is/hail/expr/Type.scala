@@ -33,9 +33,9 @@ object Type {
         genScalar,
         genScalar,
         genScalar,
-        genArb.resize(size - 1).map(TArray.apply(_, elementsRequired = false)),
-        genArb.resize(size - 1).map(TSet.apply(_, elementsRequired = false)),
-        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v, elementsRequired = false) },
+        genArb.resize(size - 1).map(TArray.apply(_, elementsRequired = Gen.coin(.99).sample())),
+        genArb.resize(size - 1).map(TSet.apply(_, elementsRequired = Gen.coin(.99).sample())),
+        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v, elementsRequired = Gen.coin(.99).sample()) },
         genStruct.resize(size))
   }
 
@@ -869,12 +869,15 @@ final case class TArray(elementType: Type, elementsRequired: Boolean = false) ex
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck) &&
-    (!elementsRequired || a.asInstanceOf[IndexedSeq[_]].forall(i => {assert(i != null); true})))
+    (!elementsRequired || a.asInstanceOf[IndexedSeq[_]].forall(i => {assert(i != null, s"array typecheck wrong; type $elementType"); true})))
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
+    if (elementsRequired)
+      Gen.buildableOf[Array, Annotation](elementType.genNonmissingValue).map(x => x: IndexedSeq[Annotation])
+    else
+      Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(extendOrderingToNull(missingGreatest)(
@@ -927,7 +930,7 @@ final case class TSet(elementType: Type, elementsRequired: Boolean = false) exte
 
   def typeCheck(a: Any): Boolean =
     a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck)) &&
-      (!elementsRequired || a.asInstanceOf[IndexedSeq[_]].forall(i => {assert(i != null); true}))
+      (!elementsRequired || a.asInstanceOf[Set[_]].forall(i => {assert(i != null, s"set typecheck wrong; type $elementType"); true}))
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Set[")
@@ -952,7 +955,11 @@ final case class TSet(elementType: Type, elementsRequired: Boolean = false) exte
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
+  override def genNonmissingValue: Gen[Annotation] =
+    if (elementsRequired)
+      Gen.buildableOf[Set, Annotation](elementType.genNonmissingValue)
+    else
+      Gen.buildableOf[Set, Annotation](elementType.genValue)
 
   override def desc: String =
     """
@@ -1016,12 +1023,15 @@ final case class TDict(keyType: Type, valueType: Type, elementsRequired: Boolean
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
     a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) }) &&
-    (!elementsRequired || a.asInstanceOf[Map[_,_]].forall({case (k,v) => {assert(k != null); true}}))
+    (!elementsRequired || a.asInstanceOf[Map[_,_]].forall({case (k,v) => {assert(k != null, s"dict typecheck wrong; type $elementType"); true}}))
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genValue, valueType.genValue))
+    if (elementsRequired)
+      Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genNonmissingValue, valueType.genNonmissingValue))
+    else
+      Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genValue, valueType.genValue))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null &&
@@ -1092,7 +1102,7 @@ case object TCall extends ComplexType {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
-  override def genNonmissingValue: Gen[Annotation] = Call.genArb
+  override def genNonmissingValue: Gen[Annotation] = Call.genNonmissingValue
 
   override def desc: String = "A ``Call`` is a Hail data type representing a genotype call (ex: 0/0) in the Variant Dataset."
 
@@ -1884,8 +1894,9 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
       Gen.const(Annotation.empty)
     } else
       Gen.size.flatMap(fuel =>
-        if (size > fuel) Gen.const(null)
-        else Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
+//        if (size > fuel) Gen.const(null)
+//        else
+          Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
