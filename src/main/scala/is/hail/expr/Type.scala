@@ -1102,7 +1102,7 @@ case object TCall extends ComplexType {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
-  override def genNonmissingValue: Gen[Annotation] = Call.genNonmissingValue
+  override def genNonmissingValue: Gen[Annotation] = Call.genArb
 
   override def desc: String = "A ``Call`` is a Hail data type representing a genotype call (ex: 0/0) in the Variant Dataset."
 
