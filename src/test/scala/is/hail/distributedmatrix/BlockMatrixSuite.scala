@@ -42,7 +42,7 @@ class BlockMatrixSuite extends SparkSuite {
   private val defaultElement = arbitrary[Double]
   def blockMatrixGen(
     blockSize: Gen[Int] = defaultBlockSize,
-    dims: Gen[(Int,Int)] = defaultDims,
+    dims: Gen[(Int, Int)] = defaultDims,
     transposed: Gen[Boolean] = defaultTransposed,
     element: Gen[Double] = defaultElement
   ): Gen[BlockMatrix] = for {
@@ -68,19 +68,11 @@ class BlockMatrixSuite extends SparkSuite {
   )
 
   def twoMultipliableBlockMatrices(element: Gen[Double] = arbitrary[Double]): Gen[(BlockMatrix, BlockMatrix)] = for {
-    Array(rows, inner, columns) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
+    Array(rows, inner, cols) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
     blockSize = Gen.interestingPosInt.map(math.pow(_, 1.0/3.0).toInt)
     transposed <- Gen.coin()
-    l <- blockMatrixGen(
-      blockSize = blockSize,
-      dims = Gen.const(rows -> inner),
-      transposed = Gen.const(transposed),
-      element = element)
-    r <- blockMatrixGen(
-      blockSize = blockSize,
-      dims = Gen.const(inner -> columns),
-      transposed = Gen.const(transposed),
-      element = element)
+    l <- blockMatrixGen(blockSize, Gen.const(rows -> inner), Gen.const(transposed), element)
+    r <- blockMatrixGen(blockSize, Gen.const(inner -> cols), Gen.const(transposed), element)
   } yield if (transposed) (r, l) else (l, r)
 
   implicit val arbitraryBlockMatrix =
