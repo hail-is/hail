@@ -181,60 +181,60 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
   }
 
   def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false, leftAligned: Boolean = false): VariantSampleMatrix[Locus, Variant, T] = {
-    val isTGenotype = vsm.genotypeSignature == TGenotype
-    val vsm1 =
-      if (isTGenotype)
-        vsm.annotateGenotypesExpr("""
-g ={GT: g.gt,
-  AD: g.ad,
-  DP: g.ad,
-  GQ: g.gq,
-  PL: g.pl,
-  fakeRef: g.fakeRef}
-        """)
+    if (vsm.genotypeSignature == TGenotype) {
+      // FIXME fakeRef
+      vsm.splitMulti("", s"""
+let newgt = downcode(g.gt, aIndex) and
+    newad = if (isDefined(g.ad))
+        let sum = g.ad.sum() and adi = g.ad[aIndex] in [sum - adi, adi]
       else
-        vsm.makeGenotypeGeneric()
-
-    def hasGenotypeFieldOfType(name: String, expected: Type): Boolean = {
-      vsm.genotypeSignature match {
-        case t: TStruct =>
-          t.selfField(name) match {
-            case Some(f) => f.typ == expected
-            case None => false
-          }
-        case _ => false
+        NA: Array[Int] and
+    newpl = if (isDefined(g.pl))
+        range(3).map(i => range(v.nGenotypes).filter(g => downcode(Call(g), aIndex) == Call(i)).min())
+      else
+        NA: Array[Int] and
+    newgq = ${ if (propagateGQ) "g.gq" else "gqFromPL(newpl)" }
+  in Genotype(newgt, newad, g.dp, newgq, newpl)
+    """,
+        keepStar, leftAligned)
+    } else {
+      def hasGenotypeFieldOfType(name: String, expected: Type): Boolean = {
+        vsm.genotypeSignature match {
+          case t: TStruct =>
+            t.selfField(name) match {
+              case Some(f) => f.typ == expected
+              case None => false
+            }
+          case _ => false
+        }
       }
-    }
 
-    val b = new ArrayBuilder[String]()
-    if (hasGenotypeFieldOfType("GT", TCall))
-      b += "g.GT = downcodeGT(g.GT, aIndex)"
-    if (hasGenotypeFieldOfType("AD", TArray(TInt32)))
-      b += """
+      val b = new ArrayBuilder[String]()
+      if (hasGenotypeFieldOfType("GT", TCall))
+        b += "g.GT = downcode(g.GT, aIndex)"
+      if (hasGenotypeFieldOfType("AD", TArray(TInt32)))
+        b += """
 g.AD = if (isDefined(g.AD))
   let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
 else
   NA: Array[Int]
         """
-    if (hasGenotypeFieldOfType("PL", TArray(TInt32)))
-      b += """
+      if (hasGenotypeFieldOfType("PL", TArray(TInt32)))
+        b += """
 g.PL = if (isDefined(g.PL))
-  range(3).map(i => range(v.nGenotypes).filter(g => downcode(g, aIndex) == i).min())
+  range(3).map(i => range(v.nGenotypes).filter(g => downcode(Call(g), aIndex) == Call(i)).min())
 else
   NA: Array[Int]
         """
 
-    var vsm2 = vsm1.splitMulti("", b.result().mkString(","), keepStar, leftAligned)
+      var vsm2 = vsm.splitMulti("", b.result().mkString(","), keepStar, leftAligned)
 
-    if (!propagateGQ && hasGenotypeFieldOfType("GQ", TInt32))
-      vsm2 = vsm2.annotateGenotypesExpr("g.GQ = plFromGQ(g.PL)")
-
-    val vsm3 = if (isTGenotype)
-      vsm2.annotateGenotypesExpr("g = Genotype(g.GT, g.AD, g.DP, g.GQ, g.PL)")
-    else
-      vsm2
-
-    vsm3.mapValues(vsm3.genotypeSignature, g => g.asInstanceOf[T])
+      if (!propagateGQ && hasGenotypeFieldOfType("GQ", TInt32)) {
+        val vsm3 = vsm2.annotateGenotypesExpr("g.GQ = gqFromPL(g.PL)")
+        vsm3.mapValues(vsm3.genotypeSignature, g => g.asInstanceOf[T])
+      } else
+        vsm2
+    }
   }
 
   def splitMulti(variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean): VariantSampleMatrix[Locus, Variant, T] = {

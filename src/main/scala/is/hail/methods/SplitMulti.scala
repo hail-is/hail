@@ -9,7 +9,7 @@ import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
-class ExprAnnotator(val ec: EvalContext, t: Type, expr: String, head: Option[String]) {
+class ExprAnnotator(val ec: EvalContext, t: Type, expr: String, head: Option[String]) extends Serializable {
   private val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, head)
 
   private val inserters = new Array[Inserter](types.length)
@@ -33,6 +33,7 @@ class ExprAnnotator(val ec: EvalContext, t: Type, expr: String, head: Option[Str
       newA = inserters(i)(newA, xs(i))
       i += 1
     }
+    assert(newT.typeCheck(newA))
     newA
   }
 }
@@ -148,17 +149,17 @@ class SplitMulti[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], varia
     "global" -> (0, vsm.globalSignature),
     "v" -> (1, vsm.vSignature),
     "va" -> (2, vsm.vaSignature),
-    "aIndex" -> (3, TInt32)))
-  val vAnnotator = new ExprAnnotator(vEC, vsm.vSignature, variantExpr, Some(Annotation.VARIANT_HEAD))
+    "aIndex" -> (3, TInt32),
+    "wasSplit" -> (4, TBoolean)))
+  val vAnnotator = new ExprAnnotator(vEC, vsm.vaSignature, variantExpr, Some(Annotation.VARIANT_HEAD))
 
   val gEC = EvalContext(Map(
-    "global" -> (5, vsm.globalSignature),
-    "v" -> (0, vsm.vSignature),
-    "va" -> (1, vsm.vaSignature),
-    "s" -> (2, vsm.sSignature),
-    "sa" -> (3, vsm.saSignature),
-    "g" -> (4, vsm.genotypeSignature),
-    "aIndex" -> (6, TInt32)))
+    "global" -> (0, vsm.globalSignature),
+    "v" -> (1, vsm.vSignature),
+    "va" -> (2, vsm.vaSignature),
+    "aIndex" -> (3, TInt32),
+    "wasSplit" -> (4, TBoolean),
+    "g" -> (5, vsm.genotypeSignature)))
   val gAnnotator = new ExprAnnotator(gEC, vsm.genotypeSignature, genotypeExpr, Some(Annotation.GENOTYPE_HEAD))
 
   val newMatrixType = vsm.matrixType.copy(vaType = vAnnotator.newT, genotypeType = gAnnotator.newT)
@@ -168,6 +169,8 @@ class SplitMulti[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], varia
     val localGlobalAnnotation = vsm.globalAnnotation
     val localNSamples = vsm.nSamples
     val localRowType = vsm.rowType
+    val localVAnnotator = vAnnotator
+    val localGAnnotator = gAnnotator
 
     val newRowType = newMatrixType.rowType
 
@@ -175,7 +178,7 @@ class SplitMulti[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], varia
       val context = new SplitMultiPartitionContext(
         localKeepStar,
         localNSamples, localGlobalAnnotation, localRowType,
-        vAnnotator, gAnnotator, newRowType)
+        localVAnnotator, localGAnnotator, newRowType)
 
       it.flatMap { rv =>
         context.rv = rv
