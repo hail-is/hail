@@ -798,7 +798,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   def addElement(t: TArray, fromRegion: MemoryBuffer, fromAOff: Long, i: Int) {
     if (t.isElementDefined(fromRegion, fromAOff, i))
       addRegionValue(t.elementType, fromRegion,
-        t.elementOffset(fromRegion, fromAOff, i))
+        t.elementOffsetInRegion(fromRegion, fromAOff, i))
     else
       setMissing()
   }
