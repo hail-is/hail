@@ -210,6 +210,8 @@ package object utils extends Logging
       s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
   }
 
+  def formatDouble(d: Double, precision: Int): String = d.formatted(s"%.${ precision }f")
+
   def uriPath(uri: String): String = new URI(uri).getPath
 
   def annotationOrdering[T](ord: Ordering[T]): Ordering[Annotation] = {
