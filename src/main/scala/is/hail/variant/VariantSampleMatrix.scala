@@ -2061,6 +2061,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     new VariantSampleMatrix[RPK, RK, Genotype](hc, metadata, ast)
   }
 
+  def makeGenotypeGeneric(): VariantSampleMatrix[RPK, RK, Annotation] =
+    new VariantSampleMatrix[RPK, RK, Annotation](hc, metadata, ast)
+
   def toVKDS: VariantSampleMatrix[Locus, Variant, T] = makeVariantConcrete()
 
   def toVDS: VariantDataset = makeVariantConcrete().makeGenotypeConcrete()

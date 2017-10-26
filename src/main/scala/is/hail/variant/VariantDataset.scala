@@ -19,7 +19,7 @@ object VariantDataset {
     kt.keyFields.map(_.typ) match {
       case Array(TVariant(_)) =>
       case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
-        s"but found [ ${ arr.mkString(", ") } ]")
+        s"but found [ ${arr.mkString(", ")} ]")
     }
 
     val rdd = kt.keyedRDD()
@@ -127,7 +127,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     }
 
 
-    def formatGP(d: Double): String = d.formatted(s"%.${ precision }f")
+    def formatGP(d: Double): String = d.formatted(s"%.${precision}f")
 
     val emptyGP = Array(0d, 0d, 0d)
 
@@ -248,7 +248,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     val badSampleIds = vds.stringSampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
     if (badSampleIds.nonEmpty) {
       fatal(
-        s"""Found ${ badSampleIds.length } sample IDs with whitespace
+        s"""Found ${badSampleIds.length} sample IDs with whitespace
            |  Please run `renamesamples' to fix this problem before exporting to plink format
            |  Bad sample IDs: @1 """.stripMargin, badSampleIds)
     }
@@ -286,16 +286,16 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
   /**
     *
-    * @param filterExpr Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
-    * @param annotationExpr Annotation modifying expression involving v (new variant), va (old variant annotations),
-    * and aIndices (maps from new to old indices)
+    * @param filterExpr             Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
+    * @param annotationExpr         Annotation modifying expression involving v (new variant), va (old variant annotations),
+    *                               and aIndices (maps from new to old indices)
     * @param filterAlteredGenotypes any call that contains a filtered allele is set to missing instead
-    * @param keep Keep variants matching condition
-    * @param subset subsets the PL and AD. Genotype and GQ are set based on the resulting PLs.  Downcodes by default.
-    * @param maxShift Maximum possible position change during minimum representation calculation
+    * @param keep                   Keep variants matching condition
+    * @param subset                 subsets the PL and AD. Genotype and GQ are set based on the resulting PLs.  Downcodes by default.
+    * @param maxShift               Maximum possible position change during minimum representation calculation
     */
   def filterAlleles(filterExpr: String, annotationExpr: String = "va = va", filterAlteredGenotypes: Boolean = false,
-    keep: Boolean = true, subset: Boolean = true, maxShift: Int = 100, keepStar: Boolean = false): VariantDataset = {
+                    keep: Boolean = true, subset: Boolean = true, maxShift: Int = 100, keepStar: Boolean = false): VariantDataset = {
     FilterAlleles(vds, filterExpr, annotationExpr, filterAlteredGenotypes, keep, subset, maxShift, keepStar)
   }
 
@@ -317,28 +317,28 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   /**
     *
     * @param computeMafExpr An expression for the minor allele frequency of the current variant, `v', given
-    * the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
-    * @param bounded Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
-    * (e.g. outside of [0,1]).
-    * @param minimum Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
-    * @param maximum Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
+    *                       the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
+    * @param bounded        Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
+    *                       (e.g. outside of [0,1]).
+    * @param minimum        Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
+    * @param maximum        Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
     */
   def ibd(computeMafExpr: Option[String] = None, bounded: Boolean = true,
-    minimum: Option[Double] = None, maximum: Option[Double] = None): KeyTable = {
+          minimum: Option[Double] = None, maximum: Option[Double] = None): KeyTable = {
     require(vds.wasSplit)
     IBD.toKeyTable(vds.hc, IBD.validateAndCall(vds, computeMafExpr, bounded, minimum, maximum))
   }
 
   /**
     *
-    * @param mafThreshold Minimum minor allele frequency threshold
-    * @param includePAR Include pseudoautosomal regions
+    * @param mafThreshold     Minimum minor allele frequency threshold
+    * @param includePAR       Include pseudoautosomal regions
     * @param fFemaleThreshold Samples are called females if F < femaleThreshold
-    * @param fMaleThreshold Samples are called males if F > maleThreshold
-    * @param popFreqExpr Use an annotation expression for estimate of MAF rather than computing from the data
+    * @param fMaleThreshold   Samples are called males if F > maleThreshold
+    * @param popFreqExpr      Use an annotation expression for estimate of MAF rather than computing from the data
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
-    fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
+                fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
     require(vds.wasSplit)
 
     val result = ImputeSexPlink(vds,
@@ -374,14 +374,14 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
   /**
     *
-    * @param scoresRoot Sample annotation path for scores (period-delimited path starting in 'sa')
-    * @param k Number of principal components
+    * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')
+    * @param k            Number of principal components
     * @param loadingsRoot Variant annotation path for site loadings (period-delimited path starting in 'va')
-    * @param eigenRoot Global annotation path for eigenvalues (period-delimited path starting in 'global'
-    * @param asArrays Store score and loading results as arrays, rather than structs
+    * @param eigenRoot    Global annotation path for eigenvalues (period-delimited path starting in 'global'
+    * @param asArrays     Store score and loading results as arrays, rather than structs
     */
   def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
-    asArrays: Boolean = false): VariantDataset = {
+          asArrays: Boolean = false): VariantDataset = {
     require(vds.wasSplit)
 
     if (k < 1)
@@ -436,15 +436,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     KinshipMatrix(vds.hc, vds.sSignature, rrm, vds.sampleIds.toArray, m)
   }
 
-  def splitMulti(keepStar: Boolean = false, leftAligned: Boolean = false): VariantDataset = {
-    ???
-  }
-
-  def splitMulti(variantExpr: String, genotypeExpr: String, keepStar: Boolean = false, leftAligned: Boolean = false): VariantDataset = {
-    val splitmulti = new SplitMulti(vds, variantExpr, genotypeExpr, keepStar, leftAligned)
-    splitmulti.split()
-  }
-
   def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {
     require(vds.wasSplit)
     vds.requireSampleTString("TDT")
@@ -458,12 +449,12 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def deNovo(ped: Pedigree,
-    referenceAF: String,
-    minGQ: Int = 20,
-    minPDeNovo: Double = 0.05,
-    maxParentAB: Double = 0.05,
-    minChildAB: Double = 0.20,
-    minDepthRatio: Double = 0.10): KeyTable = {
+             referenceAF: String,
+             minGQ: Int = 20,
+             minPDeNovo: Double = 0.05,
+             maxParentAB: Double = 0.05,
+             minChildAB: Double = 0.20,
+             minDepthRatio: Double = 0.10): KeyTable = {
     require(vds.wasSplit)
     vds.requireSampleTString("de novo")
 

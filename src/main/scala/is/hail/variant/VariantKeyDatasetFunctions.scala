@@ -1,9 +1,9 @@
 package is.hail.variant
 
 import is.hail.annotations.{Annotation, Querier, RegionValue, UnsafeRow}
-import is.hail.expr.{TString, TStruct}
+import is.hail.expr.{TArray, TCall, TGenotype, TInt32, TString, TStruct, Type}
 import is.hail.io.vcf.ExportVCF
-import is.hail.methods.VEP
+import is.hail.methods.{SplitMulti, VEP}
 import is.hail.utils._
 
 import scala.collection.JavaConverters._
@@ -39,7 +39,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
     * @param blockSize Variants per VEP invocation
     */
   def vep(config: String, root: String = "va.vep", csq: Boolean = false,
-    blockSize: Int = 1000): VariantSampleMatrix[Locus, Variant, T] = {
+          blockSize: Int = 1000): VariantSampleMatrix[Locus, Variant, T] = {
     VEP.annotate(vsm, config, root, csq, blockSize)
   }
 
@@ -103,7 +103,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
         "ID_1 ID_2 missing" :: "0 0 0" :: vsm.sampleIds.map(s => s"$s $s 0").toList)
     }
 
-    def formatGP(d: Double): String = d.formatted(s"%.${ precision }f")
+    def formatGP(d: Double): String = d.formatted(s"%.${precision}f")
 
     def appendRow(sb: StringBuilder, nSamples: Int, rowType: TStruct, v: Variant, va: Annotation, rv: RegionValue, rsidQuery: Querier, varidQuery: Querier) {
 
@@ -178,5 +178,67 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
 
     writeSampleFile()
     writeGenFile()
+  }
+
+  def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false, leftAligned: Boolean = false): VariantSampleMatrix[Locus, Variant, T] = {
+    val isTGenotype = vsm.genotypeSignature == TGenotype
+    val vsm1 =
+      if (isTGenotype)
+        vsm.annotateGenotypesExpr("""
+g ={GT: g.gt,
+  AD: g.ad,
+  DP: g.ad,
+  GQ: g.gq,
+  PL: g.pl,
+  fakeRef: g.fakeRef}
+        """)
+      else
+        vsm.makeGenotypeGeneric()
+
+    def hasGenotypeFieldOfType(name: String, expected: Type): Boolean = {
+      vsm.genotypeSignature match {
+        case t: TStruct =>
+          t.selfField(name) match {
+            case Some(f) => f.typ == expected
+            case None => false
+          }
+        case _ => false
+      }
+    }
+
+    val b = new ArrayBuilder[String]()
+    if (hasGenotypeFieldOfType("GT", TCall))
+      b += "g.GT = downcodeGT(g.GT, aIndex)"
+    if (hasGenotypeFieldOfType("AD", TArray(TInt32)))
+      b += """
+g.AD = if (isDefined(g.AD))
+  let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+else
+  NA: Array[Int]
+        """
+    if (hasGenotypeFieldOfType("PL", TArray(TInt32)))
+      b += """
+g.PL = if (isDefined(g.PL))
+  range(3).map(i => range(v.nGenotypes).filter(g => downcode(g, aIndex) == i).min())
+else
+  NA: Array[Int]
+        """
+
+    var vsm2 = vsm1.splitMulti("", b.result().mkString(","), keepStar, leftAligned)
+
+    if (!propagateGQ && hasGenotypeFieldOfType("GQ", TInt32))
+      vsm2 = vsm2.annotateGenotypesExpr("g.GQ = plFromGQ(g.PL)")
+
+    val vsm3 = if (isTGenotype)
+      vsm2.annotateGenotypesExpr("g = Genotype(g.GT, g.AD, g.DP, g.GQ, g.PL)")
+    else
+      vsm2
+
+    vsm3.mapValues(vsm3.genotypeSignature, g => g.asInstanceOf[T])
+  }
+
+  def splitMulti(variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean): VariantSampleMatrix[Locus, Variant, T] = {
+    val splitmulti = new SplitMulti(vsm, variantExpr, genotypeExpr, keepStar, leftAligned)
+    splitmulti.split()
   }
 }
