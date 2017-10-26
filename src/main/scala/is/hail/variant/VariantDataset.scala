@@ -122,9 +122,8 @@ g = let
               val splitur = new UnsafeRow(splitRowType, splitrv)
               val v = splitur.getAs[Variant](1)
               val va = splitur.get(2)
-              val gs = splitur.getAs[Iterable[Genotype]](3)
               ec.setAll(localGlobalAnnotation, v, va)
-              aggregateOption.foreach(f => f(v, va, gs))
+              aggregateOption.foreach(f => f(splitrv))
               (f(), types).zipped.map { case (a, t) =>
                 Annotation.copy(t, a)
               }
