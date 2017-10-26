@@ -1,5 +1,6 @@
 package is.hail
 
+import java.io.InputStream
 import java.util.Properties
 
 import is.hail.annotations.Annotation
@@ -15,6 +16,7 @@ import is.hail.variant.{GenericDataset, GenomeReference, Genotype, Locus, VSMFil
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 
@@ -366,6 +368,13 @@ class HailContext private(val sc: SparkContext,
   def readTable(path: String): KeyTable =
     KeyTable.read(this, path)
 
+  def readPartitions[T, S](
+    makeStream: (InputStream) => S,
+    read: (S, Int) => Iterator[T]): RDD[T] = {
+    
+    
+  }
+  
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,

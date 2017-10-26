@@ -1,5 +1,7 @@
 package is.hail.utils.richUtils
 
+import java.io.OutputStream
+
 import is.hail.sparkextras.ReorderedPartitionsRDD
 import is.hail.utils._
 import org.apache.hadoop
@@ -163,5 +165,9 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
         it
     }, preservesPartitioning = true)
       .subsetPartitions((0 to idxLast).toArray)
+  }
+  
+  def writePartitions[S](makeStream: (OutputStream) => S, write: (S, Int, Iterator[T]) => ()) {
+    
   }
 }

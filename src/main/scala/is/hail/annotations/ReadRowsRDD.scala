@@ -565,4 +565,10 @@ class ReadRowsRDD(sc: SparkContext,
       }
     }
   }
+  
+  def makeStream(in: InputStream): InputStream = in
+  
+  def read(in: InputStream, i: Int): Iterator[RegionValue] = {
+    
+  }
 }
