@@ -5,6 +5,7 @@ import breeze.stats.distributions.Rand
 import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
+import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.utils._
@@ -36,9 +37,9 @@ class BlockMatrixSuite extends SparkSuite {
   def toBM(lm: BDM[Double], blockSize: Int): BlockMatrix =
     BlockMatrix.from(sc, lm, blockSize)
 
-  private val defaultBlockSize = Gen.choose(0, 1 << 15)
-  private val defaultDims = Gen.nonEmptySquareOfAreaAtMostSize
-  private val defaultTransposed = Gen.coin()
+  private val defaultBlockSize = choose(0, 1 << 15)
+  private val defaultDims = nonEmptySquareOfAreaAtMostSize
+  private val defaultTransposed = coin()
   private val defaultElement = arbitrary[Double]
   def blockMatrixGen(
     blockSize: Gen[Int] = defaultBlockSize,
@@ -49,7 +50,7 @@ class BlockMatrixSuite extends SparkSuite {
     blockSize <- blockSize
     (rows, columns) <- dims
     transposed <- transposed
-    arrays <- Gen.buildableOfN[Seq, Array[Double]](rows, Gen.buildableOfN(columns, element))
+    arrays <- buildableOfN[Seq, Array[Double]](rows, buildableOfN(columns, element))
     m = toBM(arrays, blockSize)
   } yield if (transposed) m.t else m
 
@@ -57,10 +58,10 @@ class BlockMatrixSuite extends SparkSuite {
     transposed: Gen[Boolean] = defaultTransposed,
     element: Gen[Double] = defaultElement
   ): Gen[BlockMatrix] = blockMatrixGen(
-    blockSize = Gen.interestingPosInt.map(math.sqrt(_).toInt),
+    blockSize = interestingPosInt.map(math.sqrt(_).toInt),
     dims = for {
-      size <- Gen.size
-      l <- Gen.interestingPosInt
+      size <- size
+      l <- interestingPosInt
       s = math.sqrt(math.min(l, size)).toInt
     } yield (s, s),
     transposed = transposed,
@@ -68,11 +69,11 @@ class BlockMatrixSuite extends SparkSuite {
   )
 
   def twoMultipliableBlockMatrices(element: Gen[Double] = arbitrary[Double]): Gen[(BlockMatrix, BlockMatrix)] = for {
-    Array(rows, inner, cols) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
-    blockSize = Gen.interestingPosInt.map(math.pow(_, 1.0/3.0).toInt)
-    transposed <- Gen.coin()
-    l <- blockMatrixGen(blockSize, Gen.const(rows -> inner), Gen.const(transposed), element)
-    r <- blockMatrixGen(blockSize, Gen.const(inner -> cols), Gen.const(transposed), element)
+    Array(rows, inner, cols) <- nonEmptyNCubeOfVolumeAtMostSize(3)
+    blockSize <- interestingPosInt.map(math.pow(_, 1.0/3.0).toInt)
+    transposed <- coin()
+    l <- blockMatrixGen(const(blockSize), const(rows -> inner), const(transposed), element)
+    r <- blockMatrixGen(const(blockSize), const(inner -> cols), const(transposed), element)
   } yield if (transposed) (r, l) else (l, r)
 
   implicit val arbitraryBlockMatrix =
@@ -144,7 +145,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def randomMultiplyByLocalMatrix() {
-    forAll(Gen.twoMultipliableDenseMatrices[Double]) { case (ll, lr) =>
+    forAll(twoMultipliableDenseMatrices[Double]) { case (ll, lr) =>
       val l = toBM(ll)
       sameDoubleMatrixNaNEqualsNaN((ll * lr), (l * lr).toLocalMatrix())
     }.check()
@@ -152,7 +153,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def multiplySameAsBreeze() {
-    def randomLm(n: Int, m: Int) = Gen.denseMatrix[Double](n,m)
+    def randomLm(n: Int, m: Int) = denseMatrix[Double](n,m)
 
     forAll(randomLm(4,4), randomLm(4,4)) { (ll, lr) =>
       val l = toBM(ll, 2)
@@ -182,7 +183,7 @@ class BlockMatrixSuite extends SparkSuite {
       sameDoubleMatrixNaNEqualsNaN((l * r).toLocalMatrix(), (ll * lr))
     }.check()
 
-    forAll(Gen.twoMultipliableDenseMatrices[Double], Gen.interestingPosInt) { case ((ll, lr), blockSize) =>
+    forAll(twoMultipliableDenseMatrices[Double], interestingPosInt) { case ((ll, lr), blockSize) =>
       val l = toBM(ll, blockSize)
       val r = toBM(lr, blockSize)
 
@@ -192,7 +193,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def multiplySameAsBreezeRandomized() {
-    forAll(twoMultipliableBlockMatrices(Gen.nonExtremeDouble)) { case (l: BlockMatrix, r: BlockMatrix) =>
+    forAll(twoMultipliableBlockMatrices(nonExtremeDouble)) { case (l: BlockMatrix, r: BlockMatrix) =>
       val actual = (l * r).toLocalMatrix()
       val expected = l.toLocalMatrix() * r.toLocalMatrix()
 
@@ -233,7 +234,7 @@ class BlockMatrixSuite extends SparkSuite {
   def rowwiseMultiplicationRandom() {
     val g = for {
       l <- blockMatrixGen()
-      v <- Gen.buildableOfN[Array, Double](l.cols.toInt, arbitrary[Double])
+      v <- buildableOfN[Array, Double](l.cols.toInt, arbitrary[Double])
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
@@ -269,7 +270,7 @@ class BlockMatrixSuite extends SparkSuite {
   def colwiseMultiplicationRandom() {
     val g = for {
       l <- blockMatrixGen()
-      v <- Gen.buildableOfN[Array, Double](l.rows.toInt, arbitrary[Double])
+      v <- buildableOfN[Array, Double](l.rows.toInt, arbitrary[Double])
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
@@ -355,7 +356,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def fromLocalTest() {
-    forAll(Gen.denseMatrix[Double]) { lm =>
+    forAll(denseMatrix[Double]) { lm =>
       assert(lm === BlockMatrix.from(sc, lm, lm.rows + 1).toLocalMatrix())
       assert(lm === BlockMatrix.from(sc, lm, lm.rows).toLocalMatrix())
       if (lm.rows > 1) {
@@ -415,7 +416,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def doubleTransposeIsIdentity() {
-    forAll(blockMatrixGen(element = Gen.nonExtremeDouble)) { (m: BlockMatrix) =>
+    forAll(blockMatrixGen(element = nonExtremeDouble)) { (m: BlockMatrix) =>
       val mt = m.t.cache()
       val mtt = m.t.t.cache()
       assert(mtt.rows == m.rows)
@@ -428,7 +429,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def cachedOpsOK() {
-    forAll(twoMultipliableBlockMatrices(Gen.nonExtremeDouble)) { case (l: BlockMatrix, r: BlockMatrix) =>
+    forAll(twoMultipliableBlockMatrices(nonExtremeDouble)) { case (l: BlockMatrix, r: BlockMatrix) =>
       l.cache()
       r.cache()
 
