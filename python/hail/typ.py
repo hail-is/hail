@@ -430,7 +430,7 @@ class TDict(Type):
     """
 
     def __init__(self, key_type, value_type, elementsRequired = False):
-        jtype = scala_object(Env.hail().expr, 'TDict').apply(key_type._jtype, value_type._jtype)
+        jtype = scala_object(Env.hail().expr, 'TDict').apply(key_type._jtype, value_type._jtype, elementsRequired)
         self.key_type = key_type
         self.value_type = value_type
         self.elementsRequired = elementsRequired
