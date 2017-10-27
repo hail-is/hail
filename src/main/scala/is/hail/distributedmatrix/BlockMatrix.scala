@@ -86,6 +86,7 @@ object BlockMatrix {
     
     def readBlock(i: Int)(dis: DataInputStream): Iterator[((Int, Int), BDM[Double])] = {
       val bdm = RichDenseMatrixDouble.read(dis)
+      dis.close()
 
       Iterator.single(
         if (transposed)

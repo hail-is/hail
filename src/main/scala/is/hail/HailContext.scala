@@ -417,7 +417,7 @@ class HailContext private(val sc: SparkContext,
         
         val filename = path + "/parts/part-" + pis
         
-        sHadoopConfBc.value.value.readPartition(filename)(makeStream, read(i))
+        sHadoopConfBc.value.value.unsafeReadPartition(filename)(makeStream, read(i))
       }
       
       @transient override val partitioner: Option[Partitioner] = _partitioner
