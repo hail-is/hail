@@ -168,7 +168,7 @@ object HailContext {
     hc
   }
   
-  def readRow(t: TStruct)(in: InputStream, i: Int): Iterator[RegionValue] = {
+  def readRow(t: TStruct)(i: Int)(in: InputStream): Iterator[RegionValue] = {
     
     new Iterator[RegionValue] {
       val region = MemoryBuffer()
@@ -400,7 +400,7 @@ class HailContext private(val sc: SparkContext,
     path: String,
     nPartitions: Int,
     makeStream: (InputStream) => S,
-    read: (S, Int) => Iterator[T],
+    read: Int => S => Iterator[T],
     _partitioner: Option[Partitioner] = None): RDD[T] = {
     
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
@@ -417,7 +417,7 @@ class HailContext private(val sc: SparkContext,
         
         val filename = path + "/parts/part-" + pis
         
-        sHadoopConfBc.value.value.readPartition(filename)(makeStream, i, read)
+        sHadoopConfBc.value.value.readPartition(filename)(makeStream, read(i))
       }
       
       @transient override val partitioner: Option[Partitioner] = _partitioner

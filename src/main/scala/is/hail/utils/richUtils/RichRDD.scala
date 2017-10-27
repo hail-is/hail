@@ -168,7 +168,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
   
   def writePartitions[S <: Closeable](path: String, 
-    makeStream: (OutputStream) => S, write: (S, Int, Iterator[T]) => Long): Long = {
+    makeStream: (OutputStream) => S, write: (Int, Iterator[T]) => S => Long): Long = {
     
     val sc = r.sparkContext
     val hadoopConf = sc.hadoopConfiguration
@@ -187,7 +187,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
       val filename = path + "/parts/part-" + pis
 
-      Iterator.single(sHadoopConfBc.value.value.writePartition(filename)(makeStream, i, it, write))
+      Iterator.single(sHadoopConfBc.value.value.writePartition(filename)(makeStream, write(i, it)))
     }
       .fold(0L)(_ + _)
 

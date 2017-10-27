@@ -84,7 +84,7 @@ object BlockMatrix {
     val nBlocks = blockRows * blockCols
     assert(nBlocks >= blockRows && nBlocks >= blockCols)
     
-    def readBlock(dis: DataInputStream, i: Int): Iterator[((Int, Int), BDM[Double])] = {
+    def readBlock(i: Int)(dis: DataInputStream): Iterator[((Int, Int), BDM[Double])] = {
       val bdm = RichDenseMatrixDouble.read(dis)
 
       Iterator.single(
@@ -258,7 +258,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
 
-    def writeBlock(dos: DataOutputStream, i: Int, it: Iterator[((Int, Int), BDM[Double])]): Int = {
+    def writeBlock(i: Int, it: Iterator[((Int, Int), BDM[Double])])(dos: DataOutputStream): Int = {
       assert(it.hasNext)
       val (_, bdm) = it.next()
       assert(!it.hasNext)

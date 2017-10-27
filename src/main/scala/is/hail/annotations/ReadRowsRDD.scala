@@ -478,7 +478,7 @@ final class Encoder(out: OutputBuffer) {
 }
 
 object RichRDDRegionValue {
-  def writeRow(t: TStruct)(os: OutputStream, i: Int, it: Iterator[RegionValue]): Long = {
+  def writeRow(t: TStruct)(i: Int, it: Iterator[RegionValue])(os: OutputStream): Long = {
     val en = new Encoder(new LZ4OutputBuffer(os))
     var rowCount = 0L
     
