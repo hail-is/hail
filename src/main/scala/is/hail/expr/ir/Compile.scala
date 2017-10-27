@@ -55,13 +55,44 @@ object Compile {
       (off, ptr) => region.storeAddress(off, ptr.asInstanceOf[Code[Long]])
   }
 
-  def apply(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], LocalRef[Boolean], LocalRef[_])]) {
-    fb.emit(expression(ir, fb, env)._2)
+  class MissingBits(fb: FunctionBuilder[_]) {
+    private var used = 0
+    private var bits: LocalRef[Int] = null
+
+    def newBit(x: Code[Boolean]): Code[Boolean] = {
+      if (used >= 64 || bits == null) {
+        bits = fb.newLocal[Int]
+        fb.emit(bits.store(0))
+        used = 0
+      }
+
+      fb.emit(bits.store(bits | (x.asInstanceOf[Code[Int]] << used)))
+
+      val read = bits & (1 << used)
+      used += 1
+      read.asInstanceOf[Code[Boolean]]
+    }
   }
 
-  def expression(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], LocalRef[Boolean], LocalRef[_])]): (Code[Boolean], Code[_]) = {
+  class MissingBit(bits: LocalRef[Long], i: Int) extends Code[Boolean] {
+    assert(bit < 64)
+
+    def :=(b: Code[Boolean]): Code[_] = {
+      bits := bits & ~(1L << i) | (b.toL << i)
+    }
+
+    def emit(il: Growable[AbstractInsnNode]): Unit = {
+      ((bits >> i) & 1L).emit(il)
+    }
+  }
+
+  def apply(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], LocalRef[Boolean], LocalRef[_])]) {
+    fb.emit(expression(ir, fb, env, new MissingBits(fb))._2)
+  }
+
+  def expression(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], MissingBit, LocalRef[_])], mb: MissingBits): (Code[Boolean], Code[_]) = {
     val region = fb.getArg[MemoryBuffer](1).load()
-    def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: Map[String, (TypeInfo[_], LocalRef[Boolean], LocalRef[_])] = env): (Code[Boolean], Code[_]) =
+    def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: Map[String, (TypeInfo[_], MissingBit, LocalRef[_])] = env, mb: MissingBits = mb): (Code[Boolean], Code[_]) =
       Compile.expression(ir, fb, env)
     ir match {
       case I32(x) =>
@@ -85,8 +116,6 @@ object Compile {
         ???
 
       case expr.ir.If(cond, cnsq, altr, typ) =>
-        val x = fb.newLocal[Boolean]
-
         val (mcnsq, vcnsq) = expression(cnsq)
         val (maltr, valtr) = expression(altr)
         val (_, vcond: Code[Boolean]) = expression(cond)
@@ -95,7 +124,7 @@ object Compile {
 
       case expr.ir.Let(name, value, body, typ) =>
         fb.newLocal()(typeToTypeInfo(value.typ)) match { case x: LocalRef[t] =>
-          val mx = fb.newLocal[Boolean]
+          val mx = mb.newBit()
           val (mvalue, vvalue) = expression(value)
           val (mbody, vbody) =
             expression(body, env = env + (name -> ((typeToTypeInfo(value.typ), mx, x))))
@@ -167,11 +196,9 @@ object Compile {
           implicit val tti: TypeInfo[t] = ti
           val a = fb.newLocal[Long]
           val idx = fb.newLocal[Int]
-          // FIXME: shitty that I need to have a variable to hold the
-          // missingness of idx just because it might get reassigned
-          val midx = fb.newLocal[Boolean]
+          val midx = mb.newBit()
           val x = fb.newLocal[t]
-          val mx = fb.newLocal[Boolean]
+          val mx = mb.newBit()
           val len = fb.newLocal[Int]
           val (marray, varray: Code[Long]) = expression(array)
           val (mbody, vbody) =
