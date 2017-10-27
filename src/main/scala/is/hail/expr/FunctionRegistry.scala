@@ -412,7 +412,7 @@ object FunctionRegistry {
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, FieldType(hrt.typ), UnaryFunCode[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
-  
+
   def registerMethod[T, U](name: String, impl: T => U, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, MethodType(hrt.typ), UnaryFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
@@ -423,9 +423,9 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ), UnaryFunCode[T, U](hru.typ, (ct) => impl(ct)), MetaData(Option(docstring), argNames))
   }
 
-  def registerMethodDependentCode[T, U](name: String, impl: () => Code[T] => CM[Code[U]], docstring: String, argNames: (String, String)*)
+  def registerMethodDependent[T, U](name: String, impl: () => T => U, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(hrt.typ), UnaryDependentFunCode[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
+    bind(name, MethodType(hrt.typ), UnaryDependentFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerMethodSpecial[T, U](name: String, impl: (() => Any) => U, docstring: String, argNames: (String, String)*)
@@ -792,29 +792,29 @@ object FunctionRegistry {
   registerMethod("nAlleles", { (x: Variant) => x.nAlleles }, "Number of alleles.")(variantHr(GR), int32Hr)
   registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic }, "True if `v` has one alternate allele.")(variantHr(GR), boolHr)
   registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes }, "Number of genotypes.")(variantHr(GR), int32Hr)
-  registerMethodDependentCode("inXPar", { () =>
+  registerMethodDependent("inXPar", { () =>
     val gr = GR.gr
-    (CM.invokePrimitive1[Any, Any]((x: Any) => x.asInstanceOf[Variant].inXPar(gr)) _).asInstanceOf[Code[Variant] => CM[Code[Boolean]]]
+    (x: Variant) => x.inXPar(gr)
   }, "True if chromosome is X and start is in pseudoautosomal region of X.")(variantHr(GR), boolHr)
-  registerMethodDependentCode("inYPar", { () =>
+  registerMethodDependent("inYPar", { () =>
     val gr = GR.gr
-    (CM.invokePrimitive1[Any, Any]((x: Any) => x.asInstanceOf[Variant].inYPar(gr)) _).asInstanceOf[Code[Variant] => CM[Code[Boolean]]]
+    (x: Variant) => x.inYPar(gr)
   }, "True if chromosome is Y and start is in pseudoautosomal region of Y. *NB: most callers assign variants in PAR to X.*")(variantHr(GR), boolHr)
-  registerMethodDependentCode("inXNonPar", { () =>
+  registerMethodDependent("inXNonPar", { () =>
     val gr = GR.gr
-    (CM.invokePrimitive1[Any, Any]((x: Any) => x.asInstanceOf[Variant].inXNonPar(gr)) _).asInstanceOf[Code[Variant] => CM[Code[Boolean]]]
+    (x: Variant) => x.inXNonPar(gr)
   }, "True if chromosome is X and start is not in pseudoautosomal region of X.")(variantHr(GR), boolHr)
-  registerMethodDependentCode("inYNonPar", { () =>
+  registerMethodDependent("inYNonPar", { () =>
     val gr = GR.gr
-    (CM.invokePrimitive1[Any, Any]((x: Any) => x.asInstanceOf[Variant].inYNonPar(gr)) _).asInstanceOf[Code[Variant] => CM[Code[Boolean]]]
+    (x: Variant) => x.inYNonPar(gr)
   }, "True if chromosome is Y and start is not in pseudoautosomal region of Y.")(variantHr(GR), boolHr)
   // assumes biallelic
   registerMethod("alt", { (x: Variant) => x.alt }, "Alternate allele sequence.  **Assumes biallelic.**")(variantHr(GR), stringHr)
   registerMethod("altAllele", { (x: Variant) => x.altAllele }, "The :ref:`alternate allele <altallele>`.  **Assumes biallelic.**")(variantHr(GR), altAlleleHr)
   registerMethod("locus", { (x: Variant) => x.locus }, "Chromosomal locus (chr, pos) of this variant")(variantHr(GR), locusHr(GR))
-  registerMethodDependentCode("isAutosomal", { () =>
+  registerMethodDependent("isAutosomal", { () =>
     val gr = GR.gr
-    (CM.invokePrimitive1[Any, Any]((x: Any) => x.asInstanceOf[Variant].isAutosomal(gr)) _).asInstanceOf[Code[Variant] => CM[Code[Boolean]]]
+    (x: Variant) => x.isAutosomal(gr)
   }, "True if chromosome is not X, not Y, and not MT.")(variantHr(GR), boolHr)
   registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")(locusHr(GR), stringHr)
   registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")(locusHr(GR), int32Hr)

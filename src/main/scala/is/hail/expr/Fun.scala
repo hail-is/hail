@@ -27,7 +27,19 @@ case class UnaryDependentFunCode[T, U](retType: Type, code: () => Code[T] => CM[
 
   def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun =
     throw new UnsupportedOperationException("must captureType first")
+}
 
+case class UnaryDependentFun[T, U](retType: Type, code: () => T => U) extends Fun {
+  override def captureType() = UnaryFun(retType, code())
+
+  def apply(t: T): U =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def subst() =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun =
+    throw new UnsupportedOperationException("must captureType first")
 }
 
 case class UnaryFunCode[T, U](retType: Type, code: Code[T] => CM[Code[U]]) extends Fun with (Code[T] => CM[Code[U]]) {
@@ -50,19 +62,6 @@ case class BinarySpecialCode[T, U, V](retType: Type, code: (Code[T], Code[U]) =>
   def subst() = BinarySpecialCode(retType.subst(), code)
 
   def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = ???
-}
-
-case class BinaryDependentFunCode[T, U, V](retType: Type, code: () => (Code[T], Code[U]) => CM[Code[V]]) extends Fun {
-  override def captureType() = BinaryFunCode(retType, code())
-
-  def apply(ct: Code[T], cu: Code[U]): CM[Code[V]] =
-    throw new UnsupportedOperationException("must captureType first")
-
-  def subst() =
-    throw new UnsupportedOperationException("must captureType first")
-
-  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun =
-    throw new UnsupportedOperationException("must captureType first")
 }
 
 case class BinaryFunCode[T, U, V](retType: Type, code: (Code[T], Code[U]) => CM[Code[V]]) extends Fun with Serializable with ((Code[T], Code[U]) => CM[Code[V]]) {
