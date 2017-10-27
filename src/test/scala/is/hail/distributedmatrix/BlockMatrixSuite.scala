@@ -41,6 +41,7 @@ class BlockMatrixSuite extends SparkSuite {
   private val defaultDims = nonEmptySquareOfAreaAtMostSize
   private val defaultTransposed = coin()
   private val defaultElement = arbitrary[Double]
+
   def blockMatrixGen(
     blockSize: Gen[Int] = defaultBlockSize,
     dims: Gen[(Int, Int)] = defaultDims,
@@ -68,9 +69,9 @@ class BlockMatrixSuite extends SparkSuite {
     element = element
   )
 
-  def twoMultipliableBlockMatrices(element: Gen[Double] = arbitrary[Double]): Gen[(BlockMatrix, BlockMatrix)] = for {
+  def twoMultipliableBlockMatrices(element: Gen[Double] = defaultElement): Gen[(BlockMatrix, BlockMatrix)] = for {
     Array(rows, inner, cols) <- nonEmptyNCubeOfVolumeAtMostSize(3)
-    blockSize <- interestingPosInt.map(math.pow(_, 1.0/3.0).toInt)
+    blockSize <- interestingPosInt.map(math.pow(_, 1.0 / 3.0).toInt)
     transposed <- coin()
     l <- blockMatrixGen(const(blockSize), const(rows -> inner), const(transposed), element)
     r <- blockMatrixGen(const(blockSize), const(inner -> cols), const(transposed), element)
