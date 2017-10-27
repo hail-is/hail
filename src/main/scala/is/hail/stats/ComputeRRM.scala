@@ -2,8 +2,10 @@ package is.hail.stats
 
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import breeze.linalg.DenseMatrix
+import is.hail.annotations.UnsafeRow
+import is.hail.expr.TVariant
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantDataset}
+import is.hail.variant.{HardCallView, Variant, VariantDataset}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
 import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vectors}
@@ -70,10 +72,20 @@ object LocalDenseMatrixToIndexedRowMatrix {
 object ToNormalizedRowMatrix {
   def apply(vds: VariantDataset): RowMatrix = {
     require(vds.wasSplit)
+
     val n = vds.nSamples
-    val rows = vds.rdd.flatMap { case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, n) }.map(Vectors.dense)
-    val m = rows.count()
-    new RowMatrix(rows, m, n)
+
+    val rowType = vds.rowType
+    val rows = vds.rdd2.mapPartitions { it =>
+      val view = HardCallView(rowType)
+
+      it.flatMap { r =>
+        RegressionUtils.normalizedHardCalls(r, view, n)
+          .map(Vectors.dense)
+      }
+    }.persist()
+
+    new RowMatrix(rows, rows.count(), n)
   }
 }
 
@@ -82,10 +94,27 @@ object ToNormalizedIndexedRowMatrix {
   def apply(vds: VariantDataset): IndexedRowMatrix = {
     require(vds.wasSplit)
     val n = vds.nSamples
-    val variants = vds.variants.collect()
-    val variantIdxBc = vds.sparkContext.broadcast(variants.index)
-    val indexedRows = vds.rdd.flatMap { case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, n).map(a => IndexedRow(variantIdxBc.value(v), Vectors.dense(a))) }
-    new IndexedRowMatrix(indexedRows, variants.size, n)
+
+    // extra leading 0 from scanLeft
+    val partitionSizes = vds.rdd2.mapPartitions(it => Iterator.single(it.size)).collect().scanLeft(0)(_ + _)
+    assert(partitionSizes.length == vds.rdd2.getNumPartitions + 1)
+    val pSizeBc = vds.sparkContext.broadcast(partitionSizes)
+
+    val rowType = vds.rowType
+    val indexedRows = vds.rdd2.mapPartitionsWithIndex { case (i, it) =>
+      val view = HardCallView(rowType)
+
+      val partitionStartIndex = pSizeBc.value(i)
+      var indexInPartition = 0
+      it.flatMap { r =>
+        val row = RegressionUtils.normalizedHardCalls(r, view, n)
+            .map { a => IndexedRow(partitionStartIndex + indexInPartition, Vectors.dense(a)) }
+        indexInPartition += 1
+        row
+      }
+    }.persist()
+
+    new IndexedRowMatrix(indexedRows, partitionSizes(partitionSizes.length - 1), n)
   }
 }
 
@@ -93,17 +122,41 @@ object ToNormalizedIndexedRowMatrix {
 object ToHWENormalizedIndexedRowMatrix {
   def apply(vds: VariantDataset): (Array[Variant], IndexedRowMatrix) = {
     require(vds.wasSplit)
+    val rowType = vds.rowType
 
     val n = vds.nSamples
-    val variants = vds.variants.collect()
-    val variantIdxBc = vds.sparkContext.broadcast(variants.index)
+    // extra leading 0 from scanLeft
+    val variantsAndSizes = vds.rdd2.mapPartitions { it =>
+      val tv = rowType.fields(1).typ.asInstanceOf[TVariant]
+      val ab = new ArrayBuilder[Variant]
+      var n = 0
+      it.foreach { r =>
+        ab += UnsafeRow.readStruct(rowType, r.region, r.offset).getAs[Variant](1)
+        n += 1
+      }
+      Iterator.single((n, ab.result()))
+    }.collect()
 
-    val mat = vds.rdd.map { case (v, (va, gs)) =>
-      IndexedRow(variantIdxBc.value(v), Vectors.dense(
-        RegressionUtils.normalizedHardCalls(gs, n, useHWE = true, variants.size).getOrElse(Array.ofDim[Double](n))))
-    }
+    val variants = variantsAndSizes.flatMap(_._2)
+    val nVariants = variants.length
 
-    (variants, new IndexedRowMatrix(mat.cache(), variants.size, n))
+    val partitionSizes = variantsAndSizes.map(_._1).scanLeft(0)(_ + _)
+    assert(partitionSizes.length == vds.rdd2.getNumPartitions + 1)
+    val pSizeBc = vds.sparkContext.broadcast(partitionSizes)
+
+    val indexedRows = vds.rdd2.mapPartitionsWithIndex { case (i, it) =>
+      val view = HardCallView(rowType)
+
+      val partitionStartIndex = pSizeBc.value(i)
+      var indexInPartition = 0
+      it.flatMap { r =>
+        val row = RegressionUtils.normalizedHardCalls(r, view, n, useHWE = true, nVariants)
+          .map { a => IndexedRow(partitionStartIndex + indexInPartition, Vectors.dense(a)) }
+        indexInPartition += 1
+        row
+      }
+    }.persist()
+
+    (variants, new IndexedRowMatrix(indexedRows, nVariants, n))
   }
-
 }

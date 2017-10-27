@@ -3,6 +3,7 @@ package is.hail.stats
 import breeze.linalg._
 import breeze.stats.mean
 import is.hail.utils._
+import is.hail.variant.HardCallView
 import is.hail.{SparkSuite, TestUtils, stats}
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.testng.annotations.Test
@@ -23,7 +24,13 @@ class ComputeRRMSuite extends SparkSuite {
     val vds = stats.vdsFromGtMatrix(hc)(G0)
 
     val n = vds.nSamples
-    val gtVects = vds.rdd.collect().flatMap { case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, n) }.map(DenseVector(_))
+
+    val rt = vds.rowType
+    val gtVects = vds.rdd2.mapPartitions {it =>
+      val view = HardCallView(rt)
+      it.flatMap { r =>
+        RegressionUtils.normalizedHardCalls(r, view, n) }.map(DenseVector(_))
+      }.collect()
 
     for (gts <- gtVects) {
       assert(math.abs(mean(gts)) < 1e-6)

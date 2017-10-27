@@ -1,5 +1,7 @@
 package is.hail.variant
 
+import java.util.zip.DataFormatException
+
 import is.hail.annotations.{MemoryBuffer, RegionValue, UnsafeRow, UnsafeUtils}
 import is.hail.expr._
 import is.hail.utils._
@@ -297,7 +299,7 @@ abstract class HardCallView {
 
   def hasGT: Boolean
 
-  def getGT: Call
+  def getGT: Int
 }
 
 class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
@@ -327,9 +329,12 @@ class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
 
   def hasGT: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
 
-  def getGT: Call = {
+  def getGT: Int = {
     val callOffset = tg.loadField(m, gOffset, gtIndex)
-    Call(m.loadInt(callOffset))
+    val gt = m.loadInt(callOffset)
+    if (gt < 0)
+      throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
+    gt
   }
 }
 
@@ -377,8 +382,11 @@ class HardCallStructView(rowType: TStruct, callField: String) extends HardCallVi
 
   def hasGT: Boolean = gtExists && gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
 
-  def getGT: Call = {
+  def getGT: Int = {
     val callOffset = tg.loadField(m, gOffset, gtIndex)
-    Call(m.loadInt(callOffset))
+    val gt = m.loadInt(callOffset)
+    if (gt < 0)
+      throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
+    gt
   }
 }

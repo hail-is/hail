@@ -2,11 +2,12 @@ package is.hail.methods
 
 import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.HailContext
+import is.hail.annotations.UnsafeRow
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantDataset}
+import is.hail.variant.{HardCallView, Variant, VariantDataset}
 import org.apache.hadoop.io._
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, Matrix, Vectors}
@@ -23,10 +24,15 @@ object LDMatrix {
     
     val nSamples = vds.nSamples
 
-    val filteredNormalizedHardCalls = vds.rdd.flatMap { 
-      case (v, (_, gs)) => RegressionUtils.normalizedHardCalls(gs, nSamples).map(x => (v, x))
-    }
-      .persist()
+    val rowType = vds.rowType
+
+    val filteredNormalizedHardCalls = vds.rdd2.mapPartitions { it =>
+      val view = HardCallView(rowType)
+      it.flatMap { r =>
+        val v = UnsafeRow.readStruct(rowType, r.region, r.offset).getAs[Variant](1)
+        RegressionUtils.normalizedHardCalls(r, view, nSamples).map(x => (v, x))
+      }
+    }.persist()
     
     val variantsKept = filteredNormalizedHardCalls.map(_._1).collect()
     assert(variantsKept.isSorted, "ld_matrix: Array of variants is not sorted. This is a bug")
