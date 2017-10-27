@@ -424,7 +424,7 @@ class HailContext private(val sc: SparkContext,
     }
   }
   
-  def readRowsRDD(path: String, t: TStruct, nPartitions: Int): RDD[RegionValue] =
+  def readRows(path: String, t: TStruct, nPartitions: Int): RDD[RegionValue] =
     readPartitions(path, nPartitions, is => is, HailContext.readRow(t))
   
   def importVCF(file: String, force: Boolean = false,

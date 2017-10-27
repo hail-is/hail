@@ -83,7 +83,7 @@ object KeyTable {
     val schema = Parser.parseType(metadata.schema).asInstanceOf[TStruct]
 
     KeyTable(hc,
-      hc.readRowsRDD(path, schema, metadata.n_partitions)
+      hc.readRows(path, schema, metadata.n_partitions)
         .map { rv =>
           new UnsafeRow(schema, rv.region.copy(), rv.offset): Row
         },

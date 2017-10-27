@@ -404,7 +404,7 @@ case class MatrixRead(
           typ.orderedRDD2Type,
           OrderedPartitioner2(hc.sc,
             hc.hadoopConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))),
-          hc.readRowsRDD(path, typ.rowType, nPartitions))
+          hc.readRows(path, typ.rowType, nPartitions))
         if (dropSamples) {
           val localRowType = typ.rowType
           rdd = rdd.mapPartitionsPreservesPartitioning { it =>

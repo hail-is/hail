@@ -262,10 +262,17 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
 
   def writePartition[T, S <: Closeable, U](filename: String)(makeStream: (OutputStream) => S, 
     i: Int, it: Iterator[U], f: (S, Int, Iterator[U]) => T): T =
-    using(makeStream(create(filename)))(f(_, i, it))
+    using(create(filename)) { os => using(makeStream(os))(f(_, i, it)) }
 
   def readPartition[T, S <: Closeable](filename: String)(makeStream: (InputStream) => S, i: Int, f: (S, Int) => T): T =
-    using(makeStream(open(filename)))(f(_, i))
+    using(open(filename)) { is => using(makeStream(is))(f(_, i)) }
+
+//  def writePartition[T, S <: Closeable, U](filename: String)(makeStream: (OutputStream) => S, 
+//    i: Int, it: Iterator[U], f: (S, Int, Iterator[U]) => T): T =
+//    using(makeStream(create(filename)))(f(_, i, it))
+//
+//  def readPartition[T, S <: Closeable](filename: String)(makeStream: (InputStream) => S, i: Int, f: (S, Int) => T): T =
+//    using(makeStream(open(filename)))(f(_, i))
   
   def readLines[T](filename: String)(reader: (Iterator[WithContext[String]] => T)): T = {
     readFile[T](filename) {
