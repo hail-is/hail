@@ -85,7 +85,7 @@ object KeyTable {
     KeyTable(hc,
       new ReadRowsRDD(hc.sc, path, schema, metadata.n_partitions)
         .map { rv =>
-          new UnsafeRow(schema, rv.region.copy(), rv.offset)
+          new UnsafeRow(schema, rv.region.copy(), rv.offset): Row
         },
       schema,
       metadata.key)
@@ -127,10 +127,35 @@ object KeyTable {
 
     KeyTable(hc, rdd, struct, Array("ID"))
   }
+
+  def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: Array[String] = Array.empty): KeyTable = {
+    val rdd2 = rdd.mapPartitions { it =>
+      val region = MemoryBuffer()
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+      it.map { row =>
+        region.clear()
+        rvb.start(signature)
+        rvb.addAnnotation(signature, row)
+        rv.setOffset(rvb.end())
+        rv
+      }
+    }
+    new KeyTable(hc, rdd2, signature, key)
+  }
 }
 
-case class KeyTable(hc: HailContext, rdd: RDD[Row],
-  signature: TStruct, key: Array[String] = Array.empty) {
+class KeyTable(val hc: HailContext,
+  val rdd2: RDD[RegionValue],
+  val signature: TStruct,
+  val key: Array[String] = Array.empty) {
+
+  lazy val rdd: RDD[Row] = {
+    val localSignature = signature
+    rdd2.map { rv =>
+      new UnsafeRow(localSignature, rv.region.copy(), rv.offset)
+    }
+  }
 
   if (!columns.areDistinct())
     fatal(s"Column names are not distinct: ${ columns.duplicates().mkString(", ") }")
@@ -145,13 +170,13 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
   def columns: Array[String] = fields.map(_.name)
 
-  def count(): Long = rdd.count()
+  def count(): Long = rdd2.count()
 
   def nColumns: Int = fields.length
 
   def nKeys: Int = key.length
 
-  def nPartitions: Int = rdd.partitions.length
+  def nPartitions: Int = rdd2.partitions.length
 
   def keySignature: TStruct = {
     val (t, _) = signature.select(key)
@@ -182,23 +207,6 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val keyIndexSet = keyIndices.toSet
     val valueIndices = fields.filter(f => !keyIndexSet.contains(f.index)).map(_.index)
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
-  }
-
-  def rdd2: RDD[RegionValue] = {
-    val localSignature = signature
-    rdd.mapPartitions { it =>
-      val region = MemoryBuffer(8 * 1024)
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
-
-      it.map { r =>
-        region.clear()
-        rvb.start(localSignature)
-        rvb.addRow(localSignature, r)
-        rv.setOffset(rvb.end())
-        rv
-      }
-    }
   }
 
   def same(other: KeyTable): Boolean = {
@@ -799,9 +807,10 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val maybeTieBreaker = tieBreakerExpr.map { e =>
       val tieBreakerThunk = Parser.parseTypedExpr[Int](e, tieBreakerEc)
 
-      { (l:Any, r: Any) =>
-        tieBreakerEc.setAll(l, r)
-        tieBreakerThunk() }
+    { (l: Any, r: Any) =>
+      tieBreakerEc.setAll(l, r)
+      tieBreakerThunk()
+    }
     }.getOrElse(null)
 
     val edgeRdd = mapAnnotations { r =>
@@ -925,4 +934,15 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     sb.result()
   }
 
+  def copy(rdd: RDD[Row] = rdd,
+    signature: TStruct = signature,
+    key: Array[String] = key): KeyTable = {
+    KeyTable(hc, rdd, signature, key)
+  }
+
+  def copy2(rdd2: RDD[RegionValue] = rdd2,
+    signature: TStruct = signature,
+    key: Array[String] = key): KeyTable = {
+    new KeyTable(hc, rdd2, signature, key)
+  }
 }
