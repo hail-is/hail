@@ -9,7 +9,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Call, GRBase, GRVariable, GenomeReference, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, GRVariable, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -62,7 +62,7 @@ object FunctionRegistry {
     }
   }
 
-  private def lookup(name: String, typ: TypeTag): Err[Fun] = {
+  private def lookup(name: String, typ: TypeTag, rtTypConcrete: Option[Type] = None): Err[Fun] = {
 
     val matches = registry(name).flatMap { case (tt, f, _) =>
       tt.clear()
@@ -80,6 +80,8 @@ object FunctionRegistry {
           } else
             None
         }
+
+        rtTypConcrete.foreach(f.retType.unify(_))
 
         anyFailAllFail[Array, Option[(Int, Transformation[Any, Any])]](conversions)
           .map { arr =>
@@ -137,10 +139,10 @@ object FunctionRegistry {
     }
   }
 
-  def call(name: String, args: Seq[AST], argTypes: Seq[Type]): CM[Code[AnyRef]] = {
+  def call(name: String, args: Seq[AST], argTypes: Seq[Type], rtTypConcrete: Option[Type] = None): CM[Code[AnyRef]] = {
     import is.hail.expr.CM._
 
-    val m = FunctionRegistry.lookup(name, MethodType(argTypes: _*))
+    val m = FunctionRegistry.lookup(name, MethodType(argTypes: _*), rtTypConcrete)
       .valueOr(x => fatal(x.message))
 
     (m match {
@@ -1043,10 +1045,10 @@ object FunctionRegistry {
     .. code-block:: text
         :emphasize-lines: 2
 
-        let v = Variant("7:76324539:A:G") in v.contig
+        let v = Variant(GRCh37)("7:76324539:A:G") in v.contig
         result: "7"
     """,
-    "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")(stringHr, variantHr(GenomeReference.GRCh37))
+    "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")(stringHr, variantHr(GR))
   register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) },
     """
     Construct a :ref:`variant(gr)` object.
@@ -1054,13 +1056,13 @@ object FunctionRegistry {
     .. code-block:: text
         :emphasize-lines: 2
 
-        let v = Variant("2", 13427, "T", "G") in v.ref
+        let v = Variant(GRCh37)("2", 13427, "T", "G") in v.ref
         result: "T"
     """,
     "contig" -> "String representation of contig.",
     "pos" -> "SNP position or start of an indel.",
     "ref" -> "Reference allele sequence.",
-    "alt" -> "Alternate allele sequence.")(stringHr, int32Hr, stringHr, stringHr, variantHr(GenomeReference.GRCh37))
+    "alt" -> "Alternate allele sequence.")(stringHr, int32Hr, stringHr, stringHr, variantHr(GR))
   register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray) },
     """
     Construct a :ref:`variant(gr)` object.
@@ -1068,14 +1070,14 @@ object FunctionRegistry {
     .. code-block:: text
         :emphasize-lines: 2
 
-        let v = Variant("1", 25782743, "A", Array("T", "TA")) in v.ref
+        let v = Variant(GRCh37)("1", 25782743, "A", Array("T", "TA")) in v.ref
         result: "A"
     """,
     "contig" -> "String representation of contig.",
     "pos" -> "SNP position or start of an indel.",
     "ref" -> "Reference allele sequence.",
     "alts" -> "Array of alternate allele sequences."
-  )(stringHr, int32Hr, stringHr, arrayHr(stringHr), variantHr(GenomeReference.GRCh37))
+  )(stringHr, int32Hr, stringHr, arrayHr(stringHr), variantHr(GR))
 
   register("Dict", { (keys: IndexedSeq[Annotation], values: IndexedSeq[Annotation]) =>
     if (keys.length != values.length)
@@ -1146,11 +1148,11 @@ object FunctionRegistry {
     .. code-block:: text
         :emphasize-lines: 2
 
-        let l = Locus("1:10040532") in l.position
+        let l = Locus(GRCh37)("1:10040532") in l.position
         result: 10040532
     """,
     ("s", "String of the form ``CHR:POS``")
-  )(stringHr, locusHr(GenomeReference.GRCh37))
+  )(stringHr, locusHr(GR))
 
   register("Locus", { (x: String, y: Int) => Locus(x, y) },
     """
@@ -1159,11 +1161,11 @@ object FunctionRegistry {
     .. code-block:: text
         :emphasize-lines: 2
 
-        let l = Locus("1", 10040532) in l.position
+        let l = Locus(GRCh37)("1", 10040532) in l.position
         result: 10040532
     """,
     "contig" -> "String representation of contig.",
-    "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GenomeReference.GRCh37))
+    "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GR))
   register("Interval", { (x: Locus, y: Locus) => Interval(x, y) },
     """
     Construct a :ref:`interval(gr)` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
@@ -1345,17 +1347,29 @@ object FunctionRegistry {
   register("Interval", (s: String) => Locus.parseInterval(s),
     """
     Returns an interval parsed in the same way as :py:meth:`~hail.representation.Interval.parse`
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let i = Interval(GRCh37)("1:10040532-10040599") in i.start
+        result: 10040532
     """,
     "s" -> "The string to parse."
-  )(stringHr, locusIntervalHr(GenomeReference.GRCh37))
+  )(stringHr, locusIntervalHr(GR))
 
   register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
     """
     Constructs an interval from a given chromosome, start, and end.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let i = Interval(GRCh37)("1", 10040532, 10040599) in i.start
+        result: 10040532
     """,
     "chr" -> "Chromosome.",
     "start" -> "Starting position.",
-    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, locusIntervalHr(GenomeReference.GRCh37))
+    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, locusIntervalHr(GR))
 
   register("pcoin", { (p: Double) => math.random < p },
     """
