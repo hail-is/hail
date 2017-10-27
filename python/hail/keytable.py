@@ -1440,7 +1440,6 @@ class KeyTable(object):
 
         result = self._jkt.maximalIndependentSet(i, j, joption(tie_breaker))
         vertex_type = Type._from_java(result._2())
-        array_of_java_vertices = jarray_to_list(result._1())
-        return [vertex_type._convert_to_py(x) for x in array_of_java_vertices]
+        return [vertex_type._convert_to_py(x) for x in jarray_to_list(result._1())]
 
 kt_type.set(KeyTable)
