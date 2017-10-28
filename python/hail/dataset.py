@@ -1238,7 +1238,7 @@ class VariantDataset(HistoryMixin):
                       min_depth_ratio=numeric)
     def de_novo(self, pedigree, pop_frequency_prior, min_gq=20, min_p=0.05,
                 max_parent_ab=0.05, min_child_ab=0.20, min_depth_ratio=0.10):
-        """Call de novo variation from trio data.
+        """Call  de novo variation from trio data.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
 
@@ -5719,6 +5719,53 @@ class VariantDataset(HistoryMixin):
     def to_hail2(self):
         import hail2
         return hail2.VariantDataset(self.hc, self._jvds)
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(pedigree=Pedigree,
+               complete_trios=bool)
+    def trio_matrix(self, pedigree, complete_trios=False):
+        """Builds and returns a matrix with trios are grouped together as cells.
+
+        **Examples**
+
+        Create a trio matrix:
+
+        >>> pedigree = Pedigree.read('data/myStudy.fam')
+        >>> trio_matrix = vds.trio_matrix(pedigree, complete_trios=True)
+
+        **Notes**
+
+        This method builds a new dataset with trio columns, with one column
+        per trio (with ``complete_trios == False``) or complete trio (with
+        ``complete_trios == True``). In this new dataset, the column identifiers
+        are the sample IDs of the trio probands. The column annotations and
+        cells of the matrix are changed in the following ways:
+
+        The new column annotation schema is a ``Struct`` with three ``Struct`` children,
+        each with an ``id`` and ``annotations`` field. The ``annotations`` fields have the
+        same schema as the column annotation schema of the input dataset.
+
+         - **proband.id** (*String*) - Proband sample ID.
+         - **proband.annotations** (*Struct*) - Annotations on the proband.
+         - **mother.id** (*String*) - Mother sample ID.
+         - **mother.annotations** (*Struct*) - Annotations on the mother.
+         - **father.id** (*String*) - Father sample ID.
+         - **father.annotations** (*Struct*) - Annotations on the father.
+
+        The new cell schema is a ``Struct`` with a field for the proband, mother, and
+        father, where the schema of each field is the cell schema of the input dataset.
+
+        - **g.proband** (*T*) - Proband genotype field.
+        - **g.mother** (*T*) - Mother genotype field.
+        - **g.father** (*T*) - Father genotype field.
+
+        :param pedigree: Collection of trios.
+        :type pedigree: :class:`.hail.representation.Pedigree`
+
+        :rtype: :class:`.VariantDataset`
+        """
+        return VariantDataset(self.hc, self._jvds.trioMatrix(pedigree._jrep, complete_trios))
 
 vds_type.set(VariantDataset)
 
