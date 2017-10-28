@@ -2347,6 +2347,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
             rvb.addAnnotation(gsig, arr(dadIndices(i)))
           else
             rvb.setMissing()
+
           rvb.endStruct()
           i += 1
         }
