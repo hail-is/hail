@@ -1151,3 +1151,5 @@ class ContextTests(unittest.TestCase):
                  .key_by(['v', 'fam'])
 
         self.assertTrue(gkt.same(tkt))
+
+        # FIXME: test annotations

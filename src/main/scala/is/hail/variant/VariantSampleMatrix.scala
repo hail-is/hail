@@ -2252,13 +2252,14 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     val filteredPedigree = pedigree.filterTo(stringSampleIds.toSet)
     val trios = if (completeTrios) filteredPedigree.completeTrios else filteredPedigree.trios
+    val nTrios = trios.length
 
     val sampleIndices = sampleIds.zipWithIndex.toMap
 
-    val momIndices = Array.fill[Int](trios.length)(-1)
-    val dadIndices = Array.fill[Int](trios.length)(-1)
-    val kidIndices = Array.fill[Int](trios.length)(-1)
-    val kidIds = new Array[String](trios.length)
+    val kidIndices = Array.fill[Int](nTrios)(-1)
+    val dadIndices = Array.fill[Int](nTrios)(-1)
+    val momIndices = Array.fill[Int](nTrios)(-1)
+    val kidIds = new Array[String](nTrios)
 
     val memberAnnotationType = TStruct(
       "id" -> TString(true),
@@ -2266,14 +2267,14 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     )
     val newColumnAnnotationType = TStruct(
       "proband" -> memberAnnotationType,
-      "mother" -> memberAnnotationType,
-      "father" -> memberAnnotationType
+      "father" -> memberAnnotationType,
+      "mother" -> memberAnnotationType
     )
 
-    val newSampleAnnotations = new Array[Annotation](trios.length)
+    val newSampleAnnotations = new Array[Annotation](nTrios)
 
     var i = 0
-    while (i < trios.length) {
+    while (i < nTrios) {
       val t = trios(i)
       val kidIndex = sampleIndices(t.kid)
       kidIndices(i) = kidIndex
@@ -2300,8 +2301,8 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     val newCellType = TStruct(
       "proband" -> genotypeSignature,
-      "mother" -> genotypeSignature,
-      "father" -> genotypeSignature
+      "father" -> genotypeSignature,
+      "mother" -> genotypeSignature
     )
     val gsig = genotypeSignature
 
@@ -2319,32 +2320,33 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         rvb.start(newRowType)
         rvb.startStruct()
 
+        // FIXME: The next four lines allocate
         val oldRow = UnsafeRow.readStruct(oldRowType, r.region, r.offset)
         rvb.addAnnotation(newRowType.fields(0).typ, oldRow.get(0))
         rvb.addAnnotation(newRowType.fields(1).typ, oldRow.get(1))
         rvb.addAnnotation(newRowType.fields(2).typ, oldRow.get(2))
 
         val arr = oldRow.getAs[IndexedSeq[Annotation]](3)
-        rvb.startArray(kidIndices.length)
+        rvb.startArray(nTrios)
 
         var i = 0
-        while (i < kidIndices.length) {
+        while (i < nTrios) {
           rvb.startStruct()
 
           // append kid element
           rvb.addAnnotation(gsig, arr(kidIndices(i)))
 
-          // append mom element if the mom is defined
-          val momIndex = momIndices(i)
-          if (momIndex >= 0)
-            rvb.addAnnotation(gsig, arr(momIndex))
-          else
-            rvb.setMissing()
-
           // append dad element if the dad is defined
           val dadIndex = dadIndices(i)
           if (dadIndex >= 0)
             rvb.addAnnotation(gsig, arr(dadIndices(i)))
+          else
+            rvb.setMissing()
+
+          // append mom element if the mom is defined
+          val momIndex = momIndices(i)
+          if (momIndex >= 0)
+            rvb.addAnnotation(gsig, arr(momIndex))
           else
             rvb.setMissing()
 

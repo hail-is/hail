@@ -1238,7 +1238,7 @@ class VariantDataset(HistoryMixin):
                       min_depth_ratio=numeric)
     def de_novo(self, pedigree, pop_frequency_prior, min_gq=20, min_p=0.05,
                 max_parent_ab=0.05, min_child_ab=0.20, min_depth_ratio=0.10):
-        """Call  de novo variation from trio data.
+        """Call de novo variation from trio data.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
 
@@ -5723,7 +5723,7 @@ class VariantDataset(HistoryMixin):
     @handle_py4j
     @record_method
     @typecheck_method(pedigree=Pedigree,
-               complete_trios=bool)
+                      complete_trios=bool)
     def trio_matrix(self, pedigree, complete_trios=False):
         """Builds and returns a matrix with trios are grouped together as cells.
 
@@ -5748,17 +5748,17 @@ class VariantDataset(HistoryMixin):
 
          - **proband.id** (*String*) - Proband sample ID.
          - **proband.annotations** (*Struct*) - Annotations on the proband.
-         - **mother.id** (*String*) - Mother sample ID.
-         - **mother.annotations** (*Struct*) - Annotations on the mother.
          - **father.id** (*String*) - Father sample ID.
          - **father.annotations** (*Struct*) - Annotations on the father.
+         - **mother.id** (*String*) - Mother sample ID.
+         - **mother.annotations** (*Struct*) - Annotations on the mother.
 
         The new cell schema is a ``Struct`` with a field for the proband, mother, and
         father, where the schema of each field is the cell schema of the input dataset.
 
         - **g.proband** (*T*) - Proband genotype field.
-        - **g.mother** (*T*) - Mother genotype field.
         - **g.father** (*T*) - Father genotype field.
+        - **g.mother** (*T*) - Mother genotype field.
 
         :param pedigree: Collection of trios.
         :type pedigree: :class:`.hail.representation.Pedigree`
