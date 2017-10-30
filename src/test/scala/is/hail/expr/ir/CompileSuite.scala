@@ -44,7 +44,7 @@ class CompileSuite {
             Set("sum", ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))),
           Out(ApplyPrimitive("/", Array(Ref("sum"), ArrayLen(Ref("x"))))))))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Double]
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Infer(meanIr)
     println(s"typed:\n$meanIr")
     Compile(meanIr, fb, Map())
@@ -52,7 +52,7 @@ class CompileSuite {
     def run(a: Array[Double]): Double = {
       val mb = MemoryBuffer()
       val aoff = addArray(mb, a)
-      f(mb, aoff)
+      f(mb, aoff, false)
     }
 
     assert(run(Array()).isNaN)
@@ -82,7 +82,7 @@ class CompileSuite {
                         ArraySet(Ref("out"), Ref("i"), Ref("v")))))))),
             Out(Ref("out")))))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Long]
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
     Infer(meanImputeIr)
     println(s"typed:\n$meanImputeIr")
     Compile(meanImputeIr, fb, Map())
@@ -91,7 +91,7 @@ class CompileSuite {
       val mb = MemoryBuffer()
       val aoff = addBoxedArray(mb, a)
       val t = TArray(TFloat64)
-      val roff = f(mb, aoff)
+      val roff = f(mb, aoff, false)
       Array.tabulate[java.lang.Double](a.length) { i =>
         if (t.isElementDefined(mb, roff, i))
           mb.loadDouble(t.loadElement(mb, roff, i))
@@ -107,6 +107,31 @@ class CompileSuite {
 
     assert(run(Array(-1.0,null,1.0)) === Array(-1.0,0.0,1.0))
     assert(run(Array(-1.0,null,null)) === Array(-1.0,-1.0,-1.0))
+  }
+
+  @Test
+  def mapNA() {
+    val mapNaIr = MapNA("foo", In(0, TArray(TFloat64)),
+      ArrayRef(Ref("foo"), In(1, TInt32)))
+
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int, Boolean, Double]
+    Infer(mapNaIr)
+    println(s"typed:\n$mapNaIr")
+    Compile(mapNaIr, fb, Map())
+    val f = fb.result()()
+    def run(a: Array[java.lang.Double], i: Int): Double = {
+      val mb = MemoryBuffer()
+      val aoff = if (a != null) addBoxedArray(mb, a) else -1L
+      f(mb, aoff, a == null, i, false)
+    }
+
+    assert(run(Array(1.0), 0) === 1.0)
+    assert(run(Array(1.0,2.0,3.0), 2) === 3.0)
+    assert(run(Array(-1.0,0.0,1.0), 0) === -1.0)
+
+    intercept[RuntimeException](run(null, 5))
+    intercept[RuntimeException](run(null, 0))
+    intercept[RuntimeException](run(Array(-1.0,null,1.0), 1))
   }
 
 }

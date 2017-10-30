@@ -249,7 +249,7 @@ object Compile {
         (const(false), Code(vstmts: _*))
       case In(i, typ) =>
         // FIXME: allow for missing arguments
-        (const(false), fb.getArg(i + 2)(typeToTypeInfo(typ)))
+        (fb.getArg[Boolean](i*2 + 3), fb.getArg(i*2 + 2)(typeToTypeInfo(typ)))
       case Out(v) =>
         val (mv, vv) = expression(v)
         (const(false), typeToTypeInfo(v.typ) match { case ti: TypeInfo[t] =>
