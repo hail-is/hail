@@ -307,6 +307,16 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
   def ||(rhs: Code[Boolean]): Code[Boolean] =
     lhs.toConditional || rhs.toConditional
+
+  def toI: Code[Int] = lhs
+
+  def toL: Code[Long] = Code(lhs, new InsnNode(I2L))
+
+  def toF: Code[Float] = Code(lhs, new InsnNode(I2F))
+
+  def toD: Code[Double] = Code(lhs, new InsnNode(I2D))
+
+  def toB: Code[Byte] = Code(lhs, new InsnNode(I2B))
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
