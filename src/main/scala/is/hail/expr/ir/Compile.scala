@@ -126,7 +126,7 @@ object Compile {
       case expr.ir.If(cond, cnsq, altr, typ) =>
         val (mcnsq, vcnsq) = expression(cnsq)
         val (maltr, valtr) = expression(altr)
-        val (_, vcond: Code[Boolean]) = expression(cond)
+        val (_, vcond: Code[Boolean] @unchecked) = expression(cond)
 
         (mcnsq || maltr, vcond.mux(vcnsq, valtr))
 
@@ -169,28 +169,28 @@ object Compile {
           srvb.offset))
       case x@MakeArrayN(len, elementType) =>
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
-        val (mlen, vlen: Code[Int]) = expression(len)
+        val (mlen, vlen: Code[Int] @unchecked) = expression(len)
 
         (mlen, Code(
           srvb.start(vlen, init = true),
           srvb.offset))
       case ArrayRef(a, i, typ) =>
         val tarray = TArray(typ)
-        val (marr, varr: Code[Long]) = expression(a)
-        val (midx, vidx: Code[Int]) = expression(i)
+        val (marr, varr: Code[Long] @unchecked) = expression(a)
+        val (midx, vidx: Code[Int] @unchecked) = expression(i)
         val eoff = tarray.loadElement(region, varr, vidx)
         val missing = marr || midx || !tarray.isElementDefined(region, varr, vidx)
 
         (missing, loadAnnotation(region, typ)(eoff))
       case ArrayLen(a) =>
-        val (marr, varr: Code[Long]) = expression(a)
+        val (marr, varr: Code[Long] @unchecked) = expression(a)
 
         (marr, TContainer.loadLength(region, varr))
       case ArraySet(a, i, v) =>
         val tarray = a.typ.asInstanceOf[TArray]
         val t = tarray.elementType
-        val (marr, varr: Code[Long]) = expression(a)
-        val (midx, vidx: Code[Int]) = expression(i)
+        val (marr, varr: Code[Long] @unchecked) = expression(a)
+        val (midx, vidx: Code[Int] @unchecked) = expression(i)
         val (mvalue, value) = expression(v)
         val ptr = tarray.elementOffsetInRegion(region, varr, vidx)
 
@@ -208,7 +208,7 @@ object Compile {
           val x = fb.newLocal[t]
           val mx = mb.newBit()
           val len = fb.newLocal[Int]
-          val (marray, varray: Code[Long]) = expression(array)
+          val (marray, varray: Code[Long] @unchecked) = expression(array)
           val (mbody, vbody) =
             expression(body, env = env + (value -> ((ti, mx, x))) + (i -> ((typeInfo[Int], midx, idx))))
 
@@ -239,7 +239,7 @@ object Compile {
           srvb.offset))
       case GetField(o, name, _) =>
         val t = o.typ.asInstanceOf[TStruct]
-        val (mstruct, vstruct: Code[Long]) = expression(o)
+        val (mstruct, vstruct: Code[Long] @unchecked) = expression(o)
         val fieldIdx = t.fieldIdx(name)
         val mfield = t.isFieldDefined(region, vstruct, fieldIdx)
 
