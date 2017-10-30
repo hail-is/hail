@@ -1,12 +1,12 @@
-package is.hail.annotations
+package is.hail.io
 
 import java.io.{InputStream, OutputStream}
 
+import is.hail.annotations.{Memory, MemoryBuffer, RegionValue}
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.LZ4Utils
 import org.apache.spark.rdd.RDD
-import org.apache.spark.Partition
 
 class ArrayInputStream(var a: Array[Byte], var end: Int) extends InputStream {
   var off: Int = 0
@@ -119,7 +119,7 @@ abstract class OutputBuffer {
 }
 
 object LZ4Buffer {
-  final val blockSize = 128 * 1024
+  final val blockSize: Int = 128 * 1024
   // final val blockSize = 16
 }
 
@@ -224,7 +224,7 @@ abstract class InputBuffer {
 }
 
 class LZ4InputBuffer(in: InputStream) extends InputBuffer {
-  private var buf = new Array[Byte](LZ4Buffer.blockSize)
+  private val buf = new Array[Byte](LZ4Buffer.blockSize)
   private var end: Int = 0
   private var off: Int = 0
 
@@ -478,7 +478,7 @@ final class Encoder(out: OutputBuffer) {
 }
 
 object RichRDDRegionValue {
-  def writeRow(t: TStruct)(i: Int, it: Iterator[RegionValue])(os: OutputStream): Long = {
+  def writeRowsPartition(t: TStruct)(i: Int, it: Iterator[RegionValue], os: OutputStream): Long = {
     val en = new Encoder(new LZ4OutputBuffer(os))
     var rowCount = 0L
     
@@ -490,6 +490,7 @@ object RichRDDRegionValue {
 
     en.writeByte(0) // end
     en.flush()
+    os.close()
     
     rowCount
   }
@@ -497,8 +498,6 @@ object RichRDDRegionValue {
 
 class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
   def writeRows(path: String, t: TStruct) {
-    rdd.writePartitions(path, os => os, RichRDDRegionValue.writeRow(t))
+    rdd.writePartitions(path, RichRDDRegionValue.writeRowsPartition(t))
   }
 }
-
-case class ReadRDDPartition(index: Int) extends Partition

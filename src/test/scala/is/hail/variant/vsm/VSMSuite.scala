@@ -1,6 +1,5 @@
 package is.hail.variant.vsm
 
-import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Parameters}
@@ -200,14 +199,12 @@ class VSMSuite extends SparkSuite {
     p.check()
   }
   
-  @Test def testWriteRead2() {
+  @Test def testWriteReadFile() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-
     val f = tmpDir.createTempFile(extension = "vds")
     vds.write(f)
     assert(hc.readVDS(f).same(vds))
   }
-
 
   @Test def testFilterSamples() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)

@@ -84,7 +84,8 @@ object BlockMatrix {
     val nBlocks = blockRows * blockCols
     assert(nBlocks >= blockRows && nBlocks >= blockCols)
     
-    def readBlock(i: Int)(dis: DataInputStream): Iterator[((Int, Int), BDM[Double])] = {
+    def readBlock(i: Int, is: InputStream): Iterator[((Int, Int), BDM[Double])] = {
+      val dis = new DataInputStream(is)
       val bdm = RichDenseMatrixDouble.read(dis)
       dis.close()
 
@@ -97,7 +98,7 @@ object BlockMatrix {
     
     val gp = GridPartitioner(rows, cols, blockSize, transposed)
     
-    val blocks = hc.readPartitions(uri, nBlocks, is => new DataInputStream(is), readBlock, Some(gp))
+    val blocks = hc.readPartitions(uri, nBlocks, readBlock, Some(gp))
     
     new BlockMatrix(blocks, blockSize, rows, cols)
   } 
@@ -259,17 +260,19 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
 
-    def writeBlock(i: Int, it: Iterator[((Int, Int), BDM[Double])])(dos: DataOutputStream): Int = {
+    def writeBlock(i: Int, it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
       assert(it.hasNext)
       val (_, bdm) = it.next()
       assert(!it.hasNext)
       
+      val dos = new DataOutputStream(os)
       bdm.write(dos)
+      dos.close()
       
       1
     }
     
-    blocks.writePartitions(uri, os => new DataOutputStream(os), writeBlock)
+    blocks.writePartitions(uri, writeBlock)
     
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       jackson.Serialization.write(

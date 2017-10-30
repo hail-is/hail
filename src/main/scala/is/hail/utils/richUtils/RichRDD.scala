@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import java.io.{Closeable, OutputStream}
+import java.io.OutputStream
 
 import is.hail.sparkextras.ReorderedPartitionsRDD
 import is.hail.utils._
@@ -167,8 +167,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       .subsetPartitions((0 to idxLast).toArray)
   }
   
-  def writePartitions[S <: Closeable](path: String, 
-    makeStream: (OutputStream) => S, write: (Int, Iterator[T]) => S => Long): Long = {
+  def writePartitions(path: String, write: (Int, Iterator[T], OutputStream) => Long): Long = {
     
     val sc = r.sparkContext
     val hadoopConf = sc.hadoopConfiguration
@@ -186,8 +185,10 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       val pis = StringUtils.leftPad(is, d, "0")
 
       val filename = path + "/parts/part-" + pis
+      
+      val os = sHadoopConfBc.value.value.unsafeWriter(filename)
 
-      Iterator.single(sHadoopConfBc.value.value.writePartition(filename)(makeStream, write(i, it)))
+      Iterator.single(write(i, it, os))
     }
       .fold(0L)(_ + _)
 

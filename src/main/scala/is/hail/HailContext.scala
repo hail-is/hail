@@ -1,10 +1,11 @@
 package is.hail
 
-import java.io.{Closeable, InputStream}
+import java.io.InputStream
 import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.{EvalContext, Parser, TStruct, Type, _}
+import is.hail.io.{Decoder, LZ4InputBuffer}
 import is.hail.io.bgen.BgenLoader
 import is.hail.io.gen.GenLoader
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
@@ -27,7 +28,7 @@ import scala.reflect.{ClassTag, classTag}
 
 object HailContext {
 
-  val tera = 1024L * 1024L * 1024L * 1024L
+  val tera: Long = 1024L * 1024L * 1024L * 1024L
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
 
@@ -168,15 +169,14 @@ object HailContext {
     hc
   }
   
-  def readRow(t: TStruct)(i: Int)(in: InputStream): Iterator[RegionValue] = {
-    
+  def readRowsPartition(t: TStruct)(i: Int, in: InputStream): Iterator[RegionValue] = {
     new Iterator[RegionValue] {
       val region = MemoryBuffer()
       val rv = RegionValue(region)
 
       val dec = new Decoder(new LZ4InputBuffer(in))
 
-      var cont = dec.readByte()
+      var cont: Byte = dec.readByte()
 
       def hasNext: Boolean = cont != 0
 
@@ -321,7 +321,7 @@ class HailContext private(val sc: SparkContext,
     missing: String,
     noHeader: Boolean,
     impute: Boolean,
-    quote: java.lang.Character): KeyTable = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
+    quote: java.lang.Character): KeyTable = importTables(inputs.asScala, keyNames.asScala.toArray, Option(nPartitions),
     types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute, quote)
 
   def importTable(input: String,
@@ -396,36 +396,38 @@ class HailContext private(val sc: SparkContext,
   def readTable(path: String): KeyTable =
     KeyTable.read(this, path)
 
-  def readPartitions[T: ClassTag, S <: Closeable](
+  def readPartitions[T: ClassTag](
     path: String,
     nPartitions: Int,
-    makeStream: (InputStream) => S,
-    read: Int => S => Iterator[T],
-    _partitioner: Option[Partitioner] = None): RDD[T] = {
+    read: (Int, InputStream) => Iterator[T],
+    optPartitioner: Option[Partitioner] = None): RDD[T] = {
     
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
     val d = digitsNeeded(nPartitions)
 
     new RDD[T](sc, Nil) {
-      def getPartitions: Array[Partition] = Array.tabulate(nPartitions)(i => ReadRDDPartition(i))
-      
+      def getPartitions: Array[Partition] =
+        Array.tabulate(nPartitions)(i =>
+          new Partition { def index: Int = i } )
+
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
         val i = split.index
         val is = i.toString
         assert(is.length <= d)
         val pis = StringUtils.leftPad(is, d, "0")
-        
+
         val filename = path + "/parts/part-" + pis
-        
-        sHadoopConfBc.value.value.unsafeReadPartition(filename)(makeStream, read(i))
+        val in = sHadoopConfBc.value.value.unsafeReader(filename)
+
+        read(i, in)
       }
-      
-      @transient override val partitioner: Option[Partitioner] = _partitioner
+
+      @transient override val partitioner: Option[Partitioner] = optPartitioner
     }
   }
   
   def readRows(path: String, t: TStruct, nPartitions: Int): RDD[RegionValue] =
-    readPartitions(path, nPartitions, is => is, HailContext.readRow(t))
+    readPartitions(path, nPartitions, HailContext.readRowsPartition(t))
   
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
