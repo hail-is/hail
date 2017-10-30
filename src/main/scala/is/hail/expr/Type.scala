@@ -854,7 +854,7 @@ final case class TArray(elementType: Type, elementsRequired: Boolean = false) ex
       TArray(elementType.fundamentalType, elementsRequired)
   }
 
-  override def toString = s"Array[$elementType]"
+  override def toString = s"Array[$elementType${ if (elementsRequired) "!" else "" }]"
 
   override def canCompare(other: Type): Boolean = other match {
     case TArray(otherType, _) => elementType.canCompare(otherType)
@@ -873,6 +873,8 @@ final case class TArray(elementType: Type, elementsRequired: Boolean = false) ex
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Array[")
     elementType.pretty(sb, indent, printAttrs, compact)
+    if (elementsRequired)
+      sb.append("!")
     sb.append("]")
   }
 
@@ -919,7 +921,7 @@ final case class TSet(elementType: Type, elementsRequired: Boolean = false) exte
 
   override val fundamentalType: TArray = TArray(elementType.fundamentalType, elementsRequired)
 
-  override def toString = s"Set[$elementType]"
+  override def toString = s"Set[$elementType${ if (elementsRequired) "!" else "" }]"
 
   override def canCompare(other: Type): Boolean = other match {
     case TSet(otherType, _) => elementType.canCompare(otherType)
@@ -939,6 +941,8 @@ final case class TSet(elementType: Type, elementsRequired: Boolean = false) exte
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Set[")
     elementType.pretty(sb, indent, printAttrs, compact)
+    if (elementsRequired)
+      sb.append("!")
     sb.append("]")
   }
 
@@ -1009,7 +1013,7 @@ final case class TDict(keyType: Type, valueType: Type, elementsRequired: Boolean
 
   override def subst() = TDict(keyType.subst(), valueType.subst())
 
-  override def toString = s"Dict[$keyType, $valueType]"
+  override def toString = s"Dict[$keyType, $valueType${ if (elementsRequired) "!" else "" }]"
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Dict[")
@@ -1019,6 +1023,8 @@ final case class TDict(keyType: Type, valueType: Type, elementsRequired: Boolean
     else
       sb.append(", ")
     valueType.pretty(sb, indent, printAttrs, compact)
+    if (elementsRequired)
+      sb.append("!")
     sb.append("]")
   }
 
