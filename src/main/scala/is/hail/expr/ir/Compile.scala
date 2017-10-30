@@ -120,7 +120,7 @@ object Compile {
           (mvalue || mbody,
             mvalue.mux(
               dummyValue(typ),
-              Code(mx := const(false), x := vvalue, vbody)))
+              Code(mx := const(false), x := vvalue.asInstanceOf[Code[t]], vbody)))
         }
 
       case expr.ir.If(cond, cnsq, altr, typ) =>
