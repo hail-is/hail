@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr
 import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean}
 import is.hail.annotations.StagedRegionValueBuilder
+import scala.collection.generic.Growable
 
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
@@ -57,25 +58,22 @@ object Compile {
 
   class MissingBits(fb: FunctionBuilder[_]) {
     private var used = 0
-    private var bits: LocalRef[Int] = null
+    private var bits: LocalRef[Long] = null
 
-    def newBit(x: Code[Boolean]): Code[Boolean] = {
+    def newBit(): MissingBit = {
       if (used >= 64 || bits == null) {
-        bits = fb.newLocal[Int]
-        fb.emit(bits.store(0))
+        bits = fb.newLocal[Long]
+        fb.emit(bits.store(0L))
         used = 0
       }
 
-      fb.emit(bits.store(bits | (x.asInstanceOf[Code[Int]] << used)))
-
-      val read = bits & (1 << used)
       used += 1
-      read.asInstanceOf[Code[Boolean]]
+      new MissingBit(bits, used - 1)
     }
   }
 
   class MissingBit(bits: LocalRef[Long], i: Int) extends Code[Boolean] {
-    assert(bit < 64)
+    assert(i < 64)
 
     def :=(b: Code[Boolean]): Code[_] = {
       bits := bits & ~(1L << i) | (b.toL << i)
@@ -86,14 +84,14 @@ object Compile {
     }
   }
 
-  def apply(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], LocalRef[Boolean], LocalRef[_])]) {
+  def apply(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], MissingBit, LocalRef[_])]) {
     fb.emit(expression(ir, fb, env, new MissingBits(fb))._2)
   }
 
   def expression(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], MissingBit, LocalRef[_])], mb: MissingBits): (Code[Boolean], Code[_]) = {
     val region = fb.getArg[MemoryBuffer](1).load()
     def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: Map[String, (TypeInfo[_], MissingBit, LocalRef[_])] = env, mb: MissingBits = mb): (Code[Boolean], Code[_]) =
-      Compile.expression(ir, fb, env)
+      Compile.expression(ir, fb, env, mb)
     ir match {
       case I32(x) =>
         (const(false), const(x))
@@ -117,7 +115,7 @@ object Compile {
           val mx = mb.newBit()
           val (mvalue, vvalue) = expression(value)
           val (mbody, vbody) =
-            expression(body, env = env + ((typetoTypeInfo(value.typ), mx, x)))
+            expression(body, env = env + (name -> (typeToTypeInfo(value.typ), mx, x)))
 
           (mvalue || mbody,
             mvalue.mux(
