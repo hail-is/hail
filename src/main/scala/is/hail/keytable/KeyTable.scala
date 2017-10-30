@@ -807,10 +807,10 @@ class KeyTable(val hc: HailContext,
     val maybeTieBreaker = tieBreakerExpr.map { e =>
       val tieBreakerThunk = Parser.parseTypedExpr[Int](e, tieBreakerEc)
 
-    { (l: Any, r: Any) =>
-      tieBreakerEc.setAll(l, r)
-      tieBreakerThunk()
-    }
+      (l: Any, r: Any) => {
+        tieBreakerEc.setAll(l, r)
+        tieBreakerThunk()
+      }
     }.getOrElse(null)
 
     val edgeRdd = mapAnnotations { r =>
