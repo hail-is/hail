@@ -8,6 +8,7 @@ import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.utils._
+import is.hail.variant.GenomeReference
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
@@ -103,12 +104,14 @@ object KeyTable {
       }, signature, keyNames.asScala.toArray)
   }
 
-  def importIntervalList(hc: HailContext, filename: String): KeyTable = {
-    IntervalList.read(hc, filename)
+  def importIntervalList(hc: HailContext, filename: String,
+    gr: GenomeReference = GenomeReference.defaultReference): KeyTable = {
+    IntervalList.read(hc, filename, gr)
   }
 
-  def importBED(hc: HailContext, filename: String): KeyTable = {
-    BedAnnotator.apply(hc, filename)
+  def importBED(hc: HailContext, filename: String,
+    gr: GenomeReference = GenomeReference.defaultReference): KeyTable = {
+    BedAnnotator.apply(hc, filename, gr)
   }
 
   def importFam(hc: HailContext, path: String, isQuantitative: Boolean = false,

@@ -72,6 +72,11 @@ object CalculateConcordance {
     if (overlap.isEmpty)
       fatal("No overlapping samples between datasets")
 
+    if (left.vSignature != right.vSignature)
+      fatal(s"""Cannot compute concordance for datasets with different reference genomes:
+              |  left: ${left.vSignature.toPrettyString(compact = true)}
+              |  right: ${right.vSignature.toPrettyString(compact = true)}""")
+
     info(
       s"""Found ${ overlap.size } overlapping samples
          |  Left: ${ left.nSamples } total samples
@@ -87,7 +92,7 @@ object CalculateConcordance {
     )
 
     val variantSchema = TStruct(
-      "v" -> TVariant(GenomeReference.GRCh37),
+      "v" -> left.vSignature,
       "nDiscordant" -> TInt64(),
       "concordance" -> ConcordanceCombiner.schema
     )

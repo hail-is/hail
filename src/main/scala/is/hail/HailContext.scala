@@ -224,14 +224,16 @@ class HailContext private(val sc: SparkContext,
   def importBgen(file: String,
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None): GenericDataset = {
-    importBgens(List(file), sampleFile, tolerance, nPartitions)
+    nPartitions: Option[Int] = None,
+    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    importBgens(List(file), sampleFile, tolerance, nPartitions, gr)
   }
 
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None): GenericDataset = {
+    nPartitions: Option[Int] = None,
+    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -248,22 +250,24 @@ class HailContext private(val sc: SparkContext,
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
 
-    BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions)
+    BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions, gr)
   }
 
   def importGen(file: String,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): GenericDataset = {
-    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance)
+    tolerance: Double = 0.2,
+    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, gr)
   }
 
   def importGens(files: Seq[String],
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): GenericDataset = {
+    tolerance: Double = 0.2,
+    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
     val inputs = hadoopConf.globAll(files)
 
     inputs.foreach { input =>
@@ -301,7 +305,7 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString(), "varid" -> TString())
 
-    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant(GenomeReference.GRCh37).orderedKey, classTag[(Annotation, Iterable[Annotation])])
+    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
 
     new GenericDataset(this,
       VSMFileMetadata(samples,
@@ -333,8 +337,9 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
-    quote: java.lang.Character = null): KeyTable = {
-    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute, quote)
+    quote: java.lang.Character = null,
+    gr: GenomeReference = GenomeReference.defaultReference): KeyTable = {
+    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute, quote, gr)
   }
 
   def importTables(inputs: Seq[String],
@@ -346,7 +351,8 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
-    quote: java.lang.Character = null): KeyTable = {
+    quote: java.lang.Character = null,
+    gr: GenomeReference = GenomeReference.defaultReference): KeyTable = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
     val files = hadoopConf.globAll(inputs)
@@ -355,7 +361,7 @@ class HailContext private(val sc: SparkContext,
 
     val (struct, rdd) =
       TextTableReader.read(sc)(files, types, commentChar, separator, missing,
-        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote)
+        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote, gr)
 
     KeyTable(this, rdd.map(_.value), struct, keyNames)
   }
@@ -365,12 +371,13 @@ class HailContext private(val sc: SparkContext,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
     quantPheno: Boolean = false,
-    a2Reference: Boolean = true): GenericDataset = {
+    a2Reference: Boolean = true,
+    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
     PlinkLoader(this, bed, bim, fam,
-      ffConfig, nPartitions, a2Reference)
+      ffConfig, nPartitions, a2Reference, gr)
   }
 
   def importPlinkBFile(bfileRoot: String,
@@ -378,9 +385,10 @@ class HailContext private(val sc: SparkContext,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
     quantPheno: Boolean = false,
-    a2Reference: Boolean = true): GenericDataset = {
+    a2Reference: Boolean = true,
+    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno, a2Reference)
+      nPartitions, delimiter, missing, quantPheno, a2Reference, gr)
   }
 
   def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] = {
@@ -433,16 +441,18 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false): VariantDataset = {
-    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples)
+    dropSamples: Boolean = false,
+    gr: GenomeReference = GenomeReference.defaultReference): VariantDataset = {
+    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, gr)
   }
 
   def importVCFs(files: Seq[String], force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false): VariantDataset = {
-    val m = importVCFsGeneric(files, force, forceBGZ, headerFile, nPartitions, dropSamples)
+    dropSamples: Boolean = false,
+    gr: GenomeReference = GenomeReference.defaultReference): VariantDataset = {
+    val m = importVCFsGeneric(files, force, forceBGZ, headerFile, nPartitions, dropSamples, gr = gr)
     val extractG = Genotype.buildGenotypeExtractor(m.genotypeSignature)
     m.copy(
       rdd = m.rdd.mapValuesWithKey { case (v, (va, gs)) =>
@@ -464,8 +474,9 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String]): VariantSampleMatrix[Locus, Variant, Annotation] = {
-    importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields)
+    callFields: Set[String] = Set.empty[String],
+    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix[Locus, Variant, Annotation] = {
+    importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, gr)
   }
 
   def importVCFsGeneric(files: Seq[String], force: Boolean = false,
@@ -473,7 +484,8 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String]): VariantSampleMatrix[Locus, Variant, Annotation] = {
+    callFields: Set[String] = Set.empty[String],
+    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix[Locus, Variant, Annotation] = {
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
@@ -486,7 +498,7 @@ class HailContext private(val sc: SparkContext,
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
     val reader = new HtsjdkRecordReader(callFields)
-    val vkds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
+    val vkds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples, gr)
 
     hadoopConf.set("io.compression.codecs", codecs)
 
@@ -529,8 +541,9 @@ class HailContext private(val sc: SparkContext,
     popDist: Option[Array[Double]] = None,
     fst: Option[Array[Double]] = None,
     afDist: Distribution = UniformDist(0.1, 0.9),
-    seed: Int = 0): VariantDataset =
-    BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist)
+    seed: Int = 0,
+    gr: GenomeReference = GenomeReference.defaultReference): VariantDataset =
+    BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist, gr)
 
   def genDataset(): VariantDataset = VSMSubgen.realistic.gen(this).sample()
 

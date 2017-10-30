@@ -123,15 +123,14 @@ object PlinkLoader {
     sampleAnnotationSignature: Type,
     variants: Array[(Variant, String)],
     nPartitions: Option[Int] = None,
-    a2Reference: Boolean = true): GenericDataset = {
+    a2Reference: Boolean = true,
+    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
 
     val sc = hc.sc
     val nSamples = sampleIds.length
     val variantsBc = sc.broadcast(variants)
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
     sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
-
-    val gr = GenomeReference.GRCh37
 
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))
@@ -157,7 +156,7 @@ object PlinkLoader {
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-    nPartitions: Option[Int] = None, a2Reference: Boolean = true): GenericDataset = {
+    nPartitions: Option[Int] = None, a2Reference: Boolean = true, gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
     val nSamples = sampleInfo.length
     if (nSamples <= 0)
@@ -200,7 +199,7 @@ object PlinkLoader {
            |  Duplicate IDs: @1""".stripMargin, duplicateIds)
     }
 
-    val vds = parseBed(hc, bedPath, ids, annotations, signature, variants, nPartitions, a2Reference)
+    val vds = parseBed(hc, bedPath, ids, annotations, signature, variants, nPartitions, a2Reference, gr)
     vds
   }
 

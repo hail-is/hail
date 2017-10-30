@@ -2,7 +2,6 @@ package is.hail.variant
 
 import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.hail.utils._
 
 object VSMLocalValue {
   def apply(sampleIds: IndexedSeq[Annotation]): VSMLocalValue =
@@ -30,7 +29,7 @@ object VSMFileMetadata {
     globalAnnotation: Annotation = Annotation.empty,
     sSignature: Type = TString(),
     saSignature: Type = TStruct.empty(),
-    vSignature: Type = TVariant(GenomeReference.GRCh37),
+    vSignature: Type = TVariant(GenomeReference.defaultReference),
     vaSignature: Type = TStruct.empty(),
     globalSignature: Type = TStruct.empty(),
     genotypeSignature: Type = TGenotype(),
@@ -52,7 +51,7 @@ case class VSMFileMetadata(
 case class VSMMetadata(
   sSignature: Type = TString(),
   saSignature: Type = TStruct.empty(),
-  vSignature: Type = TVariant(GenomeReference.GRCh37),
+  vSignature: Type = TVariant(GenomeReference.defaultReference),
   vaSignature: Type = TStruct.empty(),
   globalSignature: Type = TStruct.empty(),
   genotypeSignature: Type = TGenotype(),

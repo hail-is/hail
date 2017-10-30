@@ -21,7 +21,7 @@ case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: I
 object BgenLoader {
 
   def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
-    tolerance: Double, nPartitions: Option[Int] = None): GenericDataset = {
+    tolerance: Double, nPartitions: Option[Int] = None, gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
     require(files.nonEmpty)
     val sampleIds = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
       .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))
@@ -68,8 +68,6 @@ object BgenLoader {
     val signature = TStruct("rsid" -> TString(), "varid" -> TString())
 
     val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey: Annotation)))
-
-    val gr = GenomeReference.GRCh37
     
     val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
       (decoder.getKey: Annotation, (decoder.getAnnotation, decoder.getValue))

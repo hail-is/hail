@@ -175,6 +175,7 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 object GenomeReference {
   val GRCh37: GenomeReference = fromResource("reference/grch37.json")
   val GRCh38: GenomeReference = fromResource("reference/grch38.json")
+  var defaultReference = GRCh37
   var references: Map[String, GenomeReference] = Map("GRCh37" -> GRCh37, "GRCh38" -> GRCh38)
 
   def addReference(gr: GenomeReference) {
@@ -188,6 +189,10 @@ object GenomeReference {
       case Some(gr) => gr
       case None => fatal(s"No genome reference with name `$name' exists. Available references: `${ references.keys.mkString(", ") }'.")
     }
+  }
+
+  def setDefaultReference(gr: GenomeReference) {
+    defaultReference = gr
   }
 
   def fromJSON(json: JValue): GenomeReference = json.extract[JSONExtractGenomeReference].toGenomeReference
