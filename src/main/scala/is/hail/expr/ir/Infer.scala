@@ -99,6 +99,7 @@ object Infer {
         stmts.foreach(infer(_))
         x.typ = if (stmts.isEmpty) TVoid else stmts.last.typ
       case In(i, typ) =>
+        assert(typ != null)
       case Out(v) =>
         infer(v)
     } }
