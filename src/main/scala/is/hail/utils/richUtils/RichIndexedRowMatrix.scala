@@ -92,24 +92,29 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
 
 private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double])])
     extends RDD[((Int, Int), BDM[Double])](blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(blocks))) {
-  assert(!blocks.partitioner.isEmpty)
-  assert(blocks.partitioner.get.isInstanceOf[GridPartitioner])
-
-  val gp = blocks.partitioner.get.asInstanceOf[GridPartitioner]
+  @transient val gp = (blocks.partitioner: @unchecked) match {
+    case Some(p: GridPartitioner) => p
+  }
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
+    val p = split.asInstanceOf[BlockPartition]
     val it = blocks.iterator(split, context)
     if (it.hasNext)
       it
     else
-      Iterator.single(gp.blockCoordinates(split.index) -> BDM.zeros[Double](gp.blockSize, gp.blockSize))
+      Iterator.single(p.coords -> BDM.zeros[Double](p.blockSize, p.blockSize))
   }
 
   protected def getPartitions: Array[Partition] =
-    blocks.partitions
+    blocks.partitions.map { p =>
+      new BlockPartition(p.index, gp.blockSize, gp.blockCoordinates(p.index))
+    }.toArray
 
   @transient override val partitioner: Option[Partitioner] =
     Some(gp)
 }
+
+private class BlockPartition(val index: Int, val blockSize: Int, val coords: (Int, Int)) extends Partition {}
+
 
 
