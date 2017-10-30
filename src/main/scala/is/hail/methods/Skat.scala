@@ -196,7 +196,7 @@ object Skat {
       ("pval", TFloat64),
       ("fault", TInt32))
 
-    new KeyTable(vsm.hc, skatRdd, skatSignature, Array("key"))
+    KeyTable(vsm.hc, skatRdd, skatSignature, Array("key"))
   }
 
   def computeKeyGsWeightRdd[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],

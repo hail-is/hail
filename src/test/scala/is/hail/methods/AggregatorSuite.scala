@@ -164,12 +164,12 @@ class AggregatorSuite extends SparkSuite {
     val signature = TStruct((("group" -> TString) +: (0 until 8).map(i => s"s$i" -> TInt32))
       ++ IndexedSeq("s8" -> TInt64, "s9" -> TFloat32, "s10" -> TFloat64): _*)
 
-    val ktMax = new KeyTable(hc, rdd, signature)
+    val ktMax = KeyTable(hc, rdd, signature)
       .aggregate("group = group", (0 until 11).map(i => s"s$i = s$i.max()").mkString(","))
 
     assert(ktMax.collect() == IndexedSeq(Row("a", 1, -1, 2, -1, -1, 1, 1, null, 1l, 1f, 1d)))
 
-    val ktMin = new KeyTable(hc, rdd, signature)
+    val ktMin = KeyTable(hc, rdd, signature)
       .aggregate("group = group", (0 until 11).map(i => s"s$i = s$i.min()").mkString(","))
 
     assert(ktMin.collect() == IndexedSeq(Row("a", -1, -2, 1, -2, -1, 1, 1, null, -1l, -1f, -1d)))
@@ -184,7 +184,7 @@ class AggregatorSuite extends SparkSuite {
     val signature = TStruct((("group" -> TString) +: (0 until 8).map(i => s"s$i" -> TInt32))
       ++ IndexedSeq("s8" -> TInt64, "s9" -> TFloat32, "s10" -> TFloat64): _*)
 
-    val ktProduct = new KeyTable(hc, rdd, signature)
+    val ktProduct = KeyTable(hc, rdd, signature)
       .aggregate("group = group", ((0 until 11).map(i => s"s$i = s$i.product()") :+ ("empty = s10.filter(x => false).product()")).mkString(","))
 
     assert(ktProduct.collect() == IndexedSeq(Row("a", 0l, 2l, 2l, 6l, -1l, -3l, 80l, 1l, 0l, -4d, 0d, 1d)))

@@ -20,6 +20,9 @@ object MemoryBuffer {
 final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) extends KryoSerializable with Serializable {
   def size: Long = offset
 
+  // TODO rename offset => end, length => capacity
+  def end: Long = offset
+
   def copyFrom(other: MemoryBuffer, readStart: Long, writeStart: Long, n: Long) {
     assert(size <= length)
     assert(other.size <= other.length)
@@ -212,6 +215,11 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
   def appendBytes(bytes: Array[Byte], bytesOff: Long, n: Int) {
     assert(bytesOff + n <= bytes.length)
     storeBytes(allocate(n), bytes, bytesOff, n)
+  }
+
+  def clear(newEnd: Long) {
+    assert(newEnd <= end)
+    offset = newEnd
   }
 
   def clear() {
