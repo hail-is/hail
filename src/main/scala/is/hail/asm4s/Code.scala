@@ -384,7 +384,7 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def &(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LAND))
 
-  def |(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(IOR))
+  def |(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LOR))
 
   def ^(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LXOR))
 
