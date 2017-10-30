@@ -259,7 +259,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
 
   def writeFile[T](filename: String)(f: (OutputStream) => T): T =
     using(create(filename))(f)
-      
+
   def readLines[T](filename: String)(reader: (Iterator[WithContext[String]] => T)): T = {
     readFile[T](filename) {
       is =>

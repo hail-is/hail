@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.check.Arbitrary._
 import is.hail.expr._
-import is.hail.io.{Encoder, _}
+import is.hail.io._
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, Variant}
 import org.apache.spark.SparkEnv
