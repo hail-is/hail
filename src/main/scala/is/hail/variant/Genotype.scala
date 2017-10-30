@@ -757,7 +757,7 @@ object Genotype {
       gtIndex(i, j)
   }
 
-  def genExtreme(v: Variant): Gen[Genotype] = {
+  def genExtremeNonmissing(v: Variant): Gen[Genotype] = {
     val nAlleles = v.nAlleles
     val m = Int.MaxValue / (nAlleles + 1)
     val nGenotypes = triangle(nAlleles)
@@ -783,12 +783,15 @@ object Genotype {
       g.check(nAlleles)
       g
     }
+    gg
+  }
+  def genExtreme(v: Variant): Gen[Genotype] = {
     Gen.frequency(
-      (100, gg),
+      (100, genExtremeNonmissing(v)),
       (1, Gen.const(null)))
   }
 
-  def genRealistic(v: Variant): Gen[Genotype] = {
+  def genRealisticNonmissing(v: Variant): Gen[Genotype] = {
     val nAlleles = v.nAlleles
     val nGenotypes = triangle(nAlleles)
     val gg = for (callRate <- Gen.choose(0d, 1d);
@@ -815,9 +818,11 @@ object Genotype {
       gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
     ) yield
       Genotype(gt, ad, dp, gq, pl)
-
+    gg
+  }
+  def genRealistic(v: Variant): Gen[Genotype] = {
     Gen.frequency(
-      (100, gg),
+      (100, genRealisticNonmissing(v)),
       (1, Gen.const(null)))
   }
 
@@ -840,6 +845,11 @@ object Genotype {
     for (v <- Variant.gen;
       g <- Gen.oneOfGen(genExtreme(v), genRealistic(v)))
       yield (v, g)
+
+  def genNonmissingValue: Gen[Genotype] =
+    for (v <- Variant.gen;
+      g <- Gen.oneOfGen(genExtremeNonmissing(v), genRealisticNonmissing(v)))
+      yield g
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;

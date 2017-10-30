@@ -33,9 +33,9 @@ object Type {
         genScalar,
         genScalar,
         genScalar,
-        genArb.resize(size - 1).map(TArray.apply(_, elementsRequired = false)),
-        genArb.resize(size - 1).map(TSet.apply(_, elementsRequired = false)),
-        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v, elementsRequired = false) },
+        genArb.resize(size - 1).map(TArray.apply(_, elementsRequired = Gen.coin(.99).sample())),
+        genArb.resize(size - 1).map(TSet.apply(_, elementsRequired = Gen.coin(.99).sample())),
+        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v, elementsRequired = Gen.coin(.99).sample()) },
         genStruct.resize(size))
   }
 
@@ -828,7 +828,7 @@ abstract class TContainer extends Type {
 
   def typeCheckElement(a: Any): Boolean = {
     if (elementsRequired)
-      assert(a != null)
+      assert(a != null, s"element of type $elementType is null")
     elementType.typeCheck(a)
   }
 
@@ -1077,7 +1077,7 @@ case object TGenotype extends ComplexType {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
-  override def genNonmissingValue: Gen[Annotation] = Genotype.genArb
+  override def genNonmissingValue: Gen[Annotation] = Genotype.genNonmissingValue
 
   override def desc: String = "A ``Genotype`` is a Hail data type representing a genotype in the Variant Dataset. It is referred to as ``g`` in the expression language."
 
@@ -1895,7 +1895,17 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
       Gen.const(Annotation.empty)
     } else
       Gen.size.flatMap(fuel =>
-          if (size > fuel) Gen.const(null)
+          if (size > fuel) Gen.uniformSequence(fields.map(f => Gen.const(null))).map(a => Annotation(a: _*))
+        else
+          Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
+  }
+
+  def genArb: Gen[Annotation] = {
+    if (size == 0) {
+      Gen.const(Annotation.empty)
+    } else
+      Gen.size.flatMap(fuel =>
+        if (size > fuel) Gen.const(null)
         else
           Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
