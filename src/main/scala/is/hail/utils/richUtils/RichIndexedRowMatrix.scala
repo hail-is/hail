@@ -115,6 +115,3 @@ private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double
 }
 
 private class BlockPartition(val index: Int, val blockSize: Int, val coords: (Int, Int)) extends Partition {}
-
-
-
