@@ -530,7 +530,7 @@ object Parser extends JavaTokenParsers {
       .toArray
   }
 
-  def elements_required: Parser[Boolean] = "" ^^ { _ => false } | "!" ^^ { _ => true }
+  def elements_required: Parser[Boolean] = "!" ^^ { _ => true } | "" ^^ { _ => false }
 
   def type_expr: Parser[Type] =
     "Empty" ^^ { _ => TStruct.empty } |
