@@ -334,6 +334,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def &(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IAND))
 
+  def |(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IOR))
+
   def ^(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IXOR))
 
   def unary_~(): Code[Int] = lhs ^ const(-1)
@@ -381,6 +383,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def >>>(rhs: Code[Int]): Code[Long] = Code(lhs, rhs, new InsnNode(LUSHR))
 
   def &(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LAND))
+
+  def |(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(IOR))
 
   def ^(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LXOR))
 
