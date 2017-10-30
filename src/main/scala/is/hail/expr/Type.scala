@@ -823,6 +823,15 @@ abstract class TContainer extends Type {
       }
     }
   }
+
+  def genElement: Gen[Annotation] = if (elementsRequired) elementType.genNonmissingValue else elementType.genValue
+
+  def typeCheckElement(a: Any): Boolean = {
+    if (elementsRequired)
+      assert(a != null)
+    elementType.typeCheck(a)
+  }
+
 }
 
 abstract class TIterable extends TContainer {
@@ -868,16 +877,12 @@ final case class TArray(elementType: Type, elementsRequired: Boolean = false) ex
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
-    a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck) &&
-    (!elementsRequired || a.asInstanceOf[IndexedSeq[_]].forall(i => {assert(i != null); true})))
+    a.asInstanceOf[IndexedSeq[_]].forall(typeCheckElement))
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =
-    if (elementsRequired)
-      Gen.buildableOf[Array, Annotation](elementType.genNonmissingValue).map(x => x: IndexedSeq[Annotation])
-    else
-      Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
+    Gen.buildableOf[Array, Annotation](genElement).map(x => x: IndexedSeq[Annotation])
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(extendOrderingToNull(missingGreatest)(
@@ -929,8 +934,7 @@ final case class TSet(elementType: Type, elementsRequired: Boolean = false) exte
   override def subst() = TSet(elementType.subst())
 
   def typeCheck(a: Any): Boolean =
-    a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck)) &&
-      (!elementsRequired || a.asInstanceOf[Set[_]].forall(i => {assert(i != null); true}))
+    a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(typeCheckElement))
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Set[")
@@ -956,10 +960,7 @@ final case class TSet(elementType: Type, elementsRequired: Boolean = false) exte
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =
-    if (elementsRequired)
-      Gen.buildableOf[Set, Annotation](elementType.genNonmissingValue)
-    else
-      Gen.buildableOf[Set, Annotation](elementType.genValue)
+    Gen.buildableOf[Set, Annotation](genElement)
 
   override def desc: String =
     """
@@ -1102,7 +1103,7 @@ case object TCall extends ComplexType {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
-  override def genNonmissingValue: Gen[Annotation] = Call.genArb
+  override def genNonmissingValue: Gen[Annotation] = Call.genNonmissingValue
 
   override def desc: String = "A ``Call`` is a Hail data type representing a genotype call (ex: 0/0) in the Variant Dataset."
 

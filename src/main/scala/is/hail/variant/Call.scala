@@ -29,23 +29,25 @@ object Call extends Serializable {
   }
 
   def genArb: Gen[Call] =
-    for (v <- Variant.gen;
-      nAlleles = v.nAlleles;
-      nGenotypes = triangle(nAlleles);
-      callOption <- Gen.option(Gen.choose(0, nGenotypes - 1));
+    for {
+      v <- Variant.gen
+      nAlleles = v.nAlleles
+      nGenotypes = triangle(nAlleles)
+      callOption <- Gen.option(Gen.choose(0, nGenotypes - 1))
       call = callOption.map(_.asInstanceOf[java.lang.Integer]).orNull
-    ) yield {
+    } yield {
       check(call, nAlleles)
       call
     }
 
   def genNonmissingValue: Gen[Call] =
-    for (v <- Variant.gen;
-      nAlleles = v.nAlleles;
-      nGenotypes = triangle(nAlleles);
-      c <- Gen.choose(0, nGenotypes - 1);
+    for {
+      v <- Variant.gen
+      nAlleles = v.nAlleles
+      nGenotypes = triangle(nAlleles)
+      c <- Gen.choose(0, nGenotypes - 1)
       call = c.asInstanceOf[java.lang.Integer]
-    ) yield {
+    } yield {
       check(call, nAlleles)
       call
     }

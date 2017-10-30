@@ -827,18 +827,20 @@ class TAggregable(Type):
     :vartype element_type: :class:`.Type`
     """
 
-    def __init__(self, element_type):
+    def __init__(self, element_type, elements_required = False):
         """
         :param :class:`.Type` element_type: Hail type of array element
         """
-        jtype = scala_object(Env.hail().expr, 'TAggregable').apply(element_type._jtype)
+        jtype = scala_object(Env.hail().expr, 'TAggregable').apply(element_type._jtype, elements_required)
         self.element_type = element_type
+        self.elements_required = elements_required
         super(TAggregable, self).__init__(jtype)
 
     @classmethod
     def _from_java(cls, jtype):
         t = TAggregable.__new__(cls)
         t.element_type = Type._from_java(jtype.elementType())
+        t.elements_required = jtype.elementsRequired
         t._jtype = jtype
         return t
 
