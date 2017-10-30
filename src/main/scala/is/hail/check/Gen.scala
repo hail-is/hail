@@ -28,6 +28,11 @@ case class Parameters(rng: RandomDataGenerator, size: Int, count: Int) {
 
 object Gen {
 
+  val nonExtremeDouble: Gen[Double] = oneOfGen(
+    oneOf(1e30, -1.0, -1e-30, 0.0, 1e-30, 1.0, 1e30),
+    choose(-100.0, 100.0),
+    choose(-1e150, 1e150))
+
   def squareOfAreaAtMostSize: Gen[(Int, Int)] =
     nCubeOfVolumeAtMostSize(2).map(x => (x(0), x(1)))
 
