@@ -73,6 +73,8 @@ class SplitMultiPartitionContext(
     if (splitVariants.isEmpty)
       return Iterator()
 
+    val wasSplit = !v.isBiallelic
+
     if (isLeftAligned) {
       if (removeLeftAligned)
         return Iterator()
@@ -84,26 +86,6 @@ class SplitMultiPartitionContext(
     }
 
     val va = ur.get(2)
-
-    if (v.isBiallelic) {
-      val (minrep, _) = splitVariants(0)
-      assert(v.minRep == minrep)
-
-      rvb.set(rv.region)
-      rvb.start(newRowType)
-      rvb.startStruct()
-      rvb.addAnnotation(newRowType.fieldType(0), minrep.locus) // pk
-      rvb.addAnnotation(newRowType.fieldType(1), minrep) // pk
-
-      vAnnotator.ec.setAll(globalAnnotation, v, va, 1, false)
-      rvb.addAnnotation(newRowType.fieldType(2), vAnnotator.insert(va))
-
-      rvb.addField(rowType, rv, 3) // gs
-      rvb.endStruct()
-      splitrv.set(rv.region, rvb.end())
-
-      return Iterator(splitrv)
-    }
 
     if (sortAlleles)
       splitVariants = splitVariants.sortBy { case (svj, i) => svj }
@@ -122,11 +104,11 @@ class SplitMultiPartitionContext(
         rvb.addAnnotation(newRowType.fieldType(0), svj.locus)
         rvb.addAnnotation(newRowType.fieldType(1), svj)
 
-        vAnnotator.ec.setAll(globalAnnotation, svj, va, i, true)
+        vAnnotator.ec.setAll(globalAnnotation, svj, va, i, wasSplit)
         rvb.addAnnotation(newRowType.fieldType(2), vAnnotator.insert(va))
 
         rvb.startArray(nSamples) // gs
-        gAnnotator.ec.setAll(globalAnnotation, svj, va, i, true)
+        gAnnotator.ec.setAll(globalAnnotation, svj, va, i, wasSplit)
         var k = 0
         while (k < nSamples) {
           val g = gs(k)
