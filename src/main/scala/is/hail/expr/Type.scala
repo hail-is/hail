@@ -33,9 +33,9 @@ object Type {
         genScalar,
         genScalar,
         genScalar,
-        genArb.resize(size - 1).map(TArray.apply(_, elementsRequired = Gen.coin(.99).sample())),
-        genArb.resize(size - 1).map(TSet.apply(_, elementsRequired = Gen.coin(.99).sample())),
-        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v, elementsRequired = Gen.coin(.99).sample()) },
+        genArb.resize(size - 1).map(TArray.apply(_, elementsRequired = Gen.coin(.2).sample())),
+        genArb.resize(size - 1).map(TSet.apply(_, elementsRequired = Gen.coin(.2).sample())),
+        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v, elementsRequired = Gen.coin(.2).sample()) },
         genStruct.resize(size))
   }
 
