@@ -889,7 +889,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     sb.result()
   }
 
-  def maximalIndependentSet(iExpr: String, jExpr: String, tieBreakerExpr: Option[String] = None): Array[Any] = {
+  def maximalIndependentSet(iExpr: String, jExpr: String, tieBreakerExpr: Option[String] = None): (Array[Any], Type) = {
     val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
 
     val (iType, iThunk) = Parser.parseExpr(iExpr, ec)
@@ -916,7 +916,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     if (edgeRdd.count() > 400000)
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
-    Graph.maximalIndependentSet(edgeRdd.collect(), maybeTieBreaker)
+    (Graph.maximalIndependentSet(edgeRdd.collect(), maybeTieBreaker), iType)
   }
 
 }

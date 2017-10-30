@@ -544,6 +544,11 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(range(10), [x.index for x in KeyTable.range(10).collect()])
         self.assertTrue(KeyTable.range(200).indexed('foo').forall('index == foo'))
 
+        stuff = (KeyTable.range(10)
+              .annotate('foo = {i: index, other: "hi"}')
+              .maximal_independent_set('foo', '{ i: foo.i // 3, other: "hi"}'))
+        ids = [x.i for x in stuff]
+
     def test_representation(self):
         v = Variant.parse('1:100:A:T')
 
