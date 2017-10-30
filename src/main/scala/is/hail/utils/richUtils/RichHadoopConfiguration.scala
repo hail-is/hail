@@ -102,6 +102,22 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     getRandomName
   }
 
+  def globAllPartWithExt(paths: Iterable[String], expectedExt: Option[String] = None): Array[String] = {
+    globAll(paths).flatMap { file =>
+      expectedExt.foreach { ext =>
+        if (!file.endsWith(ext))
+          warn(s"Input file does not have $ext extension: $file")
+      }
+
+      if (isDir(file))
+        listStatus(file)
+          .map(_.getPath.toString)
+          .filter(p => ".*part-[0-9]+".r.matches(p))
+      else
+        Array(file)
+    }
+  }
+
   def globAll(filenames: Iterable[String]): Array[String] = {
     filenames.iterator
       .flatMap { arg =>

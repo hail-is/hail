@@ -11,7 +11,6 @@ import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 
-import scala.collection.mutable
 import scala.reflect.classTag
 
 case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
@@ -116,79 +115,17 @@ object PlinkLoader {
     (sampleIds.zip(structBuilder.result()), signature)
   }
 
-  private def parseBed(hc: HailContext,
-    bedPath: String,
-    sampleIds: IndexedSeq[String],
-    sampleAnnotations: IndexedSeq[Annotation],
-    sampleAnnotationSignature: Type,
-    variants: Array[(Variant, String)],
-    nPartitions: Option[Int] = None,
-    a2Reference: Boolean = true): GenericDataset = {
+  def apply(hc: HailContext, bedPaths: Array[String], bimPaths: Array[String], famPath: String,
+    ffConfig: FamFileConfig, nPartitions: Option[Int] = None, a2Reference: Boolean = true): GenericDataset = {
+    assert(bedPaths.length == bimPaths.length)
 
     val sc = hc.sc
-    val nSamples = sampleIds.length
-    val variantsBc = sc.broadcast(variants)
-    sc.hadoopConfiguration.setInt("nSamples", nSamples)
-    sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
 
-    val gr = GenomeReference.GRCh37
-
-    val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
-      nPartitions.getOrElse(sc.defaultMinPartitions))
-
-    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1: Annotation }
-    val variantRDD = rdd.map {
-      case (_, vr) =>
-        val (v, rsId) = variantsBc.value(vr.getKey)
-        (v: Annotation, (Annotation(rsId), vr.getValue: Iterable[Annotation]))
-    }.toOrderedRDD(fastKeys)(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
-
-    new GenericDataset(hc, VSMMetadata(
-      saSignature = sampleAnnotationSignature,
-      vaSignature = plinkSchema,
-      vSignature = TVariant(gr),
-      globalSignature = TStruct.empty,
-      genotypeSignature = TStruct("GT" -> TCall),
-      wasSplit = true),
-      VSMLocalValue(globalAnnotation = Annotation.empty,
-        sampleIds = sampleIds,
-        sampleAnnotations = sampleAnnotations),
-      variantRDD)
-  }
-
-  def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-    nPartitions: Option[Int] = None, a2Reference: Boolean = true): GenericDataset = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
     val nSamples = sampleInfo.length
     if (nSamples <= 0)
-      fatal(".fam file does not contain any samples")
-
-    val variants = parseBim(bimPath, hc.hadoopConf, a2Reference)
-    val nVariants = variants.length
-    if (nVariants <= 0)
-      fatal(".bim file does not contain any variants")
-
+      fatal(s".fam file does not contain any samples [$famPath]")
     info(s"Found $nSamples samples in fam file.")
-    info(s"Found $nVariants variants in bim file.")
-
-    hc.sc.hadoopConfiguration.readFile(bedPath) { dis =>
-      val b1 = dis.read()
-      val b2 = dis.read()
-      val b3 = dis.read()
-
-      if (b1 != 108 || b2 != 27)
-        fatal("First two bytes of bed file do not match PLINK magic numbers 108 & 27")
-
-      if (b3 == 0)
-        fatal("Bed file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
-    }
-
-    val bedSize = hc.sc.hadoopConfiguration.getFileSize(bedPath)
-    if (bedSize != expectedBedSize(nSamples, nVariants))
-      fatal("bed file size does not match expected number of bytes based on bed and fam files")
-
-    if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
-      fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
 
     val (ids, annotations) = sampleInfo.unzip
 
@@ -200,8 +137,59 @@ object PlinkLoader {
            |  Duplicate IDs: @1""".stripMargin, duplicateIds)
     }
 
-    val vds = parseBed(hc, bedPath, ids, annotations, signature, variants, nPartitions, a2Reference)
-    vds
-  }
+    val results = bedPaths.zip(bimPaths).map { case (bedPath, bimPath) =>
+      val variants = parseBim(bimPath, hc.hadoopConf, a2Reference)
+      val nVariants = variants.length
+      if (nVariants <= 0)
+        fatal(s".bim file does not contain any variants [$bimPath]")
 
+      info(s"Found $nVariants variants in BIM file [$bimPath].")
+
+      hc.hadoopConf.readFile(bedPath) { dis =>
+        val b1 = dis.read()
+        val b2 = dis.read()
+        val b3 = dis.read()
+
+        if (b1 != 108 || b2 != 27)
+          fatal(s"First two bytes of bed file do not match PLINK magic numbers 108 & 27 [$bedPath]")
+
+        if (b3 == 0)
+          fatal(s"BED file is in individual major mode. First use plink with --make-bed to convert file to SNP major mode before using Hail [$bedPath]")
+      }
+
+      val bedSize = hc.hadoopConf.getFileSize(bedPath)
+      if (bedSize != expectedBedSize(nSamples, nVariants))
+        fatal(s"BED file size does not match expected number of bytes based on BIM and FAM files [$bedPath]")
+
+      if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
+        fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize). [$bedPath]")
+
+      val variantsBc = sc.broadcast(variants)
+      sc.hadoopConfiguration.setInt("nSamples", nSamples)
+      sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
+
+      sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
+        nPartitions.getOrElse(sc.defaultMinPartitions))
+        .map { case (_, vr) =>
+          val (v, rsId) = variantsBc.value(vr.getKey)
+          (v: Annotation, (Annotation(rsId), vr.getValue: Iterable[Annotation]))
+      }
+    }
+
+    val gr = GenomeReference.GRCh37
+    val fastKeys = sc.union(results.map(_.map(_._1)))
+    val rdd = sc.union(results).toOrderedRDD(fastKeys)(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
+
+    new GenericDataset(hc, VSMMetadata(
+      saSignature = signature,
+      vaSignature = plinkSchema,
+      vSignature = TVariant(gr),
+      globalSignature = TStruct.empty,
+      genotypeSignature = TStruct("GT" -> TCall),
+      wasSplit = true),
+      VSMLocalValue(globalAnnotation = Annotation.empty,
+        sampleIds = ids,
+        sampleAnnotations = annotations),
+      rdd)
+  }
 }
