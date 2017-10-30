@@ -113,7 +113,17 @@ object Compile {
       case IsNA(v) =>
         (const(false), expression(v)._1)
       case MapNA(name, value, body, typ) =>
-        ???
+        fb.newLocal()(typeToTypeInfo(value.typ)) match { case x: LocalRef[t] =>
+          val mx = mb.newBit()
+          val (mvalue, vvalue) = expression(value)
+          val (mbody, vbody) =
+            expression(body, env = env + ((typetoTypeInfo(value.typ), mx, x)))
+
+          (mvalue || mbody,
+            mvalue.mux(
+              dummyValue(typ),
+              Code(mx := const(false), x := vvalue, vbody)))
+        }
 
       case expr.ir.If(cond, cnsq, altr, typ) =>
         val (mcnsq, vcnsq) = expression(cnsq)
