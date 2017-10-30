@@ -325,8 +325,9 @@ class HailContext private(val sc: SparkContext,
     missing: String,
     noHeader: Boolean,
     impute: Boolean,
-    quote: java.lang.Character): KeyTable = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
-    types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute, quote)
+    quote: java.lang.Character,
+    gr: GenomeReference): KeyTable = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
+    types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute, quote, gr)
 
   def importTable(input: String,
     keyNames: Array[String] = Array.empty[String],

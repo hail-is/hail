@@ -2,7 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
 from hail.typ import Type, TArray, TStruct
-from hail.representation import Struct
+from hail.representation import Struct, GenomeReference
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from pyspark.sql import DataFrame
@@ -1074,8 +1074,9 @@ class KeyTable(HistoryMixin):
     @classmethod
     @handle_py4j
     @record_classmethod
-    @typecheck_method(path=strlike)
-    def import_interval_list(cls, path):
+    @typecheck_method(path=strlike,
+                      reference_genome=nullable(GenomeReference))
+    def import_interval_list(cls, path, reference_genome=None):
         """Import an interval list file in the GATK standard format.
         
         >>> intervals = KeyTable.import_interval_list('data/capture_intervals.txt')
@@ -1116,18 +1117,24 @@ class KeyTable(HistoryMixin):
 
         
         :param str filename: Path to file.
+
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`
         
         :return: Interval-keyed table.
         :rtype: :class:`.KeyTable`
         """
-        jkt = Env.hail().keytable.KeyTable.importIntervalList(Env.hc()._jhc, path)
+
+        rg = reference_genome if reference_genome else Env.hc().default_reference
+        jkt = Env.hail().keytable.KeyTable.importIntervalList(Env.hc()._jhc, path, rg._jrep)
         return KeyTable(Env.hc(), jkt)
 
     @classmethod
     @handle_py4j
     @record_classmethod
-    @typecheck_method(path=strlike)
-    def import_bed(cls, path):
+    @typecheck_method(path=strlike,
+                      reference_genome=nullable(GenomeReference))
+    def import_bed(cls, path, reference_genome=None):
         """Import a UCSC .bed file as a key table.
 
         **Examples**
@@ -1184,10 +1191,14 @@ class KeyTable(HistoryMixin):
 
         :param str path: Path to .bed file.
 
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`
+
         :rtype: :class:`.KeyTable`
         """
 
-        jkt = Env.hail().keytable.KeyTable.importBED(Env.hc()._jhc, path)
+        rg = reference_genome if reference_genome else Env.hc().default_reference
+        jkt = Env.hail().keytable.KeyTable.importBED(Env.hc()._jhc, path, rg._jrep)
         return KeyTable(Env.hc(), jkt)
 
     @classmethod
