@@ -19,7 +19,6 @@ object Nirvana {
   // speed and avoiding redundancy I've removed several fields that would be determined
   // from parsing VCF INFO fields. They are commented out and labeled as such below.
 
-
   //NOTE THIS SCHEMA IS FOR NIRVANA 1.6.2 as of JUNE 19th
   val nirvanaSignature = TStruct(
     "chromosome" -> TString,
@@ -290,7 +289,7 @@ object Nirvana {
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
-        if (path.getOrElse(null) != null)
+        if (path.orNull != null)
           env.put("PATH", path.get)
 
         it.filter { case (v, va) =>
@@ -303,7 +302,7 @@ object Nirvana {
               printContext,
               printElement(oldSignature),
               _ => ())
-            //The drop is to ignore the header line, the filter is because every other output line is a comma.
+            // The filter is because every other output line is a comma.
             val kt = jt.filter(_.startsWith("{\"chromosome")).map { s =>
                 val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
                 if(startQuery(a).asInstanceOf[Int] == 0) {
@@ -347,5 +346,4 @@ object Nirvana {
     vds.copy(rdd = newRDD,
       vaSignature = newVASignature)
   }
-
 }

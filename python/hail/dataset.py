@@ -5314,7 +5314,7 @@ class VariantDataset(HistoryMixin):
         :param bool csq: If ``True``, annotates VCF CSQ field as a String.
             If ``False``, annotates with the full nested struct schema
 
-        :return: An annotated with variant annotations from VEP.
+        :return: Dataset with variant annotations from VEP.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -5322,15 +5322,19 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
+    @typecheck_method(config=strlike,
+                      block_size=integral,
+                      root=strlike)
     def nirvana(self, config, block_size = 500000, root = 'va.nirvana'):
-        """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_.
+        """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
         
         .. include:: _templates/experimental.rst
 
         ***Configuration***
-        :py:meth:`~hail.VariantDataset.nirvana` needs a configuration file to tell it how to run
-        Nirvana. The format is a `.properties file <https://en.wikipedia.org/wiki/.properties>`_.
-        Roughly, each line defines a property as a key-value pair of the form `key = value`. `nirvana` supports the following properties:
+        :py:meth:`~hail.VariantDataset.nirvana` requires a configuration file. The format is a
+        `.properties file <https://en.wikipedia.org/wiki/.properties>`__, where each line defines
+        a property as a key-value pair of the form `key = value`. ``nirvana`` supports the following properties:
 
         - **hail.nirvana.dotnet** -- Location of dotnet. Optional, default: dotnet.
         - **hail.nirvana.path** -- Value of the PATH environment variable when invoking Nirvana.  Optional, by default PATH is not set.
@@ -5520,13 +5524,13 @@ class VariantDataset(HistoryMixin):
                 ))
             }
 
-        :param str config: The path to the config file.
+        :param str config: Path to Nirvana configuration file.
 
-        :param int block_size: The number of variants processed in one Nirvana job within a partition. If block_size is greater than or equal to the number of variants in a partition, that whole partition will be processed in one job.
+        :param int block_size: Number of variants to annotate per Nirvana invocation. 
 
-        :param str root: The root of the annotation path for variant annotations.
+        :param str root: Variant annotation path to store Nirvana output.
 
-        :return: An annotated dataset with variant annotations from Nirvana.
+        :return: Dataset with variant annotations from Nirvana.
         :rtype: :py:class:`.VariantDataset`
 
         """
