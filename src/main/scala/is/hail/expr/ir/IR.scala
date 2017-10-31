@@ -28,7 +28,6 @@ sealed case class If(cond: IR, cnsq: IR, altr: IR, var typ: Type = null) extends
 
 sealed case class Let(name: String, value: IR, body: IR, var typ: Type = null) extends IR
 sealed case class Ref(name: String, userGenerated: Boolean = true, var typ: Type = null) extends IR
-sealed case class Set(name: String, v: IR) extends IR { val typ = TVoid }
 
 sealed case class ApplyPrimitive(op: String, args: Array[IR], var typ: Type = null) extends IR
 sealed case class LazyApplyPrimitive(op: String, args: Array[IR], var typ: Type = null) extends IR
@@ -39,7 +38,6 @@ sealed case class MakeArray(args: Array[IR], var typ: TArray = null) extends IR
 sealed case class MakeArrayN(len: IR, elementType: Type) extends IR { def typ: TArray = TArray(elementType) }
 sealed case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 sealed case class ArrayLen(a: IR) extends IR { val typ = TInt32 }
-sealed case class ArraySet(a: IR, i: IR, v: IR) extends IR { val typ = TVoid }
 sealed case class For(value: String, idx: String, array: IR, body: IR) extends IR { val typ = TVoid }
 
 sealed case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR { val typ: TStruct = TStruct(fields.map(x => x._1 -> x._2):_*) }
