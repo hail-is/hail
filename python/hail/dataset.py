@@ -5354,7 +5354,12 @@ class VariantDataset(HistoryMixin):
                 position: Int,
                 altAlleles: Array(String),
                 cytogeneticBand: String,
+                quality: Double,
                 filters: Array(String),
+                jointSomaticNormalQuality: Int,
+                copyNumber: Int,
+                strandBias: Double,
+                recalibratedQuality: Double,
                 variants: Array(Struct{
                   altAllele: String,
                   refAllele: String,
