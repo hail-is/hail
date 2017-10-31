@@ -93,11 +93,37 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(vas.field("i").typ == TInterval(gr))
   }
 
-  @Test(enabled = false) def testFuncReg() {
-    val data = Array(Row(Variant("X", 154931044, "A", "G"), Variant("X", 156030895, "A", "G")))
-    val kt = KeyTable(hc, sc.parallelize(data),
-      TStruct(("v37", TVariant(GenomeReference.GRCh37)), ("v38", TVariant(GenomeReference.GRCh38))))
+  @Test def testFuncReg() {
+    val sig = TStruct(("v37", TVariant(GenomeReference.GRCh37)), ("v38", TVariant(GenomeReference.GRCh38)))
 
-    assert(kt.forall("v37.inXPar() && v38.inXPar()"))
+    val data1 = Array(Row(Variant("X", 154931044, "A", "G"), Variant("chrX", 156030895, "A", "G")))
+    val kt1 = KeyTable(hc, sc.parallelize(data1), sig)
+    kt1.typeCheck()
+    assert(kt1.forall("v37.inXPar() && v38.inXPar()"))
+
+    val data2 = Array(Row(Variant("Y", 2649520, "A", "G"), Variant("chrY", 2649520, "A", "G")))
+    val kt2 = KeyTable(hc, sc.parallelize(data2), sig)
+    kt2.typeCheck()
+    assert(kt2.forall("v37.inYPar() && v38.inYPar()"))
+
+    val data3 = Array(Row(Variant("X", 157701382, "A", "G"), Variant("chrX", 157701382, "A", "G")))
+    val kt3 = KeyTable(hc, sc.parallelize(data3), sig)
+    kt3.typeCheck()
+    assert(kt3.forall("v37.inXNonPar() && v38.inXNonPar()"))
+
+    val data4 = Array(Row(Variant("Y", 2781480, "A", "G"), Variant("chrY", 2781480, "A", "G")))
+    val kt4 = KeyTable(hc, sc.parallelize(data4), sig)
+    kt4.typeCheck()
+    assert(kt4.forall("v37.inYNonPar() && v38.inYNonPar()"))
+
+    val data5 = Array(
+      Row(Variant("1", 2781480, "A", "G"), Variant("X", 2781480, "A", "G"), Variant("chr1", 2781480, "A", "G"), Variant("chrX", 2781480, "A", "G")),
+      Row(Variant("6", 2781480, "A", "G"), Variant("Y", 2781480, "A", "G"), Variant("chr6", 2781480, "A", "G"), Variant("chrY", 2781480, "A", "G")),
+      Row(Variant("21", 2781480, "A", "G"), Variant("MT", 2781480, "A", "G"), Variant("chr21", 2781480, "A", "G"), Variant("chrM", 2781480, "A", "G")))
+    val kt5 = KeyTable(hc, sc.parallelize(data5), TStruct(
+      ("v37a", TVariant(GenomeReference.GRCh37)), ("v37na", TVariant(GenomeReference.GRCh37)),
+      ("v38a", TVariant(GenomeReference.GRCh38)), ("v38na", TVariant(GenomeReference.GRCh38))))
+    kt5.typeCheck()
+    assert(kt5.forall("v37a.isAutosomal() && !v37na.isAutosomal() && v38a.isAutosomal() && !v38na.isAutosomal()"))
   }
 }

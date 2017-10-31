@@ -9,7 +9,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Call, GRVariable, GenomeReference, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, GRBase, GRVariable, GenomeReference, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -442,6 +442,11 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ), UnaryFunCode[T, U](hru.typ, (ct) => impl(ct)), MetaData(Option(docstring), argNames))
   }
 
+  def registerMethodDependent[T, U](name: String, impl: () => T => U, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, MethodType(hrt.typ), UnaryDependentFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
   def registerMethodSpecial[T, U](name: String, impl: (() => Any) => U, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, MethodType(hrt.typ), UnarySpecial[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
@@ -807,15 +812,30 @@ object FunctionRegistry {
   registerMethod("nAlleles", { (x: Variant) => x.nAlleles }, "Number of alleles.")(variantHr(GR), int32Hr)
   registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic }, "True if `v` has one alternate allele.")(variantHr(GR), boolHr)
   registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes }, "Number of genotypes.")(variantHr(GR), int32Hr)
-  registerMethod("inXPar", { (x: Variant) => x.inXPar }, "True if chromosome is X and start is in pseudoautosomal region of X.")(variantHr(GR), boolHr)
-  registerMethod("inYPar", { (x: Variant) => x.inYPar }, "True if chromosome is Y and start is in pseudoautosomal region of Y. *NB: most callers assign variants in PAR to X.*")(variantHr(GR), boolHr)
-  registerMethod("inXNonPar", { (x: Variant) => x.inXNonPar }, "True if chromosome is X and start is not in pseudoautosomal region of X.")(variantHr(GR), boolHr)
-  registerMethod("inYNonPar", { (x: Variant) => x.inYNonPar }, "True if chromosome is Y and start is not in pseudoautosomal region of Y.")(variantHr(GR), boolHr)
+  registerMethodDependent("inXPar", { () =>
+    val gr = GR.gr
+    (x: Variant) => x.inXPar(gr)
+  }, "True if chromosome is X and start is in pseudoautosomal region of X.")(variantHr(GR), boolHr)
+  registerMethodDependent("inYPar", { () =>
+    val gr = GR.gr
+    (x: Variant) => x.inYPar(gr)
+  }, "True if chromosome is Y and start is in pseudoautosomal region of Y. *NB: most callers assign variants in PAR to X.*")(variantHr(GR), boolHr)
+  registerMethodDependent("inXNonPar", { () =>
+    val gr = GR.gr
+    (x: Variant) => x.inXNonPar(gr)
+  }, "True if chromosome is X and start is not in pseudoautosomal region of X.")(variantHr(GR), boolHr)
+  registerMethodDependent("inYNonPar", { () =>
+    val gr = GR.gr
+    (x: Variant) => x.inYNonPar(gr)
+  }, "True if chromosome is Y and start is not in pseudoautosomal region of Y.")(variantHr(GR), boolHr)
   // assumes biallelic
   registerMethod("alt", { (x: Variant) => x.alt }, "Alternate allele sequence.  **Assumes biallelic.**")(variantHr(GR), stringHr)
   registerMethod("altAllele", { (x: Variant) => x.altAllele }, "The :ref:`alternate allele <altallele>`.  **Assumes biallelic.**")(variantHr(GR), altAlleleHr)
   registerMethod("locus", { (x: Variant) => x.locus }, "Chromosomal locus (chr, pos) of this variant")(variantHr(GR), locusHr(GR))
-  registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal }, "True if chromosome is not X, not Y, and not MT.")(variantHr(GR), boolHr)
+  registerMethodDependent("isAutosomal", { () =>
+    val gr = GR.gr
+    (x: Variant) => x.isAutosomal(gr)
+  }, "True if chromosome is not X, not Y, and not MT.")(variantHr(GR), boolHr)
   registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")(locusHr(GR), stringHr)
   registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")(locusHr(GR), int32Hr)
   registerField("start", { (x: Interval[Locus]) => x.start }, ":ref:`locus(gr)` at the start of the interval (inclusive).")(locusIntervalHr(GR), locusHr(GR))

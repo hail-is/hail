@@ -17,16 +17,16 @@ Running Hail locally with a pre-compiled distribution
 .. include:: distLinks.rst
 
 Unzip the distribution after you download it. Next, edit and copy the below bash commands to set up the Hail
-environment variables. You may want to add these to your bash dot-file (``~/.bash_profile``, ``~/.bashrc``, etc)
+environment variables. You may want to add these to the appropriate dot-file (we recommend ``~/.profile``)
 so that you don't need to rerun these commands in each new session.
 
-Here, fill in the path to the un-tarred Spark package.
+Here, fill in the path to the **un-tarred** Spark package.
 
 .. code-block:: text
 
     export SPARK_HOME=???
 
-Here, fill in the path to the unzipped Hail distribution.
+Here, fill in the path to the **unzipped** Hail distribution.
 
 .. code-block:: text
 

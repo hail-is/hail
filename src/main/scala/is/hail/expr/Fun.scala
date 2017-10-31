@@ -27,7 +27,19 @@ case class UnaryDependentFunCode[T, U](retType: Type, code: () => Code[T] => CM[
 
   def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun =
     throw new UnsupportedOperationException("must captureType first")
+}
 
+case class UnaryDependentFun[T, U](retType: Type, code: () => T => U) extends Fun {
+  override def captureType() = UnaryFun(retType, code())
+
+  def apply(t: T): U =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def subst() =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun =
+    throw new UnsupportedOperationException("must captureType first")
 }
 
 case class UnaryFunCode[T, U](retType: Type, code: Code[T] => CM[Code[U]]) extends Fun with (Code[T] => CM[Code[U]]) {

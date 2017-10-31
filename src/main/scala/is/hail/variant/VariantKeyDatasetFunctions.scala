@@ -103,12 +103,6 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
         "ID_1 ID_2 missing" :: "0 0 0" :: vsm.sampleIds.map(s => s"$s $s 0").toList)
     }
 
-    def formatGP(d: Double): String = d.formatted(s"%.${precision}f")
-
-    def appendRow(sb: StringBuilder, nSamples: Int, rowType: TStruct, v: Variant, va: Annotation, rv: RegionValue, rsidQuery: Querier, varidQuery: Querier) {
-
-    }
-
     def writeGenFile() {
       val varidSignature = vsm.vaSignature.getOption("varid")
       val varidQuery: Querier = varidSignature match {
@@ -162,11 +156,11 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
             view.setGenotype(i)
             if (view.hasGP) {
               sb += ' '
-              sb.append(view.getGP(0))
+              sb.append(formatDouble(view.getGP(0), precision))
               sb += ' '
-              sb.append(view.getGP(1))
+              sb.append(formatDouble(view.getGP(1), precision))
               sb += ' '
-              sb.append(view.getGP(2))
+              sb.append(formatDouble(view.getGP(2), precision))
             } else
               sb.append(" 0 0 0")
             i += 1

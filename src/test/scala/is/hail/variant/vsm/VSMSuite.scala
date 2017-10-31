@@ -322,32 +322,6 @@ class VSMSuite extends SparkSuite {
     }.check()
   }
 
-  @Test def testUnionRead() {
-    val g = for (vds <- VariantSampleMatrix.gen(hc, VSMSubgen.random);
-      variants = vds.variants.collect();
-      groups <- Gen.buildableOfN[Array, Int](variants.length, Gen.choose(1, 3)).map(groups => variants.zip(groups).toMap)
-    ) yield (vds, groups)
-
-    forAll(g) { case (vds, groups) =>
-      val path1 = tmpDir.createTempFile("file1", "vds")
-      val path2 = tmpDir.createTempFile("file2", "vds")
-      val path3 = tmpDir.createTempFile("file3", "vds")
-
-      vds.filterVariants { case (v, _, _) => groups(v) == 1 }
-        .write(path1)
-
-      vds.filterVariants { case (v, _, _) => groups(v) == 2 }
-        .write(path2)
-
-      vds.filterVariants { case (v, _, _) => groups(v) == 3 }
-        .write(path3)
-
-      hc.readVDSAll(Array(path1, path2, path3))
-        .same(vds)
-
-    }.check()
-  }
-
   @Test def testOverwrite() {
     val out = tmpDir.createTempFile("out", "vds")
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
