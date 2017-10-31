@@ -94,7 +94,7 @@ g = let
 
     val inserters = inserterBuilder.result()
 
-    val aggregateOption = Aggregators.buildVariantAggregations(vds, ec)
+    val aggregateOption = Aggregators.buildVariantAggregations(vds.sparkContext, splitMatrixType, vds.value.localValue, ec)
 
     val localNSamples = vds.nSamples
     val localRowType = vds.rowType
@@ -122,9 +122,8 @@ g = let
               val splitur = new UnsafeRow(splitRowType, splitrv)
               val v = splitur.getAs[Variant](1)
               val va = splitur.get(2)
-              val gs = splitur.getAs[Iterable[Genotype]](3)
               ec.setAll(localGlobalAnnotation, v, va)
-              aggregateOption.foreach(f => f(v, va, gs))
+              aggregateOption.foreach(f => f(splitrv))
               (f(), types).zipped.map { case (a, t) =>
                 Annotation.copy(t, a)
               }
@@ -140,8 +139,7 @@ g = let
 
           val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
           val va = ur.get(2)
-          val newVA = inserters.zipWithIndex.foldLeft(va) {
-            case (va, (inserter, i)) =>
+          val newVA = inserters.zipWithIndex.foldLeft(va) { case (va, (inserter, i)) =>
               inserter(va, annotations.map(_ (i)): IndexedSeq[Any])
           }
           rv2b.addAnnotation(finalType, newVA)
