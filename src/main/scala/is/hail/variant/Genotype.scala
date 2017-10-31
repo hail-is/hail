@@ -519,8 +519,8 @@ object Genotype {
         m2 = pl(i)
       i += 1
     }
-    assert(m == 0, s"$m, $m2, [${ pl.mkString(",") }]")
-    m2
+    assert(m <= m2)
+    m2 - m
   }
 
   def gtFromLinear(a: Array[Int]): Option[Int] = {
