@@ -4,7 +4,7 @@ import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
 import is.hail.annotations.{Annotation, Querier}
-import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TBoolean, TDouble, TInt, TSet, TString, TStruct, Type}
+import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TBoolean, TInt32, TFloat64, TSet, TString, TStruct, Type}
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.storage.StorageLevel
@@ -24,7 +24,7 @@ object Nirvana {
   val nirvanaSignature = TStruct(
     "chromosome" -> TString,
     "refAllele" -> TString,
-    "position" -> TInt,
+    "position" -> TInt32,
     "altAlleles" -> TArray(TString),
     "cytogeneticBand" -> TString,
     //"quality" -> TDouble,                 //Derived from QUAL, leaving out
@@ -37,9 +37,9 @@ object Nirvana {
       "altAllele" -> TString,
       "refAllele" -> TString,
       "chromosome" -> TString,
-      "begin" -> TInt,
-      "end" -> TInt,
-      "phylopScore" -> TDouble,
+      "begin" -> TInt32,
+      "end" -> TInt32,
+      "phylopScore" -> TFloat64,
       "isReferenceMinor" -> TBoolean,
       "variantType" -> TString,
       "vid" -> TString,
@@ -71,72 +71,72 @@ object Nirvana {
         "refAllele" -> TString,
         "altAllele" -> TString,
         "gene" -> TString,
-        "sampleCount" -> TInt,
+        "sampleCount" -> TInt32,
         "studies" -> TArray(TStruct(
-          "id" -> TInt,
+          "id" -> TInt32,
           "histology" -> TString,
           "primarySite" -> TString
         ))
       )),
       "dbsnp" -> TStruct("ids" -> TArray(TString)),
       "evs" -> TStruct(
-        "coverage" -> TInt,
-        "sampleCount" -> TInt,
-        "allAf" -> TDouble,
-        "afrAf" -> TDouble,
-        "eurAf" -> TDouble
+        "coverage" -> TInt32,
+        "sampleCount" -> TInt32,
+        "allAf" -> TFloat64,
+        "afrAf" -> TFloat64,
+        "eurAf" -> TFloat64
       ),
       "exac" -> TStruct(
-        "coverage" -> TInt,
-        "allAf" -> TDouble,
-        "allAc" -> TInt,
-        "allAn" -> TInt,
-        "afrAf" -> TDouble,
-        "afrAc" -> TInt,
-        "afrAn" -> TInt,
-        "amrAf" -> TDouble,
-        "amrAc" -> TInt,
-        "amrAn" -> TInt,
-        "easAf" -> TDouble,
-        "easAc" -> TInt,
-        "easAn" -> TInt,
-        "finAf" -> TDouble,
-        "finAc" -> TInt,
-        "finAn" -> TInt,
-        "nfeAf" -> TDouble,
-        "nfeAc" -> TInt,
-        "nfeAn" -> TInt,
-        "othAf" -> TDouble,
-        "othAc" -> TInt,
-        "othAn" -> TInt,
-        "sasAf" -> TDouble,
-        "sasAc" -> TInt,
-        "sasAn" -> TInt
+        "coverage" -> TInt32,
+        "allAf" -> TFloat64,
+        "allAc" -> TInt32,
+        "allAn" -> TInt32,
+        "afrAf" -> TFloat64,
+        "afrAc" -> TInt32,
+        "afrAn" -> TInt32,
+        "amrAf" -> TFloat64,
+        "amrAc" -> TInt32,
+        "amrAn" -> TInt32,
+        "easAf" -> TFloat64,
+        "easAc" -> TInt32,
+        "easAn" -> TInt32,
+        "finAf" -> TFloat64,
+        "finAc" -> TInt32,
+        "finAn" -> TInt32,
+        "nfeAf" -> TFloat64,
+        "nfeAc" -> TInt32,
+        "nfeAn" -> TInt32,
+        "othAf" -> TFloat64,
+        "othAc" -> TInt32,
+        "othAn" -> TInt32,
+        "sasAf" -> TFloat64,
+        "sasAc" -> TInt32,
+        "sasAn" -> TInt32
       ),
       "globalAllele" -> TStruct(
         "globalMinorAllele" -> TString,
-        "globalMinorAlleleFrequency" -> TDouble
+        "globalMinorAlleleFrequency" -> TFloat64
       ),
       "oneKg" -> TStruct(
         "ancestralAllele" -> TString,
-        "allAf" -> TDouble,
-        "allAc" -> TInt,
-        "allAn" -> TInt,
-        "afrAf" -> TDouble,
-        "afrAc" -> TInt,
-        "afrAn" -> TInt,
-        "amrAf" -> TDouble,
-        "amrAc" -> TInt,
-        "amrAn" -> TInt,
-        "easAf" -> TDouble,
-        "easAc" -> TInt,
-        "easAn" -> TInt,
-        "eurAf" -> TDouble,
-        "eurAc" -> TInt,
-        "eurAn" -> TInt,
-        "sasAf" -> TDouble,
-        "sasAc" -> TInt,
-        "sasAn" -> TInt
+        "allAf" -> TFloat64,
+        "allAc" -> TInt32,
+        "allAn" -> TInt32,
+        "afrAf" -> TFloat64,
+        "afrAc" -> TInt32,
+        "afrAn" -> TInt32,
+        "amrAf" -> TFloat64,
+        "amrAc" -> TInt32,
+        "amrAn" -> TInt32,
+        "easAf" -> TFloat64,
+        "easAc" -> TInt32,
+        "easAn" -> TInt32,
+        "eurAf" -> TFloat64,
+        "eurAc" -> TInt32,
+        "eurAn" -> TInt32,
+        "sasAf" -> TFloat64,
+        "sasAc" -> TInt32,
+        "sasAn" -> TInt32
       ),
       "transcripts" -> TStruct(
         "refSeq" -> TArray(TStruct(
@@ -154,11 +154,11 @@ object Nirvana {
           "hgvsc" -> TString,
           "hgvsp" -> TString,
           "isCanonical" -> TBoolean,
-          "polyPhenScore" -> TDouble,
+          "polyPhenScore" -> TFloat64,
           "polyPhenPrediction" -> TString,
           "proteinId" -> TString,
           "proteinPos" -> TString,
-          "siftScore" -> TDouble,
+          "siftScore" -> TFloat64,
           "siftPrediction" -> TString
         )),
         "ensembl" -> TArray(TStruct(
@@ -176,22 +176,22 @@ object Nirvana {
           "hgvsc" -> TString,
           "hgvsp" -> TString,
           "isCanonical" -> TBoolean,
-          "polyPhenScore" -> TDouble,
+          "polyPhenScore" -> TFloat64,
           "polyPhenPrediction" -> TString,
           "proteinId" -> TString,
           "proteinPos" -> TString,
-          "siftScore" -> TDouble,
+          "siftScore" -> TFloat64,
           "siftPrediction" -> TString
         ))
       ),
       "genes" -> TArray(TStruct(
         "name" -> TString,
         "omim" -> TArray(TStruct(
-          "mimNumber" -> TInt,
+          "mimNumber" -> TInt32,
           "hgnc" -> TString,
           "description" -> TString,
           "phenotypes" -> TArray(TStruct(
-            "mimNumber" -> TInt,
+            "mimNumber" -> TInt32,
             "phenotype" -> TString,
             "mapping" -> TString,
             "inheritance" -> TArray(TString),

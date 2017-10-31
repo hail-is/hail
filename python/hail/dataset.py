@@ -5322,8 +5322,10 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def nirvana(self, config, block_size = 50000, root = 'va.nirvana'):
+    def nirvana(self, config, block_size = 500000, root = 'va.nirvana'):
         """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_.
+        
+        .. include:: _templates/experimental.rst
 
         ***Configuration***
         :py:meth:`~hail.VariantDataset.nirvana` needs a configuration file to tell it how to run
