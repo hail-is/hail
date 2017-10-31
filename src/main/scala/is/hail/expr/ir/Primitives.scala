@@ -34,7 +34,8 @@ object Primitives {
       case x => throw new RuntimeException(s"boom ${x.toSeq}") })
   Array[Primitive](
     numeric("+", _ + _, _ + _, _ + _, _ + _),
-    numeric("/", _ / _, _ / _, _ / _, _ / _)
+    numeric("/", _ / _, _ / _, _ / _, _ / _),
+    Primitive("||", { case Array(TBoolean, TBoolean) => TBoolean -> { case Array(x, y) => x.asInstanceOf[Code[Boolean]] || y.asInstanceOf[Code[Boolean]] } })
   ).foreach(x => primitives += (x.name -> x))
 
   def lookup(name: String, paramTyps: Array[Type], params: Array[Code[_]]): Code[_] =
