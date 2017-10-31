@@ -1229,7 +1229,8 @@ object FunctionRegistry {
   register("binomTest", { (x: Int, n: Int, p: Double, alternative: String) => binomTest(x, n, p, alternative)
   },
     """
-    |Returns the p-value of a binomial test <https://en.wikipedia.org/wiki/Binomial_test>__ of the null hypothesis that success has probability `p`, given `x` successes in `n` trials.
+    Returns the p-value of a binomial test <https://en.wikipedia.org/wiki/Binomial_test>__ of the null hypothesis that success has probability `p`, given `x` successes in `n` trials.
+
     **Examples**
 
     Test each variant for allele balance across all heterozygous genotypes, under the null hypothesis that the two alleles are sampled with equal probability.

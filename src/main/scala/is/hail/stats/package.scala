@@ -323,10 +323,10 @@ package object stats {
     counts.valuesIterator.foreach {
       count =>
         val prob = count / length
-        entropy += prob / math.log(prob)
+        entropy += prob * math.log(prob)
     }
 
-    -1.0 * entropy * math.log(2)
+    -1.0 * entropy / math.log(2)
   }
 
   def uninitialized[T]: T = null.asInstanceOf[T]
