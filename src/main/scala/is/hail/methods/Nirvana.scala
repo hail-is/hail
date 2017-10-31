@@ -15,10 +15,6 @@ import scala.collection.JavaConverters._
 
 object Nirvana {
 
-  // Originally the schema exactly matched Nirvana's JSON output, but in the interest of
-  // speed and avoiding redundancy I've removed several fields that would be determined
-  // from parsing VCF INFO fields. They are commented out and labeled as such below.
-
   //NOTE THIS SCHEMA IS FOR NIRVANA 1.6.2 as of JUNE 19th
   val nirvanaSignature = TStruct(
     "chromosome" -> TString,
@@ -26,12 +22,12 @@ object Nirvana {
     "position" -> TInt32,
     "altAlleles" -> TArray(TString),
     "cytogeneticBand" -> TString,
-    //"quality" -> TDouble,                 //Derived from QUAL, leaving out
+    "quality" -> TFloat64,
     "filters" -> TArray(TString),
-    //"jointSomaticNormalQuality" -> TInt,  //Derived from INFO, leaving out
-    //"copyNumber" -> TInt,                 //Derived from INFO, leaving out
-    //"strandBias" -> TDouble,              //Derived from INFO, leaving out
-    //"recalibratedQuality" -> TDouble,     //Derived from INFO, leaving out
+    "jointSomaticNormalQuality" -> TInt32,
+    "copyNumber" -> TInt32,
+    "strandBias" -> TFloat64,
+    "recalibratedQuality" -> TFloat64,
     "variants" -> TArray(TStruct(
       "altAllele" -> TString,
       "refAllele" -> TString,
