@@ -73,6 +73,7 @@ object Compile {
   }
 
   class MissingBit(bits: LocalRef[Long], i: Int) extends Code[Boolean] {
+    assert(i >= 0)
     assert(i < 64)
 
     def :=(b: Code[Boolean]): Code[_] = {
@@ -80,7 +81,7 @@ object Compile {
     }
 
     def emit(il: Growable[AbstractInsnNode]): Unit = {
-      ((bits >> i) & 1L).emit(il)
+      ((bits >> i) & 1L).toI.emit(il)
     }
   }
 
