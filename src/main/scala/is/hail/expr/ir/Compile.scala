@@ -85,13 +85,17 @@ object Compile {
     }
   }
 
-  def apply(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], MissingBit, LocalRef[_])]) {
+  def apply(ir: IR, fb: FunctionBuilder[_]) {
+    apply(ir, fb, new Env())
+  }
+
+  def apply(ir: IR, fb: FunctionBuilder[_], env: Env[(TypeInfo[_], MissingBit, LocalRef[_])]) {
     fb.emit(expression(ir, fb, env, new MissingBits(fb))._2)
   }
 
-  def expression(ir: IR, fb: FunctionBuilder[_], env: Map[String, (TypeInfo[_], MissingBit, LocalRef[_])], mb: MissingBits): (Code[Boolean], Code[_]) = {
+  def expression(ir: IR, fb: FunctionBuilder[_], env: Env[(TypeInfo[_], MissingBit, LocalRef[_])], mb: MissingBits): (Code[Boolean], Code[_]) = {
     val region = fb.getArg[MemoryBuffer](1).load()
-    def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: Map[String, (TypeInfo[_], MissingBit, LocalRef[_])] = env, mb: MissingBits = mb): (Code[Boolean], Code[_]) =
+    def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: Env[(TypeInfo[_], MissingBit, LocalRef[_])] = env, mb: MissingBits = mb): (Code[Boolean], Code[_]) =
       Compile.expression(ir, fb, env, mb)
     ir match {
       case I32(x) =>
@@ -116,7 +120,7 @@ object Compile {
           val mx = mb.newBit()
           val (mvalue, vvalue) = expression(value)
           val (mbody, vbody) =
-            expression(body, env = env + (name -> (typeToTypeInfo(value.typ), mx, x)))
+            expression(body, env = env.bind(name, (typeToTypeInfo(value.typ), mx, x)))
 
           (mvalue || mbody,
             mvalue.mux(
@@ -136,19 +140,19 @@ object Compile {
           val mx = mb.newBit()
           val (mvalue, vvalue) = expression(value)
           val (mbody, vbody) =
-            expression(body, env = env + (name -> ((typeToTypeInfo(value.typ), mx, x))))
+            expression(body, env = env.bind(name, ((typeToTypeInfo(value.typ), mx, x))))
 
           (mbody, Code(mx := mvalue, x := mx.mux(dummyValue(value.typ), vvalue).asInstanceOf[Code[t]], vbody))
         }
-      case Ref(name, typ) =>
-        assert(env(name)._1 == typeToTypeInfo(typ), s"bad type annotation for $name: $typ, binding in scope: ${env(name)}")
-        (env(name)._2, env(name)._3)
+      case x@Ref(name, _, typ) =>
+        assert(env.lookup(x)._1 == typeToTypeInfo(typ), s"bad type annotation for $name: $typ, binding in scope: ${env.lookup(x)}")
+        (env.lookup(x)._2, env.lookup(x)._3)
       case Set(name, v) =>
         val (mv, vv) = expression(v)
         (const(false),
           mv.mux(
-            env(name)._2 := const(false),
-            env(name)._3.asInstanceOf[LocalRef[Any]] := vv))
+            env.lookup(name)._2 := const(false),
+            env.lookup(name)._3.asInstanceOf[LocalRef[Any]] := vv))
       case ApplyPrimitive(op, args, typ) =>
         val (margs, vargs) = args.map(expression(_)).unzip
         val missing = margs.fold(const(false))(_ || _)
@@ -211,7 +215,7 @@ object Compile {
           val len = fb.newLocal[Int]
           val (marray, varray: Code[Long] @unchecked) = expression(array)
           val (mbody, vbody) =
-            expression(body, env = env + (value -> ((ti, mx, x))) + (i -> ((typeInfo[Int], midx, idx))))
+            expression(body, env = env.bind(value -> ((ti, mx, x)), i -> ((typeInfo[Int], midx, idx))))
 
           (const(false), marray.mux(Code._empty, Code(
             a := varray,

@@ -27,7 +27,7 @@ sealed case class IsNA(value: IR) extends IR { val typ = TBoolean }
 sealed case class If(cond: IR, cnsq: IR, altr: IR, var typ: Type = null) extends IR
 
 sealed case class Let(name: String, value: IR, body: IR, var typ: Type = null) extends IR
-sealed case class Ref(name: String, var typ: Type = null) extends IR
+sealed case class Ref(name: String, userGenerated: Boolean = true, var typ: Type = null) extends IR
 sealed case class Set(name: String, v: IR) extends IR { val typ = TVoid }
 
 sealed case class ApplyPrimitive(op: String, args: Array[IR], var typ: Type = null) extends IR
