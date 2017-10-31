@@ -22,16 +22,27 @@ class Env[V] private (val m: Map[Env.K,V]) {
   def bind(bindings: (String, V)*): Env[V] =
     new Env(m ++ bindings.map { case (n, v) => ((n, true), v) })
 
-  def bindFresh(prefix: String, v: V): Env[V] = {
+  def bindFresh(prefix: String, v: V): (String, Env[V]) = {
     var i = 0
     var name = prefix
     while (m.keySet.contains((name, false))) {
       name = prefix + i
       i += 1
     }
-    new Env(m + ((name, false) -> v))
+    (name, new Env(m + ((name, false) -> v)))
   }
 
-  def bindFresh(bindings: (String, V)*): Env[V] =
-    bindings.foldLeft(this)(_.bindFresh(_))
+  def bindFresh(bindings: (String, V)*): (Array[String], Env[V]) = {
+    val names = new Array[String](bindings.length)
+    var i = 0
+    var e = this
+    while (i < bindings.length) {
+      val (prefix, v) = bindings(i)
+      val (name, e2) = e.bindFresh(prefix, v)
+      names(i) = name
+      e = e2
+      i += 1
+    }
+    (names, e)
+  }
 }
