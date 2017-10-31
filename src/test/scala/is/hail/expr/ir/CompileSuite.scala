@@ -47,7 +47,7 @@ class CompileSuite {
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Infer(meanIr)
     println(s"typed:\n$meanIr")
-    Compile(meanIr, fb, Map())
+    Compile(meanIr, fb)
     val f = fb.result()()
     def run(a: Array[Double]): Double = {
       val mb = MemoryBuffer()
@@ -72,7 +72,7 @@ class CompileSuite {
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Double]
     Infer(letAddIr)
     println(s"typed:\n$letAddIr")
-    Compile(letAddIr, fb, Map())
+    Compile(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
     val mb = MemoryBuffer()
     assert(f(mb) === 1.0)
@@ -91,7 +91,7 @@ class CompileSuite {
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Infer(letAddIr)
     println(s"typed:\n$letAddIr")
-    Compile(letAddIr, fb, Map())
+    Compile(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Double = {
@@ -120,7 +120,7 @@ class CompileSuite {
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Infer(letAddIr)
     println(s"typed:\n$letAddIr")
-    Compile(letAddIr, fb, Map())
+    Compile(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Double = {
@@ -154,7 +154,7 @@ class CompileSuite {
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Infer(letAddIr)
     println(s"typed:\n$letAddIr")
-    Compile(letAddIr, fb, Map())
+    Compile(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Double = {
@@ -194,7 +194,7 @@ class CompileSuite {
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
     Infer(meanImputeIr)
     println(s"typed:\n$meanImputeIr")
-    Compile(meanImputeIr, fb, Map())
+    Compile(meanImputeIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
     def run(a: Array[java.lang.Double]): Array[java.lang.Double] = {
       val mb = MemoryBuffer()
@@ -226,7 +226,7 @@ class CompileSuite {
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int, Boolean, Double]
     Infer(mapNaIr)
     println(s"typed:\n$mapNaIr")
-    Compile(mapNaIr, fb, Map())
+    Compile(mapNaIr, fb)
     val f = fb.result()()
     def run(a: Array[java.lang.Double], i: Int): Double = {
       val mb = MemoryBuffer()

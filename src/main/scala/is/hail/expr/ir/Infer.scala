@@ -7,17 +7,10 @@ import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFlo
 import is.hail.annotations.StagedRegionValueBuilder
 
 object Infer {
-  def apply(ir: IR) { apply(ir, Map()) }
+  def apply(ir: IR) { apply(ir, new Env[Type]()) }
 
-  def apply(ir: IR, env: Map[String, Type]) {
-    def infer(ir: IR, env: Map[String, Type] = env) { apply(ir, env) }
-    def lookup(name: String): Type = {
-      if (env.contains(name)) {
-        env(name)
-      } else {
-        throw new RuntimeException(s"Cannot find key $name in env $env")
-      }
-    }
+  def apply(ir: IR, env: Env[Type]) {
+    def infer(ir: IR, env: Env[Type] = env) { apply(ir, env) }
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -29,7 +22,7 @@ object Infer {
       case NA(t) =>
       case x@MapNA(name, value, body, _) =>
         infer(value)
-        infer(body, env = env + (name -> value.typ))
+        infer(body, env = env.bind(name, value.typ))
         x.typ = body.typ
       case IsNA(v) =>
         infer(v)
@@ -44,13 +37,13 @@ object Infer {
 
       case x@Let(name, value, body, _) =>
         infer(value)
-        infer(body, env = env + (name -> value.typ))
+        infer(body, env = env.bind(name, value.typ))
         x.typ = body.typ
-      case x@Ref(name, _) =>
-        x.typ = lookup(name)
+      case x@Ref(_, _, _) =>
+        x.typ = env.lookup(x)
       case Set(name, v) =>
         infer(v)
-        assert(lookup(name) == v.typ)
+        assert(env.lookup(name) == v.typ)
       case x@ApplyPrimitive(op, args, typ) =>
         args.map(infer(_))
         x.typ = Primitives.returnTyp(op, args.map(_.typ))
@@ -84,7 +77,7 @@ object Infer {
       case x@For(value, i, array, body) =>
         infer(array)
         val t = array.typ.asInstanceOf[TArray].elementType
-        infer(body, env = env + (value -> t) + (i -> TInt32))
+        infer(body, env = env.bind(value -> t, i -> TInt32))
       case MakeStruct(fields) =>
         fields.map { case (_, typ, v) =>
           infer(v)
