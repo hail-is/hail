@@ -19,6 +19,8 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
+abstract class BaseType
+
 object Type {
   val genScalar: Gen[Type] = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
     TVariant(GenomeReference.GRCh37), TAltAllele, TGenotype, TLocus(GenomeReference.GRCh37), TInterval(GenomeReference.GRCh37), TCall)
@@ -71,7 +73,7 @@ object Type {
   def parseMap(s: String): Map[String, Type] = Parser.parseAnnotationTypes(s)
 }
 
-sealed abstract class Type extends Serializable {
+sealed abstract class Type extends BaseType with Serializable {
   self =>
 
   def children: Seq[Type] = Seq()

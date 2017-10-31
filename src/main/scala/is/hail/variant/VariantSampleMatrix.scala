@@ -312,7 +312,7 @@ object VSMSubgen {
 }
 
 class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata: VSMMetadata,
-  val ast: MatrixAST)(implicit val tct: ClassTag[T]) extends JoinAnnotator {
+  val ast: MatrixIR)(implicit val tct: ClassTag[T]) extends JoinAnnotator {
 
   implicit val kOk: OrderedKey[RPK, RK] = ast.typ.vType.typedOrderedKey[RPK, RK]
 
@@ -348,7 +348,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit) = metadata
 
   lazy val value: MatrixValue = {
-    val opt = MatrixAST.optimize(ast)
+    val opt = MatrixIR.optimize(ast)
     opt.execute(hc)
   }
 
@@ -1831,7 +1831,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd2)
 
-  def copyAST[RPK2, RK2, T2 >: Null](ast: MatrixAST = ast,
+  def copyAST[RPK2, RK2, T2 >: Null](ast: MatrixIR = ast,
     sSignature: Type = sSignature,
     saSignature: Type = saSignature,
     vSignature: Type = vSignature,
