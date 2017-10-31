@@ -49,5 +49,5 @@ sealed case class Seq(stmts: Array[IR], var typ: Type = null) extends IR {
   override def toString(): String = s"Seq(${stmts: IndexedSeq[IR]}, typ)"
 }
 
-sealed case class In(i: Int, var typ: Type = null) extends IR
+sealed case class In(i: Int, val typ: Type) extends IR
 sealed case class Out(v: IR) extends IR { val typ = TVoid }
