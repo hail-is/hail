@@ -1562,7 +1562,7 @@ object FunctionRegistry {
   },
     """
     Computes the `Shannon entropy <https://en.wikipedia.org/wiki/Entropy#Information_theory>`__ in bits of the
-    distribution of characters.
+    character frequency distribution.
     """)
 
   registerMethod("contains", (interval: Interval[Locus], locus: Locus) => interval.contains(locus),
