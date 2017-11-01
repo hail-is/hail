@@ -5,6 +5,7 @@ import is.hail.expr.{EvalContext, Parser, TAggregable, TString, TStruct, Type, _
 import is.hail.io.plink.ExportBedBimFam
 import is.hail.keytable.KeyTable
 import is.hail.methods._
+import is.hail.sparkextras.OrderedRDD2
 import is.hail.stats.ComputeRRM
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
@@ -41,21 +42,37 @@ object VariantDataset {
 class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
-    val (vas2, insertIndex) = vds.vaSignature.insert(TInt32, "aIndex")
-    val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
-    val localGlobalAnnotation = vds.globalAnnotation
+
+    val splitmulti = new SplitMulti(vds,
+      "va.aIndex = aIndex, va.wasSplit = wasSplit",
+      s"""
+g = let
+    newgt = downcode(Call(g.gt), aIndex) and
+    newad = if (isDefined(g.ad))
+        let sum = g.ad.sum() and adi = g.ad[aIndex] in [sum - adi, adi]
+      else
+        NA: Array[Int] and
+    newpl = if (isDefined(g.pl))
+        range(3).map(i => range(g.pl.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.pl[j]).min())
+      else
+        NA: Array[Int] and
+    newgq = ${ if (propagateGQ) "g.gq" else "gqFromPL(newpl)" }
+  in Genotype(v, newgt, newad, g.dp, newgq, newpl)
+    """, keepStar = true, leftAligned = false)
+
+    val splitMatrixType = splitmulti.newMatrixType
 
     val aggregationST = Map(
       "global" -> (0, vds.globalSignature),
       "v" -> (1, TVariant(GenomeReference.GRCh37)),
-      "va" -> (2, vas3),
+      "va" -> (2, splitMatrixType.vaType),
       "g" -> (3, TGenotype),
       "s" -> (4, TString),
       "sa" -> (5, vds.saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, vds.globalSignature),
       "v" -> (1, TVariant(GenomeReference.GRCh37)),
-      "va" -> (2, vas3),
+      "va" -> (2, splitMatrixType.vaType),
       "gs" -> (3, TAggregable(TGenotype, aggregationST))))
 
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
@@ -66,38 +83,76 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       inserterBuilder += i
       s
     }
-    val finalType = if (newType.isInstanceOf[TStruct])
-      paths.foldLeft(newType.asInstanceOf[TStruct]) {
-        case (res, path) => res.setFieldAttributes(path, Map("Number" -> "A"))
-      }
-    else newType
+
+    val finalType = newType match {
+      case t: TStruct =>
+        paths.foldLeft(t) { case (res, path) =>
+          res.setFieldAttributes(path, Map("Number" -> "A"))
+        }
+      case _ => newType
+    }
 
     val inserters = inserterBuilder.result()
 
-    val aggregateOption = Aggregators.buildVariantAggregations(vds, ec)
+    val aggregateOption = Aggregators.buildVariantAggregations(vds.sparkContext, splitMatrixType, vds.value.localValue, ec)
 
-    vds.mapAnnotations(finalType, { case (v, va, gs) =>
+    val localNSamples = vds.nSamples
+    val localRowType = vds.rowType
 
-      val annotations = SplitMulti.split(v, va, gs,
-        propagateGQ = propagateGQ,
-        keepStar = true,
-        insertSplitAnnots = { (va, index, wasSplit) =>
-          insertSplit(insertIndex(va, index), wasSplit)
-        },
-        f = _ => true)
-        .map({
-          case (v, (va, gs)) =>
-            ec.setAll(localGlobalAnnotation, v, va)
-            aggregateOption.foreach(f => f(v, va, gs))
-            f()
-        }).toArray
+    val localGlobalAnnotation = vds.globalAnnotation
+    val localVAnnotator = splitmulti.vAnnotator
+    val localGAnnotator = splitmulti.gAnnotator
+    val splitRowType = splitMatrixType.rowType
 
-      inserters.zipWithIndex.foldLeft(va) {
-        case (va, (inserter, i)) =>
-          inserter(va, annotations.map(_ (i)).toArray[Any]: IndexedSeq[Any])
-      }
+    val newMatrixType = vds.matrixType.copy(vaType = finalType)
+    val newRowType = newMatrixType.rowType
 
-    })
+    val newRDD2 = OrderedRDD2(
+      newMatrixType.orderedRDD2Type,
+      vds.rdd2.orderedPartitioner,
+      vds.rdd2.mapPartitions { it =>
+        val splitcontext = new SplitMultiPartitionContext(true, localNSamples, localGlobalAnnotation, localRowType,
+          localVAnnotator, localGAnnotator, splitRowType)
+        val rv2b = new RegionValueBuilder()
+        val rv2 = RegionValue()
+        it.map { rv =>
+          val annotations = splitcontext.splitRow(rv,
+            sortAlleles = false, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = false)
+            .map { splitrv =>
+              val splitur = new UnsafeRow(splitRowType, splitrv)
+              val v = splitur.getAs[Variant](1)
+              val va = splitur.get(2)
+              ec.setAll(localGlobalAnnotation, v, va)
+              aggregateOption.foreach(f => f(splitrv))
+              (f(), types).zipped.map { case (a, t) =>
+                Annotation.copy(t, a)
+              }
+            }
+            .toArray
+
+          rv2b.set(rv.region)
+          rv2b.start(newRowType)
+          rv2b.startStruct()
+
+          rv2b.addField(localRowType, rv, 0) // pk
+          rv2b.addField(localRowType, rv, 1) // v
+
+          val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
+          val va = ur.get(2)
+          val newVA = inserters.zipWithIndex.foldLeft(va) { case (va, (inserter, i)) =>
+              inserter(va, annotations.map(_ (i)): IndexedSeq[Any])
+          }
+          rv2b.addAnnotation(finalType, newVA)
+
+          rv2b.addField(localRowType, rv, 3) // gs
+          rv2b.endStruct()
+
+          rv2.set(rv.region, rv2b.end())
+          rv2
+        }
+      })
+
+    vds.copy2(rdd2 = newRDD2, vaSignature = finalType)
   }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
@@ -282,13 +337,13 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
   /**
     *
-    * @param filterExpr Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
-    * @param annotationExpr Annotation modifying expression involving v (new variant), va (old variant annotations),
-    * and aIndices (maps from new to old indices)
+    * @param filterExpr             Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
+    * @param annotationExpr         Annotation modifying expression involving v (new variant), va (old variant annotations),
+    *                               and aIndices (maps from new to old indices)
     * @param filterAlteredGenotypes any call that contains a filtered allele is set to missing instead
-    * @param keep Keep variants matching condition
-    * @param subset subsets the PL and AD. Genotype and GQ are set based on the resulting PLs.  Downcodes by default.
-    * @param maxShift Maximum possible position change during minimum representation calculation
+    * @param keep                   Keep variants matching condition
+    * @param subset                 subsets the PL and AD. Genotype and GQ are set based on the resulting PLs.  Downcodes by default.
+    * @param maxShift               Maximum possible position change during minimum representation calculation
     */
   def filterAlleles(filterExpr: String, annotationExpr: String = "va = va", filterAlteredGenotypes: Boolean = false,
     keep: Boolean = true, subset: Boolean = true, maxShift: Int = 100, keepStar: Boolean = false): VariantDataset = {
@@ -306,18 +361,18 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       if (g == null)
         g
       else
-        Genotype(g._unboxedGT, g._fakeRef)
+        Genotype(g._unboxedGT)
     })
   }
 
   /**
     *
     * @param computeMafExpr An expression for the minor allele frequency of the current variant, `v', given
-    * the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
-    * @param bounded Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
-    * (e.g. outside of [0,1]).
-    * @param minimum Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
-    * @param maximum Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
+    *                       the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
+    * @param bounded        Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
+    *                       (e.g. outside of [0,1]).
+    * @param minimum        Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
+    * @param maximum        Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
     */
   def ibd(computeMafExpr: Option[String] = None, bounded: Boolean = true,
     minimum: Option[Double] = None, maximum: Option[Double] = None): KeyTable = {
@@ -327,11 +382,11 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
   /**
     *
-    * @param mafThreshold Minimum minor allele frequency threshold
-    * @param includePAR Include pseudoautosomal regions
+    * @param mafThreshold     Minimum minor allele frequency threshold
+    * @param includePAR       Include pseudoautosomal regions
     * @param fFemaleThreshold Samples are called females if F < femaleThreshold
-    * @param fMaleThreshold Samples are called males if F > maleThreshold
-    * @param popFreqExpr Use an annotation expression for estimate of MAF rather than computing from the data
+    * @param fMaleThreshold   Samples are called males if F > maleThreshold
+    * @param popFreqExpr      Use an annotation expression for estimate of MAF rather than computing from the data
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
     fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
@@ -370,11 +425,11 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
   /**
     *
-    * @param scoresRoot Sample annotation path for scores (period-delimited path starting in 'sa')
-    * @param k Number of principal components
+    * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')
+    * @param k            Number of principal components
     * @param loadingsRoot Variant annotation path for site loadings (period-delimited path starting in 'va')
-    * @param eigenRoot Global annotation path for eigenvalues (period-delimited path starting in 'global'
-    * @param asArrays Store score and loading results as arrays, rather than structs
+    * @param eigenRoot    Global annotation path for eigenvalues (period-delimited path starting in 'global'
+    * @param asArrays     Store score and loading results as arrays, rather than structs
     */
   def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
     asArrays: Boolean = false): VariantDataset = {
@@ -430,18 +485,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
     info(s"rrm: RRM computed using $m variants.")
     KinshipMatrix(vds.hc, vds.sSignature, rrm, vds.sampleIds.toArray, m)
-  }
-
-
-  /**
-    *
-    * @param propagateGQ Propagate GQ instead of computing from PL
-    * @param keepStar Do not filter * alleles
-    * @param maxShift Maximum possible position change during minimum representation calculation
-    */
-  def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false,
-    maxShift: Int = 100): VariantDataset = {
-    SplitMulti(vds, propagateGQ, keepStar, maxShift)
   }
 
   def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {

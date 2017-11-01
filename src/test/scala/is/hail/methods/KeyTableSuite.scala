@@ -512,10 +512,9 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testGroup() {
     val data = Array(
-      Array("Sample1", Row(23.0f, "rabbit"), 9, 5),
-      null)
+      Row("Sample1", Row(23.0f, "rabbit"), 9, 5))
 
-    val rdd = sc.parallelize(data.map(d => if (d == null) null else Row.fromSeq(d)))
+    val rdd = sc.parallelize(data)
     val kt = KeyTable(hc, rdd, TStruct(
       ("Sample", TString),
       ("field0", TStruct(("1", TFloat32), ("2", TString))),
@@ -529,10 +528,10 @@ class KeyTableSuite extends SparkSuite {
     assert(kt.group("Sample", Array("Sample", "field0")).signature == TStruct(("field1", TInt32), ("field2", TInt32),
       ("Sample", TStruct(("Sample", TString), ("field0", TStruct(("1", TFloat32), ("2", TString)))))))
 
-    TestUtils.interceptFatal("Struct does not have field with name"){ kt.group("foo", Array("nonExistentField")) }
+    TestUtils.interceptFatal("Struct does not have field with name") { kt.group("foo", Array("nonExistentField")) }
 
-    val data2 = Array(Array(Row("Sample1", 5)))
-    val rdd2 = sc.parallelize(data2.map(Row.fromSeq(_)))
+    val data2 = Array(Row(Row("Sample1", 5)))
+    val rdd2 = sc.parallelize(data2)
     val kt2 = KeyTable(hc, rdd2, TStruct(("foo", TStruct(("a", TString), ("b", TInt32)))))
     kt2.typeCheck()
 

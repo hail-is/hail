@@ -1,158 +1,195 @@
 package is.hail.methods
 
-import is.hail.annotations.Annotation
+import is.hail.annotations._
 import is.hail.expr._
-import is.hail.sparkextras.OrderedRDD
+import is.hail.sparkextras.OrderedRDD2
 import is.hail.utils._
-import is.hail.variant.{Genotype, GenotypeBuilder, Variant, VariantDataset}
+import is.hail.variant.{Locus, Variant, VariantSampleMatrix}
+import org.apache.spark.rdd.RDD
 
-object SplitMulti {
+import scala.reflect.ClassTag
 
-  def splitGT(gt: Int, i: Int): Int = {
-    val p = Genotype.gtPair(gt)
-    (if (p.j == i) 1 else 0) +
-      (if (p.k == i) 1 else 0)
+class ExprAnnotator(val ec: EvalContext, t: Type, expr: String, head: Option[String]) extends Serializable {
+  private val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, head)
+
+  private val inserters = new Array[Inserter](types.length)
+  val newT: Type = {
+    var newT = t
+    var i = 0
+    while (i < types.length) {
+      val (newSig, ins) = newT.insert(types(i), paths(i))
+      inserters(i) = ins
+      newT = newSig
+      i += 1
+    }
+    newT
   }
 
-  def split(v: Variant,
-    va: Annotation,
-    it: Iterable[Genotype],
-    propagateGQ: Boolean,
-    keepStar: Boolean,
-    insertSplitAnnots: (Annotation, Int, Boolean) => Annotation,
-    f: (Variant) => Boolean): Iterator[(Variant, (Annotation, Iterable[Genotype]))] = {
-
-    if (v.isBiallelic) {
-      val minrep = v.minRep
-      if (f(minrep))
-        return Iterator((minrep, (insertSplitAnnots(va, 1, false), it)))
-      else
-        return Iterator()
+  def insert(a: Annotation): Annotation = {
+    var newA = a
+    var i = 0
+    var xs = f()
+    while (i < xs.length) {
+      newA = inserters(i)(newA, xs(i))
+      i += 1
     }
+    assert(newT.typeCheck(newA))
+    newA
+  }
+}
 
-    val splitVariants = v.altAlleles.iterator.zipWithIndex
+class SplitMultiPartitionContext(
+  keepStar: Boolean,
+  nSamples: Int, globalAnnotation: Annotation, rowType: TStruct,
+  vAnnotator: ExprAnnotator, gAnnotator: ExprAnnotator, newRowType: TStruct) {
+  var prevLocus: Locus = null
+  var ur = new UnsafeRow(rowType)
+  val splitRegion = MemoryBuffer()
+  val rvb = new RegionValueBuilder()
+  val splitrv = RegionValue()
+
+  def splitRow(rv: RegionValue, sortAlleles: Boolean, removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): Iterator[RegionValue] = {
+    require(!(removeMoving && verifyLeftAligned))
+
+    ur.set(rv)
+    val v = ur.getAs[Variant](1)
+
+    var isLeftAligned = true
+    if (prevLocus != null && prevLocus == v.locus)
+      isLeftAligned = false
+    var splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(keepStar || !_._1.isStar)
-      .map { case (aa, aai) => (Variant(v.contig, v.start, v.ref, Array(aa)).minRep, aai + 1) }
-      .filter { case (sv, _) => f(sv) }
+      .map { case (aa, aai) =>
+        val splitv = Variant(v.contig, v.start, v.ref, Array(aa))
+        val minsplitv = splitv.minRep
+
+        if (splitv.locus != minsplitv.locus)
+          isLeftAligned = false
+
+        (minsplitv, aai + 1)
+      }
       .toArray
 
     if (splitVariants.isEmpty)
       return Iterator()
 
-    val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles) }
-    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new ArrayBuilder[Genotype]() }
+    val wasSplit = !v.isBiallelic
 
-    for (g <- it) {
-      val gadsum = Genotype.ad(g).map(gadx => (gadx, gadx.sum))
-
-      // svj corresponds to the ith allele of v
-      for (((svj, i), j) <- splitVariants.iterator.zipWithIndex) {
-        val gb = splitGenotypeBuilders(j)
-        gb.clear()
-
-        if (g == null)
-          gb.setMissing()
-        else {
-          Genotype.gt(g).foreach { ggtx =>
-            val gtx = splitGT(ggtx, i)
-            gb.setGT(gtx)
-
-            val p = Genotype.gtPair(ggtx)
-            if (gtx != p.nNonRefAlleles)
-              gb.setFakeRef()
-          }
-
-          gadsum.foreach { case (gadx, sum) =>
-            // what bcftools does
-            // Array(gadx(0), gadx(i))
-            gb.setAD(Array(sum - gadx(i), gadx(i)))
-          }
-
-          Genotype.dp(g).foreach { dpx => gb.setDP(dpx) }
-
-          if (propagateGQ)
-            Genotype.gq(g).foreach { gqx => gb.setGQ(gqx) }
-
-          Genotype.pl(g).foreach { gplx =>
-            val plx = gplx.iterator.zipWithIndex
-              .map { case (p, k) => (splitGT(k, i), p) }
-              .reduceByKeyToArray(3, Int.MaxValue)(_ min _)
-            gb.setPX(plx)
-
-            if (!propagateGQ) {
-              val gq = Genotype.gqFromPL(plx)
-              gb.setGQ(gq)
-            }
-          }
-        }
-
-        splitGenotypeStreamBuilders(j) += gb.result()
-      }
+    if (isLeftAligned) {
+      if (removeLeftAligned)
+        return Iterator()
+    } else {
+      if (removeMoving)
+        return Iterator()
+      else if (verifyLeftAligned)
+        fatal("found non-left aligned variant: $v")
     }
 
-    splitVariants.iterator
-      .zip(splitGenotypeStreamBuilders.iterator)
-      .map { case ((v, ind), gsb) =>
-        (v, (insertSplitAnnots(va, ind, true), gsb.result()))
+    val va = ur.get(2)
+
+    if (sortAlleles)
+      splitVariants = splitVariants.sortBy { case (svj, i) => svj }
+
+    val nAlleles = v.nAlleles
+    val nGenotypes = v.nGenotypes
+
+    val gs = ur.getAs[IndexedSeq[Any]](3)
+
+    splitVariants.iterator.zipWithIndex
+      .map { case ((svj, i), j) =>
+        splitRegion.clear()
+        rvb.set(splitRegion)
+        rvb.start(newRowType)
+        rvb.startStruct()
+        rvb.addAnnotation(newRowType.fieldType(0), svj.locus)
+        rvb.addAnnotation(newRowType.fieldType(1), svj)
+
+        vAnnotator.ec.setAll(globalAnnotation, svj, va, i, wasSplit)
+        rvb.addAnnotation(newRowType.fieldType(2), vAnnotator.insert(va))
+
+        rvb.startArray(nSamples) // gs
+        gAnnotator.ec.setAll(globalAnnotation, svj, va, i, wasSplit)
+        var k = 0
+        while (k < nSamples) {
+          val g = gs(k)
+          gAnnotator.ec.set(5, g)
+          rvb.addAnnotation(newRowType.fieldType(3).asInstanceOf[TArray].elementType, gAnnotator.insert(g))
+          k += 1
+        }
+        rvb.endArray() // gs
+
+        rvb.endStruct()
+        splitrv.set(splitRegion, rvb.end())
+        splitrv
       }
   }
+}
 
-  def splitNumber(str: String): String =
-    if (str == "A" || str == "R" || str == "G")
-      "."
-    else str
+class SplitMulti[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean)(implicit tct: ClassTag[T]) {
+  val vEC = EvalContext(Map(
+    "global" -> (0, vsm.globalSignature),
+    "v" -> (1, vsm.vSignature),
+    "va" -> (2, vsm.vaSignature),
+    "aIndex" -> (3, TInt32),
+    "wasSplit" -> (4, TBoolean)))
+  val vAnnotator = new ExprAnnotator(vEC, vsm.vaSignature, variantExpr, Some(Annotation.VARIANT_HEAD))
 
-  def apply(vds: VariantDataset, propagateGQ: Boolean = false, keepStar: Boolean = false,
-    maxShift: Int = 100): VariantDataset = {
+  val gEC = EvalContext(Map(
+    "global" -> (0, vsm.globalSignature),
+    "v" -> (1, vsm.vSignature),
+    "va" -> (2, vsm.vaSignature),
+    "aIndex" -> (3, TInt32),
+    "wasSplit" -> (4, TBoolean),
+    "g" -> (5, vsm.genotypeSignature)))
+  val gAnnotator = new ExprAnnotator(gEC, vsm.genotypeSignature, genotypeExpr, Some(Annotation.GENOTYPE_HEAD))
 
-    if (vds.wasSplit) {
-      warn("called redundant split on an already split VDS")
-      return vds
-    }
+  val newMatrixType = vsm.matrixType.copy(vaType = vAnnotator.newT, genotypeType = gAnnotator.newT)
 
-    val (vas2, insertIndex) = vds.vaSignature.insert(TInt32, "aIndex")
-    val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
+  def split(sortAlleles: Boolean, removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
+    val localKeepStar = keepStar
+    val localGlobalAnnotation = vsm.globalAnnotation
+    val localNSamples = vsm.nSamples
+    val localRowType = vsm.rowType
+    val localVAnnotator = vAnnotator
+    val localGAnnotator = gAnnotator
 
-    val vas4 = vas3.getAsOption[TStruct]("info").map { s =>
-      val updatedInfoSignature = TStruct(s.fields.map { f =>
-        f.attrs.get("Number").map(splitNumber) match {
-          case Some(n) => f.copy(attrs = f.attrs + ("Number" -> n))
-          case None => f
-        }
-      })
-      val (newSignature, _) = vas3.insert(updatedInfoSignature, "info")
-      newSignature
-    }.getOrElse(vas3)
+    val newRowType = newMatrixType.rowType
 
-    val partitionerBc = vds.sparkContext.broadcast(vds.rdd.orderedPartitioner)
+    vsm.rdd2.mapPartitions { it =>
+      val context = new SplitMultiPartitionContext(
+        localKeepStar,
+        localNSamples, localGlobalAnnotation, localRowType,
+        localVAnnotator, localGAnnotator, newRowType)
 
-    val shuffledVariants = vds.rdd.mapPartitionsWithIndex { case (i, it) =>
-      it.flatMap { case (v, (va, gs)) =>
-        split(v, va, gs,
-          propagateGQ = propagateGQ,
-          keepStar = keepStar,
-          insertSplitAnnots = { (va, index, wasSplit) =>
-            insertSplit(insertIndex(va, index), wasSplit)
-          },
-          f = (v: Variant) => partitionerBc.value.getPartition(v) != i)
+      it.flatMap { rv =>
+        val splitit = context.splitRow(rv, sortAlleles, removeLeftAligned, removeMoving, verifyLeftAligned)
+        context.prevLocus = context.ur.getAs[Locus](0)
+        splitit
       }
-    }.orderedRepartitionBy(vds.rdd.orderedPartitioner)
-
-    val localMaxShift = maxShift
-    val staticVariants = vds.rdd.mapPartitionsWithIndex { case (i, it) =>
-      LocalVariantSortIterator(it.flatMap { case (v, (va, gs)) =>
-        split(v, va, gs,
-          propagateGQ = propagateGQ,
-          keepStar = keepStar,
-          insertSplitAnnots = { (va, index, wasSplit) =>
-            insertSplit(insertIndex(va, index), wasSplit)
-          },
-          f = (v: Variant) => partitionerBc.value.getPartition(v) == i)
-      }, localMaxShift)
     }
+  }
 
-    val newRDD = OrderedRDD.partitionedSortedUnion(staticVariants, shuffledVariants, vds.rdd.orderedPartitioner)
+  def split(): VariantSampleMatrix[Locus, Variant, T] = {
+    val newRDD2: OrderedRDD2 =
+      if (leftAligned) {
+        OrderedRDD2(
+          newMatrixType.orderedRDD2Type,
+          vsm.rdd2.orderedPartitioner,
+          split(sortAlleles = true, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
+      } else {
+        val leftAlignedVariants = OrderedRDD2(
+          newMatrixType.orderedRDD2Type,
+          vsm.rdd2.orderedPartitioner,
+          split(sortAlleles = true, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false))
 
-    vds.copy(rdd = newRDD, vaSignature = vas4, wasSplit = true)
+        val movedVariants = OrderedRDD2.shuffle(
+          newMatrixType.orderedRDD2Type,
+          vsm.rdd2.orderedPartitioner,
+          split(sortAlleles = false, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
+
+        leftAlignedVariants.partitionSortedUnion(movedVariants)
+      }
+
+    vsm.copy2[Locus, Variant, T](rdd2 = newRDD2, vaSignature = vAnnotator.newT, genotypeSignature = gAnnotator.newT, wasSplit = true)
   }
 }

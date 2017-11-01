@@ -66,8 +66,6 @@ abstract class Genotype extends Serializable {
 
   def _unboxedPX: Array[Int]
 
-  def _fakeRef: Boolean
-
   def check(nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
     assert(Genotype.gt(this).forall(i => i >= 0 && i < nGenotypes))
@@ -79,8 +77,7 @@ abstract class Genotype extends Serializable {
     ad: Option[Array[Int]] = Genotype.ad(this),
     dp: Option[Int] = Genotype.dp(this),
     gq: Option[Int] = Genotype.gq(this),
-    px: Option[Array[Int]] = Genotype.px(this),
-    fakeRef: Boolean = this._fakeRef): Genotype = Genotype(gt, ad, dp, gq, px, fakeRef)
+    px: Option[Array[Int]] = Genotype.px(this)): Genotype = Genotype(gt, ad, dp, gq, px)
 
   override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
@@ -88,8 +85,7 @@ abstract class Genotype extends Serializable {
         util.Arrays.equals(_unboxedAD, g._unboxedAD) &&
         _unboxedDP == g._unboxedDP &&
         _unboxedGQ == g._unboxedGQ &&
-        util.Arrays.equals(_unboxedPX, g._unboxedPX) &&
-        _fakeRef == g._fakeRef
+        util.Arrays.equals(_unboxedPX, g._unboxedPX)
 
     case _ => false
   }
@@ -101,7 +97,6 @@ abstract class Genotype extends Serializable {
       .append(_unboxedDP)
       .append(_unboxedGQ)
       .append(util.Arrays.hashCode(_unboxedPX))
-      .append(_fakeRef)
       .toHashCode
 
   override def toString: String = {
@@ -111,10 +106,6 @@ abstract class Genotype extends Serializable {
       val p = Genotype.gtPair(gt)
       s"${ p.j }/${ p.k }"
     }.getOrElse("./."))
-
-    if (_fakeRef) {
-      b += '*'
-    }
 
     b += ':'
     b.append(Genotype.ad(this).map(_.mkString(",")).getOrElse("."))
@@ -234,8 +225,7 @@ object Genotype {
           null
         else {
           val r = a.asInstanceOf[Row]
-          val g = new GenericGenotype(gtq(r), adq(r), dpq(r), gqq(r), plq(r),
-            _fakeRef = false)
+          val g = new GenericGenotype(gtq(r), adq(r), dpq(r), gqq(r), plq(r))
           g
         }
     }
@@ -374,8 +364,6 @@ object Genotype {
     else
       None
 
-  def fakeRef(g: Genotype): Option[Boolean] = if (g == null) None else Some(g._fakeRef)
-
   def fractionReadsRef(g: Genotype): Option[Double] = {
     val uad = unboxedAD(g)
     if (uad != null) {
@@ -452,7 +440,7 @@ object Genotype {
     else
       None
 
-  def apply(gtx: Int): Genotype = new GenericGenotype(gtx, null, -1, -1, null, false)
+  def apply(gtx: Int): Genotype = new GenericGenotype(gtx, null, -1, -1, null)
 
   def toRow(g: Genotype): Row =
     if (g == null)
@@ -466,8 +454,7 @@ object Genotype {
         unboxedAD(g): IndexedSeq[Int],
         if (dp == -1) null else dp,
         if (gq == -1) null else gq,
-        unboxedPX(g): IndexedSeq[Int],
-        g._fakeRef)
+        unboxedPX(g): IndexedSeq[Int])
     }
 
   def toJSON(g: Genotype): JValue =
@@ -479,8 +466,7 @@ object Genotype {
         ("ad", Genotype.ad(g).map(ads => JArray(ads.map(JInt(_)).toList)).getOrElse(JNull)),
         ("dp", Genotype.dp(g).map(JInt(_)).getOrElse(JNull)),
         ("gq", Genotype.gq(g).map(JInt(_)).getOrElse(JNull)),
-        ("px", Genotype.px(g).map(pxs => JArray(pxs.map(JInt(_)).toList)).getOrElse(JNull)),
-        ("fakeRef", JBool(g._fakeRef)))
+        ("px", Genotype.px(g).map(pxs => JArray(pxs.map(JInt(_)).toList)).getOrElse(JNull)))
 
   def apply(call: Call): Genotype = {
     val gtx: Int = if (call == null) -1 else call
@@ -492,21 +478,17 @@ object Genotype {
     val dpx: Int = if (dp == null) -1 else dp
     val gqx: Int = if (gq == null) -1 else gq
 
-    val g = new GenericGenotype(gtx, ad, dpx, gqx, pl, _fakeRef = false)
+    val g = new GenericGenotype(gtx, ad, dpx, gqx, pl)
     g.check(nAlleles)
     g
   }
-
-  def apply(unboxedGT: Int, fakeRef: Boolean): Genotype =
-    new GenericGenotype(unboxedGT, null, -1, -1, null, fakeRef)
 
   def apply(gt: Option[Int] = None,
     ad: Option[Array[Int]] = None,
     dp: Option[Int] = None,
     gq: Option[Int] = None,
-    px: Option[Array[Int]] = None,
-    fakeRef: Boolean = false): Genotype = {
-    new GenericGenotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), px.map(_.toArray).orNull, fakeRef)
+    px: Option[Array[Int]] = None): Genotype = {
+    new GenericGenotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), px.map(_.toArray).orNull)
   }
 
   def sparkSchema: DataType = StructType(Array(
@@ -514,8 +496,7 @@ object Genotype {
     StructField("ad", ArrayType(IntegerType, containsNull = false)),
     StructField("dp", IntegerType),
     StructField("gq", IntegerType),
-    StructField("px", ArrayType(IntegerType, containsNull = false)),
-    StructField("fakeRef", BooleanType, nullable = false)))
+    StructField("px", ArrayType(IntegerType, containsNull = false))))
 
   def fromRow(r: Row): Genotype = {
     new GenericGenotype(
@@ -523,8 +504,7 @@ object Genotype {
       if (r.isNullAt(1)) null else r.getAs[IndexedSeq[Int]](1).toArray,
       if (r.isNullAt(2)) -1 else r.getInt(2),
       if (r.isNullAt(3)) -1 else r.getInt(3),
-      if (r.isNullAt(4)) null else r.getAs[IndexedSeq[Int]](4).toArray,
-      r.getBoolean(5))
+      if (r.isNullAt(4)) null else r.getAs[IndexedSeq[Int]](4).toArray)
   }
 
   def gqFromPL(pl: Array[Int]): Int = {
@@ -539,8 +519,8 @@ object Genotype {
         m2 = pl(i)
       i += 1
     }
-    assert(m == 0, s"$m, $m2, [${ pl.mkString(",") }]")
-    m2
+    assert(m <= m2)
+    m2 - m
   }
 
   def gtFromLinear(a: Array[Int]): Option[Int] = {
@@ -863,98 +843,7 @@ class GenericGenotype(val _unboxedGT: Int,
   val _unboxedAD: Array[Int],
   val _unboxedDP: Int,
   val _unboxedGQ: Int,
-  val _unboxedPX: Array[Int],
-  val _fakeRef: Boolean) extends Genotype {
+  val _unboxedPX: Array[Int]) extends Genotype {
   require(_unboxedGT >= -1, s"invalid _unboxedGT value: ${ _unboxedGT }")
   require(_unboxedDP >= -1, s"invalid _unboxedDP value: ${ _unboxedDP }")
-}
-
-class GenotypeBuilder(nAlleles: Int) {
-  require(nAlleles > 0, s"tried to create genotype builder with $nAlleles ${ plural(nAlleles, "allele") }")
-  val isBiallelic = nAlleles == 2
-  val nGenotypes = triangle(nAlleles)
-
-  private var gt: Int = -1
-  private var ad: Array[Int] = _
-  private var dp: Int = -1
-  private var gq: Int = -1
-  private var px: Array[Int] = _
-  private var fakeRef: Boolean = false
-  private var missing: Boolean = false
-
-  def clear() {
-    gt = -1
-    dp = -1
-    gq = -1
-    ad = null
-    px = null
-    fakeRef = false
-    missing = false
-  }
-
-  def hasGT: Boolean = gt >= 0
-
-  def setGT(newGT: Int) {
-    if (newGT < 0)
-      fatal(s"invalid GT value `$newGT': negative value")
-    if (newGT > nGenotypes)
-      fatal(s"invalid GT value `$newGT': value larger than maximum number of genotypes $nGenotypes")
-    if (hasGT)
-      fatal(s"invalid GT, genotype already had GT")
-    gt = newGT
-  }
-
-  def setAD(newAD: Array[Int]) {
-    if (newAD.length != nAlleles)
-      fatal(s"invalid AD field `${ newAD.mkString(",") }': expected $nAlleles values, but got ${ newAD.length }.")
-    ad = newAD
-  }
-
-  def setDP(newDP: Int) {
-    if (newDP < 0)
-      fatal(s"invalid DP field `$newDP': negative value")
-    dp = newDP
-  }
-
-  def setGQ(newGQ: Int) {
-    if (newGQ < 0)
-      fatal(s"invalid GQ field `$newGQ': negative value")
-    gq = newGQ
-  }
-
-  def setPX(newPX: Array[Int]) {
-    if (newPX.length != nGenotypes)
-      fatal(s"invalid PL field `${ newPX.mkString(",") }': expected $nGenotypes values, but got ${ newPX.length }.")
-    px = newPX
-  }
-
-  def setFakeRef() {
-    fakeRef = true
-  }
-
-  def setMissing() {
-    missing = true
-  }
-
-  def set(g: Genotype) {
-    if (g == null) {
-      setMissing()
-    } else {
-      Genotype.gt(g).foreach(setGT)
-      Genotype.ad(g).foreach(setAD)
-      Genotype.dp(g).foreach(setDP)
-      Genotype.gq(g).foreach(setGQ)
-      Genotype.px(g).foreach(setPX)
-
-      if (g._fakeRef)
-        setFakeRef()
-    }
-  }
-
-  def result(): Genotype = {
-    if (missing)
-      null
-    else
-      new GenericGenotype(gt, ad, dp, gq, px, fakeRef)
-  }
 }

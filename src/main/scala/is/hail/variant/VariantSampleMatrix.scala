@@ -417,7 +417,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     val signature = TStruct((keyName -> keyType) +: stringSampleIds.map(id => id -> resultType): _*)
 
-    new KeyTable(hc, ktRDD, signature, key = Array(keyName))
+    KeyTable(hc, ktRDD, signature, key = Array(keyName))
   }
 
   def aggregateBySample[U](zeroValue: U)(
@@ -576,7 +576,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
     val inserters = inserterBuilder.result()
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations[RPK, RK, T](hc, value, ec)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, value, ec)
 
     ec.set(0, globalAnnotation)
     val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) =>
@@ -724,7 +724,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
 
     val localRowType = rowType
-    insertIntoRow[UnsafeRow](() => new UnsafeRow(localRowType))(
+    insertIntoRow(() => new UnsafeRow(localRowType))(
       newVASignature, List("va"), { (ur, rv, rvb) =>
         ur.set(rv)
         
@@ -734,7 +734,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
         ec.setAll(localGlobalAnnotation, v, va)
 
-        aggregateOption.foreach(f => f(v, va, gs))
+        aggregateOption.foreach(f => f(rv))
 
         var newVA = va
         var i = 0
@@ -1939,24 +1939,65 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   def variantsKT(): KeyTable = {
-    KeyTable(hc, rdd.map { case (v, (va, gs)) =>
-      Row(v, va)
-    },
-      TStruct(
+    val localRowType = rowType
+    val typ = TStruct(
         "v" -> vSignature,
-        "va" -> vaSignature),
+        "va" -> vaSignature)
+    new KeyTable(hc, rdd2.mapPartitions { it =>
+      val rv2b = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      it.map { rv =>
+        rv2b.set(rv.region)
+        rv2b.start(typ)
+        rv2b.startStruct()
+        rv2b.addField(localRowType, rv, 1) // v
+        rv2b.addField(localRowType, rv, 2) // va
+        rv2b.endStruct()
+        rv2.set(rv.region, rv2b.end())
+        rv2
+      }
+    },
+      typ,
       Array("v"))
   }
 
   def genotypeKT(): KeyTable = {
-    KeyTable(hc,
-      expandWithAll().map { case (v, va, s, sa, g) => Row(v, va, s, sa, g) },
-      TStruct(
-        "v" -> vSignature,
-        "va" -> vaSignature,
-        "s" -> sSignature,
-        "sa" -> saSignature,
-        "g" -> genotypeSignature),
+    val localNSamples = nSamples
+    val localSType = sSignature
+    val localSAType = saSignature
+    val localRowType = rowType
+    val typ = TStruct(
+      "v" -> vSignature,
+      "va" -> vaSignature,
+      "s" -> sSignature,
+      "sa" -> saSignature,
+      "g" -> genotypeSignature)
+    val gsType = localRowType.fieldType(3).asInstanceOf[TArray]
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+    new KeyTable(hc, rdd2.mapPartitions { it =>
+      val rv2b = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      it.flatMap { rv =>
+        val rvEnd = rv.region.end
+        rv2b.set(rv.region)
+        val gsOffset = localRowType.loadField(rv, 3)
+        (0 until localNSamples).iterator.map { i =>
+          rv.region.clear(rvEnd)
+          rv2b.start(typ)
+          rv2b.startStruct()
+          rv2b.addField(localRowType, rv, 1) // v
+          rv2b.addField(localRowType, rv, 2) // va
+          rv2b.addAnnotation(localSType, localSampleIdsBc.value(i))
+          rv2b.addAnnotation(localSAType, localSampleAnnotationsBc.value(i))
+          rv2b.addElement(gsType, rv.region, gsOffset, i)
+          rv2b.endStruct()
+          rv2.set(rv.region, rv2b.end())
+          rv2
+        }
+      }
+    },
+      typ,
       Array("v", "s"))
   }
 
@@ -2060,6 +2101,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     new VariantSampleMatrix[RPK, RK, Genotype](hc, metadata, ast)
   }
+
+  def makeGenotypeGeneric(): VariantSampleMatrix[RPK, RK, Annotation] =
+    new VariantSampleMatrix[RPK, RK, Annotation](hc, metadata, ast)
 
   def toVKDS: VariantSampleMatrix[Locus, Variant, T] = makeVariantConcrete()
 

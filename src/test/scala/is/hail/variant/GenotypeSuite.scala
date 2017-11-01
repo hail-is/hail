@@ -9,21 +9,7 @@ import org.testng.annotations.Test
 import scala.collection.mutable
 
 object GenotypeSuite {
-  def readWriteEqual(nAlleles: Int, g: Genotype): Boolean = {
-    
-    val gb = new GenotypeBuilder(nAlleles)
-
-    gb.set(g)
-    val g2 = gb.result()
-
-    g == g2
-  }
-
   object Spec extends Properties("Genotype") {
-
-    property("readWrite") = forAll[(Variant, Genotype)](Genotype.genVariantGenotype) { case (v, g) =>
-      readWriteEqual(v.nAlleles, g)
-    }
 
     property("gt") = forAll { g: Genotype =>
       Genotype.gt(g).isDefined == Genotype.isCalled(g)
@@ -51,10 +37,6 @@ class GenotypeSuite extends TestNGSuite {
 
   val v = Variant("1", 1, "A", "T")
 
-  def testReadWrite(g: Genotype) {
-    assert(readWriteEqual(v.nAlleles, g))
-  }
-
   @Test def testGenotype() {
     intercept[IllegalArgumentException] {
       Genotype(Some(-2), Some(Array(2, 0)), Some(2), None)
@@ -74,11 +56,6 @@ class GenotypeSuite extends TestNGSuite {
     assert(Genotype.gt(homRef).isDefined)
     assert(Genotype.gt(het).isDefined)
     assert(Genotype.gt(homVar).isDefined)
-
-    testReadWrite(noCall)
-    testReadWrite(homRef)
-    testReadWrite(het)
-    testReadWrite(homVar)
 
     assert(Genotype.pAB(Genotype(None, None, None, None)).isEmpty)
     assert(Genotype.pAB(Genotype(None, Some(Array(0, 0)), Some(0), None, None)).isEmpty)

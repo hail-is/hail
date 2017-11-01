@@ -1078,9 +1078,8 @@ case object TGenotype extends ComplexType {
     "ad" -> TArray(TInt32, elementsRequired = true),
     "dp" -> TInt32,
     "gq" -> TInt32,
-    "pl" -> TArray(TInt32, elementsRequired = true),
-    "fakeRef" -> TBoolean)
-
+    "pl" -> TArray(TInt32, elementsRequired = true))
+  
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
   override def genNonmissingValue: Gen[Annotation] = Genotype.genNonmissingValue

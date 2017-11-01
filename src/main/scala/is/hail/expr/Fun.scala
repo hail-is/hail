@@ -91,6 +91,12 @@ case class Arity0Aggregator[T, U](retType: Type, ctor: () => TypedAggregator[U])
   }
 }
 
+case class Arity0DependentAggregator[T, U](retType: Type, ctor: () => (() => TypedAggregator[U])) extends Fun {
+  def subst() = Arity0Aggregator[T, U](retType.subst(), ctor())
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = ???
+}
+
 class TransformedAggregator[T](val prev: TypedAggregator[T], transform: (Any) => Any) extends TypedAggregator[T] {
   def seqOp(x: Any) = prev.seqOp(transform(x))
 
@@ -113,6 +119,12 @@ case class Arity1Aggregator[T, U, V](retType: Type, ctor: (U) => TypedAggregator
         transformations(0).f)
     })
   }
+}
+
+case class Arity1DependentAggregator[T, U, V](retType: Type, ctor: () => ((U) => TypedAggregator[V])) extends Fun {
+  def subst() = Arity1Aggregator[T, U, V](retType.subst(), ctor())
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = ???
 }
 
 case class Arity3Aggregator[T, U, V, W, X](retType: Type, ctor: (U, V, W) => TypedAggregator[X]) extends Fun {
@@ -140,6 +152,13 @@ case class UnaryLambdaAggregator[T, U, V](retType: Type, ctor: ((Any) => Any) =>
 
 case class BinaryLambdaAggregator[T, U, V, W](retType: Type, ctor: ((Any) => Any, V) => TypedAggregator[W]) extends Fun {
   def subst() = BinaryLambdaAggregator[T, U, V, W](retType.subst(), ctor)
+
+  // conversion can't apply to function type
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = ???
+}
+
+case class BinaryDependentLambdaAggregator[T, U, V, W](retType: Type, ctor: () => (((Any) => Any, V) => TypedAggregator[W])) extends Fun {
+  def subst() = BinaryLambdaAggregator[T, U, V, W](retType.subst(), ctor())
 
   // conversion can't apply to function type
   def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = ???

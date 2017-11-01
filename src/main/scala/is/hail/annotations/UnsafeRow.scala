@@ -241,9 +241,8 @@ object UnsafeRow {
             readArrayInt(region, ft.loadField(region, offset, 4))
           else
             null
-        val fakeRef = region.loadByte(ft.loadField(region, offset, 5)) != 0
 
-        new GenericGenotype(gt, ad, dp, gq, px, fakeRef)
+        new GenericGenotype(gt, ad, dp, gq, px)
     }
   }
 }
