@@ -1229,7 +1229,7 @@ object FunctionRegistry {
   register("binomTest", { (x: Int, n: Int, p: Double, alternative: String) => binomTest(x, n, p, alternative)
   },
     """
-    Returns the p-value of a binomial test <https://en.wikipedia.org/wiki/Binomial_test>__ of the null hypothesis that success has probability `p`, given `x` successes in `n` trials.
+    Returns the p-value from the `exact binomial test <https://en.wikipedia.org/wiki/Binomial_test>__` of the null hypothesis that success has probability `p`, given `x` successes in `n` trials.
 
     **Examples**
 
@@ -1237,12 +1237,11 @@ object FunctionRegistry {
 
     >>> (vds.split_multi()
     ...   .annotate_variants_expr(
-    ...   'va.ab_binom_test = let all_samples_ad = gs.filter(g => g.isHet).map(g => g.ad).sum() in binomTest(all_samples_ad[1], all_samples_ad.sum(), 0.5, "two.sided")'
-    ...   ))
-
+    ...   'va.ab_binom_test = let all_samples_ad = gs.filter(g => g.isHet).map(g => g.ad).sum() in '
+    ...   'binomTest(all_samples_ad[1], all_samples_ad.sum(), 0.5, "two.sided")'))
     """,
-    "x" -> "number of successes", "n" -> "number of trials", "p" -> "probability of success under the null hypothesis",
-    "alternative" -> "alternative hypothesis, must be \"two.sided\", \"greater\" or \"less\".")
+    "x" -> "Number of successes", "n" -> "Number of trials", "p" -> "Probability of success under the null hypothesis",
+    "alternative" -> "Alternative hypothesis, must be \"two.sided\", \"greater\" or \"less\".")
 
   // NB: merge takes two structs, how do I deal with structs?
   register("exp", { (x: Double) => math.exp(x) },
@@ -1562,8 +1561,8 @@ object FunctionRegistry {
   registerMethod("entropy", { (x: String) => entropy(x)
   },
     """
-    Computes Shannon's entropy of input String in bits (<https://en.wikipedia.org/wiki/Entropy#Information_theory>__ ).
-
+    Computes the `Shannon entropy <https://en.wikipedia.org/wiki/Entropy#Information_theory>`__ in bits of the
+    distribution of characters.
     """)
 
   registerMethod("contains", (interval: Interval[Locus], locus: Locus) => interval.contains(locus),

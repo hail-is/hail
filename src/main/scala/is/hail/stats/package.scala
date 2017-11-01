@@ -312,21 +312,17 @@ package object stats {
     DistributionTest.binomial_test(nSuccess, n, p, kind)(1)
   }
 
-  def entropy[T](x: Traversable[T]): Double = {
+  def entropy[T](xs: Iterable[T]): Double = {
+    val counts = xs.counter()
 
-    val counts = mutable.Map[T, Double]().withDefaultValue(0.0)
-    x.foreach(element => counts.update(element, 1.0 + counts(element)))
-
-    val length = counts.values.sum
-    var entropy = 0.0
-
-    counts.valuesIterator.foreach {
-      count =>
-        val prob = count / length
-        entropy += prob * math.log(prob)
+    var length = 0
+    var acc = 0.0
+    counts.valuesIterator.foreach { count =>
+      length += count
+      acc += count * math.log(count)
     }
 
-    -1.0 * entropy / math.log(2)
+    -1 * ((acc / length) - math.log(length)) / math.log(2)
   }
 
   def uninitialized[T]: T = null.asInstanceOf[T]
