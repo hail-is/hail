@@ -1522,7 +1522,7 @@ class KeyTable(HistoryMixin):
         ...   .select(['iAndCase', 'jAndCase'])
         ...   .maximal_independent_set("iAndCase", "jAndCase",
         ...     'if (l.isCase && !r.isCase) -1 else if (!l.isCase && r.isCase) 1 else 0'))
-        >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
+        >>> related_samples_to_remove = related_samples - {x.id for x in related_samples_to_keep}
         >>> vds.filter_samples_list(list(related_samples_to_remove))
 
         **Notes**
