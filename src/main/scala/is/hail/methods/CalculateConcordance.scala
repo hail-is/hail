@@ -7,7 +7,7 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 
 object ConcordanceCombiner {
-  val schema = TArray(TArray(TInt64))
+  val schema = TArray(TArray(TInt64()))
 }
 
 class ConcordanceCombiner extends Serializable {
@@ -81,14 +81,14 @@ object CalculateConcordance {
     val rightFiltered = right.filterSamples { case (s, _) => overlap(s) }
 
     val sampleSchema = TStruct(
-      "s" -> TString,
-      "nDiscordant" -> TInt64,
+      "s" -> TString(),
+      "nDiscordant" -> TInt64(),
       "concordance" -> ConcordanceCombiner.schema
     )
 
     val variantSchema = TStruct(
       "v" -> TVariant(GenomeReference.GRCh37),
-      "nDiscordant" -> TInt64,
+      "nDiscordant" -> TInt64(),
       "concordance" -> ConcordanceCombiner.schema
     )
 

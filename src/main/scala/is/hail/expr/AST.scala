@@ -436,7 +436,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         if (!lt.canCompare(rt))
           parseError(s"Cannot compare arguments of type $lt and $rt")
         else
-          TBoolean
+          TBoolean()
       case (_, _) => FunctionRegistry.lookupFunReturnType(fn, args.map(_.`type`).toSeq)
         .valueOr(x => parseError(x.message))
     }
@@ -452,7 +452,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                |  Found ${ args.length } arguments""".stripMargin)
         args.head.typecheck(ec)
         val t = args.head.`type` match {
-          case TArray(t: TStruct) => t
+          case TArray(t: TStruct, _) => t
           case error => parseError(
             s"""invalid arguments for method `$fn'
                |  Expected Array[Struct] as first argument, found `$error'""".stripMargin)
@@ -537,7 +537,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                  |  Expected struct field identifier in the second position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
         }
         val mangle = m match {
-              case Const(_, v, TBoolean) => v.asInstanceOf[Boolean]
+              case Const(_, v, TBoolean(_)) => v.asInstanceOf[Boolean]
               case other =>
                 parseError(
                   s"""invalid arguments for method `$fn'
@@ -602,8 +602,8 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
         args(0) match {
           case f@Lambda(_, param, body) =>
-            body.typecheck(ec.copy(st = ec.st + ((param, (-1, TFloat64)))))
-            f.`type` = TFunction(Array(TFloat64), body.`type`)
+            body.typecheck(ec.copy(st = ec.st + ((param, (-1, TFloat64())))))
+            f.`type` = TFunction(Array(TFloat64()), body.`type`)
 
           case _ =>
             fatal("first argument to uniroot must be lambda expression")
@@ -795,7 +795,7 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
   extends AST(pos, Array(cond, thenTree, elseTree)) {
   override def typecheckThis(ec: EvalContext): Type = {
-    if (cond.`type` != TBoolean) {
+    if (!cond.`type`.isInstanceOf[TBoolean]) {
       parseError(s"an `if` expression's condition must have type Boolean")
     }
     (thenTree.`type`, elseTree.`type`) match {

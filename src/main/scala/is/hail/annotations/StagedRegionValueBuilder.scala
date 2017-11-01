@@ -53,7 +53,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     assert(!typ.isInstanceOf[TArray])
     typ.fundamentalType match {
       case _: TStruct => start(true)
-      case TBinary =>
+      case _: TBinary =>
         assert(pOffset == null)
         startOffset.store(endOffset)
       case _ => Code(
@@ -114,7 +114,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     Code(
       region.align(TBinary.contentAlignment),
       typ.fundamentalType match {
-        case TBinary => _empty
+        case _: TBinary => _empty
         case _ =>
           region.storeAddress(currentOffset, endOffset)
       },

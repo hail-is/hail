@@ -35,16 +35,16 @@ object Annotation {
 
   def expandType(t: Type): Type = t match {
     case tc: ComplexType => expandType(tc.representation)
-    case TArray(elementType) =>
-      TArray(expandType(elementType))
-    case TStruct(fields) =>
-      TStruct(fields.map { f => f.copy(typ = expandType(f.typ)) })
-    case TSet(elementType) =>
-      TArray(expandType(elementType))
-    case TDict(keyType, valueType) =>
+    case TArray(elementType, req) =>
+      TArray(expandType(elementType), req)
+    case TStruct(fields, req) =>
+      TStruct(fields.map { f => f.copy(typ = expandType(f.typ)) }, req)
+    case TSet(elementType, req) =>
+      TArray(expandType(elementType), req)
+    case TDict(keyType, valueType, req) =>
       TArray(TStruct(
         "key" -> expandType(keyType),
-        "value" -> expandType(valueType)))
+        "value" -> expandType(valueType)), req)
     case _ => t
   }
 
@@ -54,28 +54,28 @@ object Annotation {
     else
       t match {
         case _: TVariant => a.asInstanceOf[Variant].toRow
-        case TGenotype => Genotype.toRow(a.asInstanceOf[Genotype])
+        case _: TGenotype => Genotype.toRow(a.asInstanceOf[Genotype])
         case _: TLocus => a.asInstanceOf[Locus].toRow
 
-        case TArray(elementType) =>
+        case TArray(elementType, _) =>
           a.asInstanceOf[IndexedSeq[_]].map(expandAnnotation(_, elementType))
-        case TStruct(fields) =>
+        case TStruct(fields, _) =>
           Row.fromSeq((a.asInstanceOf[Row].toSeq, fields).zipped.map { case (ai, f) =>
             expandAnnotation(ai, f.typ)
           })
 
-        case TSet(elementType) =>
+        case TSet(elementType, _) =>
           (a.asInstanceOf[Set[_]]
             .toArray[Any] : IndexedSeq[_])
             .map(expandAnnotation(_, elementType))
 
-        case TDict(keyType, valueType) =>
+        case TDict(keyType, valueType, _) =>
           (a.asInstanceOf[Map[String, _]]
 
             .toArray[(Any, Any)]: IndexedSeq[(Any, Any)])
             .map { case (k, v) => Annotation(expandAnnotation(k, keyType), expandAnnotation(v, valueType)) }
 
-        case TAltAllele => a.asInstanceOf[AltAllele].toRow
+        case _: TAltAllele => a.asInstanceOf[AltAllele].toRow
 
         case _: TInterval =>
           val i = a.asInstanceOf[Interval[Locus]]

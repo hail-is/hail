@@ -35,7 +35,7 @@ object IntervalList {
     val gr = GenomeReference.GRCh37
 
     val schema = if (hasValue)
-      TStruct("interval" -> TInterval(gr), "target" -> TString)
+      TStruct("interval" -> TInterval(gr), "target" -> TString())
     else
       TStruct("interval" -> TInterval(gr))
 

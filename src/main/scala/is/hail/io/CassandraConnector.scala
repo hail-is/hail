@@ -46,37 +46,37 @@ object CassandraImpex {
   def exportType(t: Type): DataType = exportType(t, 0)
 
   def exportType(t: Type, depth: Int): DataType = t match {
-    case TBoolean => DataType.cboolean()
-    case TInt32 => DataType.cint()
-    case TInt64 => DataType.bigint()
-    case TFloat32 => DataType.cfloat()
-    case TFloat64 => DataType.cdouble()
-    case TString => DataType.text()
-    case TBinary => DataType.blob()
-    case TCall => DataType.cint()
-    case TArray(elementType) => DataType.list(exportType(elementType, depth + 1), depth == 1)
-    case TSet(elementType) => DataType.set(exportType(elementType, depth + 1), depth == 1)
-    case TDict(keyType, valueType) =>
+    case _: TBoolean => DataType.cboolean()
+    case _: TInt32 => DataType.cint()
+    case _: TInt64 => DataType.bigint()
+    case _: TFloat32 => DataType.cfloat()
+    case _: TFloat64 => DataType.cdouble()
+    case _: TString => DataType.text()
+    case _: TBinary => DataType.blob()
+    case _: TCall => DataType.cint()
+    case TArray(elementType, _) => DataType.list(exportType(elementType, depth + 1), depth == 1)
+    case TSet(elementType, _) => DataType.set(exportType(elementType, depth + 1), depth == 1)
+    case TDict(keyType, valueType, _) =>
       DataType.map(exportType(keyType, depth + 1),
         exportType(valueType, depth + 1), depth == 1)
-    case TAltAllele => DataType.text()
-    case TVariant(_) => DataType.text()
-    case TLocus(_) => DataType.text()
-    case TInterval(_) => DataType.text()
-    case TGenotype => DataType.text()
+    case _: TAltAllele => DataType.text()
+    case TVariant(_, _) => DataType.text()
+    case TLocus(_, _) => DataType.text()
+    case TInterval(_, _) => DataType.text()
+    case _: TGenotype => DataType.text()
     case s: TStruct => DataType.text()
   }
 
   def importType(dt: DataType): Type = {
     (dt.getName: @unchecked) match {
-      case DataType.Name.BOOLEAN => TBoolean
-      case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR => TString
-      case DataType.Name.TINYINT => TInt32
-      case DataType.Name.SMALLINT => TInt32
-      case DataType.Name.INT => TInt32
-      case DataType.Name.BIGINT | DataType.Name.COUNTER => TInt64
-      case DataType.Name.FLOAT => TFloat32
-      case DataType.Name.DOUBLE => TFloat64
+      case DataType.Name.BOOLEAN => TBoolean()
+      case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR => TString()
+      case DataType.Name.TINYINT => TInt32()
+      case DataType.Name.SMALLINT => TInt32()
+      case DataType.Name.INT => TInt32()
+      case DataType.Name.BIGINT | DataType.Name.COUNTER => TInt64()
+      case DataType.Name.FLOAT => TFloat32()
+      case DataType.Name.DOUBLE => TFloat64()
 
       case DataType.Name.LIST =>
         val typeArgs = dt.getTypeArguments
@@ -100,25 +100,25 @@ object CassandraImpex {
   }
 
   def exportAnnotation(a: Any, t: Type): Any = t match {
-    case TBoolean => a
-    case TInt32 => a
-    case TInt64 => a
-    case TFloat32 => a
-    case TFloat64 => a
-    case TString => a
-    case TBinary => ByteBuffer.wrap(a.asInstanceOf[Array[Byte]])
-    case TCall => a
-    case TArray(elementType) =>
+    case _: TBoolean => a
+    case _: TInt32 => a
+    case _: TInt64 => a
+    case _: TFloat32 => a
+    case _: TFloat64 => a
+    case _: TString => a
+    case _: TBinary => ByteBuffer.wrap(a.asInstanceOf[Array[Byte]])
+    case _: TCall => a
+    case TArray(elementType, _) =>
       if (a == null)
         null
       else
         a.asInstanceOf[Seq[_]].map(x => exportAnnotation(x, elementType)).asJava
-    case TSet(elementType) =>
+    case TSet(elementType, _) =>
       if (a == null)
         null
       else
         a.asInstanceOf[Set[_]].map(x => exportAnnotation(x, elementType)).asJava
-    case TDict(keyType, valueType) =>
+    case TDict(keyType, valueType, _) =>
       if (a == null)
         null
       else
@@ -126,7 +126,7 @@ object CassandraImpex {
           (exportAnnotation(k, keyType),
             exportAnnotation(v, valueType))
         }.asJava
-    case TAltAllele | TVariant(_) | TLocus(_) | TInterval(_) | TGenotype =>
+    case _: TAltAllele | TVariant(_, _) | TLocus(_, _) | TInterval(_, _) | _: TGenotype =>
       JsonMethods.compact(t.toJSON(a))
     case s: TStruct => DataType.text()
       JsonMethods.compact(t.toJSON(a))

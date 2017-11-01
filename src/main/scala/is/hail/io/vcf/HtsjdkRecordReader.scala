@@ -234,7 +234,7 @@ object HtsjdkRecordReader {
         rvb.setMissing()
       case (".", _) =>
         rvb.setMissing()
-      case (s: String, TArray(TInt32)) =>
+      case (s: String, TArray(_: TInt32, _)) =>
         val xs = s.split(",")
         rvb.startArray(xs.length)
         xs.foreach { x =>
@@ -245,7 +245,7 @@ object HtsjdkRecordReader {
         }
         rvb.endArray()
 
-      case (s: String, TArray(TFloat64)) =>
+      case (s: String, TArray(_: TFloat64, _)) =>
         val xs = s.split(",")
         rvb.startArray(xs.length)
         xs.foreach { x =>
@@ -255,7 +255,7 @@ object HtsjdkRecordReader {
             rvb.addDouble(x.toDouble)
         }
         rvb.endArray()
-      case (s: String, TArray(TString)) =>
+      case (s: String, TArray(_: TString, _)) =>
         val xs = s.split(",")
         rvb.startArray(xs.length)
         xs.foreach { x =>
@@ -265,15 +265,15 @@ object HtsjdkRecordReader {
             rvb.addString(x)
         }
         rvb.endArray()
-      case (s: String, TBoolean) =>
+      case (s: String, _: TBoolean) =>
         rvb.addBoolean(s.toBoolean)
-      case (b: Boolean, TBoolean) =>
+      case (b: Boolean, _: TBoolean) =>
         rvb.addBoolean(b)
-      case (s: String, TString) =>
+      case (s: String, _: TString) =>
         rvb.addString(s)
-      case (s: String, TInt32) =>
+      case (s: String, _: TInt32) =>
         rvb.addInt(s.toInt)
-      case (s: String, TFloat64) =>
+      case (s: String, _: TFloat64) =>
         val d = s match {
           case "nan" => Double.NaN
           case "inf" => Double.PositiveInfinity
@@ -281,22 +281,22 @@ object HtsjdkRecordReader {
           case _ => s.toDouble
         }
         rvb.addDouble(d)
-      case (i: Int, TInt32) =>
+      case (i: Int, _: TInt32) =>
         rvb.addInt(i)
-      case (d: Double, TInt32) =>
+      case (d: Double, _: TInt32) =>
         rvb.addInt(d.toInt)
 
-      case (d: Double, TFloat64) =>
+      case (d: Double, _: TFloat64) =>
         rvb.addDouble(d)
-      case (f: Float, TFloat64) =>
+      case (f: Float, _: TFloat64) =>
         rvb.addDouble(f.toDouble)
 
-      case (f: Float, TFloat32) =>
+      case (f: Float, _: TFloat32) =>
         rvb.addFloat(f)
-      case (d: Double, TFloat32) =>
+      case (d: Double, _: TFloat32) =>
         rvb.addFloat(d.toFloat)
 
-      case (l: java.util.List[_], TArray(TInt32)) =>
+      case (l: java.util.List[_], TArray(_: TInt32, _)) =>
         rvb.startArray(l.size())
         var it = l.iterator()
         while (it.hasNext) {
@@ -307,7 +307,7 @@ object HtsjdkRecordReader {
           }
         }
         rvb.endArray()
-      case (l: java.util.List[_], TArray(TFloat64)) =>
+      case (l: java.util.List[_], TArray(_: TFloat64, _)) =>
         rvb.startArray(l.size())
         var it = l.iterator()
         while (it.hasNext) {
@@ -319,7 +319,7 @@ object HtsjdkRecordReader {
           }
         }
         rvb.endArray()
-      case (l: java.util.List[_], TArray(TString)) =>
+      case (l: java.util.List[_], TArray(_: TString, _)) =>
         rvb.startArray(l.size())
         var it = l.iterator()
         while (it.hasNext) {
@@ -331,7 +331,7 @@ object HtsjdkRecordReader {
           }
         }
         rvb.endArray()
-      case (s: String, TCall) if nAlleles > 0 =>
+      case (s: String, TCall(_)) if nAlleles > 0 =>
         val call = parseCall(s, nAlleles)
         if (call == null)
           rvb.setMissing()

@@ -51,7 +51,7 @@ object DocumentationEntry {
 
     val argTypes = (if (isMethod || isField) tt.xs.tail else tt.xs).map { t =>
       t match {
-        case TVariant(_) | TLocus(_) | TInterval(_) => t.toString.replaceAll("\\?", "")
+        case TVariant(_, _) | TLocus(_, _) | TInterval(_, _) => t.toString.replaceAll("\\?", "")
         case _ => t.toString.replaceAll("\\?", "").replaceAll("\\(", "").replaceAll("\\)", "")
       }
     }.toArray
@@ -95,11 +95,11 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
   val objCategory = {
     objType match {
       case Some(ot) => ot match {
-        case TAggregable(_) => Some("Aggregable")
+        case TAggregable(_, req) => Some({ if (req) "!" else "" } + "Aggregable")
         case TAggregableVariable(_, _) => Some("Aggregable")
-        case TArray(_) => Some("Array")
-        case TSet(_) => Some("Set")
-        case TDict(_, _) => Some("Dict")
+        case TArray(_, req) => Some({ if (req) "!" else "" } + "Array")
+        case TSet(_ , req) => Some({ if (req) "!" else "" } + "Set")
+        case TDict(_, _, req) => Some({ if (req) "!" else "" } + "Dict")
         case _ => Some(ot.toString.replaceAll("\\?", ""))
       }
       case None => None
@@ -327,7 +327,7 @@ object FunctionDocumentation {
           let s = {gene: "ACBD", function: "LOF", nhet: 6} in group(s, grouped_field, gene, function)
           result: {nhet: 6, grouped_field: {gene: "ACBD", function: "LOF"}}
       """, varArgs = true),
-    DocumentationEntry("index", "function", None, TDict(TString, TStruct()),
+    DocumentationEntry("index", "function", None, TDict(TString(), TStruct()),
       Array(Argument("structs", "Array[Struct]"),
         Argument("identifier", "String")),
       """

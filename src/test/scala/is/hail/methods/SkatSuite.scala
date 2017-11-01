@@ -123,14 +123,14 @@ class SkatSuite extends SparkSuite {
       impute = true).keyBy("Sample")
 
     val phenoSkat = hc.importTable("src/test/resources/skat.pheno",
-      types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
+      types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val intervalsSkat = IntervalList.read(hc, "src/test/resources/skat.interval_list")
 
     val rg = GenomeReference.GRCh37
 
     val weightsSkat = hc.importTable("src/test/resources/skat.weights",
-      types = Map("locus" -> TLocus(rg), "weight" -> TFloat64)).keyBy("locus")
+      types = Map("locus" -> TLocus(rg), "weight" -> TFloat64())).keyBy("locus")
 
     hc.importVCF("src/test/resources/sample2.vcf")
       .filterMulti()
@@ -160,9 +160,9 @@ class SkatSuite extends SparkSuite {
     val phenoArray: Array[Boolean] = pi.toArray.map(_ > rand.nextDouble())
     
     vdsBN0
-      .annotateSamples(TFloat64, List("cov", "Cov1"), s => cov1Array(s.asInstanceOf[String].toInt))
-      .annotateSamples(TFloat64, List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
-      .annotateSamples(TBoolean, List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
+      .annotateSamples(TFloat64(), List("cov", "Cov1"), s => cov1Array(s.asInstanceOf[String].toInt))
+      .annotateSamples(TFloat64(), List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
+      .annotateSamples(TBoolean(), List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
       .annotateVariantsExpr("va.genes = [v.start % 2, v.start % 3].toSet") // three overlapping genes
       .annotateVariantsExpr("va.AF = gs.callStats(g => v).AF")
       .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
@@ -284,6 +284,6 @@ class SkatSuite extends SparkSuite {
     assert(keyToSet(0) == Set((Vector(2.0, 0.0), 2)))    
     assert(keyToSet(1) == Set((Vector(1.0, 2.0), 1), (Vector(0.0, 1.0), 3)))
     
-    assert(keyType == TInt32)
+    assert(keyType == TInt32())
   }
 }

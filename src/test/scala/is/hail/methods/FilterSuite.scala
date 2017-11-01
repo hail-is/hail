@@ -154,7 +154,7 @@ class FilterSuite extends SparkSuite {
 
   @Test def testWeirdNames() {
     var vds = hc.importVCF("src/test/resources/sample.vcf")
-    val (sigs, i) = vds.insertVA(TInt32, "weird name \t test")
+    val (sigs, i) = vds.insertVA(TInt32(), "weird name \t test")
     vds = vds
       .mapAnnotations(sigs, (v, va, gs) => i(va, 1000))
     assert(vds.filterVariantsExpr("va.`weird name \\t test` > 500").countVariants() == vds.countVariants)

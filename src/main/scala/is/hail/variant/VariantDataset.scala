@@ -18,7 +18,7 @@ object VariantDataset {
 
   def fromKeyTable(kt: KeyTable): VariantDataset = {
     kt.keyFields.map(_.typ) match {
-      case Array(TVariant(_)) =>
+      case Array(TVariant(_, _)) =>
       case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
         s"but found [ ${ arr.mkString(", ") } ]")
     }
@@ -66,14 +66,14 @@ g = let
       "global" -> (0, vds.globalSignature),
       "v" -> (1, TVariant(GenomeReference.GRCh37)),
       "va" -> (2, splitMatrixType.vaType),
-      "g" -> (3, TGenotype),
-      "s" -> (4, TString),
+      "g" -> (3, TGenotype()),
+      "s" -> (4, TString()),
       "sa" -> (5, vds.saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, vds.globalSignature),
       "v" -> (1, TVariant(GenomeReference.GRCh37)),
       "va" -> (2, splitMatrixType.vaType),
-      "gs" -> (3, TAggregable(TGenotype, aggregationST))))
+      "gs" -> (3, TAggregable(TGenotype(), aggregationST))))
 
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
 
@@ -211,7 +211,7 @@ g = let
       val varidQuery: Querier = varidSignature match {
         case Some(_) => val (t, q) = vds.queryVA("va.varid")
           t match {
-            case TString => q
+            case _: TString => q
             case _ => a => null
           }
         case None => a => null
@@ -221,7 +221,7 @@ g = let
       val rsidQuery: Querier = rsidSignature match {
         case Some(_) => val (t, q) = vds.queryVA("va.rsid")
           t match {
-            case TString => q
+            case _: TString => q
             case _ => a => null
           }
         case None => a => null
@@ -246,7 +246,7 @@ g = let
     vds.requireSampleTString("export plink")
 
     val ec = EvalContext(Map(
-      "s" -> (0, TString),
+      "s" -> (0, TString()),
       "sa" -> (1, vds.saSignature),
       "global" -> (2, vds.globalSignature)))
 
@@ -270,13 +270,13 @@ g = let
     val formatQPheno: Formatter = a => a.map(_.toString).getOrElse("-9")
 
     val famColumns: Map[String, (Type, Int, Formatter)] = Map(
-      "famID" -> (TString, 0, formatID),
-      "id" -> (TString, 1, formatID),
-      "patID" -> (TString, 2, formatID),
-      "matID" -> (TString, 3, formatID),
-      "isFemale" -> (TBoolean, 4, formatIsFemale),
-      "qPheno" -> (TFloat64, 5, formatQPheno),
-      "isCase" -> (TBoolean, 5, formatIsCase))
+      "famID" -> (TString(), 0, formatID),
+      "id" -> (TString(), 1, formatID),
+      "patID" -> (TString(), 2, formatID),
+      "matID" -> (TString(), 3, formatID),
+      "isFemale" -> (TBoolean(), 4, formatIsFemale),
+      "qPheno" -> (TFloat64(), 5, formatQPheno),
+      "isCase" -> (TBoolean(), 5, formatIsCase))
 
     val (names, types, f) = Parser.parseNamedExprs(famExpr, ec)
 
@@ -357,7 +357,7 @@ g = let
   }
 
   def hardCalls(): VariantDataset = {
-    vds.mapValues(TGenotype, { g =>
+    vds.mapValues(TGenotype(), { g =>
       if (g == null)
         g
       else

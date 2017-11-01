@@ -73,7 +73,7 @@ object Parser extends JavaTokenParsers {
 
   def evalTypedExpr[T](ast: AST, ec: EvalContext)(implicit hr: HailRep[T]): () => T = {
     val (t, f) = evalExpr(ast, ec)
-    if (t != hr.typ)
+    if (!t.isOfType(hr.typ))
       fatal(s"expression has wrong type: expected `${ hr.typ }', got $t")
 
     () => f().asInstanceOf[T]
@@ -93,7 +93,7 @@ object Parser extends JavaTokenParsers {
 
   def parseTypedExpr[T](code: String, ec: EvalContext)(implicit hr: HailRep[T]): () => T = {
     val (t, f) = parseExpr(code, ec)
-    if (t != hr.typ)
+    if (!t.isOfType(hr.typ))
       fatal(s"expression has wrong type: expected `${ hr.typ }', got $t")
 
     () => f().asInstanceOf[T]
@@ -427,16 +427,16 @@ object Parser extends JavaTokenParsers {
     }
 
   def primary_expr: Parser[AST] =
-    withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64)) |
-      withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64)) |
-      withPos(wholeNumber <~ "[Ll]".r) ^^ (r => Const(r.pos, r.x.toLong, TInt64)) |
-      withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt32)) |
-      withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString) } |
+    withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
+      withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
+      withPos(wholeNumber <~ "[Ll]".r) ^^ (r => Const(r.pos, r.x.toLong, TInt64())) |
+      withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt32())) |
+      withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString()) } |
       withPos("NA" ~> ":" ~> type_expr) ^^ (r => Const(r.pos, null, r.x)) |
       withPos(arrayDeclaration) ^^ (r => ArrayConstructor(r.pos, r.x)) |
       withPos(structDeclaration) ^^ (r => StructConstructor(r.pos, r.x.map(_._1), r.x.map(_._2))) |
-      withPos("true") ^^ (r => Const(r.pos, true, TBoolean)) |
-      withPos("false") ^^ (r => Const(r.pos, false, TBoolean)) |
+      withPos("true") ^^ (r => Const(r.pos, true, TBoolean())) |
+      withPos("false") ^^ (r => Const(r.pos, false, TBoolean())) |
       (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
         case id ~ lparen ~ args =>
           Apply(lparen.pos, id.x, args)
@@ -530,22 +530,26 @@ object Parser extends JavaTokenParsers {
       .toArray
   }
 
-  def type_expr: Parser[Type] =
+  def type_expr: Parser[Type] = _required_type ~ _type_expr ^^ {case req ~ t => if (req) !t else t }
+
+  def _required_type: Parser[Boolean] = "!" ^^ {_ => true} | success(false)
+
+  def _type_expr: Parser[Type] =
     "Empty" ^^ { _ => TStruct.empty } |
       ("Interval" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).interval } |
-      "Boolean" ^^ { _ => TBoolean } |
-      "Int32" ^^ { _ => TInt32 } |
-      "Int64" ^^ { _ => TInt64 } |
-      "Int" ^^ { _ => TInt32 } |
-      "Float32" ^^ { _ => TFloat32 } |
-      "Float64" ^^ { _ => TFloat64 } |
-      "Float" ^^ { _ => TFloat64 } |
-      "String" ^^ { _ => TString } |
-      "AltAllele" ^^ { _ => TAltAllele } |
+      "Boolean" ^^ { _ => TBoolean() } |
+      "Int32" ^^ { _ => TInt32() } |
+      "Int64" ^^ { _ => TInt64() } |
+      "Int" ^^ { _ => TInt32() } |
+      "Float32" ^^ { _ => TFloat32() } |
+      "Float64" ^^ { _ => TFloat64() } |
+      "Float" ^^ { _ => TFloat64() } |
+      "String" ^^ { _ => TString() } |
+      "AltAllele" ^^ { _ => TAltAllele() } |
       ("Variant" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).variant } |
       ("Locus" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).locus } |
-      "Genotype" ^^ { _ => TGenotype } |
-      "Call" ^^ { _ => TCall } |
+      "Genotype" ^^ { _ => TGenotype() } |
+      "Call" ^^ { _ => TCall() } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
       ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |
       ("Dict" ~ "[") ~> type_expr ~ "," ~ type_expr <~ "]" ^^ { case kt ~ _ ~ vt => TDict(kt, vt) } |

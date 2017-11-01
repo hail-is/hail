@@ -299,15 +299,15 @@ class HailContext private(val sc: SparkContext,
     info(s"Number of variants in all GEN files: $nVariants")
     info(s"Number of samples in GEN files: $nSamples")
 
-    val signature = TStruct("rsid" -> TString, "varid" -> TString)
+    val signature = TStruct("rsid" -> TString(), "varid" -> TString())
 
     val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant(GenomeReference.GRCh37).orderedKey, classTag[(Annotation, Iterable[Annotation])])
 
     new GenericDataset(this,
       VSMFileMetadata(samples,
         vaSignature = signature,
-        genotypeSignature = TStruct("GT" -> TCall,
-          "GP" -> TArray(TFloat64)),
+        genotypeSignature = TStruct("GT" -> TCall(),
+          "GP" -> TArray(TFloat64())),
         wasSplit = true),
       rdd)
   }
@@ -456,7 +456,7 @@ class HailContext private(val sc: SparkContext,
           }
         })
       },
-      genotypeSignature = TGenotype)
+      genotypeSignature = TGenotype())
   }
 
   def importVCFGeneric(file: String, force: Boolean = false,
@@ -537,27 +537,27 @@ class HailContext private(val sc: SparkContext,
   def eval(expr: String): (Annotation, Type) = {
     val ec = EvalContext(
       "v" -> TVariant(GenomeReference.GRCh37),
-      "s" -> TString,
-      "g" -> TGenotype,
+      "s" -> TString(),
+      "g" -> TGenotype(),
       "sa" -> TStruct(
-        "cohort" -> TString,
+        "cohort" -> TString(),
         "covariates" -> TStruct(
-          "PC1" -> TFloat64,
-          "PC2" -> TFloat64,
-          "PC3" -> TFloat64,
-          "age" -> TInt32,
-          "isFemale" -> TBoolean
+          "PC1" -> TFloat64(),
+          "PC2" -> TFloat64(),
+          "PC3" -> TFloat64(),
+          "age" -> TInt32(),
+          "isFemale" -> TBoolean()
         )),
       "va" -> TStruct(
         "info" -> TStruct(
-          "AC" -> TArray(TInt32),
-          "AN" -> TInt32,
-          "AF" -> TArray(TFloat64)),
+          "AC" -> TArray(TInt32()),
+          "AN" -> TInt32(),
+          "AF" -> TArray(TFloat64())),
         "transcripts" -> TArray(TStruct(
-          "gene" -> TString,
-          "isoform" -> TString,
-          "canonical" -> TBoolean,
-          "consequence" -> TString))))
+          "gene" -> TString(),
+          "isoform" -> TString(),
+          "canonical" -> TBoolean(),
+          "consequence" -> TString()))))
 
     val v = Variant("16", 19200405, "C", Array("G", "CCC"))
     val s = "NA12878"

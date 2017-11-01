@@ -35,7 +35,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Int - info.DP
     val dpQuery = vas.query("info", "DP")
     assert(vas.fieldOption("info", "DP").exists(f =>
-      f.typ == TInt32
+      f.typ.isInstanceOf[TInt32]
         && f.attrs == Map("Type" -> "Integer",
         "Number" -> "1",
         "Description" -> "Approximate read depth; some reads may have been filtered")))
@@ -45,7 +45,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Double - info.HWP
     val hwpQuery = vas.query("info", "HWP")
     assert(vas.fieldOption("info", "HWP").exists(f =>
-      f.typ == TFloat64
+      f.typ.isInstanceOf[TFloat64]
         && f.attrs == Map("Type" -> "Float",
         "Number" -> "1",
         "Description" -> "P value from test of Hardy Weinberg Equilibrium")))
@@ -55,7 +55,7 @@ class AnnotationsSuite extends SparkSuite {
     // type String - info.culprit
     val culpritQuery = vas.query("info", "culprit")
     assert(vas.fieldOption("info", "culprit").exists(f =>
-      f.typ == TString
+      f.typ.isInstanceOf[TString]
         && f.attrs == Map("Type" -> "String",
         "Number" -> "1",
         "Description" -> "The annotation which was the worst performing in the Gaussian mixture model, likely the reason why the variant was filtered out")))
@@ -65,7 +65,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Array - info.AC (allele count)
     val acQuery = vas.query("info", "AC")
     assert(vas.fieldOption("info", "AC").exists(f =>
-      f.typ == TArray(TInt32) &&
+      (f.typ == TArray(TInt32()) || f.typ == TArray(!TInt32())) &&
         f.attrs == Map("Number" -> "A",
           "Type" -> "Integer",
           "Description" -> "Allele count in genotypes, for each ALT allele, in the same order as listed")))
@@ -75,7 +75,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Boolean/flag - info.DB (dbSNP membership)
     val dbQuery = vas.query("info", "DB")
     assert(vas.fieldOption("info", "DB").exists(f =>
-      f.typ == TBoolean
+      f.typ.isInstanceOf[TBoolean]
         && f.attrs == Map("Type" -> "Flag",
         "Number" -> "0",
         "Description" -> "dbSNP Membership")))
@@ -86,7 +86,7 @@ class AnnotationsSuite extends SparkSuite {
 
     val filtQuery = vas.query("filters")
     assert(vas.fieldOption("filters").exists(f =>
-      f.typ == TSet(TString)
+      (f.typ == TSet(TString()) || f.typ == TSet(!TString()))
         && f.attrs.nonEmpty))
     assert(filtQuery(variantAnnotationMap(firstVariant)) == Set())
     assert(filtQuery(variantAnnotationMap(anotherVariant)) == Set("VQSRTrancheSNP99.95to100.00"))
@@ -157,7 +157,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // add to the first layer
     val toAdd = 5
-    val toAddSig = TInt32
+    val toAddSig = TInt32()
     val (s1, i1) = vds.vaSignature.insert(toAddSig, "I1")
     vds = vds.mapAnnotations(s1, (v, va, gs) => i1(va, toAdd))
     assert(vds.vaSignature.schema ==
@@ -170,7 +170,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // add another to the first layer
     val toAdd2 = "test"
-    val toAdd2Sig = TString
+    val toAdd2Sig = TString()
     val (s2, i2) = vds.vaSignature.insert(toAdd2Sig, "S1")
     vds = vds.mapAnnotations(s2, (v, va, gs) => i2(va, toAdd2))
     assert(vds.vaSignature.schema ==
@@ -185,8 +185,8 @@ class AnnotationsSuite extends SparkSuite {
 
     // overwrite I1 with a row in the second layer
     val toAdd3 = Annotation(1, 3)
-    val toAdd3Sig = TStruct("I2" -> TInt32,
-      "I3" -> TInt32)
+    val toAdd3Sig = TStruct("I2" -> TInt32(),
+      "I3" -> TInt32())
     val (s3, i3) = vds.vaSignature.insert(toAdd3Sig, "I1")
     vds = vds.mapAnnotations(s3, (v, va, gs) => i3(va, toAdd3))
     assert(vds.vaSignature.schema ==
@@ -210,7 +210,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // add something deep in the tree with an unbuilt structure
     val toAdd4 = "dummy"
-    val toAdd4Sig = TString
+    val toAdd4Sig = TString()
     val (s4, i4) = vds.insertVA(toAdd4Sig, "a", "b", "c", "d", "e")
     vds = vds.mapAnnotations(s4, (v, va, gs) => i4(va, toAdd4))
     assert(vds.vaSignature.schema ==
@@ -230,7 +230,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // add something as a sibling deep in the tree
     val toAdd5 = "dummy2"
-    val toAdd5Sig = TString
+    val toAdd5Sig = TString()
     val (s5, i5) = vds.insertVA(toAdd5Sig, "a", "b", "c", "f")
     vds = vds.mapAnnotations(s5, (v, va, gs) => i5(va, toAdd5))
 
@@ -251,7 +251,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // overwrite something deep in the tree
     val toAdd6 = "dummy3"
-    val toAdd6Sig = TString
+    val toAdd6Sig = TString()
     val (s6, i6) = vds.insertVA(toAdd6Sig, "a", "b", "c", "d")
     vds = vds.mapAnnotations(s6, (v, va, gs) => i6(va, toAdd6))
 
@@ -271,7 +271,7 @@ class AnnotationsSuite extends SparkSuite {
       .forall { case (v, va) => q8(va) == "dummy3" })
 
     val toAdd7 = "dummy4"
-    val toAdd7Sig = TString
+    val toAdd7Sig = TString()
     val (s7, i7) = vds.insertVA(toAdd7Sig, "a", "c")
     vds = vds.mapAnnotations(s7, (v, va, gs) => i7(va, toAdd7))
 
@@ -330,7 +330,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // remap the head
     val toAdd8 = "dummy"
-    val toAdd8Sig = TString
+    val toAdd8Sig = TString()
     val (s11, i8) = vds.insertVA(toAdd8Sig, List[String]())
     vds = vds.mapAnnotations(s11, (v, va, gs) => i8(va, toAdd8))
 
@@ -386,7 +386,7 @@ class AnnotationsSuite extends SparkSuite {
       .splitMulti()
 
     val f = tmpDir.createTempFile("testwrite", extension = ".vds")
-    val (newS, ins) = vds.insertVA(TInt32, "ThisName(won'twork)=====")
+    val (newS, ins) = vds.insertVA(TInt32(), "ThisName(won'twork)=====")
     vds = vds.mapAnnotations(newS, (v, va, gs) => ins(va, 5))
     vds.write(f)
 

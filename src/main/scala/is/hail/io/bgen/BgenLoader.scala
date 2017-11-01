@@ -65,7 +65,7 @@ object BgenLoader {
     info(s"Number of samples in BGEN files: $nSamples")
     info(s"Number of variants across all BGEN files: $nVariants")
 
-    val signature = TStruct("rsid" -> TString, "varid" -> TString)
+    val signature = TStruct("rsid" -> TString(), "varid" -> TString())
 
     val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey: Annotation)))
 
@@ -76,11 +76,11 @@ object BgenLoader {
     })).toOrderedRDD(fastKeys)(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
 
     new GenericDataset(hc, VSMMetadata(
-      TString,
+      TString(),
       saSignature = TStruct.empty,
       TVariant(gr),
       vaSignature = signature,
-      genotypeSignature = TStruct("GT" -> TCall, "GP" -> TArray(TFloat64)),
+      genotypeSignature = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())),
       globalSignature = TStruct.empty),
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,

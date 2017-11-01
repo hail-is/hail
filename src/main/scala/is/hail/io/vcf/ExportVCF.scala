@@ -11,8 +11,8 @@ import scala.io.Source
 object ExportVCF {
 
   def infoNumber(t: Type): String = t match {
-    case TBoolean => "0"
-    case TArray(elementType) => "."
+    case TBoolean(_) => "0"
+    case TArray(elementType, _) => "."
     case _ => "1"
   }
 
@@ -21,19 +21,19 @@ object ExportVCF {
       sb += '.'
     else {
       elementType match {
-        case TFloat32 =>
+        case TFloat32(_) =>
           val x = a.asInstanceOf[Float]
           if (x.isNaN)
             sb += '.'
           else
             sb.append(x.formatted("%.5e"))
-        case TFloat64 =>
+        case TFloat64(_) =>
           val x = a.asInstanceOf[Double]
           if (x.isNaN)
             sb += '.'
           else
             sb.append(x.formatted("%.5e"))
-        case TInt64 =>
+        case TInt64(_) =>
           val x = a.asInstanceOf[Long]
           if (x > Int.MaxValue || x < Int.MinValue)
             fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) or less than Int.MinValue (-2^31). Found $x.")
@@ -45,7 +45,7 @@ object ExportVCF {
 
   def emitFormatField(f: Field, sb: StringBuilder, a: Annotation) {
     f.typ match {
-      case TCall => sb.append(Call.toString(a.asInstanceOf[Call]))
+      case TCall(_) => sb.append(Call.toString(a.asInstanceOf[Call]))
       case it: TIterable =>
         if (a == null)
           sb += '.'
@@ -74,7 +74,7 @@ object ExportVCF {
             arr.foreachBetween(a => strVCF(sb, it.elementType, a))(sb += ',')
             true
           }
-        case TBoolean => value match {
+        case TBoolean(_) => value match {
           case true =>
             if (wroteLast)
               sb += ';'
@@ -94,17 +94,17 @@ object ExportVCF {
   }
 
   def infoType(t: Type): Option[String] = t match {
-    case TInt32 | TInt64 => Some("Integer")
-    case TFloat64 | TFloat32 => Some("Float")
-    case TString => Some("String")
-    case TBoolean => Some("Flag")
+    case _: TInt32 | _: TInt64 => Some("Integer")
+    case _: TFloat64 | _: TFloat32 => Some("Float")
+    case _: TString => Some("String")
+    case _: TBoolean => Some("Flag")
     case _ => None
   }
 
   def infoType(f: Field): String = {
     val tOption = f.typ match {
-      case TArray(elt) => infoType(elt)
-      case TSet(elt) => infoType(elt)
+      case TArray(elt, _) => infoType(elt)
+      case TSet(elt, _) => infoType(elt)
       case t => infoType(t)
     }
     tOption match {
@@ -114,17 +114,17 @@ object ExportVCF {
   }
 
   def formatType(t: Type): Option[String] = t match {
-    case TInt32 | TInt64 => Some("Integer")
-    case TFloat64 | TFloat32 => Some("Float")
-    case TString => Some("String")
-    case TCall => Some("String")
+    case _: TInt32 | _: TInt64 => Some("Integer")
+    case _: TFloat64 | _: TFloat32 => Some("Float")
+    case _: TString => Some("String")
+    case _: TCall => Some("String")
     case _ => None
   }
 
   def formatType(f: Field): String = {
     val tOption = f.typ match {
-      case TArray(elt) => formatType(elt)
-      case TSet(elt) => formatType(elt)
+      case TArray(elt, _) => formatType(elt)
+      case TSet(elt, _) => formatType(elt)
       case t => formatType(t)
     }
 
@@ -210,12 +210,12 @@ object ExportVCF {
 
   def validFormatType(typ: Type): Boolean = {
     typ match {
-      case TString => true
-      case TFloat64 => true
-      case TFloat32 => true
-      case TInt32 => true
-      case TInt64 => true
-      case TCall => true
+      case _: TString => true
+      case _: TFloat64 => true
+      case _: TFloat32 => true
+      case _: TInt32 => true
+      case _: TInt64 => true
+      case _: TCall => true
       case _ => false
     }
   }
@@ -238,7 +238,7 @@ object ExportVCF {
     val genotypeSignature = vkds.genotypeSignature
 
     val (genotypeFormatField, genotypeFieldOrder) = genotypeSignature match {
-      case TGenotype =>
+      case _: TGenotype =>
         ("GT:AD:DP:GQ:PL", null)
 
       case sig: TStruct =>
@@ -277,7 +277,7 @@ object ExportVCF {
       // FIXME add Hail version
 
       genotypeSignature match {
-        case TGenotype =>
+        case _: TGenotype =>
           sb.append(
             """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
               |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
@@ -343,29 +343,29 @@ object ExportVCF {
 
     val idQuery: Option[Querier] = vas.getOption("rsid")
       .filter {
-        case TString => true
+        case _: TString => true
         case t => warn(
           s"""found `rsid' field, but it was an unexpected type `$t'.  Emitting missing RSID.
-             |  Expected ${ TString }""".stripMargin)
+             |  Expected ${ TString() }""".stripMargin)
           false
       }.map(_ => vkds.queryVA("va.rsid")._2)
 
     val qualQuery: Option[Querier] = vas.getOption("qual")
       .filter {
-        case TFloat64 => true
+        case _: TFloat64 => true
         case t => warn(
           s"""found `qual' field, but it was an unexpected type `$t'.  Emitting missing QUAL.
-             |  Expected ${ TFloat64 }""".stripMargin)
+             |  Expected ${ TFloat64() }""".stripMargin)
           false
       }.map(_ => vkds.queryVA("va.qual")._2)
 
     val filterQuery: Option[Querier] = vas.getOption("filters")
       .filter {
-        case TSet(TString) => true
+        case TSet(_: TString, _) => true
         case t =>
           warn(
             s"""found `filters' field, but it was an unexpected type `$t'.  Emitting missing FILTERS.
-               |  Expected ${ TSet(TString) }""".stripMargin)
+               |  Expected ${ TSet(TString()) }""".stripMargin)
           false
       }.map(_ => vkds.queryVA("va.filters")._2)
 
@@ -427,7 +427,7 @@ object ExportVCF {
             sb += '\t'
 
             genotypeSignature match {
-              case TGenotype => writeGenotype(sb, g.asInstanceOf[Genotype])
+              case _: TGenotype => writeGenotype(sb, g.asInstanceOf[Genotype])
               case sig: TStruct => writeGenotype(sb, sig, genotypeFieldOrder, g.asInstanceOf[Row])
             }
         }

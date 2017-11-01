@@ -70,8 +70,8 @@ class IBDSuite extends SparkSuite {
     hadoopConf.copy(localGenomeFile, genomeFile)
 
     val (_, rdd) = TextTableReader.read(sc)(Array(tmpdir + ".genome"),
-      types = Map(("IID1", TString), ("IID2", TString), ("Z0", TFloat64), ("Z1", TFloat64), ("Z2", TFloat64),
-        ("PI_HAT", TFloat64), ("IBS0", TInt32), ("IBS1", TInt32), ("IBS2", TInt32)),
+      types = Map(("IID1", TString()), ("IID2", TString()), ("Z0", TFloat64()), ("Z1", TFloat64()), ("Z2", TFloat64()),
+        ("PI_HAT", TFloat64()), ("IBS0", TInt32()), ("IBS1", TInt32()), ("IBS2", TInt32())),
       separator = " +"
     )
 

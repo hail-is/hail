@@ -30,7 +30,7 @@ object GenLoader {
         readGenLine(l, nSamples, tolerance, chromosome)
       }.value)
 
-    val signatures = TStruct("rsid" -> TString, "varid" -> TString)
+    val signatures = TStruct("rsid" -> TString(), "varid" -> TString())
 
     GenResult(genFile, nSamples, rdd.count().toInt, rdd = rdd)
   }

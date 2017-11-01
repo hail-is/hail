@@ -98,9 +98,9 @@ object LoadGDB {
     val (genotypeSignature, canonicalFlags) = LoadVCF.formatHeaderSignature(formatHeader, reader.callFields)
 
     val variantAnnotationSignatures = TStruct(Array(
-      Field("rsid", TString, 0),
-      Field("qual", TFloat64, 1),
-      Field("filters", TSet(TString), 2, filters),
+      Field("rsid", TString(), 0),
+      Field("qual", TFloat64(), 1),
+      Field("filters", TSet(TString()), 2, filters),
       Field("info", infoSignature, 3)))
 
     val sampleIds: Array[String] =
@@ -149,7 +149,7 @@ object LoadGDB {
     queryFile.delete()
 
     new VariantSampleMatrix(hc, VSMMetadata(
-      TString,
+      TString(),
       TStruct.empty,
       TVariant(GenomeReference.GRCh37),
       variantAnnotationSignatures,

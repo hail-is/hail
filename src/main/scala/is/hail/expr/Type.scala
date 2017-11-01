@@ -22,8 +22,8 @@ import scala.reflect.classTag
 abstract class BaseType
 
 object Type {
-  val genScalar: Gen[Type] = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
-    TVariant(GenomeReference.GRCh37), TAltAllele, TGenotype, TLocus(GenomeReference.GRCh37), TInterval(GenomeReference.GRCh37), TCall)
+  val genScalar: Gen[Type] = Gen.oneOf[Type](TBooleanOptional, TInt32Optional, TInt64Optional, TFloat32Optional, TFloat64Optional, TStringOptional,
+    TVariant(GenomeReference.GRCh37), TAltAlleleOptional, TGenotypeOptional, TLocus(GenomeReference.GRCh37), TInterval(GenomeReference.GRCh37), TCallOptional)
 
   def genSized(size: Int): Gen[Type] = {
     if (size < 1)
@@ -31,13 +31,17 @@ object Type {
     else if (size < 2)
       genScalar
     else
+      val genMaybeRequired: Gen[Type] = for {
+        t <- genArb.resize(size -1)
+        req <- Gen.coin(0.2)
+      } yield if (req) !t else t
       Gen.oneOfGen(genScalar,
         genScalar,
         genScalar,
         genScalar,
-        genArb.resize(size - 1).map(TArray),
-        genArb.resize(size - 1).map(TSet),
-        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v) },
+        genMaybeRequired.map { TArray(_) },
+        genMaybeRequired.map { TSet(_) },
+        Gen.zip(genArb.resize(size - 1), genMaybeRequired).map { case (k, v) => TDict(k, v) },
         genStruct.resize(size))
   }
 
@@ -148,14 +152,22 @@ sealed abstract class Type extends BaseType with Serializable {
       (this, identity[Annotation])
   }
 
+  def _toString: String
+
+  final override def toString = { if (required) "!" else "" } + _toString
+
+  def _pretty(sb: StringBuilder, indent: Int = 0, printAttrs: Boolean = false, compact: Boolean = false) { sb.append(_toString) }
+
+  final def pretty(sb: StringBuilder, indent: Int = 0, printAttrs: Boolean = false, compact: Boolean = false) {
+    if (required)
+      sb.append("!")
+    _pretty(sb, indent, printAttrs, compact)
+  }
+
   def toPrettyString(indent: Int = 0, compact: Boolean = false, printAttrs: Boolean = false): String = {
     val sb = new StringBuilder
     pretty(sb, indent, compact = compact, printAttrs = printAttrs)
     sb.result()
-  }
-
-  def pretty(sb: StringBuilder, indent: Int = 0, printAttrs: Boolean = false, compact: Boolean = false) {
-    sb.append(toString)
   }
 
   def fieldOption(fields: String*): Option[Field] = fieldOption(fields.toList)
@@ -171,12 +183,13 @@ sealed abstract class Type extends BaseType with Serializable {
 
   def genNonmissingValue: Gen[Annotation] = ???
 
-  def genValue: Gen[Annotation] = Gen.nextCoin(0.05)
-    .flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue)
+  def genValue: Gen[Annotation] =
+    if (required)
+      genNonmissingValue
+    else
+    Gen.nextCoin(0.05).flatMap(  isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue  )
 
   def isRealizable: Boolean = children.forall(_.isRealizable)
-
-  def typeCheck(a: Any): Boolean
 
   /* compare values for equality, but compare Float and Double values using D_== */
   def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance): Boolean = a1 == a2
@@ -228,6 +241,55 @@ sealed abstract class Type extends BaseType with Serializable {
   /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
       types, Array and Struct. */
   def fundamentalType: Type = this
+
+  def required: Boolean
+  def _typeCheck(a: Any): Boolean
+  final def typeCheck(a: Any): Boolean = (!required && a == null) || _typeCheck(a)
+
+  final def unary_!(): Type = {
+    this match {
+      case TBinary(req) => TBinary(!req)
+      case TBoolean(req) => TBoolean(!req)
+      case TInt32(req) => TInt32(!req)
+      case TInt64(req) => TInt64(!req)
+      case TFloat32(req) => TFloat32(!req)
+      case TFloat64(req) => TFloat64(!req)
+      case TString(req) => TString(!req)
+      case TGenotype(req) => TGenotype(!req)
+      case TCall(req) => TCall(!req)
+      case TAltAllele(req) => TAltAllele(!req)
+      case t: TArray => t.copy(required = !t.required)
+      case t: TSet => t.copy(required = !t.required)
+      case t: TDict => t.copy(required = !t.required)
+      case t: TVariant => t.copy(required = !t.required)
+      case t: TLocus => t.copy(required = !t.required)
+      case t: TInterval => t.copy(required = !t.required)
+      case t: TStruct => t.copy(required = !t.required)
+    }
+  }
+
+  final def isOfType(t: Type): Boolean = {
+    this match {
+      case TBinary(_) => t == TBinaryOptional || t == TBinaryRequired
+      case TBoolean(_) => t == TBooleanOptional || t == TBooleanRequired
+      case TInt32(_) => t == TInt32Optional || t == TInt32Required
+      case TInt64(_) => t == TInt64Optional || t == TInt64Required
+      case TFloat32(_) => t == TFloat32Optional || t == TFloat32Required
+      case TFloat64(_) => t == TFloat64Optional || t == TFloat64Required
+      case TString(_) => t == TStringOptional || t == TStringRequired
+      case TGenotype(_) => t == TGenotypeOptional || t == TGenotypeRequired
+      case TCall(_) => t == TCallOptional || t == TCallRequired
+      case TAltAllele(_) => t == TAltAlleleOptional || t == TAltAlleleRequired
+      case t2: TLocus => t == t2 || t == !t2
+      case t2: TVariant => t == t2 || t == !t2
+      case t2: TInterval => t == t2 || t == !t2
+      case t2: TStruct => t.isInstanceOf[TStruct] &&
+        t.asInstanceOf[TStruct].fields.zip(t2.fields).forall { case (f1: Field, f2: Field) => f1.typ.isOfType(f2.typ) && f1.name == f2.name }
+      case t2: TArray => t.isInstanceOf[TArray] && t.asInstanceOf[TArray].elementType.isOfType(t2.elementType)
+      case t2: TSet => t.isInstanceOf[TSet] && t.asInstanceOf[TSet].elementType.isOfType(t2.elementType)
+      case t2: TDict => t.isInstanceOf[TDict] && t.asInstanceOf[TDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[TDict].valueType.isOfType(t2.valueType)
+    }
+  }
 }
 
 case object TVoid extends Type {
@@ -250,10 +312,10 @@ abstract class ComplexType extends Type {
   override def fundamentalType: Type = representation.fundamentalType
 }
 
-case object TBinary extends Type {
-  override def toString = "Binary"
+sealed class TBinary(override val required: Boolean) extends Type {
+  def _toString = "Binary"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Array[Byte]]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Array[Byte]]
 
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf(arbitrary[Byte])
 
@@ -261,11 +323,11 @@ case object TBinary extends Type {
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-      val l1 = loadLength(r1, o1)
-      val l2 = loadLength(r2, o2)
+      val l1 = TBinary.loadLength(r1, o1)
+      val l2 = TBinary.loadLength(r2, o2)
 
-      val bOff1 = bytesOffset(o1)
-      val bOff2 = bytesOffset(o2)
+      val bOff1 = TBinary.bytesOffset(o1)
+      val bOff2 = TBinary.bytesOffset(o2)
 
       val lim = math.min(l1, l2)
       var i = 0
@@ -292,7 +354,10 @@ case object TBinary extends Type {
   }
 
   override def byteSize: Long = 8
-
+}
+object TBinary {
+  def apply(required: Boolean = false): TBinary = if (required) TBinaryRequired else TBinaryOptional
+  def unapply(t: TBinary): Option[Boolean] = Option(t.required)
   def contentAlignment: Long = 4
 
   def contentByteSize(length: Int): Long = 4 + length
@@ -306,12 +371,15 @@ case object TBinary extends Type {
     region.align(contentAlignment)
     region.allocate(contentByteSize(length))
   }
+
 }
+case object TBinaryOptional extends TBinary(false)
+case object TBinaryRequired extends TBinary(true)
 
-case object TBoolean extends Type {
-  override def toString = "Boolean"
+sealed class TBoolean(override val required: Boolean) extends Type {
+  def _toString = "Boolean"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Boolean]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Boolean]
 
   def parse(s: String): Annotation = s.toBoolean
 
@@ -331,18 +399,24 @@ case object TBoolean extends Type {
 
   override def byteSize: Long = 1
 }
+object TBoolean {
+  def apply(required: Boolean = false): TBoolean = if (required) TBooleanRequired else TBooleanOptional
+  def unapply(t: TBoolean): Option[Boolean] = Option(t.required)
+}
+case object TBooleanOptional extends TBoolean(false)
+case object TBooleanRequired extends TBoolean(true)
 
 object TNumeric {
   def promoteNumeric(types: Set[TNumeric]): Type = {
     if (types.size == 1)
       types.head
-    else if (types(TFloat64))
-      TFloat64
-    else if (types(TFloat32))
-      TFloat32
+    else if (types(TFloat64Required) || types(TFloat64Optional))
+      TFloat64(types(TFloat64Required))
+    else if (types(TFloat32Required) || types(TFloat32Optional))
+      TFloat32(types(TFloat32Required))
     else {
-      assert(types(TInt64))
-      TInt64
+      assert(types(TInt64Required) || types(TInt64Optional))
+      TInt64(types(TInt64Required))
     }
   }
 }
@@ -355,12 +429,12 @@ abstract class TNumeric extends Type {
 
 abstract class TIntegral extends TNumeric
 
-case object TInt32 extends TIntegral {
-  override def toString = "Int32"
+sealed class TInt32(override val required: Boolean) extends TIntegral {
+  def _toString = "Int32"
 
   val conv = IntNumericConversion
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Int]
 
@@ -378,13 +452,19 @@ case object TInt32 extends TIntegral {
 
   override def byteSize: Long = 4
 }
+object TInt32 {
+  def apply(required: Boolean = false) = if (required) TInt32Required else TInt32Optional
+  def unapply(t: TInt32): Option[Boolean] = Option(t.required)
+}
+case object TInt32Optional extends TInt32(false)
+case object TInt32Required extends TInt32(true)
 
-case object TInt64 extends TIntegral {
-  override def toString = "Int64"
+sealed class TInt64(override val required: Boolean) extends TIntegral {
+  def _toString = "Int64"
 
   val conv = LongNumericConversion
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Long]
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Long]
 
@@ -402,13 +482,19 @@ case object TInt64 extends TIntegral {
 
   override def byteSize: Long = 8
 }
+object TInt64 {
+  def apply(required: Boolean = false): TInt64 = if (required) TInt64Required else TInt64Optional
+  def unapply(t: TInt64): Option[Boolean] = Option(t.required)
+}
+case object TInt64Optional extends TInt64(false)
+case object TInt64Required extends TInt64(true)
 
-case object TFloat32 extends TNumeric {
-  override def toString = "Float32"
+sealed class TFloat32(override val required: Boolean) extends TNumeric {
+  def _toString = "Float32"
 
   val conv = FloatNumericConversion
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Float]
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Float].formatted("%.5e")
 
@@ -433,13 +519,19 @@ case object TFloat32 extends TNumeric {
 
   override def byteSize: Long = 4
 }
+object TFloat32 {
+  def apply(required: Boolean = false): TFloat32 = if (required) TFloat32Required else TFloat32Optional
+  def unapply(t: TFloat32): Option[Boolean] = Option(t.required)
+}
+case object TFloat32Optional extends TFloat32(false)
+case object TFloat32Required extends TFloat32(true)
 
-case object TFloat64 extends TNumeric {
-  override def toString = "Float64"
+sealed class TFloat64(override val required: Boolean) extends TNumeric {
+  override def _toString = "Float64"
 
   val conv = DoubleNumericConversion
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Double]
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
 
@@ -464,17 +556,23 @@ case object TFloat64 extends TNumeric {
 
   override def byteSize: Long = 8
 }
+object TFloat64 {
+  def apply(required: Boolean = false): TFloat64 = if (required) TFloat64Required else TFloat64Optional
+  def unapply(t: TFloat64): Option[Boolean] = Option(t.required)
+}
+case object TFloat64Optional extends TFloat64(false)
+case object TFloat64Required extends TFloat64(true)
 
-case object TString extends Type {
-  override def toString = "String"
+sealed class TString(override val required: Boolean) extends Type {
+  def _toString = "String"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[String]
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
 
   override def scalaClassTag: ClassTag[String] = classTag[String]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = TBinary.unsafeOrdering(missingGreatest)
+  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = TBinary(required).unsafeOrdering(missingGreatest)
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
@@ -482,16 +580,23 @@ case object TString extends Type {
 
   override def byteSize: Long = 8
 
-  override def fundamentalType: Type = TBinary
+  override def fundamentalType: Type = TBinary(required)
 
+}
+object TString {
+  def apply(required: Boolean = false): TString = if (required) TStringRequired else TStringOptional
+  def unapply(t: TString): Option[Boolean] = Option(t.required)
   def loadString(region: MemoryBuffer, boff: Long): String = {
     val length = TBinary.loadLength(region, boff)
     new String(region.loadBytes(TBinary.bytesOffset(boff), length))
   }
 }
+case object TStringOptional extends TString(false)
+case object TStringRequired extends TString(true)
 
 final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
-  override def toString = s"(${ paramTypes.mkString(",") }) => $returnType"
+  override val required = true
+  def _toString = s"(${ paramTypes.mkString(",") }) => $returnType"
 
   override def isRealizable = false
 
@@ -510,7 +615,7 @@ final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type
 
   override def subst() = TFunction(paramTypes.map(_.subst()), returnType.subst())
 
-  def typeCheck(a: Any): Boolean =
+  def _typeCheck(a: Any): Boolean =
     throw new RuntimeException("TFunction is not realizable")
 
   override def children: Seq[Type] = paramTypes :+ returnType
@@ -537,13 +642,14 @@ final case class Box[T](var b: Option[T] = None) {
 }
 
 final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends Type {
-  override def toString = s"?Aggregable[$elementType]"
+  override val required = true
+  def _toString = s"?Aggregable[$elementType]"
 
   override def isRealizable = false
 
   override def children = Seq(elementType)
 
-  def typeCheck(a: Any): Boolean =
+  def _typeCheck(a: Any): Boolean =
     throw new RuntimeException("TAggregableVariable is not realizable")
 
   override def unify(concrete: Type): Boolean = concrete match {
@@ -574,11 +680,12 @@ final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) ex
 }
 
 final case class TVariable(name: String, var t: Type = null) extends Type {
-  override def toString: String = s"?$name"
+  override val required = true
+  override def _toString: String = s"?$name"
 
   override def isRealizable = false
 
-  def typeCheck(a: Any): Boolean =
+  def _typeCheck(a: Any): Boolean =
     throw new RuntimeException("TVariable is not realizable")
 
   override def unify(concrete: Type): Boolean = {
@@ -619,7 +726,7 @@ object TAggregable {
   }
 }
 
-final case class TAggregable(elementType: Type) extends TContainer {
+final case class TAggregable(elementType: Type, override val required: Boolean = false) extends TContainer {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
@@ -632,7 +739,7 @@ final case class TAggregable(elementType: Type) extends TContainer {
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TAggregable(celementType) => elementType.unify(celementType)
+      case TAggregable(celementType, _) => elementType.unify(celementType)
       case _ => false
     }
   }
@@ -642,10 +749,10 @@ final case class TAggregable(elementType: Type) extends TContainer {
 
   override def isRealizable = false
 
-  def typeCheck(a: Any): Boolean =
+  def _typeCheck(a: Any): Boolean =
     throw new RuntimeException("TAggregable is not realizable")
 
-  override def toString: String = s"Aggregable[${ elementType.toString }]"
+  override def _toString: String = s"Aggregable[${ elementType.toString }]"
 
   override def desc: String = TAggregable.desc
 
@@ -684,7 +791,7 @@ abstract class TContainer extends Type {
     UnsafeUtils.roundUpAlignment(4 + ((length + 7) >>> 3), elementType.alignment)
 
   def _elementsOffset(length: Code[Int]): Code[Long] =
-    UnsafeUtils.roundUpAlignment(((length.toL + 7) >>> 3) + 4, elementType.alignment)
+    UnsafeUtils.roundUpAlignment(((length.toL + 7L) >>> 3) + 4L, elementType.alignment)
 
   var elementsOffsetTable: Array[Long] = _
 
@@ -739,7 +846,7 @@ abstract class TContainer extends Type {
   def loadElement(region: MemoryBuffer, aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
-      case _: TArray | TBinary => region.loadAddress(off)
+      case _: TArray | _: TBinary => region.loadAddress(off)
       case _ => off
     }
   }
@@ -747,7 +854,7 @@ abstract class TContainer extends Type {
   def loadElement(region: Code[MemoryBuffer], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
-      case _: TArray | TBinary => region.loadAddress(off)
+      case _: TArray | _: TBinary => region.loadAddress(off)
       case _ => off
     }
   }
@@ -831,7 +938,7 @@ abstract class TIterable extends TContainer {
       .forall { case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance) })
 }
 
-final case class TArray(elementType: Type) extends TIterable {
+final case class TArray(elementType: Type, override val required: Boolean = false) extends TIterable {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
@@ -843,30 +950,30 @@ final case class TArray(elementType: Type) extends TIterable {
       TArray(elementType.fundamentalType)
   }
 
-  override def toString = s"Array[$elementType]"
+  def _toString = s"Array[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
-    case TArray(otherType) => elementType.canCompare(otherType)
+    case TArray(otherType, _) => elementType.canCompare(otherType)
     case _ => false
   }
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TArray(celementType) => elementType.unify(celementType)
+      case TArray(celementType, _) => elementType.unify(celementType)
       case _ => false
     }
   }
 
   override def subst() = TArray(elementType.subst())
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Array[")
     elementType.pretty(sb, indent, printAttrs, compact)
     sb.append("]")
   }
 
-  def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
-    a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck))
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&
+    a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
@@ -901,31 +1008,31 @@ final case class TArray(elementType: Type) extends TIterable {
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 }
 
-final case class TSet(elementType: Type) extends TIterable {
+final case class TSet(elementType: Type, override val required: Boolean = false) extends TIterable {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
   override val fundamentalType: TArray = TArray(elementType.fundamentalType)
 
-  override def toString = s"Set[$elementType]"
+  def _toString = s"Set[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
-    case TSet(otherType) => elementType.canCompare(otherType)
+    case TSet(otherType, _) => elementType.canCompare(otherType)
     case _ => false
   }
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TSet(celementType) => elementType.unify(celementType)
+    case TSet(celementType, _) => elementType.unify(celementType)
     case _ => false
   }
 
   override def subst() = TSet(elementType.subst())
 
-  def typeCheck(a: Any): Boolean =
-    a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck))
+  def _typeCheck(a: Any): Boolean =
+    a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck)
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Set[")
     elementType.pretty(sb, indent, printAttrs, compact)
     sb.append("]")
@@ -972,8 +1079,8 @@ final case class TSet(elementType: Type) extends TIterable {
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 }
 
-final case class TDict(keyType: Type, valueType: Type) extends TContainer {
-  val elementType: Type = TStruct("key" -> keyType, "value" -> valueType)
+final case class TDict(keyType: Type, valueType: Type, override val required: Boolean = false) extends TContainer {
+  val elementType: Type = !TStruct("key" -> keyType, "value" -> valueType)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
@@ -982,7 +1089,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
   override val fundamentalType: TArray = TArray(elementType.fundamentalType)
 
   override def canCompare(other: Type): Boolean = other match {
-    case TDict(okt, ovt) => keyType.canCompare(okt) && valueType.canCompare(ovt)
+    case TDict(okt, ovt, _) => keyType.canCompare(okt) && valueType.canCompare(ovt)
     case _ => false
   }
 
@@ -990,16 +1097,16 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TDict(kt, vt) => keyType.unify(kt) && valueType.unify(vt)
+      case TDict(kt, vt, _) => keyType.unify(kt) && valueType.unify(vt)
       case _ => false
     }
   }
 
   override def subst() = TDict(keyType.subst(), valueType.subst())
 
-  override def toString = s"Dict[$keyType, $valueType]"
+  def _toString = s"Dict[$keyType, $valueType]"
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Dict[")
     keyType.pretty(sb, indent, printAttrs, compact)
     if (compact)
@@ -1010,7 +1117,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
     sb.append("]")
   }
 
-  def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
+  def _typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
     a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
@@ -1048,19 +1155,19 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
   }
 }
 
-case object TGenotype extends ComplexType {
-  override def toString = "Genotype"
+sealed class TGenotype(override val required: Boolean) extends ComplexType {
+  def _toString = "Genotype"
 
   val representation: TStruct = TStruct(
-    "gt" -> TInt32,
-    "ad" -> TArray(TInt32),
-    "dp" -> TInt32,
-    "gq" -> TInt32,
-    "pl" -> TArray(TInt32))
+    "gt" -> TInt32(),
+    "ad" -> TArray(!TInt32()),
+    "dp" -> TInt32(),
+    "gq" -> TInt32(),
+    "pl" -> TArray(!TInt32()))
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Genotype]
 
-  override def genNonmissingValue: Gen[Annotation] = Genotype.genArb
+  override def genNonmissingValue: Gen[Annotation] = Genotype.genNonmissingValue
 
   override def desc: String = "A ``Genotype`` is a Hail data type representing a genotype in the Variant Dataset. It is referred to as ``g`` in the expression language."
 
@@ -1078,15 +1185,21 @@ case object TGenotype extends ComplexType {
 
   }
 }
+object TGenotype {
+  def apply(required: Boolean = false): TGenotype = if (required) TGenotypeRequired else TGenotypeOptional
+  def unapply(t: TGenotype): Option[Boolean] = Option(t.required)
+}
+case object TGenotypeOptional extends TGenotype(false)
+case object TGenotypeRequired extends TGenotype(true)
 
-case object TCall extends ComplexType {
-  override def toString = "Call"
+sealed class TCall(override val required: Boolean) extends ComplexType {
+  def _toString = "Call"
 
-  val representation: Type = TInt32
+  val representation: Type = TInt32()
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]
 
-  override def genNonmissingValue: Gen[Annotation] = Call.genArb
+  override def genNonmissingValue: Gen[Annotation] = Call.genNonmissingValue
 
   override def desc: String = "A ``Call`` is a Hail data type representing a genotype call (ex: 0/0) in the Variant Dataset."
 
@@ -1096,11 +1209,17 @@ case object TCall extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
 }
+object TCall {
+  def apply(required: Boolean = false): TCall = if (required) TCallRequired else TCallOptional
+  def unapply(t: TCall): Option[Boolean] = Option(t.required)
+}
+case object TCallOptional extends TCall(false)
+case object TCallRequired extends TCall(true)
 
-case object TAltAllele extends ComplexType {
-  override def toString = "AltAllele"
+sealed class TAltAllele(override val required: Boolean) extends ComplexType {
+  def _toString = "AltAllele"
 
-  def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[AltAllele]
 
   override def genNonmissingValue: Gen[Annotation] = AltAllele.gen
 
@@ -1113,22 +1232,31 @@ case object TAltAllele extends ComplexType {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
 
   val representation: TStruct = TStruct(
-    "ref" -> TString,
-    "alt" -> TString)
+    "ref" -> TString(),
+    "alt" -> TString())
 }
+object TAltAllele {
+  def apply(required: Boolean = false): TAltAllele = if (required) TAltAlleleRequired else TAltAlleleOptional
+  def unapply(t: TAltAllele): Option[Boolean] = Option(t.required)
+}
+case object TAltAlleleOptional extends TAltAllele(false)
+case object TAltAlleleRequired extends TAltAllele(true)
 
 object TVariant {
-  val representation: TStruct = TStruct(
-    "contig" -> TString,
-    "start" -> TInt32,
-    "ref" -> TString,
-    "altAlleles" -> TArray(TAltAllele.representation))
+  def representation(required: Boolean = false): TStruct = {
+  	val rep = TStruct(
+    "contig" -> TString(),
+    "start" -> TInt32(),
+    "ref" -> TString(),
+    "altAlleles" -> TArray(TAltAllele().representation))
+    if (required) (!rep).asInstanceOf[TStruct] else rep
+  }
 }
 
-case class TVariant(gr: GRBase) extends ComplexType {
-  override def toString = s"""Variant($gr)"""
+case class TVariant(gr: GRBase, override val required: Boolean = false) extends ComplexType {
+  def _toString = s"""Variant($gr)"""
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Variant]
 
   override def genNonmissingValue: Gen[Annotation] = Variant.gen
 
@@ -1208,10 +1336,10 @@ case class TVariant(gr: GRBase) extends ComplexType {
     }
   }
 
-  val representation: TStruct = TVariant.representation
+  val representation: TStruct = TVariant.representation(required)
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TVariant(cgr) => gr.unify(cgr)
+    case TVariant(cgr, _) => gr.unify(cgr)
     case _ => false
   }
 
@@ -1221,15 +1349,18 @@ case class TVariant(gr: GRBase) extends ComplexType {
 }
 
 object TLocus {
-  val representation: TStruct = TStruct(
-    "contig" -> TString,
-    "position" -> TInt32)
+  def representation(required: Boolean = false): TStruct = {
+    val rep = TStruct(
+      "contig" -> TString(),
+      "position" -> TInt32())
+    if (required) (!rep).asInstanceOf[TStruct] else rep
+  }
 }
 
-case class TLocus(gr: GRBase) extends ComplexType {
-  override def toString = s"Locus($gr)"
+case class TLocus(gr: GRBase, override val required: Boolean = false) extends ComplexType {
+  def _toString = s"Locus($gr)"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 
   override def genNonmissingValue: Gen[Annotation] = Locus.gen
 
@@ -1264,10 +1395,10 @@ case class TLocus(gr: GRBase) extends ComplexType {
     }
   }
 
-  val representation: TStruct = TLocus.representation
+  val representation: TStruct = TLocus.representation(required)
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TLocus(cgr) => gr.unify(cgr)
+    case TLocus(cgr, _) => gr.unify(cgr)
     case _ => false
   }
 
@@ -1277,15 +1408,18 @@ case class TLocus(gr: GRBase) extends ComplexType {
 }
 
 object TInterval {
-  val representation: TStruct = TStruct(
-    "start" -> TLocus.representation,
-    "end" -> TLocus.representation)
+  def representation(required: Boolean = false): TStruct = {
+    val rep = TStruct(
+      "start" -> TLocus.representation(),
+      "end" -> TLocus.representation())
+    if (required) (!rep).asInstanceOf[TStruct] else rep
+  }
 }
 
-case class TInterval(gr: GRBase) extends ComplexType {
-  override def toString = s"""Interval($gr)"""
+case class TInterval(gr: GRBase, override val required: Boolean = false) extends ComplexType {
+  def _toString = s"""Interval($gr)"""
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(Locus.gen)
 
@@ -1317,10 +1451,10 @@ case class TInterval(gr: GRBase) extends ComplexType {
     }
   }
 
-  val representation: TStruct = TInterval.representation
+  val representation: TStruct = TInterval.representation(required)
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TInterval(cgr) => gr.unify(cgr)
+    case TInterval(cgr, _) => gr.unify(cgr)
     case _ => false
   }
 
@@ -1378,17 +1512,20 @@ object TStruct {
       .map { case ((n, t), i) => Field(n, t, i) }
       .toArray)
 
-  def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type]): TStruct = {
+  def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type], required: Boolean): TStruct = {
     val sNames = names.asScala.toArray
     val sTypes = types.asScala.toArray
     if (sNames.length != sTypes.length)
       fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
 
-    TStruct(sNames.zip(sTypes): _*)
+    val t = TStruct(sNames.zip(sTypes): _*)
+    if (required)
+      (!t).asInstanceOf[TStruct]
+    else t
   }
 }
 
-final case class TStruct(fields: IndexedSeq[Field]) extends Type {
+final case class TStruct(fields: IndexedSeq[Field], override val required: Boolean = false) extends Type {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   override def children: Seq[Type] = fields.map(_.typ)
@@ -1401,7 +1538,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   }
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TStruct(cfields) =>
+    case TStruct(cfields, _) =>
       fields.length == cfields.length &&
         (fields, cfields).zipped.forall { case (f, cf) =>
           f.unify(cf)
@@ -1852,9 +1989,9 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
   }
 
-  override def toString: String = if (size == 0) "Empty" else toPrettyString(compact = true)
+  def _toString: String = if (size == 0) "Empty" else toPrettyString(compact = true)
 
-  override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
+  override def _pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
     if (size == 0)
       sb.append("Empty")
     else {
@@ -1873,15 +2010,14 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     }
   }
 
-  override def typeCheck(a: Any): Boolean =
-    a == null ||
-      (a.isInstanceOf[Row] && {
-        val r = a.asInstanceOf[Row]
-        r.length == fields.length &&
-          r.toSeq.zip(fields).forall {
-            case (v, f) => f.typ.typeCheck(v)
-          }
-      })
+  override def _typeCheck(a: Any): Boolean =
+    a.isInstanceOf[Row] && {
+      val r = a.asInstanceOf[Row]
+      r.length == fields.length &&
+        r.toSeq.zip(fields).forall {
+          case (v, f) => f.typ.typeCheck(v)
+        }
+      }
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
@@ -1890,8 +2026,10 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
       Gen.const(Annotation.empty)
     } else
       Gen.size.flatMap(fuel =>
-        if (size > fuel) Gen.const(null)
-        else Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
+        if (size > fuel)
+          Gen.uniformSequence(fields.map(f => Gen.const(null))).map(a => Annotation(a: _*))
+        else
+    Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
@@ -2076,7 +2214,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   def loadField(region: MemoryBuffer, offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
     fields(fieldIdx).typ.fundamentalType match {
-      case _: TArray | TBinary => region.loadAddress(off)
+      case _: TArray | _: TBinary => region.loadAddress(off)
       case _ => off
     }
   }

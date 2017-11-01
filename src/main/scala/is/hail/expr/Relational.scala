@@ -319,16 +319,16 @@ object MatrixIR {
     BaseIR.rewriteTopDown(ast, {
       case FilterVariants(
       MatrixRead(hc, path, nPartitions, fileMetadata, dropSamples, _),
-      Const(_, false, TBoolean)) =>
+      Const(_, false, TBoolean(_))) =>
         MatrixRead(hc, path, nPartitions, fileMetadata, dropSamples, dropVariants = true)
       case FilterSamples(
       MatrixRead(hc, path, nPartitions, fileMetadata, _, dropVariants),
-      Const(_, false, TBoolean)) =>
+      Const(_, false, TBoolean(_))) =>
         MatrixRead(hc, path, nPartitions, fileMetadata, dropSamples = true, dropVariants)
 
-      case FilterVariants(m, Const(_, true, TBoolean)) =>
+      case FilterVariants(m, Const(_, true, TBoolean(_))) =>
         m
-      case FilterSamples(m, Const(_, true, TBoolean)) =>
+      case FilterSamples(m, Const(_, true, TBoolean(_))) =>
         m
 
       // minor, but push FilterVariants into FilterSamples

@@ -300,15 +300,15 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
 
   def visit(t: Type, off: Long, v: ValueVisitor) {
     t match {
-      case TBoolean => v.visitBoolean(loadBoolean(off))
-      case TInt32 => v.visitInt32(loadInt(off))
-      case TInt64 => v.visitInt64(loadLong(off))
-      case TFloat32 => v.visitFloat32(loadFloat(off))
-      case TFloat64 => v.visitFloat64(loadDouble(off))
-      case TString =>
+      case _: TBoolean => v.visitBoolean(loadBoolean(off))
+      case _: TInt32 => v.visitInt32(loadInt(off))
+      case _: TInt64 => v.visitInt64(loadLong(off))
+      case _: TFloat32 => v.visitFloat32(loadFloat(off))
+      case _: TFloat64 => v.visitFloat64(loadDouble(off))
+      case _: TString =>
         val boff = off
         v.visitString(TString.loadString(this, boff))
-      case TBinary =>
+      case _: TBinary =>
         val boff = off
         val length = TBinary.loadLength(this, boff)
         val b = loadBytes(TBinary.bytesOffset(boff), length)
@@ -549,7 +549,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     assert(typestk.isEmpty)
     root match {
       case t: TArray =>
-      case TBinary =>
+      case _: TBinary =>
       case _ =>
         region.align(root.alignment)
         start = region.allocate(root.byteSize)
@@ -632,8 +632,12 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     val i = indexstk.top
     typestk.top match {
       case t: TStruct =>
+        if (t.fieldType(i).required)
+          fatal(s"cannot set missing field for required type ${t.fieldType(i)}")
         t.setFieldMissing(region, offsetstk.top, i)
       case t: TArray =>
+        if (t.elementType.required)
+          fatal(s"cannot set missing field for required type ${t.elementType}")
         t.setElementMissing(region, offsetstk.top, i)
     }
 
@@ -641,7 +645,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def addBoolean(b: Boolean) {
-    assert(currentType() == TBoolean)
+    assert(currentType().isInstanceOf[TBoolean])
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
@@ -650,7 +654,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def addInt(i: Int) {
-    assert(currentType() == TInt32)
+    assert(currentType().isInstanceOf[TInt32])
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
@@ -659,7 +663,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def addLong(l: Long) {
-    assert(currentType() == TInt64)
+    assert(currentType().isInstanceOf[TInt64])
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
@@ -668,7 +672,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def addFloat(f: Float) {
-    assert(currentType() == TFloat32)
+    assert(currentType().isInstanceOf[TFloat32])
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
@@ -677,7 +681,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def addDouble(d: Double) {
-    assert(currentType() == TFloat64)
+    assert(currentType().isInstanceOf[TFloat64])
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
@@ -686,7 +690,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def addBinary(bytes: Array[Byte]) {
-    assert(currentType() == TBinary)
+    assert(currentType().isInstanceOf[TBinary])
 
     region.align(TBinary.contentAlignment)
     val boff = region.offset
@@ -729,7 +733,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   def requiresFixup(t: Type): Boolean = {
     t match {
       case t: TStruct => t.fields.exists(f => requiresFixup(f.typ))
-      case _: TArray | TBinary => true
+      case _: TArray | _: TBinary => true
       case _ => false
     }
   }
@@ -753,7 +757,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
               val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
               region.storeAddress(t.elementOffset(toAOff, length, i), toAOff2)
 
-            case TBinary =>
+            case _: TBinary =>
               val toBOff = fixupBinary(fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
               region.storeAddress(t.elementOffset(toAOff, length, i), toBOff)
 
@@ -777,7 +781,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
           case t2: TStruct =>
             fixupStruct(t2, t.fieldOffset(toOff, i), fromRegion, t.fieldOffset(fromOff, i))
 
-          case TBinary =>
+          case _: TBinary =>
             val toBOff = fixupBinary(fromRegion, t.loadField(fromRegion, fromOff, i))
             region.storeAddress(t.fieldOffset(toOff, i), toBOff)
 
@@ -852,7 +856,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
           else
             start = toAOff
         }
-      case TBinary =>
+      case _: TBinary =>
         if (region.eq(fromRegion)) {
           assert(!typestk.isEmpty)
           region.storeAddress(toOff, fromOff)
@@ -882,13 +886,13 @@ class RegionValueBuilder(var region: MemoryBuffer) {
       setMissing()
     else
       t match {
-        case TBoolean => addBoolean(a.asInstanceOf[Boolean])
-        case TInt32 => addInt(a.asInstanceOf[Int])
-        case TInt64 => addLong(a.asInstanceOf[Long])
-        case TFloat32 => addFloat(a.asInstanceOf[Float])
-        case TFloat64 => addDouble(a.asInstanceOf[Double])
-        case TString => addString(a.asInstanceOf[String])
-        case TBinary => addBinary(a.asInstanceOf[Array[Byte]])
+        case _: TBoolean => addBoolean(a.asInstanceOf[Boolean])
+        case _: TInt32 => addInt(a.asInstanceOf[Int])
+        case _: TInt64 => addLong(a.asInstanceOf[Long])
+        case _: TFloat32 => addFloat(a.asInstanceOf[Float])
+        case _: TFloat64 => addDouble(a.asInstanceOf[Double])
+        case _: TString => addString(a.asInstanceOf[String])
+        case _: TBinary => addBinary(a.asInstanceOf[Array[Byte]])
 
         case t: TArray =>
           a match {
@@ -913,7 +917,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
               addRow(t, r)
           }
 
-        case TSet(elementType) =>
+        case TSet(elementType, _) =>
           val s = a.asInstanceOf[Set[Annotation]]
             .toArray
             .sorted(elementType.ordering(true))
@@ -944,23 +948,23 @@ class RegionValueBuilder(var region: MemoryBuffer) {
           startArray(v.altAlleles.length)
           var i = 0
           while (i < v.altAlleles.length) {
-            addAnnotation(TAltAllele, v.altAlleles(i))
+            addAnnotation(TAltAllele(), v.altAlleles(i))
             i += 1
           }
           endArray()
           endStruct()
 
-        case TAltAllele =>
+        case _: TAltAllele =>
           val aa = a.asInstanceOf[AltAllele]
           startStruct()
           addString(aa.ref)
           addString(aa.alt)
           endStruct()
 
-        case TCall =>
+        case _: TCall =>
           addInt(a.asInstanceOf[Int])
 
-        case TGenotype =>
+        case _: TGenotype =>
           val g = a.asInstanceOf[Genotype]
           startStruct()
 

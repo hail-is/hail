@@ -82,7 +82,7 @@ object TextTableReader {
     val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex).map(Pattern.compile)
 
     val gr = GenomeReference.GRCh37
-    val regexTypes: Array[Type] = Array(TBoolean, TVariant(gr), TLocus(gr), TInt32, TFloat64)
+    val regexTypes: Array[Type] = Array(TBoolean(), TVariant(gr), TLocus(gr), TInt32(), TFloat64())
     val nRegex = regexes.length
 
     val imputation = values.treeAggregate(MultiArray2.fill[Boolean](nFields, nRegex + 1)(true))({ case (ma, line) =>
@@ -124,7 +124,7 @@ object TextTableReader {
       someIf(!imputation(i, nRegex),
         (0 until nRegex).find(imputation(i, _))
           .map(regexTypes)
-          .getOrElse(TString))
+          .getOrElse(TString()))
     }.toArray
   }
 
@@ -192,7 +192,7 @@ object TextTableReader {
                   (name, t)
                 case None =>
                   sb.append(s"\n  Loading column `$name' as type String (no non-missing values for imputation)")
-                  (name, TString)
+                  (name, TString())
               }
           }
         }
@@ -205,7 +205,7 @@ object TextTableReader {
               (c, t)
             case None =>
               sb.append(s"  Loading column `$c' as type `String' (type not specified)\n")
-              (c, TString)
+              (c, TString())
           }
         }
       }

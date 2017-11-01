@@ -25,7 +25,7 @@ class GenericDatasetSuite extends SparkSuite {
     val gdsAnnotated = gds.annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\"")
 
     val gsig = gdsAnnotated.genotypeSignature.asInstanceOf[TStruct]
-    val expTypes = Array(TInt32, TFloat64, TString)
+    val expTypes = Array(TInt32(), TFloat64(), TString())
     val expNames = Array("a", "b", "c")
 
     val (_, aQuerier) = gdsAnnotated.queryGA("g.a")

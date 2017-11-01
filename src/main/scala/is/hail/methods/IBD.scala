@@ -19,7 +19,7 @@ object IBDInfo {
   }
 
   val signature =
-    TStruct(("Z0", TFloat64), ("Z1", TFloat64), ("Z2", TFloat64), ("PI_HAT", TFloat64))
+    TStruct(("Z0", TFloat64()), ("Z1", TFloat64()), ("Z2", TFloat64()), ("PI_HAT", TFloat64()))
 }
 
 case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
@@ -33,7 +33,7 @@ case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
 
 object ExtendedIBDInfo {
   val signature =
-    TStruct(("ibd", IBDInfo.signature), ("ibs0", TInt64), ("ibs1", TInt64), ("ibs2", TInt64))
+    TStruct(("ibd", IBDInfo.signature), ("ibs0", TInt64()), ("ibs1", TInt64()), ("ibs2", TInt64()))
 }
 
 case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Long, ibs1: Long, ibs2: Long) {
@@ -271,7 +271,7 @@ object IBD {
   }
 
 
-  private val (ibdSignature, ibdMerger) = TStruct(("i", TString), ("j", TString)).merge(ExtendedIBDInfo.signature)
+  private val (ibdSignature, ibdMerger) = TStruct(("i", TString()), ("j", TString())).merge(ExtendedIBDInfo.signature)
 
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): KeyTable = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation).asInstanceOf[Row] }

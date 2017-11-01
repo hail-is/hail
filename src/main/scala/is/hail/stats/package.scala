@@ -383,7 +383,7 @@ package object stats {
 
     new VariantKeyDataset(hc, VSMFileMetadata(sampleIds,
       genotypeSignature = TStruct(
-        "GP" -> TArray(TFloat64)),
+        "GP" -> TArray(TFloat64())),
       wasSplit = true),
       rdd)
   }

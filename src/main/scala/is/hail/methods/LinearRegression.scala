@@ -13,13 +13,13 @@ import scala.reflect.ClassTag
 
 object LinearRegression {
   def schema = TStruct(
-    ("nCompleteSamples", TInt32),
-    ("AC", TFloat64),
-    ("ytx", TArray(TFloat64)),
-    ("beta", TArray(TFloat64)),
-    ("se", TArray(TFloat64)),
-    ("tstat", TArray(TFloat64)),
-    ("pval", TArray(TFloat64)))
+    ("nCompleteSamples", TInt32()),
+    ("AC", TFloat64()),
+    ("ytx", TArray(TFloat64())),
+    ("beta", TArray(TFloat64())),
+    ("se", TArray(TFloat64())),
+    ("tstat", TArray(TFloat64())),
+    ("pval", TArray(TFloat64())))
 
   def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
     ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int

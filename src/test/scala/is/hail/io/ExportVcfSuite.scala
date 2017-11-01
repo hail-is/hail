@@ -140,7 +140,7 @@ class ExportVCFSuite extends SparkSuite {
 
     intercept[HailException] {
       val sb = new StringBuilder()
-      ExportVCF.strVCF(sb, TInt64, 3147483647L)
+      ExportVCF.strVCF(sb, TInt64(), 3147483647L)
     }
   }
 
