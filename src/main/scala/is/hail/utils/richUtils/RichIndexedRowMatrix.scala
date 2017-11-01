@@ -28,7 +28,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         .map { case (values, blockColumn) =>
           ((i.toInt, blockColumn), (ii.toInt, values))
         }
-    }.groupByKey(GridPartitioner(rows, cols, blockSize)).mapValuesWithKey {
+    }.groupByKey(GridPartitioner(blockSize, rows, cols)).mapValuesWithKey {
       case ((i, j), it) =>
         val rowsInBlock: Int = if (i == truncatedBlockRow) excessRows else blockSize
         val colsInBlock: Int = if (j == truncatedBlockCol) excessCols else blockSize

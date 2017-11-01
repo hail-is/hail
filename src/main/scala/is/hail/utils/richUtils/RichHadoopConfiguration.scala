@@ -138,7 +138,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     delete(destinationFile, recursive = true) // overwriting by default
 
     val headerFileStatus = glob(sourceFolder + "/header")
-    
+
     if (hasHeader && headerFileStatus.isEmpty)
       fatal(s"Missing header file")
     else if (!hasHeader && headerFileStatus.nonEmpty)
@@ -147,10 +147,10 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     val partFileStatuses = glob(sourceFolder + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
 
     if (partFileStatuses.length != numPartFilesExpected)
-      fatal(s"Expected $numPartFilesExpected part files but found ${partFileStatuses.length}")
-        
+      fatal(s"Expected $numPartFilesExpected part files but found ${ partFileStatuses.length }")
+
     val filesToMerge = headerFileStatus ++ partFileStatuses
-    
+
     val (_, dt) = time {
       copyMergeList(filesToMerge, destinationFile, deleteSource)
     }

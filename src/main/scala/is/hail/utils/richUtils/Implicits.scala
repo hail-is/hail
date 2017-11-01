@@ -3,8 +3,9 @@ package is.hail.utils.richUtils
 import java.io.InputStream
 
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.{MemoryBuffer, RegionValue, RichRDDRegionValue}
+import is.hail.annotations.{MemoryBuffer, RegionValue}
 import is.hail.asm4s.Code
+import is.hail.io.RichRDDRegionValue
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import is.hail.variant.Variant
 import org.apache.hadoop

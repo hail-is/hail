@@ -1,6 +1,5 @@
 package is.hail.variant.vsm
 
-import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Parameters}
