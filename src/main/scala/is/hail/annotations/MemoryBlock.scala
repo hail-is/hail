@@ -634,6 +634,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
       case t: TStruct =>
         t.setFieldMissing(region, offsetstk.top, i)
       case t: TArray =>
+        assert(!t.elementsRequired)
         t.setElementMissing(region, offsetstk.top, i)
     }
 
@@ -708,7 +709,6 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def addRow(t: TStruct, r: Row) {
     assert(r != null)
-
     startStruct()
     var i = 0
     while (i < t.size) {
@@ -896,6 +896,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
               addUnsafeArray(t, uis)
 
             case is: IndexedSeq[Annotation] =>
+              assert(t.elementsRequired == currentType().asInstanceOf[TArray].elementsRequired)
               startArray(is.length)
               var i = 0
               while (i < is.length) {
@@ -913,7 +914,8 @@ class RegionValueBuilder(var region: MemoryBuffer) {
               addRow(t, r)
           }
 
-        case TSet(elementType) =>
+        case TSet(elementType, req) =>
+          assert(req == currentType().asInstanceOf[TArray].elementsRequired)
           val s = a.asInstanceOf[Set[Annotation]]
             .toArray
             .sorted(elementType.ordering(true))

@@ -396,8 +396,8 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         (keysType, rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va)).map(key => (key, (v, va, gs))) })
       } else {
         val keyType = keysType match {
-          case TArray(e) => e
-          case TSet(e) => e
+          case TArray(e, _) => e
+          case TSet(e, _) => e
           case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
         }
         (keyType, rdd.flatMap { case (v, (va, gs)) =>

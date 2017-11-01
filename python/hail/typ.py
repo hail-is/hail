@@ -304,18 +304,20 @@ class TArray(Type):
     :vartype element_type: :class:`.Type`
     """
 
-    def __init__(self, element_type):
+    def __init__(self, element_type, elements_required = False):
         """
         :param :class:`.Type` element_type: Hail type of array element
         """
-        jtype = scala_object(Env.hail().expr, 'TArray').apply(element_type._jtype)
+        jtype = scala_object(Env.hail().expr, 'TArray').apply(element_type._jtype, elements_required)
         self.element_type = element_type
+        self.elements_required = elements_required
         super(TArray, self).__init__(jtype)
 
     @classmethod
     def _from_java(cls, jtype):
         t = TArray.__new__(cls)
         t.element_type = Type._from_java(jtype.elementType())
+        t.elements_required = jtype.elementsRequired
         t._jtype = jtype
         return t
 
@@ -339,6 +341,8 @@ class TArray(Type):
             if not isinstance(annotation, list):
                 raise TypeCheckError("TArray expected type 'list', but found type '%s'" % type(annotation))
             for elt in annotation:
+                if self.elements_required and elt == None:
+                    raise TypeCheckError("No missing values allowed in TArray with required elements.")
                 self.element_type._typecheck(elt)
 
     def __repr__(self):
@@ -361,18 +365,20 @@ class TSet(Type):
     :vartype element_type: :class:`.Type`
     """
 
-    def __init__(self, element_type):
+    def __init__(self, element_type, elements_required = False):
         """
         :param :class:`.Type` element_type: Hail type of set element
         """
-        jtype = scala_object(Env.hail().expr, 'TSet').apply(element_type._jtype)
+        jtype = scala_object(Env.hail().expr, 'TSet').apply(element_type._jtype, elements_required)
         self.element_type = element_type
+        self.elements_required = elements_required
         super(TSet, self).__init__(jtype)
 
     @classmethod
     def _from_java(cls, jtype):
         t = TSet.__new__(cls)
         t.element_type = Type._from_java(jtype.elementType())
+        t.elements_required = jtype.elementsRequired
         t._jtype = jtype
         return t
 
@@ -396,6 +402,8 @@ class TSet(Type):
             if not isinstance(annotation, set):
                 raise TypeCheckError("TSet expected type 'set', but found type '%s'" % type(annotation))
             for elt in annotation:
+                if self.elements_required and elt == None:
+                    raise TypeCheckError("No missing values allowed in TSet with required elements.")
                 self.element_type._typecheck(elt)
 
     def __repr__(self):
@@ -422,10 +430,11 @@ class TDict(Type):
     :vartype value_type: :class:`.Type`
     """
 
-    def __init__(self, key_type, value_type):
-        jtype = scala_object(Env.hail().expr, 'TDict').apply(key_type._jtype, value_type._jtype)
+    def __init__(self, key_type, value_type, elements_required = False):
+        jtype = scala_object(Env.hail().expr, 'TDict').apply(key_type._jtype, value_type._jtype, elements_required)
         self.key_type = key_type
         self.value_type = value_type
+        self.elements_required = elements_required
         super(TDict, self).__init__(jtype)
 
     @classmethod
@@ -433,6 +442,7 @@ class TDict(Type):
         t = TDict.__new__(cls)
         t.key_type = Type._from_java(jtype.keyType())
         t.value_type = Type._from_java(jtype.valueType())
+        t.elements_required = jtype.elementsRequired
         t._jtype = jtype
         return t
 
@@ -459,6 +469,8 @@ class TDict(Type):
             if not isinstance(annotation, dict):
                 raise TypeCheckError("TDict expected type 'dict', but found type '%s'" % type(annotation))
             for k, v in annotation.iteritems():
+                if self.elements_required and k == None:
+                    raise TypeCheckError("No missing values allowed in TDict with required elements.")
                 self.key_type._typecheck(k)
                 self.value_type._typecheck(v)
 
@@ -815,18 +827,20 @@ class TAggregable(Type):
     :vartype element_type: :class:`.Type`
     """
 
-    def __init__(self, element_type):
+    def __init__(self, element_type, elements_required = False):
         """
         :param :class:`.Type` element_type: Hail type of array element
         """
-        jtype = scala_object(Env.hail().expr, 'TAggregable').apply(element_type._jtype)
+        jtype = scala_object(Env.hail().expr, 'TAggregable').apply(element_type._jtype, elements_required)
         self.element_type = element_type
+        self.elements_required = elements_required
         super(TAggregable, self).__init__(jtype)
 
     @classmethod
     def _from_java(cls, jtype):
         t = TAggregable.__new__(cls)
         t.element_type = Type._from_java(jtype.elementType())
+        t.elements_required = jtype.elementsRequired
         t._jtype = jtype
         return t
 

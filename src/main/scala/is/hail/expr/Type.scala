@@ -33,9 +33,9 @@ object Type {
         genScalar,
         genScalar,
         genScalar,
-        genArb.resize(size - 1).map(TArray),
-        genArb.resize(size - 1).map(TSet),
-        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v) },
+        genArb.resize(size - 1).map(TArray.apply(_, elementsRequired = Gen.coin(.2).sample())),
+        genArb.resize(size - 1).map(TSet.apply(_, elementsRequired = Gen.coin(.2).sample())),
+        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v, elementsRequired = Gen.coin(.2).sample()) },
         genStruct.resize(size))
   }
 
@@ -602,6 +602,12 @@ final case class TVariable(name: String, var t: Type = null) extends Type {
 object TAggregable {
   val desc = """An ``Aggregable`` is a Hail data type representing a distributed row or column of a matrix. Hail exposes a number of methods to compute on aggregables depending on the data type."""
 
+  def apply(elementType: Type, symTab: SymbolTable, elementsRequired: Boolean): TAggregable = {
+    val agg = TAggregable(elementType, elementsRequired = elementsRequired)
+    agg.symTab = symTab
+    agg
+  }
+
   def apply(elementType: Type, symTab: SymbolTable): TAggregable = {
     val agg = TAggregable(elementType)
     agg.symTab = symTab
@@ -609,7 +615,7 @@ object TAggregable {
   }
 }
 
-final case class TAggregable(elementType: Type) extends TContainer {
+final case class TAggregable(elementType: Type, elementsRequired: Boolean = false) extends TContainer {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
@@ -622,7 +628,7 @@ final case class TAggregable(elementType: Type) extends TContainer {
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TAggregable(celementType) => elementType.unify(celementType)
+      case TAggregable(celementType, req) => elementType.unify(celementType) && (req == elementsRequired)
       case _ => false
     }
   }
@@ -654,6 +660,9 @@ object TContainer {
 }
 
 abstract class TContainer extends Type {
+
+  def elementsRequired: Boolean
+
   def elementType: Type
 
   def elementByteSize: Long
@@ -679,6 +688,9 @@ abstract class TContainer extends Type {
   var elementsOffsetTable: Array[Long] = _
 
   def elementsOffset(length: Int): Long = {
+    if (elementsRequired)
+      return UnsafeUtils.roundUpAlignment(4, elementType.alignment)
+
     if (elementsOffsetTable == null)
       elementsOffsetTable = Array.tabulate[Long](10)(i => _elementsOffset(i))
 
@@ -701,9 +713,10 @@ abstract class TContainer extends Type {
   }
 
   def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
-    !region.loadBit(aoff + 4, i)
+    elementsRequired || !region.loadBit(aoff + 4, i)
 
   def setElementMissing(region: MemoryBuffer, aoff: Long, i: Int) {
+    assert(!elementsRequired)
     region.setBit(aoff + 4, i)
   }
 
@@ -751,6 +764,8 @@ abstract class TContainer extends Type {
   }
 
   def clearMissingBits(region: MemoryBuffer, aoff: Long, length: Int) {
+    if (elementsRequired)
+      return
     val nMissingBytes = (length + 7) / 8
     var i = 0
     while (i < nMissingBytes) {
@@ -808,6 +823,15 @@ abstract class TContainer extends Type {
       }
     }
   }
+
+  def genElement: Gen[Annotation] = if (elementsRequired) elementType.genNonmissingValue else elementType.genValue
+
+  def typeCheckElement(a: Any): Boolean = {
+    if (elementsRequired)
+      assert(a != null, s"element of type $elementType is null")
+    elementType.typeCheck(a)
+  }
+
 }
 
 abstract class TIterable extends TContainer {
@@ -818,7 +842,7 @@ abstract class TIterable extends TContainer {
       .forall { case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance) })
 }
 
-final case class TArray(elementType: Type) extends TIterable {
+final case class TArray(elementType: Type, elementsRequired: Boolean = false) extends TIterable {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
@@ -827,19 +851,19 @@ final case class TArray(elementType: Type) extends TIterable {
     if (elementType == elementType.fundamentalType)
       this
     else
-      TArray(elementType.fundamentalType)
+      TArray(elementType.fundamentalType, elementsRequired)
   }
 
-  override def toString = s"Array[$elementType]"
+  override def toString = s"Array[$elementType${ if (elementsRequired) "!" else "" }]"
 
   override def canCompare(other: Type): Boolean = other match {
-    case TArray(otherType) => elementType.canCompare(otherType)
+    case TArray(otherType, _) => elementType.canCompare(otherType)
     case _ => false
   }
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TArray(celementType) => elementType.unify(celementType)
+      case TArray(celementType, req) => elementType.unify(celementType) && (req == elementsRequired)
       case _ => false
     }
   }
@@ -849,16 +873,18 @@ final case class TArray(elementType: Type) extends TIterable {
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Array[")
     elementType.pretty(sb, indent, printAttrs, compact)
+    if (elementsRequired)
+      sb.append("!")
     sb.append("]")
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
-    a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck))
+    a.asInstanceOf[IndexedSeq[_]].forall(typeCheckElement))
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
+    Gen.buildableOf[Array, Annotation](genElement).map(x => x: IndexedSeq[Annotation])
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(extendOrderingToNull(missingGreatest)(
@@ -888,33 +914,35 @@ final case class TArray(elementType: Type) extends TIterable {
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 }
 
-final case class TSet(elementType: Type) extends TIterable {
+final case class TSet(elementType: Type, elementsRequired: Boolean = false) extends TIterable {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
-  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType, elementsRequired)
 
-  override def toString = s"Set[$elementType]"
+  override def toString = s"Set[$elementType${ if (elementsRequired) "!" else "" }]"
 
   override def canCompare(other: Type): Boolean = other match {
-    case TSet(otherType) => elementType.canCompare(otherType)
+    case TSet(otherType, _) => elementType.canCompare(otherType)
     case _ => false
   }
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TSet(celementType) => elementType.unify(celementType)
+    case TSet(celementType, req) => elementType.unify(celementType) && (req == elementsRequired)
     case _ => false
   }
 
   override def subst() = TSet(elementType.subst())
 
   def typeCheck(a: Any): Boolean =
-    a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck))
+    a == null || (a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(typeCheckElement))
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Set[")
     elementType.pretty(sb, indent, printAttrs, compact)
+    if (elementsRequired)
+      sb.append("!")
     sb.append("]")
   }
 
@@ -935,7 +963,8 @@ final case class TSet(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
+  override def genNonmissingValue: Gen[Annotation] =
+    Gen.buildableOf[Set, Annotation](genElement)
 
   override def desc: String =
     """
@@ -959,17 +988,17 @@ final case class TSet(elementType: Type) extends TIterable {
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 }
 
-final case class TDict(keyType: Type, valueType: Type) extends TContainer {
+final case class TDict(keyType: Type, valueType: Type, elementsRequired: Boolean = false) extends TContainer {
   val elementType: Type = TStruct("key" -> keyType, "value" -> valueType)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
-  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType, elementsRequired)
 
   override def canCompare(other: Type): Boolean = other match {
-    case TDict(okt, ovt) => keyType.canCompare(okt) && valueType.canCompare(ovt)
+    case TDict(okt, ovt, _) => keyType.canCompare(okt) && valueType.canCompare(ovt)
     case _ => false
   }
 
@@ -977,14 +1006,14 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TDict(kt, vt) => keyType.unify(kt) && valueType.unify(vt)
+      case TDict(kt, vt, req) => keyType.unify(kt) && valueType.unify(vt) && (req == elementsRequired)
       case _ => false
     }
   }
 
   override def subst() = TDict(keyType.subst(), valueType.subst())
 
-  override def toString = s"Dict[$keyType, $valueType]"
+  override def toString = s"Dict[$keyType, $valueType${ if (elementsRequired) "!" else "" }]"
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
     sb.append("Dict[")
@@ -994,16 +1023,22 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
     else
       sb.append(", ")
     valueType.pretty(sb, indent, printAttrs, compact)
+    if (elementsRequired)
+      sb.append("!")
     sb.append("]")
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
-    a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
+    a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) }) &&
+    (!elementsRequired || a.asInstanceOf[Map[_,_]].forall({case (k,v) => {assert(k != null); true}}))
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genValue, valueType.genValue))
+    if (elementsRequired)
+      Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genNonmissingValue, valueType.genNonmissingValue))
+    else
+      Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genValue, valueType.genValue))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null &&
@@ -1040,14 +1075,14 @@ case object TGenotype extends ComplexType {
 
   val representation: TStruct = TStruct(
     "gt" -> TInt32,
-    "ad" -> TArray(TInt32),
+    "ad" -> TArray(TInt32, elementsRequired = true),
     "dp" -> TInt32,
     "gq" -> TInt32,
-    "pl" -> TArray(TInt32))
-
+    "pl" -> TArray(TInt32, elementsRequired = true))
+  
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
-  override def genNonmissingValue: Gen[Annotation] = Genotype.genArb
+  override def genNonmissingValue: Gen[Annotation] = Genotype.genNonmissingValue
 
   override def desc: String = "A ``Genotype`` is a Hail data type representing a genotype in the Variant Dataset. It is referred to as ``g`` in the expression language."
 
@@ -1073,7 +1108,7 @@ case object TCall extends ComplexType {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
-  override def genNonmissingValue: Gen[Annotation] = Call.genArb
+  override def genNonmissingValue: Gen[Annotation] = Call.genNonmissingValue
 
   override def desc: String = "A ``Call`` is a Hail data type representing a genotype call (ex: 0/0) in the Variant Dataset."
 
@@ -1865,8 +1900,19 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
       Gen.const(Annotation.empty)
     } else
       Gen.size.flatMap(fuel =>
+          if (size > fuel) Gen.uniformSequence(fields.map(f => Gen.const(null))).map(a => Annotation(a: _*))
+        else
+          Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
+  }
+
+  def genArb: Gen[Annotation] = {
+    if (size == 0) {
+      Gen.const(Annotation.empty)
+    } else
+      Gen.size.flatMap(fuel =>
         if (size > fuel) Gen.const(null)
-        else Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
+        else
+          Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =

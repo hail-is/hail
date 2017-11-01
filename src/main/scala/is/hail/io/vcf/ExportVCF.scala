@@ -12,7 +12,7 @@ object ExportVCF {
 
   def infoNumber(t: Type): String = t match {
     case TBoolean => "0"
-    case TArray(elementType) => "."
+    case TArray(elementType, _) => "."
     case _ => "1"
   }
 
@@ -103,8 +103,8 @@ object ExportVCF {
 
   def infoType(f: Field): String = {
     val tOption = f.typ match {
-      case TArray(elt) => infoType(elt)
-      case TSet(elt) => infoType(elt)
+      case TArray(elt, _) => infoType(elt)
+      case TSet(elt, _) => infoType(elt)
       case t => infoType(t)
     }
     tOption match {
@@ -123,8 +123,8 @@ object ExportVCF {
 
   def formatType(f: Field): String = {
     val tOption = f.typ match {
-      case TArray(elt) => formatType(elt)
-      case TSet(elt) => formatType(elt)
+      case TArray(elt, _) => formatType(elt)
+      case TSet(elt, _) => formatType(elt)
       case t => formatType(t)
     }
 
@@ -361,7 +361,7 @@ object ExportVCF {
 
     val filterQuery: Option[Querier] = vas.getOption("filters")
       .filter {
-        case TSet(TString) => true
+        case TSet(TString, _) => true
         case t =>
           warn(
             s"""found `filters' field, but it was an unexpected type `$t'.  Emitting missing FILTERS.

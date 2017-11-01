@@ -234,7 +234,7 @@ object HtsjdkRecordReader {
         rvb.setMissing()
       case (".", _) =>
         rvb.setMissing()
-      case (s: String, TArray(TInt32)) =>
+      case (s: String, TArray(TInt32, _)) =>
         val xs = s.split(",")
         rvb.startArray(xs.length)
         xs.foreach { x =>
@@ -245,7 +245,7 @@ object HtsjdkRecordReader {
         }
         rvb.endArray()
 
-      case (s: String, TArray(TFloat64)) =>
+      case (s: String, TArray(TFloat64, _)) =>
         val xs = s.split(",")
         rvb.startArray(xs.length)
         xs.foreach { x =>
@@ -255,7 +255,7 @@ object HtsjdkRecordReader {
             rvb.addDouble(x.toDouble)
         }
         rvb.endArray()
-      case (s: String, TArray(TString)) =>
+      case (s: String, TArray(TString, _)) =>
         val xs = s.split(",")
         rvb.startArray(xs.length)
         xs.foreach { x =>
@@ -296,7 +296,7 @@ object HtsjdkRecordReader {
       case (d: Double, TFloat32) =>
         rvb.addFloat(d.toFloat)
 
-      case (l: java.util.List[_], TArray(TInt32)) =>
+      case (l: java.util.List[_], TArray(TInt32, _)) =>
         rvb.startArray(l.size())
         var it = l.iterator()
         while (it.hasNext) {
@@ -307,7 +307,7 @@ object HtsjdkRecordReader {
           }
         }
         rvb.endArray()
-      case (l: java.util.List[_], TArray(TFloat64)) =>
+      case (l: java.util.List[_], TArray(TFloat64, _)) =>
         rvb.startArray(l.size())
         var it = l.iterator()
         while (it.hasNext) {
@@ -319,7 +319,7 @@ object HtsjdkRecordReader {
           }
         }
         rvb.endArray()
-      case (l: java.util.List[_], TArray(TString)) =>
+      case (l: java.util.List[_], TArray(TString, _)) =>
         rvb.startArray(l.size())
         var it = l.iterator()
         while (it.hasNext) {

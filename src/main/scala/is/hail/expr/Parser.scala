@@ -530,6 +530,8 @@ object Parser extends JavaTokenParsers {
       .toArray
   }
 
+  def elements_required: Parser[Boolean] = "!" ^^ { _ => true } | "" ^^ { _ => false }
+
   def type_expr: Parser[Type] =
     "Empty" ^^ { _ => TStruct.empty } |
       ("Interval" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).interval } |
@@ -546,9 +548,9 @@ object Parser extends JavaTokenParsers {
       ("Locus" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).locus } |
       "Genotype" ^^ { _ => TGenotype } |
       "Call" ^^ { _ => TCall } |
-      ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
-      ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |
-      ("Dict" ~ "[") ~> type_expr ~ "," ~ type_expr <~ "]" ^^ { case kt ~ _ ~ vt => TDict(kt, vt) } |
+      ("Array" ~ "[") ~> type_expr ~ elements_required <~ "]" ^^ { case elementType ~ elementsRequired => TArray(elementType, elementsRequired = elementsRequired) } |
+      ("Set" ~ "[") ~> type_expr ~ elements_required <~ "]" ^^ { case elementType ~ elementsRequired => TSet(elementType, elementsRequired = elementsRequired) } |
+      ("Dict" ~ "[") ~> type_expr ~ "," ~ type_expr ~ elements_required <~ "]" ^^ { case kt ~ _ ~ vt ~ elementsRequired => TDict(kt, vt, elementsRequired = elementsRequired) } |
       ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields =>
         TStruct(fields)
       }
