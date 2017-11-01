@@ -60,7 +60,8 @@ class BlockMatrixSuite extends SparkSuite {
   } yield m
 
   val blockMatrixGen = for {
-    blockSize <- Gen.interestingPosInt
+    preBlockSize <- Gen.interestingPosInt
+    blockSize = math.sqrt(preBlockSize).toInt
     m <- blockMatrixPreGen(blockSize)
   } yield m
 

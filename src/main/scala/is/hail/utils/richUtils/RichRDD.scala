@@ -108,7 +108,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     
     hadoopConf.mkDir(path + "/parts")
     
-    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hadoopConf))
+    val sHadoopConf = new SerializableHadoopConfiguration(hadoopConf)
     
     val nPartitions = r.getNumPartitions
     val d = digitsNeeded(nPartitions)
@@ -120,7 +120,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
       val filename = path + "/parts/part-" + pis
       
-      val os = sHadoopConfBc.value.value.unsafeWriter(filename)
+      val os = sHadoopConf.value.unsafeWriter(filename)
 
       Iterator.single(write(i, it, os))
     }
