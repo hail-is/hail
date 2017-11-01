@@ -5,9 +5,11 @@ import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TFloat64, TStruct}
 import is.hail.utils._
 import is.hail.variant.{Genotype, VSMFileMetadata, Variant, VariantDataset, VariantKeyDataset}
+import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 import org.apache.spark.sql.Row
+import scala.collection.mutable
 
 package object stats {
 
@@ -297,6 +299,30 @@ package object stats {
     val result = new Poisson(lambda).quantile(x, lowerTail, logP)
     assert(result.isValidInt, s"qpois result is not a valid int. Found $result.")
     result.toInt
+  }
+
+  def binomTest(nSuccess: Int, n: Int, p: Double, alternative: String): Double = {
+    val kind = alternative match {
+      case "two.sided" => TestKind.TWO_SIDED
+      case "less" => TestKind.LOWER
+      case "greater" => TestKind.GREATER
+      case _ => fatal(s"""Invalid alternative "$alternative". Must be "two_sided", "less" or "greater".""")
+    }
+
+    DistributionTest.binomial_test(nSuccess, n, p, kind)(1)
+  }
+
+  def entropy[T](xs: Iterable[T]): Double = {
+    val counts = xs.counter()
+
+    var length = 0
+    var acc = 0.0
+    counts.valuesIterator.foreach { count =>
+      length += count
+      acc += count * math.log(count)
+    }
+
+    (math.log(length) - (acc / length)) / math.log(2)
   }
 
   def uninitialized[T]: T = null.asInstanceOf[T]

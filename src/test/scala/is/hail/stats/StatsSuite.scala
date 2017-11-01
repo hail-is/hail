@@ -93,4 +93,19 @@ class StatsSuite extends SparkSuite {
     assert(D_==(dbeta(.2, 1, 2), 1.6, tol))
 
   }
+
+  @Test def binomTestTest() {
+    //Compare against R
+    assert(D_==(binomTest(2, 10, 0.5, "two.sided"), 0.10937, tolerance = 1e-4))
+    assert(D_==(binomTest(4 ,10, 0.5, "less"), 0.377, tolerance = 1e-3))
+    assert(D_==(binomTest(32, 50, 0.4, "greater"), 0.0005193, tolerance = 1e-4))
+
+  }
+
+  @Test def entropyTest() {
+    assert(D_==(entropy("accctg"), 1.79248, tolerance = 1e-5))
+    assert(D_==(entropy(Array(2, 3, 4, 5, 6, 6, 4)), 2.23593, tolerance = 1e-5))
+
+  }
+
 }
