@@ -198,13 +198,6 @@ class VSMSuite extends SparkSuite {
 
     p.check()
   }
-  
-  @Test def testWriteReadFile() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-    val f = tmpDir.createTempFile(extension = "vds")
-    vds.write(f)
-    assert(hc.readVDS(f).same(vds))
-  }
 
   @Test def testFilterSamples() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)

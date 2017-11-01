@@ -21,7 +21,7 @@ object BlockMatrix {
 
   def from(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
     assertCompatibleLocalMatrix(lm)
-    val partitioner = GridPartitioner(lm.rows, lm.cols, blockSize)
+    val partitioner = GridPartitioner(blockSize, lm.rows, lm.cols)
     val lmBc = sc.broadcast(lm)
     val rowPartitions = partitioner.rowPartitions
     val colPartitions = partitioner.colPartitions
@@ -79,26 +79,17 @@ object BlockMatrix {
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
     
-    val blockRows: Int = ((rows - 1) / blockSize).toInt + 1
-    val blockCols: Int = ((cols - 1) / blockSize).toInt + 1
-    val nBlocks = blockRows * blockCols
-    assert(nBlocks >= blockRows && nBlocks >= blockCols)
+    val gp = GridPartitioner(blockSize, rows, cols, transposed)    
     
     def readBlock(i: Int, is: InputStream): Iterator[((Int, Int), BDM[Double])] = {
       val dis = new DataInputStream(is)
       val bdm = RichDenseMatrixDouble.read(dis)
       dis.close()
 
-      Iterator.single(
-        if (transposed)
-          ((i / blockCols, i % blockCols), bdm)
-        else
-          ((i % blockRows, i / blockRows), bdm))
+      Iterator.single(gp.blockCoordinates(i), bdm)
     }
     
-    val gp = GridPartitioner(rows, cols, blockSize, transposed)
-    
-    val blocks = hc.readPartitions(uri, nBlocks, readBlock, Some(gp))
+    val blocks = hc.readPartitions(uri, gp.numPartitions, readBlock, Some(gp))
     
     new BlockMatrix(blocks, blockSize, rows, cols)
   } 
@@ -689,7 +680,7 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
   protected def getPartitions: Array[Partition] =
     (0 until nPartitions).map(IntPartition).toArray[Partition]
 
-  private val _partitioner = GridPartitioner(rows, cols, blockSize)
+  private val _partitioner = GridPartitioner(blockSize, rows, cols)
   /** Optionally overridden by subclasses to specify how they are partitioned. */
   @transient override val partitioner: Option[Partitioner] =
     Some(_partitioner)

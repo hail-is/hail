@@ -396,7 +396,6 @@ class BlockMatrixSuite extends SparkSuite {
   def readWriteIdentityRandom() {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val fname = tmpDir.createTempFile("test")
-      //println(s"blockSize=${m.blockSize}", s"rows=${m.rows}", s"cols=${m.cols}", s"trans=${m.partitioner.transposed}")
       m.write(fname)
       assert(sameDoubleMatrixNaNEqualsNaN(m.toLocalMatrix(), BlockMatrix.read(hc, fname).toLocalMatrix()))
       true

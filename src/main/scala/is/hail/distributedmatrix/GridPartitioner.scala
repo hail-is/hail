@@ -2,7 +2,7 @@ package is.hail.distributedmatrix
 
 import org.apache.spark.Partitioner
 
-case class GridPartitioner(rows: Long, cols: Long, blockSize: Int, transposed: Boolean = false) extends Partitioner {
+case class GridPartitioner(blockSize: Int, rows: Long, cols: Long, transposed: Boolean = false) extends Partitioner {
   require(rows > 0)
   require(cols > 0)
   require((rows - 1) / blockSize + 1 < Int.MaxValue)
@@ -12,7 +12,8 @@ case class GridPartitioner(rows: Long, cols: Long, blockSize: Int, transposed: B
   val colPartitions: Int = ((cols - 1) / blockSize + 1).toInt
 
   override val numPartitions: Int = rowPartitions * colPartitions
-
+  assert(numPartitions >= rowPartitions && numPartitions >= colPartitions)
+  
   override def getPartition(key: Any): Int = key match {
     case (i: Int, j: Int) => partitionIdFromBlockIndices(i, j)
   }
@@ -41,5 +42,5 @@ case class GridPartitioner(rows: Long, cols: Long, blockSize: Int, transposed: B
   }
 
   def transpose: GridPartitioner =
-    GridPartitioner(this.cols, this.rows, this.blockSize, !this.transposed)
+    GridPartitioner(this.blockSize, this.cols, this.rows, !this.transposed)
 }
