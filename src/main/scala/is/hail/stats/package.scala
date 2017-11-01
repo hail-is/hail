@@ -322,7 +322,7 @@ package object stats {
       acc += count * math.log(count)
     }
 
-    -1 * ((acc / length) - math.log(length)) / math.log(2)
+    (math.log(length) - (acc / length)) / math.log(2)
   }
 
   def uninitialized[T]: T = null.asInstanceOf[T]
