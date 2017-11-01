@@ -4770,11 +4770,9 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(propagate_gq=bool,
                       keep_star_alleles=bool,
-                      max_shift=integral)
-    def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
+                      left_aligned=bool)
+    def split_multi(self, propagate_gq=False, keep_star_alleles=False, left_aligned=False):
         """Split multiallelic variants.
-
-        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -4889,16 +4887,15 @@ class VariantDataset(HistoryMixin):
           ``import_vcf(store_gq=True)``.  This option will be obviated
           in the future by generic genotype schemas.  Experimental.
         :param bool keep_star_alleles: Do not filter out * alleles.
-        :param int max_shift: maximum number of base pairs by which
-          a split variant can move.  Affects memory usage, and will
-          cause Hail to throw an error if a variant that moves further
-          is encountered.
+        :param bool left_aligned: If True, variants are assumed to be
+          left aligned and have unique loci.  This avoids a shuffle.
+          If the assumption is violated, an error is generated.
 
         :return: A biallelic variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.splitMulti(propagate_gq, keep_star_alleles, max_shift)
+        jvds = self._jvkdf.splitMulti(propagate_gq, keep_star_alleles, left_aligned)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

@@ -576,7 +576,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
     val inserters = inserterBuilder.result()
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations[RPK, RK, T](hc, value, ec)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, value, ec)
 
     ec.set(0, globalAnnotation)
     val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) =>
@@ -724,7 +724,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
 
     val localRowType = rowType
-    insertIntoRow[UnsafeRow](() => new UnsafeRow(localRowType))(
+    insertIntoRow(() => new UnsafeRow(localRowType))(
       newVASignature, List("va"), { (ur, rv, rvb) =>
         ur.set(rv)
         
@@ -734,7 +734,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
         ec.setAll(localGlobalAnnotation, v, va)
 
-        aggregateOption.foreach(f => f(v, va, gs))
+        aggregateOption.foreach(f => f(rv))
 
         var newVA = va
         var i = 0
@@ -2101,6 +2101,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     new VariantSampleMatrix[RPK, RK, Genotype](hc, metadata, ast)
   }
+
+  def makeGenotypeGeneric(): VariantSampleMatrix[RPK, RK, Annotation] =
+    new VariantSampleMatrix[RPK, RK, Annotation](hc, metadata, ast)
 
   def toVKDS: VariantSampleMatrix[Locus, Variant, T] = makeVariantConcrete()
 

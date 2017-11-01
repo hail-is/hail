@@ -466,7 +466,7 @@ case class FilterSamples(
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations[Annotation, Annotation, Annotation](hc, prev, ec)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, prev, ec)
 
     val p = (s: Annotation, sa: Annotation) => {
       sampleAggregationOption.foreach(f => f.apply(s))
@@ -498,8 +498,8 @@ case class FilterVariants(
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
 
-    val aggregatorOption = Aggregators.buildVariantAggregations[Annotation, Annotation, Annotation](
-      prev.rdd2.sparkContext, prev.localValue, ec)
+    val aggregatorOption = Aggregators.buildVariantAggregations(
+      prev.rdd2.sparkContext, prev.typ, prev.localValue, ec)
 
     val localPrevRowType = prev.typ.rowType
     val p = (rv: RegionValue) => {
@@ -507,8 +507,7 @@ case class FilterVariants(
 
       val v = ur.get(1)
       val va = ur.get(2)
-      val gs = ur.getAs[IndexedSeq[Annotation]](3)
-      aggregatorOption.foreach(f => f(v, va, gs))
+      aggregatorOption.foreach(f => f(rv))
 
       ec.setAll(localGlobalAnnotation, v, va)
 

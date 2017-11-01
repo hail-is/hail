@@ -1008,7 +1008,6 @@ class RegionValueBuilder(var region: MemoryBuffer) {
             endArray()
           }
 
-          addBoolean(g._fakeRef)
           endStruct()
 
         case t: TLocus =>
