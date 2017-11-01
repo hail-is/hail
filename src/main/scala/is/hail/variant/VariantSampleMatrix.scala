@@ -340,6 +340,14 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         MatrixType(metadata),
         MatrixValue(MatrixType(metadata), localValue, rdd2)))
 
+  def requireRowKeyVariant(method: String) {
+    vSignature match {
+      case _ : TVariant =>
+        fatal(s"in $method: row key (variant) schema must be Variant, found: $vSignature")
+      case _ =>
+    }
+  }
+
   def requireSampleTString(method: String) {
     if (sSignature != TString)
       fatal(s"in $method: column key (sample) schema must be String, but found: $sSignature")
@@ -2167,5 +2175,61 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     accuracy: Double = 1e-6,
     iterations: Int = 10000): KeyTable = {
     Skat(this, variantKeys, singleKey,  weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
+  }
+
+  def minRep(leftAligned: Boolean = false): VariantSampleMatrix[Locus, Variant, T] = {
+    requireRowKeyVariant("min_rep")
+
+    val localRowType = rowType
+
+    def minRep1(removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
+      rdd2.mapPartitions { it =>
+        var prevLocus: Locus = null
+        val rvb = new RegionValueBuilder()
+        val rv2 = RegionValue()
+
+        it.flatMap { rv =>
+          val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
+          val v = ur.getAs[Variant](1)
+          val minv = v.minRep
+
+          var isLeftAligned = (prevLocus == null || prevLocus != v.locus) &&
+            (v.locus == minv.locus)
+
+          if (isLeftAligned && removeLeftAligned)
+            None
+          else if (!isLeftAligned && removeMoving)
+            None
+          else if (!isLeftAligned && verifyLeftAligned)
+            fatal(s"found non-left aligned variant $v")
+          else {
+            rvb.set(rv.region)
+            rvb.start(localRowType)
+            rvb.startStruct()
+            rvb.addAnnotation(localRowType.fieldType(0), minv.locus)
+            rvb.addAnnotation(localRowType.fieldType(1), minv)
+            rvb.addField(localRowType, rv, 2)
+            rvb.addField(localRowType, rv, 3)
+            rvb.endStruct()
+            rv2.set(rv.region, rvb.end())
+            Some(rv2)
+          }
+        }
+      }
+    }
+
+    val newRDD2 =
+      if (leftAligned)
+        OrderedRDD2(rdd2.typ,
+          rdd2.orderedPartitioner,
+          minRep1(removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
+      else
+        SplitMulti.unionMovedVariants(
+          OrderedRDD2(rdd2.typ,
+            rdd2.orderedPartitioner,
+            minRep1(removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
+          minRep1(removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
+
+    copy2(rdd2 = newRDD2)
   }
 }

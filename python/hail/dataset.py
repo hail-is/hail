@@ -3296,8 +3296,7 @@ class VariantDataset(HistoryMixin):
 
         """
 
-        jvds = self._jvkdf.minRep(left_aligned)
-        return VariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, self._jvds.minRep(left_aligned))
 
     @handle_py4j
     @require_biallelic

@@ -25,65 +25,6 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
     ExportVCF(vsm, path, append, parallel)
   }
 
-  def minRep(leftAligned: Boolean = false): VariantSampleMatrix[Locus, Variant, T] = {
-    val localRowType = vsm.rowType
-
-    def minRep1(removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
-        vsm.rdd2.mapPartitions { it =>
-          var prevLocus: Locus = null
-          val rvb = new RegionValueBuilder()
-          val rv2 = RegionValue()
-
-          it.flatMap { rv =>
-            val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
-            val v = ur.getAs[Variant](1)
-            val minv = v.minRep
-
-            var isLeftAligned = (prevLocus == null || prevLocus != v.locus) &&
-              (v.locus == minv.locus)
-
-            if (isLeftAligned && removeLeftAligned)
-              None
-            else if (!isLeftAligned && removeMoving)
-              None
-            else if (!isLeftAligned && verifyLeftAligned)
-              fatal(s"found non-left aligned variant $v")
-            else {
-
-              rvb.set(rv.region)
-              rvb.start(localRowType)
-              rvb.startStruct()
-              rvb.addAnnotation(localRowType.fieldType(0), minv.locus)
-              rvb.addAnnotation(localRowType.fieldType(1), minv)
-              rvb.addField(localRowType, rv, 2)
-              rvb.addField(localRowType, rv, 3)
-              rvb.endStruct()
-              rv2.set(rv.region, rvb.end())
-              Some(rv2)
-            }
-          }
-        }
-    }
-
-    val newRDD2 =
-      if (leftAligned)
-        vsm.rdd2.copy(
-          rdd = minRep1(removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
-      else {
-        val leftAlignedVariants = vsm.rdd2.copy(
-          rdd = minRep1(removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false))
-        val movedVariants =
-          OrderedRDD2.shuffle(
-            vsm.matrixType.orderedRDD2Type,
-            vsm.rdd2.orderedPartitioner,
-            minRep1(removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
-
-        leftAlignedVariants.partitionSortedUnion(movedVariants)
-      }
-
-    vsm.copy2(rdd2 = newRDD2)
-  }
-
   /**
     *
     * @param config    VEP configuration file

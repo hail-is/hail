@@ -125,6 +125,15 @@ class SplitMultiPartitionContext(
   }
 }
 
+object SplitMulti {
+  def unionMovedVariants(ordered: OrderedRDD2,
+    moved: RDD[RegionValue]): OrderedRDD2 = {
+    ordered.partitionSortedUnion(OrderedRDD2.shuffle(ordered.typ,
+      ordered.orderedPartitioner,
+      moved))
+  }
+}
+
 class SplitMulti[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean)(implicit tct: ClassTag[T]) {
   val vEC = EvalContext(Map(
     "global" -> (0, vsm.globalSignature),
@@ -171,24 +180,17 @@ class SplitMulti[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], variant
 
   def split(): VariantSampleMatrix[Locus, Variant, T] = {
     val newRDD2: OrderedRDD2 =
-      if (leftAligned) {
+      if (leftAligned)
         OrderedRDD2(
           newMatrixType.orderedRDD2Type,
           vsm.rdd2.orderedPartitioner,
           split(sortAlleles = true, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
-      } else {
-        val leftAlignedVariants = OrderedRDD2(
+      else
+        SplitMulti.unionMovedVariants(OrderedRDD2(
           newMatrixType.orderedRDD2Type,
           vsm.rdd2.orderedPartitioner,
-          split(sortAlleles = true, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false))
-
-        val movedVariants = OrderedRDD2.shuffle(
-          newMatrixType.orderedRDD2Type,
-          vsm.rdd2.orderedPartitioner,
+          split(sortAlleles = true, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
           split(sortAlleles = false, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
-
-        leftAlignedVariants.partitionSortedUnion(movedVariants)
-      }
 
     vsm.copy2[Locus, Variant, T](rdd2 = newRDD2, vaSignature = vAnnotator.newT, genotypeSignature = gAnnotator.newT, wasSplit = true)
   }
