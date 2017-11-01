@@ -1229,7 +1229,7 @@ object FunctionRegistry {
   register("binomTest", { (x: Int, n: Int, p: Double, alternative: String) => binomTest(x, n, p, alternative)
   },
     """
-    Returns the p-value from the `exact binomial test <https://en.wikipedia.org/wiki/Binomial_test>__` of the null hypothesis that success has probability `p`, given `x` successes in `n` trials.
+    Returns the p-value from the `exact binomial test <https://en.wikipedia.org/wiki/Binomial_test>`__ of the null hypothesis that success has probability `p`, given `x` successes in `n` trials.
 
     **Examples**
 
