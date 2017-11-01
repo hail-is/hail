@@ -789,6 +789,12 @@ class OrderedRDD2 private(
         }
       })
   }
+
+  def copy(typ: OrderedRDD2Type = typ,
+    orderedPartitioner: OrderedPartitioner2 = orderedPartitioner,
+    rdd: RDD[RegionValue] = rdd): OrderedRDD2 = {
+    OrderedRDD2(typ, orderedPartitioner, rdd)
+  }
 }
 
 class OrderedDependency2(left: OrderedRDD2, right: OrderedRDD2) extends NarrowDependency[RegionValue](right) {

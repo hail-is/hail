@@ -3274,10 +3274,9 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(max_shift=integral)
-    def min_rep(self, max_shift=100):
-        """
-        Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
+    @typecheck_method(left_aligned=bool)
+    def min_rep(self, left_aligned=False):
+        """Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
 
         .. include:: _templates/req_tvariant.rst
 
@@ -3289,15 +3288,15 @@ class VariantDataset(HistoryMixin):
         2. Trimming of a bi-allelic site leading to a change in position
         `1:10000:AATAA,AAGAA` => `1:10002:T:G`
 
-        :param int max_shift: maximum number of base pairs by which
-          a split variant can move.  Affects memory usage, and will
-          cause Hail to throw an error if a variant that moves further
-          is encountered.
+        :param bool left_aligned: If True, variants are assumed to be
+          left aligned and have unique loci.  This avoids a shuffle.
+          If the assumption is violated, an error is generated.
 
         :rtype: :class:`.VariantDataset`
+
         """
 
-        jvds = self._jvkdf.minRep(max_shift)
+        jvds = self._jvkdf.minRep(left_aligned)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
