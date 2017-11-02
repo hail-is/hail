@@ -335,19 +335,56 @@ g = let
       }))
   }
 
-  /**
-    *
-    * @param filterExpr             Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
-    * @param annotationExpr         Annotation modifying expression involving v (new variant), va (old variant annotations),
-    *                               and aIndices (maps from new to old indices)
-    * @param filterAlteredGenotypes any call that contains a filtered allele is set to missing instead
-    * @param keep                   Keep variants matching condition
-    * @param subset                 subsets the PL and AD. Genotype and GQ are set based on the resulting PLs.  Downcodes by default.
-    * @param maxShift               Maximum possible position change during minimum representation calculation
-    */
-  def filterAlleles(filterExpr: String, annotationExpr: String = "va = va", filterAlteredGenotypes: Boolean = false,
-    keep: Boolean = true, subset: Boolean = true, maxShift: Int = 100, keepStar: Boolean = false): VariantDataset = {
-    FilterAlleles(vds, filterExpr, annotationExpr, filterAlteredGenotypes, keep, subset, maxShift, keepStar)
+  def filterAlleles(filterExpr: String, variantExpr: String = "", filterAlteredGenotypes: Boolean = false,
+    keep: Boolean = true, subset: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantDataset = {
+    def filterGT(gtexpr: String): String = {
+      if (filterAlteredGenotypes)
+      // FIXME this can't possibly be right
+        s"let newrawgt = $gtexpr in if (newrawgt == g.gt) newrawgt else NA: Int"
+      else
+        gtexpr
+    }
+
+    val genotypeExpr =
+      if (subset) {
+        """
+g = let newpl = if (isDefined(g.pl))
+        let unnorm = range(newV.nGenotypes).map(newi =>
+            let oldi = gtIndex(newToOld[gtj(newi)], newToOld[gtk(newi)])
+             in g.pl[oldi]) and
+            minpl = unnorm.min()
+         in x - unnorm
+      else
+        NA: Array[Int] and
+    newgt = gtFromPL(newpl) and
+    newad = if (isDefined(g.ad))
+        range(newV.nAlleles).map(newi => g.ad[newToOld[newi]])
+      else
+        NA: Array[Int] and
+    newgq = gqFromPL(newpl) and
+    newdp = g.dp
+ in Genotype(newV, Call(newgt), newad, newdp, newgq, newpl)
+        """
+      } else {
+        // downcode
+        s"""
+g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])") } and
+    newad = if (isDefined(g.ad))
+        range(newV.nAlleles).map(i => range(v.nAlleles).filter(j => oldToNew[j] == i).map(j => g.ad[j]).sum())
+      else
+        NA: Array[Int] and
+    newdp = g.dp and
+    newpl = if (isDefined(g.pl))
+        range(newV.nGenotypes).map(gi => range(v.nGenotypes).filter(gj => gtIndex(oldToNew[gtj(gj)], oldToNew[gtk(gj)]) == gi).map(gj => g.pl[gj]).min())
+      else
+        NA: Array[Int] and
+    newgq = gqFromPL(newpl)
+ in Genotype(newV, Call(newgt), newad, newdp, newgq, newpl)
+        """
+      }
+
+    FilterAlleles(vds, filterExpr, variantExpr, genotypeExpr,
+      keep = keep, leftAligned = leftAligned, keepStar = keepStar)
   }
 
   def grm(): KinshipMatrix = {

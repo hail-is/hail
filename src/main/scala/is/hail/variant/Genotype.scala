@@ -523,6 +523,25 @@ object Genotype {
     m2 - m
   }
 
+  def gtFromPL(a: IndexedSeq[Int]): Call = {
+    def f(i: Int, m: Int, mi: Int, count: Int): Call = {
+      if (i == a.length) {
+        assert(count >= 1)
+        if (count == 1)
+          mi
+        else
+          null
+      } else if (a(i) < m)
+        f(i + 1, a(i), i, 1)
+      else if (a(i) == m)
+        f(i + 1, m, mi, count + 1)
+      else
+        f(i + 1, m, mi, count)
+    }
+
+    f(1, a(0), 0, 1)
+  }
+
   def gtFromLinear(a: Array[Int]): Option[Int] = {
     def f(i: Int, m: Int, mi: Int, count: Int): Option[Int] = {
       if (i == a.length) {

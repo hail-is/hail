@@ -908,6 +908,15 @@ object FunctionRegistry {
     """,
     "pl" -> "Phred-scaled genotype likelihoods")(arrayHr(int32Hr), int32Hr)
 
+  register[IndexedSeq[Int], java.lang.Integer]("gtFromPL", { pl: IndexedSeq[Int] =>
+    Genotype.gtFromPL(pl)
+  },
+    """
+    Call genotype from Phred-scaled probability likelihoods.  Returns the index of the smallest PL value
+    if it is unique, otherwise missing.
+    """,
+    "pl" -> "Phred-scaled genotype likelihoods")(arrayHr(int32Hr), boxedInt32Hr)
+
   registerMethod("length", { (x: String) => x.length }, "Length of the string.")
 
   val sumDocstring = "Sum of all elements in the collection."
