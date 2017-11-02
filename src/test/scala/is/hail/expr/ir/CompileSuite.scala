@@ -211,6 +211,25 @@ class CompileSuite {
     assert(run(Array(1.0, null, 3.0)) === 2.0)
   }
 
+
+  def printRegion(region: MemoryBuffer, string: String) {
+    println(string)
+    val size = region.size
+    println("Region size: " + size.toString)
+    val bytes = region.loadBytes(0, size.toInt)
+    println("Array: ")
+    var j = 0
+    for (i <- bytes) {
+      j += 1
+      print(i)
+      if (j % 32 == 0) {
+        print('\n')
+      } else {
+        print('\t')
+      }
+    }
+    print('\n')
+  }
   @Test
   def replaceMissingValues() {
     val replaceMissingIr =
@@ -226,10 +245,12 @@ class CompileSuite {
       val t = TArray(TFloat64)
       val roff = f(mb, aoff, false)
       println(s"array location $roff")
+      printRegion(mb, "hi amanda")
       Array.tabulate[java.lang.Double](a.length) { i =>
-        if (t.isElementDefined(mb, roff, i))
+        if (t.isElementDefined(mb, roff, i)) {
+          println(s" $i")
           mb.loadDouble(t.loadElement(mb, roff, i))
-        else
+        } else
           null
       }
     }
