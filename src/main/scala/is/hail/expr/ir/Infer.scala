@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.utils._
 import is.hail.annotations.MemoryBuffer
 import is.hail.asm4s._
-import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid}
+import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction}
 import is.hail.annotations.StagedRegionValueBuilder
 
 object Infer {
@@ -39,19 +39,17 @@ object Infer {
         infer(value)
         infer(body, env = env.bind(name, value.typ))
         x.typ = body.typ
-      case x@Ref(_, _, _) =>
+      case x@Ref(_, _) =>
         x.typ = env.lookup(x)
-      case Set(name, v) =>
-        infer(v)
-        assert(env.lookup(name) == v.typ)
       case x@ApplyPrimitive(op, args, typ) =>
         args.map(infer(_))
         x.typ = Primitives.returnTyp(op, args.map(_.typ))
       case LazyApplyPrimitive(op, args, typ) =>
         ???
-      case Lambda(name, paramTyp, body, typ) =>
-        ???
-      case x@MakeArray(args, _) =>
+      case x@Lambda(name, paramTyp, body, typ) =>
+        infer(body, env = env.bind(name, paramTyp))
+        x.typ = TFunction(Array(paramTyp), body.typ)
+      case x@MakeArray(args, _, _) =>
         args.map(infer(_))
         val t = args.head.typ
         args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x == t, s"at position $i type mismatch: $t $x") }
@@ -64,21 +62,35 @@ object Infer {
         infer(i)
         assert(i.typ == TInt32)
         x.typ = a.typ.asInstanceOf[TArray].elementType
+      case ArrayMissingnessRef(a, i) =>
+        infer(a)
+        infer(i)
+        assert(i.typ == TInt32)
       case ArrayLen(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TArray])
-      case ArraySet(a, i, v) =>
-        infer(i)
-        assert(i.typ == TInt32)
+      case x@ArrayMap(a, lam, _, _) =>
         infer(a)
-        val t = a.typ.asInstanceOf[TArray].elementType
-        infer(v)
-        assert(v.typ == t)
-      case x@For(value, i, array, body) =>
-        infer(array)
-        val t = array.typ.asInstanceOf[TArray].elementType
-        infer(body, env = env.bind(value -> t, i -> TInt32))
-      case MakeStruct(fields) =>
+        val tarray = a.typ.asInstanceOf[TArray]
+        infer(lam)
+        val tlam = lam.typ.asInstanceOf[TFunction]
+        val scala.collection.Seq(paramTyp) = tlam.paramTypes
+        assert(paramTyp == tarray.elementType)
+        x.elementTyp = tlam.returnType
+      case x@ArrayFold(a, zero, lam, _, _, _) =>
+        infer(a)
+        val tarray = a.typ.asInstanceOf[TArray]
+        infer(zero)
+        infer(lam)
+        val tlam = lam.typ.asInstanceOf[TFunction]
+        val tlam2 = tlam.returnType.asInstanceOf[TFunction]
+        val scala.collection.Seq(paramTyp1) = tlam.paramTypes
+        val scala.collection.Seq(paramTyp2) = tlam2.paramTypes
+        assert(paramTyp1 == zero.typ)
+        assert(paramTyp1 == tlam2.returnType)
+        assert(paramTyp2 == tarray.elementType)
+        x.typ = zero.typ
+      case MakeStruct(fields, _) =>
         fields.map { case (_, typ, v) =>
           infer(v)
           assert(typ == v.typ)
@@ -88,12 +100,18 @@ object Infer {
         val t = o.typ.asInstanceOf[TStruct]
         assert(t.index(name).nonEmpty)
         x.typ = t.field(name).typ
+      case GetFieldMissingness(o, name) =>
+        infer(o)
+        val t = o.typ.asInstanceOf[TStruct]
+        assert(t.index(name).nonEmpty)
       case x@Seq(stmts, _) =>
         stmts.foreach(infer(_))
         x.typ = if (stmts.isEmpty) TVoid else stmts.last.typ
       case In(i, typ) =>
         assert(typ != null)
+      case InMissingness(i) =>
       case Out(v) =>
         infer(v)
+      case Die(msg) =>
     } }
 }

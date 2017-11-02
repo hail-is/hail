@@ -35,19 +35,26 @@ class CompileSuite {
     rvb.end()
   }
 
+  def doit(ir: IR, fb: FunctionBuilder[_]) {
+    Infer(ir)
+    println(ir)
+    val ir2 = DesugarNA(ExplicitMissingness(ir))
+    println(ir2)
+    Compile(ir2, fb)
+  }
+
   @Test
   def mean() {
-    val meanIr = Let("x", In(0, TArray(TFloat64)),
-      Let("sum", F64(0),
-        seq(
-          For("v", "i", Ref("x"),
-            Set("sum", ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))),
-          Out(ApplyPrimitive("/", Array(Ref("sum"), ArrayLen(Ref("x"))))))))
+    val meanIr =
+      Let("x", In(0, TArray(TFloat64)),
+        Out(ApplyPrimitive("/",
+          Array(
+            ArrayFold(Ref("x"), F64(0.0),
+              Lambda("sum", TFloat64, Lambda("v", TFloat64, ApplyPrimitive("+", Array(Ref("sum"), Ref("v")))))),
+            ArrayLen(Ref("x"))))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
-    Infer(meanIr)
-    println(s"typed:\n$meanIr")
-    Compile(meanIr, fb)
+    doit(meanIr, fb)
     val f = fb.result()()
     def run(a: Array[Double]): Double = {
       val mb = MemoryBuffer()
@@ -65,14 +72,10 @@ class CompileSuite {
   def letAdd() {
     val letAddIr =
       Let("nonMissing", F64(0),
-        seq(
-          Set("nonMissing", ApplyPrimitive("+", Array(Ref("nonMissing"), I32(1)))),
-          Out(Ref("nonMissing"))))
+        Out(ApplyPrimitive("+", Array(Ref("nonMissing"), I32(1)))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Double]
-    Infer(letAddIr)
-    println(s"typed:\n$letAddIr")
-    Compile(letAddIr, fb)
+    doit(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
     val mb = MemoryBuffer()
     assert(f(mb) === 1.0)
@@ -82,16 +85,11 @@ class CompileSuite {
   def count() {
     val letAddIr =
       Let("in", In(0, TArray(TFloat64)),
-        Let("count", F64(0),
-          seq(
-            For("v", "i", Ref("in"),
-              Set("count", ApplyPrimitive("+", Array(Ref("count"), I32(1))))),
-            Out(Ref("count")))))
+        Out(ArrayFold(Ref("in"), F64(0), Lambda("sum", TFloat64, Lambda("v", TFloat64,
+          ApplyPrimitive("+", Array(Ref("sum"), I32(1))))))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
-    Infer(letAddIr)
-    println(s"typed:\n$letAddIr")
-    Compile(letAddIr, fb)
+    doit(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Double = {
@@ -109,18 +107,11 @@ class CompileSuite {
   def countNonMissing() {
     val letAddIr =
       Let("in", In(0, TArray(TFloat64)),
-        Let("nonMissing", F64(0),
-          seq(
-            For("v", "i", Ref("in"),
-              If(IsNA(Ref("v")),
-                seq(),
-                Set("nonMissing", ApplyPrimitive("+", Array(Ref("nonMissing"), I32(1)))))),
-            Out(Ref("nonMissing")))))
+        Out(ArrayFold(Ref("in"), F64(0), Lambda("count", TFloat64, Lambda("v", TFloat64,
+          ApplyPrimitive("+", Array(Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))))))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
-    Infer(letAddIr)
-    println(s"typed:\n$letAddIr")
-    Compile(letAddIr, fb)
+    doit(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Double = {
@@ -141,20 +132,16 @@ class CompileSuite {
   def nonMissingMean() {
     val letAddIr =
       Let("in", In(0, TArray(TFloat64)),
-        Let("sum", F64(0.0),
-          Let("nonMissing", F64(0),
-            seq(
-              For("v", "i", Ref("in"),
-                If(IsNA(Ref("v")),
-                  seq(),
-                  seq(Set("nonMissing", ApplyPrimitive("+", Array(Ref("nonMissing"), I32(1)))),
-                    Set("sum", ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))))),
-              Out(ApplyPrimitive("/", Array(Ref("sum"), Ref("nonMissing"))))))))
+        Let("nonMissing",
+          ArrayFold(Ref("in"), F64(0), Lambda("count", TFloat64, Lambda("v", TFloat64,
+            ApplyPrimitive("+", Array(Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1))))))),
+          Let("sum",
+            ArrayFold(Ref("in"), F64(0), Lambda("sum", TFloat64, Lambda("v", TFloat64,
+              ApplyPrimitive("+", Array(Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v"))))))),
+            Out(ApplyPrimitive("/", Array(Ref("sum"), Ref("nonMissing")))))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
-    Infer(letAddIr)
-    println(s"typed:\n$letAddIr")
-    Compile(letAddIr, fb)
+    doit(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Double = {
@@ -174,27 +161,19 @@ class CompileSuite {
   def meanImpute() {
     val meanImputeIr =
       Let("in", In(0, TArray(TFloat64)),
-        Let("out", MakeArrayN(ArrayLen(Ref("in")), TFloat64),
-          seq(
-            Let("sum", F64(0),
-              Let("nonMissing", F64(0),
-                seq(
-                  For("v", "i", Ref("in"),
-                    If(IsNA(Ref("v")),
-                      seq(),
-                      seq(Set("nonMissing", ApplyPrimitive("+", Array(Ref("nonMissing"), I32(1)))),
-                        Set("sum", ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))))),
-                  Let("mean", ApplyPrimitive("/", Array(Ref("sum"), Ref("nonMissing"))),
-                    For("v", "i", Ref("in"),
-                      If(IsNA(Ref("v")),
-                        ArraySet(Ref("out"), Ref("i"), Ref("mean")),
-                        ArraySet(Ref("out"), Ref("i"), Ref("v")))))))),
-            Out(Ref("out")))))
+        Let("nonMissing",
+          ArrayFold(Ref("in"), F64(0), Lambda("count", TFloat64, Lambda("v", TFloat64,
+            ApplyPrimitive("+", Array(Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1))))))),
+          Let("sum",
+            ArrayFold(Ref("in"), F64(0), Lambda("sum", TFloat64, Lambda("v", TFloat64,
+              ApplyPrimitive("+", Array(Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v"))))))),
+            Let("mean",
+              ApplyPrimitive("/", Array(Ref("sum"), Ref("nonMissing"))),
+              Out(ArrayMap(Ref("in"),
+                Lambda("x", TFloat64, If(IsNA(Ref("v")), Ref("mean"), Ref("v")))))))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
-    Infer(meanImputeIr)
-    println(s"typed:\n$meanImputeIr")
-    Compile(meanImputeIr, fb)
+    doit(meanImputeIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
     def run(a: Array[java.lang.Double]): Array[java.lang.Double] = {
       val mb = MemoryBuffer()
@@ -209,10 +188,10 @@ class CompileSuite {
       }
     }
 
-    // assert(run(Array()) === Array())
-    // assert(run(Array(1.0)) === Array(1.0))
-    // assert(run(Array(1.0,2.0,3.0)) === Array(1.0,2.0,3.0))
-    // assert(run(Array(-1.0,0.0,1.0)) === Array(-1.0,0.0,1.0))
+    assert(run(Array()) === Array())
+    assert(run(Array(1.0)) === Array(1.0))
+    assert(run(Array(1.0,2.0,3.0)) === Array(1.0,2.0,3.0))
+    assert(run(Array(-1.0,0.0,1.0)) === Array(-1.0,0.0,1.0))
 
     assert(run(Array(-1.0,null,1.0)) === Array(-1.0,0.0,1.0))
     assert(run(Array(-1.0,null,null)) === Array(-1.0,-1.0,-1.0))
@@ -224,9 +203,7 @@ class CompileSuite {
       ArrayRef(Ref("foo"), In(1, TInt32))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int, Boolean, Double]
-    Infer(mapNaIr)
-    println(s"typed:\n$mapNaIr")
-    Compile(mapNaIr, fb)
+    doit(mapNaIr, fb)
     val f = fb.result()()
     def run(a: Array[java.lang.Double], i: Int): Double = {
       val mb = MemoryBuffer()
