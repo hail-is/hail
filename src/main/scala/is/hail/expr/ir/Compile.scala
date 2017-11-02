@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.utils.lensing._
 import is.hail.utils._
 import is.hail.annotations.MemoryBuffer
 import is.hail.asm4s._
@@ -20,14 +21,6 @@ object Compile {
     case TFloat64 => typeInfo[Double]
     case TBoolean => typeInfo[Boolean]
     case _ => typeInfo[Long] // reference types
-  }
-
-  private def dummyValue(t: expr.Type): Code[_] = t match {
-    case TInt32 => 0
-    case TInt64 => 0L
-    case TFloat32 => 0.0f
-    case TFloat64 => 0.0
-    case _ => 0L // reference types
   }
 
   private def loadAnnotation(region: Code[MemoryBuffer], typ: expr.Type): Code[Long] => Code[_] = typ match {
@@ -72,195 +65,210 @@ object Compile {
     }
   }
 
-  class MissingBit(bits: LocalRef[Long], i: Int) extends Code[Boolean] {
+  class MissingBit(bits: LocalRef[Long], i: Int) extends Code[Boolean] with Settable[Boolean] {
     assert(i >= 0)
     assert(i < 64)
 
-    def :=(b: Code[Boolean]): Code[_] = {
+    def store(b: Code[Boolean]): Code[Unit] = {
       bits := bits & ~(1L << i) | (b.toL << i)
     }
 
     def emit(il: Growable[AbstractInsnNode]): Unit = {
       ((bits >> i) & 1L).toI.emit(il)
     }
+
+    def load(): Code[Boolean] = this
   }
 
   def apply(ir: IR, fb: FunctionBuilder[_]) {
     apply(ir, fb, new Env())
   }
 
-  def apply(ir: IR, fb: FunctionBuilder[_], env: Env[(TypeInfo[_], MissingBit, LocalRef[_])]) {
-    fb.emit(expression(ir, fb, env, new MissingBits(fb))._2)
+  def apply(ir: IR, fb: FunctionBuilder[_], env: Env[(TypeInfo[_], Settable[_])]) {
+    fb.emit(expression(ir, fb, env, new MissingBits(fb)))
   }
 
-  def expression(ir: IR, fb: FunctionBuilder[_], env: Env[(TypeInfo[_], MissingBit, LocalRef[_])], mb: MissingBits): (Code[Boolean], Code[_]) = {
+  def expression(ir: IR, fb: FunctionBuilder[_], env: Env[(TypeInfo[_], Settable[_])], mb: MissingBits): Code[_] = {
     val region = fb.getArg[MemoryBuffer](1).load()
-    def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: Env[(TypeInfo[_], MissingBit, LocalRef[_])] = env, mb: MissingBits = mb): (Code[Boolean], Code[_]) =
+    def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: Env[(TypeInfo[_], Settable[_])] = env, mb: MissingBits = mb): Code[_] =
       Compile.expression(ir, fb, env, mb)
     ir match {
       case I32(x) =>
-        (const(false), const(x))
+        const(x)
       case I64(x) =>
-        (const(false), const(x))
+        const(x)
       case F32(x) =>
-        (const(false), const(x))
+        const(x)
       case F64(x) =>
-        (const(false), const(x))
+        const(x)
       case True() =>
-        (const(false), const(true))
+        const(true)
       case False() =>
-        (const(false), const(false))
+        const(false)
 
       case NA(typ) =>
-        (const(true), ???)
+        throw new UnsupportedOperationException("run DesugarNA first")
       case IsNA(v) =>
-        (const(false), expression(v)._1)
+        throw new UnsupportedOperationException("run DesugarNA first")
       case MapNA(name, value, body, typ) =>
-        fb.newLocal()(typeToTypeInfo(value.typ)) match { case x: LocalRef[t] =>
-          val mx = mb.newBit()
-          val (mvalue, vvalue) = expression(value)
-          val (mbody, vbody) =
-            expression(body, env = env.bind(name, (typeToTypeInfo(value.typ), mx, x)))
-
-          (mvalue || mbody,
-            mvalue.mux(
-              dummyValue(typ),
-              Code(mx := const(false), x := vvalue.asInstanceOf[Code[t]], vbody)))
-        }
+        throw new UnsupportedOperationException("run DesugarNA first")
 
       case expr.ir.If(cond, cnsq, altr, typ) =>
-        val (mcnsq, vcnsq) = expression(cnsq)
-        val (maltr, valtr) = expression(altr)
-        val (_, vcond: Code[Boolean] @unchecked) = expression(cond)
-
-        (mcnsq || maltr, vcond.mux(vcnsq, valtr))
+        expression(cond).asInstanceOf[Code[Boolean]].mux(
+          expression(cnsq), expression(altr))
 
       case expr.ir.Let(name, value, body, typ) =>
         fb.newLocal()(typeToTypeInfo(value.typ)) match { case x: LocalRef[t] =>
-          val mx = mb.newBit()
-          val (mvalue, vvalue) = expression(value)
-          val (mbody, vbody) =
-            expression(body, env = env.bind(name, ((typeToTypeInfo(value.typ), mx, x))))
+          val vvalue = expression(value)
+          val vbody = expression(body, env = env.bind(name, ((typeToTypeInfo(value.typ), x))))
 
-          (mbody, Code(mx := mvalue, x := mx.mux(dummyValue(value.typ), vvalue).asInstanceOf[Code[t]], vbody))
+          Code(x := vvalue.asInstanceOf[Code[t]], vbody)
         }
-      case x@Ref(name, _, typ) =>
+      case x@Ref(name, typ) =>
         assert(env.lookup(x)._1 == typeToTypeInfo(typ), s"bad type annotation for $name: $typ, binding in scope: ${env.lookup(x)}")
-        (env.lookup(x)._2, env.lookup(x)._3)
-      case Set(name, v) =>
-        val (mv, vv) = expression(v)
-        (const(false),
-          mv.mux(
-            env.lookup(name)._2 := const(false),
-            env.lookup(name)._3.asInstanceOf[LocalRef[Any]] := vv))
-      case ApplyPrimitive(op, args, typ) =>
-        val (margs, vargs) = args.map(expression(_)).unzip
-        val missing = margs.fold(const(false))(_ || _)
+        env.lookup(name)._2.load()
 
-        (missing, Primitives.lookup(op, args.map(_.typ), vargs))
+      case ApplyPrimitive(op, args, typ) =>
+        Primitives.lookup(op, args.map(_.typ), args.map(expression(_)))
       case LazyApplyPrimitive(op, args, typ) =>
         ???
       case expr.ir.Lambda(name, paramTyp, body, typ) =>
         ???
-      case MakeArray(args, typ) =>
+      case MakeArray(args, missingness, typ) =>
+        assert(missingness != null, "run explicit missingness first")
         val srvb = new StagedRegionValueBuilder(fb, typ)
         val addElement = srvb.addAnnotation(typ.elementType)
 
-        (const(false), Code(
+        Code(
           srvb.start(args.length, init = false),
-          Code(args.map(expression(_)).map { case (m, v) =>
+          Code((missingness zip args).map(onBoth(expression(_))).map { case (m: Code[Boolean] @unchecked, v) =>
             Code(m.mux(srvb.setMissing(), addElement(v)), srvb.advance())
           }: _*),
-          srvb.offset))
+          srvb.offset)
       case x@MakeArrayN(len, elementType) =>
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
-        val (mlen, vlen: Code[Int] @unchecked) = expression(len)
 
-        (mlen, Code(
-          srvb.start(vlen, init = true),
-          srvb.offset))
+        Code(srvb.start(expression(len).asInstanceOf[Code[Int]], init = true),
+          srvb.offset)
       case ArrayRef(a, i, typ) =>
         val tarray = TArray(typ)
-        val (marr, varr: Code[Long] @unchecked) = expression(a)
-        val (midx, vidx: Code[Int] @unchecked) = expression(i)
-        val eoff = tarray.loadElement(region, varr, vidx)
-        val missing = marr || midx || !tarray.isElementDefined(region, varr, vidx)
 
-        (missing, loadAnnotation(region, typ)(eoff))
-      case ArrayLen(a) =>
-        val (marr, varr: Code[Long] @unchecked) = expression(a)
-
-        (marr, TContainer.loadLength(region, varr))
-      case ArraySet(a, i, v) =>
+        loadAnnotation(region, typ)(
+          tarray.loadElement(region,
+            expression(a).asInstanceOf[Code[Long]],
+            expression(i).asInstanceOf[Code[Int]]))
+      case ArrayMissingnessRef(a, i) =>
         val tarray = a.typ.asInstanceOf[TArray]
-        val t = tarray.elementType
-        val (marr, varr: Code[Long] @unchecked) = expression(a)
-        val (midx, vidx: Code[Int] @unchecked) = expression(i)
-        val (mvalue, value) = expression(v)
-        val ptr = tarray.elementOffsetInRegion(region, varr, vidx)
 
-        (const(false), mvalue.mux(
-          tarray.setElementMissing(region, varr, vidx),
-          storeAnnotation(region, t)(ptr, value)))
-      case For(value, i, array, body) =>
-        val tarray = array.typ.asInstanceOf[TArray]
-        val t = tarray.elementType
-        typeToTypeInfo(t) match { case ti: TypeInfo[t] =>
-          implicit val tti: TypeInfo[t] = ti
-          val a = fb.newLocal[Long]
-          val idx = fb.newLocal[Int]
-          val midx = mb.newBit()
-          val x = fb.newLocal[t]
-          val mx = mb.newBit()
+        !tarray.isElementDefined(region,
+          expression(a).asInstanceOf[Code[Long]],
+          expression(i).asInstanceOf[Code[Int]])
+      case ArrayLen(a) =>
+        TContainer.loadLength(region, expression(a).asInstanceOf[Code[Long]])
+      case x@ArrayMap(a, Lambda(name, _, body, _), Lambda(name2, _, body2, _), elementTyp) =>
+        val tin = a.typ.asInstanceOf[TArray]
+        val tout = x.typ.asInstanceOf[TArray]
+        val srvb = new StagedRegionValueBuilder(fb, tout)
+        val addElement = srvb.addAnnotation(tout.elementType)
+        typeToTypeInfo(elementTyp) match { case ti: TypeInfo[t] =>
+          val xa = fb.newLocal[Long]
+          val xmv = mb.newBit()
+          val xvv = fb.newLocal()(ti)
+          val i = fb.newLocal[Int]
           val len = fb.newLocal[Int]
-          val (marray, varray: Code[Long] @unchecked) = expression(array)
-          val (mbody, vbody) =
-            expression(body, env = env.bind(value -> ((ti, mx, x)), i -> ((typeInfo[Int], midx, idx))))
-
-          (const(false), marray.mux(Code._empty, Code(
-            a := varray,
-            idx := 0,
-            midx := false,
-            len := TContainer.loadLength(region, a),
-            Code.whileLoop(idx < len,
-              mx := !tarray.isElementDefined(region, a, idx),
-              x := mx.mux(dummyValue(t),
-                loadAnnotation(region, t)(tarray.loadElement(region, a, idx))).asInstanceOf[Code[t]],
-              // FIXME: seems odd that the body itself is missing??
-              mbody.mux(Code._empty, vbody),
-              idx := idx + 1))))
+          Code(
+            xa := expression(a).asInstanceOf[Code[Long]],
+            len := TContainer.loadLength(region, xa),
+            i := 0,
+            srvb.start(len, init = false),
+            Code.whileLoop(i < len,
+              xmv := !tin.isElementDefined(region, xa, i),
+              expression(body2, env = env.bind(name2, (typeInfo[Boolean], xmv))).asInstanceOf[Code[Boolean]].mux(
+                srvb.setMissing(),
+                Code(
+                  xvv := loadAnnotation(region, tin.elementType)(
+                    tin.loadElement(region, xa, i)).asInstanceOf[Code[t]],
+                  addElement(expression(body, env = env.bind(name, (ti, xvv)))))),
+              srvb.advance(),
+              i := i + 1),
+            srvb.offset)
         }
-      case MakeStruct(fields) =>
+      case ArrayMap(_, _, _, _) =>
+        throw new UnsupportedOperationException(s"bad arraymap $ir")
+      case ArrayFold(
+        a,
+        zero,
+        Lambda(name1, _, Lambda(name2, _, body, _), _),
+        mzero,
+        Lambda(mname1, _, Lambda(mname2, _, mbody, _), _),
+        typ) =>
+        val tarray = a.typ.asInstanceOf[TArray]
+        assert(tarray != null, s"tarray is null! $ir")
+        (typeToTypeInfo(typ), typeToTypeInfo(tarray.elementType)) match { case (tti: TypeInfo[t], uti: TypeInfo[u]) =>
+          val xa = fb.newLocal[Long]
+          val xmv = mb.newBit()
+          val xvv = fb.newLocal()(uti)
+          val xmout = mb.newBit()
+          val xvout = fb.newLocal()(tti)
+          val i = fb.newLocal[Int]
+          val len = fb.newLocal[Int]
+
+          Code(
+            xa := expression(a).asInstanceOf[Code[Long]],
+            len := TContainer.loadLength(region, xa),
+            i := 0,
+            xvout := expression(zero).asInstanceOf[Code[t]],
+            xmout := expression(mzero).asInstanceOf[Code[Boolean]],
+            Code.whileLoop(i < len,
+              xmv := !tarray.isElementDefined(region, xa, i),
+              xmout := expression(mbody, env = env.bind(
+                mname1 -> ((typeInfo[Boolean], xmout)),
+                mname2 -> ((typeInfo[Boolean], xmv)))).asInstanceOf[Code[Boolean]],
+              xmout.mux(
+                Code._empty,
+                Code(
+                  xvv := tarray.loadElement(region, xa, i).asInstanceOf[Code[u]],
+                  xvout := expression(body, env = env.bind(
+                    name1 -> ((tti, xvout)),
+                    name2 -> ((uti, xvv)))).asInstanceOf[Code[t]])),
+              i := i + 1))
+        }
+      case ArrayFold(_, _, _, _, _, _) =>
+        throw new UnsupportedOperationException(s"bad arrayfold $ir")
+      case MakeStruct(fields, missingness) =>
+        assert(missingness != null, "run explicit missingness first")
         val t = TStruct(fields.map { case (name, t, _) => (name, t) }: _*)
         val initializers = fields.map { case (_, t, v) => (t, expression(v)) }
+        val cmissingness = missingness map (expression(_))
         val srvb = new StagedRegionValueBuilder(fb, t)
 
-        (const(false), Code(
+        Code(
           srvb.start(false),
-          Code(initializers.map { case (t, (mv, vv)) =>
+          Code((cmissingness zip initializers).map { case (mv: Code[Boolean] @unchecked, (t, vv)) =>
             Code(
               mv.mux(srvb.setMissing(), srvb.addAnnotation(t)(vv)),
               srvb.advance()) }: _*),
-          srvb.offset))
+          srvb.offset)
       case GetField(o, name, _) =>
         val t = o.typ.asInstanceOf[TStruct]
-        val (mstruct, vstruct: Code[Long] @unchecked) = expression(o)
         val fieldIdx = t.fieldIdx(name)
-        val mfield = t.isFieldDefined(region, vstruct, fieldIdx)
-
-        (mstruct || mfield, loadAnnotation(region, t)(t.fieldOffset(vstruct, fieldIdx)))
+        loadAnnotation(region, t)(t.fieldOffset(expression(o).asInstanceOf[Code[Long]], fieldIdx))
+      case GetFieldMissingness(o, name) =>
+        val t = o.typ.asInstanceOf[TStruct]
+        val fieldIdx = t.fieldIdx(name)
+        !t.isFieldDefined(region, expression(o).asInstanceOf[Code[Long]], fieldIdx)
       case Seq(stmts, typ) =>
-        val (_, vstmts) = stmts.map(expression(_)).unzip
-        (const(false), Code(vstmts: _*))
+        Code(stmts map (expression(_)): _*)
       case In(i, typ) =>
-        // FIXME: allow for missing arguments
-        (fb.getArg[Boolean](i*2 + 3), fb.getArg(i*2 + 2)(typeToTypeInfo(typ)))
+        fb.getArg(i*2 + 2)(typeToTypeInfo(typ))
+      case InMissingness(i) =>
+        fb.getArg[Boolean](i*2 + 3)
       case Out(v) =>
-        val (mv, vv) = expression(v)
-        (const(false), typeToTypeInfo(v.typ) match { case ti: TypeInfo[t] =>
-          mv.mux(Code._throw(Code.newInstance[RuntimeException, String]("tried to return a missing value!")),
-            Code._return(vv.asInstanceOf[Code[t]])(ti))
-        })
+        typeToTypeInfo(v.typ) match { case ti: TypeInfo[t] =>
+          Code._return(expression(v).asInstanceOf[Code[t]])(ti)
+        }
+      case Die(m) =>
+        Code._throw(Code.newInstance[RuntimeException, String](m))
     }
   }
 }
