@@ -225,6 +225,7 @@ class CompileSuite {
       val aoff = addBoxedArray(mb, a)
       val t = TArray(TFloat64)
       val roff = f(mb, aoff, false)
+      println(s"array location $roff")
       Array.tabulate[java.lang.Double](a.length) { i =>
         if (t.isElementDefined(mb, roff, i))
           mb.loadDouble(t.loadElement(mb, roff, i))

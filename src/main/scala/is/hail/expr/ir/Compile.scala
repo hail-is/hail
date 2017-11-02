@@ -13,6 +13,9 @@ import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
 
+import scala.reflect.classTag
+import scala.reflect.ClassTag
+
 object Compile {
   private def dummyValue(t: expr.Type): Code[_] = t match {
     case TBoolean => false
@@ -196,6 +199,8 @@ object Compile {
             xa := expression(a).asInstanceOf[Code[Long]],
             len := TContainer.loadLength(region, xa),
             i := 0,
+            Code.getStatic[System, java.io.PrintStream]("out").invoke("print", "length ")(classTag[String], ClassTag(java.lang.Void.TYPE)),
+            Code.getStatic[System, java.io.PrintStream]("out").invoke("println", len)(classTag[Int], ClassTag(java.lang.Void.TYPE)),
             srvb.start(len, init = false),
             Code.whileLoop(i < len,
               xmv := !tin.isElementDefined(region, xa, i),
@@ -208,6 +213,8 @@ object Compile {
                 srvb.setMissing(),
                 addElement(expression(body, env = bodyenv))),
               srvb.advance(),
+              Code.getStatic[System, java.io.PrintStream]("out").invoke[String, Void]("print", "i ")(classTag[String], ClassTag(java.lang.Void.TYPE)),
+              Code.getStatic[System, java.io.PrintStream]("out").invoke[Int, Void]("println", i)(classTag[Int], ClassTag(java.lang.Void.TYPE)),
               i := i + 1),
             srvb.offset)
         }
