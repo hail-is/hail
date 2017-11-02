@@ -40,7 +40,7 @@ class CompileSuite {
     println(ir)
     val ir2 = DesugarNA(ExplicitMissingness(ir))
     println(ir2)
-    Compile(ir2, fb)
+    Compile2(ir2, fb)
   }
 
   @Test
