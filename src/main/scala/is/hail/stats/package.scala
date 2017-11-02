@@ -5,6 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.utils._
 import is.hail.variant.{Genotype, VSMFileMetadata, Variant, VariantDataset}
 import net.sourceforge.jdistlib.{ChiSquare, Normal, Poisson}
+import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 
 package object stats {
@@ -302,6 +303,30 @@ package object stats {
     (new A).x
   }
 
+  def binomTest(nSuccess: Int, n: Int, p: Double, alternative: String): Double = {
+    val kind = alternative match {
+      case "two.sided" => TestKind.TWO_SIDED
+      case "less" => TestKind.LOWER
+      case "greater" => TestKind.GREATER
+      case _ => fatal(s"""Invalid alternative "$alternative". Must be "two_sided", "less" or "greater".""")
+    }
+
+    DistributionTest.binomial_test(nSuccess, n, p, kind)(1)
+  }
+
+  def entropy[T](xs: Iterable[T]): Double = {
+    val counts = xs.counter()
+
+    var length = 0
+    var acc = 0.0
+    counts.valuesIterator.foreach { count =>
+      length += count
+      acc += count * math.log(count)
+    }
+
+    (math.log(length) - (acc / length)) / math.log(2)
+  }
+
   // genotypes(i,j) is genotype of variant j in sample i encoded as one of {-1, 0, 1, 2}; i and j are 0-based indices
   // sample i is "i" by default
   // variant j is ("1", j + 1, "A", C") since 0 is not a valid position.
@@ -330,7 +355,7 @@ package object stats {
 
     new VariantDataset(hc, VSMFileMetadata(sampleIds, wasSplit = true), rdd)
   }
-  
+
   // genotypes(i,j) is genotype of variant j in sample i; i and j are 0-based indices
   // sample i is "i" by default
   // variant j is ("1", j + 1, "A", C") since 0 is not a valid position.
