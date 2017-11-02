@@ -15,7 +15,7 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.ClassTag
 
 case class MatrixType(
-  metadata: VSMMetadata) {
+  metadata: VSMMetadata) extends BaseType {
   def globalType: Type = metadata.globalSignature
 
   def sType: Type = metadata.sSignature
@@ -49,13 +49,6 @@ case class MatrixType(
   def pkType: TStruct = orderedRDD2Type.pkType
 
   def kType: TStruct = orderedRDD2Type.kType
-
-  def typ = TStruct(
-    "v" -> vType,
-    "va" -> vaType,
-    "s" -> sType,
-    "sa" -> saType,
-    "g" -> genotypeType)
 
   def sampleEC: EvalContext = {
     val aggregationST = Map(
@@ -108,9 +101,9 @@ case class MatrixType(
       genotypeSignature = genotypeType))
 }
 
-object NewAST {
-  def genericRewriteTopDown(ast: NewAST, rule: PartialFunction[NewAST, NewAST]): NewAST = {
-    def rewrite(ast: NewAST): NewAST = {
+object BaseIR {
+  def genericRewriteTopDown(ast: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
+    def rewrite(ast: BaseIR): BaseIR = {
       rule.lift(ast) match {
         case Some(newAST) if newAST != ast =>
           rewrite(newAST)
@@ -126,14 +119,14 @@ object NewAST {
     rewrite(ast)
   }
 
-  def rewriteTopDown(ast: MatrixAST, rule: PartialFunction[NewAST, NewAST]): MatrixAST =
-    genericRewriteTopDown(ast, rule).asInstanceOf[MatrixAST]
+  def rewriteTopDown(ast: MatrixIR, rule: PartialFunction[BaseIR, BaseIR]): MatrixIR =
+    genericRewriteTopDown(ast, rule).asInstanceOf[MatrixIR]
 
-  def rewriteTopDown(ast: KeyTableAST, rule: PartialFunction[NewAST, NewAST]): KeyTableAST =
-    genericRewriteTopDown(ast, rule).asInstanceOf[KeyTableAST]
+  def rewriteTopDown(ast: KeyTableIR, rule: PartialFunction[BaseIR, BaseIR]): KeyTableIR =
+    genericRewriteTopDown(ast, rule).asInstanceOf[KeyTableIR]
 
-  def genericRewriteBottomUp(ast: NewAST, rule: PartialFunction[NewAST, NewAST]): NewAST = {
-    def rewrite(ast: NewAST): NewAST = {
+  def genericRewriteBottomUp(ast: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
+    def rewrite(ast: BaseIR): BaseIR = {
       val newChildren = ast.children.map(rewrite)
 
       // only recons if necessary
@@ -154,19 +147,21 @@ object NewAST {
     rewrite(ast)
   }
 
-  def rewriteBottomUp(ast: MatrixAST, rule: PartialFunction[NewAST, NewAST]): MatrixAST =
-    genericRewriteBottomUp(ast, rule).asInstanceOf[MatrixAST]
+  def rewriteBottomUp(ast: MatrixIR, rule: PartialFunction[BaseIR, BaseIR]): MatrixIR =
+    genericRewriteBottomUp(ast, rule).asInstanceOf[MatrixIR]
 
-  def rewriteBottomUp(ast: KeyTableAST, rule: PartialFunction[NewAST, NewAST]): KeyTableAST =
-    genericRewriteBottomUp(ast, rule).asInstanceOf[KeyTableAST]
+  def rewriteBottomUp(ast: KeyTableIR, rule: PartialFunction[BaseIR, BaseIR]): KeyTableIR =
+    genericRewriteBottomUp(ast, rule).asInstanceOf[KeyTableIR]
 }
 
-abstract class NewAST {
-  def children: IndexedSeq[NewAST]
+abstract class BaseIR {
+  def typ: BaseType
 
-  def copy(newChildren: IndexedSeq[NewAST]): NewAST
+  def children: IndexedSeq[BaseIR]
 
-  def mapChildren(f: (NewAST) => NewAST): NewAST = {
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR
+
+  def mapChildren(f: (BaseIR) => BaseIR): BaseIR = {
     copy(children.map(f))
   }
 }
@@ -319,9 +314,9 @@ case class MatrixValue(
   }
 }
 
-object MatrixAST {
-  def optimize(ast: MatrixAST): MatrixAST = {
-    NewAST.rewriteTopDown(ast, {
+object MatrixIR {
+  def optimize(ast: MatrixIR): MatrixIR = {
+    BaseIR.rewriteTopDown(ast, {
       case FilterVariants(
       MatrixRead(hc, path, nPartitions, fileMetadata, dropSamples, _),
       Const(_, false, TBoolean)) =>
@@ -349,7 +344,7 @@ object MatrixAST {
   }
 }
 
-abstract sealed class MatrixAST extends NewAST {
+abstract sealed class MatrixIR extends BaseIR {
   def typ: MatrixType
 
   def execute(hc: HailContext): MatrixValue
@@ -357,13 +352,13 @@ abstract sealed class MatrixAST extends NewAST {
 
 case class MatrixLiteral(
   typ: MatrixType,
-  value: MatrixValue) extends MatrixAST {
+  value: MatrixValue) extends MatrixIR {
 
-  def children: IndexedSeq[NewAST] = Array.empty[NewAST]
+  def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def execute(hc: HailContext): MatrixValue = value
 
-  def copy(newChildren: IndexedSeq[NewAST]): MatrixLiteral = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixLiteral = {
     assert(newChildren.isEmpty)
     this
   }
@@ -377,13 +372,13 @@ case class MatrixRead(
   nPartitions: Int,
   fileMetadata: VSMFileMetadata,
   dropSamples: Boolean,
-  dropVariants: Boolean) extends MatrixAST {
+  dropVariants: Boolean) extends MatrixIR {
 
   def typ: MatrixType = MatrixType(fileMetadata.metadata)
 
-  def children: IndexedSeq[NewAST] = Array.empty[NewAST]
+  def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
-  def copy(newChildren: IndexedSeq[NewAST]): MatrixRead = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
     assert(newChildren.isEmpty)
     this
   }
@@ -445,14 +440,14 @@ case class MatrixRead(
 }
 
 case class FilterSamples(
-  child: MatrixAST,
-  pred: AST) extends MatrixAST {
+  child: MatrixIR,
+  pred: AST) extends MatrixIR {
 
-  def children: IndexedSeq[NewAST] = Array(child)
+  def children: IndexedSeq[BaseIR] = Array(child)
 
-  def copy(newChildren: IndexedSeq[NewAST]): FilterSamples = {
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterSamples = {
     assert(newChildren.length == 1)
-    FilterSamples(newChildren(0).asInstanceOf[MatrixAST], pred)
+    FilterSamples(newChildren(0).asInstanceOf[MatrixIR], pred)
   }
 
   def typ: MatrixType = child.typ
@@ -478,14 +473,14 @@ case class FilterSamples(
 }
 
 case class FilterVariants(
-  child: MatrixAST,
-  pred: AST) extends MatrixAST {
+  child: MatrixIR,
+  pred: AST) extends MatrixIR {
 
-  def children: IndexedSeq[NewAST] = Array(child)
+  def children: IndexedSeq[BaseIR] = Array(child)
 
-  def copy(newChildren: IndexedSeq[NewAST]): FilterVariants = {
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterVariants = {
     assert(newChildren.length == 1)
-    FilterVariants(newChildren(0).asInstanceOf[MatrixAST], pred)
+    FilterVariants(newChildren(0).asInstanceOf[MatrixIR], pred)
   }
 
   def typ: MatrixType = child.typ
@@ -519,20 +514,24 @@ case class FilterVariants(
   }
 }
 
-abstract sealed class KeyTableAST extends NewAST {
-  def execute(hc: HailContext): RDD[Row]
+case class KeyTableType(rowType: TStruct, key: Array[String]) extends BaseType
+
+abstract sealed class KeyTableIR extends BaseIR {
+  def typ: KeyTableType
+
+  def execute(hc: HailContext): RDD[RegionValue]
 }
 
 case class KeyTableLiteral(
-  typ: TStruct,
-  rdd: RDD[Row]) {
+  typ: KeyTableType,
+  rdd2: RDD[RegionValue]) extends KeyTableIR {
 
-  def children: IndexedSeq[NewAST] = Array.empty[NewAST]
+  def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
-  def copy(newChildren: IndexedSeq[NewAST]): KeyTableLiteral = {
+  def copy(newChildren: IndexedSeq[BaseIR]): KeyTableLiteral = {
     assert(newChildren.isEmpty)
     this
   }
 
-  def execute(hc: HailContext): RDD[Row] = rdd
+  def execute(hc: HailContext): RDD[RegionValue] = rdd2
 }
