@@ -52,7 +52,7 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
 
   def loadDouble(off: Long): Double = {
     assert(size <= length)
-    assert(off >= 0 && off + 8 <= size)
+    assert(off >= 0 && off + 8 <= size, s"$off, $size")
     Memory.loadDouble(mem + off)
   }
 

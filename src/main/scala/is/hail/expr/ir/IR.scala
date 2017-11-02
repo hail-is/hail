@@ -36,7 +36,9 @@ sealed case class LazyApplyPrimitive(op: String, args: Array[IR], var typ: Type 
   override def toString(): String = s"LazyApplyPrimitive($op, ${args: IndexedSeq[IR]}, $typ)"
 }
 
-sealed case class Lambda(name: String, paramTyp: Type, body: IR, var typ: Type = null) extends IR
+sealed case class Lambda(names: Array[(String, Type)], body: IR, missingNames: Array[String] = null, mbody: IR = null, var typ: Type = null) extends IR {
+  override def toString(): String = s"Lambda(${names: IndexedSeq[(String, Type)]}, $body, ${missingNames: IndexedSeq[String]}, $mbody, $typ)"
+}
 
 sealed case class MakeArray(args: Array[IR], missingness: Array[IR] = null, var typ: TArray = null) extends IR {
   override def toString(): String = s"MakeArray(${args: IndexedSeq[IR]}, ${missingness: IndexedSeq[IR]}, $typ)"
@@ -45,8 +47,8 @@ sealed case class MakeArrayN(len: IR, elementType: Type) extends IR { def typ: T
 sealed case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 sealed case class ArrayMissingnessRef(a: IR, i: IR) extends IR { val typ: Type = TBoolean }
 sealed case class ArrayLen(a: IR) extends IR { val typ = TInt32 }
-sealed case class ArrayMap(a: IR, lam: IR, missinglam: IR = null, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
-sealed case class ArrayFold(a: IR, zero: IR, lam: IR, mzero: IR = null, mlam: IR = null, var typ: Type = null) extends IR
+sealed case class ArrayMap(a: IR, lam: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
+sealed case class ArrayFold(a: IR, zero: IR, lam: IR, mzero: IR = null, var typ: Type = null) extends IR
 
 sealed case class MakeStruct(fields: Array[(String, Type, IR)], missingness: Array[IR] = null) extends IR {
   val typ: TStruct = TStruct(fields.map(x => x._1 -> x._2):_*)

@@ -38,6 +38,7 @@ object Infer {
       case x@Let(name, value, body, _) =>
         infer(value)
         infer(body, env = env.bind(name, value.typ))
+        println("let body: " + body.typ)
         x.typ = body.typ
       case x@Ref(_, _) =>
         x.typ = env.lookup(x)
@@ -46,9 +47,11 @@ object Infer {
         x.typ = Primitives.returnTyp(op, args.map(_.typ))
       case LazyApplyPrimitive(op, args, typ) =>
         ???
-      case x@Lambda(name, paramTyp, body, typ) =>
-        infer(body, env = env.bind(name, paramTyp))
-        x.typ = TFunction(Array(paramTyp), body.typ)
+      case x@Lambda(names, body, null, null, typ) =>
+        infer(body, env = env.bind(names:_*))
+        x.typ = TFunction(names map (_._2), body.typ)
+      case Lambda(_, _, _, _, _) =>
+        throw new UnsupportedOperationException("Run Infer before anything else $ir")
       case x@MakeArray(args, _, _) =>
         args.map(infer(_))
         val t = args.head.typ
@@ -69,7 +72,7 @@ object Infer {
       case ArrayLen(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TArray])
-      case x@ArrayMap(a, lam, _, _) =>
+      case x@ArrayMap(a, lam, _) =>
         infer(a)
         val tarray = a.typ.asInstanceOf[TArray]
         infer(lam)
@@ -77,18 +80,16 @@ object Infer {
         val scala.collection.Seq(paramTyp) = tlam.paramTypes
         assert(paramTyp == tarray.elementType)
         x.elementTyp = tlam.returnType
-      case x@ArrayFold(a, zero, lam, _, _, _) =>
+      case x@ArrayFold(a, zero, lam, _, _) =>
         infer(a)
         val tarray = a.typ.asInstanceOf[TArray]
         infer(zero)
         infer(lam)
         val tlam = lam.typ.asInstanceOf[TFunction]
-        val tlam2 = tlam.returnType.asInstanceOf[TFunction]
-        val scala.collection.Seq(paramTyp1) = tlam.paramTypes
-        val scala.collection.Seq(paramTyp2) = tlam2.paramTypes
-        assert(paramTyp1 == zero.typ)
-        assert(paramTyp1 == tlam2.returnType)
-        assert(paramTyp2 == tarray.elementType)
+        val scala.collection.Seq(t1, t2) = tlam.paramTypes
+        assert(t1 == zero.typ)
+        assert(t1 == tlam.returnType)
+        assert(t2 == tarray.elementType)
         x.typ = zero.typ
       case MakeStruct(fields, _) =>
         fields.map { case (_, typ, v) =>

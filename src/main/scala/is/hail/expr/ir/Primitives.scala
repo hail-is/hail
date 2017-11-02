@@ -36,6 +36,10 @@ object Primitives {
     numeric("+", _ + _, _ + _, _ + _, _ + _),
     numeric("/", _ / _, _ / _, _ / _, _ / _),
     Primitive("||", { case Array(TBoolean, TBoolean) => TBoolean -> { case Array(x, y) => x.asInstanceOf[Code[Boolean]] || y.asInstanceOf[Code[Boolean]] }
+      case x => throw new RuntimeException(s"boom ${x.toSeq}")}),
+    Primitive("&&", { case Array(TBoolean, TBoolean) => TBoolean -> { case Array(x, y) => x.asInstanceOf[Code[Boolean]] && y.asInstanceOf[Code[Boolean]] }
+      case x => throw new RuntimeException(s"boom ${x.toSeq}")}),
+    Primitive("!", { case Array(TBoolean) => TBoolean -> { case Array(x) => !x.asInstanceOf[Code[Boolean]] }
       case x => throw new RuntimeException(s"boom ${x.toSeq}")})
   ).foreach(x => primitives += (x.name -> x))
 
