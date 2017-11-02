@@ -1,7 +1,10 @@
 package is.hail.utils.richUtils
 
+import java.io.OutputStream
+
 import is.hail.sparkextras.ReorderedPartitionsRDD
 import is.hail.utils._
+import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.{NarrowDependency, Partition, TaskContext}
@@ -30,7 +33,6 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
-    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
 
     hConf.delete(filename, recursive = true) // overwriting by default
 
@@ -63,7 +65,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       fatal("write failed: no success indicator found")
 
     if (!parallelWrite) {
-      hConf.copyMerge(parallelOutputPath, filename, true, false)
+      hConf.copyMerge(parallelOutputPath, filename, hasHeader = false)
     }
   }
 
@@ -98,5 +100,34 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       def compute(split: Partition, context: TaskContext): Iterator[T] =
         r.compute(split.asInstanceOf[SubsetRDDPartition].parentPartition, context)
     }
+  }
+
+  def writePartitions(path: String, write: (Int, Iterator[T], OutputStream) => Long): Long = {
+    val sc = r.sparkContext
+    val hadoopConf = sc.hadoopConfiguration
+    
+    hadoopConf.mkDir(path + "/parts")
+    
+    val sHadoopConf = new SerializableHadoopConfiguration(hadoopConf)
+    
+    val nPartitions = r.getNumPartitions
+    val d = digitsNeeded(nPartitions)
+
+    val itemCount = r.mapPartitionsWithIndex { case (i, it) =>
+      val is = i.toString
+      assert(is.length <= d)
+      val pis = StringUtils.leftPad(is, d, "0")
+
+      val filename = path + "/parts/part-" + pis
+      
+      val os = sHadoopConf.value.unsafeWriter(filename)
+
+      Iterator.single(write(i, it, os))
+    }
+      .fold(0L)(_ + _)
+
+    info(s"wrote $itemCount items in $nPartitions partitions")
+    
+    itemCount
   }
 }
