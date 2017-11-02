@@ -117,17 +117,20 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     ).emit(genericMn)
   }
 
-  def allocLocal[T]()(implicit tti: TypeInfo[T]): Int = {
+  def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = {
     val i = locals
     locals += tti.slots
 
     mn.localVariables.asInstanceOf[util.List[LocalVariableNode]]
-      .add(new LocalVariableNode("local" + i, tti.name, null, start, end, i))
+      .add(new LocalVariableNode(if (name == null) "local" + i else name, tti.name, null, start, end, i))
     i
   }
 
-  def newLocal[T]()(implicit tti: TypeInfo[T]): LocalRef[T] =
-    new LocalRef[T](allocLocal[T]())
+  def newLocal[T](implicit tti: TypeInfo[T]): LocalRef[T] =
+    newLocal()
+
+  def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
+    new LocalRef[T](allocLocal[T](name))
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)

@@ -14,6 +14,14 @@ import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
 
 object Compile {
+  private def dummyValue(t: expr.Type): Code[_] = t match {
+    case TBoolean => false
+    case TInt32 => 0
+    case TInt64 => 0L
+    case TFloat32 => 0.0f
+    case TFloat64 => 0.0
+    case _ => 0L // reference types
+  }
   private def typeToTypeInfo(t: expr.Type): TypeInfo[_] = t match {
     case TInt32 => typeInfo[Int]
     case TInt64 => typeInfo[Long]
@@ -52,10 +60,12 @@ object Compile {
   class MissingBits(fb: FunctionBuilder[_]) {
     private var used = 0
     private var bits: LocalRef[Long] = null
+    private var count = 0
 
     def newBit(): MissingBit = {
       if (used >= 64 || bits == null) {
-        bits = fb.newLocal[Long]
+        bits = fb.newLocal[Long]("missingbits"+count)
+        count += 1
         fb.emit(bits.store(0L))
         used = 0
       }
@@ -80,17 +90,19 @@ object Compile {
     def load(): Code[Boolean] = this
   }
 
+  type E = Env[(TypeInfo[_], Settable[_])]
+
   def apply(ir: IR, fb: FunctionBuilder[_]) {
     apply(ir, fb, new Env())
   }
 
-  def apply(ir: IR, fb: FunctionBuilder[_], env: Env[(TypeInfo[_], Settable[_])]) {
+  def apply(ir: IR, fb: FunctionBuilder[_], env: E) {
     fb.emit(expression(ir, fb, env, new MissingBits(fb)))
   }
 
-  def expression(ir: IR, fb: FunctionBuilder[_], env: Env[(TypeInfo[_], Settable[_])], mb: MissingBits): Code[_] = {
+  def expression(ir: IR, fb: FunctionBuilder[_], env: E, mb: MissingBits): Code[_] = {
     val region = fb.getArg[MemoryBuffer](1).load()
-    def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: Env[(TypeInfo[_], Settable[_])] = env, mb: MissingBits = mb): Code[_] =
+    def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: MissingBits = mb): Code[_] =
       Compile.expression(ir, fb, env, mb)
     ir match {
       case I32(x) =>
@@ -118,7 +130,7 @@ object Compile {
           expression(cnsq), expression(altr))
 
       case expr.ir.Let(name, value, body, typ) =>
-        fb.newLocal()(typeToTypeInfo(value.typ)) match { case x: LocalRef[t] =>
+        fb.newLocal(name)(typeToTypeInfo(value.typ)) match { case x: LocalRef[t] =>
           val vvalue = expression(value)
           val vbody = expression(body, env = env.bind(name, ((typeToTypeInfo(value.typ), x))))
 
@@ -132,7 +144,7 @@ object Compile {
         Primitives.lookup(op, args.map(_.typ), args.map(expression(_)))
       case LazyApplyPrimitive(op, args, typ) =>
         ???
-      case expr.ir.Lambda(name, paramTyp, body, typ) =>
+      case expr.ir.Lambda(names, body, mnames, mbody, typ) =>
         ???
       case MakeArray(args, missingness, typ) =>
         assert(missingness != null, "run explicit missingness first")
@@ -165,17 +177,21 @@ object Compile {
           expression(i).asInstanceOf[Code[Int]])
       case ArrayLen(a) =>
         TContainer.loadLength(region, expression(a).asInstanceOf[Code[Long]])
-      case x@ArrayMap(a, Lambda(name, _, body, _), Lambda(name2, _, body2, _), elementTyp) =>
+      case x@ArrayMap(a, Lambda(Array((name,_)), body, Array(mname), mbody, _), elementTyp) =>
         val tin = a.typ.asInstanceOf[TArray]
         val tout = x.typ.asInstanceOf[TArray]
         val srvb = new StagedRegionValueBuilder(fb, tout)
         val addElement = srvb.addAnnotation(tout.elementType)
         typeToTypeInfo(elementTyp) match { case ti: TypeInfo[t] =>
-          val xa = fb.newLocal[Long]
+          val xa = fb.newLocal[Long]("am_a")
           val xmv = mb.newBit()
-          val xvv = fb.newLocal()(ti)
-          val i = fb.newLocal[Int]
-          val len = fb.newLocal[Int]
+          val xvv = fb.newLocal(name)(ti)
+          val i = fb.newLocal[Int]("am_i")
+          val len = fb.newLocal[Int]("am_len")
+          val bodyenv = env.bind(
+            name -> (ti, xvv),
+            mname -> (typeInfo[Boolean], xmv))
+
           Code(
             xa := expression(a).asInstanceOf[Code[Long]],
             len := TContainer.loadLength(region, xa),
@@ -183,35 +199,43 @@ object Compile {
             srvb.start(len, init = false),
             Code.whileLoop(i < len,
               xmv := !tin.isElementDefined(region, xa, i),
-              expression(body2, env = env.bind(name2, (typeInfo[Boolean], xmv))).asInstanceOf[Code[Boolean]].mux(
+              // FIXME ugh why isn't this handled in desugarna?
+              xvv := xmv.mux(
+                dummyValue(tin.elementType),
+                loadAnnotation(region, tin.elementType)(
+                  tin.loadElement(region, xa, i))).asInstanceOf[Code[t]],
+              expression(mbody, env = bodyenv).asInstanceOf[Code[Boolean]].mux(
                 srvb.setMissing(),
-                Code(
-                  xvv := loadAnnotation(region, tin.elementType)(
-                    tin.loadElement(region, xa, i)).asInstanceOf[Code[t]],
-                  addElement(expression(body, env = env.bind(name, (ti, xvv)))))),
+                addElement(expression(body, env = bodyenv))),
               srvb.advance(),
               i := i + 1),
             srvb.offset)
         }
-      case ArrayMap(_, _, _, _) =>
+      case ArrayMap(_, _, _) =>
         throw new UnsupportedOperationException(s"bad arraymap $ir")
       case ArrayFold(
         a,
         zero,
-        Lambda(name1, _, Lambda(name2, _, body, _), _),
+        Lambda(Array((name1, _), (name2, _)), body, Array(mname1, mname2), mbody, _),
         mzero,
-        Lambda(mname1, _, Lambda(mname2, _, mbody, _), _),
         typ) =>
         val tarray = a.typ.asInstanceOf[TArray]
         assert(tarray != null, s"tarray is null! $ir")
+
         (typeToTypeInfo(typ), typeToTypeInfo(tarray.elementType)) match { case (tti: TypeInfo[t], uti: TypeInfo[u]) =>
-          val xa = fb.newLocal[Long]
+          val xa = fb.newLocal[Long]("af_array")
           val xmv = mb.newBit()
-          val xvv = fb.newLocal()(uti)
+          val xvv = fb.newLocal(name2)(uti)
           val xmout = mb.newBit()
-          val xvout = fb.newLocal()(tti)
-          val i = fb.newLocal[Int]
-          val len = fb.newLocal[Int]
+          val temp = mb.newBit()
+          val xvout = fb.newLocal(name1)(tti)
+          val i = fb.newLocal[Int]("af_i")
+          val len = fb.newLocal[Int]("af_len")
+          val bodyenv = env.bind(
+            name1 -> ((tti, xvout)),
+            name2 -> ((uti, xvv)),
+            mname1 -> ((typeInfo[Boolean], xmout)),
+            mname2 -> ((typeInfo[Boolean], xmv)))
 
           Code(
             xa := expression(a).asInstanceOf[Code[Long]],
@@ -221,19 +245,17 @@ object Compile {
             xmout := expression(mzero).asInstanceOf[Code[Boolean]],
             Code.whileLoop(i < len,
               xmv := !tarray.isElementDefined(region, xa, i),
-              xmout := expression(mbody, env = env.bind(
-                mname1 -> ((typeInfo[Boolean], xmout)),
-                mname2 -> ((typeInfo[Boolean], xmv)))).asInstanceOf[Code[Boolean]],
-              xmout.mux(
-                Code._empty,
-                Code(
-                  xvv := tarray.loadElement(region, xa, i).asInstanceOf[Code[u]],
-                  xvout := expression(body, env = env.bind(
-                    name1 -> ((tti, xvout)),
-                    name2 -> ((uti, xvv)))).asInstanceOf[Code[t]])),
-              i := i + 1))
+              xvv := xmv.mux(
+                dummyValue(tarray.elementType),
+                loadAnnotation(region, tarray.elementType)(
+                  tarray.loadElement(region, xa, i))).asInstanceOf[Code[u]],
+              temp := expression(mbody, env = bodyenv).asInstanceOf[Code[Boolean]],
+              xvout := expression(body, env = bodyenv).asInstanceOf[Code[t]],
+              xmout := temp,
+              i := i + 1),
+            xvout)
         }
-      case ArrayFold(_, _, _, _, _, _) =>
+      case ArrayFold(_, _, _, _, _) =>
         throw new UnsupportedOperationException(s"bad arrayfold $ir")
       case MakeStruct(fields, missingness) =>
         assert(missingness != null, "run explicit missingness first")
