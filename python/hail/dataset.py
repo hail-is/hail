@@ -2426,7 +2426,7 @@ class VariantDataset(HistoryMixin):
 
         """
 
-        return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
+        return KeyTable(self.hc, self._jvds.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
     @require_biallelic

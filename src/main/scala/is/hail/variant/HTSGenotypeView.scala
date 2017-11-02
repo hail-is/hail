@@ -304,6 +304,8 @@ abstract class HardCallView {
   def hasGT: Boolean
 
   def getGT: Int
+
+  def getLength: Int
 }
 
 class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
@@ -340,6 +342,8 @@ class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
       throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
     gt
   }
+
+  def getLength: Int = gsLength
 }
 
 class HardCallStructView(rowType: TStruct, callField: String) extends HardCallView {
@@ -393,4 +397,6 @@ class HardCallStructView(rowType: TStruct, callField: String) extends HardCallVi
       throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
     gt
   }
+
+  def getLength: Int = gsLength
 }
