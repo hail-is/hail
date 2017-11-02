@@ -155,7 +155,7 @@ object Compile {
         val addElement = srvb.addAnnotation(typ.elementType)
 
         Code(
-          srvb.start(args.length, init = false),
+          srvb.start(args.length, init = true),
           Code((missingness zip args).map(onBoth(expression(_))).map { case (m: Code[Boolean] @unchecked, v) =>
             Code(m.mux(srvb.setMissing(), addElement(v)), srvb.advance())
           }: _*),
@@ -201,7 +201,7 @@ object Compile {
             i := 0,
             Code.getStatic[System, java.io.PrintStream]("out").invoke("print", "length ")(classTag[String], ClassTag(java.lang.Void.TYPE)),
             Code.getStatic[System, java.io.PrintStream]("out").invoke("println", len)(classTag[Int], ClassTag(java.lang.Void.TYPE)),
-            srvb.start(len, init = false),
+            srvb.start(len, init = true),
             Code.whileLoop(i < len,
               xmv := !tin.isElementDefined(region, xa, i),
               // FIXME ugh why isn't this handled in desugarna?

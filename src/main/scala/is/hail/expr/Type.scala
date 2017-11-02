@@ -737,7 +737,9 @@ abstract class TContainer extends Type {
     elementOffset(aoff, loadLength(region, aoff), i)
 
   def loadElement(region: MemoryBuffer, aoff: Long, length: Int, i: Int): Long = {
+    println(s"length $length")
     val off = elementOffset(aoff, length, i)
+    println(s"off $off")
     elementType.fundamentalType match {
       case _: TArray | TBinary => region.loadAddress(off)
       case _ => off
