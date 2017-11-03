@@ -79,8 +79,9 @@ object ToNormalizedRowMatrix {
     val rows = vds.rdd2.mapPartitions { it =>
       val view = HardCallView(rowType)
 
-      it.flatMap { r =>
-        RegressionUtils.normalizedHardCalls(r, view, n)
+      it.flatMap { rv =>
+        view.setRegion(rv)
+        RegressionUtils.normalizedHardCalls(view, n)
           .map(Vectors.dense)
       }
     }.persist()
@@ -106,8 +107,9 @@ object ToNormalizedIndexedRowMatrix {
 
       val partitionStartIndex = pSizeBc.value(i)
       var indexInPartition = 0
-      it.flatMap { r =>
-        val row = RegressionUtils.normalizedHardCalls(r, view, n)
+      it.flatMap { rv =>
+        view.setRegion(rv)
+        val row = RegressionUtils.normalizedHardCalls(view, n)
             .map { a => IndexedRow(partitionStartIndex + indexInPartition, Vectors.dense(a)) }
         indexInPartition += 1
         row
@@ -130,8 +132,8 @@ object ToHWENormalizedIndexedRowMatrix {
       val tv = rowType.fields(1).typ.asInstanceOf[TVariant]
       val ab = new ArrayBuilder[Variant]
       var n = 0
-      it.foreach { r =>
-        ab += UnsafeRow.readStruct(rowType, r.region, r.offset).getAs[Variant](1)
+      it.foreach { rv =>
+        val v = Variant.fromRegionValue(rv, rowType.loadField(rv, 1))
         n += 1
       }
       Iterator.single((n, ab.result()))
@@ -149,8 +151,9 @@ object ToHWENormalizedIndexedRowMatrix {
 
       val partitionStartIndex = pSizeBc.value(i)
       var indexInPartition = 0
-      it.flatMap { r =>
-        val row = RegressionUtils.normalizedHardCalls(r, view, n, useHWE = true, nVariants)
+      it.flatMap { rv =>
+        view.setRegion(rv)
+        val row = RegressionUtils.normalizedHardCalls(view, n, useHWE = true, nVariants)
           .map { a => IndexedRow(partitionStartIndex + indexInPartition, Vectors.dense(a)) }
         indexInPartition += 1
         row

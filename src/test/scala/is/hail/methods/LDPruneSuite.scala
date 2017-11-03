@@ -154,7 +154,7 @@ class LDPruneSuite extends SparkSuite {
         val bv2 = LDPrune.toBitPackedVector(gs2.hardCallIterator, nSamples)
 
         val rowType = TStruct(
-          "l" -> TLocus(GenomeReference.GRCh37),
+          "pk" -> TLocus(GenomeReference.GRCh37),
           "v" -> TVariant(GenomeReference.GRCh37),
           "va" -> TStruct(),
           "gs" -> TArray(TGenotype)
@@ -167,9 +167,7 @@ class LDPruneSuite extends SparkSuite {
           rvb.setMissing()
           rvb.setMissing()
           rvb.setMissing()
-          rvb.startArray(gArr.length)
-          gArr.foreach { g => rvb.addAnnotation(TGenotype, g) }
-          rvb.endArray()
+          rvb.addAnnotation(TArray(TGenotype), gArr)
           rvb.endStruct()
           rvb.end()
           rvb.result()
@@ -177,8 +175,13 @@ class LDPruneSuite extends SparkSuite {
 
         val view = HardCallView(rowType)
 
-        val sgs1 = RegressionUtils.normalizedHardCalls(makeRV(gs1), view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
-        val sgs2 = RegressionUtils.normalizedHardCalls(makeRV(gs2), view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+        val rv1 = makeRV(gs1)
+        view.setRegion(rv1)
+        val sgs1 = RegressionUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+
+        val rv2 = makeRV(gs2)
+        view.setRegion(rv2)
+        val sgs2 = RegressionUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
         (bv1, bv2, sgs1, sgs2) match {
           case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>

@@ -30,7 +30,8 @@ object LDMatrix {
       val view = HardCallView(rowType)
       it.flatMap { rv =>
         val v = Variant.fromRegionValue(rv, rowType.loadField(rv, 1))
-        RegressionUtils.normalizedHardCalls(rv, view, nSamples).map(x => (v, x))
+        view.setRegion(rv)
+        RegressionUtils.normalizedHardCalls(view, nSamples).map(x => (v, x))
       }
     }.persist()
     

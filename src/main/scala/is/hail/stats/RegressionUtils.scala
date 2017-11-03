@@ -91,14 +91,12 @@ object RegressionUtils {
   // !useHWE: mean 0, norm exactly sqrt(n), variance 1
   // useHWE: mean 0, norm approximately sqrt(m), variance approx. m / n
   // missing gt are mean imputed, constant variants return None, only HWE uses nVariants
-  def normalizedHardCalls(rv: RegionValue, view: HardCallView, nSamples: Int, useHWE: Boolean = false, nVariants: Int = -1): Option[Array[Double]] = {
+  def normalizedHardCalls(view: HardCallView, nSamples: Int, useHWE: Boolean = false, nVariants: Int = -1): Option[Array[Double]] = {
     require(!(useHWE && nVariants == -1))
     val vals = Array.ofDim[Double](nSamples)
     var nMissing = 0
     var sum = 0
     var sumSq = 0
-
-    view.setRegion(rv)
 
     var row = 0
     while (row < nSamples) {

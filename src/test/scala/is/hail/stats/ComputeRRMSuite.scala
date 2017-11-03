@@ -28,8 +28,9 @@ class ComputeRRMSuite extends SparkSuite {
     val rt = vds.rowType
     val gtVects = vds.rdd2.mapPartitions {it =>
       val view = HardCallView(rt)
-      it.flatMap { r =>
-        RegressionUtils.normalizedHardCalls(r, view, n) }.map(DenseVector(_))
+      it.flatMap { rv =>
+        view.setRegion(rv)
+        RegressionUtils.normalizedHardCalls(view, n) }.map(DenseVector(_))
       }.collect()
 
     for (gts <- gtVects) {
