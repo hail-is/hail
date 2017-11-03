@@ -8,7 +8,7 @@ import is.hail.utils._
 
 object HTSGenotypeView {
   def apply(rowSignature: TStruct): HTSGenotypeView = {
-    rowSignature.fields(3).typ.asInstanceOf[TArray].elementType match {
+    rowSignature.fieldType(3).asInstanceOf[TArray].elementType match {
       case TGenotype => new TGenotypeView(rowSignature)
       case _: TStruct => new StructGenotypeView(rowSignature)
       case t => fatal(s"invalid genotype representation: $t, expect TGenotype or TStruct")
@@ -48,7 +48,7 @@ sealed abstract class HTSGenotypeView {
 }
 
 class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
-  private val tgs = rs.fields(3).typ.asInstanceOf[TArray]
+  private val tgs = rs.fieldType(3).asInstanceOf[TArray]
   private val tg = TGenotype.representation
 
   private val gtIndex = 0
@@ -124,7 +124,7 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
 }
 
 private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
-  private val tgs = rs.fields(3).asInstanceOf[TArray]
+  private val tgs = rs.fieldType(3).asInstanceOf[TArray]
   private val tg = tgs.elementType.asInstanceOf[TStruct]
 
   private def lookupField(name: String, expected: Type): (Boolean, Int) = {
@@ -282,7 +282,7 @@ class ArrayGenotypeView(rowType: TStruct) {
 
 object HardCallView {
   def apply(rowSignature: TStruct): HardCallView = {
-    rowSignature.fields(3).typ.asInstanceOf[TArray].elementType match {
+    rowSignature.fieldType(3).asInstanceOf[TArray].elementType match {
       case TGenotype => new HardCallTGenotypeView(rowSignature)
       case _: TStruct => new HardCallStructView(rowSignature, "GT")
       case t => fatal(s"invalid genotype representation: $t, expect TGenotype or TStruct")
@@ -303,7 +303,7 @@ abstract class HardCallView {
 }
 
 class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
-  private val tgs = rowType.fields(3).typ.asInstanceOf[TArray]
+  private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
   private val tg = TGenotype.representation
 
   private val gtIndex = 0
