@@ -186,6 +186,18 @@ object Code {
   def floatValue(x: Code[java.lang.Number]): Code[Float] = x.invoke[Float]("floatValue")
 
   def doubleValue(x: Code[java.lang.Number]): Code[Double] = x.invoke[Double]("doubleValue")
+
+  def getStatic[T : ClassTag, S : ClassTag : TypeInfo](field: String): Code[S] = {
+    val f = FieldRef[T, S](field)
+    assert(f.isStatic)
+    f.get(null)
+  }
+
+  def putStatic[T : ClassTag, S : ClassTag : TypeInfo](field: String, rhs: Code[S]): Code[Unit] = {
+    val f = FieldRef[T, S](field)
+    assert(f.isStatic)
+    f.put(null, rhs)
+  }
 }
 
 trait Code[+T] {
