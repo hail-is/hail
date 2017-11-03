@@ -127,6 +127,15 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
 
   def addStruct(t: TStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
 
+  def addAnnotation(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
+    case TBoolean => v => addInt32(v.asInstanceOf[Code[Int]])
+    case TInt32 => v => addInt32(v.asInstanceOf[Code[Int]])
+    case TInt64 => v => addInt64(v.asInstanceOf[Code[Long]])
+    case TFloat32 => v => addFloat32(v.asInstanceOf[Code[Float]])
+    case TFloat64 => v => addFloat64(v.asInstanceOf[Code[Double]])
+    case t => throw new UnsupportedOperationException("addAnnotation only supports primitive types: " + t)
+  }
+
   def advance(): Code[Unit] = {
     typ match {
       case t: TArray => Code(
