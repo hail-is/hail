@@ -16,7 +16,7 @@ import org.objectweb.asm.tree._
 import scala.reflect.classTag
 import scala.reflect.ClassTag
 
-object Compile2 {
+object Compile {
   private def dummyValue(t: expr.Type): Code[_] = t match {
     case TBoolean => false
     case TInt32 => 0
@@ -77,7 +77,7 @@ object Compile2 {
   def expression(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Boolean], Code[_]) = {
     val region = fb.getArg[MemoryBuffer](1).load()
     def expression(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: StagedBitSet = mb): (Code[Boolean], Code[_]) =
-      Compile2.expression(ir, fb, env, mb)
+      Compile.expression(ir, fb, env, mb)
     ir match {
       case I32(x) =>
         present(const(x))
