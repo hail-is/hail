@@ -570,8 +570,6 @@ class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
     }
 
   def storeInsn: Code[Unit] = Code(new IntInsnNode(tti.storeOp, i))
-
-  def :=(rhs: Code[T]): Code[Unit] = store(rhs)
 }
 
 class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {
