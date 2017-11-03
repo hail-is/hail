@@ -34,32 +34,6 @@ object Compile {
     case _ => typeInfo[Long] // reference types
   }
 
-  private def loadAnnotation(region: Code[MemoryBuffer], typ: expr.Type): Code[Long] => Code[_] = typ match {
-    case TInt32 =>
-      region.loadInt(_)
-    case TInt64 =>
-      region.loadLong(_)
-    case TFloat32 =>
-      region.loadFloat(_)
-    case TFloat64 =>
-      region.loadDouble(_)
-    case _ =>
-      off => off
-  }
-
-  private def storeAnnotation(region: Code[MemoryBuffer], typ: expr.Type): (Code[Long], Code[_]) => Code[_] = typ match {
-    case TInt32 =>
-      (off, v) => region.storeInt32(off, v.asInstanceOf[Code[Int]])
-    case TInt64 =>
-      (off, v) => region.storeInt64(off, v.asInstanceOf[Code[Long]])
-    case TFloat32 =>
-      (off, v) => region.storeFloat32(off, v.asInstanceOf[Code[Float]])
-    case TFloat64 =>
-      (off, v) => region.storeFloat64(off, v.asInstanceOf[Code[Double]])
-    case _ =>
-      (off, ptr) => region.storeAddress(off, ptr.asInstanceOf[Code[Long]])
-  }
-
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
 
   def apply(ir: IR, fb: FunctionBuilder[_]) {
@@ -181,7 +155,8 @@ object Compile {
           xi := coerce[Int](xmi.mux(dummyValue(TInt32), vi)),
           xmv := xma || xmi || !tarray.isElementDefined(region, xa, xi)))
 
-        (xmv, xmv.mux(dummyValue(typ), loadAnnotation(region, typ)(tarray.loadElement(region, xa, xi))))
+        (xmv, xmv.mux(dummyValue(typ),
+          region.loadAnnotation(typ)(tarray.loadElement(region, xa, xi))))
       case ArrayMissingnessRef(a, i) =>
         val tarray = tcoerce[TArray](a.typ)
         val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
@@ -244,8 +219,7 @@ object Compile {
             xmv := !tin.isElementDefined(region, xa, i),
             xvv := coerce[t](xmv.mux(
               dummyValue(elementTyp),
-              loadAnnotation(region, tin.elementType)(
-                tin.loadElement(region, xa, i))))))
+              region.loadAnnotation(tin.elementType)(tin.loadElement(region, xa, i))))))
           val (mbody, vbody) = expression(body, env = bodyenv)
           fb.emit(Code(
             mbody.mux(
@@ -307,8 +281,7 @@ object Compile {
             xmv := !tarray.isElementDefined(region, xa, i),
             xvv := coerce[u](xmv.mux(
               dummyValue(tarray.elementType),
-              loadAnnotation(region, tarray.elementType)(
-                tarray.loadElement(region, xa, i))))))
+              region.loadAnnotation(tarray.elementType)(tarray.loadElement(region, xa, i))))))
           val (mbody, vbody) = expression(body, env = bodyenv)
           fb.emit(Code(
             xmout := mbody,
@@ -343,7 +316,7 @@ object Compile {
         fb.emit(xmo := mo)
         fb.emit(xo := coerce[Long](xmo.mux(dummyValue(t), vo)))
         (xmo || !t.isFieldDefined(region, xo, fieldIdx),
-          loadAnnotation(region, t)(t.fieldOffset(xo, fieldIdx)))
+          region.loadAnnotation(t)(t.fieldOffset(xo, fieldIdx)))
       case GetFieldMissingness(o, name) =>
         val t = o.typ.asInstanceOf[TStruct]
         val fieldIdx = t.fieldIdx(name)
