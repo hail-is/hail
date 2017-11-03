@@ -2035,8 +2035,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     region.setBit(offset, fieldIdx)
   }
 
-  def setFieldMissing(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Code[Int]): Code[Unit] = {
-    region.setBit(offset, fieldIdx.toL)
+  def setFieldMissing(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
+    region.setBit(offset, fieldIdx.toLong)
   }
 
   def fieldOffset(offset: Long, fieldIdx: Int): Long =
