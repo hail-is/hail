@@ -537,7 +537,13 @@ object FieldRef {
   }
 }
 
-class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) {
+trait Settable[T] {
+  def load(): Code[T]
+  def store(rhs: Code[T]): Code[Unit]
+  def :=(rhs: Code[T]): Code[Unit] = store(rhs)
+}
+
+class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
   def load(): Code[T] =
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
