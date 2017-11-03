@@ -123,18 +123,6 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
   def newLocal[T]()(implicit tti: TypeInfo[T]): LocalRef[T] =
     new LocalRef[T](allocLocal[T]())
 
-  def getStatic[T, S](field: String)(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S]): Code[S] = {
-    val f = FieldRef[T, S](field)
-    assert(f.isStatic)
-    f.get(null)
-  }
-
-  def putStatic[T, S](field: String, rhs: Code[S])(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S]): Code[Unit] = {
-    val f = FieldRef[T, S](field)
-    assert(f.isStatic)
-    f.put(null, rhs)
-  }
-
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
     assert(i < layout.length)
