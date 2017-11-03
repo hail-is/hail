@@ -38,9 +38,7 @@ class CompileSuite {
   def doit(ir: IR, fb: FunctionBuilder[_]) {
     Infer(ir)
     println(ir)
-    val ir2 = DesugarNA(ExplicitMissingness(ir))
-    println(ir2)
-    Compile2(ir2, fb)
+    Compile2(ir, fb)
   }
 
   @Test
