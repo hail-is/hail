@@ -1,17 +1,17 @@
 package is.hail.expr.ir
 
-import is.hail.expr.{NewAST, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type, TArray}
+import is.hail.expr.{BaseIR, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type, TArray}
 
 object IR {
   def seq(stmts: IR*)  = new Seq(stmts.toArray)
 }
 
-sealed trait IR extends NewAST {
+sealed trait IR extends BaseIR {
   def typ: Type
 
-  override def children: IndexedSeq[NewAST] = ???
+  override def children: IndexedSeq[BaseIR] = ???
 
-  override def copy(newChildren: IndexedSeq[NewAST]): NewAST = ???
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = ???
 }
 sealed case class I32(x: Int) extends IR { val typ = TInt32 }
 sealed case class I64(x: Long) extends IR { val typ = TInt64 }
