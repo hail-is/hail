@@ -47,12 +47,10 @@ object Infer {
         x.typ = Primitives.returnTyp(op, args.map(_.typ))
       case LazyApplyPrimitive(op, args, typ) =>
         ???
-      case x@Lambda(names, body, null, null, typ) =>
+      case x@Lambda(names, body, typ) =>
         infer(body, env = env.bind(names:_*))
         x.typ = TFunction(names map (_._2), body.typ)
-      case Lambda(_, _, _, _, _) =>
-        throw new UnsupportedOperationException("Run Infer before anything else $ir")
-      case x@MakeArray(args, _, _) =>
+      case x@MakeArray(args, _) =>
         args.map(infer(_))
         val t = args.head.typ
         args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x == t, s"at position $i type mismatch: $t $x") }
@@ -80,7 +78,7 @@ object Infer {
         val scala.collection.Seq(paramTyp) = tlam.paramTypes
         assert(paramTyp == tarray.elementType)
         x.elementTyp = tlam.returnType
-      case x@ArrayFold(a, zero, lam, _, _) =>
+      case x@ArrayFold(a, zero, lam, _) =>
         infer(a)
         val tarray = a.typ.asInstanceOf[TArray]
         infer(zero)

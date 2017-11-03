@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.utils.lensing._
 import is.hail.utils._
 import is.hail.annotations.MemoryBuffer
 import is.hail.asm4s.FunctionBuilder.methodNodeToGrowable
@@ -71,10 +70,9 @@ object Compile2 {
     fb.emit(expression(ir, fb, env, new StagedBitSet(fb))._2)
   }
 
-  private def present(x: Code[_]) = (const(true), x)
+  private def present(x: Code[_]) = (const(false), x)
   private def coerce[T](x: Code[_]): Code[T] = x.asInstanceOf[Code[T]]
   private def tcoerce[T <: expr.Type](x: expr.Type): T = x.asInstanceOf[T]
-  private def guard(c: Code[Boolean], a: Code[_]): Code[_] = c.mux(Code._empty, a)
 
   def expression(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Boolean], Code[_]) = {
     val region = fb.getArg[MemoryBuffer](1).load()
@@ -95,7 +93,7 @@ object Compile2 {
         present(const(false))
 
       case NA(typ) =>
-        (const(false), dummyValue(typ))
+        (const(true), dummyValue(typ))
       case IsNA(v) =>
         present(expression(v)._1)
       case MapNA(name, value, body, typ) =>
@@ -103,9 +101,9 @@ object Compile2 {
         val bti = typeToTypeInfo(typ)
         val (mvalue, vvalue) = expression(value)
         val mx = mb.newBit()
-        mx := mvalue
+        fb.emit(mx := mvalue)
         val x = fb.newLocal(name)(vti).asInstanceOf[LocalRef[Any]]
-        fb.emit(x := vvalue)
+        fb.emit(x := mx.mux(dummyValue(value.typ), vvalue))
         val bodyenv = env.bind(name -> (vti, mx, x))
         val (mbody, vbody) = expression(body, env = bodyenv)
         (mvalue || mbody, mvalue.mux(dummyValue(typ), vbody))
@@ -178,9 +176,9 @@ object Compile2 {
         val xmv = mb.newBit()
         fb.emit(Code(
           xma := ma,
-          guard(xma, xa := coerce[Long](va)),
+          xa := coerce[Long](xma.mux(dummyValue(tarray), va)),
           xmi := mi,
-          guard(xmi, xi := coerce[Int](vi)),
+          xi := coerce[Int](xmi.mux(dummyValue(TInt32), vi)),
           xmv := xma || xmi || !tarray.isElementDefined(region, xa, xi)))
 
         (xmv, xmv.mux(dummyValue(typ), loadAnnotation(region, typ)(tarray.loadElement(region, xa, xi))))
@@ -198,9 +196,9 @@ object Compile2 {
         val xmv = mb.newBit()
         fb.emit(Code(
           xma := ma,
-          guard(xma, xa := coerce[Long](va)),
+          xa := coerce[Long](xma.mux(dummyValue(tarray), va)),
           xmi := mi,
-          guard(xmi, xi := coerce[Int](vi))))
+          xi := coerce[Int](xmi.mux(dummyValue(TInt32), vi))))
 
         present(xma || xmi || !tarray.isElementDefined(region, xa, xi))
       case ArrayLen(a) =>
@@ -230,6 +228,8 @@ object Compile2 {
 
           val (ma, va) = expression(a)
           fb.emit(xma := ma)
+          fb.emit(xvv := coerce[t](dummyValue(elementTyp)))
+          fb.emit(out := coerce[Long](dummyValue(tout)))
           xma.toConditional.emitConditional(fb.l, lmissing, lnonmissing)
           fb.emit(Code(
             lnonmissing,
@@ -242,8 +242,9 @@ object Compile2 {
           fb.emit(Code(
             lnext,
             xmv := !tin.isElementDefined(region, xa, i),
-            guard(xmv,
-              xvv := coerce[t](loadAnnotation(region, tin.elementType)(
+            xvv := coerce[t](xmv.mux(
+              dummyValue(elementTyp),
+              loadAnnotation(region, tin.elementType)(
                 tin.loadElement(region, xa, i))))))
           val (mbody, vbody) = expression(body, env = bodyenv)
           fb.emit(Code(
@@ -287,6 +288,8 @@ object Compile2 {
 
           val (ma, va) = expression(a)
           fb.emit(xma := ma)
+          fb.emit(xvout := coerce[t](dummyValue(typ)))
+          fb.emit(xvv := coerce[u](dummyValue(tarray.elementType)))
           xma.toConditional.emitConditional(fb.l, lmissing, lnonmissing)
           fb.emit(Code(
             lnonmissing,
@@ -296,19 +299,20 @@ object Compile2 {
           val (mzero, vzero) = expression(zero)
           fb.emit(Code(
             xmout := mzero,
-            guard(xmout, xvout := coerce[t](vzero)),
+            xvout := coerce[t](xmout.mux(dummyValue(typ), vzero)),
             ltop))
           (i < len).toConditional.emitConditional(fb.l, lnext, lend)
           fb.emit(Code(
             lnext,
             xmv := !tarray.isElementDefined(region, xa, i),
-            guard(xmv,
-              xvv := coerce[u](loadAnnotation(region, tarray.elementType)(
+            xvv := coerce[u](xmv.mux(
+              dummyValue(tarray.elementType),
+              loadAnnotation(region, tarray.elementType)(
                 tarray.loadElement(region, xa, i))))))
           val (mbody, vbody) = expression(body, env = bodyenv)
           fb.emit(Code(
             xmout := mbody,
-            guard(xmout, xvout := coerce[t](vbody)),
+            xvout := coerce[t](xmout.mux(dummyValue(typ), vbody)),
             i := i + 1,
             new JumpInsnNode(GOTO, ltop),
             lend,
@@ -337,7 +341,7 @@ object Compile2 {
         val xmo = mb.newBit()
         val xo = fb.newLocal[Long]
         fb.emit(xmo := mo)
-        fb.emit(guard(xmo, xo := coerce[Long](vo)))
+        fb.emit(xo := coerce[Long](xmo.mux(dummyValue(t), vo)))
         (xmo || !t.isFieldDefined(region, xo, fieldIdx),
           loadAnnotation(region, t)(t.fieldOffset(xo, fieldIdx)))
       case GetFieldMissingness(o, name) =>
@@ -347,7 +351,7 @@ object Compile2 {
         val xmo = mb.newBit()
         val xo = fb.newLocal[Long]
         fb.emit(xmo := mo)
-        fb.emit(guard(xmo, xo := coerce[Long](vo)))
+        fb.emit(xo := coerce[Long](xmo.mux(dummyValue(t), vo)))
         (xmo, !t.isFieldDefined(region, xo, fieldIdx))
       case Seq(stmts, typ) =>
         ???
