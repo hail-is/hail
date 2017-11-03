@@ -65,7 +65,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
   cn.superName = "java/lang/Object"
   cn.interfaces.asInstanceOf[java.util.List[String]].add("java/io/Serializable")
 
-  def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
+  def descriptor: String = s"(${ parameterTypeInfo.map(_.base.name).mkString })${ returnTypeInfo.base.name }"
 
   val mn = new MethodNode(ACC_PUBLIC, "apply", descriptor, null, null)
   val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
@@ -81,7 +81,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
   val end = new LabelNode
 
   val layout: Array[Int] =
-    0 +: (parameterTypeInfo.scanLeft(1) { case (prev, ti) => prev + ti.slots })
+    0 +: (parameterTypeInfo.scanLeft(1) { case (prev, gti) => prev + gti.base.slots })
   val argIndex: Array[Int] = layout.init
   var locals: Int = layout.last
 
@@ -152,7 +152,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
     assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${dupes: Seq[Any]}")
     l.foreach(mn.instructions.add _)
-    mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
+    mn.instructions.add(new InsnNode(returnTypeInfo.base.returnOp))
     mn.instructions.add(end)
 
     val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
