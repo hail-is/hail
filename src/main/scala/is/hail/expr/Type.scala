@@ -705,6 +705,9 @@ abstract class TContainer extends Type {
   def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
     !region.loadBit(aoff + 4, i)
 
+  def isElementDefined(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+    !region.loadBit(aoff + 4, i.toL)
+
   def setElementMissing(region: MemoryBuffer, aoff: Long, i: Int) {
     region.setBit(aoff + 4, i)
   }
@@ -2029,6 +2032,9 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   }
 
   def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =
+    !region.loadBit(offset, fieldIdx)
+
+  def isFieldDefined(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     !region.loadBit(offset, fieldIdx)
 
   def setFieldMissing(region: MemoryBuffer, offset: Long, fieldIdx: Int) {
