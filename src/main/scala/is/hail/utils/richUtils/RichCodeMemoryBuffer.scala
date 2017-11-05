@@ -50,7 +50,6 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
     region.invoke[Long, Long]("alignAndAllocate",n)
   }
 
-
   def loadBoolean(off: Code[Long]): Code[Boolean] = {
     region.invoke[Long, Boolean]("loadBoolean", off)
   }
@@ -80,6 +79,10 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
   }
 
   def setBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] = {
+    region.invoke[Long, Long, Unit]("setBit", byteOff, bitOff)
+  }
+
+  def setBit(byteOff: Code[Long], bitOff: Long): Code[Unit] = {
     region.invoke[Long, Long, Unit]("setBit", byteOff, bitOff)
   }
 
