@@ -95,7 +95,7 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
       off => off
   }
 
-  def appendAnnotation(typ: Type): (Code[_]) => Code[_] = typ match {
+  def appendAnnotation(typ: Type): (Code[_]) => Code[Unit] = typ match {
     case TBoolean =>
       x => this.appendInt32(x.asInstanceOf[Code[Int]])
     case TInt32 =>
