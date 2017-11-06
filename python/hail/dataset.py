@@ -5330,8 +5330,20 @@ class VariantDataset(HistoryMixin):
         """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
         
         .. include:: _templates/experimental.rst
+        
+        .. include:: _templates/req_tvariant.rst
+
+        :py:meth:`~hail.VariantDataset.nirvana` runs `Nirvana <https://github.com/Illumina/Nirvana>`_ on the current
+        variant dataset and adds the result as a variant annotation.
+
+        **Examples**        
+
+        Add Nirvana annotations to the dataset:
+
+        >>> vds_result = vds.nirvana("data/nirvana.properties") # doctest: +SKIP
 
         ***Configuration***
+        
         :py:meth:`~hail.VariantDataset.nirvana` requires a configuration file. The format is a
         `.properties file <https://en.wikipedia.org/wiki/.properties>`__, where each line defines
         a property as a key-value pair of the form `key = value`. ``nirvana`` supports the following properties:
@@ -5339,8 +5351,18 @@ class VariantDataset(HistoryMixin):
         - **hail.nirvana.dotnet** -- Location of dotnet. Optional, default: dotnet.
         - **hail.nirvana.path** -- Value of the PATH environment variable when invoking Nirvana.  Optional, by default PATH is not set.
         - **hail.nirvana.location** -- Location of Nirvana.dll. Required.
+        - **hail.nirvana.reference** --Location of reference genome. Required.
         - **hail.nirvana.cache** --Location of cache. Required.
         - **hail.nirvana.supplementaryAnnotationDirectory** -- Location of Supplementary Database. Optional, no supplementary database by default.
+        
+        Here is an example `nirvana.properties` configuration file:
+
+        .. code-block:: text
+        
+            hail.nirvana.location = /path/to/dotnet/netcoreapp1.1/Nirvana.dll
+            hail.nirvana.reference = /path/to/nirvana/References/Homo_sapiens.GRCh37.Nirvana.dat
+            hail.nirvana.cache = /path/to/nirvana/Cache/GRCh37/Ensembl84
+            hail.nirvana.supplementaryAnnotationDirectory = /path/to/nirvana/SupplementaryDatabase/GRCh37
         
         **Annotations**
 
