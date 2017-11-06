@@ -100,7 +100,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     }
   }
 
-  def addBoolean(v: Code[Boolean]): Code[Unit] = region.storeByte(currentOffset, v.toB)
+  def addBoolean(v: Code[Boolean]): Code[Unit] = region.storeByte(currentOffset, v.toI.toB)
 
   def addInt32(v: Code[Int]): Code[Unit] = region.storeInt32(currentOffset, v)
 
