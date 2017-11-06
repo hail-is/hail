@@ -42,7 +42,7 @@ object Children {
       Array(a, lam)
     case ArrayFold(a, zero, lam, typ) =>
       Array(a, zero, lam)
-    case MakeStruct(fields, missingness) =>
+    case MakeStruct(fields) =>
       fields.map(_._3)
     case GetField(o, name, typ) =>
       Array(o)

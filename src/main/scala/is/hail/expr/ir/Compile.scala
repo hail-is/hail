@@ -1,20 +1,14 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
-import is.hail.annotations.MemoryBuffer
-import is.hail.asm4s.FunctionBuilder.methodNodeToGrowable
+import is.hail.annotations.{MemoryBuffer, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr
-import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean}
-import is.hail.annotations.StagedRegionValueBuilder
-import scala.collection.generic.Growable
-
+import is.hail.expr.{TArray, TBoolean, TContainer, TFloat32, TFloat64, TInt32, TInt64, TStruct}
+import is.hail.utils._
 import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
 
-import scala.reflect.classTag
-import scala.reflect.ClassTag
+import scala.language.existentials
 
 object Compile {
   private def defaultValue(t: expr.Type): Code[_] = t match {
