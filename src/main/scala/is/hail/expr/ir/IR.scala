@@ -31,10 +31,6 @@ case class ApplyPrimitive(op: String, args: Array[IR], var typ: Type = null) ext
   override def toString(): String = s"ApplyPrimitive($op, ${args: IndexedSeq[IR]}, $typ)"
 }
 
-case class Lambda(names: Array[(String, Type)], body: IR, var typ: Type = null) extends IR {
-  override def toString(): String = s"Lambda(${names: IndexedSeq[(String, Type)]}, $body, $typ)"
-}
-
 case class MakeArray(args: Array[IR], var typ: TArray = null) extends IR {
   override def toString(): String = s"MakeArray(${args: IndexedSeq[IR]}, $typ)"
 }
@@ -42,8 +38,8 @@ case class MakeArrayN(len: IR, elementType: Type) extends IR { def typ: TArray =
 case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 case class ArrayMissingnessRef(a: IR, i: IR) extends IR { val typ: Type = TBoolean }
 case class ArrayLen(a: IR) extends IR { val typ = TInt32 }
-case class ArrayMap(a: IR, lam: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
-case class ArrayFold(a: IR, zero: IR, lam: IR, var typ: Type = null) extends IR
+case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
+case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR, var typ: Type = null) extends IR
 
 case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR {
   val typ: TStruct = TStruct(fields.map(x => x._1 -> x._2):_*)

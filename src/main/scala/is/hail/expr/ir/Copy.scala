@@ -34,9 +34,6 @@ object Copy {
       case ApplyPrimitive(op, args, typ) =>
         assert(args.length == children.length)
         ApplyPrimitive(op, children.toArray, typ)
-      case Lambda(names, _, typ) =>
-        val IndexedSeq(body) = children
-        Lambda(names, body, typ)
       case MakeArray(args, typ) =>
         assert(args.length == children.length)
         MakeArray(children.toArray, typ)
@@ -52,12 +49,12 @@ object Copy {
       case ArrayLen(_) =>
         val IndexedSeq(a) = children
         ArrayLen(a)
-      case ArrayMap(_, _, elementTyp) =>
-        val IndexedSeq(a, lam) = children
-        ArrayMap(a, lam, elementTyp)
-      case ArrayFold(_, _, _, typ) =>
-        val IndexedSeq(a, zero, lam) = children
-        ArrayFold(a, zero, lam, typ)
+      case ArrayMap(_, name, _, elementTyp) =>
+        val IndexedSeq(a, body) = children
+        ArrayMap(a, name, body, elementTyp)
+      case ArrayFold(_, _, accumName, valueName, _, typ) =>
+        val IndexedSeq(a, zero, body) = children
+        ArrayFold(a, zero, accumName, valueName, body, typ)
       case MakeStruct(fields) =>
         assert(fields.length == children.length)
         MakeStruct(fields.zip(children).map { case ((n, t, _), v) => (n, t, v) })

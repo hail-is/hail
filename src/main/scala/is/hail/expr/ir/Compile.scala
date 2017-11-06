@@ -107,8 +107,6 @@ object Compile {
         val (margs, vargs) = args.map(compile(_)).unzip
         val m = if (margs.isEmpty) const(false) else margs.reduce(_ || _)
         (m, Primitives.lookup(op, typs, vargs))
-      case expr.ir.Lambda(names, body, typ) =>
-        ???
 
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(fb, typ)
@@ -166,7 +164,7 @@ object Compile {
       case ArrayLen(a) =>
         val (ma, va) = compile(a)
         (ma, TContainer.loadLength(region, coerce[Long](va)))
-      case x@ArrayMap(a, Lambda(Array((name,_)), body, _), elementTyp) =>
+      case x@ArrayMap(a, name, body, elementTyp) =>
         val tin = a.typ.asInstanceOf[TArray]
         val tout = x.typ.asInstanceOf[TArray]
         val srvb = new StagedRegionValueBuilder(fb, tout)
@@ -218,9 +216,7 @@ object Compile {
 
           (xma, out.load())
         }
-      case ArrayMap(_, _, _) =>
-        throw new UnsupportedOperationException(s"bad arraymap $ir")
-      case ArrayFold(a, zero, Lambda(Array((name1, _), (name2, _)), body, _), typ) =>
+      case ArrayFold(a, zero, name1, name2, body, typ) =>
         val tarray = a.typ.asInstanceOf[TArray]
         assert(tarray != null, s"tarray is null! $ir")
         (typeToTypeInfo(typ), typeToTypeInfo(tarray.elementType)) match { case (tti: TypeInfo[t], uti: TypeInfo[u]) =>
@@ -272,8 +268,6 @@ object Compile {
             lmissing))
           (xmout, xvout)
         }
-      case ArrayFold(_,  _, _, _) =>
-        throw new UnsupportedOperationException(s"bad arrayfold $ir")
 
       case MakeStruct(fields) =>
         val t = TStruct(fields.map { case (name, t, _) => (name, t) }: _*)

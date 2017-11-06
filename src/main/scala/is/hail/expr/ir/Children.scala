@@ -24,8 +24,6 @@ object Children {
       none
     case ApplyPrimitive(op, args, typ) =>
       args
-    case Lambda(names, body, typ) =>
-      Array(body)
     case MakeArray(args, typ) =>
       args
     case MakeArrayN(len, elementType) =>
@@ -36,10 +34,10 @@ object Children {
       Array(a, i)
     case ArrayLen(a) =>
       Array(a)
-    case ArrayMap(a, lam, elementTyp) =>
-      Array(a, lam)
-    case ArrayFold(a, zero, lam, typ) =>
-      Array(a, zero, lam)
+    case ArrayMap(a, name, body, elementTyp) =>
+      Array(a, body)
+    case ArrayFold(a, zero, accumName, valueName, body, typ) =>
+      Array(a, zero, body)
     case MakeStruct(fields) =>
       fields.map(_._3)
     case GetField(o, name, typ) =>

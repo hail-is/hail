@@ -45,9 +45,6 @@ object Infer {
       case x@ApplyPrimitive(op, args, typ) =>
         args.map(infer(_))
         x.typ = Primitives.returnTyp(op, args.map(_.typ))
-      case x@Lambda(names, body, typ) =>
-        infer(body, env = env.bind(names:_*))
-        x.typ = TFunction(names map (_._2), body.typ)
       case x@MakeArray(args, _) =>
         args.map(infer(_))
         val t = args.head.typ
@@ -68,24 +65,17 @@ object Infer {
       case ArrayLen(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TArray])
-      case x@ArrayMap(a, lam, _) =>
+      case x@ArrayMap(a, name, body, _) =>
         infer(a)
         val tarray = a.typ.asInstanceOf[TArray]
-        infer(lam)
-        val tlam = lam.typ.asInstanceOf[TFunction]
-        val Seq(paramTyp) = tlam.paramTypes
-        assert(paramTyp == tarray.elementType)
-        x.elementTyp = tlam.returnType
-      case x@ArrayFold(a, zero, lam, _) =>
+        infer(body, env = env.bind(name, tarray.elementType))
+        x.elementTyp = body.typ
+      case x@ArrayFold(a, zero, accumName, valueName, body, _) =>
         infer(a)
         val tarray = a.typ.asInstanceOf[TArray]
         infer(zero)
-        infer(lam)
-        val tlam = lam.typ.asInstanceOf[TFunction]
-        val Seq(t1, t2) = tlam.paramTypes
-        assert(t1 == zero.typ)
-        assert(t1 == tlam.returnType)
-        assert(t2 == tarray.elementType)
+        infer(body, env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
+        assert(body.typ == zero.typ)
         x.typ = zero.typ
       case MakeStruct(fields) =>
         fields.map { case (_, typ, v) =>
