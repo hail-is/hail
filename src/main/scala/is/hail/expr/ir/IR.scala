@@ -5,9 +5,11 @@ import is.hail.expr.{BaseIR, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStru
 sealed trait IR extends BaseIR {
   def typ: Type
 
-  override def children: IndexedSeq[BaseIR] = ???
+  override def children: IndexedSeq[BaseIR] =
+    Children(this)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = ???
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
+    Copy(this, newChildren)
 }
 sealed case class I32(x: Int) extends IR { val typ = TInt32 }
 sealed case class I64(x: Long) extends IR { val typ = TInt64 }
