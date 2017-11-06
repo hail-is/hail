@@ -48,10 +48,4 @@ object Primitives {
 
   def returnTyp(name: String, paramTyps: Array[Type]): Type =
     primitives(name).f(paramTyps)._1
-
-  private case class LazyPrimitive(name: String, f: Array[IR] => Code[_], typ: Array[Type] => Type)
-  private val lazyPrimitives: mutable.Map[String, LazyPrimitive] = mutable.HashMap()
-  Array[LazyPrimitive](
-  ).foreach(x => lazyPrimitives += (x.name -> x))
-
 }
