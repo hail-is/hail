@@ -772,26 +772,8 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(gr.par[0], Interval.parse("X:60001-2699521"))
         self.assertEqual(gr.contig_length("1"), 249250621)
 
-        name = "test"
-        contigs = ["1", "X", "Y", "MT"]
-        lengths = {"1": 10000, "X": 2000, "Y": 4000, "MT": 1000}
-        x_contigs = ["X"]
-        y_contigs = ["Y"]
-        mt_contigs = ["MT"]
-        par = [Interval(Locus("X", 5), Locus("X", 1000))]
-
-        gr2 = GenomeReference(name, contigs, lengths, x_contigs, y_contigs, mt_contigs, par)
-        self.assertEqual(gr2.name, name)
-        self.assertListEqual(gr2.contigs, contigs)
-        self.assertListEqual(gr2.x_contigs, x_contigs)
-        self.assertListEqual(gr2.y_contigs, y_contigs)
-        self.assertListEqual(gr2.mt_contigs, mt_contigs)
-        self.assertEqual(gr2.par, par)
-        self.assertEqual(gr2.contig_length("1"), 10000)
-        self.assertDictEqual(gr2.lengths, lengths)
-
-        gr3 = GenomeReference.from_file("src/test/resources/fake_ref_genome.json")
-        self.assertEqual(gr3.name, "my_reference_genome")
+        gr2 = GenomeReference.from_file("src/test/resources/fake_ref_genome.json")
+        self.assertEqual(gr2.name, "my_reference_genome")
 
     def test_types(self):
         self.assertEqual(TInt32(), TInt32())

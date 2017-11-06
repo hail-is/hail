@@ -6,69 +6,7 @@ from hail.history import *
 
 
 class GenomeReference(HistoryMixin):
-    """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
-
-    :param str name: Name of reference. Must be unique and not one of Hail's predefined references "GRCh37" and "GRCh38".
-
-    :param contigs: Contig names.
-    :type contigs: list of str
-
-    :param lengths: Dict of contig names to contig lengths.
-    :type lengths: dict of str to int
-
-    :param x_contigs: Contigs to be treated as X chromosomes.
-    :type x_contigs: str or list of str
-
-    :param y_contigs: Contigs to be treated as Y chromosomes.
-    :type y_contigs: str or list of str
-
-    :param mt_contigs: Contigs to be treated as mitochondrial DNA.
-    :type mt_contigs: str or list of str
-
-    :param par: List of intervals representing pseudoautosomal regions.
-    :type par: list of :class:`.Interval`
-
-    >>> contigs = ["1", "X", "Y", "MT"]
-    >>> lengths = {"1": 249250621, "X": 155270560, "Y": 59373566, "MT": 16569}
-    >>> par = [Interval.parse("X:60001-2699521")]
-    >>> my_ref = GenomeReference("my_ref", contigs, lengths, "X", "Y", "MT", par)
-    """
-
-    @handle_py4j
-    @record_init
-    @typecheck_method(name=strlike,
-                      contigs=listof(strlike),
-                      lengths=dictof(strlike, integral),
-                      x_contigs=oneof(strlike, listof(strlike)),
-                      y_contigs=oneof(strlike, listof(strlike)),
-                      mt_contigs=oneof(strlike, listof(strlike)),
-                      par=listof(Interval))
-    def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
-        contigs = wrap_to_list(contigs)
-        x_contigs = wrap_to_list(x_contigs)
-        y_contigs = wrap_to_list(y_contigs)
-        mt_contigs = wrap_to_list(mt_contigs)
-        par_jrep = [interval._jrep for interval in par]
-
-        jrep = (Env.hail().variant.GenomeReference
-                .apply(name,
-                       contigs,
-                       lengths,
-                       x_contigs,
-                       y_contigs,
-                       mt_contigs,
-                       par_jrep))
-
-        self._init_from_java(jrep)
-        self._name = name
-        self._contigs = contigs
-        self._lengths = lengths
-        self._x_contigs = x_contigs
-        self._y_contigs = y_contigs
-        self._mt_contigs = mt_contigs
-        self._par = par
-
-        super(GenomeReference, self).__init__()
+    """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__."""
 
     @handle_py4j
     def __str__(self):
