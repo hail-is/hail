@@ -1128,7 +1128,7 @@ class KeyTable(object):
             raise TypeError("from_pandas: parameter 'df': expected pd.DataFrame, found %s: '%s'" %
                             type(arg), str(arg))
 
-        return KeyTable.from_dataframe(SQLContext(Env.hc()).createDataFrame(df))
+        return KeyTable.from_dataframe(SQLContext(Env.hc().sc).createDataFrame(df))
 
     @staticmethod
     @handle_py4j
