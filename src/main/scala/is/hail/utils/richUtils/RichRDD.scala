@@ -196,4 +196,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     
     itemCount
   }
+  
+  // FIXME: persist issues?
+  // returns index of first element in each partition and number of elements
+  // |P1| = 3, |P2| = 5, |P3| = 4 => [0, 3, 8, 12]
+  def computeBoundaries(): Array[Long] =
+    r.mapPartitions(it => Iterator(it.length), preservesPartitioning = true)
+      .collect()
+      .scanLeft(0L)(_ + _)
 }

@@ -687,3 +687,27 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
 }
 
 case class IntPartition(index: Int) extends Partition
+
+// FIXME: requires dense IRM, no missing rows
+// FIXME: start with function on IRM, then make directly on VSM?
+class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extends RDD[Int](irm.rows.sparkContext, Nil) {
+
+//  override def getDependencies: Seq[Dependency[_]] = {
+//    new NarrowDependency(irm.rows) {
+//      def getParents(partitionId: Int): Seq[Int] = {
+//          val row = _partitioner.blockRowIndex(partitionId)
+//          val deps = new Array[Int](nProducts)
+//          var j = 0
+//          while (j < nProducts) {
+//            deps(j) = lPartitioner.partitionIdFromBlockIndices(row, j)
+//            j += 1
+//          }
+//          deps
+//        }
+//    }
+//  }
+  
+  protected def getPartitions: Array[Partition] = ???
+  
+  def compute(split: Partition, context: TaskContext): Iterator[Int] = ???
+}
