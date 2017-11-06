@@ -117,11 +117,11 @@ object Compile {
         ???
       case expr.ir.Lambda(names, body, typ) =>
         ???
+
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(fb, typ)
         val addElement = srvb.addAnnotation(typ.elementType)
         val mvargs = args.map(compile(_))
-
         present(Code(
           srvb.start(args.length, init = true),
           Code(mvargs.map { case (m, v) =>
@@ -131,7 +131,6 @@ object Compile {
       case x@MakeArrayN(len, elementType) =>
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
         val (mlen, vlen) = compile(len)
-
         (mlen, mlen.mux(
           defaultValue(x.typ),
           Code(srvb.start(coerce[Int](vlen), init = true),
@@ -142,7 +141,6 @@ object Compile {
         val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
         val (ma, va) = compile(a)
         val (mi, vi) = compile(i)
-
         val xma = mb.newBit()
         val xa = fb.newLocal()(ati)
         val xi = fb.newLocal[Int]
@@ -162,8 +160,6 @@ object Compile {
         val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
         val (ma, va) = compile(a)
         val (mi, vi) = compile(i)
-
-
         val xma = mb.newBit()
         val xa = fb.newLocal()(ati)
         val xi = fb.newLocal[Int]
@@ -174,7 +170,6 @@ object Compile {
           xa := coerce[Long](xma.mux(defaultValue(tarray), va)),
           xmi := mi,
           xi := coerce[Int](xmi.mux(defaultValue(TInt32), vi))))
-
         present(xma || xmi || !tarray.isElementDefined(region, xa, xi))
       case ArrayLen(a) =>
         val (ma, va) = compile(a)
@@ -193,14 +188,11 @@ object Compile {
           val len = fb.newLocal[Int]("am_len")
           val out = fb.newLocal[Long]("am_out")
           val bodyenv = env.bind(name -> (eti, xmv, xvv))
-
           val lmissing = new LabelNode()
           val lnonmissing = new LabelNode()
-
           val ltop = new LabelNode()
           val lnext = new LabelNode()
           val lend = new LabelNode()
-
           val (ma, va) = compile(a)
           fb.emit(xma := ma)
           fb.emit(xvv := coerce[t](defaultValue(elementTyp)))
@@ -239,7 +231,6 @@ object Compile {
       case ArrayFold(a, zero, Lambda(Array((name1, _), (name2, _)), body, _), typ) =>
         val tarray = a.typ.asInstanceOf[TArray]
         assert(tarray != null, s"tarray is null! $ir")
-
         (typeToTypeInfo(typ), typeToTypeInfo(tarray.elementType)) match { case (tti: TypeInfo[t], uti: TypeInfo[u]) =>
           val xma = mb.newBit()
           val xa = fb.newLocal[Long]("af_array")
@@ -252,14 +243,11 @@ object Compile {
           val bodyenv = env.bind(
             name1 -> (tti, xmout, xvout.load()),
             name2 -> (uti, xmv, xvv.load()))
-
           val lmissing = new LabelNode()
           val lnonmissing = new LabelNode()
-
           val ltop = new LabelNode()
           val lnext = new LabelNode()
           val lend = new LabelNode()
-
           val (ma, va) = compile(a)
           fb.emit(xma := ma)
           fb.emit(xvout := coerce[t](defaultValue(typ)))
@@ -294,12 +282,12 @@ object Compile {
         }
       case ArrayFold(_,  _, _, _) =>
         throw new UnsupportedOperationException(s"bad arrayfold $ir")
+
       case MakeStruct(fields, missingness) =>
         assert(missingness != null, "run explicit missingness first")
         val t = TStruct(fields.map { case (name, t, _) => (name, t) }: _*)
         val initializers = fields.map { case (_, t, v) => (t, compile(v)) }
         val srvb = new StagedRegionValueBuilder(fb, t)
-
         present(Code(
           srvb.start(false),
           Code(initializers.map { case (t, (mv, vv)) =>
@@ -326,8 +314,7 @@ object Compile {
         fb.emit(xmo := mo)
         fb.emit(xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
         (xmo, !t.isFieldDefined(region, xo, fieldIdx))
-      case Seq(stmts, typ) =>
-        ???
+
       case In(i, typ) =>
         (fb.getArg[Boolean](i*2 + 3), fb.getArg(i*2 + 2)(typeToTypeInfo(typ)))
       case InMissingness(i) =>

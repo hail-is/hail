@@ -75,7 +75,7 @@ object Infer {
         val tarray = a.typ.asInstanceOf[TArray]
         infer(lam)
         val tlam = lam.typ.asInstanceOf[TFunction]
-        val scala.collection.Seq(paramTyp) = tlam.paramTypes
+        val Seq(paramTyp) = tlam.paramTypes
         assert(paramTyp == tarray.elementType)
         x.elementTyp = tlam.returnType
       case x@ArrayFold(a, zero, lam, _) =>
@@ -84,7 +84,7 @@ object Infer {
         infer(zero)
         infer(lam)
         val tlam = lam.typ.asInstanceOf[TFunction]
-        val scala.collection.Seq(t1, t2) = tlam.paramTypes
+        val Seq(t1, t2) = tlam.paramTypes
         assert(t1 == zero.typ)
         assert(t1 == tlam.returnType)
         assert(t2 == tarray.elementType)
@@ -103,9 +103,6 @@ object Infer {
         infer(o)
         val t = o.typ.asInstanceOf[TStruct]
         assert(t.index(name).nonEmpty)
-      case x@Seq(stmts, _) =>
-        stmts.foreach(infer(_))
-        x.typ = if (stmts.isEmpty) TVoid else stmts.last.typ
       case In(i, typ) =>
         assert(typ != null)
       case InMissingness(i) =>

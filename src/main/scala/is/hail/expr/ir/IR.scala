@@ -58,10 +58,6 @@ sealed case class MakeStruct(fields: Array[(String, Type, IR)], missingness: Arr
 sealed case class GetField(o: IR, name: String, var typ: Type = null) extends IR
 sealed case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean }
 
-sealed case class Seq(stmts: Array[IR], var typ: Type = null) extends IR {
-  override def toString(): String = s"Seq(${stmts: IndexedSeq[IR]}, typ)"
-}
-
 sealed case class In(i: Int, val typ: Type) extends IR
 sealed case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean }
 sealed case class Out(v: IR) extends IR { val typ = TVoid }
