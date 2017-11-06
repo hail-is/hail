@@ -100,6 +100,8 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     }
   }
 
+  def addBoolean(v: Code[Boolean]): Code[Unit] = region.storeByte(currentOffset, v.toB)
+
   def addInt32(v: Code[Int]): Code[Unit] = region.storeInt32(currentOffset, v)
 
   def addInt64(v: Code[Long]): Code[Unit] = region.storeInt64(currentOffset, v)
@@ -128,7 +130,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   def addStruct(t: TStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
 
   def addAnnotation(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
-    case TBoolean => v => addInt32(v.asInstanceOf[Code[Int]])
+    case TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
     case TInt32 => v => addInt32(v.asInstanceOf[Code[Int]])
     case TInt64 => v => addInt64(v.asInstanceOf[Code[Long]])
     case TFloat32 => v => addFloat32(v.asInstanceOf[Code[Float]])
