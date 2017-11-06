@@ -1110,12 +1110,12 @@ class KeyTable(object):
     @staticmethod
     @handle_py4j
     @typecheck(df=anytype)
-    def from_pandas(cls, df):
+    def from_pandas(df):
         """Convert Pandas DataFrame to key table.
 
         **Examples**
 
-        >>> KeyTable.from_pandas(KeyTable.range(10).to_pandas()).query('index.take(10)') # doctest: +SKIP
+        >>> KeyTable.from_pandas(KeyTable.range(10).to_pandas()).query('index.take(10)')
 
         :param df: Pandas DataFrame.
         :type df: ``DataFrame``
