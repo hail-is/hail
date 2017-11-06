@@ -76,7 +76,7 @@ class StagedBitSetSuite extends TestNGSuite {
 
   @Test
   def testSetBitFromBit2() {
-    assert(!withTwoBits((x, y) =>
+    assert(withTwoBits((x, y) =>
       Code(x := true, y := false, y := x, y)))
   }
 
@@ -92,9 +92,9 @@ class StagedBitSetSuite extends TestNGSuite {
       val b = withNBits(66) { bits =>
         Code(
           Code(bits.zipWithIndex.map { case (b,i) => b := const(i % 3 == 0) }:_*),
-          bits(65))
+          bits(i))
       }
-      assert(b == (i % 3 == 0))
+      assert(b == (i % 3 == 0), s"at position $i, $b was not ${(i % 3 == 0)}")
     }
   }
 
