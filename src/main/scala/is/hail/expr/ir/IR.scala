@@ -2,10 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.expr.{BaseIR, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type, TArray}
 
-object IR {
-  def seq(stmts: IR*)  = new Seq(stmts.toArray)
-}
-
 sealed trait IR extends BaseIR {
   def typ: Type
 
