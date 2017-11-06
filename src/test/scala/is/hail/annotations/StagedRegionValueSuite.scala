@@ -382,68 +382,34 @@ class StagedRegionValueSuite extends SparkSuite {
   }
 
   @Test
-  def testAddAnnotationInt() {
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Int, Long]
-    val srvb = new StagedRegionValueBuilder(fb, TInt32)
+  def testAddAnnotation() {
+    val t = TStruct("a" -> TInt32, "b" -> TBoolean, "c" -> TFloat64)
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Int, Boolean, Double, Long]
+    val srvb = new StagedRegionValueBuilder(fb, t)
 
     fb.emit(
       Code(
         srvb.start(),
         srvb.addPrimitive(TInt32)(fb.getArg[Int](2)),
+        srvb.advance(),
+        srvb.addPrimitive(TBoolean)(fb.getArg[Boolean](3)),
+        srvb.advance(),
+        srvb.addPrimitive(TFloat64)(fb.getArg[Double](4)),
+        srvb.advance(),
         srvb.returnStart()
       )
     )
 
     val region = MemoryBuffer()
     val f = fb.result()()
-    def run(x: Int): Int =
-      region.loadInt(f(region, x))
+    def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
+      val off = f(region, i, b, d)
+      (region.loadInt(t.loadField(region, off, 0)),
+        region.loadBoolean(t.loadField(region, off, 1)),
+        region.loadDouble(t.loadField(region, off, 2)))
+    }
 
-    assert(run(3) === 3)
-    assert(run(42) === 42)
-  }
-
-  @Test
-  def testAddAnnotationBoolean() {
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Boolean, Long]
-    val srvb = new StagedRegionValueBuilder(fb, TBoolean)
-
-    fb.emit(
-      Code(
-        srvb.start(),
-        srvb.addPrimitive(TBoolean)(fb.getArg[Boolean](2)),
-        srvb.returnStart()
-      )
-    )
-
-    val region = MemoryBuffer()
-    val f = fb.result()()
-    def run(b: Boolean): Boolean =
-      region.loadInt(f(region, b)) != 0
-
-    assert(run(true) === true)
-    assert(run(false) === false)
-  }
-
-  @Test
-  def testAddAnnotationDouble() {
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Double, Long]
-    val srvb = new StagedRegionValueBuilder(fb, TBoolean)
-
-    fb.emit(
-      Code(
-        srvb.start(),
-        srvb.addPrimitive(TFloat64)(fb.getArg[Double](2)),
-        srvb.returnStart()
-      )
-    )
-
-    val region = MemoryBuffer()
-    val f = fb.result()()
-    def run(d: Double): Double =
-      region.loadDouble(f(region, d))
-
-    assert(run(3.1) === 3.1)
-    assert(run(Double.MinPositiveValue) === Double.MinPositiveValue)
+    assert(run(3, true, 42.0) == (3, true, 42.0))
+    assert(run(42, false, -1.0) == (42, false, -1.0))
   }
 }

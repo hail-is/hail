@@ -45,6 +45,9 @@ object FunctionBuilder {
   def functionBuilder[A: TypeInfo, B: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction2[A, B, R]] =
     new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
 
+  def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction4[A, B, C, D, R]] =
+    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R])
+
   private implicit def methodNodeToGrowable(mn: MethodNode): Growable[AbstractInsnNode] = new Growable[AbstractInsnNode] {
     def +=(e: AbstractInsnNode) = { mn.instructions.add(e); this }
     def clear() { throw new UnsupportedOperationException() }
