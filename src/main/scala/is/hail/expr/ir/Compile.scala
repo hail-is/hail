@@ -283,8 +283,7 @@ object Compile {
       case ArrayFold(_,  _, _, _) =>
         throw new UnsupportedOperationException(s"bad arrayfold $ir")
 
-      case MakeStruct(fields, missingness) =>
-        assert(missingness != null, "run explicit missingness first")
+      case MakeStruct(fields) =>
         val t = TStruct(fields.map { case (name, t, _) => (name, t) }: _*)
         val initializers = fields.map { case (_, t, v) => (t, compile(v)) }
         val srvb = new StagedRegionValueBuilder(fb, t)

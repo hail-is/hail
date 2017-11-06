@@ -89,7 +89,7 @@ object Infer {
         assert(t1 == tlam.returnType)
         assert(t2 == tarray.elementType)
         x.typ = zero.typ
-      case MakeStruct(fields, _) =>
+      case MakeStruct(fields) =>
         fields.map { case (_, typ, v) =>
           infer(v)
           assert(typ == v.typ)

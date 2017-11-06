@@ -46,10 +46,10 @@ sealed case class ArrayLen(a: IR) extends IR { val typ = TInt32 }
 sealed case class ArrayMap(a: IR, lam: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
 sealed case class ArrayFold(a: IR, zero: IR, lam: IR, var typ: Type = null) extends IR
 
-sealed case class MakeStruct(fields: Array[(String, Type, IR)], missingness: Array[IR] = null) extends IR {
+sealed case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR {
   val typ: TStruct = TStruct(fields.map(x => x._1 -> x._2):_*)
   override def toString(): String =
-    s"MakeStruct(${fields: IndexedSeq[(String, Type, IR)]}, ${missingness: IndexedSeq[IR]})"
+    s"MakeStruct(${fields: IndexedSeq[(String, Type, IR)]})"
 }
 sealed case class GetField(o: IR, name: String, var typ: Type = null) extends IR
 sealed case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean }
