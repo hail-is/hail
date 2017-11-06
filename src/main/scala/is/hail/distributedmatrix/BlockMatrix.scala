@@ -692,22 +692,37 @@ case class IntPartition(index: Int) extends Partition
 // FIXME: start with function on IRM, then make directly on VSM?
 class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extends RDD[Int](irm.rows.sparkContext, Nil) {
 
-//  override def getDependencies: Seq[Dependency[_]] = {
-//    new NarrowDependency(irm.rows) {
-//      def getParents(partitionId: Int): Seq[Int] = {
-//          val row = _partitioner.blockRowIndex(partitionId)
-//          val deps = new Array[Int](nProducts)
-//          var j = 0
-//          while (j < nProducts) {
-//            deps(j) = lPartitioner.partitionIdFromBlockIndices(row, j)
-//            j += 1
-//          }
-//          deps
-//        }
-//    }
-//  }
+  private val nPartitions: Int = ((irm.numRows() - 1) / blockSize + 1).toInt
+  private val boundaries: Array[Long] = irm.rows.computeBoundaries()
   
-  protected def getPartitions: Array[Partition] = ???
+  private val allDependencies: Array[Array[Int]] = {
+    val deps = Array.ofDim[Array[Int]](nPartitions)
+    var lower = 0L
+    var upper = 0L
+    var i = 0
+    var j = 0
+    while (i < nPartitions) {
+      lower = upper
+      upper += blockSize
+      
+      // create of Array of j such that [boundaries(j), boundaries(j + 1)) intersects [lower, upper)
+      
+      i += 1
+    }
+    
+    deps
+  }
+  
+  override def getDependencies: Seq[Dependency[_]] = {  
+    Array[Dependency[_]](
+      new NarrowDependency(irm.rows) {
+        def getParents(partitionId: Int): Seq[Int] = allDependencies(partitionId)
+      }
+    )
+  }
+  
+  protected def getPartitions: Array[Partition] =
+    (0 until nPartitions).map(IntPartition).toArray[Partition]
   
   def compute(split: Partition, context: TaskContext): Iterator[Int] = ???
 }
