@@ -26,7 +26,7 @@ class SettableBit(bits: LocalRef[Long], i: Int) extends Code[Boolean] with Setta
   assert(i < 64)
 
   def store(b: Code[Boolean]): Code[Unit] = {
-    bits := bits & ~(1L << i) | (b.toL << i)
+    bits := bits & ~(1L << i) | (b.toI.toL << i)
   }
 
   def emit(il: Growable[AbstractInsnNode]): Unit = {
