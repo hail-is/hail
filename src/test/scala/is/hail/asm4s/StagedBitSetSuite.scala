@@ -25,6 +25,14 @@ class StagedBitSetSuite extends TestNGSuite {
     fb.result()()()
   }
 
+  def withNBits(n: Int)(f: Array[SettableBit] => Code[Boolean]): Boolean = {
+    val fb = functionBuilder[Boolean]
+    val bs = new StagedBitSet(fb)
+    val x = Array.tabulate(n)(i => bs.newBit())
+    fb.emit(f(x))
+    fb.result()()()
+  }
+
   @Test
   def testSetOneBit() {
     assert(withOneBit(x => Code(x := true, x)))
@@ -76,5 +84,41 @@ class StagedBitSetSuite extends TestNGSuite {
   def testSetBitFromBit3() {
     assert(withTwoBits((x, y) =>
       Code(x := true, y := false, y := x, x)))
+  }
+
+  @Test
+  def moreThan64Bits() {
+    for (i <- 0 until 66) {
+      val b = withNBits(66) { bits =>
+        Code(
+          Code(bits.zipWithIndex.map { case (b,i) => b := const(i % 3 == 0) }:_*),
+          bits(65))
+      }
+      assert(b == (i % 3 == 0))
+    }
+  }
+
+  @Test
+  def moreThan64Bits2() {
+    def gadget(ret: Array[SettableBit] => Code[Boolean]) = withNBits(66) { bits =>
+      val b63 = bits(63)
+      val b64 = bits(64)
+      val b65 = bits(65)
+      Code(
+        b65 := false,
+        b63 := true,
+        b64 := false,
+        b65 := true,
+        ret(bits))
+    }
+
+    assert(!gadget(_(64)))
+    assert(gadget(_(65)))
+    assert(gadget(_(63)))
+    assert(gadget(!_(64)))
+    assert(!gadget(!_(65)))
+    assert(!gadget(!_(63)))
+    assert(!gadget(bs => bs(63) && bs(64)))
+    assert(gadget(bs => bs(63) && !bs(64)))
   }
 }
