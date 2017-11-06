@@ -585,7 +585,7 @@ class BlockMatrixSuite extends SparkSuite {
     assert(mt.t.map2WithIndex(m.t.t, (i,j,x,y) => 3 * x + 5 * y + i * 2 + j + 1).toLocalMatrix() ===
       9.0 * lm)
   }
-
+  
   @Test
   def writeBlocksRDD() {
     // FIXME: duplicates matrix in RichIRMSuite
@@ -602,7 +602,7 @@ class BlockMatrixSuite extends SparkSuite {
       (7L, Vectors.dense(4.0, 5.0, 6.0, 1.0, 1.0, 1.0)),
       (8L, Vectors.dense(7.0, 8.0, 9.0, 1.0, 1.0, 1.0))
     ).map(IndexedRow.tupled)
-    `
+    
     val indexedRows: RDD[IndexedRow] = sc.parallelize(data, numSlices = 4)
 
     val irm = new IndexedRowMatrix(indexedRows, rows, cols)
@@ -612,9 +612,6 @@ class BlockMatrixSuite extends SparkSuite {
     
     assert(b.last == rows) // will catch missing rows
     
-    def dependencies(blockRow: Int) = ???
-
     // val blockMat = irm.toHailBlockMatrix(2)
-    }
   }
 }
