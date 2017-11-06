@@ -8,6 +8,9 @@ import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.utils._
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
 class BlockMatrixSuite extends SparkSuite {
@@ -583,4 +586,35 @@ class BlockMatrixSuite extends SparkSuite {
       9.0 * lm)
   }
 
+  @Test
+  def writeBlocksRDD() {
+    // FIXME: duplicates matrix in RichIRMSuite
+    val rows = 9L
+    val cols = 6
+    val data = Seq(
+      (0L, Vectors.dense(0.0, 1.0, 2.0, 1.0, 3.0, 4.0)),
+      (1L, Vectors.dense(3.0, 4.0, 5.0, 1.0, 1.0, 1.0)),
+      (2L, Vectors.dense(9.0, 0.0, 2.0, 1.0, 1.0, 1.0)),
+      (3L, Vectors.dense(9.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
+      (4L, Vectors.dense(9.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
+      (5L, Vectors.dense(9.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
+      (6L, Vectors.dense(1.0, 2.0, 3.0, 1.0, 1.0, 1.0)),
+      (7L, Vectors.dense(4.0, 5.0, 6.0, 1.0, 1.0, 1.0)),
+      (8L, Vectors.dense(7.0, 8.0, 9.0, 1.0, 1.0, 1.0))
+    ).map(IndexedRow.tupled)
+    `
+    val indexedRows: RDD[IndexedRow] = sc.parallelize(data, numSlices = 4)
+
+    val irm = new IndexedRowMatrix(indexedRows, rows, cols)
+    
+    val b = indexedRows.computeBoundaries()
+    println(b.toIndexedSeq)
+    
+    assert(b.last == rows) // will catch missing rows
+    
+    def dependencies(blockRow: Int) = ???
+
+    // val blockMat = irm.toHailBlockMatrix(2)
+    }
+  }
 }
