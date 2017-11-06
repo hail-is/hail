@@ -22,15 +22,6 @@ object Primitives {
       case Array(TInt64, TInt64)     => TInt64   -> { case Array(x, y) => l(x.asInstanceOf[Code[Long]], y.asInstanceOf[Code[Long]]) }
       case Array(TFloat32, TFloat32) => TFloat32 -> { case Array(x, y) => f(x.asInstanceOf[Code[Float]], y.asInstanceOf[Code[Float]]) }
       case Array(TFloat64, TFloat64) => TFloat64 -> { case Array(x, y) => d(x.asInstanceOf[Code[Double]], y.asInstanceOf[Code[Double]]) }
-
-      case Array(TInt32, TInt64)     => TInt64   -> { case Array(x, y) => l(x.asInstanceOf[Code[Int]].toL, y.asInstanceOf[Code[Long]]) }
-      case Array(TInt64, TInt32)     => TInt64   -> { case Array(x, y) => l(x.asInstanceOf[Code[Long]], y.asInstanceOf[Code[Int]].toL) }
-      case Array(TFloat32, TFloat64) => TFloat64 -> { case Array(x, y) => d(x.asInstanceOf[Code[Float]].toD, y.asInstanceOf[Code[Double]]) }
-      case Array(TFloat64, TFloat32) => TFloat64 -> { case Array(x, y) => d(x.asInstanceOf[Code[Double]], y.asInstanceOf[Code[Float]].toD) }
-      case Array(TInt32, TFloat64)   => TFloat64 -> { case Array(x, y) => d(x.asInstanceOf[Code[Int]].toD, y.asInstanceOf[Code[Double]]) }
-      case Array(TFloat64, TInt32)   => TFloat64 -> { case Array(x, y) => d(x.asInstanceOf[Code[Double]], y.asInstanceOf[Code[Int]].toD) }
-      case Array(TInt64, TFloat64)   => TFloat64 -> { case Array(x, y) => d(x.asInstanceOf[Code[Long]].toD, y.asInstanceOf[Code[Double]]) }
-      case Array(TFloat64, TInt64)   => TFloat64 -> { case Array(x, y) => d(x.asInstanceOf[Code[Double]], y.asInstanceOf[Code[Long]].toD) }
       case x => throw new RuntimeException(s"boom ${x.toSeq}") })
   Array[Primitive](
     numeric("+", _ + _, _ + _, _ + _, _ + _),

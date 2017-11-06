@@ -19,6 +19,10 @@ object Infer {
       case True() =>
       case False() =>
 
+      case Cast(v, typ) =>
+        infer(v)
+        assert(Casts.valid(v.typ, typ))
+
       case NA(t) =>
       case x@MapNA(name, value, body, _) =>
         infer(value)

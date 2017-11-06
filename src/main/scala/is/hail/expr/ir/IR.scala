@@ -18,6 +18,8 @@ case class F64(x: Double) extends IR { val typ = TFloat64 }
 case class True() extends IR { val typ = TBoolean }
 case class False() extends IR { val typ = TBoolean }
 
+case class Cast(v: IR, typ: Type) extends IR
+
 case class NA(typ: Type) extends IR
 case class MapNA(name: String, value: IR, body: IR, var typ: Type = null) extends IR
 case class IsNA(value: IR) extends IR { val typ = TBoolean }

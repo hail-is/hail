@@ -60,6 +60,11 @@ object Compile {
       case False() =>
         present(const(false))
 
+      case Cast(v, typ) =>
+        val (mv, vv) = compile(v)
+        val cast = Casts.get(v.typ, typ)
+        (mv, mv.mux(defaultValue(typ), cast(vv)))
+
       case NA(typ) =>
         (const(true), defaultValue(typ))
       case IsNA(v) =>
