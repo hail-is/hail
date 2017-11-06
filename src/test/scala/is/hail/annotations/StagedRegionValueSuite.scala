@@ -389,7 +389,7 @@ class StagedRegionValueSuite extends SparkSuite {
     fb.emit(
       Code(
         srvb.start(),
-        srvb.addAnnotation(TInt32)(fb.getArg[Int](2)),
+        srvb.addPrimitive(TInt32)(fb.getArg[Int](2)),
         srvb.returnStart()
       )
     )
@@ -411,7 +411,7 @@ class StagedRegionValueSuite extends SparkSuite {
     fb.emit(
       Code(
         srvb.start(),
-        srvb.addAnnotation(TBoolean)(fb.getArg[Boolean](2)),
+        srvb.addPrimitive(TBoolean)(fb.getArg[Boolean](2)),
         srvb.returnStart()
       )
     )
@@ -433,7 +433,7 @@ class StagedRegionValueSuite extends SparkSuite {
     fb.emit(
       Code(
         srvb.start(),
-        srvb.addAnnotation(TFloat64)(fb.getArg[Double](2)),
+        srvb.addPrimitive(TFloat64)(fb.getArg[Double](2)),
         srvb.returnStart()
       )
     )
