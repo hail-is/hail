@@ -114,7 +114,7 @@ object Compile {
 
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(fb, typ)
-        val addElement = srvb.addAnnotation(typ.elementType)
+        val addElement = srvb.addPrimitive(typ.elementType)
         val mvargs = args.map(compile(_))
         present(Code(
           srvb.start(args.length, init = true),
@@ -172,7 +172,7 @@ object Compile {
         val tin = a.typ.asInstanceOf[TArray]
         val tout = x.typ.asInstanceOf[TArray]
         val srvb = new StagedRegionValueBuilder(fb, tout)
-        val addElement = srvb.addAnnotation(tout.elementType)
+        val addElement = srvb.addPrimitive(tout.elementType)
         typeToTypeInfo(elementTyp) match { case eti: TypeInfo[t] =>
           val xma = mb.newBit()
           val xa = fb.newLocal[Long]("am_a")
@@ -285,7 +285,7 @@ object Compile {
           srvb.start(false),
           Code(initializers.map { case (t, (mv, vv)) =>
             Code(
-              mv.mux(srvb.setMissing(), srvb.addAnnotation(t)(vv)),
+              mv.mux(srvb.setMissing(), srvb.addPrimitive(t)(vv)),
               srvb.advance()) }: _*),
           srvb.offset))
       case GetField(o, name, _) =>
