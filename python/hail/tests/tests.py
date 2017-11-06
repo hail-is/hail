@@ -790,6 +790,9 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(gr2.contig_length("1"), 10000)
         self.assertDictEqual(gr2.lengths, lengths)
 
+        gr3 = GenomeReference.from_file("src/test/resources/fake_ref_genome.json")
+        self.assertEqual(gr3.name, "my_reference_genome")
+
     def test_types(self):
         self.assertEqual(TInt32(), TInt32())
         self.assertEqual(TFloat64(), TFloat64())

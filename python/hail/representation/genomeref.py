@@ -8,7 +8,7 @@ from hail.history import *
 class GenomeReference(HistoryMixin):
     """An object that represents a `reference genome <https://en.wikipedia.org/wiki/Reference_genome>`__.
 
-    :param str name: Name of reference.
+    :param str name: Name of reference. Must be unique and not one of Hail's predefined references "GRCh37" and "GRCh38".
 
     :param contigs: Contig names.
     :type contigs: list of str
@@ -184,6 +184,46 @@ class GenomeReference(HistoryMixin):
         :rtype: :class:`.GenomeReference`
         """
         return GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh38())
+
+    @classmethod
+    @record_classmethod
+    @handle_py4j
+    @typecheck_method(file=strlike)
+    def from_file(cls, file):
+        """Load reference genome from a JSON file.
+
+        The JSON file must have the following format:
+
+        .. code-block:: text
+
+            {"name": "my_reference_genome",
+             "source": "/my/source",
+             "contigs": [{"name": "1", "length": 10000000},
+                         {"name": "2", "length": 20000000},
+                         {"name": "X", "length": 19856300},
+                         {"name": "Y", "length": 78140000},
+                         {"name": "MT", "length": 532}],
+             "xContigs": ["X"],
+             "yContigs": ["Y"],
+             "mtContigs": ["MT"],
+             "par": [{"start": {"contig": "X","position": 60001},"end": {"contig": "X","position": 2699521}},
+                     {"start": {"contig": "Y","position": 10001},"end": {"contig": "Y","position": 2649521}}]
+            }
+
+        **Notes**
+
+        `name` must be unique and not overlap with Hail's pre-instantiated references: "GRCh37" and "GRCh38". `source` is
+        intended to be a string representing the source of the JSON file contents.
+        The contig names in `xContigs`, `yContigs`, and `mtContigs` must be present in `contigs`. The intervals listed in
+        `par` must have contigs in either `xContigs` or `yContigs` and have positions between 0 and the contig length given
+        in `contigs`.
+
+        :param file: Path to JSON file.
+        :type file: str
+
+        :rtype: :class:`.GenomeReference`
+        """
+        return GenomeReference._from_java(Env.hail().variant.GenomeReference.fromFile(Env.hc()._jhc, file))
 
     @handle_py4j
     def _init_from_java(self, jrep):

@@ -44,6 +44,12 @@ class HailContext(HistoryMixin):
                     of the environment variable TMPDIR, unless TMPDIR is unset,
                     in which case use '/tmp'.
 
+    :param default_reference: Default reference genome to use. Can be set to "GRCh37" for
+                             :py:meth:`.GenomeReference.GRCh37`, "GRCh38" for :py:meth:`.GenomeReference.GRCh38`,
+                             or the path to a JSON file for constructing a reference genome as described in
+                             :py:meth:`.GenomeReference.from_file`.
+    :type default_reference: str
+
     :ivar sc: Spark context
     :vartype sc: :class:`.pyspark.SparkContext`
 
@@ -59,10 +65,12 @@ class HailContext(HistoryMixin):
                       append=bool,
                       min_block_size=integral,
                       branching_factor=integral,
-                      tmp_dir=nullable(strlike))
+                      tmp_dir=nullable(strlike),
+                      default_reference=strlike)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
-                 min_block_size=1, branching_factor=50, tmp_dir=None):
+                 min_block_size=1, branching_factor=50, tmp_dir=None,
+                 default_reference="GRCh37"):
 
         if Env._hc:
             raise FatalError('Hail Context has already been created, restart session '
@@ -94,11 +102,14 @@ class HailContext(HistoryMixin):
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
         self._counter = 1
-        self._default_ref = None
+
         super(HailContext, self).__init__()
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
+
+        self._default_ref = None
+        Env.hail().variant.GenomeReference.setDefaultReference(self._jhc, default_reference)
 
         sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
         if self._jsc.uiWebUrl().isDefined():
@@ -153,27 +164,12 @@ class HailContext(HistoryMixin):
     def default_reference(self):
         """Return the default reference genome.
 
-        The default reference genome is set to :py:meth:`hail.GenomeReference.GRCh37`,
-        but can be changed to a different reference with :py:meth:`~hail.HailContext.set_default_reference`.
-
         :rtype: :class:`.GenomeReference`
         """
 
         if not self._default_ref:
             self._default_ref = GenomeReference._from_java(Env.hail().variant.GenomeReference.defaultReference())
         return self._default_ref
-
-    @handle_py4j
-    @typecheck_method(reference_genome=GenomeReference)
-    def set_default_reference(self, reference_genome):
-        """Set the default reference genome.
-
-        :param reference_genome: Reference genome to set as default.
-        :type reference_genome: :class:`.GenomeReference`
-        """
-
-        self._default_ref = reference_genome
-        Env.hail().variant.GenomeReference.setDefaultReference(reference_genome._jrep)
 
     @handle_py4j
     @typecheck_method(regex=strlike,

@@ -1,5 +1,7 @@
 package is.hail.variant
 
+import java.io.FileNotFoundException
+
 import is.hail.expr.{TInterval, TLocus, TStruct, TVariant}
 import is.hail.keytable.KeyTable
 import is.hail.utils.Interval
@@ -10,6 +12,7 @@ import org.testng.annotations.Test
 class GenomeReferenceSuite extends SparkSuite {
   @Test def testGRCh37() {
     val grch37 = GenomeReference.GRCh37
+    assert(GenomeReference.hasReference("GRCh37"))
 
     assert(grch37.inX("X") && grch37.inY("Y") && grch37.isMitochondrial("MT"))
     assert(grch37.contigLength("1") == 249250621)
@@ -25,6 +28,7 @@ class GenomeReferenceSuite extends SparkSuite {
 
   @Test def testGRCh38() {
     val grch38 = GenomeReference.GRCh38
+    assert(GenomeReference.hasReference("GRCh38"))
 
     assert(grch38.inX("chrX") && grch38.inY("chrY") && grch38.isMitochondrial("chrM"))
     assert(grch38.contigLength("chr1") == 248956422)
@@ -91,6 +95,17 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(vas.field("v").typ == TVariant(gr))
     assert(vas.field("l").typ == TLocus(gr))
     assert(vas.field("i").typ == TInterval(gr))
+  }
+
+  @Test def testDefaultReference() {
+    GenomeReference.setDefaultReference(hc, "GRCh38")
+    assert(GenomeReference.defaultReference.name == "GRCh38")
+
+    GenomeReference.setDefaultReference(hc, "src/test/resources/fake_ref_genome.json")
+    assert(GenomeReference.defaultReference.name == "my_reference_genome")
+
+    TestUtils.interceptFatal("Cannot add reference genome. Reference genome `GRCh38' already exists.")(GenomeReference.setDefaultReference(hc, "src/main/resources/reference/grch38.json"))
+    intercept[FileNotFoundException](GenomeReference.setDefaultReference(hc, "grch38.json"))
   }
 
   @Test def testFuncReg() {
