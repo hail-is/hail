@@ -313,6 +313,8 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
+  def unary_-(): Code[Int] = Code(lhs, new InsnNode(INEG))
+
   def +(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IADD))
 
   def -(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(ISUB))
@@ -347,8 +349,6 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def cne(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPNE, rhs)
 
-  def negate(): Code[Int] = Code(lhs, new InsnNode(INEG))
-
   def toI: Code[Int] = lhs
 
   def toL: Code[Long] = Code(lhs, new InsnNode(I2L))
@@ -364,6 +364,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 }
 
 class CodeLong(val lhs: Code[Long]) extends AnyVal {
+  def unary_-(): Code[Long] = Code(lhs, new InsnNode(LNEG))
+
   def +(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LADD))
 
   def -(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LSUB))
@@ -406,6 +408,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 }
 
 class CodeFloat(val lhs: Code[Float]) extends AnyVal {
+  def unary_-(): Code[Float] = Code(lhs, new InsnNode(FNEG))
+
   def +(rhs: Code[Float]): Code[Float] = Code(lhs, rhs, new InsnNode(FADD))
 
   def -(rhs: Code[Float]): Code[Float] = Code(lhs, rhs, new InsnNode(FSUB))
@@ -436,6 +440,8 @@ class CodeFloat(val lhs: Code[Float]) extends AnyVal {
 }
 
 class CodeDouble(val lhs: Code[Double]) extends AnyVal {
+  def unary_-(): Code[Double] = Code(lhs, new InsnNode(DNEG))
+
   def +(rhs: Code[Double]): Code[Double] = Code(lhs, rhs, new InsnNode(DADD))
 
   def -(rhs: Code[Double]): Code[Double] = Code(lhs, rhs, new InsnNode(DSUB))
