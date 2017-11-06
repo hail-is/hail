@@ -39,7 +39,6 @@ object Compile {
   }
 
   private def present(x: Code[_]) = (const(false), x)
-  private def coerce[T](x: Code[_]): Code[T] = x.asInstanceOf[Code[T]]
   private def tcoerce[T <: expr.Type](x: expr.Type): T = x.asInstanceOf[T]
 
   def compile(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Boolean], Code[_]) = {
@@ -107,11 +106,15 @@ object Compile {
         assert(t == ti, s"$name type annotation, $typ, doesn't match typeinfo: $ti")
         (m, v)
 
-      case ApplyPrimitive(op, args, typ) =>
-        val typs = args.map(_.typ)
-        val (margs, vargs) = args.map(compile(_)).unzip
-        val m = if (margs.isEmpty) const(false) else margs.reduce(_ || _)
-        (m, Primitives.lookup(op, typs, vargs))
+      case ApplyBinaryPrimOp(op, l, r, typ) =>
+        val (ml, vl) = compile(l)
+        val (mr, vr) = compile(r)
+        val na = defaultValue(typ)
+        (ml || mr, (ml || mr).mux(na, BinaryOp.compile(op, l.typ, r.typ, vl, vr)))
+      case ApplyUnaryPrimOp(op, x, typ) =>
+        val (mx, vx) = compile(x)
+        val na = defaultValue(typ)
+        (mx, mx.mux(na, UnaryOp.compile(op, x.typ, vx)))
 
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(fb, typ)

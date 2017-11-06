@@ -44,11 +44,10 @@ class CompileSuite {
   def mean() {
     val meanIr =
       Let("x", In(0, TArray(TFloat64)),
-        Out(ApplyPrimitive("/",
-          Array(
-            ArrayFold(Ref("x"), F64(0.0), "sum", "v",
-              ApplyPrimitive("+", Array(Ref("sum"), Ref("v")))),
-            Cast(ArrayLen(Ref("x")), TFloat64)))))
+        Out(ApplyBinaryPrimOp(Divide(),
+          ArrayFold(Ref("x"), F64(0.0), "sum", "v",
+            ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))),
+          Cast(ArrayLen(Ref("x")), TFloat64))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     doit(meanIr, fb)
@@ -69,7 +68,8 @@ class CompileSuite {
   def letAdd() {
     val letAddIr =
       Let("foo", F64(0),
-        Out(ApplyPrimitive("+", Array(Ref("foo"), Cast(I32(1), TFloat64)))))
+        Out(ApplyBinaryPrimOp(Add(),
+          Ref("foo"), Cast(I32(1), TFloat64))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Double]
     doit(letAddIr, fb)
@@ -83,7 +83,7 @@ class CompileSuite {
     val letAddIr =
       Let("in", In(0, TArray(TFloat64)),
         Out(ArrayFold(Ref("in"), I32(0), "count", "v",
-          ApplyPrimitive("+", Array(Ref("count"), I32(1))))))
+          ApplyBinaryPrimOp(Add(), Ref("count"), I32(1)))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int]
     doit(letAddIr, fb)
@@ -106,7 +106,7 @@ class CompileSuite {
     val letAddIr =
       Let("in", In(0, TArray(TFloat64)),
         Out(ArrayFold(Ref("in"), F64(0), "sum", "v",
-          ApplyPrimitive("+", Array(Ref("sum"), Ref("v"))))))
+          ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v")))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     doit(letAddIr, fb)
@@ -131,7 +131,7 @@ class CompileSuite {
     val letAddIr =
       Let("in", In(0, TArray(TFloat64)),
         Out(ArrayFold(Ref("in"), I32(0), "count", "v",
-          ApplyPrimitive("+", Array(Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))))))
+          ApplyBinaryPrimOp(Add(), Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1))))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int]
     doit(letAddIr, fb)
@@ -155,7 +155,7 @@ class CompileSuite {
   def nonMissingSum() {
     val sumIr =
       ArrayFold(In(0, TArray(TFloat64)), F64(0), "sum", "v",
-        ApplyPrimitive("+", Array(Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v")))))
+        ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v"))))
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     doit(sumIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
@@ -179,11 +179,11 @@ class CompileSuite {
       Let("in", In(0, TArray(TFloat64)),
         Let("nonMissing",
           ArrayFold(Ref("in"), I32(0), "count", "v",
-            ApplyPrimitive("+", Array(Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1))))),
+            ApplyBinaryPrimOp(Add(), Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))),
           Let("sum",
             ArrayFold(Ref("in"), F64(0), "sum", "v",
-              ApplyPrimitive("+", Array(Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v"))))),
-            Out(ApplyPrimitive("/", Array(Ref("sum"), Cast(Ref("nonMissing"), TFloat64)))))))
+              ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v")))),
+            Out(ApplyBinaryPrimOp(Divide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64))))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     doit(letAddIr, fb)
@@ -256,12 +256,12 @@ class CompileSuite {
       Let("in", In(0, TArray(TFloat64)),
         Let("nonMissing",
           ArrayFold(Ref("in"), I32(0), "count", "v",
-            ApplyPrimitive("+", Array(Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1))))),
+            ApplyBinaryPrimOp(Add(), Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))),
           Let("sum",
             ArrayFold(Ref("in"), F64(0), "sum", "v",
-              ApplyPrimitive("+", Array(Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v"))))),
+              ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v")))),
             Let("mean",
-              ApplyPrimitive("/", Array(Ref("sum"), Cast(Ref("nonMissing"), TFloat64))),
+              ApplyBinaryPrimOp(Divide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64)),
               Out(ArrayMap(Ref("in"), "v",
                 If(IsNA(Ref("v")), Ref("mean"), Ref("v"))))))))
 

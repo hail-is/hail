@@ -31,9 +31,12 @@ object Copy {
         Let(name, value, body, typ)
       case Ref(_, _) =>
         same
-      case ApplyPrimitive(op, args, typ) =>
-        assert(args.length == children.length)
-        ApplyPrimitive(op, children.toArray, typ)
+      case ApplyBinaryPrimOp(op, _, _, typ) =>
+        val IndexedSeq(l, r) = children
+        ApplyBinaryPrimOp(op, l, r, typ)
+      case ApplyUnaryPrimOp(op, _, typ) =>
+        val IndexedSeq(x) = children
+        ApplyUnaryPrimOp(op, x, typ)
       case MakeArray(args, typ) =>
         assert(args.length == children.length)
         MakeArray(children.toArray, typ)

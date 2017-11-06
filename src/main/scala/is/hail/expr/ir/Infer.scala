@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.utils._
 import is.hail.annotations.MemoryBuffer
 import is.hail.asm4s._
-import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction}
+import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction, TNumeric}
 import is.hail.annotations.StagedRegionValueBuilder
 
 object Infer {
@@ -46,9 +46,13 @@ object Infer {
         x.typ = body.typ
       case x@Ref(_, _) =>
         x.typ = env.lookup(x)
-      case x@ApplyPrimitive(op, args, typ) =>
-        args.map(infer(_))
-        x.typ = Primitives.returnTyp(op, args.map(_.typ))
+      case x@ApplyBinaryPrimOp(op, l, r, _) =>
+        infer(l)
+        infer(r)
+        x.typ = BinaryOp.inferReturnType(op, l.typ, r.typ)
+      case x@ApplyUnaryPrimOp(op, v, _) =>
+        infer(v)
+        x.typ = UnaryOp.inferReturnType(op, v.typ)
       case x@MakeArray(args, _) =>
         args.map(infer(_))
         val t = args.head.typ

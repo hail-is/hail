@@ -29,9 +29,8 @@ case class If(cond: IR, cnsq: IR, altr: IR, var typ: Type = null) extends IR
 case class Let(name: String, value: IR, body: IR, var typ: Type = null) extends IR
 case class Ref(name: String, var typ: Type = null) extends IR
 
-case class ApplyPrimitive(op: String, args: Array[IR], var typ: Type = null) extends IR {
-  override def toString(): String = s"ApplyPrimitive($op, ${args: IndexedSeq[IR]}, $typ)"
-}
+case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR, var typ: Type = null) extends IR
+case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) extends IR
 
 case class MakeArray(args: Array[IR], var typ: TArray = null) extends IR {
   override def toString(): String = s"MakeArray(${args: IndexedSeq[IR]}, $typ)"

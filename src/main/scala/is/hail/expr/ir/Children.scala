@@ -22,8 +22,10 @@ object Children {
       Array(value, body)
     case Ref(name, typ) =>
       none
-    case ApplyPrimitive(op, args, typ) =>
-      args
+    case ApplyBinaryPrimOp(op, l, r, typ) =>
+      Array(l, r)
+    case ApplyUnaryPrimOp(op, x, typ) =>
+      Array(x)
     case MakeArray(args, typ) =>
       args
     case MakeArrayN(len, elementType) =>
