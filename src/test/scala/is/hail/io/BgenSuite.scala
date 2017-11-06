@@ -39,9 +39,9 @@ class BgenSuite extends SparkSuite {
     val indexInverse = new Array[Int](n)
     val output = new Output(new ArrayBuilder[Int])
 
-    val F = BgenWriter.computeFractional(resized, fractional)
-    BgenWriter.roundWithConstantSum(resized, fractional, index, indexInverse, output, F, newSize)
-    new ArrayUInt(output.result())
+    BgenWriter.roundWithConstantSum(resized, fractional, index, indexInverse, output, newSize)
+    val result = new ArrayUInt(output.result())
+    result :+ (newSize - result.sum.toLong).toUInt
   }
 
   def verifyGPs(vds: VariantKeyDataset) {
@@ -125,6 +125,11 @@ class BgenSuite extends SparkSuite {
         .filterVariantsExpr("va.rsid != \"RSID_100\"")
         .same(bgenWriteVDS.filterVariantsExpr("va.rsid != \"RSID_100\"")
         ), "Not same after write/read.")
+
+      val exportBgenFile = tmpDir.createTempFile("bgenExport")
+      val exportGenFile = tmpDir.createTempFile("genExport")
+      bgenVDS.exportBGEN(exportBgenFile)
+      bgenVDS.exportGen(exportGenFile)
 
       hadoopConf.delete(bgen + ".idx", recursive = true)
 

@@ -140,5 +140,9 @@ class ArrayUInt(val a: Array[Int]) extends AnyVal {
     s
   }
 
+  def :+(x: UInt): ArrayUInt = new ArrayUInt(a :+ x.intRep)
+
+  def ++(other: ArrayUInt): ArrayUInt = new ArrayUInt(a ++ other.intArrayRep)
+
   def intArrayRep: Array[Int] = a
 }

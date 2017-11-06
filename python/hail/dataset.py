@@ -1476,15 +1476,15 @@ class VariantDataset(HistoryMixin):
         The information describing each variant is as follows:
 
         - Chromosome (``v.contig``)
-        - Variant ID (``va.varid`` if defined, else Chromosome:Position:Ref:Alt)
-        - rsID (``va.rsid`` if defined, else ".")
+        - Variant ID (``va.varid`` if field present, else Chromosome:Position:Ref:Alt)
+        - rsID (``va.rsid`` if field present, else ".")
         - position (``v.start``)
         - reference allele (``v.ref``)
         - alternate alleles (``v.altAlleles``)
 
         Genotype probabilities:
 
-        - Read from ``g.GP``. If ``g.GP`` is not of type Array[Float64] or is not a defined field, the probabilities will be output as missing.
+        - Read from ``g.GP``. If ``g.GP`` is not of type Array[Float64] or is not present, the probabilities will be output as missing.
 
         The sample file has 3 columns:
 
@@ -1525,15 +1525,15 @@ class VariantDataset(HistoryMixin):
         The first 6 columns of the resulting GEN file are the following:
 
         - Chromosome (``v.contig``)
-        - Variant ID (``va.varid`` if defined, else Chromosome:Position:Ref:Alt)
-        - rsID (``va.rsid`` if defined, else ".")
+        - Variant ID (``va.varid`` if field present, else Chromosome:Position:Ref:Alt)
+        - rsID (``va.rsid`` if field present, else ".")
         - position (``v.start``)
         - reference allele (``v.ref``)
         - alternate allele (``v.alt``)
 
         Genotype probabilities:
 
-        - Read from ``g.GP``. If ``g.GP`` is not of type Array[Float64] or is not a defined field, the probabilities will be output as missing ``(0.0, 0.0, 0.0)``.
+        - Read from ``g.GP``. If ``g.GP`` is not of type Array[Float64] or is not present, the probabilities will be output as missing ``(0.0, 0.0, 0.0)``.
         - 3 probabilities per sample ``(pHomRef, pHet, pHomVar)``.
         - Any filtered genotypes will be output as ``(0.0, 0.0, 0.0)``.
         - If the input data contained Phred-scaled likelihoods, the probabilities in the GEN file will be the normalized genotype probabilities assuming a uniform prior.

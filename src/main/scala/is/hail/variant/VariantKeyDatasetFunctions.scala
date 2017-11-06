@@ -2,6 +2,7 @@ package is.hail.variant
 
 import is.hail.annotations.{Annotation, Querier, RegionValue, UnsafeRow}
 import is.hail.expr.{TArray, TCall, TGenotype, TInt32, TString, TStruct, Type}
+import is.hail.io.bgen.BGENVariantAnnotationsView
 import is.hail.io.vcf.ExportVCF
 import is.hail.methods.{SplitMulti, VEP}
 import is.hail.utils._
@@ -98,46 +99,25 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
     require(vsm.wasSplit)
 
     def writeGenFile() {
-      val varidSignature = vsm.vaSignature.getOption("varid")
-      val varidQuery: Querier = varidSignature match {
-        case Some(_) =>
-          val (t, q) = vsm.queryVA("va.varid")
-          t match {
-            case _: TString => q
-            case _ => a => null
-          }
-        case None => a => null
-      }
-
-      val rsidSignature = vsm.vaSignature.getOption("rsid")
-      val rsidQuery: Querier = rsidSignature match {
-        case Some(_) =>
-          val (t, q) = vsm.queryVA("va.rsid")
-          t match {
-            case _: TString => q
-            case _ => a => null
-          }
-        case None => a => null
-      }
-
       val localNSamples = vsm.nSamples
       val localRowType = vsm.rowType
       vsm.rdd2.mapPartitions { it =>
         val sb = new StringBuilder
-        val view = new ArrayGenotypeView(localRowType)
+        val gView = new ArrayGenotypeView(localRowType)
+        val vaView = new BGENVariantAnnotationsView(localRowType)
         it.map { rv =>
-          view.setRegion(rv)
+          vaView.setRegion(rv)
+          gView.setRegion(rv)
           val ur = new UnsafeRow(localRowType, rv)
 
           val v = ur.getAs[Variant](1)
-          val va = ur.get(2)
 
           sb.clear()
           sb.append(v.contig)
           sb += ' '
-          sb.append(Option(varidQuery(va)).getOrElse(v.toString))
+          sb.append(if (vaView.hasVarid) vaView.getVarid else v.toString)
           sb += ' '
-          sb.append(Option(rsidQuery(va)).getOrElse("."))
+          sb.append(if (vaView.hasRsid) vaView.getRsid else ".")
           sb += ' '
           sb.append(v.start)
           sb += ' '
@@ -147,14 +127,21 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
 
           var i = 0
           while (i < localNSamples) {
-            view.setGenotype(i)
-            if (view.hasGP) {
-              sb += ' '
-              sb.append(formatDouble(view.getGP(0), precision))
-              sb += ' '
-              sb.append(formatDouble(view.getGP(1), precision))
-              sb += ' '
-              sb.append(formatDouble(view.getGP(2), precision))
+            gView.setGenotype(i)
+            if (gView.hasGP) {
+              val gpSum = gView.getGP(0) + gView.getGP(1) + gView.getGP(2)
+
+              if (gpSum >= 0.999 && gpSum <= 1.001) {
+                sb += ' '
+                sb.append(formatDouble(gView.getGP(0), precision))
+                sb += ' '
+                sb.append(formatDouble(gView.getGP(1), precision))
+                sb += ' '
+                sb.append(formatDouble(gView.getGP(2), precision))
+              } else {
+                warn(s"GP sum was not in the range [0.999, 1.001]. Found $gpSum. Emitting missing probabilities.")
+                sb.append(" 0 0 0")
+              }
             } else
               sb.append(" 0 0 0")
             i += 1
