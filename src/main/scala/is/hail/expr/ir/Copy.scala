@@ -34,9 +34,6 @@ object Copy {
       case ApplyPrimitive(op, args, typ) =>
         assert(args.length == children.length)
         ApplyPrimitive(op, children.toArray, typ)
-      case LazyApplyPrimitive(op, args, typ) =>
-        assert(args.length == children.length)
-        LazyApplyPrimitive(op, children.toArray, typ)
       case Lambda(names, _, typ) =>
         val IndexedSeq(body) = children
         Lambda(names, body, typ)

@@ -24,8 +24,6 @@ object Children {
       none
     case ApplyPrimitive(op, args, typ) =>
       args
-    case LazyApplyPrimitive(op, args, typ) =>
-      args
     case Lambda(names, body, typ) =>
       Array(body)
     case MakeArray(args, typ) =>

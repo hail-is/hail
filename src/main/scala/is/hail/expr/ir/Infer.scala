@@ -45,8 +45,6 @@ object Infer {
       case x@ApplyPrimitive(op, args, typ) =>
         args.map(infer(_))
         x.typ = Primitives.returnTyp(op, args.map(_.typ))
-      case LazyApplyPrimitive(op, args, typ) =>
-        ???
       case x@Lambda(names, body, typ) =>
         infer(body, env = env.bind(names:_*))
         x.typ = TFunction(names map (_._2), body.typ)

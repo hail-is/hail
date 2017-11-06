@@ -30,9 +30,6 @@ case class Ref(name: String, var typ: Type = null) extends IR
 case class ApplyPrimitive(op: String, args: Array[IR], var typ: Type = null) extends IR {
   override def toString(): String = s"ApplyPrimitive($op, ${args: IndexedSeq[IR]}, $typ)"
 }
-case class LazyApplyPrimitive(op: String, args: Array[IR], var typ: Type = null) extends IR {
-  override def toString(): String = s"LazyApplyPrimitive($op, ${args: IndexedSeq[IR]}, $typ)"
-}
 
 case class Lambda(names: Array[(String, Type)], body: IR, var typ: Type = null) extends IR {
   override def toString(): String = s"Lambda(${names: IndexedSeq[(String, Type)]}, $body, $typ)"

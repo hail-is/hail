@@ -107,8 +107,6 @@ object Compile {
         val (margs, vargs) = args.map(compile(_)).unzip
         val m = if (margs.isEmpty) const(false) else margs.reduce(_ || _)
         (m, Primitives.lookup(op, typs, vargs))
-      case LazyApplyPrimitive(op, args, typ) =>
-        ???
       case expr.ir.Lambda(names, body, typ) =>
         ???
 
