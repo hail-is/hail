@@ -69,8 +69,8 @@ final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T]
 }
 
 final case class NotGenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T] {
-  def castFromGeneric = (x: Code[_]) => x.asInstanceOf[Code[T]]
-  def castToGeneric = (x: Code[_]) => x
+  def castFromGeneric(x: Code[_]): Code[T] = x.asInstanceOf[Code[T]]
+  def castToGeneric(x: Code[T]): Code[_] = x
 
   val base = typeInfo[T]
   val generic = base
