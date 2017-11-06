@@ -295,6 +295,9 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
   def ||(rhs: Code[Boolean]): Code[Boolean] =
     lhs.toConditional || rhs.toConditional
+
+  // on the JVM Booleans are represented as Ints
+  def toI: Code[Int] = lhs.asInstanceOf[Code[Int]]
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
@@ -343,6 +346,9 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
   def toD: Code[Double] = Code(lhs, new InsnNode(I2D))
 
   def toB: Code[Byte] = Code(lhs, new InsnNode(I2B))
+
+  // on the JVM Booleans are represented as Ints
+  def toZ: Code[Boolean] = lhs.asInstanceOf[Code[Boolean]]
 }
 
 class CodeLong(val lhs: Code[Long]) extends AnyVal {

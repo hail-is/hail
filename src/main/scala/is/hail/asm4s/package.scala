@@ -176,9 +176,6 @@ package object asm4s {
 
   implicit def toCodeBoolean(c: Code[Boolean]): CodeBoolean = new CodeBoolean(c)
 
-  // on the JVM Booleans are represented as Ints
-  implicit def booleanToCodeInt(c: Code[Boolean]): CodeInt = new CodeInt(c.asInstanceOf[Code[Int]])
-
   implicit def toCodeInt(c: Code[Int]): CodeInt = new CodeInt(c)
 
   implicit def byteToCodeInt(c: Code[Byte]): Code[Int] = new Code[Int] {
