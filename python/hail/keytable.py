@@ -5,7 +5,7 @@ from hail.expr import Type, TArray, TStruct
 from hail.representation import Struct
 from hail.typecheck import *
 from hail.utils import wrap_to_list
-from pyspark.sql import DataFrame
+from pyspark.sql import DataFrame, SQLContext
 
 
 class Ascending(object):
@@ -1106,6 +1106,29 @@ class KeyTable(object):
 
         jkt = Env.hail().keytable.KeyTable.importBED(Env.hc()._jhc, path)
         return KeyTable(Env.hc(), jkt)
+
+    @staticmethod
+    @handle_py4j
+    @typecheck(df=anytype)
+    def from_pandas(cls, df):
+        """Convert Pandas DataFrame to key table.
+
+        **Examples**
+
+        >>> KeyTable.from_pandas(KeyTable.range(10).to_pandas()).query('index.take(10)') # doctest: +SKIP
+
+        :param df: Pandas DataFrame.
+        :type df: ``DataFrame``
+
+        :return: Key table constructed from the Spark SQL DataFrame.
+        :rtype: :class:`.KeyTable`
+        """
+        import pandas as pd
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("from_pandas: parameter 'df': expected pd.DataFrame, found %s: '%s'" %
+                            type(arg), str(arg))
+
+        return KeyTable.from_dataframe(SQLContext(Env.hc()).createDataFrame(df))
 
     @staticmethod
     @handle_py4j
