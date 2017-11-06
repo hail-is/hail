@@ -10,7 +10,7 @@ class StagedBitSet(fb: FunctionBuilder[_]) {
 
   def newBit(): SettableBit = {
     if (used >= 64 || bits == null) {
-      bits = fb.newLocal[Long]("bitset"+count)
+      bits = fb.newLocal[Long]
       count += 1
       fb.emit(bits.store(0L))
       used = 0
