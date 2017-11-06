@@ -17,7 +17,7 @@ import scala.reflect.classTag
 import scala.reflect.ClassTag
 
 object Compile {
-  private def dummyValue(t: expr.Type): Code[_] = t match {
+  private def defaultValue(t: expr.Type): Code[_] = t match {
     case TBoolean => false
     case TInt32 => 0
     case TInt64 => 0L
@@ -67,7 +67,7 @@ object Compile {
         present(const(false))
 
       case NA(typ) =>
-        (const(true), dummyValue(typ))
+        (const(true), defaultValue(typ))
       case IsNA(v) =>
         present(expression(v)._1)
       case MapNA(name, value, body, typ) =>
@@ -77,10 +77,10 @@ object Compile {
         val mx = mb.newBit()
         fb.emit(mx := mvalue)
         val x = fb.newLocal(name)(vti).asInstanceOf[LocalRef[Any]]
-        fb.emit(x := mx.mux(dummyValue(value.typ), vvalue))
+        fb.emit(x := mx.mux(defaultValue(value.typ), vvalue))
         val bodyenv = env.bind(name -> (vti, mx, x))
         val (mbody, vbody) = expression(body, env = bodyenv)
-        (mvalue || mbody, mvalue.mux(dummyValue(typ), vbody))
+        (mvalue || mbody, mvalue.mux(defaultValue(typ), vbody))
 
       case expr.ir.If(cond, cnsq, altr, typ) =>
         val (mcond, vcond) = expression(cond)
@@ -133,7 +133,7 @@ object Compile {
         val (mlen, vlen) = expression(len)
 
         (mlen, mlen.mux(
-          dummyValue(x.typ),
+          defaultValue(x.typ),
           Code(srvb.start(coerce[Int](vlen), init = true),
             srvb.offset)))
       case ArrayRef(a, i, typ) =>
@@ -150,12 +150,12 @@ object Compile {
         val xmv = mb.newBit()
         fb.emit(Code(
           xma := ma,
-          xa := coerce[Long](xma.mux(dummyValue(tarray), va)),
+          xa := coerce[Long](xma.mux(defaultValue(tarray), va)),
           xmi := mi,
-          xi := coerce[Int](xmi.mux(dummyValue(TInt32), vi)),
+          xi := coerce[Int](xmi.mux(defaultValue(TInt32), vi)),
           xmv := xma || xmi || !tarray.isElementDefined(region, xa, xi)))
 
-        (xmv, xmv.mux(dummyValue(typ),
+        (xmv, xmv.mux(defaultValue(typ),
           region.loadAnnotation(typ)(tarray.loadElement(region, xa, xi))))
       case ArrayMissingnessRef(a, i) =>
         val tarray = tcoerce[TArray](a.typ)
@@ -171,9 +171,9 @@ object Compile {
         val xmv = mb.newBit()
         fb.emit(Code(
           xma := ma,
-          xa := coerce[Long](xma.mux(dummyValue(tarray), va)),
+          xa := coerce[Long](xma.mux(defaultValue(tarray), va)),
           xmi := mi,
-          xi := coerce[Int](xmi.mux(dummyValue(TInt32), vi))))
+          xi := coerce[Int](xmi.mux(defaultValue(TInt32), vi))))
 
         present(xma || xmi || !tarray.isElementDefined(region, xa, xi))
       case ArrayLen(a) =>
@@ -203,8 +203,8 @@ object Compile {
 
           val (ma, va) = expression(a)
           fb.emit(xma := ma)
-          fb.emit(xvv := coerce[t](dummyValue(elementTyp)))
-          fb.emit(out := coerce[Long](dummyValue(tout)))
+          fb.emit(xvv := coerce[t](defaultValue(elementTyp)))
+          fb.emit(out := coerce[Long](defaultValue(tout)))
           xma.toConditional.emitConditional(fb.l, lmissing, lnonmissing)
           fb.emit(Code(
             lnonmissing,
@@ -218,7 +218,7 @@ object Compile {
             lnext,
             xmv := !tin.isElementDefined(region, xa, i),
             xvv := coerce[t](xmv.mux(
-              dummyValue(elementTyp),
+              defaultValue(elementTyp),
               region.loadAnnotation(tin.elementType)(tin.loadElement(region, xa, i))))))
           val (mbody, vbody) = expression(body, env = bodyenv)
           fb.emit(Code(
@@ -262,8 +262,8 @@ object Compile {
 
           val (ma, va) = expression(a)
           fb.emit(xma := ma)
-          fb.emit(xvout := coerce[t](dummyValue(typ)))
-          fb.emit(xvv := coerce[u](dummyValue(tarray.elementType)))
+          fb.emit(xvout := coerce[t](defaultValue(typ)))
+          fb.emit(xvv := coerce[u](defaultValue(tarray.elementType)))
           xma.toConditional.emitConditional(fb.l, lmissing, lnonmissing)
           fb.emit(Code(
             lnonmissing,
@@ -273,19 +273,19 @@ object Compile {
           val (mzero, vzero) = expression(zero)
           fb.emit(Code(
             xmout := mzero,
-            xvout := coerce[t](xmout.mux(dummyValue(typ), vzero)),
+            xvout := coerce[t](xmout.mux(defaultValue(typ), vzero)),
             ltop))
           (i < len).toConditional.emitConditional(fb.l, lnext, lend)
           fb.emit(Code(
             lnext,
             xmv := !tarray.isElementDefined(region, xa, i),
             xvv := coerce[u](xmv.mux(
-              dummyValue(tarray.elementType),
+              defaultValue(tarray.elementType),
               region.loadAnnotation(tarray.elementType)(tarray.loadElement(region, xa, i))))))
           val (mbody, vbody) = expression(body, env = bodyenv)
           fb.emit(Code(
             xmout := mbody,
-            xvout := coerce[t](xmout.mux(dummyValue(typ), vbody)),
+            xvout := coerce[t](xmout.mux(defaultValue(typ), vbody)),
             i := i + 1,
             new JumpInsnNode(GOTO, ltop),
             lend,
@@ -314,7 +314,7 @@ object Compile {
         val xmo = mb.newBit()
         val xo = fb.newLocal[Long]
         fb.emit(xmo := mo)
-        fb.emit(xo := coerce[Long](xmo.mux(dummyValue(t), vo)))
+        fb.emit(xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
         (xmo || !t.isFieldDefined(region, xo, fieldIdx),
           region.loadAnnotation(t)(t.fieldOffset(xo, fieldIdx)))
       case GetFieldMissingness(o, name) =>
@@ -324,7 +324,7 @@ object Compile {
         val xmo = mb.newBit()
         val xo = fb.newLocal[Long]
         fb.emit(xmo := mo)
-        fb.emit(xo := coerce[Long](xmo.mux(dummyValue(t), vo)))
+        fb.emit(xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
         (xmo, !t.isFieldDefined(region, xo, fieldIdx))
       case Seq(stmts, typ) =>
         ???
