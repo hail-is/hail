@@ -50,8 +50,6 @@ object Children {
       none
     case InMissingness(i) =>
       none
-    case Out(v) =>
-      Array(v)
     case Die(message) =>
       none
   }

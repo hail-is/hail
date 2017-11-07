@@ -67,6 +67,48 @@ object Code {
       }
     }
 
+  def apply[S1, S2, S3, S4, S5, S6, S7](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6], c7: Code[S7]): Code[S7] =
+    new Code[S7] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
+        c4.emit(il)
+        c5.emit(il)
+        c6.emit(il)
+        c7.emit(il)
+      }
+    }
+
+  def apply[S1, S2, S3, S4, S5, S6, S7, S8](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6], c7: Code[S7], c8: Code[S8]): Code[S8] =
+    new Code[S8] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
+        c4.emit(il)
+        c5.emit(il)
+        c6.emit(il)
+        c7.emit(il)
+        c8.emit(il)
+      }
+    }
+
+  def apply[S1, S2, S3, S4, S5, S6, S7, S8, S9](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6], c7: Code[S7], c8: Code[S8], c9: Code[S9]): Code[S9] =
+    new Code[S9] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
+        c4.emit(il)
+        c5.emit(il)
+        c6.emit(il)
+        c7.emit(il)
+        c8.emit(il)
+        c9.emit(il)
+      }
+    }
+
   def apply(cs: Code[_]*): Code[_] =
     new Code[Unit] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {

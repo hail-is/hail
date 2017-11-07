@@ -71,9 +71,6 @@ object Copy {
         same
       case InMissingness(_) =>
         same
-      case Out(v) =>
-        val IndexedSeq(v) = children
-        Out(v)
       case Die(message) =>
         same
     }

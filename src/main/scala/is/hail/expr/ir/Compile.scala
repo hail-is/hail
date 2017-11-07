@@ -35,15 +35,29 @@ object Compile {
   }
 
   def apply(ir: IR, fb: FunctionBuilder[_], env: E) {
-    fb.emit(compile(ir, fb, env, new StagedBitSet(fb))._2)
+    val (dov, mv, vv) = compile(ir, fb, env, new StagedBitSet(fb))
+    typeToTypeInfo(ir.typ) match { case ti: TypeInfo[t] =>
+      fb.emit(Code(dov, mv.mux(
+        Code._throw(Code.newInstance[RuntimeException, String]("cannot return empty")),
+        coerce[t](vv))))
+    }
   }
 
-  private def present(x: Code[_]) = (const(false), x)
+  private def present(x: Code[_]): (Code[Unit], Code[Boolean], Code[_]) =
+    (Code._empty, const(false), x)
   private def tcoerce[T <: expr.Type](x: expr.Type): T = x.asInstanceOf[T]
 
-  def compile(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Boolean], Code[_]) = {
+  // the return value is interpreted as: (precompute, missingness, value)
+  // rules:
+  //  1. evaluate each returned Code[_] at most once
+  //  2. always evaluate precompute before missingness or value
+  //  3. gaurd the the evaluation of value by missingness
+  //
+  // JVM gotcha:
+  //  a variable must be initialized on all static code-paths to its use (ergo defaultValue)
+  def compile(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
     val region = fb.getArg[MemoryBuffer](1).load()
-    def compile(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: StagedBitSet = mb): (Code[Boolean], Code[_]) =
+    def compile(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: StagedBitSet = mb): (Code[Unit], Code[Boolean], Code[_]) =
       Compile.compile(ir, fb, env, mb)
     ir match {
       case I32(x) =>
@@ -60,61 +74,82 @@ object Compile {
         present(const(false))
 
       case Cast(v, typ) =>
-        val (mv, vv) = compile(v)
+        val (dov, mv, vv) = compile(v)
         val cast = Casts.get(v.typ, typ)
-        (mv, mv.mux(defaultValue(typ), cast(vv)))
+        (dov, mv, cast(vv))
 
       case NA(typ) =>
-        (const(true), defaultValue(typ))
-      case IsNA(v) =>
-        present(compile(v)._1)
+        (Code._empty, const(true), defaultValue(typ))
+      case IsNA(v) => 
+       val (dov, mv, _) = compile(v)
+        (dov, const(false), mv)
       case MapNA(name, value, body, typ) =>
         val vti = typeToTypeInfo(value.typ)
         val bti = typeToTypeInfo(typ)
-        val (mvalue, vvalue) = compile(value)
         val mx = mb.newBit()
-        fb.emit(mx := mvalue)
         val x = fb.newLocal(name)(vti).asInstanceOf[LocalRef[Any]]
-        fb.emit(x := mx.mux(defaultValue(value.typ), vvalue))
+        val mout = mb.newBit()
+        val out = fb.newLocal(name)(bti).asInstanceOf[LocalRef[Any]]
+        val (dovalue, mvalue, vvalue) = compile(value)
         val bodyenv = env.bind(name -> (vti, mx, x))
-        val (mbody, vbody) = compile(body, env = bodyenv)
-        (mvalue || mbody, mvalue.mux(defaultValue(typ), vbody))
+        val (dobody, mbody, vbody) = compile(body, env = bodyenv)
+        val setup = Code(
+          dovalue,
+          mx := mvalue,
+          mx.mux(
+            Code(mout := true, out := defaultValue(typ)),
+            Code(x := vvalue, dobody, mout := mbody)))
+
+        (setup, mout, vbody)
 
       case expr.ir.If(cond, cnsq, altr, typ) =>
-        val (mcond, vcond) = compile(cond)
+        val (docond, mcond, vcond) = compile(cond)
         val xvcond = mb.newBit()
-        fb.emit(xvcond := coerce[Boolean](vcond))
-        val (mcnsq, vcnsq) = compile(cnsq)
-        val (maltr, valtr) = compile(altr)
+        val out = fb.newLocal()(typeToTypeInfo(typ)).asInstanceOf[LocalRef[Any]]
+        val mout = mb.newBit()
+        val (docnsq, mcnsq, vcnsq) = compile(cnsq)
+        val (doaltr, maltr, valtr) = compile(altr)
+        val setup = Code(
+          docond,
+          mcond.mux(
+            Code(mout := true, out := defaultValue(typ)),
+            Code(
+              xvcond := coerce[Boolean](vcond),
+              coerce[Boolean](xvcond).mux(
+                Code(docnsq, mout := mcnsq, out := vcnsq),
+                Code(doaltr, mout := maltr, out := valtr)))))
 
-        (mcond || (xvcond && mcnsq) || (!xvcond && maltr),
-          xvcond.asInstanceOf[Code[Boolean]].mux(vcnsq, valtr))
+        (setup, mout, out)
 
       case expr.ir.Let(name, value, body, typ) =>
         val vti = typeToTypeInfo(value.typ)
-        fb.newLocal(name)(vti) match { case x: LocalRef[v] =>
-          val (mvalue, vvalue) = compile(value)
-          val xmvalue = mb.newBit()
-          fb.emit(xmvalue := mvalue)
-          fb.emit(x := coerce[v](vvalue))
-          val bodyenv = env.bind(name -> (vti, xmvalue, x))
-          compile(body, env = bodyenv)
-        }
+        val mx = mb.newBit()
+        val x = fb.newLocal(name)(vti).asInstanceOf[LocalRef[Any]]
+        val (dovalue, mvalue, vvalue) = compile(value)
+        val bodyenv = env.bind(name -> (vti, mx, x))
+        val (dobody, mbody, vbody) = compile(body, env = bodyenv)
+        val setup = Code(
+          dovalue,
+          mx := mvalue,
+          x := vvalue,
+          dobody)
+
+        (setup, mbody, vbody)
       case Ref(name, typ) =>
         val ti = typeToTypeInfo(typ)
         val (t, m, v) = env.lookup(name)
         assert(t == ti, s"$name type annotation, $typ, doesn't match typeinfo: $ti")
-        (m, v)
+        (Code._empty, m, v)
 
       case ApplyBinaryPrimOp(op, l, r, typ) =>
-        val (ml, vl) = compile(l)
-        val (mr, vr) = compile(r)
-        val na = defaultValue(typ)
-        (ml || mr, (ml || mr).mux(na, BinaryOp.compile(op, l.typ, r.typ, vl, vr)))
+        val (dol, ml, vl) = compile(l)
+        val (dor, mr, vr) = compile(r)
+        (Code(dol, dor),
+          ml || mr,
+          BinaryOp.compile(op, l.typ, r.typ, vl, vr))
       case ApplyUnaryPrimOp(op, x, typ) =>
-        val (mx, vx) = compile(x)
-        val na = defaultValue(typ)
-        (mx, mx.mux(na, UnaryOp.compile(op, x.typ, vx)))
+        val (dox, mx, vx) = compile(x)
+        (dox, mx, UnaryOp.compile(op, x.typ, vx))
 
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(fb, typ)
@@ -122,160 +157,130 @@ object Compile {
         val mvargs = args.map(compile(_))
         present(Code(
           srvb.start(args.length, init = true),
-          Code(mvargs.map { case (m, v) =>
-            Code(m.mux(srvb.setMissing(), addElement(v)), srvb.advance())
+          Code(mvargs.map { case (dov, m, v) =>
+            Code(dov, m.mux(srvb.setMissing(), addElement(v)), srvb.advance())
           }: _*),
           srvb.offset))
       case x@MakeArrayN(len, elementType) =>
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
-        val (mlen, vlen) = compile(len)
-        (mlen, mlen.mux(
-          defaultValue(x.typ),
+        val (dolen, mlen, vlen) = compile(len)
+        (dolen,
+          mlen,
           Code(srvb.start(coerce[Int](vlen), init = true),
-            srvb.offset)))
+            srvb.offset))
       case ArrayRef(a, i, typ) =>
         val ti = typeToTypeInfo(typ)
         val tarray = TArray(typ)
         val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
-        val (ma, va) = compile(a)
-        val (mi, vi) = compile(i)
+        val (doa, ma, va) = compile(a)
+        val (doi, mi, vi) = compile(i)
         val xma = mb.newBit()
         val xa = fb.newLocal()(ati)
         val xi = fb.newLocal[Int]
         val xmi = mb.newBit()
         val xmv = mb.newBit()
-        fb.emit(Code(
+        val setup = Code(
+          doa,
           xma := ma,
           xa := coerce[Long](xma.mux(defaultValue(tarray), va)),
+          doi,
           xmi := mi,
           xi := coerce[Int](xmi.mux(defaultValue(TInt32), vi)),
-          xmv := xma || xmi || !tarray.isElementDefined(region, xa, xi)))
+          xmv := xma || xmi || !tarray.isElementDefined(region, xa, xi))
 
-        (xmv, xmv.mux(defaultValue(typ),
-          region.loadAnnotation(typ)(tarray.loadElement(region, xa, xi))))
+        (setup, xmv, region.loadAnnotation(typ)(tarray.loadElement(region, xa, xi)))
       case ArrayMissingnessRef(a, i) =>
         val tarray = tcoerce[TArray](a.typ)
         val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
-        val (ma, va) = compile(a)
-        val (mi, vi) = compile(i)
-        val xma = mb.newBit()
-        val xa = fb.newLocal()(ati)
-        val xi = fb.newLocal[Int]
-        val xmi = mb.newBit()
-        val xmv = mb.newBit()
-        fb.emit(Code(
-          xma := ma,
-          xa := coerce[Long](xma.mux(defaultValue(tarray), va)),
-          xmi := mi,
-          xi := coerce[Int](xmi.mux(defaultValue(TInt32), vi))))
-        present(xma || xmi || !tarray.isElementDefined(region, xa, xi))
+        val (doa, ma, va) = compile(a)
+        val (doi, mi, vi) = compile(i)
+        present(Code(
+          doa,
+          doi,
+          ma || mi || !tarray.isElementDefined(region, coerce[Long](va), coerce[Int](vi))))
       case ArrayLen(a) =>
-        val (ma, va) = compile(a)
-        (ma, TContainer.loadLength(region, coerce[Long](va)))
+        val (doa, ma, va) = compile(a)
+        (doa, ma, TContainer.loadLength(region, coerce[Long](va)))
       case x@ArrayMap(a, name, body, elementTyp) =>
         val tin = a.typ.asInstanceOf[TArray]
         val tout = x.typ.asInstanceOf[TArray]
         val srvb = new StagedRegionValueBuilder(fb, tout)
         val addElement = srvb.addPrimitive(tout.elementType)
-        typeToTypeInfo(elementTyp) match { case eti: TypeInfo[t] =>
-          val xma = mb.newBit()
-          val xa = fb.newLocal[Long]("am_a")
-          val xmv = mb.newBit()
-          val xvv = fb.newLocal(name)(eti)
-          val i = fb.newLocal[Int]("am_i")
-          val len = fb.newLocal[Int]("am_len")
-          val out = fb.newLocal[Long]("am_out")
-          val bodyenv = env.bind(name -> (eti, xmv, xvv))
-          val lmissing = new LabelNode()
-          val lnonmissing = new LabelNode()
-          val ltop = new LabelNode()
-          val lnext = new LabelNode()
-          val lend = new LabelNode()
-          val (ma, va) = compile(a)
-          fb.emit(xma := ma)
-          fb.emit(xvv := coerce[t](defaultValue(elementTyp)))
-          fb.emit(out := coerce[Long](defaultValue(tout)))
-          xma.toConditional.emitConditional(fb.l, lmissing, lnonmissing)
-          fb.emit(Code(
-            lnonmissing,
-            xa := coerce[Long](va),
-            len := TContainer.loadLength(region, xa),
-            i := 0,
-            srvb.start(len, init = true),
-            ltop))
-          (i < len).toConditional.emitConditional(fb.l, lnext, lend)
-          fb.emit(Code(
-            lnext,
-            xmv := !tin.isElementDefined(region, xa, i),
-            xvv := coerce[t](xmv.mux(
-              defaultValue(elementTyp),
-              region.loadAnnotation(tin.elementType)(tin.loadElement(region, xa, i))))))
-          val (mbody, vbody) = compile(body, env = bodyenv)
-          fb.emit(Code(
-            mbody.mux(
-              srvb.setMissing(),
-              addElement(vbody)),
-            srvb.advance(),
-            i := i + 1,
-            new JumpInsnNode(GOTO, ltop),
-            lend,
-            out := srvb.offset,
-            lmissing))
+        val eti = typeToTypeInfo(elementTyp).asInstanceOf[TypeInfo[Any]]
+        val xa = fb.newLocal[Long]("am_a")
+        val xmv = mb.newBit()
+        val xvv = fb.newLocal(name)(eti)
+        val i = fb.newLocal[Int]("am_i")
+        val len = fb.newLocal[Int]("am_len")
+        val out = fb.newLocal[Long]("am_out")
+        val bodyenv = env.bind(name -> (eti, xmv, xvv))
+        val lmissing = new LabelNode()
+        val lnonmissing = new LabelNode()
+        val ltop = new LabelNode()
+        val lnext = new LabelNode()
+        val lend = new LabelNode()
+        val (doa, ma, va) = compile(a)
+        val (dobody, mbody, vbody) = compile(body, env = bodyenv)
 
-          (xma, out.load())
-        }
+        (doa, ma, Code(
+          xa := coerce[Long](va),
+          len := TContainer.loadLength(region, xa),
+          i := 0,
+          srvb.start(len, init = true),
+          Code.whileLoop(i < len,
+            xmv := !tin.isElementDefined(region, xa, i),
+            xvv := xmv.mux(
+              defaultValue(elementTyp),
+              region.loadAnnotation(tin.elementType)(tin.loadElement(region, xa, i))),
+            dobody,
+            mbody.mux(srvb.setMissing(), addElement(vbody)),
+            srvb.advance(),
+            i := i + 1),
+          srvb.offset))
       case ArrayFold(a, zero, name1, name2, body, typ) =>
         val tarray = a.typ.asInstanceOf[TArray]
-        assert(tarray != null, s"tarray is null! $ir")
-        (typeToTypeInfo(typ), typeToTypeInfo(tarray.elementType)) match { case (tti: TypeInfo[t], uti: TypeInfo[u]) =>
-          val xma = mb.newBit()
-          val xa = fb.newLocal[Long]("af_array")
-          val xmv = mb.newBit()
-          val xvv = fb.newLocal(name2)(uti)
-          val xmout = mb.newBit()
-          val xvout = fb.newLocal(name1)(tti)
-          val i = fb.newLocal[Int]("af_i")
-          val len = fb.newLocal[Int]("af_len")
-          val bodyenv = env.bind(
-            name1 -> (tti, xmout, xvout.load()),
-            name2 -> (uti, xmv, xvv.load()))
-          val lmissing = new LabelNode()
-          val lnonmissing = new LabelNode()
-          val ltop = new LabelNode()
-          val lnext = new LabelNode()
-          val lend = new LabelNode()
-          val (ma, va) = compile(a)
-          fb.emit(xma := ma)
-          fb.emit(xvout := coerce[t](defaultValue(typ)))
-          fb.emit(xvv := coerce[u](defaultValue(tarray.elementType)))
-          xma.toConditional.emitConditional(fb.l, lmissing, lnonmissing)
-          fb.emit(Code(
-            lnonmissing,
-            xa := coerce[Long](va),
-            len := TContainer.loadLength(region, xa),
-            i := 0))
-          val (mzero, vzero) = compile(zero)
-          fb.emit(Code(
-            xmout := mzero,
-            xvout := coerce[t](xmout.mux(defaultValue(typ), vzero)),
-            ltop))
-          (i < len).toConditional.emitConditional(fb.l, lnext, lend)
-          fb.emit(Code(
-            lnext,
-            xmv := !tarray.isElementDefined(region, xa, i),
-            xvv := coerce[u](xmv.mux(
-              defaultValue(tarray.elementType),
-              region.loadAnnotation(tarray.elementType)(tarray.loadElement(region, xa, i))))))
-          val (mbody, vbody) = compile(body, env = bodyenv)
-          fb.emit(Code(
-            xmout := mbody,
-            xvout := coerce[t](xmout.mux(defaultValue(typ), vbody)),
-            i := i + 1,
-            new JumpInsnNode(GOTO, ltop),
-            lend,
-            lmissing))
-          (xmout, xvout)
-        }
+        val tti = typeToTypeInfo(typ)
+        val eti = typeToTypeInfo(tarray.elementType)
+        val xma = mb.newBit()
+        val xa = fb.newLocal[Long]("af_array")
+        val xmv = mb.newBit()
+        val xvv = fb.newLocal(name2)(eti).asInstanceOf[LocalRef[Any]]
+        val xmout = mb.newBit()
+        val xvout = fb.newLocal(name1)(tti).asInstanceOf[LocalRef[Any]]
+        val i = fb.newLocal[Int]("af_i")
+        val len = fb.newLocal[Int]("af_len")
+        val bodyenv = env.bind(
+          name1 -> (tti, xmout, xvout.load()),
+          name2 -> (eti, xmv, xvv.load()))
+        val lmissing = new LabelNode()
+        val lnonmissing = new LabelNode()
+        val ltop = new LabelNode()
+        val lnext = new LabelNode()
+        val lend = new LabelNode()
+        val (doa, ma, va) = compile(a)
+        val (dozero, mzero, vzero) = compile(zero)
+        val (dobody, mbody, vbody) = compile(body, env = bodyenv)
+        val setup = Code(
+          doa,
+          ma.mux(
+            Code(xmout := true, xvout := defaultValue(typ)),
+            Code(
+              xa := coerce[Long](va),
+              len := TContainer.loadLength(region, xa),
+              i := 0,
+              dozero,
+              xmout := mzero,
+              xvout := xmout.mux(defaultValue(typ), vzero),
+              Code.whileLoop(i < len,
+                xmv := !tarray.isElementDefined(region, xa, i),
+                xvv := xmv.mux(
+                  defaultValue(tarray.elementType),
+                  region.loadAnnotation(tarray.elementType)(tarray.loadElement(region, xa, i))),
+                dobody,
+                xmout := mbody,
+                xvout := xmout.mux(defaultValue(typ), vbody),
+                i := i + 1))))
+        (setup, xmout, xvout)
 
       case MakeStruct(fields) =>
         val t = TStruct(fields.map { case (name, t, _) => (name, t) }: _*)
@@ -283,42 +288,35 @@ object Compile {
         val srvb = new StagedRegionValueBuilder(fb, t)
         present(Code(
           srvb.start(false),
-          Code(initializers.map { case (t, (mv, vv)) =>
+          Code(initializers.map { case (t, (dov, mv, vv)) =>
             Code(
+              dov,
               mv.mux(srvb.setMissing(), srvb.addPrimitive(t)(vv)),
               srvb.advance()) }: _*),
           srvb.offset))
       case GetField(o, name, _) =>
         val t = o.typ.asInstanceOf[TStruct]
         val fieldIdx = t.fieldIdx(name)
-        val (mo, vo) = compile(o)
+        val (doo, mo, vo) = compile(o)
         val xmo = mb.newBit()
         val xo = fb.newLocal[Long]
-        fb.emit(xmo := mo)
-        fb.emit(xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
-        (xmo || !t.isFieldDefined(region, xo, fieldIdx),
+        val setup = Code(
+          doo,
+          xmo := mo,
+          xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
+        (setup,
+          xmo || !t.isFieldDefined(region, xo, fieldIdx),
           region.loadAnnotation(t)(t.fieldOffset(xo, fieldIdx)))
       case GetFieldMissingness(o, name) =>
         val t = o.typ.asInstanceOf[TStruct]
         val fieldIdx = t.fieldIdx(name)
-        val (mo, vo) = compile(o)
-        val xmo = mb.newBit()
-        val xo = fb.newLocal[Long]
-        fb.emit(xmo := mo)
-        fb.emit(xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
-        (xmo, !t.isFieldDefined(region, xo, fieldIdx))
+        val (doo, mo, vo) = compile(o)
+        present(Code(doo, mo || !t.isFieldDefined(region, coerce[Long](vo), fieldIdx)))
 
       case In(i, typ) =>
-        (fb.getArg[Boolean](i*2 + 3), fb.getArg(i*2 + 2)(typeToTypeInfo(typ)))
+        (Code._empty, fb.getArg[Boolean](i*2 + 3), fb.getArg(i*2 + 2)(typeToTypeInfo(typ)))
       case InMissingness(i) =>
         present(fb.getArg[Boolean](i*2 + 3))
-      case Out(v) =>
-        val (mv, vv) = compile(v)
-        typeToTypeInfo(v.typ) match { case ti: TypeInfo[t] =>
-          present(mv.mux(
-            Code._throw(Code.newInstance[RuntimeException, String]("cannot return empty")),
-            Code._return(coerce[t](vv))(ti)))
-        }
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
     }

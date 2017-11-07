@@ -102,8 +102,6 @@ object Infer {
       case In(i, typ) =>
         assert(typ != null)
       case InMissingness(i) =>
-      case Out(v) =>
-        infer(v)
       case Die(msg) =>
     } }
 }

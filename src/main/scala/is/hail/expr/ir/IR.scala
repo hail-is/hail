@@ -52,6 +52,5 @@ case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type =
 
 case class In(i: Int, val typ: Type) extends IR
 case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean }
-case class Out(v: IR) extends IR { val typ = TVoid }
 // FIXME: should be type any
 case class Die(message: String) extends IR { val typ = TVoid }
