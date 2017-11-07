@@ -50,7 +50,7 @@ object Compile {
   // the return value is interpreted as: (precompute, missingness, value)
   // rules:
   //  1. evaluate each returned Code[_] at most once
-  //  2. always evaluate precompute before missingness or value
+  //  2. evaluate precompute *on all static code-paths* leading to missingness or value
   //  3. gaurd the the evaluation of value by missingness
   //
   // JVM gotcha:
@@ -80,8 +80,8 @@ object Compile {
 
       case NA(typ) =>
         (Code._empty, const(true), defaultValue(typ))
-      case IsNA(v) => 
-       val (dov, mv, _) = compile(v)
+      case IsNA(v) =>
+        val (dov, mv, _) = compile(v)
         (dov, const(false), mv)
       case MapNA(name, value, body, typ) =>
         val vti = typeToTypeInfo(value.typ)
@@ -98,9 +98,9 @@ object Compile {
           mx := mvalue,
           mx.mux(
             Code(mout := true, out := defaultValue(typ)),
-            Code(x := vvalue, dobody, mout := mbody)))
+            Code(x := vvalue, dobody, mout := mbody, out := vbody)))
 
-        (setup, mout, vbody)
+        (setup, mout, out)
 
       case expr.ir.If(cond, cnsq, altr, typ) =>
         val (docond, mcond, vcond) = compile(cond)
