@@ -45,8 +45,14 @@ object FunctionBuilder {
   def functionBuilder[A: TypeInfo, B: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction2[A, B, R]] =
     new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
 
+  def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction3[A, B, C, R]] =
+    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]), GenericTypeInfo[R])
+
   def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction4[A, B, C, D, R]] =
     new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R])
+
+  def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction5[A, B, C, D, E, R]] =
+    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R])
 
   private implicit def methodNodeToGrowable(mn: MethodNode): Growable[AbstractInsnNode] = new Growable[AbstractInsnNode] {
     def +=(e: AbstractInsnNode) = { mn.instructions.add(e); this }
@@ -111,17 +117,20 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     ).emit(genericMn)
   }
 
-  def allocLocal[T]()(implicit tti: TypeInfo[T]): Int = {
+  def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = {
     val i = locals
     locals += tti.slots
 
     mn.localVariables.asInstanceOf[util.List[LocalVariableNode]]
-      .add(new LocalVariableNode("local" + i, tti.name, null, start, end, i))
+      .add(new LocalVariableNode(if (name == null) "local" + i else name, tti.name, null, start, end, i))
     i
   }
 
-  def newLocal[T]()(implicit tti: TypeInfo[T]): LocalRef[T] =
-    new LocalRef[T](allocLocal[T]())
+  def newLocal[T](implicit tti: TypeInfo[T]): LocalRef[T] =
+    newLocal()
+
+  def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
+    new LocalRef[T](allocLocal[T](name))
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
