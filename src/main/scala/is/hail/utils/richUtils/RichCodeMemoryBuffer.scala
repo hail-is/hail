@@ -80,7 +80,7 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
     region.invoke[Long, Long, Boolean]("loadBit", byteOff, bitOff)
   }
 
-  def loadAnnotation(typ: Type): Code[Long] => Code[_] = typ match {
+  def loadPrimitive(typ: Type): Code[Long] => Code[_] = typ match {
     case TBoolean =>
       this.loadBoolean(_)
     case TInt32 =>
@@ -95,7 +95,7 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
       off => off
   }
 
-  def appendAnnotation(typ: Type): (Code[_]) => Code[Unit] = typ match {
+  def appendPrimitive(typ: Type): (Code[_]) => Code[Unit] = typ match {
     case TBoolean =>
       x => this.appendInt32(x.asInstanceOf[Code[Int]])
     case TInt32 =>
