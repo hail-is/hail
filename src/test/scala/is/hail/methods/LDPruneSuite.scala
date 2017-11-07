@@ -167,7 +167,7 @@ class LDPruneSuite extends SparkSuite {
           rvb.setMissing()
           rvb.setMissing()
           rvb.setMissing()
-          rvb.addAnnotation(TArray(TGenotype), gArr)
+          rvb.addAnnotation(TArray(TGenotype), gArr: IndexedSeq[Genotype])
           rvb.endStruct()
           rvb.end()
           rvb.result()
