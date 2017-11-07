@@ -1273,23 +1273,71 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         right.saSignature.toPrettyString(compact = true, printAttrs = true))
     }
 
+    if (vSignature != right.vSignature) {
+      fatal(
+        s"""cannot join datasets with different variant schemata
+           |  left variant schema: @1
+           |  right variant schema: @2""".stripMargin,
+        vSignature.toPrettyString(compact = true, printAttrs = true),
+        right.vSignature.toPrettyString(compact = true, printAttrs = true))
+    }
+
     val newSampleIds = sampleIds ++ right.sampleIds
     val duplicates = newSampleIds.duplicates()
     if (duplicates.nonEmpty)
       fatal("duplicate sample IDs: @1", duplicates)
 
-    val joined = rdd.orderedInnerJoinDistinct(right.rdd)
-      .mapValues { case ((lva, lgs), (rva, rgs)) =>
-        val lrgs: Iterable[T] = new Iterable[T] with Serializable {
-          def iterator: Iterator[T] = lgs.iterator ++ rgs.iterator
-        }
-        (lva, lrgs)
-      }.asOrderedRDD
+    val localRowType = rowType
+    val localLeftSamples = nSamples
+    val localRightSamples = right.nSamples
+    val tgs = rowType.fieldType(3).asInstanceOf[TArray]
 
-    copy(
-      sampleIds = newSampleIds,
+    val joined = rdd2.orderedJoinDistinct(right.rdd2, "inner").mapPartitions({ it =>
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+
+      it.map { jrv =>
+        val lrv = jrv.rvLeft
+        val rrv = jrv.rvRight
+
+        rvb.set(lrv.region)
+        rvb.start(localRowType)
+        rvb.startStruct()
+        rvb.addField(localRowType, lrv, 0) // l
+        rvb.addField(localRowType, lrv, 1) // v
+        rvb.addField(localRowType, lrv, 2) // va
+        rvb.startArray(localLeftSamples + localRightSamples)
+
+        val gsLeftOffset = localRowType.loadField(lrv.region, lrv.offset, 3) // left gs
+        val gsLeftLength = tgs.loadLength(lrv.region, gsLeftOffset)
+        assert(gsLeftLength == localLeftSamples)
+
+        val gsRightOffset = localRowType.loadField(rrv.region, rrv.offset, 3) // right gs
+        val gsRightLength = tgs.loadLength(rrv.region, gsRightOffset)
+        assert(gsRightLength == localRightSamples)
+
+        var i = 0
+        while (i < localLeftSamples) {
+          rvb.addElement(tgs, lrv.region, gsLeftOffset, i)
+          i += 1
+        }
+
+        i = 0
+        while (i < localRightSamples) {
+          rvb.addElement(tgs, rrv.region, gsRightOffset, i)
+          i += 1
+        }
+
+        rvb.endArray()
+        rvb.endStruct()
+        rv2.set(lrv.region, rvb.end())
+        rv2
+      }
+    }, preservesPartitioning = true)
+
+    copy2(sampleIds = newSampleIds,
       sampleAnnotations = sampleAnnotations ++ right.sampleAnnotations,
-      rdd = joined)
+      rdd2 = OrderedRDD2(rdd2.typ, rdd2.orderedPartitioner, joined))
   }
 
   def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String] = Array.empty, seperator: String = "."): KeyTable = {
