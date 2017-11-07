@@ -67,6 +67,48 @@ object Code {
       }
     }
 
+  def apply[S1, S2, S3, S4, S5, S6, S7](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6], c7: Code[S7]): Code[S7] =
+    new Code[S7] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
+        c4.emit(il)
+        c5.emit(il)
+        c6.emit(il)
+        c7.emit(il)
+      }
+    }
+
+  def apply[S1, S2, S3, S4, S5, S6, S7, S8](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6], c7: Code[S7], c8: Code[S8]): Code[S8] =
+    new Code[S8] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
+        c4.emit(il)
+        c5.emit(il)
+        c6.emit(il)
+        c7.emit(il)
+        c8.emit(il)
+      }
+    }
+
+  def apply[S1, S2, S3, S4, S5, S6, S7, S8, S9](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6], c7: Code[S7], c8: Code[S8], c9: Code[S9]): Code[S9] =
+    new Code[S9] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
+        c4.emit(il)
+        c5.emit(il)
+        c6.emit(il)
+        c7.emit(il)
+        c8.emit(il)
+        c9.emit(il)
+      }
+    }
+
   def apply(cs: Code[_]*): Code[_] =
     new Code[Unit] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -186,6 +228,18 @@ object Code {
   def floatValue(x: Code[java.lang.Number]): Code[Float] = x.invoke[Float]("floatValue")
 
   def doubleValue(x: Code[java.lang.Number]): Code[Double] = x.invoke[Double]("doubleValue")
+
+  def getStatic[T : ClassTag, S : ClassTag : TypeInfo](field: String): Code[S] = {
+    val f = FieldRef[T, S](field)
+    assert(f.isStatic)
+    f.get(null)
+  }
+
+  def putStatic[T : ClassTag, S : ClassTag : TypeInfo](field: String, rhs: Code[S]): Code[Unit] = {
+    val f = FieldRef[T, S](field)
+    assert(f.isStatic)
+    f.put(null, rhs)
+  }
 }
 
 trait Code[+T] {
@@ -301,6 +355,8 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
+  def unary_-(): Code[Int] = Code(lhs, new InsnNode(INEG))
+
   def +(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(IADD))
 
   def -(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, new InsnNode(ISUB))
@@ -335,8 +391,6 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def cne(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPNE, rhs)
 
-  def negate(): Code[Int] = Code(lhs, new InsnNode(INEG))
-
   def toI: Code[Int] = lhs
 
   def toL: Code[Long] = Code(lhs, new InsnNode(I2L))
@@ -352,6 +406,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 }
 
 class CodeLong(val lhs: Code[Long]) extends AnyVal {
+  def unary_-(): Code[Long] = Code(lhs, new InsnNode(LNEG))
+
   def +(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LADD))
 
   def -(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, new InsnNode(LSUB))
@@ -394,6 +450,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 }
 
 class CodeFloat(val lhs: Code[Float]) extends AnyVal {
+  def unary_-(): Code[Float] = Code(lhs, new InsnNode(FNEG))
+
   def +(rhs: Code[Float]): Code[Float] = Code(lhs, rhs, new InsnNode(FADD))
 
   def -(rhs: Code[Float]): Code[Float] = Code(lhs, rhs, new InsnNode(FSUB))
@@ -424,6 +482,8 @@ class CodeFloat(val lhs: Code[Float]) extends AnyVal {
 }
 
 class CodeDouble(val lhs: Code[Double]) extends AnyVal {
+  def unary_-(): Code[Double] = Code(lhs, new InsnNode(DNEG))
+
   def +(rhs: Code[Double]): Code[Double] = Code(lhs, rhs, new InsnNode(DADD))
 
   def -(rhs: Code[Double]): Code[Double] = Code(lhs, rhs, new InsnNode(DSUB))
