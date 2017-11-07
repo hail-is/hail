@@ -13,7 +13,7 @@ trait ErrorHandling {
     throw new HailException(format(msg, screen), Some(format(msg, logged)), e)
   }
 
-  def fatal(msg: String, t1: Truncatable, t2: Truncatable): Nothing = {
+  def fatal(msg: String, t1: Truncatable, t2: Truncatable): Nothing =
     fatal(msg, t1, t2, null)
 
   def fatal(msg: String, t1: Truncatable, t2: Truncatable, e: Throwable): Nothing = {
