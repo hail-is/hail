@@ -122,7 +122,7 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
 }
 
 private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
-  private val tgs = rs.fields(3).asInstanceOf[TArray]
+  private val tgs = rs.fieldType(3).asInstanceOf[TArray]
   private val tg = tgs.elementType.asInstanceOf[TStruct]
 
   private def lookupField(name: String, expected: Type): (Boolean, Int) = {
