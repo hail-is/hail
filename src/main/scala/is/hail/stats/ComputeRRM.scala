@@ -133,7 +133,7 @@ object ToHWENormalizedIndexedRowMatrix {
       val ab = new ArrayBuilder[Variant]
       var n = 0
       it.foreach { rv =>
-        ab += Variant.fromRegionValue(rv, rowType.loadField(rv, 1))
+        ab += Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))
         n += 1
       }
       Iterator.single((n, ab.result()))

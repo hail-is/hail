@@ -48,14 +48,12 @@ object CopyState extends Enumeration {
 
 object AltAllele {
 
-  def fromMemoryBuffer(m: MemoryBuffer, offset: Long): AltAllele = {
+  def fromRegionValue(m: MemoryBuffer, offset: Long): AltAllele = {
     val t = TAltAllele.representation
     val ref = TString.loadString(m, t.loadField(m, offset, 0))
     val alt = TString.loadString(m, t.loadField(m, offset, 1))
     AltAllele(ref, alt)
   }
-
-  def fromRegionValue(rv: RegionValue, offset: Long): AltAllele = fromMemoryBuffer(rv.region, offset + rv.offset)
 
   def sparkSchema: StructType = StructType(Array(
     StructField("ref", StringType, nullable = false),
@@ -179,21 +177,21 @@ object Variant {
     Variant(contig, start.toInt, ref, alts.split(","))
   }
 
-  def fromRegionValue(rv: RegionValue, offset: Long): Variant = {
+  def fromRegionValue(r: MemoryBuffer, offset: Long): Variant = {
     val t = TVariant.representation
     val altsType = t.fieldType(3).asInstanceOf[TArray]
 
-    val contig = TString.loadString(rv.region, t.loadField(rv.region, rv.offset + offset, 0))
-    val pos = rv.region.loadInt(t.loadField(rv.region, rv.offset + offset, 1))
-    val ref = TString.loadString(rv.region, t.loadField(rv.region, rv.offset + offset, 2))
+    val contig = TString.loadString(r, t.loadField(r, offset, 0))
+    val pos = r.loadInt(t.loadField(r, offset, 1))
+    val ref = TString.loadString(r, t.loadField(r, offset, 2))
 
-    val altsOffset = t.loadField(rv.region, rv.offset + offset, 3)
-    val nAlts = altsType.loadLength(rv.region, altsOffset)
+    val altsOffset = t.loadField(r, offset, 3)
+    val nAlts = altsType.loadLength(r, altsOffset)
     val altArray = new Array[AltAllele](nAlts)
     var i = 0
     while (i < nAlts) {
-      val o = altsType.loadElement(rv.region, altsOffset, nAlts, i)
-      altArray(i) = AltAllele.fromMemoryBuffer(rv.region, o)
+      val o = altsType.loadElement(r, altsOffset, nAlts, i)
+      altArray(i) = AltAllele.fromRegionValue(r, o)
       i += 1
     }
     Variant(contig, pos, ref, altArray)

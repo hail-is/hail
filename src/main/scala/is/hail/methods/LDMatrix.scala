@@ -29,7 +29,7 @@ object LDMatrix {
     val filteredNormalizedHardCalls = vds.rdd2.mapPartitions { it =>
       val view = HardCallView(rowType)
       it.flatMap { rv =>
-        val v = Variant.fromRegionValue(rv, rowType.loadField(rv, 1))
+        val v = Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))
         view.setRegion(rv)
         RegressionUtils.normalizedHardCalls(view, nSamples).map(x => (v, x))
       }
