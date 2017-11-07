@@ -382,7 +382,7 @@ class StagedRegionValueSuite extends SparkSuite {
   }
 
   @Test
-  def testAddAnnotation() {
+  def testAddPrimitive() {
     val t = TStruct("a" -> TInt32, "b" -> TBoolean, "c" -> TFloat64)
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Int, Boolean, Double, Long]
     val srvb = new StagedRegionValueBuilder(fb, t)
