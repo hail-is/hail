@@ -60,8 +60,8 @@ class Type(object):
         # FIXME string matching is pretty hacky
         class_name = jtype.getClass().getCanonicalName()
 
-        if class_name in __singletons__:
-            return __singletons__[class_name][0](__singletons__[class_name][1])
+        if class_name in _singleton_classes:
+            return __singletons__(class_name)
         elif class_name == 'is.hail.expr.TArray':
             return TArray._from_java(jtype)
         elif class_name == 'is.hail.expr.TSet':
@@ -878,24 +878,31 @@ class TAggregable(Type):
     def _typecheck(self, annotation):
         return
 
-__singletons__ = {'is.hail.expr.TInt32Optional$': (TInt32, False),
-                  'is.hail.expr.TInt32Required$': (TInt32, True),
-                  'is.hail.expr.TInt64Optional$': (TInt64, False),
-                  'is.hail.expr.TInt64Required$': (TInt64, True),
-                  'is.hail.expr.TFloat32Optional$': (TFloat32, False),
-                  'is.hail.expr.TFloat32Required$': (TFloat32, True),
-                  'is.hail.expr.TFloat64Optional$': (TFloat64, False),
-                  'is.hail.expr.TFloat64Required$': (TFloat64, True),
-                  'is.hail.expr.TBooleanOptional$': (TBoolean, False),
-                  'is.hail.expr.TBooleanRequired$': (TBoolean, True),
-                  'is.hail.expr.TStringOptional$': (TString, False),
-                  'is.hail.expr.TStringRequired$': (TString, True),
-                  'is.hail.expr.TAltAlleleOptional$': (TAltAllele, False),
-                  'is.hail.expr.TAltAlleleRequired$': (TAltAllele, True),
-                  'is.hail.expr.TGenotypeOptional$': (TGenotype, False),
-                  'is.hail.expr.TGenotypeRequired$': (TGenotype, True),
-                  'is.hail.expr.TCallOptional$': (TCall, False),
-                  'is.hail.expr.TCallRequired$': (TCall, True)}
+__singletons = {}
+_singleton_classes = {'is.hail.expr.TInt32Optional$': (TInt32, False),
+                      'is.hail.expr.TInt32Required$': (TInt32, True),
+                      'is.hail.expr.TInt64Optional$': (TInt64, False),
+                      'is.hail.expr.TInt64Required$': (TInt64, True),
+                      'is.hail.expr.TFloat32Optional$': (TFloat32, False),
+                      'is.hail.expr.TFloat32Required$': (TFloat32, True),
+                      'is.hail.expr.TFloat64Optional$': (TFloat64, False),
+                      'is.hail.expr.TFloat64Required$': (TFloat64, True),
+                      'is.hail.expr.TBooleanOptional$': (TBoolean, False),
+                      'is.hail.expr.TBooleanRequired$': (TBoolean, True),
+                      'is.hail.expr.TStringOptional$': (TString, False),
+                      'is.hail.expr.TStringRequired$': (TString, True),
+                      'is.hail.expr.TAltAlleleOptional$': (TAltAllele, False),
+                      'is.hail.expr.TAltAlleleRequired$': (TAltAllele, True),
+                      'is.hail.expr.TGenotypeOptional$': (TGenotype, False),
+                      'is.hail.expr.TGenotypeRequired$': (TGenotype, True),
+                      'is.hail.expr.TCallOptional$': (TCall, False),
+                      'is.hail.expr.TCallRequired$': (TCall, True)}
+def __singletons__(scala_type):
+    global __singletons
+    if scala_type not in __singletons:
+        type, required = _singleton_classes[scala_type]
+        __singletons[scala_type] = type(required)
+    return __singletons[scala_type]
 
 import pprint
 

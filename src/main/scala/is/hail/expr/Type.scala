@@ -22,8 +22,13 @@ import scala.reflect.classTag
 abstract class BaseType
 
 object Type {
-  val genScalar: Gen[Type] = Gen.oneOf[Type](TBooleanOptional, TInt32Optional, TInt64Optional, TFloat32Optional, TFloat64Optional, TStringOptional,
-    TVariant(GenomeReference.GRCh37), TAltAlleleOptional, TGenotypeOptional, TLocus(GenomeReference.GRCh37), TInterval(GenomeReference.GRCh37), TCallOptional)
+  val genOptionalScalar: Gen[Type] = Gen.oneOf[Type](TBooleanOptional, TInt32Optional, TInt64Optional, TFloat32Optional, TFloat64Optional, TStringOptional,
+    TVariant(GenomeReference.GRCh37, false), TAltAlleleOptional, TGenotypeOptional, TLocus(GenomeReference.GRCh37, false), TInterval(GenomeReference.GRCh37, false), TCallOptional)
+
+  val genRequiredScalar: Gen[Type] = Gen.oneOf[Type](TBooleanRequired, TInt32Required, TInt64Required, TFloat32Required, TFloat64Required, TStringRequired,
+    TVariant(GenomeReference.GRCh37, true), TAltAlleleRequired, TGenotypeRequired, TLocus(GenomeReference.GRCh37, true), TInterval(GenomeReference.GRCh37, true), TCallRequired)
+
+  val genScalar: Gen[Type] = Gen.coin(0.2).flatMap( r => if (r) genRequiredScalar else genOptionalScalar )
 
   def genSized(size: Int): Gen[Type] = {
     if (size < 1)
@@ -771,7 +776,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
-  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
 
   // FIXME does symTab belong here?
   // not used for equality
@@ -987,7 +992,7 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
     if (elementType == elementType.fundamentalType)
       this
     else
-      TArray(elementType.fundamentalType)
+      this.copy(elementType = elementType.fundamentalType)
   }
 
   def _toString = s"Array[$elementType]"
@@ -1053,7 +1058,7 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
-  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
 
   def _toString = s"Set[$elementType]"
 
@@ -1126,7 +1131,7 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   val contentsAlignment: Long = elementType.alignment.max(4)
 
-  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
 
   override def canCompare(other: Type): Boolean = other match {
     case TDict(okt, ovt, _) => keyType.canCompare(okt) && valueType.canCompare(ovt)
@@ -1198,7 +1203,13 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 sealed class TGenotype(override val required: Boolean) extends ComplexType {
   def _toString = "Genotype"
 
-  val representation: TStruct = TGenotype.representation
+  private val _representation: TStruct = TStruct(
+    "gt" -> TInt32(),
+    "ad" -> TArray(TInt32()),
+    "dp" -> TInt32(),
+    "gq" -> TInt32(),
+    "pl" -> TArray(TInt32()))
+  val representation: TStruct = if (required) (!_representation).asInstanceOf[TStruct] else _representation
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Genotype]
 
@@ -1225,13 +1236,6 @@ object TGenotype {
   def apply(required: Boolean = false): TGenotype = if (required) TGenotypeRequired else TGenotypeOptional
 
   def unapply(t: TGenotype): Option[Boolean] = Option(t.required)
-
-  val representation: TStruct = TStruct(
-    "gt" -> TInt32(),
-    "ad" -> TArray(!TInt32()),
-    "dp" -> TInt32(),
-    "gq" -> TInt32(),
-    "pl" -> TArray(!TInt32()))
 }
 
 case object TGenotypeOptional extends TGenotype(false)
@@ -1241,7 +1245,7 @@ case object TGenotypeRequired extends TGenotype(true)
 sealed class TCall(override val required: Boolean) extends ComplexType {
   def _toString = "Call"
 
-  val representation: Type = TInt32()
+  val representation: Type = if (required) !TInt32() else TInt32()
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]
 
@@ -1281,15 +1285,16 @@ sealed class TAltAllele(override val required: Boolean) extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
 
-  val representation: TStruct = TAltAllele.representation
+  val _representation: TStruct = TStruct(
+    "ref" -> TString(),
+    "alt" -> TString())
+
+  val representation: TStruct = if (required) (!_representation).asInstanceOf[TStruct] else _representation
 }
 
 object TAltAllele {
   def apply(required: Boolean = false): TAltAllele = if (required) TAltAlleleRequired else TAltAlleleOptional
   def unapply(t: TAltAllele): Option[Boolean] = Option(t.required)
-  val representation: TStruct = TStruct(
-    "ref" -> TString(),
-    "alt" -> TString())
 }
 
 case object TAltAlleleOptional extends TAltAllele(false)
@@ -2081,7 +2086,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     } else
       Gen.size.flatMap(fuel =>
         if (size > fuel)
-          Gen.uniformSequence(fields.map(f => Gen.const(null))).map(a => Annotation(a: _*))
+          Gen.uniformSequence(fields.map(f => if (f.typ.required) f.typ.genValue else Gen.const(null))).map(a => Annotation(a: _*))
         else
           Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
@@ -2214,8 +2219,12 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     if ((fields, fundamentalFieldTypes).zipped
       .forall { case (f, ft) => f.typ == ft })
       this
-    else
-      TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
+    else {
+      if (required)
+        (!TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)).asInstanceOf[TStruct]
+      else
+        TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
+    }
   }
 
   def allocate(region: MemoryBuffer): Long = {

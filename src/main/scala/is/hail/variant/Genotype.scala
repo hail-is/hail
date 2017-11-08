@@ -828,15 +828,9 @@ object Genotype {
       g <- Gen.oneOfGen(genExtreme(v), genRealistic(v)))
       yield (v, g)
 
-  def genNonmissingValue: Gen[Genotype] =
-    for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtremeNonmissing(v), genRealisticNonmissing(v)))
-      yield g
+  def genNonmissingValue: Gen[Genotype] = Variant.gen.flatMap( v => Gen.oneOfGen(genExtremeNonmissing(v), genRealisticNonmissing(v)) )
 
-  def genArb: Gen[Genotype] =
-    for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v)))
-      yield g
+  def genArb: Gen[Genotype] = Variant.gen.flatMap( v => Gen.oneOfGen(genExtreme(v), genRealistic(v)) )
 
   implicit def arbGenotype = Arbitrary(genArb)
 }

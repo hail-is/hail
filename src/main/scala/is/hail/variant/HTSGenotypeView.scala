@@ -15,7 +15,7 @@ object HTSGenotypeView {
     }
   }
 
-  val tArrayInt32 = TArray(!TInt32())
+  val tArrayInt32 = TArray(TInt32())
 }
 
 // FIXME: This is removed, and StructGenotypeView becomes the only genotype view when TGenotype is removed

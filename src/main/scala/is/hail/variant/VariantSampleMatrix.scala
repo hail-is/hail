@@ -828,7 +828,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
           annotateLoci(ord, finalType, inserter, product = product)
 
-        case Array(TInterval(_, _)) if vSignature == TVariant(GenomeReference.GRCh37) || vSignature == !TVariant(GenomeReference.GRCh37) =>
+        case Array(TInterval(_, _)) if vSignature.isOfType(TVariant(GenomeReference.GRCh37)) =>
           val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
           val partitionKeyedIntervals = keyedRDD
             .flatMap { case (k, v) =>
