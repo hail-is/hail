@@ -80,30 +80,30 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
   }
 
   def loadPrimitive(typ: Type): Code[Long] => Code[_] = typ match {
-    case TBoolean =>
+    case _: TBoolean =>
       this.loadBoolean(_)
-    case TInt32 =>
+    case _: TInt32 =>
       this.loadInt(_)
-    case TInt64 =>
+    case _: TInt64 =>
       this.loadLong(_)
-    case TFloat32 =>
+    case _: TFloat32 =>
       this.loadFloat(_)
-    case TFloat64 =>
+    case _: TFloat64 =>
       this.loadDouble(_)
     case _ =>
       off => off
   }
 
   def appendPrimitive(typ: Type): (Code[_]) => Code[Unit] = typ match {
-    case TBoolean =>
+    case _: TBoolean =>
       x => this.appendInt32(x.asInstanceOf[Code[Int]])
-    case TInt32 =>
+    case _: TInt32 =>
       x => this.appendInt32(x.asInstanceOf[Code[Int]])
-    case TInt64 =>
+    case _: TInt64 =>
       x => this.appendInt64(x.asInstanceOf[Code[Long]])
-    case TFloat32 =>
+    case _: TFloat32 =>
       x => this.appendFloat32(x.asInstanceOf[Code[Float]])
-    case TFloat64 =>
+    case _: TFloat64 =>
       x => this.appendFloat64(x.asInstanceOf[Code[Double]])
     case _ =>
       throw new UnsupportedOperationException("cannot append non-primitive type: $typ")

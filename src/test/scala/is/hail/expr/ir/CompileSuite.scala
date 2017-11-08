@@ -13,7 +13,7 @@ class CompileSuite {
 
   private def addArray(mb: MemoryBuffer, a: Array[Double]): Long = {
     val rvb = new RegionValueBuilder(mb)
-    rvb.start(TArray(TFloat64))
+    rvb.start(TArray(TFloat64()))
     rvb.startArray(a.length)
     a.foreach(rvb.addDouble(_))
     rvb.endArray()
@@ -22,7 +22,7 @@ class CompileSuite {
 
   private def addBoxedArray(mb: MemoryBuffer, a: Array[java.lang.Double]): Long = {
     val rvb = new RegionValueBuilder(mb)
-    rvb.start(TArray(TFloat64))
+    rvb.start(TArray(TFloat64()))
     rvb.startArray(a.length)
     a.foreach { e =>
       if (e == null)
@@ -43,11 +43,11 @@ class CompileSuite {
   @Test
   def mean() {
     val meanIr =
-      Let("x", In(0, TArray(TFloat64)),
+      Let("x", In(0, TArray(TFloat64())),
         ApplyBinaryPrimOp(Divide(),
           ArrayFold(Ref("x"), F64(0.0), "sum", "v",
             ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))),
-          Cast(ArrayLen(Ref("x")), TFloat64)))
+          Cast(ArrayLen(Ref("x")), TFloat64())))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     doit(meanIr, fb)
@@ -69,7 +69,7 @@ class CompileSuite {
     val letAddIr =
       Let("foo", F64(0),
         ApplyBinaryPrimOp(Add(),
-          Ref("foo"), Cast(I32(1), TFloat64)))
+          Ref("foo"), Cast(I32(1), TFloat64())))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Double]
     doit(letAddIr, fb)
@@ -81,7 +81,7 @@ class CompileSuite {
   @Test
   def count() {
     val letAddIr =
-      Let("in", In(0, TArray(TFloat64)),
+      Let("in", In(0, TArray(TFloat64())),
         ArrayFold(Ref("in"), I32(0), "count", "v",
           ApplyBinaryPrimOp(Add(), Ref("count"), I32(1))))
 
@@ -92,7 +92,7 @@ class CompileSuite {
     def run(a: Array[java.lang.Double]): Int = {
       val mb = MemoryBuffer()
       val aoff = addBoxedArray(mb, a)
-      val t = TArray(TFloat64)
+      val t = TArray(TFloat64())
       f(mb, aoff, false)
     }
 
@@ -104,7 +104,7 @@ class CompileSuite {
   @Test
   def sum() {
     val letAddIr =
-      Let("in", In(0, TArray(TFloat64)),
+      Let("in", In(0, TArray(TFloat64())),
         ArrayFold(Ref("in"), F64(0), "sum", "v",
           ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))))
 
@@ -115,7 +115,7 @@ class CompileSuite {
     def run(a: Array[java.lang.Double]): Double = {
       val mb = MemoryBuffer()
       val aoff = addBoxedArray(mb, a)
-      val t = TArray(TFloat64)
+      val t = TArray(TFloat64())
       f(mb, aoff, false)
     }
 
@@ -129,7 +129,7 @@ class CompileSuite {
   @Test
   def countNonMissing() {
     val letAddIr =
-      Let("in", In(0, TArray(TFloat64)),
+      Let("in", In(0, TArray(TFloat64())),
         ArrayFold(Ref("in"), I32(0), "count", "v",
           ApplyBinaryPrimOp(Add(), Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))))
 
@@ -140,7 +140,7 @@ class CompileSuite {
     def run(a: Array[java.lang.Double]): Double = {
       val mb = MemoryBuffer()
       val aoff = addBoxedArray(mb, a)
-      val t = TArray(TFloat64)
+      val t = TArray(TFloat64())
       f(mb, aoff, false)
     }
 
@@ -154,7 +154,7 @@ class CompileSuite {
   @Test
   def nonMissingSum() {
     val sumIr =
-      ArrayFold(In(0, TArray(TFloat64)), F64(0), "sum", "v",
+      ArrayFold(In(0, TArray(TFloat64())), F64(0), "sum", "v",
         ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v"))))
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     doit(sumIr, fb)
@@ -163,7 +163,7 @@ class CompileSuite {
     def run(a: Array[java.lang.Double]): Double = {
       val mb = MemoryBuffer()
       val aoff = addBoxedArray(mb, a)
-      val t = TArray(TFloat64)
+      val t = TArray(TFloat64())
       f(mb, aoff, false)
     }
 
@@ -176,14 +176,14 @@ class CompileSuite {
   @Test
   def nonMissingMean() {
     val letAddIr =
-      Let("in", In(0, TArray(TFloat64)),
+      Let("in", In(0, TArray(TFloat64())),
         Let("nonMissing",
           ArrayFold(Ref("in"), I32(0), "count", "v",
             ApplyBinaryPrimOp(Add(), Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))),
           Let("sum",
             ArrayFold(Ref("in"), F64(0), "sum", "v",
               ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v")))),
-            ApplyBinaryPrimOp(Divide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64)))))
+            ApplyBinaryPrimOp(Divide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64())))))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     doit(letAddIr, fb)
@@ -192,7 +192,7 @@ class CompileSuite {
     def run(a: Array[java.lang.Double]): Double = {
       val mb = MemoryBuffer()
       val aoff = addBoxedArray(mb, a)
-      val t = TArray(TFloat64)
+      val t = TArray(TFloat64())
       f(mb, aoff, false)
     }
 
@@ -225,7 +225,7 @@ class CompileSuite {
   def replaceMissingValues() {
     val replaceMissingIr =
       Let("mean", F64(42.0),
-        ArrayMap(In(0, TArray(TFloat64)), "v",
+        ArrayMap(In(0, TArray(TFloat64())), "v",
           If(IsNA(Ref("v")), Ref("mean"), Ref("v"))))
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
     doit(replaceMissingIr, fb)
@@ -233,7 +233,7 @@ class CompileSuite {
     def run(a: Array[java.lang.Double]): Array[java.lang.Double] = {
       val mb = MemoryBuffer()
       val aoff = addBoxedArray(mb, a)
-      val t = TArray(TFloat64)
+      val t = TArray(TFloat64())
       val roff = f(mb, aoff, false)
       println(s"array location $roff")
       printRegion(mb, "hi amanda")
@@ -253,7 +253,7 @@ class CompileSuite {
   @Test
   def meanImpute() {
     val meanImputeIr =
-      Let("in", In(0, TArray(TFloat64)),
+      Let("in", In(0, TArray(TFloat64())),
         Let("nonMissing",
           ArrayFold(Ref("in"), I32(0), "count", "v",
             ApplyBinaryPrimOp(Add(), Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))),
@@ -261,7 +261,7 @@ class CompileSuite {
             ArrayFold(Ref("in"), F64(0), "sum", "v",
               ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v")))),
             Let("mean",
-              ApplyBinaryPrimOp(Divide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64)),
+              ApplyBinaryPrimOp(Divide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64())),
               ArrayMap(Ref("in"), "v",
                 If(IsNA(Ref("v")), Ref("mean"), Ref("v")))))))
 
@@ -271,7 +271,7 @@ class CompileSuite {
     def run(a: Array[java.lang.Double]): Array[java.lang.Double] = {
       val mb = MemoryBuffer()
       val aoff = addBoxedArray(mb, a)
-      val t = TArray(TFloat64)
+      val t = TArray(TFloat64())
       val roff = f(mb, aoff, false)
       Array.tabulate[java.lang.Double](a.length) { i =>
         if (t.isElementDefined(mb, roff, i))
@@ -292,8 +292,8 @@ class CompileSuite {
 
   @Test
   def mapNA() {
-    val mapNaIr = MapNA("foo", In(0, TArray(TFloat64)),
-      ArrayRef(Ref("foo"), In(1, TInt32)))
+    val mapNaIr = MapNA("foo", In(0, TArray(TFloat64())),
+      ArrayRef(Ref("foo"), In(1, TInt32())))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int, Boolean, Double]
     doit(mapNaIr, fb)

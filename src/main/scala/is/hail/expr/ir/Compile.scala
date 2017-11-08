@@ -12,20 +12,20 @@ import scala.language.existentials
 
 object Compile {
   private def defaultValue(t: expr.Type): Code[_] = t match {
-    case TBoolean => false
-    case TInt32 => 0
-    case TInt64 => 0L
-    case TFloat32 => 0.0f
-    case TFloat64 => 0.0
+    case _: TBoolean => false
+    case _: TInt32 => 0
+    case _: TInt64 => 0L
+    case _: TFloat32 => 0.0f
+    case _: TFloat64 => 0.0
     case _ => 0L // reference types
   }
 
   private def typeToTypeInfo(t: expr.Type): TypeInfo[_] = t match {
-    case TInt32 => typeInfo[Int]
-    case TInt64 => typeInfo[Long]
-    case TFloat32 => typeInfo[Float]
-    case TFloat64 => typeInfo[Double]
-    case TBoolean => typeInfo[Boolean]
+    case _: TInt32 => typeInfo[Int]
+    case _: TInt64 => typeInfo[Long]
+    case _: TFloat32 => typeInfo[Float]
+    case _: TFloat64 => typeInfo[Double]
+    case _: TBoolean => typeInfo[Boolean]
     case _ => typeInfo[Long] // reference types
   }
 
@@ -186,7 +186,7 @@ object Compile {
           xa := coerce[Long](xma.mux(defaultValue(tarray), va)),
           doi,
           xmi := mi,
-          xi := coerce[Int](xmi.mux(defaultValue(TInt32), vi)),
+          xi := coerce[Int](xmi.mux(defaultValue(TInt32()), vi)),
           xmv := xma || xmi || !tarray.isElementDefined(region, xa, xi))
 
         (setup, xmv, region.loadPrimitive(typ)(tarray.loadElement(region, xa, xi)))
