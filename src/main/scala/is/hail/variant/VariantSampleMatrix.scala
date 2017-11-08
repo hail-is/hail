@@ -2412,4 +2412,76 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       saSignature = newSaSignature,
       genotypeSignature = newEntryType)
   }
+
+  def pcaResults(k: Int = 10, computeLoadings: Boolean = false, computeEigenvalues: Boolean = false, asArrays: Boolean = false): (KeyTable, Option[KeyTable], Option[IndexedSeq[Double]]) = {
+    require(wasSplit)
+
+    if (k < 1)
+      fatal(
+        s"""requested invalid number of components: $k
+           |  Expect componenents >= 1""".stripMargin)
+
+    info(s"Running PCA with $k components...")
+
+    val (scoresmatrix, optionLoadings, optionEigenvalues) = SamplePCA(this, k, computeLoadings, computeEigenvalues, asArrays)
+
+    val rowType = TStruct("s" -> sSignature, "pcaScores" -> SamplePCA.pcSchema(k, asArrays))
+    val rowTypeBc = sparkContext.broadcast(rowType)
+
+    val scoresrdd = sparkContext.parallelize(sampleIds.zip(scoresmatrix.rowIter.toSeq)).mapPartitions[RegionValue] { it =>
+      val region = MemoryBuffer()
+      val rv = RegionValue(region)
+      val rvb = new RegionValueBuilder(region)
+      val localRowType = rowTypeBc.value
+
+      it.map{ case (s,v) =>
+        rvb.start(localRowType)
+        rvb.startStruct()
+        rvb.addAnnotation(rowType.fieldType(0), s)
+        if (asArrays) rvb.startArray(k) else rvb.startStruct()
+        var j = 0
+        while (j < k) {
+          rvb.addDouble(v(j))
+          j += 1
+        }
+        if (asArrays) rvb.endArray() else rvb.endStruct()
+        rvb.endStruct()
+        rv.setOffset(rvb.end())
+        rv
+      }
+    }
+    val scores = new KeyTable(hc,
+      scoresrdd,
+      rowType,
+      Array("s"))
+
+    (scores, optionLoadings, optionEigenvalues)
+  }
+
+  /**
+    *
+    * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')
+    * @param k            Number of principal components
+    * @param loadingsRoot Variant annotation path for site loadings (period-delimited path starting in 'va')
+    * @param eigenRoot    Global annotation path for eigenvalues (period-delimited path starting in 'global'
+    * @param asArrays     Store score and loading results as arrays, rather than structs
+    */
+
+  def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
+    asArrays: Boolean = false): VariantSampleMatrix[RPK, RK, T] = {
+
+    val pcSchema = SamplePCA.pcSchema(k, asArrays)
+
+    val (scores, loadings, eigenvalues) = pcaResults(k, loadingsRoot.isDefined, eigenRoot.isDefined)
+    var ret = annotateSamplesTable(scores, root = scoresRoot)
+
+    loadings.foreach { kt =>
+      ret = ret.annotateVariantsTable(kt, root = loadingsRoot.get)
+    }
+
+    eigenvalues.foreach { eig =>
+      ret = ret.annotateGlobal(if (asArrays) eig else Annotation.fromSeq(eig), pcSchema, eigenRoot.get)
+    }
+    ret
+  }
 }

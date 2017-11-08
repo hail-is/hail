@@ -3403,7 +3403,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.pca(scores, k, joption(loadings), joption(eigenvalues), as_array)
+        jvds = self._jvds.pca(scores, k, joption(loadings), joption(eigenvalues), as_array)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
