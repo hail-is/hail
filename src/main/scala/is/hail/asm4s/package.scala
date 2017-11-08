@@ -12,7 +12,7 @@ package object asm4s {
 
   def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
 
-  abstract class TypeInfo[T : ClassTag] {
+  abstract class TypeInfo[T] {
     val name: String
     val iname: String = name
     val loadOp: Int
@@ -23,7 +23,6 @@ package object asm4s {
     val slots: Int = 1
 
     def newArray(): AbstractInsnNode
-    def classTag: ClassTag[T] = reflect.classTag
   }
 
   implicit object BooleanInfo extends TypeInfo[Boolean] {
@@ -138,12 +137,7 @@ package object asm4s {
   implicit def arrayInfo[T](implicit cct: ClassTag[Array[T]]): TypeInfo[Array[T]] =
     new ArrayInfo
 
-  implicit def arrayInfo[T](implicit tti: TypeInfo[T]): TypeInfo[Array[T]] =
-    new ArrayInfo(tti)
-
   class ArrayInfo[T](implicit val tct: ClassTag[Array[T]]) extends TypeInfo[Array[T]] {
-    def this(tti: TypeInfo[T]) = this()(tti.classTag.wrap)
-
     val name = Type.getDescriptor(tct.runtimeClass)
     override val iname = Type.getInternalName(tct.runtimeClass)
     val loadOp = ALOAD

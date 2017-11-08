@@ -19,6 +19,7 @@ object Compile {
     case TFloat64 => 0.0
     case _ => 0L // reference types
   }
+
   private def typeToTypeInfo(t: expr.Type): TypeInfo[_] = t match {
     case TInt32 => typeInfo[Int]
     case TInt64 => typeInfo[Long]
