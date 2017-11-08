@@ -5326,7 +5326,7 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(config=strlike,
                       block_size=integral,
                       root=strlike)
-    def nirvana(self, config, block_size = 500000, root = 'va.nirvana'):
+    def nirvana(self, config, block_size=500000, root='va.nirvana'):
         """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
         
         .. include:: _templates/experimental.rst
