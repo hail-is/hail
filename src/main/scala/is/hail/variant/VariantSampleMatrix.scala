@@ -1418,6 +1418,15 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       })
   }
 
+  def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
+    require(wasSplit)
+    requireColKeyString("mendel errors")
+
+    val men = MendelErrors(this, ped.filterTo(stringSampleIdSet).completeTrios)
+
+    (men.mendelKT(), men.fMendelKT(), men.iMendelKT(), men.lMendelKT())
+  }
+
   def queryGenotypes(expr: String): (Annotation, Type) = {
     val qv = queryGenotypes(Array(expr))
     assert(qv.length == 1)

@@ -2,16 +2,14 @@ package is.hail.methods
 
 import is.hail.HailContext
 import is.hail.annotations.Annotation
-import is.hail.expr.{TInt32, TString, TStruct, TVariant, Type}
+import is.hail.expr.{TInt32, TString, TStruct, Type}
 import is.hail.keytable.KeyTable
-import is.hail.utils.{MultiArray2, _}
+import is.hail.utils._
 import is.hail.variant.CopyState._
 import is.hail.variant.GenotypeType._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-
-import scala.collection.mutable
 
 case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
   gtKid: GenotypeType, gtDad: GenotypeType, gtMom: GenotypeType) {
@@ -46,26 +44,24 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
 
 object MendelErrors {
 
-  def getCode(gts: IndexedSeq[GenotypeType], copyState: CopyState): Int = {
-    (gts(1), gts(2), gts(0), copyState) match {
-      // (gtDad, gtMom, gtKid)
-      case (HomRef, HomRef, Het, Auto) => 2 // Kid is Het
-      case (HomVar, HomVar, Het, Auto) => 1
-      case (HomRef, HomRef, HomVar, Auto) => 5 // Kid is HomVar
-      case (HomRef, _, HomVar, Auto) => 3
-      case (_, HomRef, HomVar, Auto) => 4
-      case (HomVar, HomVar, HomRef, Auto) => 8 // Kid is HomRef
-      case (HomVar, _, HomRef, Auto) => 6
-      case (_, HomVar, HomRef, Auto) => 7
-      case (_, HomVar, HomRef, HemiX) => 9 // Kid is hemizygous
-      case (_, HomRef, HomVar, HemiX) => 10
-      case (HomVar, _, HomRef, HemiY) => 11
-      case (HomRef, _, HomVar, HemiY) => 12
-      case _ => 0 // No error
-    }
+  def getCode(probandGt: Int, motherGt: Int, fatherGt: Int, copyState: CopyState): Int =
+    (fatherGt, motherGt, probandGt, copyState) match {
+    case (0, 0, 1, Auto)  => 2  // Kid is Het
+    case (2, 2, 1, Auto)  => 1
+    case (0, 0, 2, Auto)  => 5  // Kid is HomVar
+    case (0, _, 2, Auto)  => 3
+    case (_, 0, 2, Auto)  => 4
+    case (2, 2, 0, Auto)  => 8  // Kid is HomRef
+    case (2, _, 0, Auto)  => 6
+    case (_, 2, 0, Auto)  => 7
+    case (_, 2, 0, HemiX) => 9  // Kid is hemizygous
+    case (_, 0, 2, HemiX) => 10
+    case (2, _, 0, HemiY) => 11
+    case (0, _, 2, HemiY) => 12
+    case _ => 0 // No error
   }
 
-  def apply(vds: VariantDataset, preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
+  def apply[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T], preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
     vds.requireUniqueSamples("mendel_errors")
 
     val trios = preTrios.filter(_.sex.isDefined)
@@ -74,47 +70,36 @@ object MendelErrors {
     if (nSamplesDiscarded > 0)
       warn(s"$nSamplesDiscarded ${ plural(nSamplesDiscarded, "sample") } discarded from .fam: sex of child is missing.")
 
-    val sampleTrioRoles = mutable.Map.empty[String, List[(Int, Int)]]
-    trios.zipWithIndex.foreach { case (t, ti) =>
-      sampleTrioRoles += (t.kid -> sampleTrioRoles.getOrElse(t.kid, List.empty[(Int, Int)]).::(ti, 0))
-      sampleTrioRoles += (t.knownDad -> sampleTrioRoles.getOrElse(t.knownDad, List.empty[(Int, Int)]).::(ti, 1))
-      sampleTrioRoles += (t.knownMom -> sampleTrioRoles.getOrElse(t.knownMom, List.empty[(Int, Int)]).::(ti, 2))
-    }
+    val trioMatrix = vds.trioMatrix(Pedigree(trios), completeTrios = true)
+    val rowType = trioMatrix.rowType
+    val nTrios = trioMatrix.nSamples
 
     val sc = vds.sparkContext
-    val sampleTrioRolesBc = sc.broadcast(sampleTrioRoles)
     val triosBc = sc.broadcast(trios)
     // all trios have defined sex, see filter above
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
-    val zeroVal: MultiArray2[GenotypeType] = MultiArray2.fill(trios.length, 3)(NoCall)
-
-    def seqOp(a: MultiArray2[GenotypeType], s: Annotation, g: Genotype): MultiArray2[GenotypeType] = {
-      sampleTrioRolesBc.value.get(s.asInstanceOf[String]).foreach(l => l.foreach { case (ti, ri) => a.update(ti, ri, Genotype.gtType(g)) })
-      a
-    }
-
-    def mergeOp(a: MultiArray2[GenotypeType], b: MultiArray2[GenotypeType]): MultiArray2[GenotypeType] = {
-      for ((i, j) <- a.indices)
-        if (b(i, j) != NoCall)
-          a(i, j) = b(i, j)
-      a
-    }
-
     new MendelErrors(vds.hc, vds.vSignature, trios, vds.stringSampleIds,
-      vds
-        .aggregateByVariantWithKeys(zeroVal)(
-          (a, v, s, g) => seqOp(a, s, g),
-          mergeOp)
-        .flatMap { case (v, a) =>
-          a.rows.flatMap { case (row) => val code = getCode(row, v.copyState(trioSexBc.value(row.i)))
+      trioMatrix.rdd2.mapPartitions { it =>
+        val view = new HardcallTrioGenotypeView(rowType, "gt")
+        it.flatMap { rv =>
+          view.setRegion(rv)
+          val v = Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))
+          Range(0, nTrios).flatMap { i =>
+            view.setGenotype(i)
+            val probandGt = if (view.hasProbandGT) view.getProbandGT else -1
+            val motherGt = if (view.hasMotherGT) view.getMotherGT else -1
+            val fatherGt = if (view.hasFatherGT) view.getFatherGT else -1
+            val code = getCode(probandGt, motherGt, fatherGt, v.copyState(trioSexBc.value(i)))
             if (code != 0)
-              Some(MendelError(v, triosBc.value(row.i), code, row(0), row(1), row(2)))
+              Some(MendelError(v, triosBc.value(i), code,
+                GenotypeType(probandGt), GenotypeType(fatherGt), GenotypeType(motherGt)))
             else
               None
           }
         }
-        .cache()
+
+      }.cache()
     )
   }
 }
