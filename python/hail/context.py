@@ -639,6 +639,8 @@ class HailContext(object):
 
             - Not all :py:class:`.VariantDataset` methods will work with a generic genotype schema.
 
+            - The Hail call representation does not support partially missing calls (e.g. 0/.).  Partially missing calls will be treated as (fully) missing.
+
         :py:meth:`~hail.HailContext.import_vcf` does not perform deduplication - if the provided VCF(s) contain multiple records with the same chrom, pos, ref, alt, all
         these records will be imported and will not be collapsed into a single variant.
 

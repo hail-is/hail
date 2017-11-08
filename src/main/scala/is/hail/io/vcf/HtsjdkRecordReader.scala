@@ -120,7 +120,10 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
 
       assert(a0.isCalled || a0.isNoCall)
       assert(a1.isCalled || a1.isNoCall)
-      assert(a0.isCalled == a1.isCalled)
+
+      // We can't represent partially missing genotypes (e.g. 0/.) so read them in as missing.
+      // These showed up in a liftover of the 1KG dataset.
+      // assert(a0.isCalled == a1.isCalled)
 
       var filter = false
       gb.clear()
@@ -158,7 +161,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
 
       var gt = -1 // notCalled
 
-      if (a0.isCalled) {
+      if (a0.isCalled && a1.isCalled) {
         val i = vc.getAlleleIndex(a0)
         val j = vc.getAlleleIndex(a1)
 
@@ -251,6 +254,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
 object GenericRecordReader {
   val haploidRegex = """^([0-9]+)$""".r
   val diploidRegex = """^([0-9]+)([|/]([0-9]+))$""".r
+  val partialMissing = """^(?:\.[|/][0-9]+)|(?:[0-9]+[|/]\.)$""".r
 
   def getCall(gt: String, nAlleles: Int): Call = {
     val call: Call = gt match {
@@ -258,6 +262,7 @@ object GenericRecordReader {
       case VCFConstants.EMPTY_GENOTYPE => null
       case haploidRegex(a0) => Call(Genotype.gtIndexWithSwap(a0.toInt, a0.toInt))
       case VCFConstants.EMPTY_ALLELE => null
+      case partialMissing() => null
       case _ => fatal(s"Invalid input format for Call type. Found `$gt'.")
     }
     Call.check(call, nAlleles)

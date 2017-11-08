@@ -209,9 +209,9 @@ class ImportVCFSuite extends SparkSuite {
     assert(getCall("0", 2) == Call(0))
     assert(getCall(".", 2) == null)
     assert(getCall("./.", 2) == null)
-    intercept[HailException] {
-      getCall("./0", 2) == Call(0)
-    }
+
+    assert(getCall("./0", 2) == null)
+
     intercept[HailException] {
       getCall("""0\0""", 2) == Call(0)
     }
