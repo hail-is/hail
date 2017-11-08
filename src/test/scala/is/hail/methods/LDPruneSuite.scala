@@ -157,7 +157,7 @@ class LDPruneSuite extends SparkSuite {
           "pk" -> TLocus(GenomeReference.GRCh37),
           "v" -> TVariant(GenomeReference.GRCh37),
           "va" -> TStruct(),
-          "gs" -> TArray(TGenotype)
+          "gs" -> TArray(TGenotype())
         )
         def makeRV(gs: Iterable[Genotype]): RegionValue = {
           val gArr = gs.toArray
@@ -167,7 +167,7 @@ class LDPruneSuite extends SparkSuite {
           rvb.setMissing()
           rvb.setMissing()
           rvb.setMissing()
-          rvb.addAnnotation(TArray(TGenotype), gArr: IndexedSeq[Genotype])
+          rvb.addAnnotation(TArray(TGenotype()), gArr: IndexedSeq[Genotype])
           rvb.endStruct()
           rvb.end()
           rvb.result()

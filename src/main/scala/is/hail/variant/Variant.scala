@@ -54,7 +54,7 @@ object CopyState extends Enumeration {
 object AltAllele {
 
   def fromRegionValue(m: MemoryBuffer, offset: Long): AltAllele = {
-    val t = TAltAllele.representation
+    val t = TAltAllele().representation
     val ref = TString.loadString(m, t.loadField(m, offset, 0))
     val alt = TString.loadString(m, t.loadField(m, offset, 1))
     AltAllele(ref, alt)
@@ -183,7 +183,7 @@ object Variant {
   }
 
   def fromRegionValue(r: MemoryBuffer, offset: Long): Variant = {
-    val t = TVariant.representation
+    val t = TVariant.representation()
     val altsType = t.fieldType(3).asInstanceOf[TArray]
 
     val contig = TString.loadString(r, t.loadField(r, offset, 0))

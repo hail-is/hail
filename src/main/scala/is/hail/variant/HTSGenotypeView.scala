@@ -283,7 +283,7 @@ class ArrayGenotypeView(rowType: TStruct) {
 object HardCallView {
   def apply(rowSignature: TStruct): HardCallView = {
     rowSignature.fieldType(3).asInstanceOf[TArray].elementType match {
-      case TGenotype => new HardCallTGenotypeView(rowSignature)
+      case _: TGenotype => new HardCallTGenotypeView(rowSignature)
       case _: TStruct => new HardCallStructView(rowSignature, "GT")
       case t => fatal(s"invalid genotype representation: $t, expect TGenotype or TStruct")
     }
@@ -304,7 +304,7 @@ abstract class HardCallView {
 
 class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
   private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
-  private val tg = TGenotype.representation
+  private val tg = TGenotype().representation
 
   private val gtIndex = 0
 
@@ -359,7 +359,7 @@ class HardCallStructView(rowType: TStruct, callField: String) extends HardCallVi
       (false, 0)
   }
 
-  private val (gtExists, gtIndex) = lookupField(callField, TCall)
+  private val (gtExists, gtIndex) = lookupField(callField, TCall())
 
   private var m: MemoryBuffer = _
   private var gsOffset: Long = _
