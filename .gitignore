@@ -1,4 +1,5 @@
 *~
+*.o
 .idea/
 hail.iml
 .gradle/
