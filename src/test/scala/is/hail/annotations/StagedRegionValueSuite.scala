@@ -381,4 +381,35 @@ class StagedRegionValueSuite extends SparkSuite {
     print('\n')
   }
 
+  @Test
+  def testAddPrimitive() {
+    val t = TStruct("a" -> TInt32, "b" -> TBoolean, "c" -> TFloat64)
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Int, Boolean, Double, Long]
+    val srvb = new StagedRegionValueBuilder(fb, t)
+
+    fb.emit(
+      Code(
+        srvb.start(),
+        srvb.addPrimitive(TInt32)(fb.getArg[Int](2)),
+        srvb.advance(),
+        srvb.addPrimitive(TBoolean)(fb.getArg[Boolean](3)),
+        srvb.advance(),
+        srvb.addPrimitive(TFloat64)(fb.getArg[Double](4)),
+        srvb.advance(),
+        srvb.returnStart()
+      )
+    )
+
+    val region = MemoryBuffer()
+    val f = fb.result()()
+    def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
+      val off = f(region, i, b, d)
+      (region.loadInt(t.loadField(region, off, 0)),
+        region.loadBoolean(t.loadField(region, off, 1)),
+        region.loadDouble(t.loadField(region, off, 2)))
+    }
+
+    assert(run(3, true, 42.0) == (3, true, 42.0))
+    assert(run(42, false, -1.0) == (42, false, -1.0))
+  }
 }
