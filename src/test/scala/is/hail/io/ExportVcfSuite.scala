@@ -2,22 +2,21 @@ package is.hail.io
 
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
+import is.hail.check.Arbitrary.arbitrary
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.expr.{TInt64, TStruct}
-import is.hail.io.vcf.ExportVCF
+import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantSampleMatrix}
+import is.hail.variant.{Locus, VSMSubgen, Variant, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 import scala.io.Source
 import scala.language.postfixOps
 
-class ExportVCFSuite extends SparkSuite {
-
+class ExportVCFSuite extends SparkSuite {  
   @Test def testSameAsOrigBGzip() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val outFile = tmpDir.createTempFile("export", ".vcf")
+    val outFile = tmpDir.createTempFile("export", "vcf")
 
     val vdsOrig = hc.importVCF(vcfFile, nPartitions = Some(10))
 
@@ -29,8 +28,8 @@ class ExportVCFSuite extends SparkSuite {
 
   @Test def testSameAsOrigNoCompression() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val outFile = tmpDir.createTempFile("export", ".vcf")
-    val outFile2 = tmpDir.createTempFile("export2", ".vcf")
+    val outFile = tmpDir.createTempFile("export", "vcf")
+    val outFile2 = tmpDir.createTempFile("export2", "vcf")
 
     val vdsOrig = hc.importVCF(vcfFile, nPartitions = Some(10))
 
@@ -55,7 +54,7 @@ class ExportVCFSuite extends SparkSuite {
 
   @Test def testSorted() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val outFile = tmpDir.createTempFile("sort", ".vcf.bgz")
+    val outFile = tmpDir.createTempFile("sort", "vcf.bgz")
 
     val vdsOrig = hc.importVCF(vcfFile, nPartitions = Some(10))
 
@@ -72,9 +71,8 @@ class ExportVCFSuite extends SparkSuite {
   }
 
   @Test def testReadWrite() {
-
-    val out = tmpDir.createTempFile("foo", ".vcf.bgz")
-    val out2 = tmpDir.createTempFile("foo2", ".vcf.bgz")
+    val out = tmpDir.createTempFile("foo", "vcf.bgz")
+    val out2 = tmpDir.createTempFile("foo2", "vcf.bgz")
     val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random), Gen.choose(1, 10),
       Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
       hadoopConf.delete(out, recursive = true)
@@ -103,7 +101,7 @@ class ExportVCFSuite extends SparkSuite {
   }
 
   @Test def testGeneratedInfo() {
-    val out = tmpDir.createTempFile("export", ".vcf")
+    val out = tmpDir.createTempFile("export", "vcf")
     hc.importVCF("src/test/resources/sample2.vcf")
       .annotateVariantsExpr("va.info.AC = va.info.AC, va.info.another = 5")
       .exportVCF(out)
@@ -117,30 +115,64 @@ class ExportVCFSuite extends SparkSuite {
         }
     }
   }
+  
+  @Test def testVCFFormatHeader() {
+    val out = tmpDir.createTempFile("export", "vcf")
+    hc.importVCF("src/test/resources/sample2.vcf")
+      .exportVCF(out)
+
+    val outFormatHeader = hadoopConf.readFile(out) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .filter(_.startsWith("##FORMAT"))
+        .mkString("\n")
+    }
+    
+    val vcfFormatHeader =
+            """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+              |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+              |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+              |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+              |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin
+
+    assert(outFormatHeader == vcfFormatHeader)
+  }
 
   @Test def testCastLongToInt() {
-    val out = tmpDir.createTempFile("cast", ".vcf")
+    val out = tmpDir.createTempFile("cast", "vcf")
     hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateVariantsExpr("va.info.AC_pass = gs.filter(g => g.gq >= 20 && g.dp >= 10 && (!g.isHet() || ( (g.ad[1]/g.ad.sum()) >= 0.2 ) )).count()")
+      .annotateVariantsExpr("va.info.AC_pass = gs.filter(g => g.gq >= 20 && g.dp >= 10 && " +
+        "(!g.isHet() || ( (g.ad[1]/g.ad.sum()) >= 0.2 ) )).count()")
       .exportVCF(out)
 
     hadoopConf.readFile(out) { in =>
       Source.fromInputStream(in)
         .getLines()
-        .filter(l => l.startsWith("##INFO") && l.matches("AC_pass"))
+        .filter(l => l.startsWith("##INFO") && l.contains("AC_pass"))
         .foreach { line =>
           assert(line.contains("Type=Integer"))
+          assert(line.contains("Number=1"))
         }
     }
 
-    val out2 = tmpDir.createTempFile("cast2", ".vcf")
+    val out2 = tmpDir.createTempFile("cast2", "vcf")
     hc.importVCF("src/test/resources/sample2.vcf")
       .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat64()")
       .exportVCF(out2)
-
-    intercept[HailException] {
-      val sb = new StringBuilder()
-      ExportVCF.strVCF(sb, TInt64(), 3147483647L)
+    
+    val out3 = tmpDir.createTempFile("cast2", "vcf")
+    hc.importVCF("src/test/resources/sample2.vcf")
+      .annotateVariantsExpr("va.info.AC_pass = [4, 5].toSet")
+      .exportVCF(out3)
+    
+    hadoopConf.readFile(out3) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .filter(l => l.startsWith("##INFO") && l.contains("AC_pass"))
+        .foreach { line =>
+          assert(line.contains("Type=Integer"))
+          assert(line.contains("Number=."))          
+        }
     }
   }
 
@@ -151,10 +183,40 @@ class ExportVCFSuite extends SparkSuite {
         .annotateVariantsExpr("va.info.foo = [[1]]")
         .exportVCF(out)
     }
+    
+    TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
+      hc.importVCF("src/test/resources/sample2.vcf")
+        .annotateVariantsExpr("va.info.foo = [Call(3)]")
+        .exportVCF(out)
+    }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       hc.importVCF("src/test/resources/sample2.vcf")
         .annotateVariantsExpr("va.info.foo = v")
+        .exportVCF(out)
+    }
+    
+    TestUtils.interceptSpark("Cannot convert Long to Int") {
+      hc.importVCF("src/test/resources/sample2.vcf")
+        .annotateVariantsExpr("va.info.foo = 3147483647L")
+        .exportVCF(out)
+    }
+    
+    TestUtils.interceptFatal("export_vcf requires g to have type TStruct") {
+      hc.importVCF("src/test/resources/sample2.vcf")
+        .annotateGenotypesExpr("g = 5")
+        .exportVCF(out)
+    }
+
+    TestUtils.interceptFatal("Invalid type for format field `BOOL'. Found Boolean.") {
+      hc.importVCF("src/test/resources/sample2.vcf")
+        .annotateGenotypesExpr("g = {BOOL: true}")
+        .exportVCF(out)
+    }
+    
+    TestUtils.interceptFatal("Invalid type for format field `AA'.") {
+      hc.importVCF("src/test/resources/sample2.vcf")
+        .annotateGenotypesExpr("g = {AA: [[0]]}")
         .exportVCF(out)
     }
   }
@@ -173,5 +235,49 @@ class ExportVCFSuite extends SparkSuite {
         }
       }
     }
+  }
+  
+  def genFormatFieldVCF: Gen[Type] = Gen.oneOf[Type](
+      TInt32, TFloat32, TFloat64, TString, TCall,
+      TArray(TInt32), TArray(TFloat32), TArray(TFloat64), TArray(TString), TArray(TCall),
+      TSet(TInt32), TSet(TFloat32), TSet(TFloat64), TSet(TString), TSet(TCall))
+  
+  def genFormatStructVCF: Gen[TStruct] =
+    Gen.buildableOf[Array, (String, Type, Map[String, String])](
+      Gen.zip(Gen.identifier,
+        genFormatFieldVCF,
+        Gen.option(
+          Gen.buildableOf2[Map, String, String](
+            Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])), someFraction = 0.05)
+          .map(o => o.getOrElse(Map.empty[String, String]))))
+      .filter(fields => fields.map(_._1).areDistinct())
+      .map(fields => TStruct(fields
+        .iterator
+        .zipWithIndex
+        .map { case ((k, t, m), i) => Field(k, t, i, m) }
+        .toIndexedSeq))
+  
+  @Test def testWriteGenericFormatField() {
+    val genericFormatFieldVCF:  VSMSubgen[Locus, Variant, Annotation] = VSMSubgen.random.copy(
+      tSigGen = genFormatStructVCF,
+      tGen = (t: Type, v: Variant) => t.genValue.resize(20))
+    
+    val untestedFields = Set("rsid", "qual", "info")
+    
+    val out = tmpDir.createTempFile("foo", "vcf.bgz")
+    val p = forAll(VariantSampleMatrix.gen(hc, genericFormatFieldVCF), Gen.choose(1, 10),
+      Gen.choose(1, 10)) { case (vkds, nPar1, nPar2) =>
+      println(vkds.rowType)
+      
+      vkds.vaSignature match {
+        case t: TStruct if untestedFields.intersect(t.fieldNames.toSet).isEmpty => 
+        case _ =>
+           hadoopConf.delete(out, recursive = true)
+           vkds.exportVCF(out)
+      }
+      true
+    }
+
+    p.check()
   }
 }

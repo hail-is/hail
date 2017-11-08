@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr._
 import is.hail.io._
-import is.hail.io.vcf.LoadVCF
+import is.hail.io.vcf.{ExportVCF, LoadVCF}
 import is.hail.keytable.{KeyTable, KeyTableMetadata}
 import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods._
@@ -2178,6 +2178,16 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     Skat(this, variantKeys, singleKey,  weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
   }
 
+    /**
+    *
+    * @param path     output path
+    * @param append   append file to header
+    * @param parallel export VCF in parallel using the path argument as a directory
+    */
+  def exportVCF(path: String, append: Option[String] = None, parallel: Boolean = false) {
+    ExportVCF(this, path, append, parallel)
+  }  
+  
   def minRep(leftAligned: Boolean = false): VariantSampleMatrix[Locus, Variant, T] = {
     requireRowKeyVariant("min_rep")
 
