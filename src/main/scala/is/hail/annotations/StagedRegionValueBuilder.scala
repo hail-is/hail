@@ -9,6 +9,7 @@ import org.objectweb.asm.tree.{AbstractInsnNode, IincInsnNode}
 
 import scala.collection.generic.Growable
 import scala.reflect.ClassTag
+import scala.language.postfixOps
 
 class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type, var region: Code[MemoryBuffer], val pOffset: Code[Long]) {
 
@@ -99,6 +100,8 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     }
   }
 
+  def addBoolean(v: Code[Boolean]): Code[Unit] = region.storeByte(currentOffset, v.toI.toB)
+
   def addInt32(v: Code[Int]): Code[Unit] = region.storeInt32(currentOffset, v)
 
   def addInt64(v: Code[Long]): Code[Unit] = region.storeInt64(currentOffset, v)
@@ -125,6 +128,15 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   def addArray(t: TArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
 
   def addStruct(t: TStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
+
+  def addPrimitive(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
+    case TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
+    case TInt32 => v => addInt32(v.asInstanceOf[Code[Int]])
+    case TInt64 => v => addInt64(v.asInstanceOf[Code[Long]])
+    case TFloat32 => v => addFloat32(v.asInstanceOf[Code[Float]])
+    case TFloat64 => v => addFloat64(v.asInstanceOf[Code[Double]])
+    case t => throw new UnsupportedOperationException("addPrimitive only supports primitive types: " + t)
+  }
 
   def advance(): Code[Unit] = {
     typ match {

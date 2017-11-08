@@ -45,6 +45,15 @@ object FunctionBuilder {
   def functionBuilder[A: TypeInfo, B: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction2[A, B, R]] =
     new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
 
+  def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction3[A, B, C, R]] =
+    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]), GenericTypeInfo[R])
+
+  def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction4[A, B, C, D, R]] =
+    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R])
+
+  def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction5[A, B, C, D, E, R]] =
+    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R])
+
   private implicit def methodNodeToGrowable(mn: MethodNode): Growable[AbstractInsnNode] = new Growable[AbstractInsnNode] {
     def +=(e: AbstractInsnNode) = { mn.instructions.add(e); this }
     def clear() { throw new UnsupportedOperationException() }
@@ -65,7 +74,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
   cn.superName = "java/lang/Object"
   cn.interfaces.asInstanceOf[java.util.List[String]].add("java/io/Serializable")
 
-  def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
+  def descriptor: String = s"(${ parameterTypeInfo.map(_.base.name).mkString })${ returnTypeInfo.base.name }"
 
   val mn = new MethodNode(ACC_PUBLIC, "apply", descriptor, null, null)
   val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
@@ -81,7 +90,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
   val end = new LabelNode
 
   val layout: Array[Int] =
-    0 +: (parameterTypeInfo.scanLeft(1) { case (prev, ti) => prev + ti.slots })
+    0 +: (parameterTypeInfo.scanLeft(1) { case (prev, gti) => prev + gti.base.slots })
   val argIndex: Array[Int] = layout.init
   var locals: Int = layout.last
 
@@ -108,29 +117,20 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     ).emit(genericMn)
   }
 
-  def allocLocal[T]()(implicit tti: TypeInfo[T]): Int = {
+  def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = {
     val i = locals
     locals += tti.slots
 
     mn.localVariables.asInstanceOf[util.List[LocalVariableNode]]
-      .add(new LocalVariableNode("local" + i, tti.name, null, start, end, i))
+      .add(new LocalVariableNode(if (name == null) "local" + i else name, tti.name, null, start, end, i))
     i
   }
 
-  def newLocal[T]()(implicit tti: TypeInfo[T]): LocalRef[T] =
-    new LocalRef[T](allocLocal[T]())
+  def newLocal[T](implicit tti: TypeInfo[T]): LocalRef[T] =
+    newLocal()
 
-  def getStatic[T, S](field: String)(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S]): Code[S] = {
-    val f = FieldRef[T, S](field)
-    assert(f.isStatic)
-    f.get(null)
-  }
-
-  def putStatic[T, S](field: String, rhs: Code[S])(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S]): Code[Unit] = {
-    val f = FieldRef[T, S](field)
-    assert(f.isStatic)
-    f.put(null, rhs)
-  }
+  def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
+    new LocalRef[T](allocLocal[T](name))
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
@@ -152,7 +152,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
     assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${dupes: Seq[Any]}")
     l.foreach(mn.instructions.add _)
-    mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
+    mn.instructions.add(new InsnNode(returnTypeInfo.base.returnOp))
     mn.instructions.add(end)
 
     val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)

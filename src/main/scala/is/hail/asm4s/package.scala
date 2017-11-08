@@ -1,9 +1,5 @@
 package is.hail
 
-import java.io.PrintWriter
-import java.lang.reflect.Method
-
-import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
@@ -14,7 +10,9 @@ import scala.reflect.ClassTag
 
 package object asm4s {
 
-  trait TypeInfo[T] {
+  def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
+
+  abstract class TypeInfo[T] {
     val name: String
     val iname: String = name
     val loadOp: Int
@@ -25,99 +23,6 @@ package object asm4s {
     val slots: Int = 1
 
     def newArray(): AbstractInsnNode
-  }
-
-  sealed trait MaybeGenericTypeInfo[T] extends TypeInfo[T] {
-    def castFromGeneric: Code[_] => Code[T]
-    def castToGeneric: Code[T] => Code[_]
-
-    val generic: TypeInfo[_]
-    val isGeneric: Boolean
-  }
-
-  final case class GenericTypeInfo[T](implicit ti: TypeInfo[T]) extends MaybeGenericTypeInfo[T] {
-
-    val name = ti.name
-    val loadOp = ti.loadOp
-    val storeOp = ti.storeOp
-    val aloadOp = ti.aloadOp
-    val astoreOp = ti.astoreOp
-    val returnOp = ti.returnOp
-    override val slots = ti.slots
-
-    def newArray() = ti.newArray
-
-    def castFromGeneric = (_x: Code[_]) => {
-      val x = _x.asInstanceOf[Code[AnyRef]]
-      ti match {
-        case _: IntInfo.type =>
-          Code.intValue(Code.checkcast[java.lang.Integer](x)).asInstanceOf[Code[T]]
-        case _: LongInfo.type =>
-          Code.longValue(Code.checkcast[java.lang.Long](x)).asInstanceOf[Code[T]]
-        case _: FloatInfo.type =>
-          Code.floatValue(Code.checkcast[java.lang.Float](x)).asInstanceOf[Code[T]]
-        case _: DoubleInfo.type =>
-          Code.doubleValue(Code.checkcast[java.lang.Double](x)).asInstanceOf[Code[T]]
-        case _: ShortInfo.type =>
-          Code.checkcast[java.lang.Short](x).invoke[Short]("shortValue").asInstanceOf[Code[T]]
-        case _: ByteInfo.type =>
-          Code.checkcast[java.lang.Byte](x).invoke[Byte]("byteValue").asInstanceOf[Code[T]]
-        case _: BooleanInfo.type =>
-          Code.checkcast[java.lang.Boolean](x).invoke[Boolean]("booleanValue").asInstanceOf[Code[T]]
-        case _: CharInfo.type =>
-          Code.checkcast[java.lang.Character](x).invoke[Char]("charValue").asInstanceOf[Code[T]]
-        case cti: ClassInfo[_] =>
-          Code.checkcast[T](x)(cti.cct.asInstanceOf[ClassTag[T]])
-        case ati: ArrayInfo[_] =>
-          Code.checkcast[T](x)(ati.tct.asInstanceOf[ClassTag[T]])
-      }
-    }
-
-    def castToGeneric = (x: Code[T]) => ti match {
-      case _: IntInfo.type =>
-        Code.boxInt(x.asInstanceOf[Code[Int]])
-      case _: LongInfo.type =>
-        Code.boxLong(x.asInstanceOf[Code[Long]])
-      case _: FloatInfo.type =>
-        Code.boxFloat(x.asInstanceOf[Code[Float]])
-      case _: DoubleInfo.type =>
-        Code.boxDouble(x.asInstanceOf[Code[Double]])
-      case _: ShortInfo.type =>
-        Code.newInstance[java.lang.Short, Short](x.asInstanceOf[Code[Short]])
-      case _: ByteInfo.type =>
-        Code.newInstance[java.lang.Byte, Byte](x.asInstanceOf[Code[Byte]])
-      case _: BooleanInfo.type =>
-        Code.boxBoolean(x.asInstanceOf[Code[Boolean]])
-      case _: CharInfo.type =>
-        Code.newInstance[java.lang.Character, Char](x.asInstanceOf[Code[Char]])
-      case cti: ClassInfo[_] =>
-        x
-      case ati: ArrayInfo[_] =>
-        x
-    }
-
-    val generic = classInfo[java.lang.Object]
-    val isGeneric = true
-
-  }
-
-  final case class NotGenericTypeInfo[T](implicit ti: TypeInfo[T]) extends MaybeGenericTypeInfo[T] {
-    val name = ti.name
-    val loadOp = ti.loadOp
-    val storeOp = ti.storeOp
-    val aloadOp = ti.aloadOp
-    val astoreOp = ti.astoreOp
-    val returnOp = ti.returnOp
-    override val slots = ti.slots
-
-    def newArray() = ti.newArray
-
-    def castFromGeneric = (x: Code[_]) => x.asInstanceOf[Code[T]]
-    def castToGeneric = (x: Code[_]) => x
-
-    val generic = ti
-    val isGeneric = false
-
   }
 
   implicit object BooleanInfo extends TypeInfo[Boolean] {
