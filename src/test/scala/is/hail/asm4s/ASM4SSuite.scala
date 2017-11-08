@@ -107,7 +107,7 @@ class ASM4SSuite extends TestNGSuite {
     fb.emit(_return(Code(
       inst.store(Code.newInstance[A]()),
       inst.put("j", -2),
-      fb.getStatic[A, Int]("j"))))
+      Code.getStatic[A, Int]("j"))))
     val f = fb.result()()
     assert(f() == -2)
   }

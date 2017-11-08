@@ -1,5 +1,6 @@
 package is.hail.utils.richUtils
 
+import is.hail.expr._
 import is.hail.annotations.MemoryBuffer
 import is.hail.asm4s.Code
 
@@ -77,6 +78,36 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
 
   def loadBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Boolean] = {
     region.invoke[Long, Long, Boolean]("loadBit", byteOff, bitOff)
+  }
+
+  def loadPrimitive(typ: Type): Code[Long] => Code[_] = typ match {
+    case TBoolean =>
+      this.loadBoolean(_)
+    case TInt32 =>
+      this.loadInt(_)
+    case TInt64 =>
+      this.loadLong(_)
+    case TFloat32 =>
+      this.loadFloat(_)
+    case TFloat64 =>
+      this.loadDouble(_)
+    case _ =>
+      off => off
+  }
+
+  def appendPrimitive(typ: Type): (Code[_]) => Code[Unit] = typ match {
+    case TBoolean =>
+      x => this.appendInt32(x.asInstanceOf[Code[Int]])
+    case TInt32 =>
+      x => this.appendInt32(x.asInstanceOf[Code[Int]])
+    case TInt64 =>
+      x => this.appendInt64(x.asInstanceOf[Code[Long]])
+    case TFloat32 =>
+      x => this.appendFloat32(x.asInstanceOf[Code[Float]])
+    case TFloat64 =>
+      x => this.appendFloat64(x.asInstanceOf[Code[Double]])
+    case _ =>
+      throw new UnsupportedOperationException("cannot append non-primitive type: $typ")
   }
 
   def setBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] = {
