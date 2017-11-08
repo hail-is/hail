@@ -1,5 +1,6 @@
 package is.hail.variant
 
+import is.hail.annotations.{MemoryBuffer, RegionValue}
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.sparkextras.OrderedKey
@@ -51,6 +52,14 @@ object CopyState extends Enumeration {
 }
 
 object AltAllele {
+
+  def fromRegionValue(m: MemoryBuffer, offset: Long): AltAllele = {
+    val t = TAltAllele.representation
+    val ref = TString.loadString(m, t.loadField(m, offset, 0))
+    val alt = TString.loadString(m, t.loadField(m, offset, 1))
+    AltAllele(ref, alt)
+  }
+
   def sparkSchema: StructType = StructType(Array(
     StructField("ref", StringType, nullable = false),
     StructField("alt", StringType, nullable = false)))
@@ -171,6 +180,26 @@ object Variant {
       fatal(s"invalid variant, expected 4 colon-delimited fields, found ${ colonSplit.length }: $str")
     val Array(contig, start, ref, alts) = colonSplit
     Variant(contig, start.toInt, ref, alts.split(","))
+  }
+
+  def fromRegionValue(r: MemoryBuffer, offset: Long): Variant = {
+    val t = TVariant.representation
+    val altsType = t.fieldType(3).asInstanceOf[TArray]
+
+    val contig = TString.loadString(r, t.loadField(r, offset, 0))
+    val pos = r.loadInt(t.loadField(r, offset, 1))
+    val ref = TString.loadString(r, t.loadField(r, offset, 2))
+
+    val altsOffset = t.loadField(r, offset, 3)
+    val nAlts = altsType.loadLength(r, altsOffset)
+    val altArray = new Array[AltAllele](nAlts)
+    var i = 0
+    while (i < nAlts) {
+      val o = altsType.loadElement(r, altsOffset, nAlts, i)
+      altArray(i) = AltAllele.fromRegionValue(r, o)
+      i += 1
+    }
+    Variant(contig, pos, ref, altArray)
   }
 
   def nGenotypes(nAlleles: Int): Int = {

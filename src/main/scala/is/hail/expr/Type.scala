@@ -1106,6 +1106,14 @@ case object TAltAllele extends ComplexType {
     "alt" -> TString)
 }
 
+object TVariant {
+  val representation: TStruct = TStruct(
+    "contig" -> TString,
+    "start" -> TInt32,
+    "ref" -> TString,
+    "altAlleles" -> TArray(TAltAllele.representation))
+}
+
 case class TVariant(gr: GRBase) extends ComplexType {
   override def toString = s"""Variant($gr)"""
 
@@ -1189,11 +1197,7 @@ case class TVariant(gr: GRBase) extends ComplexType {
     }
   }
 
-  val representation: TStruct = TStruct(
-    "contig" -> TString,
-    "start" -> TInt32,
-    "ref" -> TString,
-    "altAlleles" -> TArray(TAltAllele.representation))
+  val representation: TStruct = TVariant.representation
 
   override def unify(concrete: Type): Boolean = concrete match {
     case TVariant(cgr) => gr.unify(cgr)
@@ -1203,6 +1207,12 @@ case class TVariant(gr: GRBase) extends ComplexType {
   override def clear(): Unit = gr.clear()
 
   override def subst() = gr.subst().variant
+}
+
+object TLocus {
+  val representation: TStruct = TStruct(
+    "contig" -> TString,
+    "position" -> TInt32)
 }
 
 case class TLocus(gr: GRBase) extends ComplexType {
@@ -1243,9 +1253,7 @@ case class TLocus(gr: GRBase) extends ComplexType {
     }
   }
 
-  val representation: TStruct = TStruct(
-    "contig" -> TString,
-    "position" -> TInt32)
+  val representation: TStruct = TLocus.representation
 
   override def unify(concrete: Type): Boolean = concrete match {
     case TLocus(cgr) => gr.unify(cgr)
@@ -1255,6 +1263,12 @@ case class TLocus(gr: GRBase) extends ComplexType {
   override def clear(): Unit = gr.clear()
 
   override def subst() = gr.subst().locus
+}
+
+object TInterval {
+  val representation: TStruct = TStruct(
+    "start" -> TLocus.representation,
+    "end" -> TLocus.representation)
 }
 
 case class TInterval(gr: GRBase) extends ComplexType {
@@ -1292,9 +1306,7 @@ case class TInterval(gr: GRBase) extends ComplexType {
     }
   }
 
-  val representation: TStruct = TStruct(
-    "start" -> TLocus(gr).representation,
-    "end" -> TLocus(gr).representation)
+  val representation: TStruct = TInterval.representation
 
   override def unify(concrete: Type): Boolean = concrete match {
     case TInterval(cgr) => gr.unify(cgr)

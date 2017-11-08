@@ -2,8 +2,10 @@ package is.hail.methods
 
 import breeze.linalg.{Vector => BVector}
 import is.hail.SparkSuite
+import is.hail.annotations.{MemoryBuffer, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
+import is.hail.expr.{TArray, TGenotype, TLocus, TStruct, TVariant}
 import is.hail.stats.RegressionUtils
 import is.hail.variant._
 import is.hail.utils._
@@ -150,8 +152,36 @@ class LDPruneSuite extends SparkSuite {
         val gs2 = convertGtsToGs(v2)
         val bv1 = LDPrune.toBitPackedVector(gs1.hardCallIterator, nSamples)
         val bv2 = LDPrune.toBitPackedVector(gs2.hardCallIterator, nSamples)
-        val sgs1 = RegressionUtils.normalizedHardCalls(gs1, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
-        val sgs2 = RegressionUtils.normalizedHardCalls(gs2, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+
+        val rowType = TStruct(
+          "pk" -> TLocus(GenomeReference.GRCh37),
+          "v" -> TVariant(GenomeReference.GRCh37),
+          "va" -> TStruct(),
+          "gs" -> TArray(TGenotype)
+        )
+        def makeRV(gs: Iterable[Genotype]): RegionValue = {
+          val gArr = gs.toArray
+          val rvb = new RegionValueBuilder(MemoryBuffer())
+          rvb.start(rowType)
+          rvb.startStruct()
+          rvb.setMissing()
+          rvb.setMissing()
+          rvb.setMissing()
+          rvb.addAnnotation(TArray(TGenotype), gArr: IndexedSeq[Genotype])
+          rvb.endStruct()
+          rvb.end()
+          rvb.result()
+        }
+
+        val view = HardCallView(rowType)
+
+        val rv1 = makeRV(gs1)
+        view.setRegion(rv1)
+        val sgs1 = RegressionUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+
+        val rv2 = makeRV(gs2)
+        view.setRegion(rv2)
+        val sgs2 = RegressionUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
         (bv1, bv2, sgs1, sgs2) match {
           case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>

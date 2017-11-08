@@ -1,12 +1,14 @@
 package is.hail.variant
 
+import java.util.zip.DataFormatException
+
 import is.hail.annotations.{MemoryBuffer, RegionValue, UnsafeRow, UnsafeUtils}
 import is.hail.expr._
 import is.hail.utils._
 
 object HTSGenotypeView {
   def apply(rowSignature: TStruct): HTSGenotypeView = {
-    rowSignature.fields(3).typ.asInstanceOf[TArray].elementType match {
+    rowSignature.fieldType(3).asInstanceOf[TArray].elementType match {
       case TGenotype => new TGenotypeView(rowSignature)
       case _: TStruct => new StructGenotypeView(rowSignature)
       case t => fatal(s"invalid genotype representation: $t, expect TGenotype or TStruct")
@@ -46,7 +48,7 @@ sealed abstract class HTSGenotypeView {
 }
 
 class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
-  private val tgs = rs.fields(3).typ.asInstanceOf[TArray]
+  private val tgs = rs.fieldType(3).asInstanceOf[TArray]
   private val tg = TGenotype.representation
 
   private val gtIndex = 0
@@ -275,5 +277,116 @@ class ArrayGenotypeView(rowType: TStruct) {
 
     val elementOffset = ArrayGenotypeView.tArrayFloat64.elementOffset(adOffset, length, idx)
     m.loadDouble(elementOffset)
+  }
+}
+
+object HardCallView {
+  def apply(rowSignature: TStruct): HardCallView = {
+    rowSignature.fieldType(3).asInstanceOf[TArray].elementType match {
+      case TGenotype => new HardCallTGenotypeView(rowSignature)
+      case _: TStruct => new HardCallStructView(rowSignature, "GT")
+      case t => fatal(s"invalid genotype representation: $t, expect TGenotype or TStruct")
+    }
+  }
+}
+
+abstract class HardCallView {
+  def setRegion(mb: MemoryBuffer, offset: Long)
+
+  def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
+
+  def setGenotype(idx: Int)
+
+  def hasGT: Boolean
+
+  def getGT: Int
+}
+
+class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
+  private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
+  private val tg = TGenotype.representation
+
+  private val gtIndex = 0
+
+  private var m: MemoryBuffer = _
+  private var gsOffset: Long = _
+  private var gsLength: Int = _
+  private var gOffset: Long = _
+
+  var gIsDefined: Boolean = _
+
+  def setRegion(mb: MemoryBuffer, offset: Long) {
+    this.m = mb
+    gsOffset = rowType.loadField(m, offset, 3)
+    gsLength = tgs.loadLength(m, gsOffset)
+  }
+
+  def setGenotype(idx: Int) {
+    require(idx >= 0 && idx < gsLength)
+    gIsDefined = tgs.isElementDefined(m, gsOffset, idx)
+    gOffset = tgs.loadElement(m, gsOffset, gsLength, idx)
+  }
+
+  def hasGT: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
+
+  def getGT: Int = {
+    val callOffset = tg.loadField(m, gOffset, gtIndex)
+    val gt = m.loadInt(callOffset)
+    if (gt < 0)
+      throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
+    gt
+  }
+}
+
+class HardCallStructView(rowType: TStruct, callField: String) extends HardCallView {
+  private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
+  private val tg = tgs.elementType match {
+    case tg: TStruct => tg
+    case _ => null
+  }
+
+  private def lookupField(name: String, expected: Type): (Boolean, Int) = {
+    if (tg != null) {
+      tg.selfField(name) match {
+        case Some(f) =>
+          if (f.typ == expected)
+            (true, f.index)
+          else
+            (false, 0)
+        case None => (false, 0)
+      }
+    } else
+      (false, 0)
+  }
+
+  private val (gtExists, gtIndex) = lookupField(callField, TCall)
+
+  private var m: MemoryBuffer = _
+  private var gsOffset: Long = _
+  private var gsLength: Int = _
+  private var gOffset: Long = _
+
+  var gIsDefined: Boolean = _
+
+  def setRegion(mb: MemoryBuffer, offset: Long) {
+    this.m = mb
+    gsOffset = rowType.loadField(m, offset, 3)
+    gsLength = tgs.loadLength(m, gsOffset)
+  }
+
+  def setGenotype(idx: Int) {
+    require(idx >= 0 && idx < gsLength)
+    gIsDefined = tgs.isElementDefined(m, gsOffset, idx)
+    gOffset = tgs.loadElement(m, gsOffset, gsLength, idx)
+  }
+
+  def hasGT: Boolean = gtExists && gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
+
+  def getGT: Int = {
+    val callOffset = tg.loadField(m, gOffset, gtIndex)
+    val gt = m.loadInt(callOffset)
+    if (gt < 0)
+      throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
+    gt
   }
 }

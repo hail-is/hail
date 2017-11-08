@@ -1,10 +1,10 @@
 package is.hail.stats
 
 import breeze.linalg._
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, RegionValue}
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Genotype, VariantSampleMatrix}
+import is.hail.variant.{Genotype, HardCallView, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 
 object RegressionUtils {
@@ -91,9 +91,8 @@ object RegressionUtils {
   // !useHWE: mean 0, norm exactly sqrt(n), variance 1
   // useHWE: mean 0, norm approximately sqrt(m), variance approx. m / n
   // missing gt are mean imputed, constant variants return None, only HWE uses nVariants
-  def normalizedHardCalls(gs: Iterable[Genotype], nSamples: Int, useHWE: Boolean = false, nVariants: Int = -1): Option[Array[Double]] = {
+  def normalizedHardCalls(view: HardCallView, nSamples: Int, useHWE: Boolean = false, nVariants: Int = -1): Option[Array[Double]] = {
     require(!(useHWE && nVariants == -1))
-    val gts = gs.hardCallIterator
     val vals = Array.ofDim[Double](nSamples)
     var nMissing = 0
     var sum = 0
@@ -101,18 +100,22 @@ object RegressionUtils {
 
     var row = 0
     while (row < nSamples) {
-      val gt = gts.next()
-      vals(row) = gt
-      (gt: @unchecked) match {
-        case 0 =>
-        case 1 =>
-          sum += 1
-          sumSq += 1
-        case 2 =>
-          sum += 2
-          sumSq += 4
-        case -1 =>
-          nMissing += 1
+      view.setGenotype(row)
+      if (view.hasGT) {
+        val gt = view.getGT
+        vals(row) = gt
+        (gt: @unchecked) match {
+          case 0 =>
+          case 1 =>
+            sum += 1
+            sumSq += 1
+          case 2 =>
+            sum += 2
+            sumSq += 4
+        }
+      } else {
+        vals(row) = -1
+        nMissing += 1
       }
       row += 1
     }
