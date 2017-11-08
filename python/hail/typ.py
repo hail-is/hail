@@ -61,7 +61,7 @@ class Type(object):
         class_name = jtype.getClass().getCanonicalName()
 
         if class_name in __singletons__:
-            return __singletons__[class_name]
+            return __singletons__[class_name][0](__singletons__[class_name][1])
         elif class_name == 'is.hail.expr.TArray':
             return TArray._from_java(jtype)
         elif class_name == 'is.hail.expr.TSet':
@@ -878,24 +878,24 @@ class TAggregable(Type):
     def _typecheck(self, annotation):
         return
 
-__singletons__ = {'is.hail.expr.TInt32Optional$': TInt32(),
-                  'is.hail.expr.TInt32Required$': TInt32(True),
-                  'is.hail.expr.TInt64Optional$': TInt64(),
-                  'is.hail.expr.TInt64Required$': TInt64(True),
-                  'is.hail.expr.TFloat32Optional$': TFloat32(),
-                  'is.hail.expr.TFloat32Required$': TFloat32(True),
-                  'is.hail.expr.TFloat64Optional$': TFloat64(),
-                  'is.hail.expr.TFloat64Required$': TFloat64(True),
-                  'is.hail.expr.TBooleanOptional$': TBoolean(),
-                  'is.hail.expr.TBooleanRequired$': TBoolean(True),
-                  'is.hail.expr.TStringOptional$': TString(),
-                  'is.hail.expr.TStringRequired$': TString(True),
-                  'is.hail.expr.TAltAlleleOptional$': TAltAllele(),
-                  'is.hail.expr.TAltAlleleRequired$': TAltAllele(True),
-                  'is.hail.expr.TGenotypeOptional$': TGenotype(),
-                  'is.hail.expr.TGenotypeRequired$': TGenotype(True),
-                  'is.hail.expr.TCallOptional$': TCall(),
-                  'is.hail.expr.TCallRequired$': TCall(True)}
+__singletons__ = {'is.hail.expr.TInt32Optional$': (TInt32, False),
+                  'is.hail.expr.TInt32Required$': (TInt32, True),
+                  'is.hail.expr.TInt64Optional$': (TInt64, False),
+                  'is.hail.expr.TInt64Required$': (TInt64, True),
+                  'is.hail.expr.TFloat32Optional$': (TFloat32, False),
+                  'is.hail.expr.TFloat32Required$': (TFloat32, True),
+                  'is.hail.expr.TFloat64Optional$': (TFloat64, False),
+                  'is.hail.expr.TFloat64Required$': (TFloat64, True),
+                  'is.hail.expr.TBooleanOptional$': (TBoolean, False),
+                  'is.hail.expr.TBooleanRequired$': (TBoolean, True),
+                  'is.hail.expr.TStringOptional$': (TString, False),
+                  'is.hail.expr.TStringRequired$': (TString, True),
+                  'is.hail.expr.TAltAlleleOptional$': (TAltAllele, False),
+                  'is.hail.expr.TAltAlleleRequired$': (TAltAllele, True),
+                  'is.hail.expr.TGenotypeOptional$': (TGenotype, False),
+                  'is.hail.expr.TGenotypeRequired$': (TGenotype, True),
+                  'is.hail.expr.TCallOptional$': (TCall, False),
+                  'is.hail.expr.TCallRequired$': (TCall, True)}
 
 import pprint
 
