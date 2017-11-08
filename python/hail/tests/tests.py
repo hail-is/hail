@@ -485,6 +485,8 @@ class ContextTests(unittest.TestCase):
 
         kt.to_dataframe().count()
 
+        self.assertTrue(set(KeyTable.from_pandas(KeyTable.range(10).to_pandas()).query('index.take(10)')) == set(range(0,10)))
+
         kt.show(10)
         kt.show(4, print_types=False, truncate_to=15)
 
