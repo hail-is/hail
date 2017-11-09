@@ -2221,10 +2221,9 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       .forall { case (f, ft) => f.typ == ft })
       this
     else {
-      if (required)
-        (!TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)).asInstanceOf[TStruct]
-      else
-        TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
+      val t = TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
+      if (required) (!t).asInstanceOf[TStruct] else t
+
     }
   }
 

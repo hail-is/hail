@@ -215,8 +215,8 @@ object UnsafeRow {
         Interval[Locus](
           readLocus(region, ft.loadField(region, offset, 0), x.gr),
           readLocus(region, ft.loadField(region, offset, 1), x.gr))
-      case TGenotype(req) =>
-        val ft = TGenotype(req).fundamentalType.asInstanceOf[TStruct]
+      case x: TGenotype =>
+        val ft = x.fundamentalType.asInstanceOf[TStruct]
         val gt: Int =
           if (ft.isFieldDefined(region, offset, 0))
             region.loadInt(ft.loadField(region, offset, 0))
