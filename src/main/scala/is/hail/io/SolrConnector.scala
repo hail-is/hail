@@ -19,12 +19,12 @@ import scala.util.Random
 object SolrConnector {
 
   def toSolrType(t: Type): String = t match {
-    case TInt32 => "int"
-    case TInt64 => "long"
-    case TFloat32 => "float"
-    case TFloat64 => "double"
-    case TBoolean => "boolean"
-    case TString => "string"
+    case _: TInt32 => "int"
+    case _: TInt64 => "long"
+    case _: TFloat32 => "float"
+    case _: TFloat64 => "double"
+    case _: TBoolean => "boolean"
+    case _: TString => "string"
     // FIXME only 1 deep
     case i: TIterable => toSolrType(i.elementType)
     // FIXME

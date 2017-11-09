@@ -43,57 +43,57 @@ class TextTableSuite extends SparkSuite {
     val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", ".", null)
 
     assert(imputed.sameElements(Array(
-      Some(TInt32),
-      Some(TFloat64),
+      Some(TInt32()),
+      Some(TFloat64()),
       None,
-      Some(TString),
+      Some(TString()),
       Some(TVariant(GenomeReference.GRCh37)),
-      Some(TBoolean),
+      Some(TBoolean()),
       Some(TLocus(GenomeReference.GRCh37))
     )))
 
     val (schema, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
       impute = true)
     assert(schema == TStruct(
-      "Chromosome" -> TInt32,
-      "Position" -> TInt32,
-      "Ref" -> TString,
-      "Alt" -> TString,
-      "Rand1" -> TFloat64,
-      "Rand2" -> TFloat64,
-      "Gene" -> TString))
+      "Chromosome" -> TInt32(),
+      "Position" -> TInt32(),
+      "Ref" -> TString(),
+      "Alt" -> TString(),
+      "Rand1" -> TFloat64(),
+      "Rand2" -> TFloat64(),
+      "Gene" -> TString()))
 
     val (schema2, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
-      types = Map("Chromosome" -> TString), impute = true)
+      types = Map("Chromosome" -> TString()), impute = true)
     assert(schema2 == TStruct(
-      "Chromosome" -> TString,
-      "Position" -> TInt32,
-      "Ref" -> TString,
-      "Alt" -> TString,
-      "Rand1" -> TFloat64,
-      "Rand2" -> TFloat64,
-      "Gene" -> TString))
+      "Chromosome" -> TString(),
+      "Position" -> TInt32(),
+      "Ref" -> TString(),
+      "Alt" -> TString(),
+      "Rand1" -> TFloat64(),
+      "Rand2" -> TFloat64(),
+      "Gene" -> TString()))
 
     val (schema3, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.alternateformat.tsv"),
       impute = true)
     assert(schema3 == TStruct(
       "Chromosome:Position:Ref:Alt" -> TVariant(GenomeReference.GRCh37),
-      "Rand1" -> TFloat64,
-      "Rand2" -> TFloat64,
-      "Gene" -> TString))
+      "Rand1" -> TFloat64(),
+      "Rand2" -> TFloat64(),
+      "Gene" -> TString()))
 
     val (schema4, _) = TextTableReader.read(sc)(Array("src/test/resources/sampleAnnotations.tsv"),
       impute = true)
     assert(schema4 == TStruct(
-      "Sample" -> TString,
-      "Status" -> TString,
-      "qPhen" -> TInt32))
+      "Sample" -> TString(),
+      "Status" -> TString(),
+      "qPhen" -> TInt32()))
   }
 
   @Test def testAnnotationsReadWrite() {
     val outPath = tmpDir.createTempFile("annotationOut", ".tsv")
     val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)
-      .filter(vds => vds.countVariants > 0 && vds.vaSignature != TFloat64)) { vds: VariantDataset =>
+      .filter(vds => vds.countVariants > 0 && !vds.vaSignature.isOfType(TFloat64()))) { vds: VariantDataset =>
 
       vds.variantsKT().export(outPath, typesFile = outPath + ".types")
 

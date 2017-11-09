@@ -7,27 +7,27 @@ import is.hail.variant.{AltAlleleType, GenericDataset, Genotype, HTSGenotypeView
 import org.apache.spark.util.StatCounter
 
 object SampleQCCombiner {
-  val signature = TStruct("callRate" -> TFloat64,
-    "nCalled" -> TInt64,
-    "nNotCalled" -> TInt64,
-    "nHomRef" -> TInt64,
-    "nHet" -> TInt64,
-    "nHomVar" -> TInt64,
-    "nSNP" -> TInt64,
-    "nInsertion" -> TInt64,
-    "nDeletion" -> TInt64,
-    "nSingleton" -> TInt64,
-    "nTransition" -> TInt64,
-    "nTransversion" -> TInt64,
-    "nStar" -> TInt64,
-    "dpMean" -> TFloat64,
-    "dpStDev" -> TFloat64,
-    "gqMean" -> TFloat64,
-    "gqStDev" -> TFloat64,
-    "nNonRef" -> TInt64,
-    "rTiTv" -> TFloat64,
-    "rHetHomVar" -> TFloat64,
-    "rInsertionDeletion" -> TFloat64)
+  val signature = TStruct("callRate" -> TFloat64(),
+    "nCalled" -> TInt64(),
+    "nNotCalled" -> TInt64(),
+    "nHomRef" -> TInt64(),
+    "nHet" -> TInt64(),
+    "nHomVar" -> TInt64(),
+    "nSNP" -> TInt64(),
+    "nInsertion" -> TInt64(),
+    "nDeletion" -> TInt64(),
+    "nSingleton" -> TInt64(),
+    "nTransition" -> TInt64(),
+    "nTransversion" -> TInt64(),
+    "nStar" -> TInt64(),
+    "dpMean" -> TFloat64(),
+    "dpStDev" -> TFloat64(),
+    "gqMean" -> TFloat64(),
+    "gqStDev" -> TFloat64(),
+    "nNonRef" -> TInt64(),
+    "rTiTv" -> TFloat64(),
+    "rHetHomVar" -> TFloat64(),
+    "rInsertionDeletion" -> TFloat64())
 
   val ti = 0
   val tv = 1

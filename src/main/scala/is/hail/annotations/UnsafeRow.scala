@@ -145,13 +145,13 @@ object UnsafeRow {
   }
 
   def readAltAllele(region: MemoryBuffer, offset: Long): AltAllele = {
-    val ft = TAltAllele.fundamentalType.asInstanceOf[TStruct]
+    val ft = TAltAllele().fundamentalType.asInstanceOf[TStruct]
     AltAllele(
       readString(region, ft.loadField(region, offset, 0)),
       readString(region, ft.loadField(region, offset, 1)))
   }
 
-  private val tArrayAltAllele = TArray(TAltAllele)
+  private val tArrayAltAllele = TArray(TAltAllele())
 
   def readArrayAltAllele(region: MemoryBuffer, aoff: Long): Array[AltAllele] = {
     val t = tArrayAltAllele
@@ -166,7 +166,7 @@ object UnsafeRow {
     a
   }
 
-  private val tArrayInt32 = TArray(TInt32)
+  private val tArrayInt32 = TArray(TInt32())
 
   def readArrayInt(region: MemoryBuffer, aoff: Long): Array[Int] = {
     val t = tArrayInt32
@@ -183,18 +183,18 @@ object UnsafeRow {
 
   def read(t: Type, region: MemoryBuffer, offset: Long): Any = {
     t match {
-      case TBoolean =>
+      case _: TBoolean =>
         region.loadBoolean(offset)
-      case TInt32 | TCall => region.loadInt(offset)
-      case TInt64 => region.loadLong(offset)
-      case TFloat32 => region.loadFloat(offset)
-      case TFloat64 => region.loadDouble(offset)
+      case _: TInt32 | _: TCall => region.loadInt(offset)
+      case _: TInt64 => region.loadLong(offset)
+      case _: TFloat32 => region.loadFloat(offset)
+      case _: TFloat64 => region.loadDouble(offset)
       case t: TArray =>
         readArray(t, region, offset)
       case t: TSet =>
         readArray(t, region, offset).toSet
-      case TString => readString(region, offset)
-      case TBinary => readBinary(region, offset)
+      case _: TString => readString(region, offset)
+      case _: TBinary => readBinary(region, offset)
       case td: TDict =>
         val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
@@ -209,14 +209,14 @@ object UnsafeRow {
           readString(region, ft.loadField(region, offset, 2)),
           readArrayAltAllele(region, ft.loadField(region, offset, 3)))
       case x: TLocus => readLocus(region, offset, x.gr)
-      case TAltAllele => readAltAllele(region, offset)
+      case _: TAltAllele => readAltAllele(region, offset)
       case x: TInterval =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]
         Interval[Locus](
           readLocus(region, ft.loadField(region, offset, 0), x.gr),
           readLocus(region, ft.loadField(region, offset, 1), x.gr))
-      case TGenotype =>
-        val ft = TGenotype.fundamentalType.asInstanceOf[TStruct]
+      case x: TGenotype =>
+        val ft = x.fundamentalType.asInstanceOf[TStruct]
         val gt: Int =
           if (ft.isFieldDefined(region, offset, 0))
             region.loadInt(ft.loadField(region, offset, 0))

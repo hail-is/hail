@@ -191,10 +191,10 @@ object Skat {
     
     val skatSignature = TStruct(
       ("key", keyType),
-      ("size", TInt32),
-      ("qstat", TFloat64),
-      ("pval", TFloat64),
-      ("fault", TInt32))
+      ("size", TInt32()),
+      ("qstat", TFloat64()),
+      ("pval", TFloat64()),
+      ("fault", TInt32()))
 
     KeyTable(vsm.hc, skatRdd, skatSignature, Array("key"))
   }

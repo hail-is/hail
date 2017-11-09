@@ -115,23 +115,23 @@ final class VariantQCCombiner {
 
 object VariantQC {
   val signature = TStruct(
-    "callRate" -> TFloat64,
-    "AC" -> TInt32,
-    "AF" -> TFloat64,
-    "nCalled" -> TInt32,
-    "nNotCalled" -> TInt32,
-    "nHomRef" -> TInt32,
-    "nHet" -> TInt32,
-    "nHomVar" -> TInt32,
-    "dpMean" -> TFloat64,
-    "dpStDev" -> TFloat64,
-    "gqMean" -> TFloat64,
-    "gqStDev" -> TFloat64,
-    "nNonRef" -> TInt32,
-    "rHeterozygosity" -> TFloat64,
-    "rHetHomVar" -> TFloat64,
-    "rExpectedHetFrequency" -> TFloat64,
-    "pHWE" -> TFloat64)
+    "callRate" -> TFloat64(),
+    "AC" -> TInt32(),
+    "AF" -> TFloat64(),
+    "nCalled" -> TInt32(),
+    "nNotCalled" -> TInt32(),
+    "nHomRef" -> TInt32(),
+    "nHet" -> TInt32(),
+    "nHomVar" -> TInt32(),
+    "dpMean" -> TFloat64(),
+    "dpStDev" -> TFloat64(),
+    "gqMean" -> TFloat64(),
+    "gqStDev" -> TFloat64(),
+    "nNonRef" -> TInt32(),
+    "rHeterozygosity" -> TFloat64(),
+    "rHetHomVar" -> TFloat64(),
+    "rExpectedHetFrequency" -> TFloat64(),
+    "pHWE" -> TFloat64())
 
   def apply(vds: GenericDataset, root: String): GenericDataset = {
     val localNSamples = vds.nSamples

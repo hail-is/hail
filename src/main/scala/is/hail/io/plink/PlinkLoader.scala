@@ -23,7 +23,7 @@ case class FamFileConfig(isQuantitative: Boolean = false,
 object PlinkLoader {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
-  val plinkSchema = TStruct(("rsid", TString))
+  val plinkSchema = TStruct(("rsid", TString()))
 
   private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true): Array[(Variant, String)] = {
     hConf.readLines(bimPath)(_.map(_.map { line =>
@@ -56,9 +56,9 @@ object PlinkLoader {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
-    val phenoSig = if (ffConfig.isQuantitative) ("qPheno", TFloat64) else ("isCase", TBoolean)
+    val phenoSig = if (ffConfig.isQuantitative) ("qPheno", TFloat64()) else ("isCase", TBoolean())
 
-    val signature = TStruct(("famID", TString), ("patID", TString), ("matID", TString), ("isFemale", TBoolean), phenoSig)
+    val signature = TStruct(("famID", TString()), ("patID", TString()), ("matID", TString()), ("isFemale", TBoolean()), phenoSig)
 
     val idBuilder = new ArrayBuilder[String]
     val structBuilder = new ArrayBuilder[Annotation]
@@ -148,7 +148,7 @@ object PlinkLoader {
       vaSignature = plinkSchema,
       vSignature = TVariant(gr),
       globalSignature = TStruct.empty,
-      genotypeSignature = TStruct("GT" -> TCall),
+      genotypeSignature = TStruct("GT" -> TCall()),
       wasSplit = true),
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,

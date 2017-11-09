@@ -120,25 +120,25 @@ object BaldingNicholsModel {
     val globalAnnotation =
       Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
 
-    val saSignature = TStruct("pop" -> TInt32)
-    val vaSignature = TStruct("ancestralAF" -> TFloat64, "AF" -> TArray(TFloat64))
+    val saSignature = TStruct("pop" -> TInt32())
+    val vaSignature = TStruct("ancestralAF" -> TFloat64(), "AF" -> TArray(TFloat64()))
 
     val ancestralAFAnnotationSignature = af_dist match {
-      case UniformDist(minVal, maxVal) => TStruct("type" -> TString, "minVal" -> TFloat64, "maxVal" -> TFloat64)
-      case BetaDist(a, b) => TStruct("type" -> TString, "a" -> TFloat64, "b" -> TFloat64)
-      case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString, "a" -> TFloat64, "b" -> TFloat64, "minVal" -> TFloat64, "maxVal" -> TFloat64)
+      case UniformDist(minVal, maxVal) => TStruct("type" -> TString(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
+      case BetaDist(a, b) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64())
+      case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
     }
 
     val globalSignature = TStruct(
-      "nPops" -> TInt32,
-      "nSamples" -> TInt32,
-      "nVariants" -> TInt32,
-      "popDist" -> TArray(TFloat64),
-      "Fst" -> TArray(TFloat64),
+      "nPops" -> TInt32(),
+      "nSamples" -> TInt32(),
+      "nVariants" -> TInt32(),
+      "popDist" -> TArray(TFloat64()),
+      "Fst" -> TArray(TFloat64()),
       "ancestralAFDist" -> ancestralAFAnnotationSignature,
-      "seed" -> TInt32)
+      "seed" -> TInt32())
     new VariantDataset(hc,
-      VSMMetadata(TString, saSignature, TVariant(GenomeReference.GRCh37), vaSignature, globalSignature, wasSplit = true),
+      VSMMetadata(TString(), saSignature, TVariant(GenomeReference.GRCh37), vaSignature, globalSignature, wasSplit = true),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
   }
 }

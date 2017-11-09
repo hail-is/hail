@@ -72,40 +72,40 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def exprTest() {
-    val symTab = Map("i" -> (0, TInt32),
-      "j" -> (1, TInt32),
-      "d" -> (2, TFloat64),
-      "d2" -> (3, TFloat64),
-      "s" -> (4, TString),
-      "s2" -> (5, TString),
-      "a" -> (6, TArray(TInt32)),
-      "m" -> (7, TInt32),
-      "as" -> (8, TArray(TStruct(("a", TInt32),
-        ("b", TString)))),
-      "gs" -> (9, TStruct(("noCall", TGenotype),
-        ("homRef", TGenotype),
-        ("het", TGenotype),
-        ("homVar", TGenotype),
-        ("hetNonRef35", TGenotype))),
-      "t" -> (10, TBoolean),
-      "f" -> (11, TBoolean),
-      "mb" -> (12, TBoolean),
-      "is" -> (13, TString),
-      "iset" -> (14, TSet(TInt32)),
-      "genedict" -> (15, TDict(TString, TInt32)),
+    val symTab = Map("i" -> (0, TInt32()),
+      "j" -> (1, TInt32()),
+      "d" -> (2, TFloat64()),
+      "d2" -> (3, TFloat64()),
+      "s" -> (4, TString()),
+      "s2" -> (5, TString()),
+      "a" -> (6, TArray(TInt32())),
+      "m" -> (7, TInt32()),
+      "as" -> (8, TArray(TStruct(("a", TInt32()),
+        ("b", TString())))),
+      "gs" -> (9, TStruct(("noCall", TGenotype()),
+        ("homRef", TGenotype()),
+        ("het", TGenotype()),
+        ("homVar", TGenotype()),
+        ("hetNonRef35", TGenotype()))),
+      "t" -> (10, TBoolean()),
+      "f" -> (11, TBoolean()),
+      "mb" -> (12, TBoolean()),
+      "is" -> (13, TString()),
+      "iset" -> (14, TSet(TInt32())),
+      "genedict" -> (15, TDict(TString(), TInt32())),
       "structArray" -> (16, TArray(TStruct(
-        ("f1", TInt32),
-        ("f2", TString),
-        ("f3", TInt32)))),
-      "a2" -> (17, TArray(TString)),
-      "nullarr" -> (18, TArray(TInt32)),
-      "nullset" -> (19, TSet(TInt32)),
-      "emptyarr" -> (20, TArray(TInt32)),
-      "emptyset" -> (21, TSet(TInt32)),
-      "calls" -> (22, TStruct(("noCall", TCall),
-        ("homRef", TCall),
-        ("het", TCall),
-        ("homVar", TCall)
+        ("f1", TInt32()),
+        ("f2", TString()),
+        ("f3", TInt32())))),
+      "a2" -> (17, TArray(TString())),
+      "nullarr" -> (18, TArray(TInt32())),
+      "nullset" -> (19, TSet(TInt32())),
+      "emptyarr" -> (20, TArray(TInt32())),
+      "emptyset" -> (21, TSet(TInt32())),
+      "calls" -> (22, TStruct(("noCall", TCall()),
+        ("homRef", TCall()),
+        ("het", TCall()),
+        ("homVar", TCall())
       )))
 
     val ec = EvalContext(symTab)
@@ -495,11 +495,11 @@ class ExprSuite extends SparkSuite {
 
     val (t, r) = evalWithType[Annotation](""" {field1: 1, field2: 2 } """)
     assert(r.contains(Annotation(1, 2)))
-    assert(t == TStruct(("field1", TInt32), ("field2", TInt32)))
+    assert(t == TStruct(("field1", TInt32()), ("field2", TInt32())))
 
     val (t2, r2) = evalWithType[Annotation](""" {field1: 1, asdasd: "Hello" } """)
     assert(r2.contains(Annotation(1, "Hello")))
-    assert(t2 == TStruct(("field1", TInt32), ("asdasd", TString)))
+    assert(t2 == TStruct(("field1", TInt32()), ("asdasd", TString())))
 
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][0:2] """).contains(IndexedSeq(0, 1)))
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][2:100] """).contains(IndexedSeq(2, 3)))
@@ -566,13 +566,13 @@ class ExprSuite extends SparkSuite {
         "B" -> Annotation(5, 6),
         "C" -> Annotation(10, 10))
     ))
-    assert(dictType == TDict(TString, TStruct(("f1", TInt32), ("f3", TInt32))))
+    assert(dictType == TDict(TString(), TStruct(("f1", TInt32()), ("f3", TInt32()))))
 
     val (dictt, dictr2) = evalWithType(""" index(structArray, f2)""")
     assert(dictr2.contains(Map("A" -> Annotation(1, 2),
       "B" -> Annotation(5, 6),
       "C" -> Annotation(10, 10))))
-    assert(dictt == TDict(TString, TStruct("f1" -> TInt32, "f3" -> TInt32)))
+    assert(dictt == TDict(TString(), TStruct("f1" -> TInt32(), "f3" -> TInt32())))
 
     assert(eval[Int](""" index(structArray, f2)["B"].f3 """).contains(6))
     assert(eval[Map[_, _]](""" index(structArray, f2).mapValues(x => x.f1) """).contains(Map(
@@ -931,11 +931,11 @@ class ExprSuite extends SparkSuite {
 
     {
       val (t, r) = evalWithType("2 ** 2")
-      assert(t == TFloat64)
+      assert(t.isOfType(TFloat64()))
       assert(r.contains(4))
 
       val (t2, r2) = evalWithType("2 ** 3.0")
-      assert(t2 == TFloat64)
+      assert(t2.isOfType(TFloat64()))
       assert(r2.contains(8.0))
 
       assert(eval("3.123 ** 5.123") == eval("pow(3.123, 5.123)"))
@@ -972,9 +972,9 @@ class ExprSuite extends SparkSuite {
     val s2 = ""
     val s3 = "SIFT_Score: Float, Age: Int, SIFT2: BadType"
 
-    assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TFloat64, "Age" -> TInt32))
+    assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TFloat64(), "Age" -> TInt32()))
     assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, Type])
-    intercept[HailException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TFloat64, "Age" -> TInt32))
+    intercept[HailException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TFloat64(), "Age" -> TInt32()))
   }
 
   @Test def testTypePretty() {
@@ -1042,7 +1042,7 @@ class ExprSuite extends SparkSuite {
         JSONAnnotationImpex.importAnnotation(parse(string), t) == a
       }
 
-      property("table") = forAll(g.filter { case (t, a) => t != TFloat64 && a != null }.resize(10)) { case (t, a) =>
+      property("table") = forAll(g.filter { case (t, a) => !t.isOfType(TFloat64()) && a != null }.resize(10)) { case (t, a) =>
         TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
       }
 
@@ -1055,29 +1055,29 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def testIfNumericPromotion() {
-    val ec = EvalContext(Map("c" -> (0, TBoolean), "l" -> (1, TInt64), "f" -> (2, TFloat32)))
+    val ec = EvalContext(Map("c" -> (0, TBoolean()), "l" -> (1, TInt64()), "f" -> (2, TFloat32())))
 
     def eval[T](s: String): (Type, Option[T]) = {
       val (t, f) = Parser.parseExpr(s, ec)
       (t, Option(f()).map(_.asInstanceOf[T]))
     }
 
-    assert(Parser.parseExpr("if (c) 0 else 0", ec)._1 == TInt32)
-    assert(Parser.parseExpr("if (c) 0 else l", ec)._1 == TInt64)
-    assert(Parser.parseExpr("if (c) f else 0", ec)._1 == TFloat32)
-    assert(Parser.parseExpr("if (c) 0 else 0.0", ec)._1 == TFloat64)
-    assert(eval[Int]("(if (true) 0 else 0.toInt64()).toInt32()") == (TInt32, Some(0)))
-    assert(eval[Int]("(if (true) 0 else 0.toFloat32()).toInt32()") == (TInt32, Some(0)))
+    assert(Parser.parseExpr("if (c) 0 else 0", ec)._1.isInstanceOf[TInt32])
+    assert(Parser.parseExpr("if (c) 0 else l", ec)._1.isInstanceOf[TInt64])
+    assert(Parser.parseExpr("if (c) f else 0", ec)._1.isInstanceOf[TFloat32])
+    assert(Parser.parseExpr("if (c) 0 else 0.0", ec)._1.isInstanceOf[TFloat64])
+    assert(eval[Int]("(if (true) 0 else 0.toInt64()).toInt32()") == (TInt32(), Some(0)))
+    assert(eval[Int]("(if (true) 0 else 0.toFloat32()).toInt32()") == (TInt32(), Some(0)))
   }
 
   @Test def testRegistryTypeCheck() {
     val expr = """let v = Variant("1:650000:A:T") and ref = v.ref and isHet = v.isAutosomal and s = "1" in s.toInt32()"""
     val (t, f) = Parser.parseExpr(expr, EvalContext())
-    assert(f().asInstanceOf[Int] == 1 && t == TInt32)
+    assert(f().asInstanceOf[Int] == 1 && t.isInstanceOf[TInt32])
   }
 
   @Test def testOrdering() {
-    val intOrd = TInt32.ordering(true)
+    val intOrd = TInt32().ordering(true)
 
     assert(intOrd.compare(-2, -2) == 0)
     assert(intOrd.compare(null, null) == 0)

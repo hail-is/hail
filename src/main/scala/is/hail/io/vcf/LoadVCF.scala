@@ -91,12 +91,12 @@ object LoadVCF {
     val isCall = id == "GT" || callFields.contains(id)
 
     val baseType = (line.getType, isCall) match {
-      case (VCFHeaderLineType.Integer, false) => TInt32
-      case (VCFHeaderLineType.Float, false) => TFloat64
-      case (VCFHeaderLineType.String, true) => TCall
-      case (VCFHeaderLineType.String, false) => TString
-      case (VCFHeaderLineType.Character, false) => TString
-      case (VCFHeaderLineType.Flag, false) => TBoolean
+      case (VCFHeaderLineType.Integer, false) => TInt32()
+      case (VCFHeaderLineType.Float, false) => TFloat64()
+      case (VCFHeaderLineType.String, true) => TCall()
+      case (VCFHeaderLineType.String, false) => TString()
+      case (VCFHeaderLineType.Character, false) => TString()
+      case (VCFHeaderLineType.Flag, false) => TBoolean()
       case (_, true) => fatal(s"Can only convert a header line with type `String' to a Call Type. Found `${ line.getType }'.")
     }
 
@@ -123,11 +123,11 @@ object LoadVCF {
   def formatHeaderSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
     callFields: Set[String] = Set.empty[String]): (TStruct, Int) = {
     val canonicalFields = Array(
-      "GT" -> TCall,
-      "AD" -> TArray(TInt32),
-      "DP" -> TInt32,
-      "GQ" -> TInt32,
-      "PL" -> TArray(TInt32))
+      "GT" -> TCall(),
+      "AD" -> TArray(TInt32()),
+      "DP" -> TInt32(),
+      "GQ" -> TInt32(),
+      "PL" -> TArray(TInt32()))
 
     val raw = headerSignature(lines, callFields)
 
@@ -179,9 +179,9 @@ object LoadVCF {
     val (gSignature, canonicalFlags) = formatHeaderSignature(formatHeader, reader.callFields)
 
     val vaSignature = TStruct(Array(
-      Field("rsid", TString, 0),
-      Field("qual", TFloat64, 1),
-      Field("filters", TSet(TString), 2, filters),
+      Field("rsid", TString(), 0),
+      Field("qual", TFloat64(), 1),
+      Field("filters", TSet(TString()), 2, filters),
       Field("info", infoSignature, 3)))
 
     val headerLine = lines.last
@@ -269,7 +269,7 @@ object LoadVCF {
 
     val gr = GenomeReference.GRCh37
     val vsmMetadata = VSMMetadata(
-      TString,
+      TString(),
       TStruct.empty,
       TVariant(gr),
       vaSignature,

@@ -271,12 +271,12 @@ case class VSMSubgen[RPK, RK, T >: Null](
 
 object VSMSubgen {
   val random = VSMSubgen[Locus, Variant, Genotype](
-    sSigGen = Gen.const(TString),
+    sSigGen = Gen.const(TString()),
     saSigGen = Type.genArb,
     vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
     vaSigGen = Type.genArb,
     globalSigGen = Type.genArb,
-    tSigGen = Gen.const(TGenotype),
+    tSigGen = Gen.const(TGenotype()),
     sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
     saGen = (t: Type) => t.genValue,
     vaGen = (t: Type) => t.genValue,
@@ -291,14 +291,14 @@ object VSMSubgen {
     wasSplit = true)
 
   val dosage = VSMSubgen[Locus, Variant, Annotation](
-    sSigGen = Gen.const(TString),
+    sSigGen = Gen.const(TString()),
     saSigGen = Type.genArb,
     vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
     vaSigGen = Type.genArb,
     globalSigGen = Type.genArb,
     tSigGen = Gen.const(TStruct(
-      "GT" -> TCall,
-      "GP" -> TArray(TFloat64))),
+      "GT" -> TCall(),
+      "GP" -> TArray(TFloat64()))),
     sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
     saGen = (t: Type) => t.genValue,
     vaGen = (t: Type) => t.genValue,
@@ -341,7 +341,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         MatrixValue(MatrixType(metadata), localValue, rdd2)))
 
   def requireSampleTString(method: String) {
-    if (sSignature != TString)
+    if (!sSignature.isOfType(TString()))
       fatal(s"in $method: column key (sample) schema must be String, but found: $sSignature")
   }
 
@@ -357,7 +357,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   lazy val rdd: OrderedRDD[RPK, RK, (Annotation, Iterable[T])] = value.rdd
 
   def stringSampleIds: IndexedSeq[String] = {
-    assert(sSignature == TString)
+    assert(sSignature.isInstanceOf[TString])
     sampleIds.map(_.asInstanceOf[String])
   }
 
@@ -396,8 +396,8 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         (keysType, rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va)).map(key => (key, (v, va, gs))) })
       } else {
         val keyType = keysType match {
-          case TArray(e) => e
-          case TSet(e) => e
+          case TArray(e, _) => e
+          case TSet(e, _) => e
           case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
         }
         (keyType, rdd.flatMap { case (v, (va, gs)) =>
@@ -611,13 +611,13 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       fatal("method `annotateSamplesTable' requires one of `root' or 'expr', but not both")
 
     var (joinSignature, f): (Type, Annotation => Annotation) = kt.valueSignature.size match {
-      case 0 => (TBoolean, _ != null)
+      case 0 => (TBoolean(), _ != null)
       case 1 => (kt.valueSignature.fields.head.typ, x => if (x != null) x.asInstanceOf[Row].get(0) else null)
       case _ => (kt.valueSignature, identity[Annotation])
     }
 
     if (product) {
-      joinSignature = if (joinSignature == TBoolean) TInt32 else TArray(joinSignature)
+      joinSignature = if (joinSignature.isInstanceOf[TBoolean]) TInt32() else TArray(joinSignature)
       f = if (kt.valueSignature.size == 0)
         _.asInstanceOf[IndexedSeq[_]].length
       else {
@@ -759,13 +759,13 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       fatal("method `annotateVariantsTable' requires one of `root' or 'expr', but not both")
 
     var (joinSignature, f): (Type, Annotation => Annotation) = kt.valueSignature.size match {
-      case 0 => (TBoolean, _ != null)
+      case 0 => (TBoolean(), _ != null)
       case 1 => (kt.valueSignature.fields.head.typ, x => if (x != null) x.asInstanceOf[Row].get(0) else null)
       case _ => (kt.valueSignature, identity[Annotation])
     }
 
     if (product) {
-      joinSignature = if (joinSignature == TBoolean) TInt32 else TArray(joinSignature)
+      joinSignature = if (joinSignature.isInstanceOf[TBoolean]) TInt32(joinSignature.required) else TArray(joinSignature)
       f = if (kt.valueSignature.size == 0)
         _.asInstanceOf[IndexedSeq[_]].length
       else {
@@ -828,7 +828,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
           annotateLoci(ord, finalType, inserter, product = product)
 
-        case Array(TInterval(_)) if vSignature == TVariant(GenomeReference.GRCh37) =>
+        case Array(TInterval(_, _)) if vSignature.isOfType(TVariant(GenomeReference.GRCh37)) =>
           val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
           val partitionKeyedIntervals = keyedRDD
             .flatMap { case (k, v) =>
@@ -952,7 +952,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
 
   def dropSamples(): VariantSampleMatrix[RPK, RK, T] =
-    copyAST(ast = FilterSamples(ast, Const(null, false, TBoolean)))
+    copyAST(ast = FilterSamples(ast, Const(null, false, TBoolean())))
 
   def dropVariants(): VariantSampleMatrix[RPK, RK, T] = copy2(rdd2 = OrderedRDD2.empty(sparkContext, matrixType.orderedRDD2Type))
 
@@ -1159,7 +1159,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           .map { case (_, ((v, vags), _)) => (v, vags) },
           rdd.orderedPartitioner)
 
-      case Array(TInterval(_)) if vSignature == TVariant(GenomeReference.GRCh37) =>
+      case Array(TInterval(_, _)) if vSignature == TVariant(GenomeReference.GRCh37) || vSignature == !TVariant(GenomeReference.GRCh37) =>
         val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
         val intRDD = kt.keyedRDD()
           .map { case (k, _) => k.getAs[Interval[Locus]](0) }
@@ -1664,7 +1664,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         s"Mangled IDs as follows:\n  @1", duplicates.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
     else
       info(s"No duplicate sample IDs found.")
-    val (newSchema, ins) = insertSA(TString, "originalID")
+    val (newSchema, ins) = insertSA(TString(), "originalID")
     val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) => ins(sa, s) }
     copy2(sampleIds = newIds, saSignature = newSchema, sampleAnnotations = newAnnotations)
   }
@@ -2088,7 +2088,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def makeVariantConcrete(): VariantSampleMatrix[Locus, Variant, T] = {
     vSignature match {
-      case TVariant(_) =>
+      case TVariant(_, _) =>
       case _ => fatal(s"variant signature `Variant' required, found: ${ vSignature.toPrettyString() }")
     }
 
@@ -2096,7 +2096,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   def makeGenotypeConcrete(): VariantSampleMatrix[RPK, RK, Genotype] = {
-    if (genotypeSignature != TGenotype)
+    if (!genotypeSignature.isInstanceOf[TGenotype])
       fatal(s"genotype signature `Genotype' required, found: `${ genotypeSignature.toPrettyString() }'")
 
     new VariantSampleMatrix[RPK, RK, Genotype](hc, metadata, ast)

@@ -40,7 +40,7 @@ object BedAnnotator {
     val gr = GenomeReference.GRCh37
 
     val schema = if (hasTarget)
-      TStruct("interval" -> TInterval(gr), "target" -> TString)
+      TStruct("interval" -> TInterval(gr), "target" -> TString())
     else
       TStruct("interval" -> TInterval(gr))
 

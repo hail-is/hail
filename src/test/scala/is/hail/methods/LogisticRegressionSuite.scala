@@ -41,9 +41,9 @@ class LogisticRegressionSuite extends SparkSuite {
 
   @Test def waldTestWithTwoCov() {
     val covariates = hc.importTable("src/test/resources/regressionLogistic.cov",
-      types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
+      types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
     val phenotypes = hc.importTable("src/test/resources/regressionLogisticBoolean.pheno",
-      types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
+      types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .verifyBiallelic()
@@ -105,9 +105,9 @@ class LogisticRegressionSuite extends SparkSuite {
 
   @Test def waldTestWithTwoCovPhred() {
     val covariates = hc.importTable("src/test/resources/regressionLogistic.cov",
-      types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
+      types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
     val phenotypes = hc.importTable("src/test/resources/regressionLogisticBoolean.pheno",
-      types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
+      types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .verifyBiallelic()
@@ -166,9 +166,9 @@ class LogisticRegressionSuite extends SparkSuite {
 
   @Test def waldTestWithTwoCovDosage() {
     val covariates = hc.importTable("src/test/resources/regressionLogistic.cov",
-      types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
+      types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
     val phenotypes = hc.importTable("src/test/resources/regressionLogisticBoolean.pheno",
-      types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
+      types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
     // .gen and .sample files created from regressionLogistic.vcf
     // dosages are derived from PLs so results should agree with testWithTwoCovPhred
@@ -228,9 +228,9 @@ class LogisticRegressionSuite extends SparkSuite {
 
   @Test def lrTestWithTwoCov() {
     val covariates = hc.importTable("src/test/resources/regressionLogistic.cov",
-      types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
+      types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
     val phenotypes = hc.importTable("src/test/resources/regressionLogisticBoolean.pheno",
-      types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
+      types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
@@ -291,9 +291,9 @@ class LogisticRegressionSuite extends SparkSuite {
 
   @Test def scoreTestWithTwoCov() {
     val covariates = hc.importTable("src/test/resources/regressionLogistic.cov",
-      types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
+      types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
     val phenotypes = hc.importTable("src/test/resources/regressionLogisticBoolean.pheno",
-      types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
+      types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .verifyBiallelic()
@@ -346,7 +346,7 @@ class LogisticRegressionSuite extends SparkSuite {
   @Test def waldEpactsTest() {
 
     val covariates = hc.importTable("src/test/resources/regressionLogisticEpacts.cov",
-      types = Map("PC1" -> TFloat64, "PC2" -> TFloat64), missing = "0").keyBy("IND_ID")
+      types = Map("PC1" -> TFloat64(), "PC2" -> TFloat64()), missing = "0").keyBy("IND_ID")
 
     val vds = hc.importVCF("src/test/resources/regressionLogisticEpacts.vcf")
       .verifyBiallelic()

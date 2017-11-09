@@ -16,10 +16,10 @@ import org.apache.commons.math3.util.FastMath
 
 object LinearMixedRegression {
   val schema: Type = TStruct(
-    ("beta", TFloat64),
-    ("sigmaG2", TFloat64),
-    ("chi2", TFloat64),
-    ("pval", TFloat64))
+    ("beta", TFloat64()),
+    ("sigmaG2", TFloat64()),
+    ("chi2", TFloat64()),
+    ("pval", TFloat64()))
 
   def apply[RPK, RK, T >: Null](
     assocVSM: VariantSampleMatrix[RPK, RK, T],
@@ -124,16 +124,16 @@ object LinearMixedRegression {
 
     val vds1 = assocVSM.annotateGlobal(
       Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, fullS.data.reverse: IndexedSeq[Double], nEigs, optDroppedVarianceFraction.getOrElse(null)),
-      TStruct(("useML", TBoolean), ("beta", TDict(TString, TFloat64)), ("sigmaG2", TFloat64), ("sigmaE2", TFloat64),
-        ("delta", TFloat64), ("h2", TFloat64), ("evals", TArray(TFloat64)), ("nEigs", TInt32), ("dropped_variance_fraction", TFloat64)), rootGA)
+      TStruct(("useML", TBoolean()), ("beta", TDict(TString(), TFloat64())), ("sigmaG2", TFloat64()), ("sigmaE2", TFloat64()),
+        ("delta", TFloat64()), ("h2", TFloat64()), ("evals", TArray(TFloat64())), ("nEigs", TInt32()), ("dropped_variance_fraction", TFloat64())), rootGA)
 
     val vds2 = diagLMM.optGlobalFit match {
       case Some(gf) =>
         val (logDeltaGrid, logLkhdVals) = gf.gridLogLkhd.unzip
         vds1.annotateGlobal(
           Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
-          TStruct(("seH2", TFloat64), ("normLkhdH2", TArray(TFloat64)), ("maxLogLkhd", TFloat64),
-            ("logDeltaGrid", TArray(TFloat64)), ("logLkhdVals", TArray(TFloat64))), rootGA + ".fit")
+          TStruct(("seH2", TFloat64()), ("normLkhdH2", TArray(TFloat64())), ("maxLogLkhd", TFloat64()),
+            ("logDeltaGrid", TArray(TFloat64())), ("logLkhdVals", TArray(TFloat64()))), rootGA + ".fit")
       case None =>
         assert(optDelta.isDefined)
         vds1

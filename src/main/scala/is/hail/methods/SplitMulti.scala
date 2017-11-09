@@ -130,16 +130,16 @@ class SplitMulti[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], variant
     "global" -> (0, vsm.globalSignature),
     "v" -> (1, vsm.vSignature),
     "va" -> (2, vsm.vaSignature),
-    "aIndex" -> (3, TInt32),
-    "wasSplit" -> (4, TBoolean)))
+    "aIndex" -> (3, TInt32()),
+    "wasSplit" -> (4, TBoolean())))
   val vAnnotator = new ExprAnnotator(vEC, vsm.vaSignature, variantExpr, Some(Annotation.VARIANT_HEAD))
 
   val gEC = EvalContext(Map(
     "global" -> (0, vsm.globalSignature),
     "v" -> (1, vsm.vSignature),
     "va" -> (2, vsm.vaSignature),
-    "aIndex" -> (3, TInt32),
-    "wasSplit" -> (4, TBoolean),
+    "aIndex" -> (3, TInt32()),
+    "wasSplit" -> (4, TBoolean()),
     "g" -> (5, vsm.genotypeSignature)))
   val gAnnotator = new ExprAnnotator(gEC, vsm.genotypeSignature, genotypeExpr, Some(Annotation.GENOTYPE_HEAD))
 

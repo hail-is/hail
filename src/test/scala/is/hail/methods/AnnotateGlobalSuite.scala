@@ -81,9 +81,9 @@ class AnnotateGlobalSuite extends SparkSuite {
     val (t, res) = vds.queryGlobal("global.genes")
 
     assert(t == TArray(TStruct(
-      ("GENE", TString),
-      ("PLI", TFloat64),
-      ("EXAC_LOF_COUNT", TInt32))))
+      ("GENE", TString()),
+      ("PLI", TFloat64()),
+      ("EXAC_LOF_COUNT", TInt32()))))
 
     assert(res == IndexedSeq(
       Annotation("Gene1", "0.12312".toDouble, 2),

@@ -21,13 +21,13 @@ object FilterAlleles {
     val conditionEC = EvalContext(Map(
       "v" -> (0, TVariant(GenomeReference.GRCh37)),
       "va" -> (1, vds.vaSignature),
-      "aIndex" -> (2, TInt32)))
+      "aIndex" -> (2, TInt32())))
     val conditionE = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, conditionEC)
 
     val annotationEC = EvalContext(Map(
       "v" -> (0, TVariant(GenomeReference.GRCh37)),
       "va" -> (1, vds.vaSignature),
-      "aIndices" -> (2, TArray(TInt32))))
+      "aIndices" -> (2, TArray(TInt32()))))
     val (paths, types, f) = Parser.parseAnnotationExprs(annotationExpr, annotationEC, Some(Annotation.VARIANT_HEAD))
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val finalType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (path, signature)) =>

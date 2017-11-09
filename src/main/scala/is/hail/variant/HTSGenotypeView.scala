@@ -9,13 +9,13 @@ import is.hail.utils._
 object HTSGenotypeView {
   def apply(rowSignature: TStruct): HTSGenotypeView = {
     rowSignature.fieldType(3).asInstanceOf[TArray].elementType match {
-      case TGenotype => new TGenotypeView(rowSignature)
+      case _: TGenotype => new TGenotypeView(rowSignature)
       case _: TStruct => new StructGenotypeView(rowSignature)
       case t => fatal(s"invalid genotype representation: $t, expect TGenotype or TStruct")
     }
   }
 
-  val tArrayInt32 = TArray(TInt32)
+  val tArrayInt32 = TArray(TInt32())
 }
 
 // FIXME: This is removed, and StructGenotypeView becomes the only genotype view when TGenotype is removed
@@ -49,7 +49,7 @@ sealed abstract class HTSGenotypeView {
 
 class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
   private val tgs = rs.fieldType(3).asInstanceOf[TArray]
-  private val tg = TGenotype.representation
+  private val tg = TGenotype.representation()
 
   private val gtIndex = 0
   private val adIndex = 1
@@ -138,10 +138,10 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
     }
   }
 
-  private val (gtExists, gtIndex) = lookupField("GT", TCall)
+  private val (gtExists, gtIndex) = lookupField("GT", TCall())
   private val (adExists, adIndex) = lookupField("AD", HTSGenotypeView.tArrayInt32)
-  private val (dpExists, dpIndex) = lookupField("DP", TInt32)
-  private val (gqExists, gqIndex) = lookupField("GQ", TInt32)
+  private val (dpExists, dpIndex) = lookupField("DP", TInt32())
+  private val (gqExists, gqIndex) = lookupField("GQ", TInt32())
   private val (plExists, plIndex) = lookupField("PL", HTSGenotypeView.tArrayInt32)
 
   private var m: MemoryBuffer = _
@@ -211,7 +211,7 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
 }
 
 object ArrayGenotypeView {
-  val tArrayFloat64 = TArray(TFloat64)
+  val tArrayFloat64 = TArray(TFloat64())
 }
 
 class ArrayGenotypeView(rowType: TStruct) {
@@ -235,7 +235,7 @@ class ArrayGenotypeView(rowType: TStruct) {
       (false, 0)
   }
 
-  private val (gtExists, gtIndex) = lookupField("GT", TCall)
+  private val (gtExists, gtIndex) = lookupField("GT", TCall())
   private val (gpExists, gpIndex) = lookupField("GP", ArrayGenotypeView.tArrayFloat64)
 
   private var m: MemoryBuffer = _
@@ -283,7 +283,7 @@ class ArrayGenotypeView(rowType: TStruct) {
 object HardCallView {
   def apply(rowSignature: TStruct): HardCallView = {
     rowSignature.fieldType(3).asInstanceOf[TArray].elementType match {
-      case TGenotype => new HardCallTGenotypeView(rowSignature)
+      case _: TGenotype => new HardCallTGenotypeView(rowSignature)
       case _: TStruct => new HardCallStructView(rowSignature, "GT")
       case t => fatal(s"invalid genotype representation: $t, expect TGenotype or TStruct")
     }
@@ -304,7 +304,7 @@ abstract class HardCallView {
 
 class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
   private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
-  private val tg = TGenotype.representation
+  private val tg = TGenotype.representation()
 
   private val gtIndex = 0
 
@@ -359,7 +359,7 @@ class HardCallStructView(rowType: TStruct, callField: String) extends HardCallVi
       (false, 0)
   }
 
-  private val (gtExists, gtIndex) = lookupField(callField, TCall)
+  private val (gtExists, gtIndex) = lookupField(callField, TCall())
 
   private var m: MemoryBuffer = _
   private var gsOffset: Long = _

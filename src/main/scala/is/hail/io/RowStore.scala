@@ -317,7 +317,7 @@ final class Decoder(in: InputBuffer) {
     val elemsOff = aoff + t.elementsOffset(length)
     val elemSize = t.elementByteSize
 
-    if (t.elementType == TInt32) { // fast path
+    if (t.elementType.isInstanceOf[TInt32]) { // fast path
       var i = 0
       while (i < length) {
         if (!region.loadBit(aoff + 4, i)) {
@@ -336,11 +336,11 @@ final class Decoder(in: InputBuffer) {
             case t2: TArray =>
               val aoff = readArray(t2, region)
               region.storeAddress(off, aoff)
-            case TBoolean => region.storeByte(off, in.readBoolean().toByte)
-            case TInt64 => region.storeLong(off, in.readLong())
-            case TFloat32 => region.storeFloat(off, in.readFloat())
-            case TFloat64 => region.storeDouble(off, in.readDouble())
-            case TBinary => readBinary(region, off)
+            case _: TBoolean => region.storeByte(off, in.readBoolean().toByte)
+            case _: TInt64 => region.storeLong(off, in.readLong())
+            case _: TFloat32 => region.storeFloat(off, in.readFloat())
+            case _: TFloat64 => region.storeDouble(off, in.readDouble())
+            case _: TBinary => readBinary(region, off)
           }
         }
         i += 1
@@ -364,12 +364,12 @@ final class Decoder(in: InputBuffer) {
           case t2: TArray =>
             val aoff = readArray(t2, region)
             region.storeAddress(off, aoff)
-          case TBoolean => region.storeByte(off, in.readBoolean().toByte)
-          case TInt32 => region.storeInt(off, in.readInt())
-          case TInt64 => region.storeLong(off, in.readLong())
-          case TFloat32 => region.storeFloat(off, in.readFloat())
-          case TFloat64 => region.storeDouble(off, in.readDouble())
-          case TBinary => readBinary(region, off)
+          case _: TBoolean => region.storeByte(off, in.readBoolean().toByte)
+          case _: TInt32 => region.storeInt(off, in.readInt())
+          case _: TInt64 => region.storeLong(off, in.readLong())
+          case _: TFloat32 => region.storeFloat(off, in.readFloat())
+          case _: TFloat64 => region.storeDouble(off, in.readDouble())
+          case _: TBinary => readBinary(region, off)
         }
       }
       i += 1
@@ -412,7 +412,7 @@ final class Encoder(out: OutputBuffer) {
 
     val elemsOff = aoff + t.elementsOffset(length)
     val elemSize = t.elementByteSize
-    if (t.elementType == TInt32) { // fast case
+    if (t.elementType.isInstanceOf[TInt32]) { // fast case
       var i = 0
       while (i < length) {
         if (t.isElementDefined(region, aoff, i)) {
@@ -429,11 +429,11 @@ final class Encoder(out: OutputBuffer) {
           t.elementType match {
             case t2: TStruct => writeStruct(t2, region, off)
             case t2: TArray => writeArray(t2, region, region.loadAddress(off))
-            case TBoolean => out.writeBoolean(region.loadByte(off) != 0)
-            case TInt64 => out.writeLong(region.loadLong(off))
-            case TFloat32 => out.writeFloat(region.loadFloat(off))
-            case TFloat64 => out.writeDouble(region.loadDouble(off))
-            case TBinary => writeBinary(region, off)
+            case _: TBoolean => out.writeBoolean(region.loadByte(off) != 0)
+            case _: TInt64 => out.writeLong(region.loadLong(off))
+            case _: TFloat32 => out.writeFloat(region.loadFloat(off))
+            case _: TFloat64 => out.writeDouble(region.loadDouble(off))
+            case _: TBinary => writeBinary(region, off)
           }
         }
 
@@ -453,12 +453,12 @@ final class Encoder(out: OutputBuffer) {
         t.fields(i).typ match {
           case t2: TStruct => writeStruct(t2, region, off)
           case t2: TArray => writeArray(t2, region, region.loadAddress(off))
-          case TBoolean => out.writeBoolean(region.loadByte(off) != 0)
-          case TInt32 => out.writeInt(region.loadInt(off))
-          case TInt64 => out.writeLong(region.loadLong(off))
-          case TFloat32 => out.writeFloat(region.loadFloat(off))
-          case TFloat64 => out.writeDouble(region.loadDouble(off))
-          case TBinary => writeBinary(region, off)
+          case _: TBoolean => out.writeBoolean(region.loadByte(off) != 0)
+          case _: TInt32 => out.writeInt(region.loadInt(off))
+          case _: TInt64 => out.writeLong(region.loadLong(off))
+          case _: TFloat32 => out.writeFloat(region.loadFloat(off))
+          case _: TFloat64 => out.writeDouble(region.loadDouble(off))
+          case _: TBinary => writeBinary(region, off)
         }
       }
 

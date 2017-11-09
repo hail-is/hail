@@ -64,8 +64,8 @@ class VSMSuite extends SparkSuite {
       Annotation.emptyIndexedSeq(3),
       vaSignature = TStruct(
         "inner" -> TStruct(
-          "thing1" -> TString),
-        "thing2" -> TString))
+          "thing1" -> TString()),
+        "thing2" -> TString()))
     val s3va1 = Annotation(Annotation("yes"), "yes")
     val s3va2 = Annotation(Annotation("yes"), "no")
     val s3va3 = Annotation(Annotation("no"), "yes")
@@ -75,9 +75,9 @@ class VSMSuite extends SparkSuite {
       Annotation.emptyIndexedSeq(2),
       vaSignature = TStruct(
         "inner" -> TStruct(
-          "thing1" -> TString),
-        "thing2" -> TString,
-        "dummy" -> TString))
+          "thing1" -> TString()),
+        "thing2" -> TString(),
+        "dummy" -> TString()))
     val s4va1 = Annotation(Annotation("yes"), "yes", null)
     val s4va2 = Annotation(Annotation("yes"), "no", "dummy")
 
@@ -360,7 +360,7 @@ class VSMSuite extends SparkSuite {
       val vds2 = vds.annotateVariantsExpr("va.key = v.start % 2 == 0")
 
       val kt = KeyTable(hc, sc.parallelize(Array(Row(true, 1), Row(false, 2))),
-        TStruct(("key", TBoolean), ("value", TInt32)), Array("key"))
+        TStruct(("key", TBoolean()), ("value", TInt32())), Array("key"))
 
       val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Seq("va.key"), root = "va.foo")
       val result = resultVds.rdd.collect()
@@ -397,7 +397,7 @@ class VSMSuite extends SparkSuite {
         makeAnnotation(false, true),
         makeAnnotation(false, false)))
 
-      val kt = KeyTable(hc, mapping, TStruct(("key1", TBoolean), ("key2", TBoolean), ("value", TInt32)), Array("key1", "key2"))
+      val kt = KeyTable(hc, mapping, TStruct(("key1", TBoolean()), ("key2", TBoolean()), ("value", TInt32())), Array("key1", "key2"))
 
       val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Seq("va.key1", "va.key2"),
         expr = "va.foo = table")

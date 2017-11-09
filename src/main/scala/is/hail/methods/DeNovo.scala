@@ -17,15 +17,15 @@ object DeNovo {
 
   def schema(variantType: Type): TStruct = TStruct(
     "variant" -> variantType,
-    "proband" -> TString,
-    "father" -> TString,
-    "mother" -> TString,
-    "isFemale" -> TBoolean,
-    "confidence" -> TString,
-    "probandGt" -> TGenotype,
-    "motherGt" -> TGenotype,
-    "fatherGt" -> TGenotype,
-    "pDeNovo" -> TFloat64)
+    "proband" -> TString(),
+    "father" -> TString(),
+    "mother" -> TString(),
+    "isFemale" -> TBoolean(),
+    "confidence" -> TString(),
+    "probandGt" -> TGenotype(),
+    "motherGt" -> TGenotype(),
+    "fatherGt" -> TGenotype(),
+    "pDeNovo" -> TFloat64())
 
   private val PRIOR = 1.0 / 30000000
 
@@ -166,7 +166,7 @@ object DeNovo {
     require(vds.wasSplit)
 
     val (popFrequencyT, popFrequencyF) = vds.queryVA(referenceAFExpr)
-    if (popFrequencyT != TFloat64)
+    if (!popFrequencyT.isOfType(TFloat64()))
       fatal(s"population frequency should be a Double, but got `$popFrequencyT'")
 
     // it's okay to cast null to 0.0 here because missing is treated as 0.0

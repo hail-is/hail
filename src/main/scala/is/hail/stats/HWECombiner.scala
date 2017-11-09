@@ -7,8 +7,8 @@ import is.hail.variant.Genotype
 
 object HWECombiner {
   def signature = TStruct(Array(
-    ("rExpectedHetFrequency", TFloat64, "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
-    ("pHWE", TFloat64, "p-value")
+    ("rExpectedHetFrequency", TFloat64(), "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
+    ("pHWE", TFloat64(), "p-value")
   ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 }
 

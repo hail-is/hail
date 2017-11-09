@@ -137,7 +137,7 @@ class IntervalSuite extends SparkSuite {
         product = true)
 
     val (t, q) = vds.queryVA("va.annot")
-    assert(t == TArray(TString))
+    assert(t == TArray(TString()))
 
     vds.rdd.foreach { case (v, (va, gs)) =>
       val a = q(va).asInstanceOf[IndexedSeq[String]].toSet

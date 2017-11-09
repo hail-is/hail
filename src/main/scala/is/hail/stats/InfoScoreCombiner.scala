@@ -7,8 +7,8 @@ import is.hail.variant.Genotype
 
 object InfoScoreCombiner {
   def signature = TStruct(Array(
-    ("score", TFloat64, "IMPUTE info score"),
-    ("nIncluded", TInt32, "Number of samples with non-missing genotype probability distribution")
+    ("score", TFloat64(), "IMPUTE info score"),
+    ("nIncluded", TInt32(), "Number of samples with non-missing genotype probability distribution")
   ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 }
 

@@ -48,7 +48,7 @@ object KeyTable {
       case Some(parts) => hc.sc.parallelize(range, numSlices = parts)
       case None => hc.sc.parallelize(range)
     }
-    KeyTable(hc, rdd, TStruct("index" -> TInt32), Array("index"))
+    KeyTable(hc, rdd, TStruct("index" -> TInt32()), Array("index"))
   }
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): KeyTable = {
@@ -122,7 +122,7 @@ object KeyTable {
     val rows = data.map { case (id, values) => Row.fromSeq(Array(id) ++ values.asInstanceOf[Row].toSeq) }.toArray
     val rdd = hc.sc.parallelize(rows)
 
-    val newFields = List("ID" -> TString) ++ typ.asInstanceOf[TStruct].fields.map(f => (f.name, f.typ))
+    val newFields = List("ID" -> TString()) ++ typ.asInstanceOf[TStruct].fields.map(f => (f.name, f.typ))
     val struct = TStruct(newFields: _*)
 
     KeyTable(hc, rdd, struct, Array("ID"))
@@ -786,7 +786,7 @@ class KeyTable(val hc: HailContext,
     if (columns.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
 
-    val (newSignature, ins) = signature.insert(TInt64, name)
+    val (newSignature, ins) = signature.insert(TInt64(), name)
 
     val newRDD = rdd.zipWithIndex().map { case (r, ind) => ins(r, ind).asInstanceOf[Row] }
 

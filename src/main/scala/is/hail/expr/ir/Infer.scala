@@ -35,7 +35,7 @@ object Infer {
         infer(cond)
         infer(cnsq)
         infer(altr)
-        assert(cond.typ == TBoolean)
+        assert(cond.typ.isOfType(TBoolean()))
         assert(cnsq.typ == altr.typ, s"${cnsq.typ}, ${altr.typ}")
         x.typ = cnsq.typ
 
@@ -60,16 +60,16 @@ object Infer {
         x.typ = TArray(t)
       case MakeArrayN(len, _) =>
         infer(len)
-        assert(len.typ == TInt32)
+        assert(len.typ.isOfType(TInt32()))
       case x@ArrayRef(a, i, _) =>
         infer(a)
         infer(i)
-        assert(i.typ == TInt32)
+        assert(i.typ.isOfType(TInt32()))
         x.typ = a.typ.asInstanceOf[TArray].elementType
       case ArrayMissingnessRef(a, i) =>
         infer(a)
         infer(i)
-        assert(i.typ == TInt32)
+        assert(i.typ.isOfType(TInt32()))
       case ArrayLen(a) =>
         infer(a)
         assert(a.typ.isInstanceOf[TArray])

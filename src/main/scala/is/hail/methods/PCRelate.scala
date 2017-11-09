@@ -36,7 +36,7 @@ object PCRelate {
     new PCRelate(maf, blockSize)(vds, pcs, statistics)
 
   private val signature =
-    TStruct(("i", TString), ("j", TString), ("kin", TFloat64), ("k0", TFloat64), ("k1", TFloat64), ("k2", TFloat64))
+    TStruct(("i", TString()), ("j", TString()), ("kin", TFloat64()), ("k0", TFloat64()), ("k1", TFloat64()), ("k2", TFloat64()))
   private val keys = Array("i", "j")
 
   private def toRowRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double, statistics: StatisticSubset): RDD[Row] = {

@@ -32,10 +32,10 @@ class LogisticRegressionTestResultWithFit[T <: LogisticRegressionStats](override
 
 object WaldTest extends LogisticRegressionTest {
   val schema: Type = TStruct(
-    ("beta", TFloat64),
-    ("se", TFloat64),
-    ("zstat", TFloat64),
-    ("pval", TFloat64),
+    ("beta", TFloat64()),
+    ("se", TFloat64()),
+    ("zstat", TFloat64()),
+    ("pval", TFloat64()),
     ("fit", LogisticRegressionFit.schema))
 
   val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
@@ -72,9 +72,9 @@ case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVe
 
 object LikelihoodRatioTest extends LogisticRegressionTest {
   val schema = TStruct(
-    ("beta", TFloat64),
-    ("chi2", TFloat64),
-    ("pval", TFloat64),
+    ("beta", TFloat64()),
+    ("chi2", TFloat64()),
+    ("pval", TFloat64()),
     ("fit", LogisticRegressionFit.schema))
 
   val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
@@ -108,9 +108,9 @@ case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double)
 
 object FirthTest extends LogisticRegressionTest {
   val schema = TStruct(
-    ("beta", TFloat64),
-    ("chi2", TFloat64),
-    ("pval", TFloat64),
+    ("beta", TFloat64()),
+    ("chi2", TFloat64()),
+    ("pval", TFloat64()),
     ("fit", LogisticRegressionFit.schema))
 
   val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
@@ -152,8 +152,8 @@ case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends L
 
 object ScoreTest extends LogisticRegressionTest {
   val schema: Type = TStruct(
-    ("chi2", TFloat64),
-    ("pval", TFloat64))
+    ("chi2", TFloat64()),
+    ("pval", TFloat64()))
 
   val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size)
 
@@ -321,9 +321,9 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
 
 object LogisticRegressionFit {
   val schema: Type = TStruct(
-    ("nIter", TInt32),
-    ("converged", TBoolean),
-    ("exploded", TBoolean))
+    ("nIter", TInt32()),
+    ("converged", TBoolean()),
+    ("exploded", TBoolean()))
 }
 
 case class LogisticRegressionFit(

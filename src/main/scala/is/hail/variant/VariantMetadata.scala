@@ -28,12 +28,12 @@ object VSMFileMetadata {
   def apply(sampleIds: IndexedSeq[String],
     sampleAnnotations: IndexedSeq[Annotation] = null,
     globalAnnotation: Annotation = Annotation.empty,
-    sSignature: Type = TString,
+    sSignature: Type = TString(),
     saSignature: Type = TStruct.empty,
     vSignature: Type = TVariant(GenomeReference.GRCh37),
     vaSignature: Type = TStruct.empty,
     globalSignature: Type = TStruct.empty,
-    genotypeSignature: Type = TGenotype,
+    genotypeSignature: Type = TGenotype(),
     wasSplit: Boolean = false): VSMFileMetadata = {
     VSMFileMetadata(
       VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit),
@@ -50,10 +50,10 @@ case class VSMFileMetadata(
   localValue: VSMLocalValue)
 
 case class VSMMetadata(
-  sSignature: Type = TString,
+  sSignature: Type = TString(),
   saSignature: Type = TStruct.empty,
   vSignature: Type = TVariant(GenomeReference.GRCh37),
   vaSignature: Type = TStruct.empty,
   globalSignature: Type = TStruct.empty,
-  genotypeSignature: Type = TGenotype,
+  genotypeSignature: Type = TGenotype(),
   wasSplit: Boolean = false)

@@ -19,7 +19,7 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   def requireSampleTString(method: String) {
-    if (sampleSignature != TString)
+    if (!sampleSignature.isOfType(TString()))
       fatal(s"in $method: key (sample) schema must be String, but found: $sampleSignature")
   }
 

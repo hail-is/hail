@@ -16,8 +16,8 @@ class PCASuite extends SparkSuite {
 
     // comparing against numbers computed via Python script test/resources/PCA.py
 
-    val arrayT = TArray(TFloat64)
-    val structT = TStruct("PC1" -> TFloat64, "PC2" -> TFloat64, "PC3" -> TFloat64)
+    val arrayT = TArray(TFloat64())
+    val structT = TStruct("PC1" -> TFloat64(), "PC2" -> TFloat64(), "PC3" -> TFloat64())
 
     val pyScores = Map[Annotation, IndexedSeq[Double]](
       "C1046::HG02024" -> IndexedSeq(-0.55141958610810227, 0.6480766747061064, -0.3559869584014231),

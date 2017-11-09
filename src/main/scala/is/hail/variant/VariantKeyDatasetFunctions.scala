@@ -109,7 +109,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
         case Some(_) =>
           val (t, q) = vsm.queryVA("va.varid")
           t match {
-            case TString => q
+            case _: TString => q
             case _ => a => null
           }
         case None => a => null
@@ -120,7 +120,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
         case Some(_) =>
           val (t, q) = vsm.queryVA("va.rsid")
           t match {
-            case TString => q
+            case _: TString => q
             case _ => a => null
           }
         case None => a => null
@@ -175,7 +175,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
   }
 
   def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false, leftAligned: Boolean = false): VariantSampleMatrix[Locus, Variant, T] = {
-    if (vsm.genotypeSignature == TGenotype) {
+    if (vsm.genotypeSignature.isOfType(TGenotype())) {
       vsm.splitMulti("va.aIndex = aIndex, va.wasSplit = wasSplit", s"""
 g = let
     newgt = downcode(Call(g.gt), aIndex) and
@@ -196,7 +196,7 @@ g = let
         vsm.genotypeSignature match {
           case t: TStruct =>
             t.selfField(name) match {
-              case Some(f) => f.typ == expected
+              case Some(f) => f.typ.isOfType(expected)
               case None => false
             }
           case _ => false
@@ -204,16 +204,16 @@ g = let
       }
 
       val b = new ArrayBuilder[String]()
-      if (hasGenotypeFieldOfType("GT", TCall))
+      if (hasGenotypeFieldOfType("GT", TCall()))
         b += "g.GT = downcode(g.GT, aIndex)"
-      if (hasGenotypeFieldOfType("AD", TArray(TInt32)))
+      if (hasGenotypeFieldOfType("AD", TArray(!TInt32())))
         b += """
 g.AD = if (isDefined(g.AD))
   let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
 else
   NA: Array[Int]
         """
-      if (hasGenotypeFieldOfType("PL", TArray(TInt32)))
+      if (hasGenotypeFieldOfType("PL", TArray(!TInt32())))
         b += """
 g.PL = if (isDefined(g.PL))
   range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
@@ -223,7 +223,7 @@ else
 
       var vsm2 = vsm.splitMulti("va.aIndex = aIndex, va.wasSplit = wasSplit", b.result().mkString(","), keepStar, leftAligned)
 
-      if (!propagateGQ && hasGenotypeFieldOfType("GQ", TInt32)) {
+      if (!propagateGQ && hasGenotypeFieldOfType("GQ", TInt32())) {
         val vsm3 = vsm2.annotateGenotypesExpr("g.GQ = gqFromPL(g.PL)")
         vsm3.mapValues(vsm3.genotypeSignature, g => g.asInstanceOf[T])
       } else

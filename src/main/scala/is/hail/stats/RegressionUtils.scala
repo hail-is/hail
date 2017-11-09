@@ -157,11 +157,11 @@ object RegressionUtils {
     }
 
     xt match {
-      case TInt32 => castToDouble[Int](_.toDouble)
-      case TInt64 => castToDouble[Long](_.toDouble)
-      case TFloat32 => castToDouble[Float](_.toDouble)
-      case TFloat64 => () => xf0().asInstanceOf[java.lang.Double]
-      case TBoolean => castToDouble[Boolean](_.toDouble)
+      case _: TInt32 => castToDouble[Int](_.toDouble)
+      case _: TInt64 => castToDouble[Long](_.toDouble)
+      case _: TFloat32 => castToDouble[Float](_.toDouble)
+      case _: TFloat64 => () => xf0().asInstanceOf[java.lang.Double]
+      case _: TBoolean => castToDouble[Boolean](_.toDouble)
       case _ => fatal(s"x expression `$expr' must be numeric or Boolean, got $xt")
     }
   }
@@ -246,7 +246,7 @@ object RegressionUtils {
       fatal("No phenotypes present.")
 
     val symTab = Map(
-      "s" -> (0, TString),
+      "s" -> (0, TString()),
       "sa" -> (1, vsm.saSignature))
 
     val ec = EvalContext(symTab)

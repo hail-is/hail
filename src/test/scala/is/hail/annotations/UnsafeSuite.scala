@@ -168,36 +168,36 @@ class UnsafeSuite extends SparkSuite {
     }
 
     val t1 = makeStruct( // missing byte is 0
-      TInt32, //4-8
-      TInt32, //8-12
-      TFloat64, //16-24
-      TBoolean, //1-2
-      TBoolean, //2-3
-      TBoolean, //3-4
-      TBoolean, //12-13
-      TBoolean) //13-14
+      TInt32(), //4-8
+      TInt32(), //8-12
+      TFloat64(), //16-24
+      TBoolean(), //1-2
+      TBoolean(), //2-3
+      TBoolean(), //3-4
+      TBoolean(), //12-13
+      TBoolean()) //13-14
     assert(t1.byteOffsets.toSeq == Seq(4, 8, 16, 1, 2, 3, 12, 13))
     assert(t1.byteSize == 24)
 
     val t2 = makeStruct( //missing bytes 0, 1
-      TBoolean, //2-3
-      TInt32, //4-8
-      TInt32, //8-12
-      TFloat64, //16-24
-      TInt32, //12-16
-      TInt32, //24-28
-      TFloat64, //32-40
-      TInt32, //28-32
-      TBoolean, //3-4
-      TFloat64, //40-48
-      TBoolean) //48-49
+      TBoolean(), //2-3
+      TInt32(), //4-8
+      TInt32(), //8-12
+      TFloat64(), //16-24
+      TInt32(), //12-16
+      TInt32(), //24-28
+      TFloat64(), //32-40
+      TInt32(), //28-32
+      TBoolean(), //3-4
+      TFloat64(), //40-48
+      TBoolean()) //48-49
 
     assert(t2.byteOffsets.toSeq == Seq(2, 4, 8, 16, 12, 24, 32, 28, 3, 40, 48))
     assert(t2.byteSize == 49)
 
-    val t3 = makeStruct((0 until 512).map(_ => TFloat64): _*)
+    val t3 = makeStruct((0 until 512).map(_ => TFloat64()): _*)
     assert(t3.byteSize == (512 / 8) + 512 * 8)
-    val t4 = makeStruct((0 until 256).flatMap(_ => Iterator(TInt32, TInt32, TFloat64, TBoolean)): _*)
+    val t4 = makeStruct((0 until 256).flatMap(_ => Iterator(TInt32(), TInt32(), TFloat64(), TBoolean())): _*)
     assert(t4.byteSize == 256 * 4 / 8 + 256 * 4 * 2 + 256 * 8 + 256)
   }
 
