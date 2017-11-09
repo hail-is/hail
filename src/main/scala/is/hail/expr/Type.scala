@@ -1204,13 +1204,7 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 sealed class TGenotype(override val required: Boolean) extends ComplexType {
   def _toString = "Genotype"
 
-  private val _representation: TStruct = TStruct(
-    "gt" -> TInt32(),
-    "ad" -> TArray(TInt32()),
-    "dp" -> TInt32(),
-    "gq" -> TInt32(),
-    "pl" -> TArray(TInt32()))
-  val representation: TStruct = if (required) (!_representation).asInstanceOf[TStruct] else _representation
+  val representation: TStruct = TGenotype.representation(required)
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Genotype]
 
@@ -1227,9 +1221,7 @@ sealed class TGenotype(override val required: Boolean) extends ComplexType {
         Genotype.toRow(x.asInstanceOf[Genotype]),
         Genotype.toRow(y.asInstanceOf[Genotype]))
     }
-
     annotationOrdering(extendOrderingToNull(missingGreatest)(ord))
-
   }
 }
 
@@ -1237,6 +1229,16 @@ object TGenotype {
   def apply(required: Boolean = false): TGenotype = if (required) TGenotypeRequired else TGenotypeOptional
 
   def unapply(t: TGenotype): Option[Boolean] = Option(t.required)
+
+  def representation(required: Boolean = false): TStruct = {
+    val t = TStruct(
+      "gt" -> TInt32(),
+      "ad" -> TArray(TInt32()),
+      "dp" -> TInt32(),
+      "gq" -> TInt32(),
+      "pl" -> TArray(TInt32()))
+    if (required) (!t).asInstanceOf[TStruct] else t
+  }
 }
 
 case object TGenotypeOptional extends TGenotype(false)
@@ -1246,7 +1248,7 @@ case object TGenotypeRequired extends TGenotype(true)
 sealed class TCall(override val required: Boolean) extends ComplexType {
   def _toString = "Call"
 
-  val representation: Type = if (required) !TInt32() else TInt32()
+  val representation: Type = TCall.representation(required)
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]
 
@@ -1265,6 +1267,8 @@ object TCall {
   def apply(required: Boolean = false): TCall = if (required) TCallRequired else TCallOptional
 
   def unapply(t: TCall): Option[Boolean] = Option(t.required)
+
+  def representation(required: Boolean = false): Type = if (required) !TInt32() else TInt32()
 }
 
 case object TCallOptional extends TCall(false)
@@ -1286,16 +1290,20 @@ sealed class TAltAllele(override val required: Boolean) extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
 
-  val _representation: TStruct = TStruct(
-    "ref" -> TString(),
-    "alt" -> TString())
-
-  val representation: TStruct = if (required) (!_representation).asInstanceOf[TStruct] else _representation
+  val representation: TStruct = TAltAllele.representation(required)
 }
 
 object TAltAllele {
   def apply(required: Boolean = false): TAltAllele = if (required) TAltAlleleRequired else TAltAlleleOptional
   def unapply(t: TAltAllele): Option[Boolean] = Option(t.required)
+
+  def representation(required: Boolean = false): TStruct = {
+    val t = TStruct(
+      "ref" -> TString(),
+      "alt" -> TString())
+    if (required) (!t).asInstanceOf[TStruct] else t
+  }
+
 }
 
 case object TAltAlleleOptional extends TAltAllele(false)

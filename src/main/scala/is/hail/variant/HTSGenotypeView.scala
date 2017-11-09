@@ -49,7 +49,7 @@ sealed abstract class HTSGenotypeView {
 
 class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
   private val tgs = rs.fieldType(3).asInstanceOf[TArray]
-  private val tg = TGenotype().representation
+  private val tg = TGenotype.representation()
 
   private val gtIndex = 0
   private val adIndex = 1
@@ -304,7 +304,7 @@ abstract class HardCallView {
 
 class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
   private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
-  private val tg = TGenotype().representation
+  private val tg = TGenotype.representation()
 
   private val gtIndex = 0
 
