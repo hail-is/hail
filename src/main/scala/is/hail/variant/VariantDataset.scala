@@ -423,6 +423,10 @@ g = let
     (men.mendelKT(), men.fMendelKT(), men.iMendelKT(), men.lMendelKT())
   }
 
+  def nirvana(config: String, blockSize: Int = 500000, root: String): VariantDataset = {
+    Nirvana.annotate(vds, config, blockSize, root)
+  }
+
   /**
     *
     * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')

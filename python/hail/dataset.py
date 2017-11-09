@@ -5311,11 +5311,254 @@ class VariantDataset(HistoryMixin):
         :param bool csq: If ``True``, annotates VCF CSQ field as a String.
             If ``False``, annotates with the full nested struct schema
 
-        :return: An annotated with variant annotations from VEP.
+        :return: Dataset with variant annotations from VEP.
         :rtype: :py:class:`.VariantDataset`
         """
 
         jvds = self._jvkdf.vep(config, root, csq, block_size)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(config=strlike,
+                      block_size=integral,
+                      root=strlike)
+    def nirvana(self, config, block_size=500000, root='va.nirvana'):
+        """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
+        
+        .. include:: _templates/experimental.rst
+        
+        .. include:: _templates/req_tvariant.rst
+
+        :py:meth:`~hail.VariantDataset.nirvana` runs `Nirvana <https://github.com/Illumina/Nirvana>`_ on the current
+        variant dataset and adds the result as a variant annotation.
+
+        **Examples**        
+
+        Add Nirvana annotations to the dataset:
+
+        >>> vds_result = vds.nirvana("data/nirvana.properties") # doctest: +SKIP
+
+        ***Configuration***
+        
+        :py:meth:`~hail.VariantDataset.nirvana` requires a configuration file. The format is a
+        `.properties file <https://en.wikipedia.org/wiki/.properties>`__, where each line defines
+        a property as a key-value pair of the form `key = value`. ``nirvana`` supports the following properties:
+
+        - **hail.nirvana.dotnet** -- Location of dotnet. Optional, default: dotnet.
+        - **hail.nirvana.path** -- Value of the PATH environment variable when invoking Nirvana.  Optional, by default PATH is not set.
+        - **hail.nirvana.location** -- Location of Nirvana.dll. Required.
+        - **hail.nirvana.reference** --Location of reference genome. Required.
+        - **hail.nirvana.cache** --Location of cache. Required.
+        - **hail.nirvana.supplementaryAnnotationDirectory** -- Location of Supplementary Database. Optional, no supplementary database by default.
+        
+        Here is an example `nirvana.properties` configuration file:
+
+        .. code-block:: text
+        
+            hail.nirvana.location = /path/to/dotnet/netcoreapp1.1/Nirvana.dll
+            hail.nirvana.reference = /path/to/nirvana/References/Homo_sapiens.GRCh37.Nirvana.dat
+            hail.nirvana.cache = /path/to/nirvana/Cache/GRCh37/Ensembl84
+            hail.nirvana.supplementaryAnnotationDirectory = /path/to/nirvana/SupplementaryDatabase/GRCh37
+        
+        **Annotations**
+
+        Annotations with the following schema are placed in the location specified by ``root``.
+
+        .. code-block:: text
+        
+            Struct{
+              chromosome: String,
+              refAllele: String,
+              position: Int,
+              altAlleles: Array[String],
+              cytogeneticBand: String,
+              quality: Double,
+              filters: Array[String],
+              jointSomaticNormalQuality: Int,
+              copyNumber: Int,
+              strandBias: Double,
+              recalibratedQuality: Double,
+              variants: Array[Struct{
+                altAllele: String,
+                refAllele: String,
+                chromosome: String,
+                begin: Int,
+                end: Int,
+                phylopScore: Double,
+                isReferenceMinor: Boolean,
+                variantType: String,
+                vid: String,
+                isRecomposed: Boolean,
+                regulatoryRegions: Array[Struct{
+                  id: String,
+                  consequence: Set[String],
+                  type: String
+                }],
+                clinvar: Array[Struct{
+                  id: String,
+                  reviewStatus: String,
+                  isAlleleSpecific: Boolean,
+                  alleleOrigins: Array[String],
+                  refAllele: String,
+                  altAllele: String,
+                  phenotypes: Array[String],
+                  medGenIds: Array[String],
+                  omimIds: Array[String],
+                  orphanetIds: Array[String],
+                  geneReviewsId: String,
+                  significance: String,
+                  lastUpdatedDate: String,
+                  pubMedIds: Array[String]
+                }],
+                cosmic: Array[Struct{
+                  id: String,
+                  isAlleleSpecific: Boolean,
+                  refAllele: String,
+                  altAllele: String,
+                  gene: String,
+                  sampleCount: Int,
+                  studies: Array[Struct{
+                    id: Int,
+                    histology: String,
+                    primarySite: String
+                  }]
+                }],
+                dbsnp: Struct{"ids: Array(String)},
+                evs: Struct{
+                  coverage: Int,
+                  sampleCount: Int,
+                  allAf: Double,
+                  afrAf: Double,
+                  eurAf: Double
+                },
+                exac: Struct{
+                  coverage: Int,
+                  allAf: Double,
+                  allAc: Int,
+                  allAn: Int,
+                  afrAf: Double,
+                  afrAc: Int,
+                  afrAn: Int,
+                  amrAf: Double,
+                  amrAc: Int,
+                  amrAn: Int,
+                  easAf: Double,
+                  easAc: Int,
+                  easAn: Int,
+                  finAf: Double,
+                  finAc: Int,
+                  finAn: Int,
+                  nfeAf: Double,
+                  nfeAc: Int,
+                  nfeAn: Int,
+                  othAf: Double,
+                  othAc: Int,
+                  othAn: Int,
+                  sasAf: Double,
+                  sasAc: Int,
+                  sasAn: Int
+                },
+                globalAllele: Struct{
+                  globalMinorAllele: String,
+                  globalMinorAlleleFrequency: Double
+                },
+                oneKg: Struct{
+                  ancestralAllele: String,
+                  allAf: Double,
+                  allAc: Int,
+                  allAn: Int,
+                  afrAf: Double,
+                  afrAc: Int,
+                  afrAn: Int,
+                  amrAf: Double,
+                  amrAc: Int,
+                  amrAn: Int,
+                  easAf: Double,
+                  easAc: Int,
+                  easAn: Int,
+                  eurAf: Double,
+                  eurAc: Int,
+                  eurAn: Int,
+                  sasAf: Double,
+                  sasAc: Int,
+                  sasAn: Int
+                },
+                transcripts: Struct{
+                  refSeq: Array[Struct{
+                    transcript: String,
+                    bioType: String,
+                    aminoAcids: String,
+                    cDnaPos: String,
+                    codons: String,
+                    cdsPos: String,
+                    exons: String,
+                    introns: String,
+                    geneId: String,
+                    hgnc: String,
+                    consequence: Array[String],
+                    hgvsc: String,
+                    hgvsp: String,
+                    isCanonical: Boolean,
+                    polyPhenScore: Double,
+                    polyPhenPrediction: String,
+                    proteinId: String,
+                    proteinPos: String,
+                    siftScore: Double,
+                    siftPrediction: String
+                  }],
+                  ensembl: Array[Struct{
+                    transcript: String,
+                    bioType: String,
+                    aminoAcids: String,
+                    cDnaPos: String,
+                    codons: String,
+                    cdsPos: String,
+                    exons: String,
+                    introns: String,
+                    geneId: String,
+                    hgnc: String,
+                    consequence: Array[String],
+                    hgvsc: String,
+                    hgvsp: String,
+                    isCanonical: Boolean,
+                    polyPhenScore: Double,
+                    polyPhenPrediction: String,
+                    proteinId: String,
+                    proteinPos: String,
+                    siftScore: Double,
+                    siftPrediction: String
+                  }]
+                },
+                genes: Array[Struct{
+                  name: String,
+                  omim: Array[Struct{
+                    mimNumber: Int,
+                    hgnc: String,
+                    description: String,
+                    phenotypes: Array[Struct{
+                      mimNumber: Int,
+                      phenotype: String,
+                      mapping: String,
+                      inheritance: Array[String],
+                      comments: String
+                    }]
+                  }]
+                }]
+              }]
+            }
+
+        :param str config: Path to Nirvana configuration file.
+
+        :param int block_size: Number of variants to annotate per Nirvana invocation. 
+
+        :param str root: Variant annotation path to store Nirvana output.
+
+        :return: Dataset with variant annotations from Nirvana.
+        :rtype: :py:class:`.VariantDataset`
+
+        """
+        jvds = self._jvdf.nirvana(config, block_size, root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
