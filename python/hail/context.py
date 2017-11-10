@@ -723,6 +723,8 @@ class HailContext(HistoryMixin):
     @typecheck_method(path=oneof(strlike, listof(strlike)))
     def index_bgen(self, path):
         """Index .bgen files. :py:meth:`.HailContext.import_bgen` cannot run without these indices.
+        
+        The index file is generated in the same directory as `path` with the filename of `path` appended by `.idx`.
 
         **Example**
 
