@@ -165,7 +165,7 @@ object Genotype {
         if (s.hasField(field)) {
           val f = s.field(field)
           val i = f.index
-          if (!f.typ.isOfType(TArray(TInt32())))
+          if (f.typ != TArray(!TInt32()))
             (r: Row) => null
           else
             (r: Row) =>
