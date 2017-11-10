@@ -55,7 +55,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration) {
   private val fs = try {
     hConf.fileSystem(indexFileName).open(new Path(indexFileName))
   } catch {
-    case e: Exception => fatal("Could not find a BGEN .idx file at $indexFileName. Try running HailContext.index_begn().", e)
+    case e: Exception => fatal("Could not find a BGEN .idx file at $indexFileName. Try running HailContext.index_bgen().", e)
   }
 
   def close() = fs.close()
