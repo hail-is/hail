@@ -258,6 +258,8 @@ sealed abstract class Type extends BaseType with Serializable {
 
   final def typeCheck(a: Any): Boolean = (!required && a == null) || _typeCheck(a)
 
+  final def setRequired(required: Boolean): Type = if (this.required == required) this else !this
+
   final def unary_!(): Type = {
     this match {
       case TBinary(req) => TBinary(!req)
