@@ -208,12 +208,13 @@ object LoadVCF {
     files: Array[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    gr: GenomeReference = GenomeReference.GRCh37): VariantSampleMatrix[Locus, Variant, Annotation] = {
+    gr: GenomeReference = GenomeReference.GRCh37,
+    arrayElementsRequired: Boolean = true): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
     val headerLines1 = getHeaderLines(hConf, file1)
-    val header1 = parseHeader(reader, headerLines1)
+    val header1 = parseHeader(reader, headerLines1, arrayElementsRequired = arrayElementsRequired)
     val header1Bc = sc.broadcast(header1)
 
     val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
