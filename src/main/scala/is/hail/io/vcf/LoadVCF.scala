@@ -109,7 +109,7 @@ object LoadVCF {
         (line.getType == VCFHeaderLineType.Flag && line.getCount == 0)))
       Field(id, baseType, i, attrs)
     else
-      Field(id, TArray(baseType), i, attrs)
+      Field(id, TArray(!baseType), i, attrs)
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
@@ -124,10 +124,10 @@ object LoadVCF {
     callFields: Set[String] = Set.empty[String]): (TStruct, Int) = {
     val canonicalFields = Array(
       "GT" -> TCall(),
-      "AD" -> TArray(TInt32()),
+      "AD" -> TArray(!TInt32()),
       "DP" -> TInt32(),
       "GQ" -> TInt32(),
-      "PL" -> TArray(TInt32()))
+      "PL" -> TArray(!TInt32()))
 
     val raw = headerSignature(lines, callFields)
 
