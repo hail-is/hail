@@ -1598,12 +1598,6 @@ class VariantDataset(HistoryMixin):
 
             We strongly recommended compressed (``.bgz`` extension) and parallel output (``parallel=True``) when exporting large VCFs.
 
-        Consider the workflow of importing VCF to VDS and immediately exporting VDS to VCF:
-
-        >>> vds.export_vcf('output/example_out.vcf')
-
-        The *example_out.vcf* header will contain the FORMAT, FILTER, and INFO lines present in *example.vcf*. However, it will *not* contain CONTIG lines or lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
-
         Hail exports the fields of Struct ``va.info`` as INFO fields,
         the elements of Set[String] ``va.filters`` as FILTERS,
         and the value of Float64 ``va.qual`` as QUAL. No other variant annotations are exported.
@@ -1617,10 +1611,16 @@ class VariantDataset(HistoryMixin):
         INFO and FORMAT fields may be generated from Struct fields of type Call, Int32, Float32, Float64, or String.
         If a field has type Int64, every value must be a valid Int32.
         Arrays and Sets containing these types are also allowed but cannot be nested;
-        for example, ``Array[Array[Int32]]`` is invalid.
+        for example, Array[Array[Int32]] is invalid.
         Sets and Arrays are output with the same comma-separated format.
-        Lastly, fields of type Boolean are allowed in `va.info` to generate INFO fields of type Flag.
-                
+        Lastly, fields of type Boolean are allowed in ``va.info`` to generate INFO fields of type Flag.
+
+        Consider the workflow of importing a VCF to VDS and immediately exporting VDS to VCF:
+
+        >>> vds.export_vcf('output/example_out.vcf')
+
+        The *example_out.vcf* header will contain the FORMAT, FILTER, and INFO lines present in *example.vcf*. However, it will *not* contain CONTIG lines or lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
+
         .. caution::
 
             If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run :py:meth:`~hail.VariantDataset.variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
@@ -1640,7 +1640,7 @@ class VariantDataset(HistoryMixin):
         :param bool parallel: If true, return a set of VCF files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jvkdf.exportVCF(output, joption(append_to_header), parallel)
+        self._jvds.exportVCF(output, joption(append_to_header), parallel)
 
     @handle_py4j
     @write_history('output', is_dir=True)
