@@ -238,9 +238,9 @@ class ExportVCFSuite extends SparkSuite {
   }
   
   def genFormatFieldVCF: Gen[Type] = Gen.oneOf[Type](
-      TInt32, TFloat32, TFloat64, TString, TCall,
-      TArray(TInt32), TArray(TFloat32), TArray(TFloat64), TArray(TString), TArray(TCall),
-      TSet(TInt32), TSet(TFloat32), TSet(TFloat64), TSet(TString), TSet(TCall))
+      TInt32(), TFloat32(), TFloat64(), TString(), TCall(),
+      TArray(TInt32()), TArray(TFloat32()), TArray(TFloat64()), TArray(TString()), TArray(TCall()),
+      TSet(TInt32()), TSet(TFloat32()), TSet(TFloat64()), TSet(TString()), TSet(TCall()))
   
   def genFormatStructVCF: Gen[TStruct] =
     Gen.buildableOf[Array, (String, Type, Map[String, String])](

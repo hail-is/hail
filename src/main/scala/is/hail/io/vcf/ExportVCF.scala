@@ -12,38 +12,38 @@ import scala.reflect.ClassTag
 object ExportVCF {
 
   def infoNumber(t: Type): String = t match {
-    case TBoolean => "0"
-    case TArray(_) => "."
-    case TSet(_) => "."
+    case TBoolean(_) => "0"
+    case TArray(_, _) => "."
+    case TSet(_, _) => "."
     case _ => "1"
   }
 
   def strVCF(sb: StringBuilder, elementType: Type, m: MemoryBuffer, offset: Long) {
     elementType match {
-      case TInt32 =>
+      case TInt32(_) =>
         val x = m.loadInt(offset)
         sb.append(x.toString)
-      case TInt64 =>
+      case TInt64(_) =>
         val x = m.loadLong(offset)
         if (x > Int.MaxValue || x < Int.MinValue)
           fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) " +
             s"or less than Int.MinValue (-2^31). Found $x.")
         sb.append(x.toInt.toString)
-      case TFloat32 =>
+      case TFloat32(_) =>
         val x = m.loadFloat(offset)
         if (x.isNaN)
           sb += '.'
         else
           sb.append(x.formatted("%.5e"))
-      case TFloat64 =>
+      case TFloat64(_) =>
         val x = m.loadDouble(offset)
         if (x.isNaN)
           sb += '.'
         else
           sb.append(x.formatted("%.5e"))
-      case TString =>
+      case TString(_) =>
         sb.append(TString.loadString(m, offset))
-      case TCall =>
+      case TCall(_) =>
         val p = Genotype.gtPair(m.loadInt(offset))
         sb.append(s"${ p.j }/${ p.k }")
       case _ =>
@@ -85,7 +85,7 @@ object ExportVCF {
           iterableVCF(sb, it, m, length, offset)
           true
         }
-      case TBoolean =>
+      case TBoolean(_) =>
         if (m.loadBoolean(offset)) {
           if (wroteLast)
             sb += ';'
@@ -104,17 +104,17 @@ object ExportVCF {
   }
 
   def infoType(t: Type): Option[String] = t match {
-    case TInt32 | TInt64 => Some("Integer")
-    case TFloat64 | TFloat32 => Some("Float")
-    case TString => Some("String")
-    case TBoolean => Some("Flag")
+    case _: TInt32 | _: TInt64 => Some("Integer")
+    case _: TFloat64 | _: TFloat32 => Some("Float")
+    case _: TString => Some("String")
+    case _: TBoolean => Some("Flag")
     case _ => None
   }
 
   def infoType(f: Field): String = {
     val tOption = f.typ match {
-      case TArray(elt) => infoType(elt)
-      case TSet(elt) => infoType(elt)
+      case TArray(elt, _) => infoType(elt)
+      case TSet(elt, _) => infoType(elt)
       case t => infoType(t)
     }
     tOption match {
@@ -124,17 +124,17 @@ object ExportVCF {
   }
 
   def formatType(t: Type): Option[String] = t match {
-    case TInt32 | TInt64 => Some("Integer")
-    case TFloat64 | TFloat32 => Some("Float")
-    case TString => Some("String")
-    case TCall => Some("String")
+    case _: TInt32 | _: TInt64 => Some("Integer")
+    case _: TFloat64 | _: TFloat32 => Some("Float")
+    case _: TString => Some("String")
+    case _: TCall => Some("String")
     case _ => None
   }
 
   def formatType(f: Field): String = {
     val tOption = f.typ match {
-      case TArray(elt) => formatType(elt)
-      case TSet(elt) => formatType(elt)
+      case TArray(elt, _) => formatType(elt)
+      case TSet(elt, _) => formatType(elt)
       case t => formatType(t)
     }
 
@@ -146,12 +146,12 @@ object ExportVCF {
 
   def validFormatType(typ: Type): Boolean = {
     typ match {
-      case TString => true
-      case TFloat64 => true
-      case TFloat32 => true
-      case TInt32 => true
-      case TInt64 => true
-      case TCall => true
+      case _: TString => true
+      case _: TFloat64 => true
+      case _: TFloat32 => true
+      case _: TInt32 => true
+      case _: TInt64 => true
+      case _: TCall => true
       case _ => false
     }
   }
@@ -173,9 +173,9 @@ object ExportVCF {
       val fOffset = tg.loadField(m, offset, j)
 
       tg.fields(j).typ match {
-        case TCall =>
+        case TCall(_) =>
           if (fIsDefined) {
-            strVCF(sb, TCall, m, fOffset)
+            strVCF(sb, TCall(), m, fOffset)
           } else
             sb.append("./.")
         case it: TIterable =>
@@ -196,7 +196,7 @@ object ExportVCF {
   def apply[RPK, RK, T >: Null](vkds0: VariantSampleMatrix[RPK, RK, T], path: String, append: Option[String] = None,
     parallel: Boolean = false)(implicit tct: ClassTag[T]) {
     
-    if (vkds0.sSignature != TString) {
+    if (vkds0.sSignature != TString()) {
       fatal(s"export_vcf requires s to have type TString, found ${vkds0.sSignature}")
     }
     
@@ -204,9 +204,9 @@ object ExportVCF {
       fatal(s"export_vcf requires v to have type Variant, found ${vkds0.vSignature}")
     
     val vkds = vkds0.genotypeSignature match {
-      case TGenotype =>
+      case TGenotype(_) =>
         vkds0.annotateGenotypesExpr("g = {GT: Call(g.gt), AD: g.ad, DP: g.dp, GQ: g.gq, PL: g.pl}")
-          .copy2(genotypeSignature = TGenotype.representationWithVCFAttributes)
+          .copy2(genotypeSignature = TGenotype.representationWithVCFAttributes())
       case t: TStruct => vkds0
       case t => fatal(s"export_vcf requires g to have type TStruct, found $t")
     }
@@ -309,7 +309,7 @@ object ExportVCF {
       fieldIdx.get(fieldName) match {
         case Some(idx) =>
           val t = tva.fields(idx).typ
-          if (expectedTypeOpt.forall(t == _))
+          if (expectedTypeOpt.forall(t == _)) // FIXME: make sure this is right
             (true, idx)
           else {
             warn(s"export_vcf found va.$fieldName with type `$t', but expected type ${ expectedTypeOpt.get }. " +
@@ -320,9 +320,9 @@ object ExportVCF {
       }
     }
     
-    val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString))
-    val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64))
-    val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(TSet(TString)))
+    val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString()))
+    val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64()))
+    val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(TSet(TString())))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
     
     val localRowType = vkds.rowType
@@ -371,11 +371,11 @@ object ExportVCF {
         
         if (filtersExists && tva.isFieldDefined(m, vaOffset, filtersIdx)) {
           val filtersOffset = tva.loadField(m, vaOffset, filtersIdx)
-          val filtersLength = TSet(TString).loadLength(m, filtersOffset)
+          val filtersLength = TSet(TString()).loadLength(m, filtersOffset)
           if (filtersLength == 0)
             sb.append("PASS")
           else
-            iterableVCF(sb, TSet(TString), m, filtersLength, filtersOffset)
+            iterableVCF(sb, TSet(TString()), m, filtersLength, filtersOffset)
         } else
           sb += '.'
   
