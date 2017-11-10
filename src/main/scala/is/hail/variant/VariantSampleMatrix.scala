@@ -2246,7 +2246,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): VariantSampleMatrix[Annotation, Annotation, Annotation] = {
-    if (sSignature != TString)
+    if (!sSignature.isInstanceOf[TString])
       fatal("trio_matrix requires column keys of type String")
     requireUniqueSamples("trio_matrix")
 
@@ -2262,7 +2262,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val kidIds = new Array[String](nTrios)
 
     val memberAnnotationType = TStruct(
-      "id" -> TString(true),
+      "id" -> TString(required = true),
       "annotations" -> saSignature
     )
     val newColumnAnnotationType = TStruct(
