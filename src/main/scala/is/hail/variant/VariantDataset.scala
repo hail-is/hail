@@ -233,19 +233,13 @@ g = let
 
     val bedHeader = Array[Byte](108, 27, 1)
 
-    val nSamples = vsm.nSamples
+    vsm.rdd2.mapPartitions(
+      ExportBedBimFam.bedRowTransformer(vsm.nSamples, vsm.rdd2.typ.rowType)
+    ).saveFromByteArrays(path + ".bed", vsm.hc.tmpDir, header = Some(bedHeader))
 
-    val plinkRDD = vsm.typedRDD[Locus, Variant, Genotype]
-      .mapValuesWithKey { case (v, (va, gs)) => ExportBedBimFam.makeBedRow(gs, nSamples) }
-      .persist(StorageLevel.MEMORY_AND_DISK)
-
-    plinkRDD.map { case (v, bed) => bed }
-      .saveFromByteArrays(path + ".bed", vsm.hc.tmpDir, header = Some(bedHeader))
-
-    plinkRDD.map { case (v, bed) => ExportBedBimFam.makeBimRow(v) }
-      .writeTable(path + ".bim", vsm.hc.tmpDir)
-
-    plinkRDD.unpersist()
+    vsm.rdd2.mapPartitions(
+      ExportBedBimFam.bimRowTransformer(vsm.rdd2.typ.rowType)
+    ).writeTable(path + ".bim", vsm.hc.tmpDir)
 
     val famRows = vsm
       .sampleIdsAndAnnotations
