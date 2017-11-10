@@ -47,7 +47,7 @@ object ExportVCF {
         val p = Genotype.gtPair(m.loadInt(offset))
         sb.append(s"${ p.j }/${ p.k }")
       case _ =>
-        fatal(s"VCF does not support element type $elementType")
+        fatal(s"VCF does not support type $elementType")
     }
   }
   
@@ -73,7 +73,7 @@ object ExportVCF {
 
   def emitInfo(sb: StringBuilder, f: Field, m: MemoryBuffer, offset: Long, wroteLast: Boolean): Boolean = {
     f.typ match {
-      case it: TIterable =>
+      case it: TIterable if it.elementType != TBoolean() =>
         val length = it.loadLength(m, offset)
         if (length == 0)
           wroteLast
@@ -113,8 +113,8 @@ object ExportVCF {
 
   def infoType(f: Field): String = {
     val tOption = f.typ match {
-      case TArray(elt, _) => infoType(elt)
-      case TSet(elt, _) => infoType(elt)
+      case TArray(elt, _) if elt != TBoolean() => infoType(elt)
+      case TSet(elt, _) if elt != TBoolean() => infoType(elt)
       case t => infoType(t)
     }
     tOption match {

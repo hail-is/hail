@@ -139,8 +139,11 @@ class ExportVCFSuite extends SparkSuite {
   }
 
   @Test def testCastLongToInt() {
-    val out = tmpDir.createTempFile("cast", "vcf")
-    hc.importVCF("src/test/resources/sample2.vcf")
+    val vds = hc.importVCF("src/test/resources/sample2.vcf")
+    
+    // cast Long to Int
+    val out = tmpDir.createTempFile("out", "vcf")
+    vds
       .annotateVariantsExpr("va.info.AC_pass = gs.filter(g => g.gq >= 20 && g.dp >= 10 && " +
         "(!g.isHet() || ( (g.ad[1]/g.ad.sum()) >= 0.2 ) )).count()")
       .exportVCF(out)
@@ -155,67 +158,97 @@ class ExportVCFSuite extends SparkSuite {
         }
     }
 
-    val out2 = tmpDir.createTempFile("cast2", "vcf")
-    hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat64()")
+    // other valid types
+    val out2 = tmpDir.createTempFile("out2", "vcf")
+    vds
+      .annotateVariantsExpr(
+        "va.info.array = [\"foo\", \"bar\"]," +
+          "va.info.set = [4, 5].toSet, " +
+          "va.info.float = let x = 5.0 in x.toFloat64(), " +
+          "va.info.bool = true")
       .exportVCF(out2)
     
-    val out3 = tmpDir.createTempFile("cast2", "vcf")
-    hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateVariantsExpr("va.info.AC_pass = [4, 5].toSet")
-      .exportVCF(out3)
-    
-    hadoopConf.readFile(out3) { in =>
+    hadoopConf.readFile(out2) { in =>
       Source.fromInputStream(in)
         .getLines()
-        .filter(l => l.startsWith("##INFO") && l.contains("AC_pass"))
-        .foreach { line =>
-          assert(line.contains("Type=Integer"))
-          assert(line.contains("Number=."))          
+        .filter(l => l.startsWith("##INFO"))
+        .foreach { l =>
+          if (l.contains("array")) {
+            assert(l.contains("Type=String"))
+            assert(l.contains("Number=."))  
+          }
+          if (l.contains("set")) {
+            assert(l.contains("Type=Integer"))
+            assert(l.contains("Number=."))  
+          } else
+          if (l.contains("float")) {
+            assert(l.contains("Type=Float"))
+            assert(l.contains("Number=1"))
+          } else
+          if (l.contains("bool")) {
+            assert(l.contains("Type=Flag"))
+            assert(l.contains("Number=0"))
+          }
         }
     }
   }
 
   @Test def testErrors() {
+    val vds = hc.importVCF("src/test/resources/sample2.vcf")
+    
+    println(Int.MaxValue)
+    
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      hc.importVCF("src/test/resources/sample2.vcf")
+      vds
         .annotateVariantsExpr("va.info.foo = [[1]]")
         .exportVCF(out)
     }
     
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      hc.importVCF("src/test/resources/sample2.vcf")
+      vds
         .annotateVariantsExpr("va.info.foo = [Call(3)]")
         .exportVCF(out)
     }
 
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
-      hc.importVCF("src/test/resources/sample2.vcf")
+      vds
         .annotateVariantsExpr("va.info.foo = v")
         .exportVCF(out)
     }
     
     TestUtils.interceptSpark("Cannot convert Long to Int") {
-      hc.importVCF("src/test/resources/sample2.vcf")
-        .annotateVariantsExpr("va.info.foo = 3147483647L")
+      vds
+        .annotateVariantsExpr("va.info.foo = 2147483648L")
+        .exportVCF(out)
+    }
+
+    TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
+      vds
+        .annotateVariantsExpr("va.info.foo = [true]")
+        .exportVCF(out)
+    }
+
+    TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
+      vds
+        .annotateVariantsExpr("va.info.foo = {INT: 5}")
         .exportVCF(out)
     }
     
     TestUtils.interceptFatal("export_vcf requires g to have type TStruct") {
-      hc.importVCF("src/test/resources/sample2.vcf")
+      vds
         .annotateGenotypesExpr("g = 5")
         .exportVCF(out)
     }
 
     TestUtils.interceptFatal("Invalid type for format field `BOOL'. Found Boolean.") {
-      hc.importVCF("src/test/resources/sample2.vcf")
+      vds
         .annotateGenotypesExpr("g = {BOOL: true}")
         .exportVCF(out)
     }
     
     TestUtils.interceptFatal("Invalid type for format field `AA'.") {
-      hc.importVCF("src/test/resources/sample2.vcf")
+      vds
         .annotateGenotypesExpr("g = {AA: [[0]]}")
         .exportVCF(out)
     }

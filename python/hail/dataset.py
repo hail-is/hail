@@ -1604,15 +1604,23 @@ class VariantDataset(HistoryMixin):
 
         The *example_out.vcf* header will contain the FORMAT, FILTER, and INFO lines present in *example.vcf*. However, it will *not* contain CONTIG lines or lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
 
-        Hail only exports the contents of ``va.info`` to the INFO field. No other annotations besides ``va.info`` are exported.
-
-        The genotype schema must have the type :py:class:`~hail.expr.TGenotype` or :py:class:`~hail.expr.TStruct`. If the type is
+        Hail exports the fields of Struct ``va.info`` as INFO fields,
+        the elements of Set[String] ``va.filters`` as FILTERS,
+        and the value of Float64 ``va.qual`` as QUAL. No other variant annotations are exported.
+        
+        The FORMAT field is generated from the genotype type, which must 
+        be :py:class:`~hail.expr.TGenotype` or :py:class:`~hail.expr.TStruct`. If the type is
         :py:class:`~hail.expr.TGenotype`, then the FORMAT fields will be GT, AD, DP, GQ, and PL.
-        If the type is :py:class:`~hail.expr.TStruct`, then the exported FORMAT fields will be the names of each field of the Struct.
-        Each field must have a type of String, Char, Int, Double, or Call. Arrays and Sets are also allowed as long as they are not nested.
-        For example, a field with type ``Array[Int]`` can be exported but not a field with type ``Array[Array[Int]]``.
-        Nested Structs are also not allowed.
-
+        If the type is :py:class:`~hail.expr.TStruct`,
+        then the exported FORMAT fields will be the names of each field of the Struct.
+        
+        INFO and FORMAT fields may be generated from Struct fields of type Call, Int32, Float32, Float64, or String.
+        If a field has type Int64, every value must be a valid Int32.
+        Arrays and Sets containing these types are also allowed but cannot be nested;
+        for example, ``Array[Array[Int32]]`` is invalid.
+        Sets and Arrays are output with the same comma-separated format.
+        Lastly, fields of type Boolean are allowed in `va.info` to generate INFO fields of type Flag.
+                
         .. caution::
 
             If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run :py:meth:`~hail.VariantDataset.variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
@@ -1622,9 +1630,9 @@ class VariantDataset(HistoryMixin):
             ...     .annotate_variants_expr('va.info.AC = va.qc.AC')
             ...     .export_vcf('output/example.vcf.bgz'))
 
-        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+        A text file containing the Python code to generate this output file is available at ``<output>.history.txt``.
 
-        :param str output: Path of .vcf file to write.
+        :param str output: Path of .vcf or .vcf.bgz file to write.
 
         :param append_to_header: Path of file to append to VCF header.
         :type append_to_header: str or None
