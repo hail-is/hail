@@ -161,6 +161,12 @@ class GenomeReferenceSuite extends SparkSuite {
       "l1.position == 100 && l2.position == 100 &&" +
       """i1.start == Locus(GRCh37)("1", 5) && !i2.contains(l1)"""))
 
-    assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == GenomeReference.GRCh37.variant)
+    val gr = GenomeReference("foo2", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+        Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]])
+    GenomeReference.addReference(gr)
+    GenomeReference.setDefaultReference(gr)
+    assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == gr.variant)
+
+    GenomeReference.setDefaultReference(GenomeReference.GRCh37)
   }
 }
