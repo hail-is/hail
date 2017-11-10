@@ -873,7 +873,7 @@ abstract class TContainer extends Type {
     elementType.required || !region.loadBit(aoff + 4, i)
 
   def isElementDefined(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
-    if(elementType.required)
+    if (elementType.required)
       true
     else
       !region.loadBit(aoff + 4, i.toL)
