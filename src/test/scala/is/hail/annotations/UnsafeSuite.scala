@@ -72,7 +72,7 @@ class UnsafeSuite extends SparkSuite {
       val offset = rvb.end()
 
       val ur = UnsafeRow.read(t, region, offset)
-      assert(t.valuesSimilar(a, ur))
+      assert(t.valuesSimilar(a, ur), s"$a vs $ur")
 
       // test visitor
       val rv = RegionValue(region, offset)
@@ -86,7 +86,7 @@ class UnsafeSuite extends SparkSuite {
       val offset2 = rvb2.end()
 
       val ur2 = UnsafeRow.read(t, region2, offset2)
-      assert(t.valuesSimilar(a, ur2))
+      assert(t.valuesSimilar(a, ur2), s"$a vs $ur2")
 
       // test addRegionValue
       region2.clear()
@@ -95,7 +95,7 @@ class UnsafeSuite extends SparkSuite {
       rvb2.addRegionValue(t, region, offset)
       val offset3 = rvb2.end()
       val ur3 = UnsafeRow.read(t, region2, offset3)
-      assert(t.valuesSimilar(a, ur3))
+      assert(t.valuesSimilar(a, ur3), s"$a vs $ur3")
 
       // test addRegionValue nested
       t match {

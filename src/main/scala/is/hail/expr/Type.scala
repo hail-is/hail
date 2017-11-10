@@ -2202,14 +2202,27 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (t, selectF)
   }
 
+  var missingIdx: Array[Int] = _
+  private val _nMissing: Int = {
+    var i = 0
+    val a = new Array[Int](size)
+    fields.foreach { f =>
+      a(f.index) = i
+      if (!f.typ.required)
+        i += 1
+    }
+    missingIdx = a
+    i
+  }
+  def nMissingBytes: Int = (_nMissing + 7) >>> 3
+
   var byteOffsets: Array[Long] = _
   override val byteSize: Long = {
     val a = new Array[Long](size)
 
     val bp = new BytePacker()
 
-    val nMissingBytes: Long = (size + 7) >>> 3
-    var offset = nMissingBytes
+    var offset: Long = nMissingBytes
     fields.foreach { f =>
       val fSize = f.typ.byteSize
       val fAlignment = f.typ.alignment
@@ -2257,7 +2270,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   def clearMissingBits(region: MemoryBuffer, off: Long) {
-    val nMissingBytes = (size + 7) >>> 3
     var i = 0
     while (i < nMissingBytes) {
       region.storeByte(off + i, 0)
@@ -2267,7 +2279,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def clearMissingBits(region: Code[MemoryBuffer], off: Code[Long]): Code[Unit] = {
     var c: Code[Unit] = Code._empty
-    val nMissingBytes = (size + 7) >>> 3
     var i = 0
     while (i < nMissingBytes) {
       c = Code(c, region.storeByte(off + i.toLong, const(0)))
@@ -2277,17 +2288,22 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =
-    !region.loadBit(offset, fieldIdx)
+    fields(fieldIdx).typ.required || !region.loadBit(offset, missingIdx(fieldIdx))
 
   def isFieldDefined(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    !region.loadBit(offset, fieldIdx)
+    if (fields(fieldIdx).typ.required)
+      true
+    else
+      !region.loadBit(offset, missingIdx(fieldIdx))
 
   def setFieldMissing(region: MemoryBuffer, offset: Long, fieldIdx: Int) {
-    region.setBit(offset, fieldIdx)
+    assert(!fields(fieldIdx).typ.required)
+    region.setBit(offset, missingIdx(fieldIdx))
   }
 
   def setFieldMissing(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
-    region.setBit(offset, fieldIdx)
+    assert(!fields(fieldIdx).typ.required)
+    region.setBit(offset, missingIdx(fieldIdx))
   }
 
   def fieldOffset(offset: Long, fieldIdx: Int): Long =
