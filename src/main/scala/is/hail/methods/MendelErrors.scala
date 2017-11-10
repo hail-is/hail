@@ -206,13 +206,8 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
 
   def lMendelKT(): KeyTable = {
     val signature = TStruct(
-<<<<<<< HEAD
-      "v" -> TVariant(GenomeReference.GRCh37),
-      "nError" -> TInt32()
-=======
       "v" -> vSig,
-      "nError" -> TInt32
->>>>>>> Change hard coded GRCh37 to default reference
+      "nError" -> TInt32()
     )
 
     val rdd = nErrorPerVariant.map { case (v, l) => Row(v, l.toInt) }

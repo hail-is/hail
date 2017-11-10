@@ -103,6 +103,7 @@ class GenomeReferenceSuite extends SparkSuite {
 
     GenomeReference.setDefaultReference(hc, "src/test/resources/fake_ref_genome.json")
     assert(GenomeReference.defaultReference.name == "my_reference_genome")
+    GenomeReference.setDefaultReference(hc, "GRCh37")
 
     TestUtils.interceptFatal("Cannot add reference genome. Reference genome `GRCh38' already exists.")(GenomeReference.setDefaultReference(hc, "src/main/resources/reference/grch38.json"))
     intercept[FileNotFoundException](GenomeReference.setDefaultReference(hc, "grch38.json"))
