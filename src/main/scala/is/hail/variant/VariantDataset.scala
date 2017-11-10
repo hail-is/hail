@@ -306,11 +306,10 @@ g = let
 
     val bedHeader = Array[Byte](108, 27, 1)
 
-    val bedBytes = vds.rdd2.mapPartitions(
+    vds.rdd2.mapPartitions(
       ExportBedBimFam.bedRowTransformer(vds.nSamples, vds.rdd2.typ.rowType)
     ).saveFromByteArrays(path + ".bed", vds.hc.tmpDir, header = Some(bedHeader))
 
-    println(vds.rdd2.typ.rowType)
     vds.rdd2.mapPartitions(
       ExportBedBimFam.bimRowTransformer(vds.rdd2.typ.rowType)
     ).writeTable(path + ".bim", vds.hc.tmpDir)
