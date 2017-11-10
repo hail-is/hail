@@ -197,7 +197,6 @@ class GenomeReference(HistoryMixin):
         .. code-block:: text
 
             {"name": "my_reference_genome",
-             "source": "/my/source",
              "contigs": [{"name": "1", "length": 10000000},
                          {"name": "2", "length": 20000000},
                          {"name": "X", "length": 19856300},
@@ -212,8 +211,7 @@ class GenomeReference(HistoryMixin):
 
         **Notes**
 
-        `name` must be unique and not overlap with Hail's pre-instantiated references: "GRCh37" and "GRCh38". `source` is
-        intended to be a string representing the source of the JSON file contents.
+        `name` must be unique and not overlap with Hail's pre-instantiated references: "GRCh37" and "GRCh38".
         The contig names in `xContigs`, `yContigs`, and `mtContigs` must be present in `contigs`. The intervals listed in
         `par` must have contigs in either `xContigs` or `yContigs` and have positions between 0 and the contig length given
         in `contigs`.
