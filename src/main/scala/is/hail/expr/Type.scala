@@ -1254,7 +1254,7 @@ object TGenotype {
       "ad" -> TArray(!TInt32()),
       "dp" -> TInt32(),
       "gq" -> TInt32(),
-      "pl" -> TArray(TInt32()))
+      "pl" -> TArray(!TInt32()))
     if (required) (!t).asInstanceOf[TStruct] else t
   }
 }
@@ -1317,8 +1317,8 @@ object TAltAllele {
 
   def representation(required: Boolean = false): TStruct = {
     val t = TStruct(
-      "ref" -> TString(),
-      "alt" -> TString())
+      "ref" -> !TString(),
+      "alt" -> !TString())
     if (required) (!t).asInstanceOf[TStruct] else t
   }
 
@@ -1331,10 +1331,10 @@ case object TAltAlleleRequired extends TAltAllele(true)
 object TVariant {
   def representation(required: Boolean = false): TStruct = {
   	val rep = TStruct(
-    "contig" -> TString(),
-    "start" -> TInt32(),
-    "ref" -> TString(),
-    "altAlleles" -> TArray(TAltAllele().representation))
+    "contig" -> !TString(),
+    "start" -> !TInt32(),
+    "ref" -> !TString(),
+    "altAlleles" -> !TArray(!TAltAllele().representation))
     if (required) (!rep).asInstanceOf[TStruct] else rep
   }
 }
@@ -1437,8 +1437,8 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
 object TLocus {
   def representation(required: Boolean = false): TStruct = {
     val rep = TStruct(
-      "contig" -> TString(),
-      "position" -> TInt32())
+      "contig" -> !TString(),
+      "position" -> !TInt32())
     if (required) (!rep).asInstanceOf[TStruct] else rep
   }
 }
@@ -1496,8 +1496,8 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
 object TInterval {
   def representation(required: Boolean = false): TStruct = {
     val rep = TStruct(
-      "start" -> TLocus.representation(),
-      "end" -> TLocus.representation())
+      "start" -> !TLocus.representation(),
+      "end" -> !TLocus.representation())
     if (required) (!rep).asInstanceOf[TStruct] else rep
   }
 }
