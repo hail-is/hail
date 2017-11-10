@@ -2461,7 +2461,9 @@ object FunctionRegistry {
           ),
           CompilationHelp.arrayToWrappedArray(b)).asInstanceOf[Code[IndexedSeq[S]]],
         Code._throw(Code.newInstance[is.hail.utils.HailException, String, Option[String], Throwable](
-          s"""Cannot apply operation $name to arrays of unequal length.""".stripMargin, Code.invokeStatic[scala.Option[String], scala.Option[String], Throwable]("empty", Code._null[Throwable]))))),
+          s"""Cannot apply operation $name to arrays of unequal length.""".stripMargin,
+          Code.invokeStatic[scala.Option[String], scala.Option[String]]("empty"),
+          Code._null[Throwable])))),
       null)
   }
 
