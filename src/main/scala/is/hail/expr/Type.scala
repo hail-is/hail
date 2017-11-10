@@ -93,7 +93,7 @@ sealed abstract class Type extends BaseType with Serializable {
   def desc: String = ""
 
   def unify(concrete: Type): Boolean = {
-    this == concrete
+    this.isOfType(concrete)
   }
 
   def isBound: Boolean = children.forall(_.isBound)
@@ -742,7 +742,7 @@ final case class TVariable(name: String, var t: Type = null) extends Type {
       } else
         false
     } else
-      t == concrete
+      t.isOfType(concrete)
   }
 
   override def isBound: Boolean = t != null
