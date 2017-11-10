@@ -410,7 +410,7 @@ final class Encoder(out: OutputBuffer) {
 
     out.writeInt(length)
     if (!t.elementType.required) {
-      val nMissingBytes = (length + 7) / 8
+      val nMissingBytes = (length + 7) >>> 3
       out.writeBytes(region.mem, aoff + 4, nMissingBytes)
     }
 
