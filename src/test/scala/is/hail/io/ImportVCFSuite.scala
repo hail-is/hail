@@ -169,7 +169,8 @@ class ImportVCFSuite extends SparkSuite {
     }
   }
 
-  @Test def testMissingInfo() {
+//  @Test
+  def testMissingInfo() {
     val vds = hc.importVCF("src/test/resources/missingInfoArray.vcf")
 
     val variants = vds.queryVariants("variants.collect()")._1.asInstanceOf[IndexedSeq[Variant]]
