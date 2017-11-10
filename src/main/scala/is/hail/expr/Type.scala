@@ -834,10 +834,16 @@ abstract class TContainer extends Type {
     TContainer.loadLength(region, aoff)
 
   def _elementsOffset(length: Int): Long =
-    UnsafeUtils.roundUpAlignment(4 + ((length + 7) >>> 3), elementType.alignment)
+    if (elementType.required)
+      UnsafeUtils.roundUpAlignment(4, elementType.alignment)
+    else
+      UnsafeUtils.roundUpAlignment(4 + ((length + 7) >>> 3), elementType.alignment)
 
   def _elementsOffset(length: Code[Int]): Code[Long] =
-    UnsafeUtils.roundUpAlignment(((length.toL + 7L) >>> 3) + 4L, elementType.alignment)
+    if (elementType.required)
+      UnsafeUtils.roundUpAlignment(4, elementType.alignment)
+    else
+      UnsafeUtils.roundUpAlignment(((length.toL + 7L) >>> 3) + 4L, elementType.alignment)
 
   var elementsOffsetTable: Array[Long] = _
 
@@ -864,12 +870,16 @@ abstract class TContainer extends Type {
   }
 
   def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
-    !region.loadBit(aoff + 4, i)
+    elementType.required || !region.loadBit(aoff + 4, i)
 
   def isElementDefined(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
-    !region.loadBit(aoff + 4, i.toL)
+    if (elementType.required)
+      true
+    else
+      !region.loadBit(aoff + 4, i.toL)
 
   def setElementMissing(region: MemoryBuffer, aoff: Long, i: Int) {
+    assert(!elementType.required)
     region.setBit(aoff + 4, i)
   }
 
@@ -917,6 +927,8 @@ abstract class TContainer extends Type {
   }
 
   def clearMissingBits(region: MemoryBuffer, aoff: Long, length: Int) {
+    if (elementType.required)
+      return
     val nMissingBytes = (length + 7) / 8
     var i = 0
     while (i < nMissingBytes) {
@@ -930,9 +942,12 @@ abstract class TContainer extends Type {
     clearMissingBits(region, aoff, length)
   }
 
-  def initialize(region: Code[MemoryBuffer], aoff: Code[Long], length: Code[Int], a: LocalRef[Int]): Code[Unit] =
+  def initialize(region: Code[MemoryBuffer], aoff: Code[Long], length: Code[Int], a: LocalRef[Int]): Code[Unit] = {
+    var c = region.storeInt32(aoff, length)
+    if (elementType.required)
+      return c
     Code(
-      region.storeInt32(aoff, length),
+      c,
       a.store((length + 7) >>> 3),
       Code.whileLoop(a > 0,
         Code(
@@ -941,6 +956,7 @@ abstract class TContainer extends Type {
         )
       )
     )
+  }
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
     val eltOrd = elementType.unsafeOrdering(missingGreatest)

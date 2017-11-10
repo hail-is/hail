@@ -310,9 +310,11 @@ final class Decoder(in: InputBuffer) {
     region.align(t.contentsAlignment)
     val aoff = region.allocate(contentSize)
 
-    val nMissingBytes = (length + 7) / 8
     region.storeInt(aoff, length)
-    in.readBytes(region.mem, aoff + 4, nMissingBytes)
+    if (!t.elementType.required) {
+      val nMissingBytes = (length + 7) >>> 3
+      in.readBytes(region.mem, aoff + 4, nMissingBytes)
+    }
 
     val elemsOff = aoff + t.elementsOffset(length)
     val elemSize = t.elementByteSize
@@ -320,7 +322,7 @@ final class Decoder(in: InputBuffer) {
     if (t.elementType.isInstanceOf[TInt32]) { // fast path
       var i = 0
       while (i < length) {
-        if (!region.loadBit(aoff + 4, i)) {
+        if (t.isElementDefined(region, aoff, i)) {
           val off = elemsOff + i * elemSize
           region.storeInt(off, in.readInt())
         }
@@ -329,7 +331,7 @@ final class Decoder(in: InputBuffer) {
     } else {
       var i = 0
       while (i < length) {
-        if (!region.loadBit(aoff + 4, i)) {
+        if (t.isElementDefined(region, aoff, i)) {
           val off = elemsOff + i * elemSize
           t.elementType match {
             case t2: TStruct => readStruct(t2, region, off)
@@ -406,9 +408,11 @@ final class Encoder(out: OutputBuffer) {
   def writeArray(t: TArray, region: MemoryBuffer, aoff: Long) {
     val length = region.loadInt(aoff)
 
-    val nMissingBytes = (length + 7) / 8
     out.writeInt(length)
-    out.writeBytes(region.mem, aoff + 4, nMissingBytes)
+    if (!t.elementType.required) {
+      val nMissingBytes = (length + 7) >>> 3
+      out.writeBytes(region.mem, aoff + 4, nMissingBytes)
+    }
 
     val elemsOff = aoff + t.elementsOffset(length)
     val elemSize = t.elementByteSize
