@@ -160,5 +160,7 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(ktann.forall("v1.inXPar() && v2.inXPar() && v3.isAutosomal() &&" +
       "l1.position == 100 && l2.position == 100 &&" +
       """i1.start == Locus(GRCh37)("1", 5) && !i2.contains(l1)"""))
+
+    assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == GenomeReference.GRCh37.variant)
   }
 }

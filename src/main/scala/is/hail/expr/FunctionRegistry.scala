@@ -30,8 +30,13 @@ object FunctionRegistry {
     def message: String
   }
 
-  sealed case class NotFound(name: String, typ: TypeTag) extends LookupError {
-    def message = s"No function found with name `$name' and argument ${ plural(typ.xs.size, "type") } $typ"
+  sealed case class NotFound(name: String, typ: TypeTag, rtTypExp: Option[Type] = None) extends LookupError {
+    def message = {
+      rtTypExp match {
+        case None => s"No function found with name `$name' and argument ${ plural(typ.xs.size, "type") } $typ"
+        case Some(rtTyp) => s"No function found with name `$name', argument ${ plural(typ.xs.size, "type") } $typ, and return type $rtTyp"
+      }
+    }
   }
 
   sealed case class Ambiguous(name: String, typ: TypeTag, alternates: Seq[(Int, (TypeTag, Fun))]) extends LookupError {
@@ -66,7 +71,9 @@ object FunctionRegistry {
 
     val matches = registry(name).flatMap { case (tt, f, _) =>
       tt.clear()
-      if (tt.xs.size == typ.xs.size) { // FIXME: add check for  to enforce field vs method
+      f.retType.clear()
+
+      if (tt.xs.size == typ.xs.size && rtTypConcrete.forall(f.retType.unify(_))) { // FIXME: add check for  to enforce field vs method
         val conversions = (tt.xs, typ.xs).zipped.map { case (l, r) =>
           if (l.isBound) {
             if (l.unify(r))
@@ -80,8 +87,6 @@ object FunctionRegistry {
           } else
             None
         }
-
-        rtTypConcrete.foreach(f.retType.unify(_))
 
         anyFailAllFail[Array, Option[(Int, Transformation[Any, Any])]](conversions)
           .map { arr =>
@@ -97,7 +102,7 @@ object FunctionRegistry {
     }.groupBy(_._1).toArray.sortBy(_._1)
 
     matches.headOption
-      .toRight[LookupError](NotFound(name, typ))
+      .toRight[LookupError](NotFound(name, typ, rtTypConcrete))
       .flatMap { case (priority, it) =>
         assert(it.nonEmpty)
         if (it.size == 1)

@@ -320,7 +320,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
       case (t, name) => FunctionRegistry.lookupFieldReturnType(t, Seq(), name)
         .valueOr {
-          case FunctionRegistry.NotFound(name, typ) =>
+          case FunctionRegistry.NotFound(name, typ, _) =>
             parseError(s"""`$t' has no field or method `$rhs'""".stripMargin)
           case otherwise => parseError(otherwise.message)
         }
@@ -341,7 +341,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
       FunctionRegistry.lookupField(t, Seq(), rhs)(lhs, Seq())
         .valueOr {
-          case FunctionRegistry.NotFound(name, typ) =>
+          case FunctionRegistry.NotFound(name, typ, _) =>
             ParserUtils.error(localPos,
               s"""`$t' has neither a field nor a method named `$name'
                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:

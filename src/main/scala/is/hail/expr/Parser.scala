@@ -440,6 +440,9 @@ object Parser extends JavaTokenParsers {
       (guard(not("if" | "else")) ~> (genomeReferenceDependentTypes <~ "(") ~ (identifier <~ ")") ~ withPos("(") ~ (args <~ ")") ^^ {
         case fn ~ gr ~ lparen ~ args => GenomeReferenceDependentConstructor(lparen.pos, fn, gr, args)
       }) |
+      (guard(not("if" | "else")) ~> genomeReferenceDependentTypes ~ withPos("(") ~ (args <~ ")") ^^ {
+        case fn ~ lparen ~ args => GenomeReferenceDependentConstructor(lparen.pos, fn, GenomeReference.GRCh37.name, args)
+      }) |
       (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
         case id ~ lparen ~ args =>
           Apply(lparen.pos, id.x, args)
