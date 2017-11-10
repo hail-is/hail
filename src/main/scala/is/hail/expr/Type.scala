@@ -2111,7 +2111,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     } else
       Gen.size.flatMap(fuel =>
         if (size > fuel)
-          Gen.uniformSequence(fields.map(f => if (f.typ.required) f.typ.genValue else Gen.const(null))).map(a => Annotation(a: _*))
+          Gen.uniformSequence(fields.map(f => if (isFieldRequired(f.index)) f.typ.genValue else Gen.const(null))).map(a => Annotation(a: _*))
         else
           Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
@@ -2202,19 +2202,17 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (t, selectF)
   }
 
-  var missingIdx: Array[Int] = _
-  private val _nMissing: Int = {
+  val (missingIdx, nMissing) = {
     var i = 0
     val a = new Array[Int](size)
     fields.foreach { f =>
       a(f.index) = i
-      if (!f.typ.required)
+      if (!isFieldRequired(f.index))
         i += 1
     }
-    missingIdx = a
-    i
+    (a, i)
   }
-  def nMissingBytes: Int = (_nMissing + 7) >>> 3
+  def nMissingBytes: Int = (nMissing + 7) >>> 3
 
   var byteOffsets: Array[Long] = _
   override val byteSize: Long = {
@@ -2287,22 +2285,24 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     c
   }
 
+  def isFieldRequired(fieldIdx: Int): Boolean = fieldType(fieldIdx).required
+
   def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =
-    fields(fieldIdx).typ.required || !region.loadBit(offset, missingIdx(fieldIdx))
+     isFieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
 
   def isFieldDefined(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    if (fields(fieldIdx).typ.required)
+    if (isFieldRequired(fieldIdx))
       true
     else
       !region.loadBit(offset, missingIdx(fieldIdx))
 
   def setFieldMissing(region: MemoryBuffer, offset: Long, fieldIdx: Int) {
-    assert(!fields(fieldIdx).typ.required)
+    assert(!isFieldRequired(fieldIdx))
     region.setBit(offset, missingIdx(fieldIdx))
   }
 
   def setFieldMissing(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
-    assert(!fields(fieldIdx).typ.required)
+    assert(!isFieldRequired(fieldIdx))
     region.setBit(offset, missingIdx(fieldIdx))
   }
 
