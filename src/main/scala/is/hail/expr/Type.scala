@@ -1251,7 +1251,7 @@ object TGenotype {
   def representation(required: Boolean = false): TStruct = {
     val t = TStruct(
       "gt" -> TInt32(),
-      "ad" -> TArray(TInt32()),
+      "ad" -> TArray(!TInt32()),
       "dp" -> TInt32(),
       "gq" -> TInt32(),
       "pl" -> TArray(TInt32()))
