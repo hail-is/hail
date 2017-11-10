@@ -348,7 +348,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def requireRowTypeTVariant(method: String) {
     vSignature match {
-      case TVariant(_) =>
+      case TVariant(_, _) =>
       case _ => fatal(s"in $method: row key schema must be Variant, but found: $vSignature")
     }
   }

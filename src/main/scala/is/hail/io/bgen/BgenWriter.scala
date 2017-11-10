@@ -25,8 +25,8 @@ class BGENVariantAnnotationsView(rowType: TStruct) {
       (false, 0)
   }
 
-  private val (varidExists, varidIndex) = lookupField("varid", TString)
-  private val (rsidExists, rsidIndex) = lookupField("rsid", TString)
+  private val (varidExists, varidIndex) = lookupField("varid", TString())
+  private val (rsidExists, rsidIndex) = lookupField("rsid", TString())
 
   private var m: MemoryBuffer = _
   private var vaOffset: Long = _
