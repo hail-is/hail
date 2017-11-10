@@ -234,12 +234,12 @@ class KeyTable(val hc: HailContext,
             val r2 = y.toArray
             val res = if (r1.length != r2.length)
               false
-            else r1.toSet == r2.toSet
+            else r1.counter() == r2.counter()
             if (!res)
               info(s"SAME KEY, DIFFERENT VALUES: k=$k\n  left:\n    ${ r1.mkString("\n    ")}\n  right:\n    ${ r2.mkString("\n    ") }")
             res
           case _ =>
-            info(s"KEY MISMATCH: k=$k\n  left=$v1\n  rght=$v2")
+            info(s"KEY MISMATCH: k=$k\n  left=$v1\n  right=$v2")
             false
         }
       }
@@ -915,6 +915,7 @@ class KeyTable(val hc: HailContext,
 
       sb.append(sep)
     }
+
 
     // data
     allStrings.drop(2).foreach {

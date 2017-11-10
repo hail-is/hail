@@ -5725,7 +5725,7 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(pedigree=Pedigree,
                       complete_trios=bool)
     def trio_matrix(self, pedigree, complete_trios=False):
-        """Builds and returns a matrix with trios are grouped together as cells.
+        """Builds and returns a matrix where columns correspond to trios and entries contain genotypes for the trio.
 
         **Examples**
 
@@ -5736,25 +5736,26 @@ class VariantDataset(HistoryMixin):
 
         **Notes**
 
-        This method builds a new dataset with trio columns, with one column
-        per trio (with ``complete_trios == False``) or complete trio (with
-        ``complete_trios == True``). In this new dataset, the column identifiers
+        This method builds a new dataset with one column per trio. If ``complete_trios``,
+        then only trios that satisfy the :py:meth:`~hail.representation.Trio.is_complete`
+        are included. In this new dataset, the column identifiers
         are the sample IDs of the trio probands. The column annotations and
-        cells of the matrix are changed in the following ways:
+        entries of the matrix are changed in the following ways:
 
-        The new column annotation schema is a ``Struct`` with three ``Struct`` children,
+        The new column annotation schema is a ``Struct`` with three ``Struct`` children
+        (``proband``, ``father``, and ``mother``),
         each with an ``id`` and ``annotations`` field. The ``annotations`` fields have the
         same schema as the column annotation schema of the input dataset.
 
-         - **proband.id** (*String*) - Proband sample ID.
+         - **proband.id** (*String*) - Proband sample ID, same of trio column key.
          - **proband.annotations** (*Struct*) - Annotations on the proband.
          - **father.id** (*String*) - Father sample ID.
          - **father.annotations** (*Struct*) - Annotations on the father.
          - **mother.id** (*String*) - Mother sample ID.
          - **mother.annotations** (*Struct*) - Annotations on the mother.
 
-        The new cell schema is a ``Struct`` with a field for the proband, mother, and
-        father, where the schema of each field is the cell schema of the input dataset.
+        The new cell schema is a ``Struct`` with ``proband``, ``father``, and ``mother``
+        fields, where the schema of each field is the entry schema of the input dataset.
 
         - **g.proband** (*T*) - Proband genotype field.
         - **g.father** (*T*) - Father genotype field.
