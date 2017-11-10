@@ -310,9 +310,9 @@ final class Decoder(in: InputBuffer) {
     region.align(t.contentsAlignment)
     val aoff = region.allocate(contentSize)
 
+    region.storeInt(aoff, length)
     if (!t.elementType.required) {
-      val nMissingBytes = (length + 7) / 8
-      region.storeInt(aoff, length)
+      val nMissingBytes = (length + 7) >>> 3
       in.readBytes(region.mem, aoff + 4, nMissingBytes)
     }
 
@@ -408,9 +408,11 @@ final class Encoder(out: OutputBuffer) {
   def writeArray(t: TArray, region: MemoryBuffer, aoff: Long) {
     val length = region.loadInt(aoff)
 
-    val nMissingBytes = (length + 7) / 8
     out.writeInt(length)
-    out.writeBytes(region.mem, aoff + 4, nMissingBytes)
+    if (!t.elementType.required) {
+      val nMissingBytes = (length + 7) / 8
+      out.writeBytes(region.mem, aoff + 4, nMissingBytes)
+    }
 
     val elemsOff = aoff + t.elementsOffset(length)
     val elemSize = t.elementByteSize
