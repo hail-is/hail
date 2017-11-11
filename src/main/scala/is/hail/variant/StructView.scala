@@ -110,6 +110,6 @@ class StructView(target: TStruct, source: TStruct) {
     assert(t.isInstanceOf[TStruct])
     val sourceIdx = mapping(idx)
     assert(sourceIdx != -1)
-    m.loadAddress(source.loadField(m, offset, sourceIdx))
+    source.loadField(m, offset, sourceIdx)
   }
 }
