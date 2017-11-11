@@ -2111,7 +2111,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     } else
       Gen.size.flatMap(fuel =>
         if (size > fuel)
-          Gen.uniformSequence(fields.map(f => if (f.typ.required) f.typ.genValue else Gen.const(null))).map(a => Annotation(a: _*))
+          Gen.uniformSequence(fields.map(f => if (isFieldRequired(f.index)) f.typ.genValue else Gen.const(null))).map(a => Annotation(a: _*))
         else
           Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
@@ -2202,14 +2202,25 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (t, selectF)
   }
 
+  val (missingIdx, nMissing) = {
+    var i = 0
+    val a = new Array[Int](size)
+    fields.foreach { f =>
+      a(f.index) = i
+      if (!isFieldRequired(f.index))
+        i += 1
+    }
+    (a, i)
+  }
+  def nMissingBytes: Int = (nMissing + 7) >>> 3
+
   var byteOffsets: Array[Long] = _
   override val byteSize: Long = {
     val a = new Array[Long](size)
 
     val bp = new BytePacker()
 
-    val nMissingBytes: Long = (size + 7) >>> 3
-    var offset = nMissingBytes
+    var offset: Long = nMissingBytes
     fields.foreach { f =>
       val fSize = f.typ.byteSize
       val fAlignment = f.typ.alignment
@@ -2257,7 +2268,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   def clearMissingBits(region: MemoryBuffer, off: Long) {
-    val nMissingBytes = (size + 7) >>> 3
     var i = 0
     while (i < nMissingBytes) {
       region.storeByte(off + i, 0)
@@ -2267,7 +2277,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def clearMissingBits(region: Code[MemoryBuffer], off: Code[Long]): Code[Unit] = {
     var c: Code[Unit] = Code._empty
-    val nMissingBytes = (size + 7) >>> 3
     var i = 0
     while (i < nMissingBytes) {
       c = Code(c, region.storeByte(off + i.toLong, const(0)))
@@ -2276,18 +2285,25 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     c
   }
 
+  def isFieldRequired(fieldIdx: Int): Boolean = fieldType(fieldIdx).required
+
   def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =
-    !region.loadBit(offset, fieldIdx)
+     isFieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
 
   def isFieldDefined(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    !region.loadBit(offset, fieldIdx)
+    if (isFieldRequired(fieldIdx))
+      true
+    else
+      !region.loadBit(offset, missingIdx(fieldIdx))
 
   def setFieldMissing(region: MemoryBuffer, offset: Long, fieldIdx: Int) {
-    region.setBit(offset, fieldIdx)
+    assert(!isFieldRequired(fieldIdx))
+    region.setBit(offset, missingIdx(fieldIdx))
   }
 
   def setFieldMissing(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
-    region.setBit(offset, fieldIdx)
+    assert(!isFieldRequired(fieldIdx))
+    region.setBit(offset, missingIdx(fieldIdx))
   }
 
   def fieldOffset(offset: Long, fieldIdx: Int): Long =

@@ -353,12 +353,12 @@ final class Decoder(in: InputBuffer) {
   }
 
   def readStruct(t: TStruct, region: MemoryBuffer, offset: Long) {
-    val nMissingBytes = (t.size + 7) / 8
+    val nMissingBytes = t.nMissingBytes
     in.readBytes(region.mem, offset, nMissingBytes)
 
     var i = 0
     while (i < t.size) {
-      if (!region.loadBit(offset, i)) {
+      if (t.isFieldDefined(region, offset, i)) {
         val f = t.fields(i)
         val off = offset + t.byteOffsets(i)
         f.typ match {
@@ -447,12 +447,12 @@ final class Encoder(out: OutputBuffer) {
   }
 
   def writeStruct(t: TStruct, region: MemoryBuffer, offset: Long) {
-    val nMissingBytes = (t.size + 7) / 8
+    val nMissingBytes = t.nMissingBytes
     out.writeBytes(region.mem, offset, nMissingBytes)
 
     var i = 0
     while (i < t.size) {
-      if (!region.loadBit(offset, i)) {
+      if (t.isFieldDefined(region, offset, i)) {
         val off = offset + t.byteOffsets(i)
         t.fields(i).typ match {
           case t2: TStruct => writeStruct(t2, region, off)
