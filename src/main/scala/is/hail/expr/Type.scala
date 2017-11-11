@@ -1307,6 +1307,22 @@ sealed class TAltAllele(override val required: Boolean) extends ComplexType {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
 
   val representation: TStruct = TAltAllele.representation(required)
+
+  private val refFieldIdx = representation.fieldIdx("ref")
+
+  def loadRef(rv: RegionValue): Long =
+    representation.loadField(rv, refFieldIdx)
+
+  def loadRef(r: MemoryBuffer, off: Long): Long =
+    representation.loadField(r, off, refFieldIdx)
+
+  private val altFieldIdx = representation.fieldIdx("alt")
+
+  def loadAlt(rv: RegionValue): Long =
+    representation.loadField(rv, altFieldIdx)
+
+  def loadAlt(r: MemoryBuffer, off: Long): Long =
+    representation.loadField(r, off, altFieldIdx)
 }
 
 object TAltAllele {
