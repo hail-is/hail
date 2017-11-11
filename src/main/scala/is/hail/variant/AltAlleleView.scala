@@ -7,6 +7,10 @@ import is.hail.utils._
 class AltAlleleView(variant: TAltAllele, source: TStruct) {
   private val view = new StructView(variant.representation, source)
 
+  def setRegion(rv: RegionValue) {
+    view.setRegion(rv)
+  }
+
   def setRegion(m: MemoryBuffer, offset: Long) {
     view.setRegion(m, offset)
   }
