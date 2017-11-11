@@ -26,31 +26,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
   import HtsjdkRecordReader._
 
   def readVariantInfo(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct) {
-    val ref = vc.getReference.getBaseString
-
-    rvb.startStruct() // pk
-    rvb.addString(vc.getContig)
-    rvb.addInt(vc.getStart)
-    rvb.endStruct()
-
-    rvb.startStruct() // v
-    rvb.addString(vc.getContig)
-    rvb.addInt(vc.getStart)
-    rvb.addString(ref)
-
-    rvb.startArray(vc.getAlternateAlleles.size())
-    val aai = vc.getAlternateAlleles.iterator()
-    while (aai.hasNext) {
-      rvb.startStruct()
-      rvb.addString(ref)
-
-      val aa = aai.next()
-      val alt = if (aa.getBaseString.isEmpty) "." else aa.getBaseString // TODO: handle structural variants
-      rvb.addString(alt)
-      rvb.endStruct()
-    }
-    rvb.endArray()
-    rvb.endStruct()
+    // pk, v added via VCFLine
 
     // va
     rvb.startStruct()
