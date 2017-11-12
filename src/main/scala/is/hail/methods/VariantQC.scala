@@ -2,13 +2,9 @@ package is.hail.methods
 
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
-import is.hail.sparkextras.{OrderedRDD, OrderedRDD2}
 import is.hail.stats.LeveneHaldane
-import is.hail.utils._
-import is.hail.variant.{GenericDataset, Genotype, HTSGenotypeView, Variant, VariantDataset}
+import is.hail.variant.{HTSGenotypeView, VariantSampleMatrix}
 import org.apache.spark.util.StatCounter
-
-import scala.reflect.classTag
 
 final class VariantQCCombiner {
   var nNotCalled: Int = 0
@@ -133,11 +129,11 @@ object VariantQC {
     "rExpectedHetFrequency" -> TFloat64(),
     "pHWE" -> TFloat64())
 
-  def apply(vds: GenericDataset, root: String): GenericDataset = {
-    val localNSamples = vds.nSamples
-    val localRowType = vds.rowType
+  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], root: String): VariantSampleMatrix[RPK, RK, T] = {
+    val localNSamples = vsm.nSamples
+    val localRowType = vsm.rowType
 
-    vds.insertIntoRow(() => HTSGenotypeView(localRowType))(VariantQC.signature,
+    vsm.insertIntoRow(() => HTSGenotypeView(localRowType))(VariantQC.signature,
       "va" :: Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD), { (view, rv, rvb) =>
         view.setRegion(rv.region, rv.offset)
         val comb = new VariantQCCombiner
