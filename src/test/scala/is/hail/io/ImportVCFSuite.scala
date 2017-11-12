@@ -67,7 +67,7 @@ class ImportVCFSuite extends SparkSuite {
     val e = intercept[SparkException] {
       hc.importVCF("src/test/resources/malformed.vcf").countVariants()
     }
-    assert(e.getMessage.contains("caught htsjdk.tribble.TribbleException$InternalCodecException: "))
+    assert(e.getMessage.contains("invalid character"))
   }
   
   @Test def testHaploid() {

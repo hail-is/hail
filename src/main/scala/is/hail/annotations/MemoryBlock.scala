@@ -636,19 +636,23 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     advance()
   }
 
+  def setFieldIndex(newI: Int) {
+    assert(typestk.top.isInstanceOf[TStruct])
+    indexstk(0) = newI
+  }
+
   def setMissing() {
     val i = indexstk.top
     typestk.top match {
       case t: TStruct =>
         if (t.fieldType(i).required)
-          fatal(s"cannot set missing field for required type ${t.fieldType(i)}")
+          fatal(s"cannot set missing field for required type ${ t.fieldType(i) }")
         t.setFieldMissing(region, offsetstk.top, i)
       case t: TArray =>
         if (t.elementType.required)
-          fatal(s"cannot set missing field for required type ${t.elementType}")
+          fatal(s"cannot set missing field for required type ${ t.elementType }")
         t.setElementMissing(region, offsetstk.top, i)
     }
-
     advance()
   }
 
