@@ -1,19 +1,27 @@
 package is.hail.utils
 
-abstract class Context {
-  def wrapException(e: Throwable): Nothing
-}
+case class Context(line: String, file: String, position: Option[Int]) {
+  def locationString: String =
+    position match {
+      case Some(p) => s"$file:$p"
+      case None => file
+    }
 
-case class TextContext(line: String, file: String, position: Option[Int]) extends Context {
+  def locationString(col: Int): String =
+    position match {
+      case Some(p) => s"$file:$p.$col"
+      case None => s"$file:column $col"
+    }
+
   def wrapException(e: Throwable): Nothing = {
     e match {
       case _: HailException =>
         fatal(
-          s"""$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: ${ e.getMessage }
+          s"""$locationString: ${ e.getMessage }
              |  offending line: @1""".stripMargin, line, e)
       case _ =>
         fatal(
-          s"""$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: caught ${ e.getClass.getName() }: ${ e.getMessage }
+          s"""$locationString: caught ${ e.getClass.getName }: ${ e.getMessage }
              |  offending line: @1""".stripMargin, line, e)
     }
   }

@@ -20,12 +20,6 @@ import scala.io.Source
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct, canonicalFlags: Int)
 
 object VCFLine {
-  def numericValue(c: Char): Int = {
-    if (c < '0' || c > '9')
-      fatal(s"invalid character '$c' in integer literal")
-    c - '0'
-  }
-
   def invalidRef(ref: String): Boolean = {
     var i = 0
     while (i < ref.length) {
@@ -59,41 +53,133 @@ object VCFLine {
   }
 }
 
-final class VCFLine(line: String) {
+class VCFParseError(val msg: String, val pos: Int) extends RuntimeException(msg)
+
+final class VCFLine(val line: String) {
   var pos: Int = 0
 
   val abs = new ArrayBuilder[String]
+  val abi = new ArrayBuilder[Int]
+
+  def parseError(msg: String): Unit = throw new VCFParseError(msg, pos)
+
+  def numericValue(c: Char): Int = {
+    if (c < '0' || c > '9')
+      parseError(s"invalid character '$c' in integer literal")
+    c - '0'
+  }
+
+  // field contexts: field, array field, format field, call field, format array field
+
+  def endField(p: Int): Boolean = {
+    p == line.length || line(p) == '\t'
+  }
+
+  def endArrayField(p: Int): Boolean = {
+    if (p == line.length)
+      true
+    else {
+      val c = line(p)
+      c == '\t' || c == ','
+    }
+  }
+
+  def endFormatField(p: Int): Boolean = {
+    if (p == line.length)
+      true
+    else {
+      val c = line(p)
+      c == '\t' || c == ':'
+    }
+  }
+
+  // field within call
+  def endCallField(p: Int): Boolean = {
+    if (p == line.length)
+      true
+    else {
+      val c = line(p)
+      c == '\t' || c == ':' || c == '/' || c == '|'
+    }
+  }
+
+  def endFormatArrayField(p: Int): Boolean = {
+    if (p == line.length)
+      true
+    else {
+      val c = line(p)
+      c == '\t' || c == ':' || c == ','
+    }
+  }
+
+  def endField(): Boolean = endField(pos)
+
+  def endArrayField(): Boolean = endArrayField(pos)
+
+  def endFormatField(): Boolean = endFormatField(pos)
+
+  def endCallField(): Boolean = endCallField(pos)
+
+  def endFormatArrayField(): Boolean = endFormatArrayField(pos)
+
+  def fieldMissing(): Boolean = {
+    pos < line.length &&
+      line(pos) == '.' &&
+      endField(pos + 1)
+  }
+
+  def arrayFieldMissing(): Boolean = {
+    pos < line.length &&
+      line(pos) == '.' &&
+      endArrayField(pos + 1)
+  }
+
+  def formatFieldMissing(): Boolean = {
+    pos < line.length &&
+      line(pos) == '.' &&
+      endFormatField(pos + 1)
+  }
+
+  def callFieldMissing(): Boolean = {
+    pos < line.length &&
+      line(pos) == '.' &&
+      endCallField(pos + 1)
+  }
+
+  def formatArrayFieldMissing(): Boolean = {
+    pos < line.length &&
+      line(pos) == '.' &&
+      endFormatArrayField(pos + 1)
+  }
 
   def parseString(): String = {
     val start = pos
-    while (pos < line.length && line(pos) != '\t')
+    while (!endField())
       pos += 1
     val end = pos
     line.substring(start, end)
   }
 
   def parseInt(): Int = {
-    var c: Char = 0
-
-    if (!(pos < line.length && line(pos) != '\t'))
-      fatal("empty integer field")
-    var v = VCFLine.numericValue(line(pos))
+    if (endField())
+      parseError("empty integer literal")
+    var v = numericValue(line(pos))
     pos += 1
-    while (pos < line.length && line(pos) != '\t') {
-      v = v * 10 + VCFLine.numericValue(line(pos))
+    while (!endField()) {
+      v = v * 10 + numericValue(line(pos))
       pos += 1
     }
     v
   }
 
   def skipField(): Unit = {
-    while (pos < line.length && line(pos) != '\t')
+    while (!endField())
       pos += 1
   }
 
   def parseStringInArray(): String = {
     val start = pos
-    while (pos < line.length && line(pos) != '\t' && line(pos) != ',')
+    while (!endArrayField())
       pos += 1
     val end = pos
     line.substring(start, end)
@@ -104,13 +190,11 @@ final class VCFLine(line: String) {
     assert(abs.size == 0)
 
     // . means no alternate alleles
-    if (pos < line.length
-      && line(pos) == '.'
-      && (pos + 1 == line.length || line(pos + 1) == '\t'))
+    if (fieldMissing())
       return
 
     abs += parseStringInArray()
-    while (pos < line.length && line(pos) != '\t') {
+    while (!endField()) {
       pos += 1 // comma
       abs += parseStringInArray()
     }
@@ -118,8 +202,16 @@ final class VCFLine(line: String) {
 
   def nextField(): Unit = {
     if (pos == line.length)
-      fatal("unexpected end of line")
+      parseError("unexpected end of line")
+    assert(line(pos) == '\t')
     pos += 1 // tab
+  }
+
+  def nextFormatField(): Unit = {
+    if (pos == line.length)
+      parseError("unexpected end of line")
+    assert(line(pos) == ':')
+    pos += 1 // colon
   }
 
   // return false if it should be filtered
@@ -150,12 +242,13 @@ final class VCFLine(line: String) {
 
     // ALT
     parseAltAlleles()
+    nextField()
 
     var i = 0
     while (i < abs.length) {
       val alt = abs(i)
       if (alt.isEmpty)
-        fatal("empty alternate allele")
+        parseError("empty alternate allele")
       if (VCFLine.symbolicAlt(alt)) {
         warn(s"skipping variant with symbolic alternate allele in ALT field: $alt")
         return false
@@ -187,6 +280,245 @@ final class VCFLine(line: String) {
     abs.clear()
 
     true
+  }
+
+  def parseIntInCall(): Int = {
+    if (endCallField())
+      parseError("empty integer field")
+    var v = numericValue(line(pos))
+    pos += 1
+    while (!endCallField()) {
+      v = v * 10 + numericValue(line(pos))
+      pos += 1
+    }
+    v
+  }
+
+  def parseAddCall(rvb: RegionValueBuilder) {
+    if (pos == line.length)
+      parseError("empty call")
+
+    var j = 0
+    var mj = false
+    if (callFieldMissing()) {
+      mj = true
+      pos += 1
+    } else
+      j = parseIntInCall()
+
+    if (endFormatField()) {
+      // haploid
+      if (mj)
+        rvb.setMissing()
+      else
+        rvb.addInt(
+          Genotype.gtIndex(j, j))
+      return
+    }
+
+    if (line(pos) != '|' && line(pos) != '/')
+      parseError("parse error in call")
+    pos += 1
+
+    var k = 0
+    var mk = false
+    if (callFieldMissing()) {
+      mk = true
+      pos += 1
+    } else
+      k = parseIntInCall()
+
+    if (!endFormatField()) {
+      if (line(pos) == '/' || line(pos) == '|')
+        parseError("ploidy > 2 not supported")
+      else
+        parseError("parse error in call")
+    }
+
+    // treat partially missing like missing
+    if (mj || mk)
+      rvb.setMissing()
+    else {
+      rvb.addInt(Genotype.gtIndexWithSwap(j, k))
+    }
+  }
+
+  def parseFormatInt(): Int = {
+    if (endFormatField())
+      parseError("empty integer")
+    var v = numericValue(line(pos))
+    pos += 1
+    while (!endFormatField()) {
+      v = v * 10 + numericValue(line(pos))
+      pos += 1
+    }
+    v
+  }
+
+  def parseAddFormatInt(rvb: RegionValueBuilder) {
+    if (formatFieldMissing()) {
+      rvb.setMissing()
+      pos += 1
+    } else
+      rvb.addInt(parseFormatInt())
+  }
+
+  def parseFormatString(): String = {
+    val start = pos
+    while (!endFormatField())
+      pos += 1
+    val end = pos
+    line.substring(start, end)
+  }
+
+  def parseAddFormatString(rvb: RegionValueBuilder) {
+    if (formatFieldMissing()) {
+      rvb.setMissing()
+      pos += 1
+    } else
+      rvb.addString(parseFormatString())
+  }
+
+  def parseFormatDouble(): Double = {
+    val s = parseFormatString()
+    s.toDouble
+  }
+
+  def parseAddFormatDouble(rvb: RegionValueBuilder) {
+    if (formatFieldMissing()) {
+      rvb.setMissing()
+      pos += 1
+    } else
+      rvb.addDouble(parseFormatDouble())
+  }
+
+  def parseIntInFormatArray(rvb: RegionValueBuilder): Int = {
+    if (endFormatArrayField())
+      parseError("empty integer")
+    var v = numericValue(line(pos))
+    pos += 1
+    while (!endFormatArrayField()) {
+      v = v * 10 + numericValue(line(pos))
+      pos += 1
+    }
+    v
+  }
+
+  def parseAddFormatArrayInt(rvb: RegionValueBuilder) {
+    if (formatFieldMissing()) {
+      rvb.setMissing()
+      pos += 1
+    } else {
+      assert(abi.length == 0)
+
+      abi += parseIntInFormatArray(rvb)
+      while (!endFormatField()) {
+        pos += 1 // comma
+        abi += parseIntInFormatArray(rvb)
+      }
+
+      rvb.startArray(abi.length)
+      var i = 0
+      while (i < abi.length) {
+        rvb.addInt(abi(i))
+        i += 1
+      }
+      rvb.endArray()
+
+      abi.clear()
+    }
+  }
+}
+
+object FormatParser {
+  def apply(gType: TStruct, format: String): FormatParser = {
+    val formatFields = format.split(":")
+    val formatFieldsSet = formatFields.toSet
+    new FormatParser(
+      gType,
+      formatFields.map(gType.fieldIdx),
+      (0 until gType.size)
+        .filter(i => !formatFieldsSet.contains(gType.fields(i).name))
+        .toArray)
+  }
+}
+
+class FormatParser(
+  gType: TStruct,
+  formatFieldGIndex: Array[Int],
+  missingGIndices: Array[Int]) {
+
+  def parseAddField(l: VCFLine, rvb: RegionValueBuilder, i: Int) {
+    val j = formatFieldGIndex(i)
+    rvb.setFieldIndex(j)
+    gType.fieldType(j) match {
+      case TCall(_) =>
+        l.parseAddCall(rvb)
+      case TInt32(_) =>
+        l.parseAddFormatInt(rvb)
+      case TFloat64(_) =>
+        l.parseAddFormatDouble(rvb)
+      case TString(_) =>
+        l.parseAddFormatString(rvb)
+      case TArray(TInt32(_), _) =>
+        l.parseAddFormatArrayInt(rvb)
+      case TArray(TFloat64(_), _) => ???
+      case TArray(TString(_), _) => ???
+    }
+  }
+
+  def setFieldMissing(rvb: RegionValueBuilder, i: Int) {
+    rvb.setFieldIndex(formatFieldGIndex(i))
+    rvb.setMissing()
+  }
+
+  def parse(l: VCFLine, rvb: RegionValueBuilder) {
+    rvb.startStruct() // g
+
+    // FIXME do in bulk, add setDefinedIndex
+    var i = 0
+    while (i < missingGIndices.length) {
+      val j = missingGIndices(i)
+      rvb.setFieldIndex(j)
+      rvb.setMissing()
+      i += 1
+    }
+
+    parseAddField(l, rvb, 0)
+    var end = l.endField()
+    i = 1
+    while (i < formatFieldGIndex.length) {
+      if (end)
+        setFieldMissing(rvb, i)
+      else {
+        l.nextFormatField()
+        parseAddField(l, rvb, i)
+        end = l.endField()
+      }
+      i += 1
+    }
+
+    // for error checking
+    rvb.setFieldIndex(gType.size)
+
+    rvb.endStruct() // g
+  }
+}
+
+class ParseLineContext(gType: TStruct, headerLines: BufferedLineIterator) {
+  val codec = new htsjdk.variant.vcf.VCFCodec()
+  codec.readHeader(headerLines)
+
+  val formatParsers = mutable.Map[String, FormatParser]()
+
+  def getFormatParser(format: String): FormatParser = {
+    formatParsers.get(format) match {
+      case Some(fp) => fp
+      case None =>
+        val fp = FormatParser(gType, format)
+        formatParsers += format -> fp
+        fp
+    }
   }
 }
 
@@ -376,7 +708,7 @@ object LoadVCF {
   }
 
   // parses the Variant (key), leaves the rest to f
-  def parseLines[C](makeContext: () => C)(f: (C, String, RegionValueBuilder) => Unit)(
+  def parseLines[C](makeContext: () => C)(f: (C, VCFLine, RegionValueBuilder) => Unit)(
     lines: RDD[WithContext[String]], t: Type): RDD[RegionValue] = {
     lines.mapPartitions { it =>
       new Iterator[RegionValue] {
@@ -390,21 +722,41 @@ object LoadVCF {
 
         def hasNext: Boolean = {
           while (!present && it.hasNext) {
-            present = it.next().map { l =>
-              val vcfLine = new VCFLine(l)
+            val lwc = it.next()
+            val line = lwc.value
+            try {
+              val vcfLine = new VCFLine(line)
               region.clear()
               rvb.start(t)
               rvb.startStruct()
-              val b = vcfLine.parseAddVariant(rvb)
-              if (b) {
-                f(context, l, rvb)
+              present = vcfLine.parseAddVariant(rvb)
+              if (present) {
+                f(context, vcfLine, rvb)
 
                 rvb.endStruct()
                 rv.setOffset(rvb.end())
               } else
                 rvb.clear()
-              b
-            }.value
+            } catch {
+              case e: VCFParseError =>
+                val pos = e.pos
+                val source = lwc.source
+
+                val excerptStart = math.max(0, pos - 36)
+                val excerptEnd = math.min(line.length, pos + 36)
+                val excerpt = line.substring(excerptStart, excerptEnd)
+                  .map { c => if (c == '\t') ' ' else c }
+
+                val prefix = if (excerptStart > 0) "... " else ""
+                val suffix = if (excerptEnd < line.length) " ..." else ""
+
+                var caretPad = prefix.length + pos - excerptStart
+                var pad = " " * caretPad
+
+                fatal(s"${ source.locationString(pos) }: ${ e.msg }\n$prefix$excerpt$suffix\n$pad^\noffending line: @1\nsee the Hail log for the full offending line", line)
+              case e: Throwable =>
+                lwc.source.wrapException(e)
+            }
           }
           present
         }
@@ -476,6 +828,7 @@ object LoadVCF {
     val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature, canonicalFlags) = header1
 
     val sampleIds: Array[String] = if (dropSamples) Array.empty else sampleIdsHeader
+    val localNSamples = sampleIds.length
 
     LoadVCF.warnDuplicates(sampleIds)
 
@@ -507,13 +860,36 @@ object LoadVCF {
     val rdd = OrderedRDD2(
       matrixType.orderedRDD2Type,
       parseLines { () =>
-        val codec = new htsjdk.variant.vcf.VCFCodec()
-        codec.readHeader(new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
-        codec
+        new ParseLineContext(genotypeSignature, new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
       } { (c, l, rvb) =>
-        val vc = c.decode(l)
-        reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, dropSamples, canonicalFlags)
-      } (lines, rowType),
+        val vc = c.codec.decode(l.line)
+        reader.readVariantInfo(vc, rvb, infoSignatureBc.value)
+
+        rvb.startArray(localNSamples) // gs
+        if (localNSamples > 0) {
+          // l is pointing at qual
+          var i = 0
+          while (i < 3) { // qual, filter, info
+            l.skipField()
+            l.nextField()
+            i += 1
+          }
+
+          val format = l.parseString()
+          l.nextField()
+
+          val fp = c.getFormatParser(format)
+
+          fp.parse(l, rvb)
+          i = 1
+          while (i < localNSamples) {
+            l.nextField()
+            fp.parse(l, rvb)
+            i += 1
+          }
+        }
+        rvb.endArray()
+      }(lines, rowType),
       Some(justVariants), None)
 
     new VariantSampleMatrix(hc,

@@ -210,7 +210,7 @@ class HailContext private(val sc: SparkContext,
     sc.textFilesLines(hadoopConf.globAll(files))
       .filter(line => regexp.findFirstIn(line.value).isDefined)
       .take(maxLines)
-      .groupBy(_.source.asInstanceOf[TextContext].file)
+      .groupBy(_.source.asInstanceOf[Context].file)
       .foreach { case (file, lines) =>
         info(s"$file: ${ lines.length } ${ plural(lines.length, "match", "matches") }:")
         lines.map(_.value).foreach { line =>
