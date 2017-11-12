@@ -119,8 +119,7 @@ abstract class OutputBuffer {
 }
 
 object LZ4Buffer {
-  final val blockSize: Int = 128 * 1024
-  // final val blockSize = 16
+  final val blockSize: Int = 32 * 1024
 }
 
 class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {

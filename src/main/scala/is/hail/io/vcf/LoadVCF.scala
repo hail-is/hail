@@ -444,6 +444,30 @@ class FormatParser(
   formatFieldGIndex: Array[Int],
   missingGIndices: Array[Int]) {
 
+  def parseAddField(l: VCFLine, rvb: RegionValueBuilder, i: Int) {
+    val j = formatFieldGIndex(i)
+    rvb.setFieldIndex(j)
+    gType.fieldType(j) match {
+      case TCall(_) =>
+        l.parseAddCall(rvb)
+      case TInt32(_) =>
+        l.parseAddFormatInt(rvb)
+      case TFloat64(_) =>
+        l.parseAddFormatDouble(rvb)
+      case TString(_) =>
+        l.parseAddFormatString(rvb)
+      case TArray(TInt32(_), _) =>
+        l.parseAddFormatArrayInt(rvb)
+      case TArray(TFloat64(_), _) => ???
+      case TArray(TString(_), _) => ???
+    }
+  }
+
+  def setFieldMissing(rvb: RegionValueBuilder, i: Int) {
+    rvb.setFieldIndex(formatFieldGIndex(i))
+    rvb.setMissing()
+  }
+
   def parse(l: VCFLine, rvb: RegionValueBuilder) {
     rvb.startStruct() // g
 
@@ -456,30 +480,16 @@ class FormatParser(
       i += 1
     }
 
-    // FIXME clean up
-    i = 0
+    parseAddField(l, rvb, 0)
+    var end = l.endField()
+    i = 1
     while (i < formatFieldGIndex.length) {
-      val j = formatFieldGIndex(i)
-      rvb.setFieldIndex(j)
-      if (i > 0 && l.endField()) {
-        rvb.setMissing()
-      } else {
-        gType.fieldType(j) match {
-          case TCall(_) =>
-            l.parseAddCall(rvb)
-          case TInt32(_) =>
-            l.parseAddFormatInt(rvb)
-          case TFloat64(_) =>
-            l.parseAddFormatDouble(rvb)
-          case TString(_) =>
-            l.parseAddFormatString(rvb)
-          case TArray(TInt32(_), _) =>
-            l.parseAddFormatArrayInt(rvb)
-          case TArray(TFloat64(_), _) => ???
-          case TArray(TString(_), _) => ???
-        }
-        if (!l.endField())
-          l.nextFormatField()
+      if (end)
+        setFieldMissing(rvb, i)
+      else {
+        l.nextFormatField()
+        parseAddField(l, rvb, i)
+        end = l.endField()
       }
       i += 1
     }
@@ -487,7 +497,7 @@ class FormatParser(
     // for error checking
     rvb.setFieldIndex(gType.size)
 
-    rvb.endStruct()
+    rvb.endStruct() // g
   }
 }
 
