@@ -157,8 +157,6 @@ final class VCFLine(val line: String) {
   }
 
   def parseInt(): Int = {
-    var c: Char = 0
-
     if (endField())
       fatal("empty integer literal")
     var v = VCFLine.numericValue(line(pos))
@@ -281,8 +279,6 @@ final class VCFLine(val line: String) {
   }
 
   def parseIntInCall(): Int = {
-    var c: Char = 0
-
     if (endCallField())
       fatal("empty integer field")
     var v = VCFLine.numericValue(line(pos))
@@ -447,8 +443,6 @@ class FormatParser(
   gType: TStruct,
   formatFieldGIndex: Array[Int],
   missingGIndices: Array[Int]) {
-
-  println(gType, formatFieldGIndex.toSeq, missingGIndices.toSeq)
 
   def parse(l: VCFLine, rvb: RegionValueBuilder) {
     rvb.startStruct() // g

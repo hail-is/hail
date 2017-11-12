@@ -70,7 +70,6 @@ abstract class Genotype extends Serializable {
     val nGenotypes = triangle(nAlleles)
     assert(Genotype.gt(this).forall(i => i >= 0 && i < nGenotypes))
     assert(Genotype.ad(this).forall(a => a.length == nAlleles))
-    assert(Genotype.px(this).forall(a => a.length == nGenotypes))
   }
 
   def copy(gt: Option[Int] = Genotype.gt(this),
