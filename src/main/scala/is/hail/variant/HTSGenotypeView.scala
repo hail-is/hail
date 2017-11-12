@@ -22,6 +22,10 @@ object HTSGenotypeView {
 sealed abstract class HTSGenotypeView {
   def setRegion(mb: MemoryBuffer, offset: Long)
 
+  def setRegion(rv: RegionValue) {
+    setRegion(rv.region, rv.offset)
+  }
+
   def setGenotype(idx: Int)
 
   def gIsDefined: Boolean

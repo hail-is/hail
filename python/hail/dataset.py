@@ -4318,7 +4318,7 @@ class VariantDataset(HistoryMixin):
     def sample_qc(self, root='sa.qc'):
         """Compute per-sample QC metrics.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         **Annotations**
 
@@ -4382,7 +4382,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.sampleQC(root))
+        return VariantDataset(self.hc, self._jvds.sampleQC(root))
 
     @handle_py4j
     def storage_level(self):
@@ -5016,15 +5016,12 @@ class VariantDataset(HistoryMixin):
         self._jvds.typecheck()
 
     @handle_py4j
-    @require_biallelic
     @record_method
     @typecheck_method(root=strlike)
     def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -5088,8 +5085,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.variantQC(root)
-        return VariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, self._jvds.variantQC(root))
 
     @handle_py4j
     @record_method

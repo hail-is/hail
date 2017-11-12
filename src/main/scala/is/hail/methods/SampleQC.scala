@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.annotations.Annotation
 import is.hail.expr.{TStruct, _}
 import is.hail.utils._
-import is.hail.variant.{AltAlleleType, GenericDataset, Genotype, HTSGenotypeView, Variant}
+import is.hail.variant.{AltAlleleType, GenericDataset, Genotype, HTSGenotypeView, Variant, VariantSampleMatrix}
 import org.apache.spark.util.StatCounter
 
 object SampleQCCombiner {
@@ -156,19 +156,20 @@ class SampleQCCombiner extends Serializable {
 }
 
 object SampleQC {
-  def results(vds: GenericDataset): Array[SampleQCCombiner] = {
+  def results[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T]): Array[SampleQCCombiner] = {
     val depth = treeAggDepth(vds.hc, vds.nPartitions)
     val rowType = vds.rowType
     val nSamples = vds.nSamples
-    if (vds.rdd.partitions.nonEmpty)
-      vds.unsafeRowRDD
+    if (vds.rdd2.partitions.nonEmpty)
+      vds.rdd2
           .mapPartitions { it =>
             val view = HTSGenotypeView(rowType)
             val acc = Array.fill[SampleQCCombiner](nSamples)(new SampleQCCombiner)
 
-            it.foreach { r =>
-              view.setRegion(r.region, r.offset)
-              val v = r.getAs[Variant](1)
+            it.foreach { rv =>
+              view.setRegion(rv)
+              val v = Variant.fromRegionValue(rv.region,
+                rowType.loadField(rv, 1))
               val ais = SampleQCCombiner.alleleIndices(v)
               val acs = Array.fill(v.asInstanceOf[Variant].nAlleles)(0)
 
@@ -210,8 +211,8 @@ object SampleQC {
       Array.fill(nSamples)(new SampleQCCombiner)
   }
 
-  def apply(vds: GenericDataset, root: String): GenericDataset = {
-    val r = results(vds).map(_.asAnnotation)
-    vds.annotateSamples(SampleQCCombiner.signature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), r)
+  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], root: String): VariantSampleMatrix[RPK, RK, T] = {
+    val r = results(vsm).map(_.asAnnotation)
+    vsm.annotateSamples(SampleQCCombiner.signature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), r)
   }
 }

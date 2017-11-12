@@ -340,9 +340,20 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         MatrixType(metadata),
         MatrixValue(MatrixType(metadata), localValue, rdd2)))
 
-  def requireSampleTString(method: String) {
-    if (!sSignature.isOfType(TString()))
-      fatal(s"in $method: column key (sample) schema must be String, but found: $sSignature")
+  def requireRowKeyVariant(method: String) {
+    vSignature match {
+      case _: TVariant =>
+      case t =>
+        fatal(s"in $method: row key schema must be Variant, found: $t")
+    }
+  }
+
+  def requireColKeyString(method: String) {
+    sSignature match {
+      case _: TString =>
+      case t =>
+        fatal(s"in $method: column key schema must be String, but found: $t")
+    }
   }
 
   val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit) = metadata
@@ -727,7 +738,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     insertIntoRow(() => new UnsafeRow(localRowType))(
       newVASignature, List("va"), { (ur, rv, rvb) =>
         ur.set(rv)
-        
+
         val v = ur.getAs[RK](1)
         val va = ur.get(2)
         val gs = ur.getAs[Iterable[T]](3)
@@ -1293,7 +1304,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String] = Array.empty, seperator: String = "."): KeyTable = {
-    requireSampleTString("make table")
+    requireColKeyString("make table")
 
     val vSymTab = Map(
       "v" -> (0, vSignature),
@@ -1657,7 +1668,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   def renameDuplicates(): VariantSampleMatrix[RPK, RK, T] = {
-    requireSampleTString("rename duplicates")
+    requireColKeyString("rename duplicates")
     val (newIds, duplicates) = mangle(stringSampleIds.toArray)
     if (duplicates.nonEmpty)
       info(s"Renamed ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
@@ -2167,5 +2178,15 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     accuracy: Double = 1e-6,
     iterations: Int = 10000): KeyTable = {
     Skat(this, variantKeys, singleKey,  weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
+  }
+
+  def sampleQC(root: String = "sa.qc"): VariantSampleMatrix[RPK, RK, T] = {
+    requireRowKeyVariant("sample_qc")
+    SampleQC(this, root)
+  }
+
+  def variantQC(root: String = "va.qc"): VariantSampleMatrix[RPK, RK, T] = {
+    requireRowKeyVariant("variant_qc")
+    VariantQC(this, root)
   }
 }

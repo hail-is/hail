@@ -243,7 +243,7 @@ g = let
 
   def exportPlink(path: String, famExpr: String = "id = s") {
     require(vds.wasSplit)
-    vds.requireSampleTString("export plink")
+    vds.requireColKeyString("export plink")
 
     val ec = EvalContext(Map(
       "s" -> (0, TString()),
@@ -416,7 +416,7 @@ g = let
 
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
     require(vds.wasSplit)
-    vds.requireSampleTString("mendel errors")
+    vds.requireColKeyString("mendel errors")
 
     val men = MendelErrors(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios)
 
@@ -481,8 +481,6 @@ g = let
     PCRelate.toKeyTable(vds, pcs, maf, blockSize, minKinship, statistics)
   }
 
-  def sampleQC(root: String = "sa.qc"): VariantDataset = SampleQC(vds.toGDS, root).toVDS
-
   def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
     require(vds.wasSplit)
     info(s"rrm: Computing Realized Relationship Matrix...")
@@ -493,14 +491,9 @@ g = let
 
   def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {
     require(vds.wasSplit)
-    vds.requireSampleTString("TDT")
+    vds.requireColKeyString("TDT")
     TDT(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios,
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
-  }
-
-  def variantQC(root: String = "va.qc"): VariantDataset = {
-    require(vds.wasSplit)
-    VariantQC(vds.toGDS, root).toVDS
   }
 
   def deNovo(ped: Pedigree,
@@ -511,7 +504,7 @@ g = let
     minChildAB: Double = 0.20,
     minDepthRatio: Double = 0.10): KeyTable = {
     require(vds.wasSplit)
-    vds.requireSampleTString("de novo")
+    vds.requireColKeyString("de novo")
 
     DeNovo(vds, ped, referenceAF, minGQ, minPDeNovo, maxParentAB, minChildAB, minDepthRatio)
   }
