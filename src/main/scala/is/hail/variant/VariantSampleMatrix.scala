@@ -2178,7 +2178,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     Skat(this, variantKeys, singleKey,  weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
   }
 
-<<<<<<< 49ce8a821797c0169ad84939654f63960bb2e3f9
   def minRep(leftAligned: Boolean = false): VariantSampleMatrix[Locus, Variant, T] = {
     requireRowKeyVariant("min_rep")
 
@@ -2233,7 +2232,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           minRep1(removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 
     copy2(rdd2 = newRDD2)
-=======
+
   def sampleQC(root: String = "sa.qc"): VariantSampleMatrix[RPK, RK, T] = {
     requireRowKeyVariant("sample_qc")
     SampleQC(this, root)
@@ -2243,6 +2242,5 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     require(wasSplit)
     requireRowKeyVariant("variant_qc")
     VariantQC(this, root)
->>>>>>> Made QC methods generic.
   }
 }
