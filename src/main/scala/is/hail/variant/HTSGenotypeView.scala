@@ -323,6 +323,8 @@ abstract class HardCallView {
 
   def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
 
+  def gsLength: Int
+
   def setGenotype(idx: Int)
 
   def hasGT: Boolean
@@ -340,8 +342,9 @@ class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
 
   private var m: MemoryBuffer = _
   private var gsOffset: Long = _
-  private var gsLength: Int = _
   private var gOffset: Long = _
+
+  var gsLength: Int = _
 
   var gIsDefined: Boolean = _
 
@@ -395,9 +398,9 @@ class HardCallStructView(rowType: TStruct, callField: String) extends HardCallVi
 
   private var m: MemoryBuffer = _
   private var gsOffset: Long = _
-  private var gsLength: Int = _
   private var gOffset: Long = _
 
+  var gsLength: Int = _
   var gIsDefined: Boolean = _
 
   def setRegion(mb: MemoryBuffer, offset: Long) {

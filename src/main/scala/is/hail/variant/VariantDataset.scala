@@ -163,8 +163,10 @@ g = let
   }
 
   def summarize(): SummaryResult = {
-    vsm.typedRDD[Locus, Variant, Genotype]
-      .aggregate(new SummaryCombiner[Genotype](_.hardCallIterator.countNonNegative()))(_.merge(_), _.merge(_))
+    val rowType = vsm.rowType
+    vsm.rdd2.mapPartitions { it =>
+      Iterator.single(it.foldLeft(new SummaryCombiner(rowType))(_.merge(_)))
+    }.reduce(_.merge(_))
       .result(vsm.nSamples)
   }
 

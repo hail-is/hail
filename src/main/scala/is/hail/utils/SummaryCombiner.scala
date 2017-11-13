@@ -1,7 +1,8 @@
 package is.hail.utils
 
-import is.hail.annotations.Annotation
-import is.hail.variant.{AltAlleleType, Variant}
+import is.hail.annotations.{Annotation, RegionValue}
+import is.hail.expr.{TStruct, TVariant, TArray, TString}
+import is.hail.variant.{AltAllele, AltAlleleType, Variant, HardCallView}
 
 import scala.collection.mutable
 
@@ -9,7 +10,8 @@ case class SummaryResult(samples: Int, variants: Long, callRate: Option[Double],
   contigs: Set[String], multiallelics: Long, snps: Long, mnps: Long, insertions: Long,
   deletions: Long, complex: Long, star: Long, maxAlleles: Int)
 
-class SummaryCombiner[T](f: Iterable[T] => Int) extends Serializable {
+class SummaryCombiner(rowType: TStruct) extends Serializable {
+  private val view = HardCallView(rowType)
   private val contigs = mutable.Set.empty[String]
   private var nCalled = 0L
   private var nVariants = 0L
@@ -22,7 +24,7 @@ class SummaryCombiner[T](f: Iterable[T] => Int) extends Serializable {
   private var complex = 0L
   private var star = 0L
 
-  def merge(other: SummaryCombiner[T]): SummaryCombiner[T] = {
+  def merge(other: SummaryCombiner): SummaryCombiner = {
 
     contigs ++= other.contigs
     nCalled += other.nCalled
@@ -39,18 +41,32 @@ class SummaryCombiner[T](f: Iterable[T] => Int) extends Serializable {
     this
   }
 
-  def merge(data: (Variant, (Annotation, Iterable[T]))): SummaryCombiner[T] = {
+  def merge(rv: RegionValue): SummaryCombiner = {
+    require(rowType.fieldType(1).isInstanceOf[TVariant])
+    val vType = rowType.fieldType(1).asInstanceOf[TVariant]
+    val r = rv.region
+    val vOffset = rowType.loadField(rv, 1)
+    val t = vType.representation
+    val altsType = t.fieldType(3).asInstanceOf[TArray]
+
     nVariants += 1
 
-    val v = data._1
-    contigs += v.contig
-    if (v.nAlleles > 2)
-      multiallelics += 1
-    if (v.nAlleles > maxAlleles)
-      maxAlleles = v.nAlleles
+    val contig = TString.loadString(r, t.loadField(r, vOffset, 0))
+    contigs += contig
 
-    v.altAlleles.foreach { aa =>
-      aa.altAlleleType match {
+    val altsOffset = t.loadField(r, vOffset, 3)
+    val nAlts = altsType.loadLength(r, altsOffset)
+    val nAlleles = nAlts + 1
+    if (nAlleles > 2)
+      multiallelics += 1
+    if (nAlleles > maxAlleles)
+      maxAlleles = nAlleles
+
+    var i = 0
+    while (i < nAlts) {
+      val altOffset = altsType.loadElement(r, altsOffset, nAlts, i)
+      val altAllele = AltAllele.fromRegionValue(r, altOffset)
+      altAllele.altAlleleType match {
         case AltAlleleType.SNP => snps += 1
         case AltAlleleType.MNP => mnps += 1
         case AltAlleleType.Insertion => insertions += 1
@@ -58,9 +74,16 @@ class SummaryCombiner[T](f: Iterable[T] => Int) extends Serializable {
         case AltAlleleType.Complex => complex += 1
         case AltAlleleType.Star => star += 1
       }
+      i += 1
     }
 
-    nCalled += f(data._2._2)
+    view.setRegion(rv)
+    i = 0
+    while (i < view.gsLength) {
+      view.setGenotype(i)
+      if (view.hasGT) nCalled += 1
+      i += 1
+    }
 
     this
   }
