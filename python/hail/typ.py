@@ -60,8 +60,8 @@ class Type(object):
         # FIXME string matching is pretty hacky
         class_name = jtype.getClass().getCanonicalName()
 
-        if class_name in _singleton_classes:
-            return __singletons__(class_name)
+        if class_name in _intern_classes:
+            return __interns__(class_name)
         elif class_name == 'is.hail.expr.TArray':
             return TArray._from_java(jtype)
         elif class_name == 'is.hail.expr.TSet':
@@ -91,16 +91,17 @@ class Type(object):
         return
 
 
-class Singleton(type):
+class Intern(type):
     _instances = {}
 
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
+    def __call__(cls, required=False):
+        p = (cls, required)
+        if p not in cls._instances:
+            cls._instances[p] = super(Intern, cls).__call__(required=required)
+        return cls._instances[p]
 
 
-class SingletonType(Singleton, abc.ABCMeta):
+class InternType(Intern, abc.ABCMeta):
     pass
 
 
@@ -114,7 +115,7 @@ class TInt32(Type):
     - in Python, these are represented natively as Python integers
 
     """
-    __metaclass__ = SingletonType
+    __metaclass__ = InternType
 
     def __init__(self, required = False):
         super(TInt32, self).__init__(scala_object(Env.hail().expr, 'TInt32').apply(required))
@@ -147,7 +148,7 @@ class TInt64(Type):
     - in Python, these are represented natively as Python integers
 
     """
-    __metaclass__ = SingletonType
+    __metaclass__ = InternType
 
     def __init__(self, required = False):
         super(TInt64, self).__init__(scala_object(Env.hail().expr, 'TInt64').apply(required))
@@ -182,7 +183,7 @@ class TFloat32(Type):
     - in Python, these are represented natively as Python floats
 
     """
-    __metaclass__ = SingletonType
+    __metaclass__ = InternType
 
     def __init__(self, required = False):
         super(TFloat32, self).__init__(scala_object(Env.hail().expr, 'TFloat32').apply(required))
@@ -219,7 +220,7 @@ class TFloat64(Type):
     - in Python, these are represented natively as Python floats
 
     """
-    __metaclass__ = SingletonType
+    __metaclass__ = InternType
 
     def __init__(self, required = False):
         super(TFloat64, self).__init__(scala_object(Env.hail().expr, 'TFloat64').apply(required))
@@ -253,7 +254,7 @@ class TString(Type):
     - in Python, these are represented natively as Python unicode strings
 
     """
-    __metaclass__ = SingletonType
+    __metaclass__ = InternType
 
     def __init__(self, required = False):
         super(TString, self).__init__(scala_object(Env.hail().expr, 'TString').apply(required))
@@ -284,7 +285,7 @@ class TBoolean(Type):
     - in Python, these are represented natively as Python booleans (i.e. ``True`` and ``False``)
 
     """
-    __metaclass__ = SingletonType
+    __metaclass__ = InternType
 
     def __init__(self, required = False):
         super(TBoolean, self).__init__(scala_object(Env.hail().expr, 'TBoolean').apply(required))
@@ -654,7 +655,7 @@ class TAltAllele(Type):
     - in Python, values are instances of :class:`hail.representation.AltAllele`
 
     """
-    __metaclass__ = SingletonType
+    __metaclass__ = InternType
 
     def __init__(self, required = False):
         super(TAltAllele, self).__init__(scala_object(Env.hail().expr, 'TAltAllele').apply(required))
@@ -692,7 +693,7 @@ class TGenotype(Type):
     - in Python, values are instances of :class:`hail.representation.Genotype`
 
     """
-    __metaclass__ = SingletonType
+    __metaclass__ = InternType
 
     def __init__(self, required = False):
         super(TGenotype, self).__init__(scala_object(Env.hail().expr, 'TGenotype').apply(required))
@@ -730,7 +731,7 @@ class TCall(Type):
     - in Python, values are instances of :class:`hail.representation.Call`
 
     """
-    __metaclass__ = SingletonType
+    __metaclass__ = InternType
 
     def __init__(self, required = False):
         super(TCall, self).__init__(scala_object(Env.hail().expr, 'TCall').apply(required))
@@ -878,31 +879,32 @@ class TAggregable(Type):
     def _typecheck(self, annotation):
         return
 
-__singletons = {}
-_singleton_classes = {'is.hail.expr.TInt32Optional$': (TInt32, False),
-                      'is.hail.expr.TInt32Required$': (TInt32, True),
-                      'is.hail.expr.TInt64Optional$': (TInt64, False),
-                      'is.hail.expr.TInt64Required$': (TInt64, True),
-                      'is.hail.expr.TFloat32Optional$': (TFloat32, False),
-                      'is.hail.expr.TFloat32Required$': (TFloat32, True),
-                      'is.hail.expr.TFloat64Optional$': (TFloat64, False),
-                      'is.hail.expr.TFloat64Required$': (TFloat64, True),
-                      'is.hail.expr.TBooleanOptional$': (TBoolean, False),
-                      'is.hail.expr.TBooleanRequired$': (TBoolean, True),
-                      'is.hail.expr.TStringOptional$': (TString, False),
-                      'is.hail.expr.TStringRequired$': (TString, True),
-                      'is.hail.expr.TAltAlleleOptional$': (TAltAllele, False),
-                      'is.hail.expr.TAltAlleleRequired$': (TAltAllele, True),
-                      'is.hail.expr.TGenotypeOptional$': (TGenotype, False),
-                      'is.hail.expr.TGenotypeRequired$': (TGenotype, True),
-                      'is.hail.expr.TCallOptional$': (TCall, False),
-                      'is.hail.expr.TCallRequired$': (TCall, True)}
-def __singletons__(scala_type):
-    global __singletons
-    if scala_type not in __singletons:
-        type, required = _singleton_classes[scala_type]
-        __singletons[scala_type] = type(required)
-    return __singletons[scala_type]
+__interns = None
+_intern_classes = {'is.hail.expr.TInt32Optional$': (TInt32, False),
+                   'is.hail.expr.TInt32Required$': (TInt32, True),
+                   'is.hail.expr.TInt64Optional$': (TInt64, False),
+                   'is.hail.expr.TInt64Required$': (TInt64, True),
+                   'is.hail.expr.TFloat32Optional$': (TFloat32, False),
+                   'is.hail.expr.TFloat32Required$': (TFloat32, True),
+                   'is.hail.expr.TFloat64Optional$': (TFloat64, False),
+                   'is.hail.expr.TFloat64Required$': (TFloat64, True),
+                   'is.hail.expr.TBooleanOptional$': (TBoolean, False),
+                   'is.hail.expr.TBooleanRequired$': (TBoolean, True),
+                   'is.hail.expr.TStringOptional$': (TString, False),
+                   'is.hail.expr.TStringRequired$': (TString, True),
+                   'is.hail.expr.TAltAlleleOptional$': (TAltAllele, False),
+                   'is.hail.expr.TAltAlleleRequired$': (TAltAllele, True),
+                   'is.hail.expr.TGenotypeOptional$': (TGenotype, False),
+                   'is.hail.expr.TGenotypeRequired$': (TGenotype, True),
+                   'is.hail.expr.TCallOptional$': (TCall, False),
+                   'is.hail.expr.TCallRequired$': (TCall, True)}
+def __interns__(scala_type):
+    global __interns
+    if not __interns:
+        __interns = {}
+        for scala_type, (type, required) in _intern_classes.iteritems():
+          __interns[scala_type] = type(required)
+    return __interns[scala_type]
 
 import pprint
 

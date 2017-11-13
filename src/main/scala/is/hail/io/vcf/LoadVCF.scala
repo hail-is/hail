@@ -17,7 +17,7 @@ import scala.language.implicitConversions
 import scala.collection.mutable
 import scala.io.Source
 
-case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct, canonicalFlags: Int)
+case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct)
 
 object VCFLine {
   def invalidRef(ref: String): Boolean = {
@@ -625,43 +625,6 @@ object LoadVCF {
       .toArray)
   }
 
-  def formatHeaderSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = true): (TStruct, Int) = {
-    val canonicalFields = Array(
-      "GT" -> TCall(),
-      "AD" -> TArray(TInt32(arrayElementsRequired)),
-      "DP" -> TInt32(),
-      "GQ" -> TInt32(),
-      "PL" -> TArray(TInt32(arrayElementsRequired)))
-
-    val raw = headerSignature(lines, callFields, arrayElementsRequired)
-
-    var canonicalFlags = 0
-    var i = 0
-    val done = mutable.Set[Int]()
-    val fb = new ArrayBuilder[Field]()
-    canonicalFields.zipWithIndex.foreach { case ((id, t), j) =>
-      if (raw.hasField(id)) {
-        val f = raw.field(id)
-        if (f.typ == t) {
-          done += f.index
-          fb += Field(f.name, f.typ, i, f.attrs)
-          canonicalFlags |= (1 << j)
-          i += 1
-        }
-      }
-    }
-
-    raw.fields.foreach { f =>
-      if (!done.contains(f.index)) {
-        fb += Field(f.name, f.typ, i, f.attrs)
-        i += 1
-      }
-    }
-
-    (TStruct(fb.result()), canonicalFlags)
-  }
-
   def parseHeader(reader: HtsjdkRecordReader, lines: Array[String], arrayElementsRequired: Boolean = true): VCFHeaderInfo = {
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
@@ -681,7 +644,7 @@ object LoadVCF {
     val infoSignature = headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val (gSignature, canonicalFlags) = formatHeaderSignature(formatHeader, reader.callFields, arrayElementsRequired = arrayElementsRequired)
+    val gSignature = headerSignature(formatHeader, reader.callFields, arrayElementsRequired = arrayElementsRequired)
 
     val vaSignature = TStruct(Array(
       Field("rsid", TString(), 0),
@@ -697,7 +660,7 @@ object LoadVCF {
 
     val sampleIds: Array[String] = headerLine.split("\t").drop(9)
 
-    VCFHeaderInfo(sampleIds, infoSignature, vaSignature, gSignature, canonicalFlags)
+    VCFHeaderInfo(sampleIds, infoSignature, vaSignature, gSignature)
   }
 
   def getHeaderLines[T](hConf: Configuration, file: String): Array[String] = hConf.readFile(file) { s =>
@@ -825,7 +788,7 @@ object LoadVCF {
              |   $file: ${ hd.vaSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
     }
 
-    val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature, canonicalFlags) = header1
+    val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature) = header1
 
     val sampleIds: Array[String] = if (dropSamples) Array.empty else sampleIdsHeader
     val localNSamples = sampleIds.length
