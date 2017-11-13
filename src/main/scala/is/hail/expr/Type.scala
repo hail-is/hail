@@ -1621,6 +1621,7 @@ final case class Field(name: String, typ: Type,
 object TStruct {
   private val requiredEmpty = TStruct(Array.empty[Field], true)
   private val optionalEmpty = TStruct(Array.empty[Field], false)
+
   def empty(required: Boolean = false): TStruct = if (required) requiredEmpty else optionalEmpty
 
   def apply(args: (String, Type)*): TStruct =
