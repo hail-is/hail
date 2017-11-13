@@ -1,10 +1,12 @@
 package is.hail.variant
 
-import is.hail.annotations.{Annotation, Querier, RegionValue, UnsafeRow}
+import is.hail.annotations._
 import is.hail.expr.{TArray, TCall, TGenotype, TInt32, TString, TStruct, Type}
 import is.hail.io.vcf.ExportVCF
 import is.hail.methods.{SplitMulti, VEP}
+import is.hail.sparkextras.OrderedRDD2
 import is.hail.utils._
+import org.apache.spark.rdd.RDD
 
 import scala.collection.JavaConverters._
 import scala.language.existentials
@@ -23,14 +25,6 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
     ExportVCF(vsm, path, append, parallel)
   }
 
-  def minRep(maxShift: Int = 100): VariantSampleMatrix[Locus, Variant, T] = {
-    require(maxShift > 0, s"invalid value for maxShift: $maxShift. Parameter must be a positive integer.")
-    val minrepped = vsm.rdd.map { case (v, (va, gs)) =>
-      (v.minRep, (va, gs))
-    }
-    vsm.copy(rdd = minrepped.smartShuffleAndSort(vsm.rdd.orderedPartitioner, maxShift))
-  }
-
   /**
     *
     * @param config    VEP configuration file
@@ -39,7 +33,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
     * @param blockSize Variants per VEP invocation
     */
   def vep(config: String, root: String = "va.vep", csq: Boolean = false,
-          blockSize: Int = 1000): VariantSampleMatrix[Locus, Variant, T] = {
+    blockSize: Int = 1000): VariantSampleMatrix[Locus, Variant, T] = {
     VEP.annotate(vsm, config, root, csq, blockSize)
   }
 
