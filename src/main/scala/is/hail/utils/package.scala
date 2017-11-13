@@ -3,7 +3,7 @@ package is.hail
 import java.io._
 import java.lang.reflect.Method
 import java.net.URI
-import java.util.zip.Inflater
+import java.util.zip.{Deflater, Inflater}
 
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
@@ -454,6 +454,16 @@ package object utils extends Logging
     s
   }
 
+  def doubleArraySum(a: Array[Double]): Double = {
+    var s = 0d
+    var i = 0
+    while (i < a.length) {
+      s += a(i)
+      i += 1
+    }
+    s
+  }
+
   def decompress(input: Array[Byte], size: Int): Array[Byte] = {
     val expansion = new Array[Byte](size)
     val inflater = new Inflater
@@ -463,6 +473,20 @@ package object utils extends Logging
       off += inflater.inflate(expansion, off, expansion.length - off)
     }
     expansion
+  }
+
+  def compress(bb: ArrayBuilder[Byte], input: Array[Byte]): Int = {
+    val compressor = new Deflater()
+    compressor.setInput(input)
+    compressor.finish()
+    val buffer = new Array[Byte](1024)
+    var compressedLength = 0
+    while (!compressor.finished()) {
+      val nCompressedBytes = compressor.deflate(buffer)
+      bb ++= (buffer, nCompressedBytes)
+      compressedLength += nCompressedBytes
+    }
+    compressedLength
   }
 
   def loadFromResource[T](file: String)(reader: (InputStream) => T): T = {

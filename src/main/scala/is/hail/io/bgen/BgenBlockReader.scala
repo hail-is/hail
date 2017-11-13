@@ -9,7 +9,7 @@ import org.apache.hadoop.mapred.FileSplit
 
 abstract class BgenBlockReader[T <: BgenRecord](job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[T](job, split) {
   val file = split.getPath
-  val bState = BgenLoader.readState(bfis)
+  val bState = BgenLoader.readState(bfis, file.toString)
   val indexPath = file + ".idx"
   val btree = new IndexBTree(indexPath, job)
 

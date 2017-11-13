@@ -41,9 +41,19 @@ class ContextTests(unittest.TestCase):
         # index
         hc.index_bgen(test_resources + '/example.v11.bgen')
 
-        bgen = hc.import_bgen(test_resources + '/example.v11.bgen',
-                              sample_file=test_resources + '/example.sample')
+        bgen = (hc.import_bgen(test_resources + '/example.v11.bgen',
+                              sample_file=test_resources + '/example.sample'))
         self.assertEqual(bgen.count()[1], 199)
+
+        bgen.export_bgen('/tmp/sample_bgen', nbits_per_prob=32)
+        hc.index_bgen('/tmp/sample_bgen.bgen')
+        exported_bgen = hc.import_bgen('/tmp/sample_bgen.bgen', sample_file='/tmp/sample_bgen.sample')
+        self.assertTrue(bgen.same(exported_bgen))
+
+        bgen.export_bgen('/tmp/sample_bgen_parallel', nbits_per_prob=32, parallel=True)
+        hc.index_bgen('/tmp/sample_bgen_parallel.bgen')
+        exported_bgen_parallel = hc.import_bgen("/tmp/sample_bgen_parallel.bgen", sample_file='/tmp/sample_bgen_parallel.sample')
+        self.assertTrue(bgen.same(exported_bgen_parallel))
 
         gen = hc.import_gen(test_resources + '/example.gen',
                             sample_file=test_resources + '/example.sample')

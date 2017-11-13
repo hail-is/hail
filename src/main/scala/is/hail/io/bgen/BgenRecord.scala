@@ -1,6 +1,5 @@
 package is.hail.io.bgen
 
-import breeze.linalg.DenseVector
 import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
 import is.hail.utils._
@@ -65,7 +64,7 @@ class BgenRecordV11(compressed: Boolean,
   }
 }
 
-class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBitsPerProb: Int) {
+class Bgen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBitsPerProb: Int) {
 
   def apply(s: Int, gi: Int): UInt = {
     assert(s >= 0 && s < nSamples)
@@ -99,7 +98,7 @@ final class Bgen12GenotypeIterator(a: Array[Byte],
 
   private val sampleProbs = ArrayUInt(nGenotypes)
 
-  private val pa = new BGen12ProbabilityArray(a, nSamples, nGenotypes, nBitsPerProb)
+  private val pa = new Bgen12ProbabilityArray(a, nSamples, nGenotypes, nBitsPerProb)
 
   def isSampleMissing(s: Int): Boolean = (a(8 + s) & 0x80) != 0
 
