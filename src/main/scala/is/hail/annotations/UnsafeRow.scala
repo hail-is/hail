@@ -166,7 +166,7 @@ object UnsafeRow {
     a
   }
 
-  private val tArrayInt32 = TArray(TInt32())
+  private val tArrayInt32 = TArray(!TInt32())
 
   def readArrayInt(region: MemoryBuffer, aoff: Long): Array[Int] = {
     val t = tArrayInt32
