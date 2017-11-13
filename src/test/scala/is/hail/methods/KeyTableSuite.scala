@@ -368,6 +368,20 @@ class KeyTableSuite extends SparkSuite {
     val df = kt.toDF(sqlContext)
     df.printSchema()
     df.show()
+    assert(KeyTable.fromDF(hc, df).same(kt))
+  }
+
+  @Test def testKeyTableToDF2() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
+
+    val kt = vds
+      .variantsKT()
+      .annotate("v = str(v), va.filters = va.filters.toArray()")
+      .flatten()
+
+    val df = kt.toDF(sqlContext)
+    val kt2 = KeyTable.fromDF(hc, df, key = Array("v"))
+    assert(kt2.same(kt))
   }
 
   @Test def testQuery() {

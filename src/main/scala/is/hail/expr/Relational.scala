@@ -38,7 +38,7 @@ case class MatrixType(
       "pk" -> locusType,
       "v" -> vType,
       "va" -> vaType,
-      "gs" -> TArray(genotypeType))
+      "gs" -> !TArray(genotypeType))
 
   def orderedRDD2Type: OrderedRDD2Type = {
     new OrderedRDD2Type(Array("pk"),
