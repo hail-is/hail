@@ -30,13 +30,17 @@ object Type {
 
   val genRequiredScalar = genScalar(true)
 
-  def genGenomeReferenceType(required: Boolean) =
-    Gen.oneOfSeq(GenomeReference.references.values.flatMap(gr =>
-      Array(TVariant(gr, required), TLocus(gr, required), TInterval(gr, required))).toArray[Type])
+  def genComplexType(required: Boolean) = {
+    val grDependents = GenomeReference.references.values.flatMap(gr =>
+      Array(TVariant(gr, required), TLocus(gr, required), TInterval(gr, required)))
+    val others = Array(
+      TAltAllele(required), TGenotype(required), TCall(required))
+    Gen.oneOfSeq(grDependents ++ others)
+  }
 
-  val optionalGenomeReferenceTypes = genGenomeReferenceType(false)
+  val optionalComplex = genComplexType(false)
 
-  val requiredGenomeReferenceTypes = genGenomeReferenceType(true)
+  val requiredComplex = genComplexType(true)
 
   def preGenStruct(required: Boolean, genFieldType: Gen[Type]): Gen[TStruct] =
     Gen.buildableOf[Array, (String, Type, Map[String, String])](
@@ -76,7 +80,7 @@ object Type {
     else {
       Gen.frequency(
         (8, genScalar(required)),
-        (1, genGenomeReferenceType(required)),
+        (1, genComplexType(required)),
         (2, genArb.map { TArray(_) }),
         (2, genArb.map { TSet(_) }),
         (2, Gen.zip(genRequired, genArb).map { case (k, v) => TDict(k, v) }),
