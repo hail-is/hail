@@ -15,6 +15,10 @@ final class ArrayStack[@specialized T](hintSize: Int = 16)(implicit tct: ClassTa
 
   def nonEmpty: Boolean = size_ > 0
 
+  def clear(): Unit = {
+    size_ = 0
+  }
+
   def top: T = {
     assert(size_ > 0)
     a(size_ - 1)

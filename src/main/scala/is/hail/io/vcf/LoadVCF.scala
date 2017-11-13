@@ -9,13 +9,186 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark.rdd.RDD
 
+import scala.annotation.switch
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 import scala.collection.mutable
 import scala.io.Source
 
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct, canonicalFlags: Int)
+
+object VCFLine {
+  def numericValue(c: Char): Int = {
+    if (c < '0' || c > '9')
+      fatal(s"invalid character '$c' in integer literal")
+    c - '0'
+  }
+
+  def invalidRef(ref: String): Boolean = {
+    var i = 0
+    while (i < ref.length) {
+      val c = ref(i)
+      (c: @switch) match {
+        case 'A' | 'C' | 'G' | 'T' | 'N' |
+             'a' | 'c' | 'g' | 't' | 'n' =>
+        case _ =>
+          return true
+      }
+      i += 1
+    }
+    false
+  }
+
+  def symbolicAlt(alt: String): Boolean = {
+    assert(alt.length > 0)
+    val f = alt(0)
+    val l = alt(alt.length - 1)
+    if (f == '.' || l == '.' || (f == '<' && l == '>'))
+      return true
+
+    var i = 0
+    while (i < alt.length) {
+      val c = alt(i)
+      if (c == '[' || c == ']')
+        return true
+      i += 1
+    }
+    false
+  }
+}
+
+final class VCFLine(line: String) {
+  var pos: Int = 0
+
+  val abs = new ArrayBuilder[String]
+
+  def parseString(): String = {
+    val start = pos
+    while (pos < line.length && line(pos) != '\t')
+      pos += 1
+    val end = pos
+    line.substring(start, end)
+  }
+
+  def parseInt(): Int = {
+    var c: Char = 0
+
+    if (!(pos < line.length && line(pos) != '\t'))
+      fatal("empty integer field")
+    var v = VCFLine.numericValue(line(pos))
+    pos += 1
+    while (pos < line.length && line(pos) != '\t') {
+      v = v * 10 + VCFLine.numericValue(line(pos))
+      pos += 1
+    }
+    v
+  }
+
+  def skipField(): Unit = {
+    while (pos < line.length && line(pos) != '\t')
+      pos += 1
+  }
+
+  def parseStringInArray(): String = {
+    val start = pos
+    while (pos < line.length && line(pos) != '\t' && line(pos) != ',')
+      pos += 1
+    val end = pos
+    line.substring(start, end)
+  }
+
+  // leaves result in abs
+  def parseAltAlleles(): Unit = {
+    assert(abs.size == 0)
+
+    // . means no alternate alleles
+    if (pos < line.length
+      && line(pos) == '.'
+      && (pos + 1 == line.length || line(pos + 1) == '\t'))
+      return
+
+    abs += parseStringInArray()
+    while (pos < line.length && line(pos) != '\t') {
+      pos += 1 // comma
+      abs += parseStringInArray()
+    }
+  }
+
+  def nextField(): Unit = {
+    if (pos == line.length)
+      fatal("unexpected end of line")
+    pos += 1 // tab
+  }
+
+  // return false if it should be filtered
+  def parseAddVariant(rvb: RegionValueBuilder): Boolean = {
+    assert(pos == 0)
+
+    if (line.isEmpty || line(0) == '#')
+      return false
+
+    // CHROM (contig)
+    val contig = parseString()
+    nextField()
+
+    // POS (start)
+    val start = parseInt()
+    nextField()
+
+    skipField() // ID
+    nextField()
+
+    // REF
+    val ref = parseString()
+    if (VCFLine.invalidRef(ref)) {
+      warn(s"skipping variant with invalid REF field: $ref")
+      return false
+    }
+    nextField()
+
+    // ALT
+    parseAltAlleles()
+
+    var i = 0
+    while (i < abs.length) {
+      val alt = abs(i)
+      if (alt.isEmpty)
+        fatal("empty alternate allele")
+      if (VCFLine.symbolicAlt(alt)) {
+        warn(s"skipping variant with symbolic alternate allele in ALT field: $alt")
+        return false
+      }
+      i += 1
+    }
+
+    rvb.startStruct() // pk: Locus
+    rvb.addString(contig)
+    rvb.addInt(start)
+    rvb.endStruct()
+
+    rvb.startStruct() // v: Variant
+    rvb.addString(contig)
+    rvb.addInt(start)
+    rvb.addString(ref)
+    rvb.startArray(abs.length)
+    i = 0
+    while (i < abs.length) {
+      rvb.startStruct()
+      rvb.addString(ref)
+      rvb.addString(abs(i))
+      rvb.endStruct()
+      i += 1
+    }
+    rvb.endArray()
+    rvb.endStruct() // v
+
+    abs.clear()
+
+    true
+  }
+}
 
 object LoadVCF {
 
@@ -202,6 +375,51 @@ object LoadVCF {
       .toArray
   }
 
+  // parses the Variant (key), leaves the rest to f
+  def parseLines[C](makeContext: () => C)(f: (C, String, RegionValueBuilder) => Unit)(
+    lines: RDD[WithContext[String]], t: Type): RDD[RegionValue] = {
+    lines.mapPartitions { it =>
+      new Iterator[RegionValue] {
+        val region = MemoryBuffer()
+        val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
+
+        val context: C = makeContext()
+
+        var present: Boolean = false
+
+        def hasNext: Boolean = {
+          while (!present && it.hasNext) {
+            present = it.next().map { l =>
+              val vcfLine = new VCFLine(l)
+              region.clear()
+              rvb.start(t)
+              rvb.startStruct()
+              val b = vcfLine.parseAddVariant(rvb)
+              if (b) {
+                f(context, l, rvb)
+
+                rvb.endStruct()
+                rv.setOffset(rvb.end())
+              } else
+                rvb.clear()
+              b
+            }.value
+          }
+          present
+        }
+
+        def next(): RegionValue = {
+          // call hasNext to advance if necessary
+          if (!hasNext)
+            throw new java.util.NoSuchElementException()
+          present = false
+          rv
+        }
+      }
+    }
+  }
+
   def apply(hc: HailContext,
     reader: HtsjdkRecordReader,
     file1: String,
@@ -283,67 +501,20 @@ object LoadVCF {
     val kType = matrixType.kType
     val rowType = matrixType.rowType
 
-    val justVariants = lines
-      .filter(_.map { line =>
-        !line.isEmpty &&
-          line(0) != '#' &&
-          lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')
-        // FIXME this doesn't filter symbolic, but also avoids decoding the line.  Won't cause errors but might cause unnecessary shuffles
-      }.value)
-      .mapPartitions { it =>
-        val region = MemoryBuffer()
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
-
-        it.map { line =>
-          val v = line.map(lineVariant).value
-          region.clear()
-          rvb.start(kType)
-          rvb.startStruct()
-          rvb.addAnnotation(locusType, v.locus)
-          rvb.addAnnotation(vType, v)
-          rvb.endStruct()
-          rv.setOffset(rvb.end())
-
-          rv
-        }
-      }
+    // nothing after the key
+    val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType)
 
     val rdd = OrderedRDD2(
       matrixType.orderedRDD2Type,
-      lines
-      .mapPartitions { lines =>
+      parseLines { () =>
         val codec = new htsjdk.variant.vcf.VCFCodec()
         codec.readHeader(new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
-
-        val region = MemoryBuffer()
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
-
-        lines.flatMap { l =>
-          l.map { line =>
-            if (line.isEmpty || line(0) == '#')
-              None
-            else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
-              None
-            } else {
-              val vc = codec.decode(line)
-              if (vc.isSymbolic) {
-                None
-              } else {
-                region.clear()
-                rvb.start(rowType.fundamentalType)
-                rvb.startStruct()
-                reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, dropSamples, canonicalFlags)
-                rvb.endStruct()
-                rv.setOffset(rvb.end())
-
-                Some(rv)
-              }
-            }
-          }.value
-        }
-      }, Some(justVariants), None)
+        codec
+      } { (c, l, rvb) =>
+        val vc = c.decode(l)
+        reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, dropSamples, canonicalFlags)
+      } (lines, rowType),
+      Some(justVariants), None)
 
     new VariantSampleMatrix(hc,
       vsmMetadata,

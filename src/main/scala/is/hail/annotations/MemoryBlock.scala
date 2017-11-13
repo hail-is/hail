@@ -507,6 +507,14 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
   def inactive: Boolean = root == null && typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty
 
+  def clear(): Unit = {
+    root = null
+    typestk.clear()
+    offsetstk.clear()
+    elementsOffsetstk.clear()
+    indexstk.clear()
+  }
+
   def set(newRegion: MemoryBuffer) {
     assert(inactive)
     region = newRegion
