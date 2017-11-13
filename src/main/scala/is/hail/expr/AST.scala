@@ -82,9 +82,9 @@ case class EvalContext(st: SymbolTable,
     a(2) = arg3
     a(3) = arg4
     a(4) = arg5
-    var i = 5
+    var i = 0
     while (i < args.length) {
-      a(i) = args(i)
+      a(5 + i) = args(i)
       i += 1
     }
   }

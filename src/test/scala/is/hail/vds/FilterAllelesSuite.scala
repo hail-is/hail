@@ -10,7 +10,22 @@ import org.testng.annotations.Test
 
 class FilterAllelesSuite extends SparkSuite {
 
-  private val noop = "va = va"
+  @Test def testRandom() {
+    Prop.forAll(VSMSubgen.random.gen(hc)) { vds =>
+      val vds2 = vds.annotateAllelesExpr("va.p = pcoin(0.2)")
+        .cache()
+
+      val (nAlleles1, _) = vds2.queryVariants("variants.map(v => va.p.map(x => if (x) 1 else 0).sum()).sum()")
+
+      val nAlleles2 = vds2.filterAlleles("va.p[aIndex - 1]", keepStar = true)
+        .splitMulti(keepStar = true)
+        .countVariants()
+
+      assert(nAlleles1 == nAlleles2)
+
+      true
+    }.check()
+  }
 
   @Test def filterAllAlleles(): Unit = {
     Prop.forAll(VSMSubgen.random.gen(hc)) { vds =>
@@ -130,7 +145,7 @@ class FilterAllelesSuite extends SparkSuite {
     val newVa1 = va1
     val newGenotype11 = genotype11.copy(gt = Option(1), ad = Option(Array(25, 5)), gq = Option(10), px = Option(Array(10, 0, 10)))
     val newGenotype12 = genotype12.copy(gt = Option(2), ad = Option(Array(25, 35)), gq = Option(10), px = Option(Array(10, 10, 0)))
-    val newGenotype13 = genotype13.copy(gt = Option(0), ad = Option(Array(25, 10)), gq = Option(0), px = Option(Array(0, 0, 0)))
+    val newGenotype13 = genotype13.copy(gt = None, ad = Option(Array(25, 10)), gq = Option(0), px = Option(Array(0, 0, 0)))
     val newGenotypes1 = Seq(newGenotype11, newGenotype12, newGenotype13)
     val newRow1 = (newVariant1, (newVa1, newGenotypes1))
 
@@ -177,7 +192,7 @@ class FilterAllelesSuite extends SparkSuite {
       TString(),
       TStruct.empty),
       sc.parallelize(Seq(row1)).toOrderedRDD)
-      .filterAlleles("aIndex == 2", keep = false, subset = false, annotationExpr = "va = aIndices")
+      .filterAlleles("aIndex == 2", variantExpr = "va = newToOld", keep = false, subset = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
     val newVa1: IndexedSeq[Int] = Array(0, 1)

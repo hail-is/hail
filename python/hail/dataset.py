@@ -1666,10 +1666,10 @@ class VariantDataset(HistoryMixin):
                       subset=bool,
                       keep=bool,
                       filter_altered_genotypes=bool,
-                      max_shift=integral,
+                      left_aligned=bool,
                       keep_star=bool)
-    def filter_alleles(self, expr, annotation='va = va', subset=True, keep=True,
-                       filter_altered_genotypes=False, max_shift=100, keep_star=False):
+    def filter_alleles(self, expr, annotation='', subset=True, keep=True,
+                       filter_altered_genotypes=False, left_aligned=False, keep_star=False):
         """Filter a user-defined set of alternate alleles for each variant.
         If all alternate alleles of a variant are filtered, the
         variant itself is filtered.  The expr expression is
@@ -1685,11 +1685,11 @@ class VariantDataset(HistoryMixin):
         indices:
 
         >>> vds_result = vds.filter_alleles('va.info.AC[aIndex - 1] == 0',
-        ...     annotation='va.info.AC = aIndices[1:].map(i => va.info.AC[i - 1])',
+        ...     annotation='va.info.AC = newToOld[1:].map(i => va.info.AC[i - 1])',
         ...     keep=False)
 
-        Note that we skip the first element of ``aIndices`` because
-        we are mapping between the old and new *allele* indices, not
+        Note that we skip the first element of ``newToOld`` because
+        we are mapping between the new and old *allele* indices, not
         the *alternate allele* indices.
 
         **Notes**
@@ -1777,21 +1777,23 @@ class VariantDataset(HistoryMixin):
 
         The following symbols are in scope for ``expr``:
 
+        - ``global``: global annotations
         - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
         - ``va``: variant annotations
         - ``aIndex`` (*Int*): the index of the allele being tested
 
         The following symbols are in scope for ``annotation``:
 
-        - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
+        - ``global``: global annotations
+        - ``v`` (*Variant(GR)*): the old :ref:`variant(gr)`
+        - ``newV`` (*Variant(GR)*): the new :ref:`variant(gr)`
         - ``va``: variant annotations
-        - ``aIndices`` (*Array[Int]*): the array of old indices (such that ``aIndices[newIndex] = oldIndex`` and ``aIndices[0] = 0``)
+        - ``newToOld`` (*Array[Int]*): the array of old indices (such that ``newToOld[newIndex] = oldIndex`` and ``newToOld[0] = 0``)
 
-        :param str expr: Boolean filter expression involving v (variant), va (variant annotations), 
-            and aIndex (allele index)
+        :param str expr: Boolean filter expression involving ``v`` (variant), ``va`` (variant annotations), 
+            and ``aIndex`` (allele index)
 
-        :param str annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
-            and aIndices (maps from new to old indices)
+        :param str annotation: Annotation modifying expression involving ``v`` (old variant), ``newV`` (new variant), ``va`` (old variant annotations), and ``newToOld`` (maps from new to old indices).
 
         :param bool subset: If true, subsets PL and AD, otherwise downcodes the PL and AD.
             Genotype and GQ are set based on the resulting PLs.
@@ -1800,19 +1802,19 @@ class VariantDataset(HistoryMixin):
 
         :param bool filter_altered_genotypes: If true, genotypes that contain filtered-out alleles are set to missing.
 
-        :param int max_shift: maximum number of base pairs by which
-            a split variant can move.  Affects memory usage, and will
-            cause Hail to throw an error if a variant that moves further
-            is encountered.
+        :param bool left_aligned: If True, variants are assumed to be
+          left aligned and have unique loci.  This avoids a shuffle.
+          If the assumption is violated, an error is generated.
 
         :param bool keepStar: If true, keep variants where the only allele left is a ``*`` allele.
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
+
         """
 
-        jvds = self._jvdf.filterAlleles(expr, annotation, filter_altered_genotypes, keep, subset, max_shift,
-                                        keep_star)
+        jvds = self._jvdf.filterAlleles(expr, annotation, filter_altered_genotypes, keep, subset,
+                                        left_aligned, keep_star)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
