@@ -64,6 +64,5 @@ class BiallelicMethodsSuite extends SparkSuite {
     interceptRequire {
       multi.variantQC()
     }
-
   }
 }
