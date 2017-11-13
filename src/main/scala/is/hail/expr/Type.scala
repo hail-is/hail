@@ -79,12 +79,12 @@ object Type {
       genScalar(required)
     else {
       Gen.frequency(
-        (8, genScalar(required)),
+        (4, genScalar(required)),
         (1, genComplexType(required)),
-        (2, genArb.map { TArray(_) }),
-        (2, genArb.map { TSet(_) }),
-        (2, Gen.zip(genRequired, genArb).map { case (k, v) => TDict(k, v) }),
-        (2, genTStruct.resize(size)))
+        (1, genArb.map { TArray(_) }),
+        (1, genArb.map { TSet(_) }),
+        (1, Gen.zip(genRequired, genArb).map { case (k, v) => TDict(k, v) }),
+        (1, genTStruct.resize(size)))
     }
 
   def preGenArb(required: Boolean, genStruct: Gen[TStruct] = genStruct): Gen[Type] =
