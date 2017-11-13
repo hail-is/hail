@@ -1115,6 +1115,19 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(r1.same(vds))
 
     def test_trio_matrix(self):
+        """
+        This test depends on certain properties of the TDT VCF
+        and pedigree structure.
+
+        This test is NOT a valid test if the pedigree includes quads:
+        the trio_matrix method will duplicate the parents appropriately,
+        but the genotypes_table and samples_table orthogonal paths would
+        require another duplication/explode that we haven't written.
+
+        We use complete_trios because the TDT fam includes the parents as
+        separate lines (so it can be used with a bed/bim file). This also
+        causes the duplication problem above.
+        """
         ped = Pedigree.read('src/test/resources/tdt.fam')
         famkt = KeyTable.import_fam('src/test/resources/tdt.fam')
 
@@ -1131,6 +1144,7 @@ class ContextTests(unittest.TestCase):
             .select(['matID', 'isMom']) \
             .key_by('matID')
 
+        # test genotypes
         gkt = (vds.genotypes_table()
                   .key_by('s')
                   .join(dads, how='left')
@@ -1153,7 +1167,6 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(gkt.same(tkt))
 
         # test annotations
-
         g_sa = (vds.samples_table()
                    .join(dads, how='left')
                    .join(moms, how='left')

@@ -5737,7 +5737,7 @@ class VariantDataset(HistoryMixin):
         **Notes**
 
         This method builds a new dataset with one column per trio. If ``complete_trios``,
-        then only trios that satisfy the :py:meth:`~hail.representation.Trio.is_complete`
+        then only trios that satisfy :py:meth:`~hail.representation.Trio.is_complete`
         are included. In this new dataset, the column identifiers
         are the sample IDs of the trio probands. The column annotations and
         entries of the matrix are changed in the following ways:
@@ -5747,12 +5747,12 @@ class VariantDataset(HistoryMixin):
         each with an ``id`` and ``annotations`` field. The ``annotations`` fields have the
         same schema as the column annotation schema of the input dataset.
 
-         - **proband.id** (*String*) - Proband sample ID, same of trio column key.
-         - **proband.annotations** (*Struct*) - Annotations on the proband.
-         - **father.id** (*String*) - Father sample ID.
-         - **father.annotations** (*Struct*) - Annotations on the father.
-         - **mother.id** (*String*) - Mother sample ID.
-         - **mother.annotations** (*Struct*) - Annotations on the mother.
+         - **sa.proband.id** (*String*) - Proband sample ID, same as trio column key.
+         - **sa.proband.annotations** (*Struct*) - Annotations on the proband.
+         - **sa.father.id** (*String*) - Father sample ID.
+         - **sa.father.annotations** (*Struct*) - Annotations on the father.
+         - **sa.mother.id** (*String*) - Mother sample ID.
+         - **sa.mother.annotations** (*Struct*) - Annotations on the mother.
 
         The new cell schema is a ``Struct`` with ``proband``, ``father``, and ``mother``
         fields, where the schema of each field is the entry schema of the input dataset.

@@ -916,7 +916,6 @@ class KeyTable(val hc: HailContext,
       sb.append(sep)
     }
 
-
     // data
     allStrings.drop(2).foreach {
       _.zipWithIndex.map { case (cell, i) =>

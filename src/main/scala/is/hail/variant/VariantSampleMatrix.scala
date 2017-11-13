@@ -2265,7 +2265,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       "id" -> TString(required = true),
       "annotations" -> saSignature
     )
-    val newColumnAnnotationType = TStruct(
+    val newSaSignature = TStruct(
       "proband" -> memberAnnotationType,
       "father" -> memberAnnotationType,
       "mother" -> memberAnnotationType
@@ -2299,20 +2299,23 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       i += 1
     }
 
-    val newCellType = TStruct(
-      "proband" -> genotypeSignature,
-      "father" -> genotypeSignature,
-      "mother" -> genotypeSignature
+    val gSig = genotypeSignature
+
+    val newEntryType = TStruct(
+      "proband" -> gSig,
+      "father" -> gSig,
+      "mother" -> gSig
     )
-    val gsig = genotypeSignature
 
     val oldRowType = rowType
     val newRowType = TStruct(Array(
       rowType.fields(0),
       rowType.fields(1),
       rowType.fields(2),
-      Field(rowType.fields(3).name, TArray(newCellType), 3)
+      Field(rowType.fields(3).name, TArray(newEntryType), 3)
     ))
+
+    val oldGsType = rowType.fieldType(3).asInstanceOf[TArray]
 
     val newRDD = rdd2.mapPartitionsPreservesPartitioning { it =>
       it.map { r =>
@@ -2320,33 +2323,31 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         rvb.start(newRowType)
         rvb.startStruct()
 
-        // FIXME: The next four lines allocate
-        val oldRow = UnsafeRow.readStruct(oldRowType, r.region, r.offset)
-        rvb.addAnnotation(newRowType.fields(0).typ, oldRow.get(0))
-        rvb.addAnnotation(newRowType.fields(1).typ, oldRow.get(1))
-        rvb.addAnnotation(newRowType.fields(2).typ, oldRow.get(2))
+        rvb.addField(oldRowType, r, 0)
+        rvb.addField(oldRowType, r, 1)
+        rvb.addField(oldRowType, r, 2)
 
-        val arr = oldRow.getAs[IndexedSeq[Annotation]](3)
         rvb.startArray(nTrios)
+        val gsOffset = oldRowType.loadField(r, 3)
 
         var i = 0
         while (i < nTrios) {
           rvb.startStruct()
 
           // append kid element
-          rvb.addAnnotation(gsig, arr(kidIndices(i)))
+          rvb.addElement(oldGsType, r.region, gsOffset, kidIndices(i))
 
           // append dad element if the dad is defined
           val dadIndex = dadIndices(i)
           if (dadIndex >= 0)
-            rvb.addAnnotation(gsig, arr(dadIndices(i)))
+            rvb.addElement(oldGsType, r.region, gsOffset, dadIndex)
           else
             rvb.setMissing()
 
           // append mom element if the mom is defined
           val momIndex = momIndices(i)
           if (momIndex >= 0)
-            rvb.addAnnotation(gsig, arr(momIndex))
+            rvb.addElement(oldGsType, r.region, gsOffset, momIndex)
           else
             rvb.setMissing()
 
@@ -2363,7 +2364,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     copy2(rdd2 = newRDD,
       sampleIds = kidIds,
       sampleAnnotations = newSampleAnnotations,
-      saSignature = newColumnAnnotationType,
-      genotypeSignature = newCellType)
+      saSignature = newSaSignature,
+      genotypeSignature = newEntryType)
   }
 }
