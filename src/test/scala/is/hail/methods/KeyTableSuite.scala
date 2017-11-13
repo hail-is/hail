@@ -380,9 +380,7 @@ class KeyTableSuite extends SparkSuite {
       .flatten()
 
     val df = kt.toDF(sqlContext)
-//    df.printSchema()
-//    df.show()
-    val kt2 = KeyTable.fromDF(hc, df)
+    val kt2 = KeyTable.fromDF(hc, df, key = Array("v"))
     assert(kt2.same(kt))
   }
 
