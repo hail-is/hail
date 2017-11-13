@@ -1891,6 +1891,13 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
   def storageLevel: String = rdd2.getStorageLevel2.toReadableString()
 
+  def summarize(): SummaryResult = {
+    val localRowType = rowType
+    val localNSamples = nSamples
+    rdd2.aggregate(new SummaryCombiner(localRowType))(_.merge(_), _.merge(_))
+      .result(localNSamples)
+  }
+
   def setVaAttributes(path: String, kv: Map[String, String]): VariantSampleMatrix = {
     setVaAttributes(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD), kv)
   }

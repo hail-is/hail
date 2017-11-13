@@ -162,12 +162,6 @@ g = let
     CalculateConcordance(vsm, other)
   }
 
-  def summarize(): SummaryResult = {
-    val rowType = vsm.rowType
-    vsm.rdd2.aggregate(new SummaryCombiner(rowType))(_.merge(_), _.merge(_))
-      .result(vsm.nSamples)
-  }
-
   def exportPlink(path: String, famExpr: String = "id = s") {
     require(vsm.wasSplit)
     vsm.requireColKeyString("export plink")
