@@ -731,8 +731,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
 
-    val lnewVASignature = newVASignature
-    val lVaSignature = vaSignature
     val localRowType = rowType
     insertIntoRow(() => new UnsafeRow(localRowType))(
       newVASignature, List("va"), { (ur, rv, rvb) =>
@@ -754,9 +752,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           i += 1
         }
 
-        try {
-          rvb.addAnnotation(newVASignature, newVA)
-        } catch { case e: Exception => throw new RuntimeException(s"$lnewVASignature\n$lVaSignature\n$newVA") }
+        rvb.addAnnotation(newVASignature, newVA)
       })
   }
 
