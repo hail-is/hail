@@ -353,7 +353,7 @@ g = let newpl = if (isDefined(g.pl))
             let oldi = gtIndex(newToOld[gtj(newi)], newToOld[gtk(newi)])
              in g.pl[oldi]) and
             minpl = unnorm.min()
-         in x - unnorm
+         in unnorm - minpl
       else
         NA: Array[Int] and
     newgt = gtFromPL(newpl) and

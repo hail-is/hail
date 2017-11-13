@@ -20,7 +20,7 @@ object FilterAlleles {
       "global" -> (0, vsm.globalSignature),
       "v" -> (1, vsm.vSignature),
       "va" -> (2, vsm.vaSignature),
-      "aIndex" -> (3, TInt32)))
+      "aIndex" -> (3, TInt32())))
     val conditionE = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, conditionEC)
 
     val vEC = EvalContext(Map(
@@ -28,16 +28,16 @@ object FilterAlleles {
       "v" -> (1, vsm.vSignature),
       "va" -> (2, vsm.vaSignature),
       "newV" -> (3, vsm.vSignature),
-      "oldToNew" -> (4, TArray(TInt32)),
-      "newToOld" -> (5, TArray(TInt32))))
+      "oldToNew" -> (4, TArray(TInt32())),
+      "newToOld" -> (5, TArray(TInt32()))))
 
     val gEC = EvalContext(Map(
       "global" -> (0, vsm.globalSignature),
       "v" -> (1, vsm.vSignature),
       "va" -> (2, vsm.vaSignature),
       "newV" -> (3, vsm.vSignature),
-      "oldToNew" -> (4, TArray(TInt32)),
-      "newToOld" -> (5, TArray(TInt32)),
+      "oldToNew" -> (4, TArray(TInt32())),
+      "newToOld" -> (5, TArray(TInt32())),
       "s" -> (6, vsm.sSignature),
       "sa" -> (7, vsm.saSignature),
       "g" -> (8, vsm.genotypeSignature)))
