@@ -45,11 +45,11 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case DoubleType => TFloat64()
     case StringType => TString()
     case BinaryType => TBinary()
-    case ArrayType(elementType, _) => TArray(importType(elementType))
+    case ArrayType(elementType, containsNull) => TArray(importType(elementType).setRequired(!containsNull))
     case StructType(fields) =>
       TStruct(fields.zipWithIndex
         .map { case (f, i) =>
-          (f.name, importType(f.dataType))
+          (f.name, importType(f.dataType).setRequired(!f.nullable))
         }: _*)
   }
 
