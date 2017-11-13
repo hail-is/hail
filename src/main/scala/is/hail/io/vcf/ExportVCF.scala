@@ -73,7 +73,7 @@ object ExportVCF {
 
   def emitInfo(sb: StringBuilder, f: Field, m: MemoryBuffer, offset: Long, wroteLast: Boolean): Boolean = {
     f.typ match {
-      case it: TIterable if it.elementType != TBoolean() =>
+      case it: TIterable if !it.elementType.isOfType(TBoolean()) =>
         val length = it.loadLength(m, offset)
         if (length == 0)
           wroteLast
@@ -113,8 +113,8 @@ object ExportVCF {
 
   def infoType(f: Field): String = {
     val tOption = f.typ match {
-      case TArray(elt, _) if elt != TBoolean() => infoType(elt)
-      case TSet(elt, _) if elt != TBoolean() => infoType(elt)
+      case TArray(elt, _) if !elt.isOfType(TBoolean()) => infoType(elt)
+      case TSet(elt, _) if !elt.isOfType(TBoolean()) => infoType(elt)
       case t => infoType(t)
     }
     tOption match {
@@ -193,25 +193,25 @@ object ExportVCF {
     }(sb += ':')
   }
 
-  def apply[RPK, RK, T >: Null](vkds0: VariantSampleMatrix[RPK, RK, T], path: String, append: Option[String] = None,
+  def apply[RPK, RK, T >: Null](vsm0: VariantSampleMatrix[RPK, RK, T], path: String, append: Option[String] = None,
     parallel: Boolean = false)(implicit tct: ClassTag[T]) {
-    
-    if (vkds0.sSignature != TString()) {
-      fatal(s"export_vcf requires s to have type TString, found ${vkds0.sSignature}")
+        
+    if (vsm0.sSignature != TString()) {
+      fatal(s"export_vcf requires s to have type TString, found ${vsm0.sSignature}")
     }
     
-    if (!vkds0.vSignature.isInstanceOf[TVariant])
-      fatal(s"export_vcf requires v to have type Variant, found ${vkds0.vSignature}")
+    if (!vsm0.vSignature.isInstanceOf[TVariant])
+      fatal(s"export_vcf requires v to have type Variant, found ${vsm0.vSignature}")
     
-    val vkds = vkds0.genotypeSignature match {
+    val vsm = vsm0.genotypeSignature match {
       case TGenotype(_) =>
-        vkds0.annotateGenotypesExpr("g = {GT: Call(g.gt), AD: g.ad, DP: g.dp, GQ: g.gq, PL: g.pl}")
+        vsm0.annotateGenotypesExpr("g = {GT: Call(g.gt), AD: g.ad, DP: g.dp, GQ: g.gq, PL: g.pl}")
           .copy2(genotypeSignature = TGenotype.representationWithVCFAttributes())
-      case t: TStruct => vkds0
+      case t: TStruct => vsm0
       case t => fatal(s"export_vcf requires g to have type TStruct, found $t")
     }
     
-    val tg = vkds.genotypeSignature.asInstanceOf[TStruct]
+    val tg = vsm.genotypeSignature.asInstanceOf[TStruct]
     checkFormatSignature(tg)
         
     val formatFieldOrder: Array[Int] = tg.fieldIdx.get("GT") match {
@@ -219,11 +219,14 @@ object ExportVCF {
       case None => tg.fields.indices.toArray
     }
     val formatFieldString = formatFieldOrder.map(i => tg.fields(i).name).mkString(":")
+    
+    println(tg.toPrettyString())
+    println(formatFieldString)
 
-    val tva = vkds.vaSignature match {
+    val tva = vsm.vaSignature match {
       case t: TStruct => t.asInstanceOf[TStruct]
       case _ =>
-        warn(s"export_vcf found va of type ${ vkds.vaSignature }, but expected type TStruct. " +
+        warn(s"export_vcf found va of type ${ vsm.vaSignature }, but expected type TStruct. " +
           "Emitting missing RSID, QUAL, and INFO.")
         TStruct.empty
     }
@@ -239,7 +242,7 @@ object ExportVCF {
       } else
         TStruct.empty
     
-    val localNSamples = vkds.nSamples
+    val localNSamples = vsm.nSamples
     val hasSamples = localNSamples > 0
 
     def header: String = {
@@ -262,7 +265,7 @@ object ExportVCF {
 
       sb += '\n'
 
-      vkds.vaSignature.fieldOption("filters")
+      vsm.vaSignature.fieldOption("filters")
         .foreach { f =>
           f.attrs.foreach { case (key, desc) =>
             sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
@@ -282,7 +285,7 @@ object ExportVCF {
       }
 
       append.foreach { f =>
-        vkds.sparkContext.hadoopConfiguration.readFile(f) { s =>
+        vsm.sparkContext.hadoopConfiguration.readFile(f) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)
@@ -296,7 +299,7 @@ object ExportVCF {
       sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
       if (hasSamples)
         sb.append("\tFORMAT")
-      vkds.sampleIds.foreach { id =>
+      vsm.sampleIds.foreach { id =>
         sb += '\t'
         sb.append(id)
       }
@@ -325,10 +328,10 @@ object ExportVCF {
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(TSet(TString())))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
     
-    val localRowType = vkds.rowType
+    val localRowType = vsm.rowType
     val tgs = localRowType.fields(3).typ.asInstanceOf[TArray]
     
-    vkds.rdd2.mapPartitions { it =>
+    vsm.rdd2.mapPartitions { it =>
       val sb = new StringBuilder
       var m: MemoryBuffer = null
       
@@ -400,7 +403,7 @@ object ExportVCF {
         if (hasSamples) {
           sb += '\t'
           sb.append(formatFieldString)
-           
+          
           var i = 0
           while (i < localNSamples) {
             sb += '\t'
@@ -415,6 +418,6 @@ object ExportVCF {
         
         sb.result()
       }
-    }.writeTable(path, vkds.hc.tmpDir, Some(header), parallelWrite = parallel)
+    }.writeTable(path, vsm.hc.tmpDir, Some(header), parallelWrite = parallel)
   }
 }

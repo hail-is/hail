@@ -1285,7 +1285,8 @@ object TGenotype {
       "dp" -> TInt32(),
       "gq" -> TInt32(),
       "pl" -> TArray(!TInt32()))
-    if (required) (!t).asInstanceOf[TStruct] else t
+    
+    t.setRequired(required).asInstanceOf[TStruct]
   }
   
   def representationWithVCFAttributes(required: Boolean = false): TStruct = {
@@ -1303,7 +1304,7 @@ object TGenotype {
         Map("Number" -> "G", "Type" -> "Integer",
           "Description" -> "Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification"))))
     
-    if (required) (!t).asInstanceOf[TStruct] else t
+    t.setRequired(required).asInstanceOf[TStruct]
   }
 }
 

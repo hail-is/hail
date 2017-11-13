@@ -196,8 +196,6 @@ class ExportVCFSuite extends SparkSuite {
   @Test def testErrors() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
     
-    println(Int.MaxValue)
-    
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
       vds
@@ -292,24 +290,17 @@ class ExportVCFSuite extends SparkSuite {
   
   @Test def testWriteGenericFormatField() {
     val genericFormatFieldVCF:  VSMSubgen[Locus, Variant, Annotation] = VSMSubgen.random.copy(
+      vaSigGen = Gen.const(TStruct.empty),
       tSigGen = genFormatStructVCF,
-      tGen = (t: Type, v: Variant) => t.genValue.resize(20))
-    
-    val untestedFields = Set("rsid", "qual", "info")
+      tGen = (t: Type, v: Variant) => t.genValue)
     
     val out = tmpDir.createTempFile("foo", "vcf.bgz")
-    val p = forAll(VariantSampleMatrix.gen(hc, genericFormatFieldVCF), Gen.choose(1, 10),
-      Gen.choose(1, 10)) { case (vkds, nPar1, nPar2) =>
-      println(vkds.rowType)
+    val p = forAll(VariantSampleMatrix.gen(hc, genericFormatFieldVCF)) { vsm =>
+        hadoopConf.delete(out, recursive = true)
+        vsm.exportVCF(out)
       
-      vkds.vaSignature match {
-        case t: TStruct if untestedFields.intersect(t.fieldNames.toSet).isEmpty => 
-        case _ =>
-           hadoopConf.delete(out, recursive = true)
-           vkds.exportVCF(out)
+        true
       }
-      true
-    }
 
     p.check()
   }
