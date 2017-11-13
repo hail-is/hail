@@ -318,7 +318,7 @@ object HardCallView {
   }
 }
 
-abstract class HardCallView {
+abstract class HardCallView extends Serializable {
   def setRegion(mb: MemoryBuffer, offset: Long)
 
   def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)

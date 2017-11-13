@@ -164,9 +164,7 @@ g = let
 
   def summarize(): SummaryResult = {
     val rowType = vsm.rowType
-    vsm.rdd2.mapPartitions { it =>
-      Iterator.single(it.foldLeft(new SummaryCombiner(rowType))(_.merge(_)))
-    }.reduce(_.merge(_))
+    vsm.rdd2.aggregate(new SummaryCombiner(rowType))(_.merge(_), _.merge(_))
       .result(vsm.nSamples)
   }
 
