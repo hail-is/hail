@@ -129,11 +129,11 @@ object VariantQC {
     "rExpectedHetFrequency" -> TFloat64(),
     "pHWE" -> TFloat64())
 
-  def apply[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T], root: String): VariantSampleMatrix[RPK, RK, T] = {
-    val localNSamples = vds.nSamples
-    val localRowType = vds.rowType
+  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], root: String): VariantSampleMatrix[RPK, RK, T] = {
+    val localNSamples = vsm.nSamples
+    val localRowType = vsm.rowType
 
-    vds.insertIntoRow(() => HTSGenotypeView(localRowType))(VariantQC.signature,
+    vsm.insertIntoRow(() => HTSGenotypeView(localRowType))(VariantQC.signature,
       "va" :: Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD), { (view, rv, rvb) =>
         view.setRegion(rv.region, rv.offset)
         val comb = new VariantQCCombiner

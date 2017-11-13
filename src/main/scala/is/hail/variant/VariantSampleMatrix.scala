@@ -2186,6 +2186,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   def variantQC(root: String = "va.qc"): VariantSampleMatrix[RPK, RK, T] = {
+    require(wasSplit)
     requireRowKeyVariant("variant_qc")
     VariantQC(this, root)
   }

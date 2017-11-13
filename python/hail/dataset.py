@@ -5016,11 +5016,13 @@ class VariantDataset(HistoryMixin):
         self._jvds.typecheck()
 
     @handle_py4j
+    @require_biallelic
     @record_method
     @typecheck_method(root=strlike)
     def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
 
+        .. include:: _templates/req_biallelic.rst
         .. include:: _templates/req_tvariant.rst
 
         **Examples**
