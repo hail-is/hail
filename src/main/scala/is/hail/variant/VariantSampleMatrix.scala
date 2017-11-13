@@ -352,7 +352,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     sSignature match {
       case _: TString =>
       case t =>
-        fatal(s"in $method: column key schema must be String, but found: $t")
+        fatal(s"in $method: column key schema must be String, found: $t")
     }
   }
 

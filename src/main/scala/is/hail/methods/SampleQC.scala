@@ -156,12 +156,12 @@ class SampleQCCombiner extends Serializable {
 }
 
 object SampleQC {
-  def results[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T]): Array[SampleQCCombiner] = {
-    val depth = treeAggDepth(vds.hc, vds.nPartitions)
-    val rowType = vds.rowType
-    val nSamples = vds.nSamples
-    if (vds.rdd2.partitions.nonEmpty)
-      vds.rdd2
+  def results[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T]): Array[SampleQCCombiner] = {
+    val depth = treeAggDepth(vsm.hc, vsm.nPartitions)
+    val rowType = vsm.rowType
+    val nSamples = vsm.nSamples
+    if (vsm.rdd2.partitions.nonEmpty)
+      vsm.rdd2
           .mapPartitions { it =>
             val view = HTSGenotypeView(rowType)
             val acc = Array.fill[SampleQCCombiner](nSamples)(new SampleQCCombiner)
