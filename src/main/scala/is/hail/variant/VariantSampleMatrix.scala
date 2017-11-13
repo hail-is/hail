@@ -2232,6 +2232,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           minRep1(removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 
     copy2(rdd2 = newRDD2)
+  }
 
   def sampleQC(root: String = "sa.qc"): VariantSampleMatrix[RPK, RK, T] = {
     requireRowKeyVariant("sample_qc")
