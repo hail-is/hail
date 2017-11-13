@@ -1697,6 +1697,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
+  def hasRequiredFields: Boolean = size > nMissing
+
   def field(name: String): Field = fields(fieldIdx(name))
 
   def fieldType(i: Int): Type = fields(i).typ
@@ -1870,9 +1872,11 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       val localSize = fields.size
 
       val inserter: Inserter = (a, toIns) => {
-        val r = if (a == null || localSize == 0) // localsize == 0 catches cases where we overwrite a path
+        val r = if (a == null || localSize == 0) { // localsize == 0 catches cases where we overwrite a path
+          if (a == null && hasRequiredFields && localSize != 0)
+            fatal(s"Tried to insert annotation into missing Struct with required fields: inserting Type $signature into $this at path $p.")
           Row.fromSeq(Array.fill[Any](localSize)(null))
-        else
+        } else
           a.asInstanceOf[Row]
         keyIndex match {
           case Some(i) => r.update(i, keyF(r.get(i), toIns))
