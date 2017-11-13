@@ -4,7 +4,7 @@ import java.io._
 
 import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.io.compress.BGzipCodec
-import is.hail.utils.{TextContext, WithContext, _}
+import is.hail.utils._
 import net.jpountz.lz4.{LZ4BlockOutputStream, LZ4Compressor}
 import org.apache.hadoop
 import org.apache.hadoop.fs.FileStatus
@@ -268,7 +268,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
           .zipWithIndex
           .map {
             case (value, position) =>
-              val source = TextContext(value, filename, Some(position))
+              val source = Context(value, filename, Some(position))
               WithContext(value, source)
           }
         reader(lines)

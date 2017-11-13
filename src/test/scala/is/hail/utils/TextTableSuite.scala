@@ -38,7 +38,7 @@ class TextTableSuite extends SparkSuite {
       "-129 -129 . 1230192 1:1:A:AAA false GRCH12.1:151515",
       "0 0 . gene123.1 1:100:A:* false GRCH12.1:123",
       "-200 -200.0 . 155.2 GRCH123.2:2:A:T true 1:2"
-    ), 3).map { x => WithContext(x, TextContext(x, "none", None)) }
+    ), 3).map { x => WithContext(x, Context(x, "none", None)) }
 
     val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", ".", null)
 

@@ -21,12 +21,12 @@ class RichSparkContext(val sc: SparkContext) extends AnyVal {
         // FIXME subclass TextInputFormat to return (file, line)
         val file = partitionFile(i)
         it.map { line =>
-          WithContext(line, TextContext(line, file, None))
+          WithContext(line, Context(line, file, None))
         }
       }
   }
 
   def textFileLines(file: String, nPartitions: Int = sc.defaultMinPartitions): RDD[WithContext[String]] =
     sc.textFile(file, nPartitions)
-      .map(l => WithContext(l, TextContext(l, file, None)))
+      .map(l => WithContext(l, Context(l, file, None)))
 }
