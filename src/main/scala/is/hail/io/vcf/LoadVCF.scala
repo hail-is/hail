@@ -86,7 +86,7 @@ object LoadVCF {
     case VCFHeaderLineType.String => "String"
   }
 
-  def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[String]): Field = {
+  def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[String], arrayElementsRequired: Boolean = false): Field = {
     val id = line.getID
     val isCall = id == "GT" || callFields.contains(id)
 
@@ -109,14 +109,14 @@ object LoadVCF {
         (line.getType == VCFHeaderLineType.Flag && line.getCount == 0)))
       Field(id, baseType, i, attrs)
     else
-      Field(id, TArray(baseType), i, attrs)
+      Field(id, TArray(baseType.setRequired(arrayElementsRequired)), i, attrs)
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    callFields: Set[String] = Set.empty[String]): TStruct = {
+    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = false): TStruct = {
     TStruct(lines
       .zipWithIndex
-      .map { case (line, i) => headerField(line, i, callFields) }
+      .map { case (line, i) => headerField(line, i, callFields, arrayElementsRequired) }
       .toArray)
   }
 
@@ -129,7 +129,7 @@ object LoadVCF {
       "GQ" -> TInt32(),
       "PL" -> TArray(TInt32(arrayElementsRequired)))
 
-    val raw = headerSignature(lines, callFields)
+    val raw = headerSignature(lines, callFields, arrayElementsRequired)
 
     var canonicalFlags = 0
     var i = 0
