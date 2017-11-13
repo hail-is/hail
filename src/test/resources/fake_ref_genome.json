@@ -1,5 +1,4 @@
 {"name": "my_reference_genome",
- "source": "/my/source",
  "contigs": [{"name": "1", "length": 10000000},
              {"name": "2", "length": 20000000},
              {"name": "X", "length": 19856300},
