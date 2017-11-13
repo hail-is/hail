@@ -195,14 +195,10 @@ object ExportVCF {
 
   def apply[RPK, RK, T >: Null](vsm0: VariantSampleMatrix[RPK, RK, T], path: String, append: Option[String] = None,
     parallel: Boolean = false)(implicit tct: ClassTag[T]) {
+    
+    vsm0.requireSampleTString("export_vcf")
+    vsm0.requireRowKeyVariant("export_vcf")
         
-    if (vsm0.sSignature != TString()) {
-      fatal(s"export_vcf requires s to have type TString, found ${vsm0.sSignature}")
-    }
-    
-    if (!vsm0.vSignature.isInstanceOf[TVariant])
-      fatal(s"export_vcf requires v to have type Variant, found ${vsm0.vSignature}")
-    
     val vsm = vsm0.genotypeSignature match {
       case TGenotype(_) =>
         vsm0.annotateGenotypesExpr("g = {GT: Call(g.gt), AD: g.ad, DP: g.dp, GQ: g.gq, PL: g.pl}")
@@ -219,9 +215,6 @@ object ExportVCF {
       case None => tg.fields.indices.toArray
     }
     val formatFieldString = formatFieldOrder.map(i => tg.fields(i).name).mkString(":")
-    
-    println(tg.toPrettyString())
-    println(formatFieldString)
 
     val tva = vsm.vaSignature match {
       case t: TStruct => t.asInstanceOf[TStruct]
