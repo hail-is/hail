@@ -29,10 +29,10 @@ object VSMFileMetadata {
     sampleAnnotations: IndexedSeq[Annotation] = null,
     globalAnnotation: Annotation = Annotation.empty,
     sSignature: Type = TString(),
-    saSignature: Type = TStruct.empty,
+    saSignature: Type = TStruct.empty(),
     vSignature: Type = TVariant(GenomeReference.GRCh37),
-    vaSignature: Type = TStruct.empty,
-    globalSignature: Type = TStruct.empty,
+    vaSignature: Type = TStruct.empty(),
+    globalSignature: Type = TStruct.empty(),
     genotypeSignature: Type = TGenotype(),
     wasSplit: Boolean = false): VSMFileMetadata = {
     VSMFileMetadata(
@@ -51,9 +51,9 @@ case class VSMFileMetadata(
 
 case class VSMMetadata(
   sSignature: Type = TString(),
-  saSignature: Type = TStruct.empty,
+  saSignature: Type = TStruct.empty(),
   vSignature: Type = TVariant(GenomeReference.GRCh37),
-  vaSignature: Type = TStruct.empty,
-  globalSignature: Type = TStruct.empty,
+  vaSignature: Type = TStruct.empty(),
+  globalSignature: Type = TStruct.empty(),
   genotypeSignature: Type = TGenotype(),
   wasSplit: Boolean = false)

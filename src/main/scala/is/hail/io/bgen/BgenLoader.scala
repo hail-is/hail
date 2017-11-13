@@ -77,11 +77,11 @@ object BgenLoader {
 
     new GenericDataset(hc, VSMMetadata(
       TString(),
-      saSignature = TStruct.empty,
+      saSignature = TStruct.empty(),
       TVariant(gr),
       vaSignature = signature,
       genotypeSignature = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())),
-      globalSignature = TStruct.empty),
+      globalSignature = TStruct.empty()),
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = Array.fill(nSamples)(Annotation.empty)),

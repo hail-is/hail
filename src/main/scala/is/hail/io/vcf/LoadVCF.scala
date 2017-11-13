@@ -489,10 +489,10 @@ object LoadVCF {
     val gr = GenomeReference.GRCh37
     val vsmMetadata = VSMMetadata(
       TString(),
-      TStruct.empty,
+      TStruct.empty(),
       TVariant(gr),
       vaSignature,
-      TStruct.empty,
+      TStruct.empty(),
       genotypeSignature)
     val matrixType = MatrixType(vsmMetadata)
 

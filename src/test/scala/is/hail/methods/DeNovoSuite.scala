@@ -24,9 +24,9 @@ class DeNovoSuite extends SparkSuite {
   lazy val gen: Gen[(VariantDataset, Pedigree)] = {
     for {
       vds <- VariantSampleMatrix.gen[Locus, Variant, Genotype](hc, VSMSubgen.plinkSafeBiallelic.copy(
-        saSigGen = Gen.const(TStruct.empty),
-        vaSigGen = Gen.const(TStruct.empty),
-        globalSigGen = Gen.const(TStruct.empty),
+        saSigGen = Gen.const(TStruct.empty()),
+        vaSigGen = Gen.const(TStruct.empty()),
+        globalSigGen = Gen.const(TStruct.empty()),
         vGen = (TVariant) => (for {
           pos <- Gen.choose(100000, 100000000)
           alt <- Gen.oneOf("T", "AA") // represent indels and snps
