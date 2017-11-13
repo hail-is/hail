@@ -941,11 +941,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   def variants: RDD[RK] = rdd.keys
 
-  def deduplicate(): VariantSampleMatrix[RPK, RK, T] = {
-    copy(rdd = rdd.mapPartitionsPreservingPartitioning { it =>
-      new SortedDistinctPairIterator(it)
-    })
-  }
+  def deduplicate(): VariantSampleMatrix[RPK, RK, T] =
+    copy2(rdd2 = rdd2.mapPartitionsPreservesPartitioning(
+      SortedDistinctRowIterator.transformer(rdd2.typ)))
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
