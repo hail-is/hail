@@ -4,8 +4,8 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.utils._
 
-class AltAlleleView(variant: TAltAllele, source: TStruct) {
-  private val view = new StructView(variant.representation, source)
+class AltAlleleView(altAllele: TAltAllele, source: TStruct) {
+  private val view = new StructView(altAllele.representation, source)
 
   def setRegion(rv: RegionValue) {
     view.setRegion(rv)
@@ -15,8 +15,10 @@ class AltAlleleView(variant: TAltAllele, source: TStruct) {
     view.setRegion(m, offset)
   }
 
-  def hasRef(): Boolean = view.hasField("ref")
-  def getRef(): String = view.getStringField("ref")
-  def hasAlt(): Boolean = view.hasField("alt")
-  def getAlt(): String = view.getStringField("alt")
+  private val refId = altAllele.representation.fieldIdx("ref")
+  def hasRef(): Boolean = view.hasField(refId)
+  def getRef(): String = view.getStringField(refId)
+  private val altId = altAllele.representation.fieldIdx("alt")
+  def hasAlt(): Boolean = view.hasField(altId)
+  def getAlt(): String = view.getStringField(altId)
 }
