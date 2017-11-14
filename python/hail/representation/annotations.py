@@ -58,10 +58,7 @@ class Struct(HistoryMixin):
         return 'Struct' + str(self._attrs)
 
     def __eq__(self, other):
-        if isinstance(other, Struct):
-            return self._attrs == other._attrs
-        else:
-            return False
+        return isinstance(other, Struct) and self._attrs == other._attrs
 
     def __hash__(self):
         return 37 + hash(tuple(sorted(self._attrs.items())))

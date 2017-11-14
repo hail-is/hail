@@ -153,7 +153,8 @@ class History(object):
 
 class HistoryMixin(object):
     def __init__(self):
-        self._history = None
+        self._history = History()
+        self._history_was_set = False
 
     def with_id(self, id):
         """Set identifier for this object in the history file.
@@ -195,3 +196,4 @@ class HistoryMixin(object):
 
     def _set_history(self, h):
         self._history = h
+        self._history_was_set = True

@@ -42,10 +42,10 @@ class Trio(HistoryMixin):
         self._is_female = is_female
 
     @classmethod
-    @record_classmethod
     def _from_java(cls, jrep):
         trio = Trio.__new__(cls)
         trio._jrep = jrep
+        super(Trio, trio).__init__()
         return trio
 
     def __repr__(self):
@@ -59,10 +59,7 @@ class Trio(HistoryMixin):
             str(self.mother), str(self.is_female))
 
     def __eq__(self, other):
-        if not isinstance(other, Trio):
-            return False
-        else:
-            return self._jrep == other._jrep
+        return isinstance(other, Trio) and self._jrep == other._jrep
 
     @handle_py4j
     def __hash__(self):
@@ -178,18 +175,15 @@ class Pedigree(HistoryMixin):
         self._trios = trios
 
     @classmethod
-    @record_classmethod
     def _from_java(cls, jrep):
         ped = Pedigree.__new__(cls)
         ped._jrep = jrep
         ped._trios = None
+        super(Pedigree, ped).__init__()
         return ped
 
     def __eq__(self, other):
-        if not isinstance(other, Pedigree):
-            return False
-        else:
-            return self._jrep == other._jrep
+        return isinstance(other, Pedigree) and self._jrep == other._jrep
 
     @handle_py4j
     def __hash__(self):
