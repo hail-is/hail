@@ -196,9 +196,9 @@ object ExportVCF {
   def apply[RPK, RK, T >: Null](vsm0: VariantSampleMatrix[RPK, RK, T], path: String, append: Option[String] = None,
     parallel: Boolean = false)(implicit tct: ClassTag[T]) {
     
-    vsm0.requireSampleTString("export_vcf")
+    vsm0.requireColKeyString("export_vcf")
     vsm0.requireRowKeyVariant("export_vcf")
-        
+    
     val vsm = vsm0.genotypeSignature match {
       case TGenotype(_) =>
         vsm0.annotateGenotypesExpr("g = {GT: Call(g.gt), AD: g.ad, DP: g.dp, GQ: g.gq, PL: g.pl}")
