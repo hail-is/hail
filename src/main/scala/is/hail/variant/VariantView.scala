@@ -3,7 +3,8 @@ package is.hail.variant
 import is.hail.annotations._
 import is.hail.expr._
 
-class VariantView(t: TStruct) {
+class VariantView(tv: TVariant) {
+  private val t: TStruct = tv.fundamentalType.asInstanceOf[TStruct]
   private var region: MemoryBuffer = _
   private var offset: Long = _
   private val contigIdx: Int = t.fieldIdx("contig")
