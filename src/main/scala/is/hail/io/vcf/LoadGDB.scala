@@ -191,10 +191,10 @@ object LoadGDB {
 
     new VariantSampleMatrix(hc, VSMMetadata(
       TString(),
-      TStruct.empty,
+      TStruct.empty(),
       TVariant(GenomeReference.GRCh37),
       variantAnnotationSignatures,
-      TStruct.empty,
+      TStruct.empty(),
       genotypeSignature),
       VSMLocalValue(Annotation.empty,
         sampleIds,

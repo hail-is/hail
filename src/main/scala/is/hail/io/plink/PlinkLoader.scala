@@ -147,7 +147,7 @@ object PlinkLoader {
       saSignature = sampleAnnotationSignature,
       vaSignature = plinkSchema,
       vSignature = TVariant(gr),
-      globalSignature = TStruct.empty,
+      globalSignature = TStruct.empty(),
       genotypeSignature = TStruct("GT" -> TCall()),
       wasSplit = true),
       VSMLocalValue(globalAnnotation = Annotation.empty,

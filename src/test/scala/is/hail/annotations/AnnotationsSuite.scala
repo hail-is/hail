@@ -153,7 +153,7 @@ class AnnotationsSuite extends SparkSuite {
     // clear everything
     val (emptyS, d1) = vds.deleteVA()
     vds = vds.mapAnnotations(emptyS, (v, va, gs) => d1(va))
-    assert(emptyS == TStruct.empty)
+    assert(emptyS == TStruct.empty())
 
     // add to the first layer
     val toAdd = 5

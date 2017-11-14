@@ -22,39 +22,30 @@ import scala.reflect.classTag
 abstract class BaseType
 
 object Type {
-  val genOptionalScalar: Gen[Type] = Gen.oneOf[Type](TBooleanOptional, TInt32Optional, TInt64Optional, TFloat32Optional, TFloat64Optional, TStringOptional,
-    TVariant(GenomeReference.GRCh37, false), TAltAlleleOptional, TGenotypeOptional, TLocus(GenomeReference.GRCh37, false), TInterval(GenomeReference.GRCh37, false), TCallOptional)
+  def genScalar(required: Boolean) =
+    Gen.oneOf(TBoolean(required), TInt32(required), TInt64(required), TFloat32(required),
+      TFloat64(required), TString(required), TAltAllele(required), TGenotype(required), TCall(required))
 
-  val genRequiredScalar: Gen[Type] = Gen.oneOf[Type](TBooleanRequired, TInt32Required, TInt64Required, TFloat32Required, TFloat64Required, TStringRequired,
-    TVariant(GenomeReference.GRCh37, true), TAltAlleleRequired, TGenotypeRequired, TLocus(GenomeReference.GRCh37, true), TInterval(GenomeReference.GRCh37, true), TCallRequired)
+  val genOptionalScalar = genScalar(false)
 
-  val genScalar: Gen[Type] = Gen.coin(0.2).flatMap( r => if (r) genRequiredScalar else genOptionalScalar )
+  val genRequiredScalar = genScalar(true)
 
-  def genSized(size: Int): Gen[Type] = {
-    if (size < 1)
-      Gen.const(TStruct.empty)
-    else if (size < 2)
-      genScalar
-    else {
-      val genMaybeRequired: Gen[Type] = for {
-        t <- genArb.resize(size - 1)
-        req <- Gen.coin(0.2)
-      } yield if (req) !t else t
-      Gen.oneOfGen(genScalar,
-        genScalar,
-        genScalar,
-        genScalar,
-        genMaybeRequired.map { TArray(_) },
-        genMaybeRequired.map { TSet(_) },
-        Gen.zip(genArb.resize(size - 1), genMaybeRequired).map { case (k, v) => TDict(k, v) },
-        genStruct.resize(size))
-    }
+  def genComplexType(required: Boolean) = {
+    val grDependents = GenomeReference.references.values.toArray.flatMap(gr =>
+      Array(TVariant(gr, required), TLocus(gr, required), TInterval(gr, required)))
+    val others = Array(
+      TAltAllele(required), TGenotype(required), TCall(required))
+    Gen.oneOfSeq(grDependents ++ others)
   }
 
-  def genStruct: Gen[TStruct] =
+  val optionalComplex = genComplexType(false)
+
+  val requiredComplex = genComplexType(true)
+
+  def preGenStruct(required: Boolean, genFieldType: Gen[Type]): Gen[TStruct] =
     Gen.buildableOf[Array, (String, Type, Map[String, String])](
       Gen.zip(Gen.identifier,
-        genArb,
+        genFieldType,
         Gen.option(
           Gen.buildableOf2[Map, String, String](
             Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])), someFraction = 0.05)
@@ -65,8 +56,47 @@ object Type {
         .zipWithIndex
         .map { case ((k, t, m), i) => Field(k, t, i, m) }
         .toIndexedSeq))
+      .map(t => if (required) (!t).asInstanceOf[TStruct] else t)
 
-  def genArb: Gen[Type] = Gen.sized(genSized)
+  private val defaultRequiredGenRatio = 0.2
+
+  def genStruct: Gen[TStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(preGenStruct(_, genArb))
+
+  val genOptionalStruct = preGenStruct(false, genArb)
+
+  val genRequiredStruct = preGenStruct(true, genArb)
+
+  val genInsertableStruct: Gen[TStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(required =>
+    if (required)
+      preGenStruct(true, genArb)
+    else
+      preGenStruct(false, genOptional))
+
+  def genSized(size: Int, required: Boolean, genTStruct: Gen[TStruct]): Gen[Type] =
+    if (size < 1)
+      Gen.const(TStruct.empty(required))
+    else if (size < 2)
+      genScalar(required)
+    else {
+      Gen.frequency(
+        (4, genScalar(required)),
+        (1, genComplexType(required)),
+        (1, genArb.map { TArray(_) }),
+        (1, genArb.map { TSet(_) }),
+        (1, Gen.zip(genRequired, genArb).map { case (k, v) => TDict(k, v) }),
+        (1, genTStruct.resize(size)))
+    }
+
+  def preGenArb(required: Boolean, genStruct: Gen[TStruct] = genStruct): Gen[Type] =
+    Gen.sized(genSized(_, required, genStruct))
+
+  def genArb: Gen[Type] = Gen.coin(0.2).flatMap(preGenArb(_))
+
+  val genOptional: Gen[Type] = preGenArb(false)
+
+  val genRequired: Gen[Type] = preGenArb(true)
+
+  val genInsertable: Gen[Type] = Gen.coin(0.2).flatMap(preGenArb(_, genInsertableStruct))
 
   def genWithValue: Gen[(Type, Annotation)] = for {
     s <- Gen.size
@@ -127,17 +157,17 @@ sealed abstract class Type extends BaseType with Serializable {
     if (path.nonEmpty)
       throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
     else
-      (TStruct.empty, a => null)
+      (TStruct.empty(), a => null)
   }
 
   def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) =
-    TStruct.empty.unsafeInsert(typeToInsert, path)
+    TStruct.empty().unsafeInsert(typeToInsert, path)
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
 
   def insert(signature: Type, path: List[String]): (Type, Inserter) = {
     if (path.nonEmpty)
-      TStruct.empty.insert(signature, path)
+      TStruct.empty().insert(signature, path)
     else
       (signature, (a, toIns) => toIns)
   }
@@ -1589,7 +1619,10 @@ final case class Field(name: String, typ: Type,
 }
 
 object TStruct {
-  def empty: TStruct = TStruct(Array.empty[Field])
+  private val requiredEmpty = TStruct(Array.empty[Field], true)
+  private val optionalEmpty = TStruct(Array.empty[Field], false)
+
+  def empty(required: Boolean = false): TStruct = if (required) requiredEmpty else optionalEmpty
 
   def apply(args: (String, Type)*): TStruct =
     TStruct(args
@@ -1721,7 +1754,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   override def delete(p: List[String]): (Type, Deleter) = {
     if (p.isEmpty)
-      (TStruct.empty, a => null)
+      (TStruct.empty(), a => null)
     else {
       val key = p.head
       val f = selfField(key) match {
@@ -1731,12 +1764,12 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       val index = f.index
       val (newFieldType, d) = f.typ.delete(p.tail)
       val newType: Type =
-        if (newFieldType == TStruct.empty)
+        if (newFieldType == TStruct.empty())
           deleteKey(key, f.index)
         else
           updateKey(key, f.index, newFieldType)
 
-      val localDeleteFromRow = newFieldType == TStruct.empty
+      val localDeleteFromRow = newFieldType == TStruct.empty()
 
       val deleter: Deleter = { a =>
         if (a == null)
@@ -1782,7 +1815,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
           })
 
         case None =>
-          val (insertedFieldType, fieldInserter) = TStruct.empty.unsafeInsert(typeToInsert, path.tail)
+          val (insertedFieldType, fieldInserter) = TStruct.empty().unsafeInsert(typeToInsert, path.tail)
 
           (appendKey(key, insertedFieldType), { (region, offset, rvb, inserter) =>
             rvb.startStruct()
@@ -1807,7 +1840,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       val keyIndex = f.map(_.index)
       val (newKeyType, keyF) = f
         .map(_.typ)
-        .getOrElse(TStruct.empty)
+        .getOrElse(TStruct.empty())
         .insert(signature, p.tail)
 
       val newSignature = keyIndex match {
@@ -1844,7 +1877,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def deleteKey(key: String, index: Int): Type = {
     assert(fieldIdx.contains(key))
     if (fields.length == 1)
-      TStruct.empty
+      TStruct.empty()
     else {
       val newFields = Array.fill[Field](fields.length - 1)(null)
       for (i <- 0 until index)

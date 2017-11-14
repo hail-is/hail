@@ -30,9 +30,9 @@ object VariantDataset {
       .toOrderedRDD
 
     val metadata = VSMMetadata(
-      saSignature = TStruct.empty,
+      saSignature = TStruct.empty(),
       vaSignature = kt.valueSignature,
-      globalSignature = TStruct.empty)
+      globalSignature = TStruct.empty())
 
     new VariantSampleMatrix[Locus, Variant, Genotype](kt.hc, metadata,
       VSMLocalValue(Annotation.empty, Array.empty[Annotation], Array.empty[Annotation]), rdd)

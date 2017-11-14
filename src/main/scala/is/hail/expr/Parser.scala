@@ -535,7 +535,7 @@ object Parser extends JavaTokenParsers {
   def _required_type: Parser[Boolean] = "!" ^^ {_ => true} | success(false)
 
   def _type_expr: Parser[Type] =
-    "Empty" ^^ { _ => TStruct.empty } |
+    "Empty" ^^ { _ => TStruct.empty() } |
       ("Interval" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).interval } |
       "Boolean" ^^ { _ => TBoolean() } |
       "Int32" ^^ { _ => TInt32() } |

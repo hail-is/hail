@@ -272,10 +272,10 @@ case class VSMSubgen[RPK, RK, T >: Null](
 object VSMSubgen {
   val random = VSMSubgen[Locus, Variant, Genotype](
     sSigGen = Gen.const(TString()),
-    saSigGen = Type.genArb,
+    saSigGen = Type.genInsertable,
     vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
-    vaSigGen = Type.genArb,
-    globalSigGen = Type.genArb,
+    vaSigGen = Type.genInsertable,
+    globalSigGen = Type.genInsertable,
     tSigGen = Gen.const(TGenotype()),
     sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
     saGen = (t: Type) => t.genValue,
@@ -292,10 +292,10 @@ object VSMSubgen {
 
   val dosage = VSMSubgen[Locus, Variant, Annotation](
     sSigGen = Gen.const(TString()),
-    saSigGen = Type.genArb,
+    saSigGen = Type.genInsertable,
     vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
-    vaSigGen = Type.genArb,
-    globalSigGen = Type.genArb,
+    vaSigGen = Type.genInsertable,
+    globalSigGen = Type.genInsertable,
     tSigGen = Gen.const(TStruct(
       "GT" -> TCall(),
       "GP" -> TArray(TFloat64()))),
