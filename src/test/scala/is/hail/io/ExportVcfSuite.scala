@@ -306,7 +306,7 @@ class ExportVCFSuite extends SparkSuite {
   
   @Test def testWriteGenericFormatField() {
     val genericFormatFieldVCF:  VSMSubgen[Locus, Variant, Annotation] = VSMSubgen.random.copy(
-      vaSigGen = Gen.const(TStruct.empty),
+      vaSigGen = Gen.const(TStruct.empty()),
       tSigGen = genFormatStructVCF,
       tGen = (t: Type, v: Variant) => t.genValue)
     

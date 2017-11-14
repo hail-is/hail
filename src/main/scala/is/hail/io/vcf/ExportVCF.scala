@@ -218,7 +218,7 @@ object ExportVCF {
       case _ =>
         warn(s"export_vcf found va of type ${ vsm.vaSignature }, but expected type TStruct. " +
           "Emitting missing RSID, QUAL, and INFO.")
-        TStruct.empty
+        TStruct.empty()
     }
     
     val tinfo =
@@ -227,10 +227,10 @@ object ExportVCF {
           case t: TStruct => t.asInstanceOf[TStruct]
           case t =>
             warn(s"export_vcf found va.info of type $t, but expected type TStruct. Emitting missing INFO.")
-            TStruct.empty
+            TStruct.empty()
         }
       } else
-        TStruct.empty
+        TStruct.empty()
     
     val localNSamples = vsm.nSamples
     val hasSamples = localNSamples > 0
