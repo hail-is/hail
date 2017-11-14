@@ -20,7 +20,7 @@ class ImportMatrixSuite extends SparkSuite {
   }
 
   @Test def testMissingVals() {
-    val files =hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
+    val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
       val vsm = LoadMatrix(hc, files)
       vsm.rdd.count()
@@ -29,46 +29,44 @@ class ImportMatrixSuite extends SparkSuite {
   }
 
   @Test def testLoadMatrix() {
-    val files =hc.hadoopConf.globAll(List("src/test/resources/samplematrix*.txt"))
+    val files = hc.hadoopConf.globAll(List("src/test/resources/samplematrix*.txt"))
     val vsm = LoadMatrix(hc, files)
 
     assert(vsm.sampleIds.length == 20)
-    vsm.rdd.collect()(1)._2._2.foreach {i => assert(i==0)}
-
-
+    vsm.rdd.collect()(1)._2._2.foreach { i => assert(i == 0) }
   }
 
   @Test def testTypes() {
-    val files =hc.hadoopConf.globAll(List("src/test/resources/samplematrix*.txt"))
-    val vsm = LoadMatrix(hc, files, cellType = TFloat64)
+    val files = hc.hadoopConf.globAll(List("src/test/resources/samplematrix*.txt"))
+    val vsm = LoadMatrix(hc, files, cellType = TFloat64())
 
     assert(vsm.sampleIds.length == 20)
-    vsm.rdd.collect()(1)._2._2.foreach {i => assert(i==0)}
+    vsm.rdd.collect()(1)._2._2.foreach { i => assert(i == 0) }
 
-    val vsm2 = LoadMatrix(hc, files, cellType = TFloat32)
+    val vsm2 = LoadMatrix(hc, files, cellType = TFloat32())
 
     assert(vsm2.sampleIds.length == 20)
-    vsm2.rdd.collect()(1)._2._2.foreach {i => assert(i==0)}
+    vsm2.rdd.collect()(1)._2._2.foreach { i => assert(i == 0) }
 
-    val vsm3 = LoadMatrix(hc, files, cellType = TInt32)
+    val vsm3 = LoadMatrix(hc, files, cellType = TInt32())
 
     assert(vsm3.sampleIds.length == 20)
-    vsm3.rdd.collect()(1)._2._2.foreach {i => assert(i==0)}
+    vsm3.rdd.collect()(1)._2._2.foreach { i => assert(i == 0) }
 
-    val vsm4 = LoadMatrix(hc, files, cellType = TString)
+    val vsm4 = LoadMatrix(hc, files, cellType = TString())
 
     assert(vsm4.sampleIds.length == 20)
-    vsm4.rdd.collect()(1)._2._2.foreach {i => assert(i=="0")}
+    vsm4.rdd.collect()(1)._2._2.foreach { i => assert(i == "0") }
   }
 
   @Test def testReadWrite() {
-    val files =hc.hadoopConf.globAll(List("src/test/resources/samplematrix*.txt"))
+    val files = hc.hadoopConf.globAll(List("src/test/resources/samplematrix*.txt"))
     val vsm = LoadMatrix(hc, files)
 
     val tmp1 = tmpDir.createTempFile("readtest", ".vds")
     vsm.write(tmp1, true)
 
-    val vsm2 = VariantSampleMatrix.read(hc,tmp1).toGDS
+    val vsm2 = VariantSampleMatrix.read(hc, tmp1).toGDS
     assert(vsm2.same(vsm))
   }
 

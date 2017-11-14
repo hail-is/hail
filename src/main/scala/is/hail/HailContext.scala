@@ -96,7 +96,7 @@ object HailContext {
 
     if (!conf.getOption("spark.kryo.registrator").exists(_.split(",").contains("is.hail.kryo.HailKryoRegistrator")))
       problems += s"Invalid config parameter: spark.kryo.registrator must include is.hail.kryo.HailKryoRegistrator." +
-        s"Found ${conf.getOption("spark.kryo.registrator").getOrElse("empty parameter.")}"
+        s"Found ${ conf.getOption("spark.kryo.registrator").getOrElse("empty parameter.") }"
 
     if (problems.nonEmpty)
       fatal(
@@ -166,10 +166,10 @@ object HailContext {
     val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
-    info(s"Running Hail version ${hc.version}")
+    info(s"Running Hail version ${ hc.version }")
     hc
   }
-  
+
   def readRowsPartition(t: TStruct)(i: Int, in: InputStream): Iterator[RegionValue] = {
     new Iterator[RegionValue] {
       val region = MemoryBuffer()
@@ -402,14 +402,16 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Int,
     read: (Int, InputStream) => Iterator[T],
     optPartitioner: Option[Partitioner] = None): RDD[T] = {
-    
+
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
     val d = digitsNeeded(nPartitions)
 
     new RDD[T](sc, Nil) {
       def getPartitions: Array[Partition] =
         Array.tabulate(nPartitions)(i =>
-          new Partition { def index: Int = i } )
+          new Partition {
+            def index: Int = i
+          })
 
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
         val i = split.index
@@ -426,10 +428,10 @@ class HailContext private(val sc: SparkContext,
       @transient override val partitioner: Option[Partitioner] = optPartitioner
     }
   }
-  
+
   def readRows(path: String, t: TStruct, nPartitions: Int): RDD[RegionValue] =
     readPartitions(path, nPartitions, HailContext.readRowsPartition(t))
-  
+
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
@@ -497,23 +499,23 @@ class HailContext private(val sc: SparkContext,
   def importMatrix(file: String,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    cellType: Int= 1,
-    missingVal: String = "NA"): VariantSampleMatrix[Annotation, Annotation, Annotation] = importMatrices(List(file), nPartitions, dropSamples, cellType, missingVal)
+    cellType: Int = 1,
+    missingVal: String = "NA"): VariantSampleMatrix[Annotation, Annotation, Annotation] =
+    importMatrices(List(file), nPartitions, dropSamples, cellType, missingVal)
 
   def importMatrices(files: Seq[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     cellType: Int = 1,
     missingVal: String = "NA"): VariantSampleMatrix[Annotation, Annotation, Annotation] = {
-
     val inputs = hadoopConf.globAll(files)
 
     val actualType = Map(
-      0 -> TInt32,
-      1 -> TInt64,
-      2 -> TFloat32,
-      3 -> TFloat64,
-      4 -> TString
+      0 -> TInt32(),
+      1 -> TInt64(),
+      2 -> TFloat32(),
+      3 -> TFloat64(),
+      4 -> TString()
     )(cellType)
 
     LoadMatrix(this, inputs, nPartitions, dropSamples, cellType = actualType, missingValue = missingVal)
