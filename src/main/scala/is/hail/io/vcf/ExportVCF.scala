@@ -22,13 +22,13 @@ object ExportVCF {
     elementType match {
       case TInt32(_) =>
         val x = m.loadInt(offset)
-        sb.append(x.toString)
+        sb.append(x)
       case TInt64(_) =>
         val x = m.loadLong(offset)
         if (x > Int.MaxValue || x < Int.MinValue)
           fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) " +
             s"or less than Int.MinValue (-2^31). Found $x.")
-        sb.append(x.toInt.toString)
+        sb.append(x)
       case TFloat32(_) =>
         val x = m.loadFloat(offset)
         if (x.isNaN)
@@ -45,7 +45,9 @@ object ExportVCF {
         sb.append(TString.loadString(m, offset))
       case TCall(_) =>
         val p = Genotype.gtPair(m.loadInt(offset))
-        sb.append(s"${ p.j }/${ p.k }")
+        sb.append(p.j)
+        sb += '/'
+        sb.append(p.k)
       case _ =>
         fatal(s"VCF does not support type $elementType")
     }
@@ -54,18 +56,15 @@ object ExportVCF {
   def iterableVCF(sb: StringBuilder, t: TIterable, m: MemoryBuffer, length: Int, offset: Long) {
     if (length > 0) {
       var i = 0
-      while (i < length - 1) {
+      while (i < length) {
+        if (i > 0)
+          sb += ','
         if (t.isElementDefined(m, offset, i)) {
           val eOffset = t.loadElement(m, offset, length, i)
           strVCF(sb, t.elementType, m, eOffset)
         } else
           sb += '.'
-        sb += ','
         i += 1
-      }
-      if (t.isElementDefined(m, offset, i)) {
-        val eOffset = t.loadElement(m, offset, length, i)
-        strVCF(sb, t.elementType, m, eOffset)
       }
     } else
       sb += '.'
@@ -113,8 +112,9 @@ object ExportVCF {
 
   def infoType(f: Field): String = {
     val tOption = f.typ match {
-      case TArray(elt, _) if !elt.isOfType(TBoolean()) => infoType(elt)
-      case TSet(elt, _) if !elt.isOfType(TBoolean()) => infoType(elt)
+      case TArray(TBoolean(_), _) | TSet(TBoolean(_), _) => None
+      case TArray(elt, _) => infoType(elt)
+      case TSet(elt, _) => infoType(elt)
       case t => infoType(t)
     }
     tOption match {
@@ -173,11 +173,6 @@ object ExportVCF {
       val fOffset = tg.loadField(m, offset, j)
 
       tg.fields(j).typ match {
-        case TCall(_) =>
-          if (fIsDefined) {
-            strVCF(sb, TCall(), m, fOffset)
-          } else
-            sb.append("./.")
         case it: TIterable =>
           if (fIsDefined) {
             val fLength = it.loadLength(m, fOffset)
@@ -187,6 +182,8 @@ object ExportVCF {
         case t =>
           if (fIsDefined)
             strVCF(sb, t, m, fOffset)
+          else if (t.isOfType(TCall()))
+            sb.append("./.")
           else
             sb += '.'
       }
