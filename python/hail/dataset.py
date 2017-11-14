@@ -5744,8 +5744,8 @@ class VariantDataset(HistoryMixin):
 
         The new column annotation schema is a ``Struct`` with three ``Struct`` children
         (``proband``, ``father``, and ``mother``),
-        each with an ``id`` and ``annotations`` field. The ``annotations`` fields have the
-        same schema as the column annotation schema of the input dataset.
+        each with an ``id`` and ``annotations`` field. The schema of each ``annotations``
+        field is the column annotation schema of the input dataset.
 
          - **sa.proband.id** (*String*) - Proband sample ID, same as trio column key.
          - **sa.proband.annotations** (*Struct*) - Annotations on the proband.
