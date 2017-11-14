@@ -69,17 +69,21 @@ object LoadMatrix {
       newoff += 1
     }
     if (newoff == off) {
-      while (newoff - off < missingValue.length && missingValue(newoff-off) == string(newoff)) {
+      while (newoff - off < missingValue.length && missingValue(newoff - off) == string(newoff)) {
         newoff += 1
       }
       if (newoff - off == missingValue.length && (string.length == newoff || string(newoff) == sep(0))) {
         rvb.setMissing()
         newoff
-      } else { -1 }
+      } else {
+        -1
+      }
     } else if (string.length == newoff || string(newoff) == sep(0)) {
       rvb.addInt(v)
       newoff
-    } else { -1 }
+    } else {
+      -1
+    }
   }
 
   def setInt64(string: String, off: Int, rvb: RegionValueBuilder, sep: String = "\t", missingValue: String = "NA"): Int = {
@@ -103,17 +107,21 @@ object LoadMatrix {
       newoff += 1
     }
     if (newoff == off) {
-      while (newoff - off < missingValue.length && missingValue(newoff-off) == string(newoff)) {
+      while (newoff - off < missingValue.length && missingValue(newoff - off) == string(newoff)) {
         newoff += 1
       }
       if (newoff - off == missingValue.length && (string.length == newoff || string(newoff) == sep(0))) {
         rvb.setMissing()
         newoff
-      } else { -1 }
+      } else {
+        -1
+      }
     } else if (string.length == newoff || string(newoff) == sep(0)) {
       rvb.addLong(v)
       newoff
-    } else { -1 }
+    } else {
+      -1
+    }
   }
 
   def setFloat32(string: String, off: Int, rvb: RegionValueBuilder, sep: String = "\t", missingValue: String = "NA"): Int = {
@@ -128,7 +136,7 @@ object LoadMatrix {
       try {
         v.toFloat
       } catch {
-        case _:NumberFormatException => return -1
+        case _: NumberFormatException => return -1
       }
       rvb.addFloat(v.toFloat)
 
@@ -148,7 +156,7 @@ object LoadMatrix {
       try {
         v.toDouble
       } catch {
-        case _:NumberFormatException => return -1
+        case _: NumberFormatException => return -1
       }
       rvb.addDouble(v.toDouble)
 
@@ -160,12 +168,11 @@ object LoadMatrix {
     files: Array[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    cellType: Type = TInt64,
+    cellType: Type = TInt64(),
     sep: String = "\t",
-    missingValue: String = "NA"):
-  VariantSampleMatrix[Annotation, Annotation, Annotation] = {
+    missingValue: String = "NA"): VariantSampleMatrix[Annotation, Annotation, Annotation] = {
 
-    if (!Set[Type](TInt64, TInt32, TFloat32, TFloat64, TString).contains(cellType)) {
+    if (!Set[Type](TInt64(), TInt32(), TFloat32(), TFloat64(), TString()).contains(cellType)) {
       fatal(
         s"""expected cell type Int32, Int64, Float32, Float64, or String but got:
            |    ${ cellType.toPrettyString() }
@@ -196,8 +203,8 @@ object LoadMatrix {
     }.map { case (_, partition) => partition }.toSet
 
     val matrixType = MatrixType(VSMMetadata(
-      sSignature = TString,
-      vSignature = TString,
+      sSignature = TString(),
+      vSignature = TString(),
       genotypeSignature = cellType
     ))
 
@@ -248,14 +255,13 @@ object LoadMatrix {
 
     val rdd = lines
       .mapPartitionsWithIndex { (i, it) =>
-
         val region = MemoryBuffer()
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region, 0)
 
-        if (firstPartitions(i)) {
+        if (firstPartitions(i))
           it.next()
-        }
+
         it.map { v =>
           val line = v.value
           if (line.nonEmpty) {
@@ -284,11 +290,11 @@ object LoadMatrix {
                   )
                 }
                 off = cellType match {
-                  case TString => setString(line,off,rvb,sep,missingValue)
-                  case TInt64 => setInt64(line,off,rvb,sep,missingValue)
-                  case TInt32 => setInt32(line,off,rvb,sep,missingValue)
-                  case TFloat64 => setFloat64(line,off,rvb,sep,missingValue)
-                  case TFloat32 => setFloat32(line,off,rvb,sep,missingValue)
+                  case TString(_) => setString(line, off, rvb, sep, missingValue)
+                  case TInt64(_) => setInt64(line, off, rvb, sep, missingValue)
+                  case TInt32(_) => setInt32(line, off, rvb, sep, missingValue)
+                  case TFloat64(_) => setFloat64(line, off, rvb, sep, missingValue)
+                  case TFloat32(_) => setFloat32(line, off, rvb, sep, missingValue)
                 }
                 ii += 1
                 if (off == -1 || (off != line.length && line(off) != sep(0))) {
@@ -316,7 +322,7 @@ object LoadMatrix {
       }
 
     new VariantSampleMatrix(hc,
-      VSMMetadata(TString, vSignature = TString, genotypeSignature = cellType),
+      VSMMetadata(TString(), vSignature = TString(), genotypeSignature = cellType),
       VSMLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
