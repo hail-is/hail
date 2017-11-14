@@ -297,6 +297,9 @@ object VEP {
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
     val annotations = vsm.typedRDD[Locus, Variant, Annotation]
+    val localRowType = vsm.rowType
+    
+    val annotations = vsm.rdd2
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
@@ -308,17 +311,25 @@ object VEP {
         it
           .grouped(localBlockSize)
           .flatMap { block =>
-            val (jt, proc) = block.iterator.map { case (v, (va, gs)) => v }.pipe(pb,
+            val (jt, proc) = block.iterator.map { rv =>
+              
+              val vOffset = localRowType.loadField(rv, 1)
+              
+              Variant.fromRegionValue(rv.region, vOffset) }
+              .pipe(pb,
               printContext,
               printElement,
               _ => ())
 
-            val nonStarToOriginalVariant = block.map { case (v, (va, gs)) =>
+            val nonStarToOriginalVariant = block.map { rv =>
+              val vOffset = localRowType.loadField(rv, 1)
+              val v = Variant.fromRegionValue(rv.region, vOffset)
+              
               (v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")), v)
             }.toMap
 
             val kt = jt
-              .filter(s => !s.isEmpty && s(0) != '#')
+              .filter(s => s.nonEmpty && s(0) != '#')
               .map { s =>
                 if (csq) {
                   val vvep = variantFromInput(s)
@@ -390,16 +401,16 @@ object VEP {
 
     val (newVASignature, insertVEP) = vsm.vaSignature.insert(if (csq) TArray(TString()) else vepSignature, parsedRoot)
 
-    val newRDD = vsm.typedRDD[Locus, Variant, Annotation]
+    val newRDD2 = vsm.rdd2
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
         left.sortedLeftJoinDistinct(right)
           .map { case (v, ((va, gs), a)) => (v, (insertVEP(va, a.orNull), gs)) }
-      }
+      }.asOrderedRDD
 
     (csq, newVASignature) match {
-      case (true, t: TStruct) => vsm.copyLegacy(rdd = newRDD,
+      case (true, t: TStruct) => vsm.copy2(rdd2 = newRDD2,
         vaSignature = t.setFieldAttributes(parsedRoot, Map("Description" -> csqHeader)))
-      case _ => vsm.copyLegacy(rdd = newRDD, vaSignature = newVASignature)
+      case _ => vsm.copy2(rdd2 = newRDD2, vaSignature = newVASignature)
     }
   }
 }
