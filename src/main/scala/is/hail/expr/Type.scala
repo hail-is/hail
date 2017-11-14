@@ -31,7 +31,7 @@ object Type {
   val genRequiredScalar = genScalar(true)
 
   def genComplexType(required: Boolean) = {
-    val grDependents = GenomeReference.references.values.flatMap(gr =>
+    val grDependents = GenomeReference.references.values.toArray.flatMap(gr =>
       Array(TVariant(gr, required), TLocus(gr, required), TInterval(gr, required)))
     val others = Array(
       TAltAllele(required), TGenotype(required), TCall(required))
