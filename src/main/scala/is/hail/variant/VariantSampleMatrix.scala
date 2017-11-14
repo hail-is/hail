@@ -1894,7 +1894,11 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def summarize(): SummaryResult = {
     val localRowType = rowType
     val localNSamples = nSamples
-    rdd2.aggregate(new SummaryCombiner(localRowType))(_.merge(_), _.merge(_))
+    rdd2.mapPartitions { it =>
+      val view = HardCallView(localRowType)
+      Iterator.single(it.foldLeft(new SummaryCombiner(localRowType))(_.merge(_, view)))
+    }
+      .fold(new SummaryCombiner(localRowType))(_.merge(_))
       .result(localNSamples)
   }
 

@@ -11,7 +11,6 @@ case class SummaryResult(samples: Int, variants: Long, callRate: Option[Double],
   deletions: Long, complex: Long, star: Long, maxAlleles: Int)
 
 class SummaryCombiner(rowType: TStruct) extends Serializable {
-  private val view = HardCallView(rowType)
   private val contigs = mutable.Set.empty[String]
   private var nCalled = 0L
   private var nVariants = 0L
@@ -41,8 +40,7 @@ class SummaryCombiner(rowType: TStruct) extends Serializable {
     this
   }
 
-  def merge(rv: RegionValue): SummaryCombiner = {
-    require(rowType.fieldType(1).isInstanceOf[TVariant])
+  def merge(rv: RegionValue, view: HardCallView): SummaryCombiner = {
     val vType = rowType.fieldType(1).asInstanceOf[TVariant]
     val r = rv.region
     val vOffset = rowType.loadField(rv, 1)
