@@ -1809,6 +1809,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   override def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) = {
+    if (!required && hasRequiredFields)
+      fatal(s"Tried to insert annotation into optional Struct with required fields: inserting Type $typeToInsert into $this at path $path.")
     if (path.isEmpty) {
       (typeToInsert, (region, offset, rvb, inserter) => inserter())
     } else {
@@ -1853,6 +1855,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   override def insert(signature: Type, p: List[String]): (Type, Inserter) = {
+    if (!required && hasRequiredFields)
+      fatal(s"Tried to insert annotation into optional Struct with required fields: inserting Type $signature into $this at path $p.")
     if (p.isEmpty)
       (signature, (a, toIns) => toIns)
     else {
@@ -1873,8 +1877,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
       val inserter: Inserter = (a, toIns) => {
         val r = if (a == null || localSize == 0) { // localsize == 0 catches cases where we overwrite a path
-          if (a == null && hasRequiredFields && localSize != 0)
-            fatal(s"Tried to insert annotation into missing Struct with required fields: inserting Type $signature into $this at path $p.")
           Row.fromSeq(Array.fill[Any](localSize)(null))
         } else
           a.asInstanceOf[Row]
