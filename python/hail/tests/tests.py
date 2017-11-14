@@ -74,6 +74,12 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(hc.eval_expr('[1, 2, 3].map(x => x * 2)'), [2, 4, 6])
 
         gds = hc.import_vcf(test_resources + '/sample.vcf.bgz', generic=True)
+        # can't compare directly because attributes won't match
+        self.assertEqual([f.name for f in gds.genotype_schema.fields],
+                         ['GT', 'AD', 'DP', 'GQ', 'PL'])
+        self.assertEqual([f.typ for f in gds.genotype_schema.fields],
+                         [TCall(), TArray(TInt32(required=True)), TInt32(), TInt32(), TArray(TInt32(required=True))])
+
         gds.write('/tmp/sample_generic.vds', overwrite=True)
         gds_read = hc.read('/tmp/sample_generic.vds')
         self.assertTrue(gds.same(gds_read))
@@ -840,6 +846,17 @@ class ContextTests(unittest.TestCase):
                     self.assertEqual(some_random_types[i], some_random_types_cp[j])
                 else:
                     self.assertNotEqual(some_random_types[i], some_random_types_cp[j])
+
+        reqint = TInt32(required=True)
+        self.assertEqual(reqint.required, True)
+        optint = TInt32()
+        self.assertEqual(optint.required, False)
+        optint2 = TInt32(required=False)
+        self.assertEqual(optint2.required, False)
+        self.assertEqual(id(optint), id(optint2))
+
+        reqint2 = TInt32(required=True)
+        self.assertEqual(id(reqint), id(reqint2))
 
     def test_query(self):
         vds = hc.import_vcf('src/test/resources/sample.vcf').split_multi().sample_qc()

@@ -1,7 +1,7 @@
 package is.hail.io.vcf
 
 import com.intel.genomicsdb.GenomicsDBFeatureReader
-import htsjdk.variant.vcf.VCFHeader
+import htsjdk.variant.vcf.{VCFCompoundHeaderLine, VCFHeader}
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
@@ -13,6 +13,10 @@ import org.json4s._
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import java.io.{File, FileWriter}
+
+import is.hail.io.vcf.LoadVCF.headerSignature
+
+import scala.collection.mutable
 
 case class QueryJSON(workspace: String,
                      array: String,
@@ -46,6 +50,43 @@ object LoadGDB {
       vcfHeaderPath),
       new FileWriter(tempFile))
     tempFile.getCanonicalFile
+  }
+
+  def formatHeaderSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
+    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = true): (TStruct, Int) = {
+    val canonicalFields = Array(
+      "GT" -> TCall(),
+      "AD" -> TArray(TInt32(arrayElementsRequired)),
+      "DP" -> TInt32(),
+      "GQ" -> TInt32(),
+      "PL" -> TArray(TInt32(arrayElementsRequired)))
+
+    val raw = headerSignature(lines, callFields, arrayElementsRequired)
+
+    var canonicalFlags = 0
+    var i = 0
+    val done = mutable.Set[Int]()
+    val fb = new ArrayBuilder[Field]()
+    canonicalFields.zipWithIndex.foreach { case ((id, t), j) =>
+      if (raw.hasField(id)) {
+        val f = raw.field(id)
+        if (f.typ == t) {
+          done += f.index
+          fb += Field(f.name, f.typ, i, f.attrs)
+          canonicalFlags |= (1 << j)
+          i += 1
+        }
+      }
+    }
+
+    raw.fields.foreach { f =>
+      if (!done.contains(f.index)) {
+        fb += Field(f.name, f.typ, i, f.attrs)
+        i += 1
+      }
+    }
+
+    (TStruct(fb.result()), canonicalFlags)
   }
 
   /* PATH PARAMETERS REQUIRE ABSOLUTE PATHS */
@@ -95,7 +136,7 @@ object LoadGDB {
     val infoSignature = LoadVCF.headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val (genotypeSignature, canonicalFlags) = LoadVCF.formatHeaderSignature(formatHeader, reader.callFields)
+    val (genotypeSignature, canonicalFlags) = formatHeaderSignature(formatHeader, reader.callFields)
 
     val variantAnnotationSignatures = TStruct(Array(
       Field("rsid", TString(), 0),
