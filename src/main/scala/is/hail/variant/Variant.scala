@@ -306,9 +306,9 @@ trait Variant {
 
   def ref(): String
 
-  def altAlleles(): IndexedSeq[AltAllele]
+  def altAlleles(): VolatileIndexedSeq[AltAllele]
 
-  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[AltAllele] = altAlleles): Variant
+  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: VolatileIndexedSeq[AltAllele] = altAlleles): Variant
 
   def nAltAlleles: Int = altAlleles.length
 
@@ -417,7 +417,7 @@ trait Variant {
     if (c != 0)
       return c
 
-    Ordering.Iterable[AltAllele].compare(altAlleles, that.altAlleles)
+    Ordering.Iterable[AltAllele].compare(altAlleles.toArray, that.altAlleles.toArray)
   }
 
   def minRep: Variant = {
@@ -456,7 +456,7 @@ trait Variant {
   }
 
   override def toString: String =
-    s"$contig:$start:$ref:${ altAlleles.map(_.alt).mkString(",") }"
+    s"$contig:$start:$ref:${ altAlleles.map(_.alt).toArray.mkString(",") }"
 
   def toRow = {
     Row.fromSeq(Array(
@@ -470,7 +470,7 @@ trait Variant {
     ("contig", JString(contig)),
     ("start", JInt(start)),
     ("ref", JString(ref)),
-    ("altAlleles", JArray(altAlleles.map(_.toJSON).toList))
+    ("altAlleles", JArray(altAlleles.map(_.toJSON).toArray.toList))
   )
 }
 
