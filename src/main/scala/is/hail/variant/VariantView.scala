@@ -14,11 +14,12 @@ class VariantView(t: TStruct) {
   private val tAltAllele: TStruct = tAltAlleles.elementType.asInstanceOf[TStruct]
   private val altIdx: Int = tAltAllele.fieldIdx("alt")
 
-  // assert(t.fieldType(contigIdx).required)
-  // assert(t.fieldType(startIdx).required)
-  // assert(t.fieldType(refIdx).required)
-  // assert(t.fieldType(altAllelesIdx).required)
-  // assert(tAltAllele.fieldType(altIdx).required)
+  assert(t.fieldType(contigIdx).required)
+  assert(t.fieldType(startIdx).required)
+  assert(t.fieldType(refIdx).required)
+  assert(tAltAlleles.required)
+  assert(tAltAlleles.elementType.required)
+  assert(tAltAllele.fieldType(altIdx).required)
 
   def setRegion(rv: RegionValue) {
     region = rv.region
@@ -31,31 +32,25 @@ class VariantView(t: TStruct) {
   }
 
   def getContig(): String = {
-    assert(t.isFieldDefined(region, offset, contigIdx))
     TString.loadString(region, t.loadField(region, offset, contigIdx))
   }
 
   def getStart(): Int = {
-    assert(t.isFieldDefined(region, offset, startIdx))
     region.loadInt(t.loadField(region, offset, startIdx))
   }
 
   def getRef(): String = {
-    assert(t.isFieldDefined(region, offset, refIdx))
     TString.loadString(region, t.loadField(region, offset, refIdx))
   }
 
   def getAltAlleles(): Long = {
-    assert(t.isFieldDefined(region, offset, altAllelesIdx))
     t.loadField(region, offset, altAllelesIdx)
   }
 
   def getAlt(): String = {
     val aoff = getAltAlleles()
     assert(tAltAlleles.loadLength(region, aoff) == 1)
-    assert(tAltAlleles.isElementDefined(region, aoff, 0))
     val eoff = tAltAlleles.loadElement(region, aoff, 1, 0)
-    assert(tAltAllele.isFieldDefined(region, eoff, altIdx))
     TString.loadString(region, tAltAllele.loadField(region, eoff, altIdx))
   }
 }
