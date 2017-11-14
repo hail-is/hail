@@ -33,13 +33,13 @@ class Struct(HistoryMixin):
     """
 
     @record_init
-    def __init__(self, attributes):
-        self._attrs = attributes
+    def __init__(self, **kwargs):
+        self._attrs = kwargs
 
     def __getattr__(self, item):
-        assert (self._attrs)
+        assert self._attrs is not None
         if item not in self._attrs:
-            raise AttributeError("Struct instance has no attribute '%s'" % item)
+            raise AttributeError("Struct instance has no attribute '{}'\n  Fields: {}".format(item, repr(self._attrs.keys())))
         return self._attrs[item]
 
     def __contains__(self, item):
@@ -55,7 +55,7 @@ class Struct(HistoryMixin):
         return str(self)
 
     def __str__(self):
-        return 'Struct' + str(self._attrs)
+        return 'Struct({})'.format(', '.join('{}={}'.format(k, v) for k, v in self._attrs.items()))
 
     def __eq__(self, other):
         return isinstance(other, Struct) and self._attrs == other._attrs

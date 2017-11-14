@@ -3,7 +3,8 @@ package is.hail.utils
 import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
-import is.hail.variant.Locus
+import is.hail.keytable.KeyTable
+import is.hail.variant.{Locus, VariantDataset, VariantSampleMatrix}
 
 import scala.collection.JavaConverters._
 
@@ -68,6 +69,34 @@ trait Py4jUtils {
   def addSocketAppender(hostname: String, port: Int) {
     val app = new StringSocketAppender(hostname, port, HailContext.logFormat)
     consoleLog.addAppender(app)
+  }
+
+  def logWarn(msg: String) {
+    warn(msg)
+  }
+
+  def logInfo(msg: String) {
+    info(msg)
+  }
+
+  def logError(msg: String) {
+    error(msg)
+  }
+
+  def joinGlobals(left: KeyTable, right: KeyTable, identifier: String): KeyTable = {
+    left.annotateGlobal(right.globals, right.globalSignature, identifier)
+  }
+
+  def joinGlobals(left: KeyTable, right: VariantSampleMatrix, identifier: String): KeyTable = {
+    left.annotateGlobal(right.globalAnnotation, right.globalSignature, identifier)
+  }
+
+  def joinGlobals(left: VariantSampleMatrix, right: KeyTable, identifier: String): VariantSampleMatrix = {
+    left.annotateGlobal(right.globals, right.globalSignature, identifier)
+  }
+
+  def joinGlobals(left: VariantSampleMatrix, right: VariantSampleMatrix, identifier: String): VariantSampleMatrix = {
+    left.annotateGlobal(right.globalAnnotation, right.globalSignature, identifier)
   }
 }
 

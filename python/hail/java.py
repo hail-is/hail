@@ -17,6 +17,12 @@ class Env:
     _hail_package = None
     _jutils = None
     _hc = None
+    _counter = 0
+
+    @staticmethod
+    def _get_uid():
+        Env._counter += 1
+        return "__uid_{}".format(Env._counter)
 
     @staticmethod
     def jvm():
@@ -108,6 +114,24 @@ def jiterable_to_list(it):
 def jarray_to_list(a):
     return list(a) if a else None
 
+
+class Log4jLogger:
+    log_pkg = None
+
+    @staticmethod
+    def get():
+        if Log4jLogger.log_pkg is None:
+            Log4jLogger.log_pkg = Env.jutils()
+        return Log4jLogger.log_pkg
+
+def error(msg):
+    Log4jLogger.get().error(msg)
+
+def warn(msg):
+    Log4jLogger.get().warn(msg)
+
+def info(msg):
+    Log4jLogger.get().info(msg)
 
 @decorator
 def handle_py4j(func, *args, **kwargs):

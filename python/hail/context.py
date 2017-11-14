@@ -1084,7 +1084,3 @@ class HailContext(HistoryMixin):
 
         jkt = self._jhc.readTable(path)
         return KeyTable(self, jkt)
-
-    def _get_unique_id(self):
-        self._counter += 1
-        return "__uid_{}".format(self._counter)

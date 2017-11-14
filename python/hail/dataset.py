@@ -5867,7 +5867,7 @@ class VariantDataset(HistoryMixin):
     @record_method
     def to_hail2(self):
         import hail2
-        return hail2.VariantDataset(self.hc, self._jvds)
+        return hail2.Matrix(self.hc, self._jvds)
 
     @handle_py4j
     @record_method

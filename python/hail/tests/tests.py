@@ -513,7 +513,7 @@ class ContextTests(unittest.TestCase):
         kt.join(kt2, 'left').count()
 
         # AggregateByKey
-        (kt.aggregate_by_key("Status = Status", "Sum = qPhen.sum()")
+        (kt.aggregate("Status = Status", "Sum = qPhen.sum()")
          .count())
 
         # Forall, Exists
@@ -599,7 +599,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(range(10), [x.index for x in KeyTable.range(10).collect()])
         self.assertTrue(KeyTable.range(200).indexed('foo').forall('index == foo'))
 
-        kt3 = KeyTable.parallelize([{'A': Struct({'c1': 5, 'c2': 21})}],
+        kt3 = KeyTable.parallelize([{'A': Struct(c1=5, c2=21)}],
                                    TStruct(['A'], [TStruct(['c1', 'c2'], [TInt32(), TInt32()])]))
 
         self.assertTrue(kt3.ungroup('A').group('A', 'c1', 'c2').same(kt3))
@@ -873,8 +873,8 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(vds.annotate_global(path, map7, maptype2).globals.annotation, map7)
         self.assertEqual(vds.annotate_global(path, map8, maptype2).globals.annotation, map8)
 
-        struct1 = Struct({'field1': 5, 'field2': 10, 'field3': [1, 2]})
-        struct2 = Struct({'field1': 5, 'field2': None, 'field3': None})
+        struct1 = Struct(field1=5, field2=10, field3=[1, 2])
+        struct2 = Struct(field1=5, field2=None, field3=None)
         struct3 = None
         structtype = TStruct(['field1', 'field2', 'field3'], [TInt32(), TInt32(), TArray(TInt32())])
         self.assertEqual(vds.annotate_global(path, struct1, structtype).globals.annotation, struct1)

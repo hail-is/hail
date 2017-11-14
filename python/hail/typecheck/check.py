@@ -184,12 +184,17 @@ def sized_tupleof(*args):
     return TupleChecker(*[only(x) for x in args])
 
 
+def setof(t):
+    return CollectionChecker(only(set), only(t))
+
+
 def dictof(k, v):
     return DictChecker(only(k), only(v))
 
 
 def lazy():
     return LazyChecker()
+
 
 none = only(NoneType)
 
