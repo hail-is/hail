@@ -61,7 +61,8 @@ class Type(object):
         class_name = jtype.getClass().getCanonicalName()
 
         if class_name in _intern_classes:
-            return __interns__(class_name)
+            type, required = _intern_classes[class_name]
+            return type(required)
         elif class_name == 'is.hail.expr.TArray':
             return TArray._from_java(jtype)
         elif class_name == 'is.hail.expr.TSet':
@@ -879,7 +880,6 @@ class TAggregable(Type):
     def _typecheck(self, annotation):
         return
 
-__interns = None
 _intern_classes = {'is.hail.expr.TInt32Optional$': (TInt32, False),
                    'is.hail.expr.TInt32Required$': (TInt32, True),
                    'is.hail.expr.TInt64Optional$': (TInt64, False),
@@ -898,13 +898,6 @@ _intern_classes = {'is.hail.expr.TInt32Optional$': (TInt32, False),
                    'is.hail.expr.TGenotypeRequired$': (TGenotype, True),
                    'is.hail.expr.TCallOptional$': (TCall, False),
                    'is.hail.expr.TCallRequired$': (TCall, True)}
-def __interns__(scala_type):
-    global __interns
-    if not __interns:
-        __interns = {}
-        for scala_type, (type, required) in _intern_classes.iteritems():
-          __interns[scala_type] = type(required)
-    return __interns[scala_type]
 
 import pprint
 
