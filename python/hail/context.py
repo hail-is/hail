@@ -780,8 +780,9 @@ class HailContext(HistoryMixin):
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       min_partitions=nullable(integral),
                       drop_samples=bool,
-                      cell_type=strlike)
-    def import_matrix(self, path, min_partitions=None, drop_samples=False, cell_type="Int64", missing="NA"):
+                      cell_type=Type,
+                      missing=strlike)
+    def import_matrix(self, path, min_partitions=None, drop_samples=False, cell_type=TInt64(), missing="NA"):
         """
         :param path: File(s) to read. Currently, takes 1 header line of column ids and subsequent lines of rowID, data... in TSV form where data can be parsed as an integer.
         :type path: str or list of str
@@ -798,16 +799,13 @@ class HailContext(HistoryMixin):
         :return: Variant dataset imported from file(s)
         :rtype: :py:class:`.VariantDataset`
         """
-        tdict = {"Int32": 0, "Int64": 1, "Float32": 2, "Float64": 3, "String": 4}
 
         return VariantDataset(self,
                               self._jhc.importMatrices(jindexed_seq_args(path),
                                                        joption(min_partitions),
                                                        drop_samples,
-                                                       tdict[cell_type],
-                                                       missing
-                                                       )
-                              )
+                                                       cell_type._jtype,
+                                                       missing))
 
     @handle_py4j
     @typecheck_method(path=oneof(strlike, listof(strlike)))

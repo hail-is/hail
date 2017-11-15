@@ -48,7 +48,7 @@ object LoadMatrix {
     newoff
   }
 
-  def setInt32(string: String, off: Int, rvb: RegionValueBuilder, sep: String = "\t", missingValue: String = "NA"): Int = {
+  def setInt(string: String, off: Int, rvb: RegionValueBuilder, sep: String = "\t", missingValue: String = "NA"): Int = {
     var newoff = off
     var v = 0
     var isNegative = false
@@ -86,7 +86,7 @@ object LoadMatrix {
     }
   }
 
-  def setInt64(string: String, off: Int, rvb: RegionValueBuilder, sep: String = "\t", missingValue: String = "NA"): Int = {
+  def setLong(string: String, off: Int, rvb: RegionValueBuilder, sep: String = "\t", missingValue: String = "NA"): Int = {
     var newoff = off
     var v = 0L
     var isNegative = false
@@ -124,7 +124,7 @@ object LoadMatrix {
     }
   }
 
-  def setFloat32(string: String, off: Int, rvb: RegionValueBuilder, sep: String = "\t", missingValue: String = "NA"): Int = {
+  def setFloat(string: String, off: Int, rvb: RegionValueBuilder, sep: String = "\t", missingValue: String = "NA"): Int = {
     var newoff = string.indexOf(sep, off)
     if (newoff == -1) {
       newoff = string.length
@@ -144,7 +144,7 @@ object LoadMatrix {
     newoff
   }
 
-  def setFloat64(string: String, off: Int, rvb: RegionValueBuilder, sep: String = "\t", missingValue: String = "NA"): Int = {
+  def setDouble(string: String, off: Int, rvb: RegionValueBuilder, sep: String = "\t", missingValue: String = "NA"): Int = {
     var newoff = string.indexOf(sep, off)
     if (newoff == -1) {
       newoff = string.length
@@ -172,7 +172,9 @@ object LoadMatrix {
     sep: String = "\t",
     missingValue: String = "NA"): VariantSampleMatrix[Annotation, Annotation, Annotation] = {
 
-    if (!Set[Type](TInt64(), TInt32(), TFloat32(), TFloat64(), TString()).contains(cellType)) {
+    cellType match {
+      case _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TString =>
+      case _ =>
       fatal(
         s"""expected cell type Int32, Int64, Float32, Float64, or String but got:
            |    ${ cellType.toPrettyString() }
@@ -253,70 +255,68 @@ object LoadMatrix {
       }
     }
 
-    val rdd = lines
+    val rdd = lines.filter(l => l.value.nonEmpty)
       .mapPartitionsWithIndex { (i, it) =>
         val region = MemoryBuffer()
         val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region, 0)
+        val rv = RegionValue(region)
 
         if (firstPartitions(i))
           it.next()
 
         it.map { v =>
           val line = v.value
-          if (line.nonEmpty) {
-            val firstsep = line.indexOf(sep)
+          val firstsep = line.indexOf(sep)
 
-            region.clear()
-            rvb.start(matrixType.orderedRDD2Type.rowType)
-            rvb.startStruct()
+          region.clear()
+          rvb.start(matrixType.rowType)
+          rvb.startStruct()
 
-            rvb.addString(line.substring(0, firstsep))
-            rvb.addString(line.substring(0, firstsep))
-            rvb.startStruct()
-            rvb.endStruct()
+          rvb.addString(line.substring(0, firstsep))
+          rvb.addString(line.substring(0, firstsep))
+          rvb.startStruct()
+          rvb.endStruct()
 
-            rvb.startArray(nSamples)
-            if (nSamples > 0) {
-              var off = firstsep + 1
-              var v = 0L
-              var ii = 0
-              while (ii < nSamples) {
-                if (off > line.length) {
-                  fatal(
-                    s"""Incorrect number of elements in line:
-                       |    expected $nSamples elements in row but only $i elements found.
-                       |    in file ${ fileByPartition(i) }""".stripMargin
-                  )
-                }
-                off = cellType match {
-                  case TString(_) => setString(line, off, rvb, sep, missingValue)
-                  case TInt64(_) => setInt64(line, off, rvb, sep, missingValue)
-                  case TInt32(_) => setInt32(line, off, rvb, sep, missingValue)
-                  case TFloat64(_) => setFloat64(line, off, rvb, sep, missingValue)
-                  case TFloat32(_) => setFloat32(line, off, rvb, sep, missingValue)
-                }
-                ii += 1
-                if (off == -1 || (off != line.length && line(off) != sep(0))) {
-                  fatal(
-                    s"""found a bad input in file
-                       |    ${ fileByPartition(i) }""".stripMargin
-                  )
-                }
-                off += 1
-              }
-              if (off < line.length) {
+          rvb.startArray(nSamples)
+          if (nSamples > 0) {
+            var off = firstsep + 1
+            var v = 0L
+            var ii = 0
+            while (ii < nSamples) {
+              if (off > line.length) {
                 fatal(
                   s"""Incorrect number of elements in line:
-                     |    expected $nSamples elements in row but more data found.
+                     |    expected $nSamples elements in row but only $i elements found.
                      |    in file ${ fileByPartition(i) }""".stripMargin
                 )
               }
+              off = cellType match {
+                case TString(_) => setString(line, off, rvb, sep, missingValue)
+                case TInt64(_) => setLong(line, off, rvb, sep, missingValue)
+                case TInt32(_) => setInt(line, off, rvb, sep, missingValue)
+                case TFloat64(_) => setDouble(line, off, rvb, sep, missingValue)
+                case TFloat32(_) => setFloat(line, off, rvb, sep, missingValue)
+              }
+              ii += 1
+              if (off == -1 || (off != line.length && line(off) != sep(0))) {
+                fatal(
+                  s"""found a bad input in file
+                     |    ${ fileByPartition(i) }""".stripMargin
+                )
+              }
+              off += 1
             }
-            rvb.endArray()
-            rvb.endStruct()
-            rv.setOffset(rvb.end())
+            if (off < line.length) {
+              fatal(
+                s"""Incorrect number of elements in line:
+                   |    expected $nSamples elements in row but more data found.
+                   |    in file ${ fileByPartition(i) }""".stripMargin
+              )
+            }
           }
+          rvb.endArray()
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
           rv
         }
       }

@@ -2,8 +2,9 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
+import is.hail.check.Gen
 import is.hail.expr._
-import is.hail.variant.VariantSampleMatrix
+import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
@@ -16,7 +17,6 @@ class ImportMatrixSuite extends SparkSuite {
       val vsm = LoadMatrix(hc, files)
     }
     assert(e.getMessage.contains("invalid sample ids"))
-
   }
 
   @Test def testMissingVals() {
@@ -57,6 +57,24 @@ class ImportMatrixSuite extends SparkSuite {
 
     assert(vsm4.sampleIds.length == 20)
     vsm4.rdd.collect()(1)._2._2.foreach { i => assert(i == "0") }
+  }
+
+  @Test def testTypes2() {
+    VSMSubgen[String, String, Annotation](
+      sSigGen = Gen.const(TString()),
+      saSigGen = Gen.const(TStruct.empty()),
+      vSigGen = Gen.const(TString()),
+      vaSigGen: Gen[Type],
+      globalSigGen: Gen[Type],
+      tSigGen: Gen[Type],
+      sGen: (Type) => Gen[Annotation],
+      saGen: (Type) => Gen[Annotation],
+      vaGen: (Type) => Gen[Annotation],
+      globalGen: (Type) => Gen[Annotation],
+      vGen: (Type) => Gen[RK],
+      tGen: (Type, RK) => Gen[T],
+      wasSplit: Boolean = false,
+      makeKOk: (Type) => OrderedKey[RPK, RK]) {
   }
 
   @Test def testReadWrite() {

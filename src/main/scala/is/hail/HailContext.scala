@@ -512,26 +512,18 @@ class HailContext private(val sc: SparkContext,
   def importMatrix(file: String,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    cellType: Int = 1,
+    cellType: Type = TInt64(),
     missingVal: String = "NA"): VariantSampleMatrix[Annotation, Annotation, Annotation] =
     importMatrices(List(file), nPartitions, dropSamples, cellType, missingVal)
 
   def importMatrices(files: Seq[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    cellType: Int = 1,
+    cellType: Type = TInt64(),
     missingVal: String = "NA"): VariantSampleMatrix[Annotation, Annotation, Annotation] = {
     val inputs = hadoopConf.globAll(files)
 
-    val actualType = Map(
-      0 -> TInt32(),
-      1 -> TInt64(),
-      2 -> TFloat32(),
-      3 -> TFloat64(),
-      4 -> TString()
-    )(cellType)
-
-    LoadMatrix(this, inputs, nPartitions, dropSamples, cellType = actualType, missingValue = missingVal)
+    LoadMatrix(this, inputs, nPartitions, dropSamples, cellType = cellType, missingValue = missingVal)
   }
 
   def indexBgen(file: String) {
