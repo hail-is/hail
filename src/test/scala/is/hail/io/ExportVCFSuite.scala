@@ -320,4 +320,26 @@ class ExportVCFSuite extends SparkSuite {
 
     p.check()
   }
+  
+  @Test def testContigs() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf", dropSamples = true)
+
+    var found = 0
+    val out = tmpDir.createLocalTempFile("foo", "vcf")
+    vds.exportVCF(out)
+    hadoopConf.readLines(out) { lines =>
+      lines.foreach { l =>
+        if (l.value.startsWith("##reference")) {
+          found += 1
+          l.value == "##reference=GRCh37"
+        }
+        else if (l.value.startsWith("##contig=<ID=10")) {
+          found += 1
+          l.value == "##contig=<ID=10,length=135534747>"
+        }
+      }
+    }
+      
+    assert(found == 2)
+  }
 }
