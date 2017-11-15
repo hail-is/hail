@@ -3,8 +3,8 @@ package is.hail.variant
 import is.hail.annotations._
 import is.hail.expr._
 
-class VariantView(tv: TVariant) {
-  private val t: TStruct = tv.fundamentalType.asInstanceOf[TStruct]
+class VariantView(tv: TVariant) extends View {
+  private val t: TStruct = tv.representation.asInstanceOf[TStruct]
   private var region: MemoryBuffer = _
   private var offset: Long = _
   private val contigIdx: Int = t.fieldIdx("contig")
@@ -12,20 +12,13 @@ class VariantView(tv: TVariant) {
   private val refIdx: Int = t.fieldIdx("ref")
   private val altAllelesIdx: Int = t.fieldIdx("altAlleles")
   private val tAltAlleles: TArray = t.fieldType(altAllelesIdx).asInstanceOf[TArray]
-  private val tAltAllele: TStruct = tAltAlleles.elementType.asInstanceOf[TStruct]
-  private val altIdx: Int = tAltAllele.fieldIdx("alt")
+  private val tAltAllele: TAltAllele = tAltAlleles.elementType.asInstanceOf[TAltAllele]
 
   assert(t.fieldType(contigIdx).required)
   assert(t.fieldType(startIdx).required)
   assert(t.fieldType(refIdx).required)
   assert(tAltAlleles.required)
   assert(tAltAlleles.elementType.required)
-  assert(tAltAllele.fieldType(altIdx).required)
-
-  def setRegion(rv: RegionValue) {
-    region = rv.region
-    offset = rv.offset
-  }
 
   def setRegion(region: MemoryBuffer, offset: Long) {
     this.region = region
@@ -44,14 +37,15 @@ class VariantView(tv: TVariant) {
     TString.loadString(region, t.loadField(region, offset, refIdx))
   }
 
-  def getAltAlleles(): Long = {
-    t.loadField(region, offset, altAllelesIdx)
+  val altAlleles = new ArrayView(tAltAlleles, new AltAlleleView(tAltAllele))
+  def loadAltAlleles() {
+    altAlleles.setRegion(region, t.loadField(region, offset, altAllelesIdx))
   }
 
+  // loadAltAlleles() must be called first
   def getAlt(): String = {
-    val aoff = getAltAlleles()
-    assert(tAltAlleles.loadLength(region, aoff) == 1)
-    val eoff = tAltAlleles.loadElement(region, aoff, 1, 0)
-    TString.loadString(region, tAltAllele.loadField(region, eoff, altIdx))
+    assert(altAlleles.getLength() == 1)
+    altAlleles.set(0)
+    altAlleles.elementView.getAlt()
   }
 }
