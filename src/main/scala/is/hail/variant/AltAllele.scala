@@ -6,6 +6,7 @@ import is.hail.expr._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.json4s._
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
@@ -19,40 +20,39 @@ object CopyState extends Enumeration {
 
 object AltAllele {
 
-  def fromRegionValue(m: MemoryBuffer, offset: Long): AltAllele = {
+  def fromRegionValue(m: MemoryBuffer, offset: Long): ConcreteAltAllele = {
     val t = TAltAllele.representation()
     val ref = TString.loadString(m, t.loadField(m, offset, 0))
     val alt = TString.loadString(m, t.loadField(m, offset, 1))
-    AltAllele(ref, alt)
+    ConcreteAltAllele(ref, alt)
   }
 
   def sparkSchema: StructType = StructType(Array(
     StructField("ref", StringType, nullable = false),
     StructField("alt", StringType, nullable = false)))
 
-  def fromRow(r: Row): AltAllele =
-    AltAllele(r.getString(0), r.getString(1))
+  def fromRow(r: Row): ConcreteAltAllele =
+    ConcreteAltAllele(r.getString(0), r.getString(1))
 
   def gen(ref: String): Gen[AltAllele] =
     for (alt <- Gen.frequency((10, genDNAString),
       (1, Gen.const("*"))) if alt != ref)
-      yield AltAllele(ref, alt)
+      yield ConcreteAltAllele(ref, alt)
 
   def gen: Gen[AltAllele] =
     for (ref <- genDNAString;
       alt <- genDNAString if alt != ref)
-      yield AltAllele(ref, alt)
+      yield ConcreteAltAllele(ref, alt)
 
   implicit def altAlleleOrder: Ordering[AltAllele] = new Ordering[AltAllele] {
     def compare(x: AltAllele, y: AltAllele): Int = x.compare(y)
   }
 }
 
-case class AltAllele(ref: String,
-  alt: String) {
-  require(ref != alt, "ref was equal to alt")
-  require(!ref.isEmpty, "ref was an empty string")
-  require(!alt.isEmpty, "alt was an empty string")
+trait AltAllele {
+  def ref(): String
+
+  def alt(): String
 
   import AltAlleleType._
 
@@ -80,9 +80,9 @@ case class AltAllele(ref: String,
     ref.length == alt.length &&
     nMismatch > 1
 
-  def isInsertion: Boolean = ref.length < alt.length && ref(0) == alt(0) && alt.endsWith(ref.substring(1))
+  def isInsertion: Boolean = ref.length < alt.length && ref()(0) == alt()(0) && alt.endsWith(ref.substring(1))
 
-  def isDeletion: Boolean = alt.length < ref.length && ref(0) == alt(0) && ref.endsWith(alt.substring(1))
+  def isDeletion: Boolean = alt.length < ref.length && ref()(0) == alt()(0) && ref.endsWith(alt.substring(1))
 
   def isIndel: Boolean = isInsertion || isDeletion
 
@@ -121,5 +121,11 @@ case class AltAllele(ref: String,
 
     alt.compare(that.alt)
   }
+}
+
+case class ConcreteAltAllele(ref: String, alt: String) extends AltAllele {
+  require(ref != alt, "ref was equal to alt")
+  require(!ref.isEmpty, "ref was an empty string")
+  require(!alt.isEmpty, "alt was an empty string")
 }
 
