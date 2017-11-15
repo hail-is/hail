@@ -1108,13 +1108,13 @@ object FunctionRegistry {
       if (longer.ref.substring(0, shorter.ref.length) != shorter.ref)
         fatal(s"Variants ref bases mismatch in combineVariants. Left ref: ${ left.ref }, right ref: ${ right.ref }")
 
-      val long_alleles_index = longer.altAlleles.map(_.alt).zipWithIndex.toMap
+      val long_alleles_index = longer.altAlleles().map(_.alt).zipWithIndex.toMap
       val short_alleles_index = mutable.Map[Int, Int](0 -> 0)
       val short_alleles = new mutable.ArrayBuffer[AltAllele](initialSize = shorter.nAltAlleles)
 
       (0 until shorter.nAltAlleles).foreach({
         i =>
-          val alt = shorter.altAlleles(i).alt + ref_diff
+          val alt = shorter.altAlleles()(i).alt + ref_diff
           long_alleles_index.get(alt) match {
             case Some(ai) => short_alleles_index(ai + 1) = i + 1
             case None => short_alleles += AltAllele(longer.ref, alt)
@@ -1122,7 +1122,7 @@ object FunctionRegistry {
           }
       })
 
-      val newVariant = longer.copy(altAlleles = longer.altAlleles ++ short_alleles)
+      val newVariant = longer.copy(altAlleles = longer.altAlleles() ++ short_alleles)
       if (swapped)
         Annotation(newVariant, short_alleles_index.toMap, (0 to longer.nAltAlleles).zipWithIndex.toMap)
       else

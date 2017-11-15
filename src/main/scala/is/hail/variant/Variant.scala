@@ -161,18 +161,23 @@ object Variant {
   def apply(contig: String,
     start: Int,
     ref: String,
-    alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
+    alt: String): Variant = ConcreteVariant(contig, start, ref, Array(AltAllele(ref, alt)))
 
   def apply(contig: String,
     start: Int,
     ref: String,
     alts: Array[String]): Variant =
-    Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
+    ConcreteVariant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
 
   def apply(contig: String,
     start: Int,
     ref: String,
     alts: java.util.ArrayList[String]): Variant = Variant(contig, start, ref, alts.asScala.toArray)
+
+  def apply(contig: String,
+    start: Int,
+    ref: String,
+    alts: Array[AltAllele]): Variant = ConcreteVariant(contig, start, ref, alts)
 
   def parse(str: String): Variant = {
     val colonSplit = str.split(":")
@@ -294,16 +299,16 @@ case class VariantSubgen(
       Variant(contig, start, ref, altAlleles.map(alt => AltAllele(ref, alt)))
 }
 
-case class Variant(contig: String,
-  start: Int,
-  ref: String,
-  altAlleles: IndexedSeq[AltAllele]) {
-  require(altAlleles.forall(_.ref == ref))
+trait Variant {
+  def contig(): String
 
-  /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
-       corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
-  require(start >= 0, s"invalid variant: negative position: `${ this.toString }'")
-  require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
+  def start(): Int
+
+  def ref(): String
+
+  def altAlleles(): IndexedSeq[AltAllele]
+
+  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[AltAllele] = altAlleles): Variant
 
   def nAltAlleles: Int = altAlleles.length
 
@@ -312,7 +317,7 @@ case class Variant(contig: String,
   // FIXME altAllele, alt to be deprecated
   def altAllele: AltAllele = {
     require(isBiallelic, "called altAllele on a non-biallelic variant")
-    altAlleles(0)
+    altAlleles()(0)
   }
 
   def alt: String = altAllele.alt
@@ -322,7 +327,7 @@ case class Variant(contig: String,
   def allele(i: Int): String = if (i == 0)
     ref
   else
-    altAlleles(i - 1).alt
+    altAlleles()(i - 1).alt
 
   def nGenotypes = Variant.nGenotypes(nAlleles)
 
@@ -428,14 +433,14 @@ case class Variant(contig: String,
       var ne = 0
 
       while (ne < min_length - 1
-        && alts.forall(x => ref(ref.length - ne - 1) == x(x.length - ne - 1))
+        && alts.forall(x => ref()(ref.length - ne - 1) == x(x.length - ne - 1))
       ) {
         ne += 1
       }
 
       var ns = 0
       while (ns < min_length - ne - 1
-        && alts.forall(x => ref(ns) == x(ns))
+        && alts.forall(x => ref()(ns) == x(ns))
       ) {
         ns += 1
       }
@@ -467,4 +472,16 @@ case class Variant(contig: String,
     ("ref", JString(ref)),
     ("altAlleles", JArray(altAlleles.map(_.toJSON).toList))
   )
+}
+
+case class ConcreteVariant(contig: String,
+  start: Int,
+  ref: String,
+  altAlleles: IndexedSeq[AltAllele]) extends Variant {
+  require(altAlleles.forall(_.ref == ref))
+
+  /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
+       corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
+  require(start >= 0, s"invalid variant: negative position: `${ this.toString }'")
+  require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
 }

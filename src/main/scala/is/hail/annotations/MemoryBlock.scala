@@ -6,7 +6,7 @@ import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Genotype, Locus, ConcreteVariant}
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -952,7 +952,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
           endArray()
 
         case t: TVariant =>
-          val v = a.asInstanceOf[Variant]
+          val v = a.asInstanceOf[ConcreteVariant]
           startStruct()
           addString(v.contig)
           addInt(v.start)
