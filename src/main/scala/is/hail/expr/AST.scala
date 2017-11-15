@@ -3,6 +3,7 @@ package is.hail.expr
 import is.hail.asm4s.{Code, _}
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils.{HailException, _}
+import is.hail.variant.GenomeReference
 import org.apache.spark.sql.{Row, RowFactory}
 import org.json4s.jackson.JsonMethods
 
@@ -319,7 +320,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
       case (t, name) => FunctionRegistry.lookupFieldReturnType(t, Seq(), name)
         .valueOr {
-          case FunctionRegistry.NotFound(name, typ) =>
+          case FunctionRegistry.NotFound(name, typ, _) =>
             parseError(s"""`$t' has no field or method `$rhs'""".stripMargin)
           case otherwise => parseError(otherwise.message)
         }
@@ -340,7 +341,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
       FunctionRegistry.lookupField(t, Seq(), rhs)(lhs, Seq())
         .valueOr {
-          case FunctionRegistry.NotFound(name, typ) =>
+          case FunctionRegistry.NotFound(name, typ, _) =>
             ParserUtils.error(localPos,
               s"""`$t' has neither a field nor a method named `$name'
                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
@@ -399,6 +400,22 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
   def compile() = for (
     celements <- CM.sequence(elements.map(_.compile()))
   ) yield arrayToAnnotation(CompilationHelp.arrayOf(celements))
+}
+
+case class GenomeReferenceDependentConstructor(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
+  val gr = GenomeReference.getReference(grName)
+  val rTyp = fName match {
+    case "Variant" => gr.variant
+    case "Locus" => gr.locus
+    case "Interval" => gr.interval
+    case _ => throw new UnsupportedOperationException
+  }
+
+  override def typecheckThis(): Type = rTyp
+
+  override def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
+
+  override def compile(): CM[Code[AnyRef]] = FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
 }
 
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {

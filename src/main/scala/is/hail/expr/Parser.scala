@@ -437,6 +437,12 @@ object Parser extends JavaTokenParsers {
       withPos(structDeclaration) ^^ (r => StructConstructor(r.pos, r.x.map(_._1), r.x.map(_._2))) |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean())) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean())) |
+      (guard(not("if" | "else")) ~> (genomeReferenceDependentTypes <~ "(") ~ (identifier <~ ")") ~ withPos("(") ~ (args <~ ")") ^^ {
+        case fn ~ gr ~ lparen ~ args => GenomeReferenceDependentConstructor(lparen.pos, fn, gr, args)
+      }) |
+      (guard(not("if" | "else")) ~> genomeReferenceDependentTypes ~ withPos("(") ~ (args <~ ")") ^^ {
+        case fn ~ lparen ~ args => GenomeReferenceDependentConstructor(lparen.pos, fn, GenomeReference.defaultReference.name, args)
+      }) |
       (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
         case id ~ lparen ~ args =>
           Apply(lparen.pos, id.x, args)
@@ -588,4 +594,6 @@ object Parser extends JavaTokenParsers {
       (id, spec, t, f)
     }
   }
+
+  def genomeReferenceDependentTypes = "Variant" | "Locus" | "Interval"
 }

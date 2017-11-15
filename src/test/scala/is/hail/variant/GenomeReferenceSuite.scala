@@ -142,4 +142,31 @@ class GenomeReferenceSuite extends SparkSuite {
     kt5.typeCheck()
     assert(kt5.forall("v37a.isAutosomal() && !v37na.isAutosomal() && v38a.isAutosomal() && !v38na.isAutosomal()"))
   }
+
+  @Test def testConstructors() {
+    val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv")
+    val ktann = kt.annotate("""v1 = Variant(GRCh38)("chrX:156030895:A:T"), v2 = Variant(GRCh37)("X:154931044:A:T"),
+    |v3 = Variant(GRCh37)("1", 3, "A", "T"), l1 = Locus(GRCh38)("1", 100), l2 = Locus(GRCh37)("1:100"),
+    |i1 = Interval(GRCh37)("1:5-10"), i2 = Interval(GRCh38)("chrX", 156030890, 156030895)""".stripMargin)
+
+    assert(ktann.signature.field("v1").typ == GenomeReference.GRCh38.variant &&
+    ktann.signature.field("v2").typ == GenomeReference.GRCh37.variant &&
+    ktann.signature.field("v3").typ == GenomeReference.GRCh37.variant &&
+    ktann.signature.field("l1").typ == GenomeReference.GRCh38.locus &&
+    ktann.signature.field("l2").typ == GenomeReference.GRCh37.locus &&
+    ktann.signature.field("i1").typ == GenomeReference.GRCh37.interval &&
+    ktann.signature.field("i2").typ == GenomeReference.GRCh38.interval)
+
+    assert(ktann.forall("v1.inXPar() && v2.inXPar() && v3.isAutosomal() &&" +
+      "l1.position == 100 && l2.position == 100 &&" +
+      """i1.start == Locus(GRCh37)("1", 5) && !i2.contains(l1)"""))
+
+    val gr = GenomeReference("foo2", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+        Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]])
+    GenomeReference.addReference(gr)
+    GenomeReference.setDefaultReference(gr)
+    assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == gr.variant)
+
+    GenomeReference.setDefaultReference(GenomeReference.GRCh37)
+  }
 }
