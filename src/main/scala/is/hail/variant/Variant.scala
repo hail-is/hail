@@ -484,4 +484,8 @@ case class ConcreteVariant(contig: String,
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
   require(start >= 0, s"invalid variant: negative position: `${ this.toString }'")
   require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
+
+  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[AltAllele] = altAlleles): ConcreteVariant =
+    ConcreteVariant(contig, start, ref, altAlleles)
+
 }
