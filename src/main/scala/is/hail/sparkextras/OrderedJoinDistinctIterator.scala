@@ -1,20 +1,26 @@
 package is.hail.sparkextras
 
-import is.hail.annotations.{JoinedRegionValue, RegionValue, UnsafeOrdering}
+import is.hail.annotations.{JoinedRegionValue, RegionValue}
 
-abstract class OrderedJoinDistinctIterator(typ: OrderedRDD2Type, lrKOrd: UnsafeOrdering, leftIt: Iterator[RegionValue],
+abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: OrderedRDD2Type, leftIt: Iterator[RegionValue],
   rightIt: Iterator[RegionValue]) extends Iterator[JoinedRegionValue] {
-  val jrv = JoinedRegionValue()
-  var lrv: RegionValue = _
-  var rrv: RegionValue = _
+  private val jrv = JoinedRegionValue()
+  private var lrv: RegionValue = _
+  private var rrv: RegionValue = if (rightIt.hasNext) rightIt.next() else null
 
-  var present = false
-  var foundOne = false
+  private var present = false
+  private val lrKOrd = OrderedRDD2Type.selectUnsafeOrdering(leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx)
 
-  val rowType = typ.rowType
-  var prev: WritableRegionValue = WritableRegionValue(typ.kType)
+  def lrCompare(): Int = {
+    assert(lrv != null && rrv != null)
+    lrKOrd.compare(lrv, rrv)
+  }
 
-  val kRowOrd: UnsafeOrdering = typ.kRowOrd
+  def isPresent: Boolean = present
+
+  def advanceLeft1() {
+    lrv = if (leftIt.hasNext) leftIt.next() else null
+  }
 
   def advanceLeft() {
     assert(rrv != null)
@@ -24,6 +30,12 @@ abstract class OrderedJoinDistinctIterator(typ: OrderedRDD2Type, lrKOrd: UnsafeO
       else
         lrv = null
     }
+  }
+
+  def hasLeft: Boolean = lrv != null
+
+  def advanceRight1() {
+    rrv = if (rightIt.hasNext) rightIt.next() else null
   }
 
   def advanceRight() {
@@ -36,11 +48,21 @@ abstract class OrderedJoinDistinctIterator(typ: OrderedRDD2Type, lrKOrd: UnsafeO
     }
   }
 
-  def wasSeen(rv: RegionValue): Boolean = {
-    if (foundOne) {
-      kRowOrd.compare(rv, prev.value) == 0
-    } else
-      false
+  def hasRight: Boolean = rrv != null
+
+  def setJrv() {
+    jrv.set(lrv, rrv)
+    present = true
+  }
+
+  def setJrvRightNull() {
+    jrv.set(lrv, null)
+    present = true
+  }
+
+  def setJrvLeftNull() {
+    jrv.set(null, rrv)
+    present = true
   }
 
   def hasNext(): Boolean
@@ -51,55 +73,43 @@ abstract class OrderedJoinDistinctIterator(typ: OrderedRDD2Type, lrKOrd: UnsafeO
   }
 }
 
-class OrderedInnerJoinDistinctIterator(typ: OrderedRDD2Type, lrKOrd: UnsafeOrdering, leftIt: Iterator[RegionValue],
-  rightIt: Iterator[RegionValue]) extends OrderedJoinDistinctIterator(typ, lrKOrd, leftIt, rightIt) {
+class OrderedInnerJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: OrderedRDD2Type, leftIt: Iterator[RegionValue],
+  rightIt: Iterator[RegionValue]) extends OrderedJoinDistinctIterator(leftTyp, rightTyp, leftIt, rightIt) {
 
   def hasNext(): Boolean = {
-    if (!present) {
-      lrv = if (leftIt.hasNext) leftIt.next() else null
-      rrv = if (rightIt.hasNext) rightIt.next() else null
+    if (!isPresent) {
+      advanceLeft1()
     }
 
-    while (!present && lrv != null && rrv != null) {
-      val c = lrKOrd.compare(lrv, rrv)
-      if (wasSeen(lrv)) {
-        lrv = if (leftIt.hasNext) leftIt.next() else null
-      } else if (c == 0) {
-        jrv.set(lrv, rrv)
-        prev.setSelect(rowType, Array(0, 1), lrv)
-        foundOne = true
-        present = true
-      } else if (c > 0) {
+    while (!isPresent && hasLeft && hasRight) {
+      val c = lrCompare()
+      if (c == 0)
+        setJrv()
+      else if (c > 0)
         advanceRight()
-      } else {
+      else
         advanceLeft()
-      }
     }
-    present
+    isPresent
   }
 }
 
-class OrderedLeftJoinDistinctIterator(typ: OrderedRDD2Type, lrKOrd: UnsafeOrdering, leftIt: Iterator[RegionValue],
-  rightIt: Iterator[RegionValue]) extends OrderedJoinDistinctIterator(typ, lrKOrd, leftIt, rightIt) {
+class OrderedLeftJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: OrderedRDD2Type, leftIt: Iterator[RegionValue],
+  rightIt: Iterator[RegionValue]) extends OrderedJoinDistinctIterator(leftTyp, rightTyp, leftIt, rightIt) {
 
   def hasNext(): Boolean = {
-    if (!present) {
-      lrv = if (leftIt.hasNext) leftIt.next() else null
-      rrv = if (rightIt.hasNext) rightIt.next() else null
+    if (!isPresent) {
+      advanceLeft1()
     }
 
-    while (!present && lrv != null) {
-      if (wasSeen(lrv)) {
-        lrv = if (leftIt.hasNext) leftIt.next() else null
-      } else if (rrv == null || lrKOrd.compare(lrv, rrv) <= 0) {
-        jrv.set(lrv, rrv)
-        prev.setSelect(rowType, Array(0, 1), lrv)
-        foundOne = true
-        present = true
-      } else {
+    while (!isPresent && hasLeft) {
+      if (!hasRight || lrCompare() < 0)
+        setJrvRightNull()
+      else if (lrCompare() == 0)
+        setJrv()
+      else
         advanceRight()
-      }
     }
-    present
+    isPresent
   }
 }

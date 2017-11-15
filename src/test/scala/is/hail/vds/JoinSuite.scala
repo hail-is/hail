@@ -31,6 +31,7 @@ class JoinSuite extends SparkSuite {
       Variant("1", 1, "A", "T"),
       Variant("1", 2, "A", "T"),
       Variant("1", 4, "A", "T"),
+      Variant("1", 4, "A", "T"),
       Variant("1", 5, "A", "T"),
       Variant("1", 5, "A", "T"),
       Variant("1", 9, "A", "T"),
@@ -41,7 +42,10 @@ class JoinSuite extends SparkSuite {
 
     val rightVariants = Array(
       Variant("1", 1, "A", "T"),
+      Variant("1", 1, "A", "T"),
+      Variant("1", 1, "A", "T"),
       Variant("1", 3, "A", "T"),
+      Variant("1", 4, "A", "T"),
       Variant("1", 4, "A", "T"),
       Variant("1", 6, "A", "T"),
       Variant("1", 6, "A", "T"),
@@ -62,21 +66,24 @@ class JoinSuite extends SparkSuite {
 
     // Inner distinct ordered join
     val jInner = left.rdd2.orderedJoinDistinct(right.rdd2, "inner")
+    val jInnerOrdRDD1 = left.rdd.orderedInnerJoinDistinct(right.rdd)
+
+    assert(jInner.count() == jInnerOrdRDD1.count())
     assert(jInner.forall(jrv => jrv.rvLeft != null && jrv.rvRight != null))
-    assert(jInner.count() == 5)
     assert(jInner.map { jrv =>
       val ur = new UnsafeRow(localRowType, jrv.rvLeft)
       ur.getAs[Variant](1)
-    }.collect() sameElements Array(Variant("1", 1, "A", "T"), Variant("1", 4, "A", "T"), Variant("1", 9, "A", "T"),
-      Variant("1", 13, "A", "T"), Variant("1", 15, "A", "T")))
+    }.collect() sameElements jInnerOrdRDD1.map(_._1).collect())
 
     // Left distinct ordered join
     val jLeft = left.rdd2.orderedJoinDistinct(right.rdd2, "left")
+    val jLeftOrdRDD1 = left.rdd.orderedLeftJoinDistinct(right.rdd)
+
+    assert(jLeft.count() == jLeftOrdRDD1.count())
     assert(jLeft.forall(jrv => jrv.rvLeft != null))
-    assert(jLeft.count() == left.variants.distinct().count())
     assert(jLeft.map { jrv =>
       val ur = new UnsafeRow(localRowType, jrv.rvLeft)
       ur.getAs[Variant](1)
-    }.collect() sameElements left.variants.collect().distinct)
+    }.collect() sameElements jLeftOrdRDD1.map(_._1).collect())
   }
 }

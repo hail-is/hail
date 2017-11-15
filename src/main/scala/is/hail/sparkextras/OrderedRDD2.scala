@@ -718,10 +718,8 @@ class OrderedRDD2 private(
            | Right key type: ${ rTyp.kType.toPrettyString(compact = true) }
          """.stripMargin)
 
-    val lrKOrd = OrderedRDD2Type.selectUnsafeOrdering(lTyp.rowType, lTyp.kRowFieldIdx, rTyp.rowType, rTyp.kRowFieldIdx)
-
     joinType match {
-      case "inner" | "left" => new OrderedJoinDistinctRDD2(this, right, lrKOrd, joinType)
+      case "inner" | "left" => new OrderedJoinDistinctRDD2(this, right, joinType)
       case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
     }
   }
@@ -780,7 +778,7 @@ object OrderedDependency2 {
 
 case class OrderedJoinDistinctRDD2Partition(index: Int, leftPartition: Partition, rightPartitions: Array[Partition]) extends Partition
 
-class OrderedJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2, lrKOrd: UnsafeOrdering, joinType: String)
+class OrderedJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2, joinType: String)
   extends RDD[JoinedRegionValue](left.sparkContext,
     Seq[Dependency[_]](new OneToOneDependency(left),
       new OrderedDependency2(left, right))) {
@@ -807,8 +805,8 @@ class OrderedJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2, lrKOrd: Uns
     }
 
     joinType match {
-      case "inner" => new OrderedInnerJoinDistinctIterator(left.typ, lrKOrd, leftIt, rightIt)
-      case "left" => new OrderedLeftJoinDistinctIterator(left.typ, lrKOrd, leftIt, rightIt)
+      case "inner" => new OrderedInnerJoinDistinctIterator(left.typ, right.typ, leftIt, rightIt)
+      case "left" => new OrderedLeftJoinDistinctIterator(left.typ, right.typ, leftIt, rightIt)
       case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
     }
   }
