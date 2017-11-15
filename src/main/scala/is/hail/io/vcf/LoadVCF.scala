@@ -803,7 +803,7 @@ object LoadVCF {
 
   def apply(hc: HailContext,
     reader: HtsjdkRecordReader,
-    file1: String,
+    headerFile: Option[String],
     files: Array[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
@@ -812,46 +812,50 @@ object LoadVCF {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
-    val headerLines1 = getHeaderLines(hConf, file1)
+    val headerLines1 = getHeaderLines(hConf, headerFile.getOrElse(files.head))
     val header1 = parseHeader(reader, headerLines1, arrayElementsRequired = arrayElementsRequired)
-    val header1Bc = sc.broadcast(header1)
 
-    val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    if (headerFile.isEmpty) {
+      val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+      val header1Bc = sc.broadcast(header1)
 
-    sc.parallelize(files.tail, math.max(1, files.length - 1)).foreach { file =>
-      val hConf = confBc.value.value
-      val hd = parseHeader(reader, getHeaderLines(hConf, file))
-      val hd1 = header1Bc.value
+      sc.parallelize(files.tail, math.max(1, files.length - 1)).foreach { file =>
+        val hConf = confBc.value.value
+        val hd = parseHeader(reader, getHeaderLines(hConf, file))
+        val hd1 = header1Bc.value
 
-      if (hd1.sampleIds.length != hd.sampleIds.length) {
-        fatal(
-          s"""invalid sample ids: sample ids are different lengths.
+        if (hd1.sampleIds.length != hd.sampleIds.length) {
+          fatal(
+            s"""invalid sample ids: sample ids are different lengths.
              | ${ files(0) } has ${ hd1.sampleIds.length } ids and
              | ${ file } has ${ hd.sampleIds.length } ids.
            """.stripMargin)
-      }
+        }
 
-      hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
-        .zipWithIndex.foreach { case ((s1, s2), i) =>
-        if (s1 != s2) {
-          fatal(
-            s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i.
+        hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
+          .zipWithIndex.foreach { case ((s1, s2), i) =>
+          if (s1 != s2) {
+            fatal(
+              s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i.
                |    ${ files(0) }: $s1
                |    $file: $s2""".stripMargin)
+          }
         }
-      }
 
-      if (hd1.genotypeSignature != hd.genotypeSignature)
-        fatal(
-          s"""invalid genotype signature: expected signatures to be identical for all inputs.
+        if (hd1.genotypeSignature != hd.genotypeSignature)
+          fatal(
+            s"""invalid genotype signature: expected signatures to be identical for all inputs.
              |   ${ files(0) }: ${ hd1.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }
              |   $file: ${ hd.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
 
-      if (hd1.vaSignature != hd.vaSignature)
-        fatal(
-          s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
+        if (hd1.vaSignature != hd.vaSignature)
+          fatal(
+            s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
              |   ${ files(0) }: ${ hd1.vaSignature.toPrettyString(compact = true, printAttrs = true) }
              |   $file: ${ hd.vaSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
+      }
+    } else {
+      warn("Loading user-provided header file. The number of samples, sample IDs, variant annotation schema and genotype schema were not checked for agreement with input data.")
     }
 
     val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature) = header1
@@ -862,7 +866,6 @@ object LoadVCF {
     LoadVCF.warnDuplicates(sampleIds)
 
     val infoSignatureBc = sc.broadcast(infoSignature)
-    val genotypeSignatureBc = sc.broadcast(genotypeSignature)
 
     val headerLinesBc = sc.broadcast(headerLines1)
 
