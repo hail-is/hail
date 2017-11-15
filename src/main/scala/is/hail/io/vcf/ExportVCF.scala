@@ -241,7 +241,7 @@ object ExportVCF {
       val sb = new StringBuilder()
 
       sb.append("##fileformat=VCFv4.2\n")
-      sb.append(s"##hailversion=${hail.HAIL_PRETTY_VERSION}\n")
+      sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
       sb.append(s"##reference=${ gr.name }\n")
       
       gr.contigs.foreachBetween { c =>

@@ -1615,6 +1615,9 @@ class VariantDataset(HistoryMixin):
         Sets and Arrays are output with the same comma-separated format.
         Lastly, fields of type Boolean are allowed in ``va.info`` to generate INFO fields of type Flag.
 
+        Hail also exports the name of the genome reference (e.g. ``GRCh37``), as well as contig names and lengths,
+        as VCF header lines.
+
         Consider the workflow of importing a VCF to VDS and immediately exporting VDS to VCF:
 
         >>> vds.export_vcf('output/example_out.vcf')
