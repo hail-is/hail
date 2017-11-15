@@ -52,8 +52,7 @@ object Interval {
 }
 
 case class IntervalTree[T: Ordering, U: ClassTag](root: Option[IntervalTreeNode[T, U]]) extends
-  Traversable[Interval[T]] with
-  Serializable {
+  Traversable[(Interval[T], U)] with Serializable {
   def contains(position: T): Boolean = root.exists(_.contains(position))
 
   def overlaps(interval: Interval[T]): Boolean = root.exists(_.overlaps(interval))
@@ -70,7 +69,7 @@ case class IntervalTree[T: Ordering, U: ClassTag](root: Option[IntervalTreeNode[
     b.result()
   }
 
-  def foreach[V](f: (Interval[T]) => V) {
+  def foreach[V](f: ((Interval[T], U)) => V) {
     root.foreach(_.foreach(f))
   }
 }
@@ -135,7 +134,7 @@ object IntervalTree {
 case class IntervalTreeNode[T: Ordering, U](i: Interval[T],
   left: Option[IntervalTreeNode[T, U]],
   right: Option[IntervalTreeNode[T, U]],
-  maximum: T, value: U) extends Traversable[Interval[T]] {
+  maximum: T, value: U) extends Traversable[(Interval[T], U)] {
 
   def contains(position: T): Boolean = {
     position <= maximum &&
@@ -172,9 +171,9 @@ case class IntervalTreeNode[T: Ordering, U](i: Interval[T],
     }
   }
 
-  def foreach[U](f: (Interval[T]) => U) {
+  def foreach[V](f: ((Interval[T], U)) => V) {
     left.foreach(_.foreach(f))
-    f(i)
+    f((i, value))
     right.foreach(_.foreach(f))
   }
 }

@@ -194,7 +194,7 @@ object DeNovo {
     val triosBc = sc.broadcast(trios)
     val trioSexBc = sc.broadcast(trios.map(_.sex.orNull).toArray)
 
-    val rdd = vds.rdd.mapPartitions { iter =>
+    val rdd = vds.typedRDD[Locus, Variant, Genotype].mapPartitions { iter =>
       val arr = MultiArray2.fill[Genotype](trios.length, 3)(null)
 
       iter.flatMap { case (v, (va, gs)) =>

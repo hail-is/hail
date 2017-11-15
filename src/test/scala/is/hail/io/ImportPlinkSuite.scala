@@ -41,7 +41,6 @@ class ImportPlinkSuite extends SparkSuite {
         } else {
           hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
             .annotateGenotypesExpr("g = Genotype(g.GT)")
-            .toVDS
             .exportPlink(testRoot)
 
           val localTruthRoot = tmpDir.createLocalTempFile("truth")
@@ -77,11 +76,9 @@ class ImportPlinkSuite extends SparkSuite {
 
     val a1ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = false)
       .annotateGenotypesExpr("g = Genotype(g.GT)")
-      .toVDS
 
     val a2ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = true)
       .annotateGenotypesExpr("g = Genotype(g.GT)")
-      .toVDS
 
     val a1kt = a1ref
       .variantQC()

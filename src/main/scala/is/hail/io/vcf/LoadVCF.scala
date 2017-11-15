@@ -808,7 +808,7 @@ object LoadVCF {
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     gr: GenomeReference = GenomeReference.defaultReference,
-    arrayElementsRequired: Boolean = true): VariantSampleMatrix[Locus, Variant, Annotation] = {
+    arrayElementsRequired: Boolean = true): VariantSampleMatrix = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 

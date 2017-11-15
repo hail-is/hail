@@ -1,6 +1,7 @@
 package is.hail.vds
 
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Prop}
@@ -17,8 +18,8 @@ class FilterVariantsSuite extends SparkSuite {
     assert(vds.filterVariantsList(variants, keep = true).countVariants() == variants.size)
     assert(vds.filterVariantsList(variants, keep = false).countVariants() == 0)
 
-    assert(vds.filterVariantsList(Set.empty[Variant], keep = false).countVariants() == variants.size)
-    assert(vds.filterVariantsList(Set.empty[Variant], keep = true).countVariants() == 0)
+    assert(vds.filterVariantsList(Set.empty[Annotation], keep = false).countVariants() == variants.size)
+    assert(vds.filterVariantsList(Set.empty[Annotation], keep = true).countVariants() == 0)
 
     Prop.check(forAll(Gen.subset(variants), arbitrary[Boolean]) { case (subset, keep) =>
       val filtered = vds.filterVariantsList(subset, keep)

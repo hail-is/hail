@@ -8,42 +8,42 @@ import is.hail.methods._
 import is.hail.sparkextras.OrderedRDD2
 import is.hail.stats.ComputeRRM
 import is.hail.utils._
-import is.hail.variant.Variant.orderedKey
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
+import scala.collection.JavaConverters._
 
 import scala.language.implicitConversions
 
 object VariantDataset {
 
   def fromKeyTable(kt: KeyTable): VariantDataset = {
-    kt.keyFields.map(_.typ) match {
-      case Array(TVariant(_, _)) =>
+    val vType: Type = kt.keyFields.map(_.typ) match {
+      case Array(t@TVariant(_, _)) => t
       case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
         s"but found [ ${ arr.mkString(", ") } ]")
     }
 
     val rdd = kt.keyedRDD()
-      .map { case (k, v) => (k.asInstanceOf[Row].getAs[Variant](0), v) }
+      .map { case (k, v) => (k.asInstanceOf[Row].get(0), v) }
       .filter(_._1 != null)
-      .mapValues(a => (a: Annotation, Iterable.empty[Genotype]))
-      .toOrderedRDD
+      .mapValues(a => (a: Annotation, Iterable.empty[Annotation]))
 
     val metadata = VSMMetadata(
       saSignature = TStruct.empty(),
+      vSignature = vType,
       vaSignature = kt.valueSignature,
       globalSignature = TStruct.empty())
 
-    new VariantSampleMatrix[Locus, Variant, Genotype](kt.hc, metadata,
+    VariantSampleMatrix.fromLegacy(kt.hc, metadata,
       VSMLocalValue(Annotation.empty, Array.empty[Annotation], Array.empty[Annotation]), rdd)
   }
 }
 
-class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
+class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyVal {
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
 
-    val splitmulti = new SplitMulti(vds,
+    val splitmulti = new SplitMulti(vsm,
       "va.aIndex = aIndex, va.wasSplit = wasSplit",
       s"""
 g = let
@@ -63,22 +63,22 @@ g = let
     val splitMatrixType = splitmulti.newMatrixType
 
     val aggregationST = Map(
-      "global" -> (0, vds.globalSignature),
-      "v" -> (1, vds.vSignature),
+      "global" -> (0, vsm.globalSignature),
+      "v" -> (1, vsm.vSignature),
       "va" -> (2, splitMatrixType.vaType),
       "g" -> (3, TGenotype()),
       "s" -> (4, TString()),
-      "sa" -> (5, vds.saSignature))
+      "sa" -> (5, vsm.saSignature))
     val ec = EvalContext(Map(
-      "global" -> (0, vds.globalSignature),
-      "v" -> (1, vds.vSignature),
+      "global" -> (0, vsm.globalSignature),
+      "v" -> (1, vsm.vSignature),
       "va" -> (2, splitMatrixType.vaType),
       "gs" -> (3, TAggregable(TGenotype(), aggregationST))))
 
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
-    val newType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
+    val newType = (paths, types).zipped.foldLeft(vsm.vaSignature) { case (vas, (ids, signature)) =>
       val (s, i) = vas.insert(TArray(signature), ids)
       inserterBuilder += i
       s
@@ -94,23 +94,23 @@ g = let
 
     val inserters = inserterBuilder.result()
 
-    val aggregateOption = Aggregators.buildVariantAggregations(vds.sparkContext, splitMatrixType, vds.value.localValue, ec)
+    val aggregateOption = Aggregators.buildVariantAggregations(vsm.sparkContext, splitMatrixType, vsm.value.localValue, ec)
 
-    val localNSamples = vds.nSamples
-    val localRowType = vds.rowType
+    val localNSamples = vsm.nSamples
+    val localRowType = vsm.rowType
 
-    val localGlobalAnnotation = vds.globalAnnotation
+    val localGlobalAnnotation = vsm.globalAnnotation
     val localVAnnotator = splitmulti.vAnnotator
     val localGAnnotator = splitmulti.gAnnotator
     val splitRowType = splitMatrixType.rowType
 
-    val newMatrixType = vds.matrixType.copy(vaType = finalType)
+    val newMatrixType = vsm.matrixType.copy(vaType = finalType)
     val newRowType = newMatrixType.rowType
 
     val newRDD2 = OrderedRDD2(
       newMatrixType.orderedRDD2Type,
-      vds.rdd2.orderedPartitioner,
-      vds.rdd2.mapPartitions { it =>
+      vsm.rdd2.orderedPartitioner,
+      vsm.rdd2.mapPartitions { it =>
         val splitcontext = new SplitMultiPartitionContext(true, localNSamples, localGlobalAnnotation, localRowType,
           localVAnnotator, localGAnnotator, splitRowType)
         val rv2b = new RegionValueBuilder()
@@ -152,105 +152,32 @@ g = let
         }
       })
 
-    vds.copy2(rdd2 = newRDD2, vaSignature = finalType)
+    vsm.copy2(rdd2 = newRDD2, vaSignature = finalType)
   }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
-    require(vds.wasSplit)
+    require(vsm.wasSplit)
     require(other.wasSplit)
 
-    CalculateConcordance(vds, other)
+    CalculateConcordance(vsm, other)
   }
 
   def summarize(): SummaryResult = {
-    vds.rdd
+    vsm.typedRDD[Locus, Variant, Genotype]
       .aggregate(new SummaryCombiner[Genotype](_.hardCallIterator.countNonNegative()))(_.merge(_), _.merge(_))
-      .result(vds.nSamples)
-  }
-
-  def exportGen(path: String, precision: Int = 4) {
-    require(vds.wasSplit)
-
-    def writeSampleFile() {
-      //FIXME: should output all relevant sample annotations such as phenotype, gender, ...
-      vds.hc.hadoopConf.writeTable(path + ".sample",
-        "ID_1 ID_2 missing" :: "0 0 0" :: vds.sampleIds.map(s => s"$s $s 0").toList)
-    }
-
-
-    def formatGP(d: Double): String = d.formatted(s"%.${ precision }f")
-
-    val emptyGP = Array(0d, 0d, 0d)
-
-    def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype], rsidQuery: Querier, varidQuery: Querier) {
-      sb.append(v.contig)
-      sb += ' '
-      sb.append(Option(varidQuery(va)).getOrElse(v.toString))
-      sb += ' '
-      sb.append(Option(rsidQuery(va)).getOrElse("."))
-      sb += ' '
-      sb.append(v.start)
-      sb += ' '
-      sb.append(v.ref)
-      sb += ' '
-      sb.append(v.alt)
-
-      for (g <- gs) {
-        val gp = Genotype.gp(g).getOrElse(emptyGP)
-        sb += ' '
-        sb.append(formatGP(gp(0)))
-        sb += ' '
-        sb.append(formatGP(gp(1)))
-        sb += ' '
-        sb.append(formatGP(gp(2)))
-      }
-    }
-
-    def writeGenFile() {
-      val varidSignature = vds.vaSignature.getOption("varid")
-      val varidQuery: Querier = varidSignature match {
-        case Some(_) => val (t, q) = vds.queryVA("va.varid")
-          t match {
-            case _: TString => q
-            case _ => a => null
-          }
-        case None => a => null
-      }
-
-      val rsidSignature = vds.vaSignature.getOption("rsid")
-      val rsidQuery: Querier = rsidSignature match {
-        case Some(_) => val (t, q) = vds.queryVA("va.rsid")
-          t match {
-            case _: TString => q
-            case _ => a => null
-          }
-        case None => a => null
-      }
-
-      vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
-        val sb = new StringBuilder
-        it.map { case (v, (va, gs)) =>
-          sb.clear()
-          appendRow(sb, v, va, gs, rsidQuery, varidQuery)
-          sb.result()
-        }
-      }.writeTable(path + ".gen", vds.hc.tmpDir, None)
-    }
-
-    writeSampleFile()
-    writeGenFile()
+      .result(vsm.nSamples)
   }
 
   def exportPlink(path: String, famExpr: String = "id = s") {
-    require(vds.wasSplit)
-    vds.requireColKeyString("export plink")
+    require(vsm.wasSplit)
+    vsm.requireColKeyString("export plink")
 
     val ec = EvalContext(Map(
       "s" -> (0, TString()),
-      "sa" -> (1, vds.saSignature),
-      "global" -> (2, vds.globalSignature)))
+      "sa" -> (1, vsm.saSignature),
+      "global" -> (2, vsm.globalSignature)))
 
-    ec.set(2, vds.globalAnnotation)
+    ec.set(2, vsm.globalAnnotation)
 
     type Formatter = (Option[Any]) => String
 
@@ -296,7 +223,7 @@ g = let
     }
 
     val spaceRegex = """\s+""".r
-    val badSampleIds = vds.stringSampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
+    val badSampleIds = vsm.stringSampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
     if (badSampleIds.nonEmpty) {
       fatal(
         s"""Found ${ badSampleIds.length } sample IDs with whitespace
@@ -306,21 +233,21 @@ g = let
 
     val bedHeader = Array[Byte](108, 27, 1)
 
-    val nSamples = vds.nSamples
+    val nSamples = vsm.nSamples
 
-    val plinkRDD = vds.rdd
+    val plinkRDD = vsm.typedRDD[Locus, Variant, Genotype]
       .mapValuesWithKey { case (v, (va, gs)) => ExportBedBimFam.makeBedRow(gs, nSamples) }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
     plinkRDD.map { case (v, bed) => bed }
-      .saveFromByteArrays(path + ".bed", vds.hc.tmpDir, header = Some(bedHeader))
+      .saveFromByteArrays(path + ".bed", vsm.hc.tmpDir, header = Some(bedHeader))
 
     plinkRDD.map { case (v, bed) => ExportBedBimFam.makeBimRow(v) }
-      .writeTable(path + ".bim", vds.hc.tmpDir)
+      .writeTable(path + ".bim", vsm.hc.tmpDir)
 
     plinkRDD.unpersist()
 
-    val famRows = vds
+    val famRows = vsm
       .sampleIdsAndAnnotations
       .map { case (s, sa) =>
         ec.setAll(s, sa)
@@ -328,7 +255,7 @@ g = let
         famFns.map(_ (a)).mkString("\t")
       }
 
-    vds.hc.hadoopConf.writeTextFile(path + ".fam")(out =>
+    vsm.hc.hadoopConf.writeTextFile(path + ".fam")(out =>
       famRows.foreach(line => {
         out.write(line)
         out.write("\n")
@@ -383,22 +310,22 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
         """
       }
 
-    FilterAlleles(vds, filterExpr, variantExpr, genotypeExpr,
+    FilterAlleles(vsm, filterExpr, variantExpr, genotypeExpr,
       keep = keep, leftAligned = leftAligned, keepStar = keepStar)
   }
 
   def grm(): KinshipMatrix = {
-    require(vds.wasSplit)
+    require(vsm.wasSplit)
     info("Computing GRM...")
-    GRM(vds)
+    GRM(vsm)
   }
 
   def hardCalls(): VariantDataset = {
-    vds.mapValues(TGenotype(), { g =>
+    vsm.mapValues(TGenotype(), { g =>
       if (g == null)
         g
       else
-        Genotype(g._unboxedGT)
+        Genotype(g.asInstanceOf[Genotype]._unboxedGT): Annotation
     })
   }
 
@@ -412,41 +339,37 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
     fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
-    require(vds.wasSplit)
+    require(vsm.wasSplit)
 
-    val result = ImputeSexPlink(vds,
+    ImputeSexPlink(vsm,
       mafThreshold,
       includePAR,
       fMaleThreshold,
       fFemaleThreshold,
       popFreqExpr)
-
-    val signature = ImputeSexPlink.schema
-
-    vds.annotateSamples(result, signature, "sa.imputesex")
   }
 
   def ldMatrix(forceLocal: Boolean = false): LDMatrix = {
-    require(vds.wasSplit)
-    LDMatrix(vds, Some(forceLocal))
+    require(vsm.wasSplit)
+    LDMatrix(vsm, Some(forceLocal))
   }
 
   def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): VariantDataset = {
-    require(vds.wasSplit)
-    LDPrune(vds, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
+    require(vsm.wasSplit)
+    LDPrune(vsm, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
   }
 
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
-    require(vds.wasSplit)
-    vds.requireColKeyString("mendel errors")
+    require(vsm.wasSplit)
+    vsm.requireColKeyString("mendel errors")
 
-    val men = MendelErrors(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios)
+    val men = MendelErrors(vsm, ped.filterTo(vsm.stringSampleIdSet).completeTrios)
 
     (men.mendelKT(), men.fMendelKT(), men.iMendelKT(), men.lMendelKT())
   }
 
   def nirvana(config: String, blockSize: Int = 500000, root: String): VariantDataset = {
-    Nirvana.annotate(vds, config, blockSize, root)
+    Nirvana.annotate(vsm, config, blockSize, root)
   }
 
   /**
@@ -459,7 +382,7 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
     */
   def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
     asArrays: Boolean = false): VariantDataset = {
-    require(vds.wasSplit)
+    require(vsm.wasSplit)
 
     if (k < 1)
       fatal(
@@ -471,12 +394,14 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
     val pcSchema = SamplePCA.pcSchema(asArrays, k)
 
     val (scores, loadings, eigenvalues) =
-      SamplePCA(vds, k, loadingsRoot.isDefined, eigenRoot.isDefined, asArrays)
+      SamplePCA(vsm, k, loadingsRoot.isDefined, eigenRoot.isDefined, asArrays)
 
-    var ret = vds.annotateSamples(scores, pcSchema, scoresRoot)
+    var ret = vsm.annotateSamples(scores, pcSchema, scoresRoot)
 
     loadings.foreach { rdd =>
-      ret = ret.annotateVariants(rdd.orderedRepartitionBy(vds.rdd.orderedPartitioner), pcSchema, loadingsRoot.get)
+      ret = ret.annotateVariants(rdd
+        .map { case (k, v) =>  (k: Annotation, v) }
+        .orderedRepartitionBy(vsm.rdd.orderedPartitioner), pcSchema, loadingsRoot.get)
     }
 
     eigenvalues.foreach { eig =>
@@ -498,23 +423,23 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
     * @param statistics which subset of the four statistics to compute
     */
   def pcRelate(k: Int, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): KeyTable = {
-    require(vds.wasSplit)
-    val pcs = SamplePCA.justScores(vds, k)
-    PCRelate.toKeyTable(vds, pcs, maf, blockSize, minKinship, statistics)
+    require(vsm.wasSplit)
+    val pcs = SamplePCA.justScores(vsm, k)
+    PCRelate.toKeyTable(vsm, pcs, maf, blockSize, minKinship, statistics)
   }
 
   def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
-    require(vds.wasSplit)
+    require(vsm.wasSplit)
     info(s"rrm: Computing Realized Relationship Matrix...")
-    val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
+    val (rrm, m) = ComputeRRM(vsm, forceBlock, forceGramian)
     info(s"rrm: RRM computed using $m variants.")
-    KinshipMatrix(vds.hc, vds.sSignature, rrm, vds.sampleIds.toArray, m)
+    KinshipMatrix(vsm.hc, vsm.sSignature, rrm, vsm.sampleIds.toArray, m)
   }
 
   def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {
-    require(vds.wasSplit)
-    vds.requireColKeyString("TDT")
-    TDT(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios,
+    require(vsm.wasSplit)
+    vsm.requireColKeyString("TDT")
+    TDT(vsm, ped.filterTo(vsm.stringSampleIdSet).completeTrios,
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
   }
 
@@ -525,9 +450,222 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
     maxParentAB: Double = 0.05,
     minChildAB: Double = 0.20,
     minDepthRatio: Double = 0.10): KeyTable = {
-    require(vds.wasSplit)
-    vds.requireColKeyString("de novo")
+    require(vsm.wasSplit)
+    vsm.requireColKeyString("de novo")
 
-    DeNovo(vds, ped, referenceAF, minGQ, minPDeNovo, maxParentAB, minChildAB, minDepthRatio)
+    DeNovo(vsm, ped, referenceAF, minGQ, minPDeNovo, maxParentAB, minChildAB, minDepthRatio)
+  }
+
+  /**
+    *
+    * @param config    VEP configuration file
+    * @param root      Variant annotation path to store VEP output
+    * @param csq       Annotates with the VCF CSQ field as a string, rather than the full nested struct schema
+    * @param blockSize Variants per VEP invocation
+    */
+  def vep(config: String, root: String = "va.vep", csq: Boolean = false,
+    blockSize: Int = 1000): VariantSampleMatrix = {
+    VEP.annotate(vsm, config, root, csq, blockSize)
+  }
+
+  def filterIntervals(intervals: java.util.ArrayList[Interval[Locus]], keep: Boolean): VariantSampleMatrix = {
+    val iList = IntervalTree[Locus](intervals.asScala.toArray)
+    filterIntervals(iList, keep)
+  }
+
+  def filterIntervals[T](iList: IntervalTree[Locus, _], keep: Boolean): VariantSampleMatrix = {
+    implicit val locusOrd = vsm.matrixType.locusType.ordering(missingGreatest = true)
+
+    val ab = new ArrayBuilder[(Interval[Annotation], Annotation)]()
+    iList.foreach { case (i, v) =>
+      ab += (Interval[Annotation](i.start, i.end), v)
+    }
+
+    val iList2 = IntervalTree.annotationTree(ab.result())
+
+    if (keep)
+      vsm.copy(rdd = vsm.rdd.filterIntervals(iList2))
+    else {
+      val iListBc = vsm.sparkContext.broadcast(iList)
+      vsm.filterVariants { (v, va, gs) => !iListBc.value.contains(v.asInstanceOf[Variant].locus) }
+    }
+  }
+
+  /**
+    * Remove multiallelic variants from this dataset.
+    *
+    * Useful for running methods that require biallelic variants without calling the more expensive split_multi step.
+    */
+  def filterMulti(): VariantSampleMatrix = {
+    if (vsm.wasSplit) {
+      warn("called redundant `filter_multi' on an already split or multiallelic-filtered VDS")
+      vsm
+    } else {
+      vsm.filterVariants {
+        case (v, va, gs) => v.asInstanceOf[Variant].isBiallelic
+      }.copy2(wasSplit = true)
+    }
+  }
+
+  def verifyBiallelic(): VariantSampleMatrix =
+    verifyBiallelic("verifyBiallelic")
+
+  def verifyBiallelic(method: String): VariantSampleMatrix = {
+    if (vsm.wasSplit) {
+      warn("called redundant `$method' on biallelic VDS")
+      vsm
+    } else {
+      val localRowType = vsm.rowType
+      vsm.copy2(
+        rdd2 = vsm.rdd2.mapPreservesPartitioning { rv =>
+          val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
+          val v = ur.getAs[Variant](1)
+          if (!v.isBiallelic)
+            fatal("in $method: found non-biallelic variant: $v")
+          rv
+        },
+        wasSplit = true)
+    }
+  }
+
+  def exportGen(path: String, precision: Int = 4) {
+    require(vsm.wasSplit)
+
+    def writeSampleFile() {
+      // FIXME: should output all relevant sample annotations such as phenotype, gender, ...
+      vsm.hc.hadoopConf.writeTable(path + ".sample",
+        "ID_1 ID_2 missing" :: "0 0 0" :: vsm.sampleIds.map(s => s"$s $s 0").toList)
+    }
+
+    def writeGenFile() {
+      val varidSignature = vsm.vaSignature.getOption("varid")
+      val varidQuery: Querier = varidSignature match {
+        case Some(_) =>
+          val (t, q) = vsm.queryVA("va.varid")
+          t match {
+            case _: TString => q
+            case _ => a => null
+          }
+        case None => a => null
+      }
+
+      val rsidSignature = vsm.vaSignature.getOption("rsid")
+      val rsidQuery: Querier = rsidSignature match {
+        case Some(_) =>
+          val (t, q) = vsm.queryVA("va.rsid")
+          t match {
+            case _: TString => q
+            case _ => a => null
+          }
+        case None => a => null
+      }
+
+      val localNSamples = vsm.nSamples
+      val localRowType = vsm.rowType
+      vsm.rdd2.mapPartitions { it =>
+        val sb = new StringBuilder
+        val view = new ArrayGenotypeView(localRowType)
+        it.map { rv =>
+          view.setRegion(rv)
+          val ur = new UnsafeRow(localRowType, rv)
+
+          val v = ur.getAs[Variant](1)
+          val va = ur.get(2)
+
+          sb.clear()
+          sb.append(v.contig)
+          sb += ' '
+          sb.append(Option(varidQuery(va)).getOrElse(v.toString))
+          sb += ' '
+          sb.append(Option(rsidQuery(va)).getOrElse("."))
+          sb += ' '
+          sb.append(v.start)
+          sb += ' '
+          sb.append(v.ref)
+          sb += ' '
+          sb.append(v.alt)
+
+          var i = 0
+          while (i < localNSamples) {
+            view.setGenotype(i)
+            if (view.hasGP) {
+              sb += ' '
+              sb.append(formatDouble(view.getGP(0), precision))
+              sb += ' '
+              sb.append(formatDouble(view.getGP(1), precision))
+              sb += ' '
+              sb.append(formatDouble(view.getGP(2), precision))
+            } else
+              sb.append(" 0 0 0")
+            i += 1
+          }
+          sb.result()
+        }
+      }.writeTable(path + ".gen", vsm.hc.tmpDir, None)
+    }
+
+    writeSampleFile()
+    writeGenFile()
+  }
+
+  def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false, leftAligned: Boolean = false): VariantSampleMatrix = {
+    if (vsm.genotypeSignature.isOfType(TGenotype())) {
+      vsm.splitMulti("va.aIndex = aIndex, va.wasSplit = wasSplit", s"""
+g = let
+    newgt = downcode(Call(g.gt), aIndex) and
+    newad = if (isDefined(g.ad))
+        let sum = g.ad.sum() and adi = g.ad[aIndex] in [sum - adi, adi]
+      else
+        NA: Array[Int] and
+    newpl = if (isDefined(g.pl))
+        range(3).map(i => range(g.pl.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.pl[j]).min())
+      else
+        NA: Array[Int] and
+    newgq = ${ if (propagateGQ) "g.gq" else "gqFromPL(newpl)" }
+  in Genotype(v, newgt, newad, g.dp, newgq, newpl)
+    """,
+        keepStar, leftAligned)
+    } else {
+      def hasGenotypeFieldOfType(name: String, expected: Type): Boolean = {
+        vsm.genotypeSignature match {
+          case t: TStruct =>
+            t.selfField(name) match {
+              case Some(f) => f.typ.isOfType(expected)
+              case None => false
+            }
+          case _ => false
+        }
+      }
+
+      val b = new ArrayBuilder[String]()
+      if (hasGenotypeFieldOfType("GT", TCall()))
+        b += "g.GT = downcode(g.GT, aIndex)"
+      if (hasGenotypeFieldOfType("AD", TArray(!TInt32())))
+        b += """
+g.AD = if (isDefined(g.AD))
+  let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+else
+  NA: Array[Int]
+        """
+      if (hasGenotypeFieldOfType("PL", TArray(!TInt32())))
+        b += """
+g.PL = if (isDefined(g.PL))
+  range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
+else
+  NA: Array[Int]
+        """
+
+      var vsm2 = vsm.splitMulti("va.aIndex = aIndex, va.wasSplit = wasSplit", b.result().mkString(","), keepStar, leftAligned)
+
+      if (!propagateGQ && hasGenotypeFieldOfType("GQ", TInt32())) {
+        vsm2.annotateGenotypesExpr("g.GQ = gqFromPL(g.PL)")
+      } else
+        vsm2
+    }
+  }
+
+  def splitMulti(variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean): VariantSampleMatrix = {
+    val splitmulti = new SplitMulti(vsm, variantExpr, genotypeExpr, keepStar, leftAligned)
+    splitmulti.split()
   }
 }

@@ -42,11 +42,15 @@ sealed abstract class HTSGenotypeView {
 
   def getGT: Int
 
+  def getADLength: Int
+
   def getAD(idx: Int): Int
 
   def getDP: Int
 
   def getGQ: Int
+
+  def getPLLength: Int
 
   def getPL(idx: Int): Int
 }
@@ -95,6 +99,11 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
     Call(m.loadInt(callOffset))
   }
 
+  def getADLength: Int = {
+    val adOffset = tg.loadField(m, gOffset, adIndex)
+    HTSGenotypeView.tArrayInt32.loadLength(m, adOffset)
+  }
+
   def getAD(idx: Int): Int = {
     val adOffset = tg.loadField(m, gOffset, adIndex)
     val length = HTSGenotypeView.tArrayInt32.loadLength(m, adOffset)
@@ -114,6 +123,11 @@ class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
   def getGQ: Int = {
     val gqOffset = tg.loadField(m, gOffset, gqIndex)
     m.loadInt(gqOffset)
+  }
+
+  def getPLLength: Int = {
+    val plOffset = tg.loadField(m, gOffset, plIndex)
+    HTSGenotypeView.tArrayInt32.loadLength(m, plOffset)
   }
 
   def getPL(idx: Int): Int = {
@@ -182,6 +196,11 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
     Call(m.loadInt(callOffset))
   }
 
+  def getADLength: Int = {
+    val adOffset = tg.loadField(m, gOffset, adIndex)
+    HTSGenotypeView.tArrayInt32.loadLength(m, adOffset)
+  }
+
   def getAD(idx: Int): Int = {
     val adOffset = tg.loadField(m, gOffset, adIndex)
     val length = HTSGenotypeView.tArrayInt32.loadLength(m, adOffset)
@@ -201,6 +220,11 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
   def getGQ: Int = {
     val gqOffset = tg.loadField(m, gOffset, gqIndex)
     m.loadInt(gqOffset)
+  }
+
+  def getPLLength: Int = {
+    val plOffset = tg.loadField(m, gOffset, plIndex)
+    HTSGenotypeView.tArrayInt32.loadLength(m, plOffset)
   }
 
   def getPL(idx: Int): Int = {

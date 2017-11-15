@@ -99,7 +99,7 @@ class VSMSuite extends SparkSuite {
       (v2, (s3va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD
+          Genotype(1))))))
 
     // differ in variant
     val s3rdd2 = sc.parallelize(Seq((v1, (s3va1,
@@ -109,7 +109,7 @@ class VSMSuite extends SparkSuite {
       (v3, (s3va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD
+          Genotype(1))))))
 
     // differ in genotype
     val s3rdd3 = sc.parallelize(Seq((v1, (s3va1,
@@ -119,20 +119,20 @@ class VSMSuite extends SparkSuite {
       (v2, (s3va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD
+          Genotype(1))))))
 
     val s2rdd4 = sc.parallelize(Seq((v1, (s2va1,
       Iterable(Genotype(),
         Genotype(0)))),
       (v2, (s2va2, Iterable(
         Genotype(0),
-        Genotype(0)))))).toOrderedRDD
+        Genotype(0))))))
 
     // differ in number of variants
     val s3rdd5 = sc.parallelize(Seq((v1, (s3va1,
       Iterable(Genotype(),
         Genotype(0),
-        Genotype(2)))))).toOrderedRDD
+        Genotype(2))))))
 
     // differ in variant annotations
     val s3rdd6 = sc.parallelize(Seq((v1, (s3va1,
@@ -142,7 +142,7 @@ class VSMSuite extends SparkSuite {
       (v2, (s3va3,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD
+          Genotype(1))))))
 
     val s1rdd7 = sc.parallelize(Seq((v1, (s1va1,
       Iterable(Genotype(),
@@ -151,31 +151,31 @@ class VSMSuite extends SparkSuite {
       (v2, (s1va2,
         Iterable(Genotype(0),
           Genotype(0),
-          Genotype(1)))))).toOrderedRDD
+          Genotype(1))))))
 
     val s2rdd8 = sc.parallelize(Seq((v1, (s2va1,
       Iterable(Genotype(),
         Genotype(0)))),
       (v2, (s2va2,
         Iterable(Genotype(0),
-          Genotype(0)))))).toOrderedRDD
+          Genotype(0))))))
 
     val s4rdd9 = sc.parallelize(Seq((v1, (s4va1,
       Iterable(Genotype(),
         Genotype(0)))),
       (v2, (s4va2,
         Iterable(Genotype(0),
-          Genotype(0)))))).toOrderedRDD
+          Genotype(0))))))
 
-    val vdss = Array(new VariantDataset(hc, s3mdata, s3rdd1),
-      new VariantDataset(hc, s3mdata, s3rdd2),
-      new VariantDataset(hc, s3mdata, s3rdd3),
-      new VariantDataset(hc, s2mdata, s2rdd4),
-      new VariantDataset(hc, s3mdata, s3rdd5),
-      new VariantDataset(hc, s3mdata, s3rdd6),
-      new VariantDataset(hc, s1mdata, s1rdd7),
-      new VariantDataset(hc, s2mdata, s2rdd8),
-      new VariantDataset(hc, s4mdata, s4rdd9))
+    val vdss = Array(VariantSampleMatrix.fromLegacy(hc, s3mdata, s3rdd1),
+      VariantSampleMatrix.fromLegacy(hc, s3mdata, s3rdd2),
+      VariantSampleMatrix.fromLegacy(hc, s3mdata, s3rdd3),
+      VariantSampleMatrix.fromLegacy(hc, s2mdata, s2rdd4),
+      VariantSampleMatrix.fromLegacy(hc, s3mdata, s3rdd5),
+      VariantSampleMatrix.fromLegacy(hc, s3mdata, s3rdd6),
+      VariantSampleMatrix.fromLegacy(hc, s1mdata, s1rdd7),
+      VariantSampleMatrix.fromLegacy(hc, s2mdata, s2rdd8),
+      VariantSampleMatrix.fromLegacy(hc, s4mdata, s4rdd9))
 
     for (vds <- vdss)
       vds.typecheck()
@@ -304,7 +304,7 @@ class VSMSuite extends SparkSuite {
     forAll(g) { case (vsm, k) =>
       val coalesced = vsm.coalesce(k)
       val n = coalesced.nPartitions
-      VSMSuite.checkOrderedRDD(coalesced.rdd) && vsm.same(coalesced) && n <= k
+      VSMSuite.checkOrderedRDD(coalesced.typedRDD[Locus, Variant, Genotype]) && vsm.same(coalesced) && n <= k
     }.check()
   }
 
@@ -317,7 +317,7 @@ class VSMSuite extends SparkSuite {
     forAll(g) { case (vsm, k) =>
       val coalesced = vsm.naiveCoalesce(k)
       val n = coalesced.nPartitions
-      VSMSuite.checkOrderedRDD(coalesced.rdd) && vsm.same(coalesced) && n <= k
+      VSMSuite.checkOrderedRDD(coalesced.typedRDD[Locus, Variant, Genotype]) && vsm.same(coalesced) && n <= k
     }.check()
   }
 
@@ -427,7 +427,7 @@ class VSMSuite extends SparkSuite {
 
     def getGenotypes(vds: VariantDataset): RDD[((Variant, Annotation), Genotype)] = {
       val sampleIds = vds.sampleIds
-      vds.rdd.flatMap { case (v, (_, gs)) =>
+      vds.typedRDD[Locus, Variant, Genotype].flatMap { case (v, (_, gs)) =>
         gs.zip(sampleIds).map { case (g, s) =>
           ((v, s), g)
         }

@@ -158,7 +158,7 @@ object LoadMatrix {
     cellType: Type = TInt64(),
     sep: String = "\t",
     missingValue: String = "NA",
-    hasRowIDName: Boolean = false): VariantSampleMatrix[String, String, Annotation] = {
+    hasRowIDName: Boolean = false): VariantSampleMatrix = {
 
     val cellParser: (String, Int, RegionValueBuilder, Char, String, String, String, Int) => Int = cellType match {
       case _: TInt32 => setInt

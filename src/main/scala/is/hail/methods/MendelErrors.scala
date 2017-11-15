@@ -104,12 +104,12 @@ object MendelErrors {
     new MendelErrors(vds.hc, vds.vSignature, trios, vds.stringSampleIds,
       vds
         .aggregateByVariantWithKeys(zeroVal)(
-          (a, v, s, g) => seqOp(a, s, g),
+          (a, v, s, g) => seqOp(a, s, g.asInstanceOf[Genotype]),
           mergeOp)
         .flatMap { case (v, a) =>
-          a.rows.flatMap { case (row) => val code = getCode(row, v.copyState(trioSexBc.value(row.i)))
+          a.rows.flatMap { case (row) => val code = getCode(row, v.asInstanceOf[Variant].copyState(trioSexBc.value(row.i)))
             if (code != 0)
-              Some(MendelError(v, triosBc.value(row.i), code, row(0), row(1), row(2)))
+              Some(MendelError(v.asInstanceOf[Variant], triosBc.value(row.i), code, row(0), row(1), row(2)))
             else
               None
           }

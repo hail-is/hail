@@ -134,7 +134,7 @@ object SplitMulti {
   }
 }
 
-class SplitMulti[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean)(implicit tct: ClassTag[T]) {
+class SplitMulti(vsm: VariantSampleMatrix, variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean) {
   val vEC = EvalContext(Map(
     "global" -> (0, vsm.globalSignature),
     "v" -> (1, vsm.vSignature),
@@ -178,7 +178,7 @@ class SplitMulti[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], variant
     }
   }
 
-  def split(): VariantSampleMatrix[Locus, Variant, T] = {
+  def split(): VariantSampleMatrix = {
     val newRDD2: OrderedRDD2 =
       if (leftAligned)
         OrderedRDD2(
@@ -192,6 +192,6 @@ class SplitMulti[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], variant
           split(sortAlleles = true, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
           split(sortAlleles = false, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 
-    vsm.copy2[Locus, Variant, T](rdd2 = newRDD2, vaSignature = vAnnotator.newT, genotypeSignature = gAnnotator.newT, wasSplit = true)
+    vsm.copy2(rdd2 = newRDD2, vaSignature = vAnnotator.newT, genotypeSignature = gAnnotator.newT, wasSplit = true)
   }
 }

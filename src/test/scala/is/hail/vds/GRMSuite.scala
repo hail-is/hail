@@ -4,6 +4,7 @@ import java.io.DataInputStream
 
 import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.Type
@@ -132,7 +133,7 @@ class GRMSuite extends SparkSuite {
     Prop.check(forAll(
       VSMSubgen.realistic.copy(
         vGen = _ => VariantSubgen.plinkCompatible.gen,
-        tGen = (t: Type, v: Variant) => VSMSubgen.realistic.tGen(t, v).filter(g => Genotype.isCalled(g)))
+        tGen = (t: Type, v: Annotation) => VSMSubgen.realistic.tGen(t, v).filter(g => Genotype.isCalled(g.asInstanceOf[Genotype])))
         .gen(hc)
         // plink fails with fewer than 2 samples, no variants
         .filter(vsm => vsm.nSamples > 1 && vsm.countVariants > 0)

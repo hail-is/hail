@@ -121,7 +121,7 @@ class ImportVCFSuite extends SparkSuite {
     val vds = hc.importVCF(vcf)
 
     val (_, qGT) = gds.queryGA("g.GT")
-    val callVDS = vds.expand().map { case (v, s, g) => ((v, s), Genotype.call(g)) }
+    val callVDS = vds.expand().map { case (v, s, g) => ((v.asInstanceOf[Variant], s), Genotype.call(g.asInstanceOf[Genotype])) }
     val callGDS = gds.expand().map { case (v, s, g) => ((v.asInstanceOf[Variant], s), qGT(g).asInstanceOf[Call]) }
 
     assert(callVDS.fullOuterJoin(callGDS).forall { case ((v, s), (c1, c2)) => c1 == c2 })
@@ -194,7 +194,7 @@ class ImportVCFSuite extends SparkSuite {
 
       val actual = {
         val f = tmpDir.createTempFile(extension="vcf")
-        truth.toVDS.exportVCF(f)
+        truth.exportVCF(f)
         hc.importVCF(f)
       }
 

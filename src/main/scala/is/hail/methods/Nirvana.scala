@@ -4,9 +4,9 @@ import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
 import is.hail.annotations.{Annotation, Querier}
-import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TBoolean, TInt32, TFloat64, TSet, TString, TStruct, Type}
+import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TBoolean, TFloat64, TInt32, TSet, TString, TStruct, Type}
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantDataset}
+import is.hail.variant.{Locus, Variant, VariantDataset}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
@@ -281,7 +281,7 @@ object Nirvana {
 
     info("Running Nirvana")
 
-    val annotations = vds.rdd.mapValues { case (va, gs) => va }
+    val annotations = vds.typedRDD[Locus, Variant, Annotation].mapValues { case (va, gs) => va }
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
@@ -326,15 +326,15 @@ object Nirvana {
 
     val (newVASignature, insertNirvana) = vds.vaSignature.insert(nirvanaSignature, parsedRoot)
 
-    val newRDD = vds.rdd
+    val newRDD = vds.typedRDD[Locus, Variant, Annotation]
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
         left.sortedLeftJoinDistinct(right)
           .map { case (v, ((va, gs), vaNirvana)) =>
             (v, (insertNirvana(va, vaNirvana.orNull), gs))
           }
-      }.asOrderedRDD
+      }
 
-    vds.copy(rdd = newRDD,
+    vds.copyLegacy(rdd = newRDD,
       vaSignature = newVASignature)
   }
 }

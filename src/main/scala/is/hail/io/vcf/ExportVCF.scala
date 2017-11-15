@@ -190,8 +190,8 @@ object ExportVCF {
     }(sb += ':')
   }
 
-  def apply[RPK, RK, T >: Null](vsm0: VariantSampleMatrix[RPK, RK, T], path: String, append: Option[String] = None,
-    parallel: Boolean = false)(implicit tct: ClassTag[T]) {
+  def apply(vsm0: VariantSampleMatrix, path: String, append: Option[String] = None,
+    parallel: Boolean = false) {
     
     vsm0.requireColKeyString("export_vcf")
     vsm0.requireRowKeyVariant("export_vcf")

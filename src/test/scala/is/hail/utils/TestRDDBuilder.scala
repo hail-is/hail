@@ -123,8 +123,8 @@ object TestRDDBuilder {
           }
           (variant, (Annotation.empty, b.result(): Iterable[Genotype]))
       }.toArray
-
+    
     val variantRDD = hc.sc.parallelize(variantArray)
-    new VariantSampleMatrix(hc, VSMFileMetadata(sampleList), variantRDD.toOrderedRDD)
+    VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(sampleList), variantRDD)
   }
 }

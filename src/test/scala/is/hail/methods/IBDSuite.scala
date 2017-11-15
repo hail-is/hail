@@ -99,7 +99,7 @@ class IBDSuite extends SparkSuite {
   object Spec extends Properties("IBD") {
     val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
-      .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal })
+      .map(vds => vds.filterVariants { case (v, va, gs) => v.asInstanceOf[Variant].isAutosomalOrPseudoAutosomal })
       .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same result as plink 1.9") =

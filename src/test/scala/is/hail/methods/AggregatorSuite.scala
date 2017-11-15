@@ -4,7 +4,7 @@ import is.hail.check.{Gen, Prop}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.{Genotype, VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{Genotype, Locus, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
@@ -50,7 +50,8 @@ class AggregatorSuite extends SparkSuite {
           case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
         })
 
-        val gqSC = gs.aggregate(new StatCounter())({ case (s, g) =>
+        val gqSC = gs.aggregate(new StatCounter())({ case (s, g1) =>
+          val g = g1.asInstanceOf[Genotype]
           if (Genotype.isHet(g))
             Genotype.gq(g).foreach(x => s.merge(x))
           s
@@ -63,7 +64,7 @@ class AggregatorSuite extends SparkSuite {
           case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
         })
 
-        val lowGqGtsData = gs.filter(Genotype.gq(_).exists(_ < 60))
+        val lowGqGtsData = gs.filter(g => Genotype.gq(g.asInstanceOf[Genotype]).exists(_ < 60))
         assert(Option(lowGqGts(va)).map(_.asInstanceOf[IndexedSeq[_]]).contains(lowGqGtsData.toIndexedSeq))
 
       }
@@ -100,13 +101,6 @@ class AggregatorSuite extends SparkSuite {
     val nHet = vds.querySA("sa.test.nHet")._2
     val nHomVar = vds.querySA("sa.test.nHomVar")._2
 
-    val gqHetMap = vds.aggregateBySample(new StatCounter())({ case (s, g) =>
-      if (Genotype.isHet(g))
-        Genotype.gq(g).foreach(x => s.merge(x))
-      s
-    }, { case (s1, s2) => s1.merge(s2) })
-      .collect().toMap
-
     vds.sampleIdsAndAnnotations
       .foreach {
         case (s, sa) =>
@@ -115,12 +109,6 @@ class AggregatorSuite extends SparkSuite {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
           assert(Option(gqStatsStDev(sa)).zip(Option(gqStatsStDevQC(sa))).forall {
-            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
-          })
-          assert(Option(gqStatsHetMean(sa)).zip(gqHetMap.get(s).map(_.mean)).forall {
-            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
-          })
-          assert(Option(gqStatsHetStDev(sa)).zip(gqHetMap.get(s).map(_.stdev)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
       }
@@ -195,7 +183,7 @@ class AggregatorSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
 
     val vds2 = vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(0, 100, 20)")
-    vds2.rdd.collect.foreach { case (v, (va, gs)) =>
+    vds2.typedRDD[Locus, Variant, Genotype].collect.foreach { case (v, (va, gs)) =>
       val r = va.asInstanceOf[Row]
 
       val frequencies = r.getAs[IndexedSeq[Long]](1)
@@ -208,7 +196,7 @@ class AggregatorSuite extends SparkSuite {
     }
 
     val vds3 = vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(22, 80, 5)")
-    vds3.rdd.collect.foreach { case (v, (va, gs)) =>
+    vds3.typedRDD[Locus, Variant, Genotype].collect.foreach { case (v, (va, gs)) =>
       val r = va.asInstanceOf[Row]
       val nLess = r.getAs[Long](2)
       val nGreater = r.getAs[Long](3)
@@ -291,7 +279,7 @@ class AggregatorSuite extends SparkSuite {
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)) { vds =>
       val (r, t) = vds.queryVariants("variants.map(v => v.contig).counter()")
       val counterMap = r.asInstanceOf[Map[String, Long]]
-      val aggMap = vds.variants.map(_.contig).countByValue()
+      val aggMap = vds.variants.map(_.asInstanceOf[Variant].contig).countByValue()
       aggMap == counterMap
     }.check()
   }
@@ -345,7 +333,7 @@ class AggregatorSuite extends SparkSuite {
         countResult.exists(x => D_==(x, queryResult.asInstanceOf[Double]))
       val filterCountResult = Some(vds.expand().count()).flatMap { r =>
         if (r == 0) None else Some(vds.expand().filter { case (v, _, g) =>
-          (v.start % 2 == 1) && g != null && Genotype.isCalled(g)
+          (v.asInstanceOf[Variant].start % 2 == 1) && g != null && Genotype.isCalled(g.asInstanceOf[Genotype])
         }.count().toDouble / r)
       }
       val queryResult2 = vds.queryGenotypes("gs.fraction(g => (v.start % 2 == 1) && g.isCalled)")._1

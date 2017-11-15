@@ -75,7 +75,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
       //Test genotype distributions
       val meanGeno_mk = bnm.rdd
         .map(_._2._2.zip(popArray).groupBy(_._2).toSeq.sortBy(_._1))
-        .map(_.map(popIterPair => mean(popIterPair._2.map(x => Genotype.gt(x._1).get.toDouble))).toArray)
+        .map(_.map(popIterPair => mean(popIterPair._2.map(x => Genotype.gt(x._1.asInstanceOf[Genotype]).get.toDouble))).toArray)
         .collect()
 
       val p_mk = arrayOfVATuples.map(_._2.toArray)

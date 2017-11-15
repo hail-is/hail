@@ -113,7 +113,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(vds0.sampleIds.zip(pheno).toMap, TFloat64(), "sa.pheno")
       .annotateSamples(vds0.sampleIds.zip(cov1).toMap, TFloat64(), "sa.cov1")
       .annotateSamples(vds0.sampleIds.zip(cov2).toMap, TFloat64(), "sa.cov2")
-    val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= 2)
+    val kinshipVds = assocVds.filterVariants((v, va, gs) => v.asInstanceOf[Variant].start <= 2)
 
     val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", "g.nNonRefAlleles()", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta))
 
@@ -267,7 +267,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val assocVds = bnm
       .annotateSamples(bnm.sampleIds.zip(pheno).toMap, TFloat64(), "sa.pheno")
       .annotateSamples(covData, covSchema, "sa.covs")
-    val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= mW)
+    val kinshipVds = assocVds.filterVariants((v, va, gs) => v.asInstanceOf[Variant].start <= mW)
 
     val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", "g.nNonRefAlleles()", covariates = covExpr, delta = Some(delta), optDroppedVarianceFraction = Some(0))
 
@@ -303,7 +303,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
     bim = "src/test/resources/fastlmmTest.bim",
     fam = "src/test/resources/fastlmmTest.fam")
     .annotateGenotypesExpr("g = Genotype(g.GT)")
-    .toVDS
     .annotateSamplesTable(covariates, expr = "sa.cov=table.f2")
     .annotateSamplesTable(phenotypes, expr = "sa.pheno=table.f2")
 

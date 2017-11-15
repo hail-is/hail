@@ -31,7 +31,7 @@ class ImportMatrixSuite extends SparkSuite {
 
   @Test def testTypes() {
     implicit val KOk = TString().typedOrderedKey[String, String]
-    val genMatrix = VSMSubgen[String, String, Annotation](
+    val genMatrix = VSMSubgen(
       sSigGen = Gen.const(TString()),
       saSigGen = Gen.const(TStruct.empty()),
       vSigGen = Gen.const(TString()),
@@ -44,11 +44,10 @@ class ImportMatrixSuite extends SparkSuite {
       vaGen = (t: Type) => t.genNonmissingValue,
       globalGen = (t: Type) => t.genNonmissingValue,
       vGen = (t: Type) => Gen.identifier,
-      tGen = (t: Type, v: String) => t.genValue,
-      makeKOk = _ => KOk)
+      tGen = (t: Type, v: Annotation) => t.genValue)
 
     forAll(VariantSampleMatrix.gen(hc, genMatrix)) { vsm =>
-      val actual: VariantSampleMatrix[String, String, Annotation] = {
+      val actual: VariantSampleMatrix = {
         val f = tmpDir.createTempFile(extension="txt")
         vsm.makeKT("v = v", "`` = g", Array("v")).export(f)
         LoadMatrix(hc, Array(f), cellType = vsm.genotypeSignature, hasRowIDName = true)
@@ -58,7 +57,7 @@ class ImportMatrixSuite extends SparkSuite {
       val tmp1 = tmpDir.createTempFile(extension = "vds")
       vsm.write(tmp1, true)
 
-      val vsm2 = VariantSampleMatrix.read(hc, tmp1).asInstanceOf[VariantSampleMatrix[String, String, Annotation]]
+      val vsm2 = VariantSampleMatrix.read(hc, tmp1)
       assert(vsm.same(vsm2))
       true
     }.check()

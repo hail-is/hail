@@ -166,7 +166,7 @@ object RegressionUtils {
     }
   }
 
-  def getSampleAnnotation[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], annot: String, ec: EvalContext): IndexedSeq[Option[Double]] = {
+  def getSampleAnnotation(vsm: VariantSampleMatrix, annot: String, ec: EvalContext): IndexedSeq[Option[Double]] = {
     val aQ = parseExprAsDouble(annot, ec)
 
     vsm.sampleIdsAndAnnotations.map { case (s, sa) =>
@@ -180,7 +180,7 @@ object RegressionUtils {
   }
 
   // IndexedSeq indexed by samples, Array by annotations
-  def getSampleAnnotations[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T], annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
+  def getSampleAnnotations(vds: VariantSampleMatrix, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
     val aQs = annots.map(parseExprAsDouble(_, ec))
 
     vds.sampleIdsAndAnnotations.map { case (s, sa) =>
@@ -195,8 +195,8 @@ object RegressionUtils {
     }
   }
 
-  def getPhenoCovCompleteSamples[RPK, RK, T >: Null](
-    vsm: VariantSampleMatrix[RPK, RK, T],
+  def getPhenoCovCompleteSamples(
+    vsm: VariantSampleMatrix,
     yExpr: String,
     covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
 
@@ -234,8 +234,8 @@ object RegressionUtils {
     (y, cov, completeSamples.toArray)
   }
 
-  def getPhenosCovCompleteSamples[RPK, RK, T >: Null](
-    vsm: VariantSampleMatrix[RPK, RK, T],
+  def getPhenosCovCompleteSamples(
+    vsm: VariantSampleMatrix,
     yExpr: Array[String],
     covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
 

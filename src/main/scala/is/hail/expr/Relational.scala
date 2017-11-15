@@ -167,10 +167,10 @@ abstract class BaseIR {
 }
 
 object MatrixValue {
-  def apply[RPK, RK, T](
+  def apply(
     typ: MatrixType,
     localValue: VSMLocalValue,
-    rdd: OrderedRDD[RPK, RK, (Any, Iterable[T])]): MatrixValue = {
+    rdd: OrderedRDD[Annotation, Annotation, (Any, Iterable[Annotation])]): MatrixValue = {
     implicit val kOk: OrderedKey[Annotation, Annotation] = typ.vType.orderedKey
     val sc = rdd.sparkContext
     val localRowType = typ.rowType
@@ -218,11 +218,10 @@ case class MatrixValue(
   localValue: VSMLocalValue,
   rdd2: OrderedRDD2) {
 
-  def rdd[RPK, RK, T]: OrderedRDD[RPK, RK, (Any, Iterable[T])] = {
+  def rdd: OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])] = {
     warn("converting OrderedRDD2 => OrderedRDD")
 
-    implicit val tct: ClassTag[T] = typ.genotypeType.scalaClassTag.asInstanceOf[ClassTag[T]]
-    implicit val kOk: OrderedKey[RPK, RK] = typ.vType.typedOrderedKey[RPK, RK]
+    implicit val kOk: OrderedKey[Annotation, Annotation] = typ.vType.orderedKey
 
     import kOk._
 
@@ -232,23 +231,23 @@ case class MatrixValue(
       rdd2.map { rv =>
         val ur = new UnsafeRow(localRowType, rv.region.copy(), rv.offset)
 
-        val gs = ur.getAs[IndexedSeq[T]](3)
+        val gs = ur.getAs[IndexedSeq[Annotation]](3)
         assert(gs.length == localNSamples)
 
-        (ur.getAs[RK](1),
+        (ur.get(1),
           (ur.get(2),
-            ur.getAs[IndexedSeq[T]](3): Iterable[T]))
+            ur.getAs[IndexedSeq[Annotation]](3): Iterable[Annotation]))
       },
       OrderedPartitioner(
         rdd2.orderedPartitioner.rangeBounds.map { b =>
-          b.asInstanceOf[Row].getAs[RPK](0)
+          b.asInstanceOf[Row].get(0)
         }.toArray(kOk.pkct),
         rdd2.orderedPartitioner.numPartitions))
   }
 
-  def copyRDD[RPK2, RK2, T2](typ: MatrixType = typ,
+  def copyRDD(typ: MatrixType = typ,
     localValue: VSMLocalValue = localValue,
-    rdd: OrderedRDD[RPK2, RK2, (Any, Iterable[T2])]): MatrixValue = {
+    rdd: OrderedRDD[Annotation, Annotation, (Any, Iterable[Annotation])]): MatrixValue = {
     MatrixValue(typ, localValue, rdd)
   }
 

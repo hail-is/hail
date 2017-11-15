@@ -7,7 +7,7 @@ import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.expr.{TFloat64, TString, TStruct}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.{Genotype, Locus, Variant, VariantDataset}
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg.DenseMatrix
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -109,7 +109,7 @@ object PCRelate {
     val nSamples = vds.nSamples
     val variants = vds.variants.collect()
     val variantIdxBc = vds.sparkContext.broadcast(variants.index)
-    val rdd = vds.rdd.mapPartitions { part =>
+    val rdd = vds.typedRDD[Locus, Variant, Genotype].mapPartitions { part =>
       part.map { case (v, (va, gs)) =>
         var sum = 0
         var nNonMissing = 0

@@ -50,8 +50,8 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testAll() {
-    val vds = new VariantSampleMatrix(hc, VSMFileMetadata(Array.empty[String]),
-      sc.parallelize(Seq((Variant("1", 100, "A", "T"), (Annotation.empty, Iterable.empty[Genotype])))).toOrderedRDD)
+    val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array.empty[String]),
+      sc.parallelize(Seq((Variant("1", 100, "A", "T"), (Annotation.empty, Iterable.empty[Genotype])))))
 
     val intervalFile = tmpDir.createTempFile("intervals")
     hadoopConf.writeTextFile(intervalFile) { out =>
@@ -115,7 +115,7 @@ class IntervalSuite extends SparkSuite {
       lgen)
 
     val p = Prop.forAll(g) { case (it, locus) =>
-      val intervals = it.toSet
+      val intervals = it.map(_._1).toSet
 
       val setResults = intervals.filter(_.contains(locus))
       val treeResults = it.queryIntervals(locus).toSet
@@ -139,7 +139,8 @@ class IntervalSuite extends SparkSuite {
     val (t, q) = vds.queryVA("va.annot")
     assert(t == TArray(TString()))
 
-    vds.rdd.foreach { case (v, (va, gs)) =>
+    vds.rdd.foreach { case (v1, (va, gs)) =>
+      val v = v1.asInstanceOf[Variant]
       val a = q(va).asInstanceOf[IndexedSeq[String]].toSet
 
       if (v.start == 17348324)
@@ -175,11 +176,11 @@ class IntervalSuite extends SparkSuite {
       val vdsRemove = vds.filterVariantsTable(IntervalList.read(hc, iList), keep = false)
 
       val p1 = vdsKeep.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
-          intervals.exists(_.contains(v.locus))
+          intervals.exists(_.contains(v.asInstanceOf[Variant].locus))
       }))
 
       val p2 = vdsRemove.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
-        intervals.forall(!_.contains(v.locus))
+        intervals.forall(!_.contains(v.asInstanceOf[Variant].locus))
       }))
 
       val p = p1 && p2

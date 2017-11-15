@@ -49,12 +49,12 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
     val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
 
-    val vds = new VariantSampleMatrix(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),
       TStruct.empty()),
-      sc.parallelize(Seq(row1)).toOrderedRDD)
+      sc.parallelize(Seq(row1)))
       .filterAlleles("aIndex == 2", subset = false, keep = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
@@ -77,12 +77,12 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
     val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
 
-    val vds = new VariantSampleMatrix(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),
       TStruct.empty()),
-      sc.parallelize(Seq(row1)).toOrderedRDD)
+      sc.parallelize(Seq(row1)))
       .filterAlleles("aIndex == 1", subset = false, keep = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.drop(1))
@@ -105,12 +105,12 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
     val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
 
-    val vds = new VariantSampleMatrix(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),
       TStruct.empty()),
-      sc.parallelize(Seq(row1)).toOrderedRDD)
+      sc.parallelize(Seq(row1)))
       .filterAlleles("aIndex == 1", subset = true, keep = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.drop(1))
@@ -133,12 +133,12 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
     val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
 
-    val vds = new VariantSampleMatrix(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),
       TStruct.empty()),
-      sc.parallelize(Seq(row1)).toOrderedRDD)
+      sc.parallelize(Seq(row1)))
       .filterAlleles("aIndex == 2", subset = true, keep = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
@@ -161,12 +161,12 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
     val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
 
-    val vds = new VariantSampleMatrix(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),
       TStruct.empty()),
-      sc.parallelize(Seq(row1)).toOrderedRDD)
+      sc.parallelize(Seq(row1)))
       .filterAlleles("aIndex == 2", subset = true, keep = false, filterAlteredGenotypes = true)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
@@ -186,12 +186,12 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(Genotype(1), Genotype(2), Genotype(3))
     val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
 
-    val vds = new VariantSampleMatrix(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),
       TStruct.empty()),
-      sc.parallelize(Seq(row1)).toOrderedRDD)
+      sc.parallelize(Seq(row1)))
       .filterAlleles("aIndex == 2", variantExpr = "va = newToOld", keep = false, subset = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
