@@ -204,7 +204,7 @@ object VEP {
     val alleleMap = mutable.Map[Int, Int]()
     (0 until v.nAltAlleles).foldLeft(0) {
       case (nStar, aai) =>
-        if (v.altAlleles(aai).alt == "*")
+        if (v.altAlleles()(aai).alt == "*")
           nStar + 1
         else {
           alleleMap(aai - nStar + 1) = aai + 1

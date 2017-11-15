@@ -3,7 +3,7 @@ package is.hail.variant
 import is.hail.annotations._
 import is.hail.expr._
 
-class VariantView(tv: TVariant) {
+class VariantView(tv: TVariant) extends Variant {
   private val t: TStruct = tv.fundamentalType.asInstanceOf[TStruct]
   private var region: MemoryBuffer = _
   private var offset: Long = _
@@ -23,35 +23,54 @@ class VariantView(tv: TVariant) {
   assert(tAltAllele.fieldType(altIdx).required)
 
   def setRegion(rv: RegionValue) {
-    region = rv.region
-    offset = rv.offset
+    setRegion(rv.region, rv.offset)
   }
 
   def setRegion(region: MemoryBuffer, offset: Long) {
     this.region = region
     this.offset = offset
+    _contig = null
+    _ref = null
+    _altAlleles = null
   }
 
-  def getContig(): String = {
-    TString.loadString(region, t.loadField(region, offset, contigIdx))
+  private var _contig: String = null
+  private var _ref: String = null
+  private var _altAlleles: Array[AltAllele] = null
+
+  def contig(): String = {
+    if (_contig == null)
+      _contig = TString.loadString(region, t.loadField(region, offset, contigIdx))
+    _contig
   }
 
-  def getStart(): Int = {
+  def start(): Int = {
     region.loadInt(t.loadField(region, offset, startIdx))
   }
 
-  def getRef(): String = {
-    TString.loadString(region, t.loadField(region, offset, refIdx))
+  def ref(): String = {
+    if (_ref == null)
+      _ref = TString.loadString(region, t.loadField(region, offset, refIdx))
+    _ref
   }
 
-  def getAltAlleles(): Long = {
-    t.loadField(region, offset, altAllelesIdx)
+  def altAlleles(): IndexedSeq[AltAllele] = {
+    if (_altAlleles == null) {
+      val aoff = t.loadField(region, offset, altAllelesIdx)
+      val length = tAltAlleles.loadLength(region, aoff)
+      val a = new Array[AltAllele](length)
+      var i = 0
+      while (i < length) {
+        val eoff = tAltAlleles.loadElement(region, aoff, length, i)
+        val alt = TString.loadString(region, tAltAllele.loadField(region, eoff, altIdx))
+        val ref = TString.loadString(region, tAltAllele.loadField(region, eoff, refIdx))
+        a(i) = AltAllele(alt, ref)
+      }
+      _altAlleles = a
+    }
+    _altAlleles
   }
 
-  def getAlt(): String = {
-    val aoff = getAltAlleles()
-    assert(tAltAlleles.loadLength(region, aoff) == 1)
-    val eoff = tAltAlleles.loadElement(region, aoff, 1, 0)
-    TString.loadString(region, tAltAllele.loadField(region, eoff, altIdx))
-  }
+  def copy(contig: String, start: Int, ref: String, altAlleles: IndexedSeq[AltAllele]): Variant =
+    throw new UnsupportedOperationException("Copying a VariantView is expensive, don't do that!")
 }
