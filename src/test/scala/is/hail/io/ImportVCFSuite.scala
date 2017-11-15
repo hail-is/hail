@@ -215,5 +215,8 @@ class ImportVCFSuite extends SparkSuite {
 
     vds.filterSamplesList(Set(sampleIds(0),sampleIds(1))).exportVCF(tmp3)
     assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp3))).getMessage.contains("invalid sample ids"))
+
+    // no error thrown if user provides own header
+    hc.importVCFs(Array(tmp1, tmp2), headerFile = Some("src/test/resources/sample.vcf"))
   }
 }
