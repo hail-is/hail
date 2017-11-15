@@ -40,7 +40,7 @@ class SummaryCombiner(rowType: TStruct) extends Serializable {
     this
   }
 
-  def merge(rv: RegionValue, view: HardCallView): SummaryCombiner = {
+  def merge(view: HardCallView, rv: RegionValue): SummaryCombiner = {
     val vType = rowType.fieldType(1).asInstanceOf[TVariant]
     val r = rv.region
     val vOffset = rowType.loadField(rv, 1)
