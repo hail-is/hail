@@ -60,6 +60,7 @@ final class VCFLine(val line: String) {
 
   val abs = new ArrayBuilder[String]
   val abi = new ArrayBuilder[Int]
+  val abd = new ArrayBuilder[Double]
 
   def parseError(msg: String): Unit = throw new VCFParseError(msg, pos)
 
@@ -392,7 +393,7 @@ final class VCFLine(val line: String) {
       rvb.addDouble(parseFormatDouble())
   }
 
-  def parseIntInFormatArray(rvb: RegionValueBuilder): Int = {
+  def parseIntInFormatArray(): Int = {
     if (endFormatArrayField())
       parseError("empty integer")
     var v = numericValue(line(pos))
@@ -404,6 +405,19 @@ final class VCFLine(val line: String) {
     v
   }
 
+  def parseStringInFormatArray(): String = {
+    val start = pos
+    while (!endFormatField())
+      pos += 1
+    val end = pos
+    line.substring(start, end)
+  }
+
+  def parseDoubleInFormatArray(): Double = {
+    val s = parseStringInFormatArray()
+    s.toDouble
+  }
+
   def parseAddFormatArrayInt(rvb: RegionValueBuilder) {
     if (formatFieldMissing()) {
       rvb.setMissing()
@@ -411,10 +425,10 @@ final class VCFLine(val line: String) {
     } else {
       assert(abi.length == 0)
 
-      abi += parseIntInFormatArray(rvb)
+      abi += parseIntInFormatArray()
       while (!endFormatField()) {
         pos += 1 // comma
-        abi += parseIntInFormatArray(rvb)
+        abi += parseIntInFormatArray()
       }
 
       rvb.startArray(abi.length)
@@ -426,6 +440,56 @@ final class VCFLine(val line: String) {
       rvb.endArray()
 
       abi.clear()
+    }
+  }
+
+  def parseAddFormatArrayString(rvb: RegionValueBuilder) {
+    if (formatFieldMissing()) {
+      rvb.setMissing()
+      pos += 1
+    } else {
+      assert(abs.length == 0)
+
+      abs += parseStringInFormatArray()
+      while (!endFormatField()) {
+        pos += 1 // comma
+        abs += parseStringInFormatArray()
+      }
+
+      rvb.startArray(abs.length)
+      var i = 0
+      while (i < abs.length) {
+        rvb.addString(abs(i))
+        i += 1
+      }
+      rvb.endArray()
+
+      abs.clear()
+    }
+  }
+
+  def parseAddFormatArrayDouble(rvb: RegionValueBuilder) {
+    if (formatFieldMissing()) {
+      rvb.setMissing()
+      pos += 1
+    } else {
+      assert(abd.length == 0)
+
+      abd += parseDoubleInFormatArray()
+      while (!endFormatField()) {
+        pos += 1 // comma
+        abd += parseDoubleInFormatArray()
+      }
+
+      rvb.startArray(abd.length)
+      var i = 0
+      while (i < abd.length) {
+        rvb.addDouble(abd(i))
+        i += 1
+      }
+      rvb.endArray()
+
+      abd.clear()
     }
   }
 }
@@ -462,8 +526,10 @@ class FormatParser(
         l.parseAddFormatString(rvb)
       case TArray(TInt32(_), _) =>
         l.parseAddFormatArrayInt(rvb)
-      case TArray(TFloat64(_), _) => ???
-      case TArray(TString(_), _) => ???
+      case TArray(TFloat64(_), _) =>
+        l.parseAddFormatArrayDouble(rvb)
+      case TArray(TString(_), _) =>
+        l.parseAddFormatArrayString(rvb)
     }
   }
 
