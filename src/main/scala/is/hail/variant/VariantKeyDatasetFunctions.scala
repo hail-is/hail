@@ -2,7 +2,6 @@ package is.hail.variant
 
 import is.hail.annotations._
 import is.hail.expr.{TArray, TCall, TGenotype, TInt32, TString, TStruct, Type}
-import is.hail.io.vcf.ExportVCF
 import is.hail.methods.{SplitMulti, VEP}
 import is.hail.sparkextras.OrderedRDD2
 import is.hail.utils._
@@ -14,16 +13,6 @@ import scala.reflect.ClassTag
 
 class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix[Locus, Variant, T]) {
   implicit val tct: ClassTag[T] = vsm.tct
-
-  /**
-    *
-    * @param path     output path
-    * @param append   append file to header
-    * @param parallel export VCF in parallel using the path argument as a directory
-    */
-  def exportVCF(path: String, append: Option[String] = None, parallel: Boolean = false) {
-    ExportVCF(vsm, path, append, parallel)
-  }
 
   /**
     *

@@ -1285,7 +1285,26 @@ object TGenotype {
       "dp" -> TInt32(),
       "gq" -> TInt32(),
       "pl" -> TArray(!TInt32()))
-    if (required) (!t).asInstanceOf[TStruct] else t
+    
+    t.setRequired(required).asInstanceOf[TStruct]
+  }
+  
+  def representationWithVCFAttributes(required: Boolean = false): TStruct = {
+    val t = TStruct(IndexedSeq(
+      Field("GT", TCall(), 0,
+        Map("Number" -> "1", "Type" -> "String", "Description" -> "Genotype")),
+      Field("AD", TArray(TInt32()), 1,
+        Map("Number" -> "R", "Type" -> "Integer",
+          "Description" -> "Allelic depths for the ref and alt alleles in the order listed")),
+      Field("DP", TInt32(), 2,
+        Map("Number" -> "1", "Type" -> "Integer", "Description" -> "Read Depth")),
+      Field("GQ", TInt32(), 3,
+        Map("Number" -> "1", "Type" -> "Integer", "Description" -> "Genotype Quality")),
+      Field("PL", TArray(TInt32()), 4,
+        Map("Number" -> "G", "Type" -> "Integer",
+          "Description" -> "Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification"))))
+    
+    t.setRequired(required).asInstanceOf[TStruct]
   }
 }
 

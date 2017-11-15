@@ -4,6 +4,7 @@ import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.{Genotype, VariantDataset}
+import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
 object TestUtils {
@@ -20,6 +21,16 @@ object TestUtils {
     assert(p)
   }
 
+  def interceptSpark(regex: String)(f: => Any) {
+    val thrown = intercept[SparkException](f)
+    val p = regex.r.findFirstIn(thrown.getMessage).isDefined
+    if (!p)
+      println(
+        s"""expected fatal exception with pattern `$regex'
+           |  Found: ${thrown.getMessage} """.stripMargin)
+    assert(p)
+  }
+  
   def assertVectorEqualityDouble(A: Vector[Double], B: Vector[Double], tolerance: Double = utils.defaultTolerance) {
     assert(A.size == B.size)
     assert((0 until A.size).forall(i => D_==(A(i), B(i), tolerance)))
