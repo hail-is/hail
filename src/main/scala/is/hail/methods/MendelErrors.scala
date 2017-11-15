@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.HailContext
 import is.hail.annotations.Annotation
-import is.hail.expr.{TInt32, TString, TStruct, TVariant}
+import is.hail.expr.{TInt32, TString, TStruct, TVariant, Type}
 import is.hail.keytable.KeyTable
 import is.hail.utils.{MultiArray2, _}
 import is.hail.variant.CopyState._
@@ -101,7 +101,7 @@ object MendelErrors {
       a
     }
 
-    new MendelErrors(vds.hc, trios, vds.stringSampleIds,
+    new MendelErrors(vds.hc, vds.vSignature, trios, vds.stringSampleIds,
       vds
         .aggregateByVariantWithKeys(zeroVal)(
           (a, v, s, g) => seqOp(a, s, g),
@@ -119,10 +119,9 @@ object MendelErrors {
   }
 }
 
-case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
+case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteTrio],
   sampleIds: IndexedSeq[String],
-  mendelErrors: RDD[MendelError],
-  gr: GRBase = GenomeReference.GRCh37) {
+  mendelErrors: RDD[MendelError]) {
 
   private val sc = mendelErrors.sparkContext
   private val trioFam = trios.iterator.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
@@ -154,7 +153,7 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
     val signature = TStruct(
       "fid" -> TString(),
       "s" -> TString(),
-      "v" -> TVariant(GenomeReference.GRCh37),
+      "v" -> vSig,
       "code" -> TInt32(),
       "error" -> TString())
 
@@ -207,7 +206,7 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
 
   def lMendelKT(): KeyTable = {
     val signature = TStruct(
-      "v" -> TVariant(GenomeReference.GRCh37),
+      "v" -> vSig,
       "nError" -> TInt32()
     )
 

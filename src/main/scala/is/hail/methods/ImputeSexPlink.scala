@@ -41,7 +41,9 @@ object ImputeSexPlink {
       }
     }
 
-    val gr = GenomeReference.GRCh37
+    val gr = vds.vSignature match {
+      case TVariant(x, _) => x.asInstanceOf[GenomeReference]
+    }
 
     val xIntervals = IntervalTree(gr.xContigs.map(contig => Interval(Locus(contig, 0), Locus(contig, gr.contigLength(contig)))).toArray)
     var xVds = vds.filterIntervals(xIntervals, keep = true)

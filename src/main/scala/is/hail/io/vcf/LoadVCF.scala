@@ -807,7 +807,7 @@ object LoadVCF {
     files: Array[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    gr: GenomeReference = GenomeReference.GRCh37,
+    gr: GenomeReference = GenomeReference.defaultReference,
     arrayElementsRequired: Boolean = true): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
@@ -868,7 +868,6 @@ object LoadVCF {
 
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val gr = GenomeReference.GRCh37
     val vsmMetadata = VSMMetadata(
       TString(),
       TStruct.empty(),

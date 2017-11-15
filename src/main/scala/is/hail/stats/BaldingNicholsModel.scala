@@ -13,7 +13,8 @@ object BaldingNicholsModel {
 
   def apply(hc: HailContext, nPops: Int, nSamples: Int, nVariants: Int,
     popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
-    seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution): VariantDataset = {
+    seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution,
+    gr: GenomeReference = GenomeReference.defaultReference): VariantDataset = {
 
     val sc = hc.sc
 
@@ -138,7 +139,7 @@ object BaldingNicholsModel {
       "ancestralAFDist" -> ancestralAFAnnotationSignature,
       "seed" -> TInt32())
     new VariantDataset(hc,
-      VSMMetadata(TString(), saSignature, TVariant(GenomeReference.GRCh37), vaSignature, globalSignature, wasSplit = true),
+      VSMMetadata(TString(), saSignature, TVariant(gr), vaSignature, globalSignature, wasSplit = true),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
   }
 }

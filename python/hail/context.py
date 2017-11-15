@@ -11,6 +11,7 @@ from hail.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
 from hail.utils import wrap_to_list, get_env_or_default
 from hail.history import *
+from hail.representation.genomeref import GenomeReference
 
 
 class HailContext(HistoryMixin):
@@ -43,6 +44,12 @@ class HailContext(HistoryMixin):
                     of the environment variable TMPDIR, unless TMPDIR is unset,
                     in which case use '/tmp'.
 
+    :param default_reference: Default reference genome to use. Can be set to "GRCh37" for
+                             :py:meth:`.GenomeReference.GRCh37`, "GRCh38" for :py:meth:`.GenomeReference.GRCh38`,
+                             or the path to a JSON file for constructing a reference genome as described in
+                             :py:meth:`.GenomeReference.from_file`.
+    :type default_reference: str
+
     :ivar sc: Spark context
     :vartype sc: :class:`.pyspark.SparkContext`
 
@@ -58,10 +65,12 @@ class HailContext(HistoryMixin):
                       append=bool,
                       min_block_size=integral,
                       branching_factor=integral,
-                      tmp_dir=nullable(strlike))
+                      tmp_dir=nullable(strlike),
+                      default_reference=strlike)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
-                 min_block_size=1, branching_factor=50, tmp_dir=None):
+                 min_block_size=1, branching_factor=50, tmp_dir=None,
+                 default_reference="GRCh37"):
 
         if Env._hc:
             raise FatalError('Hail Context has already been created, restart session '
@@ -93,10 +102,14 @@ class HailContext(HistoryMixin):
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
         self._counter = 1
+
         super(HailContext, self).__init__()
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
+
+        self._default_ref = None
+        Env.hail().variant.GenomeReference.setDefaultReference(self._jhc, default_reference)
 
         sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
         if self._jsc.uiWebUrl().isDefined():
@@ -147,6 +160,17 @@ class HailContext(HistoryMixin):
         """
         return self._jhc.version()
 
+    @property
+    def default_reference(self):
+        """Return the default reference genome.
+
+        :rtype: :class:`.GenomeReference`
+        """
+
+        if not self._default_ref:
+            self._default_ref = GenomeReference._from_java(Env.hail().variant.GenomeReference.defaultReference())
+        return self._default_ref
+
     @handle_py4j
     @typecheck_method(regex=strlike,
                       path=oneof(strlike, listof(strlike)),
@@ -183,8 +207,9 @@ class HailContext(HistoryMixin):
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       tolerance=numeric,
                       sample_file=nullable(strlike),
-                      min_partitions=nullable(integral))
-    def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None):
+                      min_partitions=nullable(integral),
+                      reference_genome=nullable(GenomeReference))
+    def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None):
         """Import .bgen file(s) as variant dataset.
         
         .. warning::
@@ -242,12 +267,16 @@ class HailContext(HistoryMixin):
         :param min_partitions: Number of partitions.
         :type min_partitions: int or None
 
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`
+
         :return: Variant dataset imported from .bgen file.
         :rtype: :class:`.VariantDataset`
         """
 
+        rg = reference_genome if reference_genome else self.default_reference
         jvds = self._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                     tolerance, joption(min_partitions))
+                                     tolerance, joption(min_partitions), rg._jrep)
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -256,8 +285,10 @@ class HailContext(HistoryMixin):
                       sample_file=nullable(strlike),
                       tolerance=numeric,
                       min_partitions=nullable(integral),
-                      chromosome=nullable(strlike))
-    def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None):
+                      chromosome=nullable(strlike),
+                      reference_genome=nullable(GenomeReference))
+    def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None,
+                   chromosome=None, reference_genome=None):
         """Import .gen file(s) as variant dataset.
 
         **Examples**
@@ -307,12 +338,16 @@ class HailContext(HistoryMixin):
         :param chromosome: Chromosome if not listed in the .gen file.
         :type chromosome: str or None
 
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`
+
         :return: Variant dataset imported from .gen and .sample files.
         :rtype: :class:`.VariantDataset`
         """
 
+        rg = reference_genome if reference_genome else self.default_reference
         jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
-                                    tolerance)
+                                    tolerance, rg._jrep)
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -326,9 +361,10 @@ class HailContext(HistoryMixin):
                       delimiter=strlike,
                       missing=strlike,
                       types=dictof(strlike, Type),
-                      quote=nullable(char))
+                      quote=nullable(char),
+                      reference_genome=nullable(GenomeReference))
     def import_table(self, paths, key=[], min_partitions=None, impute=False, no_header=False,
-                     comment=None, delimiter="\t", missing="NA", types={}, quote=None):
+                     comment=None, delimiter="\t", missing="NA", types={}, quote=None, reference_genome=None):
         """Import delimited text file (text table) as key table.
 
         The resulting key table will have no key columns, use :py:meth:`.KeyTable.key_by`
@@ -464,20 +500,24 @@ class HailContext(HistoryMixin):
         
         :param types: Define types of fields in annotations files   
         :type types: dict with str keys and :py:class:`.Type` values
-    
-        :return: Key table constructed from text table.
-        :rtype: :class:`.KeyTable`
 
         :param quote: Quote character
         :type quote: str or None
+
+        :param reference_genome: Reference genome to use when imputing Variant or Locus columns. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`
+
+        :return: Key table constructed from text table.
+        :rtype: :class:`.KeyTable`
         """
 
         key = wrap_to_list(key)
         paths = wrap_to_list(paths)
         jtypes = {k: v._jtype for k, v in types.items()}
+        rg = reference_genome if reference_genome else self.default_reference
 
         jkt = self._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
-                                    no_header, impute, quote)
+                                    no_header, impute, quote, rg._jrep)
         return KeyTable(self, jkt)
 
     @handle_py4j
@@ -489,9 +529,10 @@ class HailContext(HistoryMixin):
                       delimiter=strlike,
                       missing=strlike,
                       quant_pheno=bool,
-                      a2_reference=bool)
+                      a2_reference=bool,
+                      reference_genome=nullable(GenomeReference))
     def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
-                     missing='NA', quant_pheno=False, a2_reference=True):
+                     missing='NA', quant_pheno=False, a2_reference=True, reference_genome=None):
         """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
 
         **Examples**
@@ -553,12 +594,17 @@ class HailContext(HistoryMixin):
         :param bool quant_pheno: If True, FAM phenotype is interpreted as quantitative.
 
         :param bool a2_reference: If True, A2 is treated as the reference allele. If False, A1 is treated as the reference allele.
+        
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`        
 
         :return: Variant dataset imported from PLINK binary file.
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter, missing, quant_pheno, a2_reference)
+        rg = reference_genome if reference_genome else self.default_reference
+        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter,
+                                     missing, quant_pheno, a2_reference, rg._jrep)
 
         return VariantDataset(self, jvds)
 
@@ -597,9 +643,10 @@ class HailContext(HistoryMixin):
                       min_partitions=nullable(integral),
                       drop_samples=bool,
                       generic=bool,
-                      call_fields=oneof(strlike, listof(strlike)))
+                      call_fields=oneof(strlike, listof(strlike)),
+                      reference_genome=nullable(GenomeReference))
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-                   drop_samples=False, generic=False, call_fields=[]):
+                   drop_samples=False, generic=False, call_fields=[], reference_genome=None):
         """Import VCF file(s) as variant dataset.
 
         **Examples**
@@ -708,18 +755,23 @@ class HailContext(HistoryMixin):
         :type call_fields: str or list of str
 
         :param bool generic: If True, read the genotype with a generic schema.
+        
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`
 
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
 
         """
 
+        rg = reference_genome if reference_genome else self.default_reference
+        
         if generic:
             jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                               joption(min_partitions), drop_samples, jset_args(call_fields))
+                                               joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep)
         else:
             jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                        joption(min_partitions), drop_samples)
+                                        joption(min_partitions), drop_samples, rg._jrep)
 
         return VariantDataset(self, jvds)
 
@@ -756,10 +808,11 @@ class HailContext(HistoryMixin):
                       pop_dist=nullable(listof(numeric)),
                       fst=nullable(listof(numeric)),
                       af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
-                      seed=integral)
+                      seed=integral,
+                      reference_genome=nullable(GenomeReference))
     def balding_nichols_model(self, populations, samples, variants, num_partitions=None,
                               pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
-                              seed=0):
+                              seed=0, reference_genome=None):
         """Simulate a variant dataset using the Balding-Nichols model.
 
         **Examples**
@@ -843,6 +896,9 @@ class HailContext(HistoryMixin):
 
         :param int seed: Random seed.
 
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`
+
         :return: Variant dataset simulated using the Balding-Nichols model.
         :rtype: :class:`.VariantDataset`
         """
@@ -857,12 +913,15 @@ class HailContext(HistoryMixin):
         else:
             jvm_fst_opt = joption(jarray(self._jvm.double, fst))
 
+        rg = reference_genome if reference_genome else self.default_reference
+        
         jvds = self._jhc.baldingNicholsModel(populations, samples, variants,
                                              joption(num_partitions),
                                              jvm_pop_dist_opt,
                                              jvm_fst_opt,
                                              af_dist._jrep(),
-                                             seed)
+                                             seed,
+                                             rg._jrep)
         return VariantDataset(self, jvds)
 
     @handle_py4j

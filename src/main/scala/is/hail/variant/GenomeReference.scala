@@ -2,6 +2,7 @@ package is.hail.variant
 
 import java.io.InputStream
 
+import is.hail.HailContext
 import is.hail.check.Gen
 import is.hail.expr.{JSONExtractGenomeReference, TInterval, TLocus, TVariant}
 import is.hail.utils._
@@ -173,9 +174,10 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 }
 
 object GenomeReference {
+  var references: Map[String, GenomeReference] = Map()
   val GRCh37: GenomeReference = fromResource("reference/grch37.json")
   val GRCh38: GenomeReference = fromResource("reference/grch38.json")
-  var references: Map[String, GenomeReference] = Map("GRCh37" -> GRCh37, "GRCh38" -> GRCh38)
+  var defaultReference = GRCh37
 
   def addReference(gr: GenomeReference) {
     if (references.contains(gr.name))
@@ -190,10 +192,35 @@ object GenomeReference {
     }
   }
 
+  def hasReference(name: String): Boolean = references.contains(name)
+
+  def setDefaultReference(gr: GenomeReference) {
+    assert(references.contains(gr.name))
+    defaultReference = gr
+  }
+
+  def setDefaultReference(hc: HailContext, grSource: String) {
+    defaultReference =
+      if (hasReference(grSource))
+        getReference(grSource)
+      else
+        fromFile(hc, grSource)
+  }
+
   def fromJSON(json: JValue): GenomeReference = json.extract[JSONExtractGenomeReference].toGenomeReference
 
-  def fromResource(file: String): GenomeReference = loadFromResource[GenomeReference](file) {
-    (is: InputStream) => fromJSON(JsonMethods.parse(is))
+  def fromResource(file: String): GenomeReference = {
+    val gr = loadFromResource[GenomeReference](file) {
+      (is: InputStream) => fromJSON(JsonMethods.parse(is))
+    }
+    addReference(gr)
+    gr
+  }
+
+  def fromFile(hc: HailContext, file: String): GenomeReference = {
+    val gr = hc.hadoopConf.readFile(file) { (is: InputStream) => fromJSON(JsonMethods.parse(is)) }
+    addReference(gr)
+    gr
   }
 
   def gen: Gen[GenomeReference] = for {

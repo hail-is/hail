@@ -279,7 +279,7 @@ object IBD {
   }
 
   private[methods] def generateComputeMaf(vds: VariantDataset, computeMafExpr: String): (Variant, Annotation) => Double = {
-    val mafSymbolTable = Map("v" -> (0, TVariant(GenomeReference.GRCh37)), "va" -> (1, vds.vaSignature))
+    val mafSymbolTable = Map("v" -> (0, vds.vSignature), "va" -> (1, vds.vaSignature))
     val mafEc = EvalContext(mafSymbolTable)
     val computeMafThunk = Parser.parseTypedExpr[java.lang.Double](computeMafExpr, mafEc)
 

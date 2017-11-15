@@ -1,0 +1,12 @@
+{"name": "my_reference_genome",
+ "contigs": [{"name": "1", "length": 10000000},
+             {"name": "2", "length": 20000000},
+             {"name": "X", "length": 19856300},
+             {"name": "Y", "length": 78140000},
+             {"name": "MT", "length": 532}],
+ "xContigs": ["X"],
+ "yContigs": ["Y"],
+ "mtContigs": ["MT"],
+ "par": [{"start": {"contig": "X","position": 60001},"end": {"contig": "X","position": 2699521}},
+         {"start": {"contig": "Y","position": 10001},"end": {"contig": "Y","position": 2649521}}]
+}
