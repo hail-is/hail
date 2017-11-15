@@ -3,6 +3,7 @@ package is.hail.io
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
+import is.hail.check.Prop.forAll
 import is.hail.expr._
 import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import org.apache.spark.SparkException
@@ -60,21 +61,38 @@ class ImportMatrixSuite extends SparkSuite {
   }
 
   @Test def testTypes2() {
-    VSMSubgen[String, String, Annotation](
+    val genMatrix = VSMSubgen[String, String, Annotation](
       sSigGen = Gen.const(TString()),
       saSigGen = Gen.const(TStruct.empty()),
       vSigGen = Gen.const(TString()),
-      vaSigGen: Gen[Type],
-      globalSigGen: Gen[Type],
-      tSigGen: Gen[Type],
-      sGen: (Type) => Gen[Annotation],
-      saGen: (Type) => Gen[Annotation],
-      vaGen: (Type) => Gen[Annotation],
-      globalGen: (Type) => Gen[Annotation],
-      vGen: (Type) => Gen[RK],
-      tGen: (Type, RK) => Gen[T],
-      wasSplit: Boolean = false,
-      makeKOk: (Type) => OrderedKey[RPK, RK]) {
+      vaSigGen = Gen.const(TStruct.empty()),
+      globalSigGen = Gen.const(TStruct.empty()),
+      tSigGen = Gen.zip(Gen.oneOf[Type](TInt32(), TInt64(), TFloat32(), TFloat64(), TString()), Gen.coin(0.2))
+        .map{ case (typ, req) => typ.setRequired(req) },
+      sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
+      saGen = (t: Type) => t.genValue,
+      vaGen = (t: Type) => t.genValue,
+      globalGen = (t: Type) => t.genValue,
+      vGen = (t: Type) => Gen.identifier,
+      tGen = (t: Type, v: String) => t.genValue,
+      makeKOk = _ => null)
+    forAll(VariantSampleMatrix.gen(hc, genMatrix)) { vds =>
+
+      val truth = {
+        val f = tmpDir.createTempFile(extension="txt")
+        vds.makeKT("v = v", "g = g", Array("v")).export(f)
+        hc.importMatrix(f)
+      }
+
+      val actual = {
+        val f = tmpDir.createTempFile(extension="vcf")
+        truth.toVDS.exportVCF(f)
+        hc.importVCF(f)
+      }
+
+      truth.same(actual)
+    }.check()
+
   }
 
   @Test def testReadWrite() {
