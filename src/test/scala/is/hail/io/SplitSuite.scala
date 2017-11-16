@@ -5,7 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Genotype, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant._
 import org.testng.annotations.Test
 
 class SplitSuite extends SparkSuite {
@@ -16,7 +16,7 @@ class SplitSuite extends SparkSuite {
       start <- Gen.choose(1, 100)
       motif <- Gen.oneOf("AT", "AC", "CT", "GA", "GT", "CCA", "CAT", "CCT")
       ref <- Gen.choose(1, 10).map(motif * _)
-      alts <- Gen.distinctBuildableOf[Array, AltAllele](Gen.choose(1, 10).map(motif * _).filter(_ != ref).map(a => AltAllele(ref, a)))
+      alts <- Gen.distinctBuildableOf[Array, ConcreteAltAllele](Gen.choose(1, 10).map(motif * _).filter(_ != ref).map(a => AltAllele(ref, a)))
     } yield Variant(contig, start, ref, alts)
 
     property("splitMulti maintains variants") = forAll(VariantSampleMatrix.gen(hc,

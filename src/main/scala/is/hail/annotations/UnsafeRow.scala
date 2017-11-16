@@ -7,7 +7,7 @@ import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr._
 import is.hail.io._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, GRBase, GenericGenotype, Locus, Variant}
+import is.hail.variant._
 import org.apache.spark.sql.Row
 
 object UnsafeIndexedSeq {
@@ -144,7 +144,7 @@ object UnsafeRow {
       region.loadInt(ft.loadField(region, offset, 1)))
   }
 
-  def readAltAllele(region: MemoryBuffer, offset: Long): AltAllele = {
+  def readAltAllele(region: MemoryBuffer, offset: Long): ConcreteAltAllele = {
     val ft = TAltAllele().fundamentalType.asInstanceOf[TStruct]
     AltAllele(
       readString(region, ft.loadField(region, offset, 0)),
@@ -153,11 +153,11 @@ object UnsafeRow {
 
   private val tArrayAltAllele = TArray(TAltAllele())
 
-  def readArrayAltAllele(region: MemoryBuffer, aoff: Long): Array[AltAllele] = {
+  def readArrayAltAllele(region: MemoryBuffer, aoff: Long): Array[ConcreteAltAllele] = {
     val t = tArrayAltAllele
 
     val length = region.loadInt(aoff)
-    val a = new Array[AltAllele](length)
+    val a = new Array[ConcreteAltAllele](length)
     var i = 0
     while (i < length) {
       a(i) = readAltAllele(region, t.loadElement(region, aoff, length, i))
