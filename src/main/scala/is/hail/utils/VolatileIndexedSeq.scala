@@ -60,6 +60,7 @@ trait VolatileIndexedSeq[T] { self =>
     }
   }
 
+  // copy *must not* store a copy to a reference of T unless T is immutable
   def toArray[U](copy: T => U)(implicit tct: ClassTag[U]): Array[U] = {
     var i = 0
     val a = new Array[U](length)
