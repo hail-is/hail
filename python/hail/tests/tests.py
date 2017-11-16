@@ -89,7 +89,7 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(gds.same(gds_imported))
 
         matrix = hc.import_matrix(test_resources + '/samplematrix1.txt')
-        self.assertEqual(matrix.count()[1], 100)
+        self.assertEqual(matrix.count()[1], 10)
 
     def test_dataset(self):
         test_resources = 'src/test/resources'
