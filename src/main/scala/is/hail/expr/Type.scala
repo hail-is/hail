@@ -1650,6 +1650,13 @@ object TStruct {
       .map { case ((n, t), i) => Field(n, t, i) }
       .toArray)
 
+  def apply(required: Boolean, args: (String, Type)*): TStruct =
+    TStruct(args
+      .iterator
+      .zipWithIndex
+      .map { case ((n, t), i) => Field(n, t, i) }
+      .toArray, required)
+
   def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type], required: Boolean): TStruct = {
     val sNames = names.asScala.toArray
     val sTypes = types.asScala.toArray
@@ -2002,7 +2009,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
     val fdIndexToUngroup = fieldIdx(identifier)
 
-    val newSignature = TStruct(fields.filterNot(_.index == fdIndexToUngroup).map { fd => (fd.name, fd.typ) } ++ ungroupedFields: _*).setRequired(required).asInstanceOf[TStruct]
+    val newSignature = TStruct(required, fields.filterNot(_.index == fdIndexToUngroup).map { fd => (fd.name, fd.typ) } ++ ungroupedFields: _*)
 
     val origSize = size
     val newSize = newSignature.size
@@ -2052,7 +2059,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     val keepIndices = keepFields.map(_.index)
 
     val groupedTyp = TStruct(fieldsToGroup.map(fd => (fd.name, fd.typ)): _*)
-    val finalSignature = TStruct(keepFields.map(fd => (fd.name, fd.typ)) :+ (dest, groupedTyp): _*).setRequired(required).asInstanceOf[TStruct]
+    val finalSignature = TStruct(required, keepFields.map(fd => (fd.name, fd.typ)) :+ (dest, groupedTyp): _*)
 
     val newSize = finalSignature.size
 
@@ -2096,7 +2103,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     if (overlapping.nonEmpty)
       fatal(s"overlapping fields in struct concatenation: ${ overlapping.mkString(", ") }")
 
-    TStruct(fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*).setRequired(required || that.required).asInstanceOf[TStruct]
+    TStruct(required || that.required, fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*)
   }
 
   def filter(f: (Field) => Boolean): (TStruct, (Annotation) => Annotation) = {
@@ -2255,7 +2262,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   def select(keep: Array[String]): (TStruct, (Row) => Row) = {
-    val t = TStruct(keep.map { n =>
+    val t = TStruct(required, keep.map { n =>
       n -> field(n).typ
     }: _*)
 
@@ -2263,7 +2270,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     val selectF: Row => Row = { r =>
       Row.fromSeq(keepIdx.map(r.get))
     }
-    (t.setRequired(required).asInstanceOf[TStruct], selectF)
+    (t, selectF)
   }
 
   val (missingIdx, nMissing) = {
