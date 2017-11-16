@@ -11,7 +11,3 @@ trait View {
 
   def setRegion(region: MemoryBuffer, offset: Long)
 }
-
-trait ReifiableView[T] extends View {
-  def copy(): T
-}

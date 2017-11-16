@@ -313,8 +313,7 @@ trait Variant {
     else if (altAlleles.forall(a => a.isStar))
       Variant(contig, start, ref.substring(0, 1), altAlleles.map(_.alt).toArray)
     else {
-      val ab = new ArrayBuilder[String](altAlleles.length)
-      val alts = altAlleles.filter(!_.isStar).map(a => a.alt).toArray
+      val alts = altAlleles.filter(!_.isStar).map(a => a.alt)
       require(alts.forall(ref != _))
 
       val min_length = math.min(ref.length, alts.map(x => x.length).min)
@@ -344,7 +343,7 @@ trait Variant {
   }
 
   override def toString: String =
-    s"$contig:$start:$ref:${ altAlleles.map(_.alt).toArray.mkString(",") }"
+    s"$contig:$start:$ref:${ altAlleles.map(_.alt).mkString(",") }"
 
   def toRow = {
     Row.fromSeq(Array(
