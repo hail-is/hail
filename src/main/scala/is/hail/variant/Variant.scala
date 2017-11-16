@@ -5,6 +5,7 @@ import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
+import is.hail.utils.NonVolatilePrimitive._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -195,7 +196,9 @@ trait Variant {
   def altAlleles(): IndexedSeq[ConcreteAltAllele] =
     regionValueAltAlleles().toArray[ConcreteAltAllele](_.reify)
 
-  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[ConcreteAltAllele] = altAlleles): Variant
+  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: VolatileIndexedSeq[_ <: AltAllele] = regionValueAltAlleles): Variant
+
+  def copy2(contig: String, start: Int, ref: String, altAlleles: VolatileIndexedSeq[String]): Variant
 
   def nAltAlleles: Int = regionValueAltAlleles.length
 
@@ -311,9 +314,9 @@ trait Variant {
     if (ref.length == 1)
       this
     else if (altAlleles.forall(a => a.isStar))
-      Variant(contig, start, ref.substring(0, 1), altAlleles.map(_.alt).toArray)
+      copy2(contig, start, ref.substring(0, 1), regionValueAltAlleles.map(_.alt))
     else {
-      val alts = altAlleles.filter(!_.isStar).map(a => a.alt)
+      val alts = regionValueAltAlleles.filter(!_.isStar).map(a => a.alt)
       require(alts.forall(ref != _))
 
       val min_length = math.min(ref.length, alts.map(x => x.length).min)
@@ -336,8 +339,8 @@ trait Variant {
         this
       else {
         assert(ns < ref.length - ne && alts.forall(x => ns < x.length - ne))
-        Variant(contig, start + ns, ref.substring(ns, ref.length - ne),
-          altAlleles.map(a => if (a.isStar) a.alt else a.alt.substring(ns, a.alt.length - ne)).toArray)
+        copy2(contig, start + ns, ref.substring(ns, ref.length - ne),
+           regionValueAltAlleles.map((a: AltAllele) => if (a.isStar) a.alt else a.alt.substring(ns, a.alt.length - ne)))
       }
     }
   }
@@ -374,7 +377,9 @@ case class ConcreteVariant(contig: String,
 
   val regionValueAltAlleles: VolatileIndexedSeq[AltAllele] = new ConcreteVolatileIndexedSeq(altAlleles)
 
-  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[ConcreteAltAllele]): ConcreteVariant =
-    ConcreteVariant(contig, start, ref, altAlleles)
+  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: VolatileIndexedSeq[_ <: AltAllele]): ConcreteVariant =
+    ConcreteVariant(contig, start, ref, altAlleles.toArray[ConcreteAltAllele](_.reify))
 
+  def copy2(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: VolatileIndexedSeq[String]): ConcreteVariant =
+    ConcreteVariant(contig, start, ref, altAlleles.toArray[ConcreteAltAllele](ConcreteAltAllele(ref, _)))
 }

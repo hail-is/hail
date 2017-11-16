@@ -31,6 +31,8 @@ class RegionValueVariant(tv: TVariant) extends Variant with View {
     regionValueAltAlleles.setRegion(region, t.loadField(region, offset, altAllelesIdx))
   }
 
+  def getOffset(): Long = offset
+
   private var cachedContig: String = null
   private var cachedRef: String = null
   private var cachedAltAlleles: Array[ConcreteAltAllele] = null
@@ -51,8 +53,53 @@ class RegionValueVariant(tv: TVariant) extends Variant with View {
     cachedRef
   }
 
-  def copy(contig: String, start: Int, ref: String, altAlleles: IndexedSeq[ConcreteAltAllele]): Variant =
-    throw new UnsupportedOperationException("Copying a VariantView is expensive, don't do that!")
+  def copy(contig: String, start: Int, ref: String, altAlleles: VolatileIndexedSeq[_ <: AltAllele]): Variant = {
+    val rvb = new RegionValueBuilder(region)
+    rvb.start(tv.fundamentalType)
+    rvb.startStruct()
+    rvb.addString(contig)
+    rvb.addInt(start)
+    rvb.addString(ref)
+    rvb.startArray(altAlleles.length)
+    var i = 0
+    while (i < altAlleles.length) {
+      rvb.startStruct()
+      val aa = altAlleles(i)
+      rvb.addString(aa.ref)
+      rvb.addString(aa.alt)
+      rvb.endStruct()
+      i += 1
+    }
+    rvb.endArray()
+    rvb.endStruct()
+    val rvr = new RegionValueVariant(tv)
+    rvr.setRegion(region, rvb.end())
+    rvr
+  }
+
+  def copy2(contig: String, start: Int, ref: String, altAlleles: VolatileIndexedSeq[String]): Variant = {
+    val rvb = new RegionValueBuilder(region)
+    rvb.start(tv.fundamentalType)
+    rvb.startStruct()
+    rvb.addString(contig)
+    rvb.addInt(start)
+    rvb.addString(ref)
+    rvb.startArray(altAlleles.length)
+    var i = 0
+    while (i < altAlleles.length) {
+      rvb.startStruct()
+      val aa = altAlleles(i)
+      rvb.addString(ref)
+      rvb.addString(aa)
+      rvb.endStruct()
+      i += 1
+    }
+    rvb.endArray()
+    rvb.endStruct()
+    val rvr = new RegionValueVariant(tv)
+    rvr.setRegion(region, rvb.end())
+    rvr
+  }
 
   val regionValueAltAlleles = new ArrayView(tAltAlleles, new RegionValueAltAllele(tAltAllele))
 
