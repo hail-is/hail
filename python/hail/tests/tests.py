@@ -1125,7 +1125,7 @@ class ContextTests(unittest.TestCase):
         require another duplication/explode that we haven't written.
         """
         ped = Pedigree.read('src/test/resources/triomatrix.fam')
-        famkt = KeyTable.import_fam('src/test/resources/traiomatrix.fam')
+        famkt = KeyTable.import_fam('src/test/resources/triomatrix.fam')
 
         vds = hc.import_vcf('src/test/resources/triomatrix.vcf')\
                 .annotate_samples_table(famkt, root='sa.fam')
