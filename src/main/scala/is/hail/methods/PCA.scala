@@ -56,7 +56,7 @@ trait PCA {
     (svd.V.multiply(DenseMatrix.diag(svd.s)), optionLoadings, someIf(computeEigenvalues, svd.s.toArray.map(math.pow(_, 2))))
   }
 
-  def doubleMatrixFromVSM(vsm: VariantSampleMatrix[_, _, _], getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix) = (null, null)
+  def doubleMatrixFromVSM(vsm: VariantSampleMatrix[_, _, _], getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix)
 }
 
 object SamplePCA extends PCA {
