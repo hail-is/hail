@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction}
+import scala.language.existentials
 
 object Casts {
   private val casts: Map[(Type, Type), (Code[T] => Code[_]) forSome {type T}] = Map(
