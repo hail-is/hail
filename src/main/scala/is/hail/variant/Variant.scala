@@ -184,7 +184,7 @@ case class VariantSubgen(
       Variant(contig, start, ref, altAlleles.map(alt => AltAllele(ref, alt)))
 }
 
-trait Variant {
+trait Variant { self =>
   def contig(): String
 
   def start(): Int
@@ -196,9 +196,8 @@ trait Variant {
   def altAlleles(): IndexedSeq[ConcreteAltAllele] =
     regionValueAltAlleles().toArray[ConcreteAltAllele](_.reify)
 
-  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: VolatileIndexedSeq[_ <: AltAllele] = regionValueAltAlleles): Variant
-
-  def copy2(contig: String, start: Int, ref: String, altAlleles: VolatileIndexedSeq[String]): Variant
+  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[ConcreteAltAllele] = altAlleles): Variant =
+    ConcreteVariant(contig, start, ref, altAlleles)
 
   def nAltAlleles: Int = regionValueAltAlleles.length
 
@@ -310,11 +309,14 @@ trait Variant {
     Ordering.Iterable[AltAllele].compare(altAlleles, that.altAlleles)
   }
 
-  def minRep: Variant = {
+  def minRep: Variant =
+    minRep(self, (w, x, y, z) => Variant(w, x, y, z.toArray))
+
+  def minRep[T](noChange: T, makeVariant: (String, Int, String, VolatileIndexedSeq[String]) => T): T = {
     if (ref.length == 1)
-      this
+      noChange
     else if (altAlleles.forall(a => a.isStar))
-      copy2(contig, start, ref.substring(0, 1), regionValueAltAlleles.map(_.alt))
+      makeVariant(contig, start, ref.substring(0, 1), regionValueAltAlleles.map(_.alt))
     else {
       val alts = regionValueAltAlleles.filter(!_.isStar).map(a => a.alt)
       require(alts.forall(ref != _))
@@ -336,11 +338,11 @@ trait Variant {
       }
 
       if (ne + ns == 0)
-        this
+        noChange
       else {
         assert(ns < ref.length - ne && alts.forall(x => ns < x.length - ne))
-        copy2(contig, start + ns, ref.substring(ns, ref.length - ne),
-           regionValueAltAlleles.map((a: AltAllele) => if (a.isStar) a.alt else a.alt.substring(ns, a.alt.length - ne)))
+        makeVariant(contig, start + ns, ref.substring(ns, ref.length - ne),
+          regionValueAltAlleles.map((a: AltAllele) => if (a.isStar) a.alt else a.alt.substring(ns, a.alt.length - ne)))
       }
     }
   }
@@ -376,10 +378,4 @@ case class ConcreteVariant(contig: String,
   require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
 
   val regionValueAltAlleles: VolatileIndexedSeq[AltAllele] = new ConcreteVolatileIndexedSeq(altAlleles)
-
-  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: VolatileIndexedSeq[_ <: AltAllele]): ConcreteVariant =
-    ConcreteVariant(contig, start, ref, altAlleles.toArray[ConcreteAltAllele](_.reify))
-
-  def copy2(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: VolatileIndexedSeq[String]): ConcreteVariant =
-    ConcreteVariant(contig, start, ref, altAlleles.toArray[ConcreteAltAllele](ConcreteAltAllele(ref, _)))
 }
