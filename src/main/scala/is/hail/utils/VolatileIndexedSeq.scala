@@ -70,7 +70,7 @@ trait VolatileIndexedSeq[T] { self =>
     a
   }
 
-  def toArray(implicit tct: ClassTag[T], prim: Primitive[T]): Array[T] =
+  def toArray(implicit tct: ClassTag[T], prim: NonVolatilePrimitive[T]): Array[T] =
     toArray(x => x)
 }
 
