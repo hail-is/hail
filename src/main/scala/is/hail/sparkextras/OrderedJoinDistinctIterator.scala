@@ -8,7 +8,7 @@ abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: O
   private var lrv: RegionValue = _
   private var rrv: RegionValue = if (rightIt.hasNext) rightIt.next() else null
 
-  private var present = false
+  private var jrvPresent = false
   private val lrKOrd = OrderedRDD2Type.selectUnsafeOrdering(leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx)
 
   def lrCompare(): Int = {
@@ -16,7 +16,7 @@ abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: O
     lrKOrd.compare(lrv, rrv)
   }
 
-  def isPresent: Boolean = present
+  def isPresent: Boolean = jrvPresent
 
   def advanceLeft1() {
     lrv = if (leftIt.hasNext) leftIt.next() else null
@@ -50,25 +50,27 @@ abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: O
 
   def hasRight: Boolean = rrv != null
 
-  def setJrv() {
+  def setJRV() {
     jrv.set(lrv, rrv)
-    present = true
+    jrvPresent = true
   }
 
-  def setJrvRightNull() {
+  def setJRVRightNull() {
     jrv.set(lrv, null)
-    present = true
+    jrvPresent = true
   }
 
-  def setJrvLeftNull() {
+  def setJRVLeftNull() {
     jrv.set(null, rrv)
-    present = true
+    jrvPresent = true
   }
 
-  def hasNext(): Boolean
+  def hasNext: Boolean
 
   def next(): JoinedRegionValue = {
-    present = false
+    if (!hasNext)
+      throw new NoSuchElementException("next on empty iterator")
+    jrvPresent = false
     jrv
   }
 }
@@ -76,20 +78,20 @@ abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: O
 class OrderedInnerJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: OrderedRDD2Type, leftIt: Iterator[RegionValue],
   rightIt: Iterator[RegionValue]) extends OrderedJoinDistinctIterator(leftTyp, rightTyp, leftIt, rightIt) {
 
-  def hasNext(): Boolean = {
+  def hasNext: Boolean = {
     if (!isPresent) {
       advanceLeft1()
+      while (!isPresent && hasLeft && hasRight) {
+        val c = lrCompare()
+        if (c == 0)
+          setJRV()
+        else if (c > 0)
+          advanceRight()
+        else
+          advanceLeft()
+      }
     }
 
-    while (!isPresent && hasLeft && hasRight) {
-      val c = lrCompare()
-      if (c == 0)
-        setJrv()
-      else if (c > 0)
-        advanceRight()
-      else
-        advanceLeft()
-    }
     isPresent
   }
 }
@@ -97,19 +99,19 @@ class OrderedInnerJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: Order
 class OrderedLeftJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: OrderedRDD2Type, leftIt: Iterator[RegionValue],
   rightIt: Iterator[RegionValue]) extends OrderedJoinDistinctIterator(leftTyp, rightTyp, leftIt, rightIt) {
 
-  def hasNext(): Boolean = {
+  def hasNext: Boolean = {
     if (!isPresent) {
       advanceLeft1()
+      while (!isPresent && hasLeft) {
+        if (!hasRight || lrCompare() < 0)
+          setJRVRightNull()
+        else if (lrCompare() == 0)
+          setJRV()
+        else
+          advanceRight()
+      }
     }
 
-    while (!isPresent && hasLeft) {
-      if (!hasRight || lrCompare() < 0)
-        setJrvRightNull()
-      else if (lrCompare() == 0)
-        setJrv()
-      else
-        advanceRight()
-    }
     isPresent
   }
 }
