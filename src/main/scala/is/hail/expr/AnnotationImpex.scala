@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.annotations.Annotation
 import is.hail.utils.{Interval, _}
-import is.hail.variant._
+import is.hail.variant.{AltAllele, GenomeReference, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.json4s._
@@ -91,7 +91,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           val r = a.asInstanceOf[Row]
           Variant(r.getAs[String](0), r.getAs[Int](1), r.getAs[String](2),
             r.getAs[Seq[Row]](3).map(aa =>
-              importAnnotation(aa, TAltAllele()).asInstanceOf[ConcreteAltAllele]).toArray)
+              importAnnotation(aa, TAltAllele()).asInstanceOf[AltAllele]).toArray)
         case _: TLocus =>
           val r = a.asInstanceOf[Row]
           Locus(r.getAs[String](0), r.getAs[Int](1))
@@ -208,7 +208,7 @@ case class JSONExtractGenotype(
 case class JSONExtractVariant(contig: String,
   start: Int,
   ref: String,
-  altAlleles: List[ConcreteAltAllele]) {
+  altAlleles: List[AltAllele]) {
   def toVariant =
     Variant(contig, start, ref, altAlleles.toArray)
 }
@@ -391,7 +391,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
           Annotation(a: _*)
         }
       case (_, _: TAltAllele) =>
-        jv.extract[ConcreteAltAllele]
+        jv.extract[AltAllele]
       case (_, TVariant(_, _)) =>
         jv.extract[JSONExtractVariant].toVariant
       case (_, TLocus(_, _)) =>

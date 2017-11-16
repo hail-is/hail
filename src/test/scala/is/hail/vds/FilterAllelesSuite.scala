@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.check.Prop
 import is.hail.expr.{TString, TStruct}
 import is.hail.utils._
-import is.hail.variant._
+import is.hail.variant.{AltAllele, Genotype, VSMFileMetadata, VSMSubgen, Variant, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 class FilterAllelesSuite extends SparkSuite {
