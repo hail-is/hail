@@ -1644,14 +1644,11 @@ object TStruct {
   def empty(required: Boolean = false): TStruct = if (required) requiredEmpty else optionalEmpty
 
   def apply(args: (String, Type)*): TStruct =
-    apply(false, args:_*)
-
-  def apply(required: Boolean, args: (String, Type)*): TStruct =
     TStruct(args
       .iterator
       .zipWithIndex
       .map { case ((n, t), i) => Field(n, t, i) }
-      .toArray, required)
+      .toArray)
 
   def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type], required: Boolean): TStruct = {
     val sNames = names.asScala.toArray
