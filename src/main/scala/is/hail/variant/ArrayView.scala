@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.utils._
 
-class ArrayView[V <: View](t: TArray, val elementView: V) extends VolatileIndexedSeq[V] {
+class ArrayView[V <: View](t: TArray, val elementView: V) {
   private var region: MemoryBuffer = _
   private var aoff: Long = _
   private var eoff: Long = _
