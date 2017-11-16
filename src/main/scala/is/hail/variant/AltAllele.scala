@@ -60,7 +60,7 @@ trait AltAllele {
   import AltAlleleType._
 
   def reify(): ConcreteAltAllele =
-    ConcreteAltAllele(ref(), alt())
+    ConcreteAltAllele(ref, alt)
 
   def altAlleleType: AltAlleleType = {
     if (isSNP)

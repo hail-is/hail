@@ -15,6 +15,7 @@ class RegionValueVariant(tv: TVariant) extends Variant with View {
   private val altAllelesIdx: Int = t.fieldIdx("altAlleles")
   private val tAltAlleles: TArray = t.fieldType(altAllelesIdx).asInstanceOf[TArray]
   private val tAltAllele: TAltAllele = tAltAlleles.elementType.asInstanceOf[TAltAllele]
+  private val altAllelesView = new ArrayView(tAltAlleles, new RegionValueAltAllele(tAltAllele))
 
   assert(t.fieldType(contigIdx).required)
   assert(t.fieldType(startIdx).required)
@@ -27,15 +28,21 @@ class RegionValueVariant(tv: TVariant) extends Variant with View {
     this.offset = offset
     cachedContig = null
     cachedRef = null
-    cachedAltAlleles = null
-    regionValueAltAlleles.setRegion(region, t.loadField(region, offset, altAllelesIdx))
+    altAllelesView.setRegion(region, t.loadField(region, offset, altAllelesIdx))
+    val a = new Array[AltAllele](altAllelesView.length)
+    var i = 0
+    while (i < altAllelesView.length) {
+      altAllelesView.set(i)
+      a(i) = altAllelesView.elementView.reify()
+    }
+    cachedAltAlleles = a
   }
 
   def getOffset(): Long = offset
 
   private var cachedContig: String = null
   private var cachedRef: String = null
-  private var cachedAltAlleles: Array[ConcreteAltAllele] = null
+  private var cachedAltAlleles: IndexedSeq[AltAllele] = null
 
   override def contig(): String = {
     if (cachedContig == null)
@@ -53,14 +60,5 @@ class RegionValueVariant(tv: TVariant) extends Variant with View {
     cachedRef
   }
 
-  val regionValueAltAlleles = new ArrayView(tAltAlleles, new RegionValueAltAllele(tAltAllele))
-
-  override def altAlleles(): IndexedSeq[ConcreteAltAllele] = {
-    if (cachedAltAlleles == null)
-      cachedAltAlleles = regionValueAltAlleles.toArray[ConcreteAltAllele](_.reify)
-    cachedAltAlleles
-  }
-
-  override def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[ConcreteAltAllele] = altAlleles): Variant =
-    throw new UnsupportedOperationException("don't copy a RegionValueVariant")
+  override def altAlleles(): IndexedSeq[AltAllele] = cachedAltAlleles
 }

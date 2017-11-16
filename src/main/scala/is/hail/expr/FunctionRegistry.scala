@@ -9,7 +9,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant._
+import is.hail.variant.{AltAllele, Call, GRVariable, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -1110,7 +1110,7 @@ object FunctionRegistry {
 
       val long_alleles_index = longer.altAlleles.map(_.alt).zipWithIndex.toMap
       val short_alleles_index = mutable.Map[Int, Int](0 -> 0)
-      val short_alleles = new mutable.ArrayBuffer[ConcreteAltAllele](initialSize = shorter.nAltAlleles)
+      val short_alleles = new mutable.ArrayBuffer[AltAllele](initialSize = shorter.nAltAlleles)
 
       (0 until shorter.nAltAlleles).foreach({
         i =>

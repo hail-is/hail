@@ -5,7 +5,6 @@ import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
-import is.hail.utils.NonVolatilePrimitive._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -59,11 +58,6 @@ object Variant {
     ref: String,
     alts: java.util.ArrayList[String]): Variant = Variant(contig, start, ref, alts.asScala.toArray)
 
-  def apply(contig: String,
-    start: Int,
-    ref: String,
-    alts: Array[ConcreteAltAllele]): Variant = ConcreteVariant(contig, start, ref, alts)
-
   def parse(str: String): Variant = {
     val colonSplit = str.split(":")
     if (colonSplit.length != 4)
@@ -82,7 +76,7 @@ object Variant {
 
     val altsOffset = t.loadField(r, offset, 3)
     val nAlts = altsType.loadLength(r, altsOffset)
-    val altArray = new Array[ConcreteAltAllele](nAlts)
+    val altArray = new Array[AltAllele](nAlts)
     var i = 0
     while (i < nAlts) {
       val o = altsType.loadElement(r, altsOffset, nAlts, i)
@@ -191,22 +185,19 @@ trait Variant { self =>
 
   def ref(): String
 
-  def regionValueAltAlleles(): VolatileIndexedSeq[_ <: AltAllele]
+  def altAlleles(): IndexedSeq[AltAllele]
 
-  def altAlleles(): IndexedSeq[ConcreteAltAllele] =
-    regionValueAltAlleles().toArray[ConcreteAltAllele](_.reify)
-
-  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[ConcreteAltAllele] = altAlleles): Variant =
+  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[AltAllele] = altAlleles): Variant =
     ConcreteVariant(contig, start, ref, altAlleles)
 
-  def nAltAlleles: Int = regionValueAltAlleles.length
+  def nAltAlleles: Int = altAlleles.length
 
   def isBiallelic: Boolean = nAltAlleles == 1
 
   // FIXME altAllele, alt to be deprecated
   def altAllele: AltAllele = {
     require(isBiallelic, "called altAllele on a non-biallelic variant")
-    regionValueAltAlleles()(0)
+    altAlleles()(0)
   }
 
   def alt: String = altAllele.alt
@@ -216,7 +207,7 @@ trait Variant { self =>
   def allele(i: Int): String = if (i == 0)
     ref
   else
-    regionValueAltAlleles()(i - 1).alt
+    altAlleles()(i - 1).alt
 
   def nGenotypes = Variant.nGenotypes(nAlleles)
 
@@ -309,16 +300,13 @@ trait Variant { self =>
     Ordering.Iterable[AltAllele].compare(altAlleles, that.altAlleles)
   }
 
-  def minRep: Variant =
-    minRep(self, (w, x, y, z) => Variant(w, x, y, z.toArray))
-
-  def minRep[T](noChange: T, makeVariant: (String, Int, String, VolatileIndexedSeq[String]) => T): T = {
+  def minRep: Variant = {
     if (ref.length == 1)
-      noChange
+      self
     else if (altAlleles.forall(a => a.isStar))
-      makeVariant(contig, start, ref.substring(0, 1), regionValueAltAlleles.map(_.alt))
+      Variant(contig, start, ref.substring(0, 1), altAlleles.map(_.alt).toArray)
     else {
-      val alts = regionValueAltAlleles.filter(!_.isStar).map(a => a.alt)
+      val alts = altAlleles.filter(!_.isStar).map(a => a.alt)
       require(alts.forall(ref != _))
 
       val min_length = math.min(ref.length, alts.map(x => x.length).min)
@@ -338,11 +326,11 @@ trait Variant { self =>
       }
 
       if (ne + ns == 0)
-        noChange
+        self
       else {
         assert(ns < ref.length - ne && alts.forall(x => ns < x.length - ne))
-        makeVariant(contig, start + ns, ref.substring(ns, ref.length - ne),
-          regionValueAltAlleles.map((a: AltAllele) => if (a.isStar) a.alt else a.alt.substring(ns, a.alt.length - ne)))
+        Variant(contig, start + ns, ref.substring(ns, ref.length - ne),
+          altAlleles.map(a => if (a.isStar) a.alt else a.alt.substring(ns, a.alt.length - ne)).toArray)
       }
     }
   }
@@ -369,13 +357,11 @@ trait Variant { self =>
 case class ConcreteVariant(contig: String,
   start: Int,
   ref: String,
-  override val altAlleles: IndexedSeq[ConcreteAltAllele]) extends Variant {
+  override val altAlleles: IndexedSeq[AltAllele]) extends Variant {
   require(altAlleles.forall(_.ref == ref))
 
   /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
   require(start >= 0, s"invalid variant: negative position: `${ this.toString }'")
   require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
-
-  val regionValueAltAlleles: VolatileIndexedSeq[AltAllele] = new ConcreteVolatileIndexedSeq(altAlleles)
 }
