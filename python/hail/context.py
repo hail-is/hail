@@ -5,7 +5,7 @@ from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
 from hail.dataset import VariantDataset
-from hail.typ import Type
+from hail.typ import Type, TInt64
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
@@ -780,10 +780,10 @@ class HailContext(HistoryMixin):
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       min_partitions=nullable(integral),
                       drop_samples=bool,
-                      cell_type=Type,
+                      cell_type=nullable(Type),
                       missing=strlike,
                       has_row_id_name=bool)
-    def import_matrix(self, path, min_partitions=None, drop_samples=False, cell_type=TInt64(), missing="NA", has_row_id_name = False):
+    def import_matrix(self, path, min_partitions=None, drop_samples=False, cell_type=None, missing="NA", has_row_id_name = False):
         """
         :param path: File(s) to read. Currently, takes 1 header line of column ids and subsequent lines of rowID, data... in TSV form where data can be parsed as an integer.
         :type path: str or list of str
@@ -803,6 +803,8 @@ class HailContext(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
+        if not cell_type:
+            cell_type = TInt64()
         return VariantDataset(self,
                               self._jhc.importMatrices(jindexed_seq_args(path),
                                                        joption(min_partitions),
