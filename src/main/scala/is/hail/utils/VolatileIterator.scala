@@ -17,16 +17,14 @@ trait VolatileIterator[T] { self =>
 
   def filter(f: T => Boolean): VolatileIterator[T] = new VolatileIterator[T]() {
     private var v: T = _
-    private var stale: Boolean = false
-    private var present: Boolean = self.hasNext
-    if (present)
-      v = self.next
+    private var stale: Boolean = true
+    private var present: Boolean = _
 
     private def advance() {
       if (self.hasNext) {
         v = self.next
         var keep = f(v)
-        while (self.hasNext && !keep) {
+        while (!keep && self.hasNext) {
           v = self.next
           keep = f(v)
         }
