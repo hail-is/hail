@@ -1122,7 +1122,7 @@ object FunctionRegistry {
           }
       })
 
-      val newVariant = longer.copy(altAlleles = longer.altAlleles() ++ short_alleles)
+      val newVariant = longer.copy(altAlleles = longer.altAlleles ++ short_alleles)
       if (swapped)
         Annotation(newVariant, short_alleles_index.toMap, (0 to longer.nAltAlleles).zipWithIndex.toMap)
       else
