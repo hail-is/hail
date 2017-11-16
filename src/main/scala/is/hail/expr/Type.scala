@@ -1896,7 +1896,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     for (i <- fields.indices)
       newFields(i) = fields(i)
     newFields(i) = Field(key, sig, i)
-    TStruct(newFields)
+    TStruct(newFields, required)
   }
 
   def deleteKey(key: String, index: Int): Type = {
@@ -1909,7 +1909,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
         newFields(i) = fields(i)
       for (i <- index + 1 until fields.length)
         newFields(i - 1) = fields(i).copy(index = i - 1)
-      TStruct(newFields)
+      TStruct(newFields, required)
     }
   }
 
@@ -1919,7 +1919,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     for (i <- fields.indices)
       newFields(i) = fields(i)
     newFields(fields.length) = Field(key, sig, fields.length)
-    TStruct(newFields)
+    TStruct(newFields, required)
   }
 
   def merge(other: TStruct): (TStruct, Merger) = {
@@ -1934,7 +1934,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
         } ]
            |  Hint: use `drop' or `select' to remove these fields from one side""".stripMargin)
 
-    val newStruct = TStruct(fields ++ other.fields.map(f => f.copy(index = f.index + size)))
+    val newStruct = TStruct(fields ++ other.fields.map(f => f.copy(index = f.index + size)), required || other.required)
 
     val size1 = size
     val size2 = other.size
@@ -2002,7 +2002,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
     val fdIndexToUngroup = fieldIdx(identifier)
 
-    val newSignature = TStruct(fields.filterNot(_.index == fdIndexToUngroup).map { fd => (fd.name, fd.typ) } ++ ungroupedFields: _*)
+    val newSignature = TStruct(fields.filterNot(_.index == fdIndexToUngroup).map { fd => (fd.name, fd.typ) } ++ ungroupedFields: _*).setRequired(required).asInstanceOf[TStruct]
 
     val origSize = size
     val newSize = newSignature.size
@@ -2052,7 +2052,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     val keepIndices = keepFields.map(_.index)
 
     val groupedTyp = TStruct(fieldsToGroup.map(fd => (fd.name, fd.typ)): _*)
-    val finalSignature = TStruct(keepFields.map(fd => (fd.name, fd.typ)) :+ (dest, groupedTyp): _*)
+    val finalSignature = TStruct(keepFields.map(fd => (fd.name, fd.typ)) :+ (dest, groupedTyp): _*).setRequired(required).asInstanceOf[TStruct]
 
     val newSize = finalSignature.size
 
@@ -2096,7 +2096,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     if (overlapping.nonEmpty)
       fatal(s"overlapping fields in struct concatenation: ${ overlapping.mkString(", ") }")
 
-    TStruct(fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*)
+    TStruct(fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*).setRequired(required || that.required).asInstanceOf[TStruct]
   }
 
   def filter(f: (Field) => Boolean): (TStruct, (Annotation) => Annotation) = {
@@ -2130,10 +2130,14 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
         Annotation.fromSeq(newValues)
       }
 
-    (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
+    (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }, required), filterer)
   }
 
-  def _toString: String = if (size == 0) "Empty" else toPrettyString(compact = true)
+  def _toString: String = if (size == 0) "Empty" else {
+    val sb = new StringBuilder
+    _pretty(sb, 1, compact = true, printAttrs = false)
+    sb.result()
+  }
 
   override def _pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
     if (size == 0)
@@ -2259,7 +2263,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     val selectF: Row => Row = { r =>
       Row.fromSeq(keepIdx.map(r.get))
     }
-    (t, selectF)
+    (t.setRequired(required).asInstanceOf[TStruct], selectF)
   }
 
   val (missingIdx, nMissing) = {
