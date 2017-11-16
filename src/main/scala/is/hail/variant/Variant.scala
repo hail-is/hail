@@ -5,6 +5,7 @@ import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
+import is.hail.utils.VolatileIterator._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -61,7 +62,7 @@ object Variant {
   def apply(contig: String,
     start: Int,
     ref: String,
-    alts: Array[AltAllele]): Variant = ConcreteVariant(contig, start, ref, alts)
+    alts: Array[ConcreteAltAllele]): Variant = ConcreteVariant(contig, start, ref, alts)
 
   def parse(str: String): Variant = {
     val colonSplit = str.split(":")
@@ -81,7 +82,7 @@ object Variant {
 
     val altsOffset = t.loadField(r, offset, 3)
     val nAlts = altsType.loadLength(r, altsOffset)
-    val altArray = new Array[AltAllele](nAlts)
+    val altArray = new Array[ConcreteAltAllele](nAlts)
     var i = 0
     while (i < nAlts) {
       val o = altsType.loadElement(r, altsOffset, nAlts, i)
@@ -190,18 +191,21 @@ trait Variant {
 
   def ref(): String
 
-  def altAlleles(): VolatileIndexedSeq[AltAllele]
+  def regionValueAltAlleles(): VolatileIndexedSeq[_ <: AltAllele]
 
-  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: VolatileIndexedSeq[AltAllele] = altAlleles): Variant
+  def altAlleles(): IndexedSeq[ConcreteAltAllele] =
+    regionValueAltAlleles().toArray[ConcreteAltAllele](_.reify)
 
-  def nAltAlleles: Int = altAlleles.length
+  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[ConcreteAltAllele] = altAlleles): Variant
+
+  def nAltAlleles: Int = regionValueAltAlleles.length
 
   def isBiallelic: Boolean = nAltAlleles == 1
 
   // FIXME altAllele, alt to be deprecated
   def altAllele: AltAllele = {
     require(isBiallelic, "called altAllele on a non-biallelic variant")
-    altAlleles()(0)
+    regionValueAltAlleles()(0)
   }
 
   def alt: String = altAllele.alt
@@ -211,7 +215,7 @@ trait Variant {
   def allele(i: Int): String = if (i == 0)
     ref
   else
-    altAlleles()(i - 1).alt
+    regionValueAltAlleles()(i - 1).alt
 
   def nGenotypes = Variant.nGenotypes(nAlleles)
 
@@ -301,7 +305,7 @@ trait Variant {
     if (c != 0)
       return c
 
-    Ordering.Iterable[AltAllele].compare(altAlleles.toArray, that.altAlleles.toArray)
+    Ordering.Iterable[AltAllele].compare(altAlleles, that.altAlleles)
   }
 
   def minRep: Variant = {
@@ -310,7 +314,8 @@ trait Variant {
     else if (altAlleles.forall(a => a.isStar))
       Variant(contig, start, ref.substring(0, 1), altAlleles.map(_.alt).toArray)
     else {
-      val alts = altAlleles.filter(!_.isStar).map(a => a.alt)
+      val ab = new ArrayBuilder[String](altAlleles.length)
+      val alts = altAlleles.filter(!_.isStar).map(a => a.alt).toArray
       require(alts.forall(ref != _))
 
       val min_length = math.min(ref.length, alts.map(x => x.length).min)
@@ -354,14 +359,14 @@ trait Variant {
     ("contig", JString(contig)),
     ("start", JInt(start)),
     ("ref", JString(ref)),
-    ("altAlleles", JArray(altAlleles.map(_.toJSON).toArray.toList))
+    ("altAlleles", JArray(altAlleles.map(_.toJSON).toList))
   )
 }
 
 case class ConcreteVariant(contig: String,
   start: Int,
   ref: String,
-  altAlleles: IndexedSeq[AltAllele]) extends Variant {
+  override val altAlleles: IndexedSeq[ConcreteAltAllele]) extends Variant {
   require(altAlleles.forall(_.ref == ref))
 
   /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
@@ -369,7 +374,9 @@ case class ConcreteVariant(contig: String,
   require(start >= 0, s"invalid variant: negative position: `${ this.toString }'")
   require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
 
-  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[AltAllele] = altAlleles): ConcreteVariant =
+  val regionValueAltAlleles: VolatileIndexedSeq[AltAllele] = new ConcreteVolatileIndexedSeq(altAlleles)
+
+  def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[ConcreteAltAllele]): ConcreteVariant =
     ConcreteVariant(contig, start, ref, altAlleles)
 
 }

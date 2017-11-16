@@ -20,6 +20,9 @@ object CopyState extends Enumeration {
 
 object AltAllele {
 
+  def apply(ref: String, alt: String): ConcreteAltAllele =
+    ConcreteAltAllele(ref, alt)
+
   def fromRegionValue(m: MemoryBuffer, offset: Long): ConcreteAltAllele = {
     val t = TAltAllele.representation()
     val ref = TString.loadString(m, t.loadField(m, offset, 0))
@@ -55,6 +58,9 @@ trait AltAllele {
   def alt(): String
 
   import AltAlleleType._
+
+  def reify(): ConcreteAltAllele =
+    ConcreteAltAllele(ref(), alt())
 
   def altAlleleType: AltAlleleType = {
     if (isSNP)
@@ -127,5 +133,7 @@ case class ConcreteAltAllele(ref: String, alt: String) extends AltAllele {
   require(ref != alt, "ref was equal to alt")
   require(!ref.isEmpty, "ref was an empty string")
   require(!alt.isEmpty, "alt was an empty string")
+
+  override def reify(): ConcreteAltAllele = this
 }
 

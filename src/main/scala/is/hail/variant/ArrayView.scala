@@ -8,12 +8,17 @@ class ArrayView[V <: View](t: TArray, val elementView: V) extends VolatileIndexe
   private var region: MemoryBuffer = _
   private var aoff: Long = _
   private var eoff: Long = _
-  private var length: Int = _
+  private var _length: Int = _
 
   def setRegion(region: MemoryBuffer, aoff: Long) {
     this.region = region
     this.aoff = aoff
-    this.length = t.loadLength(region, aoff)
+    this._length = t.loadLength(region, aoff)
+  }
+
+  def apply(i: Int): V = {
+    set(i)
+    elementView
   }
 
   def set(i: Int) {
@@ -21,5 +26,5 @@ class ArrayView[V <: View](t: TArray, val elementView: V) extends VolatileIndexe
     elementView.setRegion(region, eoff)
   }
 
-  def getLength(): Int = length
+  def length(): Int = length
 }
