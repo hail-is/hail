@@ -5731,5 +5731,53 @@ class VariantDataset(HistoryMixin):
         import hail2
         return hail2.VariantDataset(self.hc, self._jvds)
 
+    @handle_py4j
+    @record_method
+    @typecheck_method(pedigree=Pedigree,
+                      complete_trios=bool)
+    def trio_matrix(self, pedigree, complete_trios=False):
+        """Builds and returns a matrix where columns correspond to trios and entries contain genotypes for the trio.
+
+        **Examples**
+
+        Create a trio matrix:
+
+        >>> pedigree = Pedigree.read('data/myStudy.fam')
+        >>> trio_matrix = vds.trio_matrix(pedigree, complete_trios=True)
+
+        **Notes**
+
+        This method builds a new dataset with one column per trio. If ``complete_trios``,
+        then only trios that satisfy :py:meth:`~hail.representation.Trio.is_complete`
+        are included. In this new dataset, the column identifiers
+        are the sample IDs of the trio probands. The column annotations and
+        entries of the matrix are changed in the following ways:
+
+        The new column annotation schema is a ``Struct`` with three ``Struct`` children
+        (``proband``, ``father``, and ``mother``),
+        each with an ``id`` and ``annotations`` field. The schema of each ``annotations``
+        field is the column annotation schema of the input dataset.
+
+         - **sa.proband.id** (*String*) - Proband sample ID, same as trio column key.
+         - **sa.proband.annotations** (*Struct*) - Annotations on the proband.
+         - **sa.father.id** (*String*) - Father sample ID.
+         - **sa.father.annotations** (*Struct*) - Annotations on the father.
+         - **sa.mother.id** (*String*) - Mother sample ID.
+         - **sa.mother.annotations** (*Struct*) - Annotations on the mother.
+
+        The new cell schema is a ``Struct`` with ``proband``, ``father``, and ``mother``
+        fields, where the schema of each field is the entry schema of the input dataset.
+
+        - **g.proband** (*T*) - Proband genotype field.
+        - **g.father** (*T*) - Father genotype field.
+        - **g.mother** (*T*) - Mother genotype field.
+
+        :param pedigree: Collection of trios.
+        :type pedigree: :class:`.hail.representation.Pedigree`
+
+        :rtype: :class:`.VariantDataset`
+        """
+        return VariantDataset(self.hc, self._jvds.trioMatrix(pedigree._jrep, complete_trios))
+
 vds_type.set(VariantDataset)
 

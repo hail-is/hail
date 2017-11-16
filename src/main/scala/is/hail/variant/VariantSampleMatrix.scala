@@ -2254,4 +2254,127 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     requireRowKeyVariant("variant_qc")
     VariantQC(this, root)
   }
+
+  def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): VariantSampleMatrix[Annotation, Annotation, Annotation] = {
+    if (!sSignature.isInstanceOf[TString])
+      fatal("trio_matrix requires column keys of type String")
+    requireUniqueSamples("trio_matrix")
+
+    val filteredPedigree = pedigree.filterTo(stringSampleIds.toSet)
+    val trios = if (completeTrios) filteredPedigree.completeTrios else filteredPedigree.trios
+    val nTrios = trios.length
+
+    val sampleIndices = sampleIds.zipWithIndex.toMap
+
+    val kidIndices = Array.fill[Int](nTrios)(-1)
+    val dadIndices = Array.fill[Int](nTrios)(-1)
+    val momIndices = Array.fill[Int](nTrios)(-1)
+    val kidIds = new Array[String](nTrios)
+
+    val memberAnnotationType = TStruct(
+      "id" -> TString(required = true),
+      "annotations" -> saSignature
+    )
+    val newSaSignature = TStruct(
+      "proband" -> memberAnnotationType,
+      "father" -> memberAnnotationType,
+      "mother" -> memberAnnotationType
+    )
+
+    val newSampleAnnotations = new Array[Annotation](nTrios)
+
+    var i = 0
+    while (i < nTrios) {
+      val t = trios(i)
+      val kidIndex = sampleIndices(t.kid)
+      kidIndices(i) = kidIndex
+      kidIds(i) = t.kid
+      val kidAnnotation = Row(t.kid, sampleAnnotations(kidIndex))
+
+      var dadAnnotation: Annotation = null
+      t.dad.foreach { dad =>
+        val index = sampleIndices(dad)
+        dadIndices(i) = index
+        dadAnnotation = Row(dad, sampleAnnotations(index))
+      }
+
+      var momAnnotation: Annotation = null
+      t.mom.foreach { mom =>
+        val index = sampleIndices(mom)
+        momIndices(i) = index
+        momAnnotation = Row(mom, sampleAnnotations(index))
+      }
+
+      newSampleAnnotations(i) = Row(kidAnnotation, dadAnnotation, momAnnotation)
+      i += 1
+    }
+
+    val gSig = genotypeSignature
+
+    val newEntryType = TStruct(
+      "proband" -> gSig,
+      "father" -> gSig,
+      "mother" -> gSig
+    )
+
+    val oldRowType = rowType
+    val newRowType = TStruct(Array(
+      rowType.fields(0),
+      rowType.fields(1),
+      rowType.fields(2),
+      Field(rowType.fields(3).name, TArray(newEntryType), 3)
+    ))
+
+    val oldGsType = rowType.fieldType(3).asInstanceOf[TArray]
+
+    val newRDD = rdd2.mapPartitionsPreservesPartitioning { it =>
+      it.map { r =>
+        val rvb = new RegionValueBuilder(MemoryBuffer())
+        rvb.start(newRowType)
+        rvb.startStruct()
+
+        rvb.addField(oldRowType, r, 0)
+        rvb.addField(oldRowType, r, 1)
+        rvb.addField(oldRowType, r, 2)
+
+        rvb.startArray(nTrios)
+        val gsOffset = oldRowType.loadField(r, 3)
+
+        var i = 0
+        while (i < nTrios) {
+          rvb.startStruct()
+
+          // append kid element
+          rvb.addElement(oldGsType, r.region, gsOffset, kidIndices(i))
+
+          // append dad element if the dad is defined
+          val dadIndex = dadIndices(i)
+          if (dadIndex >= 0)
+            rvb.addElement(oldGsType, r.region, gsOffset, dadIndex)
+          else
+            rvb.setMissing()
+
+          // append mom element if the mom is defined
+          val momIndex = momIndices(i)
+          if (momIndex >= 0)
+            rvb.addElement(oldGsType, r.region, gsOffset, momIndex)
+          else
+            rvb.setMissing()
+
+          rvb.endStruct()
+          i += 1
+        }
+        rvb.endArray()
+        rvb.endStruct()
+        rvb.end()
+        rvb.result()
+      }
+    }
+
+    copy2(rdd2 = newRDD,
+      sampleIds = kidIds,
+      sampleAnnotations = newSampleAnnotations,
+      saSignature = newSaSignature,
+      genotypeSignature = newEntryType)
+  }
 }

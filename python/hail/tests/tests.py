@@ -1116,3 +1116,74 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(r1.same(r2))
         self.assertTrue(r1.same(r3))
         self.assertTrue(r1.same(vds))
+
+    def test_trio_matrix(self):
+        """
+        This test depends on certain properties of the trio matrix VCF
+        and pedigree structure.
+
+        This test is NOT a valid test if the pedigree includes quads:
+        the trio_matrix method will duplicate the parents appropriately,
+        but the genotypes_table and samples_table orthogonal paths would
+        require another duplication/explode that we haven't written.
+        """
+        ped = Pedigree.read('src/test/resources/triomatrix.fam')
+        famkt = KeyTable.import_fam('src/test/resources/triomatrix.fam')
+
+        vds = hc.import_vcf('src/test/resources/triomatrix.vcf')\
+                .annotate_samples_table(famkt, root='sa.fam')
+
+        dads = famkt.filter('isDefined(patID)')\
+                    .annotate('isDad = true')\
+                    .select(['patID', 'isDad'])\
+                    .key_by('patID')
+
+        moms = famkt.filter('isDefined(matID)') \
+            .annotate('isMom = true') \
+            .select(['matID', 'isMom']) \
+            .key_by('matID')
+
+        # test genotypes
+        gkt = (vds.genotypes_table()
+                  .key_by('s')
+                  .join(dads, how='left')
+                  .join(moms, how='left')
+                  .annotate('isDad = isDefined(isDad), isMom = isDefined(isMom), g = orElse(g, Genotype(Call(-1)))')
+                  .aggregate_by_key('v = v, fam = sa.fam.famID',
+                                    'data = g.map(g => {role: if (isDad) 1 else if (isMom) 2 else 0, g: g}).collect()')
+                  .filter('data.length() == 3')
+                  .explode('data')
+                  .select(['v', 'fam', 'data']))
+
+        tkt = (vds.trio_matrix(ped, complete_trios=True)
+                  .genotypes_table()
+                  .annotate('fam = sa.proband.annotations.fam.famID, data = [{role: 0, g: g.proband}, {role: 1, g: g.father}, {role: 2, g: g.mother}]')
+                  .select(['v', 'fam', 'data'])
+                  .explode('data')
+                  .filter('isDefined(data.g)')
+                  .key_by(['v', 'fam']))
+
+        self.assertTrue(gkt.same(tkt))
+
+        # test annotations
+        g_sa = (vds.samples_table()
+                   .join(dads, how='left')
+                   .join(moms, how='left')
+                   .annotate('isDad = isDefined(isDad), isMom = isDefined(isMom)')
+                   .aggregate_by_key('fam = sa.fam.famID',
+                                     'data = sa.map(sa => {role: if (isDad) 1 else if (isMom) 2 else 0, sa: sa}).collect()')
+                   .filter('data.length() == 3')
+                   .explode('data')
+                   .select(['fam', 'data']))
+
+        t_sa = (vds.trio_matrix(ped, complete_trios=True)
+                .samples_table()
+                .annotate('fam = sa.proband.annotations.fam.famID, data = [{role: 0, sa: sa.proband.annotations}, '
+                          '{role: 1, sa: sa.father.annotations}, '
+                          '{role: 2, sa: sa.mother.annotations}]')
+                .select(['fam', 'data'])
+                .explode('data')
+                .filter('isDefined(data.sa)')
+                .key_by(['fam']))
+
+        self.assertTrue(g_sa.same(t_sa))

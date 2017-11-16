@@ -228,21 +228,21 @@ class KeyTable(val hc: HailContext,
            |""".stripMargin)
       false
     } else {
-      val localColumns = columns
-      val localOtherColumns = other.columns
 
       keyedRDD().groupByKey().fullOuterJoin(other.keyedRDD().groupByKey()).forall { case (k, (v1, v2)) =>
         (v1, v2) match {
           case (None, None) => true
           case (Some(x), Some(y)) =>
-            val r1 = x.map(r => localColumns.zip(r.toSeq).toMap).toSet
-            val r2 = y.map(r => localOtherColumns.zip(r.toSeq).toMap).toSet
-            val res = r1 == r2
+            val r1 = x.toArray
+            val r2 = y.toArray
+            val res = if (r1.length != r2.length)
+              false
+            else r1.counter() == r2.counter()
             if (!res)
-              info(s"k=$k r1=${ r1.mkString(",") } r2=${ r2.mkString(",") }")
+              info(s"SAME KEY, DIFFERENT VALUES: k=$k\n  left:\n    ${ r1.mkString("\n    ")}\n  right:\n    ${ r2.mkString("\n    ") }")
             res
           case _ =>
-            info(s"k=$k v1=$v1 v2=$v2")
+            info(s"KEY MISMATCH: k=$k\n  left=$v1\n  right=$v2")
             false
         }
       }
