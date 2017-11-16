@@ -60,11 +60,7 @@ object LoadMatrix {
     }
     while (newoff < string.length && string(newoff) >= '0' && string(newoff) <= '9') {
       v *= 10
-      if (isNegative) {
-        v -= string(newoff) - '0'
-      } else {
-        v += string(newoff) - '0'
-      }
+      v += string(newoff) - '0'
       newoff += 1
     }
     if (newoff == off) {
@@ -78,7 +74,7 @@ object LoadMatrix {
         fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowID in file: $file")
       }
     } else if (string.length == newoff || string(newoff) == sep) {
-      rvb.addInt(v)
+      rvb.addInt(if (isNegative) -v else v)
       newoff
     } else {
       fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowID in file: $file")
@@ -98,11 +94,7 @@ object LoadMatrix {
     }
     while (newoff < string.length && string(newoff) >= '0' && string(newoff) <= '9') {
       v *= 10
-      if (isNegative) {
-        v -= string(newoff) - '0'
-      } else {
-        v += string(newoff) - '0'
-      }
+      v += string(newoff) - '0'
       newoff += 1
     }
     if (newoff == off) {
@@ -116,7 +108,7 @@ object LoadMatrix {
         fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowID in file: $file")
       }
     } else if (string.length == newoff || string(newoff) == sep) {
-      rvb.addLong(v)
+      rvb.addLong(if (isNegative) -v else v)
       newoff
     } else {
       fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowID in file: $file")
