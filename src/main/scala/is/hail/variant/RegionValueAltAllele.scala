@@ -10,8 +10,8 @@ class RegionValueAltAllele(taa: TAltAllele) extends View with AltAllele {
   private val altIdx = t.fieldIdx("alt")
   private var region: MemoryBuffer = _
   private var offset: Long = _
-  private var _ref: String = null
-  private var _alt: String = null
+  private var cachedRef: String = null
+  private var cachedAlt: String = null
 
   assert(t.isFieldRequired(refIdx))
   assert(t.isFieldRequired(altIdx))
@@ -19,19 +19,19 @@ class RegionValueAltAllele(taa: TAltAllele) extends View with AltAllele {
   def setRegion(region: MemoryBuffer, offset: Long) {
     this.region = region
     this.offset = offset
-    this._ref = null
-    this._alt = null
+    this.cachedRef = null
+    this.cachedAlt = null
   }
 
   def ref(): String = {
-    if (_ref == null)
-      _ref = TString.loadString(region, t.loadField(region, offset, refIdx))
-    _ref
+    if (cachedRef == null)
+      cachedRef = TString.loadString(region, t.loadField(region, offset, refIdx))
+    cachedRef
   }
 
   def alt(): String = {
-    if (_alt == null)
-      _alt = TString.loadString(region, t.loadField(region, offset, altIdx))
-    _alt
+    if (cachedAlt == null)
+      cachedAlt = TString.loadString(region, t.loadField(region, offset, altIdx))
+    cachedAlt
   }
 }

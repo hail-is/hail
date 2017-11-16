@@ -25,20 +25,20 @@ class RegionValueVariant(tv: TVariant) extends Variant with View {
   def setRegion(region: MemoryBuffer, offset: Long) {
     this.region = region
     this.offset = offset
-    _contig = null
-    _ref = null
+    cachedContig = null
+    cachedRef = null
     cachedAltAlleles = null
     regionValueAltAlleles.setRegion(region, t.loadField(region, offset, altAllelesIdx))
   }
 
-  private var _contig: String = null
-  private var _ref: String = null
+  private var cachedContig: String = null
+  private var cachedRef: String = null
   private var cachedAltAlleles: Array[ConcreteAltAllele] = null
 
   override def contig(): String = {
-    if (_contig == null)
-      _contig = TString.loadString(region, t.loadField(region, offset, contigIdx))
-    _contig
+    if (cachedContig == null)
+      cachedContig = TString.loadString(region, t.loadField(region, offset, contigIdx))
+    cachedContig
   }
 
   override def start(): Int = {
@@ -46,9 +46,9 @@ class RegionValueVariant(tv: TVariant) extends Variant with View {
   }
 
   override def ref(): String = {
-    if (_ref == null)
-      _ref = TString.loadString(region, t.loadField(region, offset, refIdx))
-    _ref
+    if (cachedRef == null)
+      cachedRef = TString.loadString(region, t.loadField(region, offset, refIdx))
+    cachedRef
   }
 
   def copy(contig: String, start: Int, ref: String, altAlleles: IndexedSeq[ConcreteAltAllele]): Variant =

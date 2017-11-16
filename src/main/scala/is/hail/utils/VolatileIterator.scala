@@ -82,10 +82,10 @@ trait VolatileIterator[T] { self =>
       throw new RuntimeException("minimum of empty iterator is undefined")
   }
 
-  def min(implicit ord: Ordering[T], prim: Primitive[T]): T =
+  def min(implicit ord: Ordering[T], prim: NonVolatilePrimitive[T]): T =
     unsafeMin(ord.lt)
 
-  def max(implicit ord: Ordering[T], prim: Primitive[T]): T =
+  def max(implicit ord: Ordering[T], prim: NonVolatilePrimitive[T]): T =
     unsafeMin(ord.gt)
 
   private def unsafeToArray(implicit tct: ClassTag[T]): Array[T] = {
@@ -98,16 +98,6 @@ trait VolatileIterator[T] { self =>
     a.result()
   }
 
-  def toArray(implicit prim: Primitive[T], tct: ClassTag[T]): Array[T] =
+  def toArray(implicit prim: NonVolatilePrimitive[T], tct: ClassTag[T]): Array[T] =
     unsafeToArray
-}
-
-sealed trait Primitive[T] { }
-
-object VolatileIterator {
-  implicit object StringPrimitive extends Primitive[String]
-  implicit object IntPrimitive extends Primitive[Int]
-  implicit object LongPrimitive extends Primitive[Long]
-  implicit object FloatPrimitive extends Primitive[Float]
-  implicit object DoublePrimitive extends Primitive[Double]
 }
