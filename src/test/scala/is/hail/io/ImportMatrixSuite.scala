@@ -29,24 +29,6 @@ class ImportMatrixSuite extends SparkSuite {
     assert(e.getMessage.contains("number of elements"))
   }
 
-  def exportAsTable(vsm: VariantSampleMatrix[String, String, Annotation], file: String) {
-    val cellTypeBc = sc.broadcast(vsm.genotypeSignature)
-    vsm.makeKT("v = v", "g = g", Array("v")).rdd.mapPartitions { it =>
-      val sb = new StringBuilder()
-      val cellType = cellTypeBc.value
-
-      it.map { r =>
-        sb.clear()
-
-        (0 until r.size).foreachBetween { i =>
-          sb.append(TableAnnotationImpex.exportAnnotation(r.get(i), if  (i == 0) TString() else cellType))
-        }(sb += '\t')
-
-        sb.result()
-      }
-    }.writeTable(file, tmpDir.toString(), header = Option(vsm.sampleIds.map(_.toString()).mkString("\t")))
-  }
-
   @Test def testTypes() {
     implicit val KOk = TString().typedOrderedKey[String, String]
     val genMatrix = VSMSubgen[String, String, Annotation](
@@ -68,8 +50,8 @@ class ImportMatrixSuite extends SparkSuite {
     forAll(VariantSampleMatrix.gen(hc, genMatrix)) { vsm =>
       val actual: VariantSampleMatrix[String, String, Annotation] = {
         val f = tmpDir.createTempFile(extension="txt")
-        exportAsTable(vsm, f)
-        LoadMatrix(hc, Array(f), cellType = vsm.genotypeSignature)
+        vsm.makeKT("v = v", "`` = g", Array("v")).export(f)
+        LoadMatrix(hc, Array(f), cellType = vsm.genotypeSignature, hasRowIDName = true)
       }
       assert(vsm.same(actual))
 

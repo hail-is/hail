@@ -23,8 +23,8 @@ object LoadMatrix {
   }
 
   // this assumes that col IDs are in last line of header.
-  def parseHeader(line: String, sep: String = "\t", hasRowKeyLabel: Boolean = false): Array[String] =
-    if (hasRowKeyLabel)
+  def parseHeader(line: String, sep: String = "\t", hasRowIDName: Boolean = false): Array[String] =
+    if (hasRowIDName)
       line.split(sep).tail
     else
       line.split(sep)
@@ -166,7 +166,7 @@ object LoadMatrix {
     cellType: Type = TInt64(),
     sep: String = "\t",
     missingValue: String = "NA",
-    hasRowKeyLabel: Boolean = false): VariantSampleMatrix[String, String, Annotation] = {
+    hasRowIDName: Boolean = false): VariantSampleMatrix[String, String, Annotation] = {
 
     val cellParser: (String, Int, RegionValueBuilder, Char, String, String, String, Int) => Int = cellType match {
       case _: TInt32 => setInt
@@ -184,7 +184,7 @@ object LoadMatrix {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
-    val header1 = parseHeader(getHeaderLines(hConf, files.head), sep, hasRowKeyLabel)
+    val header1 = parseHeader(getHeaderLines(hConf, files.head), sep, hasRowIDName)
     val header1Bc = sc.broadcast(header1)
 
     val sampleIds: Array[String] =
@@ -214,7 +214,7 @@ object LoadMatrix {
     val rowKeys: RDD[RegionValue] = lines.mapPartitionsWithIndex { (i, it) =>
       if (firstPartitions(i)) {
         val hd1 = header1Bc.value
-        val hd = parseHeader(it.next().value, sep, hasRowKeyLabel)
+        val hd = parseHeader(it.next().value, sep, hasRowIDName)
         if (!hd1.sameElements(hd)) {
           if (hd1.length != hd.length) {
             fatal(
