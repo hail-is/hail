@@ -161,13 +161,13 @@ sealed abstract class Type extends BaseType with Serializable {
   }
 
   def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) =
-    TStruct.empty().unsafeInsert(typeToInsert, path)
+    TStruct.empty(required).unsafeInsert(typeToInsert, path)
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
 
   def insert(signature: Type, path: List[String]): (Type, Inserter) = {
     if (path.nonEmpty)
-      TStruct.empty().insert(signature, path)
+      TStruct.empty(required).insert(signature, path)
     else
       (signature, (a, toIns) => toIns)
   }
@@ -1644,11 +1644,7 @@ object TStruct {
   def empty(required: Boolean = false): TStruct = if (required) requiredEmpty else optionalEmpty
 
   def apply(args: (String, Type)*): TStruct =
-    TStruct(args
-      .iterator
-      .zipWithIndex
-      .map { case ((n, t), i) => Field(n, t, i) }
-      .toArray)
+    TStruct(false, args: _*)
 
   def apply(required: Boolean, args: (String, Type)*): TStruct =
     TStruct(args
