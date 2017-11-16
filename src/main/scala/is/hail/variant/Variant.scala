@@ -5,7 +5,6 @@ import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
-import is.hail.utils.VolatileIterator._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
