@@ -3,7 +3,7 @@ package is.hail.utils
 import scala.reflect.ClassTag
 
 // volatility means it is undefined behavior to use the value returned by
-// `apply` a subsequent call is made to `apply`.
+// `apply` after a subsequent call is made to `apply`.
 trait VolatileIndexedSeq[T] { self =>
   def length(): Int
 
