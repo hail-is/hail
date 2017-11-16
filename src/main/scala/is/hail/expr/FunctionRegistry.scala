@@ -1108,7 +1108,7 @@ object FunctionRegistry {
       if (longer.ref.substring(0, shorter.ref.length) != shorter.ref)
         fatal(s"Variants ref bases mismatch in combineVariants. Left ref: ${ left.ref }, right ref: ${ right.ref }")
 
-      val long_alleles_index = longer.altAlleles().map(_.alt).zipWithIndex.toMap
+      val long_alleles_index = longer.altAlleles.map(_.alt).zipWithIndex.toMap
       val short_alleles_index = mutable.Map[Int, Int](0 -> 0)
       val short_alleles = new mutable.ArrayBuffer[ConcreteAltAllele](initialSize = shorter.nAltAlleles)
 
