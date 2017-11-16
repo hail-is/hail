@@ -20,10 +20,10 @@ object CopyState extends Enumeration {
 
 object AltAllele {
 
-  def apply(ref: String, alt: String): ConcreteAltAllele =
+  def apply(ref: String, alt: String): AltAllele =
     ConcreteAltAllele(ref, alt)
 
-  def fromRegionValue(m: MemoryBuffer, offset: Long): ConcreteAltAllele = {
+  def fromRegionValue(m: MemoryBuffer, offset: Long): AltAllele = {
     val t = TAltAllele.representation()
     val ref = TString.loadString(m, t.loadField(m, offset, 0))
     val alt = TString.loadString(m, t.loadField(m, offset, 1))
@@ -34,7 +34,7 @@ object AltAllele {
     StructField("ref", StringType, nullable = false),
     StructField("alt", StringType, nullable = false)))
 
-  def fromRow(r: Row): ConcreteAltAllele =
+  def fromRow(r: Row): AltAllele =
     ConcreteAltAllele(r.getString(0), r.getString(1))
 
   def gen(ref: String): Gen[AltAllele] =
