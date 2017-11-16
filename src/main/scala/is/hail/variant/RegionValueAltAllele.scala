@@ -23,6 +23,8 @@ class RegionValueAltAllele(taa: TAltAllele) extends View with AltAllele {
     this.cachedAlt = null
   }
 
+  def getOffset(): Long = offset
+
   def ref(): String = {
     if (cachedRef == null)
       cachedRef = TString.loadString(region, t.loadField(region, offset, refIdx))
