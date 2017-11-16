@@ -1,20 +1,14 @@
 package is.hail.io
 
-import java.io.FileInputStream
-
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr._
-import is.hail.sparkextras.OrderedKey
 import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
-
-import scala.io.Source
-import scala.reflect.ClassTag
 
 class ImportMatrixSuite extends SparkSuite {
 
@@ -35,37 +29,6 @@ class ImportMatrixSuite extends SparkSuite {
     assert(e.getMessage.contains("number of elements"))
   }
 
-  @Test def testLoadMatrix() {
-    val files = hc.hadoopConf.globAll(List("src/test/resources/samplematrix*.txt"))
-    val vsm = LoadMatrix(hc, files)
-
-    assert(vsm.sampleIds.length == 20)
-    vsm.rdd.collect()(1)._2._2.foreach { i => assert(i == 0) }
-  }
-
-  @Test def testTypes() {
-    val files = hc.hadoopConf.globAll(List("src/test/resources/samplematrix*.txt"))
-    val vsm = LoadMatrix(hc, files, cellType = TFloat64())
-
-    assert(vsm.sampleIds.length == 20)
-    vsm.rdd.collect()(1)._2._2.foreach { i => assert(i == 0) }
-
-    val vsm2 = LoadMatrix(hc, files, cellType = TFloat32())
-
-    assert(vsm2.sampleIds.length == 20)
-    vsm2.rdd.collect()(1)._2._2.foreach { i => assert(i == 0) }
-
-    val vsm3 = LoadMatrix(hc, files, cellType = TInt32())
-
-    assert(vsm3.sampleIds.length == 20)
-    vsm3.rdd.collect()(1)._2._2.foreach { i => assert(i == 0) }
-
-    val vsm4 = LoadMatrix(hc, files, cellType = TString())
-
-    assert(vsm4.sampleIds.length == 20)
-    vsm4.rdd.collect()(1)._2._2.foreach { i => assert(i == "0") }
-  }
-
   def exportAsTable(vsm: VariantSampleMatrix[String, String, Annotation], file: String) {
     val cellTypeBc = sc.broadcast(vsm.genotypeSignature)
     vsm.makeKT("v = v", "g = g", Array("v")).rdd.mapPartitions { it =>
@@ -84,7 +47,7 @@ class ImportMatrixSuite extends SparkSuite {
     }.writeTable(file, tmpDir.toString(), header = Option(vsm.sampleIds.map(_.toString()).mkString("\t")))
   }
 
-  @Test def testTypes2() {
+  @Test def testTypes() {
     implicit val KOk = TString().typedOrderedKey[String, String]
     val genMatrix = VSMSubgen[String, String, Annotation](
       sSigGen = Gen.const(TString()),
@@ -119,16 +82,4 @@ class ImportMatrixSuite extends SparkSuite {
     }.check()
 
   }
-
-  @Test def testReadWrite() {
-    val files = hc.hadoopConf.globAll(List("src/test/resources/samplematrix*.txt"))
-    val vsm = LoadMatrix(hc, files)
-
-    val tmp1 = tmpDir.createTempFile(extension = "vds")
-    vsm.write(tmp1, true)
-
-    val vsm2 = VariantSampleMatrix.read(hc, tmp1).asInstanceOf[VariantSampleMatrix[String, String, Annotation]]
-    assert(vsm2.same(vsm))
-  }
-
 }
