@@ -7,7 +7,7 @@ import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TStruct, Type}
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.spark._
-import org.apache.spark.rdd.{RDD, ShuffledRDD}
+import org.apache.spark.rdd.{PartitionCoalescer, RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.MappingException
@@ -120,7 +120,7 @@ object PartitionKeyInfo2 {
 
     val rng = new java.util.Random(seed)
     val samples = new Array[WritableRegionValue](sampleSize)
-
+    
     var i = 0
 
     if (sampleSize > 0) {
@@ -170,7 +170,11 @@ case class PartitionKeyInfo2(
   max: RegionValue,
   // min, max: RegionValue[pkType]
   samples: Array[RegionValue],
-  sortedness: Int)
+  sortedness: Int) {
+  def pretty(t: Type): String = {
+    s"partitionIndex=$partitionIndex,size=$size,min=${min.pretty(t)},max=${max.pretty(t)},samples=${samples.map(_.pretty(t)).mkString(",")},sortedness=$sortedness"
+  }
+}
 
 object OrderedRDD2Type {
   def selectUnsafeOrdering(t1: TStruct, fields1: Array[Int],
@@ -653,6 +657,11 @@ class OrderedRDD2 private(
       orderedPartitioner,
       rdd.mapPartitions(f))
 
+  def mapPartitionsPreservesPartitioning(newTyp: OrderedRDD2Type)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRDD2 =
+    OrderedRDD2(newTyp,
+      orderedPartitioner,
+      rdd.mapPartitions(f))
+
   override def filter(p: (RegionValue) => Boolean): OrderedRDD2 =
     OrderedRDD2(typ,
       orderedPartitioner,
@@ -746,6 +755,56 @@ class OrderedRDD2 private(
       new BlockedRDD(rdd, newPartEnd))
   }
 
+  override def coalesce(maxPartitions: Int, shuffle: Boolean, partitionCoalescer: Option[PartitionCoalescer])
+    (implicit ord: Ordering[RegionValue]): OrderedRDD2 = {
+    require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
+    val n = rdd.partitions.length
+    if (!shuffle && maxPartitions >= n)
+      return this
+    if (shuffle) {
+      val shuffled = super.coalesce(maxPartitions, shuffle)
+      val ranges = OrderedRDD2.calculateKeyRanges(typ, OrderedRDD2.getPartitionKeyInfo(typ, shuffled), shuffled.getNumPartitions)
+      OrderedRDD2.shuffle(typ, new OrderedPartitioner2(ranges.length + 1, typ.partitionKey, typ.kType, ranges), shuffled)
+    } else {
+
+      val partSize = rdd.context.runJob(rdd, getIteratorSize _)
+      log.info(s"partSize = ${ partSize.toSeq }")
+
+      val partCumulativeSize = mapAccumulate[Array, Long, Long, Long](partSize, 0)((s, acc) => (s + acc, s + acc))
+      val totalSize = partCumulativeSize.last
+
+      var newPartEnd = (0 until maxPartitions).map { i =>
+        val t = totalSize * (i + 1) / maxPartitions
+
+        /* j largest index not greater than t */
+        var j = util.Arrays.binarySearch(partCumulativeSize, t)
+        if (j < 0)
+          j = -j - 1
+        while (j < partCumulativeSize.length - 1
+          && partCumulativeSize(j + 1) == t)
+          j += 1
+        assert(t <= partCumulativeSize(j) &&
+          (j == partCumulativeSize.length - 1 ||
+            t < partCumulativeSize(j + 1)))
+        j
+      }.toArray
+
+      newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) => i == 0 || newPartEnd(i) != newPartEnd(i - 1) }
+        .map(_._1)
+
+      info(s"newPartEnd = ${ newPartEnd.toSeq }")
+
+      assert(newPartEnd.last == n - 1)
+      assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i < inext })
+
+      if (newPartEnd.length < maxPartitions)
+        warn(s"coalesced to ${ newPartEnd.length } ${ plural(newPartEnd.length, "partition") }, less than requested $maxPartitions")
+
+      val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds).asInstanceOf[UnsafeIndexedSeq]
+      val partitioner = new OrderedPartitioner2(newRangeBounds.length + 1, typ.partitionKey, typ.kType, newRangeBounds)
+      new OrderedRDD2(typ, partitioner, new BlockedRDD(rdd, newPartEnd))
+    }
+  }
 }
 
 class OrderedDependency2(left: OrderedRDD2, right: OrderedRDD2) extends NarrowDependency[RegionValue](right) {

@@ -27,15 +27,15 @@ class LDMatrixSuite extends SparkSuite {
     val nSamples = vds.nSamples
 
     val variantsTable = vds.typedRDD[Locus, Variant].map { case (v, (_, gs)) =>
-      (v, LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples))}.collectAsMap()
+      (v, LDPrune.toBitPackedVectorView(gs.hardCallIterator, nSamples))}.collectAsMap()
 
-    val indexToBPV = distLDMatrix.variants.map(v => variantsTable(v).get)
+    val indexToBPVV = distLDMatrix.variants.map(v => variantsTable(v).get)
     val distLDMatrixLocal = distLDMatrix.matrix.toHailBlockMatrix().toLocalMatrix()
     val localLDMatrixLocal = localLDMatrix.matrix.toHailBlockMatrix().toLocalMatrix()
     val numVariants = distLDMatrixLocal.rows
 
     for(i <- 0 until numVariants; j <- 0 until numVariants) {
-      val computedR = LDPrune.computeR(indexToBPV(i), indexToBPV(j))
+      val computedR = LDPrune.computeR(indexToBPVV(i), indexToBPVV(j))
       val distMatrixR = distLDMatrixLocal(i, j)
       val localMatrixR = localLDMatrixLocal(i, j)
 

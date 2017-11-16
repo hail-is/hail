@@ -339,11 +339,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     LDMatrix(vsm, Some(forceLocal))
   }
 
-  def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): VariantDataset = {
-    require(vsm.wasSplit)
-    LDPrune(vsm, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
-  }
-
   def nirvana(config: String, blockSize: Int = 500000, root: String): VariantDataset = {
     Nirvana.annotate(vsm, config, blockSize, root)
   }

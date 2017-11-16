@@ -2408,6 +2408,12 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     VariantQC(this, root)
   }
 
+  def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): VariantSampleMatrix = {
+    require(wasSplit)
+    requireRowKeyVariant("ld_prune")
+    LDPrune(this, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
+  }
+
   def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): VariantSampleMatrix = {
     if (!sSignature.isInstanceOf[TString])
       fatal("trio_matrix requires column keys of type String")
