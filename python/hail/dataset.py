@@ -8,7 +8,7 @@ from hail.typ import Type, TGenotype, TString, TVariant, TArray
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
-from hail.representation import Interval, Pedigree, Variant
+from hail.representation import Interval, Pedigree, Variant, GenomeReference
 from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
@@ -1614,6 +1614,9 @@ class VariantDataset(HistoryMixin):
         for example, Array[Array[Int32]] is invalid.
         Sets and Arrays are output with the same comma-separated format.
         Lastly, fields of type Boolean are allowed in ``va.info`` to generate INFO fields of type Flag.
+
+        Hail also exports the name, length, and assembly of each contig as a VCF header line, where the assembly is set
+        to the :class:`.GenomeReference` name.
 
         Consider the workflow of importing a VCF to VDS and immediately exporting VDS to VCF:
 
