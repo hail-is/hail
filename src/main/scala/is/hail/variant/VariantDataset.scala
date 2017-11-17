@@ -404,21 +404,6 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
 
   /**
     *
-    * @param computeMafExpr An expression for the minor allele frequency of the current variant, `v', given
-    *                       the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
-    * @param bounded        Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
-    *                       (e.g. outside of [0,1]).
-    * @param minimum        Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
-    * @param maximum        Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
-    */
-  def ibd(computeMafExpr: Option[String] = None, bounded: Boolean = true,
-    minimum: Option[Double] = None, maximum: Option[Double] = None): KeyTable = {
-    require(vds.wasSplit)
-    IBD.toKeyTable(vds.hc, IBD.validateAndCall(vds, computeMafExpr, bounded, minimum, maximum))
-  }
-
-  /**
-    *
     * @param mafThreshold     Minimum minor allele frequency threshold
     * @param includePAR       Include pseudoautosomal regions
     * @param fFemaleThreshold Samples are called females if F < femaleThreshold
