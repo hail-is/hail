@@ -472,49 +472,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       }.foldByKey(zeroValue)(combOp)
   }
 
-  def aggregateByVariantWithAll[U](zeroValue: U)(
-    seqOp: (U, RK, Annotation, Annotation, Annotation, T) => U,
-    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(RK, U)] = {
-
-    // Serialize the zero value to a byte array so that we can apply a new clone of it on each key
-    val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
-    val zeroArray = new Array[Byte](zeroBuffer.limit)
-    zeroBuffer.get(zeroArray)
-
-    val localSampleIdsBc = sampleIdsBc
-    val localSampleAnnotationsBc = sampleAnnotationsBc
-
-    rdd
-      .mapPartitions({ (it: Iterator[(RK, (Annotation, Iterable[T]))]) =>
-        val serializer = SparkEnv.get.serializer.newInstance()
-        it.map { case (v, (va, gs)) =>
-          val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
-          (v, gs.iterator.zipWithIndex.map { case (g, i) => (localSampleIdsBc.value(i), localSampleAnnotationsBc.value(i), g) }
-            .foldLeft(zeroValue) { case (acc, (s, sa, g)) =>
-              seqOp(acc, v, va, s, sa, g)
-            })
-        }
-      }, preservesPartitioning = true)
-
-    /*
-        rdd
-          .map { case (v, gs) =>
-            val serializer = SparkEnv.get.serializer.newInstance()
-            val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
-
-            (v, gs.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
-              seqOp(acc, v, localSamplesBc.value(i), g)
-            })
-          }
-    */
-  }
-
-  def aggregateByVariantWithKeys[U](zeroValue: U)(
-    seqOp: (U, RK, Annotation, T) => U,
-    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(RK, U)] = {
-    aggregateByVariantWithAll(zeroValue)((e, v, va, s, sa, g) => seqOp(e, v, s, g), combOp)
-  }
-
   def annotateGlobal(a: Annotation, t: Type, code: String): VariantSampleMatrix[RPK, RK, T] = {
     val (newT, i) = insertGlobal(t, Parser.parseAnnotationRoot(code, Annotation.GLOBAL_HEAD))
     copy2(globalSignature = newT, globalAnnotation = i(globalAnnotation, a))
