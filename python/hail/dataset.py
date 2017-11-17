@@ -4,7 +4,7 @@ import warnings
 
 from decorator import decorator
 
-from hail.typ import Type, TGenotype, TString, TVariant, TArray
+from hail.typ import Type, TGenotype, TString, TVariant, TArray, TInt64
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
