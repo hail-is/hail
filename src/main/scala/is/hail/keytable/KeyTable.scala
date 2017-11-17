@@ -150,8 +150,10 @@ object KeyTable {
 
 class KeyTable(val hc: HailContext,
   val rdd2: RDD[RegionValue],
-  val signature: TStruct,
+  sig: TStruct,
   val key: Array[String] = Array.empty) {
+
+  val signature = sig.setRequired(true).asInstanceOf[TStruct]
 
   lazy val rdd: RDD[Row] = {
     val localSignature = signature

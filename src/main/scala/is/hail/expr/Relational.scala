@@ -34,11 +34,11 @@ case class MatrixType(
   def genotypeType: Type = metadata.genotypeSignature
 
   def rowType: TStruct =
-    TStruct(
+    (!TStruct(
       "pk" -> locusType,
       "v" -> vType,
       "va" -> vaType,
-      "gs" -> !TArray(genotypeType))
+      "gs" -> !TArray(genotypeType))).asInstanceOf[TStruct]
 
   def orderedRDD2Type: OrderedRDD2Type = {
     new OrderedRDD2Type(Array("pk"),

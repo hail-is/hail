@@ -161,13 +161,13 @@ sealed abstract class Type extends BaseType with Serializable {
   }
 
   def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) =
-    TStruct.empty().unsafeInsert(typeToInsert, path)
+    TStruct.empty(required).unsafeInsert(typeToInsert, path)
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
 
   def insert(signature: Type, path: List[String]): (Type, Inserter) = {
     if (path.nonEmpty)
-      TStruct.empty().insert(signature, path)
+      TStruct.empty(required).insert(signature, path)
     else
       (signature, (a, toIns) => toIns)
   }
@@ -1644,11 +1644,14 @@ object TStruct {
   def empty(required: Boolean = false): TStruct = if (required) requiredEmpty else optionalEmpty
 
   def apply(args: (String, Type)*): TStruct =
+    TStruct(false, args: _*)
+
+  def apply(required: Boolean, args: (String, Type)*): TStruct =
     TStruct(args
       .iterator
       .zipWithIndex
       .map { case ((n, t), i) => Field(n, t, i) }
-      .toArray)
+      .toArray, required)
 
   def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type], required: Boolean): TStruct = {
     val sNames = names.asScala.toArray
@@ -1696,6 +1699,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
 
   def hasField(name: String): Boolean = fieldIdx.contains(name)
+
+  def hasRequiredFields: Boolean = size > nMissing
 
   def field(name: String): Field = fields(fieldIdx(name))
 
@@ -1807,6 +1812,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   override def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) = {
+    if (!required && hasRequiredFields)
+      fatal(s"Tried to insert annotation into optional Struct with required fields: inserting Type $typeToInsert into $this at path $path.")
     if (path.isEmpty) {
       (typeToInsert, (region, offset, rvb, inserter) => inserter())
     } else {
@@ -1851,6 +1858,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   override def insert(signature: Type, p: List[String]): (Type, Inserter) = {
+    if (!required && hasRequiredFields)
+      fatal(s"Tried to insert annotation into optional Struct with required fields: inserting Type $signature into $this at path $p.")
     if (p.isEmpty)
       (signature, (a, toIns) => toIns)
     else {
@@ -1870,9 +1879,9 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       val localSize = fields.size
 
       val inserter: Inserter = (a, toIns) => {
-        val r = if (a == null || localSize == 0) // localsize == 0 catches cases where we overwrite a path
+        val r = if (a == null || localSize == 0) { // localsize == 0 catches cases where we overwrite a path
           Row.fromSeq(Array.fill[Any](localSize)(null))
-        else
+        } else
           a.asInstanceOf[Row]
         keyIndex match {
           case Some(i) => r.update(i, keyF(r.get(i), toIns))
@@ -1890,7 +1899,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     for (i <- fields.indices)
       newFields(i) = fields(i)
     newFields(i) = Field(key, sig, i)
-    TStruct(newFields)
+    TStruct(newFields, required)
   }
 
   def deleteKey(key: String, index: Int): Type = {
@@ -1903,7 +1912,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
         newFields(i) = fields(i)
       for (i <- index + 1 until fields.length)
         newFields(i - 1) = fields(i).copy(index = i - 1)
-      TStruct(newFields)
+      TStruct(newFields, required)
     }
   }
 
@@ -1913,7 +1922,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     for (i <- fields.indices)
       newFields(i) = fields(i)
     newFields(fields.length) = Field(key, sig, fields.length)
-    TStruct(newFields)
+    TStruct(newFields, required)
   }
 
   def merge(other: TStruct): (TStruct, Merger) = {
@@ -1928,7 +1937,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
         } ]
            |  Hint: use `drop' or `select' to remove these fields from one side""".stripMargin)
 
-    val newStruct = TStruct(fields ++ other.fields.map(f => f.copy(index = f.index + size)))
+    val newStruct = TStruct(fields ++ other.fields.map(f => f.copy(index = f.index + size)), required || other.required)
 
     val size1 = size
     val size2 = other.size
@@ -1996,7 +2005,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
     val fdIndexToUngroup = fieldIdx(identifier)
 
-    val newSignature = TStruct(fields.filterNot(_.index == fdIndexToUngroup).map { fd => (fd.name, fd.typ) } ++ ungroupedFields: _*)
+    val newSignature = TStruct(required, fields.filterNot(_.index == fdIndexToUngroup).map { fd => (fd.name, fd.typ) } ++ ungroupedFields: _*)
 
     val origSize = size
     val newSize = newSignature.size
@@ -2046,7 +2055,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     val keepIndices = keepFields.map(_.index)
 
     val groupedTyp = TStruct(fieldsToGroup.map(fd => (fd.name, fd.typ)): _*)
-    val finalSignature = TStruct(keepFields.map(fd => (fd.name, fd.typ)) :+ (dest, groupedTyp): _*)
+    val finalSignature = TStruct(required, keepFields.map(fd => (fd.name, fd.typ)) :+ (dest, groupedTyp): _*)
 
     val newSize = finalSignature.size
 
@@ -2090,7 +2099,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     if (overlapping.nonEmpty)
       fatal(s"overlapping fields in struct concatenation: ${ overlapping.mkString(", ") }")
 
-    TStruct(fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*)
+    TStruct(required || that.required, fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*)
   }
 
   def filter(f: (Field) => Boolean): (TStruct, (Annotation) => Annotation) = {
@@ -2124,10 +2133,14 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
         Annotation.fromSeq(newValues)
       }
 
-    (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
+    (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }, required), filterer)
   }
 
-  def _toString: String = if (size == 0) "Empty" else toPrettyString(compact = true)
+  def _toString: String = if (size == 0) "Empty" else {
+    val sb = new StringBuilder
+    _pretty(sb, 1, compact = true, printAttrs = false)
+    sb.result()
+  }
 
   override def _pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
     if (size == 0)
@@ -2245,7 +2258,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   def select(keep: Array[String]): (TStruct, (Row) => Row) = {
-    val t = TStruct(keep.map { n =>
+    val t = TStruct(required, keep.map { n =>
       n -> field(n).typ
     }: _*)
 
