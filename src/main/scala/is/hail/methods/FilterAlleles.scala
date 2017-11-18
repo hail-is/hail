@@ -9,7 +9,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 object FilterAlleles {
-  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], filterExpr: String,
+  def apply(vsm: VariantSampleMatrix, filterExpr: String,
     variantExpr: String = "",
     genotypeExpr: String = "",
     keep: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantDataset = {

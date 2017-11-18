@@ -373,8 +373,10 @@ object LDPrune {
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"`memory_per_core' must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB.")
 
-    val standardizedRDD: OrderedRDD[Locus, Variant, BitPackedVector] = vds.filterVariants { case (v, va, gs) => v.isBiallelic }.rdd
-      .flatMapValues { case (va, gs) => toBitPackedVector(gs.hardCallIterator, nSamples) }.asOrderedRDD
+    val standardizedRDD: OrderedRDD[Locus, Variant, BitPackedVector] =
+      vds.filterVariants { case (v, va, gs) => v.asInstanceOf[Variant].isBiallelic }
+        .typedRDD[Locus, Variant, Genotype]
+        .flatMapValues { case (va, gs) => toBitPackedVector(gs.hardCallIterator, nSamples) }.asOrderedRDD
 
     val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
       val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, windowSize, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)
@@ -405,8 +407,9 @@ object LDPrune {
     val ((globalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(rddLP2, r2Threshold, windowSize))
     info(s"LD prune step 3 of 3: nVariantsKept=$nVariantsFinal, time=${ formatTime(globalDuration) }")
 
-    vds.copy(rdd = vds.rdd.orderedInnerJoinDistinct(globalPrunedRDD)
-      .mapValues { case ((va, gs), _) => (va, gs) }
-      .asOrderedRDD)
+    vds.copyLegacy(
+      rdd = vds.typedRDD[Locus, Variant, Annotation]
+        .orderedInnerJoinDistinct(globalPrunedRDD)
+        .mapValues { case ((va, gs), _) => (va, gs) })
   }
 }

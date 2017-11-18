@@ -156,7 +156,7 @@ class SampleQCCombiner extends Serializable {
 }
 
 object SampleQC {
-  def results[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T]): Array[SampleQCCombiner] = {
+  def results(vsm: VariantSampleMatrix): Array[SampleQCCombiner] = {
     val depth = treeAggDepth(vsm.hc, vsm.nPartitions)
     val rowType = vsm.rowType
     val nSamples = vsm.nSamples
@@ -211,7 +211,7 @@ object SampleQC {
       Array.fill(nSamples)(new SampleQCCombiner)
   }
 
-  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], root: String): VariantSampleMatrix[RPK, RK, T] = {
+  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix, root: String): VariantSampleMatrix = {
     val r = results(vsm).map(_.asAnnotation)
     vsm.annotateSamples(SampleQCCombiner.signature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), r)
   }

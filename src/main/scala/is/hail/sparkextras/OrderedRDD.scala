@@ -490,9 +490,9 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     while (i < nPartitions) {
 
       val include = if (i == 0)
-        intervalArray.exists(_.start <= rangeBounds(0))
+        intervalArray.exists(_._1.start <= rangeBounds(0))
       else if (i == nPartitions - 1)
-        intervalArray.reverseIterator.exists(_.end > rangeBounds.last)
+        intervalArray.reverseIterator.exists(_._1.end > rangeBounds.last)
       else {
         val lastMax = rangeBounds(i - 1)
         val thisMax = rangeBounds(i)

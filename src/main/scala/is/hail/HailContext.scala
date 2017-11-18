@@ -12,9 +12,10 @@ import is.hail.io.gen.GenLoader
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.vcf._
 import is.hail.keytable.KeyTable
+import is.hail.sparkextras.OrderedRDD2
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, GenomeReference, Genotype, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, GenomeReference, Genotype, HTSGenotypeView, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
@@ -306,9 +307,9 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString(), "varid" -> TString())
 
-    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
+    val rdd = sc.union(results.map(_.rdd))
 
-    new GenericDataset(this,
+    VariantSampleMatrix.fromLegacy(this,
       VSMFileMetadata(samples,
         vaSignature = signature,
         genotypeSignature = TStruct("GT" -> TCall(),
@@ -393,15 +394,15 @@ class HailContext private(val sc: SparkContext,
       nPartitions, delimiter, missing, quantPheno, a2Reference, gr)
   }
 
-  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] = {
+  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix = {
     VariantSampleMatrix.read(this, file, dropSamples = dropSamples, dropVariants = dropVariants)
   }
 
   def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset =
-    read(file, dropSamples, dropVariants).toVDS
+    read(file, dropSamples, dropVariants)
 
   def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset =
-    read(file, dropSamples, dropVariants).toGDS
+    read(file, dropSamples, dropVariants)
 
   def readTable(path: String): KeyTable =
     KeyTable.read(this, path)
@@ -456,21 +457,92 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     gr: GenomeReference = GenomeReference.defaultReference): VariantDataset = {
-    val m = importVCFsGeneric(files, force, forceBGZ, headerFile, nPartitions, dropSamples, gr = gr)
-    val extractG = Genotype.buildGenotypeExtractor(m.genotypeSignature)
-    m.copy(
-      rdd = m.rdd.mapValuesWithKey { case (v, (va, gs)) =>
-        (va, gs.map { t =>
-          val g = extractG(t)
-          if (Genotype.ad(g).exists(_.length != v.nAlleles))
-            null
-          else {
-            g.check(v.nAlleles)
-            g
+
+    val vsm = importVCFsGeneric(files, force, forceBGZ, headerFile, nPartitions, dropSamples, gr = gr)
+
+    val localNSamples = vsm.nSamples
+    val localRowType = vsm.rowType
+
+    val newMatrixType = vsm.matrixType.copy(
+      genotypeType = TGenotype())
+
+    vsm.copy2(
+      genotypeSignature = TGenotype(),
+      rdd2 = OrderedRDD2(
+        newMatrixType.orderedRDD2Type,
+        vsm.rdd2.orderedPartitioner,
+        vsm.rdd2.mapPartitions({ it =>
+        val rvb = new RegionValueBuilder()
+        val rv2 = RegionValue()
+        val view = HTSGenotypeView(localRowType)
+
+        it.map { rv =>
+          rvb.set(rv.region)
+          rvb.start(newMatrixType.rowType)
+          rvb.startStruct()
+          rvb.addField(localRowType, rv, 0)
+          rvb.addField(localRowType, rv, 1)
+          rvb.addField(localRowType, rv, 2)
+
+          view.setRegion(rv)
+
+          rvb.startArray(localNSamples)
+          var i = 0
+          while (i < localNSamples) {
+            view.setGenotype(i)
+            rvb.startStruct() // g
+
+            if (view.hasGT)
+              rvb.addInt(view.getGT)
+            else
+              rvb.setMissing()
+
+            if (view.hasAD) {
+              val n = view.getADLength
+              rvb.startArray(n)
+              var j = 0
+              while (j < n) {
+                rvb.addInt(view.getAD(j))
+                j += 1
+              }
+              rvb.endArray()
+
+            } else
+              rvb.setMissing()
+
+            if (view.hasDP)
+              rvb.addInt(view.getDP)
+            else
+              rvb.setMissing()
+
+            if (view.hasGQ)
+              rvb.addInt(view.getGQ)
+            else
+              rvb.setMissing()
+
+            if (view.hasPL) {
+              val n = view.getPLLength
+              rvb.startArray(n)
+              var j = 0
+              while (j < n) {
+                rvb.addInt(view.getPL(j))
+                j += 1
+              }
+              rvb.endArray()
+
+            } else
+              rvb.setMissing()
+
+            rvb.endStruct() // g
+            i += 1
           }
-        })
-      },
-      genotypeSignature = TGenotype())
+          rvb.endArray()
+          rvb.endStruct() // g
+
+          rv2.set(rv.region, rvb.end())
+          rv2
+        }
+      }, preservesPartitioning = true)))
   }
 
   def importVCFGeneric(file: String, force: Boolean = false,
@@ -479,7 +551,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix[Locus, Variant, Annotation] = {
+    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
     importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, gr)
   }
 
@@ -489,7 +561,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix[Locus, Variant, Annotation] = {
+    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
@@ -512,7 +584,7 @@ class HailContext private(val sc: SparkContext,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
     missingVal: String = "NA",
-    hasRowIDName: Boolean = false): VariantSampleMatrix[String, String, Annotation] =
+    hasRowIDName: Boolean = false): VariantSampleMatrix =
     importMatrices(List(file), nPartitions, dropSamples, cellType, missingVal, hasRowIDName)
 
   def importMatrices(files: Seq[String],
@@ -520,7 +592,7 @@ class HailContext private(val sc: SparkContext,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
     missingVal: String = "NA",
-    hasRowIDName: Boolean = false): VariantSampleMatrix[String, String, Annotation] = {
+    hasRowIDName: Boolean = false): VariantSampleMatrix = {
     val inputs = hadoopConf.globAll(files)
 
     LoadMatrix(this, inputs, nPartitions, dropSamples, cellType = cellType, missingValue = missingVal)

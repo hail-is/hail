@@ -17,7 +17,7 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def buildVariantAggregations[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], ec: EvalContext): Option[(RegionValue) => Unit] =
+  def buildVariantAggregations(vsm: VariantSampleMatrix, ec: EvalContext): Option[(RegionValue) => Unit] =
     buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, ec)
 
   def buildVariantAggregations(sc: SparkContext,
@@ -139,7 +139,7 @@ object Aggregators {
     })
   }
 
-  def makeSampleFunctions[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], aggExpr: String): SampleFunctions[RPK, RK, T] = {
+  def makeSampleFunctions(vsm: VariantSampleMatrix, aggExpr: String): SampleFunctions = {
     val ec = vsm.sampleEC
 
     val (resultType, aggF) = Parser.parseExpr(aggExpr, ec)
@@ -157,7 +157,7 @@ object Aggregators {
       zVal.update(i, j, aggregations(j)._3.copy())
     }
 
-    val seqOp = (ma: MultiArray2[Aggregator], tup: (RK, Annotation, Iterable[T])) => {
+    val seqOp = (ma: MultiArray2[Aggregator], tup: (Annotation, Annotation, Iterable[Annotation])) => {
       val (v, va, gs) = tup
 
       ec.set(0, localGlobalAnnotations)
@@ -212,9 +212,9 @@ object Aggregators {
     SampleFunctions(zVal, seqOp, combOp, resultOp, resultType)
   }
 
-  case class SampleFunctions[RPK, RK, T](
+  case class SampleFunctions(
     zero: MultiArray2[Aggregator],
-    seqOp: (MultiArray2[Aggregator], (RK, Annotation, Iterable[T])) => MultiArray2[Aggregator],
+    seqOp: (MultiArray2[Aggregator], (Annotation, Annotation, Iterable[Annotation])) => MultiArray2[Aggregator],
     combOp: (MultiArray2[Aggregator], MultiArray2[Aggregator]) => MultiArray2[Aggregator],
     resultOp: (MultiArray2[Aggregator] => Array[Annotation]),
     resultType: Type)

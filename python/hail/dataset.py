@@ -55,7 +55,6 @@ class VariantDataset(HistoryMixin):
         self._sample_ids = None
         self._num_samples = None
         self._jvdf_cache = None
-        self._jvkdf_cache = None
         super(VariantDataset, self).__init__()
 
     @classmethod
@@ -93,14 +92,8 @@ class VariantDataset(HistoryMixin):
     @property
     def _jvdf(self):
         if self._jvdf_cache is None:
-            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds.toVDS())
+            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds)
         return self._jvdf_cache
-
-    @property
-    def _jvkdf(self):
-        if self._jvkdf_cache is None:
-            self._jvkdf_cache = Env.hail().variant.VariantKeyDatasetFunctions(self._jvds.toVKDS())
-        return self._jvkdf_cache
 
     @property
     @handle_py4j
@@ -1501,7 +1494,7 @@ class VariantDataset(HistoryMixin):
         :param int precision: Number of digits after the decimal point each probability is truncated to.
         """
 
-        self._jvkdf.exportGen(output, precision)
+        self._jvdf.exportGen(output, precision)
 
     @handle_py4j
     @require_biallelic
@@ -1887,11 +1880,11 @@ class VariantDataset(HistoryMixin):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvkdf.filterMulti())
+        return VariantDataset(self.hc, self._jvdf.filterMulti())
 
     @handle_py4j
     def _verify_biallelic(self, method):
-        vds = VariantDataset(self.hc, self._jvkdf.verifyBiallelic(method))
+        vds = VariantDataset(self.hc, self._jvdf.verifyBiallelic(method))
         vds._history = self._history
         return vds
 
@@ -2170,7 +2163,7 @@ class VariantDataset(HistoryMixin):
 
         intervals = wrap_to_list(intervals)
 
-        jvds = self._jvkdf.filterIntervals([x._jrep for x in intervals], keep)
+        jvds = self._jvdf.filterIntervals([x._jrep for x in intervals], keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -4906,7 +4899,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvkdf.splitMulti(propagate_gq, keep_star_alleles, left_aligned)
+        jvds = self._jvdf.splitMulti(propagate_gq, keep_star_alleles, left_aligned)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -5324,7 +5317,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvkdf.vep(config, root, csq, block_size)
+        jvds = self._jvdf.vep(config, root, csq, block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

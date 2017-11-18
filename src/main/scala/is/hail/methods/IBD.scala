@@ -6,6 +6,7 @@ import is.hail.keytable.KeyTable
 import is.hail.annotations.{Annotation, RegionValue, RegionValueBuilder, MemoryBuffer, UnsafeRow}
 import is.hail.expr._
 import is.hail.variant.{GenomeReference, Genotype, HardCallView, Variant, VariantSampleMatrix}
+import is.hail.methods.IBD.generateComputeMaf
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -201,7 +202,7 @@ object IBD {
 
   final val chunkSize = 1024
 
-  def computeIBDMatrix[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T],
+  def computeIBDMatrix(vds: VariantSampleMatrix,
     computeMaf: Option[(RegionValue) => Double],
     min: Option[Double],
     max: Option[Double],
@@ -294,7 +295,7 @@ object IBD {
       }
   }
 
-  def apply[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T],
+  def apply(vds: VariantSampleMatrix,
     computeMafExpr: Option[String] = None,
     bounded: Boolean = true,
     min: Option[Double] = None,
@@ -339,7 +340,7 @@ object IBD {
     }
   }
 
-  private[methods] def generateComputeMaf[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T],
+  private[methods] def generateComputeMaf(vds: VariantSampleMatrix,
     computeMafExpr: String): (RegionValue) => Double = {
 
     val mafSymbolTable = Map("v" -> (0, vds.vSignature), "va" -> (1, vds.vaSignature))

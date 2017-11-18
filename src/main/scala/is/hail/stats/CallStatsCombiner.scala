@@ -21,7 +21,6 @@ case class CallStats(alleleCount: IndexedSeq[Int], alleleFrequency: Option[Index
   def asAnnotation: Annotation = Annotation(alleleCount, alleleFrequency.orNull, alleleNumber, genotypeCount)
 }
 
-
 class CallStatsCombiner(v: Variant) extends Serializable {
   val alleleCount = new Array[Int](v.nAlleles)
   val genotypeCount = new Array[Int](v.nGenotypes)

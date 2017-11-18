@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TFloat64, TInt32, TString, TStruct, TVariant}
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype, VSMLocalValue, VSMMetadata, Variant, VariantDataset}
+import is.hail.variant.{GenomeReference, Genotype, VSMLocalValue, VSMMetadata, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
@@ -104,11 +104,8 @@ object BaldingNicholsModel {
                 else
                   1
               Genotype(gt)
-            }: Iterable[Genotype]
-          )
-        )
+            }: Iterable[Genotype]))
       }
-      .toOrderedRDD
 
     val sampleIds = (0 until N).map(_.toString).toArray
     val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(pop))
@@ -138,7 +135,7 @@ object BaldingNicholsModel {
       "Fst" -> TArray(TFloat64()),
       "ancestralAFDist" -> ancestralAFAnnotationSignature,
       "seed" -> TInt32())
-    new VariantDataset(hc,
+    VariantSampleMatrix.fromLegacy(hc,
       VSMMetadata(TString(), saSignature, TVariant(gr), vaSignature, globalSignature, wasSplit = true),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
   }

@@ -80,7 +80,6 @@ class ExportPlinkSuite extends SparkSuite {
 
     assert(hc.importPlinkBFile(plink)
       .annotateGenotypesExpr("g = Genotype(g.GT)")
-      .toVDS
       .same(vds))
   }
 }

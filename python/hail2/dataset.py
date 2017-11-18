@@ -43,7 +43,7 @@ class DatasetTemplate(HistoryMixin):
     @property
     def _jvdf(self):
         if self._jvdf_cache is None:
-            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds.toVDS())
+            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds)
         return self._jvdf_cache
 
     @property

@@ -86,7 +86,6 @@ class GenericDatasetSuite extends SparkSuite {
 
     gds
       .annotateGenotypesExpr("g = g.GT.toGenotype()")
-      .toVDS
       .exportVCF(path)
 
     hc.importVCF(path).write(path2)

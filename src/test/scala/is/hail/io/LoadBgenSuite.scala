@@ -60,12 +60,10 @@ class LoadBgenSuite extends SparkSuite {
 
       hc.indexBgen(bgen)
       val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10))
-        .toVKDS
         .verifyBiallelic()
       assert(bgenVDS.nSamples == nSamples && bgenVDS.countVariants() == nVariants)
 
       val genVDS = hc.importGen(gen, sampleFile)
-        .toVKDS
 
       val varidBgenQuery = bgenVDS.vaSignature.query("varid")
       val varidGenQuery = genVDS.vaSignature.query("varid")
@@ -95,7 +93,6 @@ class LoadBgenSuite extends SparkSuite {
       val vdsFile = tmpDir.createTempFile("bgenImportWriteRead", "vds")
       bgenVDS.write(vdsFile)
       val bgenWriteVDS = hc.readGDS(vdsFile)
-        .toVKDS
       assert(bgenVDS
         .filterVariantsExpr("va.rsid != \"RSID_100\"")
         .same(bgenWriteVDS.filterVariantsExpr("va.rsid != \"RSID_100\"")
@@ -161,7 +158,6 @@ class LoadBgenSuite extends SparkSuite {
 
         hc.indexBgen(bgenFile)
         val importedVds = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), nPartitions = Some(nPartitions))
-          .toVKDS
 
         assert(importedVds.nSamples == vds.nSamples)
         assert(importedVds.countVariants() == vds.countVariants())

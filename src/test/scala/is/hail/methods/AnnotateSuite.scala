@@ -139,7 +139,7 @@ class AnnotateSuite extends SparkSuite {
       expr = "va.stuff = select(table, Rand1, Rand2, Gene)")
 
     val q1 = anno1.queryVA("va.stuff")._2
-    anno1.rdd
+    anno1.typedRDD[Locus, Variant, Genotype]
       .collect()
       .foreach {
         case (v, (va, gs)) =>
@@ -206,17 +206,17 @@ class AnnotateSuite extends SparkSuite {
 
     bed1r.variantsAndAnnotations
       .collect()
-      .foreach {
-        case (v, va) =>
-          assert(v.start <= 14000000 ||
+      .foreach { case (v1, va) =>
+        val v = v1.asInstanceOf[Variant]
+        assert(v.start <= 14000000 ||
             v.start >= 17000000 ||
             q1(va) == false)
       }
 
     bed2r.variantsAndAnnotations
       .collect()
-      .foreach {
-        case (v, va) =>
+      .foreach { case (v1, va) =>
+        val v = v1.asInstanceOf[Variant]
           if (v.start <= 14000000)
             assert(q2(va) == "gene1")
           else if (v.start >= 17000000)
@@ -227,8 +227,8 @@ class AnnotateSuite extends SparkSuite {
 
     bed3r.variantsAndAnnotations
       .collect()
-      .foreach {
-        case (v, va) =>
+      .foreach { case (v1, va) =>
+          val v = v1.asInstanceOf[Variant]
           if (v.start <= 14000000)
             assert(q3(va) == "gene1", v)
           else if (v.start >= 17000000)
@@ -486,7 +486,8 @@ class AnnotateSuite extends SparkSuite {
     val var1 = vds.annotateVariantsTable(vkt, root = "va")
     var1.variantsAndAnnotations
       .collect()
-      .foreach { case (v, va) =>
+      .foreach { case (v1, va) =>
+        val v = v1.asInstanceOf[Variant]
         if (v.start == 16054957)
           assert(va == false)
         else
@@ -497,7 +498,8 @@ class AnnotateSuite extends SparkSuite {
     val var2 = vds.annotateVariantsTable(vkt.union(vkt), root = "va", product = true)
     var2.variantsAndAnnotations
       .collect()
-      .foreach { case (v, va) =>
+      .foreach { case (v1, va) =>
+        val v = v1.asInstanceOf[Variant]
         if (v.start == 16054957)
           assert(va == 0)
         else
@@ -509,7 +511,8 @@ class AnnotateSuite extends SparkSuite {
     val var3 = vds.annotateVariantsTable(vkt2, root = "va")
     var3.variantsAndAnnotations
       .collect()
-      .foreach { case (v, va) =>
+      .foreach { case (v1, va) =>
+        val v = v1.asInstanceOf[Variant]
         if (v.start == 16054957)
           assert(va == null)
         else
@@ -520,7 +523,8 @@ class AnnotateSuite extends SparkSuite {
     val var4 = vds.annotateVariantsTable(vkt2.union(vkt2), root = "va", product = true)
     var4.variantsAndAnnotations
       .collect()
-      .foreach { case (v, va) =>
+      .foreach { case (v1, va) =>
+        val v = v1.asInstanceOf[Variant]
         if (v.start == 16054957)
           assert(va == IndexedSeq())
         else
@@ -532,7 +536,8 @@ class AnnotateSuite extends SparkSuite {
     val var5 = vds.annotateVariantsTable(vkt3, root = "va")
     var5.variantsAndAnnotations
       .collect()
-      .foreach { case (v, va) =>
+      .foreach { case (v1, va) =>
+        val v = v1.asInstanceOf[Variant]
         if (v.start == 16054957)
           assert(va == null)
         else
@@ -543,7 +548,8 @@ class AnnotateSuite extends SparkSuite {
     val var6 = vds.annotateVariantsTable(vkt3.union(vkt3), root = "va", product = true)
     var6.variantsAndAnnotations
       .collect()
-      .foreach { case (v, va) =>
+      .foreach { case (v1, va) =>
+        val v = v1.asInstanceOf[Variant]
         if (v.start == 16054957)
           assert(va == IndexedSeq())
         else

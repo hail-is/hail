@@ -57,7 +57,7 @@ case class SkatTuple(q: Double, a: Vector[Double], b: DenseVector[Double])
 object Skat {
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
   
-  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
+  def apply(vsm: VariantSampleMatrix,
     variantKeys: String,
     singleKey: Boolean,
     weightExpr: String,
@@ -199,7 +199,7 @@ object Skat {
     KeyTable(vsm.hc, skatRdd, skatSignature, Array("key"))
   }
 
-  def computeKeyGsWeightRdd[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
+  def computeKeyGsWeightRdd(vsm: VariantSampleMatrix,
     xExpr: String,
     completeSampleIndex: Array[Int],
     variantKeys: String,
