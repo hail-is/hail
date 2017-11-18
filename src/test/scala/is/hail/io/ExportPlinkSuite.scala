@@ -79,7 +79,7 @@ class ExportPlinkSuite extends SparkSuite {
       "famID = sa.famID, id = s, matID = sa.matID, patID = sa.patID, isFemale = sa.isFemale, isCase = sa.isCase")
 
     assert(hc.importPlinkBFile(plink)
-      .annotateGenotypesExpr("g = Genotype(g.GT)")
+      .hardCalls()
       .same(vds))
   }
 }

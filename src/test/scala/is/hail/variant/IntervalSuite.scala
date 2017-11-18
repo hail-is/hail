@@ -3,12 +3,10 @@ package is.hail.variant
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.{TArray, TSet, TString}
+import is.hail.expr.{TArray, TString}
 import is.hail.io.annotators.IntervalList
 import is.hail.utils._
 import org.testng.annotations.Test
-
-import scala.io.Source
 
 class IntervalSuite extends SparkSuite {
 
@@ -51,7 +49,7 @@ class IntervalSuite extends SparkSuite {
 
   @Test def testAll() {
     val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array.empty[String]),
-      sc.parallelize(Seq((Variant("1", 100, "A", "T"), (Annotation.empty, Iterable.empty[Genotype])))))
+      sc.parallelize(Seq((Variant("1", 100, "A", "T"), (Annotation.empty, Iterable.empty[Annotation])))))
 
     val intervalFile = tmpDir.createTempFile("intervals")
     hadoopConf.writeTextFile(intervalFile) { out =>

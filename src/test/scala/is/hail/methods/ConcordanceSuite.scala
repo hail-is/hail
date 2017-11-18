@@ -155,7 +155,7 @@ class ConcordanceSuite extends SparkSuite {
 
       val innerJoinSamples = innerJoin.map { case (k, v) => (k._2, v) }
         .aggregateByKey(new ConcordanceCombiner)({ case (comb, (g1, g2)) =>
-          comb.mergeBoth(Genotype.unboxedGT(g1.asInstanceOf[Genotype]), Genotype.unboxedGT(g2.asInstanceOf[Genotype]))
+          comb.mergeBoth(Genotype.unboxedGT(g1), Genotype.unboxedGT(g2))
           comb
         }, { case (comb1, comb2) => comb1.merge(comb2) })
         .map { case (s, comb) => (s, comb.toAnnotation.tail.map(_.tail)) }
@@ -163,7 +163,7 @@ class ConcordanceSuite extends SparkSuite {
 
       val innerJoinVariants = innerJoin.map { case (k, v) => (k._1, v) }
         .aggregateByKey(new ConcordanceCombiner)({ case (comb, (g1, g2)) =>
-          comb.mergeBoth(Genotype.unboxedGT(g1.asInstanceOf[Genotype]), Genotype.unboxedGT(g2.asInstanceOf[Genotype]))
+          comb.mergeBoth(Genotype.unboxedGT(g1), Genotype.unboxedGT(g2))
           comb
         }, { case (comb1, comb2) => comb1.merge(comb2) })
         .collectAsMap

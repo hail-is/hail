@@ -375,7 +375,7 @@ object LDPrune {
 
     val standardizedRDD: OrderedRDD[Locus, Variant, BitPackedVector] =
       vds.filterVariants { case (v, va, gs) => v.asInstanceOf[Variant].isBiallelic }
-        .typedRDD[Locus, Variant, Genotype]
+        .typedRDD[Locus, Variant]
         .flatMapValues { case (va, gs) => toBitPackedVector(gs.hardCallIterator, nSamples) }.asOrderedRDD
 
     val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
@@ -408,7 +408,7 @@ object LDPrune {
     info(s"LD prune step 3 of 3: nVariantsKept=$nVariantsFinal, time=${ formatTime(globalDuration) }")
 
     vds.copyLegacy(
-      rdd = vds.typedRDD[Locus, Variant, Annotation]
+      rdd = vds.typedRDD[Locus, Variant]
         .orderedInnerJoinDistinct(globalPrunedRDD)
         .mapValues { case ((va, gs), _) => (va, gs) })
   }

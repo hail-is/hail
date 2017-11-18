@@ -33,6 +33,14 @@ def float_eq(x, y, tol=10 ** -6):
     return abs(x - y) < tol
 
 class ContextTests(unittest.TestCase):
+    # FIXME remove when attributes get nuked
+    def assert_equal_struct(self, s1, s2):
+        # ignore attributes
+        self.assertEqual([f.name for f in s1.fields],
+                         [f.name for f in s2.fields])
+        self.assertEqual([f.typ for f in s1.fields],
+                         [f.typ for f in s2.fields])
+
     def test_context(self):
         test_resources = 'src/test/resources'
 
@@ -76,18 +84,15 @@ class ContextTests(unittest.TestCase):
         vcf_metadata = hc.get_vcf_metadata(test_resources + '/sample.vcf.bgz')
 
         gds = hc.import_vcf(test_resources + '/sample.vcf.bgz', generic=True)
-        # can't compare directly because attributes won't match
-        self.assertEqual([f.name for f in gds.genotype_schema.fields],
-                         ['GT', 'AD', 'DP', 'GQ', 'PL'])
-        self.assertEqual([f.typ for f in gds.genotype_schema.fields],
-                         [TCall(), TArray(TInt32(required=True)), TInt32(), TInt32(), TArray(TInt32(required=True))])
+        self.assert_equal_struct(gds.genotype_schema, Type.hts_schema())
+        gds = hc.import_vcf(test_resources + '/sample.vcf.bgz')
 
         gds.write('/tmp/sample_generic.vds', overwrite=True)
         gds_read = hc.read('/tmp/sample_generic.vds')
         self.assertTrue(gds.same(gds_read))
 
         gds.export_vcf('/tmp/sample_generic.vcf', metadata=vcf_metadata)
-        gds_imported = hc.import_vcf('/tmp/sample_generic.vcf', generic=True)
+        gds_imported = hc.import_vcf('/tmp/sample_generic.vcf')
         self.assertTrue(gds.same(gds_imported))
 
         metadata_imported = hc.get_vcf_metadata('/tmp/sample_generic.vcf')
@@ -101,15 +106,9 @@ class ContextTests(unittest.TestCase):
 
         vds = hc.import_vcf(test_resources + '/sample.vcf')
         vds2 = hc.import_vcf(test_resources + '/sample2.vcf')
-        gds = hc.import_vcf(test_resources + '/sample.vcf', generic=True)
-        gds2 = hc.import_vcf(test_resources + '/sample2.vcf', generic=True)
 
-        for (dataset, dataset2) in [(vds, vds2), (gds, gds2)]:
-
-            if dataset.genotype_schema == TGenotype():
-                gt = 'g'
-            else:
-                gt = 'g.GT'
+        for (dataset, dataset2) in [(vds, vds2)]:
+            gt = 'g.GT'
 
             dataset = dataset.cache()
             dataset2 = dataset2.persist()
@@ -123,7 +122,7 @@ class ContextTests(unittest.TestCase):
             dataset.query_variants(['variants.count()'])
             dataset.query_samples(['samples.count()'])
 
-            (dataset.annotate_samples_expr('sa.nCalled = gs.filter(g => {0}.isCalled()).count()'.format(gt))
+            (dataset.annotate_samples_expr('sa.nCalled = gs.filter(g => isDefined({0})).count()'.format(gt))
              .samples_table().select(['s', 'nCalled = sa.nCalled']).export('/tmp/sa.tsv'))
 
             dataset.annotate_global_expr('global.foo = 5')
@@ -133,7 +132,7 @@ class ContextTests(unittest.TestCase):
                                                      .key_by('Sample'),
                                                      expr='sa.isCase = table.Status == "CASE", sa.qPhen = table.qPhen')
 
-            (dataset.annotate_variants_expr('va.nCalled = gs.filter(g => {0}.isCalled()).count()'.format(gt))
+            (dataset.annotate_variants_expr('va.nCalled = gs.filter(g => isDefined({0})).count()'.format(gt))
              .count())
 
             loci_tb = (hc.import_table(test_resources + '/sample2_loci.tsv')
@@ -220,12 +219,8 @@ class ContextTests(unittest.TestCase):
                              .annotate('s = s, sa = json(sa)'))
                             .same(hc.import_table('/tmp/samples.tsv', impute=True).key_by('s')))
 
-            if dataset.genotype_schema == TGenotype():
-                gt_string = 'gt = g.gt, gq = g.gq'
-                gt_string2 = 'gt: g.gt, gq: g.gq'
-            else:
-                gt_string = 'gt = g.GT, gq = g.GQ'
-                gt_string2 = 'gt: g.GT, gq: g.GQ'
+            gt_string = 'gt = g.GT, gq = g.GQ'
+            gt_string2 = 'gt: g.GT, gq: g.GQ'
 
             cols = ['v = v', 'info = va.info']
             for s in dataset.sample_ids:
@@ -272,10 +267,7 @@ class ContextTests(unittest.TestCase):
                            .filter('pcoin(0.1)')
                            .collect())
 
-            if dataset.genotype_schema == TGenotype():
-                expr = 'g.isHet() && g.gq > 20'
-            else:
-                expr = 'g.GT.isHet() && g.GQ > 20'
+            expr = 'g.GT.isHet() && g.GQ > 20'
 
             (dataset.filter_genotypes(expr)
              .genotypes_table()
@@ -311,8 +303,8 @@ class ContextTests(unittest.TestCase):
 
         sample2_split = sample2.split_multi()
 
-        sample.annotate_alleles_expr('va.gs = gs.callStats(g => v)').count()
-        sample.annotate_alleles_expr(['va.gs = gs.callStats(g => v)', 'va.foo = 5']).count()
+        sample.annotate_alleles_expr('va.gs = gs.map(g => g.GT).callStats(g => v)').count()
+        sample.annotate_alleles_expr(['va.gs = gs.map(g => g.GT).callStats(g => v)', 'va.foo = 5']).count()
 
         glob, concordance1, concordance2 = (sample2_split.concordance(sample2_split))
         print(glob[1][4])
@@ -334,7 +326,7 @@ class ContextTests(unittest.TestCase):
 
         sample2.split_multi().impute_sex().variant_schema
 
-        self.assertTrue(isinstance(sample2.genotype_schema, TGenotype))
+        self.assert_equal_struct(sample2.genotype_schema, Type.hts_schema())
 
         m2 = {r.f0: r.f1 for r in hc.import_table(test_resources + '/sample2_rename.tsv', no_header=True,
                                                   impute=True)
@@ -356,15 +348,15 @@ class ContextTests(unittest.TestCase):
                       .annotate_samples_table(phen1, root='sa.pheno.Pheno')
                       .annotate_samples_table(phen2, root='sa.pheno.isCase'))
 
-        (regression.linreg(['sa.pheno.Pheno'], 'g.nNonRefAlleles()', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
+        (regression.linreg(['sa.pheno.Pheno'], 'g.GT.nNonRefAlleles()', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
-        (regression.logreg('wald', 'sa.pheno.isCase', 'g.nNonRefAlleles()', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
+        (regression.logreg('wald', 'sa.pheno.isCase', 'g.GT.nNonRefAlleles()', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
         vds_assoc = (regression
                      .annotate_samples_expr(
-            'sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.gt).collect()[0]')
+                         'sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.GT.gt).collect()[0]')
                      .annotate_samples_expr('sa.pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit'))
 
         covariatesSkat = hc.import_table(test_resources + "/skat.cov", impute=True).key_by("Sample")
@@ -389,7 +381,7 @@ class ContextTests(unittest.TestCase):
         (skatVds.skat(variant_keys='va.genes',
                       single_key=False,
                       y='sa.pheno',
-                      x='g.nNonRefAlleles()',
+                      x='g.GT.nNonRefAlleles()',
                       covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
                       weight_expr='va.weight',
                       logistic=False).count())
@@ -397,7 +389,7 @@ class ContextTests(unittest.TestCase):
         (skatVds.skat(variant_keys='va.genes',
                       single_key=False,
                       y='sa.pheno',
-                      x='plDosage(g.pl)',
+                      x='plDosage(g.PL)',
                       covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
                       weight_expr='va.weight',
                       logistic=True).count())
@@ -413,7 +405,7 @@ class ContextTests(unittest.TestCase):
         ldMatrix.write(ld_matrix_path)
         LDMatrix.read(ld_matrix_path).to_local_matrix()
 
-        vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', 'g.nNonRefAlleles()', ['sa.cov.Cov1', 'sa.cov.Cov2'])
+        vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', 'g.GT.nNonRefAlleles()', ['sa.cov.Cov1', 'sa.cov.Cov2'])
 
         vds_assoc.variants_table().select(['Variant = v', 'va.lmmreg.*']).export('/tmp/lmmreg.tsv')
 
@@ -446,16 +438,16 @@ class ContextTests(unittest.TestCase):
             cols.append('{s}.gq = va.G["{s}"].gq'.format(s=s))
 
         (sample2
-         .annotate_variants_expr('va.G = index(gs.map(g => { s: s, gt: g.gt, gq: g.gq }).collect(), s)')
+         .annotate_variants_expr('va.G = index(gs.map(g => { s: s, gt: g.GT, gq: g.GQ }).collect(), s)')
          .variants_table().select(cols).export('/tmp/sample_kt.tsv'))
 
         ((sample2
-          .make_table('v = v, info = va.info', 'gt = g.gt, gq = g.gq', ['v']))
+          .make_table('v = v, info = va.info', 'gt = g.GT, gq = g.GQ', ['v']))
          .same(hc.import_table('/tmp/sample_kt.tsv').key_by('v')))
 
-        sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet()).count()")
+        sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.GT.isHet()).count()")
 
-        sample2.make_table('v = v, info = va.info', 'gt = g.gt', ['v'])
+        sample2.make_table('v = v, info = va.info', 'gt = g.GT', ['v'])
 
         sample.num_partitions()
         sample.file_version()
@@ -467,8 +459,6 @@ class ContextTests(unittest.TestCase):
 
         sample2.filter_alleles('pcoin(0.5)')
 
-        gds.annotate_genotypes_expr('g = g.GT.toGenotype()').split_multi()
-
         sample_split.ld_prune(8).variants_table().select('v').export("/tmp/testLDPrune.tsv")
         kt = (sample2.variants_table()
               .annotate("v2 = v")
@@ -478,7 +468,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
 
         variants_py = (sample
-                       .annotate_variants_expr('va.hets = gs.filter(g => g.isHet).collect()')
+                       .annotate_variants_expr('va.hets = gs.filter(g => g.GT.isHet).collect()')
                        .variants_table()
                        .take(5))
 
@@ -685,62 +675,6 @@ class ContextTests(unittest.TestCase):
         self.assertFalse(interval.overlaps(interval3))
         self.assertFalse(interval.overlaps(interval5))
 
-        g = Genotype(1, [12, 10], 25, 40, [40, 0, 99])
-        g2 = Genotype(4)
-
-        self.assertEqual(g.gt, 1)
-        self.assertEqual(g.ad, [12, 10])
-        self.assertEqual(g.dp, 25)
-        self.assertEqual(g.gq, 40)
-        self.assertEqual(g.pl, [40, 0, 99])
-        self.assertEqual(g2.gt, 4)
-        self.assertEqual(g2.ad, None)
-        self.assertEqual(g2.dp, None)
-        self.assertEqual(g2.gq, None)
-        self.assertEqual(g2.pl, None)
-
-        self.assertEqual(g.od(), 3)
-        self.assertFalse(g.is_hom_ref())
-        self.assertFalse(g2.is_hom_ref())
-        self.assertTrue(g.is_het())
-        self.assertTrue(g2.is_het())
-        self.assertTrue(g.is_het_ref())
-        self.assertTrue(g2.is_het_non_ref())
-        self.assertTrue(g.is_called_non_ref())
-        self.assertTrue(g2.is_called_non_ref())
-        self.assertFalse(g.is_hom_var())
-        self.assertFalse(g2.is_hom_var())
-        self.assertFalse(g.is_not_called())
-        self.assertFalse(g2.is_not_called())
-        self.assertTrue(g.is_called())
-        self.assertTrue(g2.is_called())
-        self.assertEqual(g.num_alt_alleles(), 1)
-        self.assertEqual(g2.num_alt_alleles(), 2)
-
-        hom_ref = Genotype(0)
-        het = Genotype(1)
-        hom_var = Genotype(2)
-
-        num_alleles = 2
-        hom_ref.one_hot_alleles(num_alleles) == [2, 0]
-        het.one_hot_alleles(num_alleles) == [1, 1]
-        hom_var.one_hot_alleles(num_alleles) == [0, 2]
-
-        num_genotypes = 3
-        hom_ref.one_hot_genotype(num_genotypes) == [1, 0, 0]
-        het.one_hot_genotype(num_genotypes) == [0, 1, 0]
-        hom_var.one_hot_genotype(num_genotypes) == [0, 0, 1]
-
-        self.assertTrue(0 < g.p_ab() < 1)
-        self.assertEqual(g2.p_ab(), None)
-
-        missing_gt = Genotype(gt=None)
-        self.assertEqual(missing_gt.gt, None)
-        self.assertEqual(missing_gt.one_hot_alleles(2), None)
-        self.assertEqual(missing_gt.one_hot_genotype(4), None)
-
-        self.assertEqual(g.fraction_reads_ref(), 12.0 / (10 + 12))
-
         c_hom_ref = Call(0)
 
         self.assertEqual(c_hom_ref.gt, 0)
@@ -804,7 +738,6 @@ class ContextTests(unittest.TestCase):
             TDict(TString(), TInt32()),
             TVariant(),
             TLocus(),
-            TGenotype(),
             TCall(),
             TAltAllele(),
             TInterval(),
@@ -825,7 +758,6 @@ class ContextTests(unittest.TestCase):
             TDict(TString(), TInt32()),
             TVariant(),
             TLocus(),
-            TGenotype(),
             TCall(),
             TAltAllele(),
             TInterval(),
@@ -965,12 +897,6 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(vds.annotate_global(path, interval1, intervaltype).globals.annotation, interval1)
         self.assertEqual(vds.annotate_global(path, interval2, intervaltype).globals.annotation, interval2)
 
-        genotype1 = Genotype(1)
-        genotype2 = None
-        genotypetype = TGenotype()
-        self.assertEqual(vds.annotate_global(path, genotype1, genotypetype).globals.annotation, genotype1)
-        self.assertEqual(vds.annotate_global(path, genotype2, genotypetype).globals.annotation, genotype2)
-
     def test_concordance(self):
         bn1 = hc.balding_nichols_model(3, 1, 50, 1, seed=10)
         bn2 = hc.balding_nichols_model(3, 1, 50, 1, seed=50)
@@ -1046,7 +972,6 @@ class ContextTests(unittest.TestCase):
         tv = TVariant()
         tl = TLocus()
         ti = TInterval()
-        tg = TGenotype()
         tc = TCall()
         taa = TAltAllele()
 
@@ -1062,7 +987,7 @@ class ContextTests(unittest.TestCase):
         tset = TSet(TVariant())
         tstruct = TStruct(['a', 'b'], [TBoolean(), TArray(TString())])
 
-        for typ in [tv, tl, ti, tg, tc, taa,
+        for typ in [tv, tl, ti, tc, taa,
                     ti32, ti64, tf32, tf64, ts, tb,
                     tdict, tarray, tset, tstruct]:
             self.assertEqual(eval(repr(typ)), typ)
@@ -1139,7 +1064,7 @@ class ContextTests(unittest.TestCase):
                   .key_by('s')
                   .join(dads, how='left')
                   .join(moms, how='left')
-                  .annotate('isDad = isDefined(isDad), isMom = isDefined(isMom), g = orElse(g, Genotype(Call(-1)))')
+                  .annotate('isDad = isDefined(isDad), isMom = isDefined(isMom)')
                   .aggregate_by_key('v = v, fam = sa.fam.famID',
                                     'data = g.map(g => {role: if (isDad) 1 else if (isMom) 2 else 0, g: g}).collect()')
                   .filter('data.length() == 3')

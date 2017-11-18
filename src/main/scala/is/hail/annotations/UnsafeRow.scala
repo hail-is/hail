@@ -7,7 +7,7 @@ import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr._
 import is.hail.io._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, GRBase, GenericGenotype, Locus, Variant}
+import is.hail.variant.{AltAllele, GRBase, Locus, Variant}
 import org.apache.spark.sql.Row
 
 object UnsafeIndexedSeq {
@@ -215,35 +215,6 @@ object UnsafeRow {
         Interval[Locus](
           readLocus(region, ft.loadField(region, offset, 0), x.gr),
           readLocus(region, ft.loadField(region, offset, 1), x.gr))
-      case x: TGenotype =>
-        val ft = x.fundamentalType.asInstanceOf[TStruct]
-        val gt: Int =
-          if (ft.isFieldDefined(region, offset, 0))
-            region.loadInt(ft.loadField(region, offset, 0))
-          else
-            -1
-        val ad =
-          if (ft.isFieldDefined(region, offset, 1))
-            readArrayInt(region, ft.loadField(region, offset, 1))
-          else
-            null
-        val dp: Int =
-          if (ft.isFieldDefined(region, offset, 2))
-            region.loadInt(ft.loadField(region, offset, 2))
-          else
-            -1
-        val gq: Int =
-          if (ft.isFieldDefined(region, offset, 3))
-            region.loadInt(ft.loadField(region, offset, 3))
-          else
-            -1
-        val px =
-          if (ft.isFieldDefined(region, offset, 4))
-            readArrayInt(region, ft.loadField(region, offset, 4))
-          else
-            null
-
-        new GenericGenotype(gt, ad, dp, gq, px)
     }
   }
 }

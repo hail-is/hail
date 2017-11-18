@@ -90,7 +90,7 @@ hc = HailContext(log="output/hail.log", quiet=True)
  .split_multi()
  .write("data/example2.vds", overwrite=True))
 
-(hc.import_vcf("data/sample.vcf.bgz", generic=True)
+(hc.import_vcf("data/sample.vcf.bgz")
  .write("data/example2.multi.generic.vds", overwrite=True))
 
 (hc.import_vcf('data/sample.vcf.bgz')

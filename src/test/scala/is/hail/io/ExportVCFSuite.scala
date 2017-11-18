@@ -147,8 +147,8 @@ class ExportVCFSuite extends SparkSuite {
     // cast Long to Int
     val out = tmpDir.createTempFile("out", "vcf")
     vds
-      .annotateVariantsExpr("va.info.AC_pass = gs.filter(g => g.gq >= 20 && g.dp >= 10 && " +
-        "(!g.isHet() || ( (g.ad[1]/g.ad.sum()) >= 0.2 ) )).count()")
+      .annotateVariantsExpr("va.info.AC_pass = gs.filter(g => g.GQ >= 20 && g.DP >= 10 && " +
+        "(!g.GT.isHet() || ( (g.AD[1]/g.AD.sum()) >= 0.2 ) )).count()")
       .exportVCF(out)
 
     hadoopConf.readFile(out) { in =>

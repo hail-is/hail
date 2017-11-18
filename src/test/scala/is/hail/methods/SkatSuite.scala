@@ -111,7 +111,7 @@ class SkatSuite extends SparkSuite {
     val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
     val (keyGsWeightRdd, keyType) =
-      Skat.computeKeyGsWeightRdd(vds, if (useDosages) "plDosage(g.pl)" else "g.nNonRefAlleles()", completeSampleIndex, variantKeys, singleKey, weightExpr)
+      Skat.computeKeyGsWeightRdd(vds, if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()", completeSampleIndex, variantKeys, singleKey, weightExpr)
 
     runInR(keyGsWeightRdd, keyType, y, cov)
   }
@@ -164,7 +164,7 @@ class SkatSuite extends SparkSuite {
       .annotateSamples(TFloat64(), List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
       .annotateSamples(TBoolean(), List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
       .annotateVariantsExpr("va.genes = [v.start % 2, v.start % 3].toSet") // three overlapping genes
-      .annotateVariantsExpr("va.AF = gs.callStats(g => v).AF")
+      .annotateVariantsExpr("va.AF = gs.map(g => g.GT).callStats(GT => v).AF")
       .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
         "dbeta(af, 1.0, 25.0)**2")
   }
@@ -177,7 +177,7 @@ class SkatSuite extends SparkSuite {
     val (vds, singleKey) = if (useBN) (vdsBN, false) else (vdsSkat, true)
     
     val hailKT = vds.skat("va.genes", singleKey = singleKey, "va.weight", "sa.pheno",
-      if (useDosages) "plDosage(g.pl)" else "g.nNonRefAlleles()",
+      if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
       Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic)
 
     hailKT.typeCheck()
@@ -224,7 +224,7 @@ class SkatSuite extends SparkSuite {
   @Test def maxSizeTest() {
     val maxSize = 27
     
-    val kt = vdsSkat.skat("va.genes", singleKey = true, y = "sa.pheno", x = "g.nNonRefAlleles()", weightExpr = "1", maxSize = maxSize)
+    val kt = vdsSkat.skat("va.genes", singleKey = true, y = "sa.pheno", x = "g.GT.nNonRefAlleles()", weightExpr = "1", maxSize = maxSize)
       
     val ktMap = kt.rdd.collect().map{ case Row(key, size, qstat, pval, fault) => 
         key.asInstanceOf[String] -> (size.asInstanceOf[Int], qstat == null, pval == null, fault == null) }.toMap
@@ -275,7 +275,7 @@ class SkatSuite extends SparkSuite {
     val vds = vdsFromGtMatrix(hc)(G)
       .annotateVariantsExpr("va.intkey = v.start % 2, va.weight = v.start") // 1 = {v1, v3}, 0 = {v2}
     
-    val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, "g.nNonRefAlleles()", completeSampleIndex = Array(1, 3),
+    val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, "g.GT.nNonRefAlleles()", completeSampleIndex = Array(1, 3),
       variantKeys = "va.intkey", singleKey = true, weightExpr = "va.weight")
         
     val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => 

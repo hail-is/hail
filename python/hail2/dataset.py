@@ -194,7 +194,7 @@ class VariantDataset(DatasetTemplate):
 
     Update genotypes:
 
-    >>> vds_updated = vds.update_genotypes(lambda g: Struct({'dp': g.dp, 'gq': g.gq}))
+    >>> vds_updated = vds.update_genotypes(lambda g: Struct({'dp': g.DP, 'gq': g.GQ}))
 
     Query:
 

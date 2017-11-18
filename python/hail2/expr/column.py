@@ -90,8 +90,6 @@ def get_typ(x):
         return TInterval()
     elif isinstance(x, AltAllele):
         return TAltAllele()
-    elif isinstance(x, Genotype):
-        return TGenotype()
     elif isinstance(x, Call):
         return TCall()
     elif isinstance(x, Struct):
@@ -600,7 +598,7 @@ class AggregableColumn(CollectionColumn):
         return self._bin_lambda_method("takeBy", f, self._elt_type, lambda t: TArray(self._elt_type), n)
 
 
-class AggregableGenotypeColumn(AggregableColumn):
+class AggregableCallColumn(AggregableColumn):
     def call_stats(self, f):
         ret_typ = TStruct(['AC', 'AF', 'AN', 'GC'], [TArray(TInt32()), TArray(TFloat64()), TInt32(), TArray(TInt32())])
         return self._bin_lambda_method("callStats", f, self._elt_type, lambda t: ret_typ)
@@ -936,95 +934,6 @@ class CallColumn(Column):
     def one_hot_genotype(self, v):
         return self._method("oneHotGenotype", TArray(TInt32()), v)
 
-    def to_genotype(self):
-        return self._method("toGenotype", TGenotype())
-
-
-class GenotypeColumn(Column):
-
-    @staticmethod
-    @args_to_expr
-    def from_call(call):
-        expr = "Genotype({})".format(call)
-        return GenotypeColumn(expr, TGenotype())
-
-    @staticmethod
-    @args_to_expr
-    def pl_genotype(v, call, ad, dp, gq, pl):
-        expr = "Genotype({}, {}, {}, {}, {}, {})".format(v, call, ad, dp, gq, pl)
-        return GenotypeColumn(expr, TGenotype())
-
-    @property
-    def ad(self):
-        return self._field("ad", TArray(TInt32()))
-
-    def call(self):
-        return self._method("call", TCall())
-
-    @property
-    def dp(self):
-        return self._field("dp", TInt32())
-
-    def fraction_reads_ref(self):
-        return self._method("fractionReadsRef", TFloat64())
-
-    @property
-    def gq(self):
-        return self._field("gq", TInt32())
-
-    @property
-    def gt(self):
-        return self._field("gt", TInt32())
-
-    def gtj(self):
-        return self._method("gtj", TInt32())
-
-    def gtk(self):
-        return self._method("gtk", TInt32())
-
-    def is_called(self):
-        return self._method("isCalled", TBoolean())
-
-    def is_called_nonref(self):
-        return self._method("isCalledNonRef", TBoolean())
-
-    def is_het(self):
-        return self._method("isHet", TBoolean())
-
-    def is_het_nonref(self):
-        return self._method("isHetNonRef", TBoolean())
-
-    def is_het_ref(self):
-        return self._method("isHetRef", TBoolean())
-
-    def is_hom_ref(self):
-        return self._method("isHomRef", TBoolean())
-
-    def is_hom_var(self):
-        return self._method("isHomVar", TBoolean())
-
-    def is_not_called(self):
-        return self._method("isNotCalled", TBoolean())
-
-    def num_nonref_alleles(self):
-        return self._method("nNonRefAlleles", TInt32())
-
-    def od(self):
-        return self._method("od", TInt32())
-
-    def one_hot_alleles(self, v):
-        return self._method("oneHotAlleles", TArray(TInt32()), v)
-
-    def one_hot_genotype(self, v):
-        return self._method("oneHotGenotype", TArray(TInt32()), v)
-
-    def p_ab(self):
-        return self._method("pAB", TFloat64())
-
-    @property
-    def pl(self):
-        return self._field("pl", TArray(TInt32()))
-
 
 class GenomeReferenceDependentColumn(Column):
     def __init__(self, expr, typ, parent=None, scope=None):
@@ -1213,7 +1122,6 @@ typ_to_column = {
     TLocus: LocusColumn,
     TInterval: IntervalColumn,
     TVariant: VariantColumn,
-    TGenotype: GenotypeColumn,
     TCall: CallColumn,
     TAltAllele: AltAlleleColumn,
     TString: StringColumn,
@@ -1249,7 +1157,7 @@ elt_typ_to_agg_column = {
     TInt64: AggregableInt64Column,
     TFloat64: AggregableFloat64Column,
     TFloat32: AggregableFloat32Column,
-    TGenotype: AggregableGenotypeColumn,
+    TCall: AggregableCallColumn,
     TArray: {
         TFloat64: AggregableArrayFloat64Column,
         TFloat32: AggregableArrayFloat32Column,

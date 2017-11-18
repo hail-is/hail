@@ -7,7 +7,7 @@ import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Locus, Variant}
 import org.apache.spark.sql.Row
 
 object MemoryBuffer {
@@ -962,56 +962,6 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
         case _: TCall =>
           addInt(a.asInstanceOf[Int])
-
-        case _: TGenotype =>
-          val g = a.asInstanceOf[Genotype]
-          startStruct()
-
-          val unboxedGT = g._unboxedGT
-          if (unboxedGT >= 0)
-            addInt(unboxedGT)
-          else
-            setMissing()
-
-          val unboxedAD = g._unboxedAD
-          if (unboxedAD == null)
-            setMissing()
-          else {
-            startArray(unboxedAD.length)
-            var i = 0
-            while (i < unboxedAD.length) {
-              addInt(unboxedAD(i))
-              i += 1
-            }
-            endArray()
-          }
-
-          val unboxedDP = g._unboxedDP
-          if (unboxedDP >= 0)
-            addInt(unboxedDP)
-          else
-            setMissing()
-
-          val unboxedGQ = g._unboxedGQ
-          if (unboxedGQ >= 0)
-            addInt(unboxedGQ)
-          else
-            setMissing()
-
-          val unboxedPX = g._unboxedPX
-          if (unboxedPX == null)
-            setMissing()
-          else {
-            startArray(unboxedPX.length)
-            var i = 0
-            while (i < unboxedPX.length) {
-              addInt(unboxedPX(i))
-              i += 1
-            }
-            endArray()
-          }
-
-          endStruct()
 
         case t: TLocus =>
           val l = a.asInstanceOf[Locus]

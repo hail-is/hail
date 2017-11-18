@@ -83,7 +83,7 @@ object MendelErrors {
 
     new MendelErrors(vds.hc, vds.vSignature, trios, vds.stringSampleIds,
       trioMatrix.rdd2.mapPartitions { it =>
-        val view = new HardcallTrioGenotypeView(rowType, "gt")
+        val view = new HardcallTrioGenotypeView(rowType, "GT")
         it.flatMap { rv =>
           view.setRegion(rv)
           val v = Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))

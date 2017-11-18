@@ -82,11 +82,11 @@ class ExprSuite extends SparkSuite {
       "m" -> (7, TInt32()),
       "as" -> (8, TArray(TStruct(("a", TInt32()),
         ("b", TString())))),
-      "gs" -> (9, TStruct(("noCall", TGenotype()),
-        ("homRef", TGenotype()),
-        ("het", TGenotype()),
-        ("homVar", TGenotype()),
-        ("hetNonRef35", TGenotype()))),
+      "gs" -> (9, TStruct(("noCall", TCall()),
+        ("homRef", TCall()),
+        ("het", TCall()),
+        ("homVar", TCall()),
+        ("hetNonRef35", TCall()))),
       "t" -> (10, TBoolean()),
       "f" -> (11, TBoolean()),
       "mb" -> (12, TBoolean()),
@@ -120,12 +120,7 @@ class ExprSuite extends SparkSuite {
     a(6) = IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
     a(7) = null // m
     a(8) = Array[Any](Annotation(23, "foo"), null): IndexedSeq[Any]
-    a(9) = Annotation(
-      Genotype(),
-      Genotype(gt = Some(0)),
-      Genotype(gt = Some(1)),
-      Genotype(gt = Some(2)),
-      Genotype(gt = Some(Genotype.gtIndex(3, 5))))
+    a(9) = Annotation(null, 0, 1, 2, Genotype.gtIndex(3, 5))
     a(10) = true
     a(11) = false
     a(12) = null // mb
@@ -813,55 +808,41 @@ class ExprSuite extends SparkSuite {
     // assert(eval[Long](Long.MinValue.toString+"L").contains(Long.MinValue))
     // assert(eval[Long](Long.MinValue.toString+"l").contains(Long.MinValue))
 
-    assert(eval[Genotype]("let c = calls.noCall in c.toGenotype()").contains(Genotype(-1)))
-    assert(eval[Genotype]("let c = calls.homRef in c.toGenotype()").contains(Genotype(0)))
-    assert(eval[Genotype]("let c = calls.het in c.toGenotype()").contains(Genotype(1)))
-    assert(eval[Genotype]("let c = calls.homVar in c.toGenotype()").contains(Genotype(2)))
-
-    assert(eval[Boolean]("calls.noCall.isNotCalled()").contains(true))
+    assert(eval[Boolean]("isMissing(calls.noCall)").contains(true))
     assert(eval[Boolean]("calls.noCall.isHomRef()").contains(false))
     assert(eval[Boolean]("calls.noCall.isHet()").contains(false))
     assert(eval[Boolean]("calls.noCall.isHomVar()").contains(false))
-    assert(eval[Boolean]("calls.noCall.isCalledNonRef()").contains(false))
+    assert(eval[Boolean]("calls.noCall.isNonRef()").contains(false))
     assert(eval[Boolean]("calls.noCall.isHetNonRef()").contains(false))
     assert(eval[Boolean]("calls.noCall.isHetRef()").contains(false))
     assert(eval[Boolean]("isMissing(calls.noCall.nNonRefAlleles())").contains(true))
     assert(eval[Boolean]("isMissing(calls.noCall.gtj())").contains(true))
     assert(eval[Boolean]("isMissing(calls.noCall.gt())").contains(true))
     assert(eval[Boolean]("""let c = calls.noCall and v = Variant("1", 1, "A", "T") in isMissing(c.oneHotAlleles(v))""").contains(true))
-    assert(eval[Boolean]("""let c = calls.noCall and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in isMissing(g.oneHotAlleles(v))""").contains(true))
     assert(eval[Boolean]("""let c = calls.noCall and v = Variant("1", 1, "A", "T") in isMissing(c.oneHotGenotype(v))""").contains(true))
-    assert(eval[Boolean]("""let c = calls.noCall and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in isMissing(g.oneHotGenotype(v))""").contains(true))
 
-    assert(eval[Boolean]("calls.homRef.isCalled()").contains(true))
+    assert(eval[Boolean]("isDefined(calls.homRef)").contains(true))
     assert(eval[Boolean]("calls.homRef.isHomRef()").contains(true))
     assert(eval[Boolean]("calls.homRef.isHet()").contains(false))
     assert(eval[Boolean]("calls.homRef.isHomVar()").contains(false))
     assert(eval[Boolean]("calls.homRef.nNonRefAlleles() == 0").contains(true))
     assert(eval[IndexedSeq[Int]]("""let c = calls.homRef and v = Variant("1", 1, "A", "T") in c.oneHotAlleles(v)""").contains(IndexedSeq(2, 0)))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.homRef and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in g.oneHotAlleles(v)""").contains(IndexedSeq(2, 0)))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.homRef and v = Variant("1", 1, "A", "T") in c.oneHotGenotype(v)""").contains(IndexedSeq(1, 0, 0)))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.homRef and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in g.oneHotGenotype(v)""").contains(IndexedSeq(1, 0, 0)))
 
-    assert(eval[Boolean]("calls.het.isCalled()").contains(true))
+    assert(eval[Boolean]("isDefined(calls.het)").contains(true))
     assert(eval[Boolean]("calls.het.isHomRef()").contains(false))
     assert(eval[Boolean]("calls.het.isHet()").contains(true))
     assert(eval[Boolean]("calls.het.isHomVar()").contains(false))
     assert(eval[Boolean]("calls.het.nNonRefAlleles() == 1").contains(true))
     assert(eval[IndexedSeq[Int]]("""let c = calls.het and v = Variant("1", 1, "A", "T") in c.oneHotAlleles(v)""").contains(IndexedSeq(1, 1)))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.het and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in g.oneHotAlleles(v)""").contains(IndexedSeq(1, 1)))
     assert(eval[IndexedSeq[Int]]("""let c = calls.het and v = Variant("1", 1, "A", "T") in c.oneHotGenotype(v)""").contains(IndexedSeq(0, 1, 0)))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.het and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in g.oneHotGenotype(v)""").contains(IndexedSeq(0, 1, 0)))
 
-    assert(eval[Boolean]("calls.homVar.isCalled()").contains(true))
+    assert(eval[Boolean]("isDefined(calls.homVar)").contains(true))
     assert(eval[Boolean]("calls.homVar.isHomRef()").contains(false))
     assert(eval[Boolean]("calls.homVar.isHet()").contains(false))
     assert(eval[Boolean]("calls.homVar.isHomVar()").contains(true))
     assert(eval[Boolean]("calls.homVar.nNonRefAlleles() == 2").contains(true))
     assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and v = Variant("1", 1, "A", "T") in c.oneHotAlleles(v)""").contains(IndexedSeq(0, 2)))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in g.oneHotAlleles(v)""").contains(IndexedSeq(0, 2)))
     assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and v = Variant("1", 1, "A", "T") in c.oneHotGenotype(v)""").contains(IndexedSeq(0, 0, 1)))
-    assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in g.oneHotGenotype(v)""").contains(IndexedSeq(0, 0, 1)))
 
     {
       val x = eval[Map[String, IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
@@ -955,8 +936,8 @@ class ExprSuite extends SparkSuite {
     assert(eval("1 == 1.0").contains(true))
     assert(eval("[1,2] == [1.0, 2.0]").contains(true))
     assert(eval("[1,2] != [1.1, 2.0]").contains(true))
-    assert(eval("{a: 1, b: NA: Genotype} != {a: 2, b: NA: Genotype}").contains(true))
-    assert(eval("{a: 1, b: NA: Genotype} == {a: 1, b: NA: Genotype}").contains(true))
+    assert(eval("{a: 1, b: NA: Call} != {a: 2, b: NA: Call}").contains(true))
+    assert(eval("{a: 1, b: NA: Call} == {a: 1, b: NA: Call}").contains(true))
 
     TestUtils.interceptFatal("Cannot compare arguments") {
       eval("1 == str(1)")

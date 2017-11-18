@@ -47,7 +47,7 @@ class FilterAllelesSuite extends SparkSuite {
     val genotype12 = Genotype(Option(2), Option(Array(25, 35, 0)), Option(100), Option(5), Option(Array(10, 10, 0, 7, 5, 10)))
     val genotype13 = Genotype(Option(3), Option(Array(25, 10, 10)), Option(100), Option(5), Option(Array(10, 10, 10, 0, 5, 7)))
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
-    val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
+    val row1: (Variant, (Annotation, Iterable[Annotation])) = (variant1, (va1, genotypes1))
 
     val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
@@ -59,9 +59,9 @@ class FilterAllelesSuite extends SparkSuite {
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
     val newVa1 = va1: Annotation
-    val newGenotype11 = genotype11.copy(ad = Option(Array(55, 5)), gq = Option(7), px = Option(Array(7, 0, 10)))
-    val newGenotype12 = genotype12.copy(ad = Option(Array(25, 35)), px = Option(Array(7, 5, 0)))
-    val newGenotype13 = genotype13.copy(gt = Option(0), ad = Option(Array(35, 10)), px = Option(Array(0, 5, 10)))
+    val newGenotype11 = Genotype(Option(1), Option(Array(55, 5)), Option(100), Option(7), Option(Array(7, 0, 10)))
+    val newGenotype12 = Genotype(Option(2), Option(Array(25, 35)), Option(100), Option(5), Option(Array(7, 5, 0)))
+    val newGenotype13 = Genotype(Option(0), Option(Array(35, 10)), Option(100), Option(5), Option(Array(0, 5, 10)))
     val newGenotypes1 = Seq(newGenotype11, newGenotype12, newGenotype13)
     val newRow1 = (newVariant1, (newVa1, newGenotypes1))
 
@@ -75,7 +75,7 @@ class FilterAllelesSuite extends SparkSuite {
     val genotype12 = Genotype(Option(2), Option(Array(25, 35, 0)), Option(100), Option(5), Option(Array(10, 10, 0, 7, 5, 10)))
     val genotype13 = Genotype(Option(3), Option(Array(25, 10, 10)), Option(100), Option(5), Option(Array(10, 10, 10, 0, 5, 7)))
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
-    val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
+    val row1: (Variant, (Annotation, Iterable[Annotation])) = (variant1, (va1, genotypes1))
 
     val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
@@ -87,9 +87,10 @@ class FilterAllelesSuite extends SparkSuite {
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.drop(1))
     val newVa1 = va1
-    val newGenotype11 = genotype11.copy(gt = Option(0), ad = Option(Array(30, 30)), px = Option(Array(0, 5, 7)))
-    val newGenotype12 = genotype12.copy(gt = Option(0), ad = Option(Array(60, 0)), px = Option(Array(0, 5, 10)))
-    val newGenotype13 = genotype13.copy(gt = Option(1), ad = Option(Array(35, 10)), gq = Option(7), px = Option(Array(10, 0, 7)))
+
+    val newGenotype11 = Genotype(Option(0), Option(Array(30, 30)), Option(100), Option(5), Option(Array(0, 5, 7)))
+    val newGenotype12 = Genotype(Option(0), Option(Array(60, 0)), Option(100), Option(5), Option(Array(0, 5, 10)))
+    val newGenotype13 = Genotype(Option(1), Option(Array(35, 10)), Option(100), Option(7), Option(Array(10, 0, 7)))
     val newGenotypes1 = Seq(newGenotype11, newGenotype12, newGenotype13)
     val newRow1 = (newVariant1, (newVa1, newGenotypes1))
 
@@ -103,7 +104,7 @@ class FilterAllelesSuite extends SparkSuite {
     val genotype12 = Genotype(Option(2), Option(Array(25, 35, 0)), Option(100), Option(5), Option(Array(10, 10, 0, 7, 5, 10)))
     val genotype13 = Genotype(Option(3), Option(Array(25, 10, 10)), Option(100), Option(5), Option(Array(10, 10, 10, 0, 5, 7)))
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
-    val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
+    val row1: (Variant, (Annotation, Iterable[Annotation])) = (variant1, (va1, genotypes1))
 
     val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
@@ -115,9 +116,9 @@ class FilterAllelesSuite extends SparkSuite {
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.drop(1))
     val newVa1 = va1
-    val newGenotype11 = genotype11.copy(gt = Option(2), ad = Option(Array(25, 30)), gq = Option(3), px = Option(Array(3, 3, 0)))
-    val newGenotype12 = genotype12.copy(gt = Option(1), ad = Option(Array(25, 0)), gq = Option(3), px = Option(Array(3, 0, 3)))
-    val newGenotype13 = genotype13.copy(gt = Option(1), ad = Option(Array(25, 10)), gq = Option(7), px = Option(Array(10, 0, 7)))
+    val newGenotype11 = Genotype(Option(2), Option(Array(25, 30)), Option(100), Option(3), Option(Array(3, 3, 0)))
+    val newGenotype12 = Genotype(Option(1), Option(Array(25, 0)), Option(100), Option(3), Option(Array(3, 0, 3)))
+    val newGenotype13 = Genotype(Option(1), Option(Array(25, 10)), Option(100), Option(7), Option(Array(10, 0, 7)))
     val newGenotypes1 = Seq(newGenotype11, newGenotype12, newGenotype13)
     val newRow1 = (newVariant1, (newVa1, newGenotypes1))
 
@@ -131,7 +132,7 @@ class FilterAllelesSuite extends SparkSuite {
     val genotype12 = Genotype(Option(2), Option(Array(25, 35, 0)), Option(100), Option(5), Option(Array(10, 10, 0, 7, 5, 10)))
     val genotype13 = Genotype(Option(3), Option(Array(25, 10, 10)), Option(100), Option(5), Option(Array(10, 10, 10, 0, 5, 7)))
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
-    val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
+    val row1: (Variant, (Annotation, Iterable[Annotation])) = (variant1, (va1, genotypes1))
 
     val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
@@ -143,9 +144,9 @@ class FilterAllelesSuite extends SparkSuite {
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
     val newVa1 = va1
-    val newGenotype11 = genotype11.copy(gt = Option(1), ad = Option(Array(25, 5)), gq = Option(10), px = Option(Array(10, 0, 10)))
-    val newGenotype12 = genotype12.copy(gt = Option(2), ad = Option(Array(25, 35)), gq = Option(10), px = Option(Array(10, 10, 0)))
-    val newGenotype13 = genotype13.copy(gt = None, ad = Option(Array(25, 10)), gq = Option(0), px = Option(Array(0, 0, 0)))
+    val newGenotype11 = Genotype(Option(1), Option(Array(25, 5)), Option(100), Option(10), Option(Array(10, 0, 10)))
+    val newGenotype12 = Genotype(Option(2), Option(Array(25, 35)), Option(100), Option(10), Option(Array(10, 10, 0)))
+    val newGenotype13 = Genotype(None, Option(Array(25, 10)), Option(100), Option(0), Option(Array(0, 0, 0)))
     val newGenotypes1 = Seq(newGenotype11, newGenotype12, newGenotype13)
     val newRow1 = (newVariant1, (newVa1, newGenotypes1))
 
@@ -156,7 +157,7 @@ class FilterAllelesSuite extends SparkSuite {
     val variant1 = new Variant("contig", 0, "ref", IndexedSeq("alt1", "alt2").map(AltAllele("ref", _)))
     val va1 = null
     val genotypes1 = Seq(Genotype(1), Genotype(2), Genotype(3))
-    val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
+    val row1: (Variant, (Annotation, Iterable[Annotation])) = (variant1, (va1, genotypes1))
 
     val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),

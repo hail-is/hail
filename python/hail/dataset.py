@@ -213,7 +213,7 @@ class VariantDataset(HistoryMixin):
         - ``global``: global annotations
         - ``v`` (*Variant(GR)*): split :ref:`variant(gr)`
         - ``va``: split variant annotations
-        - ``gs`` (*Aggregable*): aggregable of split :ref:`genotype` for variant ``v``
+        - ``gs`` (*Aggregable*): aggregable of split genotype for variant ``v``
 
         where ``gs`` has the namespace:
 
@@ -222,7 +222,7 @@ class VariantDataset(HistoryMixin):
         - ``va``: split variant annotations
         - ``s``: sample
         - ``sa``: sample annotations
-        - ``g``: split :ref:`genotype`
+        - ``g``: split genotype
 
         """
 
@@ -242,14 +242,14 @@ class VariantDataset(HistoryMixin):
     def annotate_alleles_expr(self, expr):
         """Annotate alleles with expression.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
         To create a variant annotation ``va.nNonRefSamples: Array[Int]`` where the ith entry of
         the array is the number of samples carrying the ith alternate allele:
 
-        >>> vds_result = vds.annotate_alleles_expr('va.nNonRefSamples = gs.filter(g => g.isCalledNonRef()).count()')
+        >>> vds_result = vds.annotate_alleles_expr('va.nNonRefSamples = gs.filter(g => g.GT.isNonRef()).count()')
 
         **Notes**
 
@@ -281,15 +281,7 @@ class VariantDataset(HistoryMixin):
 
         Convert the genotype schema to a :py:class:`~hail.expr.TStruct` with two fields ``GT`` and ``CASE_HET``:
 
-        >>> vds_result = vds.annotate_genotypes_expr('g = {GT: g.gt, CASE_HET: sa.pheno.isCase && g.isHet()}')
-
-        Assume a VCF is imported with ``generic=True`` and the resulting genotype schema
-        is a ``Struct`` and the field ``GTA`` is a ``Call`` type. Use the ``.toGenotype()`` method in the
-        expression language to convert a ``Call`` to a ``Genotype``. ``vds_gta`` will have a genotype schema equal to
-        :py:class:`~hail.expr.TGenotype`
-
-        >>> vds_gta = (hc.import_vcf('data/example3.vcf.bgz', generic=True, call_fields=['GTA'])
-        ...                 .annotate_genotypes_expr('g = g.GTA.toGenotype()'))
+        >>> vds_result = vds.annotate_genotypes_expr('g = {GT: g.GT, CASE_HET: sa.pheno.isCase && g.GT.isHet()}')
 
         **Notes**
 
@@ -309,19 +301,6 @@ class VariantDataset(HistoryMixin):
 
         For more information, see the documentation on writing `expressions <overview.html#expressions>`__
         and using the `Hail Expression Language <exprlang.html>`__.
-
-        .. warning::
-
-            - If the resulting genotype schema is not :py:class:`~hail.expr.TGenotype`,
-              subsequent function calls on the annotated variant dataset may not work such as
-              :py:meth:`~hail.VariantDataset.pca` and :py:meth:`~hail.VariantDataset.linreg`.
-
-            - Hail performance may be significantly slower if the annotated variant dataset does not have a
-              genotype schema equal to :py:class:`~hail.expr.TGenotype`.
-
-            - Genotypes are immutable. For example, if ``g`` is initially of type ``Genotype``, the expression
-              ``g.gt = g.gt + 1`` will return a ``Struct`` with one field ``gt`` of type ``Int`` and **NOT** a ``Genotype``
-              with the ``gt`` incremented by 1.
 
         :param expr: Annotation expression.
         :type expr: str or list of str
@@ -420,7 +399,7 @@ class VariantDataset(HistoryMixin):
 
         Compute per-sample GQ statistics for hets:
 
-        >>> vds_result = (vds.annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet()).map(g => g.gq).stats()')
+        >>> vds_result = (vds.annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.GT.isHet()).map(g => g.GQ).stats()')
         ...                  .samples_table()
         ...                  .select(['sample = s', 'het_gq_mean = sa.gqHetStats.mean'])
         ...                  .export('output/samples.txt'))
@@ -429,8 +408,8 @@ class VariantDataset(HistoryMixin):
 
         >>> variant_annotations_table = hc.import_table('data/consequence.tsv', impute=True).key_by('Variant')
         >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, root='va.consequence')
-        ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles()).sum() == 1')
-        ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
+        ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.GT.nNonRefAlleles()).sum() == 1')
+        ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.GT.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
 
         To create an annotation for only a subset of samples based on an existing annotation:
 
@@ -447,7 +426,7 @@ class VariantDataset(HistoryMixin):
         - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
         - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of genotype for sample ``s``
 
         :param expr: Annotation expression.
         :type expr: str or list of str
@@ -654,11 +633,11 @@ class VariantDataset(HistoryMixin):
 
         Compute GQ statistics about heterozygotes per variant:
 
-        >>> vds_result = vds.annotate_variants_expr('va.gqHetStats = gs.filter(g => g.isHet()).map(g => g.gq).stats()')
+        >>> vds_result = vds.annotate_variants_expr('va.gqHetStats = gs.filter(g => g.GT.isHet()).map(g => g.GQ).stats()')
 
         Collect a list of sample IDs with non-ref calls in LOF variants:
 
-        >>> vds_result = vds.annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.isCalledNonRef()).map(g => s).collect()')
+        >>> vds_result = vds.annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.GT.isNonRef()).map(g => s).collect()')
 
         Substitute a custom string for the rsID field:
 
@@ -671,7 +650,7 @@ class VariantDataset(HistoryMixin):
           - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
           - ``va``: variant annotations
           - ``global``: global annotations
-          - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
+          - ``gs`` (*Aggregable[Genotype]*): aggregable of genotype for variant ``v``
 
         For more information, see the documentation on writing `expressions <overview.html#expressions>`__
         and using the `Hail Expression Language <exprlang.html>`__.
@@ -1180,7 +1159,7 @@ class VariantDataset(HistoryMixin):
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -1388,7 +1367,7 @@ class VariantDataset(HistoryMixin):
     def export_gen(self, output, precision=4):
         """Export variant dataset as GEN and SAMPLE file.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -1442,7 +1421,7 @@ class VariantDataset(HistoryMixin):
     def export_plink(self, output, fam_expr='id = s'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -1531,14 +1510,13 @@ class VariantDataset(HistoryMixin):
             We strongly recommended compressed (``.bgz`` extension) and parallel output (``parallel=True``) when exporting large VCFs.
 
         Hail exports the fields of Struct ``va.info`` as INFO fields,
-        the elements of Set[String] ``va.filters`` as FILTERS,
-        and the value of Float64 ``va.qual`` as QUAL. No other variant annotations are exported.
+        the elements of Set[String] ``va.filters`` as FILTERS, and the
+        value of Float64 ``va.qual`` as QUAL. No other variant
+        annotations are exported.
         
-        The FORMAT field is generated from the genotype type, which must 
-        be :py:class:`~hail.expr.TGenotype` or :py:class:`~hail.expr.TStruct`. If the type is
-        :py:class:`~hail.expr.TGenotype`, then the FORMAT fields will be GT, AD, DP, GQ, and PL.
-        If the type is :py:class:`~hail.expr.TStruct`,
-        then the exported FORMAT fields will be the names of each field of the Struct.
+        The FORMAT field is generated from the genotype schema, which
+        must be a :py:class:`~hail.expr.TStruct`.  There is a FORMAT
+        field for each field of the struct.
         
         INFO and FORMAT fields may be generated from Struct fields of type Call, Int32, Float32, Float64, or String.
         If a field has type Int64, every value must be a valid Int32.
@@ -1568,7 +1546,7 @@ class VariantDataset(HistoryMixin):
 
             If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run :py:meth:`~hail.VariantDataset.variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
 
-            >>> (vds.filter_genotypes('g.gq >= 20')
+            >>> (vds.filter_genotypes('g.GQ >= 20')
             ...     .variant_qc()
             ...     .annotate_variants_expr('va.info.AC = va.qc.AC')
             ...     .export_vcf('output/example.vcf.bgz'))
@@ -1920,10 +1898,10 @@ class VariantDataset(HistoryMixin):
 
         Filter genotypes by allele balance dependent on genotype call:
 
-        >>> vds_result = vds.filter_genotypes('let ab = g.ad[1] / g.ad.sum() in ' +
-        ...                      '((g.isHomRef() && ab <= 0.1) || ' +
-        ...                      '(g.isHet() && ab >= 0.25 && ab <= 0.75) || ' +
-        ...                      '(g.isHomVar() && ab >= 0.9))')
+        >>> vds_result = vds.filter_genotypes('let ab = g.AD[1] / g.AD.sum() in ' +
+        ...                      '((g.GT.isHomRef() && ab <= 0.1) || ' +
+        ...                      '(g.GT.isHet() && ab >= 0.25 && ab <= 0.75) || ' +
+        ...                      '(g.GT.isHomVar() && ab >= 0.9))')
 
         **Notes**
 
@@ -2033,7 +2011,7 @@ class VariantDataset(HistoryMixin):
         - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
         - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of genotype for sample ``s``
 
         For more information, see the documentation on `data representation, annotations <overview.html#>`__, and
         the `expression language <exprlang.html>`__.
@@ -2163,7 +2141,7 @@ class VariantDataset(HistoryMixin):
         - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
         - ``va``: variant annotations
         - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of genotype for variant ``v``
 
         For more information, see the `Overview <overview.html#>`__ and the `Expression Language <exprlang.html>`__.
 
@@ -2364,7 +2342,7 @@ class VariantDataset(HistoryMixin):
     def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -2398,7 +2376,7 @@ class VariantDataset(HistoryMixin):
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         A hard-called variant dataset is about two orders of magnitude
         smaller than a standard sequencing dataset. Use this
@@ -2445,7 +2423,7 @@ class VariantDataset(HistoryMixin):
     def ibd(self, maf=None, bounded=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -2524,7 +2502,7 @@ class VariantDataset(HistoryMixin):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -2668,7 +2646,7 @@ class VariantDataset(HistoryMixin):
     def ld_prune(self, num_cores, r2=0.2, window=1000000, memory_per_core=256):
         """Prune variants in linkage disequilibrium (LD).
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -2741,7 +2719,7 @@ class VariantDataset(HistoryMixin):
     def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -2853,7 +2831,7 @@ class VariantDataset(HistoryMixin):
 
         >>> assoc_vds = hc.read("data/example_lmmreg.vds")
         >>> kinship_matrix = assoc_vds.filter_variants_expr('va.useInKinship').rrm()
-        >>> lmm_vds = assoc_vds.lmmreg(kinship_matrix, 'sa.pheno', 'g.nNonRefAlleles()', ['sa.cov1', 'sa.cov2'])
+        >>> lmm_vds = assoc_vds.lmmreg(kinship_matrix, 'sa.pheno', 'g.GT.nNonRefAlleles()', ['sa.cov1', 'sa.cov2'])
 
         will execute the following four steps in order:
 
@@ -3092,7 +3070,7 @@ class VariantDataset(HistoryMixin):
         Run the logistic regression Wald test per variant using a Boolean phenotype and two covariates stored
         in sample annotations:
 
-        >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', 'g.nNonRefAlleles()', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
+        >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', 'g.GT.nNonRefAlleles()', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
         **Notes**
 
@@ -3215,7 +3193,7 @@ class VariantDataset(HistoryMixin):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -3403,7 +3381,7 @@ class VariantDataset(HistoryMixin):
     def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -3508,7 +3486,7 @@ class VariantDataset(HistoryMixin):
 
         .. include:: _templates/experimental.rst
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -3766,7 +3744,7 @@ class VariantDataset(HistoryMixin):
             Persist, like all other :class:`.VariantDataset` functions, is functional.
             Its output must be captured. This is wrong:
             
-            >>> vds = vds.linreg(['sa.phenotype'], 'g.nNonRefAlleles()') # doctest: +SKIP
+            >>> vds = vds.linreg(['sa.phenotype'], 'g.GT.nNonRefAlleles()') # doctest: +SKIP
             >>> vds.persist() # doctest: +SKIP
             
             The above code does NOT persist ``vds``. Instead, it copies ``vds`` and persists that result. 
@@ -4090,10 +4068,10 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        >>> gq_hist, t = vds.query_genotypes_typed('gs.map(g => g.gq).hist(0, 100, 100)')
+        >>> gq_hist, t = vds.query_genotypes_typed('gs.map(g => g.GQ).hist(0, 100, 100)')
 
-        >>> [gq_hist, dp_hist], [t1, t2] = vds.query_genotypes_typed(['gs.map(g => g.gq).hist(0, 100, 100)',
-        ...                                                           'gs.map(g => g.dp).hist(0, 60, 60)'])
+        >>> [gq_hist, dp_hist], [t1, t2] = vds.query_genotypes_typed(['gs.map(g => g.GQ).hist(0, 100, 100)',
+        ...                                                           'gs.map(g => g.DP).hist(0, 60, 60)'])
 
         See :py:meth:`.query_genotypes` for more information.
 
@@ -4106,13 +4084,13 @@ class VariantDataset(HistoryMixin):
         The namespace of the expressions includes:
 
         - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype`
+        - ``gs`` (*Aggregable[Genotype]*): aggregable of genotype
 
         Map and filter expressions on this aggregable have the following
         namespace:
 
         - ``global``: global annotations
-        - ``g``: :ref:`genotype`
+        - ``g``: genotype
         - ``v``: :ref:`variant(GR)`
         - ``va``: variant annotations
         - ``s``: sample
@@ -4123,11 +4101,11 @@ class VariantDataset(HistoryMixin):
         to execute multiple query methods.  This:
 
         >>> result1 = vds.query_genotypes('gs.count()')
-        >>> result2 = vds.query_genotypes('gs.filter(g => v.altAllele.isSNP() && g.isHet).count()')
+        >>> result2 = vds.query_genotypes('gs.filter(g => v.altAllele.isSNP() && g.GT.isHet).count()')
 
         will be nearly twice as slow as this:
 
-        >>> exprs = ['gs.count()', 'gs.filter(g => v.altAllele.isSNP() && g.isHet).count()']
+        >>> exprs = ['gs.count()', 'gs.filter(g => v.altAllele.isSNP() && g.GT.isHet).count()']
         >>> [geno_count, snp_hets] = vds.query_genotypes(exprs)
 
         :param exprs: query expressions
@@ -4155,16 +4133,16 @@ class VariantDataset(HistoryMixin):
 
         Compute global GQ histogram
 
-        >>> gq_hist = vds.query_genotypes('gs.map(g => g.gq).hist(0, 100, 100)')
+        >>> gq_hist = vds.query_genotypes('gs.map(g => g.GQ).hist(0, 100, 100)')
 
         Compute call rate
 
-        >>> call_rate = vds.query_genotypes('gs.fraction(g => g.isCalled)')
+        >>> call_rate = vds.query_genotypes('gs.fraction(g => isDefined(g.GT))')
 
         Compute GQ and DP histograms
 
-        >>> [gq_hist, dp_hist] = vds.query_genotypes(['gs.map(g => g.gq).hist(0, 100, 100)',
-        ...                                                     'gs.map(g => g.dp).hist(0, 60, 60)'])
+        >>> [gq_hist, dp_hist] = vds.query_genotypes(['gs.map(g => g.GQ).hist(0, 100, 100)',
+        ...                                           'gs.map(g => g.DP).hist(0, 60, 60)'])
 
 
         :param exprs: query expressions
@@ -4338,7 +4316,7 @@ class VariantDataset(HistoryMixin):
     def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -4551,7 +4529,7 @@ class VariantDataset(HistoryMixin):
     def summarize(self):
         """Returns a summary of useful information about the dataset.
         
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
         
         **Examples**
         
@@ -4609,7 +4587,7 @@ class VariantDataset(HistoryMixin):
         ...                    weight_expr='va.weight',
         ...                    single_key=False,
         ...                    y='sa.burden.pheno',
-        ...                    x='g.nNonRefAlleles()',
+        ...                    x='g.GT.nNonRefAlleles()',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         .. caution::
@@ -4947,7 +4925,7 @@ class VariantDataset(HistoryMixin):
     def tdt(self, pedigree, root='va.tdt'):
         """Performs a transmission disequilibrium test and returns results as a key table..
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. include:: _templates/req_tvariant.rst
 
         .. include:: _templates/req_biallelic.rst
 
@@ -5089,7 +5067,7 @@ class VariantDataset(HistoryMixin):
 
         s = '''
             va.{name} = gs
-                .filter(g => va.category != 1 || !g.father.isHet())
+                .filter(g => va.category != 1 || !g.father.GT.isHet())
                 .map(g =>
                     let ploidy =
                         if (va.category == 0) 2
@@ -5097,9 +5075,9 @@ class VariantDataset(HistoryMixin):
                         else if (sa.isFemale) 2
                         else 1 in
                         global.mapping.get(
-                            {{kid: g.proband.nNonRefAlleles(),
-                            dad: g.father.nNonRefAlleles(),
-                            mom: g.mother.nNonRefAlleles(),
+                            {{kid: g.proband.GT.nNonRefAlleles(),
+                            dad: g.father.GT.nNonRefAlleles(),
+                            mom: g.mother.GT.nNonRefAlleles(),
                             copy_state: ploidy}}
                         )[{index}])
                 .sum()'''
@@ -5765,25 +5743,25 @@ class VariantDataset(HistoryMixin):
 
         Then
 
-        >>> kt = vds.make_table('v = v', ['gt = g.gt', 'gq = g.gq'])
+        >>> kt = vds.make_table('v = v', ['GT = g.GT', 'GQ = g.GQ'])
 
         returns a :py:class:`KeyTable` with schema
 
         .. code-block:: text
 
             v: Variant
-            A.gt: Int
-            A.gq: Int
-            B.gt: Int
-            B.gq: Int
-            C.gt: Int
-            C.gq: Int
+            A.GT: Int
+            A.GQ: Int
+            B.GT: Int
+            B.GQ: Int
+            C.GT: Int
+            C.GQ: Int
 
         and values
 
         .. code-block:: text
 
-            v	A.gt	A.gq	B.gt	B.gq	C.gt	C.gq
+            v	A.GT	A.GQ	B.GT	B.GQ	C.GT	C.GQ
             1:1:A:T	1	99	NA	NA	0	99
             1:2:G:C	1	89	1	99	2	93
 

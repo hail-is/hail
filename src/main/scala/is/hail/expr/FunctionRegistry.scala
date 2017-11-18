@@ -679,26 +679,21 @@ object FunctionRegistry {
     (stx, x) <- CM.memoize(v)
   ) yield Code(stx, check(x).mux(Code._null[U], ifPresent(x)))
 
-  import is.hail.variant.Call._
-
   registerField("gt", { (c: Call) => c }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, boxedInt32Hr)
-  registerMethodSpecial("gtj", { (c: () => Any) => gtj(c().asInstanceOf[Call]) }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedInt32Hr)
-  registerMethodSpecial("gtk", { (c: () => Any) => gtk(c().asInstanceOf[Call]) }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedInt32Hr)
-  registerMethodSpecial("isHomRef", { (c: () => Any) => isHomRef(c().asInstanceOf[Call]) }, "True if this call is ``0/0``.")(callHr, boolHr)
-  registerMethodSpecial("isHet", { (c: () => Any) => isHet(c().asInstanceOf[Call]) }, "True if this call is heterozygous.")(callHr, boolHr)
-  registerMethodSpecial("isHomVar", { (c: () => Any) => isHomVar(c().asInstanceOf[Call]) }, "True if this call is ``j/j`` with ``j>0``.")(callHr, boolHr)
-  registerMethodSpecial("isCalledNonRef", { (c: () => Any) => isCalledNonRef(c().asInstanceOf[Call]) }, "True if either ``isHet`` or ``isHomVar`` is true.")(callHr, boolHr)
-  registerMethodSpecial("isHetNonRef", { (c: () => Any) => isHetNonRef(c().asInstanceOf[Call]) }, "True if this call is ``j/k`` with ``j>0``.")(callHr, boolHr)
-  registerMethodSpecial("isHetRef", { (c: () => Any) => isHetRef(c().asInstanceOf[Call]) }, "True if this call is ``0/k`` with ``k>0``.")(callHr, boolHr)
-  registerMethodSpecial("isCalled", { (c: () => Any) => isCalled(c().asInstanceOf[Call]) }, "True if the call is not ``./.``.")(callHr, boolHr)
-  registerMethodSpecial("isNotCalled", { (c: () => Any) => isNotCalled(c().asInstanceOf[Call]) }, "True if the call is ``./.``.")(callHr, boolHr)
-  registerMethodSpecial("nNonRefAlleles", { (c: () => Any) => nNonRefAlleles(c().asInstanceOf[Call]) }, "the number of called alternate alleles.")(callHr, boxedInt32Hr)
-  registerMethodSpecial("toGenotype", { (c: () => Any) => toGenotype(c().asInstanceOf[Call]) }, "Convert this call to a Genotype.")(callHr, genotypeHr)
+  registerMethodSpecial("gtj", { (c: () => Any) => Call.gtj(c().asInstanceOf[Call]) }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedInt32Hr)
+  registerMethodSpecial("gtk", { (c: () => Any) => Call.gtk(c().asInstanceOf[Call]) }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedInt32Hr)
+  registerMethodSpecial("isHomRef", { (c: () => Any) => Call.isHomRef(c().asInstanceOf[Call]) }, "True if this call is ``0/0``.")(callHr, boolHr)
+  registerMethodSpecial("isHet", { (c: () => Any) => Call.isHet(c().asInstanceOf[Call]) }, "True if this call is heterozygous.")(callHr, boolHr)
+  registerMethodSpecial("isHomVar", { (c: () => Any) => Call.isHomVar(c().asInstanceOf[Call]) }, "True if this call is ``j/j`` with ``j>0``.")(callHr, boolHr)
+  registerMethodSpecial("isNonRef", { (c: () => Any) => Call.isNonRef(c().asInstanceOf[Call]) }, "True if either ``isHet`` or ``isHomVar`` is true.")(callHr, boolHr)
+  registerMethodSpecial("isHetNonRef", { (c: () => Any) => Call.isHetNonRef(c().asInstanceOf[Call]) }, "True if this call is ``j/k`` with ``j>0``.")(callHr, boolHr)
+  registerMethodSpecial("isHetRef", { (c: () => Any) => Call.isHetRef(c().asInstanceOf[Call]) }, "True if this call is ``0/k`` with ``k>0``.")(callHr, boolHr)
+  registerMethodSpecial("nNonRefAlleles", { (c: () => Any) => Call.nNonRefAlleles(c().asInstanceOf[Call]) }, "the number of called alternate alleles.")(callHr, boxedInt32Hr)
   registerMethodSpecial("oneHotAlleles", { (c: () => Any, v: () => Any) =>
     val call = c().asInstanceOf[Call]
     val variant = v().asInstanceOf[Variant]
     if (call != null && variant != null)
-      oneHotAlleles(call, variant)
+      Call.oneHotAlleles(call, variant)
     else
       null
   },
@@ -710,7 +705,7 @@ object FunctionRegistry {
     val call = c().asInstanceOf[Call]
     val variant = v().asInstanceOf[Variant]
     if (call != null && variant != null)
-      oneHotGenotype(call, variant)
+      Call.oneHotGenotype(call, variant)
     else
       null
   },
@@ -718,88 +713,6 @@ object FunctionRegistry {
     Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0. For example, calling this function with a biallelic variant on hom-ref, het, and hom-var calls will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
     """,
     "v" -> ":ref:`variant(gr)`")(callHr, variantHr(GR), arrayHr(int32Hr))
-
-  registerFieldCode("gt", { (x: Code[Genotype]) =>
-    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("_unboxedGT"), boxInt(_))
-  }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")
-  registerMethod("call", { (x: Genotype) => Genotype.call(x) }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(genotypeHr, callHr)
-  registerMethod("gtj", { (x: Genotype) =>
-    val gt = x._unboxedGT
-    if (gt == -1)
-      null
-    else
-      box(Genotype.gtPair(gt).j)
-  }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
-  registerMethod("gtk", { (x: Genotype) =>
-    val gt = x._unboxedGT
-    if (gt == -1)
-      null
-    else
-      box(Genotype.gtPair(gt).k)
-  }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
-  registerFieldCode("ad", { (x: Code[Genotype]) =>
-    CM.ret(arrayToWrappedArray(x.invoke[Array[Int]]("_unboxedAD")))
-  }, "allelic depth for each allele.")
-  registerFieldCode("dp", { (x: Code[Genotype]) =>
-    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("_unboxedDP"), boxInt)
-  }, "the total number of informative reads.")
-  registerMethodCode("od", { (x: Code[Genotype]) =>
-    CM.ret(x.invoke[Boolean]("hasOD").mux(boxInt(x.invoke[Int]("od_")), Code._null[java.lang.Integer]))
-  }, "``od = dp - ad.sum``.")
-  registerFieldCode("gq", { (x: Code[Genotype]) =>
-    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("_unboxedGQ"), boxInt)
-  }, "the difference between the two smallest PL entries.")
-  registerFieldCode("pl", { (x: Code[Genotype]) =>
-    CM.ret(arrayToWrappedArray(Code.invokeStatic[Genotype, Genotype, Array[Int]]("unboxedPL", x)))
-  }, """
-     phred-scaled normalized genotype likelihood values. The conversion between
-     ``g.pl`` (Phred-scaled likelihoods) and ``g.gp`` (linear-scaled
-     probabilities) assumes a uniform prior.
-     """)
-  registerFieldCode("gp", { (x: Code[Genotype]) =>
-    CM.ret(arrayToWrappedArray(Code.invokeStatic[Genotype, Genotype, Array[Double]]("unboxedGP", x)))
-  }, "the linear-scaled probabilities.")
-  registerFieldCode("dosage", { (x: Code[Genotype]) =>
-    nonceToNullable[Double, java.lang.Double](_.ceq(-1d), Code.invokeStatic[Genotype, Genotype, Double]("unboxedDosage", x), boxDouble)
-  }, "the expected number of non-reference alleles based on genotype probabilities.")
-  registerMethodCode("isHomRef", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isHomRef", x)))
-  }, "True if this call is ``0/0``.")
-  registerMethodCode("isHet", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isHet", x)))
-  }, "True if this call is heterozygous.")
-  registerMethodCode("isHomVar", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isHomVar", x)))
-  }, "True if this call is ``j/j`` with ``j>0``.")
-  registerMethodCode("isCalledNonRef", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isCalledNonRef", x)))
-  }, "True if either ``g.isHet`` or ``g.isHomVar`` is true.")
-  registerMethodCode("isHetNonRef", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isHetNonRef", x)))
-  }, "True if this call is ``j/k`` with ``j>0``.")
-  registerMethodCode("isHetRef", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isHetRef", x)))
-  }, "True if this call is ``0/k`` with ``k>0``.")
-  registerMethodCode("isCalled", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isCalled", x)))
-  }, "True if the genotype is not ``./.``.")
-  registerMethodCode("isNotCalled", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isNotCalled", x)))
-  }, "True if the genotype is ``./.``.")
-  registerMethodCode("nNonRefAlleles", { (x: Code[Genotype]) =>
-    for (
-      (stg, g) <- CM.memoize(x)
-    ) yield Code(stg,
-      Code.invokeStatic[Genotype, Genotype, Boolean]("hasNNonRefAlleles", g)
-        .mux(boxInt(Code.invokeStatic[Genotype, Genotype, Int]("nNonRefAlleles_", g)), Code._null))
-  }, "the number of called alternate alleles.")
-  registerMethodCode("pAB", { (x: Code[Genotype]) =>
-    for (
-      (stg, g) <- CM.memoize(x)
-    ) yield Code(stg,
-      Code.invokeStatic[Genotype, Genotype, Boolean]("hasPAB", g)
-        .mux(boxDouble(Code.invokeStatic[Genotype, Genotype, Double, Double]("pAB_", g, 0.5)), Code._null))
-  }, "p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Missing if the call is not heterozygous.")
 
   private def intArraySumCode(a: Code[Array[Int]]): CM[Code[Int]] = for (
     (starr, arr) <- CM.memoize(a);
@@ -813,14 +726,6 @@ object FunctionRegistry {
     s
   )
 
-  registerMethodCode("fractionReadsRef", { (x: Code[Genotype]) =>
-    for (
-      (stad, ad) <- CM.memoize(Code.invokeStatic[Genotype, Genotype, Array[Int]]("unboxedAD", x));
-      (stsum, sum) <- CM.memoize(intArraySumCode(ad))
-    ) yield Code(stad, stsum, sum.ceq(0).mux(Code._null, boxDouble(ad(0).toD / sum.toD)))
-  }, "the ratio of ref reads to the sum of all *informative* reads.")
-  registerFieldCode("isLinearScale", { (x: Code[Genotype]) => CM.ret(boxBoolean(x.invoke[Boolean]("isLinearScale"))) },
-    "True if the data was imported from :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen`.")
   registerFieldCode("contig", { (x: Code[Variant]) => CM.ret(x.invoke[String]("contig")) },
     "String representation of contig, exactly as imported. *NB: Hail stores contigs as strings. Use double-quotes when checking contig equality.*")(variantHr(GR), stringHr)
   registerFieldCode("start", { (x: Code[Variant]) => CM.ret(boxInt(x.invoke[Int]("start"))) },
@@ -1030,45 +935,6 @@ object FunctionRegistry {
     Construct a :ref:`call` from an integer.
     """, "gt" -> "integer")(boxedInt32Hr, callHr)
 
-  registerSpecial("Genotype", { (gtF: () => Any) =>
-    Genotype(gtF().asInstanceOf[java.lang.Integer])
-  },
-    """
-    Construct a :ref:`genotype` object from a genotype call.
-
-    .. code-block:: text
-        :emphasize-lines: 2
-
-        Genotype(Call(0)).isHomRef()
-        result: true
-    """, "gt" -> "Genotype call integer")(callHr, genotypeHr)
-
-  registerSpecial("Genotype", { (vF: () => Any, gtF: () => Any, adF: () => Any, dpF: () => Any, gqF: () => Any, plF: () => Any) =>
-    val v = vF()
-    val ad = adF()
-    val pl = plF()
-
-    if (v == null)
-      throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
-
-    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[Call],
-      if (ad == null) null else ad.asInstanceOf[IndexedSeq[Int]].toArray, dpF().asInstanceOf[java.lang.Integer],
-      gqF().asInstanceOf[java.lang.Integer], if (pl == null) null else pl.asInstanceOf[IndexedSeq[Int]].toArray)
-  },
-    """
-    Construct a :ref:`genotype` object by specifying the variant, call, allelic depths, depth, genotype quality, and phred-scaled likelihoods.
-
-    .. code-block:: text
-        :emphasize-lines: 4
-
-        let v = Variant("7:76324539:A:G") and call = Call(0) and
-          ad = [10, 0] and dp = 10 and gq = 20 and pl = [0, 10, 100] and
-          g = Genotype(v, call, ad, dp, gq, pl) in g.isHomRef()
-        result: true
-    """,
-    "v" -> "Variant", "c" -> "Call", "ad" -> "Allelic depths", "dp" -> "Depth", "gq" -> "Genotype quality", "pl" -> "Phred-scaled likelihoods"
-  )(variantHr(GR), callHr, arrayHr[Int], boxedInt32Hr, boxedInt32Hr, arrayHr[Int], genotypeHr)
-
   register("Variant", { (x: String) => Variant.parse(x) },
     """
     Construct a :ref:`variant(gr)` object.
@@ -1222,9 +1088,9 @@ object FunctionRegistry {
     Compute HWE p-value per variant:
 
     >>> (vds.annotate_variants_expr('va.hwe = '
-    ...     'let nHomRef = gs.filter(g => g.isHomRef()).count().toInt32() and '
-    ...     'nHet = gs.filter(g => g.isHet()).count().toInt32() and '
-    ...     'nHomVar = gs.filter(g => g.isHomVar()).count().toInt32() in '
+    ...     'let nHomRef = gs.filter(g => g.GT.isHomRef()).count().toInt32() and '
+    ...     'nHet = gs.filter(g => g.GT.isHet()).count().toInt32() and '
+    ...     'nHomVar = gs.filter(g => g.GT.isHomVar()).count().toInt32() in '
     ...     'hwe(nHomRef, nHet, nHomVar)'))
 
     **Notes**
@@ -1302,10 +1168,10 @@ object FunctionRegistry {
     Annotate each variant with Fisher's exact test association results (assumes minor/major allele count variant annotations have been computed):
 
     >>> (vds.annotate_variants_expr(
-    ...   'va.fet = let macCase = gs.filter(g => sa.pheno.isCase).map(g => g.nNonRefAlleles()).sum() and '
-    ...   'macControl = gs.filter(g => !sa.pheno.isCase).map(g => g.nNonRefAlleles()).sum() and '
-    ...   'majCase = gs.filter(g => sa.pheno.isCase).map(g => 2 - g.nNonRefAlleles()).sum() and '
-    ...   'majControl = gs.filter(g => !sa.pheno.isCase).map(g => 2 - g.nNonRefAlleles()).sum() in '
+    ...   'va.fet = let macCase = gs.filter(g => sa.pheno.isCase).map(g => g.GT.nNonRefAlleles()).sum() and '
+    ...   'macControl = gs.filter(g => !sa.pheno.isCase).map(g => g.GT.nNonRefAlleles()).sum() and '
+    ...   'majCase = gs.filter(g => sa.pheno.isCase).map(g => 2 - g.GT.nNonRefAlleles()).sum() and '
+    ...   'majControl = gs.filter(g => !sa.pheno.isCase).map(g => 2 - g.GT.nNonRefAlleles()).sum() in '
     ...   'fet(macCase, macControl, majCase, majControl)'))
 
     **Notes**
@@ -1325,7 +1191,7 @@ object FunctionRegistry {
 
     >>> (vds.split_multi()
     ...   .annotate_variants_expr(
-    ...   'va.ab_binom_test = let all_samples_ad = gs.filter(g => g.isHet).map(g => g.ad).sum() in '
+    ...   'va.ab_binom_test = let all_samples_ad = gs.filter(g => g.GT.isHet).map(g => g.AD).sum() in '
     ...   'binomTest(all_samples_ad[1], all_samples_ad.sum(), 0.5, "two.sided")'))
     """,
     "x" -> "Number of successes", "n" -> "Number of trials", "p" -> "Probability of success under the null hypothesis",
@@ -1630,19 +1496,6 @@ object FunctionRegistry {
     """,
     "delim" -> "Regular expression delimiter.", "n" -> "Number of times the pattern is applied. See the `Java documentation <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#split-java.lang.String-int->`_ for more information."
   )
-
-  registerMethod("oneHotAlleles", (g: Genotype, v: Variant) => Genotype.oneHotAlleles(v, g).orNull,
-    """
-    Produce an array of called counts for each allele in the variant (including reference). For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[2, 0]``, ``[1, 1]``, and ``[0, 2]`` respectively.
-    """,
-    "v" -> ":ref:`variant(gr)`")(genotypeHr, variantHr(GR), arrayHr(int32Hr))
-
-  registerMethod("oneHotGenotype", (g: Genotype, v: Variant) => Genotype.oneHotGenotype(v, g).orNull,
-    """
-    Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0. For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
-    """,
-    "v" -> ":ref:`variant(gr)`"
-  )(genotypeHr, variantHr(GR), arrayHr(int32Hr))
 
   registerMethod("replace", (str: String, pattern1: String, pattern2: String) =>
     str.replaceAll(pattern1, pattern2),
@@ -2076,7 +1929,7 @@ object FunctionRegistry {
 
     Count the number of heterozygote genotype calls in an aggregable of genotypes (``gs``):
 
-    >>> vds_result = vds.annotate_variants_expr('va.nHets = gs.filter(g => g.isHet()).count()')
+    >>> vds_result = vds.annotate_variants_expr('va.nHets = gs.filter(g => g.GT.isHet()).count()')
     """
   )(aggregableHr(TTHr), int64Hr)
 
@@ -2091,7 +1944,7 @@ object FunctionRegistry {
 
     Collect the list of sample IDs with heterozygote genotype calls per variant:
 
-    >>> vds_result = vds.annotate_variants_expr('va.hetSamples = gs.filter(g => g.isHet()).map(g => s).collect()')
+    >>> vds_result = vds.annotate_variants_expr('va.hetSamples = gs.filter(g => g.GT.isHet()).map(g => s).collect()')
 
     ``va.hetSamples`` will have the type ``Array[String]``.
     """
@@ -2123,7 +1976,7 @@ object FunctionRegistry {
 
     Count the total number of occurrences of each allele across samples, per variant:
 
-    >>> vds_result = vds.annotate_variants_expr('va.AC = gs.map(g => g.oneHotAlleles(v)).sum()')
+    >>> vds_result = vds.annotate_variants_expr('va.AC = gs.map(g => g.GT.oneHotAlleles(v)).sum()')
     """
   )(aggregableHr(arrayHr(int32Hr)), arrayHr(int32Hr))
 
@@ -2216,7 +2069,7 @@ object FunctionRegistry {
       def typ: Type = InfoScoreCombiner.signature
     })
 
-  registerAggregator[Genotype, Any]("hardyWeinberg", () => new HWEAggregator(),
+  registerAggregator[Call, Any]("hardyWeinberg", () => new HWEAggregator(),
     """
     Compute Hardy-Weinberg equilibrium p-value.
 
@@ -2225,14 +2078,14 @@ object FunctionRegistry {
     Add a new variant annotation that calculates HWE p-value by phenotype:
 
     >>> vds_result = vds.annotate_variants_expr([
-    ...   'va.hweCase = gs.filter(g => sa.pheno.isCase).hardyWeinberg()',
-    ...   'va.hweControl = gs.filter(g => !sa.pheno.isCase).hardyWeinberg()'])
+    ...   'va.hweCase = gs.filter(g => sa.pheno.isCase).map(g => g.GT).hardyWeinberg()',
+    ...   'va.hweControl = gs.filter(g => !sa.pheno.isCase).map(g => g.GT).hardyWeinberg()'])
 
     **Notes**
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the probability of a less-likely outcome plus one-half the probability of an equally-likely outcome. See this `document <LeveneHaldane.pdf>`__ for details on the Levene-Haldane distribution and references.
     """
-  )(aggregableHr(genotypeHr),
+  )(aggregableHr(callHr),
     new HailRep[Any] {
       def typ = HWECombiner.signature
     })
@@ -2276,7 +2129,7 @@ object FunctionRegistry {
 
     Compute the mean genotype quality score per variant:
 
-    >>> vds_result = vds.annotate_variants_expr('va.gqMean = gs.map(g => g.gq).stats().mean')
+    >>> vds_result = vds.annotate_variants_expr('va.gqMean = gs.map(g => g.GQ).stats().mean')
 
     Compute summary statistics on the number of singleton calls per sample:
 
@@ -2286,12 +2139,12 @@ object FunctionRegistry {
     Compute GQ and DP statistics stratified by genotype call:
 
     >>> gq_dp = [
-    ... 'va.homrefGQ = gs.filter(g => g.isHomRef()).map(g => g.gq).stats()',
-    ... 'va.hetGQ = gs.filter(g => g.isHet()).map(g => g.gq).stats()',
-    ... 'va.homvarGQ = gs.filter(g => g.isHomVar()).map(g => g.gq).stats()',
-    ... 'va.homrefDP = gs.filter(g => g.isHomRef()).map(g => g.dp).stats()',
-    ... 'va.hetDP = gs.filter(g => g.isHet()).map(g => g.dp).stats()',
-    ... 'va.homvarDP = gs.filter(g => g.isHomVar()).map(g => g.dp).stats()']
+    ... 'va.homrefGQ = gs.filter(g => g.GT.isHomRef()).map(g => g.GQ).stats()',
+    ... 'va.hetGQ = gs.filter(g => g.GT.isHet()).map(g => g.GQ).stats()',
+    ... 'va.homvarGQ = gs.filter(g => g.GT.isHomVar()).map(g => g.GQ).stats()',
+    ... 'va.homrefDP = gs.filter(g => g.GT.isHomRef()).map(g => g.DP).stats()',
+    ... 'va.hetDP = gs.filter(g => g.GT.isHet()).map(g => g.DP).stats()',
+    ... 'va.homvarDP = gs.filter(g => g.GT.isHomVar()).map(g => g.DP).stats()']
     >>> vds_result = vds.annotate_variants_expr(gq_dp)
 
     **Notes**
@@ -2325,11 +2178,11 @@ object FunctionRegistry {
 
     Compute GQ-distributions per variant:
 
-    >>> vds_result = vds.annotate_variants_expr('va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)')
+    >>> vds_result = vds.annotate_variants_expr('va.gqHist = gs.map(g => g.GQ).hist(0, 100, 20)')
 
     Compute global GQ-distribution:
 
-    >>> gq_hist = vds.query_genotypes('gs.map(g => g.gq).hist(0, 100, 100)')
+    >>> gq_hist = vds.query_genotypes('gs.map(g => g.GQ).hist(0, 100, 100)')
 
     **Notes**
 
@@ -2341,7 +2194,7 @@ object FunctionRegistry {
     def typ = HistogramCombiner.schema
   })
 
-  registerLambdaAggregator[Genotype, (Any) => Any, Any]("callStats", (vf: (Any) => Any) => new CallStatsAggregator(vf),
+  registerLambdaAggregator[Call, (Any) => Any, Any]("callStats", (vf: (Any) => Any) => new CallStatsAggregator(vf),
     """
     Compute four commonly-used metrics over a set of genotypes in a variant.
 
@@ -2350,18 +2203,18 @@ object FunctionRegistry {
     Compute phenotype-specific call statistics:
 
     >>> pheno_stats = [
-    ...   'va.case_stats = gs.filter(g => sa.pheno.isCase).callStats(g => v)',
-    ...   'va.control_stats = gs.filter(g => !sa.pheno.isCase).callStats(g => v)']
+    ...   'va.case_stats = gs.filter(g => sa.pheno.isCase).map(g => g.GT).callStats(g => v)',
+    ...   'va.control_stats = gs.filter(g => !sa.pheno.isCase).map(g => g.GT).callStats(g => v)']
     >>> vds_result = vds.annotate_variants_expr(pheno_stats)
 
     ``va.eur_stats.AC`` will be the allele count (AC) computed from individuals marked as "EUR".
     """, "f" -> "Variant lambda expression such as ``g => v``."
   )(
-    aggregableHr(genotypeHr), unaryHr(genotypeHr, variantHr(GR)), new HailRep[Any] {
+    aggregableHr(callHr), unaryHr(callHr, variantHr(GR)), new HailRep[Any] {
       def typ = CallStats.schema
     })
 
-  registerLambdaAggregator[Genotype, (Any) => Any, Any]("inbreeding", (af: (Any) => Any) => new InbreedingAggregator(af),
+  registerLambdaAggregator[Call, (Any) => Any, Any]("inbreeding", (af: (Any) => Any) => new InbreedingAggregator(af),
     """
     Compute inbreeding metric. This aggregator is equivalent to the `\`--het\` method in PLINK <https://www.cog-genomics.org/plink2/basic_stats#ibc>`_.
 
@@ -2370,13 +2223,13 @@ object FunctionRegistry {
     Calculate the inbreeding metric per sample:
 
     >>> vds_result = (vds.variant_qc()
-    ...     .annotate_samples_expr('sa.inbreeding = gs.inbreeding(g => va.qc.AF)'))
+    ...     .annotate_samples_expr('sa.inbreeding = gs.map(g => g.GT).inbreeding(g => va.qc.AF)'))
 
     To obtain the same answer as `PLINK <https://www.cog-genomics.org/plink2>`_, use the following series of commands:
 
     >>> vds_result = (vds.variant_qc()
     ...     .filter_variants_expr('va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8 && v.isAutosomal()')
-    ...     .annotate_samples_expr('sa.inbreeding = gs.inbreeding(g => va.qc.AF)'))
+    ...     .annotate_samples_expr('sa.inbreeding = gs.map(g => g.GT).inbreeding(g => va.qc.AF)'))
 
     **Notes**
 
@@ -2388,7 +2241,7 @@ object FunctionRegistry {
     #. For each sample, ``E``, ``O``, and ``N`` are combined across variants
     #. ``F`` is calculated by ``(O - E) / (N - E)``
     """, "af" -> "Lambda expression for the alternate allele frequency.")(
-    aggregableHr(genotypeHr), unaryHr(genotypeHr, float64Hr), new HailRep[Any] {
+    aggregableHr(callHr), unaryHr(callHr, float64Hr), new HailRep[Any] {
       def typ = InbreedingCombiner.signature
     })
 
@@ -2400,12 +2253,12 @@ object FunctionRegistry {
 
     Filter variants with a call rate less than 95%:
 
-    >>> vds_result = vds.filter_variants_expr('gs.fraction(g => g.isCalled()) > 0.90')
+    >>> vds_result = vds.filter_variants_expr('gs.fraction(g => isDefined(g.GT)) > 0.90')
 
     Compute the differential missingness at SNPs and indels:
 
-    >>> exprs = ['sa.SNPmissingness = gs.filter(g => v.altAllele().isSNP()).fraction(g => g.isNotCalled())',
-    ...          'sa.indelmissingness = gs.filter(g => v.altAllele().isIndel()).fraction(g => g.isNotCalled())']
+    >>> exprs = ['sa.SNPmissingness = gs.filter(g => v.altAllele().isSNP()).fraction(g => isMissing(g.GT))',
+    ...          'sa.indelmissingness = gs.filter(g => v.altAllele().isIndel()).fraction(g => isMissing(g.GT))']
     >>> vds_result = vds.annotate_samples_expr(exprs)
     """)(
     aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boxedFloat64Hr)
@@ -2433,7 +2286,7 @@ object FunctionRegistry {
 
     Collect the first 5 sample IDs with at least one alternate allele per variant:
 
-    >>> vds_result = vds.annotate_variants_expr("va.nonRefSamples = gs.filter(g => g.nNonRefAlleles() > 0).map(g => s).take(5)")
+    >>> vds_result = vds.annotate_variants_expr("va.nonRefSamples = gs.filter(g => g.GT.nNonRefAlleles() > 0).map(g => s).take(5)")
     """, "n" -> "Number of items to take.")(
     aggregableHr(TTHr), int32Hr, arrayHr(TTHr))
 
@@ -2564,7 +2417,7 @@ object FunctionRegistry {
 
     Compute a list of genes per sample with loss of function variants (result may have duplicate entries):
 
-    >>> vds_result = vds.annotate_samples_expr('sa.lof_genes = gs.filter(g => va.consequence == "LOF" && g.nNonRefAlleles() > 0).flatMap(g => va.genes).collect()')
+    >>> vds_result = vds.annotate_samples_expr('sa.lof_genes = gs.filter(g => va.consequence == "LOF" && g.GT.nNonRefAlleles() > 0).flatMap(g => va.genes).collect()')
     """
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
 
@@ -2584,7 +2437,7 @@ object FunctionRegistry {
 
     Compute a list of genes per sample with loss of function variants (result does not have duplicate entries):
 
-    >>> vds_result = vds.annotate_samples_expr('sa.lof_genes = gs.filter(g => va.consequence == "LOF" && g.nNonRefAlleles() > 0).flatMap(g => va.genes.toSet()).collect()')
+    >>> vds_result = vds.annotate_samples_expr('sa.lof_genes = gs.filter(g => va.consequence == "LOF" && g.GT.nNonRefAlleles() > 0).flatMap(g => va.genes.toSet()).collect()')
     """, "f" -> "Lambda expression."
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, setHr(TUHr)), aggregableHr(TUHr, aggST))
 
@@ -2616,7 +2469,7 @@ object FunctionRegistry {
 
     Compute Hardy Weinberg Equilibrium for cases only:
 
-    >>> vds_result = vds.annotate_variants_expr("va.hweCase = gs.filter(g => sa.isCase).hardyWeinberg()")
+    >>> vds_result = vds.annotate_variants_expr("va.hweCase = gs.filter(g => sa.isCase).map(g => g.GT).hardyWeinberg()")
     """, "f" -> "Boolean lambda expression."
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, boolHr), aggregableHr(TTHr, aggST))
 
@@ -2630,7 +2483,7 @@ object FunctionRegistry {
 
     Convert an aggregable of genotypes (``gs``) to an aggregable of genotype quality scores and then compute summary statistics:
 
-    >>> vds_result = vds.annotate_variants_expr("va.gqStats = gs.map(g => g.gq).stats()")
+    >>> vds_result = vds.annotate_variants_expr("va.gqStats = gs.map(g => g.GQ).stats()")
     """, "f" -> "Lambda expression."
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, TUHr), aggregableHr(TUHr, aggST))
 

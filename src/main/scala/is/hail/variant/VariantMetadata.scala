@@ -32,7 +32,8 @@ object VSMFileMetadata {
     vSignature: Type = TVariant(GenomeReference.defaultReference),
     vaSignature: Type = TStruct.empty(),
     globalSignature: Type = TStruct.empty(),
-    genotypeSignature: Type = TGenotype(),
+    // FIXME require
+    genotypeSignature: Type = Genotype.htsGenotypeType,
     wasSplit: Boolean = false): VSMFileMetadata = {
     VSMFileMetadata(
       VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit),
@@ -54,5 +55,5 @@ case class VSMMetadata(
   vSignature: Type = TVariant(GenomeReference.defaultReference),
   vaSignature: Type = TStruct.empty(),
   globalSignature: Type = TStruct.empty(),
-  genotypeSignature: Type = TGenotype(),
+  genotypeSignature: Type = Genotype.htsGenotypeType,
   wasSplit: Boolean = false)

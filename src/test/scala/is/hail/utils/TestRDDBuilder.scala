@@ -101,7 +101,7 @@ object TestRDDBuilder {
           dpArray.map(_(i)))))
       .map {
         case (variant, (gtArr, gqArr, dpArr)) =>
-          val b = new ArrayBuilder[Genotype]()
+          val b = new ArrayBuilder[Annotation]()
           for (sample <- 0 until nSamples) {
             val gt = gtArr match {
               case Some(arr) => Some(arr(sample))
@@ -118,10 +118,9 @@ object TestRDDBuilder {
             val ad = adFromDP(dp, gt)
             val pl = plFromGQ(gq, gt)
 
-            // FIXME gq
             b += Genotype(gt, ad, Some(dp), Some(gq), pl)
           }
-          (variant, (Annotation.empty, b.result(): Iterable[Genotype]))
+          (variant, (Annotation.empty, b.result(): Iterable[Annotation]))
       }.toArray
     
     val variantRDD = hc.sc.parallelize(variantArray)

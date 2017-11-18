@@ -54,7 +54,6 @@ object Annotation {
     else
       t match {
         case _: TVariant => a.asInstanceOf[Variant].toRow
-        case _: TGenotype => Genotype.toRow(a.asInstanceOf[Genotype])
         case _: TLocus => a.asInstanceOf[Locus].toRow
 
         case TArray(elementType, _) =>
@@ -166,7 +165,7 @@ object Annotation {
         rvb.addAnnotation(t, a)
         new UnsafeRow(t, region, rvb.end())
 
-      case t: TArray =>
+      case t: TContainer =>
         val region = MemoryBuffer()
         val rvb = new RegionValueBuilder(region)
         rvb.start(t)

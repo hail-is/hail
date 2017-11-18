@@ -104,7 +104,7 @@ object BaldingNicholsModel {
                 else
                   1
               Genotype(gt)
-            }: Iterable[Genotype]))
+            }: Iterable[Annotation]))
       }
 
     val sampleIds = (0 until N).map(_.toString).toArray

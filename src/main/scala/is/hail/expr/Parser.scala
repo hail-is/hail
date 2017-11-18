@@ -546,7 +546,6 @@ object Parser extends JavaTokenParsers {
       "AltAllele" ^^ { _ => TAltAllele() } |
       ("Variant" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).variant } |
       ("Locus" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).locus } |
-      "Genotype" ^^ { _ => TGenotype() } |
       "Call" ^^ { _ => TCall() } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
       ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |

@@ -49,7 +49,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .verifyBiallelic()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .logreg("wald", "sa.pheno", "g.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .logreg("wald", "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.se")._2
@@ -113,7 +113,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .verifyBiallelic()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .logreg("wald", "sa.pheno", "plDosage(g.pl)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .logreg("wald", "sa.pheno", "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.se")._2
@@ -237,7 +237,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .verifyBiallelic()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .logreg("lrt", "sa.pheno", "g.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .logreg("lrt", "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
@@ -299,7 +299,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .verifyBiallelic()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .logreg("score", "sa.pheno", "g.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .logreg("score", "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qChi2 = vds.queryVA("va.logreg.chi2")._2
     val qPVal = vds.queryVA("va.logreg.pval")._2
@@ -352,10 +352,10 @@ class LogisticRegressionSuite extends SparkSuite {
       .verifyBiallelic()
       .annotateSamplesTable(KeyTable.importFam(hc, "src/test/resources/regressionLogisticEpacts.fam"), root = "sa.fam")
       .annotateSamplesTable(covariates, root = "sa.pc")
-      .logreg("wald", "sa.fam.isCase", "g.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")
-      .logreg("lrt", "sa.fam.isCase", "g.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.lrt")
-      .logreg("score", "sa.fam.isCase", "g.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.score")
-      .logreg("firth", "sa.fam.isCase", "g.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.firth")
+      .logreg("wald", "sa.fam.isCase", "g.GT.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")
+      .logreg("lrt", "sa.fam.isCase", "g.GT.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.lrt")
+      .logreg("score", "sa.fam.isCase", "g.GT.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.score")
+      .logreg("firth", "sa.fam.isCase", "g.GT.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.firth")
 
     // 2535 samples from 1K Genomes Project
     val v1 = Variant("22", 16060511, "T", "TTC")

@@ -2,7 +2,8 @@ package is.hail.io
 
 import is.hail.check.Prop._
 import is.hail.SparkSuite
-import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF}
+import is.hail.annotations.Annotation
+import is.hail.io.vcf.LoadVCF
 import is.hail.variant.{Call, Genotype, VSMSubgen, Variant, VariantSampleMatrix}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
@@ -85,52 +86,45 @@ class ImportVCFSuite extends SparkSuite {
     val s2 = "C1046::HG02025"
 
     assert(r(v1, s1) == Genotype(
-      Some(0),
-      Some(Array(10, 0)),
-      Some(10),
-      Some(44),
-      Some(Array(0, 44, 180))
+      0,
+      Array(10, 0),
+      10,
+      44,
+      Array(0, 44, 180)
     ))
     assert(r(v1, s2) == Genotype(
-      Some(2),
-      Some(Array(0, 6)),
-      Some(7),
-      Some(70),
-      Some(Array(70, 0))
+      2,
+      Array(0, 6),
+      7,
+      70,
+      Array(70, 0)
     ))
     assert(r(v2, s1) == Genotype(
-      Some(5),
-      Some(Array(0, 0, 11)),
-      Some(11),
-      Some(33),
-      Some(Array(396, 402, 411, 33, 33, 0))
+      5,
+      Array(0, 0, 11),
+      11,
+      33,
+      Array(396, 402, 411, 33, 33, 0)
     ))
     assert(r(v2, s2) == Genotype(
-      Some(5),
-      Some(Array(0, 0, 9)),
-      Some(9),
-      Some(24),
-      Some(Array(24, 40, 0))
+      5,
+      Array(0, 0, 9),
+      9,
+      24,
+      Array(24, 40, 0)
     ))
   }
 
   @Test def testGeneric() {
     val path = tmpDir.createTempFile(extension = ".vds")
     val vcf = "src/test/resources/sample.vcf.bgz"
-    val gds = hc.importVCFGeneric(vcf)
-    val vds = hc.importVCF(vcf)
-
-    val (_, qGT) = gds.queryGA("g.GT")
-    val callVDS = vds.expand().map { case (v, s, g) => ((v.asInstanceOf[Variant], s), Genotype.call(g.asInstanceOf[Genotype])) }
-    val callGDS = gds.expand().map { case (v, s, g) => ((v.asInstanceOf[Variant], s), qGT(g).asInstanceOf[Call]) }
-
-    assert(callVDS.fullOuterJoin(callGDS).forall { case ((v, s), (c1, c2)) => c1 == c2 })
+    val gds = hc.importVCF(vcf)
 
     gds.write(path)
 
     val path2 = tmpDir.createTempFile(extension = ".vds")
     val vcf2 = "src/test/resources/generic.vcf"
-    val gds2 = hc.importVCFGeneric(vcf2, callFields = Set("GT", "GTA", "GTZ"))
+    val gds2 = hc.importVCF(vcf2, callFields = Set("GT", "GTA", "GTZ"))
     gds2.write(path2)
 
     val v1 = Variant("X", 16050036, "A", "C")

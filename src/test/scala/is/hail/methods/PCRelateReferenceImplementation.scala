@@ -9,7 +9,7 @@ object PCRelateReferenceImplementation {
   def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double = 0.0): (Map[(String, String), (Double, Double, Double, Double)], BDM[Double], BDM[Double], BDM[Double]) = {
     val indexToId: Map[Int, String] = vds.stringSampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
 
-    val gts = vds.typedRDD[Locus, Variant, Genotype].zipWithIndex.map { case ((v, (va, gs)), i) =>
+    val gts = vds.typedRDD[Locus, Variant].zipWithIndex.map { case ((v, (va, gs)), i) =>
       val a = gs.map(Genotype.gt _).toArray
       val mean = a.flatten.sum.toDouble / a.flatten.length
       (i, a.map { case Some(v) => v.toDouble ; case None => mean }.toArray)

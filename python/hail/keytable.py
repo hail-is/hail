@@ -502,7 +502,7 @@ class KeyTable(HistoryMixin):
     @handle_py4j
     @record_method
     def expand_types(self):
-        """Expand types Locus, Interval, AltAllele, Variant, Genotype, Char,
+        """Expand types Locus, Interval, AltAllele, Variant, Char,
         Set and Dict.  Char is converted to String.  Set is converted
         to Array.  Dict[K, V] is converted to
 

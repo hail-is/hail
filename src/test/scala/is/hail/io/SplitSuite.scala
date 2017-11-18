@@ -1,11 +1,10 @@
 package is.hail.io
 
 import is.hail.SparkSuite
-import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Genotype, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{AltAllele, VSMSubgen, Variant, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 class SplitSuite extends SparkSuite {

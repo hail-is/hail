@@ -631,6 +631,7 @@ class OrderedRDD2 private(
         val rv2 = RegionValue()
 
         it.map { rv =>
+          val ur = new UnsafeRow(typ.rowType, rv)
           rv2b.set(rv.region)
           rv2b.start(insTyp.rowType)
           inserter(rv.region, rv.offset, rv2b, () => add(c, rv, rv2b))

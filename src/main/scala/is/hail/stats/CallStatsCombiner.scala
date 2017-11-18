@@ -3,7 +3,7 @@ package is.hail.stats
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant}
+import is.hail.variant.{Call, Genotype, Variant}
 
 object CallStats {
   def schema = TStruct(
@@ -21,12 +21,12 @@ case class CallStats(alleleCount: IndexedSeq[Int], alleleFrequency: Option[Index
   def asAnnotation: Annotation = Annotation(alleleCount, alleleFrequency.orNull, alleleNumber, genotypeCount)
 }
 
-class CallStatsCombiner(v: Variant) extends Serializable {
+class CallStatsCombiner(val v: Variant) extends Serializable {
   val alleleCount = new Array[Int](v.nAlleles)
   val genotypeCount = new Array[Int](v.nGenotypes)
 
-  def merge(g: Genotype): CallStatsCombiner = {
-    Genotype.gt(g).foreach { gt =>
+  def merge(gt: Call): CallStatsCombiner = {
+    if (gt != null) {
       val p = Genotype.gtPair(gt)
       alleleCount(p.j) += 1
       alleleCount(p.k) += 1
@@ -42,6 +42,8 @@ class CallStatsCombiner(v: Variant) extends Serializable {
   }
 
   def result(): CallStats = {
+    assert(alleleCount.sum == 2 * genotypeCount.sum)
+
     val alleleNumber = alleleCount.sum
     val alleleFrequency =
       if (alleleNumber == 0)
