@@ -4233,7 +4233,7 @@ class VariantDataset(HistoryMixin):
 
           :py:meth:`~hail.VariantDataset.naive_coalesce` simply combines adjacent partitions to achieve the desired number.  It does not attempt to rebalance, unlike :py:meth:`~hail.VariantDataset.repartition`, so it can produce a heavily unbalanced dataset.  An unbalanced dataset can be inefficient to operate on because the work is not evenly distributed across partitions.
 
-        :param int max_partitions: Desired number of partitions.  If the current number of partitions is less than ``max_partitions``, do nothing.
+        :param int max_partitions: Desired number of partitions.  If the current number of partitions is less than or equal to ``max_partitions``, do nothing.
 
         :return: Variant dataset with the number of partitions equal to at most ``max_partitions``
         :rtype: :class:`.VariantDataset`

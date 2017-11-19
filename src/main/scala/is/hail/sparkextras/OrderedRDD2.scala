@@ -759,6 +759,30 @@ class OrderedRDD2 private(
     rdd: RDD[RegionValue] = rdd): OrderedRDD2 = {
     OrderedRDD2(typ, orderedPartitioner, rdd)
   }
+
+  def naiveCoalesce(maxPartitions: Int): OrderedRDD2 = {
+    val n = orderedPartitioner.numPartitions
+    if (maxPartitions >= n)
+      return this
+
+    val newN = maxPartitions
+    val newNParts = Array.tabulate(newN)(i => (n - i + newN - 1) / newN)
+    assert(newNParts.sum == n)
+    assert(newNParts.forall(_ > 0))
+
+    val newPartEnd = newNParts.scanLeft(-1)( _ + _ ).tail
+    assert(newPartEnd.last == n - 1)
+
+    val newRangeBounds = UnsafeIndexedSeq(
+      TArray(typ.pkType),
+      newPartEnd.init.map(orderedPartitioner.rangeBounds))
+
+    OrderedRDD2(
+      typ,
+      new OrderedPartitioner2(newN, typ.partitionKey, typ.kType, newRangeBounds),
+      new BlockedRDD(rdd, newPartEnd))
+  }
+
 }
 
 class OrderedDependency2(left: OrderedRDD2, right: OrderedRDD2) extends NarrowDependency[RegionValue](right) {
