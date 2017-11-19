@@ -68,6 +68,17 @@ class ExprPCA(val expr: String) extends PCA {
     val pSizeBc = vsm.sparkContext.broadcast(partitionSizes)
 
     val rowType = vsm.rowType
+    val rowTypeBc = vsm.sparkContext.broadcast(rowType)
+
+    val ecMap = vsm.sparkContext.broadcast(Map(
+      "global" -> (0, vsm.globalSignature),
+      "v" -> (1, vsm.vSignature),
+      "va" -> (2, vsm.vaSignature),
+      "s" -> (3, vsm.sSignature),
+      "sa" -> (4, vsm.saSignature),
+      "g" -> (5, vsm.genotypeSignature)))
+    val exprBc = vsm.sparkContext.broadcast(expr)
+    val globalAnnotationsBc = vsm.sparkContext.broadcast(vsm.globalAnnotation)
 
     val variants = if (getVariants)
         Option(vsm.rdd2.map(rv => Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))).collect())
@@ -77,16 +88,10 @@ class ExprPCA(val expr: String) extends PCA {
     val mat = vsm.rdd2.mapPartitionsWithIndex {case (i, it) =>
       val pStartIdx = pSizeBc.value(i)
       var j = 0
-      val ur = new UnsafeRow(rowType)
-      val ec = EvalContext(Map(
-        "global" -> (0, vsm.globalSignature),
-        "v" -> (1, vsm.vSignature),
-        "va" -> (2, vsm.vaSignature),
-        "s" -> (3, vsm.sSignature),
-        "sa" -> (4, vsm.saSignature),
-        "g" -> (5, vsm.genotypeSignature)))
-      val f = RegressionUtils.parseExprAsDouble(expr, ec)
-      ec.set(1, vsm.globalAnnotation)
+      val ur = new UnsafeRow(rowTypeBc.value)
+      val ec = EvalContext(ecMap.value)
+      val f = RegressionUtils.parseExprAsDouble(exprBc.value, ec)
+      ec.set(1, globalAnnotationsBc.value)
       val localSamples = vsm.sampleIdsBc.value
       val localSampleAnnotations = vsm.sampleAnnotationsBc.value
       val nSamples = localSamples.length

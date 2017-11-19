@@ -43,4 +43,15 @@ class PCASuite extends SparkSuite {
 
     assert(arrayT.valuesSimilar(eigenvalues.get.toIndexedSeq, pyEigen), s"$eigenvalues")
   }
+
+  @Test def testExpr() {
+    val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
+    val pca = new ExprPCA("g.gt")
+
+    val (scores, loadings, eigenvalues) = pca(vds, 3, true, true, true)
+
+    println(scores)
+    println(loadings.get.collect())
+    println(eigenvalues.get)
+  }
 }
