@@ -449,25 +449,6 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     }
   }
 
-  def naiveCoalesce(maxPartitions: Int): OrderedRDD[PK, K, V] = {
-    val n = orderedPartitioner.numPartitions
-    if (maxPartitions > n)
-      return this
-
-    val newN = maxPartitions
-    val newNParts = Array.tabulate(newN)(i => (n - i + newN - 1) / newN)
-    assert(newNParts.sum == n)
-    assert(newNParts.forall(_ > 0))
-
-    val newPartEnd = newNParts.scanLeft(-1)( _ + _ ).tail
-    assert(newPartEnd.last == n - 1)
-
-    val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds)
-
-    new OrderedRDD[PK, K, V](new BlockedRDD(rdd, newPartEnd),
-      new OrderedPartitioner(newRangeBounds, newN))
-  }
-
   def filterIntervals(intervals: IntervalTree[PK, _]): OrderedRDD[PK, K, V] = {
 
     import kOk.pkOrd

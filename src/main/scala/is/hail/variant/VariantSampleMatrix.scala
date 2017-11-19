@@ -2123,7 +2123,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def unpersist(): VariantSampleMatrix = copy2(rdd2 = rdd2.unpersist2())
 
   def naiveCoalesce(maxPartitions: Int): VariantSampleMatrix =
-    copy(rdd = rdd.naiveCoalesce(maxPartitions))
+    copy2(rdd2 = rdd2.naiveCoalesce(maxPartitions))
 
   /**
     * @param filterExpr filter expression involving v (Variant), va (variant annotations), s (sample),
