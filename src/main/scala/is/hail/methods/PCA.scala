@@ -17,7 +17,7 @@ trait PCA {
       TStruct((1 to k).map(i => (s"PC$i", TFloat64())): _*)
 
   //returns (sample scores, variant loadings, eigenvalues)
-  def apply(vsm: VariantSampleMatrix[_, _, _], k: Int, computeLoadings: Boolean, computeEigenvalues: Boolean, asArray: Boolean = false): (DenseMatrix, Option[KeyTable], Option[IndexedSeq[Double]]) = {
+  def apply(vsm: VariantSampleMatrix, k: Int, computeLoadings: Boolean, computeEigenvalues: Boolean, asArray: Boolean = false): (DenseMatrix, Option[KeyTable], Option[IndexedSeq[Double]]) = {
     val sc = vsm.sparkContext
     val (maybeVariants, mat) = doubleMatrixFromVSM(vsm, computeLoadings)
     val svd = mat.computeSVD(k, computeLoadings)
@@ -56,12 +56,12 @@ trait PCA {
     (svd.V.multiply(DenseMatrix.diag(svd.s)), optionLoadings, someIf(computeEigenvalues, svd.s.toArray.map(math.pow(_, 2))))
   }
 
-  def doubleMatrixFromVSM(vsm: VariantSampleMatrix[_, _, _], getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix)
+  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix)
 }
 
 object SamplePCA extends PCA {
-  override def doubleMatrixFromVSM(vsm: VariantSampleMatrix[_, _, _], getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix) = {
-    val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vsm.makeVariantConcrete())
+  override def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix) = {
+    val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vsm)
     (if (getVariants) Option(variants) else None, mat)
   }
 }

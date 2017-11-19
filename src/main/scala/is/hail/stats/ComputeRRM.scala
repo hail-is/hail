@@ -122,7 +122,7 @@ object ToNormalizedIndexedRowMatrix {
 
 // each row has mean 0, norm approx sqrt(n), variance approx 1, constant variants are included as zero vector
 object ToHWENormalizedIndexedRowMatrix {
-  def apply(vsm: VariantSampleMatrix[Locus, Variant, _]): (Array[Variant], IndexedRowMatrix) = {
+  def apply(vsm: VariantSampleMatrix): (Array[Variant], IndexedRowMatrix) = {
     require(vsm.wasSplit)
     val rowType = vsm.rowType
 

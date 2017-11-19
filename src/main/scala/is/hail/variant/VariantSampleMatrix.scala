@@ -2468,7 +2468,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     */
 
   def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
-    asArrays: Boolean = false): VariantSampleMatrix[RPK, RK, T] = {
+    asArrays: Boolean = false): VariantSampleMatrix = {
 
     val pcSchema = SamplePCA.pcSchema(k, asArrays)
 
