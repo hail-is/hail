@@ -762,7 +762,7 @@ class OrderedRDD2 private(
 
   def naiveCoalesce(maxPartitions: Int): OrderedRDD2 = {
     val n = orderedPartitioner.numPartitions
-    if (maxPartitions > n)
+    if (maxPartitions >= n)
       return this
 
     val newN = maxPartitions
