@@ -975,7 +975,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
           startArray(v.altAlleles.length)
           var i = 0
           while (i < v.altAlleles.length) {
-            addAnnotation(TAltAllele(), v.altAlleles(i))
+            addAnnotation(TAltAllele(), v.altAlleles()(i))
             i += 1
           }
           endArray()
