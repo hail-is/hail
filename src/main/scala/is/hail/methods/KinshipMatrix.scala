@@ -15,7 +15,7 @@ import scala.collection.Searching._
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
   */
-case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) {
+case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) extends ExportableMatrix {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   def requireSampleTString(method: String) {
@@ -54,28 +54,11 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
     */
   def exportTSV(output: String) {
     require(output.endsWith(".tsv"), "Kinship matrix output must end in '.tsv'")
-    prepareMatrixForExport(matrix).rows.map(ir => ir.vector.toArray.mkString("\t"))
-      .writeTable(output, hc.tmpDir, Some(sampleIds.mkString("\t")))
+    export(output, "\t", Some(sampleIds.mkString("\t")), false)
   }
 
   def exportRel(output: String) {
-    prepareMatrixForExport(matrix).rows
-    .mapPartitions{ itr =>
-      val sb = new StringBuilder
-      itr.foreach{ (row: IndexedRow) =>
-        val i = row.index
-        val arr = row.vector.toArray
-        var j = 0
-        while (j <= i) {
-          if (j > 0)
-            sb += '\t'
-          sb.append(arr(j))
-          j += 1
-        }
-        sb += '\n'
-      }
-      sb.lines
-    }.writeTable(output, hc.tmpDir)
+    exportStrictLowerTriangle(output, "\t", None, false)
   }
 
   def exportGctaGrm(output: String) {
