@@ -44,16 +44,16 @@ object ExportBedBimFam {
   def bimRowTransformer(rowType: TStruct): Iterator[RegionValue] => Iterator[String] = { it =>
     val vIdx = rowType.fieldIdx("v")
     val psuedoVariantType = rowType.fieldType(vIdx).asInstanceOf[TVariant]
-    val view = new VariantView(psuedoVariantType)
+    assert(rowType.fieldType(vIdx).required)
+    val view = new RegionValueVariant(psuedoVariantType)
 
     it.map { rv =>
       val region = rv.region
-      assert(rowType.isFieldDefined(rv, vIdx))
       view.setRegion(region, rowType.loadField(rv, vIdx))
-      val contig = view.getContig()
-      val start = view.getStart()
-      val ref = view.getRef()
-      val alt = view.getAlt()
+      val contig = view.contig
+      val start = view.start
+      val ref = view.ref
+      val alt = view.alt
       // FIXME: NO STRINGS, go directly through writePartitions
       val id = s"${contig}:${start}:${ref}:${alt}"
       s"""${contig}\t$id\t0\t${start}\t${alt}\t${ref}"""
