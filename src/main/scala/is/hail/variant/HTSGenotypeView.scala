@@ -414,9 +414,9 @@ class HardcallTrioGenotypeView(rs: TStruct, callField: String) {
   private var gsOffset: Long = _
   private var gsLength: Int = _
   private var gOffset: Long = _
-  private var gProbandOffset: Long = _
-  private var gMotherOffset: Long = _
-  private var gFatherOffset: Long = _
+  private var probandOffset: Long = _
+  private var motherOffset: Long = _
+  private var fatherOffset: Long = _
 
   var gIsDefined: Boolean = _
 
@@ -434,31 +434,31 @@ class HardcallTrioGenotypeView(rs: TStruct, callField: String) {
     require(idx >= 0 && idx < gsLength)
     gIsDefined = trioTgs.isElementDefined(m, gsOffset, idx)
     gOffset = trioTgs.loadElement(m, gsOffset, gsLength, idx)
-    gProbandOffset = trioTg.loadField(m, gOffset, probandIndex)
-    gMotherOffset = trioTg.loadField(m, gOffset, motherIndex)
-    gFatherOffset = trioTg.loadField(m, gOffset, fatherIndex)
+    probandOffset = trioTg.loadField(m, gOffset, probandIndex)
+    motherOffset = trioTg.loadField(m, gOffset, motherIndex)
+    fatherOffset = trioTg.loadField(m, gOffset, fatherIndex)
   }
 
   def hasProbandGT: Boolean =
     gIsDefined &&
       trioTg.isFieldDefined(m, gOffset, probandIndex) &&
-      tg.isFieldDefined(m, gProbandOffset, gtIndex)
+      tg.isFieldDefined(m, probandOffset, gtIndex)
 
   def hasMotherGT: Boolean =
     gIsDefined &&
       trioTg.isFieldDefined(m, gOffset, motherIndex) &&
-      tg.isFieldDefined(m, gMotherOffset, gtIndex)
+      tg.isFieldDefined(m, motherOffset, gtIndex)
 
   def hasFatherGT: Boolean =
     gIsDefined &&
       trioTg.isFieldDefined(m, gOffset, fatherIndex) &&
-      tg.isFieldDefined(m, gFatherOffset, gtIndex)
+      tg.isFieldDefined(m, fatherOffset, gtIndex)
 
   def hasAllGTs: Boolean =
     hasProbandGT && hasMotherGT && hasFatherGT
 
   def getProbandGT: Int = {
-    val callOffset = tg.loadField(m, gProbandOffset, gtIndex)
+    val callOffset = tg.loadField(m, probandOffset, gtIndex)
     val gt = m.loadInt(callOffset)
     if (gt < 0)
       throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
@@ -466,7 +466,7 @@ class HardcallTrioGenotypeView(rs: TStruct, callField: String) {
   }
 
   def getMotherGT: Int = {
-    val callOffset = tg.loadField(m, gMotherOffset, gtIndex)
+    val callOffset = tg.loadField(m, motherOffset, gtIndex)
     val gt = m.loadInt(callOffset)
     if (gt < 0)
       throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
@@ -474,7 +474,7 @@ class HardcallTrioGenotypeView(rs: TStruct, callField: String) {
   }
 
   def getFatherGT: Int = {
-    val callOffset = tg.loadField(m, gFatherOffset, gtIndex)
+    val callOffset = tg.loadField(m, fatherOffset, gtIndex)
     val gt = m.loadInt(callOffset)
     if (gt < 0)
       throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
