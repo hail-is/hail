@@ -5,7 +5,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.TVariant
 import is.hail.utils._
-import is.hail.variant.{HardCallView, Variant, VariantDataset}
+import is.hail.variant.{HardCallView, Locus, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
 import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vectors}
@@ -122,13 +122,13 @@ object ToNormalizedIndexedRowMatrix {
 
 // each row has mean 0, norm approx sqrt(n), variance approx 1, constant variants are included as zero vector
 object ToHWENormalizedIndexedRowMatrix {
-  def apply(vds: VariantDataset): (Array[Variant], IndexedRowMatrix) = {
-    require(vds.wasSplit)
-    val rowType = vds.rowType
+  def apply(vsm: VariantSampleMatrix): (Array[Variant], IndexedRowMatrix) = {
+    require(vsm.wasSplit)
+    val rowType = vsm.rowType
 
-    val n = vds.nSamples
+    val n = vsm.nSamples
     // extra leading 0 from scanLeft
-    val variantsAndSizes = vds.rdd2.mapPartitions { it =>
+    val variantsAndSizes = vsm.rdd2.mapPartitions { it =>
       val tv = rowType.fields(1).typ.asInstanceOf[TVariant]
       val ab = new ArrayBuilder[Variant]
       var n = 0
@@ -143,10 +143,10 @@ object ToHWENormalizedIndexedRowMatrix {
     val nVariants = variants.length
 
     val partitionSizes = variantsAndSizes.map(_._1).scanLeft(0)(_ + _)
-    assert(partitionSizes.length == vds.rdd2.getNumPartitions + 1)
-    val pSizeBc = vds.sparkContext.broadcast(partitionSizes)
+    assert(partitionSizes.length == vsm.rdd2.getNumPartitions + 1)
+    val pSizeBc = vsm.sparkContext.broadcast(partitionSizes)
 
-    val indexedRows = vds.rdd2.mapPartitionsWithIndex { case (i, it) =>
+    val indexedRows = vsm.rdd2.mapPartitionsWithIndex { case (i, it) =>
       val view = HardCallView(rowType)
 
       val partitionStartIndex = pSizeBc.value(i)

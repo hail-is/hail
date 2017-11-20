@@ -374,44 +374,6 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
 
   /**
     *
-    * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')
-    * @param k            Number of principal components
-    * @param loadingsRoot Variant annotation path for site loadings (period-delimited path starting in 'va')
-    * @param eigenRoot    Global annotation path for eigenvalues (period-delimited path starting in 'global'
-    * @param asArrays     Store score and loading results as arrays, rather than structs
-    */
-  def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
-    asArrays: Boolean = false): VariantDataset = {
-    require(vsm.wasSplit)
-
-    if (k < 1)
-      fatal(
-        s"""requested invalid number of components: $k
-           |  Expect componenents >= 1""".stripMargin)
-
-    info(s"Running PCA with $k components...")
-
-    val pcSchema = SamplePCA.pcSchema(asArrays, k)
-
-    val (scores, loadings, eigenvalues) =
-      SamplePCA(vsm, k, loadingsRoot.isDefined, eigenRoot.isDefined, asArrays)
-
-    var ret = vsm.annotateSamples(scores, pcSchema, scoresRoot)
-
-    loadings.foreach { rdd =>
-      ret = ret.annotateVariants(rdd
-        .map { case (k, v) =>  (k: Annotation, v) }
-        .orderedRepartitionBy(vsm.rdd.orderedPartitioner), pcSchema, loadingsRoot.get)
-    }
-
-    eigenvalues.foreach { eig =>
-      ret = ret.annotateGlobal(eig, pcSchema, eigenRoot.get)
-    }
-    ret
-  }
-
-  /**
-    *
     * @param k          the number of principal components to use to distinguish
     *                   ancestries
     * @param maf        the minimum individual-specific allele frequency for an
@@ -424,7 +386,7 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
     */
   def pcRelate(k: Int, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): KeyTable = {
     require(vsm.wasSplit)
-    val pcs = SamplePCA.justScores(vsm, k)
+    val pcs = SamplePCA(vsm, k, false, false)._1
     PCRelate.toKeyTable(vsm, pcs, maf, blockSize, minKinship, statistics)
   }
 
