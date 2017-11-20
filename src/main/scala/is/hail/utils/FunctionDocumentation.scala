@@ -95,11 +95,11 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
   val objCategory = {
     objType match {
       case Some(ot) => ot match {
-        case TAggregable(_, req) => Some({ if (req) "!" else "" } + "Aggregable")
+        case TAggregable(_, req) => Some("Aggregable")
         case TAggregableVariable(_, _) => Some("Aggregable")
-        case TArray(_, req) => Some({ if (req) "!" else "" } + "Array")
-        case TSet(_ , req) => Some({ if (req) "!" else "" } + "Set")
-        case TDict(_, _, req) => Some({ if (req) "!" else "" } + "Dict")
+        case TArray(_, req) => Some("Array")
+        case TSet(_ , req) => Some("Set")
+        case TDict(_, _, req) => Some("Dict")
         case _ => Some(ot.toString.replaceAll("\\?", ""))
       }
       case None => None
