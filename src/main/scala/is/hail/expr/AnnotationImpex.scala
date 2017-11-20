@@ -208,9 +208,9 @@ case class JSONExtractGenotype(
 case class JSONExtractVariant(contig: String,
   start: Int,
   ref: String,
-  altAlleles: List[AltAllele]) {
+  altAlleles: List[ConcreteAltAllele]) {
   def toVariant =
-    Variant(contig, start, ref, altAlleles.toArray)
+    Variant(contig, start, ref, altAlleles.toArray[AltAllele])
 }
 
 case class JSONExtractInterval(start: Locus, end: Locus) {
