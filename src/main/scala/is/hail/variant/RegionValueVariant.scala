@@ -28,14 +28,6 @@ class RegionValueVariant(tv: TVariant) extends Variant with View {
     this.offset = offset
     cachedContig = null
     cachedRef = null
-    altAllelesView.setRegion(region, t.loadField(region, offset, altAllelesIdx))
-    val a = new Array[AltAllele](altAllelesView.length)
-    var i = 0
-    while (i < altAllelesView.length) {
-      altAllelesView.set(i)
-      a(i) = altAllelesView.elementView.reify()
-    }
-    cachedAltAlleles = a
   }
 
   def getOffset(): Long = offset
@@ -60,5 +52,17 @@ class RegionValueVariant(tv: TVariant) extends Variant with View {
     cachedRef
   }
 
-  override def altAlleles(): IndexedSeq[AltAllele] = cachedAltAlleles
+  override def altAlleles(): IndexedSeq[AltAllele] = {
+    if (cachedAltAlleles == null) {
+      altAllelesView.setRegion(region, t.loadField(region, offset, altAllelesIdx))
+      val a = new Array[AltAllele](altAllelesView.length)
+      var i = 0
+      while (i < altAllelesView.length) {
+        altAllelesView.set(i)
+        a(i) = altAllelesView.elementView.reify()
+      }
+      cachedAltAlleles = a
+    }
+    cachedAltAlleles
+  }
 }
