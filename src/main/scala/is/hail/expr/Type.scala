@@ -465,12 +465,14 @@ object TNumeric {
     if (types.size == 1)
       types.head
     else if (types(TFloat64Required) || types(TFloat64Optional))
-      TFloat64(types(TFloat64Required))
+      TFloat64()
     else if (types(TFloat32Required) || types(TFloat32Optional))
-      TFloat32(types(TFloat32Required))
+      TFloat32()
+    else if (types(TInt64Required) || types(TInt64Optional))
+      TInt64()
     else {
-      assert(types(TInt64Required) || types(TInt64Optional))
-      TInt64(types(TInt64Required))
+      assert(types(TInt32Required) || types(TInt32Optional))
+      TInt32()
     }
   }
 }
