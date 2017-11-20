@@ -57,11 +57,11 @@ trait PCA {
     (svd.V.multiply(DenseMatrix.diag(svd.s)), optionLoadings, someIf(computeEigenvalues, svd.s.toArray.map(math.pow(_, 2))))
   }
 
-  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix)
+  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix)
 }
 
 class ExprPCA(val expr: String) extends PCA {
-  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix) = {
+  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix) = {
 
     val partitionSizes = vsm.rdd2.mapPartitions(it => Iterator.single(it.size)).collect().scanLeft(0)(_ + _)
     assert(partitionSizes.length == vsm.rdd2.getNumPartitions + 1)
@@ -101,14 +101,22 @@ class ExprPCA(val expr: String) extends PCA {
       }
     }
 
-    (someIf(getVariants, vsm.rdd2.map(rv => Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))).collect()),
+    (someIf(getVariants,
+      vsm.rdd2.mapPartitions{it =>
+        val ur = new UnsafeRow(rowType)
+        it.map{ rv =>
+          ur.set(rv)
+          ur.get(1)
+        }
+      }.collect()
+    ),
     new IndexedRowMatrix(mat, partitionSizes(partitionSizes.length - 1), vsm.sampleIds.length))
   }
 }
 
 object SamplePCA extends PCA {
-  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix) = {
+  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix) = {
     val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vsm)
-    (if (getVariants) Option(variants) else None, mat)
+    (if (getVariants) Option(variants.asInstanceOf[Array[Any]]) else None, mat)
   }
 }

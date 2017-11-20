@@ -2581,7 +2581,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   def pcaResults(k: Int = 10, expr: Option[String] = None, computeLoadings: Boolean = false, computeEigenvalues: Boolean = false, asArrays: Boolean = false): (KeyTable, Option[KeyTable], Option[IndexedSeq[Double]]) = {
-    require(wasSplit)
+    if (expr == None)
+      require(wasSplit)
 
     if (k < 1)
       fatal(
