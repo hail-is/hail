@@ -374,6 +374,6 @@ case class ConcreteVariant(contig: String,
 case class ReadableConcreteVariant(contig: String,
   start: Int,
   ref: String,
-  override val altAlleles: IndexedSeq[ConcreteAltAllele]) {
+  val altAlleles: IndexedSeq[ConcreteAltAllele]) {
   def toConcreteVariant(): ConcreteVariant = ConcreteVariant(contig, start, ref, altAlleles)
 }
