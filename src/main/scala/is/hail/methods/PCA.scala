@@ -61,59 +61,48 @@ trait PCA {
 }
 
 class ExprPCA(val expr: String) extends PCA {
-  def doubleMatrixFromVSM(vsm: VariantSampleMatrix[_, _, _], getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix) = {
+  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix) = {
 
     val partitionSizes = vsm.rdd2.mapPartitions(it => Iterator.single(it.size)).collect().scanLeft(0)(_ + _)
     assert(partitionSizes.length == vsm.rdd2.getNumPartitions + 1)
     val pSizeBc = vsm.sparkContext.broadcast(partitionSizes)
 
     val rowType = vsm.rowType
-    val rowTypeBc = vsm.sparkContext.broadcast(rowType)
+    val samplesBc = vsm.sampleIdsBc
+    val sampleAnnotationsBc = vsm.sampleAnnotationsBc
 
-    val ecMap = vsm.sparkContext.broadcast(Map(
+    val ec = EvalContext(Map(
       "global" -> (0, vsm.globalSignature),
       "v" -> (1, vsm.vSignature),
       "va" -> (2, vsm.vaSignature),
       "s" -> (3, vsm.sSignature),
       "sa" -> (4, vsm.saSignature),
       "g" -> (5, vsm.genotypeSignature)))
-    val exprBc = vsm.sparkContext.broadcast(expr)
-    val globalAnnotationsBc = vsm.sparkContext.broadcast(vsm.globalAnnotation)
-
-    val variants = if (getVariants)
-        Option(vsm.rdd2.map(rv => Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))).collect())
-      else
-        None
+    val f = RegressionUtils.parseExprAsDouble(expr, ec)
+    ec.set(0, vsm.globalAnnotation)
 
     val mat = vsm.rdd2.mapPartitionsWithIndex {case (i, it) =>
       val pStartIdx = pSizeBc.value(i)
       var j = 0
-      val ur = new UnsafeRow(rowTypeBc.value)
-      val ec = EvalContext(ecMap.value)
-      val f = RegressionUtils.parseExprAsDouble(exprBc.value, ec)
-      ec.set(1, globalAnnotationsBc.value)
-      val localSamples = vsm.sampleIdsBc.value
-      val localSampleAnnotations = vsm.sampleAnnotationsBc.value
-      val nSamples = localSamples.length
-
+      val ur = new UnsafeRow(rowType)
       it.map {rv =>
         ur.set(rv)
-        val v = ur.get(1)
-        val va = ur.get(2)
-        ec.set(1,v)
-        ec.set(2,va)
+        ec.set(1, ur.get(1))
+        ec.set(2, ur.get(2))
         val gs = ur.getAs[IndexedSeq[Any]](3)
-        val row = IndexedRow(pStartIdx + j, Vectors.dense((0 until nSamples).map {k =>
-          ec.set(3, localSamples(k))
-          ec.set(4, localSampleAnnotations(k))
-          ec.set(5, gs(k))
+        val row = IndexedRow(pStartIdx + j, Vectors.dense(gs.zipWithIndex.map {case (g, k) =>
+          ec.set(3, samplesBc.value(k))
+          ec.set(4, sampleAnnotationsBc.value(k))
+          ec.set(5, g)
           f().toDouble
         }.toArray))
         j += 1
         row
       }
     }
-    (variants, new IndexedRowMatrix(mat, partitionSizes(partitionSizes.length - 1), vsm.sampleIds.length))
+
+    (someIf(getVariants, vsm.rdd2.map(rv => Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))).collect()),
+    new IndexedRowMatrix(mat, partitionSizes(partitionSizes.length - 1), vsm.sampleIds.length))
   }
 }
 
