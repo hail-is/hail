@@ -370,3 +370,10 @@ case class ConcreteVariant(contig: String,
   require(start >= 0, s"invalid variant: negative position: `${ this.toString }'")
   require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
 }
+
+case class ReadableConcreteVariant(contig: String,
+  start: Int,
+  ref: String,
+  override val altAlleles: IndexedSeq[ConcreteAltAllele]) {
+  def toConcreteVariant(): ConcreteVariant = ConcreteVariant(contig, start, ref, altAlleles)
+}
