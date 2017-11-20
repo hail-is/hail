@@ -64,6 +64,8 @@ object MendelErrors {
   def apply(vds: VariantSampleMatrix, preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
     vds.requireUniqueSamples("mendel_errors")
 
+    val grLocal = vds.genomeReference
+
     val trios = preTrios.filter(_.sex.isDefined)
     val nSamplesDiscarded = preTrios.size - trios.size
 
@@ -90,7 +92,7 @@ object MendelErrors {
             val probandGt = if (view.hasProbandGT) view.getProbandGT else -1
             val motherGt = if (view.hasMotherGT) view.getMotherGT else -1
             val fatherGt = if (view.hasFatherGT) view.getFatherGT else -1
-            val code = getCode(probandGt, motherGt, fatherGt, v.copyState(trioSexBc.value(i)))
+            val code = getCode(probandGt, motherGt, fatherGt, v.copyState(trioSexBc.value(i), grLocal))
             if (code != 0)
               Some(MendelError(v, triosBc.value(i), code,
                 GenotypeType(probandGt), GenotypeType(fatherGt), GenotypeType(motherGt)))

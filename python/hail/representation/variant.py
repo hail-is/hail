@@ -235,14 +235,14 @@ class Variant(HistoryMixin):
 
         :rtype: bool
         """
-        return self._jrep.isAutosomalOrPseudoAutosomal()
+        return self._jrep.isAutosomalOrPseudoAutosomal(self._rg._jrep)
 
     def is_autosomal(self):
         """True if this polymorphism is located on an autosome.
 
         :rtype: bool
         """
-        return self._jrep.isAutosomal()
+        return self._jrep.isAutosomal(self._rg._jrep)
 
     def is_mitochondrial(self):
         """True if this polymorphism is mapped to mitochondrial DNA.
@@ -250,7 +250,7 @@ class Variant(HistoryMixin):
         :rtype: bool
         """
 
-        return self._jrep.isMitochondrial()
+        return self._jrep.isMitochondrial(self._rg._jrep)
 
     def in_X_PAR(self):
         """True of this polymorphism is found on the pseudoautosomal region of chromosome X.
@@ -258,7 +258,7 @@ class Variant(HistoryMixin):
         :rtype: bool
         """
 
-        return self._jrep.inXPar()
+        return self._jrep.inXPar(self._rg._jrep)
 
     def in_Y_PAR(self):
         """True of this polymorphism is found on the pseudoautosomal region of chromosome Y.
@@ -266,7 +266,7 @@ class Variant(HistoryMixin):
         :rtype: bool
         """
 
-        return self._jrep.inYPar()
+        return self._jrep.inYPar(self._rg._jrep)
 
     def in_X_non_PAR(self):
         """True of this polymorphism is found on the non-pseudoautosomal region of chromosome X.
@@ -274,7 +274,7 @@ class Variant(HistoryMixin):
         :rtype: bool
         """
 
-        return self._jrep.inXNonPar()
+        return self._jrep.inXNonPar(self._rg._jrep)
 
     def in_Y_non_PAR(self):
         """True of this polymorphism is found on the non-pseudoautosomal region of chromosome Y.
@@ -282,7 +282,7 @@ class Variant(HistoryMixin):
         :rtype: bool
         """
 
-        return self._jrep.inYNonPar()
+        return self._jrep.inYNonPar(self._rg._jrep)
 
 
 class AltAllele(HistoryMixin):

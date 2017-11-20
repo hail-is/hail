@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.{TFloat64, TInt32, TString}
+import is.hail.expr.{TFloat64, TInt32, TString, TVariant}
 import is.hail.utils.AbsoluteFuzzyComparable._
 import is.hail.utils.{AbsoluteFuzzyComparable, TextTableReader, _}
 import is.hail.variant._
@@ -99,7 +99,10 @@ class IBDSuite extends SparkSuite {
   object Spec extends Properties("IBD") {
     val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
-      .map(vds => vds.filterVariants { case (v, va, gs) => v.asInstanceOf[Variant].isAutosomalOrPseudoAutosomal })
+      .map { vds =>
+        val gr = vds.vSignature.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference]
+        vds.filterVariants { case (v, va, gs) => v.asInstanceOf[Variant].isAutosomalOrPseudoAutosomal(gr) }
+      }
       .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same result as plink 1.9") =

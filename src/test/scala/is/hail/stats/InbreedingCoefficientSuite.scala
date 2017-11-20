@@ -3,6 +3,7 @@ package is.hail.stats
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.Properties
+import is.hail.expr.TVariant
 import is.hail.utils._
 import is.hail.variant._
 import org.testng.annotations.Test
@@ -30,10 +31,12 @@ class InbreedingCoefficientSuite extends SparkSuite {
 
     val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
-      .map(vds => vds.filterVariants { case (v1, va, gs) =>
+      .map { vds =>
+        val gr = vds.vSignature.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference]
+        vds.filterVariants { case (v1, va, gs) =>
         val v = v1.asInstanceOf[Variant]
-        v.isAutosomalOrPseudoAutosomal && v.contig.toUpperCase != "X" && v.contig.toUpperCase != "Y"
-      })
+        v.isAutosomalOrPseudoAutosomal(gr) && v.contig.toUpperCase != "X" && v.contig.toUpperCase != "Y"
+      }}
       .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same results as PLINK v1.9") =
