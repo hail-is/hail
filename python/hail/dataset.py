@@ -5746,10 +5746,9 @@ class VariantDataset(HistoryMixin):
         are the sample IDs of the trio probands. The column annotations and
         entries of the matrix are changed in the following ways:
 
-        The new column annotation schema is a ``Struct`` with three ``Struct`` children
-        (``proband``, ``father``, and ``mother``),
-        each with an ``id`` and ``annotations`` field. The schema of each ``annotations``
-        field is the column annotation schema of the input dataset.
+        The new column annotation schema is a ``Struct`` with five children
+        (structs ``proband``, ``father``, and ``mother``, boolean ``sex``, and string ``famID``).
+        The schema of each ``annotations`` field is the column annotation schema of the input dataset.
 
          - **sa.proband.id** (*String*) - Proband sample ID, same as trio column key.
          - **sa.proband.annotations** (*Struct*) - Annotations on the proband.
@@ -5757,6 +5756,8 @@ class VariantDataset(HistoryMixin):
          - **sa.father.annotations** (*Struct*) - Annotations on the father.
          - **sa.mother.id** (*String*) - Mother sample ID.
          - **sa.mother.annotations** (*Struct*) - Annotations on the mother.
+         - **sa.isFemale** (*Boolean*) - Proband is female. True for female, False for male, missing if unknown.
+         - **sa.famID** (*String*) - Family identifier.
 
         The new cell schema is a ``Struct`` with ``proband``, ``father``, and ``mother``
         fields, where the schema of each field is the entry schema of the input dataset.

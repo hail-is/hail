@@ -1190,3 +1190,29 @@ class ContextTests(unittest.TestCase):
                 .key_by(['fam']))
 
         self.assertTrue(g_sa.same(t_sa))
+
+    def test_tdt(self):
+        pedigree = Pedigree.read('src/test/resources/tdt.fam')
+        tdt_res = (hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4)
+                   .split_multi()
+                   .tdt(pedigree)
+                   .variants_table())
+
+        truth = (hc
+                 .import_table('src/test/resources/tdt_results.tsv',
+                               types={'POSITION': TInt32(), 'T': TInt32(), 'U': TInt32(),
+                                      'Chi2': TFloat64(), 'Pval': TFloat64()})
+                 .annotate('v = Variant(CHROM, POSITION, REF, ALT)')
+                 .drop(['CHROM', 'POSITION', 'REF', 'ALT'])
+                 .key_by('v'))
+
+        bad = (tdt_res
+               .select(['v', 'va.tdt'])
+               .join(truth, how='outer')
+               .filter('!(tdt.nTransmitted == T && '
+                       'tdt.nUntransmitted == U && '
+                       'abs(tdt.chi2 - Chi2) < 0.001 && '
+                       'abs(tdt.pval - Pval) < 0.001)'))
+        if bad.count() != 0:
+            bad.show()
+            self.fail('Found rows in violation of the predicate (see show output)')
