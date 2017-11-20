@@ -67,7 +67,7 @@ trait ExportableMatrix {
     * @param matToComplete The matrix to be completed.
     * @return The completed matrix.
     */
-  private def prepareMatrixForExport(matToComplete: IndexedRowMatrix): IndexedRowMatrix = {
+  private[methods] def prepareMatrixForExport(matToComplete: IndexedRowMatrix): IndexedRowMatrix = {
     val longCols = matrix.numCols()
     require(longCols <= Integer.MAX_VALUE,
       "Cannot export matrices with more than Integer.MAX_VALUE cols")

@@ -129,22 +129,4 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
     s.write((bits >> 16) & 0xff)
     s.write(bits >> 24)
   }
-
-  /**
-    * Creates an IndexedRowMatrix whose backing RDD is sorted by row index and has an entry for every row index.
-    *
-    * @param matToComplete The matrix to be completed.
-    * @return The completed matrix.
-    */
-  private def prepareMatrixForExport(matToComplete: IndexedRowMatrix): IndexedRowMatrix = {
-    val zeroVector = SparseVector.zeros[Double](sampleIds.length)
-    new IndexedRowMatrix(matToComplete
-      .rows
-      .map(x => (x.index, x.vector))
-      .rightOuterJoin(hc.sc.parallelize(0L until sampleIds.length).map(x => (x, ())))
-      .map {
-        case (idx, (Some(v), _)) => IndexedRow(idx, v)
-        case (idx, (None, _)) => IndexedRow(idx, zeroVector)
-      }.sortBy(_.index))
-  }
 }
