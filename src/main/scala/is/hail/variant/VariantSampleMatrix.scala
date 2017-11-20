@@ -2580,7 +2580,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       genotypeSignature = newEntryType)
   }
 
-  def pcaResults(k: Int = 10, computeLoadings: Boolean = false, computeEigenvalues: Boolean = false, asArrays: Boolean = false): (KeyTable, Option[KeyTable], Option[IndexedSeq[Double]]) = {
+  def pcaResults(k: Int = 10, expr: Option[String] = None, computeLoadings: Boolean = false, computeEigenvalues: Boolean = false, asArrays: Boolean = false): (KeyTable, Option[KeyTable], Option[IndexedSeq[Double]]) = {
     require(wasSplit)
 
     if (k < 1)
@@ -2590,7 +2590,11 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     info(s"Running PCA with $k components...")
 
-    val (scoresmatrix, optionLoadings, optionEigenvalues) = SamplePCA(this, k, computeLoadings, computeEigenvalues, asArrays)
+    val (scoresmatrix, optionLoadings, optionEigenvalues) =
+      if (expr.isDefined)
+        new ExprPCA(expr.get)(this, k, computeLoadings, computeEigenvalues, asArrays)
+      else
+        SamplePCA(this, k, computeLoadings, computeEigenvalues, asArrays)
 
     val rowType = TStruct("s" -> sSignature, "pcaScores" -> SamplePCA.pcSchema(k, asArrays))
     val rowTypeBc = sparkContext.broadcast(rowType)
@@ -2629,17 +2633,18 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     *
     * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')
     * @param k            Number of principal components
+    * @param expr         Expression to map matrix entries to doubles
     * @param loadingsRoot Variant annotation path for site loadings (period-delimited path starting in 'va')
     * @param eigenRoot    Global annotation path for eigenvalues (period-delimited path starting in 'global'
     * @param asArrays     Store score and loading results as arrays, rather than structs
     */
 
-  def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
+  def pca(scoresRoot: String, k: Int = 10, expr: Option[String] = None, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
     asArrays: Boolean = false): VariantSampleMatrix = {
 
     val pcSchema = SamplePCA.pcSchema(k, asArrays)
 
-    val (scores, loadings, eigenvalues) = pcaResults(k, loadingsRoot.isDefined, eigenRoot.isDefined)
+    val (scores, loadings, eigenvalues) = pcaResults(k, expr, loadingsRoot.isDefined, eigenRoot.isDefined)
     var ret = annotateSamplesTable(scores, root = scoresRoot)
 
     loadings.foreach { kt =>

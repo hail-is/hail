@@ -3409,8 +3409,9 @@ class VariantDataset(HistoryMixin):
                       loadings=nullable(strlike),
                       eigenvalues=nullable(strlike),
                       k=integral,
+                      entry_to_double=nullable(strlike),
                       as_array=bool)
-    def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
+    def pca(self, scores, loadings=None, eigenvalues=None, k=10, entry_to_double=None, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
         .. include:: _templates/req_tvariant.rst
@@ -3427,11 +3428,15 @@ class VariantDataset(HistoryMixin):
 
         >>> vds_result = vds.pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True)
 
+        Compute the top 3 principal component scores of the genotype's missingness matrix, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC5`` of type Double:
+
+        >>> vds_result = vds.pca('sa.scores', k=3, '0 if (isDefined(g)) else 1')
+
         **Notes**
 
         Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`__. This method expects a variant dataset with biallelic autosomal variants. Scores are computed and stored as sample annotations of type Struct by default; variant loadings and eigenvalues can optionally be computed and stored in variant and global annotations, respectively.
 
-        PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix :math:`M`, computed as follows. An :math:`n \\times m` matrix :math:`C` records raw genotypes, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+        PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix :math:`M`. The default matrix is computed as follows, although any per-cell expression can be used to convert VariantDataset entries into a double-valued matrix. An :math:`n \\times m` matrix :math:`C` records raw genotypes, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
 
         .. math::
 
@@ -3494,6 +3499,9 @@ class VariantDataset(HistoryMixin):
         :param k: Number of principal components.
         :type k: int or None
 
+        :param entry_to_double: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
+        :type entry_to_double: str or None
+
         :param bool as_array: Store annotations as type Array rather than Struct
         :type k: bool or None
 
@@ -3501,7 +3509,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvds.pca(scores, k, joption(loadings), joption(eigenvalues), as_array)
+        jvds = self._jvds.pca(scores, k, joption(entry_to_double), joption(loadings), joption(eigenvalues), as_array)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
