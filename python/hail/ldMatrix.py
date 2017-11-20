@@ -104,7 +104,7 @@ class LDMatrix(HistoryMixin):
         >>> ldm = vds.ld_matrix()
         >>> ldm.export('output/ld_matrix.tsv',
         ...            column_delimiter=',',
-        ...            header=','.join(ldm.variant_list))
+        ...            header=','.join(ldm.variant_list()))
 
         Write a full LD matrix as a folder of comma-separated file shards:
 
@@ -122,6 +122,8 @@ class LDMatrix(HistoryMixin):
         ...            entries='strict_upper')
 
         **Notes**
+
+        A matrix cannot be exported if it has more than ``2^31 - 1`` columns.
 
         A full, 3x3 LD matrix written as a comma-separated file looks like this:
 
