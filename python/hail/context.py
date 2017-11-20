@@ -210,8 +210,9 @@ class HailContext(HistoryMixin):
                       tolerance=numeric,
                       sample_file=nullable(strlike),
                       min_partitions=nullable(integral),
-                      reference_genome=nullable(GenomeReference))
-    def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None):
+                      reference_genome=nullable(GenomeReference),
+                      contig_recoding=nullable(dictof(oneof(strlike, integral), oneof(strlike, integral))))
+    def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None, contig_recoding=None):
         """Import .bgen file(s) as variant dataset.
         
         .. warning::
@@ -272,13 +273,22 @@ class HailContext(HistoryMixin):
         :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
+        :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
+        :type contig_recoding: Dict of (str or int) to (str or int).
+
         :return: Variant dataset imported from .bgen file.
         :rtype: :class:`.VariantDataset`
         """
 
         rg = reference_genome if reference_genome else self.default_reference
+
+        if contig_recoding:
+            contig_recoding = TDict(TString(), TString())._convert_to_j(
+                {str(k): str(v) for k, v in contig_recoding.iteritems()})
+
         jvds = self._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                     tolerance, joption(min_partitions), rg._jrep)
+                                     tolerance, joption(min_partitions), rg._jrep,
+                                     joption(contig_recoding))
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -288,9 +298,10 @@ class HailContext(HistoryMixin):
                       tolerance=numeric,
                       min_partitions=nullable(integral),
                       chromosome=nullable(strlike),
-                      reference_genome=nullable(GenomeReference))
+                      reference_genome=nullable(GenomeReference),
+                      contig_recoding=nullable(dictof(oneof(strlike, integral), oneof(strlike, integral))))
     def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None,
-                   chromosome=None, reference_genome=None):
+                   chromosome=None, reference_genome=None, contig_recoding=None):
         """Import .gen file(s) as variant dataset.
 
         **Examples**
@@ -343,13 +354,21 @@ class HailContext(HistoryMixin):
         :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
+        :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
+        :type contig_recoding: Dict of (str or int) to (str or int).
+
         :return: Variant dataset imported from .gen and .sample files.
         :rtype: :class:`.VariantDataset`
         """
 
         rg = reference_genome if reference_genome else self.default_reference
+
+        if contig_recoding:
+            contig_recoding = TDict(TString(), TString())._convert_to_j(
+                {str(k):str(v) for k,v in contig_recoding.iteritems()})
+
         jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
-                                    tolerance, rg._jrep)
+                                    tolerance, rg._jrep, joption(contig_recoding))
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -532,9 +551,11 @@ class HailContext(HistoryMixin):
                       missing=strlike,
                       quant_pheno=bool,
                       a2_reference=bool,
-                      reference_genome=nullable(GenomeReference))
+                      reference_genome=nullable(GenomeReference),
+                      contig_recoding=nullable(dictof(oneof(strlike, integral), oneof(strlike, integral))))
     def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
-                     missing='NA', quant_pheno=False, a2_reference=True, reference_genome=None):
+                     missing='NA', quant_pheno=False, a2_reference=True,
+                     reference_genome=None, contig_recoding=None):
         """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
 
         **Examples**
@@ -605,8 +626,14 @@ class HailContext(HistoryMixin):
         """
 
         rg = reference_genome if reference_genome else self.default_reference
+
+        if contig_recoding:
+            contig_recoding = TDict(TString(), TString())._convert_to_j(
+                {str(k): str(v) for k, v in contig_recoding.iteritems()})
+
         jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter,
-                                     missing, quant_pheno, a2_reference, rg._jrep)
+                                     missing, quant_pheno, a2_reference, rg._jrep,
+                                     joption(contig_recoding))
 
         return VariantDataset(self, jvds)
 
@@ -685,9 +712,10 @@ class HailContext(HistoryMixin):
                       min_partitions=nullable(integral),
                       drop_samples=bool,
                       call_fields=oneof(strlike, listof(strlike)),
-                      reference_genome=nullable(GenomeReference))
+                      reference_genome=nullable(GenomeReference),
+                      contig_recoding=nullable(dictof(oneof(strlike, integral), oneof(strlike, integral))))
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-                   drop_samples=False, call_fields=[], reference_genome=None):
+                   drop_samples=False, call_fields=[], reference_genome=None, contig_recoding=None):
         """Import VCF file(s) as variant dataset.
 
         **Examples**
@@ -800,15 +828,23 @@ class HailContext(HistoryMixin):
         :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
+        :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
+        :type contig_recoding: Dict of (str or int) to (str or int).
+
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
 
         """
 
         rg = reference_genome if reference_genome else self.default_reference
+
+        if contig_recoding:
+            contig_recoding = TDict(TString(), TString())._convert_to_j(
+                {str(k): str(v) for k, v in contig_recoding.iteritems()})
         
         jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                    joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep)
+                                    joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep,
+                                    joption(contig_recoding))
 
         return VariantDataset(self, jvds)
 

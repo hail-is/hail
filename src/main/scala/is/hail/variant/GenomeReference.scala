@@ -10,6 +10,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.language.implicitConversions
 
 abstract class GRBase extends Serializable {
@@ -147,6 +148,19 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     ("mtContigs", JArray(mtContigs.map(JString(_)).toList)),
     ("par", JArray(par.map(_.toJSON(_.toJSON)).toList))
   )
+
+  def validateContigRemap(contigMapping: Map[String, String]) {
+    val badContigs = mutable.Set[(String, String)]()
+
+    contigMapping.foreach { case (oldName, newName) =>
+      if (!contigsSet.contains(newName))
+        badContigs += ((oldName, newName))
+    }
+
+    if (badContigs.nonEmpty)
+      fatal(s"Found ${ badContigs.size } ${ plural(badContigs.size, "contig mapping") } that do not have remapped contigs in the reference genome `$name':\n  " +
+        s"@1", contigMapping.truncatable("\n  "))
+  }
 
   override def equals(other: Any): Boolean = {
     other match {

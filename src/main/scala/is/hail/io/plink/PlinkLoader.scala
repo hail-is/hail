@@ -23,17 +23,12 @@ object PlinkLoader {
 
   val plinkSchema = TStruct(("rsid", TString()))
 
-  private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true): Array[(Variant, String)] = {
+  private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true,
+    contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(Variant, String)] = {
     hConf.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
         case Array(contig, rsId, morganPos, bpPos, allele1, allele2) =>
-          val recodedContig = contig match {
-            case "23" => "X"
-            case "24" => "Y"
-            case "25" => "X"
-            case "26" => "MT"
-            case x => x
-          }
+          val recodedContig = contigRecoding.getOrElse(contig, contig)
 
           if (a2Reference)
             (Variant(recodedContig, bpPos.toInt, allele2, allele1), rsId)
@@ -197,13 +192,14 @@ object PlinkLoader {
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-    nPartitions: Option[Int] = None, a2Reference: Boolean = true, gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    nPartitions: Option[Int] = None, a2Reference: Boolean = true, gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Map[String, String] = Map.empty[String, String]): GenericDataset = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
     val nSamples = sampleInfo.length
     if (nSamples <= 0)
       fatal(".fam file does not contain any samples")
 
-    val variants = parseBim(bimPath, hc.hadoopConf, a2Reference)
+    val variants = parseBim(bimPath, hc.hadoopConf, a2Reference, contigRecoding)
     val nVariants = variants.length
     if (nVariants <= 0)
       fatal(".bim file does not contain any variants")

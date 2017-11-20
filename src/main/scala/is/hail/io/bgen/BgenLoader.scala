@@ -21,7 +21,8 @@ case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: I
 object BgenLoader {
 
   def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
-    tolerance: Double, nPartitions: Option[Int] = None, gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    tolerance: Double, nPartitions: Option[Int] = None, gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Map[String, String] = Map.empty[String, String]): GenericDataset = {
     require(files.nonEmpty)
     val sampleIds = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
       .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))
@@ -86,13 +87,13 @@ object BgenLoader {
 
       it.map { case (_, record) =>
         val v = record.getKey
-        val va = record.getAnnotation
+        val vRecoded = v.copy(contig = contigRecoding.getOrElse(v.contig, v.contig))
 
         region.clear()
         rvb.start(kType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.fieldType(0), v.locus) // locus/pk
-        rvb.addAnnotation(kType.fieldType(1), v)
+        rvb.addAnnotation(kType.fieldType(0), vRecoded.locus) // locus/pk
+        rvb.addAnnotation(kType.fieldType(1), vRecoded)
         rvb.endStruct()
 
         rv.setOffset(rvb.end())
@@ -109,11 +110,13 @@ object BgenLoader {
         val v = record.getKey
         val va = record.getAnnotation
 
+        val vRecoded = v.copy(contig = contigRecoding.getOrElse(v.contig, v.contig))
+
         region.clear()
         rvb.start(rowType)
         rvb.startStruct()
-        rvb.addAnnotation(rowType.fieldType(0), v.locus) // locus/pk
-        rvb.addAnnotation(rowType.fieldType(1), v)
+        rvb.addAnnotation(rowType.fieldType(0), vRecoded.locus) // locus/pk
+        rvb.addAnnotation(rowType.fieldType(1), vRecoded)
         rvb.addAnnotation(rowType.fieldType(2), va)
         record.getValue(rvb) // gs
         rvb.endStruct()
