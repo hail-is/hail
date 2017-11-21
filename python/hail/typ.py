@@ -562,9 +562,7 @@ class TStruct(Type):
         jfields = [scala_object(Env.hail().expr, 'Field').apply(
             f.name, f.typ._jtype, i, Env.jutils().javaMapToMap(f.attributes)) for i,f in enumerate(fields)]
         jtype = scala_object(Env.hail().expr, 'TStruct').apply(jindexed_seq(jfields), required)
-        struct._jtype = jtype
-        struct.required = jtype.required()
-        return struct
+        return TStruct._from_java(jtype)
 
     @classmethod
     def _from_java(cls, jtype):
