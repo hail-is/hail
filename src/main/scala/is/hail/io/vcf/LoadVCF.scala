@@ -191,8 +191,10 @@ final class VCFLine(val line: String) {
     assert(abs.size == 0)
 
     // . means no alternate alleles
-    if (fieldMissing())
+    if (fieldMissing()) {
+      pos += 1 // .
       return
+    }
 
     abs += parseStringInArray()
     while (!endField()) {
