@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Locus, Variant, VariantSampleMatrix}
+import is.hail.variant.{Genotype, Locus, Variant, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
@@ -214,8 +214,8 @@ object VEP {
     alleleMap
   }
 
-  def annotate[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], config: String, root: String = "va.vep", csq: Boolean,
-    blockSize: Int)(implicit tct: ClassTag[T]): VariantSampleMatrix[Locus, Variant, T] = {
+  def annotate(vsm: VariantSampleMatrix, config: String, root: String = "va.vep", csq: Boolean,
+    blockSize: Int): VariantSampleMatrix = {
 
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
@@ -296,7 +296,7 @@ object VEP {
     val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path).getOrElse("") else ""
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
-    val annotations = vsm.rdd
+    val annotations = vsm.typedRDD[Locus, Variant, Annotation]
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
@@ -390,16 +390,16 @@ object VEP {
 
     val (newVASignature, insertVEP) = vsm.vaSignature.insert(if (csq) TArray(TString()) else vepSignature, parsedRoot)
 
-    val newRDD = vsm.rdd
+    val newRDD = vsm.typedRDD[Locus, Variant, Annotation]
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
         left.sortedLeftJoinDistinct(right)
           .map { case (v, ((va, gs), a)) => (v, (insertVEP(va, a.orNull), gs)) }
-      }.asOrderedRDD
+      }
 
     (csq, newVASignature) match {
-      case (true, t: TStruct) => vsm.copy(rdd = newRDD,
+      case (true, t: TStruct) => vsm.copyLegacy(rdd = newRDD,
         vaSignature = t.setFieldAttributes(parsedRoot, Map("Description" -> csqHeader)))
-      case _ => vsm.copy(rdd = newRDD, vaSignature = newVASignature)
+      case _ => vsm.copyLegacy(rdd = newRDD, vaSignature = newVASignature)
     }
   }
 }

@@ -61,7 +61,7 @@ object MendelErrors {
     case _ => 0 // No error
   }
 
-  def apply[RPK, RK, T >: Null](vds: VariantSampleMatrix[RPK, RK, T], preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
+  def apply(vds: VariantSampleMatrix, preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
     vds.requireUniqueSamples("mendel_errors")
 
     val trios = preTrios.filter(_.sex.isDefined)

@@ -106,7 +106,7 @@ object CalculateConcordance {
     val rightIdMapping = rightIds.map(leftIdIndex).toArray
     val rightIdMappingBc = left.sparkContext.broadcast(rightIdMapping)
 
-    val join = leftFiltered.rdd.orderedOuterJoinDistinct(rightFiltered.rdd)
+    val join = leftFiltered.typedRDD[Locus, Variant, Genotype].orderedOuterJoinDistinct(rightFiltered.typedRDD[Locus, Variant, Genotype])
 
     val nSamples = leftIds.length
     val sampleResults = join.mapPartitions { it =>

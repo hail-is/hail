@@ -21,9 +21,9 @@ object LinearRegression {
     ("tstat", TArray(TFloat64())),
     ("pval", TArray(TFloat64())))
 
-  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T],
+  def apply(vsm: VariantSampleMatrix,
     ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int
-  )(implicit tct: ClassTag[T]): VariantSampleMatrix[RPK, RK, T] = {
+  )(implicit tct: ClassTag[T]): VariantSampleMatrix = {
     val ec = vsm.matrixType.genotypeEC
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
 

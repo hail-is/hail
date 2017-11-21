@@ -20,27 +20,27 @@ class PCASuite extends SparkSuite {
     val structT = TStruct("PC1" -> TFloat64(), "PC2" -> TFloat64(), "PC3" -> TFloat64())
 
     val pyScores = Map[Annotation, IndexedSeq[Double]](
-      "C1046::HG02024" -> IndexedSeq(-0.55141958610810227, 0.6480766747061064, -0.3559869584014231),
-      "C1046::HG02025" -> IndexedSeq(-0.6916959815105279, -0.7626843185339386, -0.13868806289543628),
-      "C1046::HG02026" -> IndexedSeq(1.487286902938744, -0.08212707761864713, -0.09901636248685303),
-      "C1047::HG00731" -> IndexedSeq(-0.2441713353201146, 0.19673472144647947, 0.5936913837837123))
-    val pyScoresStruct = pyScores.mapValues(Annotation.fromSeq)
+    0 -> IndexedSeq(-0.55141958610810227, 0.6480766747061064, -0.3559869584014231),
+    1 -> IndexedSeq(-0.6916959815105279, -0.7626843185339386, -0.13868806289543628),
+    2 -> IndexedSeq(1.487286902938744, -0.08212707761864713, -0.09901636248685303),
+    3 -> IndexedSeq(-0.2441713353201146, 0.19673472144647947, 0.5936913837837123))
 
-    scores.foreach { case (id, score) => assert(arrayT.valuesSimilar(score, pyScores(id))) }
-    scoresStruct.foreach { case (id, score) => assert(structT.valuesSimilar(score, pyScoresStruct(id))) }
+    (0 until 4).foreach { i => assert(arrayT.valuesSimilar((0 until 3).map(j => scores(i,j)), pyScores(i))) }
 
     val pyLoadings = Map(Variant("20", 10019093, "A", "G") -> IndexedSeq(-0.2804779961843084, 0.41201694824790014, -0.866933750648181),
       Variant("20", 10026348, "A", "G") -> IndexedSeq(-0.27956988837183483, -0.8990945092947515, -0.33685269907155196),
       Variant("20", 10026357, "T", "C") -> IndexedSeq(0.918244396210614, -0.14788880184962383, -0.36736375857627535))
     val pyLoadingsStruct = pyLoadings.mapValues(Annotation.fromSeq)
+    val pyLoadingsBc = sc.broadcast(pyLoadings)
+    val pyLoadingsStructBc = sc.broadcast(pyLoadingsStruct)
+    val arrayTBc = sc.broadcast(arrayT)
+    val structTBc = sc.broadcast(structT)
 
-    loadings.get.collect().foreach { case (v, l) => assert(arrayT.valuesSimilar(l, pyLoadings(v))) }
-    loadingsStruct.get.collect().foreach { case (v, l) => assert(structT.valuesSimilar(l, pyLoadingsStruct(v))) }
+    assert(loadings.get.rdd.map { r => arrayTBc.value.valuesSimilar(r(1), pyLoadingsBc.value(r(0).asInstanceOf[Variant])) }.collect().forall(b => b))
+    assert(loadingsStruct.get.rdd.map { r => structTBc.value.valuesSimilar(r(1), pyLoadingsStructBc.value(r(0).asInstanceOf[Variant])) }.collect().forall(b => b))
 
     val pyEigen = IndexedSeq(3.0541488634265739, 1.0471401535365061, 0.5082347925607319)
-    val pyEigenStruct = Annotation.fromSeq(pyEigen)
 
-    assert(arrayT.valuesSimilar(eigenvalues.get, pyEigen))
-    assert(structT.valuesSimilar(eigenvaluesStruct.get, pyEigenStruct))
+    assert(arrayT.valuesSimilar(eigenvalues.get.toIndexedSeq, pyEigen), s"$eigenvalues")
   }
 }

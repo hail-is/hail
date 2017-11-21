@@ -22,7 +22,8 @@ class SplitSuite extends SparkSuite {
     property("splitMulti maintains variants") = forAll(VariantSampleMatrix.gen(hc,
       VSMSubgen.random.copy(vGen = _ => splittableVariantGen))) { vds =>
       val method1 = vds.splitMulti().variants.collect().toSet
-      val method2 = vds.variants.flatMap { v =>
+      val method2 = vds.variants.flatMap { v1 =>
+        val v = v1.asInstanceOf[Variant]
         v.altAlleles.iterator
           .map { aa =>
             Variant(v.contig, v.start, v.ref, Array(aa)).minRep
@@ -53,7 +54,7 @@ class SplitSuite extends SparkSuite {
     val wasSplitQuerier = vds1.vaSignature.query("wasSplit")
 
     // test for wasSplit
-    vds1.mapWithAll((v, va, s, sa, g) => (v.start, wasSplitQuerier(va).asInstanceOf[Boolean]))
+    vds1.mapWithAll((v, va, s, sa, g) => (v.asInstanceOf[Variant].start, wasSplitQuerier(va).asInstanceOf[Boolean]))
       .foreach { case (i, b) =>
         simpleAssert(b == (i != 1180))
       }

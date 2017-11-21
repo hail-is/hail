@@ -7,7 +7,7 @@ import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.expr.{TFloat64, TString, TStruct}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.{HTSGenotypeView, HardCallView, Variant, VariantDataset}
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg.DenseMatrix
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -40,7 +40,7 @@ object PCRelate {
   private val keys = Array("i", "j")
 
   private def toRowRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double, statistics: StatisticSubset): RDD[Row] = {
-    val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
+    val localSampleIds = vds.sampleIds
     val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, statistics)
 
     def fuseBlocks(i: Int, j: Int, lmPhi: BDM[Double], lmK0: BDM[Double], lmK1: BDM[Double], lmK2: BDM[Double]) = {
@@ -61,7 +61,7 @@ object PCRelate {
               val k0 = if (lmK0 == null) null else lmK0(ii, jj)
               val k1 = if (lmK1 == null) null else lmK1(ii, jj)
               val k2 = if (lmK2 == null) null else lmK2(ii, jj)
-              ab += Annotation(indexToId(iOffset + ii), indexToId(jOffset + jj), kin, k0, k1, k2).asInstanceOf[Row]
+              ab += Annotation(localSampleIds(iOffset + ii), localSampleIds(jOffset + jj), kin, k0, k1, k2).asInstanceOf[Row]
             }
             ii += 1
           }
@@ -74,13 +74,13 @@ object PCRelate {
 
     statistics match {
       case PhiOnly => phi.blocks
-          .flatMap { case ((blocki, blockj), phi) => fuseBlocks(blocki, blockj, phi, null, null, null) }
+        .flatMap { case ((blocki, blockj), phi) => fuseBlocks(blocki, blockj, phi, null, null, null) }
       case PhiK2 => (phi.blocks join k2.blocks)
-          .flatMap { case ((blocki, blockj), (phi, k2)) => fuseBlocks(blocki, blockj, phi, null, null, k2) }
+        .flatMap { case ((blocki, blockj), (phi, k2)) => fuseBlocks(blocki, blockj, phi, null, null, k2) }
       case PhiK2K0 => (phi.blocks join k0.blocks join k2.blocks)
-          .flatMap { case ((blocki, blockj), ((phi, k0), k2)) => fuseBlocks(blocki, blockj, phi, k0, null, k2) }
+        .flatMap { case ((blocki, blockj), ((phi, k0), k2)) => fuseBlocks(blocki, blockj, phi, k0, null, k2) }
       case PhiK2K0K1 => (phi.blocks join k0.blocks join k1.blocks join k2.blocks)
-          .flatMap { case ((blocki, blockj), (((phi, k0), k1), k2)) => fuseBlocks(blocki, blockj, phi, k0, k1, k2) }
+        .flatMap { case ((blocki, blockj), (((phi, k0), k1), k2)) => fuseBlocks(blocki, blockj, phi, k0, k1, k2) }
     }
   }
 
@@ -109,45 +109,52 @@ object PCRelate {
     val nSamples = vds.nSamples
     val variants = vds.variants.collect()
     val variantIdxBc = vds.sparkContext.broadcast(variants.index)
-    val rdd = vds.rdd.mapPartitions { part =>
-      part.map { case (v, (va, gs)) =>
+    val localRowType = vds.rowType
+    val rdd = vds.rdd2.mapPartitions { it =>
+      val view = HardCallView(localRowType)
+      val missingIndices = new ArrayBuilder[Int]()
+
+      it.map { rv =>
+        val v = Variant.fromRegionValue(rv.region,
+          localRowType.loadField(rv, 1))
+        view.setRegion(rv)
+
+        missingIndices.clear()
         var sum = 0
         var nNonMissing = 0
-        val missingIndices = new ArrayBuilder[Int]()
         val a = new Array[Double](nSamples)
-
         var i = 0
-        val it = gs.hardCallIterator
-        while (it.hasNext) {
-          val gt = it.next()
-          if (gt == -1) {
-            missingIndices += i
-          } else {
+        while (i < nSamples) {
+          view.setGenotype(i)
+          if (view.hasGT) {
+            val gt = view.getGT
             sum += gt
             a(i) = gt
             nNonMissing += 1
-          }
+          } else
+            missingIndices += i
           i += 1
         }
 
         val mean = sum.toDouble / nNonMissing
 
-        for (i <- missingIndices.result()) {
-          a(i) = mean
+        i = 0
+        while (i < missingIndices.length) {
+          a(missingIndices(i)) = mean
+          i += 1
         }
 
-        // FIXME: this should probably be a sparse vector
-        new IndexedRow(variantIdxBc.value(v), new DenseVector(a))
+        IndexedRow(variantIdxBc.value(v), new DenseVector(a))
       }
     }
     new IndexedRowMatrix(rdd.cache(), variants.length, nSamples)
   }
 
   /**
-    *  g: SNP x Sample
-    *  pcs: Sample x D
+    * g: SNP x Sample
+    * pcs: Sample x D
     *
-    *  result: (SNP x (D+1))
+    * result: (SNP x (D+1))
     */
   def fitBeta(g: IndexedRowMatrix, pcs: DenseMatrix, blockSize: Int): M = {
     val aa = g.rows.sparkContext.broadcast(pcs.rowIter.map(_.toArray).toArray)
@@ -167,6 +174,7 @@ object PCRelate {
 }
 
 class PCRelate(maf: Double, blockSize: Int) extends Serializable {
+
   import PCRelate._
 
   require(maf >= 0.0)
@@ -197,7 +205,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
         0.0
       else
         mu * (1.0 - mu)
-    } (blockedG, mu)).cache()
+    }(blockedG, mu)).cache()
 
     val phi = this.phi(mu, variance, blockedG).cache()
 
@@ -230,7 +238,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
-    val centeredG = BlockMatrix.map2 { (g,mu) =>
+    val centeredG = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
@@ -244,25 +252,25 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
     val homalt = (BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 2.0) 0.0 else 1.0
-    } (g, mu)).cache()
+    }(g, mu)).cache()
     val homref = (BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
-    } (g, mu)).cache()
+    }(g, mu)).cache()
     (homalt.t * homref) :+ (homref.t * homalt)
   }
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = phi.diagonal.map(2.0 * _)
     val normalizedGD = g.map2WithIndex(mu, { case (_, i, g, mu) =>
-        if (badmu(mu) || badgt(g))
-          0.0  // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
-        else {
-          val gd = if (g == 0.0) mu
-          else if (g == 1.0) 0.0
-          else 1.0 - mu
+      if (badmu(mu) || badgt(g))
+        0.0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
+      else {
+        val gd = if (g == 0.0) mu
+        else if (g == 1.0) 0.0
+        else 1.0 - mu
 
-          gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
-        }
+        gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
+      }
     })
 
     gram(normalizedGD) :/ gram(variance)
@@ -274,13 +282,13 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
         0.0
       else
         mu * mu
-    } (g, mu)).cache()
+    }(g, mu)).cache()
     val oneMinusMu2 = (BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
         (1.0 - mu) * (1.0 - mu)
-    } (g, mu)).cache()
+    }(g, mu)).cache()
     val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
     BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phi <= k0cutoff)

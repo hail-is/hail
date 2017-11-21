@@ -95,6 +95,8 @@ class WritableRegionValue(val t: Type,
     rvb.addRegionValue(t, fromRegion, fromOffset)
     value.setOffset(rvb.end())
   }
+
+  def pretty: String = value.pretty(t)
 }
 
 object PartitionKeyInfo2 {
@@ -239,6 +241,7 @@ class OrderedRDD2Type(
   val pkInRowOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(rowType, pkRowFieldIdx, rowType, pkRowFieldIdx)
   val kInRowOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(rowType, kRowFieldIdx, rowType, kRowFieldIdx)
   val pkInKOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(kType, pkKFieldIdx, kType, pkKFieldIdx)
+  val kRowOrd: UnsafeOrdering = OrderedRDD2Type.selectUnsafeOrdering(kType, (0 until kType.size).toArray, rowType, kRowFieldIdx)
 
   def insert(typeToInsert: Type, path: List[String]): (OrderedRDD2Type, UnsafeInserter) = {
     assert(path.nonEmpty)
@@ -588,54 +591,6 @@ object OrderedRDD2 {
         }
       })
   }
-
-  def leftJoin(left: OrderedRDD2Type, right: OrderedRDD2Type): (
-    TStruct, UnsafeOrdering, (RegionValueBuilder, RegionValue, RegionValue, RegionValue) => Unit) = {
-    if (left.kType != right.kType)
-      fatal(
-        s"""Incompatible join keys.  Keys must have same length and types, in order:
-           | Left key type: ${ left.kType.toPrettyString(compact = true) }
-           | Right key type: ${ right.kType.toPrettyString(compact = true) }
-         """.stripMargin)
-
-    // checks disjoint names
-    val joinType = left.rowType ++ right.valueType
-
-    val lrKOrd = OrderedRDD2Type.selectUnsafeOrdering(left.rowType, left.kRowFieldIdx,
-      right.rowType, right.kRowFieldIdx)
-
-    val merge = { (rvb: RegionValueBuilder, jrv: RegionValue, lrv: RegionValue, rrv: RegionValue) =>
-      rvb.set(lrv.region)
-      rvb.start(joinType)
-      rvb.startStruct() // row
-
-      var i = 0
-      while (i < left.rowType.size) {
-        rvb.addField(left.rowType, lrv, i)
-        i += 1
-      }
-
-      if (rrv != null) {
-        i = 0
-        while (i < right.valueFieldIdx.length) {
-          rvb.addField(right.rowType, rrv, right.valueFieldIdx(i))
-          i += 1
-        }
-      } else {
-        i = 0
-        while (i < right.valueFieldIdx.length) {
-          rvb.setMissing()
-          i += 1
-        }
-      }
-      rvb.endStruct()
-
-      // leave result in lrv
-      jrv.set(lrv.region, rvb.end())
-    }
-
-    (joinType, lrKOrd, merge)
-  }
 }
 
 class OrderedRDD2 private(
@@ -752,12 +707,21 @@ class OrderedRDD2 private(
     }
   }
 
-  def orderedLeftJoinDistinct(right: OrderedRDD2): OrderedRDD2 = {
-    val (joinType, lrKOrd, merge) = OrderedRDD2.leftJoin(typ, right.typ)
+  def orderedJoinDistinct(right: OrderedRDD2, joinType: String): RDD[JoinedRegionValue] = {
+    val lTyp = typ
+    val rTyp = right.typ
 
-    OrderedRDD2(new OrderedRDD2Type(typ.partitionKey, typ.key, joinType),
-      orderedPartitioner,
-      new OrderedLeftJoinDistinctRDD2(this, right, lrKOrd, merge))
+    if (lTyp.kType != rTyp.kType)
+      fatal(
+        s"""Incompatible join keys.  Keys must have same length and types, in order:
+           | Left key type: ${ lTyp.kType.toPrettyString(compact = true) }
+           | Right key type: ${ rTyp.kType.toPrettyString(compact = true) }
+         """.stripMargin)
+
+    joinType match {
+      case "inner" | "left" => new OrderedJoinDistinctRDD2(this, right, joinType)
+      case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
+    }
   }
 
   def partitionSortedUnion(rdd2: OrderedRDD2): OrderedRDD2 = {
@@ -795,6 +759,30 @@ class OrderedRDD2 private(
     rdd: RDD[RegionValue] = rdd): OrderedRDD2 = {
     OrderedRDD2(typ, orderedPartitioner, rdd)
   }
+
+  def naiveCoalesce(maxPartitions: Int): OrderedRDD2 = {
+    val n = orderedPartitioner.numPartitions
+    if (maxPartitions >= n)
+      return this
+
+    val newN = maxPartitions
+    val newNParts = Array.tabulate(newN)(i => (n - i + newN - 1) / newN)
+    assert(newNParts.sum == n)
+    assert(newNParts.forall(_ > 0))
+
+    val newPartEnd = newNParts.scanLeft(-1)( _ + _ ).tail
+    assert(newPartEnd.last == n - 1)
+
+    val newRangeBounds = UnsafeIndexedSeq(
+      TArray(typ.pkType),
+      newPartEnd.init.map(orderedPartitioner.rangeBounds))
+
+    OrderedRDD2(
+      typ,
+      new OrderedPartitioner2(newN, typ.partitionKey, typ.kType, newRangeBounds),
+      new BlockedRDD(rdd, newPartEnd))
+  }
+
 }
 
 class OrderedDependency2(left: OrderedRDD2, right: OrderedRDD2) extends NarrowDependency[RegionValue](right) {
@@ -818,20 +806,18 @@ object OrderedDependency2 {
   }
 }
 
-case class OrderedLeftJoinDistinctRDD2Partition(index: Int, leftPartition: Partition, rightPartitions: Array[Partition]) extends Partition
+case class OrderedJoinDistinctRDD2Partition(index: Int, leftPartition: Partition, rightPartitions: Array[Partition]) extends Partition
 
-class OrderedLeftJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2,
-  lrKOrd: UnsafeOrdering,
-  merge: (RegionValueBuilder, RegionValue, RegionValue, RegionValue) => Unit)
-  extends RDD[RegionValue](left.sparkContext,
+class OrderedJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2, joinType: String)
+  extends RDD[JoinedRegionValue](left.sparkContext,
     Seq[Dependency[_]](new OneToOneDependency(left),
       new OrderedDependency2(left, right))) {
-
+  assert(joinType == "left" || joinType == "inner")
   override val partitioner: Option[Partitioner] = left.partitioner
 
   def getPartitions: Array[Partition] = {
     Array.tabulate[Partition](left.getNumPartitions)(i =>
-      OrderedLeftJoinDistinctRDD2Partition(i,
+      OrderedJoinDistinctRDD2Partition(i,
         left.partitions(i),
         OrderedDependency2.getDependencies(left.orderedPartitioner, right.orderedPartitioner)(i)
           .map(right.partitions)
@@ -840,47 +826,18 @@ class OrderedLeftJoinDistinctRDD2(left: OrderedRDD2, right: OrderedRDD2,
 
   override def getPreferredLocations(split: Partition): Seq[String] = left.preferredLocations(split)
 
-  override def compute(split: Partition, context: TaskContext): Iterator[RegionValue] = {
-    val partition = split.asInstanceOf[OrderedLeftJoinDistinctRDD2Partition]
+  override def compute(split: Partition, context: TaskContext): Iterator[JoinedRegionValue] = {
+    val partition = split.asInstanceOf[OrderedJoinDistinctRDD2Partition]
 
     val leftIt = left.iterator(partition.leftPartition, context)
     val rightIt = partition.rightPartitions.iterator.flatMap { p =>
       right.iterator(p, context)
     }
 
-    new Iterator[RegionValue] {
-      val rvb = new RegionValueBuilder()
-      val jrv = RegionValue()
-
-      var rrv: RegionValue =
-        if (rightIt.hasNext)
-          rightIt.next()
-        else
-          null
-
-      def advanceRight(lrv: RegionValue) {
-        while (rrv != null && lrKOrd.compare(lrv, rrv) > 0) {
-          if (rightIt.hasNext)
-            rrv = rightIt.next()
-          else
-            null
-        }
-      }
-
-      def hasNext: Boolean = leftIt.hasNext
-
-      def next(): RegionValue = {
-        val lrv = leftIt.next()
-        advanceRight(lrv)
-        // merge into lrv
-        merge(rvb, jrv, lrv,
-          // FIXME duplicate comparison
-          if (rrv != null && lrKOrd.compare(lrv, rrv) == 0)
-            rrv
-          else
-            null)
-        jrv
-      }
+    joinType match {
+      case "inner" => new OrderedInnerJoinDistinctIterator(left.typ, right.typ, leftIt, rightIt)
+      case "left" => new OrderedLeftJoinDistinctIterator(left.typ, right.typ, leftIt, rightIt)
+      case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
     }
   }
 }

@@ -2,13 +2,14 @@ package is.hail
 
 import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
-import is.hail.expr.{TArray, TFloat64, TStruct}
+import is.hail.expr.{TArray, TFloat64, TStruct, TVariant}
 import is.hail.utils._
-import is.hail.variant.{Genotype, VSMFileMetadata, Variant, VariantDataset, VariantKeyDataset}
+import is.hail.variant.{GenomeReference, Genotype, VSMFileMetadata, Variant, VariantDataset, VariantKeyDataset, VariantSampleMatrix}
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 import org.apache.spark.sql.Row
+
 import scala.collection.mutable
 
 package object stats {
@@ -333,7 +334,7 @@ package object stats {
   def vdsFromGtMatrix(hc: HailContext)(
     gtMat: Matrix[Int],
     samplesIdsOpt: Option[Array[String]] = None,
-    nPartitions: Int = hc.sc.defaultMinPartitions): VariantDataset = {
+    nPartitions: Int = hc.sc.defaultMinPartitions): VariantSampleMatrix = {
 
     require(samplesIdsOpt.forall(_.length == gtMat.rows))
     require(samplesIdsOpt.forall(_.areDistinct()))
@@ -350,10 +351,9 @@ package object stats {
           )
         )
       },
-      nPartitions
-    ).toOrderedRDD
+      nPartitions)
 
-    new VariantDataset(hc, VSMFileMetadata(sampleIds, wasSplit = true), rdd)
+    VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(sampleIds, wasSplit = true), rdd)
   }
 
   // genotypes(i,j) is genotype of variant j in sample i; i and j are 0-based indices
@@ -363,7 +363,7 @@ package object stats {
     nAlleles: Int,
     gpMat: Matrix[Array[Double]],
     samplesIdsOpt: Option[Array[String]] = None,
-    nPartitions: Int = hc.sc.defaultMinPartitions): VariantKeyDataset = {
+    nPartitions: Int = hc.sc.defaultMinPartitions): VariantSampleMatrix = {
 
     require(samplesIdsOpt.forall(_.length == gpMat.rows))
     require(samplesIdsOpt.forall(_.areDistinct()))
@@ -378,10 +378,10 @@ package object stats {
               Row(gpMat(i, j): IndexedSeq[Annotation])
             }: Iterable[Annotation]))
       },
-      nPartitions
-    ).toOrderedRDD
+      nPartitions)
 
-    new VariantKeyDataset(hc, VSMFileMetadata(sampleIds,
+    VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(sampleIds,
+      vSignature = TVariant(GenomeReference.defaultReference),
       genotypeSignature = TStruct(
         "GP" -> TArray(TFloat64())),
       wasSplit = true),

@@ -99,12 +99,12 @@ class IBDSuite extends SparkSuite {
   object Spec extends Properties("IBD") {
     val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
-      .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal })
+      .map(vds => vds.filterVariants { case (v, va, gs) => v.asInstanceOf[Variant].isAutosomalOrPseudoAutosomal })
       .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same result as plink 1.9") =
       forAll(plinkSafeBiallelicVDS) { vds =>
-        val us = IBD(vds).collect().toMap
+        val us = IBD.toRDD(IBD(vds)).collect().toMap
 
         val plink = runPlinkIBD(vds)
 
@@ -123,7 +123,7 @@ class IBDSuite extends SparkSuite {
           case Some(min) => max
         })
 
-        val us = IBD(vds, min = maybeMin, max = validMax).collect().toMap
+        val us = IBD.toRDD(IBD(vds, min = maybeMin, max = validMax)).collect().toMap
 
         val plink = runPlinkIBD(vds, maybeMin, validMax)
 
@@ -142,9 +142,10 @@ class IBDSuite extends SparkSuite {
   @Test def ibdPlinkSameOnRealVCF() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
 
-    val us = IBD(vds).collect().toMap
+    val us = IBD.toRDD(IBD(vds)).collect().toMap
 
     val plink = runPlinkIBD(vds)
+    val sampleIds = vds.sampleIds
 
     assert(mapSameElements(us, plink,
       (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y)))
@@ -152,7 +153,7 @@ class IBDSuite extends SparkSuite {
 
   @Test def ibdSchemaCorrect() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-    val us = IBD.toKeyTable(vds.hc, IBD(vds)).typeCheck()
+    val us = IBD(vds).typeCheck()
   }
 
 }

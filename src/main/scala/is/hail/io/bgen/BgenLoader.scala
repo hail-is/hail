@@ -67,13 +67,13 @@ object BgenLoader {
 
     val signature = TStruct("rsid" -> TString(), "varid" -> TString())
 
-    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey: Annotation)))
-    
-    val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
-      (decoder.getKey: Annotation, (decoder.getAnnotation, decoder.getValue))
-    })).toOrderedRDD(fastKeys)(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
+    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey)))
 
-    new GenericDataset(hc, VSMMetadata(
+    val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
+      (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
+    }))
+
+    VariantSampleMatrix.fromLegacy(hc, VSMMetadata(
       TString(),
       saSignature = TStruct.empty(),
       TVariant(gr),
@@ -83,7 +83,7 @@ object BgenLoader {
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = Array.fill(nSamples)(Annotation.empty)),
-      rdd)
+      rdd, fastKeys)
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {

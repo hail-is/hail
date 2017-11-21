@@ -32,8 +32,8 @@ class LDPruneSuite extends SparkSuite {
 
   def isUncorrelated(vds: VariantDataset, r2Threshold: Double, windowSize: Int): Boolean = {
     val nSamplesLocal = vds.nSamples
-    val r2Matrix = correlationMatrix(vds.rdd.map { case (v, (va, gs)) => gs }.collect(), nSamplesLocal)
-    val variantMap = vds.variants.zipWithIndex().map { case (v, i) => (i.toInt, v) }.collectAsMap()
+    val r2Matrix = correlationMatrix(vds.typedRDD[Variant, Locus, Genotype].map { case (v, (va, gs)) => gs }.collect(), nSamplesLocal)
+    val variantMap = vds.variants.zipWithIndex().map { case (v, i) => (i.toInt, v.asInstanceOf[Variant]) }.collectAsMap()
 
     r2Matrix.indices.forall { case (i, j) =>
       val v1 = variantMap(i)
@@ -264,7 +264,10 @@ class LDPruneSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
       .splitMulti()
     val nSamples = vds.nSamples
-    val filteredVds = vds.filterVariants{ case (v, va, gs) => v.isBiallelic && LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples).isDefined }
+    val filteredVds = vds.filterVariants{ case (v, va, gs) =>
+      v.asInstanceOf[Variant].isBiallelic &&
+        LDPrune.toBitPackedVector(gs.asInstanceOf[Iterable[Genotype]].hardCallIterator, nSamples).isDefined
+    }
     val prunedVds = LDPrune(filteredVds, nCores, r2Threshold = 1, windowSize = 0, memoryPerCore = 200000)
     assert(prunedVds.countVariants() == filteredVds.countVariants())
   }

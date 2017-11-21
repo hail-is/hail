@@ -135,14 +135,15 @@ object PlinkLoader {
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1: Annotation }
+    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1 }
+
     val variantRDD = rdd.map {
       case (_, vr) =>
         val (v, rsId) = variantsBc.value(vr.getKey)
-        (v: Annotation, (Annotation(rsId), vr.getValue: Iterable[Annotation]))
-    }.toOrderedRDD(fastKeys)(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
+        (v, (Annotation(rsId), vr.getValue: Iterable[Annotation]))
+    }
 
-    new GenericDataset(hc, VSMMetadata(
+    VariantSampleMatrix.fromLegacy(hc, VSMMetadata(
       saSignature = sampleAnnotationSignature,
       vaSignature = plinkSchema,
       vSignature = TVariant(gr),
@@ -152,7 +153,7 @@ object PlinkLoader {
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = sampleAnnotations),
-      variantRDD)
+      variantRDD, fastKeys)
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,

@@ -100,7 +100,7 @@ object LoadGDB {
                vcfHeaderPath: Option[String],
                nPartitions: Option[Int] = None,
                dropSamples: Boolean = false,
-               gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix[Locus, Variant, Annotation] = {
+               gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
     val sc = hc.sc
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
@@ -180,17 +180,15 @@ object LoadGDB {
         val va = ur.get(1)
         val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
 
-        (v, (va, gs))
+        (v: Annotation, (va, gs: Iterable[Annotation]))
       }
       .toSeq
 
     val recordRDD = sc.parallelize(records, nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val rdd = recordRDD.toOrderedRDD
-
     queryFile.delete()
 
-    new VariantSampleMatrix(hc, VSMMetadata(
+    VariantSampleMatrix.fromLegacy(hc, VSMMetadata(
       TString(),
       TStruct.empty(),
       TVariant(gr),
@@ -200,6 +198,6 @@ object LoadGDB {
       VSMLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
-      rdd)
+      recordRDD)
   }
 }

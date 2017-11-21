@@ -15,7 +15,7 @@ import scala.collection.Searching._
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
   */
-case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) {
+case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) extends ExportableMatrix {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   def requireSampleTString(method: String) {
@@ -54,28 +54,11 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
     */
   def exportTSV(output: String) {
     require(output.endsWith(".tsv"), "Kinship matrix output must end in '.tsv'")
-    prepareMatrixForExport(matrix).rows.map(ir => ir.vector.toArray.mkString("\t"))
-      .writeTable(output, hc.tmpDir, Some(sampleIds.mkString("\t")))
+    export(output, "\t", Some(sampleIds.mkString("\t")), false)
   }
 
   def exportRel(output: String) {
-    prepareMatrixForExport(matrix).rows
-    .mapPartitions{ itr =>
-      val sb = new StringBuilder
-      itr.foreach{ (row: IndexedRow) =>
-        val i = row.index
-        val arr = row.vector.toArray
-        var j = 0
-        while (j <= i) {
-          if (j > 0)
-            sb += '\t'
-          sb.append(arr(j))
-          j += 1
-        }
-        sb += '\n'
-      }
-      sb.lines
-    }.writeTable(output, hc.tmpDir)
+    exportStrictLowerTriangle(output, "\t", None, false)
   }
 
   def exportGctaGrm(output: String) {
@@ -145,23 +128,5 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
     s.write((bits >> 8) & 0xff)
     s.write((bits >> 16) & 0xff)
     s.write(bits >> 24)
-  }
-
-  /**
-    * Creates an IndexedRowMatrix whose backing RDD is sorted by row index and has an entry for every row index.
-    *
-    * @param matToComplete The matrix to be completed.
-    * @return The completed matrix.
-    */
-  private def prepareMatrixForExport(matToComplete: IndexedRowMatrix): IndexedRowMatrix = {
-    val zeroVector = SparseVector.zeros[Double](sampleIds.length)
-    new IndexedRowMatrix(matToComplete
-      .rows
-      .map(x => (x.index, x.vector))
-      .rightOuterJoin(hc.sc.parallelize(0L until sampleIds.length).map(x => (x, ())))
-      .map {
-        case (idx, (Some(v), _)) => IndexedRow(idx, v)
-        case (idx, (None, _)) => IndexedRow(idx, zeroVector)
-      }.sortBy(_.index))
   }
 }

@@ -21,8 +21,8 @@ object LinearMixedRegression {
     ("chi2", TFloat64()),
     ("pval", TFloat64()))
 
-  def apply[RPK, RK, T >: Null](
-    assocVSM: VariantSampleMatrix[RPK, RK, T],
+  def apply(
+    assocVSM: VariantSampleMatrix,
     kinshipMatrix: KinshipMatrix,
     yExpr: String,
     xExpr: String,
@@ -34,7 +34,7 @@ object LinearMixedRegression {
     optDelta: Option[Double],
     sparsityThreshold: Double,
     optNEigs: Option[Int],
-    optDroppedVarianceFraction: Option[Double]): VariantSampleMatrix[RPK, RK, T] = {
+    optDroppedVarianceFraction: Option[Double]): VariantSampleMatrix = {
 
     val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)

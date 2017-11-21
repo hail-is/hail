@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import is.hail.check._
 import is.hail.expr._
 import is.hail.utils._
@@ -23,7 +24,7 @@ class DeNovoSuite extends SparkSuite {
     */
   lazy val gen: Gen[(VariantDataset, Pedigree)] = {
     for {
-      vds <- VariantSampleMatrix.gen[Locus, Variant, Genotype](hc, VSMSubgen.plinkSafeBiallelic.copy(
+      vds <- VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(
         saSigGen = Gen.const(TStruct.empty()),
         vaSigGen = Gen.const(TStruct.empty()),
         globalSigGen = Gen.const(TStruct.empty()),
@@ -32,7 +33,7 @@ class DeNovoSuite extends SparkSuite {
           alt <- Gen.oneOf("T", "AA") // represent indels and snps
           contig <- Gen.oneOf("1", "X", "Y") // no MT (python caller doesn't support that)
         } yield Variant(contig, pos, "A", alt)).filter(v => !v.inYPar),
-        tGen = (TGenotype, v: Variant) => {
+        tGen = (TGenotype, v: Annotation) => {
           val alleleFrequency = Gen.choose(0.001, 0.10).sample()
           val readBias = Gen.choose(0.01, 0.10).sample()
           val gqMultiplier = Gen.choose(1d, 5d).sample()
