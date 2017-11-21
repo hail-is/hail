@@ -837,6 +837,9 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   // not used for equality
   var symTab: SymbolTable = _
 
+  def bindingTypes: Array[(String, Type)] =
+    symTab.map { case (n, (_, t)) => (n, t) }.toArray
+
   override def unify(concrete: Type): Boolean = {
     concrete match {
       case TAggregable(celementType, _) => elementType.unify(celementType)
