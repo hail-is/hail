@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.utils._
 import is.hail.annotations.MemoryBuffer
 import is.hail.asm4s._
-import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction, TNumeric}
+import is.hail.expr.{TAggregable, TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction, TNumeric}
 import is.hail.annotations.StagedRegionValueBuilder
 
 object Infer {
@@ -85,6 +85,19 @@ object Infer {
         infer(body, env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
         assert(body.typ == zero.typ)
         x.typ = zero.typ
+      case AggIn(_) =>
+        // FIXME: all AggIn should be the same type
+      case x@AggMap(a, name, body, _) =>
+        infer(a)
+        val tagg = a.typ.asInstanceOf[TAggregable]
+        val env = Env.empty
+          .bind(name, tagg.elementType)
+          .bind(tagg.bindingTypes:_*)
+        infer(body, env = env)
+        x.typ = tagg.copy(elementType = body.typ)
+      case x@AggSum(a) =>
+        infer(a)
+        assert(a.typ.isInstanceOf[TAggregable])
       case MakeStruct(fields) =>
         fields.map { case (_, typ, v) =>
           infer(v)
