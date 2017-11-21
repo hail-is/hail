@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.annotations.Annotation
 import is.hail.utils.{Interval, _}
-import is.hail.variant._
+import is.hail.variant.{AltAllele, GenomeReference, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.json4s._
@@ -210,7 +210,7 @@ case class JSONExtractVariant(contig: String,
   ref: String,
   altAlleles: List[AltAllele]) {
   def toVariant =
-    Variant(contig, start, ref, altAlleles.toArray[AltAllele])
+    Variant(contig, start, ref, altAlleles.toArray)
 }
 
 case class JSONExtractInterval(start: Locus, end: Locus) {
