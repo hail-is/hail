@@ -140,7 +140,7 @@ object PolyHash {
       var aBuf: Int = a
       var bBuf: Long = b & 0xffffffffL
       while (aBuf != 0) {
-        if ((aBuf & 1) == 1) result ^= bBuf
+        result ^= bBuf * (aBuf & 1)
         aBuf >>>= 1
         bBuf <<= 1
       }
