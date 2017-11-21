@@ -15,26 +15,29 @@ object ExtractAggregators {
   private case class IRAgg(in: In, t: Type, z: IR, seq: (IR, IR) => IR, comb: (IR, IR) => IR) { }
 
   trait Aggregable {
-    def aggregate(zero: Long, seq: (Long, Long) => Long, comb: (Long, Long) => Long): Long
+    def aggregate(
+      zero: (MemoryBuffer) => Long,
+      seq: (MemoryBuffer, Long, Long) => Long,
+      comb: (MemoryBuffer, Long, Long) => Long): Long
   }
 
   def apply(ir: IR, t: TAggregable): (IR, TStruct, (MemoryBuffer, Aggregable) => Long) = {
     val (ir2, aggs) = extract(ir)
     val fields = aggs.map(_.t).zipWithIndex.map { case (t, i) => (i.toString -> t) }
-    val tT: TStruct = TStruct("x" -> t.elementType, t.bindingTypes:_*)
+    val tT: TStruct = t.elementWithScopeType
     val tU: TStruct = TStruct(fields:_*)
     def zipValues(irs: Iterable[IR]): IR =
       MakeStruct(fields.zip(irs).map { case ((n, t), v) => (n, t, v) })
-    val zeroFb = FunctionBuilder.functionBuilder[Long]
+    val zeroFb = FunctionBuilder.functionBuilder[MemoryBuffer, Long]
     Compile(zipValues(aggs.map(_.z)), zeroFb)
-    val seqFb = FunctionBuilder.functionBuilder[Long, Long, Long]
+    val seqFb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Long, Long]
     Compile(zipValues(aggs.zipWithIndex.map { case (x, i) =>
       x.seq(GetField(In(0, tU), i.toString()), In(1, tT)) }), seqFb)
-    val combFb = FunctionBuilder.functionBuilder[Long, Long, Long]
+    val combFb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Long, Long]
     Compile(zipValues(aggs.zipWithIndex.map { case (x, i) =>
       x.comb(GetField(In(0, tU), i.toString()), GetField(In(0, tU), i.toString())) }), combFb)
 
-    // update all the references to the intermedaite
+    // update all the references to the intermediate
     aggs.map(_.in).foreach(_.typ = tU)
 
     val zero = zeroFb.result()
@@ -43,9 +46,13 @@ object ExtractAggregators {
 
     (ir2, tU, { (r, agg) =>
       // load classes into JVM
+      val z = zero()
       val f = seq()
       val g = comb()
-      agg.aggregate(zero()(), (t, u) => f(t, u), (l, r) => g(l, r))
+      agg.aggregate(
+        r => z(r),
+        (r, t, u) => f(r, t, u),
+        (region, l, r) => g(region, l, r))
     })
   }
 
@@ -93,9 +100,9 @@ object ExtractAggregators {
       case ArrayLen(a) =>
         ArrayLen(extract(a))
       case ArrayMap(a, name, body, elementTyp) =>
-        ArrayMap(extract(a), name, noAgg(body), elementTyp)
+        ArrayMap(extract(a), name, extract(body), elementTyp)
       case ArrayFold(a, zero, accumName, valueName, body, typ) =>
-        ArrayFold(extract(a), extract(zero), accumName, valueName, noAgg(body), typ)
+        ArrayFold(extract(a), extract(zero), accumName, valueName, extract(body), typ)
       case AggMap(a, name, body, typ) =>
         throw new RuntimeException(s"AggMap must be used inside an AggSum, but found: $ir")
       case x@AggSum(a) =>
@@ -117,8 +124,11 @@ object ExtractAggregators {
     }
   }
 
-  private def lower(ir: IR, aggIn: IR): IR = {
-    def lower(ir: IR): IR = this.lower(ir, aggIn)
+  private def lower(ir: IR, aggIn: IR): IR =
+    lower(ir, aggIn, Env.empty)
+
+  private def lower(ir: IR, aggIn: IR, env: Env[Unit]): IR = {
+    def lower(ir: IR, env: Env[Unit] = env): IR = this.lower(ir, aggIn, env)
     ir match {
       case I32(x) => ir
       case I64(x) => ir
@@ -136,14 +146,14 @@ object ExtractAggregators {
       case If(cond, cnsq, altr, typ) =>
         If(lower(cond), lower(cnsq), lower(altr), typ)
       case Let(name, value, body, typ) =>
-        Let(name, lower(value), lower(body), typ)
+        Let(name, lower(value), lower(body, env = env.bind(name, ())), typ)
       case Ref(name, typ) => ir
       case ApplyBinaryPrimOp(op, l, r, typ) =>
         ApplyBinaryPrimOp(op, lower(l), lower(r), typ)
       case ApplyUnaryPrimOp(op, x, typ) =>
         ApplyUnaryPrimOp(op, lower(x), typ)
       case MakeArray(args, typ) =>
-        MakeArray(args map lower, typ)
+        MakeArray(args map (lower(_)), typ)
       case MakeArrayN(len, elementType) =>
         MakeArrayN(lower(len), elementType)
       case ArrayRef(a, i, typ) =>
@@ -153,13 +163,30 @@ object ExtractAggregators {
       case ArrayLen(a) =>
         ArrayLen(lower(a))
       case ArrayMap(a, name, body, elementTyp) =>
-        ArrayMap(lower(a), name, lower(body), elementTyp)
+        val bodyEnv = env.bind(name, ())
+        ArrayMap(lower(a), name, lower(body, env = bodyEnv), elementTyp)
       case ArrayFold(a, zero, accumName, valueName, body, typ) =>
-        ArrayFold(lower(a), lower(zero), accumName, valueName, lower(body), typ)
+        val bodyEnv = env.bind((accumName, ()), (valueName, ()))
+        ArrayFold(lower(a), lower(zero), accumName, valueName, lower(body, env = bodyEnv), typ)
       case AggIn(typ) =>
         aggIn
       case AggMap(a, name, body, typ) =>
-        Let(name, lower(a), lower(body), typ)
+        val tAgg = a.typ.asInstanceOf[TAggregable]
+        val extraBindings = tAgg.bindingTypes
+        val tA = tAgg.elementWithScopeType
+        val la = lower(a)
+        assert(la.typ == tA, s"should have same type ${la.typ} $tA, $la")
+        val (aggName, bodyEnv) = env
+          .bind(extraBindings.map(_._1 -> ()):_*)
+          .bindFresh("AggMapValue", ())
+        // NB: the map name should shadow any names in the scope so it must be
+        // the deepest Let
+        var bodyWithBindings = Let(name, tAgg.getElement(Ref(aggName, tA)),
+          lower(body, env = bodyEnv), typ)
+        extraBindings.foreach { case (n, t) =>
+          bodyWithBindings = Let(n, Ref(aggName, tA), bodyWithBindings)
+        }
+        Let(aggName, lower(a), bodyWithBindings, typ)
       case AggSum(a) =>
         throw new RuntimeException(s"Found aggregator inside an aggregator: $ir")
       case MakeStruct(fields) =>
@@ -174,11 +201,6 @@ object ExtractAggregators {
         throw new RuntimeException(s"Referenced input inside an aggregator, that's a no-no: $ir")
       case Die(message) => ir
     }
-  }
-
-  private def noAgg(ir: IR): IR = {
-    // FIXME: assert no children reference AggMap or AggSum
-    ir
   }
 
   private def zeroValue(t: Type): IR = {
