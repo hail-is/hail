@@ -79,8 +79,8 @@ object LDMatrix {
 
     val LDMatrixMetadata(variants, nSamples) =
       hc.hadoopConf.readTextFile(uri + metadataRelativePath) { isr =>
-        jackson.Serialization.read[ReadableLDMatrixMetadata](isr)
-      }.toLDMatrixMetadata()
+        jackson.Serialization.read[LDMatrixMetadata](isr)
+      }
 
     new LDMatrix(new IndexedRowMatrix(rdd), variants, nSamples)
   }
@@ -116,6 +116,6 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
 
 case class LDMatrixMetadata(variants: Array[Variant], nSamples: Int)
 
-private case class ReadableLDMatrixMetadata(variants: Array[ReadableConcreteVariant], nSamples: Int) {
-   def toLDMatrixMetadata(): LDMatrixMetadata = LDMatrixMetadata(variants.map(_.toConcreteVariant).toArray[Variant], nSamples)
-}
+// private case class ReadableLDMatrixMetadata(variants: Array[ReadableConcreteVariant], nSamples: Int) {
+//    def toLDMatrixMetadata(): LDMatrixMetadata = LDMatrixMetadata(variants.map(_.toConcreteVariant).toArray[Variant], nSamples)
+// }

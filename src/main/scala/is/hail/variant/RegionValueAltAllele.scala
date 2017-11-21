@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.utils._
 
-class RegionValueAltAllele(taa: TAltAllele) extends View with AltAllele {
+class RegionValueAltAllele(taa: TAltAllele) extends View with IAltAllele {
   private val t = taa.fundamentalType.asInstanceOf[TStruct]
   private val refIdx = t.fieldIdx("ref")
   private val altIdx = t.fieldIdx("alt")

@@ -45,13 +45,13 @@ object Variant {
   def apply(contig: String,
     start: Int,
     ref: String,
-    alt: String): Variant = ConcreteVariant(contig, start, ref, Array(AltAllele(ref, alt)))
+    alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
 
   def apply(contig: String,
     start: Int,
     ref: String,
     alts: Array[String]): Variant =
-    ConcreteVariant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
+    Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
 
   def apply(contig: String,
     start: Int,
@@ -61,7 +61,7 @@ object Variant {
   def apply(contig: String,
     start: Int,
     ref: String,
-    alts: Array[AltAllele]): Variant = ConcreteVariant(contig, start, ref, alts)
+    alts: Array[AltAllele]): Variant = Variant(contig, start, ref, alts)
 
   def parse(str: String): Variant = {
     val colonSplit = str.split(":")
@@ -183,7 +183,7 @@ case class VariantSubgen(
       Variant(contig, start, ref, altAlleles.map(alt => AltAllele(ref, alt)))
 }
 
-trait Variant { self =>
+trait IVariant { self =>
   def contig(): String
 
   def start(): Int
@@ -193,7 +193,7 @@ trait Variant { self =>
   def altAlleles(): IndexedSeq[AltAllele]
 
   def copy(contig: String = contig, start: Int = start, ref: String = ref, altAlleles: IndexedSeq[AltAllele] = altAlleles): Variant =
-    ConcreteVariant(contig, start, ref, altAlleles)
+    Variant(contig, start, ref, altAlleles)
 
   def nAltAlleles: Int = altAlleles.length
 
@@ -305,7 +305,7 @@ trait Variant { self =>
     Ordering.Iterable[AltAllele].compare(altAlleles, that.altAlleles)
   }
 
-  def minRep: Variant = {
+  def minRep: IVariant = {
     if (ref.length == 1)
       self
     else if (altAlleles.forall(a => a.isStar))
@@ -359,21 +359,23 @@ trait Variant { self =>
   )
 }
 
-case class ConcreteVariant(contig: String,
+case class Variant(contig: String,
   start: Int,
   ref: String,
-  override val altAlleles: IndexedSeq[AltAllele]) extends Variant {
+  override val altAlleles: IndexedSeq[AltAllele]) extends IVariant {
   require(altAlleles.forall(_.ref == ref))
 
   /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
   require(start >= 0, s"invalid variant: negative position: `${ this.toString }'")
   require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
+
+  override def minRep: Variant = super.minRep.asInstanceOf[Variant]
 }
 
-case class ReadableConcreteVariant(contig: String,
-  start: Int,
-  ref: String,
-  val altAlleles: IndexedSeq[ConcreteAltAllele]) {
-  def toConcreteVariant(): ConcreteVariant = ConcreteVariant(contig, start, ref, altAlleles)
-}
+// case class ReadableConcreteVariant(contig: String,
+//   start: Int,
+//   ref: String,
+//   val altAlleles: IndexedSeq[ConcreteAltAllele]) {
+//   def toConcreteVariant(): ConcreteVariant = ConcreteVariant(contig, start, ref, altAlleles)
+// }

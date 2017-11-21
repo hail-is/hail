@@ -80,7 +80,7 @@ object FilterAlleles {
         val altAlleles = oldToNew.iterator
           .zipWithIndex
           .filter { case (newIdx, _) => newIdx != 0 }
-          .map { case (_, idx) => v.altAlleles()(idx - 1) }
+          .map { case (_, idx) => v.altAlleles(idx - 1) }
           .toArray
 
         if (altAlleles.forall(_.isStar) && !keepStar)

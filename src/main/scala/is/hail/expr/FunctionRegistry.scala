@@ -1114,7 +1114,7 @@ object FunctionRegistry {
 
       (0 until shorter.nAltAlleles).foreach({
         i =>
-          val alt = shorter.altAlleles()(i).alt + ref_diff
+          val alt = shorter.altAlleles(i).alt + ref_diff
           long_alleles_index.get(alt) match {
             case Some(ai) => short_alleles_index(ai + 1) = i + 1
             case None => short_alleles += AltAllele(longer.ref, alt)

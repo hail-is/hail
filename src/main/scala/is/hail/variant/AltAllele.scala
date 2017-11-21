@@ -20,14 +20,11 @@ object CopyState extends Enumeration {
 
 object AltAllele {
 
-  def apply(ref: String, alt: String): AltAllele =
-    ConcreteAltAllele(ref, alt)
-
   def fromRegionValue(m: MemoryBuffer, offset: Long): AltAllele = {
     val t = TAltAllele.representation()
     val ref = TString.loadString(m, t.loadField(m, offset, 0))
     val alt = TString.loadString(m, t.loadField(m, offset, 1))
-    ConcreteAltAllele(ref, alt)
+    AltAllele(ref, alt)
   }
 
   def sparkSchema: StructType = StructType(Array(
@@ -35,32 +32,32 @@ object AltAllele {
     StructField("alt", StringType, nullable = false)))
 
   def fromRow(r: Row): AltAllele =
-    ConcreteAltAllele(r.getString(0), r.getString(1))
+    AltAllele(r.getString(0), r.getString(1))
 
   def gen(ref: String): Gen[AltAllele] =
     for (alt <- Gen.frequency((10, genDNAString),
       (1, Gen.const("*"))) if alt != ref)
-      yield ConcreteAltAllele(ref, alt)
+      yield AltAllele(ref, alt)
 
   def gen: Gen[AltAllele] =
     for (ref <- genDNAString;
       alt <- genDNAString if alt != ref)
-      yield ConcreteAltAllele(ref, alt)
+      yield AltAllele(ref, alt)
 
   implicit def altAlleleOrder: Ordering[AltAllele] = new Ordering[AltAllele] {
     def compare(x: AltAllele, y: AltAllele): Int = x.compare(y)
   }
 }
 
-trait AltAllele {
+trait IAltAllele {
   def ref(): String
 
   def alt(): String
 
   import AltAlleleType._
 
-  def reify(): ConcreteAltAllele =
-    ConcreteAltAllele(ref, alt)
+  def reify(): AltAllele =
+    AltAllele(ref, alt)
 
   def altAlleleType: AltAlleleType = {
     if (isSNP)
@@ -129,11 +126,11 @@ trait AltAllele {
   }
 }
 
-case class ConcreteAltAllele(ref: String, alt: String) extends AltAllele {
+case class AltAllele(ref: String, alt: String) extends IAltAllele {
   require(ref != alt, "ref was equal to alt")
   require(!ref.isEmpty, "ref was an empty string")
   require(!alt.isEmpty, "alt was an empty string")
 
-  override def reify(): ConcreteAltAllele = this
+  override def reify(): AltAllele = this
 }
 

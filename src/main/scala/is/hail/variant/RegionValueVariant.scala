@@ -5,7 +5,7 @@ import is.hail.utils._
 import is.hail.annotations._
 import is.hail.expr._
 
-class RegionValueVariant(tv: TVariant) extends Variant with View {
+class RegionValueVariant(tv: TVariant) extends IVariant with View {
   private val t: TStruct = tv.representation.asInstanceOf[TStruct]
   private var region: MemoryBuffer = _
   private var offset: Long = _
