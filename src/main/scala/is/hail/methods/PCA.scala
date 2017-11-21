@@ -90,12 +90,17 @@ class ExprPCA(val expr: String) extends PCA {
         ec.set(1, ur.get(1))
         ec.set(2, ur.get(2))
         val gs = ur.getAs[IndexedSeq[Any]](3)
-        val row = IndexedRow(pStartIdx + j, Vectors.dense(gs.indices.map {k =>
+        val ns = gs.length
+        val a = new Array[Double](ns)
+        var k = 0
+        while(k < ns) {
           ec.set(3, samplesBc.value(k))
           ec.set(4, sampleAnnotationsBc.value(k))
           ec.set(5, gs(k))
-          f().toDouble
-        }.toArray))
+          a(k) = f().toDouble
+          k += 1
+        }
+        val row = IndexedRow(pStartIdx + j, Vectors.dense(a))
         j += 1
         row
       }

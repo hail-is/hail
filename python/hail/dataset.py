@@ -3428,9 +3428,9 @@ class VariantDataset(HistoryMixin):
 
         >>> vds_result = vds.pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True)
 
-        Compute the top 3 principal component scores of the genotype's missingness matrix, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC5`` of type Double:
+        Compute the top 2 principal component scores of the genotype's missingness matrix, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC5`` of type Double:
 
-        >>> vds_result = vds.pca('sa.scores', k=3, entry_to_double='if (isDefined(g.gt)) 1 else 0')
+        >>> vds_result = vds.pca('sa.scores', k=2, entry_to_double='if (isDefined(g.gt)) 1 else 0')
 
         **Notes**
 
