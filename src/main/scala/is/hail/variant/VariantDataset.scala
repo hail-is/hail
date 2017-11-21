@@ -398,13 +398,6 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
     KinshipMatrix(vsm.hc, vsm.sSignature, rrm, vsm.sampleIds.toArray, m)
   }
 
-  def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {
-    require(vsm.wasSplit)
-    vsm.requireColKeyString("TDT")
-    TDT(vsm, ped.filterTo(vsm.stringSampleIdSet).completeTrios,
-      Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
-  }
-
   def deNovo(ped: Pedigree,
     referenceAF: String,
     minGQ: Int = 20,

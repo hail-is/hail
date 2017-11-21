@@ -2342,7 +2342,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         momAnnotation = Row(mom, sampleAnnotations(index))
       }
 
-      val isFemale: java.lang.Boolean = t.sex match {
+      val isFemale: java.lang.Boolean = (t.sex: @unchecked) match {
         case Some(Sex.Female) => true
         case Some(Sex.Male) => false
         case None => null
@@ -2414,7 +2414,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         rvb.end()
         rvb.result()
       }
-    }
+    }.copy(typ = new OrderedRDD2Type(rdd2.typ.partitionKey, rdd2.typ.key, newRowType))
 
     copy2(rdd2 = newRDD,
       sampleIds = kidIds,

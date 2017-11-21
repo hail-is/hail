@@ -1195,8 +1195,7 @@ class ContextTests(unittest.TestCase):
         pedigree = Pedigree.read('src/test/resources/tdt.fam')
         tdt_res = (hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4)
                    .split_multi()
-                   .tdt(pedigree)
-                   .variants_table())
+                   .tdt(pedigree))
 
         truth = (hc
                  .import_table('src/test/resources/tdt_results.tsv',
@@ -1207,12 +1206,11 @@ class ContextTests(unittest.TestCase):
                  .key_by('v'))
 
         bad = (tdt_res
-               .select(['v', 'va.tdt'])
                .join(truth, how='outer')
-               .filter('!(tdt.nTransmitted == T && '
-                       'tdt.nUntransmitted == U && '
-                       'abs(tdt.chi2 - Chi2) < 0.001 && '
-                       'abs(tdt.pval - Pval) < 0.001)'))
+               .filter('!(transmitted == T && '
+                       'untransmitted == U && '
+                       'abs(chi2 - Chi2) < 0.001 && '
+                       'abs(p - Pval) < 0.001)'))
         if bad.count() != 0:
-            bad.show()
+            bad.order_by(asc('v')).show()
             self.fail('Found rows in violation of the predicate (see show output)')
