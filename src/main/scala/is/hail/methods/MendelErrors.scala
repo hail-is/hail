@@ -85,7 +85,7 @@ object MendelErrors {
         it.flatMap { rv =>
           view.setRegion(rv)
           val v = Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))
-          Range(0, nTrios).flatMap { i =>
+          Iterator.range(0, nTrios).flatMap { i =>
             view.setGenotype(i)
             val probandGt = if (view.hasProbandGT) view.getProbandGT else -1
             val motherGt = if (view.hasMotherGT) view.getMotherGT else -1
