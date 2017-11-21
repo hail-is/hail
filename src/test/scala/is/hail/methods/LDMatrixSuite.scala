@@ -3,8 +3,10 @@ package is.hail.methods
 import breeze.linalg.{DenseMatrix, convert, norm}
 import breeze.stats.mean
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.{Variant, VariantDataset}
 import is.hail.{SparkSuite, TestUtils, stats}
+import org.apache.spark.mllib.linalg._
+import org.apache.spark.mllib.linalg.distributed._
 import org.testng.Assert
 import org.testng.annotations.Test
 
@@ -96,4 +98,130 @@ class LDMatrixSuite extends SparkSuite {
     assert(actual.toLocalMatrix == LDMatrix.read(hc, fname).toLocalMatrix)
   }
 
+  private def readCSV(fname: String): Array[Array[Double]] =
+    hc.hadoopConf.readLines(fname) { it =>
+      it.map(_.value)
+        .map(_.split(",").map(_.toDouble))
+        .toArray[Array[Double]]
+    }
+
+  private def exportImportAssert(export: (String) => Unit, expected: Array[Double]*) {
+    val fname = tmpDir.createTempFile("test")
+    export(fname)
+    assert(readCSV(fname) === expected.toArray[Array[Double]])
+  }
+
+  private def rowArrayToIRM(a: Array[Array[Double]]): IndexedRowMatrix = {
+    val rows = a.length
+    val cols = if (rows == 0) 0 else a(0).length
+    new IndexedRowMatrix(
+      sc.parallelize(a.zipWithIndex.map { case (a, i) => new IndexedRow(i, new DenseVector(a)) }),
+      rows,
+      cols)
+  }
+
+  private def rowArrayToLDMatrix(a: Array[Array[Double]]): LDMatrix = {
+    val m = rowArrayToIRM(a)
+    LDMatrix(hc, m, (0 until m.numRows().toInt).map(_ => Variant.gen.sample()).toArray[Variant], m.numCols().toInt)
+  }
+
+  @Test
+  def exportSimple() {
+    val fullExpected = Array(
+      Array(1.0, 2.0, 3.0),
+      Array(4.0, 5.0, 6.0),
+      Array(7.0, 8.0, 9.0))
+    val ldm = rowArrayToLDMatrix(fullExpected)
+
+    exportImportAssert(ldm.export(_, ",", header=None, parallelWrite=false),
+      fullExpected:_*)
+
+    exportImportAssert(ldm.exportStrictLowerTriangle(_, ",", header=None, parallelWrite=false),
+      Array(4.0),
+      Array(7.0, 8.0))
+
+    exportImportAssert(ldm.exportLowerTriangle(_, ",", header=None, parallelWrite=false),
+      Array(1.0),
+      Array(4.0, 5.0),
+      Array(7.0, 8.0, 9.0))
+
+    exportImportAssert(ldm.exportUpperTriangle(_, ",", header=None, parallelWrite=false),
+      Array(1.0, 2.0, 3.0),
+      Array(5.0, 6.0),
+      Array(9.0))
+
+    exportImportAssert(ldm.exportStrictUpperTriangle(_, ",", header=None, parallelWrite=false),
+      Array(2.0, 3.0),
+      Array(6.0))
+  }
+
+  @Test
+  def exportAllZeros() {
+    val allZeros = Array(
+      Array(0.0, 0.0, 0.0),
+      Array(0.0, 0.0, 0.0),
+      Array(0.0, 0.0, 0.0))
+    val ldm = rowArrayToLDMatrix(allZeros)
+
+    exportImportAssert(ldm.export(_, ",", header=None, parallelWrite=false),
+      Array(0.0, 0.0, 0.0),
+      Array(0.0, 0.0, 0.0),
+      Array(0.0, 0.0, 0.0))
+
+    exportImportAssert(ldm.exportStrictLowerTriangle(_, ",", header=None, parallelWrite=false),
+      Array(0.0),
+      Array(0.0, 0.0))
+
+    exportImportAssert(ldm.exportLowerTriangle(_, ",", header=None, parallelWrite=false),
+      Array(0.0),
+      Array(0.0, 0.0),
+      Array(0.0, 0.0, 0.0))
+
+    exportImportAssert(ldm.exportUpperTriangle(_, ",", header=None, parallelWrite=false),
+      Array(0.0, 0.0, 0.0),
+      Array(0.0, 0.0),
+      Array(0.0))
+
+    exportImportAssert(ldm.exportStrictUpperTriangle(_, ",", header=None, parallelWrite=false),
+      Array(0.0, 0.0),
+      Array(0.0))
+  }
+
+  @Test
+  def exportBigish() {
+    val lm = distLDMatrix.toLocalMatrix
+    val expected = (0 until lm.rows)
+      .map(i => (0 until lm.cols).map(j =>
+        lm(i, j)).toArray[Double])
+      .toArray[Array[Double]]
+
+    exportImportAssert(distLDMatrix.export(_, ",", header=None, parallelWrite=false),
+      expected:_*)
+
+    exportImportAssert(distLDMatrix.exportStrictLowerTriangle(_, ",", header=None, parallelWrite=false),
+      expected.zipWithIndex
+        .map { case (a,i) =>
+          a.zipWithIndex.filter { case (_, j) => j < i }.map(_._1).toArray[Double] }
+        .filter(_.nonEmpty)
+        .toArray[Array[Double]]:_*)
+
+    exportImportAssert(distLDMatrix.exportLowerTriangle(_, ",", header=None, parallelWrite=false),
+      expected.zipWithIndex
+        .map { case (a,i) =>
+          a.zipWithIndex.filter { case (_, j) => j <= i }.map(_._1).toArray[Double] }
+        .toArray[Array[Double]]:_*)
+
+    exportImportAssert(distLDMatrix.exportUpperTriangle(_, ",", header=None, parallelWrite=false),
+      expected.zipWithIndex
+        .map { case (a,i) =>
+          a.zipWithIndex.filter { case (_, j) => j >= i }.map(_._1).toArray[Double] }
+        .toArray[Array[Double]]:_*)
+
+    exportImportAssert(distLDMatrix.exportStrictUpperTriangle(_, ",", header=None, parallelWrite=false),
+      expected.zipWithIndex
+        .map { case (a,i) =>
+          a.zipWithIndex.filter { case (_, j) => j > i }.map(_._1).toArray[Double] }
+        .filter(_.nonEmpty)
+        .toArray[Array[Double]]:_*)
+  }
 }

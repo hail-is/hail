@@ -57,7 +57,7 @@ object LDMatrix {
     val scaledIRM = new IndexedRowMatrix(irm.rows
       .map{case IndexedRow(idx, vec) => IndexedRow(idx, vec.map(d => d * nSamplesInverse))})
 
-    LDMatrix(scaledIRM, variantsKept, nSamples)
+    LDMatrix(vds.hc, scaledIRM, variantsKept, nSamples)
   }
 
   private val metadataRelativePath = "/metadata.json"
@@ -75,7 +75,7 @@ object LDMatrix {
         jackson.Serialization.read[LDMatrixMetadata](isr)
       }
 
-    new LDMatrix(new IndexedRowMatrix(rdd), variants, nSamples)
+    new LDMatrix(hc, new IndexedRowMatrix(rdd), variants, nSamples)
   }
 }
 
@@ -85,7 +85,7 @@ object LDMatrix {
   * @param variants Array of variants indexing the rows and columns of the matrix.
   * @param nSamples Number of samples used to compute this matrix.
   */
-case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) {
+case class LDMatrix(hc: HailContext, matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) extends ExportableMatrix {
   import LDMatrix._
 
   def toLocalMatrix: BDM[Double] = {
