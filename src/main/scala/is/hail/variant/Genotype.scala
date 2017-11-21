@@ -120,6 +120,13 @@ abstract class Genotype extends Serializable {
 }
 
 object Genotype {
+  val htsGenotypeType: TStruct = TStruct(
+    "GT" -> TCall(),
+    "AD" -> TArray(!TInt32()),
+    "DP" -> TInt32(),
+    "GQ" -> TInt32(),
+    "PL" -> TArray(!TInt32()))
+
   def unboxedGT(g: Genotype): Int = if (g != null) g._unboxedGT else -1
 
   def unboxedAD(g: Genotype): Array[Int] = if (g != null) g._unboxedAD else null

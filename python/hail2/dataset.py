@@ -174,7 +174,7 @@ class VariantDataset(DatasetTemplate):
     ...                                      x2 = vds_ann.gs.fraction(lambda g, _: False),
     ...                                      x3 = vds_ann.gs.filter(lambda g, _: True).count(),
     ...                                      x4 = vds_ann.va.info.AC + vds_ann.globals.foo)
-    ...               .annotate_alleles(propagate_gq=False, a1 = vds_ann.gs.count()))
+    ...               .annotate_alleles(a1 = vds_ann.gs.count()))
 
     >>> vds_ann = vds_ann.annotate_samples(apple = 6)
     >>> vds_ann = vds_ann.annotate_samples(x1 = vds_ann.gs.count(),
@@ -243,7 +243,7 @@ class VariantDataset(DatasetTemplate):
                       kwargs=dictof(strlike, anytype))
     def annotate_alleles(self, propagate_gq=False, **kwargs):
         exprs = ", ".join(["va." + k + " = " + to_expr(v) for k, v in kwargs.items()])
-        jvds = self._jvdf.annotateAllelesExpr(exprs, propagate_gq)
+        jvds = self._jvdf.annotateAllelesExpr(exprs)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

@@ -241,7 +241,7 @@ class DatasetTests(unittest.TestCase):
                                      x2 = vds.gs.fraction(lambda g, _: False),
                                      x3 = vds.gs.filter(lambda g, _: True).count(),
                                      x4 = vds.va.info.AC + vds.globals.foo)
-               .annotate_alleles(propagate_gq=False, a1 = vds.gs.count()))
+               .annotate_alleles(a1 = vds.gs.count()))
 
         expected_fields = [(fd.name, fd.typ) for fd in orig_variant_schema.fields] + \
                           [('x1', TInt64()),
