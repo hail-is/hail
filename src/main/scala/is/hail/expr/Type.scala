@@ -840,6 +840,12 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   def bindingTypes: Array[(String, Type)] =
     symTab.map { case (n, (_, t)) => (n, t) }.toArray
 
+  def elementWithScopeType: TStruct =
+    TStruct((("x", elementType) +: bindingTypes):_*)
+
+  import is.hail.expr.ir.{IR, GetField}
+  def getElement(agg: IR): IR = GetField(agg, "x")
+
   override def unify(concrete: Type): Boolean = {
     concrete match {
       case TAggregable(celementType, _) => elementType.unify(celementType)
