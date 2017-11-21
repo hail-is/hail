@@ -604,13 +604,20 @@ class BlockMatrixSuite extends SparkSuite {
     ).map(IndexedRow.tupled)
     
     val indexedRows: RDD[IndexedRow] = sc.parallelize(data, numSlices = 4)
-
+    
     val irm = new IndexedRowMatrix(indexedRows, rows, cols)
     
-    val b = indexedRows.computeBoundaries()
-    println(b.toIndexedSeq)
+    val boundaries = indexedRows.computeBoundaries()
+    println(boundaries.toIndexedSeq)
     
-    assert(b.last == rows) // will catch missing rows
+    assert(boundaries.last == rows) // will catch missing rows
+
+    val blockSize = 100
+    val nBlockRows = ((irm.numRows() - 1) / blockSize + 1).toInt
+    
+    assert(boundaries.last == irm.numRows())
+    val deps = WriteBlocksRDD.allDependencies(boundaries, nBlockRows, blockSize)
+    deps.zipWithIndex.foreach { case (a, i) => println(s"block=$i, dep=${a.mkString(",")}") }
     
     // val blockMat = irm.toHailBlockMatrix(2)
   }
