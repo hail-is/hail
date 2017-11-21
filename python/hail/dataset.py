@@ -4916,15 +4916,14 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        Compute TDT association results:
+        Compute TDT association results and export to a file:
 
         >>> pedigree = Pedigree.read('data/trios.fam')
-        >>> vds.tdt(pedigree).export("output/tdt_results.tsv")
+        >>> tdt_table = vds.tdt(pedigree)
+        >>> tdt_table.export("output/tdt_results.tsv")
 
         Export only variants with p-values below 0.001:
 
-        >>> pedigree = Pedigree.read('data.trios.fam')
-        >>> tdt_table = vds.tdt(pedigree)
         >>> tdt_table = tdt_table.filter('p < 0.001')
         >>> tdt_table.export("output/tdt_results.tsv")
 
