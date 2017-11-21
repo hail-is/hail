@@ -1,6 +1,6 @@
 package is.hail.expr
 
-import is.hail.annotations.{Annotation, RegionValue}
+import is.hail.annotations.{Annotation, MemoryBuffer, RegionValueBuilder}
 import is.hail.utils.{Interval, _}
 import is.hail.variant.{AltAllele, GenomeReference, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
@@ -414,99 +414,125 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
     }
   }
   
-  def importRegionValue(jv: JValue, t: Type, parent: String): RegionValue = {
-    implicit val formats = Serialization.formats(NoTypeHints)
+  def importRegionValue(region: MemoryBuffer, jv: JValue, t: Type): Long =
+    importRegionValue(region, jv, t, "<root>")
+  
+  def importRegionValue(region: MemoryBuffer, jv: JValue, t: Type, parent: String): Long = {  
+    val rvb = new RegionValueBuilder(region)
 
+    rvb.start(t)    
+    importRegionValue(rvb, jv, t, parent)
+    rvb.end()
+  }
+  
+  def importRegionValue(rvb: RegionValueBuilder, jv: JValue, t: Type, parent: String) {
+    implicit val formats = Serialization.formats(NoTypeHints)
     
     (jv, t) match {
       case (JNull | JNothing, _) =>
         if (t.required)
           fatal("required annotation cannot be null")
-        null
-      case (JInt(x), _: TInt32) => x.toInt
-      case (JInt(x), _: TInt64) => x.toLong
-      case (JInt(x), _: TFloat64) => x.toDouble
-      case (JInt(x), _: TString) => x.toString
-      case (JDouble(x), _: TFloat64) => x
-      case (JString("Infinity"), _: TFloat64) => Double.PositiveInfinity
-      case (JString("-Infinity"), _: TFloat64) => Double.NegativeInfinity
-      case (JString("Infinity"), _: TFloat32) => Float.PositiveInfinity
-      case (JString("-Infinity"), _: TFloat32) => Float.NegativeInfinity
-      case (JDouble(x), _: TFloat32) => x.toFloat
-      case (JString(x), _: TString) => x
-      case (JString(x), _: TInt32) =>
-        x.toInt
-      case (JString(x), _: TFloat64) =>
+        rvb.setMissing()
+      case (JInt(x), _: TInt32) => rvb.addInt(x.toInt)
+      case (JInt(x), _: TInt64) => rvb.addLong(x.toLong)
+      case (JInt(x), _: TFloat64) => rvb.addDouble(x.toDouble)
+      case (JInt(x), _: TString) => rvb.addString(x.toString)
+      case (JDouble(x), _: TFloat64) => rvb.addDouble(x)
+      case (JString("Infinity"), _: TFloat64) => rvb.addDouble(Double.PositiveInfinity)
+      case (JString("-Infinity"), _: TFloat64) => rvb.addDouble(Double.NegativeInfinity)
+      case (JString("Infinity"), _: TFloat32) => rvb.addDouble(Float.PositiveInfinity)
+      case (JString("-Infinity"), _: TFloat32) => rvb.addDouble(Float.NegativeInfinity)
+      case (JDouble(x), _: TFloat32) => rvb.addFloat(x.toFloat)
+      case (JString(x), _: TString) => rvb.addString(x)
+      case (JString(x), _: TInt32) => rvb.addInt(x.toInt)
+      case (JString(x), _: TFloat64) => rvb.addDouble(
         if (x.startsWith("-:"))
           x.drop(2).toDouble
         else
-          x.toDouble
-      case (JBool(x), _: TBoolean) => x
-
-      // back compatibility FIXME: remove?
-      case (JObject(a), TDict(TString(_), valueType, _)) =>
-        a.map { case (key, value) =>
-          (key, importAnnotation(value, valueType, parent))
-        }
-          .toMap
+          x.toDouble)
+      case (JBool(x), _: TBoolean) => rvb.addBoolean(x)
 
       case (JArray(arr), TDict(keyType, valueType, _)) =>
-        arr.map { case JObject(a) =>
+        rvb.startArray(arr.length)
+        arr.foreach { case JObject(a) =>
           a match {
             case List(k, v) =>
               (k, v) match {
                 case (("key", ka), ("value", va)) =>
-                  (importAnnotation(ka, keyType, parent), importAnnotation(va, valueType, parent))
+                  rvb.startStruct()
+                  importRegionValue(rvb, ka, keyType, parent)
+                  importRegionValue(rvb, va, valueType, parent)
+                  rvb.endStruct()
               }
             case _ =>
               warn(s"Can't convert JSON value $jv to type $t at $parent.")
-              null
-
+              rvb.setMissing()
           }
         case _ =>
           warn(s"Can't convert JSON value $jv to type $t at $parent.")
-          null
-        }.toMap
+          rvb.setMissing()
+        }
+        rvb.endArray()
 
       case (JObject(jfields), t: TStruct) =>
-        if (t.size == 0)
-          Annotation.empty
-        else {
-          val a = Array.fill[Any](t.size)(null)
-
-          for ((name, jv2) <- jfields) {
-            t.selfField(name) match {
-              case Some(f) =>
-                a(f.index) = importAnnotation(jv2, f.typ, parent + "." + name)
-
-              case None =>
-                warn(s"$t has no field $name at $parent")
-            }
+        // reorder(i) = index in jfields of ith field of struct, or -1 if jfields does not contain 
+        val reorder = Array.fill[Int](t.size)(-1)
+        var i = 0
+        for ((name, jv2) <- jfields) {
+          t.selfField(name) match {
+            case Some(f) =>
+              reorder(f.index) = i
+            case None =>
+              warn(s"$t has no field $name at $parent")
           }
-
-          Annotation(a: _*)
+          i += 1
         }
+
+        rvb.startStruct()
+        i = 0
+        while (i < t.size) {
+          if (reorder(i) == -1)
+            rvb.setMissing()
+          else {
+            val (name, jv2) = jfields(reorder(i))
+            importRegionValue(rvb, jv2, t.fields(i).typ, parent + "." + name)
+          }
+          i += 1
+        }
+        rvb.endStruct()
+      
+      // FIXME: composition of extract and addAnnotation is creating unnecessary allocation, avoid? how?
       case (_, _: TAltAllele) =>
-        jv.extract[AltAllele]
+        rvb.addAnnotation(t, jv.extract[AltAllele])
+        
       case (_, TVariant(_, _)) =>
-        jv.extract[JSONExtractVariant].toVariant
+        rvb.addAnnotation(t, jv.extract[JSONExtractVariant].toVariant)
+      
       case (_, TLocus(_, _)) =>
-        jv.extract[Locus]
+        rvb.addAnnotation(t, jv.extract[Locus])
+
       case (_, TInterval(_, _)) =>
-        jv.extract[JSONExtractInterval].toInterval
+        rvb.addAnnotation(t, jv.extract[JSONExtractInterval].toInterval)
+        
       case (_, _: TGenotype) =>
-        jv.extract[JSONExtractGenotype].toGenotype
-      case (JInt(x), _: TCall) => x.toInt
+        rvb.addAnnotation(t, jv.extract[JSONExtractGenotype].toGenotype)
+        
+      case (JInt(x), _: TCall) =>
+        rvb.addInt(x.toInt)
 
       case (JArray(a), TArray(elementType, _)) =>
-        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
+        rvb.startArray(a.length)
+        a.foreach(jv2 => importRegionValue(rvb, jv2, elementType, parent + ".<array>"))
+        rvb.endArray()
 
       case (JArray(a), TSet(elementType, _)) =>
-        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>")).toSet[Any]
-
+        rvb.startArray(a.length)
+        a.foreach(jv2 => importRegionValue(rvb, jv2, elementType, parent + ".<set>"))
+        rvb.endArray()
+        
       case _ =>
         warn(s"Can't convert JSON value $jv to type $t at $parent.")
-        null
+        rvb.setMissing()
     }
   }
 }

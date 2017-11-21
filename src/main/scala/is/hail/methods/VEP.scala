@@ -3,7 +3,7 @@ package is.hail.methods
 import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, RegionValue, RegionValueBuilder}
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{Genotype, Locus, Variant, VariantSampleMatrix}
@@ -296,10 +296,10 @@ object VEP {
     val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path).getOrElse("") else ""
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
-    val annotations = vsm.typedRDD[Locus, Variant, Annotation]
     val localRowType = vsm.rowType
+    val localVariantType = vsm.vSignature
     
-    val annotations = vsm.rdd2
+    val annotationsRDD = vsm.rdd2
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
@@ -327,66 +327,103 @@ object VEP {
               
               (v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")), v)
             }.toMap
-
-            val kt = jt
-              .filter(s => s.nonEmpty && s(0) != '#')
-              .map { s =>
+            
+            val rvb = new RegionValueBuilder()
+            val rv2 = RegionValue()
+            
+            val t: TStruct =
+              if (csq)
+                TStruct("v" -> localVariantType, root -> TArray(TString()))
+              else 
+                TStruct("v" -> localVariantType, root -> vepSignature)
+            
+            val kt = block.map(_.region).iterator.zip(jt) // FIXME: rather than zip, should i create a new memory buffer?
+              .filter { case (_, s) => s.nonEmpty && s(0) != '#' }
+              .map { case (region, s) =>
+                rvb.clear()
+                rvb.set(region)
+                
                 if (csq) {
+                  rvb.start(t)
+                  
                   val vvep = variantFromInput(s)
                   if (!nonStarToOriginalVariant.contains(vvep))
                     fatal(s"VEP output variant ${ vvep } not found in original variants.\nVEP output: $s")
 
                   val v = nonStarToOriginalVariant(vvep)
+                  
+                  rvb.startStruct()
+                  rvb.addAnnotation(localVariantType, v)
+
                   val x = csqRegex.findFirstIn(s)
                   x match {
                     case Some(value) =>
                       val tr_aa = value.substring(4).split(",")
                       if (vvep != v && alleleNumIndex > -1) {
                         val alleleMap = getNonStarToOriginalAlleleIdxMap(v)
-                        (v, tr_aa.map {
-                          x =>
-                            val xsplit = x.split("\\|")
-                            val allele_num = xsplit(alleleNumIndex)
+                        rvb.startArray(tr_aa.length)
+                        tr_aa.foreach { x =>
+                          val xsplit = x.split("\\|")
+                          val allele_num = xsplit(alleleNumIndex)
+                          rvb.addString(
                             if (allele_num.isEmpty)
                               x
                             else
                               xsplit
                                 .updated(alleleNumIndex, alleleMap.getOrElse(xsplit(alleleNumIndex).toInt, "").toString)
-                                .mkString("|")
-                        }: IndexedSeq[Annotation])
-                      } else
-                        (v, tr_aa: IndexedSeq[Annotation])
+                                .mkString("|"))
+                        }
+                        rvb.endArray()
+                      } else {
+                        rvb.startArray(tr_aa.length)
+                        tr_aa.foreach(rvb.addString)
+                        rvb.endArray()
+                      }
                     case None =>
                       warn(s"No VEP annotation found for variant $v. VEP returned $s.")
-                      (v, IndexedSeq.empty[Annotation])
+                      rvb.setMissing()
                   }
+                  rvb.endStruct()
+                  rv2.set(region, rvb.end())                  
                 } else {
-                  val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
-                  val vvep = variantFromInput(inputQuery(a).asInstanceOf[String])
-
+                  rvb.start(t)
+                  
+                  val vvep = variantFromInput(s)
                   if (!nonStarToOriginalVariant.contains(vvep))
                     fatal(s"VEP output variant ${ vvep } not found in original variants.\nVEP output: $s")
 
                   val v = nonStarToOriginalVariant(vvep)
+                  
+                  rvb.startStruct()
+                  rvb.addAnnotation(localVariantType, v)
+                  
+                  // a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
+                                    
                   if (vvep != v) {
-                    val alleleMap = getNonStarToOriginalAlleleIdxMap(v)
-                    (v, consequenceIndices.foldLeft(a.asInstanceOf[Row]) {
-                      case (r, i) =>
-                        if (r(i) == null)
-                          r
-                        else {
-                          r.update(i, r(i).asInstanceOf[IndexedSeq[Row]].map {
-                            x => x.update(0, alleleMap.getOrElse(x.getInt(0), null))
-                          })
-                        }
-                    })
+                    fatal("not yet implemented") // FIXME how to handle with region values?
+//                    val alleleMap = getNonStarToOriginalAlleleIdxMap(v)
+//                    (v, consequenceIndices.foldLeft(a.asInstanceOf[Row]) {
+//                      case (r, i) =>
+//                        if (r(i) == null)
+//                          r
+//                        else {
+//                          r.update(i, r(i).asInstanceOf[IndexedSeq[Row]].map {
+//                            x => x.update(0, alleleMap.getOrElse(x.getInt(0), null))
+//                          })
+//                        }
+//                    })
                   } else
-                    (v, a)
+                    JSONAnnotationImpex.importRegionValue(rvb, JsonMethods.parse(s), vepSignature, root) // root or "<root>"?
+                  
                 }
+
+                rvb.endStruct()                  
+                rv2.set(region, rvb.end())
+                
+                rv2
               }
 
-            val r = kt.toArray
-              .sortBy(_._1)
+            val r = kt.toArray.sortBy(rv => Variant.fromRegionValue(rv.region, t.loadField(rv, 1))) // or could learn sort order while streaming above
 
             val rc = proc.waitFor()
             if (rc != 0)
@@ -397,15 +434,18 @@ object VEP {
       }, preservesPartitioning = true)
       .persist(StorageLevel.MEMORY_AND_DISK)
 
-    info(s"vep: annotated ${ annotations.count() } variants")
+    info(s"vep: annotated ${ annotationsRDD.count() } variants")
+
+
+    // FIXME rest is broken, need sortedLeftJoinDistinct and map. Or should annotationsRDD be a KeyTable to annotate with?
 
     val (newVASignature, insertVEP) = vsm.vaSignature.insert(if (csq) TArray(TString()) else vepSignature, parsedRoot)
 
     val newRDD2 = vsm.rdd2
-      .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
+      .zipPartitions(annotationsRDD, preservesPartitioning = true) { case (left, right) =>
         left.sortedLeftJoinDistinct(right)
           .map { case (v, ((va, gs), a)) => (v, (insertVEP(va, a.orNull), gs)) }
-      }.asOrderedRDD
+      }
 
     (csq, newVASignature) match {
       case (true, t: TStruct) => vsm.copy2(rdd2 = newRDD2,
