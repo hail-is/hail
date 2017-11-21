@@ -58,11 +58,6 @@ object Variant {
     ref: String,
     alts: java.util.ArrayList[String]): Variant = Variant(contig, start, ref, alts.asScala.toArray)
 
-  def apply(contig: String,
-    start: Int,
-    ref: String,
-    alts: Array[AltAllele]): Variant = Variant(contig, start, ref, alts)
-
   def parse(str: String): Variant = {
     val colonSplit = str.split(":")
     if (colonSplit.length != 4)
@@ -372,10 +367,3 @@ case class Variant(contig: String,
 
   override def minRep: Variant = super.minRep.asInstanceOf[Variant]
 }
-
-// case class ReadableConcreteVariant(contig: String,
-//   start: Int,
-//   ref: String,
-//   val altAlleles: IndexedSeq[ConcreteAltAllele]) {
-//   def toConcreteVariant(): ConcreteVariant = ConcreteVariant(contig, start, ref, altAlleles)
-// }
