@@ -547,13 +547,14 @@ class TStruct(Type):
 
     @classmethod
     def from_fields(cls, fields, required=False):
-        """
+        """Creates a new TStruct from field objects.
 
-        Creates a new TStruct with input fields.
+        :param fields: The TStruct fields.
+        :type fields: list of :class:`.Field`
 
-        :param list of Fields fields: The TStruct fields
-        :param bool required: Whether the Struct can be missing
-        :return: TStruct wit input fields
+        :param bool required: Flag for whether the struct can be missing.
+        
+        :return: TStruct from input fields
         :rtype: :class:`.TStruct`
         """
 
