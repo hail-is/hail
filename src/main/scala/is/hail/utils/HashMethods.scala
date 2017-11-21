@@ -35,7 +35,8 @@ class TwoIndepHash32(outBits: Int, a: Long, b: Long) extends (Int => Int) {
 
 object SimpleTabulationHash32 {
   def apply(rand: RandomDataGenerator): SimpleTabulationHash32 = {
-    new SimpleTabulationHash32(Array.fill[Int](256 * 4)(rand.getRandomGenerator.nextInt()))
+    val poly = PolyHash(rand, 32)
+    new SimpleTabulationHash32(poly.fillIntArray(256 * 4))
   }
 }
 
@@ -59,7 +60,8 @@ class SimpleTabulationHash32(table: Array[Int]) extends (Int => Int) {
 
 object TwistedTabulationHash32 {
   def apply(rand: RandomDataGenerator): TwistedTabulationHash32 = {
-    new TwistedTabulationHash32(Array.fill[Long](256 * 4)(rand.getRandomGenerator.nextLong()))
+    val poly = PolyHash(rand, 32)
+    new TwistedTabulationHash32(poly.fillLongArray(256 * 4))
   }
 }
 
@@ -81,11 +83,14 @@ class TwistedTabulationHash32(table: Array[Long]) extends (Int => Int) {
 }
 
 object FiveIndepTabulationHash32 {
-  def apply(rand: RandomDataGenerator): FiveIndepTabulationHash32 =
+  def apply(rand: RandomDataGenerator): FiveIndepTabulationHash32 = {
+    val poly1 = PolyHash(rand, 32)
+    val poly2 = PolyHash(rand, 32)
     new FiveIndepTabulationHash32(
-      Array.fill[Long](256 * 4)(rand.getRandomGenerator.nextLong()),
-      Array.fill[Int](259 * 3)(rand.getRandomGenerator.nextInt())
+      poly1.fillLongArray(256 * 4),
+      poly2.fillIntArray(259 * 3)
     )
+  }
 }
 
 // compare to Thorup and Zhang, "Tabulation-Based 5-Independent Hashing with Applications to Linear Probing and
@@ -120,4 +125,60 @@ class FiveIndepTabulationHash32(keyTable: Array[Long], derivedKeyTable: Array[In
     }
     out
   }
+}
+
+object PolyHash {
+  def apply(rand: RandomDataGenerator, degree: Int): PolyHash = {
+    new PolyHash(Array.fill(degree)(rand.getRandomGenerator.nextInt()))
+  }
+
+  // Can be done by the PCLMULQDQ "carryless multiply" instruction on x86 processors post ~2010.
+  // This would give a significant speed boost. Any way to do this from JVM?
+  def polyMult(a: Int, b: Int): Long = {
+    var result: Long = 0
+    if (b != 0) {
+      var aBuf: Int = a
+      var bBuf: Long = b & 0xffffffffL
+      while (aBuf != 0) {
+        result ^= bBuf * (aBuf & 1)
+        aBuf >>>= 1
+        bBuf <<= 1
+      }
+    }
+    result
+  }
+
+  // Reduces g modulo the irreducible polynomial x^32 + x^7 + x^3 + x^2 + 1
+  // following the method described in Intel white paper
+  // "Intel Carry-Less Multiplication Instruction and its Usage for Computing the GCM Mode"
+  def reduce(g: Long): Int = {
+    val high = (g >>> 32).toInt
+    val low = g.toInt
+    val a = high ^ (high >>> 25) ^ (high >>> 29) ^ (high >>> 30)
+    low ^ a ^ (a << 2) ^ (a << 3) ^ (a << 7)
+  }
+
+  def multGF(a: Int, b: Int): Int = reduce(polyMult(a, b))
+}
+
+class PolyHash(val coeffs: Array[Int]) extends (Int => Int) {
+  import PolyHash._
+
+  // polynomial evaluation using Horner's rule
+  override def apply(x: Int): Int = {
+    val deg = coeffs.length - 1
+    var acc = 0
+    var i = deg
+    while (i >= 0) {
+      acc = multGF(acc, x) ^ coeffs(i)
+      i -= 1
+    }
+    acc
+  }
+
+  def fillIntArray(size: Int): Array[Int] =
+    Array.tabulate(size)(apply)
+
+  def fillLongArray(size: Int): Array[Long] =
+    Array.tabulate(size)(i => (apply(i << 1).toLong << 32) | (apply((i << 1) | 1) & 0xffffffffL))
 }
