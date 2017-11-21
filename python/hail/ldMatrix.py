@@ -104,7 +104,7 @@ class LDMatrix(HistoryMixin):
         >>> ldm = vds.ld_matrix()
         >>> ldm.export('output/ld_matrix.tsv',
         ...            column_delimiter=',',
-        ...            header=','.join(ldm.variant_list()))
+        ...            header=','.join([str(v) for v in ldm.variant_list()]))
 
         Write a full LD matrix as a folder of comma-separated file shards:
 
