@@ -688,35 +688,54 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
 
 case class IntPartition(index: Int) extends Partition
 
+object WriteBlocksRDD {
+  def allDependencies(boundaries: Array[Long], nBlockRows: Int, blockSize: Int): Array[Array[Int]] = {
+    val deps = Array.ofDim[Array[Int]](nBlockRows)
+
+    val ab = new ArrayBuilder[Int]()
+    var i = 0 // original partition index
+    var blockStart = 0L
+    var blockEnd = 0L
+
+    var block = 0
+    while (block < nBlockRows) {
+      blockStart = blockEnd
+      if (block != nBlockRows - 1)
+        blockEnd += blockSize
+      else
+        blockEnd = boundaries.last
+
+      // build array of i such that [boundaries(i), boundaries(i + 1)) intersects [blockMin, blockEnd)      
+      ab.clear()
+      while (boundaries(i) < blockEnd && boundaries(i + 1) > blockStart) { // (boundaries(i) <= blockStart && boundaries(i + 1) > blockStart) || (boundaries(i) < blockEnd && boundaries(i + 1) >= blockEnd))
+        ab += i
+        i += 1
+      }
+      if (boundaries(i) > blockEnd) // if partition i extends into next block, don't advance to next partition
+        i -= 1
+      
+      deps(block) = ab.result()
+      block += 1
+    }
+
+    deps
+  }
+}
+
 // FIXME: requires dense IRM, no missing rows
 // FIXME: start with function on IRM, then make directly on VSM?
 class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extends RDD[Int](irm.rows.sparkContext, Nil) {
+  private val boundaries: Array[Long] = irm.rows.computeBoundaries()
 
   private val nPartitions: Int = ((irm.numRows() - 1) / blockSize + 1).toInt
-  private val boundaries: Array[Long] = irm.rows.computeBoundaries()
+  assert(irm.numRows() == boundaries.last) // can replace irm.numRows()
   
-  private val allDependencies: Array[Array[Int]] = {
-    val deps = Array.ofDim[Array[Int]](nPartitions)
-    var lower = 0L
-    var upper = 0L
-    var i = 0
-    var j = 0
-    while (i < nPartitions) {
-      lower = upper
-      upper += blockSize
-      
-      // create of Array of j such that [boundaries(j), boundaries(j + 1)) intersects [lower, upper)
-      
-      i += 1
-    }
-    
-    deps
-  }
+  private val allDeps = WriteBlocksRDD.allDependencies(boundaries, nPartitions, blockSize)
   
   override def getDependencies: Seq[Dependency[_]] = {  
     Array[Dependency[_]](
       new NarrowDependency(irm.rows) {
-        def getParents(partitionId: Int): Seq[Int] = allDependencies(partitionId)
+        def getParents(partitionId: Int): Seq[Int] = allDeps(partitionId)
       }
     )
   }
