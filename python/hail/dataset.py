@@ -4779,9 +4779,10 @@ class VariantDataset(HistoryMixin):
 
         **Example**
 
-        :py:meth:`~hail.VariantDataset.split_multi`, which spilts
-        multiallelic variants and updates the genotype annotations by
-        downcoding the genotype, is implemented as:
+        :py:meth:`~hail.VariantDataset.split_multi`, which splits
+        multiallelic variants for the HTS genotype schema and updates
+        the genotype annotations by downcoding the genotype, is
+        implemented as:
 
         >>> vds.split_multi_generic(
         ...   'va.aIndex = aIndex, va.wasSplit = wasSplit',
