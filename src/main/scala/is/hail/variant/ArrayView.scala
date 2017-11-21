@@ -16,11 +16,6 @@ class ArrayView[V <: View](t: TArray, val elementView: V) {
     this._length = t.loadLength(region, aoff)
   }
 
-  def apply(i: Int): V = {
-    set(i)
-    elementView
-  }
-
   def set(i: Int) {
     this.eoff = t.loadElement(region, aoff, length, i)
     elementView.setRegion(region, eoff)
