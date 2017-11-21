@@ -14,21 +14,21 @@ trait ExportableMatrix {
     exportDelimitedRowSlices(path, columnDelimiter, header, parallelWrite, i => 0, (i, v) => v.length)
   }
 
-  def exportLowerTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
+  def exportStrictLowerTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
     exportDelimitedRowSlices(path, columnDelimiter, header, parallelWrite, i => 0, (i, v) => i)
   }
 
   // includes the diagonal
-  def exportStrictLowerTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
+  def exportLowerTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
     exportDelimitedRowSlices(path, columnDelimiter, header, parallelWrite, i => 0, (i, v) => i + 1)
   }
 
   // includes the diagonal
-  def exportStrictUpperTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
+  def exportUpperTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
     exportDelimitedRowSlices(path, columnDelimiter, header, parallelWrite, i => i, (i, v) => v.length)
   }
 
-  def exportUpperTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
+  def exportStrictUpperTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
     exportDelimitedRowSlices(path, columnDelimiter, header, parallelWrite, i => i + 1, (i, v) => v.length)
   }
 

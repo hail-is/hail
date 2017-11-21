@@ -117,7 +117,7 @@ class LDMatrix:
         >>> ldm = vds.ld_matrix()
         >>> ldm.export('output/ld_matrix.tsv',
         ...            column_delimiter=',',
-        ...            entries='strict_upper')
+        ...            entries='upper')
 
         **Notes**
 
@@ -131,14 +131,14 @@ class LDMatrix:
             0.8,1.0,0.3
             0.7,0.3,1.0
 
-        The lower triangle:
+        The strict lower triangle:
 
         .. code-block:: text
 
             0.8
             0.7,0.3
 
-        The strict lower triangle:
+        The lower triangle:
 
         .. code-block:: text
 
@@ -146,14 +146,14 @@ class LDMatrix:
             0.8,1.0
             0.7,0.3,1.0
 
-        The upper triangle:
+        The strict upper triangle:
 
         .. code-block:: text
 
             0.8,0.7
             0.3
 
-        The strict upper triangle:
+        The upper triangle:
 
         .. code-block:: text
 

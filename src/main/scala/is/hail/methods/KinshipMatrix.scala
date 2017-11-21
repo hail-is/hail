@@ -58,7 +58,7 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
   }
 
   def exportRel(output: String) {
-    exportStrictLowerTriangle(output, "\t", None, false)
+    exportLowerTriangle(output, "\t", None, false)
   }
 
   def exportGctaGrm(output: String) {
