@@ -4786,17 +4786,17 @@ class VariantDataset(HistoryMixin):
         >>> vds.split_multi_generic(
         ...   'va.aIndex = aIndex, va.wasSplit = wasSplit',
         ...   'let
-        ...         newgt = downcode(Call(g.gt), aIndex) and
-        ...         newad = if (isDefined(g.ad))
-        ...             let sum = g.ad.sum() and adi = g.ad[aIndex] in [sum - adi, adi]
+        ...         newgt = downcode(Call(g.GT), aIndex) and
+        ...         newad = if (isDefined(g.AD))
+        ...             let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
         ...           else
         ...             NA: Array[Int] and
-        ...         newpl = if (isDefined(g.pl))
-        ...             range(3).map(i => range(g.pl.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.pl[j]).min())
+        ...         newpl = if (isDefined(g.PL))
+        ...             range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
         ...           else
         ...             NA: Array[Int] and
         ...         newgq = gqFromPL(newpl)
-        ...    in { GT: newgt, AD: newad, DP: g.dp, GQ: newgq, PL: newPL }')
+        ...    in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newPL }')
 
         **Notes**
 
