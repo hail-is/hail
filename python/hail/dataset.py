@@ -4908,8 +4908,7 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(pedigree=Pedigree,
                       root=strlike)
     def tdt(self, pedigree, root='va.tdt'):
-        """Find transmitted and untransmitted variants; count per variant and
-        nuclear family.
+        """Performs a transmission disequilibrium test and returns results as a key table..
 
         .. include:: _templates/req_tvariant_tgenotype.rst
 
@@ -4920,14 +4919,21 @@ class VariantDataset(HistoryMixin):
         Compute TDT association results:
 
         >>> pedigree = Pedigree.read('data/trios.fam')
-        >>> (vds.tdt(pedigree)
-        ...     .variants_table()
-        ...     .select(['Variant = v', 'va.tdt.*'])
-        ...     .export("output/tdt_results.tsv"))
+        >>> vds.tdt(pedigree).export("output/tdt_results.tsv")
+
+        Export only variants with p-values below 0.001:
+
+        >>> pedigree = Pedigree.read('data.trios.fam')
+        >>> tdt_table = vds.tdt(pedigree)
+        >>> tdt_table = tdt_table.filter('p < 0.001')
+        >>> tdt_table.export("output/tdt_results.tsv")
 
         **Notes**
 
-        The transmission disequilibrium test tracks the number of times the alternate allele is transmitted (t) or not transmitted (u) from a heterozgyous parent to an affected child under the null that the rate of such transmissions is 0.5.  For variants where transmission is guaranteed (i.e., the Y chromosome, mitochondria, and paternal chromosome X variants outside of the PAR), the test cannot be used.
+        The transmission disequilibrium test tracks the number of times the alternate allele is transmitted (t)
+        or not transmitted (u) from a heterozgyous parent to an affected child under the null that the rate of
+        such transmissions is 0.5.  For variants where transmission is guaranteed (i.e., the Y chromosome,
+        mitochondria, and paternal chromosome X variants outside of the PAR), the test cannot be used.
 
         The TDT statistic is given by
 
@@ -4938,7 +4944,9 @@ class VariantDataset(HistoryMixin):
         and follows a 1 degree of freedom chi-squared distribution under the null hypothesis.
 
 
-        The number of transmissions and untransmissions for each possible set of genotypes is determined from the table below.  The copy state of a locus with respect to a trio is defined as follows, where PAR is the pseudoautosomal region (PAR).
+        The number of transmissions and untransmissions for each possible set of genotypes is determined from the
+        table below.  The copy state of a locus with respect to a trio is defined as follows, where PAR is the
+        pseudoautosomal region (PAR).
 
         - HemiX -- in non-PAR of X and child is male
         - Auto -- otherwise (in autosome or PAR, or child is female)
@@ -4980,28 +4988,25 @@ class VariantDataset(HistoryMixin):
 
         :py:meth:`~hail.VariantDataset.tdt` only considers complete trios (two parents and a proband) with defined sex.
 
-        PAR is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`__:
+        PAR is currently defined with respect to reference
+        `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`__:
 
         - X: 60001-2699520
         - X: 154931044-155260560
         - Y: 10001-2649520
         - Y: 59034050-59363566
 
-        :py:meth:`~hail.VariantDataset.tdt` assumes all contigs apart from X and Y are fully autosomal; decoys, etc. are not given special treatment.
-
-        **Fields**
-
         :py:meth:`~hail.VariantDataset.tdt` produces a key table with the following columns:
 
          - **v** (*Variant*) -- Variant tested.
 
-         - **nTransmitted** (*Int*) -- Number of transmitted alternate alleles.
+         - **nTransmitted** (*Int32*) -- Number of transmitted alternate alleles.
 
-         - **nUntransmitted** (*Int*) -- Number of untransmitted alternate alleles.
+         - **nUntransmitted** (*Int32*) -- Number of untransmitted alternate alleles.
 
-         - **chi2** (*Double*) -- TDT statistic.
+         - **chi2** (*Float64*) -- TDT statistic.
 
-         - **pval** (*Double*) -- p-value.
+         - **pval** (*Float64*) -- p-value.
 
         :param pedigree: Sample pedigree.
         :type pedigree: :class:`~hail.representation.Pedigree`
