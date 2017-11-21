@@ -7,7 +7,7 @@ import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
-import is.hail.variant._
+import is.hail.variant.{HardCallView, Variant, VariantDataset}
 import org.apache.hadoop.io._
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, Matrix, Vectors}
@@ -115,7 +115,3 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
 }
 
 case class LDMatrixMetadata(variants: Array[Variant], nSamples: Int)
-
-// private case class ReadableLDMatrixMetadata(variants: Array[ReadableConcreteVariant], nSamples: Int) {
-//    def toLDMatrixMetadata(): LDMatrixMetadata = LDMatrixMetadata(variants.map(_.toConcreteVariant).toArray[Variant], nSamples)
-// }
