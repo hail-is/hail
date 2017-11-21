@@ -4863,7 +4863,7 @@ class VariantDataset(HistoryMixin):
             PL: Array[!Int32].
           }
         
-        For generic genotype schema, use :py:meth:`~hail.VariantDataset.split_multi`.
+        For generic genotype schema, use :py:meth:`~hail.VariantDataset.split_multi_generic`.
 
         **Examples**
 
