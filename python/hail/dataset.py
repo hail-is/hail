@@ -3513,6 +3513,62 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    #@require_biallelic
+    @record_method
+    @typecheck_method(k=integral,
+                      entry_to_double=nullable(strlike),
+                      compute_loadings=bool,
+                      compute_eigenvalues=bool,
+                      as_array=bool)
+    def pca_results(self, k=10, entry_to_double=None, compute_loadings = False, compute_eigenvalues = False, as_array=False):
+        """Run Principal Component Analysis (PCA) on the matrix of genotypes. This method is the same as above, except it returns a tuple of (scores, loadings, eigenvalues).
+
+        Scores are stored in a KeyTable with the following structure:
+
+        **s** (*Sample*) The sample ID.
+
+        **pcaScores** The principal component scores. This can have two different structures, depending on the value of the ``as_array`` flag.
+
+        If ``as_array`` is ``False`` (the default), then ``pcaScores`` is a Struct with fields ``PC1``, ``PC2``, etc. If ``as_array`` is ``True``, then ``pcaScores`` is a double-valued array containing the principal component scores.
+
+        Loadings are stored in a KeyTable with a structure similar to the scores KeyTable:
+
+        **v** (*Variant*) The variant ID.
+
+        **pcaLoadings** (*Struct* or *Array*) The variant loadings.
+
+        Eigenvalues are returned as an array of doubles.
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
+        **Examples**
+
+        Compute the top 5 principal component scores
+
+        >>> scores = vds.pca_results(k=5)[0]
+
+        :param k: int Number of principal components.
+
+        :param bool compute_loadings: Whether or not to compute variant loadings. Default: False
+
+        :param bool eigenvalues: Whether or not to compute eigenvalues. Default: False
+
+        :param entry_to_double: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
+        :type entry_to_double: str or None
+
+        :param bool as_array: Store KeyTable rows as type Array rather than Struct
+
+        :return: Tuple of KeyTable of scores, KeyTable of loadings, list of eigenvalues
+        :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`, list of float)
+        """
+
+        r = self._jvds.pcaResults(k, joption(entry_to_double), compute_loadings, compute_eigenvalues, as_array)
+        jloadings = from_option(r._2())
+        return KeyTable(self.hc, r._1()), None if not jloadings else KeyTable(self.hc, jloadings), jiterable_to_list(from_option(r._3()))
+
+    @handle_py4j
     @require_biallelic
     @record_method
     @typecheck_method(k=integral,
