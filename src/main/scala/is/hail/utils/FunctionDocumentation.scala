@@ -51,8 +51,8 @@ object DocumentationEntry {
 
     val argTypes = (if (isMethod || isField) tt.xs.tail else tt.xs).map { t =>
       t match {
-        case TVariant(_, _) | TLocus(_, _) | TInterval(_, _) => t.toString.replaceAll("\\?", "")
-        case _ => t.toString.replaceAll("\\?", "").replaceAll("\\(", "").replaceAll("\\)", "")
+        case TFunction(_, _) => t.toString.replaceAll("[?!]", "").replaceFirst("\\(", "").replaceAll("\\) => ", " => ")
+        case _ => t.toString.replaceAll("[?!]", "")
       }
     }.toArray
 
@@ -95,12 +95,12 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
   val objCategory = {
     objType match {
       case Some(ot) => ot match {
-        case TAggregable(_, req) => Some({ if (req) "!" else "" } + "Aggregable")
+        case TAggregable(_, req) => Some("Aggregable")
         case TAggregableVariable(_, _) => Some("Aggregable")
-        case TArray(_, req) => Some({ if (req) "!" else "" } + "Array")
-        case TSet(_ , req) => Some({ if (req) "!" else "" } + "Set")
-        case TDict(_, _, req) => Some({ if (req) "!" else "" } + "Dict")
-        case _ => Some(ot.toString.replaceAll("\\?", ""))
+        case TArray(_, req) => Some("Array")
+        case TSet(_ , req) => Some("Set")
+        case TDict(_, _, req) => Some("Dict")
+        case _ => Some(ot.toString.replaceAll("[?!]", ""))
       }
       case None => None
     }
@@ -114,8 +114,8 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
 
   def hasAnnotation = retType.isInstanceOf[TStruct]
 
-  val retTypePretty = retType.toString.replaceAll("\\?", "").replaceAll("Empty", "Struct")
-  val objTypePretty = objType.getOrElse("").toString.replaceAll("\\?", "")
+  val retTypePretty = retType.toString.replaceAll("[?!]", "").replaceAll("Empty", "Struct")
+  val objTypePretty = objType.getOrElse("").toString.replaceAll("[?!]", "")
 
   def formatDocstring: (Int, String) = {
     Option(docstring) match {
@@ -179,7 +179,7 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
     retType match {
       case rt: TStruct =>
         if (rt.fields.nonEmpty) {
-          val fields = rt.fields.flatMap(fd => emitField(sb, fd, None)).map(s => "\t" + s.replaceAll("\\?", ""))
+          val fields = rt.fields.flatMap(fd => emitField(sb, fd, None)).map(s => "\t" + s.replaceAll("\\?", "").replaceAll("!",""))
           val output = (Array(".. container:: annotation\n") ++ fields).map(s => "\t" + s).mkString("\n")
 
           sb.append(output)
