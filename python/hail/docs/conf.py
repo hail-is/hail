@@ -90,6 +90,9 @@ hc = HailContext(log="output/hail.log", quiet=True)
  .split_multi()
  .write("data/example2.vds", overwrite=True))
 
+(hc.import_vcf("data/sample.vcf.bgz", generic=True)
+ .write("data/example2.multi.generic.vds", overwrite=True))
+
 (hc.import_vcf('data/sample.vcf.bgz')
  .split_multi()
  .variant_qc()
@@ -106,6 +109,8 @@ hc = HailContext(log="output/hail.log", quiet=True)
  .write('data/example_burden.vds', overwrite=True))
 
 vds = hc.read('data/example.vds')
+
+multiallelic_generic_vds = hc.read('data/example2.multi.generic.vds')
 
 vds.split_multi().ld_matrix().write("data/ld_matrix")
 

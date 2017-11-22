@@ -4784,7 +4784,7 @@ class VariantDataset(HistoryMixin):
         the genotype annotations by downcoding the genotype, is
         implemented as:
 
-        >>> vds.split_multi_generic(
+        >>> multiallelic_generic_vds.split_multi_generic(
         ...   'va.aIndex = aIndex, va.wasSplit = wasSplit',
         ...   '''let
         ...         newgt = downcode(g.GT, aIndex) and
