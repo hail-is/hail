@@ -4797,7 +4797,7 @@ class VariantDataset(HistoryMixin):
         ...           else
         ...             NA: Array[Int] and
         ...         newgq = gqFromPL(newpl)
-        ...    in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newPL }''')
+        ...    in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }''')
 
         **Notes**
 
