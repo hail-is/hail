@@ -3272,7 +3272,7 @@ class VariantDataset(HistoryMixin):
         :rtype: (:class:`.KeyTable`, :class:`.KeyTable`, :class:`.KeyTable`, :class:`.KeyTable`)
         """
 
-        kts = self._jvdf.mendelErrors(pedigree._jrep)
+        kts = self._jvds.mendelErrors(pedigree._jrep)
         return KeyTable(self.hc, kts._1()), KeyTable(self.hc, kts._2()), \
                KeyTable(self.hc, kts._3()), KeyTable(self.hc, kts._4())
 

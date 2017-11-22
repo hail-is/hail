@@ -457,49 +457,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     KeyTable(hc, ktRDD, signature, key = Array(keyName))
   }
 
-  def aggregateByVariantWithAll[U](zeroValue: U)(
-    seqOp: (U, Annotation, Annotation, Annotation, Annotation, Annotation) => U,
-    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Annotation, U)] = {
-
-    // Serialize the zero value to a byte array so that we can apply a new clone of it on each key
-    val zeroBuffer = SparkEnv.get.serializer.newInstance().serialize(zeroValue)
-    val zeroArray = new Array[Byte](zeroBuffer.limit)
-    zeroBuffer.get(zeroArray)
-
-    val localSampleIdsBc = sampleIdsBc
-    val localSampleAnnotationsBc = sampleAnnotationsBc
-
-    rdd
-      .mapPartitions({ (it: Iterator[(Annotation, (Annotation, Iterable[Annotation]))]) =>
-        val serializer = SparkEnv.get.serializer.newInstance()
-        it.map { case (v, (va, gs)) =>
-          val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
-          (v, gs.iterator.zipWithIndex.map { case (g, i) => (localSampleIdsBc.value(i), localSampleAnnotationsBc.value(i), g) }
-            .foldLeft(zeroValue) { case (acc, (s, sa, g)) =>
-              seqOp(acc, v, va, s, sa, g)
-            })
-        }
-      }, preservesPartitioning = true)
-
-    /*
-        rdd
-          .map { case (v, gs) =>
-            val serializer = SparkEnv.get.serializer.newInstance()
-            val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
-
-            (v, gs.zipWithIndex.foldLeft(zeroValue) { case (acc, (g, i)) =>
-              seqOp(acc, v, localSamplesBc.value(i), g)
-            })
-          }
-    */
-  }
-
-  def aggregateByVariantWithKeys[U](zeroValue: U)(
-    seqOp: (U, Annotation, Annotation, Annotation) => U,
-    combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Annotation, U)] = {
-    aggregateByVariantWithAll(zeroValue)((e, v, va, s, sa, g) => seqOp(e, v, s, g), combOp)
-  }
-
   def annotateGlobal(a: Annotation, t: Type, code: String): VariantSampleMatrix = {
     val (newT, i) = insertGlobal(t, Parser.parseAnnotationRoot(code, Annotation.GLOBAL_HEAD))
     copy2(globalSignature = newT, globalAnnotation = i(globalAnnotation, a))
@@ -1463,6 +1420,15 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         (va, localSampleIdsBc.value.lazyMapWith2[Annotation, Annotation, U](
           localSampleAnnotationsBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g) }))
       })
+  }
+
+  def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
+    require(wasSplit)
+    requireColKeyString("mendel errors")
+
+    val men = MendelErrors(this, ped.filterTo(stringSampleIdSet).completeTrios)
+
+    (men.mendelKT(), men.fMendelKT(), men.iMendelKT(), men.lMendelKT())
   }
 
   def queryGenotypes(expr: String): (Annotation, Type) = {

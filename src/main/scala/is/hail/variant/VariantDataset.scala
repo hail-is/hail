@@ -359,15 +359,6 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
     LDPrune(vsm, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
   }
 
-  def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
-    require(vsm.wasSplit)
-    vsm.requireColKeyString("mendel errors")
-
-    val men = MendelErrors(vsm, ped.filterTo(vsm.stringSampleIdSet).completeTrios)
-
-    (men.mendelKT(), men.fMendelKT(), men.iMendelKT(), men.lMendelKT())
-  }
-
   def nirvana(config: String, blockSize: Int = 500000, root: String): VariantDataset = {
     Nirvana.annotate(vsm, config, blockSize, root)
   }

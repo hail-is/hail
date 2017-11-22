@@ -86,6 +86,9 @@ object Variant {
     Variant(contig, pos, ref, altArray)
   }
 
+  def fromRegionValue(rv: RegionValue): Variant =
+    fromRegionValue(rv.region, rv.offset)
+
   def nGenotypes(nAlleles: Int): Int = {
     require(nAlleles > 0, s"called nGenotypes with invalid number of alternates: $nAlleles")
     nAlleles * (nAlleles + 1) / 2
