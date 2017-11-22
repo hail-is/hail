@@ -57,7 +57,7 @@ g = let
       else
         NA: Array[Int] and
     newgq = gqFromPL(newpl)
-  in Genotype(v, newgt, newad, g.dp, newgq, newpl)
+  in Genotype(newV, newgt, newad, g.dp, newgq, newpl)
     """, keepStar = true, leftAligned = false)
 
     val splitMatrixType = splitmulti.newMatrixType

@@ -95,8 +95,8 @@ class SplitMultiPartitionContext(
 
     val gs = ur.getAs[IndexedSeq[Any]](3)
 
-    splitVariants.iterator.zipWithIndex
-      .map { case ((svj, i), j) =>
+    splitVariants.iterator
+      .map { case (svj, i) =>
         splitRegion.clear()
         rvb.set(splitRegion)
         rvb.start(newRowType)
