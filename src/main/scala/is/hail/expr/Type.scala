@@ -334,6 +334,25 @@ sealed abstract class Type extends BaseType with Serializable {
       case t2: TDict => t.isInstanceOf[TDict] && t.asInstanceOf[TDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[TDict].valueType.isOfType(t2.valueType)
     }
   }
+
+  def deepOptional(): Type =
+    this match {
+      case t: TArray => TArray(t.elementType.deepOptional())
+      case t: TSet => TSet(t.elementType.deepOptional())
+      case t: TDict => TDict(t.keyType.deepOptional(), t.valueType.deepOptional())
+      case t: TStruct =>
+        TStruct(t.fields.map(f => Field(f.name, f.typ.deepOptional(), f.index, f.attrs)))
+      case t =>
+        t.setRequired(false)
+    }
+
+  def structOptional(): Type =
+    this match {
+      case t: TStruct =>
+        TStruct(t.fields.map(f => Field(f.name, f.typ.deepOptional(), f.index, f.attrs)))
+      case t =>
+        t.setRequired(false)
+    }
 }
 
 case object TVoid extends Type {
@@ -462,16 +481,17 @@ case object TBooleanRequired extends TBoolean(true)
 
 object TNumeric {
   def promoteNumeric(types: Set[TNumeric]): Type = {
+    assert(types.forall(!_.required))
     if (types.size == 1)
       types.head
-    else if (types(TFloat64Required) || types(TFloat64Optional))
+    else if (types(TFloat64Optional))
       TFloat64()
-    else if (types(TFloat32Required) || types(TFloat32Optional))
+    else if (types(TFloat32Optional))
       TFloat32()
-    else if (types(TInt64Required) || types(TInt64Optional))
+    else if (types(TInt64Optional))
       TInt64()
     else {
-      assert(types(TInt32Required) || types(TInt32Optional))
+      assert(types(TInt32Optional))
       TInt32()
     }
   }

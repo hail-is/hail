@@ -135,9 +135,9 @@ class GRMSuite extends SparkSuite {
         vGen = _ => VariantSubgen.plinkCompatible.gen,
         tGen = (t: Type, v: Annotation) => VSMSubgen.realistic.tGen(t, v).filter(g => Genotype.isCalled(g.asInstanceOf[Genotype])))
         .gen(hc)
+        .map(_.splitMulti())
         // plink fails with fewer than 2 samples, no variants
-        .filter(vsm => vsm.nSamples > 1 && vsm.countVariants > 0)
-        .map(_.splitMulti()),
+        .filter(vsm => vsm.nSamples > 1 && vsm.countVariants > 0),
       Gen.oneOf("rel", "gcta-grm", "gcta-grm-bin")) {
       case (vds, format) =>
 

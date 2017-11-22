@@ -234,7 +234,10 @@ object LoadMatrix {
       it.map { v =>
         val line = v.value
         if (line.nonEmpty) {
-          val k = line.substring(0, line.indexOf(sep))
+          var newoff = line.indexOf(sep)
+          if (newoff == -1)
+            newoff = line.length
+          val k = line.substring(0, newoff)
           region.clear()
           rvb.start(keyType)
           rvb.startStruct()
@@ -258,7 +261,10 @@ object LoadMatrix {
 
         it.map { v =>
           val line = v.value
-          val rowKey = line.substring(0, line.indexOf(sep))
+          var newoff = line.indexOf(sep)
+          if (newoff == -1)
+            newoff = line.length
+          val rowKey = line.substring(0, newoff)
 
           region.clear()
           rvb.start(matrixType.rowType)
