@@ -34,40 +34,58 @@ class ExtractAggregatorsSuite {
     rvb.end()
   }
 
-  def doit(ir: IR, fb: FunctionBuilder2) {
-    Infer(ir)
-    println(ir)
-    Compile(ir, fb)
-  }
-
   @Test
   def sum() {
     val tAgg = TAggregable(TFloat64(), Map("foo" -> (0, TInt32())))
     val ir: IR = AggSum(AggIn(tAgg))
+    Infer(ir)
     val (post, t, f) = ExtractAggregators(ir, tAgg)
     println(post)
     val region = MemoryBuffer()
     val tArray = TArray(TFloat64())
-    val rvb = new RegionValueBuilder()
-    rvb.set(region)
-    rvb.start(tArray)
-    rvb.startArray(100)
-    (0 to 100).foreach(rvb.addDouble(_))
-    rvb.endArray()
-    val aoff = rvb.end()
+    val aoff = addArray(region, (0 to 100).map(_.toDouble).toArray)
     val agg = new ExtractAggregators.Aggregable {
       def aggregate(
         zero: (MemoryBuffer) => Long,
-        seq: (MemoryBuffer, Long, Long) => Long,
-        comb: (MemoryBuffer, Long, Long) => Long): Long = {
+        seq: (MemoryBuffer, Long, Boolean, Long, Boolean) => Long,
+        comb: (MemoryBuffer, Long, Boolean, Long, Boolean) => Long): Long = {
         var i = 0
         var z = zero(region)
         while (i < 100) {
-          z = seq(region, z, tArray.loadElement(region, aoff, i))
+          // NB: the struct containing the aggregation intermediates is never
+          // missing
+          z = seq(region, z, false, tArray.loadElement(region, aoff, i), !tArray.isElementDefined(region, aoff, i))
+          i += 1
         }
         z
       }
     }
-    assert(region.loadFloat(f(region, agg)) === 5050)
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
+    Compile(post, fb)
+    printRegion(region, "before")
+    val outOff = f(region, agg)
+    printRegion(region, "after")
+    assert(fb.result()()(region, outOff, false) === 5050.0)
+    assert(t.isFieldDefined(region, outOff, t.fieldIdx("0")))
+    assert(region.loadDouble(t.loadField(region, outOff, t.fieldIdx("0"))) === 5050.0)
+  }
+
+  def printRegion(region: MemoryBuffer, string: String) {
+    println(string)
+    val size = region.size
+    println("Region size: " + size.toString)
+    val bytes = region.loadBytes(0, size.toInt)
+    println("Array: ")
+    var j = 0
+    for (i <- bytes) {
+      j += 1
+      printf("%02X", i)
+      if (j % 32 == 0) {
+        print('\n')
+      } else {
+        print(' ')
+      }
+    }
+    print('\n')
   }
 }

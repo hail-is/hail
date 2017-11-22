@@ -837,14 +837,24 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   // not used for equality
   var symTab: SymbolTable = _
 
-  def bindingTypes: Array[(String, Type)] =
+  def bindings: Array[(String, Type)] =
     symTab.map { case (n, (_, t)) => (n, t) }.toArray
 
-  def elementWithScopeType: TStruct =
-    TStruct((("x", elementType) +: bindingTypes):_*)
+  private def scopeStruct: TStruct =
+    TStruct(bindings:_*)
 
-  import is.hail.expr.ir.{IR, GetField}
-  def getElement(agg: IR): IR = GetField(agg, "x")
+  def carrierStruct: TStruct =
+    TStruct("x" -> elementType, "scope" -> scopeStruct)
+
+  import is.hail.expr.ir.{IR, GetField, Ref, MakeStruct, Let}
+  def getElement(agg: IR): IR = GetField(agg, "x", elementType)
+
+  def inContext(agg: IR, body: IR => IR): IR = {
+    val b = body(GetField(agg, "x", elementType))
+    bindings.foldLeft[IR](
+      MakeStruct(Array(("x", b.typ, b), ("scope", scopeStruct, GetField(agg, "scope", scopeStruct))))
+    ) { case (body, (n, t)) => Let(n, GetField(GetField(agg, "scope", scopeStruct), n, t), body) }
+  }
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
