@@ -15,7 +15,7 @@ import scala.util.parsing.input.{Position, Positional}
 
 case class RefBox(var v: Any)
 
-case class EvalContext(st: SymbolTable,
+case class EvalContext private(st: SymbolTable,
   a: ArrayBuffer[Any],
   aggregations: ArrayBuffer[(RefBox, CPS[Any], Aggregator)]) {
   st.foreach {
@@ -96,7 +96,11 @@ case class EvalContext(st: SymbolTable,
 }
 
 object EvalContext {
-  def apply(symTab: SymbolTable): EvalContext = {
+  def apply(symTab0: SymbolTable): EvalContext = {
+    val symTab = symTab0.map { case (name, (i, t)) =>
+      (name, (i, t.deepOptional()))
+    }
+
     def maxEntry(st: SymbolTable): Int = {
       val m = st.map {
         case (name, (i, t: TAggregable)) => i.max(maxEntry(t.symTab))
@@ -117,7 +121,7 @@ object EvalContext {
 
   def apply(args: (String, Type)*): EvalContext = {
     EvalContext(args.zipWithIndex
-      .map { case ((name, t), i) => (name, (i, t)) }
+      .map { case ((name, t), i) => (name, (i, t.deepOptional())) }
       .toMap)
   }
 }

@@ -38,7 +38,7 @@ class ImportMatrixSuite extends SparkSuite {
       vaSigGen = Gen.const(TStruct.empty()),
       globalSigGen = Gen.const(TStruct.empty()),
       tSigGen = Gen.zip(Gen.oneOf[Type](TInt32(), TInt64(), TFloat32(), TFloat64(), TString()), Gen.coin(0.2))
-        .map{ case (typ, req) => typ.setRequired(req) },
+        .map { case (typ, req) => typ.setRequired(req) },
       sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
       saGen = (t: Type) => t.genNonmissingValue,
       vaGen = (t: Type) => t.genNonmissingValue,

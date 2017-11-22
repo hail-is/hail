@@ -272,11 +272,11 @@ case class VSMSubgen(
     for (size <- Gen.size;
       subsizes <- Gen.partitionSize(5).resize(size / 10);
       vSig <- vSigGen.resize(3);
-      vaSig <- vaSigGen.resize(subsizes(0));
+      vaSig <- vaSigGen.map(t => t.deepOptional()).resize(subsizes(0));
       sSig <- sSigGen.resize(3);
-      saSig <- saSigGen.resize(subsizes(1));
+      saSig <- saSigGen.map(t => t.deepOptional()).resize(subsizes(1));
       globalSig <- globalSigGen.resize(subsizes(2));
-      tSig <- tSigGen.resize(3);
+      tSig <- tSigGen.map(t => t.structOptional()).resize(3);
       global <- globalGen(globalSig).resize(subsizes(3));
       nPartitions <- Gen.choose(1, 10);
 
