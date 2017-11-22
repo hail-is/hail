@@ -166,9 +166,8 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(expr=oneof(strlike, listof(strlike)),
-               propagate_gq=bool)
-    def annotate_alleles_expr(self, expr, propagate_gq=False):
+    @typecheck_method(expr=oneof(strlike, listof(strlike)))
+    def annotate_alleles_expr(self, expr):
         """Annotate alleles with expression.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
@@ -189,7 +188,6 @@ class VariantDataset(HistoryMixin):
 
         :param expr: Annotation expression.
         :type expr: str or list of str
-        :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
 
         :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -198,7 +196,7 @@ class VariantDataset(HistoryMixin):
         if isinstance(expr, list):
             expr = ",".join(expr)
 
-        jvds = self._jvdf.annotateAllelesExpr(expr, propagate_gq)
+        jvds = self._jvdf.annotateAllelesExpr(expr)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -4772,11 +4770,100 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(propagate_gq=bool,
+    @typecheck_method(variant_expr=strlike,
+                      genotype_expr=strlike,
                       keep_star_alleles=bool,
                       left_aligned=bool)
-    def split_multi(self, propagate_gq=False, keep_star_alleles=False, left_aligned=False):
+    def split_multi_generic(self, variant_expr, genotype_expr, keep_star_alleles=False, left_aligned=False):
         """Split multiallelic variants.
+
+        **Example**
+
+        :py:meth:`~hail.VariantDataset.split_multi`, which splits
+        multiallelic variants for the HTS genotype schema and updates
+        the genotype annotations by downcoding the genotype, is
+        implemented as:
+
+        >>> multiallelic_generic_vds.split_multi_generic(
+        ...   'va.aIndex = aIndex, va.wasSplit = wasSplit',
+        ...   '''g = let
+        ...         newgt = downcode(g.GT, aIndex) and
+        ...         newad = if (isDefined(g.AD))
+        ...             let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+        ...           else
+        ...             NA: Array[Int] and
+        ...         newpl = if (isDefined(g.PL))
+        ...             range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
+        ...           else
+        ...             NA: Array[Int] and
+        ...         newgq = gqFromPL(newpl)
+        ...    in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }''')
+
+        **Notes**
+
+        ``variant_expr`` is an annotation expression to update the
+        variant annotations for each output variant.  It updates `va`
+        and is evaluated in the following namespace:
+
+        - ``global``: global annotations
+        - ``v``: :ref:`variant(GR)`: the old variant
+        - ``newV``: :ref:`variant(GR)`: the new, split variant
+        - ``va``: the old variant annotations
+        - ``aIndex``: the index of the input allele to the output variant
+        - ``wasSplit``: True if the original variant was multiallelic
+
+        ``genotype_expr`` is an annotation expression to update the
+        genotype annotations for each output variant.  It updates `g`
+        and is evaluated in the following namespace:
+
+        - ``global``: global annotations
+        - ``v``: :ref:`variant(GR)`: the old variant
+        - ``newV``: :ref:`variant(GR)`: the new, split variant
+        - ``va``: the old variant annotations
+        - ``aIndex``: the index of the input allele to the output variant
+        - ``wasSplit``: True if the original variant was multiallelic
+        - ``s``: the sample
+        - ``sa``: the sample annotations
+        - ``g``: the old genotype annotations
+
+        Note, the variant and genotype annotations are updated for all
+        output variants, even those that were originally biallelic.
+        This is because the updates can change the variant annotation
+        and genotype schemas, which must be consistent across
+        variants.
+
+        :param str variant_expr: Annotation expressions to update the variant annotations for the new, split variants.
+
+        :param str genotype_expr: Annotation expressions to update the genotype annotations for the new, split variants.
+        
+        :param bool keep_star_alleles: Do not filter out * alleles.
+        :param bool left_aligned: If True, variants are assumed to be
+          left aligned and have unique loci.  This avoids a shuffle.
+          If the assumption is violated, an error is generated.
+
+        """
+
+        jvds = self._jvdf.splitMultiGeneric(variant_expr, genotype_expr, keep_star_alleles, left_aligned)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(keep_star_alleles=bool,
+                      left_aligned=bool)
+    def split_multi(self, keep_star_alleles=False, left_aligned=False):
+        """Split multiallelic variants for :py:meth:`.VariantDataset.genotype_schema` :py:class:`~hail.expr.TGenotype` or the HTS schema:
+
+        .. code-block:: text
+
+          Struct {
+            GT: Call,
+            AD: Array[!Int32],
+            DP: Int32,
+            GQ: Int32,
+            PL: Array[!Int32].
+          }
+        
+        For generic genotype schema, use :py:meth:`~hail.VariantDataset.split_multi_generic`.
 
         **Examples**
 
@@ -4824,9 +4911,7 @@ class VariantDataset(HistoryMixin):
         is the minimum over multiallelic PL entries for genotypes that
         map to that genotype.
 
-        By default, GQ is recomputed from PL. If ``propagate_gq=True``
-        is passed, the biallelic GQ field is simply the multiallelic
-        GQ field, that is, genotype qualities are unchanged.
+        GQ is recomputed from PL.
 
         Here is a second example for a het non-ref
 
@@ -4884,12 +4969,6 @@ class VariantDataset(HistoryMixin):
            into two variants: 1:100:A:T with ``aIndex = 1`` and
            1:100:A:C with ``aIndex = 2``.
 
-        :param bool propagate_gq: Set the GQ of output (split)
-          genotypes to be the GQ of the input (multi-allelic) variants
-          instead of recompute GQ as the difference between the two
-          smallest PL values.  Intended to be used in conjunction with
-          ``import_vcf(store_gq=True)``.  This option will be obviated
-          in the future by generic genotype schemas.  Experimental.
         :param bool keep_star_alleles: Do not filter out * alleles.
         :param bool left_aligned: If True, variants are assumed to be
           left aligned and have unique loci.  This avoids a shuffle.
@@ -4899,7 +4978,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.splitMulti(propagate_gq, keep_star_alleles, left_aligned)
+        jvds = self._jvdf.splitMulti(keep_star_alleles, left_aligned)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

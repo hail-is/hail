@@ -95,8 +95,8 @@ class SplitMultiPartitionContext(
 
     val gs = ur.getAs[IndexedSeq[Any]](3)
 
-    splitVariants.iterator.zipWithIndex
-      .map { case ((svj, i), j) =>
+    splitVariants.iterator
+      .map { case (svj, i) =>
         splitRegion.clear()
         rvb.set(splitRegion)
         rvb.start(newRowType)
@@ -104,15 +104,15 @@ class SplitMultiPartitionContext(
         rvb.addAnnotation(newRowType.fieldType(0), svj.locus)
         rvb.addAnnotation(newRowType.fieldType(1), svj)
 
-        vAnnotator.ec.setAll(globalAnnotation, svj, va, i, wasSplit)
+        vAnnotator.ec.setAll(globalAnnotation, v, svj, va, i, wasSplit)
         rvb.addAnnotation(newRowType.fieldType(2), vAnnotator.insert(va))
 
         rvb.startArray(nSamples) // gs
-        gAnnotator.ec.setAll(globalAnnotation, svj, va, i, wasSplit)
+        gAnnotator.ec.setAll(globalAnnotation, v, svj, va, i, wasSplit)
         var k = 0
         while (k < nSamples) {
           val g = gs(k)
-          gAnnotator.ec.set(5, g)
+          gAnnotator.ec.set(6, g)
           rvb.addAnnotation(newRowType.fieldType(3).asInstanceOf[TArray].elementType, gAnnotator.insert(g))
           k += 1
         }
@@ -138,18 +138,20 @@ class SplitMulti(vsm: VariantSampleMatrix, variantExpr: String, genotypeExpr: St
   val vEC = EvalContext(Map(
     "global" -> (0, vsm.globalSignature),
     "v" -> (1, vsm.vSignature),
-    "va" -> (2, vsm.vaSignature),
-    "aIndex" -> (3, TInt32()),
-    "wasSplit" -> (4, TBoolean())))
+    "newV" -> (2, vsm.vSignature),
+    "va" -> (3, vsm.vaSignature),
+    "aIndex" -> (4, TInt32()),
+    "wasSplit" -> (5, TBoolean())))
   val vAnnotator = new ExprAnnotator(vEC, vsm.vaSignature, variantExpr, Some(Annotation.VARIANT_HEAD))
 
   val gEC = EvalContext(Map(
     "global" -> (0, vsm.globalSignature),
     "v" -> (1, vsm.vSignature),
-    "va" -> (2, vsm.vaSignature),
-    "aIndex" -> (3, TInt32()),
-    "wasSplit" -> (4, TBoolean()),
-    "g" -> (5, vsm.genotypeSignature)))
+    "newV" -> (2, vsm.vSignature),
+    "va" -> (3, vsm.vaSignature),
+    "aIndex" -> (4, TInt32()),
+    "wasSplit" -> (5, TBoolean()),
+    "g" -> (6, vsm.genotypeSignature)))
   val gAnnotator = new ExprAnnotator(gEC, vsm.genotypeSignature, genotypeExpr, Some(Annotation.GENOTYPE_HEAD))
 
   val newMatrixType = vsm.matrixType.copy(vaType = vAnnotator.newT, genotypeType = gAnnotator.newT)

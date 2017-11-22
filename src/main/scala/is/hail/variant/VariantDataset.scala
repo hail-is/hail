@@ -41,7 +41,7 @@ object VariantDataset {
 
 class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyVal {
 
-  def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
+  def annotateAllelesExpr(expr: String): VariantDataset = {
 
     val splitmulti = new SplitMulti(vsm,
       "va.aIndex = aIndex, va.wasSplit = wasSplit",
@@ -56,8 +56,8 @@ g = let
         range(3).map(i => range(g.pl.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.pl[j]).min())
       else
         NA: Array[Int] and
-    newgq = ${ if (propagateGQ) "g.gq" else "gqFromPL(newpl)" }
-  in Genotype(v, newgt, newad, g.dp, newgq, newpl)
+    newgq = gqFromPL(newpl)
+  in Genotype(newV, newgt, newad, g.dp, newgq, newpl)
     """, keepStar = true, leftAligned = false)
 
     val splitMatrixType = splitmulti.newMatrixType
@@ -563,63 +563,47 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
     writeGenFile()
   }
 
-  def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false, leftAligned: Boolean = false): VariantSampleMatrix = {
-    if (vsm.genotypeSignature.isOfType(TGenotype())) {
-      vsm.splitMulti("va.aIndex = aIndex, va.wasSplit = wasSplit", s"""
-g = let
-    newgt = downcode(Call(g.gt), aIndex) and
-    newad = if (isDefined(g.ad))
-        let sum = g.ad.sum() and adi = g.ad[aIndex] in [sum - adi, adi]
-      else
-        NA: Array[Int] and
-    newpl = if (isDefined(g.pl))
-        range(3).map(i => range(g.pl.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.pl[j]).min())
-      else
-        NA: Array[Int] and
-    newgq = ${ if (propagateGQ) "g.gq" else "gqFromPL(newpl)" }
-  in Genotype(v, newgt, newad, g.dp, newgq, newpl)
-    """,
+  def splitMulti(keepStar: Boolean = false, leftAligned: Boolean = false): VariantSampleMatrix = {
+    val gType = vsm.genotypeSignature
+    if (gType.isOfType(TGenotype())) {
+      vsm.splitMultiGeneric("va.aIndex = aIndex, va.wasSplit = wasSplit",
+        s"""g =
+    let
+      newgt = downcode(Call(g.gt), aIndex) and
+      newad = if (isDefined(g.ad))
+          let sum = g.ad.sum() and adi = g.ad[aIndex] in [sum - adi, adi]
+        else
+          NA: Array[Int] and
+      newpl = if (isDefined(g.pl))
+          range(3).map(i => range(g.pl.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.pl[j]).min())
+        else
+          NA: Array[Int] and
+      newgq = gqFromPL(newpl)
+    in Genotype(newV, newgt, newad, g.dp, newgq, newpl)""",
         keepStar, leftAligned)
     } else {
-      def hasGenotypeFieldOfType(name: String, expected: Type): Boolean = {
-        vsm.genotypeSignature match {
-          case t: TStruct =>
-            t.selfField(name) match {
-              case Some(f) => f.typ.isOfType(expected)
-              case None => false
-            }
-          case _ => false
-        }
-      }
+      if (!vsm.genotypeSignature.isOfType(Genotype.htsGenotypeType))
+        fatal(s"split_multi: genotype_schema must be TGenotype or the HTS genotype schema, found: ${ vsm.genotypeSignature }")
 
-      val b = new ArrayBuilder[String]()
-      if (hasGenotypeFieldOfType("GT", TCall()))
-        b += "g.GT = downcode(g.GT, aIndex)"
-      if (hasGenotypeFieldOfType("AD", TArray(!TInt32())))
-        b += """
-g.AD = if (isDefined(g.AD))
-  let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
-else
-  NA: Array[Int]
-        """
-      if (hasGenotypeFieldOfType("PL", TArray(!TInt32())))
-        b += """
-g.PL = if (isDefined(g.PL))
-  range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
-else
-  NA: Array[Int]
-        """
-
-      var vsm2 = vsm.splitMulti("va.aIndex = aIndex, va.wasSplit = wasSplit", b.result().mkString(","), keepStar, leftAligned)
-
-      if (!propagateGQ && hasGenotypeFieldOfType("GQ", TInt32())) {
-        vsm2.annotateGenotypesExpr("g.GQ = gqFromPL(g.PL)")
-      } else
-        vsm2
+      vsm.splitMultiGeneric("va.aIndex = aIndex, va.wasSplit = wasSplit",
+        s"""g =
+    let
+      newgt = downcode(Call(g.GT), aIndex) and
+      newad = if (isDefined(g.AD))
+          let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+        else
+          NA: Array[Int] and
+      newpl = if (isDefined(g.PL))
+          range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
+        else
+          NA: Array[Int] and
+      newgq = gqFromPL(newpl)
+    in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newPL }""",
+        keepStar, leftAligned)
     }
   }
 
-  def splitMulti(variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean): VariantSampleMatrix = {
+  def splitMultiGeneric(variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean): VariantSampleMatrix = {
     val splitmulti = new SplitMulti(vsm, variantExpr, genotypeExpr, keepStar, leftAligned)
     splitmulti.split()
   }
