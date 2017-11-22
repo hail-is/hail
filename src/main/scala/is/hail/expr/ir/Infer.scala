@@ -91,13 +91,14 @@ object Infer {
         infer(a)
         val tagg = a.typ.asInstanceOf[TAggregable]
         val env = Env.empty
+          .bind(tagg.bindings:_*)
           .bind(name, tagg.elementType)
-          .bind(tagg.bindingTypes:_*)
         infer(body, env = env)
         x.typ = tagg.copy(elementType = body.typ)
-      case x@AggSum(a) =>
+      case x@AggSum(a, _) =>
         infer(a)
-        assert(a.typ.isInstanceOf[TAggregable])
+        val tAgg = a.typ.asInstanceOf[TAggregable]
+        x.typ = tAgg.elementType
       case MakeStruct(fields) =>
         fields.map { case (_, typ, v) =>
           infer(v)
