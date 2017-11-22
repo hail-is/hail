@@ -121,7 +121,9 @@ object PartitionKeyInfo2 {
     val rng = new java.util.Random(seed)
     val samples = new Array[WritableRegionValue](sampleSize)
 
-    var i = 0
+    samples(0) = WritableRegionValue(typ.pkType, f0)
+
+    var i = 1
     while (it.hasNext) {
       val f = it.next()
 
