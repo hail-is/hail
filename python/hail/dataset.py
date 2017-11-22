@@ -166,6 +166,77 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
+    @typecheck_method(split_variant_expr=oneof(strlike, listof(strlike)),
+                      split_genotype_expr=oneof(strlike, listof(strlike)),
+                      variant_expr=oneof(strlike, listof(strlike)))
+    def annotate_alleles_expr_generic(self, split_variant_expr, split_genotype_expr, variant_expr):
+        """Annotate alleles with expression.
+
+        ``annotate_alleles_expr`` works by splitting variants into
+        biallelics using ``split_genotype_expr``, annotating those
+        biallelic variants with ``variant_expr``, and then collecting
+        the biallelic variant annotations into an array and annotating
+        the original variants with that allele-indexed array.
+
+        ``split_variant_expr`` is an annotation expression to update
+        the split variant annotations for each outupt biallelic
+        variant.  It updates ``va`` and is evaluated in the following
+        namespace:
+
+        - ``global``: global annotations
+        - ``v``: :ref:`variant(GR)`: the old variant
+        - ``newV``: :ref:`variant(GR)`: the new, split variant
+        - ``va``: the old variant annotations
+        - ``aIndex``: the index of the input allele to the output variant
+        - ``wasSplit``: True if the original variant was multiallelic
+
+        ``split_genotype_expr`` is an annotation expression to update
+        the split genotype annotations for each output biallelic
+        variant.  It updates `g` and is evaluated in the following
+        namespace:
+
+        - ``global``: global annotations
+        - ``v``: :ref:`variant(GR)`: the old variant
+        - ``newV``: :ref:`variant(GR)`: the new, split variant
+        - ``va``: the old variant annotations
+        - ``aIndex``: the index of the input allele to the output variant
+        - ``wasSplit``: True if the original variant was multiallelic
+        - ``s``: the sample
+        - ``sa``: the sample annotations
+        - ``g``: the old genotype annotations
+
+        ``variant_expr`` is an annotation expression that the original
+        variant annotations per-allele.  It updates ``va`` and is
+        evaluated in the following namespace:
+
+        - ``global``: global annotations
+        - ``v`` (*Variant(GR)*): split :ref:`variant(gr)`
+        - ``va``: split variant annotations
+        - ``gs`` (*Aggregable*): aggregable of split :ref:`genotype` for variant ``v``
+
+        where ``gs`` has the namespace:
+
+        - ``global``: global annotations
+        - ``v``: :ref:`variant(GR)`
+        - ``va``: split variant annotations
+        - ``s``: sample
+        - ``sa``: sample annotations
+        - ``g``: split :ref:`genotype`
+
+        """
+
+        if isinstance(split_variant_expr, list):
+            split_variant_expr = ",".join(split_variant_expr)
+        if isinstance(split_genotype_expr, list):
+            split_genotype_expr = ",".join(split_genotype_expr)
+        if isinstance(variant_expr, list):
+            variant_expr = ",".join(variant_expr)
+
+        jvds = self._jvdf.annotateAllelesExprGeneric(split_variant_expr, split_genotype_expr, variant_expr)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_alleles_expr(self, expr):
         """Annotate alleles with expression.
@@ -1478,21 +1549,163 @@ class VariantDataset(HistoryMixin):
     @handle_py4j
     @record_method
     @typecheck_method(expr=strlike,
+                      variant_expr=strlike,
+                      genotype_expr=strlike,
+                      keep=bool,
+                      left_aligned=bool,
+                      keep_star=bool)
+    def filter_alleles_generic(self, expr, variant_expr, genotype_expr,
+                               keep=True, left_aligned=False, keep_star=False):
+        """Filter a user-defined set of alternate alleles for each variant.
+        If all alternate alleles of a variant are filtered, the
+        variant itself is filtered.  The expr expression is evaluated
+        for each alternate allele, but not for the reference allele
+        (i.e. ``aIndex`` will never be zero).
+
+        **Example**
+
+        :py:meth:`~hail.VariantDataset.filter_alleles`, which filters
+        alleles for the HTS schema, supports two modes: downcode and
+        subset.  Subset is implemented as:
+
+        >>> multiallelic_generic_vds.filter_alleles_generic('va.info.AC[aIndex - 1] == 0',
+        ...     variant_expr='va.info.AC = newToOld[1:].map(i => va.info.AC[i - 1])',
+        ...     genotype_expr='''
+        ...     g = let newpl = if (isDefined(g.PL))
+        ...             let unnorm = range(newV.nGenotypes).map(newi =>
+        ...                 let oldi = gtIndex(newToOld[gtj(newi)], newToOld[gtk(newi)])
+        ...                  in g.PL[oldi]) and
+        ...                 minpl = unnorm.min()
+        ...              in unnorm - minpl
+        ...           else
+        ...             NA: Array[Int] and
+        ...         newgt = gtFromPL(newpl) and
+        ...         newad = if (isDefined(g.AD))
+        ...             range(newV.nAlleles).map(newi => g.AD[newToOld[newi]])
+        ...           else
+        ...             NA: Array[Int] and
+        ...         newgq = gqFromPL(newpl) and
+        ...         newdp = g.DP
+        ...      in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }''',
+        ...     keep=False)
+
+        Downcode is implemented as:
+
+        >>> multiallelic_generic_vds.filter_alleles_generic('va.info.AC[aIndex - 1] == 0',
+        ...     variant_expr='va.info.AC = newToOld[1:].map(i => va.info.AC[i - 1])',
+        ...     genotype_expr='''
+        ...     g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
+        ...         newad = if (isDefined(g.AD))
+        ...             range(newV.nAlleles).map(i => range(v.nAlleles).filter(j => oldToNew[j] == i).map(j => g.AD[j]).sum())
+        ...           else
+        ...             NA: Array[Int] and
+        ...         newdp = g.DP and
+        ...         newpl = if (isDefined(g.PL))
+        ...             range(newV.nGenotypes).map(gi => range(v.nGenotypes).filter(gj => gtIndex(oldToNew[gtj(gj)], oldToNew[gtk(gj)]) == gi).map(gj => g.PL[gj]).min())
+        ...           else
+        ...             NA: Array[Int] and
+        ...         newgq = gqFromPL(newpl)
+        ...      in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }''',
+        ...     keep=False)
+
+        **Notes**
+
+        ``expr`` is a boolean condition indicating if the given allele
+        should be kept or removed.  ``aIndex`` (allele index)
+        indicates the allele being tested.
+
+        - ``global``: global annotations
+        - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
+        - ``va``: variant annotations
+        - ``aIndex`` (*Int*): the index of the allele being tested
+
+        ``variant_expr`` is an annotation expression to update the
+        variant annotations for each output variant.  It updates `va`
+        and is evaluated in the following namespace:
+
+        - ``global``: global annotations
+        - ``v`` (*Variant(GR)*): the old :ref:`variant(gr)`
+        - ``newV`` (*Variant(GR)*): the new :ref:`variant(gr)`
+        - ``va``: variant annotations
+        - ``newToOld`` (*Array[Int]*): the array of old indices (such that ``newToOld[newIndex] = oldIndex`` and ``newToOld[0] = 0``)
+        - ``oldToNew`` (*Array[Int]*): the array of new indices.  The new index of filtered old alleles is 0.
+
+        ``genotype_expr`` is an annotation expression to update the
+        genotype annotations for each output variant.  It updates `g`
+        and is evaluated in the following namespace:
+
+        - ``global``: global annotations
+        - ``v`` (*Variant(GR)*): the old :ref:`variant(gr)`
+        - ``newV`` (*Variant(GR)*): the new :ref:`variant(gr)`
+        - ``va``: variant annotations
+        - ``newToOld`` (*Array[Int]*): the array of old indices (such that ``newToOld[newIndex] = oldIndex`` and ``newToOld[0] = 0``)
+        - ``oldToNew`` (*Array[Int]*): the array of new indices.  The new index of filtered old alleles is 0.
+        - ``s`` (*Sample*): sample
+        - ``sa``: sample annotation
+        - ``g``: old genotype annotation
+
+        Note, the variant and genotype annotations are updated for all
+        output variants, even those for which no alleles are filtered.
+        This is because the updates can change the variant annotation
+        and genotype schemas, which must be consistent across
+        variants.
+
+        :param str expr: Boolean filter expression.
+
+        :param str variant_expr: Annotation expressions to update the variant annotations for the new, filtered variant.
+
+        :param str genotype_expr: Annotation expressions to update the genotype annotations for the new, filtered variant.
+
+        :param bool keep: If True, keep variants matching expr
+
+        :param bool left_aligned: If True, variants are assumed to be
+          left aligned and have unique loci.  This avoids a shuffle.
+          If the assumption is violated, an error is generated.
+
+        :param bool keep_star: If True, keep variants where the only allele left is a ``*`` allele.
+
+        :return: Filtered variant dataset.
+        :rtype: :py:class:`.VariantDataset`
+
+        """
+        
+        jvds = self._jvdf.filterAllelesGeneric(expr, variant_expr, genotype_expr,
+                                               keep, left_aligned, keep_star)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(expr=strlike,
                       annotation=strlike,
                       subset=bool,
                       keep=bool,
-                      filter_altered_genotypes=bool,
                       left_aligned=bool,
                       keep_star=bool)
-    def filter_alleles(self, expr, annotation='', subset=True, keep=True,
-                       filter_altered_genotypes=False, left_aligned=False, keep_star=False):
-        """Filter a user-defined set of alternate alleles for each variant.
-        If all alternate alleles of a variant are filtered, the
-        variant itself is filtered.  The expr expression is
-        evaluated for each alternate allele, but not for
-        the reference allele (i.e. ``aIndex`` will never be zero).
+    def filter_alleles(self, expr, annotation='', subset=True,
+                       keep=True, left_aligned=False, keep_star=False):
+        """Filter a user-defined set of alternate alleles for each variant for
+        :py:meth:`.VariantDataset.genotype_schema`
+        :py:class:`~hail.expr.TGenotype` or the HTS schema:
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
+        .. code-block:: text
+
+          Struct {
+            GT: Call,
+            AD: Array[!Int32],
+            DP: Int32,
+            GQ: Int32,
+            PL: Array[!Int32].
+          }
+
+        For generic genotype schema, use
+        :py:meth:`~hail.VariantDataset.filter_alleles_generic`.
+
+        If all alternate alleles of a variant are filtered, the
+        variant itself is filtered.  ``expr`` is evaluated for each
+        alternate allele, but not for the reference allele
+        (i.e. ``aIndex`` will never be zero).
+
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -1509,8 +1722,6 @@ class VariantDataset(HistoryMixin):
         the *alternate allele* indices.
 
         **Notes**
-
-        If ``filter_altered_genotypes`` is true, genotypes that contain filtered-out alleles are set to missing.
 
         :py:meth:`~hail.VariantDataset.filter_alleles` implements two algorithms for filtering alleles: subset and downcode. We will illustrate their
         behavior on the example genotype below when filtering the first alternate allele (allele 1) at a site with 1 reference
@@ -1616,8 +1827,6 @@ class VariantDataset(HistoryMixin):
 
         :param bool keep: If true, keep variants matching expr
 
-        :param bool filter_altered_genotypes: If true, genotypes that contain filtered-out alleles are set to missing.
-
         :param bool left_aligned: If True, variants are assumed to be
           left aligned and have unique loci.  This avoids a shuffle.
           If the assumption is violated, an error is generated.
@@ -1629,7 +1838,7 @@ class VariantDataset(HistoryMixin):
 
         """
 
-        jvds = self._jvdf.filterAlleles(expr, annotation, filter_altered_genotypes, keep, subset,
+        jvds = self._jvdf.filterAlleles(expr, annotation, keep, subset,
                                         left_aligned, keep_star)
         return VariantDataset(self.hc, jvds)
 
