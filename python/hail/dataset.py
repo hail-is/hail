@@ -4786,7 +4786,7 @@ class VariantDataset(HistoryMixin):
 
         >>> multiallelic_generic_vds.split_multi_generic(
         ...   'va.aIndex = aIndex, va.wasSplit = wasSplit',
-        ...   '''let
+        ...   '''g = let
         ...         newgt = downcode(g.GT, aIndex) and
         ...         newad = if (isDefined(g.AD))
         ...             let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
