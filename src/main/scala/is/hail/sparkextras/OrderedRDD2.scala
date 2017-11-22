@@ -122,6 +122,12 @@ object PartitionKeyInfo2 {
     val samples = new Array[WritableRegionValue](sampleSize)
 
     var i = 0
+
+    if (sampleSize > 0) {
+      samples(0) = WritableRegionValue(typ.pkType, f0)
+      i += 1
+    }
+
     while (it.hasNext) {
       val f = it.next()
 
