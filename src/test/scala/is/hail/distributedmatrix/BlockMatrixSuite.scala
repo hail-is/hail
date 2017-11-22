@@ -585,40 +585,4 @@ class BlockMatrixSuite extends SparkSuite {
     assert(mt.t.map2WithIndex(m.t.t, (i,j,x,y) => 3 * x + 5 * y + i * 2 + j + 1).toLocalMatrix() ===
       9.0 * lm)
   }
-  
-  @Test
-  def writeBlocksRDD() {
-    // FIXME: duplicates matrix in RichIRMSuite
-    val rows = 9L
-    val cols = 6
-    val data = Seq(
-      (0L, Vectors.dense(0.0, 1.0, 2.0, 1.0, 3.0, 4.0)),
-      (1L, Vectors.dense(3.0, 4.0, 5.0, 1.0, 1.0, 1.0)),
-      (2L, Vectors.dense(9.0, 0.0, 2.0, 1.0, 1.0, 1.0)),
-      (3L, Vectors.dense(9.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
-      (4L, Vectors.dense(9.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
-      (5L, Vectors.dense(9.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
-      (6L, Vectors.dense(1.0, 2.0, 3.0, 1.0, 1.0, 1.0)),
-      (7L, Vectors.dense(4.0, 5.0, 6.0, 1.0, 1.0, 1.0)),
-      (8L, Vectors.dense(7.0, 8.0, 9.0, 1.0, 1.0, 1.0))
-    ).map(IndexedRow.tupled)
-    
-    val indexedRows: RDD[IndexedRow] = sc.parallelize(data, numSlices = 4)
-    
-    val irm = new IndexedRowMatrix(indexedRows, rows, cols)
-    
-    val boundaries = indexedRows.computeBoundaries()
-    println(boundaries.toIndexedSeq)
-    
-    assert(boundaries.last == rows) // will catch missing rows
-
-    val blockSize = 100
-    val nBlockRows = ((irm.numRows() - 1) / blockSize + 1).toInt
-    
-    assert(boundaries.last == irm.numRows())
-    val deps = WriteBlocksRDD.allDependencies(boundaries, nBlockRows, blockSize)
-    deps.zipWithIndex.foreach { case (a, i) => println(s"block=$i, dep=${a.mkString(",")}") }
-    
-    // val blockMat = irm.toHailBlockMatrix(2)
-  }
 }
