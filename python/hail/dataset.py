@@ -4999,9 +4999,9 @@ class VariantDataset(HistoryMixin):
 
          - **v** (*Variant*) -- Variant tested.
 
-         - **nTransmitted** (*Int32*) -- Number of transmitted alternate alleles.
+         - **transmitted** (*Int32*) -- Number of transmitted alternate alleles.
 
-         - **nUntransmitted** (*Int32*) -- Number of untransmitted alternate alleles.
+         - **untransmitted** (*Int32*) -- Number of untransmitted alternate alleles.
 
          - **chi2** (*Float64*) -- TDT statistic.
 
@@ -5024,7 +5024,7 @@ class VariantDataset(HistoryMixin):
         auto = 2
         hemiX = 1
 
-        t = TDict(TStruct(['kid', 'dad', 'mom', 'ploidy'], [TInt32(), TInt32(), TInt32(), TInt32()]), TArray(TInt32()))
+        t = TDict(TStruct(['kid', 'dad', 'mom', 'copy_state'], [TInt32(), TInt32(), TInt32(), TInt32()]), TArray(TInt32()))
 
         l = [(hom_ref, het, het, auto, 0, 2),
          (hom_ref, hom_ref, het, auto, 0, 1),
@@ -5042,7 +5042,7 @@ class VariantDataset(HistoryMixin):
          (hom_var, hom_ref, het, hemiX, 1, 0),
          (hom_var, hom_var, het, hemiX, 1, 0)]
 
-        mapping = {Struct({'kid': v[0], 'dad': v[1], 'mom': v[2], 'ploidy': v[3]}): [v[4], v[5]] for v in l}
+        mapping = {Struct({'kid': v[0], 'dad': v[1], 'mom': v[2], 'copy_state': v[3]}): [v[4], v[5]] for v in l}
 
         trio_matrix = trio_matrix.annotate_global('global.mapping', mapping, t)
 
@@ -5063,7 +5063,7 @@ class VariantDataset(HistoryMixin):
                             {{kid: g.proband.nNonRefAlleles(),
                             dad: g.father.nNonRefAlleles(),
                             mom: g.mother.nNonRefAlleles(),
-                            ploidy: ploidy}}
+                            copy_state: ploidy}}
                         )[{index}])
                 .sum()'''
 
@@ -5814,7 +5814,7 @@ class VariantDataset(HistoryMixin):
         entries of the matrix are changed in the following ways:
 
         The new column annotation schema is a ``Struct`` with five children
-        (structs ``proband``, ``father``, and ``mother``, boolean ``sex``, and string ``famID``).
+        (structs ``proband``, ``father``, and ``mother``, boolean ``isFemale``, and string ``famID``).
         The schema of each ``annotations`` field is the column annotation schema of the input dataset.
 
          - **sa.proband.id** (*String*) - Proband sample ID, same as trio column key.
