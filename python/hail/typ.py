@@ -1,5 +1,5 @@
 import abc
-from hail.java import scala_object, Env, jset
+from hail.java import scala_object, Env, jset, jindexed_seq
 from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call, GenomeReference
 from hail.typecheck import typecheck_method, nullable
 
@@ -534,7 +534,7 @@ class TStruct(Type):
     :vartype fields: list of :class:`.Field`
     """
 
-    def __init__(self, names, types, required = False):
+    def __init__(self, names, types, required=False):
         """
         """
 
@@ -544,6 +544,26 @@ class TStruct(Type):
         self.fields = [Field(names[i], types[i]) for i in xrange(len(names))]
 
         super(TStruct, self).__init__(jtype)
+
+    @classmethod
+    def from_fields(cls, fields, required=False):
+        """Creates a new TStruct from field objects.
+
+        :param fields: The TStruct fields.
+        :type fields: list of :class:`.Field`
+
+        :param bool required: Flag for whether the struct can be missing.
+        
+        :return: TStruct from input fields
+        :rtype: :class:`.TStruct`
+        """
+
+        struct = TStruct.__new__(cls)
+        struct.fields = fields
+        jfields = [scala_object(Env.hail().expr, 'Field').apply(
+            f.name, f.typ._jtype, i, Env.jutils().javaMapToMap(f.attributes)) for i,f in enumerate(fields)]
+        jtype = scala_object(Env.hail().expr, 'TStruct').apply(jindexed_seq(jfields), required)
+        return TStruct._from_java(jtype)
 
     @classmethod
     def _from_java(cls, jtype):
