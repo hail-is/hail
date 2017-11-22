@@ -2313,7 +2313,9 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val newSaSignature = TStruct(
       "proband" -> memberAnnotationType,
       "father" -> memberAnnotationType,
-      "mother" -> memberAnnotationType
+      "mother" -> memberAnnotationType,
+      "isFemale" -> TBooleanOptional,
+      "famID" -> TStringOptional
     )
 
     val newSampleAnnotations = new Array[Annotation](nTrios)
@@ -2340,7 +2342,15 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         momAnnotation = Row(mom, sampleAnnotations(index))
       }
 
-      newSampleAnnotations(i) = Row(kidAnnotation, dadAnnotation, momAnnotation)
+      val isFemale: java.lang.Boolean = (t.sex: @unchecked) match {
+        case Some(Sex.Female) => true
+        case Some(Sex.Male) => false
+        case None => null
+      }
+
+      val famID = t.fam.orNull
+
+      newSampleAnnotations(i) = Row(kidAnnotation, dadAnnotation, momAnnotation, isFemale, famID)
       i += 1
     }
 
@@ -2404,7 +2414,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         rvb.end()
         rvb.result()
       }
-    }
+    }.copy(typ = new OrderedRDD2Type(rdd2.typ.partitionKey, rdd2.typ.key, newRowType))
 
     copy2(rdd2 = newRDD,
       sampleIds = kidIds,

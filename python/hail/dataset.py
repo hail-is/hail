@@ -4,11 +4,11 @@ import warnings
 
 from decorator import decorator
 
-from hail.typ import Type, TGenotype, TString, TVariant, TArray, TInt64
+from hail.typ import *
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
-from hail.representation import Interval, Pedigree, Variant, GenomeReference
+from hail.representation import Interval, Pedigree, Variant, GenomeReference, Struct
 from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
@@ -4908,8 +4908,7 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(pedigree=Pedigree,
                       root=strlike)
     def tdt(self, pedigree, root='va.tdt'):
-        """Find transmitted and untransmitted variants; count per variant and
-        nuclear family.
+        """Performs a transmission disequilibrium test and returns results as a key table..
 
         .. include:: _templates/req_tvariant_tgenotype.rst
 
@@ -4917,17 +4916,23 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        Compute TDT association results:
+        Compute TDT association results and export to a file:
 
         >>> pedigree = Pedigree.read('data/trios.fam')
-        >>> (vds.tdt(pedigree)
-        ...     .variants_table()
-        ...     .select(['Variant = v', 'va.tdt.*'])
-        ...     .export("output/tdt_results.tsv"))
+        >>> tdt_table = vds.tdt(pedigree)
+        >>> tdt_table.export("output/tdt_results.tsv")
+
+        Export only variants with p-values below 0.001:
+
+        >>> tdt_table = tdt_table.filter('p < 0.001')
+        >>> tdt_table.export("output/tdt_results.tsv")
 
         **Notes**
 
-        The transmission disequilibrium test tracks the number of times the alternate allele is transmitted (t) or not transmitted (u) from a heterozgyous parent to an affected child under the null that the rate of such transmissions is 0.5.  For variants where transmission is guaranteed (i.e., the Y chromosome, mitochondria, and paternal chromosome X variants outside of the PAR), the test cannot be used.
+        The transmission disequilibrium test tracks the number of times the alternate allele is transmitted (t)
+        or not transmitted (u) from a heterozgyous parent to an affected child under the null that the rate of
+        such transmissions is 0.5.  For variants where transmission is guaranteed (i.e., the Y chromosome,
+        mitochondria, and paternal chromosome X variants outside of the PAR), the test cannot be used.
 
         The TDT statistic is given by
 
@@ -4938,7 +4943,9 @@ class VariantDataset(HistoryMixin):
         and follows a 1 degree of freedom chi-squared distribution under the null hypothesis.
 
 
-        The number of transmissions and untransmissions for each possible set of genotypes is determined from the table below.  The copy state of a locus with respect to a trio is defined as follows, where PAR is the pseudoautosomal region (PAR).
+        The number of transmissions and untransmissions for each possible set of genotypes is determined from the
+        table below.  The copy state of a locus with respect to a trio is defined as follows, where PAR is the
+        pseudoautosomal region (PAR).
 
         - HemiX -- in non-PAR of X and child is male
         - Auto -- otherwise (in autosome or PAR, or child is female)
@@ -4980,38 +4987,98 @@ class VariantDataset(HistoryMixin):
 
         :py:meth:`~hail.VariantDataset.tdt` only considers complete trios (two parents and a proband) with defined sex.
 
-        PAR is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`__:
+        PAR is currently defined with respect to reference
+        `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`__:
 
         - X: 60001-2699520
         - X: 154931044-155260560
         - Y: 10001-2649520
         - Y: 59034050-59363566
 
-        :py:meth:`~hail.VariantDataset.tdt` assumes all contigs apart from X and Y are fully autosomal; decoys, etc. are not given special treatment.
+        :py:meth:`~hail.VariantDataset.tdt` produces a key table with the following columns:
 
-        **Annotations**
+         - **v** (*Variant*) -- Variant tested.
 
-        :py:meth:`~hail.VariantDataset.tdt` adds the following annotations:
+         - **transmitted** (*Int32*) -- Number of transmitted alternate alleles.
 
-         - **tdt.nTransmitted** (*Int*) -- Number of transmitted alternate alleles.
+         - **untransmitted** (*Int32*) -- Number of untransmitted alternate alleles.
 
-         - **va.tdt.nUntransmitted** (*Int*) -- Number of untransmitted alternate alleles.
+         - **chi2** (*Float64*) -- TDT statistic.
 
-         - **va.tdt.chi2** (*Double*) -- TDT statistic.
-
-         - **va.tdt.pval** (*Double*) -- p-value.
+         - **pval** (*Float64*) -- p-value.
 
         :param pedigree: Sample pedigree.
         :type pedigree: :class:`~hail.representation.Pedigree`
 
-        :param root: Variant annotation root to store TDT result.
-
-        :return: Variant dataset with TDT association results added to variant annotations.
-        :rtype: :py:class:`.VariantDataset`
+        :return: Key table with TDT association results.
+        :rtype: :py:class:`.KeyTable`
         """
 
-        jvds = self._jvdf.tdt(pedigree._jrep, root)
-        return VariantDataset(self.hc, jvds)
+        trio_matrix = self.trio_matrix(pedigree, complete_trios=True)
+        trio_matrix = trio_matrix.filter_samples_expr('isDefined(sa.isFemale)')
+
+        hom_ref = 0
+        het = 1
+        hom_var = 2
+
+        auto = 2
+        hemiX = 1
+
+        t = TDict(TStruct(['kid', 'dad', 'mom', 'copy_state'], [TInt32(), TInt32(), TInt32(), TInt32()]), TArray(TInt32()))
+
+        l = [(hom_ref, het, het, auto, 0, 2),
+         (hom_ref, hom_ref, het, auto, 0, 1),
+         (hom_ref, het, hom_ref, auto, 0, 1),
+         (het, het, het, auto, 1, 1),
+         (het, hom_ref, het, auto, 1, 0),
+         (het, het, hom_ref, auto, 1, 0),
+         (het, hom_var, het, auto, 0, 1),
+         (het, het, hom_var, auto, 0, 1),
+         (hom_var, het, het, auto, 2, 0),
+         (hom_var, het, hom_var, auto, 1, 0),
+         (hom_var, hom_var, het, auto, 1, 0),
+         (hom_ref, hom_ref, het, hemiX, 0, 1),
+         (hom_ref, hom_var, het, hemiX, 0, 1),
+         (hom_var, hom_ref, het, hemiX, 1, 0),
+         (hom_var, hom_var, het, hemiX, 1, 0)]
+
+        mapping = {Struct({'kid': v[0], 'dad': v[1], 'mom': v[2], 'copy_state': v[3]}): [v[4], v[5]] for v in l}
+
+        trio_matrix = trio_matrix.annotate_global('global.mapping', mapping, t)
+
+        trio_matrix = trio_matrix.annotate_variants_expr(
+            'va.category = if (v.isAutosomal() || v.inXPar() || v.inYPar()) 0 else if (v.inXNonPar()) 1 else -1')
+
+
+        s = '''
+            va.{name} = gs
+                .filter(g => va.category != 1 || !g.father.isHet())
+                .map(g =>
+                    let ploidy =
+                        if (va.category == 0) 2
+                        else if (va.category == -1) -1
+                        else if (sa.isFemale) 2
+                        else 1 in
+                        global.mapping.get(
+                            {{kid: g.proband.nNonRefAlleles(),
+                            dad: g.father.nNonRefAlleles(),
+                            mom: g.mother.nNonRefAlleles(),
+                            copy_state: ploidy}}
+                        )[{index}])
+                .sum()'''
+
+        per_variant_results = (
+            trio_matrix
+                .annotate_variants_expr([s.format(name='t', index=0), s.format(name='u', index=1)])
+                .variants_table()
+                .annotate('transmitted = va.t, untransmitted = va.u')
+                .select(['v', 'transmitted', 'untransmitted'])
+                .annotate('chi2 = if (transmitted + untransmitted > 0) '
+                          '((transmitted - untransmitted) ** 2) / (transmitted + untransmitted) '
+                          'else 0.0')
+                .annotate('p = pchisqtail(chi2, 1.0)')
+        )
+        return per_variant_results
 
     @handle_py4j
     def _typecheck(self):
@@ -5746,10 +5813,9 @@ class VariantDataset(HistoryMixin):
         are the sample IDs of the trio probands. The column annotations and
         entries of the matrix are changed in the following ways:
 
-        The new column annotation schema is a ``Struct`` with three ``Struct`` children
-        (``proband``, ``father``, and ``mother``),
-        each with an ``id`` and ``annotations`` field. The schema of each ``annotations``
-        field is the column annotation schema of the input dataset.
+        The new column annotation schema is a ``Struct`` with five children
+        (structs ``proband``, ``father``, and ``mother``, boolean ``isFemale``, and string ``famID``).
+        The schema of each ``annotations`` field is the column annotation schema of the input dataset.
 
          - **sa.proband.id** (*String*) - Proband sample ID, same as trio column key.
          - **sa.proband.annotations** (*Struct*) - Annotations on the proband.
@@ -5757,6 +5823,8 @@ class VariantDataset(HistoryMixin):
          - **sa.father.annotations** (*Struct*) - Annotations on the father.
          - **sa.mother.id** (*String*) - Mother sample ID.
          - **sa.mother.annotations** (*Struct*) - Annotations on the mother.
+         - **sa.isFemale** (*Boolean*) - Proband is female. True for female, False for male, missing if unknown.
+         - **sa.famID** (*String*) - Family identifier.
 
         The new cell schema is a ``Struct`` with ``proband``, ``father``, and ``mother``
         fields, where the schema of each field is the entry schema of the input dataset.
