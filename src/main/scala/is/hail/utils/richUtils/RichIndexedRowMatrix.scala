@@ -6,6 +6,7 @@ import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.distributedmatrix._
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
+import org.json4s.jackson
 
 object RichIndexedRowMatrix {
   private def seqOp(truncatedBlockRow: Int, truncatedBlockCol: Int, excessRows: Int, excessCols: Int, blockSize: Int)
@@ -87,7 +88,21 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
 
     new BlockMatrix(new EmptyPartitionIsAZeroMatrixRDD(blocks), blockSize, rows, cols)
   }
+  
+  def writeAsBlockMatrix(uri: String, blockSize: Int) {
+    val hadoop = indexedRowMatrix.rows.sparkContext.hadoopConfiguration
+    hadoop.mkDir(uri)
 
+    val blockCount = new WriteBlocksRDD(indexedRowMatrix, uri, blockSize).reduce(_ + _)
+    
+    println(s"Wrote $blockCount blocks")
+    
+    hadoop.writeDataFile(uri + BlockMatrix.metadataRelativePath) { os =>
+      jackson.Serialization.write(
+        BlockMatrixMetadata(blockSize, indexedRowMatrix.numRows(), indexedRowMatrix.numCols(), transposed = false),
+        os)
+    }
+  }
 }
 
 private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double])])
