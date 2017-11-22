@@ -707,7 +707,7 @@ object WriteBlocksRDD {
 
       // build array of i such that [boundaries(i), boundaries(i + 1)) intersects [blockMin, blockEnd)      
       ab.clear()
-      while (boundaries(i) < blockEnd && boundaries(i + 1) > blockStart) { // (boundaries(i) <= blockStart && boundaries(i + 1) > blockStart) || (boundaries(i) < blockEnd && boundaries(i + 1) >= blockEnd))
+      while (boundaries(i) < blockEnd && boundaries(i + 1) > blockStart) {
         ab += i
         i += 1
       }
@@ -726,11 +726,19 @@ object WriteBlocksRDD {
 // FIXME: start with function on IRM, then make directly on VSM?
 class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extends RDD[Int](irm.rows.sparkContext, Nil) {
   private val boundaries: Array[Long] = irm.rows.computeBoundaries()
-
-  private val nPartitions: Int = ((irm.numRows() - 1) / blockSize + 1).toInt
   assert(irm.numRows() == boundaries.last) // can replace irm.numRows()
+
+  private val rows = irm.numRows()
+  private val cols = irm.numCols()
+  private val gp = GridPartitioner(blockSize, rows, cols)
+  private val rowPartitions: Int = gp.rowPartitions
+  private val colPartitions: Int = gp.colPartitions
+  private val truncatedBlockRow = rows / blockSize
+  private val truncatedBlockCol = cols / blockSize
+  private val excessRows = (rows % blockSize).toInt
+  private val excessCols = (cols % blockSize).toInt
   
-  private val allDeps = WriteBlocksRDD.allDependencies(boundaries, nPartitions, blockSize)
+  private val allDeps = WriteBlocksRDD.allDependencies(boundaries, rowPartitions, blockSize)
   
   override def getDependencies: Seq[Dependency[_]] = {  
     Array[Dependency[_]](
@@ -741,7 +749,49 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
   }
   
   protected def getPartitions: Array[Partition] =
-    (0 until nPartitions).map(IntPartition).toArray[Partition]
+    (0 until rowPartitions).map(IntPartition).toArray[Partition]
   
-  def compute(split: Partition, context: TaskContext): Iterator[Int] = ???
+  
+  // FIXME: do we need to compute colPartitions times?
+  def compute(split: Partition, context: TaskContext): Iterator[Int] = {
+    val blockRowIndex = split.index
+    
+    val nRows =
+      if (blockRowIndex == truncatedBlockRow)
+        excessRows
+      else
+        blockSize
+    
+    val data = Array.ofDim[Double](nRows * blockSize)
+    
+    var blockColIndex = 0
+    var j = 0
+    while (blockColIndex < colPartitions) {
+      val nCols = 
+        if (blockRowIndex == truncatedBlockRow)
+          excessCols
+        else
+          blockSize
+      
+      val lastCol = j + nCols
+      
+      while (j < lastCol) {
+        
+        //add to data
+        
+        j += 1
+      }
+      
+      if (blockColIndex == truncatedBlockCol) {
+        // copy out subarray
+      } else
+        //use whole array
+      
+      //form and write out BDM
+      
+      blockColIndex += 1
+    }
+    
+    Iterator.single(blockColIndex)
+  }
 }
