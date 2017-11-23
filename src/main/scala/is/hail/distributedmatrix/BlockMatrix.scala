@@ -725,14 +725,16 @@ object WriteBlocksRDD {
   }
 }
 
-// FIXME: requires dense IRM, no missing rows
-// FIXME: start with function on IRM, then make directly on VSM?
 class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extends RDD[Int](irm.rows.sparkContext, Nil) {
-  private val boundaries: Array[Long] = irm.rows.computeBoundaries()
-  assert(irm.numRows() == boundaries.last) // can replace irm.numRows()
-
+  
   private val rows = irm.numRows()
   private val cols = irm.numCols()
+  private val firstRowInPartition: Array[Long] = irm.rows.computePartitionBoundaries()
+  
+  // requires dense IRM, no missing rows. // FIXME: won't be issue on VSM
+  assert(rows == firstRowInPartition.last,
+    s"IndexedRowMatrix has $rows rows but RDD only has ${firstRowInPartition.last} IndexedRows.")
+  
   private val irmPartitions = irm.rows.partitions
   private val gp = GridPartitioner(blockSize, rows, cols)
   private val rowPartitions: Int = gp.rowPartitions
@@ -741,14 +743,13 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
   private val truncatedBlockCol = cols / blockSize
   private val excessRows = (rows % blockSize).toInt
   private val excessCols = (cols % blockSize).toInt
+  private val allDeps = WriteBlocksRDD.allDependencies(firstRowInPartition, rowPartitions, blockSize)
+  private val d = digitsNeeded(gp.numPartitions)
+  private val sHadoopBc = irm.rows.sparkContext.broadcast(
+    new SerializableHadoopConfiguration(irm.rows.sparkContext.hadoopConfiguration))
   
   irm.rows.sparkContext.hadoopConfiguration.mkDir(path + "/parts")
 
-  private val d = digitsNeeded(gp.numPartitions)
-  private val sHadoopBc = irm.rows.sparkContext.broadcast(new SerializableHadoopConfiguration(irm.rows.sparkContext.hadoopConfiguration))
-  
-  private val allDeps = WriteBlocksRDD.allDependencies(boundaries, rowPartitions, blockSize)
-  
   override def getDependencies: Seq[Dependency[_]] = {  
     Array[Dependency[_]](
       new NarrowDependency(irm.rows) {
@@ -760,71 +761,55 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
   protected def getPartitions: Array[Partition] =
     (0 until rowPartitions).map(IntPartition).toArray[Partition]
   
-  private def getIRMPartition(i: Int, context: TaskContext) = irm.rows.iterator(irmPartitions(i), context)
-  
   def compute(split: Partition, context: TaskContext): Iterator[Int] = {
     val blockRowIndex = split.index
+    
+    val firstRowInBlock = blockRowIndex * blockSize
+    
     val nRowsInBlock =
       if (blockRowIndex == truncatedBlockRow)
         excessRows
       else
         blockSize
     
-    val firstRowInBlock = blockRowIndex * blockSize
     val lastRowInBlock = firstRowInBlock + nRowsInBlock
-    
-    val rowsRDD = irm.rows
     
     val data = Array.ofDim[Double](nRowsInBlock * blockSize)
     
     var blockColIndex = 0
     while (blockColIndex < colPartitions) {
+      val firstColInBlock = blockColIndex * blockSize
+      
       val nColsInBlock =
         if (blockColIndex == truncatedBlockCol)
           excessCols
         else
           blockSize
-      val firstColInBlock = blockColIndex * blockSize
-      val lastColInBlock = firstColInBlock + nColsInBlock
             
-      allDeps(blockRowIndex).foreach { origPart =>
-        val firstRowInPart =  boundaries(origPart)
-        val lastRowInPart = boundaries(origPart + 1) // technically one past
+      allDeps(blockRowIndex).foreach { irmIndex =>
+        val firstRowInPart =  firstRowInPartition(irmIndex)
+        val lastRowInPart = firstRowInPartition(irmIndex + 1) // technically one past
 
-        val indexOfFirstRowInPartToCopy = // can replace with max
-          if (firstRowInBlock < firstRowInPart)
-            0
-          else
-            firstRowInBlock - firstRowInPart
+        val firstIndexToCopy = math.max(0, firstRowInBlock - firstRowInPart).toInt
+        val lastIndexToCopy = (math.min(lastRowInBlock, lastRowInPart) - firstRowInPart).toInt
         
-        val maxRowsInPartToCopy =
-          if (lastRowInPart > lastRowInBlock)
-            lastRowInBlock - firstRowInPart
-          else 
-            Int.MaxValue
-        
-        val it = getIRMPartition(origPart, context)
+        val it = irm.rows.iterator(irmPartitions(irmIndex), context)
         
         var i = 0
-        while (i < indexOfFirstRowInPartToCopy) {
+        while (i < firstIndexToCopy) {
           it.next()
           i += 1
         }
-        
-        while (it.hasNext && i < maxRowsInPartToCopy) {
+        while (i < lastIndexToCopy) {
           val indexedRow = it.next()
           val row = indexedRow.index
           
-          //println(s"bRow=$blockRowIndex, bCol=$blockColIndex, irmPart=$origPart, row=$row, firstRowInPart=$firstRowInPart, firstRowinBlock=$firstRowInBlock, firstColInBlock=$firstColInBlock, firstIndexToCopy=$indexOfFirstRowInPartToCopy, maxRowsInPartToCopy=$maxRowsInPartToCopy")
-          
           assert(row == firstRowInPart + i)
           
-          val rowArray = indexedRow.vector.toArray
-          val indexOfRowInBlock = (row - firstRowInBlock).toInt
+          val indexOfRowInBlock = (row - firstRowInBlock).toInt // FIXME: simplify   
+          val offset = nColsInBlock * indexOfRowInBlock
           
-          //println(rowArray.length, firstColInBlock, data.length, nColsInBlock * indexOfRowInBlock, nColsInBlock)
-          
-          System.arraycopy(rowArray, firstColInBlock, data, nColsInBlock * indexOfRowInBlock, nColsInBlock)
+          System.arraycopy(indexedRow.vector.toArray, firstColInBlock, data, offset, nColsInBlock)
           
           i += 1
         }
