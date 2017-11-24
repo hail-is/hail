@@ -2612,4 +2612,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     }
     ret
   }
+
+  def groupByRow(expr: String, )
 }
