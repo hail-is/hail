@@ -84,14 +84,17 @@ object KeyTable {
     }
 
     val schema = Parser.parseType(metadata.schema).asInstanceOf[TStruct]
-
+    val globalSchema = Parser.parseType(metadata.globalSchema).asInstanceOf[TStruct]
+    val globals = JSONAnnotationImpex.importAnnotation(metadata.globals, globalSchema).asInstanceOf[Row]
     KeyTable(hc,
       hc.readRows(path, schema, metadata.n_partitions)
         .map { rv =>
           new UnsafeRow(schema, rv.region.copy(), rv.offset): Row
         },
       schema,
-      metadata.key)
+      metadata.key,
+      globalSchema,
+      globals)
   }
 
   def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,

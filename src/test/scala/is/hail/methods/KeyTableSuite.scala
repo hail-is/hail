@@ -596,5 +596,9 @@ class KeyTableSuite extends SparkSuite {
     val gkt = kt.aggregate("index = index", "x = index.map(i => dict.get(i)).collect()[0]")
     assert(gkt.exists("x == \"bar\""))
     assert(kt.select("baz = dict.get(index)").exists("baz == \"bar\""))
+
+    val tmpPath = tmpDir.createTempFile(extension="kt")
+    kt.write(tmpPath)
+    assert(hc.readTable(tmpPath).same(kt))
   }
 }
