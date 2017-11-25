@@ -94,24 +94,13 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
       (7L, Vectors.dense(4.0, 5.0, 6.0, 1.0, 1.0, 5.0)),
       (8L, Vectors.dense(7.0, 8.0, 9.0, 1.0, 0.0, 1.0))
     ).map(IndexedRow.tupled)
-        
-//    val boundaries = indexedRows.computeBoundaries()
-//    println(boundaries.toIndexedSeq)
-//    
-//    assert(boundaries.last == rows) // will catch missing rows
-//
-//    val blockSize = 2
-//    val nBlockRows = ((irm.numRows() - 1) / blockSize + 1).toInt
-//    
-//    assert(boundaries.last == irm.numRows())
-//    val deps = WriteBlocksRDD.allDependencies(boundaries, nBlockRows, blockSize)
-//    deps.zipWithIndex.foreach { case (a, i) => println(s"block=$i, dep=${a.mkString(",")}") }
+
+    val filename = tmpDir.createTempFile()
     
     for {
       numSlices <- Seq(1, 2, 4, 9, 11)
       blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
     } {
-      val filename = tmpDir.createTempFile("test")
       val irm = new IndexedRowMatrix(sc.parallelize(data, numSlices))
       irm.writeAsBlockMatrix(filename, blockSize)
       

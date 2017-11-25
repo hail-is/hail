@@ -690,9 +690,14 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
 case class IntPartition(index: Int) extends Partition
 
 object WriteBlocksRDD {
-  def allDependencies(firstRowInPart: Array[Long], nBlockRows: Int, blockSize: Int): Array[Array[Int]] = {
+  // on return, deps(blockRowIndex) is the increasing array of (non-empty) parent partitions that overlap blockRow
+  def computeBlockRowDependencies(parentPartitionBoundaries: Array[Long], gp: GridPartitioner): Array[Array[Int]] = {
+    val rows = parentPartitionBoundaries.last
+    assert(rows == gp.rows)
+    val nBlockRows = gp.rowPartitions
     val deps = Array.ofDim[Array[Int]](nBlockRows)
     val ab = new ArrayBuilder[Int]()
+    
     var i = 0 // parent partition index
     var firstRowInBlock = 0L
     var lastRowInBlock = 0L
@@ -700,18 +705,19 @@ object WriteBlocksRDD {
     while (blockRowIndex < nBlockRows) {
       firstRowInBlock = lastRowInBlock
       if (blockRowIndex != nBlockRows - 1)
-        lastRowInBlock += blockSize
+        lastRowInBlock += gp.blockSize
       else
-        lastRowInBlock = firstRowInPart.last
+        lastRowInBlock = parentPartitionBoundaries.last
 
-      // find all parent partitions overlapping this block
+      // find all (non-empty) parent partitions overlapping this block
       ab.clear()
-      while (firstRowInPart(i) < lastRowInBlock) {
-        if (firstRowInPart(i + 1) > firstRowInBlock)
+      while (parentPartitionBoundaries(i) < lastRowInBlock) {
+        if (parentPartitionBoundaries(i + 1) > firstRowInBlock)
           ab += i
         i += 1
       }
-      if (firstRowInPart(i) > lastRowInBlock) // if last partition extends into next blockRowIndex, don't advance
+      // if last parent partition overlaps next blockRow, don't advance
+      if (parentPartitionBoundaries(i) > lastRowInBlock)
         i -= 1
       
       deps(blockRowIndex) = ab.result()
@@ -725,19 +731,20 @@ object WriteBlocksRDD {
 class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extends RDD[Int](irm.rows.sparkContext, Nil) {
   private val rows = irm.numRows()
   private val cols = irm.numCols()
-  private val irmPartitionBoundaries: Array[Long] = irm.rows.countPerPartition().scanLeft(0L)(_ + _)
+  private val parentPartitions = irm.rows.partitions
+  private val parentPartitionBoundaries: Array[Long] = irm.rows.countPerPartition().scanLeft(0L)(_ + _)
   
-  // requires dense IRM, no missing rows. // FIXME: won't be issue on VSM
-  assert(rows == irmPartitionBoundaries.last,
-    s"IndexedRowMatrix has $rows rows but RDD only has ${irmPartitionBoundaries.last} IndexedRows.")
-  
-  private val irmPartitions = irm.rows.partitions
+  // all IndexedRows must be present in RDD
+  assert(rows == parentPartitionBoundaries.last,
+    s"IndexedRowMatrix has $rows rows but RDD only has ${parentPartitionBoundaries.last} IndexedRows.")
+
   private val gp = GridPartitioner(blockSize, rows, cols)
+  private val blockRowDependencies = WriteBlocksRDD.computeBlockRowDependencies(parentPartitionBoundaries, gp)
   private val truncatedBlockRow = rows / blockSize
   private val truncatedBlockCol = cols / blockSize
   private val excessRows = (rows % blockSize).toInt
   private val excessCols = (cols % blockSize).toInt
-  private val allDeps = WriteBlocksRDD.allDependencies(irmPartitionBoundaries, gp.rowPartitions, blockSize)
+  
   private val d = digitsNeeded(gp.numPartitions)
   private val sHadoopBc = irm.rows.sparkContext.broadcast(
     new SerializableHadoopConfiguration(irm.rows.sparkContext.hadoopConfiguration))
@@ -745,7 +752,7 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
   override def getDependencies: Seq[Dependency[_]] = {  
     Array[Dependency[_]](
       new NarrowDependency(irm.rows) {
-        def getParents(partitionId: Int): Seq[Int] = allDeps(partitionId)
+        def getParents(partitionId: Int): Seq[Int] = blockRowDependencies(partitionId)
       }
     )
   }
@@ -766,25 +773,24 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
       val firstColInBlock = blockColIndex * blockSize
       
       val nColsInBlock = if (blockColIndex == truncatedBlockCol) excessCols else blockSize
-            
-      allDeps(blockRowIndex).foreach { irmIndex =>
-        val firstRowInPart =  irmPartitionBoundaries(irmIndex)
-        val lastRowInPart = irmPartitionBoundaries(irmIndex + 1) // technically, first row in next IRM partition
+      var offset = 0
+      blockRowDependencies(blockRowIndex).foreach { parent =>
+        val firstRowInParent =  parentPartitionBoundaries(parent)
+        val lastRowInParent = parentPartitionBoundaries(parent + 1) // technically, first row in next IRM partition
 
-        val firstIndexToCopy = math.max(0, firstRowInBlock - firstRowInPart).toInt
-        val lastIndexToCopy = (math.min(lastRowInBlock, lastRowInPart) - firstRowInPart).toInt
+        val firstIndexToCopy = math.max(0, firstRowInBlock - firstRowInParent).toInt
+        val lastIndexToCopy = (math.min(lastRowInBlock, lastRowInParent) - firstRowInParent).toInt
         
-        val indexedRowsInPart = irm.rows.iterator(irmPartitions(irmIndex), context)
+        val indexedRowsInParent = irm.rows.iterator(parentPartitions(parent), context)
         
         var i = 0
-        var offset = nColsInBlock * (firstIndexToCopy + (firstRowInPart - firstRowInBlock).toInt) // row-major offset
         while (i < firstIndexToCopy) {
-          indexedRowsInPart.next()
+          indexedRowsInParent.next()
           i += 1
         }
         while (i < lastIndexToCopy) {
-          val indexedRow = indexedRowsInPart.next()
-          assert(indexedRow.index == firstRowInPart + i)
+          val indexedRow = indexedRowsInParent.next()
+          assert(indexedRow.index == firstRowInParent + i)
                     
           System.arraycopy(indexedRow.vector.toArray, firstColInBlock, data0, offset, nColsInBlock)
           
