@@ -581,4 +581,20 @@ class KeyTableSuite extends SparkSuite {
       ===
       Set(0,1,2,3,4,5,6,7,8,9))
   }
+
+  @Test def testGlobalAnnotations() {
+    val kt = KeyTable.range(hc, 10)
+      .annotateGlobalExpr("foo = [1,2,3]")
+      .annotateGlobal(Map(5 -> "bar"), TDict(TInt32Optional, TStringOptional), "dict")
+      .annotateGlobalExpr("another = foo[1]")
+
+    assert(kt.filter("dict.get(index) == \"bar\"", true).count() == 1)
+    assert(kt.annotate("baz = foo").forall("baz == [1,2,3]"))
+    assert(kt.forall("foo == [1,2,3]"))
+    assert(kt.exists("dict.get(index) == \"bar\""))
+
+    val gkt = kt.aggregate("index = index", "x = index.map(i => dict.get(i)).collect()[0]")
+    assert(gkt.exists("x == \"bar\""))
+    assert(kt.select("baz = dict.get(index)").exists("baz == \"bar\""))
+  }
 }

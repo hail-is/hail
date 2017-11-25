@@ -38,6 +38,8 @@ case class KeyTableMetadata(
   version: Int,
   key: Array[String],
   schema: String,
+  globalSchema: String,
+  globals: JValue,
   n_partitions: Int)
 
 object KeyTable {
@@ -131,7 +133,8 @@ object KeyTable {
     KeyTable(hc, rdd, struct, Array("ID"))
   }
 
-  def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: Array[String] = Array.empty): KeyTable = {
+  def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: Array[String] = Array.empty,
+    globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty): KeyTable = {
     val rdd2 = rdd.mapPartitions { it =>
       val region = MemoryBuffer()
       val rvb = new RegionValueBuilder(region)
@@ -144,14 +147,16 @@ object KeyTable {
         rv
       }
     }
-    new KeyTable(hc, rdd2, signature, key)
+    new KeyTable(hc, rdd2, signature, key, globalSignature, globals)
   }
 }
 
 class KeyTable(val hc: HailContext,
   val rdd2: RDD[RegionValue],
   val signature: TStruct,
-  val key: Array[String] = Array.empty) {
+  val key: Array[String] = Array.empty,
+  val globalSignature: TStruct = TStruct.empty(),
+  val globals: Row = Row.empty) {
 
   lazy val rdd: RDD[Row] = {
     val localSignature = signature
@@ -160,12 +165,23 @@ class KeyTable(val hc: HailContext,
     }
   }
 
-  if (!columns.areDistinct())
-    fatal(s"Column names are not distinct: ${ columns.duplicates().mkString(", ") }")
+  if (!(columns ++ globalSignature.fieldNames).areDistinct())
+    fatal(s"Column names are not distinct: ${ (columns ++ globalSignature.fieldNames).duplicates().mkString(", ") }")
   if (!key.areDistinct())
     fatal(s"Key names are not distinct: ${ key.duplicates().mkString(", ") }")
   if (!key.forall(columns.contains(_)))
     fatal(s"Key names found that are not column names: ${ key.filterNot(columns.contains(_)).mkString(", ") }")
+
+  private def rowEvalContext(): EvalContext = {
+    val ec = EvalContext((fields.map { f => f.name -> f.typ } ++
+      globalSignature.fields.map { f => f.name -> f.typ }): _*)
+    var i = 0
+    while (i < globalSignature.size) {
+      ec.set(i + nColumns, globals.get(i))
+      i += 1
+    }
+    ec
+  }
 
   def fields: Array[Field] = signature.fields.toArray
 
@@ -192,6 +208,14 @@ class KeyTable(val hc: HailContext,
   }
 
   def typeCheck() {
+
+    if (!globalSignature.typeCheck(globals)) {
+      fatal(
+        s"""found violation of global signature
+           |  Schema: ${ globalSignature.toPrettyString(compact = true) }
+           |  Annotation: $globals""".stripMargin)
+    }
+
     val localSignature = signature
     rdd.foreach { a =>
       if (!localSignature.typeCheck(a))
@@ -216,8 +240,8 @@ class KeyTable(val hc: HailContext,
     if (signature != other.signature) {
       info(
         s"""different signatures:
-           | left: ${ signature.toPrettyString() }
-           | right: ${ other.signature.toPrettyString() }
+           | left: ${ signature.toPrettyString(compact = true) }
+           | right: ${ other.signature.toPrettyString(compact = true) }
            |""".stripMargin)
       false
     } else if (key.toSeq != other.key.toSeq) {
@@ -227,8 +251,21 @@ class KeyTable(val hc: HailContext,
            | right: ${ other.key.mkString(", ") }
            |""".stripMargin)
       false
+    } else if (globalSignature != other.globalSignature) {
+      info(
+        s"""different global signatures:
+           | left: ${ globalSignature.toPrettyString(compact = true) }
+           | right: ${ other.globalSignature.toPrettyString(compact = true) }
+           |""".stripMargin)
+      false
+    } else if (globals != other.globals) {
+      info(
+        s"""different global annotations:
+           | left: $globals
+           | right: ${ other.globals }
+           |""".stripMargin)
+      false
     } else {
-
       keyedRDD().groupByKey().fullOuterJoin(other.keyedRDD().groupByKey()).forall { case (k, (v1, v2)) =>
         (v1, v2) match {
           case (None, None) => true
@@ -239,7 +276,7 @@ class KeyTable(val hc: HailContext,
               false
             else r1.counter() == r2.counter()
             if (!res)
-              info(s"SAME KEY, DIFFERENT VALUES: k=$k\n  left:\n    ${ r1.mkString("\n    ")}\n  right:\n    ${ r2.mkString("\n    ") }")
+              info(s"SAME KEY, DIFFERENT VALUES: k=$k\n  left:\n    ${ r1.mkString("\n    ") }\n  right:\n    ${ r2.mkString("\n    ") }")
             res
           case _ =>
             info(s"KEY MISMATCH: k=$k\n  left=$v1\n  right=$v2")
@@ -256,13 +293,24 @@ class KeyTable(val hc: HailContext,
   def query(exprs: java.util.ArrayList[String]): Array[(Annotation, Type)] = query(exprs.asScala.toArray)
 
   def query(exprs: Array[String]): Array[(Annotation, Type)] = {
-    val aggregationST = fields.zipWithIndex.map {
-      case (fd, i) => (fd.name, (i, fd.typ))
-    }.toMap
+    val aggregationST = (fields.map { f => f.name -> f.typ } ++
+      globalSignature.fields.map { f => f.name -> f.typ })
+      .zipWithIndex
+      .map { case ((name, t), i) => name -> (i, t) }
+      .toMap
 
-    val ec = EvalContext(fields.zipWithIndex.map {
-      case (fd, i) => (fd.name, (i, TAggregable(fd.typ, aggregationST)))
-    }.toMap)
+    val ec = EvalContext((fields.map { f => f.name -> TAggregable(f.typ, aggregationST) } ++
+      globalSignature.fields.map { f => f.name -> f.typ })
+      .zipWithIndex
+      .map { case ((name, t), i) => name -> (i, t) }
+      .toMap)
+
+    val g = globals.asInstanceOf[Row]
+    var i = 0
+    while (i < globalSignature.size) {
+      ec.set(nColumns + i, g.get(i))
+      i += 1
+    }
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
@@ -278,7 +326,7 @@ class KeyTable(val hc: HailContext,
   }
 
   def queryRow(code: String): (Type, Querier) = {
-    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
+    val ec = rowEvalContext()
     val (t, f) = Parser.parseExpr(code, ec)
 
     val f2: (Annotation) => Any = { a =>
@@ -289,8 +337,39 @@ class KeyTable(val hc: HailContext,
     (t, f2)
   }
 
+  def annotateGlobal(a: Annotation, t: Type, name: String): KeyTable = {
+    val (newT, i) = globalSignature.insert(t, name)
+    copy2(globalSignature = newT.asInstanceOf[TStruct], globals = i(globals, a).asInstanceOf[Row])
+  }
+
+  def annotateGlobalExpr(expr: String): KeyTable = {
+    val ec = EvalContext(globalSignature.fields.map(fd => (fd.name, fd.typ)): _*)
+
+    ec.setAllFromRow(globals.asInstanceOf[Row])
+    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
+
+    val inserterBuilder = new ArrayBuilder[Inserter]()
+
+    val finalType = (paths, types).zipped.foldLeft(globalSignature) { case (v, (ids, signature)) =>
+      val (s, i) = v.insert(signature, ids)
+      inserterBuilder += i
+      s.asInstanceOf[TStruct]
+    }
+
+    val inserters = inserterBuilder.result()
+
+    val ga = inserters
+      .zip(f())
+      .foldLeft(globals) { case (a, (ins, res)) =>
+        ins(a, res).asInstanceOf[Row]
+      }
+
+    copy2(globals = ga,
+      globalSignature = finalType)
+  }
+
   def annotate(cond: String): KeyTable = {
-    val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
+    val ec = rowEvalContext()
 
     val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, None)
 
@@ -319,7 +398,7 @@ class KeyTable(val hc: HailContext,
   def filter(p: Annotation => Boolean): KeyTable = copy(rdd = rdd.filter(p))
 
   def filter(cond: String, keep: Boolean): KeyTable = {
-    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
+    val ec = rowEvalContext()
 
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](cond, ec)
 
@@ -354,7 +433,7 @@ class KeyTable(val hc: HailContext,
   }
 
   def select(exprs: Array[String], qualifiedName: Boolean = false): KeyTable = {
-    val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
+    val ec = rowEvalContext()
 
     val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs, ec)
 
@@ -509,7 +588,8 @@ class KeyTable(val hc: HailContext,
   }
 
   def forall(code: String): Boolean = {
-    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
+    val ec = rowEvalContext()
+
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
     rdd.forall { a =>
@@ -523,7 +603,7 @@ class KeyTable(val hc: HailContext,
   }
 
   def exists(code: String): Boolean = {
-    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
+    val ec = rowEvalContext()
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
     rdd.exists { r =>
@@ -563,14 +643,27 @@ class KeyTable(val hc: HailContext,
 
   def aggregate(keyCond: String, aggCond: String, nPartitions: Option[Int] = None): KeyTable = {
 
-    val aggregationST = fields.zipWithIndex.map {
-      case (fd, i) => (fd.name, (i, fd.typ))
-    }.toMap
+    val aggregationST = (fields.map { f => f.name -> f.typ } ++
+      globalSignature.fields.map { f => f.name -> f.typ })
+      .zipWithIndex
+      .map { case ((name, t), i) => name -> (i, t) }
+      .toMap
+
+    val ec = EvalContext((fields.map { f => f.name -> TAggregable(f.typ, aggregationST) } ++
+      globalSignature.fields.map { f => f.name -> f.typ })
+      .zipWithIndex
+      .map { case ((name, t), i) => name -> (i, t) }
+      .toMap)
 
     val keyEC = EvalContext(aggregationST)
-    val ec = EvalContext(fields.zipWithIndex.map {
-      case (fd, i) => (fd.name, (i, TAggregable(fd.typ, aggregationST)))
-    }.toMap)
+
+    val g = globals.asInstanceOf[Row]
+    var i = 0
+    while (i < globalSignature.size) {
+      ec.set(nColumns + i, g.get(i))
+      keyEC.set(nColumns + i, g.get(i))
+      i += 1
+    }
 
     val (keyPaths, keyTypes, keyF) = Parser.parseAnnotationExprs(keyCond, keyEC, None)
 
@@ -701,7 +794,9 @@ class KeyTable(val hc: HailContext,
     val metadata = KeyTableMetadata(KeyTable.fileVersion,
       key,
       signature.toPrettyString(printAttrs = true, compact = true),
-      rdd.partitions.length)
+      globalSignature.toPrettyString(printAttrs = true, compact = true),
+      JSONAnnotationImpex.exportAnnotation(globals, globalSignature),
+      rdd2.partitions.length)
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))
 
@@ -797,7 +892,7 @@ class KeyTable(val hc: HailContext,
   }
 
   def maximalIndependentSet(iExpr: String, jExpr: String, tieBreakerExpr: Option[String] = None): Array[Any] = {
-    val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
+    val ec = rowEvalContext()
 
     val (iType, iThunk) = Parser.parseExpr(iExpr, ec)
     val (jType, jThunk) = Parser.parseExpr(jExpr, ec)
@@ -939,13 +1034,17 @@ class KeyTable(val hc: HailContext,
 
   def copy(rdd: RDD[Row] = rdd,
     signature: TStruct = signature,
-    key: Array[String] = key): KeyTable = {
-    KeyTable(hc, rdd, signature, key)
+    key: Array[String] = key,
+    globalSignature: TStruct = globalSignature,
+    globals: Row = globals): KeyTable = {
+    KeyTable(hc, rdd, signature, key, globalSignature, globals)
   }
 
   def copy2(rdd2: RDD[RegionValue] = rdd2,
     signature: TStruct = signature,
-    key: Array[String] = key): KeyTable = {
-    new KeyTable(hc, rdd2, signature, key)
+    key: Array[String] = key,
+    globalSignature: TStruct = globalSignature,
+    globals: Row = globals): KeyTable = {
+    new KeyTable(hc, rdd2, signature, key, globalSignature, globals)
   }
 }
