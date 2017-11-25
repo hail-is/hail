@@ -56,7 +56,7 @@ class BgenRecordV11(compressed: Boolean,
             t(2) = d2
             val gt = Genotype.unboxedGTFromLinear(t)
             val gp: IndexedSeq[Double] = Array(d0.toDouble / dsum, d1.toDouble / dsum, d2.toDouble / dsum)
-            Annotation(gt, gp)
+            Annotation(if (gt != -1) gt else null, gp)
           } else
             null
         }
@@ -123,9 +123,8 @@ final class Bgen12GenotypeIterator(a: Array[Byte],
         sampleProbs(i) = lastProb
 
         val gt = Genotype.unboxedGTFromUIntLinear(sampleProbs)
-
         val gp: IndexedSeq[Double] = Array.tabulate(nGenotypes)(i => sampleProbs(i).toDouble / totalProb.toDouble)
-        Annotation(gt, gp)
+        Annotation(if (gt != -1) gt else null, gp)
       }
 
       sampleIndex += 1
