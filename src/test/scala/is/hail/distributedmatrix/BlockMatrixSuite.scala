@@ -582,5 +582,19 @@ class BlockMatrixSuite extends SparkSuite {
     assert(mt.t.map2WithIndex(m.t.t, (i,j,x,y) => 3 * x + 5 * y + i * 2 + j + 1).toLocalMatrix() ===
       9.0 * lm)
   }
-
+  
+  @Test
+  def blockRowDependencies() {
+    val gp = GridPartitioner(blockSize = 2, rows = 9, cols = 4) 
+    // 0   2   4   6   8 9
+    // 0     3 4 5   7 8 9
+    val deps = WriteBlocksRDD.computeBlockRowDependencies(Array(0, 3, 4, 4, 5, 7, 8, 9), gp)
+    
+    assert(
+      (deps(0) sameElements Array(0)) &&
+      (deps(1) sameElements Array(0, 1)) &&
+      (deps(2) sameElements Array(3, 4)) &&
+      (deps(3) sameElements Array(4, 5)) &&
+      (deps(4) sameElements Array(6)))
+  }
 }
