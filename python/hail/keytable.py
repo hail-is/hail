@@ -1717,9 +1717,9 @@ class KeyTable(HistoryMixin):
 
         Add populations as a global field:
 
-        >>> vds_result = vds.annotate_global('pops',
-        ...                                     ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
-        ...                                     TArray(TString()))
+        >>> kt_result = kt.annotate_global('pops',
+    ...                                    ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
+    ...                                    TArray(TString()))
 
         :param str name: Name of global field.
 
