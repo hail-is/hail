@@ -8,9 +8,6 @@ import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.utils._
-import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
-import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
 class BlockMatrixSuite extends SparkSuite {
@@ -585,4 +582,5 @@ class BlockMatrixSuite extends SparkSuite {
     assert(mt.t.map2WithIndex(m.t.t, (i,j,x,y) => 3 * x + 5 * y + i * 2 + j + 1).toLocalMatrix() ===
       9.0 * lm)
   }
+
 }

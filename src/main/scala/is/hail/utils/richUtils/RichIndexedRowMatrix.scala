@@ -90,16 +90,23 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
   }
   
   def writeAsBlockMatrix(uri: String, blockSize: Int) {
+    val rows = indexedRowMatrix.numRows()
+    val cols = indexedRowMatrix.numCols()
+    
     val hadoop = indexedRowMatrix.rows.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
-
+    
+    // write blocks
+    hadoop.mkDir(uri + "/parts")
     val blockCount = new WriteBlocksRDD(indexedRowMatrix, uri, blockSize).reduce(_ + _)
+    val gp = GridPartitioner(blockSize, rows, cols)
+    assert(blockCount == gp.numPartitions)
+    info(s"Wrote all $blockCount blocks of $rows x $cols matrix with block size $blockSize.")
     
-    println(s"Wrote $blockCount blocks")
-    
+    // write metadata
     hadoop.writeDataFile(uri + BlockMatrix.metadataRelativePath) { os =>
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, indexedRowMatrix.numRows(), indexedRowMatrix.numCols(), transposed = false),
+        BlockMatrixMetadata(blockSize, rows, cols, transposed = false),
         os)
     }
   }
@@ -107,7 +114,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
 
 private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double])])
     extends RDD[((Int, Int), BDM[Double])](blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(blocks))) {
-  @transient val gp = (blocks.partitioner: @unchecked) match {
+  @transient val gp: GridPartitioner = (blocks.partitioner: @unchecked) match {
     case Some(p: GridPartitioner) => p
   }
 
