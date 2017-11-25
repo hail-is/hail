@@ -692,33 +692,30 @@ case class IntPartition(index: Int) extends Partition
 object WriteBlocksRDD {
   def allDependencies(firstRowInPart: Array[Long], nBlockRows: Int, blockSize: Int): Array[Array[Int]] = {
     val deps = Array.ofDim[Array[Int]](nBlockRows)
-
     val ab = new ArrayBuilder[Int]()
-    var i = 0 // original partition index
+    var i = 0 // parent partition index
     var firstRowInBlock = 0L
     var lastRowInBlock = 0L
-
-    var block = 0
-    while (block < nBlockRows) {
+    var blockRowIndex = 0
+    while (blockRowIndex < nBlockRows) {
       firstRowInBlock = lastRowInBlock
-      if (block != nBlockRows - 1)
+      if (blockRowIndex != nBlockRows - 1)
         lastRowInBlock += blockSize
       else
         lastRowInBlock = firstRowInPart.last
 
-      // build array of i such that [firstRowInPart(i), firstRowInPart(i + 1)) intersects [blockMin, lastRowInBlock)
-      
+      // find all parent partitions overlapping this block
       ab.clear()
       while (firstRowInPart(i) < lastRowInBlock) {
         if (firstRowInPart(i + 1) > firstRowInBlock)
           ab += i
         i += 1
       }
-      if (firstRowInPart(i) > lastRowInBlock) // if partition i extends into next block, don't advance to next partition
+      if (firstRowInPart(i) > lastRowInBlock) // if last partition extends into next blockRowIndex, don't advance
         i -= 1
       
-      deps(block) = ab.result()
-      block += 1
+      deps(blockRowIndex) = ab.result()
+      blockRowIndex += 1
     }
 
     deps
@@ -726,29 +723,24 @@ object WriteBlocksRDD {
 }
 
 class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extends RDD[Int](irm.rows.sparkContext, Nil) {
-  
   private val rows = irm.numRows()
   private val cols = irm.numCols()
-  private val firstRowInPartition: Array[Long] = irm.rows.computePartitionBoundaries()
+  private val irmPartitionBoundaries: Array[Long] = irm.rows.countPerPartition().scanLeft(0L)(_ + _)
   
   // requires dense IRM, no missing rows. // FIXME: won't be issue on VSM
-  assert(rows == firstRowInPartition.last,
-    s"IndexedRowMatrix has $rows rows but RDD only has ${firstRowInPartition.last} IndexedRows.")
+  assert(rows == irmPartitionBoundaries.last,
+    s"IndexedRowMatrix has $rows rows but RDD only has ${irmPartitionBoundaries.last} IndexedRows.")
   
   private val irmPartitions = irm.rows.partitions
   private val gp = GridPartitioner(blockSize, rows, cols)
-  private val rowPartitions: Int = gp.rowPartitions
-  private val colPartitions: Int = gp.colPartitions
   private val truncatedBlockRow = rows / blockSize
   private val truncatedBlockCol = cols / blockSize
   private val excessRows = (rows % blockSize).toInt
   private val excessCols = (cols % blockSize).toInt
-  private val allDeps = WriteBlocksRDD.allDependencies(firstRowInPartition, rowPartitions, blockSize)
+  private val allDeps = WriteBlocksRDD.allDependencies(irmPartitionBoundaries, gp.rowPartitions, blockSize)
   private val d = digitsNeeded(gp.numPartitions)
   private val sHadoopBc = irm.rows.sparkContext.broadcast(
     new SerializableHadoopConfiguration(irm.rows.sparkContext.hadoopConfiguration))
-  
-  irm.rows.sparkContext.hadoopConfiguration.mkDir(path + "/parts")
 
   override def getDependencies: Seq[Dependency[_]] = {  
     Array[Dependency[_]](
@@ -759,68 +751,55 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
   }
   
   protected def getPartitions: Array[Partition] =
-    (0 until rowPartitions).map(IntPartition).toArray[Partition]
+    (0 until gp.rowPartitions).map(IntPartition).toArray[Partition]
   
   def compute(split: Partition, context: TaskContext): Iterator[Int] = {
     val blockRowIndex = split.index
-    
     val firstRowInBlock = blockRowIndex * blockSize
+    val nRowsInBlock = if (blockRowIndex == truncatedBlockRow) excessRows else blockSize
+    val lastRowInBlock = firstRowInBlock + nRowsInBlock // technically, first row in next blockRow
     
-    val nRowsInBlock =
-      if (blockRowIndex == truncatedBlockRow)
-        excessRows
-      else
-        blockSize
-    
-    val lastRowInBlock = firstRowInBlock + nRowsInBlock
-    
-    val data = Array.ofDim[Double](nRowsInBlock * blockSize)
+    val data0 = Array.ofDim[Double](nRowsInBlock * blockSize)
     
     var blockColIndex = 0
-    while (blockColIndex < colPartitions) {
+    while (blockColIndex < gp.colPartitions) {
       val firstColInBlock = blockColIndex * blockSize
       
-      val nColsInBlock =
-        if (blockColIndex == truncatedBlockCol)
-          excessCols
-        else
-          blockSize
+      val nColsInBlock = if (blockColIndex == truncatedBlockCol) excessCols else blockSize
             
       allDeps(blockRowIndex).foreach { irmIndex =>
-        val firstRowInPart =  firstRowInPartition(irmIndex)
-        val lastRowInPart = firstRowInPartition(irmIndex + 1) // technically one past
+        val firstRowInPart =  irmPartitionBoundaries(irmIndex)
+        val lastRowInPart = irmPartitionBoundaries(irmIndex + 1) // technically, first row in next IRM partition
 
         val firstIndexToCopy = math.max(0, firstRowInBlock - firstRowInPart).toInt
         val lastIndexToCopy = (math.min(lastRowInBlock, lastRowInPart) - firstRowInPart).toInt
         
-        val it = irm.rows.iterator(irmPartitions(irmIndex), context)
+        val indexedRowsInPart = irm.rows.iterator(irmPartitions(irmIndex), context)
         
         var i = 0
+        var offset = nColsInBlock * (firstIndexToCopy + (firstRowInPart - firstRowInBlock).toInt) // row-major offset
         while (i < firstIndexToCopy) {
-          it.next()
+          indexedRowsInPart.next()
           i += 1
         }
         while (i < lastIndexToCopy) {
-          val indexedRow = it.next()
-          val row = indexedRow.index
+          val indexedRow = indexedRowsInPart.next()
+          assert(indexedRow.index == firstRowInPart + i)
+                    
+          System.arraycopy(indexedRow.vector.toArray, firstColInBlock, data0, offset, nColsInBlock)
           
-          assert(row == firstRowInPart + i)
-          
-          val indexOfRowInBlock = (row - firstRowInBlock).toInt // FIXME: simplify   
-          val offset = nColsInBlock * indexOfRowInBlock
-          
-          System.arraycopy(indexedRow.vector.toArray, firstColInBlock, data, offset, nColsInBlock)
-          
+          offset += nColsInBlock
           i += 1
         }
 
-        val bdm = new BDM[Double](nColsInBlock, nRowsInBlock,
-               if (blockColIndex == truncatedBlockCol)
-                 data.slice(0, nRowsInBlock * nColsInBlock)
-               else
-                 data)
-          .t
-
+        val data =
+          if (blockColIndex == truncatedBlockCol)
+            data0.take(nColsInBlock * nRowsInBlock)
+          else
+            data0
+        
+        val bdm = new BDM[Double](nRowsInBlock, nColsInBlock, data, 0, nColsInBlock, isTranspose = true)
+        
         val is = gp.partitionIdFromBlockIndices(blockRowIndex, blockColIndex).toString
         assert(is.length <= d)
         val pis = StringUtils.leftPad(is, d, "0")
