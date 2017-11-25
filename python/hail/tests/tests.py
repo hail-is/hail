@@ -1214,3 +1214,9 @@ class ContextTests(unittest.TestCase):
         if bad.count() != 0:
             bad.order_by(asc('v')).show()
             self.fail('Found rows in violation of the predicate (see show output)')
+
+    def test_kt_globals(self):
+        kt = KeyTable.range(10)
+        kt = kt.annotate_global_expr('foo = [1,2,3]')
+        kt = kt.annotate_global('bar', [4, 5, 6], TArray(TInt32()))
+        self.assertEqual(kt.filter('foo.contains(index) || bar.contains(index)').count(), 4)

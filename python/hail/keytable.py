@@ -1681,6 +1681,62 @@ class KeyTable(HistoryMixin):
 
         return KeyTable(self.hc, self._jkt.group(dest, list(columns)))
 
+    @handle_py4j
+    @record_method
+    @typecheck_method(expr=oneof(strlike, listof(strlike)))
+    def annotate_global_expr(self, expr):
+        """Add global fields with expressions.
+
+        **Example**
+
+        Annotate global with an array of populations:
+
+        >>> kt = kt.annotate_global_expr('pops = ["FIN", "AFR", "EAS", "NFE"]')
+
+        :param expr: Annotation expression
+        :type expr: str or list of str
+
+        :rtype: :py:class:`.Keytable`
+        """
+
+        if isinstance(expr, list):
+            expr = ','.join(expr)
+
+        jkt = self._jkt.annotateGlobalExpr(expr)
+        return KeyTable(self.hc, jkt)
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(name=strlike,
+                      annotation=anytype,
+                      annotation_type=Type)
+    def annotate_global(self, name, annotation, annotation_type):
+        """Add global annotations from Python objects.
+
+        **Examples**
+
+        Add populations as a global field:
+
+        >>> vds_result = vds.annotate_global('pops',
+        ...                                     ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
+        ...                                     TArray(TString()))
+
+        :param str name: Name of global field.
+
+        :param annotation: annotation to add to global
+
+        :param annotation_type: Hail type of annotation
+        :type annotation_type: :py:class:`.Type`
+
+        :rtype: :py:class:`.KeyTable`
+        """
+
+        annotation_type._typecheck(annotation)
+
+        annotated = self._jkt.annotateGlobal(annotation_type._convert_to_j(annotation), annotation_type._jtype, name)
+        assert annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking'
+        return KeyTable(self.hc, annotated)
+
     @record_method
     def to_hail2(self):
         import hail2
