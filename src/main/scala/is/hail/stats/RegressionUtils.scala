@@ -134,19 +134,6 @@ object RegressionUtils {
     }
   }
 
-  def getSampleAnnotation(vsm: VariantSampleMatrix, annot: String, ec: EvalContext): IndexedSeq[Option[Double]] = {
-    val aQ = parseExprAsDouble(annot, ec)
-
-    vsm.sampleIdsAndAnnotations.map { case (s, sa) =>
-      ec.setAll(s, sa)
-      val a = aQ()
-      if (a != null)
-        Some(a: Double)
-      else
-        None
-    }
-  }
-
   // IndexedSeq indexed by samples, Array by annotations
   def getSampleAnnotations(vds: VariantSampleMatrix, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
     val aQs = annots.map(parseExprAsDouble(_, ec))
@@ -167,41 +154,12 @@ object RegressionUtils {
     vsm: VariantSampleMatrix,
     yExpr: String,
     covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
-
-    val nCovs = covExpr.length + 1 // intercept
-
-    val symTab = Map(
-      "s" -> (0, vsm.sSignature),
-      "sa" -> (1, vsm.saSignature))
-
-    val ec = EvalContext(symTab)
-
-    val yIS = getSampleAnnotation(vsm, yExpr, ec)
-    val covIS = getSampleAnnotations(vsm, covExpr, ec)
-
-    val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
-      (yIS, covIS, 0 until vsm.nSamples)
-        .zipped
-        .filter((y, c, s) => y.isDefined && c.forall(_.isDefined))
-
-    val n = completeSamples.size
-    if (n == 0)
-      fatal("No complete samples: each sample is missing its phenotype or some covariate")
-
-    val yArray = yForCompleteSamples.map(_.get).toArray
-    if (yArray.toSet.size == 1)
-      fatal(s"Constant phenotype: all complete samples have phenotype ${ yArray(0) }")
-    val y = DenseVector(yArray)
-
-    val covArray = covForCompleteSamples.flatMap(1.0 +: _.map(_.get)).toArray
-    val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0, majorStride = nCovs, isTranspose = true)
-
-    if (n < vsm.nSamples)
-      warn(s"${ vsm.nSamples - n } of ${ vsm.nSamples } samples have a missing phenotype or covariate.")
-
-    (y, cov, completeSamples.toArray)
+    
+    val (y, covs, completeSamples) = getPhenosCovCompleteSamples(vsm, Array(yExpr), covExpr)
+    
+    (DenseVector(y.data), covs, completeSamples)
   }
-
+  
   def getPhenosCovCompleteSamples(
     vsm: VariantSampleMatrix,
     yExpr: Array[String],
