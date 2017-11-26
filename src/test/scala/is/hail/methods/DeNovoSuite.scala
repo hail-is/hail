@@ -22,7 +22,7 @@ class DeNovoSuite extends SparkSuite {
     * Since the random tests are slow, we disable them by default. We check in one generated VCF and .fam
     * combination that produces a good distribution of de novo calls, and test against only this VCF.
     */
-  lazy val gen: Gen[(VariantDataset, Pedigree)] = {
+  lazy val gen: Gen[(VariantSampleMatrix, Pedigree)] = {
     for {
       vds <- VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(
         saSigGen = Gen.const(TStruct.empty()),
@@ -138,7 +138,7 @@ class DeNovoSuite extends SparkSuite {
     assert(p1 && p2)
   }
 
-  def writeAll(vds: VariantDataset, ped: Pedigree, path: String) {
+  def writeAll(vds: VariantSampleMatrix, ped: Pedigree, path: String) {
     val annot = vds.annotateVariantsExpr("va.callStats = gs.callStats(g => v), va.filters = [\"PASS\"].toSet")
       .filterVariantsExpr("va.callStats.AC[1] > 0")
       .annotateVariantsExpr(

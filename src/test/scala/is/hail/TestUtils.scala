@@ -3,7 +3,7 @@ package is.hail
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.{Genotype, VariantDataset}
+import is.hail.variant.{Genotype, VariantDataset, VariantSampleMatrix}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
@@ -61,14 +61,14 @@ object TestUtils {
   }
 
   // missing is -1
-  def vdsToMatrixInt(vds: VariantDataset): DenseMatrix[Int] =
+  def vdsToMatrixInt(vds: VariantSampleMatrix): DenseMatrix[Int] =
     new DenseMatrix[Int](
       vds.nSamples,
       vds.countVariants().toInt,
       vds.rdd.map(_._2._2.map(g => Genotype.unboxedGT(g.asInstanceOf[Genotype]))).collect().flatten)
 
   // missing is Double.NaN
-  def vdsToMatrixDouble(vds: VariantDataset): DenseMatrix[Double] =
+  def vdsToMatrixDouble(vds: VariantSampleMatrix): DenseMatrix[Double] =
     new DenseMatrix[Double](
       vds.nSamples,
       vds.countVariants().toInt,

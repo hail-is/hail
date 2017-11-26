@@ -7,7 +7,7 @@ import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
-import is.hail.variant.{HardCallView, Variant, VariantDataset}
+import is.hail.variant.{HardCallView, Variant, VariantSampleMatrix}
 import org.apache.hadoop.io._
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, Matrix, Vectors}
@@ -19,7 +19,7 @@ object LDMatrix {
     * @param vds VDS on which to compute Pearson correlation between pairs of variants.
     * @return LDMatrix.
     */
-  def apply(vds : VariantDataset, optForceLocal: Option[Boolean]): LDMatrix = {
+  def apply(vds : VariantSampleMatrix, optForceLocal: Option[Boolean]): LDMatrix = {
     val maxEntriesForLocalProduct = 25e6 // 5000 * 5000
     
     val nSamples = vds.nSamples

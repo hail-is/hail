@@ -156,7 +156,7 @@ object DeNovo {
   }
 
 
-  def apply(vds: VariantDataset, ped: Pedigree,
+  def apply(vds: VariantSampleMatrix, ped: Pedigree,
     referenceAFExpr: String,
     minGQ: Int = 20,
     minP: Double = 0.05,

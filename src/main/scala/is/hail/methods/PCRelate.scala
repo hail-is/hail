@@ -7,7 +7,7 @@ import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.expr.{TFloat64, TString, TStruct}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.{HTSGenotypeView, HardCallView, Variant, VariantDataset}
+import is.hail.variant.{HTSGenotypeView, HardCallView, Variant, VariantSampleMatrix}
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg.DenseMatrix
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -32,14 +32,14 @@ object PCRelate {
   val defaultMinKinship = Double.NegativeInfinity
   val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
 
-  def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, statistics: StatisticSubset = defaultStatisticSubset): Result[M] =
+  def apply(vds: VariantSampleMatrix, pcs: DenseMatrix, maf: Double, blockSize: Int, statistics: StatisticSubset = defaultStatisticSubset): Result[M] =
     new PCRelate(maf, blockSize)(vds, pcs, statistics)
 
   private val signature =
     TStruct(("i", TString()), ("j", TString()), ("kin", TFloat64()), ("k0", TFloat64()), ("k1", TFloat64()), ("k2", TFloat64()))
   private val keys = Array("i", "j")
 
-  private def toRowRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double, statistics: StatisticSubset): RDD[Row] = {
+  private def toRowRdd(vds: VariantSampleMatrix, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double, statistics: StatisticSubset): RDD[Row] = {
     val localSampleIds = vds.sampleIds
     val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, statistics)
 
@@ -84,7 +84,7 @@ object PCRelate {
     }
   }
 
-  def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, statistics: StatisticSubset = defaultStatisticSubset): KeyTable =
+  def toKeyTable(vds: VariantSampleMatrix, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, statistics: StatisticSubset = defaultStatisticSubset): KeyTable =
     KeyTable(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship, statistics), signature, keys)
 
   private val k0cutoff = math.pow(2.0, (-5.0 / 2.0))
@@ -105,7 +105,7 @@ object PCRelate {
     new DenseMatrix(m.numRows, m.numCols + 1, result)
   }
 
-  def vdsToMeanImputedMatrix(vds: VariantDataset): IndexedRowMatrix = {
+  def vdsToMeanImputedMatrix(vds: VariantSampleMatrix): IndexedRowMatrix = {
     val nSamples = vds.nSamples
     val variants = vds.variants.collect()
     val variantIdxBc = vds.sparkContext.broadcast(variants.index)
@@ -193,7 +193,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     mc.t * mc
   }
 
-  def apply(vds: VariantDataset, pcs: DenseMatrix, statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
+  def apply(vds: VariantSampleMatrix, pcs: DenseMatrix, statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
     vds.requireUniqueSamples("pc_relate")
     val g = vdsToMeanImputedMatrix(vds)
 

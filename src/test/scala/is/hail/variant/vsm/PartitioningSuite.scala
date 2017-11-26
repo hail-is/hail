@@ -2,12 +2,12 @@ package is.hail.variant.vsm
 
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
-import is.hail.variant.{VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 class PartitioningSuite extends SparkSuite {
 
-  def compare(vds1: VariantDataset, vds2: VariantDataset): Boolean = {
+  def compare(vds1: VariantSampleMatrix, vds2: VariantSampleMatrix): Boolean = {
     val s1 = vds1.variantsAndAnnotations
       .mapPartitionsWithIndex { case (i, it) => it.zipWithIndex.map(x => (i, x)) }
       .collect()

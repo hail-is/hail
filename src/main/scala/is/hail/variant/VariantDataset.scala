@@ -16,7 +16,7 @@ import scala.language.implicitConversions
 
 object VariantDataset {
 
-  def fromKeyTable(kt: KeyTable): VariantDataset = {
+  def fromKeyTable(kt: KeyTable): VariantSampleMatrix = {
     val vType: Type = kt.keyFields.map(_.typ) match {
       case Array(t@TVariant(_, _)) => t
       case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
@@ -41,7 +41,7 @@ object VariantDataset {
 
 class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyVal {
 
-  def annotateAllelesExpr(expr: String): VariantDataset = {
+  def annotateAllelesExpr(expr: String): VariantSampleMatrix = {
     val splitVariantExpr = "va.aIndex = aIndex, va.wasSplit = wasSplit"
     val gType = vsm.genotypeSignature
     val splitGenotypeExpr =
@@ -81,7 +81,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
     annotateAllelesExprGeneric(splitVariantExpr, splitGenotypeExpr, variantExpr = expr)
   }
 
-  def annotateAllelesExprGeneric(splitVariantExpr: String, splitGenotypeExpr: String, variantExpr: String): VariantDataset = {
+  def annotateAllelesExprGeneric(splitVariantExpr: String, splitGenotypeExpr: String, variantExpr: String): VariantSampleMatrix = {
 
     val splitmulti = new SplitMulti(vsm, splitVariantExpr, splitGenotypeExpr,
       keepStar = true, leftAligned = false)
@@ -181,7 +181,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
     vsm.copy2(rdd2 = newRDD2, vaSignature = finalType)
   }
 
-  def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
+  def concordance(other: VariantSampleMatrix): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
     require(vsm.wasSplit)
     require(other.wasSplit)
 
@@ -289,7 +289,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
   }
 
   def filterAlleles(filterExpr: String, variantExpr: String = "",
-    keep: Boolean = true, subset: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantDataset = {
+    keep: Boolean = true, subset: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantSampleMatrix = {
 
     val gType = vsm.genotypeSignature
     val genotypeExpr = if (gType.isOfType(TGenotype())) {
@@ -387,7 +387,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     GRM(vsm)
   }
 
-  def hardCalls(): VariantDataset = {
+  def hardCalls(): VariantSampleMatrix = {
     vsm.mapValues(TGenotype(), { g =>
       if (g == null)
         g
@@ -405,7 +405,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     * @param popFreqExpr      Use an annotation expression for estimate of MAF rather than computing from the data
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
-    fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
+    fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantSampleMatrix = {
     require(vsm.wasSplit)
 
     ImputeSexPlink(vsm,
@@ -421,12 +421,12 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     LDMatrix(vsm, Some(forceLocal))
   }
 
-  def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): VariantDataset = {
+  def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): VariantSampleMatrix = {
     require(vsm.wasSplit)
     LDPrune(vsm, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
   }
 
-  def nirvana(config: String, blockSize: Int = 500000, root: String): VariantDataset = {
+  def nirvana(config: String, blockSize: Int = 500000, root: String): VariantSampleMatrix = {
     Nirvana.annotate(vsm, config, blockSize, root)
   }
 

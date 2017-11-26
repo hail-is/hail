@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.{TArray, TFloat64, TStruct}
 import is.hail.stats._
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantDataset}
+import is.hail.variant.{Variant, VariantDataset, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
@@ -306,10 +306,10 @@ class LinearMixedRegressionSuite extends SparkSuite {
     .annotateSamplesTable(covariates, expr = "sa.cov=table.f2")
     .annotateSamplesTable(phenotypes, expr = "sa.pheno=table.f2")
 
-  lazy val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
+  lazy val vdsChr1 = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
     .lmmreg(vdsFastLMM.filterVariantsExpr("""v.contig != "1"""").rrm(), "sa.pheno", "g.nNonRefAlleles()", Array("sa.cov"), runAssoc = false)
 
-  lazy val vdsChr3: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "3"""")
+  lazy val vdsChr3 = vdsFastLMM.filterVariantsExpr("""v.contig == "3"""")
     .lmmreg(vdsFastLMM.filterVariantsExpr("""v.contig != "3"""").rrm(), "sa.pheno", "g.nNonRefAlleles()", Array("sa.cov"), runAssoc = false)
 
   @Test def fastLMMTest() {
@@ -440,7 +440,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
   //Tests that k eigenvectors give the same result as all n eigenvectors for a rank-k kinship matrix on n samples.
   @Test def testFullRankAndLowRank() {
-    val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
+    val vdsChr1 = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
 
     val notChr1VDSDownsampled = vdsFastLMM.filterVariantsExpr("""v.contig == "3" && v.start < 2242""")
 
@@ -461,7 +461,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     globalLMMCompare(vdsChr1FullRankML, vdsChr1LowRankML)
   }
 
-  private def globalLMMCompare(vds1: VariantDataset, vds2: VariantDataset) {
+  private def globalLMMCompare(vds1: VariantSampleMatrix, vds2: VariantSampleMatrix) {
     assert(D_==(vds1.queryGlobal("global.lmmreg.beta")._2.asInstanceOf[Map[String, Double]].apply("intercept"),
       vds2.queryGlobal("global.lmmreg.beta")._2.asInstanceOf[Map[String, Double]].apply("intercept")))
 

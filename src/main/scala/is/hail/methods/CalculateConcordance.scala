@@ -66,7 +66,7 @@ class ConcordanceCombiner extends Serializable {
 
 object CalculateConcordance {
 
-  def apply(left: VariantDataset, right: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
+  def apply(left: VariantSampleMatrix, right: VariantSampleMatrix): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
     require(left.wasSplit && right.wasSplit, "passed unsplit dataset to Concordance")
     val overlap = left.sampleIds.toSet.intersect(right.sampleIds.toSet)
     if (overlap.isEmpty)

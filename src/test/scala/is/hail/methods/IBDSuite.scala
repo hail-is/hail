@@ -45,7 +45,7 @@ class IBDSuite extends SparkSuite {
     }
   }
 
-  private def runPlinkIBD(vds: VariantDataset,
+  private def runPlinkIBD(vds: VariantSampleMatrix,
     min: Option[Double] = None,
     max: Option[Double] = None): Map[(Annotation, Annotation), ExtendedIBDInfo] = {
 

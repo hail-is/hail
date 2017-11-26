@@ -124,7 +124,7 @@ object PlinkLoader {
     variants: Array[(Variant, String)],
     nPartitions: Option[Int] = None,
     a2Reference: Boolean = true,
-    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
 
     val sc = hc.sc
     val nSamples = sampleIds.length
@@ -157,7 +157,7 @@ object PlinkLoader {
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-    nPartitions: Option[Int] = None, a2Reference: Boolean = true, gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    nPartitions: Option[Int] = None, a2Reference: Boolean = true, gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
     val nSamples = sampleInfo.length
     if (nSamples <= 0)

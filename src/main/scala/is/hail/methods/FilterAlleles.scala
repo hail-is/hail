@@ -12,7 +12,7 @@ object FilterAlleles {
   def apply(vsm: VariantSampleMatrix, filterExpr: String,
     variantExpr: String = "",
     genotypeExpr: String = "",
-    keep: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantDataset = {
+    keep: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantSampleMatrix = {
     if (vsm.wasSplit)
       warn("this VDS was already split; this module was designed to handle multi-allelics, perhaps you should use filter_variants instead.")
 

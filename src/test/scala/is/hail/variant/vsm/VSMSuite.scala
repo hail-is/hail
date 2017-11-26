@@ -263,7 +263,7 @@ class VSMSuite extends SparkSuite {
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
     val minimumRSquareValue = 0.7
 
-    def vsmOfSize(size: Int): VariantDataset = {
+    def vsmOfSize(size: Int): VariantSampleMatrix = {
       val parameters = Parameters.default.copy(size = size, count = 1)
       VariantSampleMatrix.gen(hc, VSMSubgen.random).apply(parameters)
     }
@@ -425,7 +425,7 @@ class VSMSuite extends SparkSuite {
     val filteredVds = vds.filterSamplesList(origOrder.toSet)
     val reorderedVds = filteredVds.reorderSamples(newOrder)
 
-    def getGenotypes(vds: VariantDataset): RDD[((Variant, Annotation), Genotype)] = {
+    def getGenotypes(vds: VariantSampleMatrix): RDD[((Variant, Annotation), Genotype)] = {
       val sampleIds = vds.sampleIds
       vds.typedRDD[Locus, Variant, Genotype].flatMap { case (v, (_, gs)) =>
         gs.zip(sampleIds).map { case (g, s) =>

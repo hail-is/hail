@@ -14,7 +14,7 @@ object BaldingNicholsModel {
   def apply(hc: HailContext, nPops: Int, nSamples: Int, nVariants: Int,
     popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
     seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution,
-    gr: GenomeReference = GenomeReference.defaultReference): VariantDataset = {
+    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
 
     val sc = hc.sc
 

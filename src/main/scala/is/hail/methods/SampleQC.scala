@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.annotations.Annotation
 import is.hail.expr.{TStruct, _}
 import is.hail.utils._
-import is.hail.variant.{AltAlleleType, GenericDataset, Genotype, HTSGenotypeView, Variant, VariantSampleMatrix}
+import is.hail.variant.{AltAlleleType, Genotype, HTSGenotypeView, Variant, VariantSampleMatrix}
 import org.apache.spark.util.StatCounter
 
 object SampleQCCombiner {

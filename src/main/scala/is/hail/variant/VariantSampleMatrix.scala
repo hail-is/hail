@@ -166,7 +166,7 @@ object VariantSampleMatrix {
   def gen(hc: HailContext, gen: VSMSubgen): Gen[VariantSampleMatrix] =
     gen.gen(hc)
 
-  def genGeneric(hc: HailContext): Gen[GenericDataset] =
+  def genGeneric(hc: HailContext): Gen[VariantSampleMatrix] =
     VSMSubgen(
       sSigGen = Type.genArb,
       saSigGen = Type.genArb,

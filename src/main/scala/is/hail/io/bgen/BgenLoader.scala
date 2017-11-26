@@ -21,7 +21,7 @@ case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: I
 object BgenLoader {
 
   def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
-    tolerance: Double, nPartitions: Option[Int] = None, gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    tolerance: Double, nPartitions: Option[Int] = None, gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
     require(files.nonEmpty)
     val sampleIds = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
       .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))

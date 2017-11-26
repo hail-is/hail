@@ -30,7 +30,7 @@ object ComputeGramian {
 // diagonal values are approximately 1 assuming independent variants by Central Limit Theorem
 object ComputeRRM {
 
-  def apply(vds: VariantDataset, forceBlock: Boolean = false, forceGramian: Boolean = false): (IndexedRowMatrix, Long) = {
+  def apply(vds: VariantSampleMatrix, forceBlock: Boolean = false, forceGramian: Boolean = false): (IndexedRowMatrix, Long) = {
     def scaleMatrix(matrix: Matrix, scalar: Double): Matrix = {
       Matrices.dense(matrix.numRows, matrix.numCols, matrix.toArray.map(_ * scalar))
     }
@@ -70,7 +70,7 @@ object LocalDenseMatrixToIndexedRowMatrix {
 
 // each row has mean 0, norm sqrt(n), variance 1, constant variants are dropped
 object ToNormalizedRowMatrix {
-  def apply(vds: VariantDataset): RowMatrix = {
+  def apply(vds: VariantSampleMatrix): RowMatrix = {
     require(vds.wasSplit)
 
     val n = vds.nSamples
@@ -92,7 +92,7 @@ object ToNormalizedRowMatrix {
 
 // each row has mean 0, norm sqrt(n), variance 1
 object ToNormalizedIndexedRowMatrix {
-  def apply(vds: VariantDataset): IndexedRowMatrix = {
+  def apply(vds: VariantSampleMatrix): IndexedRowMatrix = {
     require(vds.wasSplit)
     val n = vds.nSamples
 

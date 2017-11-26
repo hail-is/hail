@@ -391,7 +391,7 @@ class AggregatorSuite extends SparkSuite {
     val rng = new RandomDataGenerator()
     rng.reSeed(Prop.seed)
 
-    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantSampleMatrix) =>
       val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => g.gq).map(g => [g.dp, g.gq])",
         "gs.map(g => [g.dp, g.gq]).takeBy(x => x[1], 10)"))
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
@@ -410,7 +410,7 @@ class AggregatorSuite extends SparkSuite {
     val rng = new RandomDataGenerator()
     rng.reSeed(Prop.seed)
 
-    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantSampleMatrix) =>
       val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => g.gq).map(g => [g.dp, g.gq])",
         "gs.map(g => [g.dp, g.gq]).takeBy(x => g.gq, 10)"))
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]

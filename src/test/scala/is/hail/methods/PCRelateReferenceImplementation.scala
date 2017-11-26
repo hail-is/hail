@@ -3,10 +3,10 @@ package is.hail.methods
 import breeze.linalg.{DenseMatrix => BDM, _}
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
-import is.hail.variant.{Genotype, Locus, Variant, VariantDataset}
+import is.hail.variant.{Genotype, Locus, Variant, VariantSampleMatrix}
 
 object PCRelateReferenceImplementation {
-  def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double = 0.0): (Map[(String, String), (Double, Double, Double, Double)], BDM[Double], BDM[Double], BDM[Double]) = {
+  def apply(vds: VariantSampleMatrix, pcs: DenseMatrix, maf: Double = 0.0): (Map[(String, String), (Double, Double, Double, Double)], BDM[Double], BDM[Double], BDM[Double]) = {
     val indexToId: Map[Int, String] = vds.stringSampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
 
     val gts = vds.typedRDD[Locus, Variant, Genotype].zipWithIndex.map { case ((v, (va, gs)), i) =>

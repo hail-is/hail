@@ -93,7 +93,7 @@ class TextTableSuite extends SparkSuite {
   @Test def testAnnotationsReadWrite() {
     val outPath = tmpDir.createTempFile("annotationOut", ".tsv")
     val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)
-      .filter(vds => vds.countVariants > 0 && !vds.vaSignature.isOfType(TFloat64()))) { vds: VariantDataset =>
+      .filter(vds => vds.countVariants > 0 && !vds.vaSignature.isOfType(TFloat64()))) { vds: VariantSampleMatrix =>
 
       vds.variantsKT().export(outPath, typesFile = outPath + ".types")
 
