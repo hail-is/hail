@@ -200,14 +200,15 @@ object BaldingNicholsModel {
       TVariant(gr),
       vaSignature,
       TStruct.empty(),
-      TStruct("GT" -> TCall()))
+      TStruct("GT" -> TCall()),
+      wasSplit = true)
 
     val matrixType = MatrixType(vsmMetadata)
 
     // FIXME: should use fast keys
     val ordrdd = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
 
-    new VariantDataset(hc,
+    new VariantSampleMatrix(hc,
       vsmMetadata,
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
       ordrdd)
