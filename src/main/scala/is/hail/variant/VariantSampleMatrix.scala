@@ -2014,7 +2014,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       val rv2b = new RegionValueBuilder()
       val rv2 = RegionValue()
       it.flatMap { rv =>
-        val rvEnd = rv.region.end
+        val rvEnd = rv.region.size
         rv2b.set(rv.region)
         val gsOffset = localRowType.loadField(rv, 3)
         (0 until localNSamples).iterator.map { i =>

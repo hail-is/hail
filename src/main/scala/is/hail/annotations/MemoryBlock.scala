@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
+import java.util
 
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
@@ -9,114 +10,111 @@ import is.hail.utils._
 import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 
-import scala.collection.mutable
-
 object MemoryBuffer {
   def apply(sizeHint: Long = 128): MemoryBuffer = {
-    new MemoryBuffer(Memory.malloc(sizeHint), sizeHint)
+    new MemoryBuffer(new Array[Byte](sizeHint.toInt))
   }
 }
 
-final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) extends KryoSerializable with Serializable {
-  def size: Long = offset
+final class MemoryBuffer(private var mem: Array[Byte], private var end: Long = 0) extends KryoSerializable with Serializable {
+  def size: Long = end
 
-  // TODO rename offset => end, length => capacity
-  def end: Long = offset
+  def capacity: Long = mem.length
 
   def copyFrom(other: MemoryBuffer, readStart: Long, writeStart: Long, n: Long) {
-    assert(size <= length)
-    assert(other.size <= other.length)
+    assert(size <= capacity)
+    assert(other.size <= other.capacity)
     assert(n >= 0)
     assert(readStart >= 0 && readStart + n <= other.size)
     assert(writeStart >= 0 && writeStart + n <= size)
-    Memory.memcpy(mem + writeStart, other.mem + readStart, n)
+    Memory.memcpy(mem, writeStart, other.mem, readStart, n)
   }
 
   def loadInt(off: Long): Int = {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 4 <= size)
-    Memory.loadInt(mem + off)
+    Memory.loadInt(mem, off)
   }
 
   def loadLong(off: Long): Long = {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 8 <= size)
-    Memory.loadLong(mem + off)
+    Memory.loadLong(mem, off)
   }
 
   def loadFloat(off: Long): Float = {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 4 <= size)
-    Memory.loadFloat(mem + off)
+    Memory.loadFloat(mem, off)
   }
 
   def loadDouble(off: Long): Double = {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 8 <= size)
-    Memory.loadDouble(mem + off)
+    Memory.loadDouble(mem, off)
   }
 
   def loadAddress(off: Long): Long = {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 8 <= size)
-    Memory.loadAddress(mem + off)
+    Memory.loadAddress(mem, off)
   }
 
   def loadByte(off: Long): Byte = {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 1 <= size)
-    Memory.loadByte(mem + off)
+    Memory.loadByte(mem, off)
   }
 
   def loadBytes(off: Long, n: Int): Array[Byte] = {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + n <= size)
     val a = new Array[Byte](n)
-    Memory.copyToArray(a, 0, mem + off, n)
+    Memory.memcpy(a, 0, mem, off, n)
     a
   }
 
-  def loadBytes(off: Long, n: Long, dst: Array[Byte]) {
-    assert(size <= length)
+  def loadBytes(off: Long, to: Array[Byte], toOff: Long, n: Long) {
+    assert(size <= capacity)
     assert(off >= 0 && off + n <= size)
-    assert(n <= dst.length)
-    Memory.copyToArray(dst, 0, mem + off, n)
+    assert(toOff + n <= to.length)
+    Memory.memcpy(to, toOff, mem, off, n)
   }
 
   def storeInt(off: Long, i: Int) {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 4 <= size)
-    Memory.storeInt(mem + off, i)
+    Memory.storeInt(mem, off, i)
   }
 
   def storeLong(off: Long, l: Long) {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 8 <= size)
-    Memory.storeLong(mem + off, l)
+    Memory.storeLong(mem, off, l)
   }
 
   def storeFloat(off: Long, f: Float) {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 4 <= size)
-    Memory.storeFloat(mem + off, f)
+    Memory.storeFloat(mem, off, f)
   }
 
   def storeDouble(off: Long, d: Double) {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 8 <= size)
-    Memory.storeDouble(mem + off, d)
+    Memory.storeDouble(mem, off, d)
   }
 
   def storeAddress(off: Long, a: Long) {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 8 <= size)
-    Memory.storeAddress(mem + off, a)
+    Memory.storeAddress(mem, off, a)
   }
 
   def storeByte(off: Long, b: Byte) {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + 1 <= size)
-    Memory.storeByte(mem + off, b)
+    Memory.storeByte(mem, off, b)
   }
 
   def storeBytes(off: Long, bytes: Array[Byte]) {
@@ -124,32 +122,31 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
   }
 
   def storeBytes(off: Long, bytes: Array[Byte], bytesOff: Long, n: Int) {
-    assert(size <= length)
+    assert(size <= capacity)
     assert(off >= 0 && off + n <= size)
     assert(bytesOff + n <= bytes.length)
-    Memory.copyFromArray(mem + off, bytes, bytesOff, n)
+    Memory.memcpy(mem, off, bytes, bytesOff, n)
   }
 
   def ensure(n: Long) {
     val required = size + n
-    if (length < required) {
-      val newLength = (length * 2).max(required)
-      mem = Memory.realloc(mem, newLength)
-      length = newLength
+    if (capacity < required) {
+      val newLength = (capacity * 2).max(required)
+      mem = util.Arrays.copyOf(mem, newLength.toInt)
     }
   }
 
   def align(alignment: Long) {
     assert(alignment > 0)
     assert((alignment & (alignment - 1)) == 0) // power of 2
-    offset = (offset + (alignment - 1)) & ~(alignment - 1)
+    end = (end + (alignment - 1)) & ~(alignment - 1)
   }
 
   def allocate(n: Long): Long = {
     assert(n >= 0)
-    val off = offset
+    val off = end
     ensure(n)
-    offset += n
+    end += n
     off
   }
 
@@ -219,83 +216,56 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
 
   def clear(newEnd: Long) {
     assert(newEnd <= end)
-    offset = newEnd
+    end = newEnd
   }
 
   def clear() {
-    offset = 0
+    end = 0
   }
 
   def setFrom(from: MemoryBuffer) {
-    if (from.offset > length) {
-      Memory.free(mem)
-
-      val newLength = math.max((length * 3) / 2, from.offset)
-      mem = Memory.malloc(newLength)
-      length = newLength
+    if (from.end > capacity) {
+      val newLength = math.max((capacity * 3) / 2, from.end)
+      mem = new Array[Byte](newLength.toInt)
     }
-    Memory.memcpy(mem, from.mem, from.offset)
-    offset = from.offset
+    Memory.memcpy(mem, 0, from.mem, 0, from.end)
+    end = from.end
   }
 
   def copy(): MemoryBuffer = {
-    val newMem = Memory.malloc(offset)
-    Memory.memcpy(newMem, mem, offset)
-    new MemoryBuffer(newMem, offset, offset)
-  }
-
-  override def finalize() {
-    Memory.free(mem)
+    new MemoryBuffer(util.Arrays.copyOf(mem, end.toInt), end)
   }
 
   override def write(kryo: Kryo, output: Output) {
-    output.writeLong(offset)
+    output.writeLong(end)
 
-    assert(offset <= Int.MaxValue)
-    val smallOffset = offset.toInt
-    val a = new Array[Byte](smallOffset)
-
-    Memory.memcpy(a, 0, mem, offset)
-
-    output.write(a)
+    assert(end <= Int.MaxValue)
+    val smallEnd = end.toInt
+    output.write(mem, 0, smallEnd)
   }
 
   override def read(kryo: Kryo, input: Input) {
-    offset = input.readLong()
-    assert(offset <= Int.MaxValue)
-    val smallOffset = offset.toInt
-    val inMem = new Array[Byte](smallOffset)
-    input.read(inMem)
-
-    mem = Memory.malloc(offset)
-    length = offset
-
-    Memory.memcpy(mem, inMem, 0, offset)
+    end = input.readLong()
+    assert(end <= Int.MaxValue)
+    val smallEnd = end.toInt
+    mem = new Array[Byte](smallEnd)
+    input.read(mem)
   }
 
   private def writeObject(out: ObjectOutputStream) {
-    out.writeLong(offset)
+    out.writeLong(end)
 
-    assert(offset <= Int.MaxValue)
-    val smallOffset = offset.toInt
-    val a = new Array[Byte](smallOffset)
-
-    Memory.memcpy(a, 0, mem, offset)
-
-    out.write(a)
+    assert(end <= Int.MaxValue)
+    val smallEnd = end.toInt
+    out.write(mem, 0, smallEnd)
   }
 
   private def readObject(in: ObjectInputStream) {
-    offset = in.readLong()
-    assert(offset <= Int.MaxValue)
-    val smallOffset = offset.toInt
-    val inMem = new Array[Byte](smallOffset)
-    in.read(inMem)
-
-    mem = Memory.malloc(offset)
-    length = offset
-
-    Memory.memcpy(mem, inMem, 0, offset)
+    end = in.readLong()
+    assert(end <= Int.MaxValue)
+    val smallOffset = end.toInt
+    mem = new Array[Byte](smallOffset)
+    in.read(mem)
   }
 
   def visit(t: Type, off: Long, v: ValueVisitor) {
@@ -720,7 +690,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     assert(currentType().isInstanceOf[TBinary])
 
     region.align(TBinary.contentAlignment)
-    val boff = region.offset
+    val boff = region.size
     region.appendInt(bytes.length)
     region.appendBytes(bytes)
 
