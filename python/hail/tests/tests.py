@@ -1219,4 +1219,4 @@ class ContextTests(unittest.TestCase):
         kt = KeyTable.range(10)
         kt = kt.annotate_global_expr('foo = [1,2,3]')
         kt = kt.annotate_global('bar', [4, 5, 6], TArray(TInt32()))
-        self.assertEqual(kt.filter('foo.contains(index) || bar.contains(index)').count(), 4)
+        self.assertEqual(kt.filter('foo.exists(x => x == index) || bar.exists(x => x == index)').count(), 6)

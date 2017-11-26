@@ -1718,8 +1718,8 @@ class KeyTable(HistoryMixin):
         Add populations as a global field:
 
         >>> kt_result = kt.annotate_global('pops',
-    ...                                    ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
-    ...                                    TArray(TString()))
+        ...                                ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
+        ...                                TArray(TString()))
 
         :param str name: Name of global field.
 
@@ -1734,7 +1734,7 @@ class KeyTable(HistoryMixin):
         annotation_type._typecheck(annotation)
 
         annotated = self._jkt.annotateGlobal(annotation_type._convert_to_j(annotation), annotation_type._jtype, name)
-        assert annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking'
+        assert annotated.globalSignature().typeCheck(annotated.globals()), 'error in java type checking'
         return KeyTable(self.hc, annotated)
 
     @record_method
