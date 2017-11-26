@@ -26,7 +26,7 @@ object Annotation {
       case r: Row =>
         "Struct:\n" +
           r.toSeq.zipWithIndex.map { case (elem, index) =>
-            s"""$spaces[$index] ${printAnnotation(elem, nSpace + 4)}"""
+            s"""$spaces[$index] ${ printAnnotation(elem, nSpace + 4) }"""
           }
             .mkString("\n")
       case a => a.toString + ": " + a.getClass.getSimpleName
@@ -66,7 +66,7 @@ object Annotation {
 
         case TSet(elementType, _) =>
           (a.asInstanceOf[Set[_]]
-            .toArray[Any] : IndexedSeq[_])
+            .toArray[Any]: IndexedSeq[_])
             .map(expandAnnotation(_, elementType))
 
         case TDict(keyType, valueType, _) =>
@@ -155,6 +155,9 @@ object Annotation {
   }
 
   def copy(t: Type, a: Annotation): Annotation = {
+    if (a == null)
+      return null
+
     t match {
       case t: TStruct =>
         val region = MemoryBuffer()
