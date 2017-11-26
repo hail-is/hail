@@ -3,6 +3,7 @@ package is.hail.stats
 import breeze.stats._
 import is.hail.SparkSuite
 import is.hail.variant.{Genotype, Locus, Variant}
+import is.hail.variant.{Call, Genotype}
 import org.apache.spark.sql.Row
 import org.testng.Assert.assertEquals
 import org.testng.annotations.Test
@@ -25,6 +26,9 @@ class BaldingNicholsModelSuite extends SparkSuite {
     assert(bnm1.rdd.collect().toSeq == bnm2.rdd.collect().toSeq)
     assert(bnm1.globalAnnotation == bnm2.globalAnnotation)
     assert(bnm1.sampleAnnotations == bnm2.sampleAnnotations)
+
+    bnm1.typecheck()
+    bnm2.typecheck()
   }
 
   @Test def testDimensions()  {
@@ -75,7 +79,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
       //Test genotype distributions
       val meanGeno_mk = bnm.typedRDD[Locus, Variant]
         .map(_._2._2.zip(popArray).groupBy(_._2).toSeq.sortBy(_._1))
-        .map(_.map(popIterPair => mean(popIterPair._2.map(x => Genotype.gt(x._1).get.toDouble))).toArray)
+        .map(_.map(popIterPair => mean(popIterPair._2.map(x => x._1.asInstanceOf[Row].getAs[Call](0).toDouble))).toArray)
         .collect()
 
       val p_mk = arrayOfVATuples.map(_._2.toArray)
