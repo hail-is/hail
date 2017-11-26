@@ -419,10 +419,6 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(var.key, ['v'])
         sample_split.annotate_variants_table(var, root='va.mendel').count()
 
-        (sample_split.annotate_variants_expr('va.AF = gs.callStats(g => v).AF[1]')
-            .de_novo(Pedigree.read(test_resources + '/sample.fam'), 'va.AF')
-            .query(['probandGt.map(g => g.gq).stats().mean', 'variant.count()', 'pDeNovo.stats().mean']))
-
         sample_split.pca('sa.scores')
 
         sample_split.tdt(Pedigree.read(test_resources + '/sample.fam'))
