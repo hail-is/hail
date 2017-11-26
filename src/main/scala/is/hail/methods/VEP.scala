@@ -296,7 +296,7 @@ object VEP {
     val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path).getOrElse("") else ""
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
-    val annotations = vsm.typedRDD[Locus, Variant, Annotation]
+    val annotations = vsm.rdd2
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
@@ -306,14 +306,15 @@ object VEP {
           env.put("PATH", path)
 
         it
+          .map { rv => Variant.fromRegionValue(rv) }
           .grouped(localBlockSize)
           .flatMap { block =>
-            val (jt, proc) = block.iterator.map { case (v, (va, gs)) => v }.pipe(pb,
+            val (jt, proc) = block.iterator.pipe(pb,
               printContext,
               printElement,
               _ => ())
 
-            val nonStarToOriginalVariant = block.map { case (v, (va, gs)) =>
+            val nonStarToOriginalVariant = block.map { v =>
               (v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")), v)
             }.toMap
 
