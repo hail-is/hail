@@ -93,7 +93,7 @@ abstract class OutputBuffer {
 
   def writeDouble(d: Double): Unit
 
-  def writeBytes(mem: Long, off: Long, n: Int): Unit
+  def writeBytes(region: MemoryBuffer, off: Long, n: Int): Unit
 
   def writeBoolean(b: Boolean) {
     writeByte(b.toByte)
@@ -177,21 +177,21 @@ class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
     off += 8
   }
 
-  def writeBytes(from0: Long, from0Off: Long, n0: Int) {
+  def writeBytes(fromRegion: MemoryBuffer, fromOff0: Long, n0: Int) {
     assert(n0 >= 0)
-    var from = from0 + from0Off
+    var fromOff = fromOff0
     var n = n0
 
     while (off + n > buf.length) {
       val p = buf.length - off
-      Memory.memcpy(buf, off, from, p)
+      fromRegion.loadBytes(fromOff, buf, off, p)
       off += p
-      from += p
+      fromOff += p
       n -= p
       assert(off == buf.length)
       writeBlock()
     }
-    Memory.memcpy(buf, off, from, n)
+    fromRegion.loadBytes(fromOff, buf, off, n)
     off += n
   }
 }
@@ -207,7 +207,7 @@ abstract class InputBuffer {
 
   def readDouble(): Double
 
-  def readBytes(to: Long, toOff: Long, n: Int)
+  def readBytes(toRegion: MemoryBuffer, toOff: Long, n: Int)
 
   def readBoolean(): Boolean = readByte() != 0
 }
@@ -296,9 +296,9 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
     d
   }
 
-  def readBytes(to0: Long, toOff0: Long, n0: Int) {
+  def readBytes(toRegion: MemoryBuffer, toOff0: Long, n0: Int) {
     assert(n0 >= 0)
-    var to = to0 + toOff0
+    var toOff = toOff0
     var n = n0
 
     while (n > 0) {
@@ -306,8 +306,8 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
         readBlock()
       val p = math.min(end - off, n)
       assert(p > 0)
-      Memory.memcpy(to, buf, off, p)
-      to += p
+      toRegion.storeBytes(toOff, buf, off, p)
+      toOff += p
       n -= p
       off += p
     }
@@ -323,7 +323,7 @@ final class Decoder(in: InputBuffer) {
     val boff = region.allocate(4 + length)
     region.storeAddress(off, boff)
     region.storeInt(boff, length)
-    in.readBytes(region.mem, boff + 4, length)
+    in.readBytes(region, boff + 4, length)
   }
 
   def readArray(t: TArray, region: MemoryBuffer): Long = {
@@ -336,7 +336,7 @@ final class Decoder(in: InputBuffer) {
     region.storeInt(aoff, length)
     if (!t.elementType.required) {
       val nMissingBytes = (length + 7) >>> 3
-      in.readBytes(region.mem, aoff + 4, nMissingBytes)
+      in.readBytes(region, aoff + 4, nMissingBytes)
     }
 
     val elemsOff = aoff + t.elementsOffset(length)
@@ -377,7 +377,7 @@ final class Decoder(in: InputBuffer) {
 
   def readStruct(t: TStruct, region: MemoryBuffer, offset: Long) {
     val nMissingBytes = t.nMissingBytes
-    in.readBytes(region.mem, offset, nMissingBytes)
+    in.readBytes(region, offset, nMissingBytes)
 
     var i = 0
     while (i < t.size) {
@@ -425,7 +425,7 @@ final class Encoder(out: OutputBuffer) {
     val boff = region.loadAddress(offset)
     val length = region.loadInt(boff)
     out.writeInt(length)
-    out.writeBytes(region.mem, boff + 4, length)
+    out.writeBytes(region, boff + 4, length)
   }
 
   def writeArray(t: TArray, region: MemoryBuffer, aoff: Long) {
@@ -434,7 +434,7 @@ final class Encoder(out: OutputBuffer) {
     out.writeInt(length)
     if (!t.elementType.required) {
       val nMissingBytes = (length + 7) >>> 3
-      out.writeBytes(region.mem, aoff + 4, nMissingBytes)
+      out.writeBytes(region, aoff + 4, nMissingBytes)
     }
 
     val elemsOff = aoff + t.elementsOffset(length)
@@ -471,7 +471,7 @@ final class Encoder(out: OutputBuffer) {
 
   def writeStruct(t: TStruct, region: MemoryBuffer, offset: Long) {
     val nMissingBytes = t.nMissingBytes
-    out.writeBytes(region.mem, offset, nMissingBytes)
+    out.writeBytes(region, offset, nMissingBytes)
 
     var i = 0
     while (i < t.size) {
