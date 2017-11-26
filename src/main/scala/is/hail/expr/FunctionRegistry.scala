@@ -2041,7 +2041,7 @@ object FunctionRegistry {
       }
       i += 1
     }
-    new TruncatedArrayIndexedSeq(b.underlying(), b.length)
+    new TruncatedArrayIndexedSeq(b.underlying(), b.length): IndexedSeq[Any]
   },
     """
     Returns a new array subsetted to the elements where ``expr`` evaluates to true.
