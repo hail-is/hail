@@ -23,7 +23,6 @@ import org.json4s.jackson.JsonMethods
 
 case class MetaData(docstring: Option[String], args: Seq[(String, String)] = Seq.empty[(String, String)])
 
-
 object FunctionRegistry {
 
   sealed trait LookupError {
@@ -962,7 +961,20 @@ object FunctionRegistry {
   registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null }, meanDocstring)(float32Hr, boxedFloat64Hr)
   registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null }, meanDocstring)(float64Hr, boxedFloat64Hr)
 
-  register("range", { (x: Int) => 0 until x: IndexedSeq[Int] },
+  register("range", { (x: Int) =>
+    val a = if (x <= 0) {
+      new Array[Int](0)
+    } else {
+      val a = new Array[Int](x)
+      var i = 0
+      while (i < x) {
+        a(i) = i
+        i += 1
+      }
+      a
+    }
+    a: IndexedSeq[Int]
+  },
     """
     Generate an ``Array`` with values in the interval ``[0, stop)``.
 
@@ -973,7 +985,21 @@ object FunctionRegistry {
         result: [0, 1, 2]
     """,
     "stop" -> "Number of integers (whole numbers) to generate, starting from zero.")
-  register("range", { (x: Int, y: Int) => x until y: IndexedSeq[Int] },
+  register("range", { (x: Int, y: Int) =>
+    val a = if (y <= x) {
+      new Array[Int](0)
+    } else {
+      val l = y - x
+      val a = new Array[Int](l)
+      var i = 0
+      while (i < l) {
+        a(i) = x + i
+        i += 1
+      }
+      a
+    }
+    a: IndexedSeq[Int]
+  },
     """
     Generate an ``Array`` with values in the interval ``[start, stop)``.
 
@@ -985,7 +1011,7 @@ object FunctionRegistry {
     """,
     "start" -> "Starting number of the sequence.",
     "stop" -> "Generate numbers up to, but not including this number.")
-  register("range", { (x: Int, y: Int, step: Int) => x until y by step: IndexedSeq[Int] },
+  register("range", { (x: Int, y: Int, step: Int) => (x until y by step).toArray: IndexedSeq[Int] },
     """
     Generate an ``Array`` with values in the interval ``[start, stop)`` in increments of step.
 
@@ -999,7 +1025,7 @@ object FunctionRegistry {
     "stop" -> "Generate numbers up to, but not including this number.",
     "step" -> "Difference between each number in the sequence.")
 
-  register("Call", { (gt: java.lang.Integer) => gt },
+  registerCode("Call", (gt: Code[java.lang.Integer]) => CM.ret(gt),
     """
     Construct a :ref:`call` from an integer.
     """, "gt" -> "integer")(boxedInt32Hr, callHr)
@@ -1847,8 +1873,17 @@ object FunctionRegistry {
     "expr" -> "Lambda expression."
   )(setHr(TTHr), unaryHr(TTHr, boolHr), TTHr)
 
-  registerLambdaMethod("map", (a: IndexedSeq[Any], f: (Any) => Any) =>
-    a.map(f),
+  registerLambdaMethod("map", (a: IndexedSeq[Any], f: (Any) => Any) => {
+    val l = a.length
+    val r = new Array[Any](a.length)
+    var i = 0
+    while (i < l) {
+      r(i) = f(a(i))
+      i += 1
+    }
+
+    r: IndexedSeq[Any]
+  },
     """
     Returns a new array produced by applying ``expr`` to each element.
 
@@ -1993,11 +2028,21 @@ object FunctionRegistry {
     "expr" -> "Lambda expression."
   )(setHr(TTHr), unaryHr(TTHr, boolHr), boolHr)
 
-  registerLambdaMethod("filter", (a: IndexedSeq[Any], f: (Any) => Any) =>
-    a.filter { x =>
-      val r = f(x)
-      r != null && r.asInstanceOf[Boolean]
-    },
+  registerLambdaMethod("filter", (a: IndexedSeq[Any], f: (Any) => Any) => {
+    val b = new ArrayBuilder[Any](
+      math.min(a.length, ArrayBuilder.defaultInitialCapacity))
+    val l = a.length
+    var i = 0
+    while (i < l) {
+      val x = a(i)
+      val p = f(x)
+      if (p != null && p.asInstanceOf[Boolean]) {
+        b += x
+      }
+      i += 1
+    }
+    new TruncatedArrayIndexedSeq(b.underlying(), b.length)
+  },
     """
     Returns a new array subsetted to the elements where ``expr`` evaluates to true.
 

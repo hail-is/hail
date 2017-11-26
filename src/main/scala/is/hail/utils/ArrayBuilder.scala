@@ -2,11 +2,15 @@ package is.hail.utils
 
 import scala.reflect.ClassTag
 
+object ArrayBuilder {
+  final val defaultInitialCapacity: Int = 16
+}
+
 final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) {
   private var b: Array[T] = new Array[T](initialCapacity)
   private var size_ : Int = 0
 
-  def this()(implicit tct: ClassTag[T]) = this(16)
+  def this()(implicit tct: ClassTag[T]) = this(ArrayBuilder.defaultInitialCapacity)
 
   def size: Int = size_
 
@@ -57,4 +61,6 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
     Array.copy(b, 0, r, 0, size_)
     r
   }
+
+  def underlying(): Array[T] = b
 }
