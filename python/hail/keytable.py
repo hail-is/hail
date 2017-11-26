@@ -1691,7 +1691,7 @@ class KeyTable(HistoryMixin):
 
         Annotate global with an array of populations:
 
-        >>> kt = kt.annotate_global_expr('pops = ["FIN", "AFR", "EAS", "NFE"]')
+        >>> kt_result = kt1.annotate_global_expr('pops = ["FIN", "AFR", "EAS", "NFE"]')
 
         :param expr: Annotation expression
         :type expr: str or list of str
@@ -1717,9 +1717,9 @@ class KeyTable(HistoryMixin):
 
         Add populations as a global field:
 
-        >>> kt_result = kt.annotate_global('pops',
-        ...                                ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
-        ...                                TArray(TString()))
+        >>> kt_result = kt1.annotate_global('pops',
+        ...                                 ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
+        ...                                 TArray(TString()))
 
         :param str name: Name of global field.
 
