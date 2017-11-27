@@ -233,6 +233,7 @@ g = let
 
     val bedHeader = Array[Byte](108, 27, 1)
 
+    // FIXME: don't reevaluate the upstream RDD twice
     vsm.rdd2.mapPartitions(
       ExportBedBimFam.bedRowTransformer(vsm.nSamples, vsm.rdd2.typ.rowType)
     ).saveFromByteArrays(path + ".bed", vsm.hc.tmpDir, header = Some(bedHeader))
