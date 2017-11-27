@@ -28,6 +28,7 @@ class RegionValueVariant(tv: TVariant) extends IVariant with View {
     this.offset = offset
     cachedContig = null
     cachedRef = null
+    cachedAltAlleles = null
   }
 
   def getOffset(): Long = offset
