@@ -1,5 +1,6 @@
 package is.hail
 
+import is.hail.annotations._
 import scala.language.implicitConversions
 import is.hail.asm4s.Code
 
@@ -17,6 +18,16 @@ package object expr extends HailRepFunctions {
     def result: S
 
     def copy(): TypedAggregator[S]
+  }
+
+  trait RegionValueAggregator extends Serializable {
+    def typ: Type
+
+    def seqOp(region: MemoryBuffer, off: Long, missing: Boolean): Unit
+
+    def combOp(agg2: RegionValueAggregator): Unit
+
+    def result(region: MemoryBuffer): Long
   }
 
   implicit def toRichParser[T](parser: Parser.Parser[T]): RichParser[T] = new RichParser(parser)
