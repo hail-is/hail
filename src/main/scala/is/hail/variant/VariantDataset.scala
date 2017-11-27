@@ -389,19 +389,6 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
     KinshipMatrix(vsm.hc, vsm.sSignature, rrm, vsm.sampleIds.toArray, m)
   }
 
-  def deNovo(ped: Pedigree,
-    referenceAF: String,
-    minGQ: Int = 20,
-    minPDeNovo: Double = 0.05,
-    maxParentAB: Double = 0.05,
-    minChildAB: Double = 0.20,
-    minDepthRatio: Double = 0.10): KeyTable = {
-    require(vsm.wasSplit)
-    vsm.requireColKeyString("de novo")
-
-    DeNovo(vsm, ped, referenceAF, minGQ, minPDeNovo, maxParentAB, minChildAB, minDepthRatio)
-  }
-
   /**
     *
     * @param config    VEP configuration file
