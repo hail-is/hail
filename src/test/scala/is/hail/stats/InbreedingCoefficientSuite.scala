@@ -32,7 +32,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
     val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
       .map { vds =>
-        val gr = vds.vSignature.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference]
+        val gr = vds.genomeReference
         vds.filterVariants { case (v1, va, gs) =>
         val v = v1.asInstanceOf[Variant]
         v.isAutosomalOrPseudoAutosomal(gr) && v.contig.toUpperCase != "X" && v.contig.toUpperCase != "Y"

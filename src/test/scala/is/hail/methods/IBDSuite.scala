@@ -100,7 +100,7 @@ class IBDSuite extends SparkSuite {
     val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
       .map { vds =>
-        val gr = vds.vSignature.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference]
+        val gr = vds.genomeReference
         vds.filterVariants { case (v, va, gs) => v.asInstanceOf[Variant].isAutosomalOrPseudoAutosomal(gr) }
       }
       .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)

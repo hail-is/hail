@@ -4,7 +4,7 @@ import is.hail
 import is.hail.annotations.MemoryBuffer
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype, Variant, VariantSampleMatrix}
+import is.hail.variant.{Genotype, Variant, VariantSampleMatrix}
 
 import scala.io.Source
 import scala.reflect.ClassTag
@@ -232,7 +232,7 @@ object ExportVCF {
       } else
         TStruct.empty()
     
-    val gr = vsm.vSignature.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference]
+    val gr = vsm.genomeReference
     val assembly = gr.name
     
     val localNSamples = vsm.nSamples
