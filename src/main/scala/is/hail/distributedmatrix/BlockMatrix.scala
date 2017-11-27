@@ -777,6 +777,7 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
       val dos = new DataOutputStream(sHadoopBc.value.value.unsafeWriter(filename))      
       dos.writeInt(nRowsInBlock)
       dos.writeInt(nColsInBlock)
+      dos.writeBoolean(true) // transposed
       
       dos
     }
@@ -788,16 +789,15 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
       val firstIndexToCopy = math.max(0, firstRowInBlock - firstRowInParent).toInt
       val lastIndexToCopy = (math.min(lastRowInBlock, lastRowInParent) - firstRowInParent).toInt
       
-      val indexedRowsInParent = irm.rows.iterator(parentPartitions(parent), context)
+      val indexedRows = irm.rows.iterator(parentPartitions(parent), context)
         
       var i = 0
       while (i < firstIndexToCopy) {
-        indexedRowsInParent.next()
+        indexedRows.next()
         i += 1
       }
-      
       while (i < lastIndexToCopy) {
-        val indexedRow = indexedRowsInParent.next()
+        val indexedRow = indexedRows.next()
         assert(indexedRow.index == firstRowInParent + i)
 
         var blockColIndex = 0
@@ -805,20 +805,26 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
         var j = 0
         while (blockColIndex < gp.colPartitions) {
           val dos = dosArray(blockColIndex)
-          lastColInBlock += (if (blockColIndex == truncatedBlockCol) excessCols else blockSize) // move up
+          lastColInBlock += (if (blockColIndex != truncatedBlockCol) blockSize else excessCols)
           while (j < lastColInBlock) {
             dos.writeDouble(indexedRow.vector(j))            
             j += 1
           }
           blockColIndex += 1
         }
-
-        //System.arraycopy(indexedRow.vector.toArray, firstColInBlock, data0, offset, nColsInBlock)
-
-        //offset += nColsInBlock
         i += 1
-      }    
-      
+      }
+    }
+    
+    dosArray.foreach(_.close())
+    
+    Iterator.single(gp.colPartitions) // number of blocks written
+  }
+}
+
+
+//      System.arraycopy(indexedRow.vector.toArray, firstColInBlock, data0, offset, nColsInBlock)
+//      offset += nColsInBlock      
 //      var blockColIndex = 0
 //      var j = 0
 //      while (blockColIndex < gp.colPartitions) {
@@ -847,27 +853,20 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
 //          //offset += nColsInBlock
 //          i += 1
 //        }
-
-        //          val data =
-        //            if (blockColIndex == truncatedBlockCol)
-        //              data0.take(nColsInBlock * nRowsInBlock)
-        //            else
-        //              data0
-        //          
-        //          val bdm = new BDM[Double](nRowsInBlock, nColsInBlock, data, 0, nColsInBlock, isTranspose = true)
-
+//
+//                  val data =
+//                    if (blockColIndex == truncatedBlockCol)
+//                      data0.take(nColsInBlock * nRowsInBlock)
+//                    else
+//                      data0
+//
+//                  val bdm = new BDM[Double](nRowsInBlock, nColsInBlock, data, 0, nColsInBlock, isTranspose = true)
+//
 //        val is = gp.partitionIdFromBlockIndices(blockRowIndex, blockColIndex).toString
 //        assert(is.length <= d)
 //        val pis = StringUtils.leftPad(is, d, "0")
 //        val filename = path + "/parts/part-" + pis
 //
 //        sHadoopBc.value.value.writeDataFile(filename)(bdm.write)
-
+//
 //        blockColIndex += 1
-    }
-    
-    dosArray.foreach(_.close())
-    
-    Iterator.single(gp.colPartitions) // number of blocks written
-  }
-}

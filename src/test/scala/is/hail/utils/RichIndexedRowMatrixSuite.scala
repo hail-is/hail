@@ -107,4 +107,26 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
       assert(BlockMatrix.read(hc, filename).toLocalMatrix() === irm.toHailBlockMatrix().toLocalMatrix())
     }
   }
+  
+//    @Test def testWriteAsBlockMatrixSmall() {
+//    val rows = 3L
+//    val cols = 4L
+//    val data = Seq(
+//      (0L, Vectors.dense(0.0, 1.0, 2.0, 3.0)),
+//      (1L, Vectors.dense(4.0, 5.0, 6.0, 7.0)),
+//      (2L, Vectors.dense(8.0, 9.0, 10.0, 11.0))
+//    ).map(IndexedRow.tupled)
+//
+//    val filename = tmpDir.createTempFile()
+//    
+//    for {
+//      numSlices <- Seq(2) //Seq(1, 2, 4, 5)
+//      blockSize <- Seq(2) //Seq(1, 2, 3, 4, 6)
+//    } {
+//      val irm = new IndexedRowMatrix(sc.parallelize(data, numSlices))
+//      irm.writeAsBlockMatrix(filename, blockSize)
+//      
+//      assert(BlockMatrix.read(hc, filename).toLocalMatrix() === irm.toHailBlockMatrix().toLocalMatrix())
+//    }
+//  }
 }
