@@ -83,7 +83,26 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: good_signature_4(1, 2, a=2))
         self.assertRaises(TypeError, lambda: good_signature_4(1, 2, '3', b='5', c=10))
 
+        @typecheck(x=sized_tupleof(strlike, integral, integral))
+        def good_signature_5(x):
+            pass
 
+        good_signature_5(("1", 5, 10))
+        self.assertRaises(TypeError, lambda: good_signature_5("1", 2, 2))
+        self.assertRaises(TypeError, lambda: good_signature_5(("1", 5, 10), ("2", 10, 20)))
+
+        @typecheck(x=integral, y=strlike, z=listof(sized_tupleof(strlike, integral, int)),
+                   args=tupleof(int))
+        def good_signature_6(x, y, z, *args):
+            pass
+
+        good_signature_6(7, "hello", [("1", 5, 10), ("3", 10, 1)], 1, 2, 3)
+        good_signature_6(7, "hello", [("1", 5, 10), ("3", 10, 1)])
+        good_signature_6(7, "hello", [], 1, 2)
+        good_signature_6(7, "hello", [])
+        self.assertRaises(TypeError, lambda: good_signature_6(1, "2", ("3", 4, 5)))
+        self.assertRaises(TypeError, lambda: good_signature_6(7, "hello", [(9, 5.6, 10), (4, "hello", 1)], 1, 2, 3))
+        
 
     def test_helpers(self):
         # check nullable
