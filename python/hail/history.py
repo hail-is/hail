@@ -22,6 +22,16 @@ def parse_args(f, args, kwargs, is_method=True):
     return parsed_args
 
 
+def set_history(result, f):
+    if isinstance(result, dict):
+        for k, r in result.iteritems():
+            f(r, key_name=k)
+    elif isinstance(result, list) or isinstance(result, tuple):
+        for i, r in enumerate(result):
+            f(r, index=i)
+    else:
+        f(result)
+
 @decorator
 def record_init(func, obj, *args, **kwargs):
     parsed_args = parse_args(func, args, kwargs)
@@ -31,22 +41,26 @@ def record_init(func, obj, *args, **kwargs):
 
 
 @decorator
+def record_property(func, obj):
+    def add_property(item, index=None, key_name=None):
+        if isinstance(item, HistoryMixin):
+            item._set_history(obj._history.add_property(func.__name__, index=index, key_name=key_name))
+
+    result = func(obj)
+    set_history(result, add_property)
+    return result
+
+
+@decorator
 def record_method(func, obj, *args, **kwargs):
     parsed_args = parse_args(func, args, kwargs)
 
-    def set_history(item, index=None, key_name=None):
+    def add_method(item, index=None, key_name=None):
         if isinstance(item, HistoryMixin):
             item._set_history(obj._history.add_method(func.__name__, parsed_args, index=index, key_name=key_name))
 
     result = func(obj, *args, **kwargs)
-    if isinstance(result, dict):
-        for k, r in result.iteritems():
-            set_history(r, key_name=k)
-    elif isinstance(result, list) or isinstance(result, tuple):
-        for i, r in enumerate(result):
-            set_history(r, index=i)
-    else:
-        set_history(result)
+    set_history(result, add_method)
     return result
 
 
@@ -110,6 +124,15 @@ class History(object):
         statements = self.statements[:]
         f_args = ["{}={}".format(k, repr(format_args(v, statements))) for k, v in kwargs.iteritems()]
         expr = "{expr}\n.{f_name}({f_args})".format(expr=self.expr, f_name=f_name, f_args=", ".join(f_args))
+        if index:
+            expr += "[{}]".format(index)
+        elif key_name:
+            expr += "[{}]".format(repr(key_name))
+        return History(expr, statements)
+
+    def add_property(self, f_name, index=None, key_name=None):
+        statements = self.statements[:]
+        expr = "{expr}\n.{f_name}".format(expr=self.expr, f_name=f_name)
         if index:
             expr += "[{}]".format(index)
         elif key_name:

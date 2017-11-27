@@ -41,7 +41,7 @@ class GenomeReference(HistoryMixin):
                       x_contigs=oneof(strlike, listof(strlike)),
                       y_contigs=oneof(strlike, listof(strlike)),
                       mt_contigs=oneof(strlike, listof(strlike)),
-                      par=listof(tupleof(anytype)))
+                      par=listof(sized_tupleof(oneof(strlike, integral), integral, integral)))
     def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
         contigs = wrap_to_list(contigs)
         x_contigs = wrap_to_list(x_contigs)
@@ -71,8 +71,11 @@ class GenomeReference(HistoryMixin):
         super(GenomeReference, self).__init__()
 
     def _set_history(self, history):
-        assert not self._history_was_set, "Cannot set history for GenomeReference more than once."
-        self._history = history.set_varid(self.name)
+        if not self._history_was_set: # only set varid if GenomeReference was constructed by user
+            self._history = history.set_varid(self.name)
+            self._history_was_set = True
+        else:
+            super(GenomeReference, self)._set_history(history)
 
     @handle_py4j
     def __str__(self):

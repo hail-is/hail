@@ -130,7 +130,7 @@ class Variant(HistoryMixin):
         return self._alt_alleles
 
     @property
-    @record_method
+    @record_property
     def reference_genome(self):
         """Reference genome.
 
@@ -542,7 +542,7 @@ class Locus(HistoryMixin):
         return self._position
 
     @property
-    @record_method
+    @record_property
     def reference_genome(self):
         """Reference genome.
 

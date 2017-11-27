@@ -130,7 +130,7 @@ class Interval(HistoryMixin):
         return Locus._from_java(self._jrep.end(), self._rg)
 
     @property
-    @record_method
+    @record_property
     def reference_genome(self):
         """Reference genome.
 
