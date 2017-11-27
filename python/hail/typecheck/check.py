@@ -69,6 +69,19 @@ class DictChecker(TypeChecker):
         return 'dict[%s, %s]' % (self.kc.expects(), self.vc.expects())
 
 
+class TupleChecker(TypeChecker):
+    def __init__(self, *elt_checkers):
+        self.ec = elt_checkers
+        self.n = len(elt_checkers)
+        super(TupleChecker, self).__init__()
+
+    def check(self, x):
+        return isinstance(x, tuple) and len(x) == self.n and all(self.ec[i].check(x[i]) for i in range(self.n))
+
+    def expects(self):
+        return 'tuple[' + ','.join(["{}".format(ec.expects()) for ec in self.ec]) + ']'
+
+
 class AnyChecker(TypeChecker):
     def __init__(self):
         super(AnyChecker, self).__init__()
@@ -121,6 +134,7 @@ class LazyChecker(TypeChecker):
             raise RuntimeError("LazyChecker not initialized. Use 'set' to provide the expected type")
         return extract(self.t)
 
+
 class ExactlyTypeChecker(TypeChecker):
     def __init__(self, v):
         self.v = v
@@ -166,8 +180,13 @@ def tupleof(t):
     return CollectionChecker(only(tuple), only(t))
 
 
+def sized_tupleof(*args):
+    return TupleChecker(*[only(x) for x in args])
+
+
 def dictof(k, v):
     return DictChecker(only(k), only(v))
+
 
 def lazy():
     return LazyChecker()
