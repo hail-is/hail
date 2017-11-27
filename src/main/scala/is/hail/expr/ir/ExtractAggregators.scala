@@ -1,9 +1,11 @@
 package is.hail.expr.ir
 
+import is.hail.methods._
 import is.hail.annotations._
+import is.hail.annotations.aggregators._
 import is.hail.asm4s._
 import is.hail.expr
-import is.hail.expr.{Type, Aggregator, TAggregable, TArray, TBoolean, TContainer, TFloat32, TFloat64, TInt32, TInt64, TStruct}
+import is.hail.expr.{Type, Aggregator, TAggregable, TArray, TBoolean, TContainer, TFloat32, TFloat64, TInt32, TInt64, TStruct, RegionValueAggregator}
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
@@ -12,60 +14,75 @@ import scala.language.existentials
 
 object ExtractAggregators {
 
-  private case class IRAgg(in: In, t: Type, z: IR, seq: (IR, IR) => IR, comb: (IR, IR) => IR) { }
+  private case class IRAgg(in: In, agg: RegionValueAggregator) { }
 
-  trait Aggregable {
-    def aggregate(
-      zero: (MemoryBuffer) => Long,
-      seq: (MemoryBuffer, Long, Boolean, Long, Boolean) => Long,
-      comb: (MemoryBuffer, Long, Boolean, Long, Boolean) => Long): Long
+  private class TransformedRegionValueAggregator(
+    aggT: TAggregable,
+    makeTransform: IR => IR,
+    val next: RegionValueAggregator) extends RegionValueAggregator {
+
+    private val transform = makeTransform(In(0, aggT.carrierStruct))
+    // without a struct we cannot return the missingness of `transform`
+    private val outT = TStruct(true, "it" -> transform.typ)
+    private val itIndex = outT.fieldIdx("it")
+    private val out = MakeStruct(Array(("it", transform.typ, transform)))
+    private val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
+    Compile(out, fb)
+    // a thunk that will load the class if necessary
+    private val getTransformer = fb.result()
+
+    def seqOp(region: MemoryBuffer, off: Long, missing: Boolean) {
+      val outOff = getTransformer()(region, off, missing)
+      next.seqOp(region, outT.loadField(region, outOff, itIndex), !outT.isFieldDefined(region, off, itIndex))
+    }
+
+    def combOp(agg2: RegionValueAggregator) {
+      next.combOp(agg2.asInstanceOf[TransformedRegionValueAggregator].next)
+    }
+
+    def result(region: MemoryBuffer): Long = {
+      next.result(region)
+    }
   }
 
-  def apply(ir: IR, t: TAggregable): (IR, TStruct, (MemoryBuffer, Aggregable) => Long) = {
-    val (ir2, aggs) = extract(ir)
-    val fields = aggs.map(_.t).zipWithIndex.map { case (t, i) => (i.toString -> t) }
-    val tT: TStruct = t.carrierStruct
-    val tU: TStruct = TStruct(fields:_*)
-    def zipValues(irs: Iterable[IR]): IR =
-      MakeStruct(fields.zip(irs).map { case ((n, t), v) => (n, t, v) })
-    val zeroFb = FunctionBuilder.functionBuilder[MemoryBuffer, Long]
-    Compile(zipValues(aggs.map(_.z)), zeroFb)
-    val seqFb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long, Boolean, Long]
-    println(zipValues(aggs.zipWithIndex.map { case (x, i) =>
-      x.seq(GetField(In(0, tU), i.toString(), x.t), In(1, tT)) }))
-    Compile(zipValues(aggs.zipWithIndex.map { case (x, i) =>
-      x.seq(GetField(In(0, tU), i.toString(), x.t), In(1, tT)) }), seqFb)
-    val combFb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long, Boolean, Long]
-    Compile(zipValues(aggs.zipWithIndex.map { case (x, i) =>
-      x.comb(GetField(In(0, tU), i.toString(), x.t), GetField(In(0, tU), i.toString(), x.t)) }), combFb)
+  class ZippedRegionValueAggregator(val aggs: Array[RegionValueAggregator]) {
+    private val fields = aggs.map(_.typ).zipWithIndex.map { case (t, i) => (i.toString -> t) }
+    val typ: TStruct = TStruct(true, fields:_*)
 
-    // update all the references to the intermediate
-    aggs.map(_.in).foreach(_.typ = tU)
+    def seqOp(region: MemoryBuffer, off: Long, missing: Boolean) {
+      aggs.foreach(_.seqOp(region, off, missing))
+    }
 
-    val zero = zeroFb.result()
-    val seq = seqFb.result()
-    val comb = combFb.result()
+    def combOp(agg2: RegionValueAggregator) {
+      (aggs zip agg2.asInstanceOf[ZippedRegionValueAggregator].aggs)
+        .foreach { case (l,r) => l.combOp(r) }
+    }
 
-    (ir2, tU, { (r, agg) =>
-      // load classes into JVM
-      val z = zero()
-      val f = seq()
-      val g = comb()
-      agg.aggregate(
-        r => z(r),
-        (r, t, mt, u, mu) => f(r, t, mt, u, mu),
-        (region, l, ml, r, mr) => g(region, l, ml, r, mr))
-    })
+    def result(region: MemoryBuffer): Long = {
+      val rvb = new RegionValueBuilder(region)
+      rvb.start(typ)
+      rvb.startStruct()
+      aggs.foreach(agg => rvb.addRegionValue(agg.typ, region, agg.result(region)))
+      rvb.endStruct()
+      rvb.end()
+    }
   }
 
-  private def extract(ir: IR): (IR, Array[IRAgg]) = {
+  def apply(ir: IR, aggT: TAggregable): (IR, ZippedRegionValueAggregator) = {
+    val (ir2, aggs) = extract(ir, aggT)
+    val zrva = new ZippedRegionValueAggregator(aggs map (_.agg))
+    aggs.foreach(_.in.typ = zrva.typ)
+    (ir2, zrva)
+  }
+
+  private def extract(ir: IR, aggT: TAggregable): (IR, Array[IRAgg]) = {
     val ab = new ArrayBuilder[IRAgg]()
-    val ir2 = extract(ir, ab)
+    val ir2 = extract(ir, ab, aggT)
     (ir2, ab.result())
   }
 
-  private def extract(ir: IR, ab: ArrayBuilder[IRAgg]): IR = {
-    def extract(ir: IR): IR = this.extract(ir, ab)
+  private def extract(ir: IR, ab: ArrayBuilder[IRAgg], aggT: TAggregable): IR = {
+    def extract(ir: IR): IR = this.extract(ir, ab, aggT)
     ir match {
       case Ref(name, typ) =>
         assert(typ.isRealizable)
@@ -78,11 +95,9 @@ object ExtractAggregators {
         val tAgg = a.typ.asInstanceOf[TAggregable]
         val in = In(0, null)
         ab += IRAgg(in,
-          typ,
-          zeroValue(typ),
-          (u, t) => ApplyBinaryPrimOp(Add(), u, tAgg.getElement(lower(a, t)), typ),
-          (l, r) => ApplyBinaryPrimOp(Add(), l, r, typ))
-
+          new TransformedRegionValueAggregator(aggT,
+            in => tAgg.getElement(lower(a, in)),
+            RegionValueSumAggregator(a.typ)))
         GetField(in, (ab.length - 1).toString())
       case _ => Recur(extract)(ir)
     }
@@ -106,17 +121,6 @@ object ExtractAggregators {
       case InMissingness(i) =>
         throw new RuntimeException(s"Referenced input inside an aggregator, that's a no-no: $ir")
       case _ => Recur(lower)(ir)
-    }
-  }
-
-  private def zeroValue(t: Type): IR = {
-    t match {
-      case _: TBoolean => False()
-      case _: TInt32 => I32(0)
-      case _: TInt64 => I64(0L)
-      case _: TFloat32 => F32(0.0f)
-      case _: TFloat64 => F64(0.0)
-      case _ => throw new RuntimeException(s"no zero for $t")
     }
   }
 }
