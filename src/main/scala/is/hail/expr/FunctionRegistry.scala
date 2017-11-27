@@ -904,7 +904,7 @@ object FunctionRegistry {
     Downcode call by sending all alleles except i to the reference.
     """,
     "gt" -> "genotype call to be downcoded",
-    "i" -> "allele to become the reference allele")(callHr, int32Hr, callHr)
+    "i" -> "allele to become the non-reference allele")(callHr, int32Hr, callHr)
 
   register("gqFromPL", { pl: IndexedSeq[Int] =>
     // FIXME toArray
