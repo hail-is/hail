@@ -755,6 +755,12 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[Int]]("range(10, 14)").contains(IndexedSeq(10, 11, 12, 13)))
     assert(eval[IndexedSeq[Int]]("range(-2, 2)").contains(IndexedSeq(-2, -1, 0, 1)))
 
+    assert(eval[IndexedSeq[Int]]("range(0)").contains(IndexedSeq()))
+    assert(eval[IndexedSeq[Int]]("range(-2)").contains(IndexedSeq()))
+
+    assert(eval[IndexedSeq[Int]]("range(10, 10)").contains(IndexedSeq()))
+    assert(eval[IndexedSeq[Int]]("range(10, 0)").contains(IndexedSeq()))
+
     assert(eval[Boolean]("pcoin(2.0)").contains(true))
     assert(eval[Boolean]("pcoin(-1.0)").contains(false))
     assert(eval[Boolean]("pcoin(2.0.toFloat32())").contains(true))
