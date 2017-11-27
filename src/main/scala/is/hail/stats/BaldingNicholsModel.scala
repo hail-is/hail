@@ -79,14 +79,24 @@ object BaldingNicholsModel {
     val Fst1_k = (1d - Fst_k) :/ Fst_k
     val Fst1_kBc = sc.broadcast(Fst1_k)
 
-    val rowType = TStruct(
-      "pk" -> TLocus(gr),
-      "v" -> TVariant(gr),
-      "va" -> TStruct("ancestralAF" -> TFloat64(), "AF" -> TArray(TFloat64())),
-      "gs" -> !TArray(TStruct("GT" -> TCall())))
+    val saSignature = TStruct("pop" -> TInt32())
+    val vaSignature = TStruct("ancestralAF" -> TFloat64(), "AF" -> TArray(TFloat64()))
+
+    val vsmMetadata = VSMMetadata(
+      TString(),
+      saSignature,
+      TVariant(gr),
+      vaSignature,
+      TStruct.empty(),
+      TStruct("GT" -> TCall()),
+      wasSplit = true)
+
+    val matrixType = MatrixType(vsmMetadata)
+
+    val rowType = matrixType.rowType
 
 
-    val rdd = sc.parallelize((0 until M).map(m => (m, Rand.randInt.draw())), nPartitions)
+    val rdd = sc.parallelize((0 until M).view.map(m => (m, Rand.randInt.draw())), nPartitions)
       .mapPartitions { it =>
 
         val rvb = new RegionValueBuilder(MemoryBuffer())
@@ -98,7 +108,7 @@ object BaldingNicholsModel {
 
           val ancestralAF = af_dist.getBreezeDist(perVariantRandomBasis).draw()
 
-          val popAF_k = (0 until K).map { k =>
+          val popAF_k: IndexedSeq[Double] = Array.tabulate(K) { k =>
             new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k))(perVariantRandomBasis).draw()
           }
 
@@ -140,10 +150,11 @@ object BaldingNicholsModel {
           // gs
           rvb.startArray(N)
           i = 0
+          val unif = new Uniform(0, 1)(perVariantRandomBasis)
           while (i < N) {
             val p = popAF_k(popOfSample_nBc.value(i))
             val pSq = p * p
-            val x = new Uniform(0, 1)(perVariantRandomBasis).draw()
+            val x = unif.draw()
             val gt =
               if (x < pSq)
                 2
@@ -163,7 +174,6 @@ object BaldingNicholsModel {
         }
       }
 
-    // TODO make orderedrdd2
 
     val sampleIds = (0 until N).map(_.toString).toArray
     val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(pop))
@@ -176,8 +186,6 @@ object BaldingNicholsModel {
     val globalAnnotation =
       Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
 
-    val saSignature = TStruct("pop" -> TInt32())
-    val vaSignature = TStruct("ancestralAF" -> TFloat64(), "AF" -> TArray(TFloat64()))
 
     val ancestralAFAnnotationSignature = af_dist match {
       case UniformDist(minVal, maxVal) => TStruct("type" -> TString(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
@@ -194,16 +202,6 @@ object BaldingNicholsModel {
       "ancestralAFDist" -> ancestralAFAnnotationSignature,
       "seed" -> TInt32())
 
-    val vsmMetadata = VSMMetadata(
-      TString(),
-      saSignature,
-      TVariant(gr),
-      vaSignature,
-      TStruct.empty(),
-      TStruct("GT" -> TCall()),
-      wasSplit = true)
-
-    val matrixType = MatrixType(vsmMetadata)
 
     // FIXME: should use fast keys
     val ordrdd = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
