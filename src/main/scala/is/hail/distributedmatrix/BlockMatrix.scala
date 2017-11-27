@@ -737,7 +737,7 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
   // all IndexedRows must be present in RDD
   assert(rows == parentPartitionBoundaries.last,
     s"IndexedRowMatrix has $rows rows but RDD only has ${parentPartitionBoundaries.last} IndexedRows.")
-
+  
   private val gp = GridPartitioner(blockSize, rows, cols)
   private val blockRowDependencies = WriteBlocksRDD.computeBlockRowDependencies(parentPartitionBoundaries, gp)
   private val truncatedBlockRow = rows / blockSize
@@ -765,57 +765,109 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
     val firstRowInBlock = blockRowIndex * blockSize
     val nRowsInBlock = if (blockRowIndex == truncatedBlockRow) excessRows else blockSize
     val lastRowInBlock = firstRowInBlock + nRowsInBlock // technically, first row in next blockRow
-    
-    val data0 = Array.ofDim[Double](nRowsInBlock * blockSize)
-    
-    var blockColIndex = 0
-    while (blockColIndex < gp.colPartitions) {
-      val firstColInBlock = blockColIndex * blockSize
-      
+
+    val dosArray = Array.tabulate(gp.colPartitions) { blockColIndex =>
       val nColsInBlock = if (blockColIndex == truncatedBlockCol) excessCols else blockSize
-      var offset = 0
-      blockRowDependencies(blockRowIndex).foreach { parent =>
-        val firstRowInParent =  parentPartitionBoundaries(parent)
-        val lastRowInParent = parentPartitionBoundaries(parent + 1) // technically, first row in next IRM partition
 
-        val firstIndexToCopy = math.max(0, firstRowInBlock - firstRowInParent).toInt
-        val lastIndexToCopy = (math.min(lastRowInBlock, lastRowInParent) - firstRowInParent).toInt
-        
-        val indexedRowsInParent = irm.rows.iterator(parentPartitions(parent), context)
-        
-        var i = 0
-        while (i < firstIndexToCopy) {
-          indexedRowsInParent.next()
-          i += 1
-        }
-        while (i < lastIndexToCopy) {
-          val indexedRow = indexedRowsInParent.next()
-          assert(indexedRow.index == firstRowInParent + i)
-                    
-          System.arraycopy(indexedRow.vector.toArray, firstColInBlock, data0, offset, nColsInBlock)
-          
-          offset += nColsInBlock
-          i += 1
-        }
+      val is = gp.partitionIdFromBlockIndices(blockRowIndex, blockColIndex).toString
+      assert(is.length <= d)
+      val pis = StringUtils.leftPad(is, d, "0")
+      val filename = path + "/parts/part-" + pis
 
-        val data =
-          if (blockColIndex == truncatedBlockCol)
-            data0.take(nColsInBlock * nRowsInBlock)
-          else
-            data0
+      val dos = new DataOutputStream(sHadoopBc.value.value.unsafeWriter(filename))      
+      dos.writeInt(nRowsInBlock)
+      dos.writeInt(nColsInBlock)
+      
+      dos
+    }
+
+    blockRowDependencies(blockRowIndex).foreach { parent =>
+      val firstRowInParent =  parentPartitionBoundaries(parent)
+      val lastRowInParent = parentPartitionBoundaries(parent + 1) // technically, first row in next IRM partition
+
+      val firstIndexToCopy = math.max(0, firstRowInBlock - firstRowInParent).toInt
+      val lastIndexToCopy = (math.min(lastRowInBlock, lastRowInParent) - firstRowInParent).toInt
+      
+      val indexedRowsInParent = irm.rows.iterator(parentPartitions(parent), context)
         
-        val bdm = new BDM[Double](nRowsInBlock, nColsInBlock, data, 0, nColsInBlock, isTranspose = true)
-        
-        val is = gp.partitionIdFromBlockIndices(blockRowIndex, blockColIndex).toString
-        assert(is.length <= d)
-        val pis = StringUtils.leftPad(is, d, "0")
-        val filename = path + "/parts/part-" + pis
-        
-        sHadoopBc.value.value.writeDataFile(filename)(bdm.write)        
+      var i = 0
+      while (i < firstIndexToCopy) {
+        indexedRowsInParent.next()
+        i += 1
       }
-      blockColIndex += 1
+      
+      while (i < lastIndexToCopy) {
+        val indexedRow = indexedRowsInParent.next()
+        assert(indexedRow.index == firstRowInParent + i)
+
+        var blockColIndex = 0
+        var lastColInBlock = 0
+        var j = 0
+        while (blockColIndex < gp.colPartitions) {
+          val dos = dosArray(blockColIndex)
+          lastColInBlock += (if (blockColIndex == truncatedBlockCol) excessCols else blockSize) // move up
+          while (j < lastColInBlock) {
+            dos.writeDouble(indexedRow.vector(j))            
+            j += 1
+          }
+          blockColIndex += 1
+        }
+
+        //System.arraycopy(indexedRow.vector.toArray, firstColInBlock, data0, offset, nColsInBlock)
+
+        //offset += nColsInBlock
+        i += 1
+      }    
+      
+//      var blockColIndex = 0
+//      var j = 0
+//      while (blockColIndex < gp.colPartitions) {
+//        val firstColInBlock = blockColIndex * blockSize
+//        val nColsInBlock = if (blockColIndex == truncatedBlockCol) excessCols else blockSize
+//
+//        var i = 0
+//        while (i < firstIndexToCopy) {
+//          indexedRowsInParent.next()
+//          i += 1
+//        }
+//        
+//        val dos = dosArray(blockColIndex)
+//        
+//        while (i < lastIndexToCopy) {
+//          val indexedRow = indexedRowsInParent.next()
+//          assert(indexedRow.index == firstRowInParent + i)
+//          
+//          while (j < firstColInBlock + nColsInBlock) {
+//            dos.writeDouble(indexedRow.vector(j))
+//            j += 1
+//          }
+//
+//          //System.arraycopy(indexedRow.vector.toArray, firstColInBlock, data0, offset, nColsInBlock)
+//
+//          //offset += nColsInBlock
+//          i += 1
+//        }
+
+        //          val data =
+        //            if (blockColIndex == truncatedBlockCol)
+        //              data0.take(nColsInBlock * nRowsInBlock)
+        //            else
+        //              data0
+        //          
+        //          val bdm = new BDM[Double](nRowsInBlock, nColsInBlock, data, 0, nColsInBlock, isTranspose = true)
+
+//        val is = gp.partitionIdFromBlockIndices(blockRowIndex, blockColIndex).toString
+//        assert(is.length <= d)
+//        val pis = StringUtils.leftPad(is, d, "0")
+//        val filename = path + "/parts/part-" + pis
+//
+//        sHadoopBc.value.value.writeDataFile(filename)(bdm.write)
+
+//        blockColIndex += 1
     }
     
-    Iterator.single(blockColIndex) // number of blocks written
+    dosArray.foreach(_.close())
+    
+    Iterator.single(gp.colPartitions) // number of blocks written
   }
 }
