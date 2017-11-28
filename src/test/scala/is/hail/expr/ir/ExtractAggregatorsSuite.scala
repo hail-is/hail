@@ -34,22 +34,16 @@ class ExtractAggregatorsSuite {
     rvb.end()
   }
 
-  private def runAggregators(ir: IR, tAgg: TAggregable, region: MemoryBuffer, aOff: Long, inContext: (MemoryBuffer, Long, Boolean) => Long): (IR, Long) = {
+  private def runAggregatorsOnArray(ir: IR, tAgg: TAggregable, region: MemoryBuffer, aOff: Long, inContext: (MemoryBuffer, Long, Boolean) => Long): (IR, Long) = {
     val tArray = TArray(tAgg.elementType)
-
     Infer(ir)
-    println(ir)
     val (post, agg) = ExtractAggregators(ir, tAgg)
-    println(post)
-    printRegion(region, "before")
-    // aggregate
     var i = 0
     while (i < tArray.loadLength(region, aOff)) {
       agg.seqOp(region, inContext(region, tArray.loadElement(region, aOff, i), !tArray.isElementDefined(region, aOff, i)), false)
       i += 1
     }
     val outOff = agg.result(region)
-    printRegion(region, "after")
     (post, outOff)
   }
 
@@ -60,7 +54,7 @@ class ExtractAggregatorsSuite {
     val aOff = addArray(region, (0 to 100).map(_.toDouble).toArray)
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, { (region, eOff, m) =>
       tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
     } )
 
@@ -79,7 +73,7 @@ class ExtractAggregatorsSuite {
     val aOff = addArray(region, Array())
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, { (region, eOff, m) =>
       tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
     } )
 
@@ -97,7 +91,7 @@ class ExtractAggregatorsSuite {
     val aOff = addArray(region, Array(42.0))
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, { (region, eOff, m) =>
       tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
     } )
 
@@ -115,7 +109,7 @@ class ExtractAggregatorsSuite {
     val aOff = addBoxedArray(region, Array[java.lang.Double](null, 42.0, null))
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, { (region, eOff, m) =>
       tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
     } )
 
@@ -133,7 +127,7 @@ class ExtractAggregatorsSuite {
     val aOff = addBoxedArray(region, Array[java.lang.Double](null, null, null))
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, { (region, eOff, m) =>
       tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
     } )
 
@@ -153,7 +147,7 @@ class ExtractAggregatorsSuite {
     val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
       Ref("foo"),
       TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
-    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, { (region, eOff, m) =>
       tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
     } )
 
@@ -173,7 +167,7 @@ class ExtractAggregatorsSuite {
     val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
       Ref("foo"),
       TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
-    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, { (region, eOff, m) =>
       tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
     } )
 
@@ -193,7 +187,7 @@ class ExtractAggregatorsSuite {
     val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
       ApplyBinaryPrimOp(Multiply(), Ref("foo"), Ref("x")),
       TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
-    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, { (region, eOff, m) =>
       tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10.0)
     } )
 
@@ -202,24 +196,5 @@ class ExtractAggregatorsSuite {
 
     // out is never missing
     assert(fb.result()()(region, outOff, false) === 110.0)
-  }
-
-  def printRegion(region: MemoryBuffer, string: String) {
-    println(string)
-    val size = region.size
-    println("Region size: " + size.toString)
-    val bytes = region.loadBytes(0, size.toInt)
-    println("Array: ")
-    var j = 0
-    for (i <- bytes) {
-      j += 1
-      printf("%02X", i)
-      if (j % 32 == 0) {
-        print('\n')
-      } else {
-        print(' ')
-      }
-    }
-    print('\n')
   }
 }
