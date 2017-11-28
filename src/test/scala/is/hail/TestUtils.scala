@@ -3,7 +3,7 @@ package is.hail
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.{Genotype, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{Genotype, VariantSampleMatrix}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
