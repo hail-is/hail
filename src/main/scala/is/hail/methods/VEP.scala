@@ -401,8 +401,7 @@ object VEP {
       }
 
     (csq, newVASignature) match {
-      case (true, t: TStruct) => vsm.copyLegacy(rdd = newRDD,
-        vaSignature = t.setFieldAttributes(parsedRoot, Map("Description" -> csqHeader)))
+      case (true, t: TStruct) => vsm.copyLegacy(rdd = newRDD)
       case _ => vsm.copyLegacy(rdd = newRDD, vaSignature = newVASignature)
     }
   }

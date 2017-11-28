@@ -38,7 +38,7 @@ class Type(HistoryMixin):
         return self._toString()
 
     def __str__(self):
-        return self._jtype.toPrettyString(0, True, False)
+        return self._jtype.toPrettyString(0, True)
 
     def __eq__(self, other):
         return self._jtype.equals(other._jtype)
@@ -46,17 +46,15 @@ class Type(HistoryMixin):
     def __hash__(self):
         return self._jtype.hashCode()
 
-    def pretty(self, indent=0, attrs=False):
+    def pretty(self, indent=0):
         """Returns a prettily formatted string representation of the type.
 
         :param int indent: Number of spaces to indent.
 
-        :param bool attrs: Print struct field attributes.
-
         :rtype: str
         """
 
-        return self._jtype.toPrettyString(indent, False, attrs)
+        return self._jtype.toPrettyString(indent, False)
 
     @classmethod
     def _from_java(cls, jtype):
@@ -512,22 +510,20 @@ class TDict(Type):
 
 class Field(object):
     """
-    Helper class for :class:`.TStruct`: contains attribute names and types.
+    Helper class for :class:`.TStruct`.
 
     :param str name: name of field
     :param typ: type of field
     :type typ: :class:`.Type`
-    :param dict attributes: key/value attributes of field
 
     :ivar str name: name of field
     :ivar typ: type of field
     :vartype typ: :class:`.Type`
     """
 
-    def __init__(self, name, typ, attributes={}):
+    def __init__(self, name, typ):
         self.name = name
         self.typ = typ
-        self.attributes = attributes
 
 
 class TStruct(Type):
@@ -572,8 +568,7 @@ class TStruct(Type):
 
         struct = TStruct.__new__(cls)
         struct.fields = fields
-        jfields = [scala_object(Env.hail().expr, 'Field').apply(
-            f.name, f.typ._jtype, i, Env.jutils().javaMapToMap(f.attributes)) for i,f in enumerate(fields)]
+        jfields = [scala_object(Env.hail().expr, 'Field').apply(f.name, f.typ._jtype, i) for i, f in enumerate(fields)]
         jtype = scala_object(Env.hail().expr, 'TStruct').apply(jindexed_seq(jfields), required)
         return TStruct._from_java(jtype)
 
@@ -589,7 +584,7 @@ class TStruct(Type):
     def _init_from_java(self, jtype):
 
         jfields = Env.jutils().iterableToArrayList(jtype.fields())
-        self.fields = [Field(f.name(), Type._from_java(f.typ()), dict(f.attrsJava())) for f in jfields]
+        self.fields = [Field(f.name(), Type._from_java(f.typ())) for f in jfields]
 
     def _convert_to_py(self, annotation):
         if annotation is not None:

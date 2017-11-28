@@ -7,10 +7,8 @@ import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantSampleMatrix}
 
 import scala.io.Source
-import scala.reflect.ClassTag
 
 object ExportVCF {
-
   def infoNumber(t: Type): String = t match {
     case TBoolean(_) => "0"
     case TArray(_, _) => "."
@@ -190,9 +188,27 @@ object ExportVCF {
     }(sb += ':')
   }
 
+  def getAttributes(path: List[String], md: Option[Map[String, Any]]): Option[Any] = {
+    if (path.isEmpty)
+      None
+    else {
+      if (path.length == 1) {
+        md.flatMap(_.get(path.head))
+      } else {
+        md.flatMap { m => m.get(path.head) match {
+          case Some(x: Map[String, Any]) => getAttributes(path.tail, Some(x))
+          case _ => None
+        }
+        }
+      }
+    }
+  }
+
+  def getAttributesAs[T](path: List[String], md: Option[Map[String, Any]]): Option[T] = getAttributes(path, md).map(_.asInstanceOf[T])
+
   def apply(vsm0: VariantSampleMatrix, path: String, append: Option[String] = None,
-    parallel: Boolean = false) {
-    
+    parallel: Boolean = false, metadata: Option[Map[String, Any]] = None) {
+
     vsm0.requireColKeyString("export_vcf")
     vsm0.requireRowKeyVariant("export_vcf")
     
@@ -243,49 +259,42 @@ object ExportVCF {
 
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
-      
-      gr.contigs.foreachBetween { c =>
-        sb.append("##contig=<ID=")
-        sb.append(c)
-        sb.append(",length=")
-        sb.append(gr.contigLength(c))
-        sb.append(",assembly=")
-        sb.append(assembly)
-        sb += '>'
-      }(sb += '\n')
-      
-      sb += '\n'
-      
+
       tg.fields.foreachBetween { f =>
+        val attrs = getAttributesAs[Map[String, String]](List("format", f.name), metadata).getOrElse(Map.empty[String, String])
         sb.append("##FORMAT=<ID=")
         sb.append(f.name)
         sb.append(",Number=")
-        sb.append(f.attr("Number").getOrElse(infoNumber(f.typ)))
+        sb.append(attrs.getOrElse("Number", infoNumber(f.typ)))
         sb.append(",Type=")
         sb.append(formatType(f))
         sb.append(",Description=\"")
-        sb.append(f.attr("Description").getOrElse(""))
+        sb.append(attrs.getOrElse("Description", ""))
         sb.append("\">")
       }(sb += '\n')
 
       sb += '\n'
 
-      vsm.vaSignature.fieldOption("filters")
-        .foreach { f =>
-          f.attrs.foreach { case (key, desc) =>
-            sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
-          }
-        }
+      val filters = getAttributesAs[Map[String, Any]](List("filter"), metadata).getOrElse(Map.empty[String, Any]).keys.toArray.sorted
+      filters.foreach { id =>
+        val attrs = getAttributesAs[Map[String, String]](List("filter", id), metadata).getOrElse(Map.empty[String, String])
+        sb.append("##FILTER=<ID=")
+        sb.append(id)
+        sb.append(",Description=\"")
+        sb.append(attrs.getOrElse("Description", ""))
+        sb.append("\">\n")
+      }
 
       tinfo.fields.foreach { f =>
+        val attrs = getAttributesAs[Map[String, String]](List("info", f.name), metadata).getOrElse(Map.empty[String, String])
         sb.append("##INFO=<ID=")
         sb.append(f.name)
         sb.append(",Number=")
-        sb.append(f.attr("Number").getOrElse(infoNumber(f.typ)))
+        sb.append(attrs.getOrElse("Number", infoNumber(f.typ)))
         sb.append(",Type=")
         sb.append(infoType(f))
         sb.append(",Description=\"")
-        sb.append(f.attr("Description").getOrElse(""))
+        sb.append(attrs.getOrElse("Description", ""))
         sb.append("\">\n")
       }
 
@@ -300,6 +309,18 @@ object ExportVCF {
             }
         }
       }
+
+      gr.contigs.foreachBetween { c =>
+        sb.append("##contig=<ID=")
+        sb.append(c)
+        sb.append(",length=")
+        sb.append(gr.contigLength(c))
+        sb.append(",assembly=")
+        sb.append(assembly)
+        sb += '>'
+      }(sb += '\n')
+
+      sb += '\n'
 
       sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
       if (hasSamples)

@@ -73,6 +73,8 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(hc.eval_expr_typed('[1, 2, 3].map(x => x * 2)'), ([2, 4, 6], TArray(TInt32())))
         self.assertEqual(hc.eval_expr('[1, 2, 3].map(x => x * 2)'), [2, 4, 6])
 
+        vcf_metadata = hc.get_vcf_metadata(test_resources + '/sample.vcf.bgz')
+
         gds = hc.import_vcf(test_resources + '/sample.vcf.bgz', generic=True)
         # can't compare directly because attributes won't match
         self.assertEqual([f.name for f in gds.genotype_schema.fields],
@@ -84,9 +86,12 @@ class ContextTests(unittest.TestCase):
         gds_read = hc.read('/tmp/sample_generic.vds')
         self.assertTrue(gds.same(gds_read))
 
-        gds.export_vcf('/tmp/sample_generic.vcf')
+        gds.export_vcf('/tmp/sample_generic.vcf', metadata=vcf_metadata)
         gds_imported = hc.import_vcf('/tmp/sample_generic.vcf', generic=True)
         self.assertTrue(gds.same(gds_imported))
+
+        metadata_imported = hc.get_vcf_metadata('/tmp/sample_generic.vcf')
+        self.assertDictEqual(vcf_metadata, metadata_imported)
 
         matrix = hc.import_matrix(test_resources + '/samplematrix1.txt')
         self.assertEqual(matrix.count()[1], 10)

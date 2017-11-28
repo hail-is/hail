@@ -205,16 +205,16 @@ object VariantSampleMatrix {
           s"""cannot combine datasets with different column key schemata
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          colKeySchema.toPrettyString(compact = true, printAttrs = true),
-          ssig.toPrettyString(compact = true, printAttrs = true)
+          colKeySchema.toPrettyString(compact = true),
+          ssig.toPrettyString(compact = true)
         )
       } else if (vsig != rowKeySchema) {
         fatal(
           s"""cannot combine datasets with different row key schemata
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          rowKeySchema.toPrettyString(compact = true, printAttrs = true),
-          vsig.toPrettyString(compact = true, printAttrs = true)
+          rowKeySchema.toPrettyString(compact = true),
+          vsig.toPrettyString(compact = true)
         )
       } else if (ids != sampleIds) {
         fatal(
@@ -231,16 +231,16 @@ object VariantSampleMatrix {
           s"""cannot combine datasets with different row annotation schemata
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          vaSchema.toPrettyString(compact = true, printAttrs = true),
-          vas.toPrettyString(compact = true, printAttrs = true)
+          vaSchema.toPrettyString(compact = true),
+          vas.toPrettyString(compact = true)
         )
       } else if (gsig != genotypeSchema) {
         fatal(
           s"""cannot read datasets with different cell schemata
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          genotypeSchema.toPrettyString(compact = true, printAttrs = true),
-          gsig.toPrettyString(compact = true, printAttrs = true)
+          genotypeSchema.toPrettyString(compact = true),
+          gsig.toPrettyString(compact = true)
         )
       }
     }
@@ -1282,8 +1282,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         s"""cannot join datasets with different genotype schemata
            |  left genotype schema: @1
            |  right genotype schema: @2""".stripMargin,
-        genotypeSignature.toPrettyString(compact = true, printAttrs = true),
-        right.genotypeSignature.toPrettyString(compact = true, printAttrs = true))
+        genotypeSignature.toPrettyString(compact = true),
+        right.genotypeSignature.toPrettyString(compact = true))
     }
 
     if (saSignature != right.saSignature) {
@@ -1291,8 +1291,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         s"""cannot join datasets with different sample schemata
            |  left sample schema: @1
            |  right sample schema: @2""".stripMargin,
-        saSignature.toPrettyString(compact = true, printAttrs = true),
-        right.saSignature.toPrettyString(compact = true, printAttrs = true))
+        saSignature.toPrettyString(compact = true),
+        right.saSignature.toPrettyString(compact = true))
     }
 
     if (vSignature != right.vSignature) {
@@ -1300,8 +1300,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         s"""cannot join datasets with different variant schemata
            |  left variant schema: @1
            |  right variant schema: @2""".stripMargin,
-        vSignature.toPrettyString(compact = true, printAttrs = true),
-        right.vSignature.toPrettyString(compact = true, printAttrs = true))
+        vSignature.toPrettyString(compact = true),
+        right.vSignature.toPrettyString(compact = true))
     }
 
     val newSampleIds = sampleIds ++ right.sampleIds
@@ -1964,28 +1964,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       .result(localNSamples)
   }
 
-  def setVaAttributes(path: String, kv: Map[String, String]): VariantSampleMatrix = {
-    setVaAttributes(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD), kv)
-  }
-
-  def setVaAttributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix = {
-    vaSignature match {
-      case t: TStruct => copy2(vaSignature = t.setFieldAttributes(path, kv))
-      case t => fatal(s"Cannot set va attributes to ${ path.mkString(".") } since va is not a Struct.")
-    }
-  }
-
-  def deleteVaAttribute(path: String, attribute: String): VariantSampleMatrix = {
-    deleteVaAttribute(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD), attribute)
-  }
-
-  def deleteVaAttribute(path: List[String], attribute: String): VariantSampleMatrix = {
-    vaSignature match {
-      case t: TStruct => copy2(vaSignature = t.deleteFieldAttribute(path, attribute))
-      case t => fatal(s"Cannot delete va attributes from ${ path.mkString(".") } since va is not a Struct.")
-    }
-  }
-
   override def toString =
     s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
 
@@ -2129,12 +2107,12 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val metadata = VDSMetadata(
       version = VariantSampleMatrix.fileVersion,
       split = wasSplit,
-      sample_schema = sSignature.toPrettyString(printAttrs = true, compact = true),
-      sample_annotation_schema = saSignature.toPrettyString(printAttrs = true, compact = true),
-      variant_schema = vSignature.toPrettyString(printAttrs = true, compact = true),
-      variant_annotation_schema = vaSignature.toPrettyString(printAttrs = true, compact = true),
-      genotype_schema = genotypeSignature.toPrettyString(printAttrs = true, compact = true),
-      global_schema = globalSignature.toPrettyString(printAttrs = true, compact = true),
+      sample_schema = sSignature.toPrettyString(compact = true),
+      sample_annotation_schema = saSignature.toPrettyString(compact = true),
+      variant_schema = vSignature.toPrettyString(compact = true),
+      variant_annotation_schema = vaSignature.toPrettyString(compact = true),
+      genotype_schema = genotypeSignature.toPrettyString(compact = true),
+      global_schema = globalSignature.toPrettyString(compact = true),
       sample_annotations = sampleAnnotationsJ,
       global_annotation = globalJ,
       n_partitions = nPartitions)
@@ -2257,9 +2235,10 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     * @param path     output path
     * @param append   append file to header
     * @param parallel export VCF in parallel using the path argument as a directory
+    * @param metadata metadata to export in header
     */
-  def exportVCF(path: String, append: Option[String] = None, parallel: Boolean = false) {
-    ExportVCF(this, path, append, parallel)
+  def exportVCF(path: String, append: Option[String] = None, parallel: Boolean = false, metadata: Option[Map[String, Any]] = None) {
+    ExportVCF(this, path, append, parallel, metadata)
   }
 
   def minRep(leftAligned: Boolean = false): VariantSampleMatrix = {

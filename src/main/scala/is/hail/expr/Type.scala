@@ -43,18 +43,13 @@ object Type {
   val requiredComplex = genComplexType(true)
 
   def preGenStruct(required: Boolean, genFieldType: Gen[Type]): Gen[TStruct] =
-    Gen.buildableOf[Array, (String, Type, Map[String, String])](
-      Gen.zip(Gen.identifier,
-        genFieldType,
-        Gen.option(
-          Gen.buildableOf2[Map, String, String](
-            Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])), someFraction = 0.05)
-          .map(o => o.getOrElse(Map.empty[String, String]))))
+    Gen.buildableOf[Array, (String, Type)](
+      Gen.zip(Gen.identifier, genFieldType))
       .filter(fields => fields.map(_._1).areDistinct())
       .map(fields => TStruct(fields
         .iterator
         .zipWithIndex
-        .map { case ((k, t, m), i) => Field(k, t, i, m) }
+        .map { case ((k, t), i) => Field(k, t, i) }
         .toIndexedSeq))
       .map(t => if (required) (!t).asInstanceOf[TStruct] else t)
 
@@ -194,19 +189,19 @@ sealed abstract class Type extends BaseType with Serializable {
     if (required) "!" else ""
   } + _toString
 
-  def _pretty(sb: StringBuilder, indent: Int = 0, printAttrs: Boolean = false, compact: Boolean = false) {
+  def _pretty(sb: StringBuilder, indent: Int = 0, compact: Boolean = false) {
     sb.append(_toString)
   }
 
-  final def pretty(sb: StringBuilder, indent: Int = 0, printAttrs: Boolean = false, compact: Boolean = false) {
+  final def pretty(sb: StringBuilder, indent: Int = 0, compact: Boolean = false) {
     if (required)
       sb.append("!")
-    _pretty(sb, indent, printAttrs, compact)
+    _pretty(sb, indent, compact)
   }
 
-  def toPrettyString(indent: Int = 0, compact: Boolean = false, printAttrs: Boolean = false): String = {
+  def toPrettyString(indent: Int = 0, compact: Boolean = false): String = {
     val sb = new StringBuilder
-    pretty(sb, indent, compact = compact, printAttrs = printAttrs)
+    pretty(sb, indent, compact = compact)
     sb.result()
   }
 
@@ -341,7 +336,7 @@ sealed abstract class Type extends BaseType with Serializable {
       case t: TSet => TSet(t.elementType.deepOptional())
       case t: TDict => TDict(t.keyType.deepOptional(), t.valueType.deepOptional())
       case t: TStruct =>
-        TStruct(t.fields.map(f => Field(f.name, f.typ.deepOptional(), f.index, f.attrs)))
+        TStruct(t.fields.map(f => Field(f.name, f.typ.deepOptional(), f.index)))
       case t =>
         t.setRequired(false)
     }
@@ -349,7 +344,7 @@ sealed abstract class Type extends BaseType with Serializable {
   def structOptional(): Type =
     this match {
       case t: TStruct =>
-        TStruct(t.fields.map(f => Field(f.name, f.typ.deepOptional(), f.index, f.attrs)))
+        TStruct(t.fields.map(f => Field(f.name, f.typ.deepOptional(), f.index)))
       case t =>
         t.setRequired(false)
     }
@@ -1082,9 +1077,9 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
 
   override def subst() = TArray(elementType.subst())
 
-  override def _pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Array[")
-    elementType.pretty(sb, indent, printAttrs, compact)
+    elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
 
@@ -1148,9 +1143,9 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
   def _typeCheck(a: Any): Boolean =
     a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck)
 
-  override def _pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Set[")
-    elementType.pretty(sb, indent, printAttrs, compact)
+    elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
 
@@ -1222,14 +1217,14 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   def _toString = s"Dict[$keyType, $valueType]"
 
-  override def _pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Dict[")
-    keyType.pretty(sb, indent, printAttrs, compact)
+    keyType.pretty(sb, indent, compact)
     if (compact)
       sb += ','
     else
       sb.append(", ")
-    valueType.pretty(sb, indent, printAttrs, compact)
+    valueType.pretty(sb, indent, compact)
     sb.append("]")
   }
 
@@ -1313,19 +1308,12 @@ object TGenotype {
   
   def representationWithVCFAttributes(required: Boolean = false): TStruct = {
     val t = TStruct(IndexedSeq(
-      Field("GT", TCall(), 0,
-        Map("Number" -> "1", "Type" -> "String", "Description" -> "Genotype")),
-      Field("AD", TArray(TInt32()), 1,
-        Map("Number" -> "R", "Type" -> "Integer",
-          "Description" -> "Allelic depths for the ref and alt alleles in the order listed")),
-      Field("DP", TInt32(), 2,
-        Map("Number" -> "1", "Type" -> "Integer", "Description" -> "Read Depth")),
-      Field("GQ", TInt32(), 3,
-        Map("Number" -> "1", "Type" -> "Integer", "Description" -> "Genotype Quality")),
-      Field("PL", TArray(TInt32()), 4,
-        Map("Number" -> "G", "Type" -> "Integer",
-          "Description" -> "Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification"))))
-    
+      Field("GT", TCall(), 0),
+      Field("AD", TArray(TInt32()), 1),
+      Field("DP", TInt32(), 2),
+      Field("GQ", TInt32(), 3),
+      Field("PL", TArray(TInt32()), 4)))
+
     t.setRequired(required).asInstanceOf[TStruct]
   }
 }
@@ -1620,20 +1608,14 @@ case class TInterval(gr: GRBase, override val required: Boolean = false) extends
   override def subst() = gr.subst().interval
 }
 
-final case class Field(name: String, typ: Type,
-  index: Int,
-  attrs: Map[String, String] = Map.empty) {
-  def attr(s: String): Option[String] = attrs.get(s)
-
-  def attrsJava(): java.util.Map[String, String] = attrs.asJava
+final case class Field(name: String, typ: Type, index: Int) {
 
   def unify(cf: Field): Boolean =
     name == cf.name &&
       typ.unify(cf.typ) &&
-      index == cf.index &&
-      attrs == cf.attrs
+      index == cf.index
 
-  def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
+  def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (compact) {
       sb.append(prettyIdentifier(name))
       sb.append(":")
@@ -1642,20 +1624,7 @@ final case class Field(name: String, typ: Type,
       sb.append(prettyIdentifier(name))
       sb.append(": ")
     }
-    typ.pretty(sb, indent, printAttrs, compact)
-    if (printAttrs) {
-      attrs.foreach { case (k, v) =>
-        if (!compact) {
-          sb += '\n'
-          sb.append(" " * (indent + 2))
-        }
-        sb += '@'
-        sb.append(prettyIdentifier(k))
-        sb.append("=\"")
-        sb.append(StringEscapeUtils.escapeString(v))
-        sb += '"'
-      }
-    }
+    typ.pretty(sb, indent, compact)
   }
 }
 
@@ -1741,39 +1710,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       else
         f.flatMap(_.typ.fieldOption(path.tail))
     }
-
-  def updateFieldAttributes(path: List[String], f: Map[String, String] => Map[String, String]): TStruct = {
-
-    if (path.isEmpty)
-      throw new AnnotationPathException(s"Empty path for attribute annotation is not allowed.")
-
-    if (!hasField(path.head))
-      throw new AnnotationPathException(s"struct has no field ${ path.head }")
-
-    copy(fields.map {
-      field =>
-        if (field.name == path.head) {
-          if (path.length == 1)
-            field.copy(attrs = f(field.attrs))
-          else {
-            field.typ match {
-              case struct: TStruct => field.copy(typ = struct.updateFieldAttributes(path.tail, f))
-              case t => fatal(s"Field ${ field.name } is not a Struct and cannot contain field ${ path.tail.mkString(".") }")
-            }
-          }
-        }
-        else
-          field
-    })
-  }
-
-  def setFieldAttributes(path: List[String], kv: Map[String, String]): TStruct = {
-    updateFieldAttributes(path, attributes => attributes ++ kv)
-  }
-
-  def deleteFieldAttribute(path: List[String], attr: String): TStruct = {
-    updateFieldAttributes(path, attributes => attributes - attr)
-  }
 
   override def queryTyped(p: List[String]): (Type, Querier) = {
     if (p.isEmpty)
@@ -2163,18 +2099,18 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def _toString: String = if (size == 0) "Empty" else toPrettyString(compact = true)
 
-  override def _pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (size == 0)
       sb.append("Empty")
     else {
       if (compact) {
         sb.append("Struct{")
-        fields.foreachBetween(_.pretty(sb, indent, printAttrs, compact))(sb += ',')
+        fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
         sb += '}'
       } else {
         sb.append("Struct{")
         sb += '\n'
-        fields.foreachBetween(_.pretty(sb, indent + 4, printAttrs, compact))(sb.append(",\n"))
+        fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
         sb += '\n'
         sb.append(" " * indent)
         sb += '}'

@@ -1118,10 +1118,8 @@ object FunctionRegistry {
     "keys" -> "Keys of Dict.",
     "values" -> "Values of Dict.")(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
 
-  val combineVariantsStruct = TStruct(Array(("variant", TVariant(GR), "Resulting combined variant."),
-    ("laIndices", TDict(TInt32(), TInt32()), "Mapping from new to old allele index for the left variant."),
-    ("raIndices", TDict(TInt32(), TInt32()), "Mapping from new to old allele index for the right variant.")
-  ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  val combineVariantsStruct = TStruct("variant" -> TVariant(GR), "laIndices" -> TDict(TInt32(), TInt32()),
+    "raIndices" -> TDict(TInt32(), TInt32()))
 
   registerAnn("combineVariants",
     combineVariantsStruct, { (left: Variant, right: Variant) =>
@@ -1204,8 +1202,7 @@ object FunctionRegistry {
     "startLocus" -> "Start position of interval",
     "endLocus" -> "End position of interval")(locusHr(GR), locusHr(GR), locusIntervalHr(GR))
 
-  val hweStruct = TStruct(Array(("rExpectedHetFrequency", TFloat64(), "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
-    ("pHWE", TFloat64(), "P-value")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  val hweStruct = TStruct("rExpectedHetFrequency" -> TFloat64(), "pHWE" -> TFloat64())
 
   registerAnn("hwe", hweStruct, { (nHomRef: Int, nHet: Int, nHomVar: Int) =>
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
@@ -1259,7 +1256,7 @@ object FunctionRegistry {
   }
 
 
-  val chisqStruct = TStruct(Array(("pValue", TFloat64(), "p-value"), ("oddsRatio", TFloat64(), "odds ratio")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  val chisqStruct = TStruct("pValue" -> TFloat64(), "oddsRatio" -> TFloat64())
   registerAnn("chisq", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
       fatal(s"got invalid argument to function `chisq': chisq($c1, $c2, $c3, $c4)")
@@ -1288,9 +1285,8 @@ object FunctionRegistry {
     "c1" -> "value for cell 1", "c2" -> "value for cell 2", "c3" -> "value for cell 3", "c4" -> "value for cell 4", "minCellCount" -> "Minimum cell count for using chi-squared approximation"
   )
 
-  val fetStruct = TStruct(Array(("pValue", TFloat64(), "p-value"), ("oddsRatio", TFloat64(), "odds ratio"),
-    ("ci95Lower", TFloat64(), "lower bound for 95% confidence interval"), ("ci95Upper", TFloat64(), "upper bound for 95% confidence interval")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
-
+  val fetStruct = TStruct("pValue" -> TFloat64(), "oddsRatio" -> TFloat64(),
+    "ci95Lower" -> TFloat64(), "ci95Upper" -> TFloat64())
 
   registerAnn("fet", fetStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
@@ -2303,10 +2299,8 @@ object FunctionRegistry {
     The ``stats()`` aggregator can be used to replicate some of the values computed by :py:meth:`~hail.VariantDataset.variant_qc` and :py:meth:`~hail.VariantDataset.sample_qc` such as ``dpMean`` and ``dpStDev``.
     """)(aggregableHr(float64Hr),
     new HailRep[Any] {
-      def typ = TStruct(Array(
-        ("mean", TFloat64(), "Mean value"), ("stdev", TFloat64(), "Standard deviation"), ("min", TFloat64(), "Minimum value"),
-        ("max", TFloat64(), "Maximum value"), ("nNotMissing", TInt64(), "Number of non-missing values"), ("sum", TFloat64(), "Sum of all elements")
-      ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+      def typ = TStruct("mean" -> TFloat64(), "stdev" -> TFloat64(), "min" -> TFloat64(),
+        "max" -> TFloat64(), "nNotMissing" -> TInt64(), "sum" -> TFloat64())
     })
 
   registerAggregator[Double, Double, Double, Int, Any]("hist", (start: Double, end: Double, bins: Int) => {

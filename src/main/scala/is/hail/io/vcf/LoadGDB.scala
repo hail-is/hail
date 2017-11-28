@@ -6,8 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Locus, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
-import org.apache.spark.storage.StorageLevel
+import is.hail.variant.{GenomeReference, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
 import org.json4s._
 
 import scala.collection.JavaConversions._
@@ -53,7 +52,7 @@ object LoadGDB {
   }
 
   def formatHeaderSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = true): (TStruct, Int) = {
+    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = true): (TStruct, Int, Map[String, Map[String, String]]) = {
     val canonicalFields = Array(
       "GT" -> TCall(),
       "AD" -> TArray(TInt32(arrayElementsRequired)),
@@ -61,7 +60,7 @@ object LoadGDB {
       "GQ" -> TInt32(),
       "PL" -> TArray(TInt32(arrayElementsRequired)))
 
-    val raw = headerSignature(lines, callFields, arrayElementsRequired)
+    val (raw, attrs) = headerSignature(lines, callFields, arrayElementsRequired)
 
     var canonicalFlags = 0
     var i = 0
@@ -72,7 +71,7 @@ object LoadGDB {
         val f = raw.field(id)
         if (f.typ == t) {
           done += f.index
-          fb += Field(f.name, f.typ, i, f.attrs)
+          fb += Field(f.name, f.typ, i)
           canonicalFlags |= (1 << j)
           i += 1
         }
@@ -81,12 +80,12 @@ object LoadGDB {
 
     raw.fields.foreach { f =>
       if (!done.contains(f.index)) {
-        fb += Field(f.name, f.typ, i, f.attrs)
+        fb += Field(f.name, f.typ, i)
         i += 1
       }
     }
 
-    (TStruct(fb.result()), canonicalFlags)
+    (TStruct(fb.result()), canonicalFlags, attrs)
   }
 
   /* PATH PARAMETERS REQUIRE ABSOLUTE PATHS */
@@ -118,11 +117,11 @@ object LoadGDB {
       .asInstanceOf[VCFHeader]
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
-    val immutableFilters: Map[String, String] = header
+    val immutableFilters: Map[String, Map[String, String]] = header
       .getFilterLines
       .toList
       //(ID, description)
-      .map(line => (line.getID, ""))
+      .map(line => (line.getID, Map("Description" -> "")))
       .toMap
 
     var filters = immutableFilters
@@ -134,15 +133,15 @@ object LoadGDB {
     }
 
     val infoHeader = header.getInfoHeaderLines
-    val infoSignature = LoadVCF.headerSignature(infoHeader)
+    val (infoSignature, infoAttrs) = LoadVCF.headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val (genotypeSignature, canonicalFlags) = formatHeaderSignature(formatHeader, reader.callFields)
+    val (genotypeSignature, canonicalFlags, formatAttrs) = formatHeaderSignature(formatHeader, reader.callFields)
 
     val variantAnnotationSignatures = TStruct(Array(
       Field("rsid", TString(), 0),
       Field("qual", TFloat64(), 1),
-      Field("filters", TSet(TString()), 2, filters),
+      Field("filters", TSet(TString()), 2),
       Field("info", infoSignature, 3)))
 
     val sampleIds: Array[String] =
