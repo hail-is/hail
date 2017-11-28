@@ -3,7 +3,6 @@ package is.hail.stats
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.Properties
-import is.hail.expr.TVariant
 import is.hail.utils._
 import is.hail.variant._
 import org.testng.annotations.Test
