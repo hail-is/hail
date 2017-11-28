@@ -3,7 +3,7 @@ package is.hail.methods.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.check.{Gen, Parameters, Prop}
-import is.hail.expr.{TAggregable, TArray, TFloat64, TInt32}
+import is.hail.expr.{TAggregable, TArray, TFloat64, TInt32, TStruct}
 import is.hail.expr.ir._
 import org.testng.annotations.Test
 import org.scalatest._
@@ -34,40 +34,174 @@ class ExtractAggregatorsSuite {
     rvb.end()
   }
 
+  private def runAggregators(ir: IR, tAgg: TAggregable, region: MemoryBuffer, aOff: Long, inContext: (MemoryBuffer, Long, Boolean) => Long): (IR, Long) = {
+    val tArray = TArray(tAgg.elementType)
+
+    Infer(ir)
+    println(ir)
+    val (post, agg) = ExtractAggregators(ir, tAgg)
+    println(post)
+    printRegion(region, "before")
+    // aggregate
+    var i = 0
+    while (i < tArray.loadLength(region, aOff)) {
+      agg.seqOp(region, inContext(region, tArray.loadElement(region, aOff, i), !tArray.isElementDefined(region, aOff, i)), false)
+      i += 1
+    }
+    val outOff = agg.result(region)
+    printRegion(region, "after")
+    (post, outOff)
+  }
+
   @Test
   def sum() {
     val tAgg = TAggregable(TFloat64(), Map("foo" -> (0, TInt32())))
-    val ir: IR = AggSum(AggIn(tAgg))
-    Infer(ir)
-    val (post, t, f) = ExtractAggregators(ir, tAgg)
-    println(post)
     val region = MemoryBuffer()
-    val tArray = TArray(TFloat64())
-    val aoff = addArray(region, (0 to 100).map(_.toDouble).toArray)
-    val agg = new ExtractAggregators.Aggregable {
-      def aggregate(
-        zero: (MemoryBuffer) => Long,
-        seq: (MemoryBuffer, Long, Boolean, Long, Boolean) => Long,
-        comb: (MemoryBuffer, Long, Boolean, Long, Boolean) => Long): Long = {
-        var i = 0
-        var z = zero(region)
-        while (i < 100) {
-          // NB: the struct containing the aggregation intermediates is never
-          // missing
-          z = seq(region, z, false, tArray.loadElement(region, aoff, i), !tArray.isElementDefined(region, aoff, i))
-          i += 1
-        }
-        z
-      }
-    }
+    val aOff = addArray(region, (0 to 100).map(_.toDouble).toArray)
+
+    val ir: IR = AggSum(AggIn(tAgg))
+    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+      tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
+    } )
+
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
-    printRegion(region, "before")
-    val outOff = f(region, agg)
-    printRegion(region, "after")
+
+    // out is never missing
     assert(fb.result()()(region, outOff, false) === 5050.0)
-    assert(t.isFieldDefined(region, outOff, t.fieldIdx("0")))
-    assert(region.loadDouble(t.loadField(region, outOff, t.fieldIdx("0"))) === 5050.0)
+  }
+
+
+  @Test
+  def sumEmpty() {
+    val tAgg = TAggregable(TFloat64(), Map("foo" -> (0, TInt32())))
+    val region = MemoryBuffer()
+    val aOff = addArray(region, Array())
+
+    val ir: IR = AggSum(AggIn(tAgg))
+    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+      tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
+    } )
+
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
+    Compile(post, fb)
+
+    // out is never missing
+    assert(fb.result()()(region, outOff, false) === 0.0)
+  }
+
+  @Test
+  def sumOne() {
+    val tAgg = TAggregable(TFloat64(), Map("foo" -> (0, TInt32())))
+    val region = MemoryBuffer()
+    val aOff = addArray(region, Array(42.0))
+
+    val ir: IR = AggSum(AggIn(tAgg))
+    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+      tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
+    } )
+
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
+    Compile(post, fb)
+
+    // out is never missing
+    assert(fb.result()()(region, outOff, false) === 42.0)
+  }
+
+  @Test
+  def sumMissing() {
+    val tAgg = TAggregable(TFloat64(), Map("foo" -> (0, TInt32())))
+    val region = MemoryBuffer()
+    val aOff = addBoxedArray(region, Array[java.lang.Double](null, 42.0, null))
+
+    val ir: IR = AggSum(AggIn(tAgg))
+    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+      tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
+    } )
+
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
+    Compile(post, fb)
+
+    // out is never missing
+    assert(fb.result()()(region, outOff, false) === 42.0)
+  }
+
+  @Test
+  def sumAllMissing() {
+    val tAgg = TAggregable(TFloat64(), Map("foo" -> (0, TInt32())))
+    val region = MemoryBuffer()
+    val aOff = addBoxedArray(region, Array[java.lang.Double](null, null, null))
+
+    val ir: IR = AggSum(AggIn(tAgg))
+    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+      tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
+    } )
+
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
+    Compile(post, fb)
+
+    // out is never missing
+    assert(fb.result()()(region, outOff, false) === 0.0)
+  }
+
+  @Test
+  def usingScope1() {
+    val tAgg = TAggregable(TFloat64(), Map("foo" -> (0, TInt32())))
+    val region = MemoryBuffer()
+    val aOff = addBoxedArray(region, Array[java.lang.Double](null, null, null))
+
+    val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
+      Ref("foo"),
+      TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
+    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+      tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
+    } )
+
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int]
+    Compile(post, fb)
+
+    // out is never missing
+    assert(fb.result()()(region, outOff, false) === 30)
+  }
+
+  @Test
+  def usingScope2() {
+    val tAgg = TAggregable(TFloat64(), Map("foo" -> (0, TInt32())))
+    val region = MemoryBuffer()
+    val aOff = addBoxedArray(region, Array[java.lang.Double](1.0, 2.0, null))
+
+    val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
+      Ref("foo"),
+      TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
+    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+      tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10)
+    } )
+
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int]
+    Compile(post, fb)
+
+    // out is never missing
+    assert(fb.result()()(region, outOff, false) === 30)
+  }
+
+  @Test
+  def usingScope3() {
+    val tAgg = TAggregable(TFloat64(), Map("foo" -> (0, TFloat64())))
+    val region = MemoryBuffer()
+    val aOff = addBoxedArray(region, Array[java.lang.Double](1.0, 10.0, null))
+
+    val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
+      ApplyBinaryPrimOp(Multiply(), Ref("foo"), Ref("x")),
+      TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
+    val (post, outOff) = runAggregators(ir, tAgg, region, aOff, { (region, eOff, m) =>
+      tAgg.createCarrier(region, if (m) null else region.loadDouble(eOff), 10.0)
+    } )
+
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
+    Compile(post, fb)
+
+    // out is never missing
+    assert(fb.result()()(region, outOff, false) === 110.0)
   }
 
   def printRegion(region: MemoryBuffer, string: String) {

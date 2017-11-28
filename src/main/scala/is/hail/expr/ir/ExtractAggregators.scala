@@ -16,24 +16,35 @@ object ExtractAggregators {
 
   private case class IRAgg(in: In, agg: RegionValueAggregator) { }
 
+  private object TransformedRegionValueAggregator {
+    def apply(aggT: TAggregable,
+      makeTransform: IR => IR,
+      next: RegionValueAggregator): TransformedRegionValueAggregator = {
+      val transform = makeTransform(In(0, aggT.carrierStruct))
+      // without a struct we cannot return the missingness of `transform`
+      assert(transform.typ != null, s"found null type: $transform")
+      println(s"transform: $transform")
+      val outT = TStruct(true, "it" -> transform.typ)
+      val itIndex = outT.fieldIdx("it")
+      val out = MakeStruct(Array(("it", transform.typ, transform)))
+      val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
+      Compile(out, fb)
+      new TransformedRegionValueAggregator(aggT, fb.result(), outT, itIndex, next)
+    }
+  }
+
   private class TransformedRegionValueAggregator(
     aggT: TAggregable,
-    makeTransform: IR => IR,
+    getTransformer: () => AsmFunction3[MemoryBuffer, Long, Boolean, Long],
+    outT: TStruct,
+    itIndex: Int,
     val next: RegionValueAggregator) extends RegionValueAggregator {
-
-    private val transform = makeTransform(In(0, aggT.carrierStruct))
-    // without a struct we cannot return the missingness of `transform`
-    private val outT = TStruct(true, "it" -> transform.typ)
-    private val itIndex = outT.fieldIdx("it")
-    private val out = MakeStruct(Array(("it", transform.typ, transform)))
-    private val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
-    Compile(out, fb)
-    // a thunk that will load the class if necessary
-    private val getTransformer = fb.result()
+    val typ = next.typ
 
     def seqOp(region: MemoryBuffer, off: Long, missing: Boolean) {
       val outOff = getTransformer()(region, off, missing)
-      next.seqOp(region, outT.loadField(region, outOff, itIndex), !outT.isFieldDefined(region, off, itIndex))
+      println(s"seqOp ${outT.loadField(region, outOff, itIndex)} ${!outT.isFieldDefined(region, outOff, itIndex)}")
+      next.seqOp(region, outT.loadField(region, outOff, itIndex), !outT.isFieldDefined(region, outOff, itIndex))
     }
 
     def combOp(agg2: RegionValueAggregator) {
@@ -43,6 +54,9 @@ object ExtractAggregators {
     def result(region: MemoryBuffer): Long = {
       next.result(region)
     }
+
+    def copy(): TransformedRegionValueAggregator =
+      new TransformedRegionValueAggregator(aggT, getTransformer, outT, itIndex, next)
   }
 
   class ZippedRegionValueAggregator(val aggs: Array[RegionValueAggregator]) {
@@ -66,6 +80,9 @@ object ExtractAggregators {
       rvb.endStruct()
       rvb.end()
     }
+
+    def copy(): ZippedRegionValueAggregator =
+      new ZippedRegionValueAggregator(aggs.map(_.copy))
   }
 
   def apply(ir: IR, aggT: TAggregable): (IR, ZippedRegionValueAggregator) = {
@@ -95,10 +112,10 @@ object ExtractAggregators {
         val tAgg = a.typ.asInstanceOf[TAggregable]
         val in = In(0, null)
         ab += IRAgg(in,
-          new TransformedRegionValueAggregator(aggT,
-            in => tAgg.getElement(lower(a, in)),
-            RegionValueSumAggregator(a.typ)))
-        GetField(in, (ab.length - 1).toString())
+          TransformedRegionValueAggregator(aggT,
+            aggin => tAgg.getElement(lower(a, aggin)),
+            RegionValueSumAggregator(tAgg.elementType)))
+        GetField(in, (ab.length - 1).toString(), typ)
       case _ => Recur(extract)(ir)
     }
   }
@@ -113,7 +130,7 @@ object ExtractAggregators {
         val tA = tAgg.carrierStruct
         val la = lower(a)
         assert(la.typ == tA, s"should have same type ${la.typ} $tA, $la")
-        tAgg.inContext(la, e => Let(name, e, lower(body)))
+        tAgg.inContext(la, e => Let(name, e, lower(body), typ.elementType))
       case AggSum(_, _) =>
         throw new RuntimeException(s"Found aggregator inside an aggregator: $ir")
       case In(i, typ) =>

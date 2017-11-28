@@ -846,6 +846,19 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   def carrierStruct: TStruct =
     TStruct("x" -> elementType, "scope" -> scopeStruct)
 
+  def createCarrier(region: MemoryBuffer, x: Annotation, bindingValues: Annotation*): Long = {
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(carrierStruct)
+    rvb.startStruct()
+    rvb.addAnnotation(elementType, x)
+    rvb.startStruct()
+    (bindings.map(_._2) zip bindingValues).foreach((rvb.addAnnotation _).tupled)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
   import is.hail.expr.ir.{IR, GetField, Ref, MakeStruct, Let}
   def getElement(agg: IR): IR = GetField(agg, "x", elementType)
 
@@ -853,7 +866,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     val b = body(GetField(agg, "x", elementType))
     bindings.foldLeft[IR](
       MakeStruct(Array(("x", b.typ, b), ("scope", scopeStruct, GetField(agg, "scope", scopeStruct))))
-    ) { case (body, (n, t)) => Let(n, GetField(GetField(agg, "scope", scopeStruct), n, t), body) }
+    ) { case (body, (n, t)) => Let(n, GetField(GetField(agg, "scope", scopeStruct), n, t), body, body.typ) }
   }
 
   override def unify(concrete: Type): Boolean = {
