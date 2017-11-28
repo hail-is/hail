@@ -1,14 +1,13 @@
 package is.hail.io
 
+import is.hail.annotations.RegionValueBuilder
 import org.apache.commons.logging.{Log, LogFactory}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred._
 
-import scala.collection.mutable
-
-abstract class KeySerializedValueRecord[K, V] extends Serializable {
+abstract class KeySerializedValueRecord[K] extends Serializable {
   var input: Array[Byte] = _
   var key: K = _
 
@@ -16,7 +15,7 @@ abstract class KeySerializedValueRecord[K, V] extends Serializable {
     this.input = arr
   }
 
-  def getValue: V
+  def getValue(rvb: RegionValueBuilder): Unit
 
   def setKey(k: K) {
     this.key = k

@@ -1,36 +1,34 @@
 package is.hail.io.plink
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.RegionValueBuilder
 import is.hail.io.{IndexedBinaryBlockReader, KeySerializedValueRecord}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 
-class PlinkRecord(nSamples: Int, a2Reference: Boolean) extends KeySerializedValueRecord[Int, IndexedSeq[Annotation]] {
-  override def getValue: IndexedSeq[Annotation] = {
-    val localInput = input
-    require(localInput != null, "called getValue before serialized value was set")
-    new IndexedSeq[Annotation] {
-      def length: Int = nSamples
-      def apply(i: Int): Annotation = {
-        val x = (localInput(i / 4) >> ((i & 3) << 1)) & 3
-        val gt = if (x == 1)
-          null
-        else {
-          if (a2Reference)
-            PlinkBlockReader.GT_CONVERSION(x)
-          else
-            2 - PlinkBlockReader.GT_CONVERSION(x)
-        }
+import scala.annotation.switch
 
-        Annotation(gt)
+class PlinkRecord(nSamples: Int, a2Reference: Boolean) extends KeySerializedValueRecord[Int] {
+  override def getValue(rvb: RegionValueBuilder) {
+    require(input != null, "called getValue before serialized value was set")
+
+    val c = if (a2Reference) 0 else 3
+    rvb.startArray(nSamples)
+    var i = 0
+    while (i < nSamples) {
+      rvb.startStruct() // g
+      val x = (input(i >> 2) >> ((i & 3) << 1)) & 3
+      (x: @switch @unchecked) match {
+        case 0 => rvb.addInt(if (a2Reference) 2 else 0)
+        case 1 => rvb.setMissing()
+        case 2 => rvb.addInt(1)
+        case 3 => rvb.addInt(if (a2Reference) 0 else 2)
       }
+      rvb.endStruct() // g
+      i += 1
     }
+    rvb.endArray()
   }
-}
-
-object PlinkBlockReader {
-  final val GT_CONVERSION = Array(2, -1, 1, 0)
 }
 
 class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[PlinkRecord](job, split) {
