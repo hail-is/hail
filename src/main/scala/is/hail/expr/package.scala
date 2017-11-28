@@ -28,6 +28,8 @@ package object expr extends HailRepFunctions {
     def combOp(agg2: RegionValueAggregator): Unit
 
     def result(region: MemoryBuffer): Long
+
+    def copy(): RegionValueAggregator
   }
 
   implicit def toRichParser[T](parser: Parser.Parser[T]): RichParser[T] = new RichParser(parser)

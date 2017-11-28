@@ -25,7 +25,7 @@ final class MemoryBuffer(private var mem: Array[Byte], private var end: Long = 0
     assert(size <= capacity)
     assert(other.size <= other.capacity)
     assert(n >= 0)
-    assert(readStart >= 0 && readStart + n <= other.size)
+    assert(readStart >= 0 && readStart + n <= other.size, s"$readStart, ${other.size} ${n}")
     assert(writeStart >= 0 && writeStart + n <= size)
     Memory.memcpy(mem, writeStart, other.mem, readStart, n)
   }
@@ -185,33 +185,47 @@ final class MemoryBuffer(private var mem: Array[Byte], private var end: Long = 0
       clearBit(byteOff, bitOff)
   }
 
-  def appendInt(i: Int) {
-    storeInt(alignAndAllocate(4), i)
+  def appendInt(i: Int): Long = {
+    val off = alignAndAllocate(4)
+    storeInt(off, i)
+    off
   }
 
-  def appendLong(l: Long) {
-    storeLong(alignAndAllocate(8), l)
+  def appendLong(l: Long): Long = {
+    val off = alignAndAllocate(8)
+    storeLong(off, l)
+    off
   }
 
-  def appendFloat(f: Float) {
-    storeFloat(alignAndAllocate(4), f)
+  def appendFloat(f: Float): Long = {
+    val off = alignAndAllocate(4)
+    storeFloat(off, f)
+    off
   }
 
-  def appendDouble(d: Double) {
-    storeDouble(alignAndAllocate(8), d)
+  def appendDouble(d: Double): Long = {
+    val off = alignAndAllocate(8)
+    storeDouble(off, d)
+    off
   }
 
-  def appendByte(b: Byte) {
-    storeByte(allocate(1), b)
+  def appendByte(b: Byte): Long = {
+    val off = allocate(1)
+    storeByte(off, b)
+    off
   }
 
-  def appendBytes(bytes: Array[Byte]) {
-    storeBytes(allocate(bytes.length), bytes)
+  def appendBytes(bytes: Array[Byte]): Long = {
+    val off = allocate(bytes.length)
+    storeBytes(off, bytes)
+    off
   }
 
-  def appendBytes(bytes: Array[Byte], bytesOff: Long, n: Int) {
+  def appendBytes(bytes: Array[Byte], bytesOff: Long, n: Int): Long = {
     assert(bytesOff + n <= bytes.length)
-    storeBytes(allocate(n), bytes, bytesOff, n)
+    val off = allocate(n)
+    storeBytes(off, bytes, bytesOff, n)
+    off
   }
 
   def clear(newEnd: Long) {
