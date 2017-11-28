@@ -13,7 +13,7 @@ object RunAggregators {
     var i = 0
     while (i < tArray.loadLength(region, aOff)) {
       val v = if (tArray.isElementDefined(region, aOff, i))
-         tArray.loadElement(region, aOff, i)
+        elementToAnnotation(region, tArray.loadElement(region, aOff, i))
       else
         null
       agg.seqOp(region, tAgg.createCarrier(region, v, extraBindings(i):_*), false)
