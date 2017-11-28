@@ -1,12 +1,11 @@
 package is.hail.io.bgen
 
-import breeze.linalg.DenseVector
 import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant}
 
-abstract class BgenRecord extends KeySerializedValueRecord[Variant, Iterable[Annotation]] {
+abstract class BgenRecord extends KeySerializedValueRecord[Variant] {
   var ann: Annotation = _
 
   def setAnnotation(ann: Annotation) {
@@ -15,14 +14,14 @@ abstract class BgenRecord extends KeySerializedValueRecord[Variant, Iterable[Ann
 
   def getAnnotation: Annotation = ann
 
-  override def getValue: Iterable[Annotation]
+  override def getValue(rvb: RegionValueBuilder): Unit
 }
 
 class BgenRecordV11(compressed: Boolean,
   nSamples: Int,
   tolerance: Double) extends BgenRecord {
 
-  override def getValue: Iterable[Annotation] = {
+  override def getValue(rvb: RegionValueBuilder) {
     require(input != null, "called getValue before serialized value was set")
 
     val byteReader = new ByteArrayReader(if (compressed) decompress(input, nSamples * 6) else input)
@@ -34,34 +33,37 @@ class BgenRecordV11(compressed: Boolean,
 
     val t = new Array[Int](3)
 
-    new Iterable[Annotation] {
-      def iterator = new Iterator[Annotation] {
-        var i = 0
-        byteReader.seek(0)
+    byteReader.seek(0)
 
-        def hasNext: Boolean = i < byteReader.length
-
-        def next(): Annotation = {
-          val d0 = byteReader.readShort()
-          val d1 = byteReader.readShort()
-          val d2 = byteReader.readShort()
-
-          i += 6
-
-          val dsum = d0 + d1 + d2
-          if (dsum >= lowerTol
-            && dsum <= upperTol) {
-            t(0) = d0
-            t(1) = d1
-            t(2) = d2
-            val gt = Genotype.unboxedGTFromLinear(t)
-            val gp: IndexedSeq[Double] = Array(d0.toDouble / dsum, d1.toDouble / dsum, d2.toDouble / dsum)
-            Annotation(if (gt != -1) gt else null, gp)
-          } else
-            null
-        }
-      }
+    rvb.startArray(nSamples)
+    var i = 0
+    while (i < nSamples) {
+      val d0 = byteReader.readShort()
+      val d1 = byteReader.readShort()
+      val d2 = byteReader.readShort()
+      val dsum = d0 + d1 + d2
+      if (dsum >= lowerTol && dsum <= upperTol) {
+        t(0) = d0
+        t(1) = d1
+        t(2) = d2
+        rvb.startStruct()
+        // GT
+        val gt = Genotype.unboxedGTFromLinear(t)
+        if (gt != -1)
+          rvb.addInt(gt)
+        else
+          rvb.setMissing()
+        rvb.startArray(3) // GP
+        rvb.addDouble(d0.toDouble / dsum)
+        rvb.addDouble(d1.toDouble / dsum)
+        rvb.addDouble(d2.toDouble / dsum)
+        rvb.endArray()
+        rvb.endStruct()
+      } else
+        rvb.setMissing()
+      i += 1
     }
+    rvb.endArray()
   }
 }
 
@@ -89,51 +91,6 @@ class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBi
   }
 }
 
-final class Bgen12GenotypeIterator(a: Array[Byte],
-  val nAlleles: Int,
-  val nBitsPerProb: Int,
-  nSamples: Int) extends Iterable[Annotation] {
-  private val nGenotypes = triangle(nAlleles)
-
-  private val totalProb = ((1L << nBitsPerProb) - 1).toUInt
-
-  private val sampleProbs = ArrayUInt(nGenotypes)
-
-  private val pa = new BGen12ProbabilityArray(a, nSamples, nGenotypes, nBitsPerProb)
-
-  def isSampleMissing(s: Int): Boolean = (a(8 + s) & 0x80) != 0
-
-  def iterator: Iterator[Annotation] = new Iterator[Annotation] {
-    var sampleIndex = 0
-
-    def hasNext: Boolean = sampleIndex < nSamples
-
-    def next(): Annotation = {
-      val g = if (isSampleMissing(sampleIndex))
-        null
-      else {
-        var i = 0
-        var lastProb = totalProb
-        while (i < nGenotypes - 1) {
-          val p = pa(sampleIndex, i)
-          sampleProbs(i) = p
-          i += 1
-          lastProb -= p
-        }
-        sampleProbs(i) = lastProb
-
-        val gt = Genotype.unboxedGTFromUIntLinear(sampleProbs)
-        val gp: IndexedSeq[Double] = Array.tabulate(nGenotypes)(i => sampleProbs(i).toDouble / totalProb.toDouble)
-        Annotation(if (gt != -1) gt else null, gp)
-      }
-
-      sampleIndex += 1
-
-      g
-    }
-  }
-}
-
 class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) extends BgenRecord {
   var expectedDataSize: Int = _
   var expectedNumAlleles: Int = _
@@ -146,7 +103,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     this.expectedNumAlleles = n
   }
 
-  override def getValue: Iterable[Annotation] = {
+  override def getValue(rvb: RegionValueBuilder) {
     require(input != null, "called getValue before serialized value was set")
 
     val a = if (compressed) decompress(input, expectedDataSize) else input
@@ -186,7 +143,47 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
     assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
 
-    new Bgen12GenotypeIterator(a, nAlleles, nBitsPerProb, nSamples)
+    val totalProb = ((1L << nBitsPerProb) - 1).toUInt
+
+    val sampleProbs = ArrayUInt(nGenotypes)
+
+    val pa = new BGen12ProbabilityArray(a, nSamples, nGenotypes, nBitsPerProb)
+
+    rvb.startArray(nSamples) // gs
+    i = 0
+    while (i < nSamples) {
+      val sampleMissing = (a(8 + i) & 0x80) != 0
+      if (sampleMissing)
+        rvb.setMissing()
+      else {
+        rvb.startStruct() // g
+        var j = 0
+        var lastProb = totalProb
+        while (j < nGenotypes - 1) {
+          val p = pa(i, j)
+          sampleProbs(j) = p
+          j += 1
+          lastProb -= p
+        }
+        sampleProbs(j) = lastProb
+        // GT
+        val gt = Genotype.unboxedGTFromUIntLinear(sampleProbs)
+        if (gt != -1)
+          rvb.addInt(gt)
+        else
+          rvb.setMissing()
+        // GP
+        rvb.startArray(nGenotypes)
+        j = 0
+        while (j < nGenotypes) {
+          rvb.addDouble(sampleProbs(j).toDouble / totalProb.toDouble)
+          j += 1
+        }
+        rvb.endArray()
+        rvb.endStruct() // g
+      }
+      i += 1
+    }
+    rvb.endArray()
   }
 }
-

@@ -2,15 +2,15 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{TArray, TCall, TFloat64, TString, TStruct, TVariant}
+import is.hail.expr.{MatrixType, TArray, TCall, TFloat64, TString, TStruct, TVariant}
 import is.hail.io.vcf.LoadVCF
 import is.hail.io.{HadoopFSDataBinaryReader, IndexBTree}
+import is.hail.sparkextras.OrderedRDD2
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.rdd.RDD
 
-import scala.reflect.classTag
 import scala.io.Source
 
 case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
@@ -67,23 +67,67 @@ object BgenLoader {
 
     val signature = TStruct("rsid" -> TString(), "varid" -> TString())
 
-    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey)))
-
-    val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
-      (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
-    }))
-
-    VariantSampleMatrix.fromLegacy(hc, VSMMetadata(
+    val metadata = VSMMetadata(
       TString(),
       saSignature = TStruct.empty(),
       TVariant(gr),
       vaSignature = signature,
       genotypeSignature = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())),
-      globalSignature = TStruct.empty()),
+      globalSignature = TStruct.empty())
+
+    val matrixType = MatrixType(metadata)
+    val kType = matrixType.kType
+    val rowType = matrixType.rowType
+
+    val fastKeys = sc.union(results.map(_.rdd.mapPartitions { it =>
+      val region = MemoryBuffer()
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+
+      it.map { case (_, record) =>
+        val v = record.getKey
+        val va = record.getAnnotation
+
+        region.clear()
+        rvb.start(kType)
+        rvb.startStruct()
+        rvb.addAnnotation(kType.fieldType(0), v.locus) // locus/pk
+        rvb.addAnnotation(kType.fieldType(1), v)
+        rvb.endStruct()
+
+        rv.setOffset(rvb.end())
+        rv
+      }
+    }))
+
+    val rdd2 = sc.union(results.map(_.rdd.mapPartitions { it =>
+      val region = MemoryBuffer()
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+
+      it.map { case (_, record) =>
+        val v = record.getKey
+        val va = record.getAnnotation
+
+        region.clear()
+        rvb.start(rowType)
+        rvb.startStruct()
+        rvb.addAnnotation(rowType.fieldType(0), v.locus) // locus/pk
+        rvb.addAnnotation(rowType.fieldType(1), v)
+        rvb.addAnnotation(rowType.fieldType(2), va)
+        record.getValue(rvb) // gs
+        rvb.endStruct()
+
+        rv.setOffset(rvb.end())
+        rv
+      }
+    }))
+
+    new VariantSampleMatrix(hc, metadata,
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = Array.fill(nSamples)(Annotation.empty)),
-      rdd, fastKeys)
+      OrderedRDD2(matrixType.orderedRDD2Type, rdd2, Some(fastKeys), None))
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {
