@@ -2,6 +2,7 @@ import abc
 from hail.java import scala_object, Env, jset, jindexed_seq
 from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call, GenomeReference
 from hail.typecheck import typecheck_method, nullable
+from hail.history import *
 
 
 class TypeCheckError(Exception):
@@ -19,7 +20,7 @@ class TypeCheckError(Exception):
         return self.msg
 
 
-class Type(object):
+class Type(HistoryMixin):
     """
     Hail type superclass used for annotations and expression language.
     """
@@ -28,6 +29,7 @@ class Type(object):
     def __init__(self, jtype):
         self._jtype = jtype
         self.required = jtype.required()
+        super(Type, self).__init__()
 
     def __repr__(self):
         return ("!" if self.required else "") + self._repr()
@@ -119,7 +121,8 @@ class TInt32(Type):
     """
     __metaclass__ = InternType
 
-    def __init__(self, required = False):
+    @record_init
+    def __init__(self, required=False):
         super(TInt32, self).__init__(scala_object(Env.hail().expr, 'TInt32').apply(required))
 
     def _convert_to_py(self, annotation):
@@ -152,7 +155,8 @@ class TInt64(Type):
     """
     __metaclass__ = InternType
 
-    def __init__(self, required = False):
+    @record_init
+    def __init__(self, required=False):
         super(TInt64, self).__init__(scala_object(Env.hail().expr, 'TInt64').apply(required))
         self.required = required
 
@@ -187,7 +191,8 @@ class TFloat32(Type):
     """
     __metaclass__ = InternType
 
-    def __init__(self, required = False):
+    @record_init
+    def __init__(self, required=False):
         super(TFloat32, self).__init__(scala_object(Env.hail().expr, 'TFloat32').apply(required))
 
     def _convert_to_py(self, annotation):
@@ -224,7 +229,8 @@ class TFloat64(Type):
     """
     __metaclass__ = InternType
 
-    def __init__(self, required = False):
+    @record_init
+    def __init__(self, required=False):
         super(TFloat64, self).__init__(scala_object(Env.hail().expr, 'TFloat64').apply(required))
 
     def _convert_to_py(self, annotation):
@@ -258,7 +264,8 @@ class TString(Type):
     """
     __metaclass__ = InternType
 
-    def __init__(self, required = False):
+    @record_init
+    def __init__(self, required=False):
         super(TString, self).__init__(scala_object(Env.hail().expr, 'TString').apply(required))
 
     def _convert_to_py(self, annotation):
@@ -289,7 +296,8 @@ class TBoolean(Type):
     """
     __metaclass__ = InternType
 
-    def __init__(self, required = False):
+    @record_init
+    def __init__(self, required=False):
         super(TBoolean, self).__init__(scala_object(Env.hail().expr, 'TBoolean').apply(required))
 
     def _convert_to_py(self, annotation):
@@ -324,7 +332,8 @@ class TArray(Type):
     :vartype element_type: :class:`.Type`
     """
 
-    def __init__(self, element_type, required = False):
+    @record_init
+    def __init__(self, element_type, required=False):
         """
         :param :class:`.Type` element_type: Hail type of array element
         """
@@ -338,6 +347,7 @@ class TArray(Type):
         t.element_type = Type._from_java(jtype.elementType())
         t._jtype = jtype
         t.required = jtype.required()
+        super(Type, t).__init__()
         return t
 
     def _convert_to_py(self, annotation):
@@ -384,7 +394,8 @@ class TSet(Type):
     :vartype element_type: :class:`.Type`
     """
 
-    def __init__(self, element_type, required = False):
+    @record_init
+    def __init__(self, element_type, required=False):
         """
         :param :class:`.Type` element_type: Hail type of set element
         """
@@ -398,6 +409,7 @@ class TSet(Type):
         t.element_type = Type._from_java(jtype.elementType())
         t._jtype = jtype
         t.required = jtype.required()
+        super(Type, t).__init__()
         return t
 
     def _convert_to_py(self, annotation):
@@ -449,7 +461,8 @@ class TDict(Type):
     :vartype value_type: :class:`.Type`
     """
 
-    def __init__(self, key_type, value_type, required = False):
+    @record_init
+    def __init__(self, key_type, value_type, required=False):
         jtype = scala_object(Env.hail().expr, 'TDict').apply(key_type._jtype, value_type._jtype, required)
         self.key_type = key_type
         self.value_type = value_type
@@ -462,6 +475,7 @@ class TDict(Type):
         t.value_type = Type._from_java(jtype.valueType())
         t._jtype = jtype
         t.required = jtype.required()
+        super(Type, t).__init__()
         return t
 
     def _convert_to_py(self, annotation):
@@ -534,10 +548,8 @@ class TStruct(Type):
     :vartype fields: list of :class:`.Field`
     """
 
+    @record_init
     def __init__(self, names, types, required=False):
-        """
-        """
-
         if len(names) != len(types):
             raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
         jtype = scala_object(Env.hail().expr, 'TStruct').apply(names, map(lambda t: t._jtype, types), required)
@@ -571,6 +583,7 @@ class TStruct(Type):
         struct._init_from_java(jtype)
         struct._jtype = jtype
         struct.required = jtype.required()
+        super(Type, struct).__init__()
         return struct
 
     def _init_from_java(self, jtype):
@@ -638,9 +651,10 @@ class TVariant(Type):
 
     """
 
+    @record_init
     @typecheck_method(reference_genome=nullable(GenomeReference),
                       required=bool)
-    def __init__(self, reference_genome=None, required = False):
+    def __init__(self, reference_genome=None, required=False):
         self._rg = reference_genome if reference_genome else Env.hc().default_reference
         jtype = scala_object(Env.hail().expr, 'TVariant').apply(self._rg._jrep, required)
         super(TVariant, self).__init__(jtype)
@@ -649,12 +663,14 @@ class TVariant(Type):
     def _from_java(cls, jtype):
         v = TVariant.__new__(cls)
         v._jtype = jtype
+        v._rg = GenomeReference._from_java(jtype.gr())
         v.required = jtype.required()
+        super(Type, v).__init__()
         return v
 
     def _convert_to_py(self, annotation):
         if annotation:
-            return Variant._from_java(annotation)
+            return Variant._from_java(annotation, self._rg)
         else:
             return annotation
 
@@ -672,6 +688,15 @@ class TVariant(Type):
     def _repr(self):
         return "TVariant()"
 
+    @property
+    @record_property
+    def reference_genome(self):
+        """Reference genome.
+
+        :return: :class:`.GenomeReference`
+        """
+        return self._rg
+
 
 class TAltAllele(Type):
     """
@@ -685,7 +710,8 @@ class TAltAllele(Type):
     """
     __metaclass__ = InternType
 
-    def __init__(self, required = False):
+    @record_init
+    def __init__(self, required=False):
         super(TAltAllele, self).__init__(scala_object(Env.hail().expr, 'TAltAllele').apply(required))
 
     def _convert_to_py(self, annotation):
@@ -723,7 +749,8 @@ class TGenotype(Type):
     """
     __metaclass__ = InternType
 
-    def __init__(self, required = False):
+    @record_init
+    def __init__(self, required=False):
         super(TGenotype, self).__init__(scala_object(Env.hail().expr, 'TGenotype').apply(required))
 
     def _convert_to_py(self, annotation):
@@ -761,7 +788,8 @@ class TCall(Type):
     """
     __metaclass__ = InternType
 
-    def __init__(self, required = False):
+    @record_init
+    def __init__(self, required=False):
         super(TCall, self).__init__(scala_object(Env.hail().expr, 'TCall').apply(required))
 
     def _convert_to_py(self, annotation):
@@ -801,9 +829,10 @@ class TLocus(Type):
 
     """
 
+    @record_init
     @typecheck_method(reference_genome=nullable(GenomeReference),
                       required=bool)
-    def __init__(self, reference_genome=None, required = False):
+    def __init__(self, reference_genome=None, required=False):
         self._rg = reference_genome if reference_genome else Env.hc().default_reference
         jtype = scala_object(Env.hail().expr, 'TLocus').apply(self._rg._jrep, required)
         super(TLocus, self).__init__(jtype)
@@ -812,12 +841,14 @@ class TLocus(Type):
     def _from_java(cls, jtype):
         l = TLocus.__new__(cls)
         l._jtype = jtype
+        l._rg = GenomeReference._from_java(jtype.gr())
         l.required = jtype.required()
+        super(Type, l).__init__()
         return l
 
     def _convert_to_py(self, annotation):
         if annotation:
-            return Locus._from_java(annotation)
+            return Locus._from_java(annotation, self._rg)
         else:
             return annotation
 
@@ -837,6 +868,15 @@ class TLocus(Type):
     def _repr(self):
         return "TLocus()"
 
+    @property
+    @record_property
+    def reference_genome(self):
+        """Reference genome.
+
+        :return: :class:`.GenomeReference`
+        """
+        return self._rg
+
 
 class TInterval(Type):
     """
@@ -851,9 +891,10 @@ class TInterval(Type):
     :type reference_genome: :class:`.GenomeReference`
     """
 
+    @record_init
     @typecheck_method(reference_genome=nullable(GenomeReference),
                       required=bool)
-    def __init__(self, reference_genome=None, required = False):
+    def __init__(self, reference_genome=None, required=False):
         self._rg = reference_genome if reference_genome else Env.hc().default_reference
         jtype = scala_object(Env.hail().expr, 'TInterval').apply(self._rg._jrep, required)
         super(TInterval, self).__init__(jtype)
@@ -862,12 +903,14 @@ class TInterval(Type):
     def _from_java(cls, jtype):
         i = TInterval.__new__(cls)
         i._jtype = jtype
+        i._rg = GenomeReference._from_java(jtype.gr())
         i.required = jtype.required()
+        super(Type, i).__init__()
         return i
 
     def _convert_to_py(self, annotation):
         if annotation:
-            return Interval._from_java(annotation)
+            return Interval._from_java(annotation, self._rg)
         else:
             return annotation
 
@@ -887,6 +930,15 @@ class TInterval(Type):
     def _repr(self):
         return "TInterval()"
 
+    @property
+    @record_property
+    def reference_genome(self):
+        """Reference genome.
+
+        :return: :class:`.GenomeReference`
+        """
+        return self._rg
+
 
 class TAggregable(Type):
     """
@@ -899,7 +951,8 @@ class TAggregable(Type):
     :vartype element_type: :class:`.Type`
     """
 
-    def __init__(self, element_type, required = False):
+    @record_init
+    def __init__(self, element_type, required=False):
         """
         :param :class:`.Type` element_type: Hail type of array element
         """
@@ -913,6 +966,7 @@ class TAggregable(Type):
         t.element_type = Type._from_java(jtype.elementType())
         t._jtype = jtype
         t.required = jtype.required()
+        super(Type, t).__init__()
         return t
 
     def _typecheck(self, annotation):

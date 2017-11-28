@@ -237,9 +237,11 @@ object GenomeReference {
 
   def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
     xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
-    mtContigs: java.util.ArrayList[String], par: java.util.ArrayList[Interval[Locus]]): GenomeReference =
-    GenomeReference(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet, yContigs.asScala.toSet, mtContigs.asScala.toSet,
-      par.asScala.toArray)
+    mtContigs: java.util.ArrayList[String], par: Array[Interval[Locus]]): GenomeReference = {
+    val gr = GenomeReference(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet, yContigs.asScala.toSet, mtContigs.asScala.toSet, par)
+    addReference(gr)
+    gr
+  }
 }
 
 case class GRVariable(var gr: GRBase = null) extends GRBase {

@@ -2,6 +2,7 @@ from hail.java import *
 from hail.representation.variant import Locus
 from hail.typecheck import *
 from hail.history import *
+from hail.representation.genomeref import GenomeReference
 
 interval_type = lazy()
 
@@ -18,15 +19,22 @@ class Interval(HistoryMixin):
     :type start: :class:`.Locus`
     :param end: exclusive end locus
     :type end: :class:`.Locus`
+    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+    :type reference_genome: :class:`.GenomeReference`
     """
 
     @handle_py4j
     @record_init
+    @typecheck_method(start=Locus,
+                      end=Locus)
     def __init__(self, start, end):
         if not (isinstance(start, Locus) and isinstance(end, Locus)):
             raise TypeError('expect arguments of type (Locus, Locus) but found (%s, %s)' %
                             (str(type(start)), str(type(end))))
+        if start._rg != end._rg:
+            raise TypeError("expect `start' and `end' to have the same reference genome but found ({}, {})".format(start._rg.name, end._rg.name))
         jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep)
+        self._rg = start._rg
         self._init_from_java(jrep)
 
     def __str__(self):
@@ -36,27 +44,28 @@ class Interval(HistoryMixin):
         return 'Interval(start=%s, end=%s)' % (repr(self.start), repr(self.end))
 
     def __eq__(self, other):
-        return self._jrep.equals(other._jrep)
+        return isinstance(other, Interval) and self._jrep.equals(other._jrep) and self._rg._jrep == other._rg._jrep
 
     def __hash__(self):
         return self._jrep.hashCode()
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
-        self._start = Locus._from_java(self._jrep.start())
 
     @classmethod
-    @record_classmethod
-    def _from_java(cls, jrep):
+    def _from_java(cls, jrep, reference_genome):
         interval = Interval.__new__(cls)
         interval._init_from_java(jrep)
+        interval._rg = reference_genome
+        super(Interval, interval).__init__()
         return interval
 
     @classmethod
     @handle_py4j
     @record_classmethod
-    @typecheck_method(string=strlike)
-    def parse(cls, string):
+    @typecheck_method(string=strlike,
+                      reference_genome=nullable(GenomeReference))
+    def parse(cls, string, reference_genome=None):
         """Parses a genomic interval from string representation.
 
         **Examples**:
@@ -91,11 +100,16 @@ class Interval(HistoryMixin):
 
         Note that the start locus must precede the start locus.
 
+        :param str string: String to parse.
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`
+
         :rtype: :class:`.Interval`
         """
 
+        rg = reference_genome if reference_genome else Env.hc().default_reference
         jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string)
-        return Interval._from_java(jrep)
+        return Interval._from_java(jrep, rg)
 
     @property
     def start(self):
@@ -104,7 +118,7 @@ class Interval(HistoryMixin):
 
         :rtype: :class:`.Locus`
         """
-        return Locus._from_java(self._jrep.start())
+        return Locus._from_java(self._jrep.start(), self._rg)
 
     @property
     def end(self):
@@ -113,7 +127,16 @@ class Interval(HistoryMixin):
 
         :rtype: :class:`.Locus`
         """
-        return Locus._from_java(self._jrep.end())
+        return Locus._from_java(self._jrep.end(), self._rg)
+
+    @property
+    @record_property
+    def reference_genome(self):
+        """Reference genome.
+
+        :return: :class:`.GenomeReference`
+        """
+        return self._rg
 
     @handle_py4j
     @typecheck_method(locus=Locus)
@@ -127,6 +150,8 @@ class Interval(HistoryMixin):
         :rtype: bool
         """
 
+        if self._rg != locus._rg:
+            raise TypeError("expect `locus' has reference genome `{}' but found `{}'".format(self._rg.name, locus._rg.name))
         return self._jrep.contains(locus._jrep)
 
     @handle_py4j
@@ -145,6 +170,8 @@ class Interval(HistoryMixin):
         :type: interval: :class:`.Interval`
         :rtype: bool"""
 
+        if self._rg != interval._rg:
+            raise TypeError("expect `interval' has reference genome `{}' but found `{}'".format(self._rg.name, interval._rg.name))
         return self._jrep.overlaps(interval._jrep)
 
 interval_type.set(Interval)

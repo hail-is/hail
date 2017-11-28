@@ -1,6 +1,5 @@
 from hail.java import handle_py4j, jiterable_to_list
 from hail.typecheck import *
-from hail.representation.interval import Interval
 from hail.utils import wrap_to_list
 from hail.history import *
 
@@ -25,12 +24,12 @@ class GenomeReference(HistoryMixin):
     :param mt_contigs: Contigs to be treated as mitochondrial DNA.
     :type mt_contigs: str or list of str
 
-    :param par: List of intervals representing pseudoautosomal regions.
-    :type par: list of :class:`.Interval`
+    :param par: List of tuples with (contig, start, end)
+    :type par: list of tuple of (str or int, int, int)
 
     >>> contigs = ["1", "X", "Y", "MT"]
     >>> lengths = {"1": 249250621, "X": 155270560, "Y": 59373566, "MT": 16569}
-    >>> par = [Interval.parse("X:60001-2699521")]
+    >>> par = [("X", 60001, 2699521)]
     >>> my_ref = GenomeReference("my_ref", contigs, lengths, "X", "Y", "MT", par)
     """
 
@@ -42,13 +41,13 @@ class GenomeReference(HistoryMixin):
                       x_contigs=oneof(strlike, listof(strlike)),
                       y_contigs=oneof(strlike, listof(strlike)),
                       mt_contigs=oneof(strlike, listof(strlike)),
-                      par=listof(Interval))
+                      par=listof(sized_tupleof(oneof(strlike, integral), integral, integral)))
     def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
         contigs = wrap_to_list(contigs)
         x_contigs = wrap_to_list(x_contigs)
         y_contigs = wrap_to_list(y_contigs)
         mt_contigs = wrap_to_list(mt_contigs)
-        par_jrep = [interval._jrep for interval in par]
+        self._par_jrep = Env.hail().variant.Locus.parseIntervals(wrap_to_list(["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]))
 
         jrep = (Env.hail().variant.GenomeReference
                 .apply(name,
@@ -57,7 +56,7 @@ class GenomeReference(HistoryMixin):
                        x_contigs,
                        y_contigs,
                        mt_contigs,
-                       par_jrep))
+                       self._par_jrep))
 
         self._init_from_java(jrep)
         self._name = name
@@ -66,9 +65,17 @@ class GenomeReference(HistoryMixin):
         self._x_contigs = x_contigs
         self._y_contigs = y_contigs
         self._mt_contigs = mt_contigs
-        self._par = par
+        self._par = None
+        self._par_tuple = par
 
         super(GenomeReference, self).__init__()
+
+    def _set_history(self, history):
+        if not self._history_was_set: # only set varid if GenomeReference was constructed by user
+            self._history = history.set_varid(self.name)
+            self._history_was_set = True
+        else:
+            super(GenomeReference, self)._set_history(history)
 
     @handle_py4j
     def __str__(self):
@@ -76,11 +83,11 @@ class GenomeReference(HistoryMixin):
 
     def __repr__(self):
         return 'GenomeReference(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % \
-               (self.name, self.contigs, self.lengths, self.x_contigs, self.y_contigs, self.mt_contigs, self.par)
+               (self.name, self.contigs, self.lengths, self.x_contigs, self.y_contigs, self.mt_contigs, self._par_tuple)
 
     @handle_py4j
     def __eq__(self, other):
-        return self._jrep.equals(other._jrep)
+        return isinstance(other, GenomeReference) and self._jrep.equals(other._jrep)
 
     @handle_py4j
     def __hash__(self):
@@ -140,6 +147,10 @@ class GenomeReference(HistoryMixin):
 
         :rtype: list of :class:`.Interval`
         """
+
+        from hail.representation.interval import Interval
+        if not self._par:
+            self._par = [Interval._from_java(jrep, self) for jrep in self._par_jrep]
         return self._par
 
     @typecheck_method(contig=strlike)
@@ -237,5 +248,8 @@ class GenomeReference(HistoryMixin):
         gr._x_contigs = [str(x) for x in jiterable_to_list(jrep.xContigs())]
         gr._y_contigs = [str(x) for x in jiterable_to_list(jrep.yContigs())]
         gr._mt_contigs = [str(x) for x in jiterable_to_list(jrep.mtContigs())]
-        gr._par = [Interval._from_java(x) for x in jrep.par()]
+        gr._par = None
+        gr._par_jrep = jrep.par()
+        gr._par_tuple = [(x.start().contig(), x.start().position(), x.end().position()) for x in jrep.par()]
+        super(GenomeReference, gr).__init__()
         return gr

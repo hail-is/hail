@@ -10,6 +10,8 @@ import org.json4s._
 
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
+import scala.collection.JavaConverters._
+import scala.language.implicitConversions
 
 object LocusImplicits {
   /* We cannot add this to the Locus companion object because it breaks serialization. */
@@ -114,6 +116,8 @@ object Locus {
   def parseInterval(str: String): Interval[Locus] = LocusIntervalParser.parseInterval(str)
 
   def parseIntervals(arr: Array[String]): Array[Interval[Locus]] = arr.map(parseInterval)
+
+  def parseIntervals(arr: java.util.ArrayList[String]): Array[Interval[Locus]] = parseIntervals(arr.asScala.toArray)
 
   def makeInterval(start: Locus, end: Locus): Interval[Locus] = Interval(start, end)
 

@@ -27,6 +27,11 @@ class Genotype(HistoryMixin):
 
     @handle_py4j
     @record_init
+    @typecheck_method(gt=nullable(integral),
+                      ad=nullable(listof(integral)),
+                      dp=nullable(integral),
+                      gq=nullable(integral),
+                      pl=nullable(listof(integral)))
     def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):
         """Initialize a Genotype object."""
 
@@ -63,7 +68,7 @@ class Genotype(HistoryMixin):
             (self.gt, self.ad, self.dp, self.gq, self.pl)
 
     def __eq__(self, other):
-        return self._jrep.equals(other._jrep)
+        return isinstance(other, Genotype) and self._jrep.equals(other._jrep)
 
     def __hash__(self):
         return self._jrep.hashCode()
@@ -72,7 +77,6 @@ class Genotype(HistoryMixin):
         self._jrep = jrep
 
     @classmethod
-    @record_classmethod
     def _from_java(cls, jrep):
         if not Genotype._genotype_jobject:
             Genotype._genotype_jobject = scala_object(Env.hail().variant, 'Genotype')
@@ -86,6 +90,7 @@ class Genotype(HistoryMixin):
         g._dp = from_option(jgenotype.dp(jrep))
         g._gq = from_option(jgenotype.gq(jrep))
         g._pl = jarray_to_list(from_option(jgenotype.pl(jrep)))
+        super(Genotype, g).__init__()
         return g
 
     @property
@@ -327,6 +332,7 @@ class Call(HistoryMixin):
 
     @handle_py4j
     @record_init
+    @typecheck_method(call=nullable(integral))
     def __init__(self, call):
         """Initialize a Call object."""
 
@@ -343,7 +349,7 @@ class Call(HistoryMixin):
         return 'Call(gt=%s)' % self._jrep
 
     def __eq__(self, other):
-        return self._jrep.equals(other._jrep)
+        return isinstance(other, Call) and self._jrep.equals(other._jrep)
 
     def __hash__(self):
         return self._jrep.hashCode()
@@ -353,10 +359,10 @@ class Call(HistoryMixin):
         self._jrep = jrep
 
     @classmethod
-    @record_classmethod
     def _from_java(cls, jrep):
         c = Call.__new__(cls)
         c._init_from_java(jrep)
+        super(Call, c).__init__()
         return c
 
     @property

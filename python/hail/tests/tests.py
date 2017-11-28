@@ -606,6 +606,7 @@ class ContextTests(unittest.TestCase):
 
         self.assertEqual(v, Variant('1', 100, 'A', 'T'))
         self.assertEqual(v, Variant(1, 100, 'A', ['T']))
+        self.assertEqual(v.reference_genome, hc.default_reference)
 
         v2 = Variant.parse('1:100:A:T,C')
 
@@ -615,6 +616,7 @@ class ContextTests(unittest.TestCase):
 
         self.assertEqual(l, Locus('1', 100))
         self.assertEqual(l, Locus(1, 100))
+        self.assertEqual(l.reference_genome, hc.default_reference)
 
         self.assertEqual(l, v.locus())
 
@@ -666,6 +668,7 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(interval.contains(Locus("1", 100)))
         self.assertTrue(interval.contains(Locus("1", 109)))
         self.assertFalse(interval.contains(Locus("1", 110)))
+        self.assertEqual(interval.reference_genome, hc.default_reference)
 
         interval2 = Interval.parse("1:109-200")
         interval3 = Interval.parse("1:110-200")
@@ -777,7 +780,7 @@ class ContextTests(unittest.TestCase):
         x_contigs = ["X"]
         y_contigs = ["Y"]
         mt_contigs = ["MT"]
-        par = [Interval(Locus("X", 5), Locus("X", 1000))]
+        par = [("X", 5, 1000)]
 
         gr2 = GenomeReference(name, contigs, lengths, x_contigs, y_contigs, mt_contigs, par)
         self.assertEqual(gr2.name, name)
@@ -785,7 +788,7 @@ class ContextTests(unittest.TestCase):
         self.assertListEqual(gr2.x_contigs, x_contigs)
         self.assertListEqual(gr2.y_contigs, y_contigs)
         self.assertListEqual(gr2.mt_contigs, mt_contigs)
-        self.assertEqual(gr2.par, par)
+        self.assertEqual(gr2.par, [Interval.parse("X:5-1000", gr2)])
         self.assertEqual(gr2.contig_length("1"), 10000)
         self.assertDictEqual(gr2.lengths, lengths)
 

@@ -1,5 +1,5 @@
 from hail.java import *
-from hail.representation import Variant
+from hail.representation import Variant, GenomeReference
 from hail.history import *
 from hail.typecheck import *
 
@@ -10,6 +10,7 @@ class LDMatrix(HistoryMixin):
     """
     def __init__(self, jldm):
         self._jldm = jldm
+        self._rg = GenomeReference._from_java(jldm.vTyp().gr())
 
     def variant_list(self):
         """
@@ -19,7 +20,8 @@ class LDMatrix(HistoryMixin):
         :rtype: list of Variant
         """
         jvars = self._jldm.variants()
-        return list(map(lambda jrep: Variant._from_java(jrep), jvars))
+
+        return list(map(lambda jrep: Variant._from_java(jrep, self._rg), jvars))
 
     def matrix(self):
         """

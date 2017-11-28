@@ -1,6 +1,7 @@
 from hail.java import scala_object, Env, handle_py4j
 from hail.typecheck import *
 from hail.history import *
+from hail.representation.genomeref import GenomeReference
 
 
 class Variant(HistoryMixin):
@@ -18,11 +19,18 @@ class Variant(HistoryMixin):
     :param str ref: reference allele
     :param alts: single alternate allele, or list of alternate alleles
     :type alts: str or list of str
+    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+    :type reference_genome: :class:`.GenomeReference`
     """
 
     @handle_py4j
     @record_init
-    def __init__(self, contig, start, ref, alts):
+    @typecheck_method(contig=oneof(strlike, integral),
+                   start=integral,
+                   ref=strlike,
+                   alts=oneof(strlike, listof(strlike)),
+                   reference_genome=nullable(GenomeReference))
+    def __init__(self, contig, start, ref, alts, reference_genome=None):
         if isinstance(contig, int):
             contig = str(contig)
         jrep = scala_object(Env.hail().variant, 'Variant').apply(contig, start, ref, alts)
@@ -30,15 +38,16 @@ class Variant(HistoryMixin):
         self._contig = contig
         self._start = start
         self._ref = ref
+        self._rg = reference_genome if reference_genome else Env.hc().default_reference
 
     def __str__(self):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Variant(contig=%s, start=%s, ref=%s, alts=%s)' % (self.contig, self.start, self.ref, self._alt_alleles)
+        return 'Variant(contig=%s, start=%s, ref=%s, alts=%s, reference_genome=%s)' % (self.contig, self.start, self.ref, self._alt_alleles, self._rg)
 
     def __eq__(self, other):
-        return self._jrep.equals(other._jrep)
+        return isinstance(other, Variant) and self._jrep.equals(other._jrep) and self._rg._jrep == other._rg._jrep
 
     def __hash__(self):
         return self._jrep.hashCode()
@@ -48,20 +57,22 @@ class Variant(HistoryMixin):
         self._alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
 
     @classmethod
-    @record_classmethod
-    def _from_java(cls, jrep):
+    def _from_java(cls, jrep, reference_genome):
         v = Variant.__new__(cls)
         v._init_from_java(jrep)
         v._contig = jrep.contig()
         v._start = jrep.start()
         v._ref = jrep.ref()
+        v._rg = reference_genome
+        super(Variant, v).__init__()
         return v
 
     @classmethod
     @handle_py4j
     @record_classmethod
-    @typecheck_method(string=strlike)
-    def parse(cls, string):
+    @typecheck_method(string=strlike,
+                      reference_genome=nullable(GenomeReference))
+    def parse(cls, string, reference_genome=None):
         """Parses a variant object from a string.
 
         There are two acceptable formats: CHR:POS:REF:ALT, and
@@ -71,10 +82,15 @@ class Variant(HistoryMixin):
         >>> v_biallelic = Variant.parse('16:20012:A:TT')
         >>> v_multiallelic = Variant.parse('16:12311:T:C,TTT,A')
 
+        :param str string: String to parse.
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`
+
         :rtype: :class:`.Variant`
         """
+        rg = reference_genome if reference_genome else Env.hc().default_reference
         jrep = scala_object(Env.hail().variant, 'Variant').parse(string)
-        return Variant._from_java(jrep)
+        return Variant._from_java(jrep, rg)
 
     @property
     def contig(self):
@@ -112,6 +128,15 @@ class Variant(HistoryMixin):
         :rtype: list of :class:`.AltAllele`
         """
         return self._alt_alleles
+
+    @property
+    @record_property
+    def reference_genome(self):
+        """Reference genome.
+
+        :return: :class:`.GenomeReference`
+        """
+        return self._rg
 
     def num_alt_alleles(self):
         """Returns the number of alternate alleles in this polymorphism.
@@ -203,7 +228,7 @@ class Variant(HistoryMixin):
 
         :rtype: :class:`.Locus`
         """
-        return Locus._from_java(self._jrep.locus())
+        return Locus._from_java(self._jrep.locus(), self._rg)
 
     def is_autosomal_or_pseudoautosomal(self):
         """True if this polymorphism is found on an autosome, or the PAR on X or Y.
@@ -270,6 +295,8 @@ class AltAllele(HistoryMixin):
 
     @handle_py4j
     @record_init
+    @typecheck_method(ref=strlike,
+                   alt=strlike)
     def __init__(self, ref, alt):
         jaa = scala_object(Env.hail().variant, 'AltAllele').apply(ref, alt)
         self._init_from_java(jaa)
@@ -283,7 +310,7 @@ class AltAllele(HistoryMixin):
         return 'AltAllele(ref=%s, alt=%s)' % (self.ref, self.alt)
 
     def __eq__(self, other):
-        return self._jrep.equals(other._jrep)
+        return isinstance(other, AltAllele) and self._jrep.equals(other._jrep)
 
     def __hash__(self):
         return self._jrep.hashCode()
@@ -292,12 +319,12 @@ class AltAllele(HistoryMixin):
         self._jrep = jrep
 
     @classmethod
-    @record_classmethod
     def _from_java(cls, jaa):
         aa = AltAllele.__new__(cls)
         aa._init_from_java(jaa)
         aa._ref = jaa.ref()
         aa._alt = jaa.alt()
+        super(AltAllele, aa).__init__()
         return aa
 
     @property
@@ -433,26 +460,32 @@ class Locus(HistoryMixin):
     :param contig: chromosome identifier
     :type contig: str or int
     :param int position: chromosomal position (1-indexed)
+    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+    :type reference_genome: :class:`.GenomeReference`
     """
 
     @handle_py4j
     @record_init
-    def __init__(self, contig, position):
+    @typecheck_method(contig=oneof(strlike, integral),
+                   position=integral,
+                   reference_genome=nullable(GenomeReference))
+    def __init__(self, contig, position, reference_genome=None):
         if isinstance(contig, int):
             contig = str(contig)
         jrep = scala_object(Env.hail().variant, 'Locus').apply(contig, position)
         self._init_from_java(jrep)
         self._contig = contig
         self._position = position
+        self._rg = reference_genome if reference_genome else Env.hc().default_reference
 
     def __str__(self):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Locus(contig=%s, position=%s)' % (self.contig, self.position)
+        return 'Locus(contig=%s, position=%s, reference_genome=%s)' % (self.contig, self.position, self._rg)
 
     def __eq__(self, other):
-        return self._jrep.equals(other._jrep)
+        return isinstance(other, Locus) and self._jrep.equals(other._jrep) and self._rg._jrep == other._rg._jrep
 
     def __hash__(self):
         return self._jrep.hashCode()
@@ -461,19 +494,21 @@ class Locus(HistoryMixin):
         self._jrep = jrep
 
     @classmethod
-    @record_classmethod
-    def _from_java(cls, jrep):
+    def _from_java(cls, jrep, reference_genome):
         l = Locus.__new__(cls)
         l._init_from_java(jrep)
         l._contig = jrep.contig()
         l._position = jrep.position()
+        l._rg = reference_genome
+        super(Locus, l).__init__()
         return l
 
     @classmethod
     @handle_py4j
     @record_classmethod
-    @typecheck_method(string=strlike)
-    def parse(cls, string):
+    @typecheck_method(string=strlike,
+                      reference_genome=nullable(GenomeReference))
+    def parse(cls, string, reference_genome=None):
         """Parses a locus object from a CHR:POS string.
 
         **Examples**
@@ -481,10 +516,14 @@ class Locus(HistoryMixin):
         >>> l1 = Locus.parse('1:101230')
         >>> l2 = Locus.parse('X:4201230')
 
+        :param str string: String to parse.
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :type reference_genome: :class:`.GenomeReference`
+
         :rtype: :class:`.Locus`
         """
-
-        return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string))
+        rg = reference_genome if reference_genome else Env.hc().default_reference
+        return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string), rg)
 
     @property
     def contig(self):
@@ -501,3 +540,12 @@ class Locus(HistoryMixin):
         :rtype: int
         """
         return self._position
+
+    @property
+    @record_property
+    def reference_genome(self):
+        """Reference genome.
+
+        :return: :class:`.GenomeReference`
+        """
+        return self._rg
