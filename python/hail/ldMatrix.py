@@ -53,6 +53,9 @@ class LDMatrix(HistoryMixin):
         assert j_local_mat.isTranspose() == False
         return DenseMatrix(j_local_mat.rows(), j_local_mat.cols(), list(j_local_mat.data()), False)
 
+    @handle_py4j
+    @write_history('path', is_dir=True)
+    @typecheck_method(path=strlike)
     def write(self, path):
         """
         Writes the LD matrix to a file.
@@ -69,7 +72,9 @@ class LDMatrix(HistoryMixin):
 
         self._jldm.write(path)
 
+    @handle_py4j
     @staticmethod
+    @typecheck_method(path=strlike)
     def read(path):
         """
         Reads the LD matrix from a file.
@@ -87,6 +92,8 @@ class LDMatrix(HistoryMixin):
         jldm = Env.hail().methods.LDMatrix.read(Env.hc()._jhc, path)
         return LDMatrix(jldm)
 
+    @handle_py4j
+    @write_history('path', is_dir=False)
     @typecheck_method(path=strlike,
                       column_delimiter=strlike,
                       header=nullable(strlike),
