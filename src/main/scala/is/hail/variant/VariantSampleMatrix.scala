@@ -14,6 +14,7 @@ import is.hail.utils._
 import is.hail.{HailContext, utils}
 import org.apache.hadoop
 import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd.AggregateWithContext._
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Partitioner, SparkContext, SparkEnv}
@@ -1894,9 +1895,15 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def summarize(): SummaryResult = {
     val localRowType = rowType
     val localNSamples = nSamples
-    rdd2.aggregatePartitions(HardCallView(localRowType))(new SummaryCombiner(localRowType))(
-      (view, summary, rv) => summary.merge(view, rv),
-      _.merge(_))
+    rdd2.aggregateWithContext(
+      (HardCallView(localRowType),
+        new RegionValueVariant(localRowType.fieldType(1).asInstanceOf[TVariant]))
+    )(new SummaryCombiner())(
+      { case ((view, rvVariant), summary, rv) =>
+        rvVariant.setRegion(rv.region, localRowType.loadField(rv, 1))
+        view.setRegion(rv)
+        summary.merge(view, rvVariant)
+      }, _.merge(_))
       .result(localNSamples)
   }
 

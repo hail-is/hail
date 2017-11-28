@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations.{Annotation, RegionValue}
 import is.hail.expr.{TStruct, TVariant, TArray, TString}
-import is.hail.variant.{AltAllele, AltAlleleType, Variant, HardCallView}
+import is.hail.variant.{AltAllele, AltAlleleType, Variant, IVariant, HardCallView}
 
 import scala.collection.mutable
 
@@ -10,7 +10,7 @@ case class SummaryResult(samples: Int, variants: Long, callRate: Option[Double],
   contigs: Set[String], multiallelics: Long, snps: Long, mnps: Long, insertions: Long,
   deletions: Long, complex: Long, star: Long, maxAlleles: Int)
 
-class SummaryCombiner(rowType: TStruct) extends Serializable {
+class SummaryCombiner() extends Serializable {
   private val contigs = mutable.Set.empty[String]
   private var nCalled = 0L
   private var nVariants = 0L
@@ -40,30 +40,18 @@ class SummaryCombiner(rowType: TStruct) extends Serializable {
     this
   }
 
-  def merge(view: HardCallView, rv: RegionValue): SummaryCombiner = {
-    val vType = rowType.fieldType(1).asInstanceOf[TVariant]
-    val r = rv.region
-    val vOffset = rowType.loadField(rv, 1)
-    val t = vType.representation
-    val altsType = t.fieldType(3).asInstanceOf[TArray]
+  def merge(view: HardCallView, variant: IVariant): SummaryCombiner = {
 
     nVariants += 1
+    contigs += variant.contig
 
-    val contig = TString.loadString(r, t.loadField(r, vOffset, 0))
-    contigs += contig
-
-    val altsOffset = t.loadField(r, vOffset, 3)
-    val nAlts = altsType.loadLength(r, altsOffset)
-    val nAlleles = nAlts + 1
+    val nAlleles = variant.nAlleles
     if (nAlleles > 2)
       multiallelics += 1
     if (nAlleles > maxAlleles)
       maxAlleles = nAlleles
 
-    var i = 0
-    while (i < nAlts) {
-      val altOffset = altsType.loadElement(r, altsOffset, nAlts, i)
-      val altAllele = AltAllele.fromRegionValue(r, altOffset)
+    for (altAllele <- variant.altAlleles()) {
       altAllele.altAlleleType match {
         case AltAlleleType.SNP => snps += 1
         case AltAlleleType.MNP => mnps += 1
@@ -72,12 +60,11 @@ class SummaryCombiner(rowType: TStruct) extends Serializable {
         case AltAlleleType.Complex => complex += 1
         case AltAlleleType.Star => star += 1
       }
-      i += 1
     }
 
-    view.setRegion(rv)
-    i = 0
-    while (i < view.gsLength) {
+    val nSamples = view.gsLength
+    var i = 0
+    while (i < nSamples) {
       view.setGenotype(i)
       if (view.hasGT) nCalled += 1
       i += 1

@@ -61,6 +61,7 @@ class RegionValueVariant(tv: TVariant) extends IVariant with View {
       while (i < altAllelesView.length) {
         altAllelesView.set(i)
         a(i) = altAllelesView.elementView.reify()
+        i += 1
       }
       cachedAltAlleles = a
     }

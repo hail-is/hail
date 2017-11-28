@@ -21,5 +21,5 @@ class ArrayView[V <: View](t: TArray, val elementView: V) {
     elementView.setRegion(region, eoff)
   }
 
-  def length(): Int = length
+  def length(): Int = _length
 }
