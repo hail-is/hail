@@ -346,6 +346,13 @@ class Call(HistoryMixin):
     def __repr__(self):
         return 'Call(gt=%s)' % self._gt
 
+    def __eq__(self, other):
+        return isinstance(other, Call) and self.gt == other.gt
+
+    def __hash__(self):
+        # hash('Call') = 0x16f6c8bfbd18ab94
+        return hash(self.gt) ^ 0x16f6c8bfbd18ab94
+
     @property
     def gt(self):
         """Returns the hard call.
