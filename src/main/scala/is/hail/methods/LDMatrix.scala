@@ -5,7 +5,7 @@ import is.hail.HailContext
 import is.hail.annotations.UnsafeRow
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
-import is.hail.expr.Type
+import is.hail.expr.{Parser, TVariant}
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.variant.{HardCallView, Variant, VariantDataset}
@@ -65,7 +65,7 @@ object LDMatrix {
     val scaledIRM = new IndexedRowMatrix(irm.rows
       .map{case IndexedRow(idx, vec) => IndexedRow(idx, vec.map(d => d * nSamplesInverse))})
 
-    LDMatrix(vds.hc, scaledIRM, variantsKept, nSamples, vds.vSignature)
+    LDMatrix(vds.hc, scaledIRM, variantsKept, nSamples, vds.vSignature.asInstanceOf[TVariant])
   }
 
   private val metadataRelativePath = "/metadata.json"
@@ -83,7 +83,7 @@ object LDMatrix {
         jackson.Serialization.read[LDMatrixMetadata](isr)
       }
 
-    new LDMatrix(hc, new IndexedRowMatrix(rdd), variants, nSamples, vTyp)
+    new LDMatrix(hc, new IndexedRowMatrix(rdd), variants, nSamples, Parser.parseType(vTyp).asInstanceOf[TVariant])
   }
 }
 
@@ -93,7 +93,7 @@ object LDMatrix {
   * @param variants Array of variants indexing the rows and columns of the matrix.
   * @param nSamples Number of samples used to compute this matrix.
   */
-case class LDMatrix(hc: HailContext, matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int, vTyp: Type) extends ExportableMatrix {
+case class LDMatrix(hc: HailContext, matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int, vTyp: TVariant) extends ExportableMatrix {
   import LDMatrix._
 
   def toLocalMatrix: BDM[Double] = {
@@ -109,10 +109,10 @@ case class LDMatrix(hc: HailContext, matrix: IndexedRowMatrix, variants: Array[V
 
     hadoop.writeTextFile(uri + metadataRelativePath) { os =>
       jackson.Serialization.write(
-        LDMatrixMetadata(variants, nSamples, vTyp),
+        LDMatrixMetadata(variants, nSamples, vTyp.toPrettyString(compact = true, printAttrs = true)),
         os)
     }
   }
 }
 
-case class LDMatrixMetadata(variants: Array[Variant], nSamples: Int, vTyp: Type)
+case class LDMatrixMetadata(variants: Array[Variant], nSamples: Int, vTyp: String)

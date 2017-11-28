@@ -2,8 +2,9 @@ package is.hail.methods
 
 import breeze.linalg.{DenseMatrix, convert, norm}
 import breeze.stats.mean
+import is.hail.expr.TVariant
 import is.hail.utils._
-import is.hail.variant.{Genotype, Locus, Variant, VariantDataset}
+import is.hail.variant.{GenomeReference, Genotype, Locus, Variant, VariantDataset}
 import is.hail.{SparkSuite, TestUtils, stats}
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
@@ -122,7 +123,7 @@ class LDMatrixSuite extends SparkSuite {
 
   private def rowArrayToLDMatrix(a: Array[Array[Double]]): LDMatrix = {
     val m = rowArrayToIRM(a)
-    LDMatrix(hc, m, (0 until m.numRows().toInt).map(_ => Variant.gen.sample()).toArray[Variant], m.numCols().toInt)
+    LDMatrix(hc, m, (0 until m.numRows().toInt).map(_ => Variant.gen.sample()).toArray[Variant], m.numCols().toInt, TVariant(GenomeReference.defaultReference))
   }
 
   @Test
