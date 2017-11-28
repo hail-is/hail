@@ -846,6 +846,11 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   def carrierStruct: TStruct =
     TStruct("x" -> elementType, "scope" -> scopeStruct)
 
+  /**
+    * For testing only because {@code Annotation} is not an allocation free
+    * interface.
+    *
+    **/
   def createCarrier(region: MemoryBuffer, x: Annotation, bindingValues: Annotation*): Long = {
     val rvb = new RegionValueBuilder()
     rvb.set(region)
@@ -854,6 +859,110 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     rvb.addAnnotation(elementType, x)
     rvb.startStruct()
     (bindings.map(_._2) zip bindingValues).foreach((rvb.addAnnotation _).tupled)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
+  /**
+    * FIXME: how to abstract over the next five methods without allocation
+    *
+    **/
+  def createCarrier(region: MemoryBuffer,
+    x: Long, mx: Boolean,
+    a0: Long, ma0: Boolean): Long = {
+    assert(bindings.length == 1)
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(carrierStruct)
+    rvb.startStruct()
+    if (mx) rvb.setMissing() else rvb.addAnnotation(elementType, mx)
+    rvb.startStruct()
+    if (ma0) rvb.setMissing() else rvb.addAnnotation(bindings(0)._2, a0)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
+  def createCarrier(region: MemoryBuffer,
+    x: Long, mx: Boolean,
+    a0: Long, ma0: Boolean,
+    a1: Long, ma1: Boolean): Long = {
+    assert(bindings.length == 2)
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(carrierStruct)
+    rvb.startStruct()
+    if (mx) rvb.setMissing() else rvb.addAnnotation(elementType, mx)
+    rvb.startStruct()
+    if (ma0) rvb.setMissing() else rvb.addAnnotation(bindings(0)._2, a0)
+    if (ma1) rvb.setMissing() else rvb.addAnnotation(bindings(1)._2, a1)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
+  def createCarrier(region: MemoryBuffer,
+    x: Long, mx: Boolean,
+    a0: Long, ma0: Boolean,
+    a1: Long, ma1: Boolean,
+    a2: Long, ma2: Boolean): Long = {
+    assert(bindings.length == 3)
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(carrierStruct)
+    rvb.startStruct()
+    if (mx) rvb.setMissing() else rvb.addAnnotation(elementType, mx)
+    rvb.startStruct()
+    if (ma0) rvb.setMissing() else rvb.addAnnotation(bindings(0)._2, a0)
+    if (ma1) rvb.setMissing() else rvb.addAnnotation(bindings(1)._2, a1)
+    if (ma2) rvb.setMissing() else rvb.addAnnotation(bindings(2)._2, a2)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
+  def createCarrier(region: MemoryBuffer,
+    x: Long, mx: Boolean,
+    a0: Long, ma0: Boolean,
+    a1: Long, ma1: Boolean,
+    a2: Long, ma2: Boolean,
+    a3: Long, ma3: Boolean): Long = {
+    assert(bindings.length == 4)
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(carrierStruct)
+    rvb.startStruct()
+    if (mx) rvb.setMissing() else rvb.addAnnotation(elementType, mx)
+    rvb.startStruct()
+    if (ma0) rvb.setMissing() else rvb.addAnnotation(bindings(0)._2, a0)
+    if (ma1) rvb.setMissing() else rvb.addAnnotation(bindings(1)._2, a1)
+    if (ma2) rvb.setMissing() else rvb.addAnnotation(bindings(2)._2, a2)
+    if (ma3) rvb.setMissing() else rvb.addAnnotation(bindings(3)._2, a3)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
+  def createCarrier(region: MemoryBuffer,
+    x: Long, mx: Boolean,
+    a0: Long, ma0: Boolean,
+    a1: Long, ma1: Boolean,
+    a2: Long, ma2: Boolean,
+    a3: Long, ma3: Boolean,
+    a4: Long, ma4: Boolean): Long = {
+    assert(bindings.length == 5)
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(carrierStruct)
+    rvb.startStruct()
+    if (mx) rvb.setMissing() else rvb.addAnnotation(elementType, mx)
+    rvb.startStruct()
+    if (ma0) rvb.setMissing() else rvb.addAnnotation(bindings(0)._2, a0)
+    if (ma1) rvb.setMissing() else rvb.addAnnotation(bindings(1)._2, a1)
+    if (ma2) rvb.setMissing() else rvb.addAnnotation(bindings(2)._2, a2)
+    if (ma3) rvb.setMissing() else rvb.addAnnotation(bindings(3)._2, a3)
+    if (ma4) rvb.setMissing() else rvb.addAnnotation(bindings(4)._2, a4)
     rvb.endStruct()
     rvb.endStruct()
     rvb.end()

@@ -34,24 +34,6 @@ class ExtractAggregatorsSuite {
     rvb.end()
   }
 
-  private def runAggregatorsOnArray(ir: IR, tAgg: TAggregable, region: MemoryBuffer, aOff: Long, extraBindings: (Int) => Array[Annotation]): (IR, Long) = {
-    val tArray = TArray(tAgg.elementType)
-    Infer(ir)
-    val (post, agg) = ExtractAggregators(ir, tAgg)
-    var i = 0
-    while (i < tArray.loadLength(region, aOff)) {
-      val v = if (tArray.isElementDefined(region, aOff, i))
-        tArray.loadElement(region, aOff, i)
-      else
-        null
-
-      agg.seqOp(region, tAgg.createCarrier(region, v, extraBindings(i):_*), false)
-      i += 1
-    }
-    val outOff = agg.result(region)
-    (post, outOff)
-  }
-
   @Test
   def sum() {
     val tAgg = TAggregable(TFloat64(), Map("foo" -> (0, TInt32())))
@@ -59,7 +41,7 @@ class ExtractAggregatorsSuite {
     val aOff = addArray(region, (0 to 100).map(_.toDouble).toArray)
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, idx => Array(10))
+    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, _.loadFloat(_), idx => Array(10))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
@@ -76,7 +58,7 @@ class ExtractAggregatorsSuite {
     val aOff = addArray(region, Array())
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, idx => Array(10))
+    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, _.loadFloat(_), idx => Array(10))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
@@ -92,7 +74,7 @@ class ExtractAggregatorsSuite {
     val aOff = addArray(region, Array(42.0))
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, idx => Array(10))
+    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, _.loadFloat(_), idx => Array(10))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
@@ -108,7 +90,7 @@ class ExtractAggregatorsSuite {
     val aOff = addBoxedArray(region, Array[java.lang.Double](null, 42.0, null))
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, idx => Array(10))
+    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, _.loadFloat(_), idx => Array(10))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
@@ -124,7 +106,7 @@ class ExtractAggregatorsSuite {
     val aOff = addBoxedArray(region, Array[java.lang.Double](null, null, null))
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, idx => Array(10))
+    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, _.loadFloat(_), idx => Array(10))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
@@ -142,7 +124,7 @@ class ExtractAggregatorsSuite {
     val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
       Ref("foo"),
       TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
-    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, idx => Array(10))
+    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, _.loadFloat(_), idx => Array(10))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int]
     Compile(post, fb)
@@ -160,7 +142,7 @@ class ExtractAggregatorsSuite {
     val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
       Ref("foo"),
       TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
-    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, idx => Array(10))
+    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, _.loadFloat(_), idx => Array(10))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int]
     Compile(post, fb)
@@ -178,7 +160,7 @@ class ExtractAggregatorsSuite {
     val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
       ApplyBinaryPrimOp(Multiply(), Ref("foo"), Ref("x")),
       TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
-    val (post, outOff) = runAggregatorsOnArray(ir, tAgg, region, aOff, idx => Array(10.0))
+    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, _.loadFloat(_), idx => Array(10.0))
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
