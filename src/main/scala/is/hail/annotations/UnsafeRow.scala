@@ -39,7 +39,7 @@ object UnsafeIndexedSeq {
     rvb.endArray()
     new UnsafeIndexedSeq(t, region, rvb.end())
   }
-  (0 to 10).iterator
+
   def empty(t: TArray): UnsafeIndexedSeq = {
     val region = MemoryBuffer()
     val rvb = new RegionValueBuilder(region)

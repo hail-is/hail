@@ -27,7 +27,7 @@ final class MemoryBuffer(var mem: Long, var length: Long, var offset: Long = 0) 
     assert(size <= length)
     assert(other.size <= other.length)
     assert(n >= 0)
-    assert(readStart >= 0 && readStart + n <= other.size, s"$readStart, ${other.size} ${n}")
+    assert(readStart >= 0 && readStart + n <= other.size)
     assert(writeStart >= 0 && writeStart + n <= size)
     Memory.memcpy(mem + writeStart, other.mem + readStart, n)
   }
