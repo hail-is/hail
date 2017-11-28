@@ -136,7 +136,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     case _: TFloat32 => v => addFloat32(v.asInstanceOf[Code[Float]])
     case _: TFloat64 => v => addFloat64(v.asInstanceOf[Code[Double]])
     case _: TStruct => v => region.copyFrom(region, v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
-    case t => throw new UnsupportedOperationException("addPrimitive only supports primitive types: " + t)
+    case t => throw new UnsupportedOperationException("addRegionValue only supports primitive types and structs: " + t)
   }
 
   def advance(): Code[Unit] = {
