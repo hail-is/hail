@@ -858,7 +858,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
-  def nPartitions: Int = rdd.partitions.length
+  def nPartitions: Int = rdd2.partitions.length
 
   def annotateVariants2(rightRDD2: OrderedRDD2, newVAType: Type, inserter: Inserter): VariantSampleMatrix = {
     val leftRowType = rowType

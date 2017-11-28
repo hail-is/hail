@@ -25,10 +25,7 @@ abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: O
   def advanceLeft() {
     assert(rrv != null)
     while (lrv != null && lrKOrd.compare(lrv, rrv) < 0) {
-      if (leftIt.hasNext)
-        lrv = leftIt.next()
-      else
-        lrv = null
+      advanceLeft1()
     }
   }
 
@@ -41,10 +38,7 @@ abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: O
   def advanceRight() {
     assert(lrv != null)
     while (rrv != null && lrKOrd.compare(lrv, rrv) > 0) {
-      if (rightIt.hasNext)
-        rrv = rightIt.next()
-      else
-        rrv = null
+      advanceRight1()
     }
   }
 

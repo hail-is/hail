@@ -63,7 +63,7 @@ object LDPruneSuite {
   }
 
   def toBitPackedVectorView(gs: Array[Int]): Option[BitPackedVectorView] = {
-    val bpvv = new BitPackedVectorView(bitPackedVectorViewType)
+    val bpvv = new BitPackedVectorView(bitPackedVectorViewType, new RegionValueVariant(rowType.fieldType(1).asInstanceOf[TVariant]))
     toBitPackedVectorRegionValue(gs) match {
       case Some(rv) =>
         bpvv.setRegion(rv)
@@ -87,17 +87,20 @@ object LDPruneSuite {
     rvb.setMissing()
     rvb.setMissing()
     val keep = LDPrune.emitBitPackedVector(rvb, hcView, nSamples)
-    rvb.endStruct()
-    rvb.end()
 
-    if (keep)
+    if (keep) {
+      rvb.endStruct()
+      rvb.end()
       Some(rvb.result())
+    }
     else
       None
   }
 
   def toBitPackedVector(gs: Array[Int]): Option[BitPackedVector] = {
-    toBitPackedVectorView(gs).map(bpvv => BitPackedVector((0 until bpvv.getNPacks).map(bpvv.getPack).toArray, bpvv.getNSamples, bpvv.getMean, bpvv.getStdDevRecip))
+    toBitPackedVectorView(gs).map { bpvv =>
+      BitPackedVector((0 until bpvv.getNPacks).map(bpvv.getPack).toArray, bpvv.getNSamples, bpvv.getMean, bpvv.getStdDevRecip)
+    }
   }
 }
 

@@ -120,7 +120,7 @@ object PartitionKeyInfo2 {
 
     val rng = new java.util.Random(seed)
     val samples = new Array[WritableRegionValue](sampleSize)
-    
+
     var i = 0
 
     if (sampleSize > 0) {
@@ -671,7 +671,7 @@ class OrderedRDD2 private(
     OrderedRDD2(typ,
       orderedPartitioner,
       rdd.sample(withReplacement, fraction, seed))
-
+  
   def getStorageLevel2: StorageLevel = rvrdd.getStorageLevel2
 
   def unpersist2() = copy(rvrdd.unpersist2())

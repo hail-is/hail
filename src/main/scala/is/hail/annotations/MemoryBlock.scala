@@ -477,6 +477,8 @@ final class RegionValue(var region: MemoryBuffer,
   }
 
   def pretty(t: Type): String = region.pretty(t, offset)
+
+  def copy(): RegionValue = RegionValue(region.copy(), offset)
 }
 
 class RegionValueBuilder(var region: MemoryBuffer) {
