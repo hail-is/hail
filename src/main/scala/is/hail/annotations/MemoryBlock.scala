@@ -25,7 +25,7 @@ final class MemoryBuffer(private var mem: Array[Byte], private var end: Long = 0
     assert(size <= capacity)
     assert(other.size <= other.capacity)
     assert(n >= 0)
-    assert(readStart >= 0 && readStart + n <= other.size, s"$readStart, ${other.size} ${n}")
+    assert(readStart >= 0 && readStart + n <= other.size)
     assert(writeStart >= 0 && writeStart + n <= size)
     Memory.memcpy(mem, writeStart, other.mem, readStart, n)
   }
