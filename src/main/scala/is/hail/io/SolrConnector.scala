@@ -5,7 +5,6 @@ import java.util
 import is.hail.expr.{EvalContext, Parser, TBoolean, TFloat64, TFloat32, TGenotype, TInt32, TIterable, TInt64, TString, TVariant, Type}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.VariantDataset
 import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
 import org.apache.solr.client.solrj.request.CollectionAdminRequest
 import org.apache.solr.client.solrj.request.schema.SchemaRequest

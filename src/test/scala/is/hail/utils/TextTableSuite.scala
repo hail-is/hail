@@ -3,7 +3,7 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.expr._
-import is.hail.variant.{GenomeReference, VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, VSMSubgen, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 import scala.io.Source

@@ -5,7 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.check._
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{GenericGenotype, Genotype, Locus, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenericGenotype, Genotype, Locus, VSMSubgen, Variant, VariantSampleMatrix}
 import org.apache.commons.math3.distribution.{BinomialDistribution, NormalDistribution}
 import org.testng.annotations.Test
 

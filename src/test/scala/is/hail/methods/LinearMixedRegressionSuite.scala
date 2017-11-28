@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.{TArray, TFloat64, TStruct}
 import is.hail.stats._
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{Variant, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 

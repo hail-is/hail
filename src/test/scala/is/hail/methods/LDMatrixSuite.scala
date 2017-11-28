@@ -3,7 +3,7 @@ package is.hail.methods
 import breeze.linalg.{DenseMatrix, convert, norm}
 import breeze.stats.mean
 import is.hail.utils._
-import is.hail.variant.{Genotype, Locus, Variant, VariantDataset}
+import is.hail.variant.{Genotype, Locus, Variant}
 import is.hail.{SparkSuite, TestUtils, stats}
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._

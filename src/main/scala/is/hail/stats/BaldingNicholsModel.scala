@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TFloat64, TInt32, TString, TStruct, TVariant}
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype, VSMLocalValue, VSMMetadata, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, Genotype, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {

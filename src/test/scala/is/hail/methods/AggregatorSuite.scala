@@ -4,7 +4,7 @@ import is.hail.check.{Gen, Prop}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.{Genotype, Locus, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{Genotype, Locus, VSMSubgen, Variant, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row

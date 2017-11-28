@@ -5,7 +5,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.TVariant
 import is.hail.utils._
-import is.hail.variant.{HardCallView, Locus, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{HardCallView, Locus, Variant, VariantSampleMatrix}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
 import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vectors}
