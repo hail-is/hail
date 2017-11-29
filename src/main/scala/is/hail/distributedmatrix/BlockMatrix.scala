@@ -690,46 +690,41 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
 case class IntPartition(index: Int) extends Partition
 
 
-case class WriteBlocksRDDPartition(index: Int, start: Int, end: Int) extends Partition {
-  def range: Range = start until end
+case class WriteBlocksRDDPartition(index: Int, start: Int, end: Int, firstIndexToCopy: Int) extends Partition {
+  def range: Range = start to end
 }
 
 object WriteBlocksRDD {
-  // on return, deps(blockRowIndex) is the increasing array of (non-empty) parent partitions that overlap blockRow
-  def computeBlockRowDependencies(parentPartitionBoundaries: Array[Long], gp: GridPartitioner): Array[Array[Int]] = {
+  // on return, [start(blockRowIndex), end(blockRowIndex)] are the parent partitions overlapping this blockRow
+  def computeBlockRowDependencies(parentPartitionBoundaries: Array[Long], gp: GridPartitioner): (Array[Int], Array[Int]) = {
     val rows = parentPartitionBoundaries.last
     assert(rows == gp.rows)
     val nBlockRows = gp.rowPartitions
-    val deps = Array.ofDim[Array[Int]](nBlockRows)
-    val ab = new ArrayBuilder[Int]()
     
-    var i = 0 // parent partition index
-    var firstRowInBlock = 0L
-    var lastRowInBlock = 0L
+    val starts = Array.ofDim[Int](nBlockRows)
+    val ends = Array.ofDim[Int](nBlockRows)
+    
+    var p = 0 // parent partition index
+    var startOfNextBlock = 0L
     var blockRowIndex = 0
-    while (blockRowIndex < nBlockRows) {
-      firstRowInBlock = lastRowInBlock
-      if (blockRowIndex != nBlockRows - 1)
-        lastRowInBlock += gp.blockSize
-      else
-        lastRowInBlock = parentPartitionBoundaries.last
-
-      // find all (non-empty) parent partitions overlapping this block
-      ab.clear()
-      while (parentPartitionBoundaries(i) < lastRowInBlock) {
-        if (parentPartitionBoundaries(i + 1) > firstRowInBlock)
-          ab += i
-        i += 1
-      }
-      // if last parent partition overlaps next blockRow, don't advance
-      if (parentPartitionBoundaries(i) > lastRowInBlock)
-        i -= 1
+    while (blockRowIndex < nBlockRows - 1) {
+      startOfNextBlock += gp.blockSize
       
-      deps(blockRowIndex) = ab.result()
+      starts(blockRowIndex) = p
+      while (parentPartitionBoundaries(p) < startOfNextBlock)
+        p += 1
+      ends(blockRowIndex) = p - 1
+      
+      // if last parent partition overlaps next blockRow, don't advance
+      if (parentPartitionBoundaries(p) > startOfNextBlock)
+        p -= 1
+      
       blockRowIndex += 1
     }
-
-    deps
+    starts(blockRowIndex) = p
+    ends(blockRowIndex) = parentPartitionBoundaries.length - 2 // index of last parent partition
+    
+    (starts, ends)
   }
 }
 
@@ -763,16 +758,22 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
   }
   
   protected def getPartitions: Array[Partition] = {
-    WriteBlocksRDD.computeBlockRowDependencies(parentPartitionBoundaries, gp)
-      .zipWithIndex
-      .map { case (a, i) => WriteBlocksRDDPartition(i, a.head, a.last)}
+    val (starts, ends) = WriteBlocksRDD.computeBlockRowDependencies(parentPartitionBoundaries, gp)
+    
+    Array.tabulate(gp.rowPartitions) { blockRowIndex =>
+      val start = starts(blockRowIndex)
+      val firstRowInStart = parentPartitionBoundaries(start)
+      val firstRowInBlock = blockRowIndex * blockSize.toLong
+      val firstIndexToCopy = (firstRowInBlock - firstRowInStart).toInt
+  
+      WriteBlocksRDDPartition(blockRowIndex, start, ends(blockRowIndex), firstIndexToCopy)
+    }
   }
   
   def compute(split: Partition, context: TaskContext): Iterator[Int] = {
     val blockRowIndex = split.index
-    val firstRowInBlock = blockRowIndex * blockSize
     val nRowsInBlock = if (blockRowIndex == truncatedBlockRow) excessRows else blockSize
-    val lastRowInBlock = firstRowInBlock + nRowsInBlock // technically, first row in next blockRow
+    val lastRowInBlock = blockRowIndex * blockSize + nRowsInBlock // technically, first row in next blockRow
 
     val dosArray = Array.tabulate(gp.colPartitions) { blockColIndex =>
       val nColsInBlock = if (blockColIndex == truncatedBlockCol) excessCols else blockSize
@@ -785,35 +786,35 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
       val dos = new DataOutputStream(sHadoopBc.value.value.unsafeWriter(filename))      
       dos.writeInt(nRowsInBlock)
       dos.writeInt(nColsInBlock)
-      dos.writeBoolean(true) // transposed
+      dos.writeBoolean(true) // transposed, stored row major
       
       dos
     }
+    
+    val split0 = split.asInstanceOf[WriteBlocksRDDPartition]
+    val start = split0.start
+    val firstIndexToCopy = split0.firstIndexToCopy
+    
+    split0.range.foreach { p =>
+      val indexedRows = irm.rows.iterator(parentPartitions(p), context)
 
-    split.asInstanceOf[WriteBlocksRDDPartition].range.foreach { parent =>
-      val firstRowInParent =  parentPartitionBoundaries(parent)
-      val lastRowInParent = parentPartitionBoundaries(parent + 1) // technically, first row in next IRM partition
-
-      val firstIndexToCopy = math.max(0, firstRowInBlock - firstRowInParent).toInt
-      val lastIndexToCopy = (math.min(lastRowInBlock, lastRowInParent) - firstRowInParent).toInt
-      
-      val indexedRows = irm.rows.iterator(parentPartitions(parent), context)
-        
       var i = 0
-      while (i < firstIndexToCopy) {
-        indexedRows.next()
-        i += 1
-      }
-      while (i < lastIndexToCopy) {
-        val indexedRow = indexedRows.next()
-        assert(indexedRow.index == firstRowInParent + i)
+      
+      if (p == start)
+        while (i < firstIndexToCopy) {
+          indexedRows.next()
+          i += 1
+        }
 
+      while (indexedRows.hasNext && i < lastRowInBlock) {
+        val indexedRow = indexedRows.next()
         var blockColIndex = 0
         var lastColInBlock = 0
         var j = 0
         while (blockColIndex < gp.colPartitions) {
           val dos = dosArray(blockColIndex)
-          lastColInBlock += (if (blockColIndex != truncatedBlockCol) blockSize else excessCols)
+          val nColsInBlock = if (blockColIndex != truncatedBlockCol) blockSize else excessCols
+          lastColInBlock += nColsInBlock
           while (j < lastColInBlock) {
             dos.writeDouble(indexedRow.vector(j))            
             j += 1

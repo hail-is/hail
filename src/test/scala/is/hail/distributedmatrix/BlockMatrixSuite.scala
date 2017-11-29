@@ -588,13 +588,9 @@ class BlockMatrixSuite extends SparkSuite {
     val gp = GridPartitioner(blockSize = 2, rows = 9, cols = 4) 
     // 0   2   4   6   8 9
     // 0     3 4 5   7 8 9
-    val deps = WriteBlocksRDD.computeBlockRowDependencies(Array(0, 3, 4, 4, 5, 7, 8, 9), gp)
+    val (starts, ends) = WriteBlocksRDD.computeBlockRowDependencies(Array(0, 3, 4, 4, 5, 7, 8, 9), gp)
     
-    assert(
-      (deps(0) sameElements Array(0)) &&
-      (deps(1) sameElements Array(0, 1)) &&
-      (deps(2) sameElements Array(3, 4)) &&
-      (deps(3) sameElements Array(4, 5)) &&
-      (deps(4) sameElements Array(6)))
+    assert(starts sameElements Array(0, 0, 2, 4, 6))
+    assert(ends sameElements Array(0, 1, 4, 5, 6))
   }
 }
