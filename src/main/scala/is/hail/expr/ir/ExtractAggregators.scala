@@ -13,6 +13,8 @@ object ExtractAggregators {
   def apply(ir: IR, tAggIn: TAggregable): (IR, RegionValueAggregator) = {
     val (ir2, aggs) = extract(ir, tAggIn)
     val combined = new ZippedRegionValueAggregator(aggs.map(_.agg))
+    // mutate the type of the input IR node now that we know what the combined
+    // struct's type is
     aggs.foreach(_.in.typ = combined.typ)
     (ir2, combined)
   }
