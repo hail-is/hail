@@ -4,15 +4,13 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.io.vcf.LoadVCF
+import is.hail.sparkextras.OrderedRDD2
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
-
-import scala.collection.mutable
-import scala.reflect.classTag
 
 case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
 
@@ -135,25 +133,67 @@ object PlinkLoader {
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1 }
-
-    val variantRDD = rdd.map {
-      case (_, vr) =>
-        val (v, rsId) = variantsBc.value(vr.getKey)
-        (v, (Annotation(rsId), vr.getValue: Iterable[Annotation]))
-    }
-
-    VariantSampleMatrix.fromLegacy(hc, VSMMetadata(
+    val metadata = VSMMetadata(
       saSignature = sampleAnnotationSignature,
       vaSignature = plinkSchema,
       vSignature = TVariant(gr),
       globalSignature = TStruct.empty(),
       genotypeSignature = TStruct("GT" -> TCall()),
-      wasSplit = true),
+      wasSplit = true)
+
+    val matrixType = MatrixType(metadata)
+    val kType = matrixType.kType
+    val rowType = matrixType.rowType
+
+    val fastKeys = rdd.mapPartitions { it =>
+      val region = MemoryBuffer()
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+
+      it.map { case (_, record) =>
+        val (v, _) = variantsBc.value(record.getKey)
+
+        region.clear()
+        rvb.start(kType)
+        rvb.startStruct()
+        rvb.addAnnotation(kType.fieldType(0), v.locus) // locus/pk
+        rvb.addAnnotation(kType.fieldType(1), v)
+        rvb.endStruct()
+
+        rv.setOffset(rvb.end())
+        rv
+      }
+    }
+
+    val rdd2 = rdd.mapPartitions { it =>
+      val region = MemoryBuffer()
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+
+      it.map { case (_, record) =>
+        val (v, rsid) = variantsBc.value(record.getKey)
+
+        region.clear()
+        rvb.start(rowType)
+        rvb.startStruct()
+        rvb.addAnnotation(rowType.fieldType(0), v.locus) // locus/pk
+        rvb.addAnnotation(rowType.fieldType(1), v)
+        rvb.startStruct()
+        rvb.addAnnotation(TString(), rsid)
+        rvb.endStruct()
+        record.getValue(rvb)
+        rvb.endStruct()
+
+        rv.setOffset(rvb.end())
+        rv
+      }
+    }
+
+    new VariantSampleMatrix(hc, metadata,
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = sampleAnnotations),
-      variantRDD, fastKeys)
+      OrderedRDD2(matrixType.orderedRDD2Type, rdd2, Some(fastKeys), None))
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,

@@ -50,7 +50,8 @@ class LoadBgenSuite extends SparkSuite {
     val sampleFile = "src/test/resources/example.sample"
     val inputs = Array(
       ("src/test/resources/example.v11.bgen", 1d / 32768),
-      ("src/test/resources/example.10bits.bgen", 1d / ((1L << 10) - 1)))
+      ("src/test/resources/example.10bits.bgen", 1d / ((1L << 10) - 1)),
+      ("src/test/resources/example.8bits.bgen", 1d / 255))
 
     def testBgen(bgen: String, tolerance: Double = 1e-6): Unit = {
       hadoopConf.delete(bgen + ".idx", recursive = true)
