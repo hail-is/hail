@@ -246,18 +246,18 @@ object VEP {
 
 
     val plugin = if (properties.getProperty("hail.vep.plugin") != null) {
-         properties.getProperty("hail.vep.plugin")
+      properties.getProperty("hail.vep.plugin")
     } else {
 
-        val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
-        if (humanAncestor == null)
-          fatal("property `hail.vep.lof.human_ancestor' required")
+      val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
+      if (humanAncestor == null)
+        fatal("property `hail.vep.lof.human_ancestor' required")
 
-        val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
-        if (conservationFile == null)
-          fatal("property `hail.vep.lof.conservation_file' required")
+      val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
+      if (conservationFile == null)
+        fatal("property `hail.vep.lof.conservation_file' required")
 
-        s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile"
+      s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile"
     }
 
     val fasta = properties.getProperty("hail.vep.fasta")
@@ -296,7 +296,8 @@ object VEP {
     val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path).getOrElse("") else ""
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
-    val annotations = vsm.typedRDD[Locus, Variant, Annotation]
+    val localRowType = vsm.rowType
+    val annotations = vsm.rdd2
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
@@ -306,14 +307,17 @@ object VEP {
           env.put("PATH", path)
 
         it
+          .map { rv =>
+            Variant.fromRegionValue(rv.region, localRowType.loadField(rv, 1))
+          }
           .grouped(localBlockSize)
           .flatMap { block =>
-            val (jt, proc) = block.iterator.map { case (v, (va, gs)) => v }.pipe(pb,
+            val (jt, proc) = block.iterator.pipe(pb,
               printContext,
               printElement,
               _ => ())
 
-            val nonStarToOriginalVariant = block.map { case (v, (va, gs)) =>
+            val nonStarToOriginalVariant = block.map { v =>
               (v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")), v)
             }.toMap
 
@@ -379,7 +383,7 @@ object VEP {
 
             val rc = proc.waitFor()
             if (rc != 0)
-              fatal(s"vep command '${cmd.mkString(" ")}' failed with non-zero exit status $rc")
+              fatal(s"vep command '${ cmd.mkString(" ") }' failed with non-zero exit status $rc")
 
             r
           }

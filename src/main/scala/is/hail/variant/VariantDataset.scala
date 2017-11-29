@@ -42,23 +42,49 @@ object VariantDataset {
 class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyVal {
 
   def annotateAllelesExpr(expr: String): VariantDataset = {
+    val splitVariantExpr = "va.aIndex = aIndex, va.wasSplit = wasSplit"
+    val gType = vsm.genotypeSignature
+    val splitGenotypeExpr =
+      if (gType.isOfType(TGenotype())) {
+        """
+          g = let
+              newgt = downcode(Call(g.gt), aIndex) and
+              newad = if (isDefined(g.ad))
+                  let sum = g.ad.sum() and adi = g.ad[aIndex] in [sum - adi, adi]
+                else
+                  NA: Array[Int] and
+              newpl = if (isDefined(g.pl))
+                  range(3).map(i => range(g.pl.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.pl[j]).min())
+                else
+                  NA: Array[Int] and
+              newgq = gqFromPL(newpl)
+            in Genotype(newV, newgt, newad, g.dp, newgq, newpl)"""
+      } else {
+        if (!vsm.genotypeSignature.isOfType(Genotype.htsGenotypeType))
+          fatal(s"annotate_alleles: genotype_schema must be TGenotype or the HTS genotype schema, found: ${ vsm.genotypeSignature }")
 
-    val splitmulti = new SplitMulti(vsm,
-      "va.aIndex = aIndex, va.wasSplit = wasSplit",
-      s"""
-g = let
-    newgt = downcode(Call(g.gt), aIndex) and
-    newad = if (isDefined(g.ad))
-        let sum = g.ad.sum() and adi = g.ad[aIndex] in [sum - adi, adi]
-      else
-        NA: Array[Int] and
-    newpl = if (isDefined(g.pl))
-        range(3).map(i => range(g.pl.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.pl[j]).min())
-      else
-        NA: Array[Int] and
-    newgq = gqFromPL(newpl)
-  in Genotype(newV, newgt, newad, g.dp, newgq, newpl)
-    """, keepStar = true, leftAligned = false)
+        """
+          g = let
+            newgt = downcode(g.GT, aIndex) and
+            newad = if (isDefined(g.AD))
+                let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+              else
+                NA: Array[Int] and
+            newpl = if (isDefined(g.PL))
+                range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
+              else
+                NA: Array[Int] and
+            newgq = gqFromPL(newpl)
+          in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }"""
+      }
+
+    annotateAllelesExprGeneric(splitVariantExpr, splitGenotypeExpr, variantExpr = expr)
+  }
+
+  def annotateAllelesExprGeneric(splitVariantExpr: String, splitGenotypeExpr: String, variantExpr: String): VariantDataset = {
+
+    val splitmulti = new SplitMulti(vsm, splitVariantExpr, splitGenotypeExpr,
+      keepStar = true, leftAligned = false)
 
     val splitMatrixType = splitmulti.newMatrixType
 
@@ -66,16 +92,16 @@ g = let
       "global" -> (0, vsm.globalSignature),
       "v" -> (1, vsm.vSignature),
       "va" -> (2, splitMatrixType.vaType),
-      "g" -> (3, TGenotype()),
+      "g" -> (3, splitMatrixType.genotypeType),
       "s" -> (4, TString()),
       "sa" -> (5, vsm.saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, vsm.globalSignature),
       "v" -> (1, vsm.vSignature),
       "va" -> (2, splitMatrixType.vaType),
-      "gs" -> (3, TAggregable(TGenotype(), aggregationST))))
+      "gs" -> (3, TAggregable(splitMatrixType.genotypeType, aggregationST))))
 
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
+    val (paths, types, f) = Parser.parseAnnotationExprs(variantExpr, ec, Some(Annotation.VARIANT_HEAD))
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
     val newType = (paths, types).zipped.foldLeft(vsm.vaSignature) { case (vas, (ids, signature)) =>
@@ -140,7 +166,7 @@ g = let
           val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
           val va = ur.get(2)
           val newVA = inserters.zipWithIndex.foldLeft(va) { case (va, (inserter, i)) =>
-              inserter(va, annotations.map(_ (i)): IndexedSeq[Any])
+            inserter(va, annotations.map(_ (i)): IndexedSeq[Any])
           }
           rv2b.addAnnotation(finalType, newVA)
 
@@ -262,17 +288,11 @@ g = let
       }))
   }
 
-  def filterAlleles(filterExpr: String, variantExpr: String = "", filterAlteredGenotypes: Boolean = false,
+  def filterAlleles(filterExpr: String, variantExpr: String = "",
     keep: Boolean = true, subset: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantDataset = {
-    def filterGT(gtexpr: String): String = {
-      if (filterAlteredGenotypes)
-      // FIXME this can't possibly be right
-        s"let newrawgt = $gtexpr in if (newrawgt == g.gt) newrawgt else NA: Int"
-      else
-        gtexpr
-    }
 
-    val genotypeExpr =
+    val gType = vsm.genotypeSignature
+    val genotypeExpr = if (gType.isOfType(TGenotype())) {
       if (subset) {
         """
 g = let newpl = if (isDefined(g.pl))
@@ -295,7 +315,7 @@ g = let newpl = if (isDefined(g.pl))
       } else {
         // downcode
         s"""
-g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])") } and
+g = let newgt = gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)]) and
     newad = if (isDefined(g.ad))
         range(newV.nAlleles).map(i => range(v.nAlleles).filter(j => oldToNew[j] == i).map(j => g.ad[j]).sum())
       else
@@ -309,7 +329,54 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
  in Genotype(newV, Call(newgt), newad, newdp, newgq, newpl)
         """
       }
+    } else {
+      if (!vsm.genotypeSignature.isOfType(Genotype.htsGenotypeType))
+        fatal(s"filter_alleles: genotype_schema must be TGenotype or the HTS genotype schema, found: ${ vsm.genotypeSignature }")
 
+      if (subset) {
+        """
+g = let newpl = if (isDefined(g.PL))
+        let unnorm = range(newV.nGenotypes).map(newi =>
+            let oldi = gtIndex(newToOld[gtj(newi)], newToOld[gtk(newi)])
+             in g.PL[oldi]) and
+            minpl = unnorm.min()
+         in unnorm - minpl
+      else
+        NA: Array[Int] and
+    newgt = gtFromPL(newpl) and
+    newad = if (isDefined(g.AD))
+        range(newV.nAlleles).map(newi => g.AD[newToOld[newi]])
+      else
+        NA: Array[Int] and
+    newgq = gqFromPL(newpl) and
+    newdp = g.DP
+ in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }
+        """
+      } else {
+        // downcode
+        s"""
+g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
+    newad = if (isDefined(g.AD))
+        range(newV.nAlleles).map(i => range(v.nAlleles).filter(j => oldToNew[j] == i).map(j => g.AD[j]).sum())
+      else
+        NA: Array[Int] and
+    newdp = g.DP and
+    newpl = if (isDefined(g.PL))
+        range(newV.nGenotypes).map(gi => range(v.nGenotypes).filter(gj => gtIndex(oldToNew[gtj(gj)], oldToNew[gtk(gj)]) == gi).map(gj => g.PL[gj]).min())
+      else
+        NA: Array[Int] and
+    newgq = gqFromPL(newpl)
+ in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }
+        """
+      }
+    }
+
+    FilterAlleles(vsm, filterExpr, variantExpr, genotypeExpr,
+      keep = keep, leftAligned = leftAligned, keepStar = keepStar)
+  }
+
+  def filterAllelesGeneric(filterExpr: String, variantExpr: String, genotypeExpr: String,
+    keep: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantSampleMatrix = {
     FilterAlleles(vsm, filterExpr, variantExpr, genotypeExpr,
       keep = keep, leftAligned = leftAligned, keepStar = keepStar)
   }
@@ -566,7 +633,7 @@ g = let newgt = ${ filterGT("gtIndex(oldToNew[gtj(g.gt)], oldToNew[gtk(g.gt)])")
       vsm.splitMultiGeneric("va.aIndex = aIndex, va.wasSplit = wasSplit",
         s"""g =
     let
-      newgt = downcode(Call(g.GT), aIndex) and
+      newgt = downcode(g.GT, aIndex) and
       newad = if (isDefined(g.AD))
           let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
         else

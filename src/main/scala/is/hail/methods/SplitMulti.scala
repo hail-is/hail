@@ -33,7 +33,6 @@ class ExprAnnotator(val ec: EvalContext, t: Type, expr: String, head: Option[Str
       newA = inserters(i)(newA, xs(i))
       i += 1
     }
-    assert(newT.typeCheck(newA))
     newA
   }
 }
@@ -94,7 +93,6 @@ class SplitMultiPartitionContext(
     val nGenotypes = v.nGenotypes
 
     val gs = ur.getAs[IndexedSeq[Any]](3)
-
     splitVariants.iterator
       .map { case (svj, i) =>
         splitRegion.clear()
@@ -105,7 +103,7 @@ class SplitMultiPartitionContext(
         rvb.addAnnotation(newRowType.fieldType(1), svj)
 
         vAnnotator.ec.setAll(globalAnnotation, v, svj, va, i, wasSplit)
-        rvb.addAnnotation(newRowType.fieldType(2), vAnnotator.insert(va))
+        rvb.addAnnotation(vAnnotator.newT, vAnnotator.insert(va))
 
         rvb.startArray(nSamples) // gs
         gAnnotator.ec.setAll(globalAnnotation, v, svj, va, i, wasSplit)
@@ -113,7 +111,7 @@ class SplitMultiPartitionContext(
         while (k < nSamples) {
           val g = gs(k)
           gAnnotator.ec.set(6, g)
-          rvb.addAnnotation(newRowType.fieldType(3).asInstanceOf[TArray].elementType, gAnnotator.insert(g))
+          rvb.addAnnotation(gAnnotator.newT, gAnnotator.insert(g))
           k += 1
         }
         rvb.endArray() // gs

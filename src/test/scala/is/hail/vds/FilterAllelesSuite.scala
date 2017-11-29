@@ -151,35 +151,7 @@ class FilterAllelesSuite extends SparkSuite {
 
     assert(vds.rdd.collect().toSeq == Seq(newRow1))
   }
-
-  @Test def filterSecondOfTwoAllelesFilterAlteredGenotypes(): Unit = {
-    val variant1 = new Variant("contig", 0, "ref", IndexedSeq("alt1", "alt2").map(AltAllele("ref", _)))
-    val va1 = null
-    val genotype11 = Genotype(Option(1), Option(Array(25, 5, 30)), Option(100), Option(5), Option(Array(10, 0, 10, 10, 5, 7)))
-    val genotype12 = Genotype(Option(2), Option(Array(25, 35, 0)), Option(100), Option(5), Option(Array(10, 10, 0, 7, 5, 10)))
-    val genotype13 = Genotype(Option(3), Option(Array(25, 10, 10)), Option(100), Option(5), Option(Array(10, 10, 10, 0, 5, 7)))
-    val genotypes1 = Seq(genotype11, genotype12, genotype13)
-    val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))
-
-    val vds = VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
-      IndexedSeq[Annotation](null, null, null),
-      null,
-      TString(),
-      TStruct.empty()),
-      sc.parallelize(Seq(row1)))
-      .filterAlleles("aIndex == 2", subset = true, keep = false, filterAlteredGenotypes = true)
-
-    val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
-    val newVa1 = va1
-    val newGenotype11 = genotype11.copy(gt = Option(1), ad = Option(Array(25, 5)), gq = Option(10), px = Option(Array(10, 0, 10)))
-    val newGenotype12 = genotype12.copy(gt = Option(2), ad = Option(Array(25, 35)), gq = Option(10), px = Option(Array(10, 10, 0)))
-    val newGenotype13 = genotype13.copy(gt = None, ad = Option(Array(25, 10)), gq = Option(0), px = Option(Array(0, 0, 0)))
-    val newGenotypes1 = Seq(newGenotype11, newGenotype12, newGenotype13)
-    val newRow1 = (newVariant1, (newVa1, newGenotypes1))
-
-    assert(vds.rdd.collect().toSeq == Seq(newRow1))
-  }
-
+  
   @Test def filterOneAlleleAndModifyAnnotation(): Unit = {
     val variant1 = new Variant("contig", 0, "ref", IndexedSeq("alt1", "alt2").map(AltAllele("ref", _)))
     val va1 = null
