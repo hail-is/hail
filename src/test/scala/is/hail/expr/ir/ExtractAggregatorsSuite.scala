@@ -25,9 +25,7 @@ class ExtractAggregatorsSuite {
     Compile(post, fb)
 
     // out is never missing
-    println(s"region size before: ${region.size}")
     assert(fb.result()()(region, outOff, false) === 5050.0)
-    println(s"region size after: ${region.size}")
   }
 
 
@@ -44,9 +42,7 @@ class ExtractAggregatorsSuite {
     Compile(post, fb)
 
     // out is never missing
-    println(s"region size before: ${region.size}")
     assert(fb.result()()(region, outOff, false) === 0.0)
-    println(s"region size after: ${region.size}")
   }
 
   @Test
@@ -62,9 +58,7 @@ class ExtractAggregatorsSuite {
     Compile(post, fb)
 
     // out is never missing
-    println(s"region size before: ${region.size}")
     assert(fb.result()()(region, outOff, false) === 42.0)
-    println(s"region size after: ${region.size}")
   }
 
   @Test
@@ -80,9 +74,7 @@ class ExtractAggregatorsSuite {
     Compile(post, fb)
 
     // out is never missing
-    println(s"region size before: ${region.size}")
     assert(fb.result()()(region, outOff, false) === 42.0)
-    println(s"region size after: ${region.size}")
   }
 
   @Test
@@ -98,9 +90,7 @@ class ExtractAggregatorsSuite {
     Compile(post, fb)
 
     // out is never missing
-    println(s"region size before: ${region.size}")
     assert(fb.result()()(region, outOff, false) === 0.0)
-    println(s"region size after: ${region.size}")
   }
 
   @Test
@@ -118,9 +108,7 @@ class ExtractAggregatorsSuite {
     Compile(post, fb)
 
     // out is never missing
-    println(s"region size before: ${region.size}")
     assert(fb.result()()(region, outOff, false) === 30)
-    println(s"region size after: ${region.size}")
   }
 
   @Test
@@ -138,9 +126,7 @@ class ExtractAggregatorsSuite {
     Compile(post, fb)
 
     // out is never missing
-    println(s"region size before: ${region.size}")
     assert(fb.result()()(region, outOff, false) === 30)
-    println(s"region size after: ${region.size}")
   }
 
   @Test
@@ -158,8 +144,6 @@ class ExtractAggregatorsSuite {
     Compile(post, fb)
 
     // out is never missing
-    println(s"region size before: ${region.size}")
     assert(fb.result()()(region, outOff, false) === 110.0)
-    println(s"region size after: ${region.size}")
   }
 }
