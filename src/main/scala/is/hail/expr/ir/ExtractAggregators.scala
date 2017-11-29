@@ -30,7 +30,7 @@ object ExtractAggregators {
         assert(typ.isRealizable)
         ir
       case AggIn(_) =>
-        throw new RuntimeException(s"AggMap must be used inside an AggSum, but found: $ir")
+        throw new RuntimeException(s"AggIn must be used inside an AggSum, but found: $ir")
       case AggMap(a, name, body, typ) =>
         throw new RuntimeException(s"AggMap must be used inside an AggSum, but found: $ir")
       case AggSum(a, typ) =>
@@ -53,16 +53,16 @@ object ExtractAggregators {
         aggIn
       case AggMap(a, name, body, typ) =>
         val tA = a.typ.asInstanceOf[TAggregable]
-        val tLoweredA = tA.carrierStruct
+        val tLoweredA = tA.withScopeStruct
         val la = lower(a)
-        assert(la.typ == tLoweredA, s"type after lowering, ${la.typ}, should be the carrier struct of ${a.typ}")
-        tA.inContext(la, e => Let(name, e, lower(body), typ.elementType))
+        assert(la.typ == tLoweredA, s"type after lowering, ${la.typ}, should be the carrier struct of ${a.typ}; $ir")
+        tA.inScope(la, e => Let(name, e, lower(body), typ.elementType))
       case AggSum(_, _) =>
-        throw new RuntimeException(s"Found aggregator inside an aggregator: $ir")
+        throw new RuntimeException(s"No nested aggregations allowed: $ir")
       case In(i, typ) =>
-        throw new RuntimeException(s"Referenced input inside an aggregator, that's a no-no: $ir")
+        throw new RuntimeException(s"No inputs may be referenced inside an aggregator: $ir")
       case InMissingness(i) =>
-        throw new RuntimeException(s"Referenced input inside an aggregator, that's a no-no: $ir")
+        throw new RuntimeException(s"No inputs may be referenced inside an aggregator: $ir")
       case _ => Recur(lower)(ir)
     }
   }

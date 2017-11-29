@@ -7,11 +7,11 @@ import is.hail.annotations._
 
 object TransformedRegionValueAggregator {
   /**
-    * {@code tAggIn} is aggregable type to which
+    * {@code tAggIn} is the aggregable type to which
     * TransformedRegionValueAggregator.seqOp will be applied
     *
     * The argument to {@code makeTransform} is an IR that evalutes to the
-    * aggregation carrier struct. The output is an IR that evaluates to the
+    * aggregable carrier struct. The output is an IR that evaluates to the
     * desired input to {@code next.seqOp}.
     *
     **/
@@ -19,14 +19,17 @@ object TransformedRegionValueAggregator {
     makeTransform: IR => IR,
     next: RegionValueAggregator): TransformedRegionValueAggregator = {
 
-    val transform = makeTransform(In(0, tAggIn.carrierStruct))
-    // this struct has Hail type
-    // TransformedRegionValueAggregator.missingnessCarrier
-    val out = MakeStruct(Array(("it", transform.typ, transform)))
+    val transform = makeTransform(In(0, tAggIn.withScopeStruct))
+    val out = makeCarrier(transform)
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
     Compile(out, fb)
     new TransformedRegionValueAggregator(fb.result(), transform.typ, next)
   }
+
+  private def carryingField = "x"
+
+  private def makeCarrier(element: IR): IR =
+    MakeStruct(Array((carryingField, element.typ, element)))
 }
 
 /**
@@ -36,14 +39,15 @@ object TransformedRegionValueAggregator {
   **/
 class TransformedRegionValueAggregator(
   getTransformer: () => AsmFunction3[MemoryBuffer, Long, Boolean, Long],
-  t: Type,
+  carriedType: Type,
   val next: RegionValueAggregator) extends RegionValueAggregator {
+  import TransformedRegionValueAggregator.carryingField
 
   val typ = next.typ
 
-  private val missingnessCarrier = TStruct(true, "x" -> t)
+  private val missingnessCarrier = TStruct(true, carryingField -> carriedType)
 
-  private val elementIndex = missingnessCarrier.fieldIdx("x")
+  private val elementIndex = missingnessCarrier.fieldIdx(carryingField)
 
   private def extractElement(region: MemoryBuffer, offset: Long): Long =
     missingnessCarrier.loadField(region, offset, elementIndex)
@@ -65,6 +69,6 @@ class TransformedRegionValueAggregator(
   }
 
   def copy(): TransformedRegionValueAggregator =
-    new TransformedRegionValueAggregator(getTransformer, t, next)
+    new TransformedRegionValueAggregator(getTransformer, carriedType, next)
 }
 

@@ -7,10 +7,10 @@ import is.hail.expr.{TAggregable, TInt32, TInt64, TArray, TContainer, TStruct, T
 import is.hail.annotations.StagedRegionValueBuilder
 
 object Infer {
-  def apply(ir: IR) { apply(ir, new Env[Type]()) }
+  def apply(ir: IR, tAgg: Option[TAggregable] = None) { apply(ir, tAgg, new Env[Type]()) }
 
-  def apply(ir: IR, env: Env[Type]) {
-    def infer(ir: IR, env: Env[Type] = env) { apply(ir, env) }
+  def apply(ir: IR, tAgg: Option[TAggregable], env: Env[Type]) {
+    def infer(ir: IR, env: Env[Type] = env) { apply(ir, tAgg, env) }
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -85,8 +85,8 @@ object Infer {
         infer(body, env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
         assert(body.typ == zero.typ)
         x.typ = zero.typ
-      case AggIn(_) =>
-        // FIXME: all AggIn should be the same type
+      case AggIn(typ) =>
+        tAgg.foreach(x => assert(typ == x))
       case x@AggMap(a, name, body, _) =>
         infer(a)
         val tagg = a.typ.asInstanceOf[TAggregable]

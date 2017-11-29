@@ -843,25 +843,22 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   private def scopeStruct: TStruct =
     TStruct(bindings:_*)
 
-  def carrierStruct: TStruct =
-    TStruct("x" -> elementType, "scope" -> scopeStruct)
+  private val elementField = "x"
 
-  /**
-    * For testing only because {@code Annotation} is not an allocation free
-    * interface.
-    *
-    **/
-  def createCarrier(region: MemoryBuffer, x: Annotation, bindingValues: Annotation*): Long = {
-    val rvb = new RegionValueBuilder()
-    rvb.set(region)
-    rvb.start(carrierStruct)
-    rvb.startStruct()
-    rvb.addAnnotation(elementType, x)
-    rvb.startStruct()
-    (bindings.map(_._2) zip bindingValues).foreach((rvb.addAnnotation _).tupled)
-    rvb.endStruct()
-    rvb.endStruct()
-    rvb.end()
+  private val scopeField = "scope"
+
+  def withScopeStruct: TStruct =
+    TStruct(elementField -> elementType, scopeField -> scopeStruct)
+
+  import is.hail.expr.ir.{IR, GetField, MakeStruct, Let}
+
+  def getElement(agg: IR): IR = GetField(agg, elementField, elementType)
+
+  def inScope(agg: IR, body: IR => IR): IR = {
+    val b = body(GetField(agg, elementField, elementType))
+    bindings.foldLeft[IR](
+      MakeStruct(Array(("x", b.typ, b), (scopeField, scopeStruct, GetField(agg, scopeField, scopeStruct))))
+    ) { case (body, (n, t)) => Let(n, GetField(GetField(agg, scopeField, scopeStruct), n, t), body, body.typ) }
   }
 
   /**
@@ -874,11 +871,11 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     assert(bindings.length == 1)
     val rvb = new RegionValueBuilder()
     rvb.set(region)
-    rvb.start(carrierStruct)
+    rvb.start(withScopeStruct)
     rvb.startStruct()
-    if (mx) rvb.setMissing() else rvb.addAnnotation(elementType, mx)
+    if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
     rvb.startStruct()
-    if (ma0) rvb.setMissing() else rvb.addAnnotation(bindings(0)._2, a0)
+    if (ma0) rvb.setMissing() else rvb.addRegionValue(bindings(0)._2, region, a0)
     rvb.endStruct()
     rvb.endStruct()
     rvb.end()
@@ -891,12 +888,12 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     assert(bindings.length == 2)
     val rvb = new RegionValueBuilder()
     rvb.set(region)
-    rvb.start(carrierStruct)
+    rvb.start(withScopeStruct)
     rvb.startStruct()
-    if (mx) rvb.setMissing() else rvb.addAnnotation(elementType, mx)
+    if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
     rvb.startStruct()
-    if (ma0) rvb.setMissing() else rvb.addAnnotation(bindings(0)._2, a0)
-    if (ma1) rvb.setMissing() else rvb.addAnnotation(bindings(1)._2, a1)
+    if (ma0) rvb.setMissing() else rvb.addRegionValue(bindings(0)._2, region, a0)
+    if (ma1) rvb.setMissing() else rvb.addRegionValue(bindings(1)._2, region, a1)
     rvb.endStruct()
     rvb.endStruct()
     rvb.end()
@@ -910,13 +907,13 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     assert(bindings.length == 3)
     val rvb = new RegionValueBuilder()
     rvb.set(region)
-    rvb.start(carrierStruct)
+    rvb.start(withScopeStruct)
     rvb.startStruct()
-    if (mx) rvb.setMissing() else rvb.addAnnotation(elementType, mx)
+    if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
     rvb.startStruct()
-    if (ma0) rvb.setMissing() else rvb.addAnnotation(bindings(0)._2, a0)
-    if (ma1) rvb.setMissing() else rvb.addAnnotation(bindings(1)._2, a1)
-    if (ma2) rvb.setMissing() else rvb.addAnnotation(bindings(2)._2, a2)
+    if (ma0) rvb.setMissing() else rvb.addRegionValue(bindings(0)._2, region, a0)
+    if (ma1) rvb.setMissing() else rvb.addRegionValue(bindings(1)._2, region, a1)
+    if (ma2) rvb.setMissing() else rvb.addRegionValue(bindings(2)._2, region, a2)
     rvb.endStruct()
     rvb.endStruct()
     rvb.end()
@@ -931,14 +928,14 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     assert(bindings.length == 4)
     val rvb = new RegionValueBuilder()
     rvb.set(region)
-    rvb.start(carrierStruct)
+    rvb.start(withScopeStruct)
     rvb.startStruct()
-    if (mx) rvb.setMissing() else rvb.addAnnotation(elementType, mx)
+    if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
     rvb.startStruct()
-    if (ma0) rvb.setMissing() else rvb.addAnnotation(bindings(0)._2, a0)
-    if (ma1) rvb.setMissing() else rvb.addAnnotation(bindings(1)._2, a1)
-    if (ma2) rvb.setMissing() else rvb.addAnnotation(bindings(2)._2, a2)
-    if (ma3) rvb.setMissing() else rvb.addAnnotation(bindings(3)._2, a3)
+    if (ma0) rvb.setMissing() else rvb.addRegionValue(bindings(0)._2, region, a0)
+    if (ma1) rvb.setMissing() else rvb.addRegionValue(bindings(1)._2, region, a1)
+    if (ma2) rvb.setMissing() else rvb.addRegionValue(bindings(2)._2, region, a2)
+    if (ma3) rvb.setMissing() else rvb.addRegionValue(bindings(3)._2, region, a3)
     rvb.endStruct()
     rvb.endStruct()
     rvb.end()
@@ -954,28 +951,18 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     assert(bindings.length == 5)
     val rvb = new RegionValueBuilder()
     rvb.set(region)
-    rvb.start(carrierStruct)
+    rvb.start(withScopeStruct)
     rvb.startStruct()
-    if (mx) rvb.setMissing() else rvb.addAnnotation(elementType, mx)
+    if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
     rvb.startStruct()
-    if (ma0) rvb.setMissing() else rvb.addAnnotation(bindings(0)._2, a0)
-    if (ma1) rvb.setMissing() else rvb.addAnnotation(bindings(1)._2, a1)
-    if (ma2) rvb.setMissing() else rvb.addAnnotation(bindings(2)._2, a2)
-    if (ma3) rvb.setMissing() else rvb.addAnnotation(bindings(3)._2, a3)
-    if (ma4) rvb.setMissing() else rvb.addAnnotation(bindings(4)._2, a4)
+    if (ma0) rvb.setMissing() else rvb.addRegionValue(bindings(0)._2, region, a0)
+    if (ma1) rvb.setMissing() else rvb.addRegionValue(bindings(1)._2, region, a1)
+    if (ma2) rvb.setMissing() else rvb.addRegionValue(bindings(2)._2, region, a2)
+    if (ma3) rvb.setMissing() else rvb.addRegionValue(bindings(3)._2, region, a3)
+    if (ma4) rvb.setMissing() else rvb.addRegionValue(bindings(4)._2, region, a4)
     rvb.endStruct()
     rvb.endStruct()
     rvb.end()
-  }
-
-  import is.hail.expr.ir.{IR, GetField, Ref, MakeStruct, Let}
-  def getElement(agg: IR): IR = GetField(agg, "x", elementType)
-
-  def inContext(agg: IR, body: IR => IR): IR = {
-    val b = body(GetField(agg, "x", elementType))
-    bindings.foldLeft[IR](
-      MakeStruct(Array(("x", b.typ, b), ("scope", scopeStruct, GetField(agg, "scope", scopeStruct))))
-    ) { case (body, (n, t)) => Let(n, GetField(GetField(agg, "scope", scopeStruct), n, t), body, body.typ) }
   }
 
   override def unify(concrete: Type): Boolean = {
@@ -1064,8 +1051,14 @@ abstract class TContainer extends Type {
     elementsOffset(length) + length.toL * elementByteSize
   }
 
+  def isElementMissing(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
+    !isElementDefined(region, aoff, i)
+
   def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
     elementType.required || !region.loadBit(aoff + 4, i)
+
+  def isElementMissing(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+    !isElementDefined(region, aoff, i)
 
   def isElementDefined(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     if (elementType.required)

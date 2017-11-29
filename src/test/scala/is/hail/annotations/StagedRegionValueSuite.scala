@@ -390,11 +390,11 @@ class StagedRegionValueSuite extends SparkSuite {
     fb.emit(
       Code(
         srvb.start(),
-        srvb.addRegionValue(TInt32())(fb.getArg[Int](2)),
+        srvb.addIRIntermediate(TInt32())(fb.getArg[Int](2)),
         srvb.advance(),
-        srvb.addRegionValue(TBoolean())(fb.getArg[Boolean](3)),
+        srvb.addIRIntermediate(TBoolean())(fb.getArg[Boolean](3)),
         srvb.advance(),
-        srvb.addRegionValue(TFloat64())(fb.getArg[Double](4)),
+        srvb.addIRIntermediate(TFloat64())(fb.getArg[Double](4)),
         srvb.advance(),
         srvb.returnStart()
       )
