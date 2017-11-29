@@ -712,7 +712,7 @@ object WriteBlocksRDD {
     while (blockRowIndex < nBlockRows) {
       val skip = (firstRowInBlock - parentPartitionBoundaries(p)).toInt
       
-      val firstRowInNextBlock = if (blockRowIndex < nBlockRows - 1) firstRowInBlock + blockSize else rows
+      firstRowInNextBlock = if (blockRowIndex < nBlockRows - 1) firstRowInBlock + blockSize else rows
 
       val start = p 
       while (parentPartitionBoundaries(p) < firstRowInNextBlock)
@@ -773,7 +773,6 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
   def compute(split: Partition, context: TaskContext): Iterator[Int] = {
     val blockRowIndex = split.index
     val nRowsInBlock = if (blockRowIndex != truncatedBlockRow) blockSize else excessRows
-    val lastRowInBlock = blockRowIndex * blockSize + nRowsInBlock // technically, first row in next blockRow
 
     val dosArray = Array.tabulate(gp.colPartitions) { blockColIndex =>
       val nColsInBlock = if (blockColIndex == truncatedBlockCol) excessCols else blockSize
@@ -793,20 +792,17 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
     
     val split0 = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = split0.start
-    val skip = split0.skip
-    
+    var i = -split0.skip
     split0.range.foreach { p =>
       val indexedRows = irm.rows.iterator(parentPartitions(p), context)
 
-      var i = 0
-      
       if (p == start)
-        while (i < skip) {
+        while (i < 0) {
           indexedRows.next()
           i += 1
         }
 
-      while (indexedRows.hasNext && i < lastRowInBlock) {
+      while (indexedRows.hasNext && i < nRowsInBlock) {
         val indexedRow = indexedRows.next()
         var blockColIndex = 0
         var lastColInBlock = 0
