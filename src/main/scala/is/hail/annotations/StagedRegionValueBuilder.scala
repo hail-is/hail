@@ -129,14 +129,16 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
 
   def addStruct(t: TStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
 
-  def addRegionValue(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
+  def addIRIntermediate(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
     case _: TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
     case _: TInt32 => v => addInt32(v.asInstanceOf[Code[Int]])
     case _: TInt64 => v => addInt64(v.asInstanceOf[Code[Long]])
     case _: TFloat32 => v => addFloat32(v.asInstanceOf[Code[Float]])
     case _: TFloat64 => v => addFloat64(v.asInstanceOf[Code[Double]])
     case _: TStruct => v => region.copyFrom(region, v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
-    case t => throw new UnsupportedOperationException("addRegionValue only supports primitive types and structs: " + t)
+    case _: TArray => v => region.storeAddress(v.asInstanceOf[Code[Long]], currentOffset)
+    case _: TBinary => v => region.storeAddress(v.asInstanceOf[Code[Long]], currentOffset)
+    case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
   }
 
   def advance(): Code[Unit] = {

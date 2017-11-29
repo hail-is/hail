@@ -11,6 +11,7 @@ object RegionValueSumAggregator {
     case _: TInt64 => new RegionValueSumLongAggregator()
     case _: TFloat32 => new RegionValueSumFloatAggregator()
     case _: TFloat64 => new RegionValueSumDoubleAggregator()
+    case _ => throw new IllegalArgumentException(s"Cannot sum over values of type $t")
   }
 }
 
@@ -40,8 +41,6 @@ class RegionValueSumIntAggregator extends RegionValueAggregator {
   def typ: TInt32 = TInt32(true)
 
   def seqOp(region: MemoryBuffer, off: Long, missing: Boolean) {
-    println(s"hello $off $missing")
-    println(s"hello ${region.loadInt(off)}")
     if (!missing)
       sum += region.loadInt(off)
   }

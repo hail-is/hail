@@ -1,6 +1,7 @@
 package is.hail.methods.ir
 
 import is.hail.annotations._
+import ScalaToRegionValue._
 import is.hail.asm4s._
 import is.hail.check.{Gen, Parameters, Prop}
 import is.hail.expr.{TArray, TFloat64, TInt32, TStruct}
@@ -10,29 +11,6 @@ import org.scalatest._
 import Matchers._
 
 class CompileSuite {
-
-  private def addArray(mb: MemoryBuffer, a: Array[Double]): Long = {
-    val rvb = new RegionValueBuilder(mb)
-    rvb.start(TArray(TFloat64()))
-    rvb.startArray(a.length)
-    a.foreach(rvb.addDouble(_))
-    rvb.endArray()
-    rvb.end()
-  }
-
-  private def addBoxedArray(mb: MemoryBuffer, a: Array[java.lang.Double]): Long = {
-    val rvb = new RegionValueBuilder(mb)
-    rvb.start(TArray(TFloat64()))
-    rvb.startArray(a.length)
-    a.foreach { e =>
-      if (e == null)
-        rvb.setMissing()
-      else
-        rvb.addDouble(e)
-    }
-    rvb.endArray()
-    rvb.end()
-  }
 
   def doit(ir: IR, fb: FunctionBuilder[_]) {
     Infer(ir)
@@ -316,26 +294,16 @@ class CompileSuite {
   @Test
   def getFieldSum() {
     val tL = TStruct("0" -> TFloat64())
-    val tR = TStruct("x" -> TFloat64(), "scope" -> TStruct("foo" -> TInt32()))
+    val scopeStruct = TStruct("foo" -> TInt32())
+    val tR = TStruct("x" -> TFloat64(), "scope" -> scopeStruct)
     val ir = ApplyBinaryPrimOp(Add(),
       GetField(In(0,tL),"0"),
       GetField(In(1,tR),"x"))
     val region = MemoryBuffer()
-    val rvb = new RegionValueBuilder()
-    rvb.set(region)
-    rvb.start(tL)
-    rvb.startStruct()
-    rvb.addDouble(3.0)
-    rvb.endStruct()
-    val loff = rvb.end()
-    rvb.start(tR)
-    rvb.startStruct()
-    rvb.addDouble(5.0)
-    rvb.startStruct()
-    rvb.addInt(7)
-    rvb.endStruct()
-    rvb.endStruct()
-    val roff = rvb.end()
+    val loff = addStruct(region, "0", 3.0)
+    val roff = addStruct(region,
+      "x", 5.0,
+      "scope", scopeStruct, addStruct(region, "foo", 7))
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long, Boolean, Double]
     doit(ir, fb)
     val f = fb.result()()
@@ -345,7 +313,8 @@ class CompileSuite {
   @Test
   def getFieldSumStruct() {
     val tL = TStruct("0" -> TFloat64())
-    val tR = TStruct("x" -> TFloat64(), "scope" -> TStruct("foo" -> TInt32()))
+    val scopeStruct = TStruct("foo" -> TInt32())
+    val tR = TStruct("x" -> TFloat64(), "scope" -> scopeStruct)
     val tOut = TStruct("0" -> TFloat64())
     val ir = MakeStruct(Array(
       ("0", TFloat64(),
@@ -354,20 +323,10 @@ class CompileSuite {
           GetField(In(1,tR),"x")))))
     val region = MemoryBuffer()
     val rvb = new RegionValueBuilder()
-    rvb.set(region)
-    rvb.start(tL)
-    rvb.startStruct()
-    rvb.addDouble(3.0)
-    rvb.endStruct()
-    val loff = rvb.end()
-    rvb.start(tR)
-    rvb.startStruct()
-    rvb.addDouble(5.0)
-    rvb.startStruct()
-    rvb.addInt(7)
-    rvb.endStruct()
-    rvb.endStruct()
-    val roff = rvb.end()
+    val loff = addStruct(region, "0", 3.0)
+    val roff = addStruct(region,
+      "0", 5.0,
+      "scope", scopeStruct, addStruct(region, "foo", 7))
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long, Boolean, Long]
     doit(ir, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()

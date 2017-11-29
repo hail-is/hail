@@ -19,7 +19,7 @@ class ZippedRegionValueAggregator(val aggs: Array[RegionValueAggregator]) extend
   }
 
   def combOp(agg2: RegionValueAggregator) {
-    (aggs zip agg2.asInstanceOf[ZippedRegionValueAggregator].aggs)
+    aggs.zip(agg2.asInstanceOf[ZippedRegionValueAggregator].aggs)
       .foreach { case (l,r) => l.combOp(r) }
   }
 
