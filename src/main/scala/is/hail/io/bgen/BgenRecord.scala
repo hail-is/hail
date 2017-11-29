@@ -186,7 +186,89 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
     assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
 
-    new Bgen12GenotypeIterator(a, nAlleles, nBitsPerProb, nSamples)
+    rvb.startArray(nSamples) // gs
+    if (nBitsPerProb == 8 && nAlleles == 2) {
+      val totalProb = 255
+
+      val sampleProbs = new Array[Int](3)
+
+      i = 0
+      while (i < nSamples) {
+        val sampleMissing = (a(8 + i) & 0x80) != 0
+        if (sampleMissing)
+          rvb.setMissing()
+        else {
+          rvb.startStruct() // g
+
+          val off = nSamples + 10 + 2 * i
+          val d0 = a(off) & 0xff
+          val d1 = a(off) & 0xff
+          val d2 = 255 - d0 - d1
+
+          // GT
+          sampleProbs(0) = d0
+          sampleProbs(1) = d1
+          sampleProbs(2) = d2
+          val gt = Genotype.unboxedGTFromLinear(sampleProbs)
+          if (gt != -1)
+            rvb.addInt(gt)
+          else
+            rvb.setMissing()
+
+          rvb.startArray(3) // GP
+          rvb.addDouble(d0 / 255.0)
+          rvb.addDouble(d1 / 255.0)
+          rvb.addDouble(d2 / 255.0)
+          rvb.endArray()
+
+          rvb.endStruct() // g
+        }
+        i += 1
+      }
+    } else {
+      // general case
+      val totalProb = ((1L << nBitsPerProb) - 1).toUInt
+
+      val sampleProbs = ArrayUInt(nGenotypes)
+
+      val pa = new BGen12ProbabilityArray(a, nSamples, nGenotypes, nBitsPerProb)
+
+      i = 0
+      while (i < nSamples) {
+        val sampleMissing = (a(8 + i) & 0x80) != 0
+        if (sampleMissing)
+          rvb.setMissing()
+        else {
+          rvb.startStruct() // g
+          var j = 0
+          var lastProb = totalProb
+          while (j < nGenotypes - 1) {
+            val p = pa(i, j)
+            sampleProbs(j) = p
+            j += 1
+            lastProb -= p
+          }
+          sampleProbs(j) = lastProb
+          // GT
+          val gt = Genotype.unboxedGTFromUIntLinear(sampleProbs)
+          if (gt != -1)
+            rvb.addInt(gt)
+          else
+            rvb.setMissing()
+          // GP
+          rvb.startArray(nGenotypes)
+          j = 0
+          while (j < nGenotypes) {
+            rvb.addDouble(sampleProbs(j).toDouble / totalProb.toDouble)
+            j += 1
+          }
+          rvb.endArray()
+          rvb.endStruct() // g
+        }
+        i += 1
+      }
+    }
+    rvb.endArray()
   }
 }
 
