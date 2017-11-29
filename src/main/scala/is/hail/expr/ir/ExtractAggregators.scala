@@ -12,7 +12,7 @@ object ExtractAggregators {
 
   def apply(ir: IR, tAggIn: TAggregable): (IR, RegionValueAggregator) = {
     val (ir2, aggs) = extract(ir, tAggIn)
-    val combined = new ZippedRegionValueAggregator(aggs map (_.agg))
+    val combined = new ZippedRegionValueAggregator(aggs.map(_.agg))
     aggs.foreach(_.in.typ = combined.typ)
     (ir2, combined)
   }
