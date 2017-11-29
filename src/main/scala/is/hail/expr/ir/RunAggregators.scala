@@ -7,7 +7,7 @@ object RunAggregators {
   def onArray(ir: IR, tAgg: TAggregable, region: MemoryBuffer, aOff: Long,
     v0: Long, m0: Boolean): (IR, Long) =
     genericOnArray(ir, tAgg, region, aOff, { (agg, region, e, me, i) =>
-      agg.seqOp(region, tAgg.createCarrier(region,
+      agg.seqOp(region, tAgg.createScopeCarrier(region,
         e, me,
         v0, m0), false)
     })
@@ -16,7 +16,7 @@ object RunAggregators {
     v0: Long, m0: Boolean,
     v1: Long, m1: Boolean): (IR, Long) =
     genericOnArray(ir, tAgg, region, aOff, { (agg, region, e, me, i) =>
-      agg.seqOp(region, tAgg.createCarrier(region,
+      agg.seqOp(region, tAgg.createScopeCarrier(region,
         e, me,
         v0, m0, v1, m1), false)
     })
@@ -26,7 +26,7 @@ object RunAggregators {
     v1: Long, m1: Boolean,
     v2: Long, m2: Boolean): (IR, Long) =
     genericOnArray(ir, tAgg, region, aOff, { (agg, region, e, me, i) =>
-      agg.seqOp(region, tAgg.createCarrier(region,
+      agg.seqOp(region, tAgg.createScopeCarrier(region,
         e, me,
         v0, m0, v1, m1, v2, m2), false)
     })
@@ -37,7 +37,7 @@ object RunAggregators {
     v2: Long, m2: Boolean,
     v3: Long, m3: Boolean): (IR, Long) =
     genericOnArray(ir, tAgg, region, aOff, { (agg, region, e, me, i) =>
-      agg.seqOp(region, tAgg.createCarrier(region,
+      agg.seqOp(region, tAgg.createScopeCarrier(region,
         e, me,
         v0, m0, v1, m1, v2, m2, v3, m3), false)
     })
@@ -49,7 +49,7 @@ object RunAggregators {
     v3: Long, m3: Boolean,
     v4: Long, m4: Boolean): (IR, Long) =
     genericOnArray(ir, tAgg, region, aOff, { (agg, region, e, me, i) =>
-      agg.seqOp(region, tAgg.createCarrier(region,
+      agg.seqOp(region, tAgg.createScopeCarrier(region,
         e, me,
         v0, m0, v1, m1, v2, m2, v3, m3, v4, m4), false)
     })

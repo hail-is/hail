@@ -19,7 +19,7 @@ object TransformedRegionValueAggregator {
     makeTransform: IR => IR,
     next: RegionValueAggregator): TransformedRegionValueAggregator = {
 
-    val transform = makeTransform(In(0, tAggIn.withScopeStruct))
+    val transform = makeTransform(In(0, tAggIn.elementAndScopeStruct))
     val out = makeCarrier(transform)
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
     Compile(out, fb)

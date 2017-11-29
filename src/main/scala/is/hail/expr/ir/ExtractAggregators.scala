@@ -53,7 +53,7 @@ object ExtractAggregators {
         aggIn
       case AggMap(a, name, body, typ) =>
         val tA = a.typ.asInstanceOf[TAggregable]
-        val tLoweredA = tA.withScopeStruct
+        val tLoweredA = tA.elementAndScopeStruct
         val la = lower(a)
         assert(la.typ == tLoweredA, s"type after lowering, ${la.typ}, should be the carrier struct of ${a.typ}; $ir")
         tA.inScope(la, e => Let(name, e, lower(body), typ.elementType))
