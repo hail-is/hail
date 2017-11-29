@@ -38,8 +38,8 @@ case class KeyTableMetadata(
   version: Int,
   key: Array[String],
   schema: String,
-  globalSchema: String,
-  globals: JValue,
+  globalSchema: Option[String],
+  globals: Option[JValue],
   n_partitions: Int)
 
 object KeyTable {
@@ -84,8 +84,9 @@ object KeyTable {
     }
 
     val schema = Parser.parseType(metadata.schema).asInstanceOf[TStruct]
-    val globalSchema = Parser.parseType(metadata.globalSchema).asInstanceOf[TStruct]
-    val globals = JSONAnnotationImpex.importAnnotation(metadata.globals, globalSchema).asInstanceOf[Row]
+    val globalSchema = metadata.globalSchema.map(str => Parser.parseType(str).asInstanceOf[TStruct]).getOrElse(TStruct.empty())
+    val globals = metadata.globals.map(g => JSONAnnotationImpex.importAnnotation(g, globalSchema).asInstanceOf[Row])
+      .getOrElse(Row.empty)
     KeyTable(hc,
       hc.readRows(path, schema, metadata.n_partitions)
         .map { rv =>
@@ -797,8 +798,8 @@ class KeyTable(val hc: HailContext,
     val metadata = KeyTableMetadata(KeyTable.fileVersion,
       key,
       signature.toPrettyString(printAttrs = true, compact = true),
-      globalSignature.toPrettyString(printAttrs = true, compact = true),
-      JSONAnnotationImpex.exportAnnotation(globals, globalSignature),
+      Some(globalSignature.toPrettyString(printAttrs = true, compact = true)),
+      Some(JSONAnnotationImpex.exportAnnotation(globals, globalSignature)),
       rdd2.partitions.length)
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))
