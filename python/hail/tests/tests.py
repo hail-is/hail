@@ -736,7 +736,6 @@ class ContextTests(unittest.TestCase):
 
         self.assertEqual(g.fraction_reads_ref(), 12.0 / (10 + 12))
 
-        c_nocall = Call(None)
         c_hom_ref = Call(0)
 
         self.assertEqual(c_hom_ref.gt, 0)
@@ -744,26 +743,11 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(c_hom_ref.one_hot_alleles(2) == [2, 0])
         self.assertTrue(c_hom_ref.one_hot_genotype(3) == [1, 0, 0])
         self.assertTrue(c_hom_ref.is_hom_ref())
-        self.assertTrue(c_hom_ref.is_called())
-        self.assertFalse(c_hom_ref.is_not_called())
         self.assertFalse(c_hom_ref.is_het())
         self.assertFalse(c_hom_ref.is_hom_var())
-        self.assertFalse(c_hom_ref.is_called_non_ref())
+        self.assertFalse(c_hom_ref.is_non_ref())
         self.assertFalse(c_hom_ref.is_het_non_ref())
         self.assertFalse(c_hom_ref.is_het_ref())
-
-        self.assertEqual(c_nocall.gt, None)
-        self.assertEqual(c_nocall.num_alt_alleles(), None)
-        self.assertEqual(c_nocall.one_hot_alleles(2), None)
-        self.assertEqual(c_nocall.one_hot_genotype(3), None)
-        self.assertFalse(c_nocall.is_hom_ref())
-        self.assertFalse(c_nocall.is_called())
-        self.assertTrue(c_nocall.is_not_called())
-        self.assertFalse(c_nocall.is_het())
-        self.assertFalse(c_nocall.is_hom_var())
-        self.assertFalse(c_nocall.is_called_non_ref())
-        self.assertFalse(c_nocall.is_het_non_ref())
-        self.assertFalse(c_nocall.is_het_ref())
 
         gr = GenomeReference.GRCh37()
         self.assertEqual(gr.name, "GRCh37")

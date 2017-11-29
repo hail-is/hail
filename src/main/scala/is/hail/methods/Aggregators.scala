@@ -121,6 +121,12 @@ object Aggregators {
         }
         i += 1
       }
+
+      // clean up
+      localA.indices.foreach { i =>
+        localA(i) = null
+      }
+
       arr
     }, { case (arr1, arr2) =>
       for (i <- 0 until nSamples; j <- 0 until nAggregations) {
