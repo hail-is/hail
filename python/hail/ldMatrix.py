@@ -93,7 +93,7 @@ class LDMatrix(HistoryMixin):
         return LDMatrix(jldm)
 
     @handle_py4j
-    @write_history('path', is_dir=False)
+    @write_history('path', is_dir=False, parallel_write='parallel_write')
     @typecheck_method(path=strlike,
                       column_delimiter=strlike,
                       header=nullable(strlike),
