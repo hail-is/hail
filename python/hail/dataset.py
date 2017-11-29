@@ -173,13 +173,14 @@ class VariantDataset(HistoryMixin):
         """Annotate alleles with expression.
 
         ``annotate_alleles_expr`` works by splitting variants into
-        biallelics using ``split_genotype_expr``, annotating those
-        biallelic variants with ``variant_expr``, and then collecting
-        the biallelic variant annotations into an array and annotating
-        the original variants with that allele-indexed array.
+        biallelics using ``split_variant_expr`` and
+        ``split_genotype_expr``, annotating those biallelic variants
+        with ``variant_expr``, and then collecting the biallelic
+        variant annotations into an array and annotating the original
+        variant with that allele-indexed array.
 
         ``split_variant_expr`` is an annotation expression to update
-        the split variant annotations for each outupt biallelic
+        the split variant annotations for each output biallelic
         variant.  It updates ``va`` and is evaluated in the following
         namespace:
 
@@ -187,7 +188,7 @@ class VariantDataset(HistoryMixin):
         - ``v``: :ref:`variant(GR)`: the old variant
         - ``newV``: :ref:`variant(GR)`: the new, split variant
         - ``va``: the old variant annotations
-        - ``aIndex``: the index of the input allele to the output variant
+        - ``aIndex``: the index of the input allele corresponding to the output variant
         - ``wasSplit``: True if the original variant was multiallelic
 
         ``split_genotype_expr`` is an annotation expression to update
@@ -199,15 +200,15 @@ class VariantDataset(HistoryMixin):
         - ``v``: :ref:`variant(GR)`: the old variant
         - ``newV``: :ref:`variant(GR)`: the new, split variant
         - ``va``: the old variant annotations
-        - ``aIndex``: the index of the input allele to the output variant
+        - ``aIndex``: the index of the input allele corresponding to the output variant
         - ``wasSplit``: True if the original variant was multiallelic
         - ``s``: the sample
         - ``sa``: the sample annotations
         - ``g``: the old genotype annotations
 
-        ``variant_expr`` is an annotation expression that the original
-        variant annotations per-allele.  It updates ``va`` and is
-        evaluated in the following namespace:
+        ``variant_expr`` is an annotation expression that updated the
+        original variant annotations per-allele.  It updates ``va``
+        and is evaluated in the following namespace:
 
         - ``global``: global annotations
         - ``v`` (*Variant(GR)*): split :ref:`variant(gr)`
@@ -1556,17 +1557,17 @@ class VariantDataset(HistoryMixin):
                       keep_star=bool)
     def filter_alleles_generic(self, expr, variant_expr, genotype_expr,
                                keep=True, left_aligned=False, keep_star=False):
-        """Filter a user-defined set of alternate alleles for each variant.
-        If all alternate alleles of a variant are filtered, the
-        variant itself is filtered.  The expr expression is evaluated
+        """Filter to a user-defined set of alternate alleles for each variant.
+        If all alternate alleles of a variant are filtered out, the
+        variant itself is filtered out.  The ``expr`` expression is evaluated
         for each alternate allele, but not for the reference allele
         (i.e. ``aIndex`` will never be zero).
 
         **Example**
 
         :py:meth:`~hail.VariantDataset.filter_alleles`, which filters
-        alleles for the HTS schema, supports two modes: downcode and
-        subset.  Subset is implemented as:
+        alleles with zero allele count for the HTS schema, supports
+        two modes: downcode and subset.  Subset is implemented as:
 
         >>> multiallelic_generic_vds.filter_alleles_generic('va.info.AC[aIndex - 1] == 0',
         ...     variant_expr='va.info.AC = newToOld[1:].map(i => va.info.AC[i - 1])',
@@ -1610,9 +1611,8 @@ class VariantDataset(HistoryMixin):
 
         **Notes**
 
-        ``expr`` is a boolean condition indicating if the given allele
-        should be kept or removed.  ``aIndex`` (allele index)
-        indicates the allele being tested.
+        ``expr`` is a ``Boolean`` condition indicating if the given
+        allele should be kept or removed.
 
         - ``global``: global annotations
         - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
@@ -1639,7 +1639,7 @@ class VariantDataset(HistoryMixin):
         - ``newV`` (*Variant(GR)*): the new :ref:`variant(gr)`
         - ``va``: variant annotations
         - ``newToOld`` (*Array[Int]*): the array of old indices (such that ``newToOld[newIndex] = oldIndex`` and ``newToOld[0] = 0``)
-        - ``oldToNew`` (*Array[Int]*): the array of new indices.  The new index of filtered old alleles is 0.
+        - ``oldToNew`` (*Array[Int]*): the array of new indices.  All old filtered alleles have new index 0.
         - ``s`` (*Sample*): sample
         - ``sa``: sample annotation
         - ``g``: old genotype annotation
@@ -1656,13 +1656,13 @@ class VariantDataset(HistoryMixin):
 
         :param str genotype_expr: Annotation expressions to update the genotype annotations for the new, filtered variant.
 
-        :param bool keep: If True, keep variants matching expr
+        :param bool keep: If True, keep variants matching expr.
 
         :param bool left_aligned: If True, variants are assumed to be
           left aligned and have unique loci.  This avoids a shuffle.
           If the assumption is violated, an error is generated.
 
-        :param bool keep_star: If True, keep variants where the only allele left is a ``*`` allele.
+        :param bool keep_star: If True, keep variants where the only unfiltered alternate alleles are ``*`` alleles.
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
