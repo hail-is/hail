@@ -690,41 +690,46 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
 case class IntPartition(index: Int) extends Partition
 
 
-case class WriteBlocksRDDPartition(index: Int, start: Int, end: Int, firstIndexToCopy: Int) extends Partition {
+case class WriteBlocksRDDPartition(index: Int, start: Int, skip: Int, end: Int) extends Partition {
   def range: Range = start to end
 }
 
 object WriteBlocksRDD {
-  // on return, [start(blockRowIndex), end(blockRowIndex)] are the parent partitions overlapping this blockRow
-  def computeBlockRowDependencies(parentPartitionBoundaries: Array[Long], gp: GridPartitioner): (Array[Int], Array[Int]) = {
+  // a(blockRowIndex) = (start, skip, end) where [start, end] are the parent partitions overlapping this blockRow
+  // and skip is the index in start corresponding to the first row in this blockRow
+  def computeBlockRowDependencies(parentPartitionBoundaries: Array[Long], gp: GridPartitioner): Array[(Int, Int, Int)] = {
     val rows = parentPartitionBoundaries.last
     assert(rows == gp.rows)
     val nBlockRows = gp.rowPartitions
+    val blockSize = gp.blockSize
     
-    val starts = Array.ofDim[Int](nBlockRows)
-    val ends = Array.ofDim[Int](nBlockRows)
+    val a = Array.ofDim[(Int, Int, Int)](nBlockRows)
     
+    var firstRowInBlock = 0L
+    var firstRowInNextBlock = 0L
     var p = 0 // parent partition index
-    var startOfNextBlock = 0L
     var blockRowIndex = 0
-    while (blockRowIndex < nBlockRows - 1) {
-      startOfNextBlock += gp.blockSize
+    while (blockRowIndex < nBlockRows) {
+      val skip = (firstRowInBlock - parentPartitionBoundaries(p)).toInt
       
-      starts(blockRowIndex) = p
-      while (parentPartitionBoundaries(p) < startOfNextBlock)
+      val firstRowInNextBlock = if (blockRowIndex < nBlockRows - 1) firstRowInBlock + blockSize else rows
+
+      val start = p 
+      while (parentPartitionBoundaries(p) < firstRowInNextBlock)
         p += 1
-      ends(blockRowIndex) = p - 1
+      val end = p - 1
       
       // if last parent partition overlaps next blockRow, don't advance
-      if (parentPartitionBoundaries(p) > startOfNextBlock)
+      if (parentPartitionBoundaries(p) > firstRowInNextBlock)
         p -= 1
       
+      a(blockRowIndex) = (start, skip, end)
+      
+      firstRowInBlock = firstRowInNextBlock
       blockRowIndex += 1
     }
-    starts(blockRowIndex) = p
-    ends(blockRowIndex) = parentPartitionBoundaries.length - 2 // index of last parent partition
     
-    (starts, ends)
+    a
   }
 }
 
@@ -758,21 +763,16 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
   }
   
   protected def getPartitions: Array[Partition] = {
-    val (starts, ends) = WriteBlocksRDD.computeBlockRowDependencies(parentPartitionBoundaries, gp)
-    
-    Array.tabulate(gp.rowPartitions) { blockRowIndex =>
-      val start = starts(blockRowIndex)
-      val firstRowInStart = parentPartitionBoundaries(start)
-      val firstRowInBlock = blockRowIndex * blockSize.toLong
-      val firstIndexToCopy = (firstRowInBlock - firstRowInStart).toInt
-  
-      WriteBlocksRDDPartition(blockRowIndex, start, ends(blockRowIndex), firstIndexToCopy)
-    }
+    WriteBlocksRDD.computeBlockRowDependencies(parentPartitionBoundaries, gp)
+      .zipWithIndex
+      .map { case ((start, skip, end), blockRowIndex) =>
+          WriteBlocksRDDPartition(blockRowIndex, start, skip, end)
+      }
   }
   
   def compute(split: Partition, context: TaskContext): Iterator[Int] = {
     val blockRowIndex = split.index
-    val nRowsInBlock = if (blockRowIndex == truncatedBlockRow) excessRows else blockSize
+    val nRowsInBlock = if (blockRowIndex != truncatedBlockRow) blockSize else excessRows
     val lastRowInBlock = blockRowIndex * blockSize + nRowsInBlock // technically, first row in next blockRow
 
     val dosArray = Array.tabulate(gp.colPartitions) { blockColIndex =>
@@ -793,7 +793,7 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
     
     val split0 = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = split0.start
-    val firstIndexToCopy = split0.firstIndexToCopy
+    val skip = split0.skip
     
     split0.range.foreach { p =>
       val indexedRows = irm.rows.iterator(parentPartitions(p), context)
@@ -801,7 +801,7 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
       var i = 0
       
       if (p == start)
-        while (i < firstIndexToCopy) {
+        while (i < skip) {
           indexedRows.next()
           i += 1
         }
