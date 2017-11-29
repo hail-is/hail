@@ -10,6 +10,7 @@ from hail2.expr.functions import *
 from hail.typ import *
 from hail2.keytable import KeyTable
 from hail2.expr.column import VariantColumn, LocusColumn, IntervalColumn, GenotypeColumn
+from hail.representation.genomeref import GenomeReference
 
 hc = None
 
@@ -497,25 +498,27 @@ class ColumnTests(unittest.TestCase):
         self.assertTrue(all([expected_schema[fd.name] == fd.typ for fd in kt.schema.fields]))
 
     def test_constructors(self):
+        rg = GenomeReference("foo", ["1"], {"1": 100})
+
         schema = TStruct(['a', 'b', 'c', 'd'], [TFloat64(), TFloat64(), TInt32(), TInt64()])
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': long(5)}]
         kt = KeyTable.parallelize(rows, schema)
 
-        kt = kt.annotate(v1 = VariantColumn.parse("1:500:A:T"),
-                         v2 = VariantColumn.from_args("1", 23, "A", "T"),
-                         v3 = VariantColumn.from_args("1", 23, "A", ["T", "G"]),
+        kt = kt.annotate(v1 = VariantColumn.parse("1:500:A:T", reference_genome=rg),
+                         v2 = VariantColumn.from_args("1", 23, "A", "T", reference_genome=rg),
+                         v3 = VariantColumn.from_args("1", 23, "A", ["T", "G"], reference_genome=rg),
                          l1 = LocusColumn.parse("1:51"),
-                         l2 = LocusColumn.from_args("1", 51),
-                         i1 = IntervalColumn.parse("1:51-56"),
-                         i2 = IntervalColumn.from_args("1", 51, 56),
-                         i3 = IntervalColumn.from_loci(LocusColumn.from_args("1", 51), LocusColumn.from_args("1", 56)))
+                         l2 = LocusColumn.from_args("1", 51, reference_genome=rg),
+                         i1 = IntervalColumn.parse("1:51-56", reference_genome=rg),
+                         i2 = IntervalColumn.from_args("1", 51, 56, reference_genome=rg),
+                         i3 = IntervalColumn.from_loci(LocusColumn.from_args("1", 51, reference_genome=rg), LocusColumn.from_args("1", 56, reference_genome=rg)))
 
         kt = kt.annotate(g1 = GenotypeColumn.from_call(CallColumn.from_int32(1)),
                          g2 = GenotypeColumn.pl_genotype(kt.v1, CallColumn.from_int32(1), [6, 7], 13, 20, [20, 0, 1000]))
 
-        expected_schema = {'a': TFloat64(), 'b': TFloat64(), 'c': TInt32(), 'd': TInt64(), 'v1': TVariant(),
-                           'v2': TVariant(), 'v3': TVariant(), 'l1': TLocus(), 'l2': TLocus(), 'i1': TInterval(),
-                           'i2': TInterval(), 'i3': TInterval(), 'g1': TGenotype(), 'g2': TGenotype(), 'g3': TGenotype(),
+        expected_schema = {'a': TFloat64(), 'b': TFloat64(), 'c': TInt32(), 'd': TInt64(), 'v1': TVariant(rg),
+                           'v2': TVariant(rg), 'v3': TVariant(rg), 'l1': TLocus(), 'l2': TLocus(rg), 'i1': TInterval(rg),
+                           'i2': TInterval(rg), 'i3': TInterval(rg), 'g1': TGenotype(), 'g2': TGenotype(), 'g3': TGenotype(),
                            'g4': TGenotype()}
 
         self.assertTrue(all([expected_schema[fd.name] == fd.typ for fd in kt.schema.fields]))

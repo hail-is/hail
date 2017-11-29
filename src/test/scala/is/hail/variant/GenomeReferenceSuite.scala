@@ -174,6 +174,7 @@ class GenomeReferenceSuite extends SparkSuite {
     GenomeReference.addReference(gr)
     GenomeReference.setDefaultReference(gr)
     assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == gr.variant)
+    assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"))""").signature.field("i1").typ == gr.interval)
 
     GenomeReference.setDefaultReference(GenomeReference.GRCh37)
   }
