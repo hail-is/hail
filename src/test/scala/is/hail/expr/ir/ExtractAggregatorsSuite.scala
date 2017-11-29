@@ -19,13 +19,13 @@ class ExtractAggregatorsSuite {
     val aOff = addArray(region, (0 to 100).map(_.toDouble).toArray)
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, region.appendInt(10), false)
+    val (post, runAggregations) = RunAggregators.onArray(ir, tAgg, aOff, region.appendInt(10), false)
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
 
     // out is never missing
-    assert(fb.result()()(region, outOff, false) === 5050.0)
+    assert(fb.result()()(region, runAggregations(region), false) === 5050.0)
   }
 
 
@@ -36,13 +36,13 @@ class ExtractAggregatorsSuite {
     val aOff = addArray(region, Array())
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, region.appendInt(10), false)
+    val (post, runAggregations) = RunAggregators.onArray(ir, tAgg, aOff, region.appendInt(10), false)
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
 
     // out is never missing
-    assert(fb.result()()(region, outOff, false) === 0.0)
+    assert(fb.result()()(region, runAggregations(region), false) === 0.0)
   }
 
   @Test
@@ -52,13 +52,13 @@ class ExtractAggregatorsSuite {
     val aOff = addArray(region, Array(42.0))
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, region.appendInt(10), false)
+    val (post, runAggregations) = RunAggregators.onArray(ir, tAgg, aOff, region.appendInt(10), false)
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
 
     // out is never missing
-    assert(fb.result()()(region, outOff, false) === 42.0)
+    assert(fb.result()()(region, runAggregations(region), false) === 42.0)
   }
 
   @Test
@@ -68,13 +68,13 @@ class ExtractAggregatorsSuite {
     val aOff = addBoxedArray(region, Array[java.lang.Double](null, 42.0, null))
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, region.appendInt(10), false)
+    val (post, runAggregations) = RunAggregators.onArray(ir, tAgg, aOff, region.appendInt(10), false)
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
 
     // out is never missing
-    assert(fb.result()()(region, outOff, false) === 42.0)
+    assert(fb.result()()(region, runAggregations(region), false) === 42.0)
   }
 
   @Test
@@ -84,13 +84,13 @@ class ExtractAggregatorsSuite {
     val aOff = addBoxedArray(region, Array[java.lang.Double](null, null, null))
 
     val ir: IR = AggSum(AggIn(tAgg))
-    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, region.appendInt(10), false)
+    val (post, runAggregations) = RunAggregators.onArray(ir, tAgg, aOff, region.appendInt(10), false)
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
 
     // out is never missing
-    assert(fb.result()()(region, outOff, false) === 0.0)
+    assert(fb.result()()(region, runAggregations(region), false) === 0.0)
   }
 
   @Test
@@ -102,13 +102,13 @@ class ExtractAggregatorsSuite {
     val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
       Ref("foo"),
       TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
-    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, region.appendInt(10), false)
+    val (post, runAggregations) = RunAggregators.onArray(ir, tAgg, aOff, region.appendInt(10), false)
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int]
     Compile(post, fb)
 
     // out is never missing
-    assert(fb.result()()(region, outOff, false) === 30)
+    assert(fb.result()()(region, runAggregations(region), false) === 30)
   }
 
   @Test
@@ -120,13 +120,13 @@ class ExtractAggregatorsSuite {
     val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
       Ref("foo"),
       TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
-    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, region.appendInt(10), false)
+    val (post, runAggregations) = RunAggregators.onArray(ir, tAgg, aOff, region.appendInt(10), false)
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int]
     Compile(post, fb)
 
     // out is never missing
-    assert(fb.result()()(region, outOff, false) === 30)
+    assert(fb.result()()(region, runAggregations(region), false) === 30)
   }
 
   @Test
@@ -138,12 +138,12 @@ class ExtractAggregatorsSuite {
     val ir: IR = AggSum(AggMap(AggIn(tAgg), "x",
       ApplyBinaryPrimOp(Multiply(), Ref("foo"), Ref("x")),
       TAggregable(TInt32(), Map("foo" -> (0, TInt32())))))
-    val (post, outOff) = RunAggregators.onArray(ir, tAgg, region, aOff, region.appendDouble(10.0), false)
+    val (post, runAggregations) = RunAggregators.onArray(ir, tAgg, aOff, region.appendDouble(10.0), false)
 
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
     Compile(post, fb)
 
     // out is never missing
-    assert(fb.result()()(region, outOff, false) === 110.0)
+    assert(fb.result()()(region, runAggregations(region), false) === 110.0)
   }
 }
