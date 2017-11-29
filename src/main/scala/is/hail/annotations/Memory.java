@@ -15,12 +15,20 @@ public final class Memory {
         unsafe.putInt(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, i);
     }
 
+    public static void storeLong(byte[] mem, long off, long l) {
+        unsafe.putLong(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, l);
+    }
+
     public static void storeFloat(byte[] mem, long off, float f) {
         unsafe.putFloat(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, f);
     }
 
     public static void storeDouble(byte[] mem, long off, double d) {
         unsafe.putDouble(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, d);
+    }
+
+    public static void storeAddress(byte[] mem, long off, long a) {
+        unsafe.putLong(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, a);
     }
 
     public static byte loadByte(byte[] mem, long off) {
@@ -35,8 +43,17 @@ public final class Memory {
         return unsafe.getInt(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off);
     }
 
+    public static long loadLong(byte[] mem, long off) {
+        return unsafe.getLong(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off);
+    }
+
     public static double loadDouble(byte[] mem, long off) {
         return unsafe.getDouble(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off);
+    }
+
+    public static long loadAddress(byte[] mem, long off) {
+        // Unsafe has no getAddress on Object
+        return unsafe.getLong(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off);
     }
 
     public static void memcpy(byte[] dst, long dstOff, byte[] src, long srcOff, long n) {

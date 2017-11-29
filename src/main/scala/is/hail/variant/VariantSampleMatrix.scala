@@ -69,9 +69,11 @@ object VariantSampleMatrix {
     rdd: RDD[(RK, (Annotation, Iterable[T]))]): VariantSampleMatrix = {
     implicit val kOk = metadata.vSignature.orderedKey
     VariantSampleMatrix(hc, metadata, localValue,
-      rdd.map { case (v, (va, gs)) =>
-        (v: Annotation, (va, gs: Iterable[Annotation]))
-      }.toOrderedRDD)
+      rdd.mapPartitions({ it =>
+        it.map { case (v, (va, gs)) =>
+          (v: Annotation, (va, gs: Iterable[Annotation]))
+        }
+      }, preservesPartitioning = true).toOrderedRDD)
   }
 
   def fromLegacy[RK, T](hc: HailContext,
@@ -82,9 +84,11 @@ object VariantSampleMatrix {
     implicit val kOk = metadata.vSignature.orderedKey
     VariantSampleMatrix(hc, metadata, localValue,
       OrderedRDD(
-        rdd.map { case (v, (va, gs)) =>
-          (v: Annotation, (va, gs: Iterable[Annotation]))
-        },
+        rdd.mapPartitions({ it =>
+          it.map { case (v, (va, gs)) =>
+            (v: Annotation, (va, gs: Iterable[Annotation]))
+          }
+        }, preservesPartitioning = true),
         Some(fastKeys.map { k => k: Annotation }), None))
   }
 
@@ -2017,7 +2021,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       val rv2b = new RegionValueBuilder()
       val rv2 = RegionValue()
       it.flatMap { rv =>
-        val rvEnd = rv.region.end
+        val rvEnd = rv.region.size
         rv2b.set(rv.region)
         val gsOffset = localRowType.loadField(rv, 3)
         (0 until localNSamples).iterator.map { i =>
