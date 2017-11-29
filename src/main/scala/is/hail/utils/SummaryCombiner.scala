@@ -10,7 +10,7 @@ case class SummaryResult(samples: Int, variants: Long, callRate: Option[Double],
   contigs: Set[String], multiallelics: Long, snps: Long, mnps: Long, insertions: Long,
   deletions: Long, complex: Long, star: Long, maxAlleles: Int)
 
-class SummaryCombiner() extends Serializable {
+class SummaryCombiner extends Serializable {
   private val contigs = mutable.Set.empty[String]
   private var nCalled = 0L
   private var nVariants = 0L

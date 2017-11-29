@@ -14,7 +14,6 @@ import org.json4s.MappingException
 import org.json4s.JsonAST._
 
 import scala.collection.mutable
-import scala.reflect.ClassTag
 
 object BinarySearch {
   // return smallest elem such that key <= elem
@@ -650,13 +649,6 @@ class OrderedRDD2 private(
     OrderedRDD2(typ,
       orderedPartitioner,
       rdd.mapPartitions(f))
-
-  def aggregatePartitions[T, U: ClassTag](context: => T)(zeroValue: => U)(seqOp: (T, U, RegionValue) => U, combOp: (U, U) => U): U = {
-    rdd.mapPartitions { it =>
-      val localContext = context
-      Iterator.single(it.foldLeft(zeroValue)(seqOp(localContext, _, _)))
-    }.fold(zeroValue)(combOp)
-  }
 
   override def filter(p: (RegionValue) => Boolean): OrderedRDD2 =
     OrderedRDD2(typ,

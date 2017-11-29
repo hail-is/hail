@@ -1895,10 +1895,10 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def summarize(): SummaryResult = {
     val localRowType = rowType
     val localNSamples = nSamples
-    rdd2.aggregateWithContext(
+    rdd2.aggregateWithContext( () =>
       (HardCallView(localRowType),
         new RegionValueVariant(localRowType.fieldType(1).asInstanceOf[TVariant]))
-    )(new SummaryCombiner())(
+    )(new SummaryCombiner)(
       { case ((view, rvVariant), summary, rv) =>
         rvVariant.setRegion(rv.region, localRowType.loadField(rv, 1))
         view.setRegion(rv)
