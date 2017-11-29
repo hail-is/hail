@@ -374,6 +374,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     }
   }
 
+  def genomeReference: GenomeReference = vSignature.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference]
+
   val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit) = metadata
 
   lazy val value: MatrixValue = {
@@ -1425,6 +1427,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
     require(wasSplit)
     requireColKeyString("mendel errors")
+    requireRowKeyVariant("mendel errors")
 
     val men = MendelErrors(this, ped.filterTo(stringSampleIdSet).completeTrios)
 

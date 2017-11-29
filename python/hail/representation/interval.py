@@ -28,9 +28,6 @@ class Interval(HistoryMixin):
     @typecheck_method(start=Locus,
                       end=Locus)
     def __init__(self, start, end):
-        if not (isinstance(start, Locus) and isinstance(end, Locus)):
-            raise TypeError('expect arguments of type (Locus, Locus) but found (%s, %s)' %
-                            (str(type(start)), str(type(end))))
         if start._rg != end._rg:
             raise TypeError("expect `start' and `end' to have the same reference genome but found ({}, {})".format(start._rg.name, end._rg.name))
         jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep)

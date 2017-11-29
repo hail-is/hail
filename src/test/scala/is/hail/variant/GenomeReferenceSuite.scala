@@ -66,19 +66,27 @@ class GenomeReferenceSuite extends SparkSuite {
 
     val v1 = Variant("1", 50000, "A", "T")
     val v2 = Variant("X", 2499520, "T", "G")
-    val v3 = Variant("Y", 50001, "G", "C")
+    val v3 = Variant("Y", 59034055, "G", "C")
     val v4 = Variant("MT", 30, "T", "G")
     val v5 = Variant("X", 50, "G", "A")
     val v6 = Variant("Y", 5000, "C", "T")
 
-    for (v <- Array(v1, v2, v3, v4, v5, v6)) {
-      assert(v.isAutosomal == v.isAutosomal(gr))
-      assert(v.isAutosomalOrPseudoAutosomal == v.isAutosomalOrPseudoAutosomal(gr))
-      assert(v.isMitochondrial == v.isMitochondrial(gr))
-      assert(v.inXPar == v.inXPar(gr))
-      assert(v.inYPar == v.inYPar(gr))
-      assert(v.inXNonPar == v.inXNonPar(gr))
-      assert(v.inYNonPar == v.inYNonPar(gr))
+    val expected = Array(
+      Array(true, true, false, false, false, false, false),
+      Array(false, true, false, true, false, false, false),
+      Array(false, true, false, false, true, false, false),
+      Array(false, false, true, false, false, false, false),
+      Array(false, false, false, false, false, true, false),
+      Array(false, false, false, false, false, false, true))
+
+    for ((v, e) <- Array(v1, v2, v3, v4, v5, v6).zip(expected)) {
+      assert(v.isAutosomal(gr) == e(0))
+      assert(v.isAutosomalOrPseudoAutosomal(gr) == e(1))
+      assert(v.isMitochondrial(gr) == e(2))
+      assert(v.inXPar(gr) == e(3))
+      assert(v.inYPar(gr) == e(4))
+      assert(v.inXNonPar(gr) == e(5))
+      assert(v.inYNonPar(gr) == e(6))
     }
   }
 

@@ -216,65 +216,25 @@ trait IVariant { self =>
 
   def locus: Locus = Locus(contig, start)
 
-  def isAutosomalOrPseudoAutosomal: Boolean =
-    isAutosomal || inXPar || inYPar
-
   def isAutosomalOrPseudoAutosomal(gr: GRBase): Boolean = isAutosomal(gr) || inXPar(gr) || inYPar(gr)
-
-  def isAutosomal = !(inX || inY || isMitochondrial)
 
   def isAutosomal(gr: GRBase): Boolean = !(inX(gr) || inY(gr) || isMitochondrial(gr))
 
-  def isMitochondrial = {
-    val c = contig.toUpperCase
-    c == "MT" || c == "M" || c == "26"
-  }
-
   def isMitochondrial(gr: GRBase): Boolean = gr.isMitochondrial(contig)
-
-  // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
-  // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
-  def inXParPos: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
-
-  def inYParPos: Boolean = (10001 <= start && start <= 2649520) || (59034050 <= start && start <= 59363566)
-
-  // FIXME: will replace with contig == "X" etc once bgen/plink support is merged and conversion is handled by import
-  def inXPar: Boolean = inX && inXParPos
 
   def inXPar(gr: GRBase): Boolean = gr.inXPar(locus)
 
-  def inYPar: Boolean = inY && inYParPos
-
   def inYPar(gr: GRBase): Boolean = gr.inYPar(locus)
-
-  def inXNonPar: Boolean = inX && !inXParPos
 
   def inXNonPar(gr: GRBase): Boolean = inX(gr) && !inXPar(gr)
 
-  def inYNonPar: Boolean = inY && !inYParPos
-
   def inYNonPar(gr: GRBase): Boolean = inY(gr) && !inYPar(gr)
 
-  private def inX: Boolean = contig.toUpperCase == "X" || contig == "23" || contig == "25"
-
   private def inX(gr: GRBase): Boolean = gr.inX(contig)
-
-  private def inY: Boolean = contig.toUpperCase == "Y" || contig == "24"
 
   private def inY(gr: GRBase): Boolean = gr.inY(contig)
 
   import CopyState._
-
-  def copyState(sex: Sex.Sex): CopyState =
-    if (sex == Sex.Male)
-      if (inXNonPar)
-        HemiX
-      else if (inYNonPar)
-        HemiY
-      else
-        Auto
-    else
-      Auto
 
   def copyState(sex: Sex.Sex, gr: GenomeReference): CopyState =
     if (sex == Sex.Male)
