@@ -1,7 +1,7 @@
 import abc
 from hail.java import scala_object, Env, jset, jindexed_seq
 from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call, GenomeReference
-from hail.typecheck import typecheck_method, nullable
+from hail.typecheck import typecheck_method, nullable, integral
 from hail.history import *
 
 
@@ -129,10 +129,10 @@ class TInt32(Type):
         return annotation
 
     def _convert_to_j(self, annotation):
-        if annotation:
+        if annotation is not None:
             return Env.jutils().makeInt(annotation)
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if not annotation and self.required:
@@ -164,10 +164,10 @@ class TInt64(Type):
         return annotation
 
     def _convert_to_j(self, annotation):
-        if annotation:
+        if annotation is not None:
             return Env.jutils().makeLong(annotation)
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if not annotation and self.required:
@@ -237,10 +237,10 @@ class TFloat64(Type):
         return annotation
 
     def _convert_to_j(self, annotation):
-        if annotation:
+        if annotation is not None:
             return Env.jutils().makeDouble(annotation)
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if not annotation and self.required:
@@ -351,11 +351,11 @@ class TArray(Type):
         return t
 
     def _convert_to_py(self, annotation):
-        if annotation:
+        if annotation is not None:
             lst = Env.jutils().iterableToArrayList(annotation)
             return [self.element_type._convert_to_py(x) for x in lst]
         else:
-            return annotation
+            return None
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
@@ -363,7 +363,7 @@ class TArray(Type):
                 [self.element_type._convert_to_j(elt) for elt in annotation]
             )
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if annotation:
@@ -413,11 +413,11 @@ class TSet(Type):
         return t
 
     def _convert_to_py(self, annotation):
-        if annotation:
+        if annotation is not None:
             lst = Env.jutils().iterableToArrayList(annotation)
             return set([self.element_type._convert_to_py(x) for x in lst])
         else:
-            return annotation
+            return None
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
@@ -425,7 +425,7 @@ class TSet(Type):
                 [self.element_type._convert_to_j(elt) for elt in annotation]
             )
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if annotation:
@@ -479,14 +479,14 @@ class TDict(Type):
         return t
 
     def _convert_to_py(self, annotation):
-        if annotation:
+        if annotation is not None:
             lst = Env.jutils().iterableToArrayList(annotation)
             d = dict()
             for x in lst:
                 d[self.key_type._convert_to_py(x._1())] = self.value_type._convert_to_py(x._2())
             return d
         else:
-            return annotation
+            return None
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
@@ -494,7 +494,7 @@ class TDict(Type):
                 {self.key_type._convert_to_j(k): self.value_type._convert_to_j(v) for k, v in annotation.iteritems()}
             )
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if annotation:
@@ -592,13 +592,13 @@ class TStruct(Type):
         self.fields = [Field(f.name(), Type._from_java(f.typ()), dict(f.attrsJava())) for f in jfields]
 
     def _convert_to_py(self, annotation):
-        if annotation:
+        if annotation is not None:
             d = dict()
             for i, f in enumerate(self.fields):
                 d[f.name] = f.typ._convert_to_py(annotation.get(i))
             return Struct(d)
         else:
-            return annotation
+            return None
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
@@ -608,7 +608,7 @@ class TStruct(Type):
                 )
             )
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if annotation:
@@ -669,16 +669,16 @@ class TVariant(Type):
         return v
 
     def _convert_to_py(self, annotation):
-        if annotation:
+        if annotation is not None:
             return Variant._from_java(annotation, self._rg)
         else:
-            return annotation
+            return None
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
             return annotation._jrep
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, Variant):
@@ -715,16 +715,16 @@ class TAltAllele(Type):
         super(TAltAllele, self).__init__(scala_object(Env.hail().expr, 'TAltAllele').apply(required))
 
     def _convert_to_py(self, annotation):
-        if annotation:
+        if annotation is not None:
             return AltAllele._from_java(annotation)
         else:
-            return annotation
+            return None
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
             return annotation._jrep
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if not annotation and self.required:
@@ -792,17 +792,19 @@ class TCall(Type):
     def __init__(self, required=False):
         super(TCall, self).__init__(scala_object(Env.hail().expr, 'TCall').apply(required))
 
+    @typecheck_method(annotation=nullable(integral))
     def _convert_to_py(self, annotation):
-        if annotation:
-            return Call._from_java(annotation)
+        if annotation is not None:
+            return Call(annotation)
         else:
-            return annotation
+            return None
 
+    @typecheck_method(annotation=nullable(Call))
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return annotation._jrep
+            return annotation.gt
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if not annotation and self.required:
@@ -847,16 +849,16 @@ class TLocus(Type):
         return l
 
     def _convert_to_py(self, annotation):
-        if annotation:
+        if annotation is not None:
             return Locus._from_java(annotation, self._rg)
         else:
-            return annotation
+            return None
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
             return annotation._jrep
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if not annotation and self.required:
@@ -909,16 +911,16 @@ class TInterval(Type):
         return i
 
     def _convert_to_py(self, annotation):
-        if annotation:
+        if annotation is not None:
             return Interval._from_java(annotation, self._rg)
         else:
-            return annotation
+            return None
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
             return annotation._jrep
         else:
-            return annotation
+            return None
 
     def _typecheck(self, annotation):
         if not annotation and self.required:

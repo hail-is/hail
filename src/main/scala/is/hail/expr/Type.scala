@@ -1843,13 +1843,22 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
             rvb.startStruct()
             var i = 0
             while (i < j) {
-              rvb.addField(this, region, offset, i)
+              if (region != null)
+                rvb.addField(this, region, offset, i)
+              else
+                rvb.setMissing()
               i += 1
             }
-            fieldInserter(region, loadField(region, offset, j), rvb, inserter)
+            if (region != null && isFieldDefined(region, offset, j))
+              fieldInserter(region, loadField(region, offset, j), rvb, inserter)
+            else
+              fieldInserter(null, 0, rvb, inserter)
             i += 1
             while (i < localSize) {
-              rvb.addField(this, region, offset, i)
+              if (region != null)
+                rvb.addField(this, region, offset, i)
+              else
+                rvb.setMissing()
               i += 1
             }
             rvb.endStruct()
@@ -1862,7 +1871,10 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
             rvb.startStruct()
             var i = 0
             while (i < localSize) {
-              rvb.addField(this, region, offset, i)
+              if (region != null)
+                rvb.addField(this, region, offset, i)
+              else
+                rvb.setMissing()
               i += 1
             }
             fieldInserter(null, 0, rvb, inserter)
