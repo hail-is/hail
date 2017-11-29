@@ -847,7 +847,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
 
   private val scopeField = "scope"
 
-  def withScopeStruct: TStruct =
+  def elementAndScopeStruct: TStruct =
     TStruct(elementField -> elementType, scopeField -> scopeStruct)
 
   import is.hail.expr.ir.{IR, GetField, MakeStruct, Let}
@@ -865,13 +865,13 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     * FIXME: how to abstract over the next five methods without allocation
     *
     **/
-  def createCarrier(region: MemoryBuffer,
+  def createScopeCarrier(region: MemoryBuffer,
     x: Long, mx: Boolean,
     a0: Long, ma0: Boolean): Long = {
     assert(bindings.length == 1)
     val rvb = new RegionValueBuilder()
     rvb.set(region)
-    rvb.start(withScopeStruct)
+    rvb.start(elementAndScopeStruct)
     rvb.startStruct()
     if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
     rvb.startStruct()
@@ -881,14 +881,14 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     rvb.end()
   }
 
-  def createCarrier(region: MemoryBuffer,
+  def createScopeCarrier(region: MemoryBuffer,
     x: Long, mx: Boolean,
     a0: Long, ma0: Boolean,
     a1: Long, ma1: Boolean): Long = {
     assert(bindings.length == 2)
     val rvb = new RegionValueBuilder()
     rvb.set(region)
-    rvb.start(withScopeStruct)
+    rvb.start(elementAndScopeStruct)
     rvb.startStruct()
     if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
     rvb.startStruct()
@@ -899,7 +899,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     rvb.end()
   }
 
-  def createCarrier(region: MemoryBuffer,
+  def createScopeCarrier(region: MemoryBuffer,
     x: Long, mx: Boolean,
     a0: Long, ma0: Boolean,
     a1: Long, ma1: Boolean,
@@ -907,7 +907,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     assert(bindings.length == 3)
     val rvb = new RegionValueBuilder()
     rvb.set(region)
-    rvb.start(withScopeStruct)
+    rvb.start(elementAndScopeStruct)
     rvb.startStruct()
     if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
     rvb.startStruct()
@@ -919,7 +919,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     rvb.end()
   }
 
-  def createCarrier(region: MemoryBuffer,
+  def createScopeCarrier(region: MemoryBuffer,
     x: Long, mx: Boolean,
     a0: Long, ma0: Boolean,
     a1: Long, ma1: Boolean,
@@ -928,7 +928,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     assert(bindings.length == 4)
     val rvb = new RegionValueBuilder()
     rvb.set(region)
-    rvb.start(withScopeStruct)
+    rvb.start(elementAndScopeStruct)
     rvb.startStruct()
     if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
     rvb.startStruct()
@@ -941,7 +941,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     rvb.end()
   }
 
-  def createCarrier(region: MemoryBuffer,
+  def createScopeCarrier(region: MemoryBuffer,
     x: Long, mx: Boolean,
     a0: Long, ma0: Boolean,
     a1: Long, ma1: Boolean,
@@ -951,7 +951,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     assert(bindings.length == 5)
     val rvb = new RegionValueBuilder()
     rvb.set(region)
-    rvb.start(withScopeStruct)
+    rvb.start(elementAndScopeStruct)
     rvb.startStruct()
     if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
     rvb.startStruct()
