@@ -898,7 +898,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
               rvb.startStruct()
               rvb.addField(leftRowType, leftRV, 0) // pk
               rvb.addField(leftRowType, leftRV, 1) // v
-              rvb.addAnnotation(newVAType, a)
+              rvb.addAnnotation(newVAType, newVA)
               rvb.addField(leftRowType, leftRV, 3) // gs
               rvb.endStruct()
               rv2.set(region, rvb.end())
