@@ -901,10 +901,12 @@ class RegionValueBuilder(var region: MemoryBuffer) {
   }
 
   def addUnsafeRow(t: TStruct, ur: UnsafeRow) {
+    assert(t == ur.t)
     addRegionValue(t, ur.region, ur.offset)
   }
 
   def addUnsafeArray(t: TArray, uis: UnsafeIndexedSeq) {
+    assert(t == uis.t)
     addRegionValue(t, uis.region, uis.aoff)
   }
 
@@ -923,7 +925,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
         case t: TArray =>
           a match {
-            case uis: UnsafeIndexedSeq =>
+            case uis: UnsafeIndexedSeq if t == uis.t =>
               addUnsafeArray(t, uis)
 
             case is: IndexedSeq[Annotation] =>
@@ -938,7 +940,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
 
         case t: TStruct =>
           a match {
-            case ur: UnsafeRow =>
+            case ur: UnsafeRow if t == ur.t =>
               addUnsafeRow(t, ur)
             case r: Row =>
               addRow(t, r)
