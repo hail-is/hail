@@ -329,7 +329,7 @@ class CompileSuite {
       "scope", scopeStruct, addStruct(region, "foo", 7))
     val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long, Boolean, Long]
     doit(ir, fb)
-    val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
+    val f = fb.result()()
     val outOff = f(region, loff, false, roff, false)
     assert(tOut.isFieldDefined(region, outOff, tOut.fieldIdx("0")))
     assert(region.loadDouble(tOut.loadField(region, outOff, tOut.fieldIdx("0"))) === 8.0)
