@@ -202,7 +202,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
 
           val off = nSamples + 10 + 2 * i
           val d0 = a(off) & 0xff
-          val d1 = a(off) & 0xff
+          val d1 = a(off + 1) & 0xff
           val d2 = 255 - d0 - d1
 
           // GT
