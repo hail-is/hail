@@ -72,9 +72,9 @@ class LDMatrix(HistoryMixin):
 
         self._jldm.write(path)
 
-    @handle_py4j
     @staticmethod
-    @typecheck_method(path=strlike)
+    @handle_py4j
+    @typecheck(path=strlike)
     def read(path):
         """
         Reads the LD matrix from a file.
