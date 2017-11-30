@@ -157,8 +157,11 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
     region.invoke[Array[Byte],Long, Int, Long]("appendBytes", bytes, bytesOff, n)
   }
 
+  def appendString(string: Code[String]): Code[Long] = {
+    region.invoke[String, Long]("appendString", string)
+  }
+
   def clear(): Code[Unit] = {
     region.invoke[Unit]("clear")
   }
-
 }
