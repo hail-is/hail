@@ -2374,12 +2374,10 @@ class VariantDataset(HistoryMixin):
     @handle_py4j
     @record_method
     @typecheck(key_expr=str,
-                agg_expr=str,
-                single_key=bool)
+               agg_expr=str,
+               single_key=bool)
     def group_variants_by(self, key_expr, agg_expr, single_key=True):
-        """
-
-        Group variants by key, aggregating along sample.
+        """Group variants by key, aggregating along sample.
         
         **Examples**
 
@@ -2392,7 +2390,7 @@ class VariantDataset(HistoryMixin):
         :param str agg_expr: Expression for aggregating along samples.
 
         :param bool single_key: Whether the given key_expr is a single key
-        or an array/set of keys.
+            or an array/set of keys.
 
         :return: Variant dataset keyed by key_expr instead of variant.
         :rtype: :py:class:`.VariantDataset`
