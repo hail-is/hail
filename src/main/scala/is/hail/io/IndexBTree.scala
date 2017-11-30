@@ -55,7 +55,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration) {
   private val fs = try {
     hConf.fileSystem(indexFileName).open(new Path(indexFileName))
   } catch {
-    case e: Exception => fatal("Could not find a BGEN .idx file at $indexFileName. Try running HailContext.index_bgen().", e)
+    case e: Exception => fatal(s"Could not find a BGEN .idx file at $indexFileName. Try running HailContext.index_bgen().", e)
   }
 
   def close() = fs.close()
@@ -87,7 +87,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration) {
           prevPos
         else if (currentDepth == maxDepth && query <= currValue || currValue == -1L)
           currValue
-        else if (prevPos >= (startIndex + 1024*8))
+        else if (prevPos >= (startIndex + 1024 * 8))
           fatal("did not find query in block")
         else
           read(currValue, prevPos + 8)
