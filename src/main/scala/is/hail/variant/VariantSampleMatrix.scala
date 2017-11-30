@@ -462,8 +462,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
           it.flatMap { rv =>
             ur.set(rv)
             vEC.set(1, ur.get(1))
-            vEC.set(1, ur.get(2))
-            keyF().asInstanceOf[Iterable[Annotation]].map((_, ur))
+            vEC.set(2, ur.get(2))
+            Option(keyF().asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map((_, ur))
           }
         })
       }
