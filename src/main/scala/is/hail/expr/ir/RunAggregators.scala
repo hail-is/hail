@@ -59,7 +59,7 @@ object RunAggregators {
     Infer(ir, Some(tAgg))
     val (post, agg) = ExtractAggregators(ir, tAgg)
     val runAggregation = { (region: MemoryBuffer) =>
-      val perElementStart = region.offset
+      val perElementStart = region.size
       var i = 0
       while (i < tArray.loadLength(region, aOff)) {
         val me = tArray.isElementMissing(region, aOff, i)
@@ -67,7 +67,7 @@ object RunAggregators {
         seqOp(agg, region, e, me, i)
         // all allocated memory is unreachable because the aggregator value is
         // stored off-region
-        region.offset = perElementStart
+        region.clear(perElementStart)
         i += 1
       }
       agg.result(region)
