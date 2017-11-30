@@ -1412,6 +1412,7 @@ class KeyTable(object):
 
         Prune individuals from a dataset, prefering to keep cases over controls.
 
+        >>> vds = hc.read("data/example.vds")
         >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
         >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
         >>> related_samples_to_keep = (related_pairs
@@ -1421,7 +1422,7 @@ class KeyTable(object):
         ...   .select(['iAndCase', 'jAndCase'])
         ...   .maximal_independent_set("iAndCase", "jAndCase",
         ...     'if (l.isCase && !r.isCase) -1 else if (!l.isCase && r.isCase) 1 else 0'))
-        >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
+        >>> related_samples_to_remove = related_samples - {x.id for x in related_samples_to_keep}
         >>> vds.filter_samples_list(list(related_samples_to_remove))
 
         **Notes**
