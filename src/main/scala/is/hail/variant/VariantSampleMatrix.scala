@@ -859,6 +859,56 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
   def nPartitions: Int = rdd.partitions.length
 
+  def annotateVariants2(rightRDD2: OrderedRDD2, newVAType: Type, inserter: Inserter): VariantSampleMatrix = {
+    val leftRowType = rowType
+    val rightRowType = rightRDD2.typ.rowType
+
+    val newMatrixType = matrixType.copy(vaType = newVAType)
+    val newRowType = newMatrixType.rowType
+
+    copy2(
+      vaSignature = newVAType,
+      rdd2 = OrderedRDD2(
+        newMatrixType.orderedRDD2Type,
+        rdd2.orderedPartitioner,
+        rdd2.orderedJoinDistinct(rightRDD2, "left")
+          .mapPartitions { it =>
+            val rvb = new RegionValueBuilder()
+            val rv2 = RegionValue()
+
+            it.map { jrv =>
+              val leftRV = jrv.rvLeft
+              assert(leftRV != null)
+              val region = leftRV.region
+              val rightRV = jrv.rvRight
+
+              val leftUR = new UnsafeRow(leftRowType, leftRV)
+              val va = leftUR.get(2)
+
+              val a =
+                if (rightRV != null) {
+                  val rightUR = new UnsafeRow(rightRowType, rightRV)
+                  rightUR.get(2)
+                } else
+                  null
+
+              val newVA = inserter(va, a)
+
+              rvb.set(region)
+              rvb.start(newRowType)
+              rvb.startStruct()
+              rvb.addField(leftRowType, leftRV, 0) // pk
+              rvb.addField(leftRowType, leftRV, 1) // v
+              rvb.addAnnotation(newVAType, newVA)
+              rvb.addField(leftRowType, leftRV, 3) // gs
+              rvb.endStruct()
+              rv2.set(region, rvb.end())
+
+              rv2
+            }
+          }))
+  }
+
   def annotateVariants(otherRDD: OrderedRDD[Annotation, Annotation, Annotation], newSignature: Type,
     inserter: Inserter, product: Boolean): VariantSampleMatrix = {
     val newRDD = if (product)
@@ -875,7 +925,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     copy(rdd = newRDD, vaSignature = newSignature)
   }
 
-  def annotateVariantsVDS(other: VariantSampleMatrix,
+  def annotateVariantsVDS(right: VariantSampleMatrix,
     root: Option[String] = None, code: Option[String] = None): VariantSampleMatrix = {
 
     val (isCode, annotationExpr) = (root, code) match {
@@ -888,11 +938,11 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       if (isCode) {
         val ec = EvalContext(Map(
           "va" -> (0, vaSignature),
-          "vds" -> (1, other.vaSignature)))
+          "vds" -> (1, right.vaSignature)))
         Annotation.buildInserter(annotationExpr, vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else insertVA(other.vaSignature, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
+      } else insertVA(right.vaSignature, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
 
-    annotateVariants(other.variantsAndAnnotations, finalType, inserter, product = false)
+    annotateVariants2(right.dropSamples().rdd2, finalType, inserter)
   }
 
   def count(): (Long, Long) = (nSamples, countVariants())
@@ -1281,11 +1331,11 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         rvb.startArray(localLeftSamples + localRightSamples)
 
         val gsLeftOffset = localRowType.loadField(lrv.region, lrv.offset, 3) // left gs
-        val gsLeftLength = tgs.loadLength(lrv.region, gsLeftOffset)
+      val gsLeftLength = tgs.loadLength(lrv.region, gsLeftOffset)
         assert(gsLeftLength == localLeftSamples)
 
         val gsRightOffset = localRowType.loadField(rrv.region, rrv.offset, 3) // right gs
-        val gsRightLength = tgs.loadLength(rrv.region, gsRightOffset)
+      val gsRightLength = tgs.loadLength(rrv.region, gsRightOffset)
         assert(gsRightLength == localRightSamples)
 
         var i = 0
@@ -2433,7 +2483,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       val rvb = new RegionValueBuilder(region)
       val localRowType = rowTypeBc.value
 
-      it.map{ case (s,v) =>
+      it.map { case (s, v) =>
         rvb.start(localRowType)
         rvb.startStruct()
         rvb.addAnnotation(rowType.fieldType(0), s)
