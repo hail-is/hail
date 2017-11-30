@@ -1405,7 +1405,7 @@ object TVariant {
     "contig" -> !TString(),
     "start" -> !TInt32(),
     "ref" -> !TString(),
-    "altAlleles" -> !TArray(!TAltAllele().representation))
+    "altAlleles" -> !TArray(!TAltAllele()))
     if (required) (!rep).asInstanceOf[TStruct] else rep
   }
 }

@@ -188,12 +188,6 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
     CalculateConcordance(vsm, other)
   }
 
-  def summarize(): SummaryResult = {
-    vsm.typedRDD[Locus, Variant, Genotype]
-      .aggregate(new SummaryCombiner[Genotype](_.hardCallIterator.countNonNegative()))(_.merge(_), _.merge(_))
-      .result(vsm.nSamples)
-  }
-
   def exportPlink(path: String, famExpr: String = "id = s") {
     require(vsm.wasSplit)
     vsm.requireColKeyString("export plink")

@@ -1,7 +1,8 @@
 package is.hail.utils
 
-import is.hail.annotations.Annotation
-import is.hail.variant.{AltAlleleType, Variant}
+import is.hail.annotations.{Annotation, RegionValue}
+import is.hail.expr.{TStruct, TVariant, TArray, TString}
+import is.hail.variant.{AltAllele, AltAlleleType, Variant, IVariant, HardCallView}
 
 import scala.collection.mutable
 
@@ -9,7 +10,7 @@ case class SummaryResult(samples: Int, variants: Long, callRate: Option[Double],
   contigs: Set[String], multiallelics: Long, snps: Long, mnps: Long, insertions: Long,
   deletions: Long, complex: Long, star: Long, maxAlleles: Int)
 
-class SummaryCombiner[T](f: Iterable[T] => Int) extends Serializable {
+class SummaryCombiner extends Serializable {
   private val contigs = mutable.Set.empty[String]
   private var nCalled = 0L
   private var nVariants = 0L
@@ -22,7 +23,7 @@ class SummaryCombiner[T](f: Iterable[T] => Int) extends Serializable {
   private var complex = 0L
   private var star = 0L
 
-  def merge(other: SummaryCombiner[T]): SummaryCombiner[T] = {
+  def merge(other: SummaryCombiner): SummaryCombiner = {
 
     contigs ++= other.contigs
     nCalled += other.nCalled
@@ -39,18 +40,19 @@ class SummaryCombiner[T](f: Iterable[T] => Int) extends Serializable {
     this
   }
 
-  def merge(data: (Variant, (Annotation, Iterable[T]))): SummaryCombiner[T] = {
+  def merge(view: HardCallView, variant: IVariant): SummaryCombiner = {
+
     nVariants += 1
+    contigs += variant.contig
 
-    val v = data._1
-    contigs += v.contig
-    if (v.nAlleles > 2)
+    val nAlleles = variant.nAlleles
+    if (nAlleles > 2)
       multiallelics += 1
-    if (v.nAlleles > maxAlleles)
-      maxAlleles = v.nAlleles
+    if (nAlleles > maxAlleles)
+      maxAlleles = nAlleles
 
-    v.altAlleles.foreach { aa =>
-      aa.altAlleleType match {
+    for (altAllele <- variant.altAlleles()) {
+      altAllele.altAlleleType match {
         case AltAlleleType.SNP => snps += 1
         case AltAlleleType.MNP => mnps += 1
         case AltAlleleType.Insertion => insertions += 1
@@ -60,7 +62,13 @@ class SummaryCombiner[T](f: Iterable[T] => Int) extends Serializable {
       }
     }
 
-    nCalled += f(data._2._2)
+    val nSamples = view.gsLength
+    var i = 0
+    while (i < nSamples) {
+      view.setGenotype(i)
+      if (view.hasGT) nCalled += 1
+      i += 1
+    }
 
     this
   }

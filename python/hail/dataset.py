@@ -4512,7 +4512,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :class:`~hail.utils.Summary`
         """
 
-        js = self._jvdf.summarize()
+        js = self._jvds.summarize()
         return Summary._from_java(js)
 
     @handle_py4j
