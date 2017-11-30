@@ -1307,12 +1307,12 @@ object TGenotype {
   }
   
   def representationWithVCFAttributes(required: Boolean = false): TStruct = {
-    val t = TStruct(IndexedSeq(
-      Field("GT", TCall(), 0),
-      Field("AD", TArray(TInt32()), 1),
-      Field("DP", TInt32(), 2),
-      Field("GQ", TInt32(), 3),
-      Field("PL", TArray(TInt32()), 4)))
+    val t = TStruct(
+      "GT" -> TCall(),
+      "AD" -> TArray(TInt32()),
+      "DP" -> TInt32(),
+      "GQ" -> TInt32(),
+      "PL" -> TArray(TInt32()))
 
     t.setRequired(required).asInstanceOf[TStruct]
   }
