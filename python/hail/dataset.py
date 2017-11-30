@@ -2379,24 +2379,22 @@ class VariantDataset(HistoryMixin):
     def group_variants_by(self, key_expr, agg_expr, single_key=True):
         """
 
-        Group variants by the given key, aggregating entries along samples
-        according to the agg_expr.
-
+        Group variants by key, aggregating along sample.
+        
         **Examples**
 
-        >>> vds2 = vds.annotateVariantsExpr("va.foo = gs.filter(g => g.isDefined).map(g => g.gt).sum()")
-        >>> vds2.group_variants_by("va.foo", "gs.map(g => g.gt).max()", true)
+        Compute the max depth of each sample on each contig:
+
+        >>> vds = vds.group_variants_by("v.contig", "gs.map(g => g.dp).max()")
 
         :param str key_expr: Expression for new column key.
 
         :param str agg_expr: Expression for aggregating along samples.
 
         :param bool single_key: Whether the given key_expr is a single key
-        or an array/set of keys. Tim wants this to disappear in favor of
-        a vds.explode_rows() function so when that happens, the expression
-        will assume a single key.
+        or an array/set of keys.
 
-        :return: Variant dataset keyed by key_expr instead of variants.
+        :return: Variant dataset keyed by key_expr instead of variant.
         :rtype: :py:class:`.VariantDataset`
         """
 
