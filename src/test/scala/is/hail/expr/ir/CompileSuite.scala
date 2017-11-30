@@ -1,6 +1,7 @@
 package is.hail.methods.ir
 
 import is.hail.annotations._
+import ScalaToRegionValue._
 import is.hail.asm4s._
 import is.hail.check.{Gen, Parameters, Prop}
 import is.hail.expr.{TArray, TFloat64, TInt32}
@@ -10,30 +11,6 @@ import org.scalatest._
 import Matchers._
 
 class CompileSuite {
-
-  private def addArray(mb: MemoryBuffer, a: Array[Double]): Long = {
-    val rvb = new RegionValueBuilder(mb)
-    rvb.start(TArray(TFloat64()))
-    rvb.startArray(a.length)
-    a.foreach(rvb.addDouble(_))
-    rvb.endArray()
-    rvb.end()
-  }
-
-  private def addBoxedArray(mb: MemoryBuffer, a: Array[java.lang.Double]): Long = {
-    val rvb = new RegionValueBuilder(mb)
-    rvb.start(TArray(TFloat64()))
-    rvb.startArray(a.length)
-    a.foreach { e =>
-      if (e == null)
-        rvb.setMissing()
-      else
-        rvb.addDouble(e)
-    }
-    rvb.endArray()
-    rvb.end()
-  }
-
   def doit(ir: IR, fb: FunctionBuilder[_]) {
     Infer(ir)
     println(ir)
@@ -54,7 +31,7 @@ class CompileSuite {
     val f = fb.result()()
     def run(a: Array[Double]): Double = {
       val mb = MemoryBuffer()
-      val aoff = addArray(mb, a)
+      val aoff = addArray(mb, a:_*)
       f(mb, aoff, false)
     }
 
@@ -91,7 +68,7 @@ class CompileSuite {
 
     def run(a: Array[java.lang.Double]): Int = {
       val mb = MemoryBuffer()
-      val aoff = addBoxedArray(mb, a)
+      val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       f(mb, aoff, false)
     }
@@ -114,7 +91,7 @@ class CompileSuite {
 
     def run(a: Array[java.lang.Double]): Double = {
       val mb = MemoryBuffer()
-      val aoff = addBoxedArray(mb, a)
+      val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       f(mb, aoff, false)
     }
@@ -139,7 +116,7 @@ class CompileSuite {
 
     def run(a: Array[java.lang.Double]): Double = {
       val mb = MemoryBuffer()
-      val aoff = addBoxedArray(mb, a)
+      val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       f(mb, aoff, false)
     }
@@ -162,7 +139,7 @@ class CompileSuite {
 
     def run(a: Array[java.lang.Double]): Double = {
       val mb = MemoryBuffer()
-      val aoff = addBoxedArray(mb, a)
+      val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       f(mb, aoff, false)
     }
@@ -191,7 +168,7 @@ class CompileSuite {
 
     def run(a: Array[java.lang.Double]): Double = {
       val mb = MemoryBuffer()
-      val aoff = addBoxedArray(mb, a)
+      val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       f(mb, aoff, false)
     }
@@ -232,7 +209,7 @@ class CompileSuite {
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
     def run(a: Array[java.lang.Double]): Array[java.lang.Double] = {
       val mb = MemoryBuffer()
-      val aoff = addBoxedArray(mb, a)
+      val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       val roff = f(mb, aoff, false)
       println(s"array location $roff")
@@ -270,7 +247,7 @@ class CompileSuite {
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
     def run(a: Array[java.lang.Double]): Array[java.lang.Double] = {
       val mb = MemoryBuffer()
-      val aoff = addBoxedArray(mb, a)
+      val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       val roff = f(mb, aoff, false)
       Array.tabulate[java.lang.Double](a.length) { i =>
@@ -300,7 +277,7 @@ class CompileSuite {
     val f = fb.result()()
     def run(a: Array[java.lang.Double], i: Int): Double = {
       val mb = MemoryBuffer()
-      val aoff = if (a != null) addBoxedArray(mb, a) else -1L
+      val aoff = if (a != null) addBoxedArray(mb, a:_*) else -1L
       f(mb, aoff, a == null, i, false)
     }
 

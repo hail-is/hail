@@ -1,8 +1,9 @@
 package is.hail.annotations
 
 import is.hail.SparkSuite
-import is.hail.asm4s.{Code, _}
-import is.hail.asm4s.Code._
+import is.hail.annotations._
+import ScalaToRegionValue._
+import is.hail.asm4s._
 import is.hail.expr._
 import is.hail.utils._
 import org.testng.annotations.Test
@@ -37,11 +38,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = MemoryBuffer()
     val rv2 = RegionValue(region2)
-    val rvb = new RegionValueBuilder(region2)
-
-    rvb.start(rt)
-    rvb.addString(input)
-    rv.setOffset(rvb.end())
+    rv2.setOffset(region2.appendString(input))
 
     if (showRVInfo) {
       printRegion(region2, "string")
@@ -78,11 +75,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = MemoryBuffer()
     val rv2 = RegionValue(region2)
-    val rvb = new RegionValueBuilder(region2)
-
-    rvb.start(rt)
-    rvb.addInt(input)
-    rv.setOffset(rvb.end())
+    rv2.setOffset(region2.appendInt(input))
 
     if (showRVInfo) {
       printRegion(region2, "int")
@@ -120,13 +113,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = MemoryBuffer()
     val rv2 = RegionValue(region2)
-    val rvb = new RegionValueBuilder(region2)
-
-    rvb.start(rt)
-    rvb.startArray(1)
-    rvb.addInt(input)
-    rvb.endArray()
-    rv.setOffset(rvb.end())
+    rv2.setOffset(addArray(region2, input))
 
     if (showRVInfo) {
       printRegion(region2, "array")
@@ -167,14 +154,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = MemoryBuffer()
     val rv2 = RegionValue(region2)
-    val rvb = new RegionValueBuilder(region2)
-
-    rvb.start(rt)
-    rvb.startStruct()
-    rvb.addString("hello")
-    rvb.addInt(input)
-    rvb.endStruct()
-    rv.setOffset(rvb.end())
+    rv2.setOffset(addStruct(region2, "a", "hello", "b", input))
 
     if (showRVInfo) {
       printRegion(region2, "struct")
@@ -227,7 +207,6 @@ class StagedRegionValueSuite extends SparkSuite {
     val region2 = MemoryBuffer()
     val rv2 = RegionValue(region2)
     val rvb = new RegionValueBuilder(region2)
-
     rvb.start(rt)
     rvb.startArray(2)
     for (i <- 1 to 2) {
@@ -343,14 +322,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = MemoryBuffer()
     val rv2 = RegionValue(region2)
-    val rvb = new RegionValueBuilder(region2)
-
-    rvb.start(rt)
-    rvb.startArray(2)
-    rvb.addInt(input)
-    rvb.setMissing()
-    rvb.endArray()
-    rv.setOffset(rvb.end())
+    rv2.setOffset(addArray[java.lang.Integer](region2, input, null))
 
     if (showRVInfo) {
       printRegion(region2, "missing array")
