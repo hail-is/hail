@@ -2373,6 +2373,37 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
+        @typecheck(key_expr=str,
+                   agg_expr=str,
+                   single_key=bool)
+    def group_variants_by(self, key_expr, agg_expr, single_key=True):
+        """
+
+        Group variants by the given key, aggregating entries along samples
+        according to the agg_expr.
+
+        **Examples**
+
+        >>> vds2 = vds.annotateVariantsExpr("va.foo = gs.filter(g => g.isDefined).map(g => g.gt).sum()")
+        >>> vds2.group_variants_by("va.foo", "gs.map(g => g.gt).max()", true)
+
+        :param str key_expr: Expression for new column key.
+
+        :param str agg_expr: Expression for aggregating along samples.
+
+        :param bool single_key: Whether the given key_expr is a single key
+        or an array/set of keys. Tim wants this to disappear in favor of
+        a vds.explode_rows() function so when that happens, the expression
+        will assume a single key.
+
+        :return: Variant dataset keyed by key_expr instead of variants.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        return self._jvds.groupVariantsBy(key_expr, agg_expr, single_key)
+
+    @handle_py4j
+    @record_method
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 

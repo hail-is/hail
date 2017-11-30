@@ -13,12 +13,9 @@ class GroupBySuite extends SparkSuite {
   @Test def testGroupVariantsBy() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.foo = gs.filter(g => g.isDefined).map(g => g.gt).sum()")
     val vds2 = vds.groupVariantsBy("va.foo", "gs.map(g => g.gt).max()", true)
-//    for (i <- vds2.variants.collect()) {
-//      println(i.asInstanceOf[Int])
-//    }
   }
 
-  @Test def testWeightedSum() {
+  @Test def testLinregBurden() {
     val intervals = IntervalList.read(hc, "src/test/resources/regressionLinear.interval_list")
     val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TFloat64(), "Cov2" -> TFloat64())).keyBy("Sample")
