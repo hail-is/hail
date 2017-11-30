@@ -189,7 +189,7 @@ object Compile {
           xi := coerce[Int](xmi.mux(defaultValue(TInt32()), vi)),
           xmv := xma || xmi || !tarray.isElementDefined(region, xa, xi))
 
-        (setup, xmv, region.loadPrimitive(typ)(tarray.loadElement(region, xa, xi)))
+        (setup, xmv, region.loadIRIntermediate(typ)(tarray.loadElement(region, xa, xi)))
       case ArrayMissingnessRef(a, i) =>
         val tarray = tcoerce[TArray](a.typ)
         val ati = TypeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
@@ -232,7 +232,7 @@ object Compile {
             xmv := !tin.isElementDefined(region, xa, i),
             xvv := xmv.mux(
               defaultValue(elementTyp),
-              region.loadPrimitive(tin.elementType)(tin.loadElement(region, xa, i))),
+              region.loadIRIntermediate(tin.elementType)(tin.loadElement(region, xa, i))),
             dobody,
             mbody.mux(srvb.setMissing(), addElement(vbody)),
             srvb.advance(),
@@ -276,7 +276,7 @@ object Compile {
                 xmv := !tarray.isElementDefined(region, xa, i),
                 xvv := xmv.mux(
                   defaultValue(tarray.elementType),
-                  region.loadPrimitive(tarray.elementType)(tarray.loadElement(region, xa, i))),
+                  region.loadIRIntermediate(tarray.elementType)(tarray.loadElement(region, xa, i))),
                 dobody,
                 xmout := mbody,
                 xvout := xmout.mux(defaultValue(typ), vbody),
@@ -307,7 +307,7 @@ object Compile {
           xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
         (setup,
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
-          region.loadPrimitive(t.fieldType(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
+          region.loadIRIntermediate(t.fieldType(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
       case GetFieldMissingness(o, name) =>
         val t = o.typ.asInstanceOf[TStruct]
         val fieldIdx = t.fieldIdx(name)
@@ -316,6 +316,8 @@ object Compile {
 
       case MakeSet(args, elementType) =>
         val srvb = new StagedRegionValueBuilder(fb, TArray(elementType))
+        println(elementType)
+        println(args.toSeq)
         val addElement = srvb.addIRIntermediate(elementType)
         val mvargs = args.map(compile(_))
         val sortedArray = Code(

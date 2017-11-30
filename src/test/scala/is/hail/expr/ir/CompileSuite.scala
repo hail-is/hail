@@ -382,7 +382,9 @@ class CompileSuite {
       val region = MemoryBuffer()
       val fb1 = FunctionBuilder.functionBuilder[MemoryBuffer, Long]
       doit(MakeSet(Array(I32(0), I32(1), I32(10), I32(-5), I32(3))), fb1)
-      val aOff = fb1.result()()(region)
+      printRegion(region, "")
+      import java.io.PrintWriter
+      val aOff = fb1.result(Some(new PrintWriter(System.out)))()(region)
       println(aOff)
       printRegion(region, "")
 
@@ -402,11 +404,11 @@ class CompileSuite {
     var j = 0
     for (i <- bytes) {
       j += 1
-      print(i)
-      if (j % 32 == 0) {
+      print(f"$i%02x")
+      if (j % 8 == 0) {
         print('\n')
       } else {
-        print('\t')
+        print("  ")
       }
     }
     print('\n')

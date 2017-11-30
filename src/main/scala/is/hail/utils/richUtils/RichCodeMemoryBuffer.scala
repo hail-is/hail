@@ -39,6 +39,21 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
     region.invoke[Long, Byte, Unit]("storeByte", off, b)
   }
 
+  def storeIRIntermediate(typ: Type): (Code[Long], Code[_]) => Code[Unit] = typ match {
+    case _: TBoolean =>
+      (off, x) => this.storeInt32(off, x.asInstanceOf[Code[Int]])
+    case _: TInt32 =>
+      (off, x) => this.storeInt32(off, x.asInstanceOf[Code[Int]])
+    case _: TInt64 =>
+      (off, x) => this.storeInt64(off, x.asInstanceOf[Code[Long]])
+    case _: TFloat32 =>
+      (off, x) => this.storeFloat32(off, x.asInstanceOf[Code[Float]])
+    case _: TFloat64 =>
+      (off, x) => this.storeFloat64(off, x.asInstanceOf[Code[Double]])
+    case _ =>
+      (off, x) => this.storeAddress(off, x.asInstanceOf[Code[Long]])
+  }
+
   def align(alignment: Code[Long]): Code[Unit] = {
     region.invoke[Long, Unit]("align", alignment)
   }
@@ -79,7 +94,7 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
     region.invoke[Long, Long, Boolean]("loadBit", byteOff, bitOff)
   }
 
-  def loadPrimitive(typ: Type): Code[Long] => Code[_] = typ match {
+  def loadIRIntermediate(typ: Type): Code[Long] => Code[_] = typ match {
     case _: TBoolean =>
       this.loadBoolean(_)
     case _: TInt32 =>
@@ -92,21 +107,6 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
       this.loadDouble(_)
     case _ =>
       off => off
-  }
-
-  def appendPrimitive(typ: Type): (Code[_]) => Code[Long] = typ match {
-    case _: TBoolean =>
-      x => this.appendInt32(x.asInstanceOf[Code[Int]])
-    case _: TInt32 =>
-      x => this.appendInt32(x.asInstanceOf[Code[Int]])
-    case _: TInt64 =>
-      x => this.appendInt64(x.asInstanceOf[Code[Long]])
-    case _: TFloat32 =>
-      x => this.appendFloat32(x.asInstanceOf[Code[Float]])
-    case _: TFloat64 =>
-      x => this.appendFloat64(x.asInstanceOf[Code[Double]])
-    case _ =>
-      throw new UnsupportedOperationException("cannot append non-primitive type: $typ")
   }
 
   def setBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] = {
@@ -155,6 +155,21 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
 
   def appendBytes(bytes: Code[Array[Byte]], bytesOff: Code[Long], n: Code[Int]): Code[Long] = {
     region.invoke[Array[Byte],Long, Int, Long]("appendBytes", bytes, bytesOff, n)
+  }
+
+  def appendIRIntermediate(typ: Type): (Code[_]) => Code[Long] = typ match {
+    case _: TBoolean =>
+      x => this.appendInt32(x.asInstanceOf[Code[Int]])
+    case _: TInt32 =>
+      x => this.appendInt32(x.asInstanceOf[Code[Int]])
+    case _: TInt64 =>
+      x => this.appendInt64(x.asInstanceOf[Code[Long]])
+    case _: TFloat32 =>
+      x => this.appendFloat32(x.asInstanceOf[Code[Float]])
+    case _: TFloat64 =>
+      x => this.appendFloat64(x.asInstanceOf[Code[Double]])
+    case _ =>
+      x => this.appendAddress(x.asInstanceOf[Code[Long]])
   }
 
   def clear(): Code[Unit] = {

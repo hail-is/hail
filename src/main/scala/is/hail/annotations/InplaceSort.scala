@@ -10,6 +10,7 @@ import org.objectweb.asm.tree._
 
 object InplaceSort {
   def insertionSort(region: Code[MemoryBuffer], fb: FunctionBuilder[_], aOff: Code[Long], t: TArray): Code[Unit] = {
+    val iVal = fb.newLocal()(TypeToTypeInfo(t.elementType)).asInstanceOf[LocalRef[Any]]
     val i = fb.newLocal[Int]
     val j = fb.newLocal[Int]
     val x = fb.newLocal[Long]
@@ -19,23 +20,21 @@ object InplaceSort {
       i := 1,
       Code.whileLoop(i < TContainer.loadLength(region, aOff),
         x := t.loadElement(region, aOff, i),
+        iVal := region.loadIRIntermediate(t.elementType)(x),
         j := i - 1,
         y := t.loadElement(region, aOff, j),
         Code.whileLoop(j > 0 && (ord.compare(region, x, region, y) < 0),
           region.copyFrom(region, y, t.loadElement(region, aOff, j + 1), t.elementType.byteSize),
-          y := t.loadElement(region, aOff, j)
+          y := t.loadElement(region, aOff, j),
+          j := j - 1
         ),
-        region.copyFrom(region, x, t.loadElement(region, aOff, j + 1), t.elementType.byteSize),
+        region.storeIRIntermediate(t.elementType)(t.loadElement(region, aOff, j + 1), iVal),
         i := i + 1
       )
     )
   }
 
   def apply(region: Code[MemoryBuffer], fb: FunctionBuilder[_], aOff: Code[Long], t: TArray): Code[Unit] = {
-    // (TContainer.loadLength(region, aOff) < 10).mux(
     insertionSort(region, fb, aOff, t)
-    // ,
-    //   Code.invokeStatic[RegionValueQuickSort, MemoryBuffer, Long, TArray]("quickSort", region, aOff, t)
-    // )
   }
 }
