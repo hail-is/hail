@@ -970,6 +970,94 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def expandWithAll(): RDD[(Annotation, Annotation, Annotation, Annotation, Annotation)] =
     mapWithAll[(Annotation, Annotation, Annotation, Annotation, Annotation)]((v, va, s, sa, g) => (v, va, s, sa, g))
 
+  def explodeVariants(code: String): VariantSampleMatrix = {
+    val path = code.split('.').toList
+    require(path(0) == Annotation.VARIANT_HEAD)
+    val (keysType, querier) = rowType.queryTyped(path)
+    val keyType = keysType match {
+      case TArray(e, _) => e
+      case TSet(e, _) => e
+      case t => fatal(s"Expected annotation of type Array or Set; found $t")
+    }
+
+    val (newRowType, inserter) = rowType.unsafeInsert(keyType, path)
+    val newVAType = newRowType.asInstanceOf[TStruct].fieldType(2)
+    val localRowType = rowType
+
+    val explodedRDD = rdd2.rdd.mapPartitions { it =>
+      val region2 = MemoryBuffer()
+      val rv2 = RegionValue(region2)
+      val rv2b = new RegionValueBuilder(region2)
+      val ur = new UnsafeRow(localRowType)
+      it.flatMap { rv =>
+        ur.set(rv)
+        val keys = querier(ur).asInstanceOf[IndexedSeq[Any]]
+        keys.iterator.map{ va =>
+          region2.clear()
+          rv2b.start(newRowType)
+          inserter(rv.region, rv.offset, rv2b, {() =>
+            rv2b.addAnnotation(keyType, va)
+          })
+          rv2.setOffset(rv2b.end())
+          rv2
+        }
+      }
+    }
+    val newMatrixType = matrixType.copy(vaType = newVAType)
+    copy2(vaSignature = newVAType, rdd2 = rdd2.copy(typ = newMatrixType.orderedRDD2Type, rdd = explodedRDD))
+  }
+
+  def explodeSamples(code: String): VariantSampleMatrix = {
+    val path = code.split('.').toList
+    require(path(0) == Annotation.SAMPLE_HEAD)
+    val (keysType, querier) = saSignature.queryTyped(path.tail)
+    val keyType = keysType match {
+      case TArray(e, _) => e
+      case TSet(e, _) => e
+      case t => fatal(s"Expected annotation of type Array or Set; found $t")
+    }
+    val keys = sampleAnnotations.map{ sa => querier(sa).asInstanceOf[IndexedSeq[Any]] }
+    val sampleMap = (0 until nSamples).flatMap {i => keys(i).iterator.map{ _ => i }}
+    val localRowType = rowType
+    val localGSsig = rowType.fieldType(3).asInstanceOf[TArray]
+
+    val (newSASig, inserter) = saSignature.insert(keyType, path)
+    val newSampleAnnotations = sampleMap.map { i => inserter(sampleAnnotations(i), keys(i)) }
+    val newSampleIds = sampleMap.map { i => sampleIds(i) }
+
+    val newRDD = rdd2.rdd.mapPartitions { it =>
+      val region2 = MemoryBuffer()
+      val rv2 = RegionValue(region2)
+      val rv2b = new RegionValueBuilder(region2)
+      it.map { rv =>
+        region2.clear()
+        rv2b.start(localRowType)
+        rv2b.startStruct()
+        var i = 0
+        while (i < 3) {
+          rv2b.addRegionValue(localRowType.fieldType(i), rv.region, localRowType.loadField(rv, i))
+          i+= 1
+        }
+        rv2b.startArray(newSampleIds.length)
+        i = 0
+        val arrayOff = localRowType.loadField(rv, 3)
+        while (i < newSampleIds.length) {
+          rv2b.addRegionValue(localGSsig.elementType, rv.region, localGSsig.loadElement(rv.region, arrayOff, sampleMap(i)))
+        }
+        rv2b.endArray()
+        rv2b.endStruct()
+        rv2b.end()
+        rv2.setOffset(rv2b.end())
+        rv2
+      }
+    }
+
+    copy2(sampleIds = newSampleIds,
+      sampleAnnotations = newSampleAnnotations,
+      saSignature = newSASig,
+      rdd2 = rdd2.copy(rdd = newRDD))
+  }
+
   def mapWithAll[U](f: (Annotation, Annotation, Annotation, Annotation, Annotation) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
