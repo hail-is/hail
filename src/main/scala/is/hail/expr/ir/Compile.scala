@@ -154,7 +154,7 @@ object Compile {
 
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(fb, typ)
-        val addElement = srvb.addPrimitive(typ.elementType)
+        val addElement = srvb.addIRIntermediate(typ.elementType)
         val mvargs = args.map(compile(_))
         present(Code(
           srvb.start(args.length, init = true),
@@ -206,7 +206,7 @@ object Compile {
         val tin = a.typ.asInstanceOf[TArray]
         val tout = x.typ.asInstanceOf[TArray]
         val srvb = new StagedRegionValueBuilder(fb, tout)
-        val addElement = srvb.addPrimitive(tout.elementType)
+        val addElement = srvb.addIRIntermediate(tout.elementType)
         val eti = typeToTypeInfo(elementTyp).asInstanceOf[TypeInfo[Any]]
         val xa = fb.newLocal[Long]("am_a")
         val xmv = mb.newBit()
@@ -288,11 +288,11 @@ object Compile {
         val initializers = fields.map { case (_, t, v) => (t, compile(v)) }
         val srvb = new StagedRegionValueBuilder(fb, t)
         present(Code(
-          srvb.start(false),
+          srvb.start(true),
           Code(initializers.map { case (t, (dov, mv, vv)) =>
             Code(
               dov,
-              mv.mux(srvb.setMissing(), srvb.addPrimitive(t)(vv)),
+              mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
               srvb.advance()) }: _*),
           srvb.offset))
       case GetField(o, name, _) =>
@@ -307,7 +307,7 @@ object Compile {
           xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
         (setup,
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
-          region.loadPrimitive(t)(t.fieldOffset(xo, fieldIdx)))
+          region.loadPrimitive(t.fieldType(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
       case GetFieldMissingness(o, name) =>
         val t = o.typ.asInstanceOf[TStruct]
         val fieldIdx = t.fieldIdx(name)
