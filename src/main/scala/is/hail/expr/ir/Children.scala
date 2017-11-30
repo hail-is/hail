@@ -42,6 +42,12 @@ object Children {
       Array(a, zero, body)
     case MakeStruct(fields) =>
       fields.map(_._3)
+    case MakeSet(args, _) =>
+      args
+    case SetAdd(set, element, _) =>
+      Array(set, element)
+    case SetContains(set, element) =>
+      Array(set, element)
     case GetField(o, name, typ) =>
       Array(o)
     case GetFieldMissingness(o, name) =>

@@ -4,7 +4,7 @@ import is.hail.annotations._
 import ScalaToRegionValue._
 import is.hail.asm4s._
 import is.hail.check.{Gen, Parameters, Prop}
-import is.hail.expr.{TArray, TFloat64, TInt32, TStruct}
+import is.hail.expr.{TArray, TFloat64, TInt32, TStruct, TSet}
 import is.hail.expr.ir._
 import org.testng.annotations.Test
 import org.scalatest._
@@ -180,25 +180,6 @@ class CompileSuite {
     assert(run(Array(1.0, null, 3.0)) === 2.0)
   }
 
-
-  def printRegion(region: MemoryBuffer, string: String) {
-    println(string)
-    val size = region.size
-    println("Region size: " + size.toString)
-    val bytes = region.loadBytes(0, size.toInt)
-    println("Array: ")
-    var j = 0
-    for (i <- bytes) {
-      j += 1
-      print(i)
-      if (j % 32 == 0) {
-        print('\n')
-      } else {
-        print('\t')
-      }
-    }
-    print('\n')
-  }
   @Test
   def replaceMissingValues() {
     val replaceMissingIr =
@@ -213,11 +194,8 @@ class CompileSuite {
       val aoff = addBoxedArray(mb, a)
       val t = TArray(TFloat64())
       val roff = f(mb, aoff, false)
-      println(s"array location $roff")
-      printRegion(mb, "hi amanda")
       Array.tabulate[java.lang.Double](a.length) { i =>
         if (t.isElementDefined(mb, roff, i)) {
-          println(s" $i")
           mb.loadDouble(t.loadElement(mb, roff, i))
         } else
           null
@@ -333,5 +311,104 @@ class CompileSuite {
     val outOff = f(region, loff, false, roff, false)
     assert(tOut.isFieldDefined(region, outOff, tOut.fieldIdx("0")))
     assert(region.loadDouble(tOut.loadField(region, outOff, tOut.fieldIdx("0"))) === 8.0)
+  }
+
+  @Test
+  def emptySetContainsNothing() {
+    val ir = SetContains(MakeSet(Array(), TInt32()), I32(0))
+
+    val region = MemoryBuffer()
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Boolean]
+    doit(ir, fb)
+    assert(!fb.result()()(region))
+  }
+
+  @Test
+  def singletonSetContainsTheItem() {
+    val ir = SetContains(MakeSet(Array(I32(0)), TInt32()), I32(0))
+
+    val region = MemoryBuffer()
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Boolean]
+    doit(ir, fb)
+    assert(fb.result()()(region))
+  }
+
+  @Test
+  def singletonSetDoesNotContainOtherItems() {
+    val ir = SetContains(MakeSet(Array(I32(0)), TInt32()), I32(1))
+
+    val region = MemoryBuffer()
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Boolean]
+    doit(ir, fb)
+    assert(!fb.result()()(region))
+  }
+
+  @Test
+  def setContainsAddedElement() {
+    val ir = SetContains(SetAdd(MakeSet(Array(), TInt32()), I32(0)), I32(0))
+
+    val region = MemoryBuffer()
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Boolean]
+    doit(ir, fb)
+    assert(fb.result()()(region))
+  }
+
+  @Test
+  def nonEmptySetContainsAddedElement() {
+    val ir = SetContains(SetAdd(MakeSet(Array(I32(1)), TInt32()), I32(0)), I32(0))
+
+    val region = MemoryBuffer()
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Boolean]
+    doit(ir, fb)
+    assert(fb.result()()(region))
+  }
+
+  @Test
+  def addIdempotence() {
+    val ir = SetContains(SetAdd(MakeSet(Array(I32(0)), TInt32()), I32(0)), I32(0))
+
+    val region = MemoryBuffer()
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Boolean]
+    doit(ir, fb)
+    assert(fb.result()()(region))
+  }
+
+  @Test
+  def bigSet() {
+    for {
+      (testElement, result) <- Array(
+        (0, true), (10, true), (1, true), (3, true), (11, false), (-1, false), (-5, true))
+    } {
+      val region = MemoryBuffer()
+      val fb1 = FunctionBuilder.functionBuilder[MemoryBuffer, Long]
+      doit(MakeSet(Array(I32(0), I32(1), I32(10), I32(-5), I32(3))), fb1)
+      val aOff = fb1.result()()(region)
+      println(aOff)
+      printRegion(region, "")
+
+      val fb2 = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Boolean]
+      doit(SetContains(In(0, TSet(TInt32())), I32(testElement)), fb2)
+      printRegion(region, "")
+      assert(fb2.result()()(region, aOff, false) == result, s"$testElement")
+    }
+  }
+
+  private def printRegion(region: MemoryBuffer, string: String) {
+    println(string)
+    val size = region.size
+    println("Region size: " + size.toString)
+    val bytes = region.loadBytes(0, size.toInt)
+    println("Array: ")
+    var j = 0
+    for (i <- bytes) {
+      j += 1
+      print(i)
+      if (j % 32 == 0) {
+        print('\n')
+      } else {
+        print('\t')
+      }
+    }
+    print('\n')
   }
 }

@@ -61,6 +61,15 @@ object Copy {
       case MakeStruct(fields) =>
         assert(fields.length == children.length)
         MakeStruct(fields.zip(children).map { case ((n, t, _), v) => (n, t, v) })
+      case MakeSet(args, typ) =>
+        assert(args.length == children.length)
+        MakeSet(children.toArray, typ)
+      case SetAdd(_, _, elementType) =>
+        val IndexedSeq(set, element) = children
+        SetAdd(set, element, elementType)
+      case SetContains(_, _) =>
+        val IndexedSeq(set, element) = children
+        SetContains(set, element)
       case GetField(_, name, typ) =>
         val IndexedSeq(o) = children
         GetField(o, name, typ)

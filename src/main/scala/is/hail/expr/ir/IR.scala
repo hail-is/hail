@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.{BaseIR, TAggregable, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type, TArray}
+import is.hail.expr.{BaseIR, TAggregable, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type, TArray, TSet}
 
 sealed trait IR extends BaseIR {
   def typ: Type
@@ -53,6 +53,13 @@ case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR {
 }
 case class GetField(o: IR, name: String, var typ: Type = null) extends IR
 case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean() }
+
+case class MakeSet(args: Array[IR], var elementType: Type = null) extends IR {
+  def typ: TSet = TSet(elementType)
+  override def toString(): String = s"MakeSet(${args: IndexedSeq[IR]}, $typ"
+}
+case class SetAdd(set: IR, element: IR, var elementType: Type = null) extends IR { def typ: TSet = TSet(elementType) }
+case class SetContains(set: IR, element: IR) extends IR { val typ: Type = TBoolean() }
 
 case class In(i: Int, var typ: Type) extends IR
 case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean() }

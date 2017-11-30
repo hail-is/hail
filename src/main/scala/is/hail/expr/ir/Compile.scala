@@ -1,17 +1,17 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{MemoryBuffer, StagedRegionValueBuilder}
+import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr
-import is.hail.expr.{TArray, TBoolean, TContainer, TFloat32, TFloat64, TInt32, TInt64, TStruct}
+import is.hail.expr.{Type, TArray, TBoolean, TContainer, TFloat32, TFloat64, TInt32, TInt64, TStruct, TSet}
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
 import scala.language.existentials
+import scala.language.postfixOps
 
 object Compile {
-  private def defaultValue(t: expr.Type): Code[_] = t match {
+  private def defaultValue(t: Type): Code[_] = t match {
     case _: TBoolean => false
     case _: TInt32 => 0
     case _: TInt64 => 0L
@@ -20,13 +20,13 @@ object Compile {
     case _ => 0L // reference types
   }
 
-  private def typeToTypeInfo(t: expr.Type): TypeInfo[_] = t match {
-    case _: TInt32 => typeInfo[Int]
-    case _: TInt64 => typeInfo[Long]
-    case _: TFloat32 => typeInfo[Float]
-    case _: TFloat64 => typeInfo[Double]
-    case _: TBoolean => typeInfo[Boolean]
-    case _ => typeInfo[Long] // reference types
+  private def toPointer(region: Code[MemoryBuffer], t: Type): Code[_] => Code[Long] = t match {
+    case _: TBoolean => v => region.appendByte(coerce[Boolean](v).toI.toB)
+    case _: TInt32 => v => region.appendInt32(coerce[Int](v))
+    case _: TInt64 => v => region.appendInt64(coerce[Long](v))
+    case _: TFloat32 => v => region.appendFloat32(coerce[Float](v))
+    case _: TFloat64 => v => region.appendFloat64(coerce[Double](v))
+    case _ => v => coerce[Long](v) // reference types are already pointers
   }
 
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
@@ -37,7 +37,7 @@ object Compile {
 
   def apply(ir: IR, fb: FunctionBuilder[_], env: E) {
     val (dov, mv, vv) = compile(ir, fb, env, new StagedBitSet(fb))
-    typeToTypeInfo(ir.typ) match { case ti: TypeInfo[t] =>
+    TypeToTypeInfo(ir.typ) match { case ti: TypeInfo[t] =>
       fb.emit(Code(dov, mv.mux(
         Code._throw(Code.newInstance[RuntimeException, String]("cannot return empty")),
         coerce[t](vv))))
@@ -46,7 +46,7 @@ object Compile {
 
   private def present(x: Code[_]): (Code[Unit], Code[Boolean], Code[_]) =
     (Code._empty, const(false), x)
-  private def tcoerce[T <: expr.Type](x: expr.Type): T = x.asInstanceOf[T]
+  private def tcoerce[T <: Type](x: Type): T = x.asInstanceOf[T]
 
   // the return value is interpreted as: (precompute, missingness, value)
   // rules:
@@ -85,8 +85,8 @@ object Compile {
         val (dov, mv, _) = compile(v)
         (dov, const(false), mv)
       case MapNA(name, value, body, typ) =>
-        val vti = typeToTypeInfo(value.typ)
-        val bti = typeToTypeInfo(typ)
+        val vti = TypeToTypeInfo(value.typ)
+        val bti = TypeToTypeInfo(typ)
         val mx = mb.newBit()
         val x = fb.newLocal(name)(vti).asInstanceOf[LocalRef[Any]]
         val mout = mb.newBit()
@@ -103,10 +103,10 @@ object Compile {
 
         (setup, mout, out)
 
-      case expr.ir.If(cond, cnsq, altr, typ) =>
+      case If(cond, cnsq, altr, typ) =>
         val (docond, mcond, vcond) = compile(cond)
         val xvcond = mb.newBit()
-        val out = fb.newLocal()(typeToTypeInfo(typ)).asInstanceOf[LocalRef[Any]]
+        val out = fb.newLocal()(TypeToTypeInfo(typ)).asInstanceOf[LocalRef[Any]]
         val mout = mb.newBit()
         val (docnsq, mcnsq, vcnsq) = compile(cnsq)
         val (doaltr, maltr, valtr) = compile(altr)
@@ -122,8 +122,8 @@ object Compile {
 
         (setup, mout, out)
 
-      case expr.ir.Let(name, value, body, typ) =>
-        val vti = typeToTypeInfo(value.typ)
+      case Let(name, value, body, typ) =>
+        val vti = TypeToTypeInfo(value.typ)
         val mx = mb.newBit()
         val x = fb.newLocal(name)(vti).asInstanceOf[LocalRef[Any]]
         val (dovalue, mvalue, vvalue) = compile(value)
@@ -137,7 +137,7 @@ object Compile {
 
         (setup, mbody, vbody)
       case Ref(name, typ) =>
-        val ti = typeToTypeInfo(typ)
+        val ti = TypeToTypeInfo(typ)
         val (t, m, v) = env.lookup(name)
         assert(t == ti, s"$name type annotation, $typ, doesn't match typeinfo: $ti")
         (Code._empty, m, v)
@@ -170,9 +170,9 @@ object Compile {
           Code(srvb.start(coerce[Int](vlen), init = true),
             srvb.offset))
       case ArrayRef(a, i, typ) =>
-        val ti = typeToTypeInfo(typ)
+        val ti = TypeToTypeInfo(typ)
         val tarray = TArray(typ)
-        val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
+        val ati = TypeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
         val (doa, ma, va) = compile(a)
         val (doi, mi, vi) = compile(i)
         val xma = mb.newBit()
@@ -192,7 +192,7 @@ object Compile {
         (setup, xmv, region.loadPrimitive(typ)(tarray.loadElement(region, xa, xi)))
       case ArrayMissingnessRef(a, i) =>
         val tarray = tcoerce[TArray](a.typ)
-        val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
+        val ati = TypeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
         val (doa, ma, va) = compile(a)
         val (doi, mi, vi) = compile(i)
         present(Code(
@@ -207,7 +207,7 @@ object Compile {
         val tout = x.typ.asInstanceOf[TArray]
         val srvb = new StagedRegionValueBuilder(fb, tout)
         val addElement = srvb.addIRIntermediate(tout.elementType)
-        val eti = typeToTypeInfo(elementTyp).asInstanceOf[TypeInfo[Any]]
+        val eti = TypeToTypeInfo(elementTyp).asInstanceOf[TypeInfo[Any]]
         val xa = fb.newLocal[Long]("am_a")
         val xmv = mb.newBit()
         val xvv = fb.newLocal(name)(eti)
@@ -240,8 +240,8 @@ object Compile {
           srvb.offset))
       case ArrayFold(a, zero, name1, name2, body, typ) =>
         val tarray = a.typ.asInstanceOf[TArray]
-        val tti = typeToTypeInfo(typ)
-        val eti = typeToTypeInfo(tarray.elementType)
+        val tti = TypeToTypeInfo(typ)
+        val eti = TypeToTypeInfo(tarray.elementType)
         val xma = mb.newBit()
         val xa = fb.newLocal[Long]("af_array")
         val xmv = mb.newBit()
@@ -314,8 +314,105 @@ object Compile {
         val (doo, mo, vo) = compile(o)
         present(Code(doo, mo || !t.isFieldDefined(region, coerce[Long](vo), fieldIdx)))
 
+      case MakeSet(args, elementType) =>
+        val srvb = new StagedRegionValueBuilder(fb, TArray(elementType))
+        val addElement = srvb.addIRIntermediate(elementType)
+        val mvargs = args.map(compile(_))
+        val sortedArray = Code(
+          srvb.start(args.length, init = true),
+          Code(mvargs.map { case (dov, m, v) =>
+            Code(dov, m.mux(srvb.setMissing(), addElement(v)), srvb.advance())
+          }: _*),
+          InplaceSort(region, fb, srvb.offset, TArray(elementType)),
+          srvb.offset)
+
+        present(sortedArray)
+      case SetAdd(set, element, elementType) =>
+        val tArray = TArray(elementType)
+        val srvb = new StagedRegionValueBuilder(fb, tArray)
+        val (doset, mset, vset) = compile(set)
+        val (doelement, melement, velement) = compile(element)
+        val len = fb.newLocal[Int]
+        val i = fb.newLocal[Int]
+        val s = fb.newLocal[Long]
+        val mx = mb.newBit()
+        val x = fb.newLocal[Long]
+        val storedElement = fb.newLocal()(TypeToTypeInfo(tArray.elementType)).asInstanceOf[LocalRef[Any]]
+        val elementPointer = fb.newLocal[Long]
+        val ord = tArray.unsafeOrdering(true)
+        val sortedArray = Code(
+          doelement,
+          s := coerce[Long](vset),
+          len := TContainer.loadLength(region, s),
+          melement.mux(
+            Code(
+              srvb.start(len + 1, init = true),
+              i := 0,
+              Code.whileLoop(i < len,
+                srvb.addRegionValue(elementType)(tArray.loadElement(region, s, i)),
+                i++),
+              srvb.setMissing()),
+            Code(
+              storedElement := velement,
+              elementPointer := toPointer(region, tArray.elementType)(storedElement),
+              srvb.start(len + 1, init = true),
+              (len.ceq(0)).mux(
+                Code(
+                  melement.mux(
+                    srvb.setMissing(),
+                    srvb.addIRIntermediate(elementType)(velement))),
+                Code(
+                  i := 0,
+                  mx := tArray.isElementMissing(region, s, i),
+                  x := mx.mux(0L, tArray.loadElement(region, s, i)),
+                  Code.whileLoop(i < len && !mx && (ord.compare(region, x, region, elementPointer) < 0),
+                    mx.mux(srvb.setMissing(), srvb.addRegionValue(elementType)(x)),
+                    mx := tArray.isElementMissing(region, s, i),
+                    x := mx.mux(0L, tArray.loadElement(region, s, i)),
+                    i++),
+                  melement.mux(
+                    srvb.setMissing(),
+                    srvb.addIRIntermediate(elementType)(storedElement)),
+                  Code.whileLoop(i < len,
+                    tArray.isElementMissing(region, s, i).mux(
+                      srvb.setMissing(),
+                      srvb.addRegionValue(elementType)(x)),
+                    i++))))),
+          srvb.offset)
+
+        (doset, mset, sortedArray)
+      case SetContains(set, element) =>
+        val tArray = set.typ.fundamentalType.asInstanceOf[TArray]
+        val (doset, mset, vset) = compile(set)
+        val (doelement, melement, velement) = compile(element)
+        val len = fb.newLocal[Int]
+        val i = fb.newLocal[Int]
+        val s = fb.newLocal[Long]
+        val notfound = mb.newBit()
+        val storedElement = fb.newLocal()(TypeToTypeInfo(tArray.elementType)).asInstanceOf[LocalRef[Any]]
+        val elementPointer = fb.newLocal[Long]
+        val ord = tArray.unsafeOrdering(true)
+        val result = Code(
+          doelement,
+          s := coerce[Long](vset),
+          len := TContainer.loadLength(region, s),
+          melement.mux(
+            len.cne(0) && tArray.isElementMissing(region, s, len - 1),
+            Code(
+              storedElement := velement,
+              elementPointer := toPointer(region, tArray.elementType)(storedElement),
+              Code(
+                i := 0,
+                notfound := true,
+                Code.whileLoop(i < len && notfound,
+                  notfound := ord.compare(region, elementPointer, region, tArray.loadElement(region, s, i)).cne(0),
+                  i++),
+                !notfound))))
+
+        (doset, mset, result)
+
       case In(i, typ) =>
-        (Code._empty, fb.getArg[Boolean](i*2 + 3), fb.getArg(i*2 + 2)(typeToTypeInfo(typ)))
+        (Code._empty, fb.getArg[Boolean](i*2 + 3), fb.getArg(i*2 + 2)(TypeToTypeInfo(typ)))
       case InMissingness(i) =>
         present(fb.getArg[Boolean](i*2 + 3))
       case Die(m) =>
