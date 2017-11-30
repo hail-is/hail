@@ -288,7 +288,7 @@ object Compile {
         val initializers = fields.map { case (_, t, v) => (t, compile(v)) }
         val srvb = new StagedRegionValueBuilder(fb, t)
         present(Code(
-          srvb.start(false),
+          srvb.start(true),
           Code(initializers.map { case (t, (dov, mv, vv)) =>
             Code(
               dov,
@@ -307,7 +307,7 @@ object Compile {
           xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
         (setup,
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
-          region.loadPrimitive(t)(t.fieldOffset(xo, fieldIdx)))
+          region.loadPrimitive(t.fieldType(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
       case GetFieldMissingness(o, name) =>
         val t = o.typ.asInstanceOf[TStruct]
         val fieldIdx = t.fieldIdx(name)
