@@ -13,6 +13,7 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import java.io.{File, FileWriter}
 
+import is.hail.io.VCFAttributes
 import is.hail.io.vcf.LoadVCF.headerSignature
 
 import scala.collection.mutable
@@ -52,7 +53,7 @@ object LoadGDB {
   }
 
   def formatHeaderSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = true): (TStruct, Int, Map[String, Map[String, String]]) = {
+    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = true): (TStruct, Int, VCFAttributes) = {
     val canonicalFields = Array(
       "GT" -> TCall(),
       "AD" -> TArray(TInt32(arrayElementsRequired)),
@@ -117,7 +118,7 @@ object LoadGDB {
       .asInstanceOf[VCFHeader]
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
-    val immutableFilters: Map[String, Map[String, String]] = header
+    val immutableFilters: VCFAttributes = header
       .getFilterLines
       .toList
       //(ID, description)

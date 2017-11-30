@@ -3,6 +3,7 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.annotations.MemoryBuffer
 import is.hail.expr._
+import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantSampleMatrix}
 
@@ -188,26 +189,17 @@ object ExportVCF {
     }(sb += ':')
   }
 
-  def getAttributes(path: List[String], md: Option[Map[String, Any]]): Option[Any] = {
-    if (path.isEmpty)
-      None
-    else {
-      if (path.length == 1) {
-        md.flatMap(_.get(path.head))
-      } else {
-        md.flatMap { m => m.get(path.head) match {
-          case Some(x: Map[String, Any]) => getAttributes(path.tail, Some(x))
-          case _ => None
-        }
-        }
-      }
-    }
-  }
+  def getAttributes(k1: String, attributes: Option[VCFMetadata]): Option[VCFAttributes] =
+    attributes.flatMap(_.get(k1))
 
-  def getAttributesAs[T](path: List[String], md: Option[Map[String, Any]]): Option[T] = getAttributes(path, md).map(_.asInstanceOf[T])
+  def getAttributes(k1: String, k2: String, attributes: Option[VCFMetadata]): Option[VCFFieldAttributes] =
+    getAttributes(k1, attributes).flatMap(_.get(k2))
+
+  def getAttributes(k1: String, k2: String, k3: String, attributes: Option[VCFMetadata]): Option[String] =
+    getAttributes(k1, k2, attributes).flatMap(_.get(k3))
 
   def apply(vsm0: VariantSampleMatrix, path: String, append: Option[String] = None,
-    parallel: Boolean = false, metadata: Option[Map[String, Any]] = None) {
+    parallel: Boolean = false, metadata: Option[VCFMetadata] = None) {
 
     vsm0.requireColKeyString("export_vcf")
     vsm0.requireRowKeyVariant("export_vcf")
@@ -261,7 +253,7 @@ object ExportVCF {
       sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
 
       tg.fields.foreachBetween { f =>
-        val attrs = getAttributesAs[Map[String, String]](List("format", f.name), metadata).getOrElse(Map.empty[String, String])
+        val attrs = getAttributes("format", f.name, metadata).getOrElse(Map.empty[String, String])
         sb.append("##FORMAT=<ID=")
         sb.append(f.name)
         sb.append(",Number=")
@@ -275,9 +267,9 @@ object ExportVCF {
 
       sb += '\n'
 
-      val filters = getAttributesAs[Map[String, Any]](List("filter"), metadata).getOrElse(Map.empty[String, Any]).keys.toArray.sorted
+      val filters = getAttributes("filter", metadata).getOrElse(Map.empty[String, Any]).keys.toArray.sorted
       filters.foreach { id =>
-        val attrs = getAttributesAs[Map[String, String]](List("filter", id), metadata).getOrElse(Map.empty[String, String])
+        val attrs = getAttributes("filter", id, metadata).getOrElse(Map.empty[String, String])
         sb.append("##FILTER=<ID=")
         sb.append(id)
         sb.append(",Description=\"")
@@ -286,7 +278,7 @@ object ExportVCF {
       }
 
       tinfo.fields.foreach { f =>
-        val attrs = getAttributesAs[Map[String, String]](List("info", f.name), metadata).getOrElse(Map.empty[String, String])
+        val attrs = getAttributes("info", f.name, metadata).getOrElse(Map.empty[String, String])
         sb.append("##INFO=<ID=")
         sb.append(f.name)
         sb.append(",Number=")

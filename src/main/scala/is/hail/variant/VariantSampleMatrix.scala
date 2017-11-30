@@ -5,6 +5,7 @@ import java.nio.ByteBuffer
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr._
+import is.hail.io.VCFAttributes
 import is.hail.io.vcf.ExportVCF
 import is.hail.keytable.KeyTable
 import is.hail.methods.Aggregators.SampleFunctions
@@ -2237,7 +2238,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     * @param parallel export VCF in parallel using the path argument as a directory
     * @param metadata metadata to export in header
     */
-  def exportVCF(path: String, append: Option[String] = None, parallel: Boolean = false, metadata: Option[Map[String, Any]] = None) {
+  def exportVCF(path: String, append: Option[String] = None, parallel: Boolean = false, metadata: Option[VCFAttributes] = None) {
     ExportVCF(this, path, append, parallel, metadata)
   }
 

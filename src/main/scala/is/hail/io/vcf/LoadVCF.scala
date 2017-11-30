@@ -4,6 +4,7 @@ import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
+import is.hail.io.{VCFAttributes, VCFMetadata}
 import is.hail.sparkextras.OrderedRDD2
 import is.hail.utils._
 import is.hail.variant._
@@ -18,7 +19,7 @@ import scala.collection.mutable
 import scala.io.Source
 
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct,
-  filtersAttrs: Map[String, Map[String, String]], infoAttrs: Map[String, Map[String, String]], formatAttrs: Map[String, Map[String, String]])
+  filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes)
 
 object VCFLine {
   def invalidRef(ref: String): Boolean = {
@@ -686,7 +687,7 @@ object LoadVCF {
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = false): (TStruct, Map[String, Map[String, String]]) = {
+    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = false): (TStruct, VCFAttributes) = {
     val (fields, attrs) = lines
       .zipWithIndex
       .map { case (line, i) => headerField(line, i, callFields, arrayElementsRequired) }
@@ -702,7 +703,7 @@ object LoadVCF {
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
-    val filterAttrs: Map[String, Map[String, String]] = header
+    val filterAttrs: VCFAttributes = header
       .getFilterLines
       .toList
       // (ID, description)
@@ -934,7 +935,7 @@ object LoadVCF {
       rdd)
   }
 
-  def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): Map[String, Map[String, Map[String, String]]] = {
+  def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): VCFMetadata = {
     val hConf = hc.hadoopConf
     val headerLines = getHeaderLines(hConf, headerFile)
     val VCFHeaderInfo(_, _, _, _, filtersAttrs, infoAttrs, formatAttrs) = parseHeader(reader, headerLines)
