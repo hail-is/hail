@@ -193,6 +193,9 @@ object Code {
   // Currently, this is a huge potential place for errors.
   def _pop[T]: Code[T] = Code(new InsnNode(POP))
 
+  // only use to pop long or double
+  def _pop2[T]: Code[T] = Code(new InsnNode(POP2))
+
   // FIXME: code should really carry around the stack so this type can be correct
   // Currently, this is a huge potential place for errors.
   def _empty[T]: Code[T] = new Code[T] {

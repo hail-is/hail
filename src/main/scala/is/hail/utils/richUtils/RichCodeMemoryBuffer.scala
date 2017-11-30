@@ -94,7 +94,7 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
       off => off
   }
 
-  def appendPrimitive(typ: Type): (Code[_]) => Code[Unit] = typ match {
+  def appendPrimitive(typ: Type): (Code[_]) => Code[Long] = typ match {
     case _: TBoolean =>
       x => this.appendInt32(x.asInstanceOf[Code[Int]])
     case _: TInt32 =>
@@ -125,32 +125,32 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
     region.invoke[Long, Long, Boolean, Unit]("setBit", byteOff, bitOff, b)
   }
 
-  def appendInt32(i: Code[Int]): Code[Unit] = {
-    region.invoke[Int, Unit]("appendInt", i)
+  def appendInt32(i: Code[Int]): Code[Long] = {
+    region.invoke[Int, Long]("appendInt", i)
   }
 
-  def appendInt64(l: Code[Long]): Code[Unit] = {
-    region.invoke[Long, Unit]("appendLong", l)
+  def appendInt64(l: Code[Long]): Code[Long] = {
+    region.invoke[Long, Long]("appendLong", l)
   }
 
-  def appendFloat32(f: Code[Float]): Code[Unit] = {
-    region.invoke[Float, Unit]("appendFloat", f)
+  def appendFloat32(f: Code[Float]): Code[Long] = {
+    region.invoke[Float, Long]("appendFloat", f)
   }
 
-  def appendFloat64(d: Code[Double]): Code[Unit] = {
-    region.invoke[Double, Unit]("appendDouble", d)
+  def appendFloat64(d: Code[Double]): Code[Long] = {
+    region.invoke[Double, Long]("appendDouble", d)
   }
 
-  def appendByte(b: Code[Byte]): Code[Unit] = {
-    region.invoke[Byte, Unit]("appendByte", b)
+  def appendByte(b: Code[Byte]): Code[Long] = {
+    region.invoke[Byte, Long]("appendByte", b)
   }
 
-  def appendBytes(bytes: Code[Array[Byte]]): Code[Unit] = {
-    region.invoke[Array[Byte], Unit]("appendBytes", bytes)
+  def appendBytes(bytes: Code[Array[Byte]]): Code[Long] = {
+    region.invoke[Array[Byte], Long]("appendBytes", bytes)
   }
 
-  def appendBytes(bytes: Code[Array[Byte]], bytesOff: Code[Long], n: Code[Int]): Code[Unit] = {
-    region.invoke[Array[Byte],Long, Int, Unit]("appendBytes", bytes, bytesOff, n)
+  def appendBytes(bytes: Code[Array[Byte]], bytesOff: Code[Long], n: Code[Int]): Code[Long] = {
+    region.invoke[Array[Byte],Long, Int, Long]("appendBytes", bytes, bytesOff, n)
   }
 
   def clear(): Code[Unit] = {
