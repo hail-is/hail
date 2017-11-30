@@ -941,7 +941,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         Annotation.buildInserter(annotationExpr, vaSignature, ec, Annotation.VARIANT_HEAD)
       } else insertVA(right.vaSignature, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
 
-    annotateVariants2(right.rdd2, finalType, inserter)
+    annotateVariants2(right.dropSamples().rdd2, finalType, inserter)
   }
 
   def count(): (Long, Long) = (nSamples, countVariants())
