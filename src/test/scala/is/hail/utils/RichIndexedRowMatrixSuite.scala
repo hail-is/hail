@@ -87,7 +87,7 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
       (0L, Vectors.dense(0.0, 1.0, 2.0, 1.0, 3.0, 4.0)),
       (1L, Vectors.dense(3.0, 4.0, 5.0, 1.0, 1.0, 1.0)),
       (2L, Vectors.dense(9.0, 0.0, 2.0, 1.0, 2.0, 9.0)),
-      (3L, Vectors.dense(0.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
+      (3L, Vectors.dense(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)),
       (4L, Vectors.dense(9.0, 1.0, 7.0, 1.0, 1.0, 2.0)),
       (5L, Vectors.dense(6.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
       (6L, Vectors.dense(1.0, 2.0, 3.0, 4.0, 2.0, 1.0)),

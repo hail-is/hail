@@ -714,7 +714,7 @@ object WriteBlocksRDD {
       
       firstRowInNextBlock = if (blockRowIndex < nBlockRows - 1) firstRowInBlock + blockSize else rows
 
-      val start = p 
+      val start = p
       while (parentPartitionBoundaries(p) < firstRowInNextBlock)
         p += 1
       val end = p - 1
@@ -733,13 +733,13 @@ object WriteBlocksRDD {
   }
 }
 
+// IRM must be complete (IRM numRows == RDD count) and ordered (IndexedRow index == RDD index); checked by assertions
 class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extends RDD[Int](irm.rows.sparkContext, Nil) {
   private val rows = irm.numRows()
   private val cols = irm.numCols()
   private val parentPartitions = irm.rows.partitions
   private val parentPartitionBoundaries: Array[Long] = irm.rows.countPerPartition().scanLeft(0L)(_ + _)
   
-  // all IndexedRows must be present in RDD
   assert(rows == parentPartitionBoundaries.last,
     s"IndexedRowMatrix has $rows rows but RDD only has ${parentPartitionBoundaries.last} IndexedRows.")
   
@@ -772,6 +772,7 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
   
   def compute(split: Partition, context: TaskContext): Iterator[Int] = {
     val blockRowIndex = split.index
+    val firstRowInBlock = blockRowIndex.toLong * blockSize
     val nRowsInBlock = if (blockRowIndex != truncatedBlockRow) blockSize else excessRows
 
     val dosArray = Array.tabulate(gp.colPartitions) { blockColIndex =>
@@ -804,6 +805,9 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, blockSize: Int) extend
 
       while (indexedRows.hasNext && i < nRowsInBlock) {
         val indexedRow = indexedRows.next()
+        assert(indexedRow.index == firstRowInBlock + i,
+          s"IndexedRow index ${indexedRow.index} in partition $p does not equal RDD index ${firstRowInBlock + i}")
+        
         var blockColIndex = 0
         var lastColInBlock = 0
         var j = 0
