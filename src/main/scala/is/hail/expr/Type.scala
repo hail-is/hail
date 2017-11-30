@@ -2375,6 +2375,9 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def isFieldRequired(fieldIdx: Int): Boolean = fieldType(fieldIdx).required
 
+  def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
+    isFieldDefined(rv.region, rv.offset, fieldIdx)
+
   def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =
      isFieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
 
