@@ -3490,20 +3490,20 @@ class VariantDataset(HistoryMixin):
 
         :param str scores: Sample annotation path to store scores.
 
-        :param loadings: Variant annotation path to store site loadings.
+        :param loadings: Variant annotation path to store site loadings. If None, do not compute. Default: None
         :type loadings: str or None
 
-        :param eigenvalues: Global annotation path to store eigenvalues.
+        :param eigenvalues: Global annotation path to store eigenvalues. If None, do not compute. Default: None
         :type eigenvalues: str or None
 
-        :param k: Number of principal components.
-        :type k: int or None
+        :param k: Number of principal components. Default: 10
+        :type k: int
 
         :param entry_to_double: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
         :type entry_to_double: str or None
 
-        :param bool as_array: Store annotations as type Array rather than Struct
-        :type k: bool or None
+        :param bool as_array: If true, stores annotations as type Array rather than Struct
+        :type k: bool
 
         :return: Dataset with new PCA annotations.
         :rtype: :class:`.VariantDataset`
@@ -3549,16 +3549,16 @@ class VariantDataset(HistoryMixin):
 
         >>> scores = vds.pca_results(k=5)[0]
 
-        :param k: int Number of principal components.
+        :param int k: Number of principal components.
 
-        :param bool compute_loadings: Whether or not to compute variant loadings. Default: False
+        :param bool compute_loadings: If true, computes variant loadings. Default: False
 
-        :param bool eigenvalues: Whether or not to compute eigenvalues. Default: False
+        :param bool eigenvalues: If true, computes eigenvalues. Default: False
 
         :param entry_to_double: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
         :type entry_to_double: str or None
 
-        :param bool as_array: Store KeyTable rows as type Array rather than Struct
+        :param bool as_array: If true, stores KeyTable rows as type Array rather than Struct
 
         :return: Tuple of KeyTable of scores, KeyTable of loadings, list of eigenvalues
         :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`, list of float)
