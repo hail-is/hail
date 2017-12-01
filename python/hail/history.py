@@ -72,14 +72,16 @@ def record_classmethod(func, cls, *args, **kwargs):
     return result
 
 
-def write_history(path_arg_name, is_dir=False):
+def write_history(path_arg_name, is_dir=False, parallel_write=None):
     def _write(f, obj, *args, **kwargs):
         parsed_args = parse_args(f, args, kwargs)
         argnames = inspect.getcallargs(f, obj, *args, **kwargs)
         result = f(obj, *args, **kwargs)
 
         output_path = argnames[path_arg_name]
-        if is_dir:
+        parallel_write_bool = argnames[parallel_write] if parallel_write else False
+
+        if is_dir or parallel_write_bool:
             output_path = output_path + "/history.txt"
         else:
             output_path += ".history.txt"

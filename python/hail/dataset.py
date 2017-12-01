@@ -1450,7 +1450,7 @@ class VariantDataset(HistoryMixin):
         self._jvdf.exportPlink(output, fam_expr)
 
     @handle_py4j
-    @write_history('output')
+    @write_history('output', parallel_write='parallel')
     @typecheck_method(output=strlike,
                       append_to_header=nullable(strlike),
                       parallel=bool)
