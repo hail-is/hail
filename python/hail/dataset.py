@@ -1340,7 +1340,7 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        >>> exploded = vds.annotate_samples('foo = [1, 2, 3]').explode_samples('sa.foo')
+        >>> exploded = vds.annotate_samples_expr('foo = [1, 2, 3]').explode_samples('sa.foo')
 
         :param str key: A path to a sample annotation. Must be prefixed by 'sa'.
 
@@ -1364,7 +1364,7 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        >>> exploded = vds.annotate_variants('foo = [1, 2, 3]').explode_variants('sa.foo')
+        >>> exploded = vds.annotate_variants_expr('foo = [1, 2, 3]').explode_variants('sa.foo')
 
         :param str key: A path to a sample annotation. Must be prefixed by 'va'.
 
