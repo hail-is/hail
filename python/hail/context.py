@@ -274,7 +274,7 @@ class HailContext(HistoryMixin):
         :type reference_genome: :class:`.GenomeReference`
 
         :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
-        :type contig_recoding: Dict of str to str or None.
+        :type contig_recoding: dict of str to str (or None)
 
         :return: Variant dataset imported from .bgen file.
         :rtype: :class:`.VariantDataset`
@@ -354,7 +354,7 @@ class HailContext(HistoryMixin):
         :type reference_genome: :class:`.GenomeReference`
 
         :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
-        :type contig_recoding: Dict of str to str or None.
+        :type contig_recoding: dict of str to str (or None).
 
         :return: Variant dataset imported from .gen and .sample files.
         :rtype: :class:`.VariantDataset`
@@ -613,7 +613,7 @@ class HailContext(HistoryMixin):
         :type reference_genome: :class:`.GenomeReference`
         
         :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
-        :type contig_recoding: Dict of str to str or None.        
+        :type contig_recoding: dict of str to str (or None).        
 
         :return: Variant dataset imported from PLINK binary file.
         :rtype: :class:`.VariantDataset`
@@ -822,7 +822,7 @@ class HailContext(HistoryMixin):
         :type reference_genome: :class:`.GenomeReference`
 
         :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
-        :type contig_recoding: Dict of str to str or None.
+        :type contig_recoding: dict of str to str (or None).
 
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
