@@ -31,12 +31,16 @@ object Compile {
 
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
 
-  def apply(ir: IR, fb: FunctionBuilder[_]) {
-    apply(ir, fb, new Env())
+  def toCode(ir: IR, fb: FunctionBuilder[_]): (Code[Unit], Code[Boolean], Code[_]) = {
+    toCode(ir, fb, Env.empty)
   }
 
-  def apply(ir: IR, fb: FunctionBuilder[_], env: E) {
-    val (dov, mv, vv) = compile(ir, fb, env, new StagedBitSet(fb))
+  private def toCode(ir: IR, fb: FunctionBuilder[_], env: E): (Code[Unit], Code[Boolean], Code[_]) = {
+    compile(ir, fb, env, new StagedBitSet(fb))
+  }
+
+  def apply(ir: IR, fb: FunctionBuilder[_]) {
+    val (dov, mv, vv) = toCode(ir, fb)
     typeToTypeInfo(ir.typ) match { case ti: TypeInfo[t] =>
       fb.emit(Code(dov, mv.mux(
         Code._throw(Code.newInstance[RuntimeException, String]("cannot return empty")),
@@ -56,7 +60,7 @@ object Compile {
   //
   // JVM gotcha:
   //  a variable must be initialized on all static code-paths to its use (ergo defaultValue)
-  def compile(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
+  private def compile(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
     val region = fb.getArg[MemoryBuffer](1).load()
     def compile(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: StagedBitSet = mb): (Code[Unit], Code[Boolean], Code[_]) =
       Compile.compile(ir, fb, env, mb)
