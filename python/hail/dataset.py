@@ -2383,7 +2383,7 @@ class VariantDataset(HistoryMixin):
 
         Compute the max depth of each sample on each contig:
 
-        >>> vds = vds.group_variants_by("v.contig", "gs.map(g => g.dp).max()")
+        >>> grouped_vds = vds.group_variants_by("v.contig", "gs.map(g => g.dp).max()")
 
         :param str key_expr: Expression for new column key.
 
