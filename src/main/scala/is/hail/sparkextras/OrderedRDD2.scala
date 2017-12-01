@@ -562,7 +562,7 @@ object OrderedRDD2 {
     rdd: RDD[RegionValue]): OrderedRDD2 = {
     val sc = rdd.sparkContext
 
-    new OrderedRDD2(typ, partitioner,
+    new OrderedRDD2(typ, partitioner, new RegionValueRDD(
       rdd.mapPartitionsWithIndex { case (i, it) =>
         val prev = WritableRegionValue(typ.pkType)
 
@@ -595,19 +595,21 @@ object OrderedRDD2 {
             rv
           }
         }
-      })
+      }, typ.rowType))
   }
 }
 
 class OrderedRDD2 private(
   val typ: OrderedRDD2Type,
   @transient val orderedPartitioner: OrderedPartitioner2,
-  val rdd: RDD[RegionValue]) extends RDD[RegionValue](rdd) {
+  val rvrdd: RegionValueRDD) extends RDD[RegionValue](rvrdd.rdd) {
+
+  val rdd = rvrdd.rdd
 
   def this(partitionKey: String, key: String, rowType: TStruct,
     orderedPartitioner: OrderedPartitioner2,
-    rdd: RDD[RegionValue]) = this(new OrderedRDD2Type(Array(partitionKey), Array(partitionKey, key), rowType),
-    orderedPartitioner, rdd)
+    rvrdd: RegionValueRDD) = this(new OrderedRDD2Type(Array(partitionKey), Array(partitionKey, key), rowType),
+    orderedPartitioner, rvrdd)
 
   @transient override val partitioner: Option[Partitioner] = Some(orderedPartitioner)
 
@@ -661,58 +663,11 @@ class OrderedRDD2 private(
       orderedPartitioner,
       rdd.sample(withReplacement, fraction, seed))
 
-  def getStorageLevel2: StorageLevel = StorageLevel.NONE
+  def getStorageLevel2: StorageLevel = rvrdd.getStorageLevel2
 
-  def unpersist2(): OrderedRDD2 = throw new IllegalArgumentException("not persisted")
+  def unpersist2() = copy(rvrdd.unpersist2())
 
-  def persist2(level: StorageLevel): OrderedRDD2 = {
-    val localRowType = typ.rowType
-
-    // copy, persist region values
-    val persistedRDD = rdd.mapPartitions { it =>
-      val region = MemoryBuffer()
-      val rvb = new RegionValueBuilder(region)
-      it.map { rv =>
-        region.clear()
-        rvb.start(localRowType)
-        rvb.addRegionValue(localRowType, rv)
-        val off = rvb.end()
-        RegionValue(region.copy(), off)
-      }
-    }
-      .persist(level)
-
-    val rdd2 = persistedRDD
-      .mapPartitions { it =>
-        val region = MemoryBuffer()
-        val rv2 = RegionValue(region)
-        it.map { rv =>
-          region.setFrom(rv.region)
-          rv2.setOffset(rv.offset)
-          rv2
-        }
-      }
-
-    val self = this
-
-    new OrderedRDD2(typ,
-      orderedPartitioner,
-      rdd2) {
-      override def getStorageLevel2: StorageLevel = level
-
-      override def persist2(newLevel: StorageLevel): OrderedRDD2 = {
-        if (newLevel == level)
-          this
-        else
-          self.persist2(newLevel)
-      }
-
-      override def unpersist2(): OrderedRDD2 = {
-        persistedRDD.unpersist()
-        self
-      }
-    }
-  }
+  def persist2(level: StorageLevel): OrderedRDD2 = copy(rvrdd.persist2(level))
 
   def orderedJoinDistinct(right: OrderedRDD2, joinType: String): RDD[JoinedRegionValue] = {
     val lTyp = typ
@@ -735,7 +690,6 @@ class OrderedRDD2 private(
     assert(typ == rdd2.typ)
     assert(orderedPartitioner == rdd2.orderedPartitioner)
 
-    val localTyp = typ
     OrderedRDD2(typ, orderedPartitioner,
       rdd.zipPartitions(rdd2.rdd) { case (it, it2) =>
         new Iterator[RegionValue] {
@@ -761,9 +715,11 @@ class OrderedRDD2 private(
       })
   }
 
+  private def copy(rvrdd: RegionValueRDD): OrderedRDD2 = new OrderedRDD2(typ, orderedPartitioner, rvrdd)
+
   def copy(typ: OrderedRDD2Type = typ,
     orderedPartitioner: OrderedPartitioner2 = orderedPartitioner,
-    rdd: RDD[RegionValue] = rdd): OrderedRDD2 = {
+    rdd: RDD[RegionValue] = rvrdd.rdd): OrderedRDD2 = {
     OrderedRDD2(typ, orderedPartitioner, rdd)
   }
 
