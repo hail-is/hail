@@ -11,6 +11,10 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
 
   def offset: Code[Long] = region.invoke[Long]("size")
 
+  def copyFrom(other: Code[MemoryBuffer], readStart: Code[Long], writeStart: Code[Long], n: Code[Long]): Code[Unit] = {
+    region.invoke[MemoryBuffer, Long, Long, Long, Unit]("copyFrom", other, readStart, writeStart, n)
+  }
+
   def storeInt32(off: Code[Long], v: Code[Int]): Code[Unit] = {
     region.invoke[Long,Int,Unit]("storeInt", off, v)
   }
