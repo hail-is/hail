@@ -3,14 +3,14 @@ package is.hail.expr.ir
 import is.hail.utils._
 import is.hail.annotations.MemoryBuffer
 import is.hail.asm4s._
-import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction, TNumeric}
+import is.hail.expr.{TAggregable, TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction, TNumeric}
 import is.hail.annotations.StagedRegionValueBuilder
 
 object Infer {
-  def apply(ir: IR) { apply(ir, new Env[Type]()) }
+  def apply(ir: IR, tAgg: Option[TAggregable] = None) { apply(ir, tAgg, new Env[Type]()) }
 
-  def apply(ir: IR, env: Env[Type]) {
-    def infer(ir: IR, env: Env[Type] = env) { apply(ir, env) }
+  def apply(ir: IR, tAgg: Option[TAggregable], env: Env[Type]) {
+    def infer(ir: IR, env: Env[Type] = env) { apply(ir, tAgg, env) }
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -85,6 +85,20 @@ object Infer {
         infer(body, env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
         assert(body.typ == zero.typ)
         x.typ = zero.typ
+      case AggIn(typ) =>
+        tAgg.foreach(x => assert(typ == x))
+      case x@AggMap(a, name, body, _) =>
+        infer(a)
+        val tagg = a.typ.asInstanceOf[TAggregable]
+        val env = Env.empty
+          .bind(tagg.bindings:_*)
+          .bind(name, tagg.elementType)
+        infer(body, env = env)
+        x.typ = tagg.copy(elementType = body.typ)
+      case x@AggSum(a, _) =>
+        infer(a)
+        val tAgg = a.typ.asInstanceOf[TAggregable]
+        x.typ = tAgg.elementType
       case MakeStruct(fields) =>
         fields.map { case (_, typ, v) =>
           infer(v)
