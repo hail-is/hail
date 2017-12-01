@@ -992,15 +992,18 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       it.flatMap { rv =>
         ur.set(rv)
         val keys = querier(ur).asInstanceOf[IndexedSeq[Any]]
-        keys.iterator.map{ va =>
-          region2.clear()
-          rv2b.start(newRowType)
-          inserter(rv.region, rv.offset, rv2b, {() =>
-            rv2b.addAnnotation(keyType, va)
-          })
-          rv2.setOffset(rv2b.end())
-          rv2
-        }
+        if (keys == null)
+          None
+        else
+          keys.iterator.map{ va =>
+            region2.clear()
+            rv2b.start(newRowType)
+            inserter(rv.region, rv.offset, rv2b, {() =>
+              rv2b.addAnnotation(keyType, va)
+            })
+            rv2.setOffset(rv2b.end())
+            rv2
+          }
       }
     }
     val newMatrixType = matrixType.copy(vaType = newVAType)
@@ -1016,7 +1019,13 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       case TSet(e, _) => e
       case t => fatal(s"Expected annotation of type Array or Set; found $t")
     }
-    val keys = sampleAnnotations.map{ sa => querier(sa).asInstanceOf[IndexedSeq[Any]] }
+    val keys = sampleAnnotations.map{ sa => {
+      val ks = querier(sa).asInstanceOf[IndexedSeq[Any]]
+      if (ks == null)
+        Array().toIndexedSeq
+      else
+        ks
+    }}
     val sampleMap = (0 until nSamples).flatMap {i => keys(i).iterator.map{ _ => i }}
     val localRowType = rowType
     val localGSsig = rowType.fieldType(3).asInstanceOf[TArray]

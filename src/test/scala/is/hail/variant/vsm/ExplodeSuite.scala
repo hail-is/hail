@@ -31,12 +31,12 @@ class ExplodeSuite extends SparkSuite {
 
   @Test def testNoElements() {
     val vsm = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateVariantsExpr("va.foo = []")
+      .annotateVariantsExpr("va.foo = NA: Array[Int32]")
     val exploded = vsm.explodeVariants("va.foo")
-    assert(vsm.countVariants() == 0)
+    assert(exploded.countVariants() == 0)
 
     val vsm2 = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateSamplesExpr("sa.foo = []")
+      .annotateSamplesExpr("sa.foo = NA: Array[Int32]")
     val exploded2 = vsm2.explodeSamples("sa.foo")
     assert(exploded2.nSamples == 0)
   }

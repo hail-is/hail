@@ -1338,6 +1338,9 @@ class VariantDataset(HistoryMixin):
         other sample and variant annotations, as well as the entries, will remain the
         same.
 
+        If a given sample has a missing key, or the Array or Set is empty, it is
+        removed from the Variant Dataset.
+
         **Examples**
 
         >>> exploded = vds.annotate_samples_expr('sa.foo = [1, 2, 3]').explode_samples('sa.foo')
@@ -1361,6 +1364,9 @@ class VariantDataset(HistoryMixin):
         field will be replaced by elements in the original Array or Set. All of the
         other sample and variant annotations, as well as the entries, will remain the
         same.
+
+        If a given variant has a missing key, or the Array or Set is empty, it is
+        removed from the Variant Dataset.
 
         **Examples**
 
