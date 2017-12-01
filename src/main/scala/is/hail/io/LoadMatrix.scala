@@ -3,7 +3,7 @@ package is.hail.io
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.sparkextras.OrderedRDD2
+import is.hail.rvd.OrderedRVD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.conf.Configuration
@@ -311,6 +311,6 @@ object LoadMatrix {
       VSMLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
-      OrderedRDD2(matrixType.orderedRDD2Type, rdd, Some(rowKeys), None))
+      OrderedRVD(matrixType.orderedRVType, rdd, Some(rowKeys), None))
   }
 }
