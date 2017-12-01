@@ -2373,7 +2373,7 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck(key_expr=strlike,
+    @typecheck_method(key_expr=strlike,
                agg_expr=strlike,
                single_key=bool)
     def group_variants_by(self, key_expr, agg_expr, single_key=True):
