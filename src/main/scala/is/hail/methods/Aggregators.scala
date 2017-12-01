@@ -168,7 +168,7 @@ object Aggregators {
       ec.set(4, ur.get(1))
       ec.set(5, ur.get(2))
 
-      val gsIt = ur.getAs[IndexedSeq[Any]](3).iterator
+      val gsIt = ur.getAs[IndexedSeq[Annotation]](3).iterator
       var i = 0
       while (i < localNSamples) {
         ec.set(1, localSamplesBc.value(i))

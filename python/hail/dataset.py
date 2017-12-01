@@ -2378,6 +2378,11 @@ class VariantDataset(HistoryMixin):
                single_key=bool)
     def group_variants_by(self, key_expr, agg_expr, single_key=True):
         """Group variants by key, aggregating along sample.
+
+        If a key is missing, for a given variant, the variant will not be
+        used to compute the new VariantDataset.
+
+        ``key_expr`` can be defined in terms of ``v``, ``va``, and ``gs``.
         
         **Examples**
 
@@ -2385,7 +2390,7 @@ class VariantDataset(HistoryMixin):
 
         >>> grouped_vds = vds.group_variants_by("v.contig", "gs.map(g => g.dp).max()")
 
-        :param str key_expr: Expression for new column key.
+        :param str key_expr: Expression for new row key.
 
         :param str agg_expr: Expression for aggregating along samples.
 
