@@ -10,7 +10,16 @@ case class GridPartitioner(blockSize: Int, rows: Long, cols: Long, transposed: B
 
   val rowPartitions: Int = ((rows - 1) / blockSize + 1).toInt
   val colPartitions: Int = ((cols - 1) / blockSize + 1).toInt
-
+  
+  val truncatedBlockRow: Int = (rows / blockSize).toInt
+  val truncatedBlockCol: Int = (cols / blockSize).toInt
+  
+  val excessRows: Int = (rows % blockSize).toInt
+  val excessCols: Int = (cols % blockSize).toInt
+  
+  def rowPartitionRows(i: Int): Int = if (i != truncatedBlockRow) blockSize else excessRows
+  def colPartitionCols(j: Int): Int = if (j != truncatedBlockCol) blockSize else excessCols
+  
   override val numPartitions: Int = rowPartitions * colPartitions
   assert(numPartitions >= rowPartitions && numPartitions >= colPartitions)
   

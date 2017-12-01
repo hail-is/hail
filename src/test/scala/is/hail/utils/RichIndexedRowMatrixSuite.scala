@@ -1,8 +1,8 @@
 package is.hail.utils
 
 import breeze.linalg.{DenseMatrix => BDM, _}
-import is.hail.SparkSuite
-import is.hail.distributedmatrix.{BlockMatrix, WriteBlocksRDD}
+import is.hail.{SparkSuite, TestUtils}
+import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{DistributedMatrix, IndexedRow, IndexedRowMatrix}
@@ -81,8 +81,6 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
   }
   
   @Test def testWriteAsBlockMatrix() {
-    val rows = 9L
-    val cols = 6L
     val data = Seq(
       (0L, Vectors.dense(0.0, 1.0, 2.0, 1.0, 3.0, 4.0)),
       (1L, Vectors.dense(3.0, 4.0, 5.0, 1.0, 1.0, 1.0)),
@@ -105,6 +103,16 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
       irm.writeAsBlockMatrix(filename, blockSize)
       
       assert(BlockMatrix.read(hc, filename).toLocalMatrix() === irm.toHailBlockMatrix().toLocalMatrix())
+    }
+    
+    TestUtils.interceptAssertion("IndexedRowMatrix has 3 rows but RDD only has 2 IndexedRows.") {
+      val data = Seq((0L, Vectors.dense(0.0)), (2L, Vectors.dense(1.0))).map(IndexedRow.tupled)      
+      new IndexedRowMatrix(sc.parallelize(data)).writeAsBlockMatrix(filename, 1)
+    }
+    
+    TestUtils.interceptSpark("IndexedRow index") {
+      val data = Seq((1L, Vectors.dense(0.0)), (0L, Vectors.dense(1.0))).map(IndexedRow.tupled)
+      new IndexedRowMatrix(sc.parallelize(data)).writeAsBlockMatrix(filename, 1)
     }
   }
 }

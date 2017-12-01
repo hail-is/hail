@@ -98,8 +98,8 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     
     // write blocks
     hadoop.mkDir(uri + "/parts")
-    val blockCount = new WriteBlocksRDD(indexedRowMatrix, uri, blockSize).reduce(_ + _)
     val gp = GridPartitioner(blockSize, rows, cols)
+    val blockCount = new WriteBlocksRDD(indexedRowMatrix, uri, gp).reduce(_ + _)
     assert(blockCount == gp.numPartitions)
     info(s"Wrote all $blockCount blocks of $rows x $cols matrix with block size $blockSize.")
     
