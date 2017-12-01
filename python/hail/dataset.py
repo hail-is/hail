@@ -1351,7 +1351,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return self._jvds.explodeSamples(key)
+        return VariantDataset(self.hc, self._jvds.explodeSamples(key))
 
     @handle_py4j
     @record_method
@@ -1378,7 +1378,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return self._jvds.explodeVariants(key)
+        return VariantDataset(self.hc, self._jvds.explodeVariants(key))
 
     @handle_py4j
     @require_biallelic

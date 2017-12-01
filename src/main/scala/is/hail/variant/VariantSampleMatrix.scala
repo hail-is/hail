@@ -971,8 +971,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     mapWithAll[(Annotation, Annotation, Annotation, Annotation, Annotation)]((v, va, s, sa, g) => (v, va, s, sa, g))
 
   def explodeVariants(code: String): VariantSampleMatrix = {
-    val path = code.split('.').toList
-    require(path(0) == Annotation.VARIANT_HEAD)
+    val path = List(Annotation.VARIANT_HEAD) ++ Parser.parseAnnotationRoot(code, Annotation.VARIANT_HEAD)
     val (keysType, querier) = rowType.queryTyped(path)
     val keyType = keysType match {
       case TArray(e, _) => e
@@ -1011,9 +1010,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   def explodeSamples(code: String): VariantSampleMatrix = {
-    val path = code.split('.').toList
-    require(path(0) == Annotation.SAMPLE_HEAD)
-    val (keysType, querier) = saSignature.queryTyped(path.tail)
+    val path = Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD)
+    val (keysType, querier) = saSignature.queryTyped(path)
     val keyType = keysType match {
       case TArray(e, _) => e
       case TSet(e, _) => e
@@ -1022,7 +1020,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val keys = sampleAnnotations.map{ sa => {
       val ks = querier(sa).asInstanceOf[IndexedSeq[Any]]
       if (ks == null)
-        Array().toIndexedSeq
+        IndexedSeq.empty[Any]
       else
         ks
     }}
