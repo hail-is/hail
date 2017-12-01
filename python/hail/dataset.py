@@ -2401,7 +2401,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return self._jvds.groupVariantsBy(key_expr, agg_expr, single_key)
+        return VariantDataset(self.hc, self._jvds.groupVariantsBy(key_expr, agg_expr, single_key))
 
     @handle_py4j
     @record_method
