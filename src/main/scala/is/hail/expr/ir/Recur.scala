@@ -27,6 +27,11 @@ object Recur {
     case MakeStruct(fields, _) => MakeStruct(fields map { case (n,a) => (n,f(a)) })
     case GetField(o, name, typ) => GetField(f(o), name, typ)
     case GetFieldMissingness(o, name) => GetFieldMissingness(f(o), name)
+    case AggIn(typ) => ir
+    case AggMap(a, name, body, typ) => AggMap(f(a), name, f(body), typ)
+    case AggFilter(a, name, body, typ) => AggFilter(f(a), name, f(body), typ)
+    case AggFlatMap(a, name, body, typ) => AggFlatMap(f(a), name, f(body), typ)
+    case AggSum(a, typ) => AggSum(f(a), typ)
     case In(i, typ) => ir
     case InMissingness(i) => ir
     case Die(message) => ir

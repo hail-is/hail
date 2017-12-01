@@ -1,7 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction}
+import is.hail.expr.{TFloat32, TFloat64, TInt32, TInt64, Type}
+
 import scala.language.existentials
 
 object Casts {

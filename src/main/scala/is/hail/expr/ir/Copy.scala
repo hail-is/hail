@@ -70,6 +70,20 @@ object Copy {
       case GetFieldMissingness(_, name) =>
         val IndexedSeq(o) = children
         GetFieldMissingness(o, name)
+      case AggIn(_) =>
+        same
+      case AggMap(_, name, _, typ) =>
+        val IndexedSeq(a, body) = children
+        AggMap(a, name, body, typ)
+      case AggFilter(_, name, _, typ) =>
+        val IndexedSeq(a, body) = children
+        AggFilter(a, name, body, typ)
+      case AggFlatMap(_, name, _, typ) =>
+        val IndexedSeq(a, body) = children
+        AggFlatMap(a, name, body, typ)
+      case AggSum(a, typ) =>
+        val IndexedSeq(a) = children
+        AggSum(a, typ)
       case In(_, _) =>
         same
       case InMissingness(_) =>

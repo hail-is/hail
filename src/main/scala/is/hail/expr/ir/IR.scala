@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.expr.{BaseIR, TAggregable, TArray, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type}
 import is.hail.utils._
-import is.hail.expr.{BaseIR, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type, TArray}
 
 sealed trait IR extends BaseIR {
   def typ: Type
@@ -52,6 +52,12 @@ case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
 case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR, var typ: Type = null) extends IR
 
+case class AggIn(var typ: TAggregable = null) extends IR
+case class AggMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
+case class AggFilter(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
+case class AggFlatMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
+case class AggSum(a: IR, var typ: Type = null) extends IR
+
 case class MakeStruct(fields: Array[(String, IR)], var typ: TStruct = null) extends IR {
   override def toString: String = s"MakeStruct(${ fields.toFastIndexedSeq })"
   override def hashCode(): Int =
@@ -66,7 +72,7 @@ case class MakeStruct(fields: Array[(String, IR)], var typ: TStruct = null) exte
 case class GetField(o: IR, name: String, var typ: Type = null) extends IR
 case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean() }
 
-case class In(i: Int, typ: Type) extends IR
+case class In(i: Int, var typ: Type) extends IR
 case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean() }
 // FIXME: should be type any
 case class Die(message: String) extends IR { val typ = TVoid }

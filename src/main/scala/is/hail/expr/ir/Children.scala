@@ -44,6 +44,16 @@ object Children {
       Array(a, zero, body)
     case MakeStruct(fields, _) =>
       fields.map(_._2)
+    case AggIn(_) =>
+      none
+    case AggMap(a, _, body, _) =>
+      Array(a, body)
+    case AggFilter(a, name, body, typ) =>
+      Array(a, body)
+    case AggFlatMap(a, name, body, typ) =>
+      Array(a, body)
+    case AggSum(a, _) =>
+      Array(a)
     case GetField(o, name, typ) =>
       Array(o)
     case GetFieldMissingness(o, name) =>

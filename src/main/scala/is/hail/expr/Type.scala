@@ -840,6 +840,9 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   // not used for equality
   var symTab: SymbolTable = _
 
+  def bindings: Array[(String, Type)] =
+    symTab.map { case (n, (_, t)) => (n, t) }.toArray
+
   override def unify(concrete: Type): Boolean = {
     concrete match {
       case TAggregable(celementType, _) => elementType.unify(celementType)
@@ -926,8 +929,14 @@ abstract class TContainer extends Type {
     elementsOffset(length) + length.toL * elementByteSize
   }
 
+  def isElementMissing(region: Region, aoff: Long, i: Int): Boolean =
+    !isElementDefined(region, aoff, i)
+
   def isElementDefined(region: Region, aoff: Long, i: Int): Boolean =
     elementType.required || !region.loadBit(aoff + 4, i)
+
+  def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+    !isElementDefined(region, aoff, i)
 
   def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     if (elementType.required)
@@ -2284,11 +2293,14 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
     isFieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
 
-  def isFieldDefined(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
+  def isFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     if (isFieldRequired(fieldIdx))
-      true
+      false
     else
-      !region.loadBit(offset, missingIdx(fieldIdx))
+      region.loadBit(offset, missingIdx(fieldIdx))
+
+  def isFieldDefined(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
+    !isFieldMissing(region, offset, fieldIdx)
 
   def setFieldMissing(region: Region, offset: Long, fieldIdx: Int) {
     assert(!isFieldRequired(fieldIdx))
@@ -2313,6 +2325,21 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     fields(fieldIdx).typ.fundamentalType match {
       case _: TArray | _: TBinary => region.loadAddress(off)
       case _ => off
+    }
+  }
+
+  def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] = {
+    val f = field(fieldName)
+    loadField(region, fieldOffset(offset, f.index), f.typ)
+  }
+
+  def loadField(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Long] =
+    loadField(region, fieldOffset(offset, fieldIdx), fields(fieldIdx).typ)
+
+  private def loadField(region: Code[Region], fieldOffset: Code[Long], fieldType: Type): Code[Long] = {
+    fieldType.fundamentalType match {
+      case _: TArray | _: TBinary => region.loadAddress(fieldOffset)
+      case _ => fieldOffset
     }
   }
 }
