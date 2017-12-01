@@ -16,6 +16,9 @@ object Copy {
       case F64(_) => same
       case True() => same
       case False() => same
+      case Cast(_, typ) =>
+        val IndexedSeq(v) = children
+        Cast(v, typ)
       case NA(_) => same
       case MapNA(name, _, _, typ) =>
         val IndexedSeq(value, body) = children

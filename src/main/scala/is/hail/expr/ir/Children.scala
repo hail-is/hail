@@ -11,6 +11,8 @@ object Children {
     case F64(x) => none
     case True() => none
     case False() => none
+    case Cast(v, typ) =>
+      Array(v)
     case NA(typ) => none
     case MapNA(name, value, body, typ) =>
       Array(value, body)
