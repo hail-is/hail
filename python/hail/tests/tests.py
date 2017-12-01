@@ -83,7 +83,7 @@ class ContextTests(unittest.TestCase):
 
         vcf_metadata = hc.get_vcf_metadata(test_resources + '/sample.vcf.bgz')
 
-        gds = hc.import_vcf(test_resources + '/sample.vcf.bgz', generic=True)
+        gds = hc.import_vcf(test_resources + '/sample.vcf.bgz')
         self.assert_equal_struct(gds.genotype_schema, Type.hts_schema())
         gds = hc.import_vcf(test_resources + '/sample.vcf.bgz')
 

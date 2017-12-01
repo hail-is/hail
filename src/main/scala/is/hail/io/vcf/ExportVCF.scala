@@ -189,8 +189,17 @@ object ExportVCF {
     }(sb += ':')
   }
 
+  def getAttributes(k1: String, attributes: Option[VCFMetadata]): Option[VCFAttributes] =
+    attributes.flatMap(_.get(k1))
+
+  def getAttributes(k1: String, k2: String, attributes: Option[VCFMetadata]): Option[VCFFieldAttributes] =
+    getAttributes(k1, attributes).flatMap(_.get(k2))
+
+  def getAttributes(k1: String, k2: String, k3: String, attributes: Option[VCFMetadata]): Option[String] =
+    getAttributes(k1, k2, attributes).flatMap(_.get(k3))
+
   def apply(vsm: VariantSampleMatrix, path: String, append: Option[String] = None,
-    parallel: Boolean = false) {
+    parallel: Boolean = false, metadata: Option[VCFMetadata] = None) {
     
     vsm.requireColKeyString("export_vcf")
     vsm.requireRowKeyVariant("export_vcf")
