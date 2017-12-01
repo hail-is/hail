@@ -1328,7 +1328,7 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(key=str)
+    @typecheck_method(key=strlike)
     def explode_samples(self, key):
         """Explodes samples of this dataset along an annotation of type Array or Set.
 
@@ -1355,7 +1355,7 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(key=str)
+    @typecheck_method(key=strlike)
     def explode_variants(self, key):
         """Explodes variants of this dataset along an annotation of type Array or Set.
 
