@@ -34,6 +34,8 @@ final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T]
         Code.checkcast[java.lang.Boolean](x).invoke[Boolean]("booleanValue").asInstanceOf[Code[T]]
       case _: CharInfo.type =>
         Code.checkcast[java.lang.Character](x).invoke[Char]("charValue").asInstanceOf[Code[T]]
+      case _: UnitInfo.type =>
+        Code(Code.checkcast[java.lang.Void](x), Code._pop)
       case cti: ClassInfo[_] =>
         Code.checkcast[T](x)(cti.cct.asInstanceOf[ClassTag[T]])
       case ati: ArrayInfo[_] =>
@@ -58,6 +60,8 @@ final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T]
       Code.boxBoolean(x.asInstanceOf[Code[Boolean]])
     case _: CharInfo.type =>
       Code.newInstance[java.lang.Character, Char](x.asInstanceOf[Code[Char]])
+    case _: UnitInfo.type =>
+      Code(x, Code._null[java.lang.Void])
     case cti: ClassInfo[_] =>
       x
     case ati: ArrayInfo[_] =>
