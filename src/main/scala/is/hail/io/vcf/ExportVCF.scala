@@ -3,14 +3,13 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.annotations.MemoryBuffer
 import is.hail.expr._
+import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantSampleMatrix}
 
 import scala.io.Source
-import scala.reflect.ClassTag
 
 object ExportVCF {
-
   def infoNumber(t: Type): String = t match {
     case TBoolean(_) => "0"
     case TArray(_, _) => "."
@@ -190,9 +189,18 @@ object ExportVCF {
     }(sb += ':')
   }
 
+  def getAttributes(k1: String, attributes: Option[VCFMetadata]): Option[VCFAttributes] =
+    attributes.flatMap(_.get(k1))
+
+  def getAttributes(k1: String, k2: String, attributes: Option[VCFMetadata]): Option[VCFFieldAttributes] =
+    getAttributes(k1, attributes).flatMap(_.get(k2))
+
+  def getAttributes(k1: String, k2: String, k3: String, attributes: Option[VCFMetadata]): Option[String] =
+    getAttributes(k1, k2, attributes).flatMap(_.get(k3))
+
   def apply(vsm0: VariantSampleMatrix, path: String, append: Option[String] = None,
-    parallel: Boolean = false) {
-    
+    parallel: Boolean = false, metadata: Option[VCFMetadata] = None) {
+
     vsm0.requireColKeyString("export_vcf")
     vsm0.requireRowKeyVariant("export_vcf")
     
@@ -243,49 +251,42 @@ object ExportVCF {
 
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
-      
-      gr.contigs.foreachBetween { c =>
-        sb.append("##contig=<ID=")
-        sb.append(c)
-        sb.append(",length=")
-        sb.append(gr.contigLength(c))
-        sb.append(",assembly=")
-        sb.append(assembly)
-        sb += '>'
-      }(sb += '\n')
-      
-      sb += '\n'
-      
+
       tg.fields.foreachBetween { f =>
+        val attrs = getAttributes("format", f.name, metadata).getOrElse(Map.empty[String, String])
         sb.append("##FORMAT=<ID=")
         sb.append(f.name)
         sb.append(",Number=")
-        sb.append(f.attr("Number").getOrElse(infoNumber(f.typ)))
+        sb.append(attrs.getOrElse("Number", infoNumber(f.typ)))
         sb.append(",Type=")
         sb.append(formatType(f))
         sb.append(",Description=\"")
-        sb.append(f.attr("Description").getOrElse(""))
+        sb.append(attrs.getOrElse("Description", ""))
         sb.append("\">")
       }(sb += '\n')
 
       sb += '\n'
 
-      vsm.vaSignature.fieldOption("filters")
-        .foreach { f =>
-          f.attrs.foreach { case (key, desc) =>
-            sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
-          }
-        }
+      val filters = getAttributes("filter", metadata).getOrElse(Map.empty[String, Any]).keys.toArray.sorted
+      filters.foreach { id =>
+        val attrs = getAttributes("filter", id, metadata).getOrElse(Map.empty[String, String])
+        sb.append("##FILTER=<ID=")
+        sb.append(id)
+        sb.append(",Description=\"")
+        sb.append(attrs.getOrElse("Description", ""))
+        sb.append("\">\n")
+      }
 
       tinfo.fields.foreach { f =>
+        val attrs = getAttributes("info", f.name, metadata).getOrElse(Map.empty[String, String])
         sb.append("##INFO=<ID=")
         sb.append(f.name)
         sb.append(",Number=")
-        sb.append(f.attr("Number").getOrElse(infoNumber(f.typ)))
+        sb.append(attrs.getOrElse("Number", infoNumber(f.typ)))
         sb.append(",Type=")
         sb.append(infoType(f))
         sb.append(",Description=\"")
-        sb.append(f.attr("Description").getOrElse(""))
+        sb.append(attrs.getOrElse("Description", ""))
         sb.append("\">\n")
       }
 
@@ -300,6 +301,18 @@ object ExportVCF {
             }
         }
       }
+
+      gr.contigs.foreachBetween { c =>
+        sb.append("##contig=<ID=")
+        sb.append(c)
+        sb.append(",length=")
+        sb.append(gr.contigLength(c))
+        sb.append(",assembly=")
+        sb.append(assembly)
+        sb += '>'
+      }(sb += '\n')
+
+      sb += '\n'
 
       sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
       if (hasSamples)

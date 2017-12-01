@@ -7,12 +7,12 @@ import is.hail.utils._
 import is.hail.variant.Genotype
 
 object InbreedingCombiner {
-  def signature = TStruct(Array(("Fstat", TFloat64(), "Inbreeding coefficient"),
-    ("nTotal", TInt64(), "Number of genotypes analyzed"),
-    ("nCalled", TInt64(), "number of genotypes with non-missing calls"),
-    ("expectedHoms", TFloat64(), "Expected number of homozygote calls"),
-    ("observedHoms", TInt64(), "Total number of homozygote calls observed")
-  ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  def signature = TStruct(
+    "Fstat" -> TFloat64(),
+    "nTotal" -> TInt64(),
+    "nCalled" -> TInt64(),
+    "expectedHoms" -> TFloat64(),
+    "observedHoms" -> TInt64())
 }
 
 class InbreedingCombiner extends Serializable {

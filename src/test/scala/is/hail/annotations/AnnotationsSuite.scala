@@ -34,99 +34,39 @@ class AnnotationsSuite extends SparkSuite {
 
     // type Int - info.DP
     val dpQuery = vas.query("info", "DP")
-    assert(vas.fieldOption("info", "DP").exists(f =>
-      f.typ.isInstanceOf[TInt32]
-        && f.attrs == Map("Type" -> "Integer",
-        "Number" -> "1",
-        "Description" -> "Approximate read depth; some reads may have been filtered")))
+    assert(vas.fieldOption("info", "DP").exists(_.typ.isInstanceOf[TInt32]))
     assert(dpQuery(variantAnnotationMap(firstVariant)) == 77560)
     assert(dpQuery(variantAnnotationMap(anotherVariant)) == 20271)
 
     // type Double - info.HWP
     val hwpQuery = vas.query("info", "HWP")
-    assert(vas.fieldOption("info", "HWP").exists(f =>
-      f.typ.isInstanceOf[TFloat64]
-        && f.attrs == Map("Type" -> "Float",
-        "Number" -> "1",
-        "Description" -> "P value from test of Hardy Weinberg Equilibrium")))
+    assert(vas.fieldOption("info", "HWP").exists(_.typ.isInstanceOf[TFloat64]))
     assert(D_==(hwpQuery(variantAnnotationMap(firstVariant)).asInstanceOf[Double], 0.0001))
     assert(D_==(hwpQuery(variantAnnotationMap(anotherVariant)).asInstanceOf[Double], 0.8286))
 
     // type String - info.culprit
     val culpritQuery = vas.query("info", "culprit")
-    assert(vas.fieldOption("info", "culprit").exists(f =>
-      f.typ.isInstanceOf[TString]
-        && f.attrs == Map("Type" -> "String",
-        "Number" -> "1",
-        "Description" -> "The annotation which was the worst performing in the Gaussian mixture model, likely the reason why the variant was filtered out")))
+    assert(vas.fieldOption("info", "culprit").exists(_.typ.isInstanceOf[TString]))
     assert(culpritQuery(variantAnnotationMap(firstVariant)) == "FS")
     assert(culpritQuery(variantAnnotationMap(anotherVariant)) == "FS")
 
     // type Array - info.AC (allele count)
     val acQuery = vas.query("info", "AC")
-    assert(vas.fieldOption("info", "AC").exists(f =>
-      (f.typ == TArray(TInt32()) || f.typ == TArray(!TInt32())) &&
-        f.attrs == Map("Number" -> "A",
-          "Type" -> "Integer",
-          "Description" -> "Allele count in genotypes, for each ALT allele, in the same order as listed")))
+    assert(vas.fieldOption("info", "AC").exists(f => f.typ == TArray(TInt32()) || f.typ == TArray(!TInt32())))
     assert(acQuery(variantAnnotationMap(firstVariant)) == IndexedSeq(89))
     assert(acQuery(variantAnnotationMap(anotherVariant)) == IndexedSeq(13))
 
     // type Boolean/flag - info.DB (dbSNP membership)
     val dbQuery = vas.query("info", "DB")
-    assert(vas.fieldOption("info", "DB").exists(f =>
-      f.typ.isInstanceOf[TBoolean]
-        && f.attrs == Map("Type" -> "Flag",
-        "Number" -> "0",
-        "Description" -> "dbSNP Membership")))
+    assert(vas.fieldOption("info", "DB").exists(_.typ.isInstanceOf[TBoolean]))
     assert(dbQuery(variantAnnotationMap(firstVariant)) == true)
     assert(dbQuery(variantAnnotationMap(anotherVariant)) == null)
 
     //type Set[String]
-
     val filtQuery = vas.query("filters")
-    assert(vas.fieldOption("filters").exists(f =>
-      (f.typ == TSet(TString()) || f.typ == TSet(!TString()))
-        && f.attrs.nonEmpty))
+    assert(vas.fieldOption("filters").exists(f => f.typ == TSet(TString()) || f.typ == TSet(!TString())))
     assert(filtQuery(variantAnnotationMap(firstVariant)) == Set())
     assert(filtQuery(variantAnnotationMap(anotherVariant)) == Set("VQSRTrancheSNP99.95to100.00"))
-
-    val vds2 = hc.importVCF("src/test/resources/sample2.vcf")
-    val vas2 = vds2.vaSignature
-
-    // Check that VDS can be written to disk and retrieved while staying the same
-    val f = tmpDir.createTempFile("sample", extension = ".vds")
-    vds2.write(f)
-    val readBack = hc.readVDS(f)
-
-    assert(readBack.same(vds2))
-
-    //Check that adding attributes to FILTERS / INFO outputs the correct Number/Description
-    val vds_attr = vds
-      .setVaAttributes("va.filters", Map("testFilter" -> "testFilterDesc"))
-      .setVaAttributes("va.info.MQ", Map("Number" -> ".", "Description" -> "testMQ", "foo" -> "bar"))
-
-    assert(vds_attr.vaSignature.fieldOption("filters")
-      .map(f => f.attrs.getOrElse("testFilter", "") == "testFilterDesc")
-      .getOrElse(false))
-
-    assert(vds_attr.vaSignature.fieldOption(List("info", "MQ"))
-      .map(f => f.attrs.getOrElse("foo", "") == "bar")
-      .getOrElse(false))
-    assert(vds_attr.vaSignature.fieldOption(List("info", "MQ"))
-      .map(f => f.attrs.getOrElse("Description", "") == "testMQ")
-      .getOrElse(false))
-    assert(vds_attr.vaSignature.fieldOption(List("info", "MQ"))
-      .map(f => f.attrs.getOrElse("Number", "") == ".")
-      .getOrElse(false))
-
-
-    // Write VCF and check that annotaions are the same
-    val f2 = tmpDir.createTempFile("sample2", extension = ".vds")
-    vds_attr.write(f2)
-    val readBack_attr = hc.readVDS(f2)
-
-    assert(readBack_attr.same(vds_attr))
   }
 
   @Test def testReadWrite() {
@@ -337,48 +277,6 @@ class AnnotationsSuite extends SparkSuite {
     assert(vds.vaSignature.schema == toAdd8Sig.schema)
     assert(vds.variantsAndAnnotations.collect()
       .forall { case (v, va) => va == "dummy" })
-  }
-
-  @Test def testAttributeOperations() {
-
-    /*
-      This test method performs a number of attribute annotation operations on a vds, and ensures that the signatures
-      and annotations in the RDD elements are what is expected after each step.
-    */
-
-    var vds = hc.importVCF("src/test/resources/sample.vcf").cache()
-
-    vds = vds.setVaAttributes("va.info.DP", Map("new_key" -> "new_value"))
-    var infoAttr = vds.vaSignature.asInstanceOf[TStruct]
-      .fieldOption(Parser.parseAnnotationRoot("va.info.DP", Annotation.VARIANT_HEAD))
-      .map(_.attrs)
-      .getOrElse(Map[String,String]())
-    assert(infoAttr.getOrElse("new_key", "missing_value") == "new_value")
-
-    vds = vds.setVaAttributes("va.info.DP", Map("new_key" -> "modified_value"))
-    infoAttr = vds.vaSignature.asInstanceOf[TStruct]
-      .fieldOption(Parser.parseAnnotationRoot("va.info.DP", Annotation.VARIANT_HEAD))
-      .map(_.attrs)
-      .getOrElse(Map[String,String]())
-    assert(infoAttr.getOrElse("new_key", "missing_value") == "modified_value")
-
-    vds = vds.setVaAttributes("va.info.DP", Map("key1" -> "value1", "key2" -> "value2"))
-    infoAttr = vds.vaSignature.asInstanceOf[TStruct]
-      .fieldOption(Parser.parseAnnotationRoot("va.info.DP", Annotation.VARIANT_HEAD))
-      .map(_.attrs)
-      .getOrElse(Map[String,String]())
-    assert(infoAttr.getOrElse("key1", "missing_value") == "value1")
-    assert(infoAttr.getOrElse("key2", "missing_value") == "value2")
-
-    vds = vds.deleteVaAttribute("va.info.DP", "new_key")
-    infoAttr = vds.vaSignature.asInstanceOf[TStruct]
-      .fieldOption(Parser.parseAnnotationRoot("va.info.DP", Annotation.VARIANT_HEAD))
-      .map(_.attrs)
-      .getOrElse(Map[String,String]())
-    assert(!infoAttr.contains("new_key"))
-
-    vds = vds.deleteVaAttribute("va.info.DP", "new_key")
-
   }
 
   @Test def testWeirdNamesReadWrite() {

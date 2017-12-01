@@ -520,19 +520,11 @@ object Parser extends JavaTokenParsers {
   def named_exprs[T](name: Parser[T]): Parser[Seq[(Option[T], AST, Boolean)]] =
     repsep(named_expr(name), ",")
 
-  def decorator: Parser[(String, String)] =
-    ("@" ~> (identifier <~ "=")) ~ stringLiteral ^^ { case name ~ desc =>
-      //    ("@" ~> (identifier <~ "=")) ~ stringLiteral("\"" ~> "[^\"]".r <~ "\"") ^^ { case name ~ desc =>
-      (name, desc)
-    }
-
-  def type_field: Parser[(String, Type, Map[String, String])] =
-    (identifier <~ ":") ~ type_expr ~ rep(decorator) ^^ { case name ~ t ~ decorators =>
-      (name, t, decorators.toMap)
-    }
+  def type_field: Parser[(String, Type)] =
+    (identifier <~ ":") ~ type_expr ^^ { case name ~ t => (name, t) }
 
   def type_fields: Parser[Array[Field]] = repsep(type_field, ",") ^^ {
-    _.zipWithIndex.map { case ((id, t, attrs), index) => Field(id, t, index, attrs) }
+    _.zipWithIndex.map { case ((id, t), index) => Field(id, t, index) }
       .toArray
   }
 

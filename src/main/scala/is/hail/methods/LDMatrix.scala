@@ -109,7 +109,7 @@ case class LDMatrix(hc: HailContext, matrix: IndexedRowMatrix, variants: Array[V
 
     hadoop.writeTextFile(uri + metadataRelativePath) { os =>
       jackson.Serialization.write(
-        LDMatrixMetadata(variants, nSamples, vTyp.toPrettyString(compact = true, printAttrs = true)),
+        LDMatrixMetadata(variants, nSamples, vTyp.toPrettyString(compact = true)),
         os)
     }
   }

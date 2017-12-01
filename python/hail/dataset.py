@@ -1453,8 +1453,9 @@ class VariantDataset(HistoryMixin):
     @write_history('output', parallel_write='parallel')
     @typecheck_method(output=strlike,
                       append_to_header=nullable(strlike),
-                      parallel=bool)
-    def export_vcf(self, output, append_to_header=None, parallel=False):
+                      parallel=bool,
+                      metadata=nullable(dictof(strlike, dictof(strlike, dictof(strlike, strlike)))))
+    def export_vcf(self, output, append_to_header=None, parallel=False, metadata=None):
         """Export variant dataset as a .vcf or .vcf.bgz file.
 
         .. include:: _templates/req_tvariant.rst
@@ -1499,7 +1500,15 @@ class VariantDataset(HistoryMixin):
 
         >>> vds.export_vcf('output/example_out.vcf')
 
-        The *example_out.vcf* header will contain the FORMAT, FILTER, and INFO lines present in *example.vcf*. However, it will *not* contain CONTIG lines or lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
+        The *example_out.vcf* header will contain FORMAT lines for each genotype field, CONTIG lines for the reference genome
+        of the dataset, and INFO lines for all fields in ``va.info``, but they
+        will have empty Description fields and the Number and Type fields will be determined from their corresponding Hail types.
+        To add a desired Description, Number, and/or Type to a FORMAT or INFO field or to specify FILTER lines, use the
+        ``metadata`` option to supply a dictionary with the relevant information.
+        See :py:class:`~hail.HailContext.get_vcf_metadata` for how this dictionary should be structured.
+
+
+        The *example_out.vcf* header will *not* contain lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
 
         .. caution::
 
@@ -1518,9 +1527,13 @@ class VariantDataset(HistoryMixin):
         :type append_to_header: str or None
 
         :param bool parallel: If true, return a set of VCF files (one per partition) rather than serially concatenating these files.
+
+        :param metadata: Dictionary with information to fill in the VCF header. See :py:class:`~hail.HailContext.get_vcf_metadata` for an example.
+        :type metadata: (dict of str to (dict of str to (dict of str to str))) or None
         """
 
-        self._jvds.exportVCF(output, joption(append_to_header), parallel)
+        typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
+        self._jvds.exportVCF(output, joption(append_to_header), parallel, joption(typ._convert_to_j(metadata)))
 
     @handle_py4j
     @write_history('output', is_dir=True)
@@ -4514,138 +4527,6 @@ class VariantDataset(HistoryMixin):
 
         js = self._jvds.summarize()
         return Summary._from_java(js)
-
-    @handle_py4j
-    @record_method
-    @typecheck_method(ann_path=strlike,
-                      attributes=dictof(strlike, strlike))
-    def set_va_attributes(self, ann_path, attributes):
-        """Sets attributes for a variant annotation.
-        Attributes are key/value pairs that can be attached to a variant annotation field.
-
-        The following attributes are read from the VCF header when importing a VCF and written
-        to the VCF header when exporting a VCF:
-
-        - INFO fields attributes (attached to (`va.info.*`)):
-
-          - 'Number': The arity of the field. Can take values
-
-            - `0` (Boolean flag),
-            - `1` (single value),
-            - `R` (one value per allele, including the reference),
-            - `A` (one value per non-reference allele),
-            - `G` (one value per genotype), and
-            - `.` (any number of values)
-
-              - When importing: The value in read from the VCF INFO field definition
-              - When exporting: The default value is `0` for **Boolean**, `.` for **Arrays** and 1 for all other types
-
-            - 'Description' (default is '')
-
-        - FILTER entries in the VCF header are generated based on the attributes
-          of `va.filters`.  Each key/value pair in the attributes will generate
-          a FILTER entry in the VCF with ID = key and Description = value.
-
-        **Examples**
-
-        Consider the following command which adds a filter and an annotation to the VDS (we're assuming a split VDS for simplicity):
-
-        1) an INFO field `AC_HC`, which stores the allele count of high
-           confidence genotypes (DP >= 10, GQ >= 20) for each non-reference allele,
-
-        2) a filter `HardFilter` that filters all sites with the `GATK suggested hard filters <http://gatkforums.broadinstitute.org/gatk/discussion/2806/howto-apply-hard-filters-to-a-call-set>`__:
-
-           - For SNVs: QD < 2.0 || FS < 60 || MQ < 40 || MQRankSum < -12.5 || ReadPosRankSum < -8.0
-
-           - For Indels (and other complex): QD < 2.0 || FS < 200.0 || ReadPosRankSum < 20.0
-
-        >>> annotated_vds = vds.annotate_variants_expr([
-        ... 'va.info.AC_HC = gs.filter(g => g.dp >= 10 && g.gq >= 20).callStats(g => v).AC[1:]',
-        ... 'va.filters = if((v.altAllele.isSNP && (va.info.QD < 2.0 || va.info.FS < 60 || va.info.MQ < 40 || ' +
-        ... 'va.info.MQRankSum < -12.5 || va.info.ReadPosRankSum < -8.0)) || ' +
-        ... '(va.info.QD < 2.0 || va.info.FS < 200.0 || va.info.ReadPosRankSum < 20.0)) va.filters.add("HardFilter") else va.filters'])
-
-        If we now export this VDS as VCF, it would produce the following header (for these new fields):
-
-        .. code-block:: text
-
-            ##INFO=<ID=AC_HC,Number=.,Type=String,Description=""
-
-        This header doesn't contain all information that should be present in an optimal VCF header:
-        1) There is no FILTER entry for `HardFilter`
-        2) Since `AC_HC` has one entry per non-reference allele, its `Number` should be `A`
-        3) `AC_HC` should have a Description
-
-        We can fix this by setting the attributes of these fields:
-
-        >>> annotated_vds = (annotated_vds
-        ...     .set_va_attributes(
-        ...         'va.info.AC_HC',
-        ...         {'Description': 'Allele count for high quality genotypes (DP >= 10, GQ >= 20)',
-        ...          'Number': 'A'})
-        ...     .set_va_attributes(
-        ...         'va.filters',
-        ...         {'HardFilter': 'This site fails GATK suggested hard filters.'}))
-
-        Exporting the VDS with the attributes now prints the following header lines:
-
-        .. code-block:: text
-
-            ##INFO=<ID=test,Number=A,Type=String,Description="Allele count for high quality genotypes (DP >= 10, GQ >= 20)"
-            ##FILTER=<ID=HardFilter,Description="This site fails GATK suggested hard filters.">
-
-        :param str ann_path: Path to variant annotation beginning with `va`.
-
-        :param dict attributes: A str-str dict containing the attributes to set
-
-        :return: Annotated dataset with the attribute added to the variant annotation.
-        :rtype: :class:`.VariantDataset`
-
-        """
-
-        return VariantDataset(self.hc, self._jvds.setVaAttributes(ann_path, Env.jutils().javaMapToMap(attributes)))
-
-    @handle_py4j
-    @record_method
-    @typecheck_method(ann_path=strlike,
-                      attribute=strlike)
-    def delete_va_attribute(self, ann_path, attribute):
-        """Removes an attribute from a variant annotation field.
-        Attributes are key/value pairs that can be attached to a variant annotation field.
-
-        The following attributes are read from the VCF header when importing a VCF and written
-        to the VCF header when exporting a VCF:
-
-        - INFO fields attributes (attached to (`va.info.*`)):
-
-          - 'Number': The arity of the field. Can take values
-
-            - `0` (Boolean flag),
-            - `1` (single value),
-            - `R` (one value per allele, including the reference),
-            - `A` (one value per non-reference allele),
-            - `G` (one value per genotype), and
-            - `.` (any number of values)
-
-              - When importing: The value in read from the VCF INFO field definition
-              - When exporting: The default value is `0` for **Boolean**, `.` for **Arrays** and 1 for all other types
-
-            - 'Description' (default is '')
-
-        - FILTER entries in the VCF header are generated based on the attributes
-          of `va.filters`. Each key/value pair in the attributes will generate a
-          FILTER entry in the VCF with ID = key and Description = value.
-
-        :param str ann_path: Variant annotation path starting with 'va', period-delimited.
-
-        :param str attribute: The attribute to remove (key).
-
-        :return: Annotated dataset with the updated variant annotation without the attribute.
-        :rtype: :class:`.VariantDataset`
-
-        """
-
-        return VariantDataset(self.hc, self._jvds.deleteVaAttribute(ann_path, attribute))
 
     @handle_py4j
     @require_biallelic

@@ -110,14 +110,6 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
       s
     }
 
-    val finalType = newType match {
-      case t: TStruct =>
-        paths.foldLeft(t) { case (res, path) =>
-          res.setFieldAttributes(path, Map("Number" -> "A"))
-        }
-      case _ => newType
-    }
-
     val inserters = inserterBuilder.result()
 
     val aggregateOption = Aggregators.buildVariantAggregations(vsm.sparkContext, splitMatrixType, vsm.value.localValue, ec)
@@ -130,7 +122,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
     val localGAnnotator = splitmulti.gAnnotator
     val splitRowType = splitMatrixType.rowType
 
-    val newMatrixType = vsm.matrixType.copy(vaType = finalType)
+    val newMatrixType = vsm.matrixType.copy(vaType = newType)
     val newRowType = newMatrixType.rowType
 
     val newRDD2 = OrderedRDD2(
@@ -168,7 +160,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
           val newVA = inserters.zipWithIndex.foldLeft(va) { case (va, (inserter, i)) =>
             inserter(va, annotations.map(_ (i)): IndexedSeq[Any])
           }
-          rv2b.addAnnotation(finalType, newVA)
+          rv2b.addAnnotation(newType, newVA)
 
           rv2b.addField(localRowType, rv, 3) // gs
           rv2b.endStruct()
@@ -178,7 +170,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
         }
       })
 
-    vsm.copy2(rdd2 = newRDD2, vaSignature = finalType)
+    vsm.copy2(rdd2 = newRDD2, vaSignature = newType)
   }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {

@@ -990,16 +990,15 @@ class ExprSuite extends SparkSuite {
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
       sb.clear()
-      t.pretty(sb, compact = true, printAttrs = true)
+      t.pretty(sb, compact = true)
       val res = sb.result()
       val parsed = Parser.parseType(res)
       t == parsed
     })
     check(forAll { (t: Type) =>
       sb.clear()
-      t.pretty(sb, printAttrs = true)
+      t.pretty(sb)
       val res = sb.result()
-      //      println(res)
       val parsed = Parser.parseType(res)
       t == parsed
     })

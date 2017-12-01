@@ -797,8 +797,8 @@ class KeyTable(val hc: HailContext,
 
     val metadata = KeyTableMetadata(KeyTable.fileVersion,
       key,
-      signature.toPrettyString(printAttrs = true, compact = true),
-      Some(globalSignature.toPrettyString(printAttrs = true, compact = true)),
+      signature.toPrettyString(compact = true),
+      Some(globalSignature.toPrettyString(compact = true)),
       Some(JSONAnnotationImpex.exportAnnotation(globals, globalSignature)),
       rdd2.partitions.length)
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>

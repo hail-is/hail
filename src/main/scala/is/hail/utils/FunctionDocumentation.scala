@@ -156,39 +156,6 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
     sb.result()
   }
 
-  def emitField(sb: StringBuilder, fd: Field, prefix: Option[String]): Array[String] = {
-    val name = prefix match {
-      case Some(p) => s"$p.${ fd.name }"
-      case None => fd.name
-    }
-
-    val desc = fd.attr("desc") match {
-      case Some(d) => s"-- $d"
-      case None => ""
-    }
-
-    fd.typ match {
-      case f: TStruct =>
-        f.fields.flatMap(child => emitField(sb, child, Option(name))).toArray
-      case _ => Array(s" - **$name** (*${ fd.typ }*) $desc")
-    }
-  }
-
-  def emitAnnotation: String = {
-    val sb = new StringBuilder()
-    retType match {
-      case rt: TStruct =>
-        if (rt.fields.nonEmpty) {
-          val fields = rt.fields.flatMap(fd => emitField(sb, fd, None)).map(s => "\t" + s.replaceAll("\\?", "").replaceAll("!",""))
-          val output = (Array(".. container:: annotation\n") ++ fields).map(s => "\t" + s).mkString("\n")
-
-          sb.append(output)
-        }
-      case _ =>
-    }
-    sb.result()
-  }
-
   def emitHeaderSymbol = {
     require(nArgs == 2)
     val arg1 = args(0)
@@ -238,11 +205,6 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
       sb.append(emitHeader)
     else
       sb.append(emitHeaderSymbol)
-
-    if (hasAnnotation) {
-      sb.append("\n\n")
-      sb.append(emitAnnotation)
-    }
 
     if (nLinesDocstring == 0)
       sb.append("\n\n")

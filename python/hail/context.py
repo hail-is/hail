@@ -5,7 +5,7 @@ from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
 from hail.dataset import VariantDataset
-from hail.typ import Type, TInt64
+from hail.typ import Type, TInt64, TDict, TString
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
@@ -635,6 +635,46 @@ class HailContext(HistoryMixin):
         return VariantDataset(
             self,
             self._jhc.read(path, drop_samples, drop_variants))
+
+    @handle_py4j
+    @typecheck_method(path=oneof(strlike, listof(strlike)))
+    def get_vcf_metadata(self, path):
+        """Extract metadata from VCF header.
+
+        **Examples**
+
+        >>> metadata = hc.get_vcf_metadata('data/example2.vcf.bgz')
+
+        **Notes**
+
+        This method parses the VCF header to extract the `ID`, `Number`, `Type`, and `Description` fields
+        from FORMAT and INFO lines as well as `ID` and `Description` for FILTER lines. For example, given the
+        following header lines:
+
+        .. code-block:: text
+
+            ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+            ##FILTER=<ID=LowQual,Description="Low quality">
+            ##INFO=<ID=MQ,Number=1,Type=Float,Description="RMS Mapping Quality">
+
+        The resulting Python dictionary returned would be
+
+        .. code-block:: python
+
+            metadata = {'format': {'DP': {'Number': '1', 'Type': 'Integer', 'Description': 'Read Depth'}},
+                        'filter': {'LowQual': {'Description': 'Low quality'}},
+                        'info': {'MQ': {'Number': '1', 'Type': 'Float', 'Description': 'RMS Mapping Quality'}}}
+
+        which can be used with :py:class:`~hail.VariantDataset.export_vcf` to fill in the relevant fields in the header.
+
+        :param path: VCF file(s) to read. If more than one file is given, the first file is used.
+        :type path: str or list of str
+
+        :rtype: (dict of str to (dict of str to (dict of str to str)))
+        """
+
+        typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
+        return typ._convert_to_py(self._jhc.parseVCFMetadata(jindexed_seq_args(path)))
 
     @handle_py4j
     @record_method

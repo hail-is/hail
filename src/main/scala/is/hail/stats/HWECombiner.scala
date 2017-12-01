@@ -6,10 +6,7 @@ import is.hail.utils._
 import is.hail.variant.Genotype
 
 object HWECombiner {
-  def signature = TStruct(Array(
-    ("rExpectedHetFrequency", TFloat64(), "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
-    ("pHWE", TFloat64(), "p-value")
-  ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  def signature = TStruct("rExpectedHetFrequency" -> TFloat64(), "pHWE" -> TFloat64())
 }
 
 class HWECombiner extends Serializable {

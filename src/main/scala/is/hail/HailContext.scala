@@ -442,6 +442,14 @@ class HailContext private(val sc: SparkContext,
   def readRows(path: String, t: TStruct, nPartitions: Int): RDD[RegionValue] =
     readPartitions(path, nPartitions, HailContext.readRowsPartition(t))
 
+  def parseVCFMetadata(files: Seq[String]): Map[String, Map[String, Map[String, String]]] =
+    parseVCFMetadata(files.head)
+
+  def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
+    val reader = new HtsjdkRecordReader(Set.empty)
+    LoadVCF.parseHeaderMetadata(this, reader, file)
+  }
+
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,

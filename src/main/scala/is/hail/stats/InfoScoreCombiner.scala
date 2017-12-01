@@ -6,10 +6,7 @@ import is.hail.utils._
 import is.hail.variant.Genotype
 
 object InfoScoreCombiner {
-  def signature = TStruct(Array(
-    ("score", TFloat64(), "IMPUTE info score"),
-    ("nIncluded", TInt32(), "Number of samples with non-missing genotype probability distribution")
-  ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  def signature = TStruct("score" -> TFloat64(), "nIncluded" -> TInt32())
 }
 
 class InfoScoreCombiner extends Serializable {
