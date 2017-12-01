@@ -19,7 +19,7 @@ Variant Dataset (VDS)
 
 Hail represents a genetic data set as a matrix where the rows are keyed by
 :ref:`variant(gr)` objects, the columns are keyed by samples, and each cell is a
-:ref:`genotype` object. :ref:`variant(gr)` objects and :ref:`genotype` objects each
+genotype object. :ref:`variant(gr)` objects and genotype objects each
 have methods to access attributes such as chromosome name and genotype call.
 Although this representation is similar to the VCF format, Hail uses a fast and
 storage-efficient internal representation called a Variant Dataset (**VDS**).
@@ -209,26 +209,26 @@ The ``map`` function takes a lambda expression as input (``g => ...``). The ``fi
 
     ::
 
-        va.gqStats = gs.map(g => g.gq).stats()
+        va.gqStats = gs.map(g => g.GQ).stats()
 
- - Filter the genotype aggregable based on case status (``sa.pheno.isCase``) and genotype call (``g.isHet`` and ``g.isHomVar``) and then count the number of elements remaining
+ - Filter the genotype aggregable based on case status (``sa.pheno.isCase``) and genotype call (``g.GT.isHet`` and ``g.GT.isHomVar``) and then count the number of elements remaining
 
     ::
 
-        va.caseMAC = gs.filter(g => sa.pheno.isCase && g.isHet).count() +
-                 2 * gs.filter(g => sa.pheno.isCase && g.isHomVar).count()
+        va.caseMAC = gs.filter(g => sa.pheno.isCase && g.GT.isHet).count() +
+                 2 * gs.filter(g => sa.pheno.isCase && g.GT.isHomVar).count()
 
  - Define a filtered genotype aggregable from cases (``sa.pheno.isCase``) using the ``let..in`` syntax and then use the case-only genotype aggregable to calculate the fraction of genotypes called
 
     ::
 
-        va.caseCallRate = let caseGS = gs.filter(g => sa.pheno.isCase) in caseGS.fraction(g => g.isCalled)
+        va.caseCallRate = let caseGS = gs.filter(g => sa.pheno.isCase) in caseGS.fraction(g => isDefined(g.GT))
 
- - Count the number of genotypes remaining after filtering the genotype aggregable to genotypes with a variant allele (``g.isCalledNonRef``) and then create a boolean variable by comparing the result to 1
+ - Count the number of genotypes remaining after filtering the genotype aggregable to genotypes with a variant allele (``g.GT.isNonRef``) and then create a boolean variable by comparing the result to 1
 
     ::
 
-        va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1
+        va.isSingleton = gs.filter(g => g.GT.isNonRef).count() == 1
 
 Sample Annotation Computed from a Genotype Aggregable (gs)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -237,23 +237,23 @@ In the context of creating new sample annotations, a genotype aggregable (``gs``
 The result of evaluating the genotype aggregable expression per column is added to the corresponding sample annotation.
 The ``map`` function takes a lambda expression as input (``g => ...``). The ``filter`` function takes a boolean lambda expression as input (``g => Boolean Expression``).
 
- - Filter the genotype aggregable to only genotypes that have a heterozygote call (``g.isHet``) and count the number of elements remaining
+ - Filter the genotype aggregable to only genotypes that have a heterozygote call (``g.GT.isHet``) and count the number of elements remaining
 
     ::
 
-        sa.numHet = gs.filter(g => g.isHet).count()
+        sa.numHet = gs.filter(g => g.GT.isHet).count()
 
- - Count the number of elements remaining after filtering the genotype aggregable to only genotypes where the corresponding variant annotation is True for ``isSingleton`` and the genotype call has a variant allele (``g.isCalledNonRef``)
-
-    ::
-
-        sa.nSingletons = gs.filter(g => va.isSingleton && g.isCalledNonRef).count()
-
- - Count the fraction of genotypes per sample where the genotype call is defined ``g.isCalled``
+ - Count the number of elements remaining after filtering the genotype aggregable to only genotypes where the corresponding variant annotation is True for ``isSingleton`` and the genotype call has a variant allele (``g.GT.isNonRef``)
 
     ::
 
-        sa.callRate = gs.fraction(g => g.isCalled)
+        sa.nSingletons = gs.filter(g => va.isSingleton && g.GT.isNonRef).count()
+
+ - Count the fraction of genotypes per sample where the genotype call is defined ``isDefined(g.GT)``
+
+    ::
+
+        sa.callRate = gs.fraction(g => isDefined(g.GT))
 
 Global Annotation Computed from a Sample Aggregable (samples)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

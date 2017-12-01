@@ -9,7 +9,7 @@ from hail2.context import HailContext
 from hail2.expr.functions import *
 from hail.typ import *
 from hail2.keytable import KeyTable
-from hail2.expr.column import VariantColumn, LocusColumn, IntervalColumn, GenotypeColumn
+from hail2.expr.column import VariantColumn, LocusColumn, IntervalColumn
 from hail.representation.genomeref import GenomeReference
 
 hc = None
@@ -171,17 +171,17 @@ class KeyTableTests(unittest.TestCase):
         self.assertEqual(kt.select(False, kt.a, *kt.g, foo=kt.a + kt.b - kt.c - kt.d).columns, ['a', 'x', 'y', 'foo'])
 
     def test_aggregate(self):
-        schema = TStruct(['status', 'gt', 'qPheno'],
-                         [TInt32(), TGenotype(), TInt32()])
+        schema = TStruct(['status', 'GT', 'qPheno'],
+                         [TInt32(), TCall(), TInt32()])
 
-        rows = [{'status':0, 'gt': Genotype(0), 'qPheno': 3},
-                {'status':0, 'gt': Genotype(1), 'qPheno': 13},
-                {'status':1, 'gt': Genotype(1), 'qPheno': 20}]
+        rows = [{'status':0, 'GT': Call(0), 'qPheno': 3},
+                {'status':0, 'GT': Call(1), 'qPheno': 13},
+                {'status':1, 'GT': Call(1), 'qPheno': 20}]
 
         kt = KeyTable.parallelize(rows, schema)
 
         g = kt.group_by(status = kt.status)
-        result = convert_struct_to_dict(g.aggregate_by_key(
+        result = g.aggregate_by_key(
             x1 = g.qPheno.map(lambda x, _: x * 2).collect(),
             x2 = g.qPheno.flat_map(lambda x, _: [x, x + 1]).collect(),
             x3 = g.qPheno.min(),
@@ -192,24 +192,25 @@ class KeyTableTests(unittest.TestCase):
             x8 = g.qPheno.filter(lambda x, _: x == 3).count(),
             x9 = g.qPheno.fraction(lambda x, _: x == 1),
             x10 = g.qPheno.map(lambda x, _: x.to_float64()).stats(),
-            x11 = g.gt.hardy_weinberg(),
-            x13 = g.gt.inbreeding(lambda x, _: 0.1),
-            x14 = g.gt.call_stats(lambda g, _: Variant("1", 10000, "A", "T")),
-            x15 = g.gt.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})})).collect()[0],
-            x16 = (g.gt.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})}))
+            x11 = g.GT.hardy_weinberg(),
+            x13 = g.GT.inbreeding(lambda x, _: 0.1),
+            x14 = g.GT.call_stats(lambda g, _: Variant("1", 10000, "A", "T")),
+            x15 = g.GT.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})})).collect()[0],
+            x16 = (g.GT.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})}))
                    .map(lambda s, _: s.c.banana).collect()[0]),
             num_partitions=5
-        ).to_hail1().take(1)[0])
+        ).to_hail1().collect()
+        result = result[0]
+        result = convert_struct_to_dict(result)
 
-        expected = {'status': 0, 'x1': [6, 26], 'x2': [3, 4, 13, 14],
-                    'x3': 3, 'x4': 13, 'x5': 16, 'x6': 39, 'x7': 2, 'x8': 1,
-                    'x9': 0.0, 'x10': {'mean': 8, 'stdev': 5, 'min': 3, 'max': 13, 'nNotMissing': 2, 'sum': 16},
-                    'x11': {'rExpectedHetFrequency': 1.0, 'pHWE': 0.5},
-                    'x13': {'nCalled': 1, 'expectedHoms': 0.82, 'Fstat': -4.5555555555555545, 'nTotal': 2, 'observedHoms': 0},
-                    'x14': {'AC': [1, 1], "AF": [0.5, 0.5], "GC": [0, 1, 0], "AN": 2},
-                    'x15': {'a': 5, 'b': 'foo', 'c': {'banana': 'apple'}},
-                    'x16': 'apple'}
-
+        expected = {u'status': 0,
+                    u'x13': {u'nCalled': 2L, u'expectedHoms': 1.64, u'Fstat': -1.777777777777777, u'nTotal': 2L, u'observedHoms': 1L},
+                    u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'GC': [1, 1, 0], u'AN': 4},
+                    u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
+                    u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'nNotMissing': 2L, u'mean': 8.0},
+                    u'x8': 1L, u'x9': 0.0, u'x16': u'apple',
+                    u'x11': {u'rExpectedHetFrequency': 0.5, u'pHWE': 0.5},
+                    u'x2': [3, 4, 13, 14], u'x3': 3, u'x1': [6, 26], u'x6': 39L, u'x7': 2L, u'x4': 13, u'x5': 16}
         self.assertDictEqual(result, expected)
 
 
@@ -226,7 +227,7 @@ class DatasetTests(unittest.TestCase):
 
     def test_update(self):
         vds = self.get_vds()
-        vds = vds.update_genotypes(lambda g: Struct({'dp': g.dp, 'gq': g.gq}))
+        vds = vds.update_genotypes(lambda g: Struct({'dp': g.DP, 'gq': g.GQ}))
         vds_old = vds.to_hail1()
         self.assertTrue(schema_eq(vds_old.genotype_schema, TStruct(['dp', 'gq'], [TInt32(), TInt32()])))
 
@@ -265,9 +266,14 @@ class DatasetTests(unittest.TestCase):
         self.assertTrue(schema_eq(vds.sample_schema, expected_schema),
                         "expected: " + str(vds.sample_schema) + "\nactual: " + str(expected_schema))
 
-        vds = vds.annotate_genotypes(x1 =vds.va.x1 + vds.globals.foo,
+        orig_genotype_schema = vds.genotype_schema
+        vds = vds.annotate_genotypes(x1 = vds.va.x1 + vds.globals.foo,
                                      x2 = vds.va.x1 + vds.sa.x1 + vds.globals.foo)
-        self.assertTrue(schema_eq(vds.genotype_schema, TStruct(['x1', 'x2'], [TInt64(), TInt64()])))
+        expected_fields = [(fd.name, fd.typ) for fd in orig_genotype_schema.fields] + \
+                          [('x1', TInt64()),
+                           ('x2', TInt64())]
+        expected_schema = TStruct(*[list(x) for x in zip(*expected_fields)])
+        self.assertTrue(schema_eq(vds.genotype_schema, expected_schema))
 
     def test_filter(self):
         vds = self.get_vds()
@@ -276,7 +282,7 @@ class DatasetTests(unittest.TestCase):
                .annotate_global(foo = 5)
                .annotate_variants(x1 = vds.gs.count())
                .annotate_samples(x1 = vds.gs.count())
-               .annotate_genotypes(x1 = vds.g.dp))
+               .annotate_genotypes(x1 = vds.g.DP))
 
         (vds
          .filter_variants((vds.va.x1 == 5) & (vds.gs.count() == 3) & (vds.globals.foo == 2))
@@ -291,7 +297,7 @@ class DatasetTests(unittest.TestCase):
                .annotate_global(foo = 5)
                .annotate_variants(x1 = vds.gs.count())
                .annotate_samples(x1 = vds.gs.count())
-               .annotate_genotypes(x1 = vds.g.dp))
+               .annotate_genotypes(x1 = vds.g.DP))
 
         vds_agg = vds.aggregate()
         qv = vds_agg.query_variants(vds_agg.variants.map(lambda v, _: v).count())
@@ -513,12 +519,10 @@ class ColumnTests(unittest.TestCase):
                          i2 = IntervalColumn.from_args("1", 51, 56, reference_genome=rg),
                          i3 = IntervalColumn.from_loci(LocusColumn.from_args("1", 51, reference_genome=rg), LocusColumn.from_args("1", 56, reference_genome=rg)))
 
-        kt = kt.annotate(g1 = GenotypeColumn.from_call(CallColumn.from_int32(1)),
-                         g2 = GenotypeColumn.pl_genotype(kt.v1, CallColumn.from_int32(1), [6, 7], 13, 20, [20, 0, 1000]))
+        kt = kt.annotate(c1 = CallColumn.from_int32(1))
 
         expected_schema = {'a': TFloat64(), 'b': TFloat64(), 'c': TInt32(), 'd': TInt64(), 'v1': TVariant(rg),
                            'v2': TVariant(rg), 'v3': TVariant(rg), 'l1': TLocus(), 'l2': TLocus(rg), 'i1': TInterval(rg),
-                           'i2': TInterval(rg), 'i3': TInterval(rg), 'g1': TGenotype(), 'g2': TGenotype(), 'g3': TGenotype(),
-                           'g4': TGenotype()}
+                           'i2': TInterval(rg), 'i3': TInterval(rg), 'c1': TCall()}
 
         self.assertTrue(all([expected_schema[fd.name] == fd.typ for fd in kt.schema.fields]))

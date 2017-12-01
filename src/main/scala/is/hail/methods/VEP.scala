@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Genotype, Locus, Variant, VariantSampleMatrix}
+import is.hail.variant.{Locus, Variant, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
@@ -394,7 +394,7 @@ object VEP {
 
     val (newVASignature, insertVEP) = vsm.vaSignature.insert(if (csq) TArray(TString()) else vepSignature, parsedRoot)
 
-    val newRDD = vsm.typedRDD[Locus, Variant, Annotation]
+    val newRDD = vsm.typedRDD[Locus, Variant]
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
         left.sortedLeftJoinDistinct(right)
           .map { case (v, ((va, gs), a)) => (v, (insertVEP(va, a.orNull), gs)) }

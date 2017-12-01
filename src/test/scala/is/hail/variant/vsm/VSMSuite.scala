@@ -304,7 +304,7 @@ class VSMSuite extends SparkSuite {
     forAll(g) { case (vsm, k) =>
       val coalesced = vsm.coalesce(k)
       val n = coalesced.nPartitions
-      VSMSuite.checkOrderedRDD(coalesced.typedRDD[Locus, Variant, Genotype]) && vsm.same(coalesced) && n <= k
+      VSMSuite.checkOrderedRDD(coalesced.typedRDD[Locus, Variant]) && vsm.same(coalesced) && n <= k
     }.check()
   }
 
@@ -317,7 +317,7 @@ class VSMSuite extends SparkSuite {
     forAll(g) { case (vsm, k) =>
       val coalesced = vsm.naiveCoalesce(k)
       val n = coalesced.nPartitions
-      VSMSuite.checkOrderedRDD(coalesced.typedRDD[Locus, Variant, Genotype]) && vsm.same(coalesced) && n <= k
+      VSMSuite.checkOrderedRDD(coalesced.typedRDD[Locus, Variant]) && vsm.same(coalesced) && n <= k
     }.check()
   }
 
@@ -414,7 +414,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testQueryGenotypes() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-    vds.queryGenotypes("gs.map(g => g.gq).hist(0, 100, 100)")
+    vds.queryGenotypes("gs.map(g => g.GQ).hist(0, 100, 100)")
   }
 
   @Test def testReorderSamples() {
@@ -425,9 +425,9 @@ class VSMSuite extends SparkSuite {
     val filteredVds = vds.filterSamplesList(origOrder.toSet)
     val reorderedVds = filteredVds.reorderSamples(newOrder)
 
-    def getGenotypes(vds: VariantDataset): RDD[((Variant, Annotation), Genotype)] = {
+    def getGenotypes(vds: VariantSampleMatrix): RDD[((Variant, Annotation), Annotation)] = {
       val sampleIds = vds.sampleIds
-      vds.typedRDD[Locus, Variant, Genotype].flatMap { case (v, (_, gs)) =>
+      vds.typedRDD[Locus, Variant].flatMap { case (v, (_, gs)) =>
         gs.zip(sampleIds).map { case (g, s) =>
           ((v, s), g)
         }

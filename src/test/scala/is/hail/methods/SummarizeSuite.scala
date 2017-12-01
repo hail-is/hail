@@ -12,7 +12,7 @@ class SummarizeSuite extends SparkSuite {
 
     val summary = vds.summarize()
 
-    assert(D_==(summary.callRate.get, vds.queryGenotypes("gs.fraction(g => g.isCalled())")._1.asInstanceOf[Double]))
+    assert(D_==(summary.callRate.get, vds.queryGenotypes("gs.fraction(g => isDefined(g.GT))")._1.asInstanceOf[Double]))
     assert(summary.multiallelics ==
       vds.queryVariants("variants.filter(v => v.nAlleles() > 2).count()")._1)
     assert(summary.complex ==

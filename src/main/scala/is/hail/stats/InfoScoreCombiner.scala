@@ -3,7 +3,6 @@ package is.hail.stats
 import is.hail.annotations.Annotation
 import is.hail.expr.{Field, TFloat64, TInt32, TStruct}
 import is.hail.utils._
-import is.hail.variant.Genotype
 
 object InfoScoreCombiner {
   def signature = TStruct("score" -> TFloat64(), "nIncluded" -> TInt32())

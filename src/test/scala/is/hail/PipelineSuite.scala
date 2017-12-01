@@ -20,7 +20,8 @@ class PipelineSuite extends SparkSuite {
       .sampleQC()
       .variantQC()
 
-    qc.mendelErrors(Pedigree.read("src/test/resources/sample.fam", hadoopConf))._1.export(mendelBase)
+    val pedigree = Pedigree.read("src/test/resources/sample.fam", hadoopConf)
+    qc.mendelErrors(pedigree)._1.export(mendelBase)
     qc.count()
     qc.filterVariantsExpr("va.qc.AF > 0.01 && va.qc.AF < 0.99")
       .pca("sa.scores")

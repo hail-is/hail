@@ -10,6 +10,7 @@ import is.hail.check.{Gen, Prop}
 import is.hail.expr.Type
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -133,7 +134,9 @@ class GRMSuite extends SparkSuite {
     Prop.check(forAll(
       VSMSubgen.realistic.copy(
         vGen = _ => VariantSubgen.plinkCompatible.gen,
-        tGen = (t: Type, v: Annotation) => VSMSubgen.realistic.tGen(t, v).filter(g => Genotype.isCalled(g.asInstanceOf[Genotype])))
+        tGen = (t: Type, v: Annotation) => VSMSubgen.realistic.tGen(t, v).filter { g =>
+          Genotype.unboxedGT(g) != -1
+        })
         .gen(hc)
         .map(_.splitMulti())
         // plink fails with fewer than 2 samples, no variants

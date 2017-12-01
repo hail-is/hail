@@ -466,7 +466,7 @@ class HWEAggregator() extends TypedAggregator[Annotation] {
 
   def seqOp(x: Any) {
     if (x != null)
-      _state.merge(x.asInstanceOf[Genotype])
+      _state.merge(x.asInstanceOf[Call])
   }
 
   def combOp(agg2: this.type) {
@@ -637,35 +637,32 @@ class CallStatsAggregator(variantF: (Any) => Any)
         combiner = new CallStatsCombiner(v.asInstanceOf[Variant])
     }
 
-    if (combiner != null) {
-      if (x != null)
-        combiner.merge(x.asInstanceOf[Genotype])
-    }
-  }
-
-  def merge(x: Genotype) {
-    combiner.merge(x)
+    if (combiner != null)
+      combiner.merge(x.asInstanceOf[Call])
   }
 
   def combOp(agg2: this.type) {
-    combiner.merge(agg2.combiner)
+    if (agg2.combiner != null) {
+      if (combiner == null)
+        combiner = new CallStatsCombiner(agg2.combiner.v)
+      combiner.merge(agg2.combiner)
+    }
   }
 
   def copy() = new CallStatsAggregator(variantF)
 }
 
-class InbreedingAggregator(getAF: (Genotype) => Any) extends TypedAggregator[Annotation] {
-
+class InbreedingAggregator(getAF: (Call) => Any) extends TypedAggregator[Annotation] {
   var _state = new InbreedingCombiner()
 
   def result = _state.asAnnotation
 
   def seqOp(x: Any) = {
     if (x != null) {
-      val g = x.asInstanceOf[Genotype]
-      val af = getAF(g)
+      val gt = x.asInstanceOf[Call]
+      val af = getAF(gt)
       if (af != null)
-        _state.merge(x.asInstanceOf[Genotype], af.asInstanceOf[Double])
+        _state.merge(gt, af.asInstanceOf[Double])
     }
   }
 

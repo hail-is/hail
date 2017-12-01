@@ -10,7 +10,7 @@ column
     :nosignatures:
 
     AggregableColumn
-    AggregableGenotypeColumn
+    AggregableCallColumn
     AggregableFloat32Column
     AggregableFloat64Column
     AggregableInt32Column
@@ -39,7 +39,6 @@ column
     DictColumn
     Float32Column
     Float64Column
-    GenotypeColumn
     Int32Column
     Int64Column
     IntervalColumn
@@ -59,7 +58,7 @@ column
 .. autoclass:: hail2.expr.column.AggregableColumn
     :show-inheritance:
 
-.. autoclass:: hail2.expr.column.AggregableGenotypeColumn
+.. autoclass:: hail2.expr.column.AggregableCallColumn
     :show-inheritance:
 
 .. autoclass:: hail2.expr.column.AggregableFloat32Column
@@ -144,9 +143,6 @@ column
     :show-inheritance:
 
 .. autoclass:: hail2.expr.column.Float64Column
-    :show-inheritance:
-
-.. autoclass:: hail2.expr.column.GenotypeColumn
     :show-inheritance:
 
 .. autoclass:: hail2.expr.column.Int32Column

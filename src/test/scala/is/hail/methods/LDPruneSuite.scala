@@ -2,10 +2,10 @@ package is.hail.methods
 
 import breeze.linalg.{Vector => BVector}
 import is.hail.SparkSuite
-import is.hail.annotations.{MemoryBuffer, RegionValue, RegionValueBuilder}
+import is.hail.annotations.{Annotation, MemoryBuffer, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.{TArray, TGenotype, TLocus, TStruct, TVariant}
+import is.hail.expr.{TArray, TLocus, TStruct, TVariant}
 import is.hail.stats.RegressionUtils
 import is.hail.variant._
 import is.hail.utils._
@@ -15,9 +15,9 @@ class LDPruneSuite extends SparkSuite {
   val bytesPerCore = 256L * 1024L * 1024L
   val nCores = 4
 
-  def convertGtsToGs(gts: Array[Int]): Iterable[Genotype] = gts.map(Genotype(_)).toIterable
+  def convertGtsToGs(gts: Array[Int]): Iterable[Annotation] = gts.map(Genotype(_)).toIterable
 
-  def correlationMatrix(gts: Array[Iterable[Genotype]], nSamples: Int) = {
+  def correlationMatrix(gts: Array[Iterable[Annotation]], nSamples: Int) = {
     val bvi = gts.map { gs => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples) }
     val r2 = for (i <- bvi.indices; j <- bvi.indices) yield {
       (bvi(i), bvi(j)) match {
@@ -32,7 +32,7 @@ class LDPruneSuite extends SparkSuite {
 
   def isUncorrelated(vds: VariantDataset, r2Threshold: Double, windowSize: Int): Boolean = {
     val nSamplesLocal = vds.nSamples
-    val r2Matrix = correlationMatrix(vds.typedRDD[Variant, Locus, Genotype].map { case (v, (va, gs)) => gs }.collect(), nSamplesLocal)
+    val r2Matrix = correlationMatrix(vds.typedRDD[Locus, Variant].map { case (v, (va, gs)) => gs }.collect(), nSamplesLocal)
     val variantMap = vds.variants.zipWithIndex().map { case (v, i) => (i.toInt, v.asInstanceOf[Variant]) }.collectAsMap()
 
     r2Matrix.indices.forall { case (i, j) =>
@@ -157,17 +157,18 @@ class LDPruneSuite extends SparkSuite {
           "pk" -> TLocus(GenomeReference.GRCh37),
           "v" -> TVariant(GenomeReference.GRCh37),
           "va" -> TStruct(),
-          "gs" -> TArray(TGenotype())
+          "gs" -> TArray(Genotype.htsGenotypeType)
         )
-        def makeRV(gs: Iterable[Genotype]): RegionValue = {
-          val gArr = gs.toArray
+
+        def makeRV(gs: Iterable[Annotation]): RegionValue = {
+          val gArr = gs.toIndexedSeq
           val rvb = new RegionValueBuilder(MemoryBuffer())
           rvb.start(rowType)
           rvb.startStruct()
           rvb.setMissing()
           rvb.setMissing()
           rvb.setMissing()
-          rvb.addAnnotation(TArray(TGenotype()), gArr: IndexedSeq[Genotype])
+          rvb.addAnnotation(TArray(Genotype.htsGenotypeType), gArr)
           rvb.endStruct()
           rvb.end()
           rvb.result()
@@ -217,7 +218,7 @@ class LDPruneSuite extends SparkSuite {
 
     // memory per core requirement
     intercept[HailException] {
-      val prunedVds = LDPrune(vds, nCores, r2Threshold =  0.2, windowSize = 1000, memoryPerCore = 0)
+      val prunedVds = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000, memoryPerCore = 0)
     }
 
     // r2 negative
@@ -264,11 +265,14 @@ class LDPruneSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
       .splitMulti()
     val nSamples = vds.nSamples
-    val filteredVds = vds.filterVariants{ case (v, va, gs) =>
-      v.asInstanceOf[Variant].isBiallelic &&
-        LDPrune.toBitPackedVector(gs.asInstanceOf[Iterable[Genotype]].hardCallIterator, nSamples).isDefined
-    }
-    val prunedVds = LDPrune(filteredVds, nCores, r2Threshold = 1, windowSize = 0, memoryPerCore = 200000)
-    assert(prunedVds.countVariants() == filteredVds.countVariants())
+    val filteredVDS = vds.copyLegacy(
+      genotypeSignature = Genotype.htsGenotypeType,
+      rdd = vds.typedRDD[Locus, Variant]
+        .filter { case (v, (va, gs)) =>
+          v.isBiallelic &&
+            LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples).isDefined
+        })
+    val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCore = 200000)
+    assert(prunedVDS.countVariants() == filteredVDS.countVariants())
   }
 }

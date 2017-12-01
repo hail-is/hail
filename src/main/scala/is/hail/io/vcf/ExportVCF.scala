@@ -198,21 +198,18 @@ object ExportVCF {
   def getAttributes(k1: String, k2: String, k3: String, attributes: Option[VCFMetadata]): Option[String] =
     getAttributes(k1, k2, attributes).flatMap(_.get(k3))
 
-  def apply(vsm0: VariantSampleMatrix, path: String, append: Option[String] = None,
+  def apply(vsm: VariantSampleMatrix, path: String, append: Option[String] = None,
     parallel: Boolean = false, metadata: Option[VCFMetadata] = None) {
-
-    vsm0.requireColKeyString("export_vcf")
-    vsm0.requireRowKeyVariant("export_vcf")
     
-    val vsm = vsm0.genotypeSignature match {
-      case TGenotype(_) =>
-        vsm0.annotateGenotypesExpr("g = {GT: Call(g.gt), AD: g.ad, DP: g.dp, GQ: g.gq, PL: g.pl}")
-          .copy2(genotypeSignature = TGenotype.representationWithVCFAttributes())
-      case t: TStruct => vsm0
-      case t => fatal(s"export_vcf requires g to have type TStruct, found $t")
+    vsm.requireColKeyString("export_vcf")
+    vsm.requireRowKeyVariant("export_vcf")
+    
+    val tg = vsm.genotypeSignature match {
+      case t: TStruct => t
+      case t =>
+        fatal(s"export_vcf requires g to have type TStruct, found $t")
     }
-    
-    val tg = vsm.genotypeSignature.asInstanceOf[TStruct]
+
     checkFormatSignature(tg)
         
     val formatFieldOrder: Array[Int] = tg.fieldIdx.get("GT") match {

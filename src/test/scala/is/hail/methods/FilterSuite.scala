@@ -5,14 +5,11 @@ import is.hail.expr._
 import is.hail.io.annotators.IntervalList
 import is.hail.utils._
 import is.hail.utils.TestRDDBuilder
-import is.hail.variant.Genotype
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
 class FilterSuite extends SparkSuite {
-
   @Test def filterTest() {
-
     val vds = hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()
 
@@ -59,14 +56,11 @@ class FilterSuite extends SparkSuite {
 
     assert(vQcVds.filterVariantsExpr("isDefined(va.qc.rHetHomVar)").countVariants() == 117)
 
-    val highGQ = vds.filterGenotypes("g.gq < 20", keep = false)
-      .expand()
-      .collect()
+    val highGQ = vds.filterGenotypes("g.GQ < 20", keep = false)
+    assert(!highGQ.genotypeKT().exists("g.GQ < 20"))
+    assert(highGQ.genotypeKT().count() == 30889)
 
-    assert(!highGQ.exists { case (v, s, g) => g != null && Genotype.gq(g.asInstanceOf[Genotype]).exists(_ < 20) })
-    assert(highGQ.count { case (v, s, g) => g != null && Genotype.gq(g.asInstanceOf[Genotype]).exists(_ >= 20) } == 30889)
-
-    val highGQorMidQGAndLowFS = vds.filterGenotypes("g.gq < 20 || (g.gq < 30 && va.info.FS > 30)", keep = false)
+    val highGQorMidQGAndLowFS = vds.filterGenotypes("g.GQ < 20 || (g.GQ < 30 && va.info.FS > 30)", keep = false)
       .expand()
       .collect()
 
@@ -74,33 +68,28 @@ class FilterSuite extends SparkSuite {
       .cache()
       .splitMulti()
 
-    assert(vds2.filterGenotypes("g.ad[0] < 30").expand().collect().count { case (v, va, g) => Genotype.isCalled(g.asInstanceOf[Genotype]) } == 3)
+    assert(vds2.filterGenotypes("g.AD[0] < 30").genotypeKT().count() == 3)
 
-    assert(vds2.filterGenotypes("g.ad[1].toFloat64() / g.dp > 0.05")
-      .expand().collect()
-      .count { case (v, va, g) => Genotype.isCalled(g.asInstanceOf[Genotype]) } == 3)
+    assert(vds2.filterGenotypes("g.AD[1].toFloat64() / g.DP > 0.05")
+        .genotypeKT()
+        .count() == 3)
 
-    val highGQ2 = vds2.filterGenotypes("g.gq < 20", keep = false)
+    val highGQ2 = vds2.filterGenotypes("g.GQ < 20", keep = false)
 
-    assert(!highGQ2.expand().collect().exists { case (v, s, g) => g != null && Genotype.gq(g.asInstanceOf[Genotype]).exists(_ < 20) })
+    assert(!highGQ2.genotypeKT().exists("g.GQ < 20"))
 
     val chr1 = vds2.filterVariantsExpr("v.contig == \"1\"")
 
-    assert(chr1.rdd.count == 9)
+    assert(chr1.countVariants() == 9)
+    assert(chr1.filterGenotypes("isDefined(g.GT)").genotypeKT().count() == 9 * 11 - 2)
 
-    assert(chr1.expand().collect().count { case (v, va, g) => Genotype.isCalled(g.asInstanceOf[Genotype]) } == 9 * 11 - 2)
+    val hetOrHomVarOnChr1 = chr1.filterGenotypes("g.GT.isHomRef()", keep = false)
 
-    val hetOrHomVarOnChr1 = chr1.filterGenotypes("g.isHomRef()", keep = false)
-      .expand()
-      .collect()
+    assert(hetOrHomVarOnChr1.filterGenotypes("isDefined(g.GT)").genotypeKT().count() == 9 + 3 + 3) // remove does not retain the 2 missing genotypes
 
-    assert(hetOrHomVarOnChr1.count { case (v, va, g) => Genotype.isCalled(g.asInstanceOf[Genotype]) } == 9 + 3 + 3) // remove does not retain the 2 missing genotypes
+    val homRefOnChr1 = chr1.filterGenotypes("g.GT.isHomRef()")
 
-    val homRefOnChr1 = chr1.filterGenotypes("g.isHomRef()")
-      .expand()
-      .collect()
-
-    assert(homRefOnChr1.count { case (v, va, g) => Genotype.isCalled(g.asInstanceOf[Genotype]) } == 9 * 11 - (9 + 3 + 3) - 2) // keep does not retain the 2 missing genotypes
+    assert(homRefOnChr1.genotypeKT().count() == 9 * 11 - (9 + 3 + 3) - 2) // keep does not retain the 2 missing genotypes
   }
 
   @Test def filterFromFileTest() {
@@ -161,17 +150,5 @@ class FilterSuite extends SparkSuite {
 
     TestUtils.interceptFatal("invalid escape character.*backtick identifier.*\\\\i")(
       vds.filterVariantsExpr("va.`bad\\input` == 5"))
-  }
-
-  @Test def testPAB() {
-    hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
-      .filterGenotypes("g.isHet() && g.pAB() > 0.0005")
-      .expand()
-      .collect()
-      .foreach { case (v, s, g1) =>
-        val g = g1.asInstanceOf[Genotype]
-        assert(Genotype.isHet(g) || Genotype.pAB(g).forall(_ > 0.0005))
-      }
   }
 }

@@ -120,13 +120,12 @@ class HailContext(HistoryMixin):
                       header_file=nullable(strlike),
                       min_partitions=nullable(integral),
                       drop_samples=bool,
-                      generic=bool,
                       call_fields=oneof(strlike, listof(strlike)),
                       reference_genome=nullable(GenomeReference))
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-                   drop_samples=False, generic=False, call_fields=[], reference_genome=None):
+                   drop_samples=False, call_fields=[], reference_genome=None):
         return self.hc1.import_vcf(path, force, force_bgz, header_file, min_partitions,
-                                   drop_samples, generic, call_fields, reference_genome).to_hail2()
+                                   drop_samples, call_fields, reference_genome).to_hail2()
 
 
     @handle_py4j

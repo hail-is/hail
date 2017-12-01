@@ -22,7 +22,6 @@ expr
     hail.typ.TSet
     hail.typ.TDict
     hail.typ.TVariant
-    hail.typ.TGenotype
     hail.typ.TCall
     hail.typ.TAltAllele
     hail.typ.TLocus

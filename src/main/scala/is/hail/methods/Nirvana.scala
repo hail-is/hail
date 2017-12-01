@@ -281,7 +281,7 @@ object Nirvana {
 
     info("Running Nirvana")
 
-    val annotations = vds.typedRDD[Locus, Variant, Annotation].mapValues { case (va, gs) => va }
+    val annotations = vds.typedRDD[Locus, Variant].mapValues { case (va, gs) => va }
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
@@ -326,7 +326,7 @@ object Nirvana {
 
     val (newVASignature, insertNirvana) = vds.vaSignature.insert(nirvanaSignature, parsedRoot)
 
-    val newRDD = vds.typedRDD[Locus, Variant, Annotation]
+    val newRDD = vds.typedRDD[Locus, Variant]
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
         left.sortedLeftJoinDistinct(right)
           .map { case (v, ((va, gs), vaNirvana)) =>

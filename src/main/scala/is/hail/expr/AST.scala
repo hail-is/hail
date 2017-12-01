@@ -370,8 +370,7 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
       TArray(types.head)
     else if (types.forall(_.isInstanceOf[TNumeric])) {
       TArray(TNumeric.promoteNumeric(types.map(_.asInstanceOf[TNumeric])))
-    }
-    else
+    } else
       parseError(s"declared array elements must be the same type (or numeric)." +
         s"\n  Found: [${ elements.map(_.`type`).mkString(", ") }]")
   }

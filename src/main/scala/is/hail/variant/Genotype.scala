@@ -7,10 +7,7 @@ import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
-import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types._
-import org.json4s._
 
 import scala.language.implicitConversions
 
@@ -21,8 +18,6 @@ object GenotypeType extends Enumeration {
   val HomVar = Value(2)
   val NoCall = Value(-1)
 }
-
-import is.hail.variant.GenotypeType.GenotypeType
 
 object GTPair {
   def apply(j: Int, k: Int): GTPair = {
@@ -54,71 +49,6 @@ class GTPair(val p: Int) extends AnyVal {
 }
 
 
-abstract class Genotype extends Serializable {
-
-  def _unboxedGT: Int
-
-  def _unboxedAD: Array[Int]
-
-  def _unboxedDP: Int
-
-  def _unboxedGQ: Int
-
-  def _unboxedPX: Array[Int]
-
-  def check(nAlleles: Int) {
-    val nGenotypes = triangle(nAlleles)
-    assert(Genotype.gt(this).forall(i => i >= 0 && i < nGenotypes))
-    assert(Genotype.ad(this).forall(a => a.length == nAlleles))
-  }
-
-  def copy(gt: Option[Int] = Genotype.gt(this),
-    ad: Option[Array[Int]] = Genotype.ad(this),
-    dp: Option[Int] = Genotype.dp(this),
-    gq: Option[Int] = Genotype.gq(this),
-    px: Option[Array[Int]] = Genotype.px(this)): Genotype = Genotype(gt, ad, dp, gq, px)
-
-  override def equals(that: Any): Boolean = that match {
-    case g: Genotype =>
-      _unboxedGT == g._unboxedGT &&
-        util.Arrays.equals(_unboxedAD, g._unboxedAD) &&
-        _unboxedDP == g._unboxedDP &&
-        _unboxedGQ == g._unboxedGQ &&
-        util.Arrays.equals(_unboxedPX, g._unboxedPX)
-
-    case _ => false
-  }
-
-  override def hashCode: Int =
-    new HashCodeBuilder(43, 19)
-      .append(_unboxedGT)
-      .append(util.Arrays.hashCode(_unboxedAD))
-      .append(_unboxedDP)
-      .append(_unboxedGQ)
-      .append(util.Arrays.hashCode(_unboxedPX))
-      .toHashCode
-
-  override def toString: String = {
-    val b = new StringBuilder
-
-    b.append(Genotype.gt(this).map { gt =>
-      val p = Genotype.gtPair(gt)
-      s"${ p.j }/${ p.k }"
-    }.getOrElse("./."))
-
-    b += ':'
-    b.append(Genotype.ad(this).map(_.mkString(",")).getOrElse("."))
-    b += ':'
-    b.append(Genotype.dp(this).map(_.toString).getOrElse("."))
-    b += ':'
-    b.append(Genotype.gq(this).map(_.toString).getOrElse("."))
-    b += ':'
-    b.append("PL=" + Genotype.pl(this).map(_.mkString(",")).getOrElse("."))
-
-    b.result()
-  }
-}
-
 object Genotype {
   val htsGenotypeType: TStruct = TStruct(
     "GT" -> TCall(),
@@ -127,40 +57,69 @@ object Genotype {
     "GQ" -> TInt32(),
     "PL" -> TArray(!TInt32()))
 
-  def unboxedGT(g: Genotype): Int = if (g != null) g._unboxedGT else -1
-
-  def unboxedAD(g: Genotype): Array[Int] = if (g != null) g._unboxedAD else null
-
-  def unboxedDP(g: Genotype): Int = if (g != null) g._unboxedDP else -1
-
-  def unboxedGQ(g: Genotype): Int = if (g != null) g._unboxedGQ else -1
-
-  def unboxedPX(g: Genotype): Array[Int] = if (g != null) g._unboxedPX else null
-
-  def unboxedPL(g: Genotype): Array[Int] =
-    if (g == null)
-      null
+  def unboxedGT(a: Annotation): Int = {
+    if (a == null)
+      -1
     else {
-      val upx = g._unboxedPX
-      if (upx == null)
-        null
+      val r = a.asInstanceOf[Row]
+      if (r.isNullAt(0))
+        -1
       else
-        upx
+        r.getInt(0)
     }
-
-  def unboxedGP(g: Genotype): Array[Double] = {
-    val upx = unboxedPX(g)
-    if (upx == null)
-      null
-    else
-      Genotype.plToGP(upx)
   }
 
-  def gt(g: Genotype): Option[Int] = if (unboxedGT(g) == -1) None else Some(unboxedGT(g))
+  def unboxedAD(g: Annotation): Array[Int] = {
+    if (g != null) {
+      val r = g.asInstanceOf[Row]
+      if (r.isNullAt(1))
+        null
+      else
+        r.getAs[IndexedSeq[Int]](1).toArray
+    } else
+      null
+  }
 
-  def ad(g: Genotype): Option[Array[Int]] = Option(unboxedAD(g))
+  def unboxedDP(g: Annotation): Int = {
+    if (g == null)
+      -1
+    else {
+      val r = g.asInstanceOf[Row]
+      if (r.isNullAt(2))
+        -1
+      else
+        r.getInt(2)
+    }
+  }
 
-  def gq(g: Genotype): Option[Int] = {
+  def unboxedGQ(g: Annotation): Int = {
+    if (g == null)
+      -1
+    else {
+      val r = g.asInstanceOf[Row]
+      if (r.isNullAt(3))
+        -1
+      else
+        r.getInt(3)
+    }
+  }
+
+  def unboxedPL(g: Annotation): Array[Int] = {
+    if (g != null) {
+      val r = g.asInstanceOf[Row]
+      if (r.isNullAt(4))
+        null
+      else
+        r.getAs[IndexedSeq[Int]](4).toArray
+    } else
+      null
+  }
+
+  def gt(g: Annotation): Option[Int] = if (unboxedGT(g) == -1) None else Some(unboxedGT(g))
+
+  def ad(g: Annotation): Option[Array[Int]] = Option(unboxedAD(g))
+
+  def gq(g: Annotation): Option[Int] = {
     val ugq = unboxedGQ(g)
     if (ugq == -1)
       None
@@ -168,9 +127,9 @@ object Genotype {
       Some(ugq)
   }
 
-  def pl(g: Genotype): Option[Array[Int]] = Option(unboxedPL(g))
+  def pl(g: Annotation): Option[Array[Int]] = Option(unboxedPL(g))
 
-  def dp(g: Genotype): Option[Int] = {
+  def dp(g: Annotation): Option[Int] = {
     val udp = unboxedDP(g)
     if (udp == -1)
       None
@@ -178,230 +137,17 @@ object Genotype {
       Some(udp)
   }
 
-  def gp(g: Genotype): Option[Array[Double]] = Option(unboxedGP(g))
+  def apply(gtx: Int): Annotation = Annotation(if (gtx == -1) null else gtx, null, null, null, null)
 
-  def px(g: Genotype): Option[Array[Int]] = Option(unboxedPX(g))
-
-  def unboxedDosage(g: Genotype): Double = {
-    val upx = unboxedPX(g)
-    if (upx == null)
-      -1d
-    else if (upx.size != 3)
-      fatal("Genotype dosage is not defined for multi-allelic variants")
-    else
-      Genotype.plToDosage(upx(0), upx(1), upx(2))
-  }
-
-  def call(g: Genotype): Call = {
-    val ugt = unboxedGT(g)
-    if (ugt == -1)
-      null
-    else
-      Call(box(ugt))
-  }
-
-  def isHomRef(g: Genotype): Boolean = unboxedGT(g) == 0
-
-  def isHet(g: Genotype): Boolean = unboxedGT(g) > 0 && {
-    val p = Genotype.gtPair(unboxedGT(g))
-    p.j != p.k
-  }
-
-  def isHomVar(g: Genotype): Boolean = unboxedGT(g) > 0 && {
-    val p = Genotype.gtPair(unboxedGT(g))
-    p.j == p.k
-  }
-
-  def isCalledNonRef(g: Genotype): Boolean = unboxedGT(g) > 0
-
-  def isHetNonRef(g: Genotype): Boolean = unboxedGT(g) > 0 && {
-    val p = Genotype.gtPair(unboxedGT(g))
-    p.j > 0 && p.j != p.k
-  }
-
-  def isHetRef(g: Genotype): Boolean = unboxedGT(g) > 0 && {
-    val p = Genotype.gtPair(unboxedGT(g))
-    p.j == 0 && p.k > 0
-  }
-
-  def gtType(g: Genotype): GenotypeType =
-    if (isHomRef(g))
-      GenotypeType.HomRef
-    else if (isHet(g))
-      GenotypeType.Het
-    else if (isHomVar(g))
-      GenotypeType.HomVar
-    else {
-      assert(!Genotype.isCalled(g))
-      GenotypeType.NoCall
-    }
-
-  def isCalled(g: Genotype): Boolean = unboxedGT(g) >= 0
-
-  def isNotCalled(g: Genotype): Boolean = unboxedGT(g) == -1
-
-  def hasOD(g: Genotype): Boolean = unboxedDP(g) != -1 && unboxedAD(g) != null
-
-  def od_(g: Genotype): Int = unboxedDP(g) - intArraySum(unboxedAD(g))
-
-  def od(g: Genotype): Option[Int] =
-    if (hasOD(g))
-      Some(od_(g))
-    else
-      None
-
-  def hasNNonRefAlleles(g: Genotype): Boolean = unboxedGT(g) != -1
-
-  def nNonRefAlleles_(g: Genotype): Int = Genotype.gtPair(unboxedGT(g)).nNonRefAlleles
-
-  def nNonRefAlleles(g: Genotype): Option[Int] =
-    if (hasNNonRefAlleles(g))
-      Some(nNonRefAlleles_(g))
-    else
-      None
-
-  def fractionReadsRef(g: Genotype): Option[Double] = {
-    val uad = unboxedAD(g)
-    if (uad != null) {
-      val s = intArraySum(uad)
-      if (s != 0)
-        Some(uad(0).toDouble / s)
-      else
-        None
-    } else
-      None
-  }
-
-  def oneHotAlleles(nAlleles: Int, g: Genotype): Option[IndexedSeq[Int]] = {
-    Genotype.gt(g).map { call =>
-      val gtPair = Genotype.gtPair(call)
-      val j = gtPair.j
-      val k = gtPair.k
-      new IndexedSeq[Int] with Serializable {
-        def length: Int = nAlleles
-
-        def apply(idx: Int): Int = {
-          if (idx < 0 || idx >= nAlleles)
-            throw new ArrayIndexOutOfBoundsException(idx)
-          var r = 0
-          if (idx == j)
-            r += 1
-          if (idx == k)
-            r += 1
-          r
-        }
-      }
-    }
-  }
-
-  def oneHotAlleles(v: Variant, g: Genotype): Option[IndexedSeq[Int]] = oneHotAlleles(v.nAlleles, g)
-
-  def oneHotGenotype(v: Variant, g: Genotype): Option[IndexedSeq[Int]] = oneHotGenotype(v.nGenotypes, g)
-
-  def oneHotGenotype(nGenotypes: Int, g: Genotype): Option[IndexedSeq[Int]] = {
-    Genotype.gt(g).map { call =>
-      new IndexedSeq[Int] with Serializable {
-        def length: Int = nGenotypes
-
-        def apply(idx: Int): Int = {
-          if (idx < 0 || idx >= nGenotypes)
-            throw new ArrayIndexOutOfBoundsException(idx)
-          if (idx == call)
-            1
-          else
-            0
-        }
-      }
-    }
-  }
-
-
-  def hasPAB(g: Genotype): Boolean = unboxedAD(g) != null && Genotype.isHet(g)
-
-  def pAB_(g: Genotype, theta: Double = 0.5): Double = {
-    val gtPair = Genotype.gtPair(unboxedGT(g))
-    val uad = unboxedAD(g)
-    val aDepth = uad(gtPair.j)
-    val bDepth = uad(gtPair.k)
-    val d = new BinomialDistribution(aDepth + bDepth, theta)
-    val minDepth = aDepth.min(bDepth)
-    val minp = d.probability(minDepth)
-    val mincp = d.cumulativeProbability(minDepth)
-    (2 * mincp - minp).min(1.0).max(0.0)
-  }
-
-  def pAB(g: Genotype, theta: Double = 0.5): Option[Double] =
-    if (hasPAB(g))
-      Some(pAB_(g, theta))
-    else
-      None
-
-  def apply(gtx: Int): Genotype = new GenericGenotype(gtx, null, -1, -1, null)
-
-  def toRow(g: Genotype): Row =
-    if (g == null)
-      null
-    else {
-      val gt = unboxedGT(g)
-      val dp = unboxedDP(g)
-      val gq = unboxedGQ(g)
-      Row(
-        if (gt == -1) null else gt,
-        unboxedAD(g): IndexedSeq[Int],
-        if (dp == -1) null else dp,
-        if (gq == -1) null else gq,
-        unboxedPX(g): IndexedSeq[Int])
-    }
-
-  def toJSON(g: Genotype): JValue =
-    if (g == null)
-      JNull
-    else
-      JObject(
-        ("gt", Genotype.gt(g).map(JInt(_)).getOrElse(JNull)),
-        ("ad", Genotype.ad(g).map(ads => JArray(ads.map(JInt(_)).toList)).getOrElse(JNull)),
-        ("dp", Genotype.dp(g).map(JInt(_)).getOrElse(JNull)),
-        ("gq", Genotype.gq(g).map(JInt(_)).getOrElse(JNull)),
-        ("px", Genotype.px(g).map(pxs => JArray(pxs.map(JInt(_)).toList)).getOrElse(JNull)))
-
-  def apply(call: Call): Genotype = {
-    val gtx: Int = if (call == null) -1 else call
-    Genotype(gtx)
-  }
-
-  def apply(nAlleles: Int, gt: java.lang.Integer, ad: Array[Int], dp: java.lang.Integer, gq: java.lang.Integer, pl: Array[Int]): Genotype = {
-    val gtx: Int = if (gt == null) -1 else gt
-    val dpx: Int = if (dp == null) -1 else dp
-    val gqx: Int = if (gq == null) -1 else gq
-
-    val g = new GenericGenotype(gtx, ad, dpx, gqx, pl)
-    g.check(nAlleles)
-    g
-  }
+  def apply(gt: java.lang.Integer, ad: Array[Int], dp: java.lang.Integer, gq: java.lang.Integer, pl: Array[Int]): Annotation =
+    Annotation(gt, ad: IndexedSeq[Int], dp, gq, pl: IndexedSeq[Int])
 
   def apply(gt: Option[Int] = None,
     ad: Option[Array[Int]] = None,
     dp: Option[Int] = None,
     gq: Option[Int] = None,
-    px: Option[Array[Int]] = None): Genotype = {
-    new GenericGenotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), px.map(_.toArray).orNull)
-  }
-
-  def sparkSchema: DataType = StructType(Array(
-    StructField("gt", IntegerType),
-    StructField("ad", ArrayType(IntegerType, containsNull = false)),
-    StructField("dp", IntegerType),
-    StructField("gq", IntegerType),
-    StructField("px", ArrayType(IntegerType, containsNull = false))))
-
-  def fromRow(r: Row): Genotype = {
-    new GenericGenotype(
-      if (r.isNullAt(0)) -1 else r.getInt(0),
-      if (r.isNullAt(1)) null else r.getAs[IndexedSeq[Int]](1).toArray,
-      if (r.isNullAt(2)) -1 else r.getInt(2),
-      if (r.isNullAt(3)) -1 else r.getInt(3),
-      if (r.isNullAt(4)) null else r.getAs[IndexedSeq[Int]](4).toArray)
-  }
+    pl: Option[Array[Int]] = None): Annotation =
+    Annotation(gt.orNull, ad.map(adx => adx: IndexedSeq[Int]).orNull, dp.orNull, gq.orNull, pl.map(plx => plx: IndexedSeq[Int]).orNull)
 
   def gqFromPL(pl: Array[Int]): Int = {
     var m = 99
@@ -514,75 +260,6 @@ object Genotype {
     f(1, a(0), 0, 1)
   }
 
-  def weightsToLinear(a: ArrayUInt): Array[Int] = {
-    val n = a.length
-    val r = new Array[Int](n)
-    val s = a.sum.toDouble
-    assert(s >= 0)
-    var aAcc = 0.0
-    var rAcc = 0
-    var i = 0
-    while (i < n) {
-      aAcc += a(i).toDouble
-      val t = (aAcc * 32768 / s + 0.5).toInt
-      r(i) = t - rAcc
-      rAcc = t
-      i += 1
-    }
-    assert(rAcc == 32768)
-    r
-  }
-
-  def weightsToLinear[T: Numeric](a: Array[T]): Array[Int] = {
-    import scala.math.Numeric.Implicits._
-
-    val n = a.length
-    val r = new Array[Int](n)
-    val s = a.sum.toDouble
-    assert(s >= 0)
-    var aAcc = 0.0
-    var rAcc = 0
-    var i = 0
-    while (i < n) {
-      aAcc += a(i).toDouble
-      val t = (aAcc * 32768 / s + 0.5).toInt
-      r(i) = t - rAcc
-      rAcc = t
-      i += 1
-    }
-    assert(rAcc == 32768)
-    r
-  }
-
-  def weightsToLinear(w0: Int, w1: Int, w2: Int): Array[Int] = {
-    val sum = w0 + w1 + w2
-    assert(sum > 0)
-
-    val l0 = (w0.toDouble * 32768 / sum + 0.5).toInt
-    val l1 = ((w0 + w1).toDouble * 32768 / sum + 0.5).toInt - l0
-    val l2 = 32768 - l0 - l1
-    Array(l0, l1, l2)
-  }
-
-  def weightsToLinear(w0: Double, w1: Double, w2: Double): Array[Int] = {
-    val sum = w0 + w1 + w2
-    assert(sum > 0)
-
-    val l0 = (w0 * 32768 / sum + 0.5).toInt
-    val l1 = ((w0 + w1) * 32768 / sum + 0.5).toInt - l0
-    val l2 = 32768 - l0 - l1
-    Array(l0, l1, l2)
-  }
-
-  val gpNorm: Double = 1 / 32768.0
-
-  lazy val linearToPhredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
-
-  def linearToPhred(a: Array[Int]): Array[Int] = {
-    val x = a.map(linearToPhredConversionTable)
-    x.map { d => (d - x.min + 0.5).toInt }
-  }
-
   val maxPhredInTable = 8192
 
   lazy val phredToLinearConversionTable: Array[Double] = (0 to maxPhredInTable).map { i => math.pow(10, i / -10.0) }.toArray
@@ -590,16 +267,10 @@ object Genotype {
   def phredToLinear(i: Int): Double =
     if (i < maxPhredInTable) phredToLinearConversionTable(i) else math.pow(10, i / -10.0)
 
-  def plToGP(a: Array[Int]): Array[Double] = {
-    val lkhd = a.map(i => phredToLinear(i))
-    val s = lkhd.sum
-    lkhd.map(_ / s)
-  }
-
-  def plToDosage(px0: Int, px1: Int, px2: Int): Double = {
-    val p0 = phredToLinear(px0)
-    val p1 = phredToLinear(px1)
-    val p2 = phredToLinear(px2)
+  def plToDosage(pl0: Int, pl1: Int, pl2: Int): Double = {
+    val p0 = phredToLinear(pl0)
+    val p1 = phredToLinear(pl1)
+    val p2 = phredToLinear(pl2)
 
     (p1 + 2 * p2) / (p0 + p1 + p2)
   }
@@ -652,7 +323,7 @@ object Genotype {
       gtIndex(i, j)
   }
 
-  def genExtremeNonmissing(v: Variant): Gen[Genotype] = {
+  def genExtremeNonmissing(v: Variant): Gen[Annotation] = {
     val nAlleles = v.nAlleles
     val m = Int.MaxValue / (nAlleles + 1)
     val nGenotypes = triangle(nAlleles)
@@ -674,20 +345,23 @@ object Genotype {
           i += 1
         }
       }
-      val g = Genotype(gt, ad, dp.map(_ + ad.map(_.sum).getOrElse(0)), gq, pl)
-      g.check(nAlleles)
+      val g = Annotation(gt.orNull,
+        ad.map(a => a: IndexedSeq[Int]).orNull,
+        dp.map(_ + ad.map(_.sum).getOrElse(0)).orNull,
+        gq.orNull,
+        pl.map(a => a: IndexedSeq[Int]).orNull)
       g
     }
     gg
   }
 
-  def genExtreme(v: Variant): Gen[Genotype] = {
+  def genExtreme(v: Variant): Gen[Annotation] = {
     Gen.frequency(
       (100, genExtremeNonmissing(v)),
       (1, Gen.const(null)))
   }
 
-  def genRealisticNonmissing(v: Variant): Gen[Genotype] = {
+  def genRealisticNonmissing(v: Variant): Gen[Annotation] = {
     val nAlleles = v.nAlleles
     val nGenotypes = triangle(nAlleles)
     val gg = for (callRate <- Gen.choose(0d, 1d);
@@ -713,11 +387,11 @@ object Genotype {
       });
       gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
     ) yield
-      Genotype(gt, ad, dp, gq, pl)
+      Annotation(gt.orNull, ad.map(a => a: IndexedSeq[Int]).orNull, dp.orNull, gq.orNull, pl.map(a => a: IndexedSeq[Int]).orNull)
     gg
   }
 
-  def genRealistic(v: Variant): Gen[Genotype] = {
+  def genRealistic(v: Variant): Gen[Annotation] = {
     Gen.frequency(
       (100, genRealisticNonmissing(v)),
       (1, Gen.const(null)))
@@ -738,23 +412,14 @@ object Genotype {
       (1, Gen.const(null)))
   }
 
-  def genVariantGenotype: Gen[(Variant, Genotype)] =
+  def genVariantGenotype: Gen[(Variant, Annotation)] =
     for (v <- Variant.gen;
       g <- Gen.oneOfGen(genExtreme(v), genRealistic(v)))
       yield (v, g)
 
-  def genNonmissingValue: Gen[Genotype] = Variant.gen.flatMap(v => Gen.oneOfGen(genExtremeNonmissing(v), genRealisticNonmissing(v)))
+  def genNonmissingValue: Gen[Annotation] = Variant.gen.flatMap(v => Gen.oneOfGen(genExtremeNonmissing(v), genRealisticNonmissing(v)))
 
-  def genArb: Gen[Genotype] = Variant.gen.flatMap(v => Gen.oneOfGen(genExtreme(v), genRealistic(v)))
+  def genArb: Gen[Annotation] = Variant.gen.flatMap(v => Gen.oneOfGen(genExtreme(v), genRealistic(v)))
 
   implicit def arbGenotype = Arbitrary(genArb)
-}
-
-class GenericGenotype(val _unboxedGT: Int,
-  val _unboxedAD: Array[Int],
-  val _unboxedDP: Int,
-  val _unboxedGQ: Int,
-  val _unboxedPX: Array[Int]) extends Genotype {
-  require(_unboxedGT >= -1, s"invalid _unboxedGT value: ${ _unboxedGT }")
-  require(_unboxedDP >= -1, s"invalid _unboxedDP value: ${ _unboxedDP }")
 }

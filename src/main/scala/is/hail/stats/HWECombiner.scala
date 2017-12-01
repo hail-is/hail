@@ -3,7 +3,7 @@ package is.hail.stats
 import is.hail.annotations.Annotation
 import is.hail.expr.{Field, TFloat64, TStruct}
 import is.hail.utils._
-import is.hail.variant.Genotype
+import is.hail.variant.Call
 
 object HWECombiner {
   def signature = TStruct("rExpectedHetFrequency" -> TFloat64(), "pHWE" -> TFloat64())
@@ -14,13 +14,15 @@ class HWECombiner extends Serializable {
   var nHet = 0
   var nHomVar = 0
 
-  def merge(gt:Genotype): HWECombiner = {
-    if (Genotype.isHomRef(gt))
-      nHomRef += 1
-    else if (Genotype.isHet(gt))
-      nHet += 1
-    else if (Genotype.isHomVar(gt))
-      nHomVar += 1
+  def merge(gt: Call): HWECombiner = {
+    if (gt!= null) {
+      if (Call.isHomRef(gt))
+        nHomRef += 1
+      else if (Call.isHet(gt))
+        nHet += 1
+      else if (Call.isHomVar(gt))
+        nHomVar += 1
+    }
 
     this
   }

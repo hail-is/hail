@@ -57,10 +57,6 @@ trait HailRepFunctions {
     def typ = TCall()
   }
 
-  implicit object genotypeHr extends HailRep[Genotype] {
-    def typ = TGenotype()
-  }
-
   implicit class variantHr(gr: GRBase) extends HailRep[Variant] {
     def typ = TVariant(gr)
   }

@@ -34,7 +34,7 @@ class HWESuite extends SparkSuite {
       val vds2 = vds.splitMulti()
         .variantQC()
         .annotateVariantsExpr("va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)")
-        .annotateVariantsExpr("va.hweAgg = gs.hardyWeinberg()")
+        .annotateVariantsExpr("va.hweAgg = gs.map(g => g.GT).hardyWeinberg()")
 
       val (_, q1) = vds2.queryVA("va.qc.rExpectedHetFrequency")
       val (_, q2) = vds2.queryVA("va.qc.pHWE")

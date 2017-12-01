@@ -1,6 +1,6 @@
 import abc
 from hail.java import scala_object, Env, jset, jindexed_seq
-from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call, GenomeReference
+from hail.representation import Variant, AltAllele, Locus, Interval, Struct, Call, GenomeReference
 from hail.typecheck import typecheck_method, nullable, integral
 from hail.history import *
 
@@ -25,6 +25,30 @@ class Type(HistoryMixin):
     Hail type superclass used for annotations and expression language.
     """
     __metaclass__ = abc.ABCMeta
+
+    _hts_schema = None
+
+    @classmethod
+    def hts_schema(cls):
+        """
+        The high-through sequencing (HTS) genotype schema:
+
+        .. code-block:: text
+
+          Struct {
+            GT: Call,
+            AD: Array[!Int32],
+            DP: Int32,
+            GQ: Int32,
+            PL: Array[!Int32].
+          }
+        """
+
+        if not cls._hts_schema:
+            cls._hts_schema = TStruct(
+                ['GT', 'AD', 'DP', 'GQ', 'PL'],
+                [TCall(), TArray(TInt32(True)), TInt32(), TInt32(), TArray(TInt32(True))])
+        return cls._hts_schema
 
     def __init__(self, jtype):
         self._jtype = jtype
@@ -732,45 +756,6 @@ class TAltAllele(Type):
         return "TAltAllele()"
 
 
-class TGenotype(Type):
-    """
-    Hail type corresponding to :class:`hail.representation.Genotype`.
-
-    .. include:: hailType.rst
-
-    - `expression language documentation <types.html#genotype>`__
-    - in Python, values are instances of :class:`hail.representation.Genotype`
-
-    """
-    __metaclass__ = InternType
-
-    @record_init
-    def __init__(self, required=False):
-        super(TGenotype, self).__init__(scala_object(Env.hail().expr, 'TGenotype').apply(required))
-
-    def _convert_to_py(self, annotation):
-        if annotation:
-            return Genotype._from_java(annotation)
-        else:
-            return annotation
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return annotation._jrep
-        else:
-            return annotation
-
-    def _typecheck(self, annotation):
-        if not annotation and self.required:
-            raise TypeCheckError("!TGenotype can't be missing")
-        if annotation and not isinstance(annotation, Genotype):
-            raise TypeCheckError('TGenotype expected type hail.representation.Genotype, but found %s' %
-                                 type(annotation))
-
-    def _repr(self):
-        return "TGenotype()"
-
-
 class TCall(Type):
     """
     Hail type corresponding to :class:`hail.representation.Call`.
@@ -983,8 +968,6 @@ _intern_classes = {'is.hail.expr.TInt32Optional$': (TInt32, False),
                    'is.hail.expr.TStringRequired$': (TString, True),
                    'is.hail.expr.TAltAlleleOptional$': (TAltAllele, False),
                    'is.hail.expr.TAltAlleleRequired$': (TAltAllele, True),
-                   'is.hail.expr.TGenotypeOptional$': (TGenotype, False),
-                   'is.hail.expr.TGenotypeRequired$': (TGenotype, True),
                    'is.hail.expr.TCallOptional$': (TCall, False),
                    'is.hail.expr.TCallRequired$': (TCall, True)}
 

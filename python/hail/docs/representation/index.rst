@@ -15,7 +15,6 @@ representation
     hail.representation.AltAllele
     hail.representation.Call
     hail.representation.GenomeReference
-    hail.representation.Genotype
     hail.representation.Interval
     hail.representation.Locus
     hail.representation.Pedigree

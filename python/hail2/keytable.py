@@ -370,18 +370,17 @@ class KeyTable(KeyTableTemplate):
     ...                    i2 = IntervalColumn.from_args("1", 51, 56),
     ...                    i3 = IntervalColumn.from_loci(LocusColumn.from_args("1", 51), LocusColumn.from_args("1", 56)))
 
-    >>> ktx = ktx.annotate(g1 = GenotypeColumn.from_call(CallColumn.from_int32(1)),
-    ...                    g2 = GenotypeColumn.pl_genotype(ktx.v1, CallColumn.from_int32(1), [6, 7], 13, 20, [20, 0, 1000]))
+    >>> ktx = ktx.annotate(g1 = CallColumn.from_int32(1))
 
 
     Aggregate by key:
 
-    >>> schema = TStruct(['status', 'gt', 'qPheno'],
-    ...                  [TInt32(), TGenotype(), TInt32()])
+    >>> schema = TStruct(['status', 'GT', 'qPheno'],
+    ...                  [TInt32(), TCall(), TInt32()])
 
-    >>> rows = [{'status':0, 'gt': Genotype(0), 'qPheno': 3},
-    ...         {'status':0, 'gt': Genotype(1), 'qPheno': 13},
-    ...         {'status':1, 'gt': Genotype(1), 'qPheno': 20}]
+    >>> rows = [{'status':0, 'GT': Call(0), 'qPheno': 3},
+    ...         {'status':0, 'GT': Call(1), 'qPheno': 13},
+    ...         {'status':1, 'GT': Call(1), 'qPheno': 20}]
 
     >>> kty = KeyTable.parallelize(rows, schema)
 
@@ -398,11 +397,11 @@ class KeyTable(KeyTableTemplate):
     ...     x8 = kt_grp.qPheno.filter(lambda x, _: x == 3).count(),
     ...     x9 = kt_grp.qPheno.fraction(lambda x, _: x == 1),
     ...     x10 = kt_grp.qPheno.map(lambda x, _: x.to_float64()).stats(),
-    ...     x11 = kt_grp.gt.hardy_weinberg(),
-    ...     x13 = kt_grp.gt.inbreeding(lambda x, _: 0.1),
-    ...     x14 = kt_grp.gt.call_stats(lambda g, _: Variant("1", 10000, "A", "T")),
-    ...     x15 = kt_grp.gt.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})})).collect()[0],
-    ...     x16 = (kt_grp.gt.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})}))
+    ...     x11 = kt_grp.GT.hardy_weinberg(),
+    ...     x13 = kt_grp.GT.inbreeding(lambda x, _: 0.1),
+    ...     x14 = kt_grp.GT.call_stats(lambda g, _: Variant("1", 10000, "A", "T")),
+    ...     x15 = kt_grp.GT.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})})).collect()[0],
+    ...     x16 = (kt_grp.GT.map(lambda g, _: Struct({'a': 5, 'b': "foo", 'c': Struct({'banana': 'apple'})}))
     ...            .map(lambda s, _: s.c.banana).collect()[0]),
     ...     num_partitions=5
     ... )

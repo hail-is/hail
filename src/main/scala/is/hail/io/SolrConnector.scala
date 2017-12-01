@@ -2,7 +2,7 @@ package is.hail.io
 
 import java.util
 
-import is.hail.expr.{EvalContext, Parser, TBoolean, TFloat64, TFloat32, TGenotype, TInt32, TIterable, TInt64, TString, TVariant, Type}
+import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.VariantDataset

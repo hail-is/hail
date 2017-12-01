@@ -684,11 +684,10 @@ class HailContext(HistoryMixin):
                       header_file=nullable(strlike),
                       min_partitions=nullable(integral),
                       drop_samples=bool,
-                      generic=bool,
                       call_fields=oneof(strlike, listof(strlike)),
                       reference_genome=nullable(GenomeReference))
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-                   drop_samples=False, generic=False, call_fields=[], reference_genome=None):
+                   drop_samples=False, call_fields=[], reference_genome=None):
         """Import VCF file(s) as variant dataset.
 
         **Examples**
@@ -808,12 +807,8 @@ class HailContext(HistoryMixin):
 
         rg = reference_genome if reference_genome else self.default_reference
         
-        if generic:
-            jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                               joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep)
-        else:
-            jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                        joption(min_partitions), drop_samples, rg._jrep)
+        jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
+                                    joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep)
 
         return VariantDataset(self, jvds)
 

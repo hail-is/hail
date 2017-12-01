@@ -45,10 +45,10 @@ class AnnotateSuite extends SparkSuite {
 
     assert(anno1.stringSampleIdsAndAnnotations
       .forall { case (id, sa) =>
-          fileMap.get(id).forall { case (status, qphen) =>
-            status.liftedZip(Option(q1(sa))).exists { case (v1, v2) => v1 == v2 } &&
-              (qphen.isEmpty && Option(q2(sa)).isEmpty || qphen.liftedZip(Option(q2(sa))).exists { case (v1, v2) => v1 == v2 })
-          }
+        fileMap.get(id).forall { case (status, qphen) =>
+          status.liftedZip(Option(q1(sa))).exists { case (v1, v2) => v1 == v2 } &&
+            (qphen.isEmpty && Option(q2(sa)).isEmpty || qphen.liftedZip(Option(q2(sa))).exists { case (v1, v2) => v1 == v2 })
+        }
       })
   }
 
@@ -139,7 +139,7 @@ class AnnotateSuite extends SparkSuite {
       expr = "va.stuff = select(table, Rand1, Rand2, Gene)")
 
     val q1 = anno1.queryVA("va.stuff")._2
-    anno1.typedRDD[Locus, Variant, Genotype]
+    anno1.typedRDD[Locus, Variant]
       .collect()
       .foreach {
         case (v, (va, gs)) =>
@@ -169,11 +169,15 @@ class AnnotateSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()
 
-    val anno1 = vds.annotateVariantsVDS(hc.importVCF("src/test/resources/sampleInfoOnly.vcf").splitMulti(),
+    val anno1 = vds.annotateVariantsVDS(
+      // sampleInfoOnly.vcf has empty genotype schema
+      hc.importVCF("src/test/resources/sampleInfoOnly.vcf")
+        .splitMultiGeneric("va.aIndex = aIndex, va.wasSplit = wasSplit", ""),
       root = Some("va.other"))
 
     val otherMap = hc.importVCF("src/test/resources/sampleInfoOnly.vcf")
-      .splitMulti()
+      // sampleInfoOnly.vcf has empty genotype schema
+      .splitMultiGeneric("va.aIndex = aIndex, va.wasSplit = wasSplit", "")
       .variantsAndAnnotations
       .collect()
       .toMap
@@ -209,32 +213,32 @@ class AnnotateSuite extends SparkSuite {
       .foreach { case (v1, va) =>
         val v = v1.asInstanceOf[Variant]
         assert(v.start <= 14000000 ||
-            v.start >= 17000000 ||
-            q1(va) == false)
+          v.start >= 17000000 ||
+          q1(va) == false)
       }
 
     bed2r.variantsAndAnnotations
       .collect()
       .foreach { case (v1, va) =>
         val v = v1.asInstanceOf[Variant]
-          if (v.start <= 14000000)
-            assert(q2(va) == "gene1")
-          else if (v.start >= 17000000)
-            assert(q2(va) == "gene2")
-          else
-            assert(q2(va) == null)
+        if (v.start <= 14000000)
+          assert(q2(va) == "gene1")
+        else if (v.start >= 17000000)
+          assert(q2(va) == "gene2")
+        else
+          assert(q2(va) == null)
       }
 
     bed3r.variantsAndAnnotations
       .collect()
       .foreach { case (v1, va) =>
-          val v = v1.asInstanceOf[Variant]
-          if (v.start <= 14000000)
-            assert(q3(va) == "gene1", v)
-          else if (v.start >= 17000000)
-            assert(q3(va) == "gene2", v)
-          else
-            assert(q3(va) == null, v)
+        val v = v1.asInstanceOf[Variant]
+        if (v.start <= 14000000)
+          assert(q3(va) == "gene1", v)
+        else if (v.start >= 17000000)
+          assert(q3(va) == "gene2", v)
+        else
+          assert(q3(va) == null, v)
       }
 
     assert(bed3r.same(bed2r))

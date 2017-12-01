@@ -56,7 +56,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
           val vcfFile = root + ".vcf"
           val ibcFile = root + ".het"
 
-          val vds3 = vds2.annotateSamplesExpr("sa.het = gs.inbreeding(g => va.qc.AF)")
+          val vds3 = vds2.annotateSamplesExpr("sa.het = gs.map(g => g.GT).inbreeding(g => va.qc.AF)")
 
           vds3.exportVCF(vcfFile)
 

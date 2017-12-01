@@ -347,7 +347,7 @@ package object stats {
           (Annotation.empty,
             (0 until gtMat.rows).map { i =>
               Genotype(gtMat(i, j))
-            }: Iterable[Genotype]
+            }: Iterable[Annotation]
           )
         )
       },

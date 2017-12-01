@@ -276,30 +276,30 @@ case class VSMSubgen(
 
   def gen(hc: HailContext): Gen[VariantSampleMatrix] =
     for (size <- Gen.size;
-      subsizes <- Gen.partitionSize(5).resize(size / 10);
+      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
+
       vSig <- vSigGen.resize(3);
-      vaSig <- vaSigGen.map(t => t.deepOptional()).resize(subsizes(0));
+      vaSig <- vaSigGen.map(t => t.deepOptional()).resize(3);
       sSig <- sSigGen.resize(3);
-      saSig <- saSigGen.map(t => t.deepOptional()).resize(subsizes(1));
-      globalSig <- globalSigGen.resize(subsizes(2));
+      saSig <- saSigGen.map(t => t.deepOptional()).resize(3);
+      globalSig <- globalSigGen.resize(5);
       tSig <- tSigGen.map(t => t.structOptional()).resize(3);
-      global <- globalGen(globalSig).resize(subsizes(3));
+      global <- globalGen(globalSig).resize(25);
       nPartitions <- Gen.choose(1, 10);
 
-      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 10) * 9);
-
-      sampleIds <- Gen.distinctBuildableOf[Array, Annotation](sGen(sSig).resize(3)).resize(w)
-        .map(a => a.filter(_ != null));
+      sampleIds <- Gen.buildableOfN[Array, Annotation](w, sGen(sSig).resize(3))
+        .map(ids => ids.distinct);
       nSamples = sampleIds.length;
-      saValues <- Gen.buildableOfN[Array, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
-      rows <- Gen.distinctBuildableOf[Array, (Annotation, (Annotation, Iterable[Annotation]))](
-        for (subsubsizes <- Gen.partitionSize(2);
+      saValues <- Gen.buildableOfN[Array, Annotation](nSamples, saGen(saSig).resize(5));
+      rows <- Gen.distinctBuildableOfN[Array, (Annotation, (Annotation, Iterable[Annotation]))](l,
+        for (
           v <- vGen(vSig).resize(3);
-          va <- vaGen(vaSig).resize(subsubsizes(0));
-          ts <- Gen.buildableOfN[Array, Annotation](nSamples, tGen(tSig, v)).resize(subsubsizes(1)))
-          yield (v, (va, ts: Iterable[Annotation]))).resize(l)
-        .map(a => a.filter(_._1 != null)))
+          va <- vaGen(vaSig).resize(5);
+          ts <- Gen.buildableOfN[Array, Annotation](nSamples, tGen(tSig, v).resize(3)))
+          yield (v, (va, ts: Iterable[Annotation]))))
       yield {
+        assert(sampleIds.forall(_ != null))
+        assert(rows.forall(_._1 != null))
         VariantSampleMatrix.fromLegacy(hc,
           VSMMetadata(sSig, saSig, vSig, vaSig, globalSig, tSig, wasSplit = wasSplit),
           VSMLocalValue(global, sampleIds, saValues),
@@ -315,7 +315,7 @@ object VSMSubgen {
     vSigGen = Gen.const(TVariant(GenomeReference.defaultReference)),
     vaSigGen = Type.genInsertable,
     globalSigGen = Type.genInsertable,
-    tSigGen = Gen.const(TGenotype()),
+    tSigGen = Gen.const(Genotype.htsGenotypeType),
     sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
     saGen = (t: Type) => t.genValue,
     vaGen = (t: Type) => t.genValue,
@@ -393,10 +393,10 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
   lazy val rdd: OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])] = value.rdd
 
-  def typedRDD[RPK, RK, T](implicit rkct: ClassTag[RK], tct: ClassTag[T]): OrderedRDD[RPK, RK, (Annotation, Iterable[T])] = {
+  def typedRDD[RPK, RK](implicit rkct: ClassTag[RK]): OrderedRDD[RPK, RK, (Annotation, Iterable[Annotation])] = {
     implicit val kOk = vSignature.typedOrderedKey[RPK, RK]
     rdd.map { case (v, (va, gs)) =>
-      (v.asInstanceOf[RK], (va, gs.asInstanceOf[Iterable[T]]))
+      (v.asInstanceOf[RK], (va, gs))
     }
       .toOrderedRDD
   }
@@ -2164,19 +2164,23 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         val rvEnd = rv.region.size
         rv2b.set(rv.region)
         val gsOffset = localRowType.loadField(rv, 3)
-        (0 until localNSamples).iterator.map { i =>
-          rv.region.clear(rvEnd)
-          rv2b.start(typ)
-          rv2b.startStruct()
-          rv2b.addField(localRowType, rv, 1) // v
-          rv2b.addField(localRowType, rv, 2) // va
-          rv2b.addAnnotation(localSType, localSampleIdsBc.value(i))
-          rv2b.addAnnotation(localSAType, localSampleAnnotationsBc.value(i))
-          rv2b.addElement(gsType, rv.region, gsOffset, i)
-          rv2b.endStruct()
-          rv2.set(rv.region, rv2b.end())
-          rv2
-        }
+        (0 until localNSamples).iterator
+          .filter { i =>
+            gsType.isElementDefined(rv.region, gsOffset, i)
+          }
+          .map { i =>
+            rv.region.clear(rvEnd)
+            rv2b.start(typ)
+            rv2b.startStruct()
+            rv2b.addField(localRowType, rv, 1) // v
+            rv2b.addField(localRowType, rv, 2) // va
+            rv2b.addAnnotation(localSType, localSampleIdsBc.value(i))
+            rv2b.addAnnotation(localSAType, localSampleAnnotationsBc.value(i))
+            rv2b.addElement(gsType, rv.region, gsOffset, i)
+            rv2b.endStruct()
+            rv2.set(rv.region, rv2b.end())
+            rv2
+          }
       }
     },
       typ,

@@ -21,8 +21,6 @@ object Call extends Serializable {
       s"${ p.j }/${ p.k }"
     }
 
-  def toGenotype(call: Call): Genotype = Genotype(call)
-
   def check(call: Call, nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
     assert(call == null || (call >= 0 && call < nGenotypes), s"Invalid genotype found `$call' for number of alleles equal to `$nAlleles'.")
@@ -52,33 +50,29 @@ object Call extends Serializable {
       call
     }
 
-  def isHomRef(call: Call): Boolean = isCalled(call) && call == 0
+  def isHomRef(call: Call): Boolean = call != null && call == 0
 
-  def isHet(call: Call): Boolean = isCalled(call) && call > 0 && {
+  def isHet(call: Call): Boolean = call != null && call > 0 && {
     val p = Genotype.gtPair(call)
     p.j != p.k
   }
 
-  def isHomVar(call: Call): Boolean = isCalled(call) && call > 0 && {
+  def isHomVar(call: Call): Boolean = call != null && call > 0 && {
     val p = Genotype.gtPair(call)
     p.j == p.k
   }
 
-  def isCalledNonRef(call: Call): Boolean = isCalled(call) && call > 0
+  def isNonRef(call: Call): Boolean = call != null && call > 0
 
-  def isHetNonRef(call: Call): Boolean = isCalled(call) && call > 0 && {
+  def isHetNonRef(call: Call): Boolean = call != null && call > 0 && {
     val p = Genotype.gtPair(call)
     p.j > 0 && p.j != p.k
   }
 
-  def isHetRef(call: Call): Boolean = isCalled(call) && call > 0 && {
+  def isHetRef(call: Call): Boolean = call != null && call > 0 && {
     val p = Genotype.gtPair(call)
     p.j == 0 && p.k > 0
   }
-
-  def isNotCalled(call: Call): Boolean = call == null
-
-  def isCalled(call: Call): Boolean = call != null
 
   def gtType(call: Call): GenotypeType =
     if (isHomRef(call))
@@ -88,7 +82,7 @@ object Call extends Serializable {
     else if (isHomVar(call))
       GenotypeType.HomVar
     else {
-      assert(isCalled(call))
+      assert(call == null)
       GenotypeType.NoCall
     }
 
@@ -105,13 +99,13 @@ object Call extends Serializable {
       box(Genotype.gtPair(call).k)
 
   def nNonRefAlleles(call: Call): java.lang.Integer =
-    if (isCalled(call))
+    if (call != null)
       Genotype.gtPair(call).nNonRefAlleles
     else
       null
 
   def oneHotAlleles(call: Call, nAlleles: Int): IndexedSeq[Int] = {
-    if (isCalled(call)) {
+    if (call != null) {
       val gtPair = Genotype.gtPair(call)
       val j = gtPair.j
       val k = gtPair.k
@@ -133,7 +127,7 @@ object Call extends Serializable {
   }
 
   def oneHotGenotype(call: Call, nGenotypes: Int): IndexedSeq[Int] = {
-    if (isCalled(call)) {
+    if (call != null) {
       new IndexedSeq[Int] with Serializable {
         def length: Int = nGenotypes
 

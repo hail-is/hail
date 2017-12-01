@@ -455,115 +455,12 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    gr: GenomeReference = GenomeReference.defaultReference): VariantDataset = {
-    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, gr)
+    callFields: Set[String] = Set.empty[String],
+    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
+    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, gr)
   }
 
   def importVCFs(files: Seq[String], force: Boolean = false,
-    forceBGZ: Boolean = false,
-    headerFile: Option[String] = None,
-    nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    gr: GenomeReference = GenomeReference.defaultReference): VariantDataset = {
-
-    val vsm = importVCFsGeneric(files, force, forceBGZ, headerFile, nPartitions, dropSamples, gr = gr)
-
-    val localNSamples = vsm.nSamples
-    val localRowType = vsm.rowType
-
-    val newMatrixType = vsm.matrixType.copy(
-      genotypeType = TGenotype())
-
-    vsm.copy2(
-      genotypeSignature = TGenotype(),
-      rdd2 = OrderedRDD2(
-        newMatrixType.orderedRDD2Type,
-        vsm.rdd2.orderedPartitioner,
-        vsm.rdd2.mapPartitions({ it =>
-        val rvb = new RegionValueBuilder()
-        val rv2 = RegionValue()
-        val view = HTSGenotypeView(localRowType)
-
-        it.map { rv =>
-          rvb.set(rv.region)
-          rvb.start(newMatrixType.rowType)
-          rvb.startStruct()
-          rvb.addField(localRowType, rv, 0)
-          rvb.addField(localRowType, rv, 1)
-          rvb.addField(localRowType, rv, 2)
-
-          view.setRegion(rv)
-
-          rvb.startArray(localNSamples)
-          var i = 0
-          while (i < localNSamples) {
-            view.setGenotype(i)
-            rvb.startStruct() // g
-
-            if (view.hasGT)
-              rvb.addInt(view.getGT)
-            else
-              rvb.setMissing()
-
-            if (view.hasAD) {
-              val n = view.getADLength
-              rvb.startArray(n)
-              var j = 0
-              while (j < n) {
-                rvb.addInt(view.getAD(j))
-                j += 1
-              }
-              rvb.endArray()
-
-            } else
-              rvb.setMissing()
-
-            if (view.hasDP)
-              rvb.addInt(view.getDP)
-            else
-              rvb.setMissing()
-
-            if (view.hasGQ)
-              rvb.addInt(view.getGQ)
-            else
-              rvb.setMissing()
-
-            if (view.hasPL) {
-              val n = view.getPLLength
-              rvb.startArray(n)
-              var j = 0
-              while (j < n) {
-                rvb.addInt(view.getPL(j))
-                j += 1
-              }
-              rvb.endArray()
-
-            } else
-              rvb.setMissing()
-
-            rvb.endStruct() // g
-            i += 1
-          }
-          rvb.endArray()
-          rvb.endStruct() // g
-
-          rv2.set(rv.region, rvb.end())
-          rv2
-        }
-      }, preservesPartitioning = true)))
-  }
-
-  def importVCFGeneric(file: String, force: Boolean = false,
-    forceBGZ: Boolean = false,
-    headerFile: Option[String] = None,
-    nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String],
-    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
-    importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, gr)
-  }
-
-  def importVCFsGeneric(files: Seq[String], force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
@@ -652,7 +549,7 @@ class HailContext private(val sc: SparkContext,
     val ec = EvalContext(
       "v" -> TVariant(GenomeReference.GRCh37),
       "s" -> TString(),
-      "g" -> TGenotype(),
+      "g" -> Genotype.htsGenotypeType,
       "sa" -> TStruct(
         "cohort" -> TString(),
         "covariates" -> TStruct(
@@ -675,7 +572,7 @@ class HailContext private(val sc: SparkContext,
 
     val v = Variant("16", 19200405, "C", Array("G", "CCC"))
     val s = "NA12878"
-    val g = Genotype(3, 1, Array(14, 0, 12), 26, 60, Array(60, 65, 126, 0, 67, 65))
+    val g = Genotype(1, Array(14, 0, 12), 26, 60, Array(60, 65, 126, 0, 67, 65))
     val sa = Annotation("1KG", Annotation(0.102312, -0.61512, 0.3166666, 34, true))
     val va = Annotation(
       Annotation(IndexedSeq(40, 1), 5102, IndexedSeq(0.00784, 0.000196)),

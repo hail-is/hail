@@ -8,140 +8,13 @@ import is.hail.utils._
 
 object HTSGenotypeView {
   def apply(rowSignature: TStruct): HTSGenotypeView = {
-    rowSignature.fieldType(3).asInstanceOf[TArray].elementType match {
-      case _: TGenotype => new TGenotypeView(rowSignature)
-      case _: TStruct => new StructGenotypeView(rowSignature)
-      case t => fatal(s"invalid genotype representation: $t, expect TGenotype or TStruct")
-    }
+    new HTSGenotypeView(rowSignature)
   }
 
   val tArrayInt32 = TArray(!TInt32())
 }
 
-// FIXME: This is removed, and StructGenotypeView becomes the only genotype view when TGenotype is removed
-sealed abstract class HTSGenotypeView {
-  def setRegion(mb: MemoryBuffer, offset: Long)
-
-  def setRegion(rv: RegionValue) {
-    setRegion(rv.region, rv.offset)
-  }
-
-  def setGenotype(idx: Int)
-
-  def gIsDefined: Boolean
-
-  def hasGT: Boolean
-
-  def hasAD: Boolean
-
-  def hasDP: Boolean
-
-  def hasGQ: Boolean
-
-  def hasPL: Boolean
-
-  def getGT: Int
-
-  def getADLength: Int
-
-  def getAD(idx: Int): Int
-
-  def getDP: Int
-
-  def getGQ: Int
-
-  def getPLLength: Int
-
-  def getPL(idx: Int): Int
-}
-
-class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
-  private val tgs = rs.fieldType(3).asInstanceOf[TArray]
-  private val tg = TGenotype.representation()
-
-  private val gtIndex = 0
-  private val adIndex = 1
-  private val dpIndex = 2
-  private val gqIndex = 3
-  private val plIndex = 4
-
-  private var m: MemoryBuffer = _
-  private var gsOffset: Long = _
-  private var gsLength: Int = _
-  private var gOffset: Long = _
-
-  var gIsDefined: Boolean = _
-
-  def setRegion(mb: MemoryBuffer, offset: Long) {
-    this.m = mb
-    gsOffset = rs.loadField(m, offset, 3)
-    gsLength = tgs.loadLength(m, gsOffset)
-  }
-
-  def setGenotype(idx: Int) {
-    require(idx >= 0 && idx < gsLength)
-    gIsDefined = tgs.isElementDefined(m, gsOffset, idx)
-    gOffset = tgs.loadElement(m, gsOffset, gsLength, idx)
-  }
-
-  def hasGT: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
-
-  def hasAD: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, adIndex)
-
-  def hasDP: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, dpIndex)
-
-  def hasGQ: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, gqIndex)
-
-  def hasPL: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, plIndex)
-
-  def getGT: Int = {
-    val callOffset = tg.loadField(m, gOffset, gtIndex)
-    Call(m.loadInt(callOffset))
-  }
-
-  def getADLength: Int = {
-    val adOffset = tg.loadField(m, gOffset, adIndex)
-    HTSGenotypeView.tArrayInt32.loadLength(m, adOffset)
-  }
-
-  def getAD(idx: Int): Int = {
-    val adOffset = tg.loadField(m, gOffset, adIndex)
-    val length = HTSGenotypeView.tArrayInt32.loadLength(m, adOffset)
-    if (idx < 0 || idx >= length)
-      throw new ArrayIndexOutOfBoundsException(idx)
-    assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, adOffset, idx))
-
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(adOffset, length, idx)
-    m.loadInt(elementOffset)
-  }
-
-  def getDP: Int = {
-    val dpOffset = tg.loadField(m, gOffset, dpIndex)
-    m.loadInt(dpOffset)
-  }
-
-  def getGQ: Int = {
-    val gqOffset = tg.loadField(m, gOffset, gqIndex)
-    m.loadInt(gqOffset)
-  }
-
-  def getPLLength: Int = {
-    val plOffset = tg.loadField(m, gOffset, plIndex)
-    HTSGenotypeView.tArrayInt32.loadLength(m, plOffset)
-  }
-
-  def getPL(idx: Int): Int = {
-    val plOffset = tg.loadField(m, gOffset, plIndex)
-    val length = HTSGenotypeView.tArrayInt32.loadLength(m, plOffset)
-    if (idx < 0 || idx >= length)
-      throw new ArrayIndexOutOfBoundsException(idx)
-    assert(HTSGenotypeView.tArrayInt32.isElementDefined(m, plOffset, idx))
-    val elementOffset = HTSGenotypeView.tArrayInt32.elementOffset(plOffset, length, idx)
-    m.loadInt(elementOffset)
-  }
-}
-
-private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
+final class HTSGenotypeView(rs: TStruct) {
   private val tgs = rs.fieldType(3).asInstanceOf[TArray]
   private val tg = tgs.elementType.asInstanceOf[TStruct]
 
@@ -174,6 +47,8 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
     gsOffset = rs.loadField(m, offset, 3)
     gsLength = tgs.loadLength(m, gsOffset)
   }
+
+  def setRegion(rv: RegionValue) { setRegion(rv.region, rv.offset) }
 
   def setGenotype(idx: Int) {
     require(idx >= 0 && idx < gsLength)
@@ -242,7 +117,7 @@ object ArrayGenotypeView {
   val tArrayFloat64 = TArray(TFloat64())
 }
 
-class ArrayGenotypeView(rowType: TStruct) {
+final class ArrayGenotypeView(rowType: TStruct) {
   private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
   private val tg = tgs.elementType match {
     case tg: TStruct => tg
@@ -310,70 +185,11 @@ class ArrayGenotypeView(rowType: TStruct) {
 
 object HardCallView {
   def apply(rowSignature: TStruct): HardCallView = {
-    rowSignature.fieldType(3).asInstanceOf[TArray].elementType match {
-      case _: TGenotype => new HardCallTGenotypeView(rowSignature)
-      case _: TStruct => new HardCallStructView(rowSignature, "GT")
-      case t => fatal(s"invalid genotype representation: $t, expect TGenotype or TStruct")
-    }
+    new HardCallView(rowSignature, "GT")
   }
 }
 
-abstract class HardCallView {
-  def setRegion(mb: MemoryBuffer, offset: Long)
-
-  def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
-
-  def gsLength: Int
-
-  def setGenotype(idx: Int)
-
-  def hasGT: Boolean
-
-  def getGT: Int
-
-  def getLength: Int
-}
-
-class HardCallTGenotypeView(rowType: TStruct) extends HardCallView {
-  private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
-  private val tg = TGenotype.representation()
-
-  private val gtIndex = 0
-
-  private var m: MemoryBuffer = _
-  private var gsOffset: Long = _
-  private var gOffset: Long = _
-
-  var gsLength: Int = _
-
-  var gIsDefined: Boolean = _
-
-  def setRegion(mb: MemoryBuffer, offset: Long) {
-    this.m = mb
-    gsOffset = rowType.loadField(m, offset, 3)
-    gsLength = tgs.loadLength(m, gsOffset)
-  }
-
-  def setGenotype(idx: Int) {
-    require(idx >= 0 && idx < gsLength)
-    gIsDefined = tgs.isElementDefined(m, gsOffset, idx)
-    gOffset = tgs.loadElement(m, gsOffset, gsLength, idx)
-  }
-
-  def hasGT: Boolean = gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
-
-  def getGT: Int = {
-    val callOffset = tg.loadField(m, gOffset, gtIndex)
-    val gt = m.loadInt(callOffset)
-    if (gt < 0)
-      throw new DataFormatException(s"Expected call to be non-negative, but found $gt")
-    gt
-  }
-
-  def getLength: Int = gsLength
-}
-
-class HardCallStructView(rowType: TStruct, callField: String) extends HardCallView {
+final class HardCallView(rowType: TStruct, callField: String) {
   private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
   private val tg = tgs.elementType match {
     case tg: TStruct => tg
@@ -409,6 +225,8 @@ class HardCallStructView(rowType: TStruct, callField: String) extends HardCallVi
     gsLength = tgs.loadLength(m, gsOffset)
   }
 
+  def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
+
   def setGenotype(idx: Int) {
     require(idx >= 0 && idx < gsLength)
     gIsDefined = tgs.isElementDefined(m, gsOffset, idx)
@@ -428,7 +246,7 @@ class HardCallStructView(rowType: TStruct, callField: String) extends HardCallVi
   def getLength: Int = gsLength
 }
 
-class HardcallTrioGenotypeView(rs: TStruct, callField: String) {
+final class HardcallTrioGenotypeView(rs: TStruct, callField: String) {
   private val trioTgs = rs.fieldType(3).asInstanceOf[TArray]
   private val trioTg = trioTgs.elementType.asInstanceOf[TStruct]
 
