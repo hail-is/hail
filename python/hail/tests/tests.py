@@ -57,7 +57,7 @@ class ContextTests(unittest.TestCase):
 
         gen = hc.import_gen(test_resources + '/example.gen',
                             sample_file=test_resources + '/example.sample',
-                            contig_recoding={"25": "X", "23": "X", "24": "Y", "26": "MT", "01": "1"})
+                            contig_recoding={"01": "1"})
         self.assertTrue(gen.variants_table().forall("""v.contig == "1" """))
         self.assertEqual(gen.count()[1], 199)
 
