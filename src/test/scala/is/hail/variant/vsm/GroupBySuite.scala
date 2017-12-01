@@ -5,7 +5,9 @@ import is.hail.expr.{TFloat64, TInt64}
 import is.hail.io.annotators.IntervalList
 import org.testng.annotations.Test
 import is.hail.TestUtils._
+import is.hail.check.Prop.forAll
 import is.hail.utils._
+import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 
 
 class GroupBySuite extends SparkSuite {
@@ -13,6 +15,26 @@ class GroupBySuite extends SparkSuite {
   @Test def testGroupVariantsBy() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.foo = gs.filter(g => g.isDefined).map(g => g.gt).sum()")
     val vds2 = vds.groupVariantsBy("va.foo", "gs.map(g => g.gt).max()", true)
+  }
+
+  @Test def testRandomVSMEquivalence() {
+    var skipped = 0
+    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vsm =>
+      val variants = vsm.variants.collect()
+      val uniqueVariants = variants.toSet
+      if (variants.length != uniqueVariants.size) {
+        skipped += 1
+        val grouped = vsm.groupVariantsBy("v", "gs.collect()[0]", true)
+        grouped.countVariants() == uniqueVariants.size
+      } else {
+        val vaKT = vsm.variantsKT()
+        val grouped = vsm.groupVariantsBy("v", "gs.collect()[0]", true)
+        vsm.annotateVariantsExpr("va = {}").same(grouped)
+      }
+    }
+    p.check()
+    if (skipped != 0)
+    println(s"warning: skipped $skipped evaluations due to non-unique variants.")
   }
 
   @Test def testLinregBurden() {

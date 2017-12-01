@@ -470,7 +470,12 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions(this, aggExpr)
 
-    val signature = TStruct("pk" -> keyType, "v" -> keyType, Annotation.VARIANT_HEAD -> TStruct.empty(), Annotation.GENOTYPE_HEAD -> TArray(resultType))
+    val (pkType, pkF: (Annotation => Annotation)) = keyType match {
+      case TVariant(gr, _) => (TLocus(gr), {key: Variant => key.locus} )
+      case t => (t, {key: Annotation => key})
+    }
+
+    val signature = TStruct("pk" -> pkType, "v" -> keyType, Annotation.VARIANT_HEAD -> TStruct.empty(), Annotation.GENOTYPE_HEAD -> TArray(resultType))
     val rdd = keyedRDD
       .aggregateByKey(zero)(seqOp, combOp)
       .mapPartitions { it =>
@@ -480,7 +485,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         it.map {case (key, agg) =>
           rvb.start(signature)
           rvb.startStruct()
-          rvb.addAnnotation(keyType, key)
+          rvb.addAnnotation(pkType, pkF(key))
           rvb.addAnnotation(keyType, key)
           rvb.startStruct()
           rvb.endStruct()
