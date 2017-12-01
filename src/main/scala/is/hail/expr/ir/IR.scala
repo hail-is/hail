@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.{BaseIR, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type, TArray}
+import is.hail.expr.{BaseIR, TAggregable, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type, TArray}
 
 sealed trait IR extends BaseIR {
   def typ: Type
@@ -42,6 +42,10 @@ case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
 case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR, var typ: Type = null) extends IR
 
+case class AggIn(typ: TAggregable) extends IR
+case class AggMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
+case class AggSum(a: IR, var typ: Type = null) extends IR
+
 case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR {
   val typ: TStruct = TStruct(fields.map(x => x._1 -> x._2):_*)
   override def toString(): String =
@@ -50,7 +54,7 @@ case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR {
 case class GetField(o: IR, name: String, var typ: Type = null) extends IR
 case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean() }
 
-case class In(i: Int, val typ: Type) extends IR
+case class In(i: Int, var typ: Type) extends IR
 case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean() }
 // FIXME: should be type any
 case class Die(message: String) extends IR { val typ = TVoid }
