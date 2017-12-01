@@ -1327,6 +1327,60 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
 
     @handle_py4j
+    @record_method
+    @typecheck_method(key=strlike)
+    def explode_samples(self, key):
+        """Explodes samples of this dataset along an annotation of type Array or Set.
+
+        The new VariantDataset created will have N copies of each sample, where N is
+        the number of elements in the sample annotation denoted by ``key``. The ``key``
+        field will be replaced by elements in the original Array or Set. All of the
+        other sample and variant annotations, as well as the entries, will remain the
+        same.
+
+        If a given sample has a missing key, or the Array or Set is empty, it is
+        removed from the Variant Dataset.
+
+        **Examples**
+
+        >>> exploded = vds.annotate_samples_expr('sa.foo = [1, 2, 3]').explode_samples('sa.foo')
+
+        :param str key: A path to a sample annotation. Must be prefixed by 'sa'.
+
+        :return: Variant dataset exploded along samples by the given sample annotation.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        return VariantDataset(self.hc, self._jvds.explodeSamples(key))
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(key=strlike)
+    def explode_variants(self, key):
+        """Explodes variants of this dataset along an annotation of type Array or Set.
+
+        The new VariantDataset created will have N copies of each variant, where N is
+        the number of elements in the variant annotation denoted by ``key``. The ``key``
+        field will be replaced by elements in the original Array or Set. All of the
+        other sample and variant annotations, as well as the entries, will remain the
+        same.
+
+        If a given variant has a missing key, or the Array or Set is empty, it is
+        removed from the Variant Dataset.
+
+        **Examples**
+
+        >>> exploded = vds.annotate_variants_expr('va.foo = [1, 2, 3]').explode_variants('va.foo')
+
+        :param str key: A path to a sample annotation. Must be prefixed by 'va'.
+
+        :return: Variant dataset exploded along variants by the given variant annotation.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        return VariantDataset(self.hc, self._jvds.explodeVariants(key))
+
+    @handle_py4j
     @require_biallelic
     @write_history('output')
     @typecheck_method(output=strlike,
