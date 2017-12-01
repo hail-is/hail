@@ -601,4 +601,9 @@ class KeyTableSuite extends SparkSuite {
     kt.write(tmpPath)
     assert(hc.readTable(tmpPath).same(kt))
   }
+
+  @Test def testSchemaAttrParse() { // FIXME: This should be deleted when not parsing attributes in types
+    val kt = KeyTable.range(hc, 10).annotate("FOO = if (false) {AC: [0, 5]} else NA:Struct{AC:Array[Int32]" +
+      "@Description=\"Allele count in genotypes, for each ALT allele, in the same order as listed\"@Number=\"A\"@Type=\"Integer\"}")
+  }
 }
