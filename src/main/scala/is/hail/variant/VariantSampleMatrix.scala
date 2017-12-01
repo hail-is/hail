@@ -2221,8 +2221,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       Serialization.write(metadata, out))
   }
 
-  def coalesce(k: Int, shuffle: Boolean = true): VariantSampleMatrix =
-    copyLegacy(rdd = rdd.coalesce(k, shuffle = shuffle)(null))
+  def coalesce(k: Int, shuffle: Boolean = true): VariantSampleMatrix = copy2(rdd2 = rdd2.coalesce(k, shuffle))
 
   def persist(storageLevel: String = "MEMORY_AND_DISK"): VariantSampleMatrix = {
     val level = try {

@@ -62,9 +62,14 @@ object LDPruneSuite {
     rvb.result()
   }
 
-  def toBitPackedVectorView(gs: Array[Int]): Option[BitPackedVectorView] = {
-    val bpvv = new BitPackedVectorView(bitPackedVectorViewType, new RegionValueVariant(rowType.fieldType(1).asInstanceOf[TVariant]))
-    toBitPackedVectorRegionValue(gs) match {
+  def convertGtsToGs(gts: Array[Int]): Iterable[Annotation] = gts.map(Genotype(_)).toIterable
+
+  def toBitPackedVectorView(gs: HailIterator[Int], nSamples: Int): Option[BitPackedVectorView] =
+    toBitPackedVectorView(convertGtsToGs(gs.toArray), nSamples)
+
+  def toBitPackedVectorView(gs: Iterable[Annotation], nSamples: Int): Option[BitPackedVectorView] = {
+    val bpvv = new BitPackedVectorView(bitPackedVectorViewType)
+    toBitPackedVectorRegionValue(gs, nSamples) match {
       case Some(rv) =>
         bpvv.setRegion(rv)
         Some(bpvv)
@@ -72,8 +77,7 @@ object LDPruneSuite {
     }
   }
 
-  def toBitPackedVectorRegionValue(gs: Array[Int]): Option[RegionValue] = {
-    val nSamples = gs.length
+  def toBitPackedVectorRegionValue(gs: Iterable[Annotation], nSamples: Int): Option[RegionValue] = {
     toBitPackedVectorRegionValue(makeRV(gs), nSamples)
   }
 
@@ -86,7 +90,7 @@ object LDPruneSuite {
     rvb.startStruct()
     rvb.setMissing()
     rvb.setMissing()
-    val keep = LDPrune.emitBitPackedVector(rvb, hcView, nSamples)
+    val keep = LDPrune.addBitPackedVector(rvb, hcView, nSamples)
 
     if (keep) {
       rvb.endStruct()
@@ -97,8 +101,9 @@ object LDPruneSuite {
       None
   }
 
-  def toBitPackedVector(gs: Array[Int]): Option[BitPackedVector] = {
-    toBitPackedVectorView(gs).map { bpvv =>
+  def toBitPackedVector(gts: Array[Int]): Option[BitPackedVector] = {
+    val nSamples = gts.length
+    toBitPackedVectorView(convertGtsToGs(gts), nSamples).map { bpvv =>
       BitPackedVector((0 until bpvv.getNPacks).map(bpvv.getPack).toArray, bpvv.getNSamples, bpvv.getMean, bpvv.getStdDevRecip)
     }
   }
@@ -108,10 +113,8 @@ class LDPruneSuite extends SparkSuite {
   val bytesPerCore = 256L * 1024L * 1024L
   val nCores = 4
 
-  def convertGtsToGs(gts: Array[Int]): Iterable[Annotation] = gts.map(Genotype(_)).toIterable
-
-  def correlationMatrix(gts: Array[Array[Int]], nSamples: Int) = {
-    val bvi = gts.map { gs => LDPruneSuite.toBitPackedVectorView(gs) }
+  def correlationMatrix(gts: Array[Iterable[Annotation]], nSamples: Int) = {
+    val bvi = gts.map { gs => LDPruneSuite.toBitPackedVectorView(gs, nSamples) }
     val r2 = for (i <- bvi.indices; j <- bvi.indices) yield {
       (bvi(i), bvi(j)) match {
         case (Some(x), Some(y)) =>
@@ -146,9 +149,7 @@ class LDPruneSuite extends SparkSuite {
     val gts3 = gts1 ++ Array.ofDim[Int](32 - gts1.length) ++ gts2
 
     for (gts <- Array(gts1, gts2, gts3)) {
-      val n = gts.length
-      val gs = convertGtsToGs(gts)
-      assert(LDPruneSuite.toBitPackedVector(gs.hardCallIterator.toArray).forall { bpv =>
+      assert(LDPruneSuite.toBitPackedVector(gts).forall { bpv =>
         bpv.unpack() sameElements gts
       })
     }
@@ -169,7 +170,7 @@ class LDPruneSuite extends SparkSuite {
       line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
     }.value).toArray))
 
-    val computedR2 = correlationMatrix(gts, 8)
+    val computedR2 = correlationMatrix(gts.map(LDPruneSuite.convertGtsToGs), 8)
 
     val isSame = actualR2.indices.forall { case (i, j) =>
       val expected = actualR2(i, j)
@@ -191,8 +192,8 @@ class LDPruneSuite extends SparkSuite {
     assert(isSame)
 
     val input = Array(0, 1, 2, 2, 2, 0, -1, -1)
-    val bvi1 = LDPruneSuite.toBitPackedVectorView(input).get
-    val bvi2 = LDPruneSuite.toBitPackedVectorView(input).get
+    val bvi1 = LDPruneSuite.toBitPackedVectorView(LDPruneSuite.convertGtsToGs(input), input.length).get
+    val bvi2 = LDPruneSuite.toBitPackedVectorView(LDPruneSuite.convertGtsToGs(input), input.length).get
 
     assert(D_==(LDPrune.computeR2(bvi1, bvi2), 1d))
   }
@@ -233,16 +234,19 @@ class LDPruneSuite extends SparkSuite {
 
     property("R2 bitPacked same as BVector") =
       forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], v2: Array[Int]) =>
-        val bv1 = LDPruneSuite.toBitPackedVectorView(v1)
-        val bv2 = LDPruneSuite.toBitPackedVectorView(v2)
+        val v1Ann = LDPruneSuite.convertGtsToGs(v1)
+        val v2Ann = LDPruneSuite.convertGtsToGs(v2)
+
+        val bv1 = LDPruneSuite.toBitPackedVectorView(v1Ann, nSamples)
+        val bv2 = LDPruneSuite.toBitPackedVectorView(v2Ann, nSamples)
 
         val view = HardCallView(LDPruneSuite.rowType)
 
-        val rv1 = LDPruneSuite.makeRV(v1)
+        val rv1 = LDPruneSuite.makeRV(v1Ann)
         view.setRegion(rv1)
         val sgs1 = RegressionUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
-        val rv2 = LDPruneSuite.makeRV(v2)
+        val rv2 = LDPruneSuite.makeRV(v2Ann)
         view.setRegion(rv2)
         val sgs2 = RegressionUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
@@ -320,7 +324,7 @@ class LDPruneSuite extends SparkSuite {
       rdd = vds.typedRDD[Locus, Variant]
         .filter { case (v, (va, gs)) =>
           v.isBiallelic &&
-            LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples).isDefined
+            LDPruneSuite.toBitPackedVectorView(gs.hardCallIterator, nSamples).isDefined
         })
     val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCore = 200000)
     assert(prunedVDS.countVariants() == filteredVDS.countVariants())

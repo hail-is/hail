@@ -802,7 +802,7 @@ class OrderedRDD2 private(
 
       val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds).asInstanceOf[UnsafeIndexedSeq]
       val partitioner = new OrderedPartitioner2(newRangeBounds.length + 1, typ.partitionKey, typ.kType, newRangeBounds)
-      new OrderedRDD2(typ, partitioner, new BlockedRDD(rdd, newPartEnd))
+      OrderedRDD2(typ, partitioner, new BlockedRDD(rdd, newPartEnd))
     }
   }
 }
