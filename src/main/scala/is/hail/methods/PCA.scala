@@ -18,7 +18,7 @@ trait PCA {
       TStruct((1 to k).map(i => (s"PC$i", TFloat64())): _*)
 
   //returns (sample scores, variant loadings, eigenvalues)
-  def apply(vsm: VariantSampleMatrix, k: Int, computeLoadings: Boolean, computeEigenvalues: Boolean, asArray: Boolean = false): (DenseMatrix, Option[KeyTable], Option[IndexedSeq[Double]]) = {
+  def apply(vsm: VariantSampleMatrix, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix, Option[KeyTable]) = {
     val sc = vsm.sparkContext
     val (maybeVariants, mat) = doubleMatrixFromVSM(vsm, computeLoadings)
     val svd = mat.computeSVD(k, computeLoadings)
@@ -54,7 +54,7 @@ trait PCA {
       new KeyTable(vsm.hc, rdd, rowType, Array("v"))
     })
 
-    (svd.V.multiply(DenseMatrix.diag(svd.s)), optionLoadings, someIf(computeEigenvalues, svd.s.toArray.map(math.pow(_, 2))))
+    (svd.s.toArray.map(math.pow(_, 2)), svd.V.multiply(DenseMatrix.diag(svd.s)), optionLoadings)
   }
 
   def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix)

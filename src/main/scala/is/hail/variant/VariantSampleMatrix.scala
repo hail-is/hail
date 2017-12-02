@@ -2580,7 +2580,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       genotypeSignature = newEntryType)
   }
 
-  def pcaResults(k: Int = 10, expr: Option[String] = None, computeLoadings: Boolean = false, computeEigenvalues: Boolean = false, asArrays: Boolean = false): (KeyTable, Option[KeyTable], Option[IndexedSeq[Double]]) = {
+  def pca(k: Int = 10, expr: Option[String] = None, computeLoadings: Boolean = false, asArrays: Boolean = false): (IndexedSeq[Double], KeyTable, Option[KeyTable]) = {
     if (expr == None)
       require(wasSplit)
 
@@ -2591,11 +2591,11 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     info(s"Running PCA with $k components...")
 
-    val (scoresmatrix, optionLoadings, optionEigenvalues) =
+    val (eigenvalues, scoresmatrix, optionLoadings) =
       if (expr.isDefined)
-        new ExprPCA(expr.get)(this, k, computeLoadings, computeEigenvalues, asArrays)
+        new ExprPCA(expr.get)(this, k, computeLoadings, asArrays)
       else
-        SamplePCA(this, k, computeLoadings, computeEigenvalues, asArrays)
+        SamplePCA(this, k, computeLoadings, asArrays)
 
     val rowType = TStruct("s" -> sSignature, "pcaScores" -> SamplePCA.pcSchema(k, asArrays))
     val rowTypeBc = sparkContext.broadcast(rowType)
@@ -2627,6 +2627,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       rowType,
       Array("s"))
 
-    (scores, optionLoadings, optionEigenvalues)
+    (eigenvalues, scores, optionLoadings)
   }
 }

@@ -424,7 +424,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(var.key, ['v'])
         sample_split.annotate_variants_table(var, root='va.mendel').count()
 
-        sample_split.pca('sa.scores')
+        sample_split.pca()
 
         sample_split.tdt(Pedigree.read(test_resources + '/sample.fam'))
 

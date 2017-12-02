@@ -3409,8 +3409,7 @@ class VariantDataset(HistoryMixin):
                       compute_loadings=bool,
                       compute_eigenvalues=bool,
                       as_array=bool)
-
-    def pca_results(self, k=10, entry_to_double=None, compute_loadings=False, as_array=False):
+    def pca(self, k=10, entry_to_double=None, compute_loadings=False, as_array=False):
         """Run Principal Component Analysis (PCA) on a VariantSampleMatrix, using ``entry_expr`` to convert each entry into a numeric value.
 
         **Examples**
@@ -3475,9 +3474,9 @@ class VariantDataset(HistoryMixin):
         :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`, list of float)
         """
 
-        r = self._jvds.pcaResults(k, joption(entry_to_double), compute_loadings, compute_eigenvalues, as_array)
-        jloadings = from_option(r._2())
-        return KeyTable(self.hc, r._1()), None if not jloadings else KeyTable(self.hc, jloadings), jiterable_to_list(from_option(r._3()))
+        r = self._jvds.pca(k, joption(entry_to_double), compute_loadings, as_array)
+        jloadings = from_option(r._3())
+        return jiterable_to_list(r._1()), KeyTable(self.hc, r._2()), None if not jloadings else KeyTable(self.hc, jloadings)
 
     @handle_py4j
     @require_biallelic
