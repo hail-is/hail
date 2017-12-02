@@ -3403,48 +3403,25 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvds.minRep(left_aligned))
 
     @handle_py4j
-    #@require_biallelic
     @record_method
-    @typecheck_method(scores=strlike,
-                      loadings=nullable(strlike),
-                      eigenvalues=nullable(strlike),
-                      k=integral,
+    @typecheck_method(k=integral,
                       entry_to_double=nullable(strlike),
+                      compute_loadings=bool,
+                      compute_eigenvalues=bool,
                       as_array=bool)
-    def pca(self, scores, loadings=None, eigenvalues=None, k=10, entry_to_double=None, as_array=False):
-        """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
-        .. include:: _templates/req_tvariant.rst
-
-        .. include:: _templates/req_biallelic.rst
+    def pca_results(self, k=10, entry_to_double=None, compute_loadings=False, as_array=False):
+        """Run Principal Component Analysis (PCA) on a VariantSampleMatrix, using ``entry_expr`` to convert each entry into a numeric value.
 
         **Examples**
 
-        Compute the top 5 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC5`` of type Double:
+        Compute the top 2 principal component scores and eigenvalues of genotype's missingness matrix.
 
-        >>> vds_result = vds.pca('sa.scores', k=5)
-
-        Compute the top 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double]:
-
-        >>> vds_result = vds.pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True)
-
-        Compute the top 2 principal component scores of the genotype's missingness matrix, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC5`` of type Double:
-
-        >>> vds_result = vds.pca('sa.scores', k=2, entry_to_double='if (isDefined(g.gt)) 1 else 0')
+        >>> scores, _, eigenvalues = vds.pca(k=2, entry_to_double='if (isDefined(g.gt)) 1 else 0')
 
         **Notes**
 
-        Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`__. This method expects a variant dataset with biallelic autosomal variants. Scores are computed and stored as sample annotations of type Struct by default; variant loadings and eigenvalues can optionally be computed and stored in variant and global annotations, respectively.
-
-        PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix :math:`M`. The default matrix is computed as follows, although any per-cell expression can be used to convert VariantDataset entries into a double-valued matrix. An :math:`n \\times m` matrix :math:`C` records raw genotypes, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
-
-        .. math::
-
-          M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
-
-        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes genotype variances to a common value :math:`1/m` for variants in Hardy-Weinberg equilibrium and is further motivated in the paper cited above. (The resulting amplification of signal from the low end of the allele frequency spectrum will also introduce noise for rare variants; common practice is to filter out variants with minor allele frequency below some cutoff.)  The factor :math:`1/m` gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the sample correlation or genetic relationship matrix (GRM) as simply :math:`MM^T`.
-
-        PCA then computes the SVD
+        PCA computes the SVD
 
         .. math::
 
@@ -3464,64 +3441,6 @@ class VariantDataset(HistoryMixin):
 
         Separately, for the PCs PLINK/GCTA output the eigenvectors of the GRM; even ignoring the above discrepancy that means the left singular vectors :math:`U_k` instead of the component scores :math:`U_k S_k`. While this is just a matter of the scale on each PC, the scores have the advantage of representing true projections of the data onto features with the variance of a score reflecting the variance explained by the corresponding feature. (In PC bi-plots this amounts to a change in aspect ratio; for use of PCs as covariates in regression it is immaterial.)
 
-        **Annotations**
-
-        Given root ``scores='sa.scores'`` and ``as_array=False``, :py:meth:`~hail.VariantDataset.pca` adds a Struct to sample annotations:
-
-         - **sa.scores** (*Struct*) -- Struct of sample scores
-
-        With ``k=3``, the Struct has three field:
-
-         - **sa.scores.PC1** (*Double*) -- Score from first PC
-
-         - **sa.scores.PC2** (*Double*) -- Score from second PC
-
-         - **sa.scores.PC3** (*Double*) -- Score from third PC
-
-        Analogous variant and global annotations of type Struct are added by specifying the ``loadings`` and ``eigenvalues`` arguments, respectively.
-
-        Given roots ``scores='sa.scores'``, ``loadings='va.loadings'``, and ``eigenvalues='global.evals'``, and ``as_array=True``, :py:meth:`~hail.VariantDataset.pca` adds the following annotations:
-
-         - **sa.scores** (*Array[Double]*) -- Array of sample scores from the top k PCs
-
-         - **va.loadings** (*Array[Double]*) -- Array of variant loadings in the top k PCs
-
-         - **global.evals** (*Array[Double]*) -- Array of the top k eigenvalues
-
-        :param str scores: Sample annotation path to store scores.
-
-        :param loadings: Variant annotation path to store site loadings. If None, do not compute. Default: None
-        :type loadings: str or None
-
-        :param eigenvalues: Global annotation path to store eigenvalues. If None, do not compute. Default: None
-        :type eigenvalues: str or None
-
-        :param k: Number of principal components. Default: 10
-        :type k: int
-
-        :param entry_to_double: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
-        :type entry_to_double: str or None
-
-        :param bool as_array: If true, stores annotations as type Array rather than Struct
-        :type k: bool
-
-        :return: Dataset with new PCA annotations.
-        :rtype: :class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.pca(scores, k, joption(entry_to_double), joption(loadings), joption(eigenvalues), as_array)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    #@require_biallelic
-    @record_method
-    @typecheck_method(k=integral,
-                      entry_to_double=nullable(strlike),
-                      compute_loadings=bool,
-                      compute_eigenvalues=bool,
-                      as_array=bool)
-    def pca_results(self, k=10, entry_to_double=None, compute_loadings = False, compute_eigenvalues = False, as_array=False):
-        """Run Principal Component Analysis (PCA) on the matrix of genotypes. This method is the same as above, except it returns a tuple of (scores, loadings, eigenvalues).
 
         Scores are stored in a KeyTable with the following structure:
 
@@ -3543,17 +3462,9 @@ class VariantDataset(HistoryMixin):
 
         .. include:: _templates/req_biallelic.rst
 
-        **Examples**
-
-        Compute the top 5 principal component scores
-
-        >>> scores = vds.pca_results(k=5)[0]
-
         :param int k: Number of principal components.
 
         :param bool compute_loadings: If true, computes variant loadings. Default: False
-
-        :param bool eigenvalues: If true, computes eigenvalues. Default: False
 
         :param entry_to_double: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
         :type entry_to_double: str or None

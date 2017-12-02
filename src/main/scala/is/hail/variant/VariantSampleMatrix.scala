@@ -2629,32 +2629,4 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     (scores, optionLoadings, optionEigenvalues)
   }
-
-  /**
-    *
-    * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')
-    * @param k            Number of principal components
-    * @param expr         Expression to map matrix entries to doubles
-    * @param loadingsRoot Variant annotation path for site loadings (period-delimited path starting in 'va')
-    * @param eigenRoot    Global annotation path for eigenvalues (period-delimited path starting in 'global'
-    * @param asArrays     Store score and loading results as arrays, rather than structs
-    */
-
-  def pca(scoresRoot: String, k: Int = 10, expr: Option[String] = None, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
-    asArrays: Boolean = false): VariantSampleMatrix = {
-
-    val pcSchema = SamplePCA.pcSchema(k, asArrays)
-
-    val (scores, loadings, eigenvalues) = pcaResults(k, expr, loadingsRoot.isDefined, eigenRoot.isDefined)
-    var ret = annotateSamplesTable(scores, root = scoresRoot)
-
-    loadings.foreach { kt =>
-      ret = ret.annotateVariantsTable(kt, root = loadingsRoot.get)
-    }
-
-    eigenvalues.foreach { eig =>
-      ret = ret.annotateGlobal(if (asArrays) eig else Annotation.fromSeq(eig), pcSchema, eigenRoot.get)
-    }
-    ret
-  }
 }
