@@ -362,7 +362,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     */
   def pcRelate(k: Int, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): KeyTable = {
     require(vsm.wasSplit)
-    val pcs = SamplePCA(vsm, k, false, false)._1
+    val pcs = SamplePCA(vsm, k, false)._2
     PCRelate.toKeyTable(vsm, pcs, maf, blockSize, minKinship, statistics)
   }
 

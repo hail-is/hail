@@ -3404,19 +3404,18 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(k=integral,
-                      entry_to_double=nullable(strlike),
+    @typecheck_method(entry_expr=strlike,
+                      k=integral,
                       compute_loadings=bool,
-                      compute_eigenvalues=bool,
                       as_array=bool)
-    def pca(self, k=10, entry_to_double=None, compute_loadings=False, as_array=False):
+    def pca(self, entry_expr, k=10, compute_loadings=False, as_array=False):
         """Run Principal Component Analysis (PCA) on a VariantSampleMatrix, using ``entry_expr`` to convert each entry into a numeric value.
 
         **Examples**
 
         Compute the top 2 principal component scores and eigenvalues of genotype's missingness matrix.
 
-        >>> scores, _, eigenvalues = vds.pca(k=2, entry_to_double='if (isDefined(g.gt)) 1 else 0')
+        >>> eigenvalues, scores, _ = vds.pca('if (isDefined(g.gt)) 1 else 0', k=2)
 
         **Notes**
 
@@ -3470,11 +3469,11 @@ class VariantDataset(HistoryMixin):
 
         :param bool as_array: If true, stores KeyTable rows as type Array rather than Struct
 
-        :return: Tuple of KeyTable of scores, KeyTable of loadings, list of eigenvalues
-        :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`, list of float)
+        :return: Tuple of: list of eigenvalues, KeyTable of scores, KeyTable of loadings
+        :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        r = self._jvds.pca(k, joption(entry_to_double), compute_loadings, as_array)
+        r = self._jvds.pca(joption(entry_to_double), k, compute_loadings, as_array)
         jloadings = from_option(r._3())
         return jiterable_to_list(r._1()), KeyTable(self.hc, r._2()), None if not jloadings else KeyTable(self.hc, jloadings)
 
@@ -3756,7 +3755,7 @@ class VariantDataset(HistoryMixin):
             The above code does NOT persist ``vds``. Instead, it copies ``vds`` and persists that result. 
             The proper usage is this:
             
-            >>> vds = vds.pca().persist() # doctest: +SKIP
+            >>> vds = vds.pca('g').persist() # doctest: +SKIP
 
         :param storage_level: Storage level.  One of: NONE, DISK_ONLY,
             DISK_ONLY_2, MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_ONLY_SER,

@@ -54,7 +54,7 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     interceptRequire {
-      multi.pca("foo")
+      multi.pca()
     }
 
     interceptRequire {

@@ -11,8 +11,8 @@ class PCASuite extends SparkSuite {
   @Test def test() {
 
     val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
-    val (scores, loadings, eigenvalues) = SamplePCA(vds, 3, true, true, true)
-    val (scoresStruct, loadingsStruct, eigenvaluesStruct) = SamplePCA(vds, 3, true, true, false)
+    val (eigenvalues, scores, loadings) = SamplePCA(vds, 3, true, true)
+    val (eigenvaluesStruct, scoresStruct, loadingsStruct) = SamplePCA(vds, 3, true, false)
 
     // comparing against numbers computed via Python script test/resources/PCA.py
 
@@ -41,17 +41,17 @@ class PCASuite extends SparkSuite {
 
     val pyEigen = IndexedSeq(3.0541488634265739, 1.0471401535365061, 0.5082347925607319)
 
-    assert(arrayT.valuesSimilar(eigenvalues.get.toIndexedSeq, pyEigen), s"$eigenvalues")
+    assert(arrayT.valuesSimilar(eigenvalues, pyEigen), s"$eigenvalues")
   }
 
   @Test def testExpr() {
     val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
     val pca = new ExprPCA("if (isDefined(g.gt)) g.gt else 0")
 
-    val (scores, loadings, eigenvalues) = pca(vds, 3, true, true, true)
+    val (eigenvalues, scores, loadings) = pca(vds, 3, true, true)
 
     println(scores)
     println(loadings.get.collect())
-    println(eigenvalues.get)
+    println(eigenvalues)
   }
 }

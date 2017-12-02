@@ -24,6 +24,6 @@ class PipelineSuite extends SparkSuite {
     qc.mendelErrors(pedigree)._1.export(mendelBase)
     qc.count()
     qc.filterVariantsExpr("va.qc.AF > 0.01 && va.qc.AF < 0.99")
-      .pca("sa.scores")
+      .pca("g.gt")
   }
 }
