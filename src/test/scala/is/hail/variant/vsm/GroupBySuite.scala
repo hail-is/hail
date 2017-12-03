@@ -13,8 +13,8 @@ import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 class GroupBySuite extends SparkSuite {
 
   @Test def testGroupVariantsBy() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.foo = gs.filter(g => g.isDefined).map(g => g.gt).sum()")
-    val vds2 = vds.groupVariantsBy("va.foo", "gs.map(g => g.gt).max()", true)
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.AC = gs.map(g => g.gt).sum()")
+    val vds2 = vds.groupVariantsBy("va.AC", "gs.map(g => g.gt).max()", true)
   }
 
   @Test def testRandomVSMEquivalence() {
