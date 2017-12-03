@@ -13,8 +13,8 @@ import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 class GroupBySuite extends SparkSuite {
 
   @Test def testGroupVariantsBy() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.AC = gs.map(g => g.gt).sum()")
-    val vds2 = vds.groupVariantsBy("va.AC", "gs.map(g => g.gt).max()", true)
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.AC = gs.map(g => g.GT).sum()")
+    val vds2 = vds.groupVariantsBy("va.AC", "gs.map(g => g.GT).max()", true)
   }
 
   @Test def testRandomVSMEquivalence() {
@@ -50,7 +50,7 @@ class GroupBySuite extends SparkSuite {
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
-    val vdsGrouped = vds.groupVariantsBy("va.genes", "gs.map(g => va.weight * g.gt).sum()")
+    val vdsGrouped = vds.groupVariantsBy("va.genes", "gs.map(g => va.weight * g.GT).sum()")
     println(vds.rowType)
     println(vdsGrouped.rowType)
 
