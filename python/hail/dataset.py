@@ -2373,6 +2373,38 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
+    @typecheck_method(key_expr=strlike,
+               agg_expr=strlike,
+               single_key=bool)
+    def group_variants_by(self, key_expr, agg_expr, single_key=True):
+        """Group variants by key, aggregating along sample.
+
+        If a key is missing, for a given variant, the variant will not be
+        used to compute the new VariantDataset.
+
+        ``key_expr`` can be defined in terms of ``v``, ``va``, and ``gs``.
+        
+        **Examples**
+
+        Compute the max depth of each sample on each contig:
+
+        >>> grouped_vds = vds.group_variants_by("v.contig", "gs.map(g => g.DP).max()")
+
+        :param str key_expr: Expression for new row key.
+
+        :param str agg_expr: Expression for aggregating along samples.
+
+        :param bool single_key: Whether the given key_expr is a single key
+            or an array/set of keys.
+
+        :return: Variant dataset keyed by key_expr instead of variant.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        return VariantDataset(self.hc, self._jvds.groupVariantsBy(key_expr, agg_expr, single_key))
+
+    @handle_py4j
+    @record_method
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 

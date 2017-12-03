@@ -432,37 +432,76 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
   def take(n: Int): Array[UnsafeRow] = unsafeRowRDD().take(n)
 
-  def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
+  def groupVariantsBy(keyExpr: String, aggExpr: String, singleKey: Boolean = false): VariantSampleMatrix = {
+    val localRowType = rowType
+    val vEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
+                              "v" -> (1, vSignature),
+                              Annotation.VARIANT_HEAD -> (2, vaSignature)))
+    val (keysType, keyF) = Parser.parseExpr(keyExpr, vEC)
+    vEC.set(0, globalAnnotation)
 
-    val (keysType, keysQuerier) = queryVA(variantKeysVA)
-
-    val (keyType, keyedRdd) =
+    val (keyType, keyedRDD) =
       if (singleKey) {
-        (keysType, rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va)).map(key => (key, (v, va, gs))) })
+        (keysType, rdd2.rdd.mapPartitions { it =>
+          val ur = new UnsafeRow(localRowType)
+          it.flatMap { rv =>
+            ur.set(rv)
+            vEC.set(1, ur.get(1))
+            vEC.set(2, ur.get(2))
+            Option(keyF()).map((_, ur))
+          }
+        })
       } else {
         val keyType = keysType match {
           case TArray(e, _) => e
           case TSet(e, _) => e
           case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
         }
-        (keyType, rdd.flatMap { case (v, (va, gs)) =>
-          Option(keysQuerier(va).asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map(key => (key, (v, va, gs)))
+        (keyType, rdd2.rdd.mapPartitions { it =>
+          val ur = new UnsafeRow(localRowType)
+          it.flatMap { rv =>
+            ur.set(rv)
+            vEC.set(1, ur.get(1))
+            vEC.set(2, ur.get(2))
+            Option(keyF().asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map((_, ur))
+          }
         })
       }
 
     val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions(this, aggExpr)
 
-    val ktRDD = keyedRdd
+    val (pkType, pkF: (Annotation => Annotation)) = keyType match {
+      case TVariant(gr, _) => (TLocus(gr), {key: Variant => key.locus} )
+      case t => (t, {key: Annotation => key})
+    }
+
+    val signature = TStruct("pk" -> pkType, "v" -> keyType, Annotation.VARIANT_HEAD -> TStruct.empty(), Annotation.GENOTYPE_HEAD -> TArray(resultType))
+    val rdd = keyedRDD
       .aggregateByKey(zero)(seqOp, combOp)
-      .map { case (key, agg) =>
-        val results = resultOp(agg)
-        results(0) = key
-        Row.fromSeq(results)
+      .mapPartitions { it =>
+        val region = MemoryBuffer()
+        val rv = RegionValue(region)
+        val rvb = new RegionValueBuilder(region)
+        it.map {case (key, agg) =>
+          rvb.start(signature)
+          rvb.startStruct()
+          rvb.addAnnotation(pkType, pkF(key))
+          rvb.addAnnotation(keyType, key)
+          rvb.startStruct()
+          rvb.endStruct()
+          resultOp(agg, rvb)
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
+          rv
+        }
       }
 
-    val signature = TStruct((keyName -> keyType) +: stringSampleIds.map(id => id -> resultType): _*)
+    val mt = matrixType.copy(vType = keyType, vaType = TStruct.empty(), genotypeType = resultType)
 
-    KeyTable(hc, ktRDD, signature, key = Array(keyName))
+    copy2(rdd2 = OrderedRDD2(mt.orderedRDD2Type, rdd, None, None),
+    vSignature = keyType,
+    vaSignature = TStruct.empty(),
+    genotypeSignature = resultType)
   }
 
   def annotateGlobal(a: Annotation, t: Type, code: String): VariantSampleMatrix = {

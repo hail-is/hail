@@ -3,7 +3,7 @@ package is.hail.methods
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import is.hail.HailContext
-import is.hail.annotations.{Annotation, RegionValue, UnsafeRow}
+import is.hail.annotations.{Annotation, RegionValue, RegionValueBuilder, UnsafeRow}
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
@@ -163,14 +163,12 @@ object Aggregators {
       zVal.update(i, j, aggregations(j)._3.copy())
     }
 
-    val seqOp = (ma: MultiArray2[Aggregator], tup: (Annotation, Annotation, Iterable[Annotation])) => {
-      val (v, va, gs) = tup
-
+    val seqOp = (ma: MultiArray2[Aggregator], ur: UnsafeRow) => {
       ec.set(0, localGlobalAnnotations)
-      ec.set(4, v)
-      ec.set(5, va)
+      ec.set(4, ur.get(1))
+      ec.set(5, ur.get(2))
 
-      val gsIt = gs.iterator
+      val gsIt = ur.getAs[IndexedSeq[Annotation]](3).iterator
       var i = 0
       while (i < localNSamples) {
         ec.set(1, localSamplesBc.value(i))
@@ -195,10 +193,9 @@ object Aggregators {
       ma1
     }
 
-    val resultOp = (ma: MultiArray2[Aggregator]) => {
-      val results = Array.ofDim[Any](localNSamples + 1)
-
+    val resultOp = (ma: MultiArray2[Aggregator], rvb: RegionValueBuilder) => {
       ec.set(0, localGlobalAnnotations)
+      rvb.startArray(localNSamples)
 
       var i = 0
       while (i < localNSamples) {
@@ -209,10 +206,10 @@ object Aggregators {
           aggregations(j)._1.v = ma(i, j).result
           j += 1
         }
+        rvb.addAnnotation(resultType, aggF())
         i += 1
-        results(i) = aggF()
       }
-      results
+      rvb.endArray()
     }
 
     SampleFunctions(zVal, seqOp, combOp, resultOp, resultType)
@@ -220,9 +217,9 @@ object Aggregators {
 
   case class SampleFunctions(
     zero: MultiArray2[Aggregator],
-    seqOp: (MultiArray2[Aggregator], (Annotation, Annotation, Iterable[Annotation])) => MultiArray2[Aggregator],
+    seqOp: (MultiArray2[Aggregator], UnsafeRow) => MultiArray2[Aggregator],
     combOp: (MultiArray2[Aggregator], MultiArray2[Aggregator]) => MultiArray2[Aggregator],
-    resultOp: (MultiArray2[Aggregator] => Array[Annotation]),
+    resultOp: (MultiArray2[Aggregator], RegionValueBuilder) => Unit,
     resultType: Type)
 
   def makeFunctions[T](ec: EvalContext, setEC: (EvalContext, T) => Unit): (Array[Aggregator],
