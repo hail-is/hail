@@ -3404,6 +3404,35 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
+    @require_biallelic
+    @typecheck_method(k=integral,
+                      compute_loadings=bool,
+                      as_array=bool)
+    def normalized_genotype_pca(self, k=10, compute_loadings=False, as_array=False):
+        """Run Principal Component Analysis (PCA) on the normalized genotype matrix of this VSM.
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
+        :param int k: Number of principal components.
+
+        :param bool compute_loadings: If true, computes variant loadings. Default: False
+
+        :param entry_expr: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
+        :type entry_expr: str or None
+
+        :param bool as_array: If true, stores KeyTable rows as type Array rather than Struct
+
+        :return: Tuple of: list of eigenvalues, KeyTable of scores, KeyTable of loadings
+        :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
+        """
+
+        return self.pca('', k, compute_loadings, as_array)
+
+
+    @handle_py4j
+    @record_method
     @typecheck_method(entry_expr=strlike,
                       k=integral,
                       compute_loadings=bool,
@@ -3456,16 +3485,12 @@ class VariantDataset(HistoryMixin):
 
         Eigenvalues are returned as an array of doubles.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
-        .. include:: _templates/req_biallelic.rst
-
         :param int k: Number of principal components.
 
         :param bool compute_loadings: If true, computes variant loadings. Default: False
 
-        :param entry_to_double: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
-        :type entry_to_double: str or None
+        :param entry_expr: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
+        :type entry_expr: str or None
 
         :param bool as_array: If true, stores KeyTable rows as type Array rather than Struct
 
@@ -3473,7 +3498,7 @@ class VariantDataset(HistoryMixin):
         :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        r = self._jvds.pca(joption(entry_to_double), k, compute_loadings, as_array)
+        r = self._jvds.pca(joption(entry_expr), k, compute_loadings, as_array)
         jloadings = from_option(r._3())
         return jiterable_to_list(r._1()), KeyTable(self.hc, r._2()), None if not jloadings else KeyTable(self.hc, jloadings)
 
