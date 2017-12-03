@@ -46,7 +46,7 @@ class PCASuite extends SparkSuite {
 
   @Test def testExpr() {
     val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
-    val pca = new ExprPCA("if (isDefined(g.gt)) g.gt else 0")
+    val pca = new ExprPCA("if (isDefined(g.GT)) g.GT.gt else 0")
 
     val (eigenvalues, scores, loadings) = pca(vds, 3, true, true)
 
