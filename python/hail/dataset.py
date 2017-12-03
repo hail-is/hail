@@ -3411,8 +3411,6 @@ class VariantDataset(HistoryMixin):
     def normalized_genotype_pca(self, k=10, compute_loadings=False, as_array=False):
         """Run Principal Component Analysis (PCA) on the normalized genotype matrix of this VSM.
 
-        .. include:: _templates/req_tvariant_tgenotype.rst
-
         .. include:: _templates/req_biallelic.rst
 
         :param int k: Number of principal components.
@@ -3428,7 +3426,10 @@ class VariantDataset(HistoryMixin):
         :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        return self.pca('', k, compute_loadings, as_array)
+        nVariants = self.count_variants()
+        return self.annotate_variants_expr('va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g.GT.isDefined).count()')\
+            .annotate_variants_expr('va.stddev = va.mean * (2 - va.mean) * '+str(nVariants)+' / 2')\
+            .pca('if (g.GT.isDefined) (g.GT.gt-va.mean)/va.stddev else 0', k, compute_loadings, as_array)
 
 
     @handle_py4j
