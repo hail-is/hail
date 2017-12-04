@@ -23,9 +23,10 @@ class PipelineSuite extends SparkSuite {
     val pedigree = Pedigree.read("src/test/resources/sample.fam", hadoopConf)
     qc.mendelErrors(pedigree)._1.export(mendelBase)
     qc.count()
-    qc.filterVariantsExpr("va.qc.AF > 0.01 && va.qc.AF < 0.99")
+    val prePCA = qc.filterVariantsExpr("va.qc.AF > 0.01 && va.qc.AF < 0.99")
       .annotateVariantsExpr("va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g => g.GT.isDefined).count()")
-      .annotateVariantsExpr(s"va.stddev = va.mean * (2 - va.mean) * ${ qc.countVariants() } / 2")
-      .pca("if (g.GT.isDefined) (g.GT.gt-va.mean)/va.stddev else 0")
+      .filterVariantsExpr(s"isDefined(va.mean) && va.mean != 0 && va.mean != 2").persist()
+    prePCA.pca(s"if (g.GT.isDefined) (g.GT.gt-va.mean)/sqrt(va.mean * (2- va.mean) * ${ prePCA.countVariants() }/ 2) else 0")
+    prePCA.unpersist()
   }
 }

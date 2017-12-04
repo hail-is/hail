@@ -3429,7 +3429,7 @@ class VariantDataset(HistoryMixin):
         """
 
         vds = self.annotate_variants_expr('va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g => g.GT.isDefined).count()')\
-                .filter_variants('va.mean.isDefined && va.mean != 0 && va.mean != 2').persist()
+                .filter_variants_expr('isDefined(va.mean) && va.mean != 0 && va.mean != 2').persist()
         nVariants = vds.count_variants()
         if nVariants == 0:
             fatal("Cannot run PCA: found 0 variants after filtering out variants with constant genotypes.")
