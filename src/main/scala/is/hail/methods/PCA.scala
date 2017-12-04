@@ -118,10 +118,3 @@ class ExprPCA(val expr: String) extends PCA {
     new IndexedRowMatrix(mat, partitionSizes(partitionSizes.length - 1), vsm.sampleIds.length))
   }
 }
-
-object SamplePCA extends PCA {
-  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix) = {
-    val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vsm)
-    (if (getVariants) Option(variants.asInstanceOf[Array[Any]]) else None, mat)
-  }
-}

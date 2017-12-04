@@ -3,16 +3,26 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TFloat64, TStruct}
-import is.hail.variant.Variant
+import is.hail.keytable.KeyTable
+import is.hail.variant.{Variant, VariantSampleMatrix}
+import org.apache.spark.mllib.linalg.DenseMatrix
 import org.testng.annotations.Test
+
+object PCASuite {
+  def samplePCA(vsm: VariantSampleMatrix, k: Int = 10, computeLoadings: Boolean = false, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix, Option[KeyTable]) = {
+    val prePCA = vsm.annotateVariantsExpr("va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g => g.GT.isDefined).count()")
+      .filterVariantsExpr(s"isDefined(va.mean) && va.mean != 0 && va.mean != 2").persist()
+    new ExprPCA(s"if (g.GT.isDefined) (g.GT.gt-va.mean)/sqrt(va.mean * (2- va.mean) * ${ prePCA.countVariants() }/ 2) else 0").apply(prePCA, k, computeLoadings, asArray)
+  }
+}
 
 class PCASuite extends SparkSuite {
 
   @Test def test() {
 
     val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
-    val (eigenvalues, scores, loadings) = SamplePCA(vds, 3, true, true)
-    val (eigenvaluesStruct, scoresStruct, loadingsStruct) = SamplePCA(vds, 3, true, false)
+    val (eigenvalues, scores, loadings) = PCASuite.samplePCA(vds, 3, true, true)
+    val (eigenvaluesStruct, scoresStruct, loadingsStruct) = PCASuite.samplePCA(vds, 3, true, false)
 
     // comparing against numbers computed via Python script test/resources/PCA.py
 
