@@ -100,6 +100,7 @@ class OrderedRVD private(
     assert(typ == rdd2.typ)
     assert(partitioner == rdd2.partitioner)
 
+    val localTyp = typ
     OrderedRVD(typ, partitioner,
       rdd.zipPartitions(rdd2.rdd) { case (it, it2) =>
         new Iterator[RegionValue] {
@@ -114,7 +115,7 @@ class OrderedRVD private(
             else if (!bit2.hasNext)
               bit.next()
             else {
-              val c = typ.kInRowOrd.compare(bit.head, bit2.head)
+              val c = localTyp.kInRowOrd.compare(bit.head, bit2.head)
               if (c < 0)
                 bit.next()
               else
