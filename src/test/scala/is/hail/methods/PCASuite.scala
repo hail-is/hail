@@ -12,7 +12,8 @@ object PCASuite {
   def samplePCA(vsm: VariantSampleMatrix, k: Int = 10, computeLoadings: Boolean = false, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix, Option[KeyTable]) = {
     val prePCA = vsm.annotateVariantsExpr("va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g => g.GT.isDefined).count()")
       .filterVariantsExpr(s"isDefined(va.mean) && va.mean != 0 && va.mean != 2").persist()
-    new ExprPCA(s"if (g.GT.isDefined) (g.GT.gt-va.mean)/sqrt(va.mean * (2- va.mean) * ${ prePCA.countVariants() }/ 2) else 0").apply(prePCA, k, computeLoadings, asArray)
+    val expr = s"if (g.GT.isDefined) (g.GT.gt-va.mean)/sqrt(va.mean * (2- va.mean) * ${ prePCA.countVariants() }/ 2) else 0"
+    PCA(prePCA, expr, k, computeLoadings, asArray)
   }
 }
 
@@ -56,9 +57,7 @@ class PCASuite extends SparkSuite {
 
   @Test def testExpr() {
     val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
-    val pca = new ExprPCA("if (isDefined(g.GT)) g.GT.gt else 0")
-
-    val (eigenvalues, scores, loadings) = pca(vds, 3, true, true)
+    val (eigenvalues, scores, loadings) = PCA(vds, "if (isDefined(g.GT)) g.GT.gt else 0", 3, true, true)
 
     println(scores)
     println(loadings.get.collect())

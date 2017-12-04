@@ -2592,10 +2592,9 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     info(s"Running PCA with $k components...")
 
-    val pcaF = new ExprPCA(expr)
-    val (eigenvalues, scoresmatrix, optionLoadings) = pcaF(this, k, computeLoadings, asArrays)
+    val (eigenvalues, scoresmatrix, optionLoadings) = PCA(this, expr, k, computeLoadings, asArrays)
 
-    val rowType = TStruct("s" -> sSignature, "pcaScores" -> pcaF.pcSchema(k, asArrays))
+    val rowType = TStruct("s" -> sSignature, "pcaScores" -> PCA.pcSchema(k, asArrays))
     val rowTypeBc = sparkContext.broadcast(rowType)
 
     val scoresrdd = sparkContext.parallelize(sampleIds.zip(scoresmatrix.rowIter.toSeq)).mapPartitions[RegionValue] { it =>

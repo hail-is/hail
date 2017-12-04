@@ -10,7 +10,7 @@ import org.apache.spark.mllib.linalg.{DenseMatrix, Vector, Vectors}
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.sql.Row
 
-trait PCA {
+object PCA {
   def pcSchema(k: Int, asArray: Boolean = false): Type =
     if (asArray)
       TArray(TFloat64())
@@ -18,9 +18,9 @@ trait PCA {
       TStruct((1 to k).map(i => (s"PC$i", TFloat64())): _*)
 
   //returns (sample scores, variant loadings, eigenvalues)
-  def apply(vsm: VariantSampleMatrix, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix, Option[KeyTable]) = {
+  def apply(vsm: VariantSampleMatrix, expr: String, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix, Option[KeyTable]) = {
     val sc = vsm.sparkContext
-    val (maybeVariants, mat) = doubleMatrixFromVSM(vsm, computeLoadings)
+    val (maybeVariants, mat) = doubleMatrixFromVSM(vsm, expr, computeLoadings)
     val svd = mat.computeSVD(k, computeLoadings)
     if (svd.s.size < k)
       fatal(
@@ -57,11 +57,7 @@ trait PCA {
     (svd.s.toArray.map(math.pow(_, 2)), svd.V.multiply(DenseMatrix.diag(svd.s)), optionLoadings)
   }
 
-  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix)
-}
-
-class ExprPCA(val expr: String) extends PCA {
-  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix) = {
+  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, expr: String, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix) = {
 
     val partitionSizes = vsm.rdd2.mapPartitions(it => Iterator.single(it.size)).collect().scanLeft(0)(_ + _)
     assert(partitionSizes.length == vsm.rdd2.getNumPartitions + 1)
