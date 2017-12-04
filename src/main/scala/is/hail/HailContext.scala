@@ -227,15 +227,17 @@ class HailContext private(val sc: SparkContext,
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
     nPartitions: Option[Int] = None,
-    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
-    importBgens(List(file), sampleFile, tolerance, nPartitions, gr)
+    gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
+    importBgens(List(file), sampleFile, tolerance, nPartitions, gr, contigRecoding)
   }
 
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
     nPartitions: Option[Int] = None,
-    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -252,7 +254,9 @@ class HailContext private(val sc: SparkContext,
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
 
-    BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions, gr)
+    contigRecoding.foreach(gr.validateContigRemap)
+
+    BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions, gr, contigRecoding.getOrElse(Map.empty[String, String]))
   }
 
   def importGen(file: String,
@@ -260,8 +264,9 @@ class HailContext private(val sc: SparkContext,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.2,
-    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
-    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, gr)
+    gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
+    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, gr, contigRecoding)
   }
 
   def importGens(files: Seq[String],
@@ -269,7 +274,8 @@ class HailContext private(val sc: SparkContext,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.2,
-    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
     val inputs = hadoopConf.globAll(files)
 
     inputs.foreach { input =>
@@ -280,12 +286,14 @@ class HailContext private(val sc: SparkContext,
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: ${ files.mkString(",") }")
 
+    contigRecoding.foreach(gr.validateContigRemap)
+
     val samples = BgenLoader.readSampleFile(sc.hadoopConfiguration, sampleFile)
     val nSamples = samples.length
 
     //FIXME: can't specify multiple chromosomes
     val results = inputs.map(f => GenLoader(f, sampleFile, sc, nPartitions,
-      tolerance, chromosome))
+      tolerance, chromosome, contigRecoding.getOrElse(Map.empty[String, String])))
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
     if (unequalSamples.length > 0)
@@ -375,12 +383,15 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
-    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
+
+    contigRecoding.foreach(gr.validateContigRemap)
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
     PlinkLoader(this, bed, bim, fam,
-      ffConfig, nPartitions, a2Reference, gr)
+      ffConfig, nPartitions, a2Reference, gr, contigRecoding.getOrElse(Map.empty[String, String]))
   }
 
   def importPlinkBFile(bfileRoot: String,
@@ -389,9 +400,10 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
-    gr: GenomeReference = GenomeReference.defaultReference): GenericDataset = {
+    gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno, a2Reference, gr)
+      nPartitions, delimiter, missing, quantPheno, a2Reference, gr, contigRecoding)
   }
 
   def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix = {
@@ -444,7 +456,7 @@ class HailContext private(val sc: SparkContext,
 
   def parseVCFMetadata(files: Seq[String]): Map[String, Map[String, Map[String, String]]] =
     parseVCFMetadata(files.head)
-
+  
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
     val reader = new HtsjdkRecordReader(Set.empty)
     LoadVCF.parseHeaderMetadata(this, reader, file)
@@ -456,8 +468,9 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
-    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, gr)
+    gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Option[Map[String, String]] = None): VariantSampleMatrix = {
+    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, gr, contigRecoding)
   }
 
   def importVCFs(files: Seq[String], force: Boolean = false,
@@ -466,7 +479,10 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
+    gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Option[Map[String, String]] = None): VariantSampleMatrix = {
+
+    contigRecoding.foreach(gr.validateContigRemap)
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
@@ -477,7 +493,7 @@ class HailContext private(val sc: SparkContext,
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
     val reader = new HtsjdkRecordReader(callFields)
-    val vkds = LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, gr)
+    val vkds = LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, gr, contigRecoding.getOrElse(Map.empty[String, String]))
 
     hadoopConf.set("io.compression.codecs", codecs)
 

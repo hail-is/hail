@@ -50,20 +50,28 @@ class ContextTests(unittest.TestCase):
         hc.index_bgen(test_resources + '/example.v11.bgen')
 
         bgen = hc.import_bgen(test_resources + '/example.v11.bgen',
-                              sample_file=test_resources + '/example.sample')
+                              sample_file=test_resources + '/example.sample',
+                              contig_recoding={"01": "1"})
+        self.assertTrue(bgen.variants_table().forall("""v.contig == "1" """))
         self.assertEqual(bgen.count()[1], 199)
 
         gen = hc.import_gen(test_resources + '/example.gen',
-                            sample_file=test_resources + '/example.sample')
+                            sample_file=test_resources + '/example.sample',
+                            contig_recoding={"01": "1"})
+        self.assertTrue(gen.variants_table().forall("""v.contig == "1" """))
         self.assertEqual(gen.count()[1], 199)
 
-        vcf = hc.import_vcf(test_resources + '/sample2.vcf').split_multi()
+        vcf = hc.import_vcf(test_resources + '/sample2.vcf',
+                            reference_genome=GenomeReference.GRCh38(),
+                            contig_recoding={"22": "chr22"}).split_multi()
 
+        self.assertTrue(vcf.variants_table().forall("""v.contig == "chr22" """))
         vcf.export_plink('/tmp/sample_plink')
 
         bfile = '/tmp/sample_plink'
         plink = hc.import_plink(
-            bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True)
+            bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True, contig_recoding={'chr22': '22'})
+        self.assertTrue(plink.variants_table().forall("""v.contig == "22" """))
         self.assertEqual(vcf.count(), plink.count())
 
         vcf.write('/tmp/sample.vds', overwrite=True)

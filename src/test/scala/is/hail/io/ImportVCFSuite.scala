@@ -2,7 +2,6 @@ package is.hail.io
 
 import is.hail.check.Prop._
 import is.hail.SparkSuite
-import is.hail.annotations.Annotation
 import is.hail.io.vcf.LoadVCF
 import is.hail.variant.{Call, Genotype, VSMSubgen, Variant, VariantSampleMatrix}
 import org.apache.spark.SparkException

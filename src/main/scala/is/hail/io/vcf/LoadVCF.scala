@@ -220,7 +220,7 @@ final class VCFLine(val line: String) {
   }
 
   // return false if it should be filtered
-  def parseAddVariant(rvb: RegionValueBuilder): Boolean = {
+  def parseAddVariant(rvb: RegionValueBuilder, contigRecoding: Map[String, String]): Boolean = {
     assert(pos == 0)
 
     if (line.isEmpty || line(0) == '#')
@@ -228,6 +228,7 @@ final class VCFLine(val line: String) {
 
     // CHROM (contig)
     val contig = parseString()
+    val recodedContig = contigRecoding.getOrElse(contig, contig)
     nextField()
 
     // POS (start)
@@ -262,12 +263,12 @@ final class VCFLine(val line: String) {
     }
 
     rvb.startStruct() // pk: Locus
-    rvb.addString(contig)
+    rvb.addString(recodedContig)
     rvb.addInt(start)
     rvb.endStruct()
 
     rvb.startStruct() // v: Variant
-    rvb.addString(contig)
+    rvb.addString(recodedContig)
     rvb.addInt(start)
     rvb.addString(ref)
     rvb.startArray(abs.length)
@@ -742,7 +743,7 @@ object LoadVCF {
 
   // parses the Variant (key), leaves the rest to f
   def parseLines[C](makeContext: () => C)(f: (C, VCFLine, RegionValueBuilder) => Unit)(
-    lines: RDD[WithContext[String]], t: Type): RDD[RegionValue] = {
+    lines: RDD[WithContext[String]], t: Type, contigRecoding: Map[String, String]): RDD[RegionValue] = {
     lines.mapPartitions { it =>
       new Iterator[RegionValue] {
         val region = MemoryBuffer()
@@ -762,7 +763,7 @@ object LoadVCF {
               region.clear()
               rvb.start(t)
               rvb.startStruct()
-              present = vcfLine.parseAddVariant(rvb)
+              present = vcfLine.parseAddVariant(rvb, contigRecoding)
               if (present) {
                 f(context, vcfLine, rvb)
 
@@ -812,6 +813,7 @@ object LoadVCF {
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     gr: GenomeReference = GenomeReference.defaultReference,
+    contigRecoding: Map[String, String] = Map.empty[String, String],
     arrayElementsRequired: Boolean = true): VariantSampleMatrix = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
@@ -890,7 +892,7 @@ object LoadVCF {
     val rowType = matrixType.rowType
 
     // nothing after the key
-    val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType)
+    val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType, contigRecoding)
 
     val rdd = OrderedRDD2(
       matrixType.orderedRDD2Type,
@@ -924,7 +926,7 @@ object LoadVCF {
           }
         }
         rvb.endArray()
-      }(lines, rowType),
+      }(lines, rowType, contigRecoding),
       Some(justVariants), None)
 
     new VariantSampleMatrix(hc,

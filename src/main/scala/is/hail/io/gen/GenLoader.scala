@@ -16,7 +16,7 @@ case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Anno
 object GenLoader {
   def apply(genFile: String, sampleFile: String, sc: SparkContext,
     nPartitions: Option[Int] = None, tolerance: Double = 0.02,
-    chromosome: Option[String] = None): GenResult = {
+    chromosome: Option[String] = None, contigRecoding: Map[String, String] = Map.empty[String, String]): GenResult = {
 
     val hConf = sc.hadoopConfiguration
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
@@ -27,7 +27,7 @@ object GenLoader {
 
     val rdd = sc.textFileLines(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
       .map(_.map { l =>
-        readGenLine(l, nSamples, tolerance, chromosome)
+        readGenLine(l, nSamples, tolerance, chromosome, contigRecoding)
       }.value)
 
     val signatures = TStruct("rsid" -> TString(), "varid" -> TString())
@@ -37,7 +37,8 @@ object GenLoader {
 
   def readGenLine(line: String, nSamples: Int,
     tolerance: Double,
-    chromosome: Option[String] = None): (Annotation, (Annotation, Iterable[Annotation])) = {
+    chromosome: Option[String] = None,
+    contigRecoding: Map[String, String] = Map.empty[String, String]): (Annotation, (Annotation, Iterable[Annotation])) = {
 
     val arr = line.split("\\s+")
     val chrCol = if (chromosome.isDefined) 1 else 0
@@ -48,13 +49,7 @@ object GenLoader {
     val ref = arr(4 - chrCol)
     val alt = arr(5 - chrCol)
 
-    val recodedChr = chr match {
-      case "23" => "X"
-      case "24" => "Y"
-      case "25" => "X"
-      case "26" => "MT"
-      case x => x
-    }
+    val recodedChr = contigRecoding.getOrElse(chr, chr)
 
     val variant = Variant(recodedChr, start.toInt, ref, alt)
     val nGenotypes = 3

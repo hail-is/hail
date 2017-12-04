@@ -178,4 +178,9 @@ class GenomeReferenceSuite extends SparkSuite {
 
     GenomeReference.setDefaultReference(GenomeReference.GRCh37)
   }
+
+  @Test def testContigRemap() {
+    val mapping = Map("23" -> "foo")
+    TestUtils.interceptFatal("do not have remapped contigs in the reference genome")(GenomeReference.GRCh37.validateContigRemap(mapping))
+  }
 }
