@@ -346,10 +346,7 @@ object Compile {
               elementPointer := region.irIntermediateToRegionValue(tArray.elementType)(storedElement),
               srvb.start(len + 1, init = true),
               (len.ceq(0)).mux(
-                Code(
-                  melement.mux(
-                    srvb.setMissing(),
-                    srvb.addIRIntermediate(elementType)(velement))),
+                srvb.addIRIntermediate(elementType)(velement),
                 Code(
                   i := 0,
                   mx := tArray.isElementMissing(region, s, i),
@@ -359,9 +356,7 @@ object Compile {
                     mx := tArray.isElementMissing(region, s, i),
                     x := mx.mux(0L, tArray.loadElement(region, s, i)),
                     i++),
-                  melement.mux(
-                    srvb.setMissing(),
-                    srvb.addIRIntermediate(elementType)(storedElement)),
+                  srvb.addIRIntermediate(elementType)(storedElement),
                   Code.whileLoop(i < len,
                     tArray.isElementMissing(region, s, i).mux(
                       srvb.setMissing(),
