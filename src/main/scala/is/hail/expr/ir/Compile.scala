@@ -328,7 +328,7 @@ object Compile {
         val x = fb.newLocal[Long]
         val storedElement = fb.newLocal()(TypeToTypeInfo(tArray.elementType)).asInstanceOf[LocalRef[Any]]
         val elementPointer = fb.newLocal[Long]
-        val ord = tArray.unsafeOrdering(true)
+        val ord = elementType.unsafeOrdering(true)
         val sortedArray = Code(
           doelement,
           s := coerce[Long](vset),
@@ -380,7 +380,7 @@ object Compile {
         val notfound = mb.newBit()
         val storedElement = fb.newLocal()(TypeToTypeInfo(tArray.elementType)).asInstanceOf[LocalRef[Any]]
         val elementPointer = fb.newLocal[Long]
-        val ord = tArray.unsafeOrdering(true)
+        val ord = tArray.elementType.unsafeOrdering(true)
         val result = Code(
           doelement,
           s := coerce[Long](vset),
