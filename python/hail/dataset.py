@@ -2376,7 +2376,7 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(key_expr=strlike,
                agg_expr=strlike,
                single_key=bool)
-    def group_variants_by(self, key_expr, agg_expr, single_key=True):
+    def group_variants_by(self, key_expr, agg_expr):
         """Group variants by key, aggregating along sample.
 
         If a key is missing, for a given variant, the variant will not be
@@ -2401,7 +2401,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.groupVariantsBy(key_expr, agg_expr, single_key))
+        return VariantDataset(self.hc, self._jvds.groupVariantsBy(key_expr, agg_expr))
 
     @handle_py4j
     @record_method

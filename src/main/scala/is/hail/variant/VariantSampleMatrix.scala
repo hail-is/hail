@@ -433,41 +433,23 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
   def take(n: Int): Array[UnsafeRow] = unsafeRowRDD().take(n)
 
-  def groupVariantsBy(keyExpr: String, aggExpr: String, singleKey: Boolean = false): VariantSampleMatrix = {
+  def groupVariantsBy(keyExpr: String, aggExpr: String): VariantSampleMatrix = {
     val localRowType = rowType
     val vEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
                               "v" -> (1, vSignature),
                               Annotation.VARIANT_HEAD -> (2, vaSignature)))
-    val (keysType, keyF) = Parser.parseExpr(keyExpr, vEC)
+    val (keyType, keyF) = Parser.parseExpr(keyExpr, vEC)
     vEC.set(0, globalAnnotation)
 
-    val (keyType, keyedRDD) =
-      if (singleKey) {
-        (keysType, rdd2.rdd.mapPartitions { it =>
-          val ur = new UnsafeRow(localRowType)
-          it.flatMap { rv =>
-            ur.set(rv)
-            vEC.set(1, ur.get(1))
-            vEC.set(2, ur.get(2))
-            Option(keyF()).map{ key => (Annotation.copy(keysType, key), ur) }
-          }
-        })
-      } else {
-        val keyType = keysType match {
-          case TArray(e, _) => e
-          case TSet(e, _) => e
-          case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
-        }
-        (keyType, rdd2.rdd.mapPartitions { it =>
-          val ur = new UnsafeRow(localRowType)
-          it.flatMap { rv =>
-            ur.set(rv)
-            vEC.set(1, ur.get(1))
-            vEC.set(2, ur.get(2))
-            Option(keyF().asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map{ key => (Annotation.copy(keyType, key), ur) }
-          }
-        })
+    val keyedRDD = rdd2.rdd.mapPartitions { it =>
+      val ur = new UnsafeRow(localRowType)
+      it.flatMap { rv =>
+        ur.set(rv)
+        vEC.set(1, ur.get(1))
+        vEC.set(2, ur.get(2))
+        Option(keyF()).map{ key => (Annotation.copy(keyType, key), ur) }
       }
+    }
 
     val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions(this, aggExpr)
 

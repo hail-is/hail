@@ -14,7 +14,7 @@ class GroupBySuite extends SparkSuite {
 
   @Test def testGroupVariantsBy() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.AC = gs.map(g => g.GT.gt).sum()")
-    val vds2 = vds.groupVariantsBy("va.AC", "gs.map(g => g.GT.gt).max()", true)
+    val vds2 = vds.groupVariantsBy("va.AC", "gs.map(g => g.GT.gt).max()")
   }
 
   @Test def testGroupByStruct() {
@@ -29,11 +29,11 @@ class GroupBySuite extends SparkSuite {
       val uniqueVariants = variants.toSet
       if (variants.length != uniqueVariants.size) {
         skipped += 1
-        val grouped = vsm.groupVariantsBy("v", "gs.collect()[0]", true)
+        val grouped = vsm.groupVariantsBy("v", "gs.collect()[0]")
         grouped.countVariants() == uniqueVariants.size
       } else {
         val vaKT = vsm.variantsKT()
-        val grouped = vsm.groupVariantsBy("v", "gs.collect()[0]", true)
+        val grouped = vsm.groupVariantsBy("v", "gs.collect()[0]")
         vsm.annotateVariantsExpr("va = {}").same(grouped)
       }
     }
@@ -55,7 +55,7 @@ class GroupBySuite extends SparkSuite {
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
-    val vdsGrouped = vds.groupVariantsBy("va.genes", "gs.map(g => va.weight * g.GT.gt).sum()")
+    val vdsGrouped = vds.explodeVariants("va.genes").groupVariantsBy("va.genes", "gs.map(g => va.weight * g.GT.gt).sum()")
     println(vds.rowType)
     println(vdsGrouped.rowType)
 
