@@ -3750,7 +3750,7 @@ class VariantDataset(HistoryMixin):
 
         intstatistics = { "phi" : 0, "phik2" : 1, "phik2k0" : 2, "all" : 3 }[statistics]
         _, scores, _ = self.normalized_genotype_pca(k, False, True)
-        return KeyTable(self.hc, self._jvdf.pcRelate(k, scores._jkt, maf, block_size, min_kinship, intstatistics))
+        return KeyTable(self.hc, self._jvds.pcRelate(k, scores._jkt, maf, block_size, min_kinship, intstatistics))
 
     @handle_py4j
     @record_method
