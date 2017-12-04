@@ -7,6 +7,7 @@ import is.hail.expr.{TArray, TFloat64Required, TInt32Required, TInt64Required, T
 import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.storage.StorageLevel
 import is.hail.sparkextras._
+import is.hail.rvd.{OrderedRVD, OrderedRVType, RVD}
 import is.hail.variant._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -81,7 +82,7 @@ object LDPrune {
   val genotypesPerPack = 32
   val nPartitionsPerCore = 3
 
-  case class GlobalPruneIntermediate(rvrdd: RegionValueRDD, rowType: TStruct, index: Int, persist: Boolean)
+  case class GlobalPruneIntermediate(rvd: RVD, rowType: TStruct, index: Int, persist: Boolean)
 
   val table: Array[Byte] = {
     val t = Array.ofDim[Byte](256 * 4)
@@ -242,10 +243,10 @@ object LDPrune {
     r2
   }
 
-  private def pruneLocal(inputRDD: OrderedRDD2, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): OrderedRDD2 = {
+  private def pruneLocal(inputRDD: OrderedRVD, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): OrderedRVD = {
     val localRowType = inputRDD.typ.rowType
 
-    inputRDD.mapPartitionsPreservesPartitioning({ it =>
+    inputRDD.mapPartitionsPreservesPartitioning(inputRDD.typ) { it =>
       val queue = queueSize match {
         case Some(qs) => new util.ArrayDeque[RegionValue](qs)
         case None => new util.ArrayDeque[RegionValue]
@@ -285,16 +286,16 @@ object LDPrune {
 
         keepVariant
       }
-    })
+    }
   }
 
-  private def pruneGlobal(inputRDD: OrderedRDD2,
-    r2Threshold: Double, windowSize: Int): (OrderedRDD2, Long) = {
+  private def pruneGlobal(inputRDD: OrderedRVD,
+    r2Threshold: Double, windowSize: Int): (OrderedRVD, Long) = {
     val sc = inputRDD.sparkContext
 
-    require(inputRDD.getStorageLevel2 != StorageLevel.NONE)
+    require(inputRDD.storageLevel == StorageLevel.MEMORY_AND_DISK)
 
-    val partitioner = inputRDD.orderedPartitioner
+    val partitioner = inputRDD.partitioner
     val rangeBounds = partitioner.rangeBounds.map(a => a.asInstanceOf[Row].getAs[Locus](0)).toArray
     val partitionIndices = inputRDD.partitions.map(_.index)
     val nPartitions = inputRDD.partitions.length
@@ -349,42 +350,42 @@ object LDPrune {
 
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
 
-    def generalRDDInputs(partitionIndex: Int): (Array[RegionValueRDD], Array[(Int, Int)]) = {
-      val (rvrdds, inputs) = computeDependencies(partitionIndex).zipWithIndex.map { case (depIndex, i) =>
+    def generalRDDInputs(partitionIndex: Int): (Array[RVD], Array[(Int, Int)]) = {
+      val (rvds, inputs) = computeDependencies(partitionIndex).zipWithIndex.map { case (depIndex, i) =>
         if (depIndex == partitionIndex || contigStartPartitions.contains(depIndex))
-          (inputRDD.rvrdd, (i, depIndex))
+          (inputRDD, (i, depIndex))
         else {
           val gpi = pruneIntermediates(depIndex)
-          pruneIntermediates(depIndex) = gpi.copy(rvrdd = gpi.rvrdd.persist2(StorageLevel.MEMORY_AND_DISK))
-          (pruneIntermediates(depIndex).rvrdd, (i, gpi.index))
+          pruneIntermediates(depIndex) = gpi.copy(rvd = gpi.rvd.persist(StorageLevel.MEMORY_AND_DISK))
+          (pruneIntermediates(depIndex).rvd, (i, gpi.index))
         }
       }.unzip
-      (rvrdds.toArray, inputs.toArray)
+      (rvds.toArray, inputs.toArray)
     }
 
     for (i <- partitionIndices) {
-      val (rvrdds, inputs) = generalRDDInputs(i)
+      val (rvds, inputs) = generalRDDInputs(i)
       pruneIntermediates(i) = GlobalPruneIntermediate(
-        rvrdd = new RegionValueRDD(new GeneralRDD(sc, rvrdds.map(_.rdd), Array((inputs, pruneF))), inputRDD.typ.rowType),
+        rvd = RVD(inputRDD.typ.rowType, new GeneralRDD(sc, rvds.map(_.rdd), Array((inputs, pruneF)))),
         rowType = localRowType,
         index = 0,
         persist = false) // creating single partition RDDs with partition index = 0
     }
 
-    val prunedRDD = OrderedRDD2(inputRDD.typ,
-      inputRDD.orderedPartitioner,
-      new GeneralRDD[RegionValue](sc, pruneIntermediates.map(_.rvrdd.rdd),
+    val prunedRDD = OrderedRVD(inputRDD.typ,
+      inputRDD.partitioner,
+      new GeneralRDD[RegionValue](sc, pruneIntermediates.map(_.rvd.rdd),
         pruneIntermediates.zipWithIndex.map { case (gpi, i) =>
           (Array((i, gpi.index)), pruneF)
-        })).persist2(StorageLevel.MEMORY_AND_DISK)
+        }))
+      .persist(StorageLevel.MEMORY_AND_DISK)
 
     val nVariantsKept = prunedRDD.count()
 
     pruneIntermediates.foreach { gpi =>
-      if (gpi.rvrdd.getStorageLevel2 != StorageLevel.NONE)
-        gpi.rvrdd.unpersist2()
+       gpi.rvd.unpersist()
     }
-    inputRDD.unpersist2()
+    inputRDD.unpersist()
 
     (prunedRDD, nVariantsKept)
   }
@@ -441,7 +442,7 @@ object LDPrune {
     val typ = vsm.rdd2.typ
 
     val standardizedRDD = vsm.filterVariantsExpr("v.isBiallelic()").rdd2
-      .mapPartitionsPreservesPartitioning(new OrderedRDD2Type(typ.partitionKey, typ.key, bpvType))({ it =>
+      .mapPartitionsPreservesPartitioning(new OrderedRVType(typ.partitionKey, typ.key, bpvType))({ it =>
         val hcView = HardCallView(localRowType)
         val region = MemoryBuffer()
         val rvb = new RegionValueBuilder(region)
@@ -469,7 +470,7 @@ object LDPrune {
       })
 
     val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
-      val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, windowSize, Option(maxQueueSize)).persist2(StorageLevel.MEMORY_AND_DISK)
+      val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, windowSize, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)
       val nVariantsKept = prunedRDD.count()
       val nPartitions = prunedRDD.partitions.length
       assert(nVariantsKept >= 1)
@@ -479,14 +480,14 @@ object LDPrune {
 
     val ((rddLP2, nVariantsLP2, nPartitionsLP2), durationLP2) = time({
       val (_, nPartitionsRequired) = estimateMemoryRequirements(nVariantsLP1, nSamples, nCores, memoryPerCore)
-      val repartRDD = rddLP1.coalesce(nPartitionsRequired, shuffle = true).persist2(StorageLevel.MEMORY_AND_DISK)
+      val repartRDD = rddLP1.coalesce(nPartitionsRequired, shuffle = true).persist(StorageLevel.MEMORY_AND_DISK)
       repartRDD.count()
-      rddLP1.unpersist2()
-      val prunedRDD = pruneLocal(repartRDD, r2Threshold, windowSize, None).persist2(StorageLevel.MEMORY_AND_DISK)
+      rddLP1.unpersist()
+      val prunedRDD = pruneLocal(repartRDD, r2Threshold, windowSize, None).persist(StorageLevel.MEMORY_AND_DISK)
       val nVariantsKept = prunedRDD.count()
       val nPartitions = prunedRDD.partitions.length
       assert(nVariantsKept >= 1)
-      repartRDD.unpersist2()
+      repartRDD.unpersist()
       (prunedRDD, nVariantsKept, nPartitions)
     })
     info(s"LD prune step 2 of 3: nVariantsKept=$nVariantsLP2, nPartitions=$nPartitionsLP2, time=${ formatTime(durationLP2) }")

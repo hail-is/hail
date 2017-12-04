@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.io.vcf.LoadVCF
-import is.hail.sparkextras.OrderedRDD2
+import is.hail.rvd.OrderedRVD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
@@ -193,7 +193,7 @@ object PlinkLoader {
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = sampleAnnotations),
-      OrderedRDD2(matrixType.orderedRDD2Type, rdd2, Some(fastKeys), None))
+      OrderedRVD(matrixType.orderedRVType, rdd2, Some(fastKeys), None))
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
