@@ -324,7 +324,6 @@ object Compile {
         val len = fb.newLocal[Int]
         val i = fb.newLocal[Int]
         val s = fb.newLocal[Long]
-        val mx = mb.newBit()
         val x = fb.newLocal[Long]
         val storedElement = fb.newLocal()(TypeToTypeInfo(tArray.elementType)).asInstanceOf[LocalRef[Any]]
         val elementPointer = fb.newLocal[Long]
@@ -349,12 +348,11 @@ object Compile {
                 srvb.addIRIntermediate(elementType)(velement),
                 Code(
                   i := 0,
-                  mx := tArray.isElementMissing(region, s, i),
-                  x := mx.mux(0L, tArray.loadElement(region, s, i)),
-                  Code.whileLoop(i < len && !mx && (ord.compare(region, x, region, elementPointer)(fb, mb) < 0),
-                    mx.mux(srvb.setMissing(), srvb.addRegionValue(elementType)(x)),
-                    mx := tArray.isElementMissing(region, s, i),
-                    x := mx.mux(0L, tArray.loadElement(region, s, i)),
+                  Code.whileLoop(
+                    i < len && !tArray.isElementMissing(region, s, i) && Code(
+                      x := tArray.loadElement(region, s, i),
+                      ord.compare(region, x, region, elementPointer)(fb, mb) < 0),
+                    srvb.addRegionValue(elementType)(x),
                     i++),
                   srvb.addIRIntermediate(elementType)(storedElement),
                   Code.whileLoop(i < len,
