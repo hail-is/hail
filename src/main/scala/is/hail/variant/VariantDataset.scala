@@ -348,24 +348,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     Nirvana.annotate(vsm, config, blockSize, root)
   }
 
-  /**
-    *
-    * @param k          the number of principal components to use to distinguish
-    *                   ancestries
-    * @param maf        the minimum individual-specific allele frequency for an
-    *                   allele used to measure relatedness
-    * @param blockSize  the side length of the blocks of the block-distributed
-    *                   matrices; this should be set such that atleast three of
-    *                   these matrices fit in memory (in addition to all other
-    *                   objects necessary for Spark and Hail).
-    * @param statistics which subset of the four statistics to compute
-    */
-  def pcRelate(k: Int, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): KeyTable = {
-    require(vsm.wasSplit)
-    val pcs = SamplePCA(vsm, k, false)._2
-    PCRelate.toKeyTable(vsm, pcs, maf, blockSize, minKinship, statistics)
-  }
-
   def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
     require(vsm.wasSplit)
     info(s"rrm: Computing Realized Relationship Matrix...")

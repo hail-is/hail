@@ -14,6 +14,7 @@ import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import org.apache.hadoop
+import org.apache.spark.mllib.linalg.DenseMatrix
 import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.AggregateWithContext._
 import org.apache.spark.sql.Row
@@ -2624,5 +2625,34 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       Array("s"))
 
     (eigenvalues, scores, optionLoadings)
+  }
+
+  /**
+    *
+    * @param k          the number of principal components to use to distinguish
+    *                   ancestries
+    * @param maf        the minimum individual-specific allele frequency for an
+    *                   allele used to measure relatedness
+    * @param blockSize  the side length of the blocks of the block-distributed
+    *                   matrices; this should be set such that atleast three of
+    *                   these matrices fit in memory (in addition to all other
+    *                   objects necessary for Spark and Hail).
+    * @param statistics which subset of the four statistics to compute
+    */
+  def pcRelate(k: Int, pcaScores: KeyTable, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): KeyTable = {
+    require(wasSplit)
+    val scoreArray = new Array[Double](nSamples*k)
+    val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
+    var i = 0
+    while (i < nSamples) {
+      val row = pcs(i).getAs[IndexedSeq[Double]](2)
+      var j = 0
+      while (j < k) {
+        scoreArray(j*nSamples + i) = row(j)
+        j += 1
+      }
+      i += 1
+    }
+    PCRelate.toKeyTable(this, new DenseMatrix(nSamples, k, scoreArray, false), maf, blockSize, minKinship, statistics)
   }
 }

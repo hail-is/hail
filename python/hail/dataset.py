@@ -3419,9 +3419,6 @@ class VariantDataset(HistoryMixin):
 
         :param bool compute_loadings: If true, computes variant loadings. Default: False
 
-        :param entry_expr: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
-        :type entry_expr: str or None
-
         :param bool as_array: If true, stores KeyTable rows as type Array rather than Struct
 
         :return: Tuple of: list of eigenvalues, KeyTable of scores, KeyTable of loadings
@@ -3494,12 +3491,12 @@ class VariantDataset(HistoryMixin):
 
         Eigenvalues are returned as an array of doubles.
 
+        :param entry_expr: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix.
+        :type entry_expr: str
+
         :param int k: Number of principal components.
 
         :param bool compute_loadings: If true, computes variant loadings. Default: False
-
-        :param entry_expr: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix. Default: None (uses normalized matrix as described above)
-        :type entry_expr: str or None
 
         :param bool as_array: If true, stores KeyTable rows as type Array rather than Struct
 
@@ -3752,8 +3749,8 @@ class VariantDataset(HistoryMixin):
         """
 
         intstatistics = { "phi" : 0, "phik2" : 1, "phik2k0" : 2, "all" : 3 }[statistics]
-
-        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship, intstatistics))
+        _, scores, _ = self.normalized_genotype_pca(k, False, True)
+        return KeyTable(self.hc, self._jvdf.pcRelate(k, scores._jkt, maf, block_size, min_kinship, intstatistics))
 
     @handle_py4j
     @record_method
