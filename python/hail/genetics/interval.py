@@ -58,6 +58,9 @@ class Interval(HistoryMixin):
         # FIXME
         from hail.expr.types import TLocus
         interval._typ = TLocus(reference_genome)
+
+        reference_genome._check_interval(jrep)
+
         super(Interval, interval).__init__()
         return interval
 

@@ -221,7 +221,7 @@ final class VCFLine(val line: String) {
   }
 
   // return false if it should be filtered
-  def parseAddVariant(rvb: RegionValueBuilder, contigRecoding: Map[String, String]): Boolean = {
+  def parseAddVariant(rvb: RegionValueBuilder, gr: GenomeReference, contigRecoding: Map[String, String]): Boolean = {
     assert(pos == 0)
 
     if (line.isEmpty || line(0) == '#')
@@ -235,6 +235,8 @@ final class VCFLine(val line: String) {
     // POS (start)
     val start = parseInt()
     nextField()
+
+    gr.checkLocus(recodedContig, start)
 
     skipField() // ID
     nextField()
@@ -744,7 +746,7 @@ object LoadVCF {
 
   // parses the Variant (key), leaves the rest to f
   def parseLines[C](makeContext: () => C)(f: (C, VCFLine, RegionValueBuilder) => Unit)(
-    lines: RDD[WithContext[String]], t: Type, contigRecoding: Map[String, String]): RDD[RegionValue] = {
+    lines: RDD[WithContext[String]], t: Type, gr: GenomeReference, contigRecoding: Map[String, String]): RDD[RegionValue] = {
     lines.mapPartitions { it =>
       new Iterator[RegionValue] {
         val region = Region()
@@ -764,7 +766,7 @@ object LoadVCF {
               region.clear()
               rvb.start(t)
               rvb.startStruct()
-              present = vcfLine.parseAddVariant(rvb, contigRecoding)
+              present = vcfLine.parseAddVariant(rvb, gr, contigRecoding)
               if (present) {
                 f(context, vcfLine, rvb)
 
@@ -893,7 +895,7 @@ object LoadVCF {
     val rowType = matrixType.rowType
 
     // nothing after the key
-    val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType, contigRecoding)
+    val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType, gr, contigRecoding)
 
     val rdd = OrderedRVD(
       matrixType.orderedRVType,
@@ -927,7 +929,7 @@ object LoadVCF {
           }
         }
         rvb.endArray()
-      }(lines, rowType, contigRecoding),
+      }(lines, rowType, gr, contigRecoding),
       Some(justVariants), None)
 
     new MatrixTable(hc,

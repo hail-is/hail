@@ -221,9 +221,9 @@ class HailContext(HistoryMixin):
 
         **Examples**
 
-        Importing a BGEN file as a VDS.
+        Importing a BGEN file as a VDS renaming contig name "01" to "1".
 
-        >>> vds = hc1.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+        >>> vds = hc1.import_bgen("data/example3.bgen", sample_file="data/example3.sample", contig_recoding={"01": "1"})
 
         **Notes**
 

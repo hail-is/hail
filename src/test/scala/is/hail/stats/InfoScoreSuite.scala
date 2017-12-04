@@ -32,17 +32,17 @@ class InfoScoreSuite extends SparkSuite {
     }
       .map { case (v, (info, n)) => (v.toString, (info, n)) }.collectAsMap()
 
-    (truthResult.keys ++ hailResult.keys).forall { v =>
+    assert((truthResult.keys ++ hailResult.keys).forall { v =>
       val (tI, tN) = truthResult.getOrElse(v, (None, None))
       val (hI, hN) = hailResult.getOrElse(v, (None, None))
 
       val res =
-        tN == hN && ((tI.isEmpty && hI.isEmpty) || D_==(tI.get, hI.get))
+        tN == hN && ((tI.isEmpty && hI.isEmpty) || math.abs(tI.get - hI.get) < 1e-3)
 
       if (!res)
         println(s"v=$v tI=$tI tN=$tN hI=$hI hN=$hN")
 
       res
-    }
+    })
   }
 }

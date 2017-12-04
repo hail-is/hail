@@ -195,9 +195,12 @@ class VSMSuite extends SparkSuite {
 
   @Test def testWriteRead() {
     val p = forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
+      GenomeReference.addReference(vds.genomeReference)
       val f = tmpDir.createTempFile(extension = "vds")
       vds.write(f)
-      hc.readVDS(f).same(vds)
+      val result = hc.readVDS(f).same(vds)
+      GenomeReference.removeReference(vds.genomeReference.name)
+      result
     }
 
     p.check()

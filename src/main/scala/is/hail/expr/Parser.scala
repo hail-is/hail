@@ -3,7 +3,7 @@ package is.hail.expr
 import is.hail.expr.types._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
-import is.hail.variant.GenomeReference
+import is.hail.variant.{GRBase, GenomeReference, Locus}
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -302,8 +302,50 @@ object Parser extends JavaTokenParsers {
     parseAnnotationRoot(a, root)
   }
 
+  def parseInterval(input: String, gr: GRBase): Interval = {
+    parseAll[Interval](interval(gr), input) match {
+      case Success(r, _) => r
+      case NoSuccess(msg, next) => fatal(s"invalid interval expression: `$input': $msg")
+    }
+  }
+
   def withPos[T](p: => Parser[T]): Parser[Positioned[T]] =
     positioned[Positioned[T]](p ^^ { x => Positioned(x) })
+
+  def oneOfLiteral(s: String*): Parser[String] = oneOfLiteral(s.toArray)
+
+  def oneOfLiteral(a: Array[String]): Parser[String] = new Parser[String] {
+    var hasEnd: Boolean = false
+
+    val m = a.flatMap { s =>
+      val l = s.length
+      if (l == 0) {
+        hasEnd = true
+        None
+      }
+      else if (l == 1) {
+        Some((s.charAt(0), ""))
+      }
+      else
+        Some((s.charAt(0), s.substring(1)))
+    }.groupBy(_._1).mapValues { v => oneOfLiteral(v.map(_._2)) }
+
+    def apply(in: Input): ParseResult[String] = {
+      m.get(in.first) match {
+        case Some(p) =>
+          p(in.rest) match {
+            case s: Success[_] =>
+              Success(in.first.toString + s.result, in.drop(s.result.length + 1))
+            case _ => Failure("", in)
+          }
+        case None =>
+          if (hasEnd)
+            Success("", in)
+          else
+            Failure("", in)
+      }
+    }
+  }
 
   def expr: Parser[AST] = ident ~ withPos("=>") ~ expr ^^ { case param ~ arrow ~ body =>
     Lambda(arrow.pos, param, body)
@@ -599,4 +641,41 @@ object Parser extends JavaTokenParsers {
   }
 
   def genomeReferenceDependentTypes: Parser[String] = "Variant" | "LocusInterval" | "Locus"
+
+  def interval(gr: GRBase): Parser[Interval] = {
+    val contig = gr.contigParser
+    locus(gr) ~ "-" ~ locus(gr) ^^ { case l1 ~ _ ~ l2 => Interval(l1, l2) } |
+      locus(gr) ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => Interval(l1, l1.copyChecked(gr, position = p2.getOrElse(gr.contigLength(l1.contig)))) } |
+      contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => Interval(Locus(c1, 1, gr), Locus(c2, gr.contigLength(c2), gr)) } |
+      contig ^^ { c => Interval(Locus(c, 1), Locus(c, gr.contigLength(c))) }
+  }
+
+  def locus(gr: GRBase): Parser[Locus] =
+    (gr.contigParser ~ ":" ~ pos) ^^ { case c ~ _ ~ p => Locus(c, p.getOrElse(gr.contigLength(c)), gr) }
+
+  def coerceInt(s: String): Int = try {
+    s.toInt
+  } catch {
+    case e: java.lang.NumberFormatException => Int.MaxValue
+  }
+
+  def exp10(i: Int): Int = {
+    var mult = 1
+    var j = 0
+    while (j < i) {
+      mult *= 10
+      j += 1
+    }
+    mult
+  }
+
+  def pos: Parser[Option[Int]] = {
+    "[sS][Tt][Aa][Rr][Tt]".r ^^ { _ => Some(1) } |
+      "[Ee][Nn][Dd]".r ^^ { _ => None } |
+      "\\d+".r <~ "[Kk]".r ^^ { i => Some(coerceInt(i) * 1000) } |
+      "\\d+".r <~ "[Mm]".r ^^ { i => Some(coerceInt(i) * 1000000) } |
+      "\\d+".r ~ "." ~ "\\d{1,3}".r ~ "[Kk]".r ^^ { case lft ~ _ ~ rt ~ _ => Some(coerceInt(lft + rt) * exp10(3 - rt.length)) } |
+      "\\d+".r ~ "." ~ "\\d{1,6}".r ~ "[Mm]".r ^^ { case lft ~ _ ~ rt ~ _ => Some(coerceInt(lft + rt) * exp10(6 - rt.length)) } |
+      "\\d+".r ^^ { i => Some(coerceInt(i)) }
+  }
 }

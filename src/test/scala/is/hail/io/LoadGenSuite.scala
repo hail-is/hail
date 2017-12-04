@@ -28,7 +28,7 @@ class LoadGenSuite extends SparkSuite {
     val gen = "src/test/resources/example.gen"
     val sampleFile = "src/test/resources/example.sample"
 
-    val genVDS = hc.importGen(gen, sampleFile)
+    val genVDS = hc.importGen(gen, sampleFile, contigRecoding = Some(Map("01" -> "1")))
     val genOrigData = makeRDD(gen)
 
     val genQuery = genVDS.vaSignature.query("varid")

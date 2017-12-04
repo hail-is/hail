@@ -297,7 +297,7 @@ class HailContext private(val sc: SparkContext,
     val nSamples = samples.length
 
     //FIXME: can't specify multiple chromosomes
-    val results = inputs.map(f => GenLoader(f, sampleFile, sc, nPartitions,
+    val results = inputs.map(f => GenLoader(f, sampleFile, sc, gr, nPartitions,
       tolerance, chromosome, contigRecoding.getOrElse(Map.empty[String, String])))
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))

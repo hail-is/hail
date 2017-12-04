@@ -28,7 +28,6 @@ trait Py4jUtils {
     IntervalTree(gr.locusType.ordering, Locus.parseIntervals(strs.asScala.toArray, gr))
   }
 
-
   def makeIntervalList(intervals: java.util.ArrayList[Interval], gr: GenomeReference): IntervalTree[Unit] = {
     IntervalTree(gr.locusType.ordering, intervals.asScala.toArray)
   }

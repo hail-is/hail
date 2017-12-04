@@ -22,7 +22,7 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 
-  override def genNonmissingValue: Gen[Annotation] = Locus.gen
+  override def genNonmissingValue: Gen[Annotation] = Locus.gen(gr.asInstanceOf[GenomeReference])
 
   override def desc: String = "A ``Locus(GR)`` is a Hail data type representing a specific genomic location in the Variant Dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38."
 

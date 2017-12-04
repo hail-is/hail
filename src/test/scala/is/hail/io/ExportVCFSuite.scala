@@ -81,9 +81,9 @@ class ExportVCFSuite extends SparkSuite {
       hadoopConf.delete(out, recursive = true)
       hadoopConf.delete(out2, recursive = true)
       ExportVCF(vds, out)
-      val vds2 = hc.importVCF(out, nPartitions = Some(nPar1))
+      val vds2 = hc.importVCF(out, nPartitions = Some(nPar1), gr = vds.genomeReference)
       ExportVCF(vds, out2)
-      hc.importVCF(out2, nPartitions = Some(nPar2)).same(vds2)
+      hc.importVCF(out2, nPartitions = Some(nPar2), gr = vds.genomeReference).same(vds2)
     }
 
     p.check()

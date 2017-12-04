@@ -14,7 +14,7 @@ import scala.collection.mutable
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))])
 
 object GenLoader {
-  def apply(genFile: String, sampleFile: String, sc: SparkContext,
+  def apply(genFile: String, sampleFile: String, sc: SparkContext, gr: GenomeReference,
     nPartitions: Option[Int] = None, tolerance: Double = 0.02,
     chromosome: Option[String] = None, contigRecoding: Map[String, String] = Map.empty[String, String]): GenResult = {
 
@@ -27,7 +27,7 @@ object GenLoader {
 
     val rdd = sc.textFileLines(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
       .map(_.map { l =>
-        readGenLine(l, nSamples, tolerance, chromosome, contigRecoding)
+        readGenLine(l, nSamples, tolerance, gr, chromosome, contigRecoding)
       }.value)
 
     val signatures = TStruct("rsid" -> TString(), "varid" -> TString())
@@ -37,6 +37,7 @@ object GenLoader {
 
   def readGenLine(line: String, nSamples: Int,
     tolerance: Double,
+    gr: GenomeReference,
     chromosome: Option[String] = None,
     contigRecoding: Map[String, String] = Map.empty[String, String]): (Annotation, (Annotation, Iterable[Annotation])) = {
 
@@ -49,9 +50,9 @@ object GenLoader {
     val ref = arr(4 - chrCol)
     val alt = arr(5 - chrCol)
 
-    val recodedChr = contigRecoding.getOrElse(chr, chr)
+    val recodedContig = contigRecoding.getOrElse(chr, chr)
+    val variant = Variant(recodedContig, start.toInt, ref, alt, gr)
 
-    val variant = Variant(recodedChr, start.toInt, ref, alt)
     val nGenotypes = 3
     val gp = arr.drop(6 - chrCol).map {
       _.toDouble

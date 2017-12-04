@@ -966,7 +966,12 @@ object FunctionRegistry {
     Construct a :ref:`call` from an integer.
     """, "gt" -> "integer")(boxedInt32Hr, callHr)
 
-  register("Variant", { (x: String) => Variant.parse(x) },
+  register("AltAllele", { (ref: String, alt: String) => AltAllele(ref, alt)}, "")(stringHr, stringHr, altAlleleHr)
+
+  registerDependent("Variant", { () =>
+    val gr = GR.gr
+    (x: String) => Variant.parse(x, gr)
+    },
     """
     Construct a :ref:`variant(gr)` object.
 
@@ -978,9 +983,10 @@ object FunctionRegistry {
     """,
     "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")(stringHr, variantHr(GR))
 
-  register("AltAllele", { (ref: String, alt: String) => AltAllele(ref, alt)}, "")(stringHr, stringHr, altAlleleHr)
-
-  register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) },
+  registerDependent("Variant", { () =>
+    val gr = GR.gr
+    (contig: String, pos: Int, ref: String, alt: String) => Variant(contig, pos, ref, alt, gr)
+    },
     """
     Construct a :ref:`variant(gr)` object.
 
@@ -994,7 +1000,10 @@ object FunctionRegistry {
     "pos" -> "SNP position or start of an indel.",
     "ref" -> "Reference allele sequence.",
     "alt" -> "Alternate allele sequence.")(stringHr, int32Hr, stringHr, stringHr, variantHr(GR))
-  register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray) },
+  registerDependent("Variant", { () =>
+    val gr = GR.gr
+    (contig: String, pos: Int, ref: String, alts: IndexedSeq[String]) => Variant(contig, pos, ref, alts.toArray, gr)
+    },
     """
     Construct a :ref:`variant(gr)` object.
 
@@ -1067,9 +1076,9 @@ object FunctionRegistry {
     "left" -> "Left variant to combine.",
     "right" -> "Right variant to combine.")(variantHr(GR), variantHr(GR))
 
-  register("Locus", { (x: String) =>
-    val Array(chr, pos) = x.split(":")
-    Locus(chr, pos.toInt)
+  registerDependent("Locus", { () =>
+    val gr = GR.gr
+    (x: String) => Locus.parse(x, gr)
   },
     """
     Construct a :ref:`locus(gr)` object.
@@ -1083,7 +1092,10 @@ object FunctionRegistry {
     ("s", "String of the form ``CHR:POS``")
   )(stringHr, locusHr(GR))
 
-  register("Locus", { (x: String, y: Int) => Locus(x, y) },
+  registerDependent("Locus", { () =>
+    val gr = GR.gr
+    (contig: String, pos: Int) => Locus(contig, pos, gr)
+    },
     """
     Construct a :ref:`locus(gr)` object.
 
@@ -1292,10 +1304,7 @@ object FunctionRegistry {
 
   registerDependent("LocusInterval", () => {
     val gr = GR.gr
-    (chr: String, start: Int, end: Int) => {
-      implicit val ord = gr.intervalType.ordering
-      Interval(Locus(chr, start), Locus(chr, end))
-    }
+    (chr: String, start: Int, end: Int) => Locus.makeInterval(chr, start, end, gr)
   },
     """
     Constructs an interval from a given chromosome, start, and end.

@@ -195,18 +195,23 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testParser() {
+    val gr = GenomeReference.GRCh37
+    val xMax = gr.contigLength("X")
+    val yMax = gr.contigLength("Y")
+    val chr22Max = gr.contigLength("22")
+
     assert(Locus.parseInterval("1:100-1:101", gr) == Interval(Locus("1", 100), Locus("1", 101)))
     assert(Locus.parseInterval("1:100-101", gr) == Interval(Locus("1", 100), Locus("1", 101)))
     assert(Locus.parseInterval("X:100-101", gr) == Interval(Locus("X", 100), Locus("X", 101)))
-    assert(Locus.parseInterval("X:100-end", gr) == Interval(Locus("X", 100), Locus("X", Int.MaxValue)))
-    assert(Locus.parseInterval("X:100-End", gr) == Interval(Locus("X", 100), Locus("X", Int.MaxValue)))
-    assert(Locus.parseInterval("X:100-END", gr) == Interval(Locus("X", 100), Locus("X", Int.MaxValue)))
-    assert(Locus.parseInterval("X:start-101", gr) == Interval(Locus("X", 0), Locus("X", 101)))
-    assert(Locus.parseInterval("X:Start-101", gr) == Interval(Locus("X", 0), Locus("X", 101)))
-    assert(Locus.parseInterval("X:START-101", gr) == Interval(Locus("X", 0), Locus("X", 101)))
-    assert(Locus.parseInterval("X:START-Y:END", gr) == Interval(Locus("X", 0), Locus("Y", Int.MaxValue)))
-    assert(Locus.parseInterval("X-Y", gr) == Interval(Locus("X", 0), Locus("Y", Int.MaxValue)))
-    assert(Locus.parseInterval("1-22", gr) == Interval(Locus("1", 0), Locus("22", Int.MaxValue)))
+    assert(Locus.parseInterval("X:100-end", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
+    assert(Locus.parseInterval("X:100-End", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
+    assert(Locus.parseInterval("X:100-END", gr) == Interval(Locus("X", 100), Locus("X", xMax)))
+    assert(Locus.parseInterval("X:start-101", gr) == Interval(Locus("X", 1), Locus("X", 101)))
+    assert(Locus.parseInterval("X:Start-101", gr) == Interval(Locus("X", 1), Locus("X", 101)))
+    assert(Locus.parseInterval("X:START-101", gr) == Interval(Locus("X", 1), Locus("X", 101)))
+    assert(Locus.parseInterval("X:START-Y:END", gr) == Interval(Locus("X", 1), Locus("Y", yMax)))
+    assert(Locus.parseInterval("X-Y", gr) == Interval(Locus("X", 1), Locus("Y", yMax)))
+    assert(Locus.parseInterval("1-22", gr) == Interval(Locus("1", 1), Locus("22", chr22Max)))
 
     assert(Locus.parseInterval("16:29500000-30200000", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000)))
     assert(Locus.parseInterval("16:29.5M-30.2M", gr) == Interval(Locus("16", 29500000), Locus("16", 30200000)))
@@ -231,5 +236,20 @@ class IntervalSuite extends SparkSuite {
     TestUtils.interceptFatal("invalid interval expression") {
       Locus.parseInterval("1:1.1111111M-2M", gr)
     }
+
+    val gr37 = GenomeReference.GRCh37
+    val gr38 = GenomeReference.GRCh38
+
+    val x = "GL000197.1:3739-GL000202.1:7538"
+    assert(Locus.parseInterval(x, gr37) ==
+      Interval(Locus("GL000197.1", 3739), Locus("GL000202.1", 7538))(gr37.locusOrdering))
+
+    val y = "HLA-DRB1*13:02:01:5-HLA-DRB1*14:05:01:100"
+    assert(Locus.parseInterval(y, gr38) ==
+      Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*14:05:01", 100))(gr38.locusOrdering))
+
+    val z = "HLA-DRB1*13:02:01:5-100"
+    assert(Locus.parseInterval(z, gr38) ==
+      Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*13:02:01", 100))(gr38.locusOrdering))
   }
 }

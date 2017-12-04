@@ -25,7 +25,7 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Variant]
 
-  override def genNonmissingValue: Gen[Annotation] = Variant.gen
+  override def genNonmissingValue: Gen[Annotation] = VariantSubgen.fromGenomeRef(gr.asInstanceOf[GenomeReference]).gen
 
   override def desc: String =
     """

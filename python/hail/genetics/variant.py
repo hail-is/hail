@@ -33,12 +33,12 @@ class Variant(HistoryMixin):
     def __init__(self, contig, start, ref, alts, reference_genome=None):
         if isinstance(contig, int):
             contig = str(contig)
-        jrep = scala_object(Env.hail().variant, 'Variant').apply(contig, start, ref, alts)
+        self._rg = reference_genome if reference_genome else Env.hc().default_reference
+        jrep = scala_object(Env.hail().variant, 'Variant').apply(contig, start, ref, alts, self._rg._jrep)
         self._init_from_java(jrep)
         self._contig = contig
         self._start = start
         self._ref = ref
-        self._rg = reference_genome if reference_genome else Env.hc().default_reference
 
     def __str__(self):
         return self._jrep.toString()
@@ -64,6 +64,7 @@ class Variant(HistoryMixin):
         v._start = jrep.start()
         v._ref = jrep.ref()
         v._rg = reference_genome
+        reference_genome._check_variant(jrep)
         super(Variant, v).__init__()
         return v
 
@@ -89,7 +90,7 @@ class Variant(HistoryMixin):
         :rtype: :class:`.Variant`
         """
         rg = reference_genome if reference_genome else Env.hc().default_reference
-        jrep = scala_object(Env.hail().variant, 'Variant').parse(string)
+        jrep = scala_object(Env.hail().variant, 'Variant').parse(string, rg._jrep)
         return Variant._from_java(jrep, rg)
 
     @property
@@ -472,11 +473,11 @@ class Locus(HistoryMixin):
     def __init__(self, contig, position, reference_genome=None):
         if isinstance(contig, int):
             contig = str(contig)
-        jrep = scala_object(Env.hail().variant, 'Locus').apply(contig, position)
+        self._rg = reference_genome if reference_genome else Env.hc().default_reference
+        jrep = scala_object(Env.hail().variant, 'Locus').apply(contig, position, self._rg._jrep)
         self._init_from_java(jrep)
         self._contig = contig
         self._position = position
-        self._rg = reference_genome if reference_genome else Env.hc().default_reference
 
     def __str__(self):
         return self._jrep.toString()
@@ -500,6 +501,7 @@ class Locus(HistoryMixin):
         l._contig = jrep.contig()
         l._position = jrep.position()
         l._rg = reference_genome
+        reference_genome._check_locus(jrep)
         super(Locus, l).__init__()
         return l
 
@@ -523,7 +525,7 @@ class Locus(HistoryMixin):
         :rtype: :class:`.Locus`
         """
         rg = reference_genome if reference_genome else Env.hc().default_reference
-        return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string), rg)
+        return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string, rg._jrep), rg)
 
     @property
     def contig(self):
