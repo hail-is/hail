@@ -3433,7 +3433,7 @@ class VariantDataset(HistoryMixin):
         nVariants = vds.count_variants()
         if nVariants == 0:
             fatal("Cannot run PCA: found 0 variants after filtering out variants with constant genotypes.")
-        print('Running PCA using '+str(nVariants)+' variants.'))
+        print('Running PCA using '+str(nVariants)+' variants.')
         stddev = 'sqrt(va.mean * (2 - va.mean) * '+str(nVariants)+' / 2)'
         result = vds.pca('if (g.GT.isDefined) (g.GT.gt-va.mean)/'+stddev+' else 0', k, compute_loadings, as_array)
         vds.unpersist()
