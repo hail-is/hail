@@ -3409,7 +3409,9 @@ class VariantDataset(HistoryMixin):
                       compute_loadings=bool,
                       as_array=bool)
     def normalized_genotype_pca(self, k=10, compute_loadings=False, as_array=False):
-        """Run Principal Component Analysis (PCA) on the normalized genotype matrix of this VSM.
+        """Run Principal Component Analysis (PCA) on the HWE-normalized genotype matrix of this VSM.
+
+        Variants with constant or all-missing genotypes will be removed before evaluation.
 
         .. include:: _templates/req_biallelic.rst
 
@@ -3426,10 +3428,14 @@ class VariantDataset(HistoryMixin):
         :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        nVariants = self.count_variants()
-        return self.annotate_variants_expr('va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g => g.GT.isDefined).count()')\
-            .annotate_variants_expr('va.stddev = va.mean * (2 - va.mean) * '+str(nVariants)+' / 2')\
-            .pca('if (g.GT.isDefined) (g.GT.gt-va.mean)/va.stddev else 0', k, compute_loadings, as_array)
+        vds = self.annotate_variants_expr('va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g => g.GT.isDefined).count()')\
+                .filter_variants('va.mean.isDefined && va.mean != 0 && va.mean != 2').persist()
+        nVariants = str(vds.count_variants())
+        print('Running PCA using '+nVariants+' variants.'))
+        stddev = 'sqrt(va.mean * (2 - va.mean) * '+nVariants+' / 2)'
+        result = vds.pca('if (g.GT.isDefined) (g.GT.gt-va.mean)/'+stddev+' else 0', k, compute_loadings, as_array)
+        vds.unpersist()
+        return result
 
 
     @handle_py4j
@@ -3499,7 +3505,7 @@ class VariantDataset(HistoryMixin):
         :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        r = self._jvds.pca(joption(entry_expr), k, compute_loadings, as_array)
+        r = self._jvds.pca(entry_expr, k, compute_loadings, as_array)
         jloadings = from_option(r._3())
         return jiterable_to_list(r._1()), KeyTable(self.hc, r._2()), None if not jloadings else KeyTable(self.hc, jloadings)
 
