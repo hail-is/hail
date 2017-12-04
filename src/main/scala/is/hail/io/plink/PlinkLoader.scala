@@ -23,17 +23,21 @@ object PlinkLoader {
 
   val plinkSchema = TStruct(("rsid", TString()))
 
-  private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true,
+  private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true, gr: GenomeReference,
     contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(Variant, String)] = {
     hConf.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
         case Array(contig, rsId, morganPos, bpPos, allele1, allele2) =>
           val recodedContig = contigRecoding.getOrElse(contig, contig)
 
-          if (a2Reference)
-            (Variant(recodedContig, bpPos.toInt, allele2, allele1), rsId)
+          val v = if (a2Reference)
+            Variant(recodedContig, bpPos.toInt, allele2, allele1)
           else
-            (Variant(recodedContig, bpPos.toInt, allele1, allele2), rsId)
+            Variant(recodedContig, bpPos.toInt, allele1, allele2)
+
+          gr.checkVariant(v)
+
+          (v, rsId)
 
         case other => fatal(s"Invalid .bim line.  Expected 6 fields, found ${ other.length } ${ plural(other.length, "field") }")
       }
@@ -199,7 +203,7 @@ object PlinkLoader {
     if (nSamples <= 0)
       fatal(".fam file does not contain any samples")
 
-    val variants = parseBim(bimPath, hc.hadoopConf, a2Reference, contigRecoding)
+    val variants = parseBim(bimPath, hc.hadoopConf, a2Reference, gr, contigRecoding)
     val nVariants = variants.length
     if (nVariants <= 0)
       fatal(".bim file does not contain any variants")

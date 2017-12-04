@@ -197,6 +197,19 @@ case class BinaryFun[T, U, V](retType: Type, f: (T, U) => V) extends Fun with Se
   }
 }
 
+case class BinaryDependentFun[T, U, V](retType: Type, code: () => (T, U) => V) extends Fun {
+  override def captureType() = BinaryFun(retType, code())
+
+  def apply(t: T, u: U): V =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def subst() =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun =
+    throw new UnsupportedOperationException("must captureType first")
+}
+
 case class BinarySpecial[T, U, V](retType: Type, f: (() => Any, () => Any) => V)
   extends Fun with Serializable with ((() => Any, () => Any) => V) {
   def apply(t: () => Any, u: () => Any): V = f(t, u)
@@ -274,6 +287,19 @@ case class Arity3Fun[T, U, V, W](retType: Type, f: (T, U, V) => W) extends Fun w
   }
 }
 
+case class Arity3DependentFun[T, U, V, W](retType: Type, code: () => (T, U, V) => W) extends Fun {
+  override def captureType() = Arity3Fun(retType, code())
+
+  def apply(t: T, u: U, v: V): W =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def subst() =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun =
+    throw new UnsupportedOperationException("must captureType first")
+}
+
 case class Arity3Special[T, U, V, W](retType: Type, f: (() => Any, () => Any, () => Any) => W)
   extends Fun with Serializable with ((() => Any, () => Any, () => Any) => W) {
   def apply(t: () => Any, u: () => Any, v: () => Any): W = f(t, u, v)
@@ -296,6 +322,19 @@ case class Arity4Fun[T, U, V, W, X](retType: Type, f: (T, U, V, W) => X) extends
       transformations(2).f(c).asInstanceOf[V],
       transformations(3).f(d).asInstanceOf[W]))
   }
+}
+
+case class Arity4DependentFun[T, U, V, W, X](retType: Type, code: () => (T, U, V, W) => X) extends Fun {
+  override def captureType() = Arity4Fun(retType, code())
+
+  def apply(t: T, u: U, v: V, w: W): X =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def subst() =
+    throw new UnsupportedOperationException("must captureType first")
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun =
+    throw new UnsupportedOperationException("must captureType first")
 }
 
 case class Arity5Fun[T, U, V, W, X, Y](retType: Type, f: (T, U, V, W, X) => Y) extends Fun with Serializable with ((T, U, V, W, X) => Y) {

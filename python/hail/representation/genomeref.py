@@ -1,4 +1,4 @@
-from hail.java import handle_py4j, jiterable_to_list
+from hail.java import handle_py4j, jiterable_to_list, scala_object
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.history import *
@@ -47,7 +47,9 @@ class GenomeReference(HistoryMixin):
         x_contigs = wrap_to_list(x_contigs)
         y_contigs = wrap_to_list(y_contigs)
         mt_contigs = wrap_to_list(mt_contigs)
-        self._par_jrep = Env.hail().variant.Locus.parseIntervals(wrap_to_list(["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]))
+
+        jloc = scala_object(Env.hail().variant, 'Locus')
+        self._par_jrep = wrap_to_list([jloc.makeInterval(jloc.apply(contig, start), jloc.apply(contig, end)) for (contig, start, end) in par])
 
         jrep = (Env.hail().variant.GenomeReference
                 .apply(name,
@@ -253,3 +255,15 @@ class GenomeReference(HistoryMixin):
         gr._par_tuple = [(x.start().contig(), x.start().position(), x.end().position()) for x in jrep.par()]
         super(GenomeReference, gr).__init__()
         return gr
+
+    @handle_py4j
+    def _check_variant(self, contig, pos, ref, alt):
+        self._jrep.checkVariant(contig, pos, ref, alt)
+
+    @handle_py4j
+    def _check_locus(self, contig, pos):
+        self._jrep.checkLocus(contig, pos)
+
+    @handle_py4j
+    def _check_interval(self, interval_jrep):
+        self._jrep.checkInterval(interval_jrep)

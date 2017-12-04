@@ -3,7 +3,7 @@ package is.hail.utils
 import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
-import is.hail.variant.Locus
+import is.hail.variant.{GRBase, Locus}
 
 import scala.collection.JavaConverters._
 
@@ -22,8 +22,8 @@ trait Py4jUtils {
     list
   }
 
-  def parseIntervalList(strs: java.util.ArrayList[String]): IntervalTree[Locus, Unit] =
-    IntervalTree(Locus.parseIntervals(strs.asScala.toArray))
+  def parseIntervalList(strs: java.util.ArrayList[String], gr: GRBase): IntervalTree[Locus, Unit] =
+    IntervalTree(Locus.parseIntervals(strs.asScala.toArray, gr))
 
   def makeIntervalList(intervals: java.util.ArrayList[Interval[Locus]]): IntervalTree[Locus, Unit] =
     IntervalTree(intervals.asScala.toArray)
