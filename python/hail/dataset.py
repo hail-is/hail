@@ -3427,7 +3427,7 @@ class VariantDataset(HistoryMixin):
         """
 
         nVariants = self.count_variants()
-        return self.annotate_variants_expr('va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g.GT.isDefined).count()')\
+        return self.annotate_variants_expr('va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g => g.GT.isDefined).count()')\
             .annotate_variants_expr('va.stddev = va.mean * (2 - va.mean) * '+str(nVariants)+' / 2')\
             .pca('if (g.GT.isDefined) (g.GT.gt-va.mean)/va.stddev else 0', k, compute_loadings, as_array)
 

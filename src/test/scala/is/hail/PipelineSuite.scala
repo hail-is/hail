@@ -24,6 +24,8 @@ class PipelineSuite extends SparkSuite {
     qc.mendelErrors(pedigree)._1.export(mendelBase)
     qc.count()
     qc.filterVariantsExpr("va.qc.AF > 0.01 && va.qc.AF < 0.99")
-      .pca("g.GT.gt")
+      .annotateVariantsExpr("va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g => g.GT.isDefined).count()")
+      .annotateVariantsExpr(s"va.stddev = va.mean * (2 - va.mean) * ${ qc.countVariants() } / 2")
+      .pca("if (g.GT.isDefined) (g.GT.gt-va.mean)/va.stddev else 0")
   }
 }
