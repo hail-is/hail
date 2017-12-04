@@ -3450,7 +3450,7 @@ class VariantDataset(HistoryMixin):
 
         Compute the top 2 principal component scores and eigenvalues of genotype's missingness matrix.
 
-        >>> eigenvalues, scores, _ = vds.pca('if (isDefined(g.gt)) 1 else 0', k=2)
+        >>> eigenvalues, scores, _ = vds.pca('if (isDefined(g.GT)) 1 else 0', k=2)
 
         **Notes**
 
