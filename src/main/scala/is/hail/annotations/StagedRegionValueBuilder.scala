@@ -129,6 +129,14 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
 
   def addStruct(t: TStruct, f: (StagedRegionValueBuilder => Code[Unit]), init: LocalRef[Boolean] = null): Code[Unit] = f(new StagedRegionValueBuilder(fb, t, this))
 
+  def addRegionValue(t: Type): (Code[Long]) => Code[Unit] = t.fundamentalType match {
+    case _: TBoolean | _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TStruct =>
+      v => region.copyFrom(region, v, currentOffset, t.byteSize)
+    case _: TArray => v => region.storeAddress(v, currentOffset)
+    case _: TBinary => v => region.storeAddress(v, currentOffset)
+    case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
+  }
+
   def addIRIntermediate(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
     case _: TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
     case _: TInt32 => v => addInt32(v.asInstanceOf[Code[Int]])

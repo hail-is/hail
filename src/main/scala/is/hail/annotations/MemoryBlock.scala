@@ -209,6 +209,9 @@ final class MemoryBuffer(private var mem: Array[Byte], private var end: Long = 0
     off
   }
 
+  def appendAddress(l: Long): Long =
+    appendLong(l)
+
   def appendByte(b: Byte): Long = {
     val off = allocate(1)
     storeByte(off, b)

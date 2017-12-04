@@ -10,6 +10,8 @@ import scala.reflect.ClassTag
 
 package object asm4s {
 
+  type BindingCode[T] = (FunctionBuilder[_], StagedBitSet) => Code[T]
+
   def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
 
   def coerce[T](c: Code[_]): Code[T] =

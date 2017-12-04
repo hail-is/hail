@@ -43,6 +43,21 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
     region.invoke[Long, Array[Byte], Unit]("storeBytes", off, bytes)
   }
 
+  def storeIRIntermediate(typ: Type): (Code[Long], Code[_]) => Code[Unit] = typ match {
+    case _: TBoolean =>
+      (off, x) => this.storeInt32(off, x.asInstanceOf[Code[Int]])
+    case _: TInt32 =>
+      (off, x) => this.storeInt32(off, x.asInstanceOf[Code[Int]])
+    case _: TInt64 =>
+      (off, x) => this.storeInt64(off, x.asInstanceOf[Code[Long]])
+    case _: TFloat32 =>
+      (off, x) => this.storeFloat32(off, x.asInstanceOf[Code[Float]])
+    case _: TFloat64 =>
+      (off, x) => this.storeFloat64(off, x.asInstanceOf[Code[Double]])
+    case _ =>
+      (off, x) => this.storeAddress(off, x.asInstanceOf[Code[Long]])
+  }
+
   def align(alignment: Code[Long]): Code[Unit] = {
     region.invoke[Long, Unit]("align", alignment)
   }
@@ -83,7 +98,11 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
     region.invoke[Long, Long, Boolean]("loadBit", byteOff, bitOff)
   }
 
-  def loadPrimitive(typ: Type): Code[Long] => Code[_] = typ match {
+  def loadBytes(off: Code[Long], length: Code[Int]): Code[Array[Byte]] = {
+    region.invoke[Long, Int, Array[Byte]]("loadBytes", off, length)
+  }
+
+  def loadIRIntermediate(typ: Type): Code[Long] => Code[_] = typ match {
     case _: TBoolean =>
       this.loadBoolean(_)
     case _: TInt32 =>
@@ -145,6 +164,10 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
     region.invoke[Double, Long]("appendDouble", d)
   }
 
+  def appendAddress(a: Code[Long]): Code[Long] = {
+    region.invoke[Long, Long]("appendAddress", a)
+  }
+
   def appendByte(b: Code[Byte]): Code[Long] = {
     region.invoke[Byte, Long]("appendByte", b)
   }
@@ -159,6 +182,21 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
 
   def appendString(string: Code[String]): Code[Long] = {
     region.invoke[String, Long]("appendString", string)
+  }
+
+  def appendIRIntermediate(typ: Type): (Code[_]) => Code[Long] = typ match {
+    case _: TBoolean =>
+      x => this.appendInt32(x.asInstanceOf[Code[Int]])
+    case _: TInt32 =>
+      x => this.appendInt32(x.asInstanceOf[Code[Int]])
+    case _: TInt64 =>
+      x => this.appendInt64(x.asInstanceOf[Code[Long]])
+    case _: TFloat32 =>
+      x => this.appendFloat32(x.asInstanceOf[Code[Float]])
+    case _: TFloat64 =>
+      x => this.appendFloat64(x.asInstanceOf[Code[Double]])
+    case _ =>
+      x => this.appendAddress(x.asInstanceOf[Code[Long]])
   }
 
   def clear(): Code[Unit] = {
