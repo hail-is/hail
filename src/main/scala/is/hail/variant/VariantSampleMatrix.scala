@@ -2645,7 +2645,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
     var i = 0
     while (i < nSamples) {
-      val row = pcs(i).getAs[IndexedSeq[Double]](2)
+      val row = pcs(i).getAs[IndexedSeq[Double]](1)
       var j = 0
       while (j < k) {
         scoreArray(j*nSamples + i) = row(j)
