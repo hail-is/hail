@@ -22,6 +22,7 @@ class OrderedRVD private(
     path: List[String],
     // rv argument to add is the entire row
     add: (PC, RegionValue, RegionValueBuilder) => Unit): OrderedRVD = {
+    val localTyp = typ
 
     val (insTyp, inserter) = typ.insert(typeToInsert, path)
     OrderedRVD(insTyp,
@@ -32,7 +33,7 @@ class OrderedRVD private(
         val rv2 = RegionValue()
 
         it.map { rv =>
-          val ur = new UnsafeRow(typ.rowType, rv)
+          val ur = new UnsafeRow(localTyp.rowType, rv)
           rv2b.set(rv.region)
           rv2b.start(insTyp.rowType)
           inserter(rv.region, rv.offset, rv2b, () => add(c, rv, rv2b))
