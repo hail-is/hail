@@ -704,7 +704,7 @@ class Table(TableTemplate):
                 assert isinstance(obj, Table)
                 return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jkt, uid))
 
-        return convert_expr(Expression(GlobalJoinReference(uid), self.global_schema, Indices(), (), (Join(joiner, [uid]),)))
+        return convert_expr(Expression(GlobalJoinReference(uid), self.global_schema, Indices(source=self), (), (Join(joiner, [uid]),)))
 
     @typecheck_method(exprs=tupleof(Expression))
     def _process_joins(self, *exprs):
