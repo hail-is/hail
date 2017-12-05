@@ -333,7 +333,7 @@ class Table(TableTemplate):
 
     @handle_py4j
     def select_globals(self, *exprs, **named_exprs):
-        exprs = tuple(to_expr(e) for e in exprs)
+        exprs = tuple(self[e] if not isinstance(e, Expression) else e for e in exprs)
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
@@ -430,7 +430,7 @@ class Table(TableTemplate):
         return cleanup(Table(self._hc, base._jkt.filter(expr._ast.to_hql(), keep)))
 
     @handle_py4j
-    @typecheck_method(exprs=tupleof(Expression),
+    @typecheck_method(exprs=tupleof(oneof(Expression, strlike)),
                       named_exprs=dictof(strlike, anytype))
     def select(self, *exprs, **named_exprs):
         """Select a subset of columns.
@@ -460,7 +460,7 @@ class Table(TableTemplate):
         :rtype: :class:`.KeyTable`
         """
 
-        exprs = tuple(to_expr(e) for e in exprs)
+        exprs = tuple(self[e] if not isinstance(e, Expression) else e for e in exprs)
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
@@ -515,7 +515,6 @@ class Table(TableTemplate):
         return table
 
     @handle_py4j
-    @write_history('output', is_dir=False)
     def export(self, output, types_file=None, header=True, parallel=False):
         """Export to a TSV file.
 
@@ -571,7 +570,6 @@ class Table(TableTemplate):
         return Struct(**d)
 
     @handle_py4j
-    @write_history('output', is_dir=True)
     @typecheck_method(output=strlike,
                       overwrite=bool)
     def write(self, output, overwrite=False):

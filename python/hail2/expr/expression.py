@@ -229,15 +229,19 @@ class Expression(object):
             super_repr=super(Expression, self).__repr__(),
             type=str(self._type),
         )
-        if self._indices.source is not None:
-            s += '\n  Indexed by {} [{}] of {}'.format(plural('axis', len(self._indices.axes), 'axes'),
-                                                       ', '.join(self._indices.axes), self._indices.source)
-        if self._aggregations:
-            s += '\n    (Aggregated)'
-        if self._joins:
-            s += '\n    (Dependent on {} {})'.format(len(self._joins), plural('broadcast/join', len(self._joins), 'broadcasts/joins'))
-        return s
 
+        indices = self._indices
+        if len(indices.axes) == 0:
+            s += '\n  Index{agg}: None'.format(agg=' (aggregated)' if self._aggregations else '')
+        else:
+            s += '\n  {ind}{agg}:\n    {index_lines}'.format(ind=plural('Index', len(indices.axes), 'Indices'),
+                                            agg=' (aggregated)' if self._aggregations else '',
+                                            index_lines='\n    '.join('{} of {}'.format(
+                                                axis, indices.source) for axis in indices.axes))
+        if self._joins:
+            s += '\n  Dependent on {} {}'.format(len(self._joins),
+                                                     plural('broadcast/join', len(self._joins), 'broadcasts/joins'))
+        return s
 
     def _init(self):
         pass
@@ -762,10 +766,10 @@ class NumericExpression(AtomicExpression):
         return self._bin_op_numeric_reverse('%', other)
 
     def __pow__(self, power, modulo=None):
-        return self._bin_op_numeric('**', power)
+        return self._bin_op('**', power, TFloat64())
 
     def __rpow__(self, other):
-        return self._bin_op_numeric_reverse('**', other)
+        return self._bin_op_reverse('**', other, TFloat64())
 
     def signum(self):
         return self._method("signum", TInt32())
@@ -1051,7 +1055,7 @@ class ExpressionWarning(Warning):
            expected_indices=Indices,
            aggregation_axes=setof(strlike),
            scoped_variables=setof(strlike))
-def analyze(expr, expected_indices, aggregation_axes, scoped_variables):
+def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
     indices = expr._indices
     source = indices.source
     axes = indices.axes

@@ -8,6 +8,7 @@ from hail.typ import *
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
 from hail.utils import hadoop_read, hadoop_write, hadoop_copy
+from hail2.methods import *
 
 __all__ = ['HailContext',
            'Table',
@@ -43,5 +44,6 @@ __all__ = ['HailContext',
            'KinshipMatrix',
            'LDMatrix',
            'Expression',
-           'f'
+           'f',
+           'linreg'
            ]

@@ -31,28 +31,25 @@ class GroupedMatrix(object):
         else:
             self.__dict__[key] = value
 
+    @handle_py4j
     def aggregate(self, **named_exprs):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
-
-        # FIXME
-        assert len(named_exprs) == 1, named_exprs
 
         base, cleanup = self._parent._process_joins(*((self._group,) + tuple(named_exprs.values())))
         for k, v in named_exprs.items():
             analyze(v, self._grouped_indices, {self._parent._row_axis, self._parent._col_axis},
                     set(self._parent._fields.keys()))
             replace_aggregables(v._ast, 'gs')
-            strs.append((k, v._ast.to_hql()))
 
+        struct_expr = to_expr(Struct(**named_exprs))
         group_str = self._group._ast.to_hql()
 
         if self._grouped_indices == self._parent._row_indices:
             # group variants
             return cleanup(
-                Matrix(self._parent._hc, base._jvds.groupVariantsBy(group_str, strs[0][1], True)
-                       .annotateGenotypesExpr('g.`{}` = g'.format(strs[0][0]))))
+                Matrix(self._parent._hc, base._jvds.groupVariantsBy(group_str, struct_expr._ast.to_hql(), True)))
         else:
             assert self._grouped_indices == self._parent._col_indices
             # group samples
@@ -342,38 +339,13 @@ class Matrix(object):
             analyze(e, self._global_indices, set(), {'globals'})
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e.name, e._ast.to_hql()))
+            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name, e._ast.to_hql()))
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze(e, self._global_indices, set(), {'globals'})
             self._check_field_name(k, self._global_indices)
             strs.append('`{}`: {}'.format(k, to_expr(e)._ast.to_hql()))
         m = Matrix(self._hc, base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
-        return cleanup(m)
-
-    @handle_py4j
-    def select_rows(self, *exprs, **named_exprs):
-        exprs = tuple(to_expr(e) for e in exprs)
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        strs = []
-        all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
-
-        for e in exprs:
-            all_exprs.append(e)
-            analyze(e, self._row_indices, {self._col_axis}, set(self._fields.keys()))
-            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
-                raise ExpressionException("method 'select_rows' expects keyword arguments for complex expressions")
-            replace_aggregables(e._ast, 'gs')
-            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e.name,
-                                          e._ast.to_hql()))
-        for k, e in named_exprs.items():
-            all_exprs.append(e)
-            analyze(e, self._row_indices, {self._col_axis}, set(self._fields.keys()))
-            self._check_field_name(k, self._row_indices)
-            replace_aggregables(e._ast, 'gs')
-            strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
-        m = Matrix(self._hc, base._jvds.annotateVariantsExpr('va = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -390,7 +362,7 @@ class Matrix(object):
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_cols' expects keyword arguments for complex expressions")
             replace_aggregables(e._ast, 'gs')
-            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e.name,
+            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name,
                                           e._ast.to_hql()))
         for k, e in named_exprs.items():
             all_exprs.append(e)
@@ -400,6 +372,31 @@ class Matrix(object):
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
 
         m = Matrix(self._hc, base._jvds.annotateSamplesExpr('sa = {' + ',\n'.join(strs) + '}'))
+        return cleanup(m)
+
+    @handle_py4j
+    def select_rows(self, *exprs, **named_exprs):
+        exprs = tuple(to_expr(e) for e in exprs)
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        strs = []
+        all_exprs = []
+        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+
+        for e in exprs:
+            all_exprs.append(e)
+            analyze(e, self._row_indices, {self._col_axis}, set(self._fields.keys()))
+            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+                raise ExpressionException("method 'select_rows' expects keyword arguments for complex expressions")
+            replace_aggregables(e._ast, 'gs')
+            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name,
+                                          e._ast.to_hql()))
+        for k, e in named_exprs.items():
+            all_exprs.append(e)
+            analyze(e, self._row_indices, {self._col_axis}, set(self._fields.keys()))
+            self._check_field_name(k, self._row_indices)
+            replace_aggregables(e._ast, 'gs')
+            strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
+        m = Matrix(self._hc, base._jvds.annotateVariantsExpr('va = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -415,7 +412,7 @@ class Matrix(object):
             analyze(e, self._entry_indices, set(), set(self._fields.keys()))
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e.name, e._ast.to_hql()))
+            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name, e._ast.to_hql()))
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze(e, self._entry_indices, set(), set(self._fields.keys()))
@@ -619,7 +616,6 @@ class Matrix(object):
         return self._jvds.countVariants()
 
     @handle_py4j
-    @write_history('output', is_dir=True)
     @typecheck_method(output=strlike,
                       overwrite=bool)
     def write(self, output, overwrite=False):

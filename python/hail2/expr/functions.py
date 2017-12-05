@@ -39,7 +39,7 @@ def broadcast(x):
         from hail2.table import Table
         from hail2.matrix import Matrix
         if isinstance(obj, Table):
-            raise NotImplementedError('KeyTable broadcast')
+            return Table(obj._hc, obj._jkt.annotateGlobalExpr('{} = {}'.format(uid, expr._ast.to_hql())))
         else:
             assert isinstance(obj, Matrix)
             return Matrix(obj._hc, obj._jvds.annotateGlobalExpr('global.{} = {}'.format(uid, expr._ast.to_hql())))
