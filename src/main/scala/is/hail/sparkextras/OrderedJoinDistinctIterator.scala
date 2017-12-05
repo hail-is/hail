@@ -1,15 +1,16 @@
 package is.hail.sparkextras
 
 import is.hail.annotations.{JoinedRegionValue, RegionValue}
+import is.hail.rvd.OrderedRVType
 
-abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: OrderedRDD2Type, leftIt: Iterator[RegionValue],
+abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRVType, rightTyp: OrderedRVType, leftIt: Iterator[RegionValue],
   rightIt: Iterator[RegionValue]) extends Iterator[JoinedRegionValue] {
   private val jrv = JoinedRegionValue()
   private var lrv: RegionValue = _
   private var rrv: RegionValue = if (rightIt.hasNext) rightIt.next() else null
 
   private var jrvPresent = false
-  private val lrKOrd = OrderedRDD2Type.selectUnsafeOrdering(leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx)
+  private val lrKOrd = OrderedRVType.selectUnsafeOrdering(leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx)
 
   def lrCompare(): Int = {
     assert(lrv != null && rrv != null)
@@ -69,7 +70,7 @@ abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: O
   }
 }
 
-class OrderedInnerJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: OrderedRDD2Type, leftIt: Iterator[RegionValue],
+class OrderedInnerJoinDistinctIterator(leftTyp: OrderedRVType, rightTyp: OrderedRVType, leftIt: Iterator[RegionValue],
   rightIt: Iterator[RegionValue]) extends OrderedJoinDistinctIterator(leftTyp, rightTyp, leftIt, rightIt) {
 
   def hasNext: Boolean = {
@@ -90,7 +91,7 @@ class OrderedInnerJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: Order
   }
 }
 
-class OrderedLeftJoinDistinctIterator(leftTyp: OrderedRDD2Type, rightTyp: OrderedRDD2Type, leftIt: Iterator[RegionValue],
+class OrderedLeftJoinDistinctIterator(leftTyp: OrderedRVType, rightTyp: OrderedRVType, leftIt: Iterator[RegionValue],
   rightIt: Iterator[RegionValue]) extends OrderedJoinDistinctIterator(leftTyp, rightTyp, leftIt, rightIt) {
 
   def hasNext: Boolean = {

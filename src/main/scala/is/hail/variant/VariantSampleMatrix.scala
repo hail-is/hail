@@ -11,6 +11,7 @@ import is.hail.keytable.KeyTable
 import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods._
 import is.hail.sparkextras._
+import is.hail.rvd.{OrderedRVD, OrderedRVType}
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import org.apache.hadoop
@@ -358,7 +359,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def this(hc: HailContext,
     metadata: VSMMetadata,
     localValue: VSMLocalValue,
-    rdd2: OrderedRDD2) =
+    rdd2: OrderedRVD) =
     this(hc, metadata,
       MatrixLiteral(
         MatrixType(metadata),
@@ -860,7 +861,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
   def nPartitions: Int = rdd2.partitions.length
 
-  def annotateVariants2(rightRDD2: OrderedRDD2, newVAType: Type, inserter: Inserter): VariantSampleMatrix = {
+  def annotateVariants2(rightRDD2: OrderedRVD, newVAType: Type, inserter: Inserter): VariantSampleMatrix = {
     val leftRowType = rowType
     val rightRowType = rightRDD2.typ.rowType
 
@@ -869,9 +870,9 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     copy2(
       vaSignature = newVAType,
-      rdd2 = OrderedRDD2(
-        newMatrixType.orderedRDD2Type,
-        rdd2.orderedPartitioner,
+      rdd2 = OrderedRVD(
+        newMatrixType.orderedRVType,
+        rdd2.partitioner,
         rdd2.orderedJoinDistinct(rightRDD2, "left")
           .mapPartitions { it =>
             val rvb = new RegionValueBuilder()
@@ -953,7 +954,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def variants: RDD[Annotation] = rdd.keys
 
   def deduplicate(): VariantSampleMatrix =
-    copy2(rdd2 = rdd2.mapPartitionsPreservesPartitioning(
+    copy2(rdd2 = rdd2.mapPartitionsPreservesPartitioning(rdd2.typ)(
       SortedDistinctRowIterator.transformer(rdd2.typ)))
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
@@ -963,7 +964,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def dropSamples(): VariantSampleMatrix =
     copyAST(ast = FilterSamples(ast, Const(null, false, TBoolean())))
 
-  def dropVariants(): VariantSampleMatrix = copy2(rdd2 = OrderedRDD2.empty(sparkContext, matrixType.orderedRDD2Type))
+  def dropVariants(): VariantSampleMatrix = copy2(rdd2 = OrderedRVD.empty(sparkContext, matrixType.orderedRVType))
 
   def expand(): RDD[(Annotation, Annotation, Annotation)] =
     mapWithKeys[(Annotation, Annotation, Annotation)]((v, s, g) => (v, s, g))
@@ -995,10 +996,10 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         if (keys == null)
           None
         else
-          keys.iterator.map{ va =>
+          keys.iterator.map { va =>
             region2.clear()
             rv2b.start(newRowType)
-            inserter(rv.region, rv.offset, rv2b, {() =>
+            inserter(rv.region, rv.offset, rv2b, { () =>
               rv2b.addAnnotation(keyType, va)
             })
             rv2.setOffset(rv2b.end())
@@ -1007,7 +1008,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       }
     }
     val newMatrixType = matrixType.copy(vaType = newVAType)
-    copy2(vaSignature = newVAType, rdd2 = rdd2.copy(typ = newMatrixType.orderedRDD2Type, rdd = explodedRDD))
+    copy2(vaSignature = newVAType, rdd2 = rdd2.copy(typ = newMatrixType.orderedRVType, rdd = explodedRDD))
   }
 
   def explodeSamples(code: String): VariantSampleMatrix = {
@@ -1018,14 +1019,15 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       case TSet(e, _) => e
       case t => fatal(s"Expected annotation of type Array or Set; found $t")
     }
-    val keys = sampleAnnotations.map{ sa => {
+    val keys = sampleAnnotations.map { sa => {
       val ks = querier(sa).asInstanceOf[IndexedSeq[Any]]
       if (ks == null)
         IndexedSeq.empty[Any]
       else
         ks
-    }}
-    val sampleMap = (0 until nSamples).flatMap {i => keys(i).iterator.map{ _ => i }}
+    }
+    }
+    val sampleMap = (0 until nSamples).flatMap { i => keys(i).iterator.map { _ => i } }
     val localRowType = rowType
     val localGSsig = rowType.fieldType(3).asInstanceOf[TArray]
 
@@ -1044,7 +1046,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         var i = 0
         while (i < 3) {
           rv2b.addRegionValue(localRowType.fieldType(i), rv.region, localRowType.loadField(rv, i))
-          i+= 1
+          i += 1
         }
         rv2b.startArray(newSampleIds.length)
         i = 0
@@ -1455,7 +1457,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     copy2(sampleIds = newSampleIds,
       sampleAnnotations = sampleAnnotations ++ right.sampleAnnotations,
-      rdd2 = OrderedRDD2(rdd2.typ, rdd2.orderedPartitioner, joined))
+      rdd2 = OrderedRVD(rdd2.typ, rdd2.partitioner, joined))
   }
 
   def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String] = Array.empty, seperator: String = "."): KeyTable = {
@@ -2005,7 +2007,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
       rdd)
 
-  def copy2(rdd2: OrderedRDD2 = rdd2,
+  def copy2(rdd2: OrderedRVD = rdd2,
     sampleIds: IndexedSeq[Annotation] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
     globalAnnotation: Annotation = globalAnnotation,
@@ -2043,12 +2045,12 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       Array("s"))
   }
 
-  def storageLevel: String = rdd2.getStorageLevel2.toReadableString()
+  def storageLevel: String = rdd2.storageLevel.toReadableString()
 
   def summarize(): SummaryResult = {
     val localRowType = rowType
     val localNSamples = nSamples
-    rdd2.aggregateWithContext( () =>
+    rdd2.aggregateWithContext(() =>
       (HardCallView(localRowType),
         new RegionValueVariant(localRowType.fieldType(1).asInstanceOf[TVariant]))
     )(new SummaryCombiner)(
@@ -2231,12 +2233,12 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         fatal(s"unknown StorageLevel `$storageLevel'")
     }
 
-    copy2(rdd2 = rdd2.persist2(level))
+    copy2(rdd2 = rdd2.persist(level))
   }
 
   def cache(): VariantSampleMatrix = persist("MEMORY_ONLY")
 
-  def unpersist(): VariantSampleMatrix = copy2(rdd2 = rdd2.unpersist2())
+  def unpersist(): VariantSampleMatrix = copy2(rdd2 = rdd2.unpersist())
 
   def naiveCoalesce(maxPartitions: Int): VariantSampleMatrix =
     copy2(rdd2 = rdd2.naiveCoalesce(maxPartitions))
@@ -2284,10 +2286,10 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     writeMetadata(dirname, rdd2.partitions.length)
 
     hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
-      Serialization.write(rdd2.orderedPartitioner.toJSON, out)
+      Serialization.write(rdd2.partitioner.toJSON, out)
     }
 
-    rdd2.writeRows(dirname, rowType)
+    rdd2.rdd.writeRows(dirname, rowType)
   }
 
   def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "va.linreg", variantBlockSize: Int = 16): VariantSampleMatrix = {
@@ -2383,13 +2385,13 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     val newRDD2 =
       if (leftAligned)
-        OrderedRDD2(rdd2.typ,
-          rdd2.orderedPartitioner,
+        OrderedRVD(rdd2.typ,
+          rdd2.partitioner,
           minRep1(removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
       else
         SplitMulti.unionMovedVariants(
-          OrderedRDD2(rdd2.typ,
-            rdd2.orderedPartitioner,
+          OrderedRVD(rdd2.typ,
+            rdd2.partitioner,
             minRep1(removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
           minRep1(removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 
@@ -2495,7 +2497,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     val oldGsType = rowType.fieldType(3).asInstanceOf[TArray]
 
-    val newRDD = rdd2.mapPartitionsPreservesPartitioning { it =>
+    val newRDD = rdd2.mapPartitionsPreservesPartitioning(new OrderedRVType(rdd2.typ.partitionKey, rdd2.typ.key, newRowType)) { it =>
       it.map { r =>
         val rvb = new RegionValueBuilder(MemoryBuffer())
         rvb.start(newRowType)
@@ -2537,7 +2539,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         rvb.end()
         rvb.result()
       }
-    }.copy(typ = new OrderedRDD2Type(rdd2.typ.partitionKey, rdd2.typ.key, newRowType))
+    }
 
     copy2(rdd2 = newRDD,
       sampleIds = kidIds,

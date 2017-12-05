@@ -5,7 +5,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.io.{VCFAttributes, VCFMetadata}
-import is.hail.sparkextras.OrderedRDD2
+import is.hail.rvd.OrderedRVD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
@@ -892,8 +892,8 @@ object LoadVCF {
     // nothing after the key
     val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType)
 
-    val rdd = OrderedRDD2(
-      matrixType.orderedRDD2Type,
+    val rdd = OrderedRVD(
+      matrixType.orderedRVType,
       parseLines { () =>
         new ParseLineContext(genotypeSignature, new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
       } { (c, l, rvb) =>

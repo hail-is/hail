@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.annotations._
 import is.hail.expr.{EvalContext, Parser, TArray, TInt32, TVariant}
-import is.hail.sparkextras.OrderedRDD2
+import is.hail.rvd.{OrderedRVD, RVD}
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, Locus, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.spark.rdd.RDD
@@ -51,8 +51,8 @@ object FilterAlleles {
     val newMatrixType = vsm.matrixType.copy(vaType = vAnnotator.newT,
       genotypeType = gAnnotator.newT)
 
-    def filter(rdd: RDD[RegionValue],
-      removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
+    def filter(rdd: RVD,
+      removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RVD = {
 
       def filterAllelesInVariant(prevlocus: Locus, v: Variant, va: Annotation): Option[(Variant, IndexedSeq[Int], IndexedSeq[Int])] = {
         var alive = 0
@@ -109,7 +109,7 @@ object FilterAlleles {
       val localSampleIdsBc = vsm.sampleIdsBc
       val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
 
-      rdd.mapPartitions { it =>
+      rdd.mapPartitions(newRowType) { it =>
         var prevLocus: Locus = null
 
         it.flatMap { rv =>
@@ -158,18 +158,18 @@ object FilterAlleles {
       }
     }
 
-    val newRDD2: OrderedRDD2 =
+    val newRDD2: OrderedRVD =
       if (leftAligned) {
-        OrderedRDD2(newMatrixType.orderedRDD2Type,
-          vsm.rdd2.orderedPartitioner,
+        OrderedRVD(newMatrixType.orderedRVType,
+          vsm.rdd2.partitioner,
           filter(vsm.rdd2, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
       } else {
-        val leftAlignedVariants = OrderedRDD2(newMatrixType.orderedRDD2Type,
-          vsm.rdd2.orderedPartitioner,
+        val leftAlignedVariants = OrderedRVD(newMatrixType.orderedRVType,
+          vsm.rdd2.partitioner,
           filter(vsm.rdd2, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false))
 
-        val movingVariants = OrderedRDD2.shuffle(newMatrixType.orderedRDD2Type,
-          vsm.rdd2.orderedPartitioner,
+        val movingVariants = OrderedRVD.shuffle(newMatrixType.orderedRVType,
+          vsm.rdd2.partitioner,
           filter(vsm.rdd2, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 
         leftAlignedVariants.partitionSortedUnion(movingVariants)
