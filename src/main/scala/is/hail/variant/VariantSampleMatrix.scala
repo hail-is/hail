@@ -500,8 +500,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val mt = matrixType.copy(sType = keyType, saType = TStruct.empty(), genotypeType = entryType)
     val newRowType = mt.rowType
 
-    //we can just set the aggregation to be on a subset of gs. so for each key, set gs, then evaluate?
-
     val aggregateOption = Aggregators.buildVariantAggregationsByKey(this, nKeys, samplesMap, ec)
 
     val (applyAggregate, aggregate) = aggregateOption match {
@@ -513,17 +511,18 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       val region2 = MemoryBuffer()
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
-
+      val ur = new UnsafeRow(localRowType)
       it.map { rv =>
-
+        ur.set(rv)
         val aggIt = if (applyAggregate)
-            aggregate(rv)
-          else
-            null
+          aggregate(rv)
+        else
+          null
         rv2b.start(newRowType)
-        rv2b.addRegionValue(mt.locusType, rv.region, localRowType.loadField(rv, 0))
-        rv2b.addRegionValue(mt.vType, rv.region, localRowType.loadField(rv, 1))
-        rv2b.addRegionValue(mt.vaType, rv.region, localRowType.loadField(rv, 2))
+        rv2b.startStruct()
+        rv2b.addAnnotation(mt.locusType, ur.get(0))
+        rv2b.addAnnotation(mt.vType, ur.get(1))
+        rv2b.addAnnotation(mt.vaType, ur.get(2))
 
         rv2b.startArray(nKeys)
         var i = 0
@@ -541,6 +540,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
           i += 1
         }
         rv2b.endArray()
+        rv2b.endStruct()
         rv2.setOffset(rv2b.end())
         rv2
       }

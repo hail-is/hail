@@ -13,9 +13,19 @@ import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 
 class GroupBySuite extends SparkSuite {
 
+  @Test def testGroupSamplesBy() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateSamplesExpr("sa.AC = gs.map(g => g.GT.gt).sum()")
+    val vds2 = vds.groupSamplesBy("sa.AC", "max = gs.map(g => g.GT.gt).max()").count()
+  }
+
+  @Test def testGroupSamplesStruct() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf").annotateSamplesExpr("sa.foo = {str1: 1, str2: \"bar\"}")
+    val vds2 = vds.groupSamplesBy("sa.foo", "max = gs.map(g => g.GT.gt).max()").count()
+  }
+
   @Test def testGroupVariantsBy() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.AC = gs.map(g => g.GT.gt).sum()")
-    val vds2 = vds.groupVariantsBy("va.AC", "max = gs.map(g => g.GT.gt).max()")
+    val vds2 = vds.groupVariantsBy("va.AC", "max = gs.map(g => g.GT.gt).max()").count()
   }
 
   @Test def testGroupByStruct() {
@@ -24,23 +34,35 @@ class GroupBySuite extends SparkSuite {
   }
 
   @Test def testRandomVSMEquivalence() {
-    var skipped = 0
+    var vSkipped = 0
+    var sSkipped = 0
     val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vsm =>
       val variants = vsm.variants.collect()
       val uniqueVariants = variants.toSet
       if (variants.length != uniqueVariants.size) {
-        skipped += 1
+        vSkipped += 1
         val grouped = vsm.groupVariantsBy("v", "first = gs.collect()[0]")
         grouped.countVariants() == uniqueVariants.size
       } else {
-        val vaKT = vsm.variantsKT()
         val grouped = vsm.groupVariantsBy("v", "GT = gs.collect()[0].GT, AD = gs.collect()[0].AD, DP = gs.collect()[0].DP, GQ = gs.collect()[0].GQ, PL = gs.collect()[0].PL")
         vsm.annotateVariantsExpr("va = {}").same(grouped)
       }
+
+      val uniqueSamples = vsm.sampleIds.toSet
+      if (vsm.sampleIds.size != uniqueSamples.size) {
+        sSkipped += 1
+        val grouped = vsm.groupSamplesBy("s", "first = gs.collect()[0]")
+        grouped.countVariants() == uniqueVariants.size
+      } else {
+        val grouped = vsm.groupSamplesBy("s", "GT = gs.collect()[0].GT, AD = gs.collect()[0].AD, DP = gs.collect()[0].DP, GQ = gs.collect()[0].GQ, PL = gs.collect()[0].PL")
+        vsm.annotateSamplesExpr("sa = {}").same(grouped.reorderSamples(vsm.sampleIds.toArray))
+      }
     }
     p.check()
-    if (skipped != 0)
-    println(s"warning: skipped $skipped evaluations due to non-unique variants.")
+    if (sSkipped != 0)
+      println(s"warning: skipped $sSkipped evaluations due to non-unique samples.")
+    if (vSkipped != 0)
+      println(s"warning: skipped $vSkipped evaluations due to non-unique variants.")
   }
 
   @Test def testLinregBurden() {

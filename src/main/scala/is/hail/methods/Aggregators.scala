@@ -68,15 +68,20 @@ object Aggregators {
         localA(5) = localAnnotationsBc.value(i)
 
         var j = 0
-        while (j < aggs.size) {
+        while (j < aggs.n2) {
           aggregations(j)._2(aggs(keyMap(i), j).seqOp)
           j += 1
         }
 
         i += 1
       }
-
-      aggs.rowIndices.map { k => () => aggregations(i)._1.v = aggs(k, i).result }.iterator
+      aggs.rowIndices.map { k => () => {
+        var i = 0
+        while (i < aggs.n2) {
+          aggregations(i)._1.v = aggs(k, i).result
+          i += 1
+        }
+      } }.iterator
     })
   }
 
