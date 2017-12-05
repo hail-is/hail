@@ -507,7 +507,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       case Some(fIt) => (true, fIt)
     }
 
-    val groupedRDD2 = rdd2.mapPartitionsPreservesPartitioning { it =>
+    val groupedRDD2 = rdd2.mapPartitionsPreservesPartitioning(mt.orderedRVType) { it =>
       val region2 = MemoryBuffer()
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
@@ -544,7 +544,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         rv2.setOffset(rv2b.end())
         rv2
       }
-    }.copy(typ = mt.orderedRDD2Type)
+    }
 
     copy2(rdd2 = groupedRDD2,
       sampleIds = newKeys,
