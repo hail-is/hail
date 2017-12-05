@@ -499,7 +499,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     val mt = matrixType.copy(vType = keyType, vaType = TStruct.empty(), genotypeType = resultType)
 
-    copy2(rdd2 = OrderedRDD2(mt.orderedRDD2Type, rdd, None, None),
+    copy2(rdd2 = OrderedRVD(mt.orderedRVType, rdd, None, None),
     vSignature = keyType,
     vaSignature = TStruct.empty(),
     genotypeSignature = resultType)
