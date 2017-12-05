@@ -10,9 +10,9 @@ import org.testng.annotations.Test
 
 object PCASuite {
   def samplePCA(vsm: VariantSampleMatrix, k: Int = 10, computeLoadings: Boolean = false, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix, Option[KeyTable]) = {
-    val prePCA = vsm.annotateVariantsExpr("va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g => g.GT.isDefined).count()")
-      .filterVariantsExpr(s"isDefined(va.mean) && va.mean != 0 && va.mean != 2").persist()
-    val expr = s"if (g.GT.isDefined) (g.GT.gt-va.mean)/sqrt(va.mean * (2- va.mean) * ${ prePCA.countVariants() }/ 2) else 0"
+    val prePCA = vsm.annotateVariantsExpr("va.mean = gs.map(g => g.GT.gt).sum() / gs.filter(g => isDefined(g.GT)).count()")
+      .filterVariantsExpr(s"isDefined(va.mean) && gs.map(g => g.GT.gt).collectAsSet().size() != 1").persist()
+    val expr = s"if (isDefined(g.GT)) (g.GT.gt - va.mean) / sqrt(va.mean * (2 - va.mean) * ${ prePCA.countVariants() } / 2) else 0"
     PCA(prePCA, expr, k, computeLoadings, asArray)
   }
 }
