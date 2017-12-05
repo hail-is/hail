@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.expr.{MatrixType, TArray, TCall, TFloat64, TString, TStruct, TVariant}
 import is.hail.io.vcf.LoadVCF
 import is.hail.io.{HadoopFSDataBinaryReader, IndexBTree}
-import is.hail.sparkextras.OrderedRDD2
+import is.hail.rvd.OrderedRVD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.io.LongWritable
@@ -130,7 +130,7 @@ object BgenLoader {
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = Array.fill(nSamples)(Annotation.empty)),
-      OrderedRDD2(matrixType.orderedRDD2Type, rdd2, Some(fastKeys), None))
+      OrderedRVD(matrixType.orderedRVType, rdd2, Some(fastKeys), None))
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {

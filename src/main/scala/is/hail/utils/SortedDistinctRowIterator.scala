@@ -2,14 +2,15 @@ package is.hail.utils
 
 import is.hail.expr._
 import is.hail.annotations._
+import is.hail.rvd.OrderedRVType
 import is.hail.sparkextras._
 
 object SortedDistinctRowIterator {
-  def transformer(ort: OrderedRDD2Type): Iterator[RegionValue] => SortedDistinctRowIterator =
+  def transformer(ort: OrderedRVType): Iterator[RegionValue] => SortedDistinctRowIterator =
     new SortedDistinctRowIterator(ort, _)
 }
 
-class SortedDistinctRowIterator(ort: OrderedRDD2Type, it: Iterator[RegionValue]) extends Iterator[RegionValue] {
+class SortedDistinctRowIterator(ort: OrderedRVType, it: Iterator[RegionValue]) extends Iterator[RegionValue] {
   private val bit = it.buffered
   private val wrv: WritableRegionValue = WritableRegionValue(ort.rowType)
 

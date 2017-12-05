@@ -2741,7 +2741,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.ldPrune(num_cores, r2, window, memory_per_core)
+        jvds = self._jvds.ldPrune(num_cores, r2, window, memory_per_core)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

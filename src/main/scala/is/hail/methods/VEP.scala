@@ -298,7 +298,7 @@ object VEP {
 
     val localRowType = vsm.rowType
     val annotations = vsm.rdd2
-      .mapPartitions({ it =>
+      .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
         if (perl5lib != null)
@@ -387,7 +387,7 @@ object VEP {
 
             r
           }
-      }, preservesPartitioning = true)
+      }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
     info(s"vep: annotated ${ annotations.count() } variants")

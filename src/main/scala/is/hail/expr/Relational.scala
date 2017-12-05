@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
+import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType}
 import is.hail.variant.{VSMFileMetadata, VSMLocalValue, VSMMetadata}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -40,15 +41,15 @@ case class MatrixType(
       "va" -> vaType,
       "gs" -> !TArray(genotypeType))
 
-  def orderedRDD2Type: OrderedRDD2Type = {
-    new OrderedRDD2Type(Array("pk"),
+  def orderedRVType: OrderedRVType = {
+    new OrderedRVType(Array("pk"),
       Array("pk", "v"),
       rowType)
   }
 
-  def pkType: TStruct = orderedRDD2Type.pkType
+  def pkType: TStruct = orderedRVType.pkType
 
-  def kType: TStruct = orderedRDD2Type.kType
+  def kType: TStruct = orderedRVType.kType
 
   def sampleEC: EvalContext = {
     val aggregationST = Map(
@@ -178,10 +179,10 @@ object MatrixValue {
     val localNSamples = localValue.nSamples
     val rangeBoundsType = TArray(typ.pkType)
     new MatrixValue(typ, localValue,
-      OrderedRDD2(typ.orderedRDD2Type,
-        new OrderedPartitioner2(rdd.orderedPartitioner.numPartitions,
-          typ.orderedRDD2Type.partitionKey,
-          typ.orderedRDD2Type.kType,
+      OrderedRVD(typ.orderedRVType,
+        new OrderedRVPartitioner(rdd.orderedPartitioner.numPartitions,
+          typ.orderedRVType.partitionKey,
+          typ.orderedRVType.kType,
           UnsafeIndexedSeq(rangeBoundsType,
             rdd.orderedPartitioner.rangeBounds.map(b => Row(b)))),
         rdd.mapPartitions { it =>
@@ -216,10 +217,10 @@ object MatrixValue {
 case class MatrixValue(
   typ: MatrixType,
   localValue: VSMLocalValue,
-  rdd2: OrderedRDD2) {
+  rdd2: OrderedRVD) {
 
   def rdd: OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])] = {
-    warn("converting OrderedRDD2 => OrderedRDD")
+    warn("converting OrderedRVD => OrderedRDD")
 
     implicit val kOk: OrderedKey[Annotation, Annotation] = typ.vType.orderedKey
 
@@ -239,10 +240,10 @@ case class MatrixValue(
             ur.getAs[IndexedSeq[Annotation]](3): Iterable[Annotation]))
       },
       OrderedPartitioner(
-        rdd2.orderedPartitioner.rangeBounds.map { b =>
+        rdd2.partitioner.rangeBounds.map { b =>
           b.asInstanceOf[Row].get(0)
         }.toArray(kOk.pkct),
-        rdd2.orderedPartitioner.numPartitions))
+        rdd2.partitioner.numPartitions))
   }
 
   def copyRDD(typ: MatrixType = typ,
@@ -280,7 +281,7 @@ case class MatrixValue(
       localValue.copy(
         sampleIds = keep.map(sampleIds),
         sampleAnnotations = keep.map(sampleAnnotations)),
-      rdd2 = rdd2.mapPartitionsPreservesPartitioning { it =>
+      rdd2 = rdd2.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
         var rv2b = new RegionValueBuilder()
         var rv2 = RegionValue()
 
@@ -392,16 +393,16 @@ case class MatrixRead(
 
     val rdd =
       if (dropVariants)
-        OrderedRDD2.empty(hc.sc, typ.orderedRDD2Type)
+        OrderedRVD.empty(hc.sc, typ.orderedRVType)
       else {
-        var rdd = OrderedRDD2(
-          typ.orderedRDD2Type,
-          OrderedPartitioner2(hc.sc,
+        var rdd = OrderedRVD(
+          typ.orderedRVType,
+          OrderedRVPartitioner(hc.sc,
             hc.hadoopConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))),
           hc.readRows(path, typ.rowType, nPartitions))
         if (dropSamples) {
           val localRowType = typ.rowType
-          rdd = rdd.mapPartitionsPreservesPartitioning { it =>
+          rdd = rdd.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
             var rv2b = new RegionValueBuilder()
             var rv2 = RegionValue()
 
