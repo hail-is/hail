@@ -17,6 +17,66 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
+  def buildVariantAggregationsByKey(vsm: VariantSampleMatrix, keyMap: IndexedSeq[Any], ec: EvalContext): Option[(RegionValue) => Iterator[Unit]] =
+    buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, keyMap, ec)
+
+  // keyMap is just a mapping of sampleIds.map { s => newKey(s) }
+  def buildVariantAggregationsByKey(sc: SparkContext,
+    typ: MatrixType,
+    localValue: VSMLocalValue,
+    keyMap: IndexedSeq[Any],
+    ec: EvalContext): Option[(RegionValue) => Iterator[Unit]] = {
+
+    val keys = keyMap.toSet.toIndexedSeq
+
+
+    val aggregations = ec.aggregations
+    if (aggregations.isEmpty)
+      return None
+
+    val localA = ec.a
+    val localNSamples = localValue.nSamples
+    val localSamplesBc = sc.broadcast(localValue.sampleIds)
+    val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
+    val localGlobalAnnotations = localValue.globalAnnotation
+    val localRowType = typ.rowType
+
+    Some({ (rv: RegionValue) =>
+      val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
+
+      val v = ur.get(1)
+      val va = ur.get(2)
+      val gs = ur.getAs[IndexedSeq[Annotation]](3)
+
+      val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
+      localA(0) = localGlobalAnnotations
+      localA(1) = v
+      localA(2) = va
+
+      var i = 0
+      val git = gs.iterator
+      while (i < localNSamples) {
+        localA(3) = git.next()
+        localA(4) = localSamplesBc.value(i)
+        localA(5) = localAnnotationsBc.value(i)
+
+        var j = 0
+        while (j < aggs.size) {
+          aggregations(j)._2(aggs(j).seqOp)
+          j += 1
+        }
+
+        i += 1
+      }
+
+      i = 0
+      while (i < aggs.size) {
+        aggregations(i)._1.v = aggs(i).result
+        i += 1
+      }
+    })
+  }
+
   def buildVariantAggregations(vsm: VariantSampleMatrix, ec: EvalContext): Option[(RegionValue) => Unit] =
     buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, ec)
 

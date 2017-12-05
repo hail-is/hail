@@ -432,6 +432,96 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def collect(): Array[UnsafeRow] = unsafeRowRDD().collect()
 
   def take(n: Int): Array[UnsafeRow] = unsafeRowRDD().take(n)
+
+
+  def annotateVariantsExpr2(expr: String): VariantSampleMatrix = {
+    val localGlobalAnnotation = globalAnnotation
+
+    val ec = variantEC
+    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
+
+    var newVASignature = vaSignature
+    val inserters = new Array[Inserter](types.length)
+    var i = 0
+    while (i < types.length) {
+      val (newSig, ins) = newVASignature.insert(types(i), paths(i))
+      inserters(i) = ins
+      newVASignature = newSig
+      i += 1
+    }
+
+    val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
+
+    val localRowType = rowType
+    insertIntoRow(() => new UnsafeRow(localRowType))(
+      newVASignature, List("va"), { (ur, rv, rvb) =>
+        ur.set(rv)
+
+        val v = ur.getAs[Annotation](1)
+        val va = ur.get(2)
+        val gs = ur.getAs[Iterable[Annotation]](3)
+
+        ec.setAll(localGlobalAnnotation, v, va)
+
+        aggregateOption.foreach(f => f(rv))
+
+        var newVA = va
+        var i = 0
+        var newA = f()
+        while (i < newA.length) {
+          newVA = inserters(i)(newVA, newA(i))
+          i += 1
+        }
+
+        rvb.addAnnotation(newVASignature, newVA)
+      })
+  }
+
+  def groupSamplesBy(keyExpr: String, aggExpr: String): VariantSampleMatrix = {
+    val localRowType = rowType
+    val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
+      "s" -> (1, sSignature),
+      Annotation.SAMPLE_HEAD -> (2, saSignature)))
+    val (keyType, keyF) = Parser.parseExpr(keyExpr, sEC)
+    sEC.set(0, globalAnnotation)
+    val keysBySample = sampleIds.zip(sampleAnnotations).map { case (s, sa) =>
+      sEC.set(1, s)
+      sEC.set(2, sa)
+      keyF()
+    }
+    val newKeys = keysBySample.toSet.toIndexedSeq
+
+    val ec = variantEC
+    val (resultNames, resultTypes, resultF) = Parser.parseAnnotationExprs(aggExpr, ec, None)
+    val entryType = TStruct(resultNames.map(_.head).zip(resultTypes).toSeq: _*)
+    val mt = matrixType.copy(sType = keyType, saType = TStruct.empty(), genotypeType = entryType)
+    val newRowType = mt.rowType
+
+    //we can just set the aggregation to be on a subset of gs. so for each key, set gs, then evaluate?
+
+    val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
+
+
+    val groupedRDD2 = rdd2.mapPartitionsPreservesPartitioning { it =>
+      val region2 = MemoryBuffer()
+      val rv2 = RegionValue(region2)
+      val rv2b = new RegionValueBuilder(region2)
+
+      it.map { rv =>
+
+        aggregateOption.foreach(f => f(rv))
+
+        rv ///FIXME
+      }
+    }.copy(typ = mt.orderedRDD2Type)
+
+    copy2(rdd2 = groupedRDD2,
+      sampleIds = newKeys,
+      sampleAnnotations = Array.fill(newKeys.length)(Annotation.empty),
+      sSignature = keyType,
+      saSignature = TStruct.empty(),
+      genotypeSignature = entryType)
+  }
   
   def groupVariantsBy(keyExpr: String, aggExpr: String): VariantSampleMatrix = {
     val localRowType = rowType
