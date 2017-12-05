@@ -63,7 +63,7 @@ object Infer {
           args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x == t, s"at position $i type mismatch: $t $x") }
           x.typ = TArray(t)
         }
-      case MakeArrayN(len, _) =>
+      case MakeArrayN(len, typ) =>
         infer(len)
         assert(len.typ.isOfType(TInt32()))
         assert(typ != null)
