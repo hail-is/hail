@@ -17,7 +17,8 @@ case class PersistedRVRDD(
   persistedRDD: RDD[RegionValue],
   iterationRDD: RDD[RegionValue])
 
-trait RVD { self =>
+trait RVD {
+  self =>
   def rowType: Type
 
   def rdd: RDD[RegionValue]
@@ -99,7 +100,12 @@ trait RVD { self =>
 
       override def storageLevel: StorageLevel = level
 
-      override def persist(level: StorageLevel): RVD = throw new IllegalArgumentException("already persisted")
+      override def persist(newLevel: StorageLevel): RVD = {
+        if (newLevel == level)
+          this
+        else
+          throw new IllegalArgumentException("already persisted")
+      }
 
       override def unpersist(): RVD = {
         persistedRDD.unpersist()

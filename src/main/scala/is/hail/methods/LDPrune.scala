@@ -356,7 +356,7 @@ object LDPrune {
           (inputRDD, (i, depIndex))
         else {
           val gpi = pruneIntermediates(depIndex)
-          pruneIntermediates(depIndex) = gpi.copy(rvd = gpi.rvd.persist(StorageLevel.MEMORY_AND_DISK))
+          pruneIntermediates(depIndex) = gpi.copy(rvd = gpi.rvd.persist(StorageLevel.MEMORY_AND_DISK), persist = true)
           (pruneIntermediates(depIndex).rvd, (i, gpi.index))
         }
       }.unzip
@@ -383,7 +383,8 @@ object LDPrune {
     val nVariantsKept = prunedRDD.count()
 
     pruneIntermediates.foreach { gpi =>
-       gpi.rvd.unpersist()
+      if (gpi.persist)
+        gpi.rvd.unpersist()
     }
     inputRDD.unpersist()
 
