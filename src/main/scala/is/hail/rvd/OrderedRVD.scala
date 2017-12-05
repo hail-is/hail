@@ -15,8 +15,7 @@ import scala.collection.mutable
 class OrderedRVD private(
   val typ: OrderedRVType,
   val partitioner: OrderedRVPartitioner,
-  val rdd: RDD[RegionValue]) extends RVD with Serializable {
-  self =>
+  val rdd: RDD[RegionValue]) extends RVD with Serializable { self =>
   def rowType: Type = typ.rowType
 
   def insert[PC](newContext: () => PC)(typeToInsert: Type,
@@ -67,13 +66,15 @@ class OrderedRVD private(
   override def persist(level: StorageLevel): OrderedRVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
     new OrderedRVD(typ, partitioner, iterationRDD) {
-      override def storageLevel: StorageLevel = level
+      override def storageLevel: StorageLevel = rdd.getStorageLevel
 
       override def persist(newLevel: StorageLevel): OrderedRVD = {
-        if (newLevel == level)
+        if (newLevel == StorageLevel.NONE)
+          unpersist()
+        else {
+          rdd.persist(newLevel)
           this
-        else
-          throw new IllegalArgumentException("already persisted")
+        }
       }
 
       override def unpersist(): OrderedRVD = {
@@ -83,7 +84,9 @@ class OrderedRVD private(
     }
   }
 
-  override def unpersist(): OrderedRVD = throw new IllegalArgumentException("not persisted")
+  override def cache(): OrderedRVD = persist(StorageLevel.MEMORY_ONLY)
+  
+  override def unpersist(): OrderedRVD = this
 
   def orderedJoinDistinct(right: OrderedRVD, joinType: String): RDD[JoinedRegionValue] = {
     val lTyp = typ

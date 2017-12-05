@@ -98,13 +98,15 @@ trait RVD {
 
       val rdd: RDD[RegionValue] = iterationRDD
 
-      override def storageLevel: StorageLevel = level
+      override def storageLevel: StorageLevel = persistedRDD.getStorageLevel
 
       override def persist(newLevel: StorageLevel): RVD = {
-        if (newLevel == level)
+        if (newLevel == StorageLevel.NONE)
+          unpersist()
+        else {
+          persistedRDD.persist(newLevel)
           this
-        else
-          throw new IllegalArgumentException("already persisted")
+        }
       }
 
       override def unpersist(): RVD = {
@@ -114,7 +116,9 @@ trait RVD {
     }
   }
 
-  def unpersist(): RVD = throw new IllegalArgumentException("not persisted")
+  def cache(): RVD = persist(StorageLevel.MEMORY_ONLY)
+
+  def unpersist(): RVD = this
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): RVD = RVD(rowType, rdd.coalesce(maxPartitions, shuffle = shuffle))
 }
