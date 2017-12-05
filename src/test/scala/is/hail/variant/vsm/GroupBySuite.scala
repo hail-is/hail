@@ -28,9 +28,9 @@ class GroupBySuite extends SparkSuite {
     val vds2 = vds.groupVariantsBy("va.AC", "max = gs.map(g => g.GT.gt).max()").count()
   }
 
-  @Test def testGroupByStruct() {
+  @Test def testGroupVariantsStruct() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.AC = {str1: \"foo\", str2: 1}")
-    val vds2 = vds.groupVariantsBy("va.AC", "gs.map(g => g.GT.gt).max()", true)
+    val vds2 = vds.groupVariantsBy("va.AC", "max = gs.map(g => g.GT.gt).max()").count()
   }
 
   @Test def testRandomVSMEquivalence() {

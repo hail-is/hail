@@ -484,6 +484,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       Annotation.SAMPLE_HEAD -> (2, saSignature)))
     val (keyType, keyF) = Parser.parseExpr(keyExpr, sEC)
     sEC.set(0, globalAnnotation)
+
     val keysBySample = sampleIds.zip(sampleAnnotations).map { case (s, sa) =>
       sEC.set(1, s)
       sEC.set(2, sa)
@@ -492,6 +493,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val newKeys = keysBySample.toSet.toIndexedSeq
     val keyMap = newKeys.zipWithIndex.toMap
     val samplesMap = keysBySample.map { k => keyMap(k) }.toArray
+    
     val nKeys = newKeys.size
 
     val ec = variantEC
