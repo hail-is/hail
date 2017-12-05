@@ -93,7 +93,10 @@ object PCA {
           ec.set(3, samplesBc.value(k))
           ec.set(4, sampleAnnotationsBc.value(k))
           ec.set(5, gs(k))
-          a(k) = f().toDouble
+          a(k) = f() match {
+            case null => fatal(s"Entry expr for PCA must be non-missing. Found missing value for sample ${ samplesBc.value(k) } and variant ${ ur.get(1) }")
+            case t => t.toDouble
+          }
           k += 1
         }
         val row = IndexedRow(pStartIdx + j, Vectors.dense(a))
@@ -105,7 +108,7 @@ object PCA {
     (someIf(getVariants,
       vsm.rdd2.mapPartitions{it =>
         val ur = new UnsafeRow(rowType)
-        it.map{ rv =>
+        it.map { rv =>
           ur.set(rv)
           ur.get(1)
         }

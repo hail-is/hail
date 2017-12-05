@@ -3425,14 +3425,14 @@ class VariantDataset(HistoryMixin):
         :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        vds = self.annotate_variants_expr('va.mean = gs.map(g => g.GT.gt).sum()/gs.filter(g => g.GT.isDefined).count()')\
+        vds = self.annotate_variants_expr('va.mean = gs.map(g => g.GT.gt).sum() / gs.filter(g => isDefined(g.GT)).count()')\
                 .filter_variants_expr('isDefined(va.mean) && va.mean != 0 && va.mean != 2').persist()
         nVariants = vds.count_variants()
         if nVariants == 0:
             fatal("Cannot run PCA: found 0 variants after filtering out variants with constant genotypes.")
-        print('Running PCA using '+str(nVariants)+' variants.')
-        stddev = 'sqrt(va.mean * (2 - va.mean) * '+str(nVariants)+' / 2)'
-        result = vds.pca('if (g.GT.isDefined) (g.GT.gt-va.mean)/'+stddev+' else 0', k, compute_loadings, as_array)
+        print('Running PCA using ' + str(nVariants) + ' variants.')
+        stddev = 'sqrt(va.mean * (2 - va.mean) * ' + str(nVariants) + ' / 2)'
+        result = vds.pca('if (isDefined(g.GT)) (g.GT.gt - va.mean) / '+stddev+' else 0', k, compute_loadings, as_array)
         vds.unpersist()
         return result
 
@@ -3474,7 +3474,6 @@ class VariantDataset(HistoryMixin):
 
         Separately, for the PCs PLINK/GCTA output the eigenvectors of the GRM; even ignoring the above discrepancy that means the left singular vectors :math:`U_k` instead of the component scores :math:`U_k S_k`. While this is just a matter of the scale on each PC, the scores have the advantage of representing true projections of the data onto features with the variance of a score reflecting the variance explained by the corresponding feature. (In PC bi-plots this amounts to a change in aspect ratio; for use of PCs as covariates in regression it is immaterial.)
 
-
         Scores are stored in a KeyTable with the following structure:
 
         **s** (*Sample*) The sample ID.
@@ -3489,7 +3488,7 @@ class VariantDataset(HistoryMixin):
 
         **pcaLoadings** (*Struct* or *Array*) The variant loadings.
 
-        Eigenvalues are returned as an array of doubles.
+        Eigenvalues are returned as a list of doubles.
 
         :param entry_expr: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix.
         :type entry_expr: str

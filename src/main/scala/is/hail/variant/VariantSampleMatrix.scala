@@ -2582,9 +2582,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   def pca(expr: String, k: Int = 10, computeLoadings: Boolean = false, asArrays: Boolean = false): (IndexedSeq[Double], KeyTable, Option[KeyTable]) = {
-    if (expr == None)
-      require(wasSplit)
-
     if (k < 1)
       fatal(
         s"""requested invalid number of components: $k
