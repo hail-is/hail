@@ -490,6 +490,9 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       keyF()
     }
     val newKeys = keysBySample.toSet.toIndexedSeq
+    val keyMap = newKeys.zipWithIndex.toMap
+    val samplesMap = keysBySample.map { k => keyMap(k) }.toArray
+    val nKeys = newKeys.size
 
     val ec = variantEC
     val (resultNames, resultTypes, resultF) = Parser.parseAnnotationExprs(aggExpr, ec, None)
@@ -499,8 +502,12 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     //we can just set the aggregation to be on a subset of gs. so for each key, set gs, then evaluate?
 
-    val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
+    val aggregateOption = Aggregators.buildVariantAggregationsByKey(this, nKeys, samplesMap, ec)
 
+    val (applyAggregate, aggregate) = aggregateOption match {
+      case None => (false, null)
+      case Some(fIt) => (true, fIt)
+    }
 
     val groupedRDD2 = rdd2.mapPartitionsPreservesPartitioning { it =>
       val region2 = MemoryBuffer()
@@ -509,9 +516,33 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
       it.map { rv =>
 
-        aggregateOption.foreach(f => f(rv))
+        val aggIt = if (applyAggregate)
+            aggregate(rv)
+          else
+            null
+        rv2b.start(newRowType)
+        rv2b.addRegionValue(mt.locusType, rv.region, localRowType.loadField(rv, 0))
+        rv2b.addRegionValue(mt.vType, rv.region, localRowType.loadField(rv, 1))
+        rv2b.addRegionValue(mt.vaType, rv.region, localRowType.loadField(rv, 2))
 
-        rv ///FIXME
+        rv2b.startArray(nKeys)
+        var i = 0
+        while (i < nKeys) {
+          if (applyAggregate)
+            aggIt.next()()
+          rv2b.startStruct()
+          val fields = resultF()
+          var j = 0
+          while (j < fields.size) {
+            rv2b.addAnnotation(entryType.fieldType(j), fields(j))
+            j += 1
+          }
+          rv2b.endStruct()
+          i += 1
+        }
+        rv2b.endArray()
+        rv2.setOffset(rv2b.end())
+        rv2
       }
     }.copy(typ = mt.orderedRDD2Type)
 

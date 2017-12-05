@@ -17,18 +17,16 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def buildVariantAggregationsByKey(vsm: VariantSampleMatrix, keyMap: IndexedSeq[Any], ec: EvalContext): Option[(RegionValue) => Iterator[Unit]] =
-    buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, keyMap, ec)
+  def buildVariantAggregationsByKey(vsm: VariantSampleMatrix, nKeys: Int, keyMap: Array[Int], ec: EvalContext): Option[(RegionValue) => Iterator[() => Unit]] =
+    buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, nKeys, keyMap, ec)
 
   // keyMap is just a mapping of sampleIds.map { s => newKey(s) }
   def buildVariantAggregationsByKey(sc: SparkContext,
     typ: MatrixType,
     localValue: VSMLocalValue,
-    keyMap: IndexedSeq[Any],
-    ec: EvalContext): Option[(RegionValue) => Iterator[Unit]] = {
-
-    val keys = keyMap.toSet.toIndexedSeq
-
+    nKeys: Int,
+    keyMap: Array[Int],
+    ec: EvalContext): Option[(RegionValue) => Iterator[() => Unit]] = {
 
     val aggregations = ec.aggregations
     if (aggregations.isEmpty)
@@ -48,7 +46,16 @@ object Aggregators {
       val va = ur.get(2)
       val gs = ur.getAs[IndexedSeq[Annotation]](3)
 
-      val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
+      val aggs = MultiArray2.fill[Aggregator](nKeys, aggregations.size)(null)
+      var nk = 0
+      while (nk < nKeys) {
+        var nagg = 0
+        while (nagg < aggregations.size) {
+          aggs.update(nk, nagg, aggregations(nagg)._3.copy())
+          nagg += 1
+        }
+        nk += 1
+      }
       localA(0) = localGlobalAnnotations
       localA(1) = v
       localA(2) = va
@@ -62,18 +69,14 @@ object Aggregators {
 
         var j = 0
         while (j < aggs.size) {
-          aggregations(j)._2(aggs(j).seqOp)
+          aggregations(j)._2(aggs(keyMap(i), j).seqOp)
           j += 1
         }
 
         i += 1
       }
 
-      i = 0
-      while (i < aggs.size) {
-        aggregations(i)._1.v = aggs(i).result
-        i += 1
-      }
+      aggs.rowIndices.map { k => () => aggregations(i)._1.v = aggs(k, i).result }.iterator
     })
   }
 
