@@ -448,7 +448,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
             ur.set(rv)
             vEC.set(1, ur.get(1))
             vEC.set(2, ur.get(2))
-            Option(keyF()).map((_, ur))
+            Option(keyF()).map{ key => (Annotation.copy(keysType, key), ur) }
           }
         })
       } else {
@@ -463,7 +463,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
             ur.set(rv)
             vEC.set(1, ur.get(1))
             vEC.set(2, ur.get(2))
-            Option(keyF().asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map((_, ur))
+            Option(keyF().asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map{ key => (Annotation.copy(keyType, key), ur) }
           }
         })
       }
@@ -471,7 +471,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions(this, aggExpr)
 
     val (pkType, pkF: (Annotation => Annotation)) = keyType match {
-      case TVariant(gr, _) => (TLocus(gr), {key: Variant => key.locus} )
+      case TVariant(gr, _) => (TLocus(gr), {key: Variant => key.locus})
       case t => (t, {key: Annotation => key})
     }
 
