@@ -15,6 +15,7 @@ expr_variant = oneof(Variant, VariantExpression)
 expr_locus = oneof(Locus, LocusExpression)
 expr_call = oneof(Call, CallExpression)
 
+
 def _func(name, ret_type, *args):
     indices, aggregations, joins = unify_all(*args)
     return convert_expr(Expression(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins))
@@ -208,6 +209,7 @@ def variant(contig, pos, ref, alts, reference_genome=None):
         ApplyMethod('Variant({})'.format(reference_genome.name),
                     contig._ast, pos._ast, ref._ast, alts._ast),
         TVariant(reference_genome), indices, aggregations, joins)
+
 
 @typecheck(s=expr_str, reference_genome=nullable(GenomeReference))
 def parse_variant(s, reference_genome=None):
@@ -415,6 +417,11 @@ def _agg_func(name, aggregable, ret_type, *args):
 def collect(expr):
     agg = _to_agg(expr)
     return _agg_func('collect', agg, TArray(agg._type))
+
+
+def collect_as_set(expr):
+    agg = _to_agg(expr)
+    return _agg_func('collectAsSet', agg, TArray(agg._type))
 
 
 def count(expr):

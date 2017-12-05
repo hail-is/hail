@@ -7,6 +7,60 @@ from hail.typecheck import *
 import hail2
 
 
+class GroupedMatrix(object):
+    def __init__(self, parent, group, grouped_indices):
+        self._parent = parent
+        self._group = group
+        self._grouped_indices = grouped_indices
+        self._partitions = None
+        self._fields = {}
+
+        for f in parent._fields:
+            self._set_field(f, parent._fields[f])
+
+    def set_partitions(self, n):
+        self._partitions = n
+        return self
+
+    def _set_field(self, key, value):
+        assert key not in self._fields, key
+        self._fields[key] = value
+        if key in dir(self):
+            warn("Name collision: field '{}' already in object dict."
+                 " This field must be referenced with indexing syntax".format(key))
+        else:
+            self.__dict__[key] = value
+
+    def aggregate(self, **named_exprs):
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+
+        strs = []
+        all_exprs = [self._group]
+
+        # FIXME
+        assert len(named_exprs) == 1, named_exprs
+
+        for k, v in named_exprs.items():
+            analyze(v, self._grouped_indices, {self._parent._row_axis, self._parent._col_axis},
+                    set(self._parent._fields.keys()))
+            replace_aggregables(v._ast, 'gs')
+            strs.append((k, v._ast.to_hql()))
+            all_exprs.append(v)
+
+        base, cleanup = self._parent._process_joins(*all_exprs)
+        group_str = self._group._ast.to_hql()
+
+        if self._grouped_indices == self._parent._row_indices:
+            # group variants
+            return cleanup(
+                Matrix(self._parent._hc, base._jvds.groupVariantsBy(group_str, strs[0][1], True)
+                       .annotateGenotypesExpr('g.`{}` = g'.format(strs[0][0]))))
+        else:
+            assert self._grouped_indices == self._parent._col_indices
+            # group samples
+            raise NotImplementedError()
+
+
 class Matrix(object):
     """Hail's representation of a structured matrix.
 
@@ -510,12 +564,50 @@ class Matrix(object):
         return Struct(**d)
 
     @handle_py4j
-    def group_rows_by(self, *exprs, **named_exprs):
-        raise NotImplementedError()
+    def explode_rows(self, expr):
+        if isinstance(expr, str) or isinstance(expr, unicode):
+            if not expr in self._fields:
+                raise KeyError("Matrix has no field '{}'".format(expr))
+            elif self._fields[expr].indices != self._row_indices:
+                raise ExpressionException("Method 'explode_rows' expects a field indexed by row, found axes '{}'"
+                                          .format(self._fields[expr].indices.axes))
+            s = expr
+        else:
+            e = to_expr(expr)
+            analyze(expr, self._row_indices, set(), set(self._fields.keys()))
+            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+                raise ExpressionException(
+                    "method 'explode_rows' requires a field or subfield, not a complex expression")
+            s = e._ast.to_hql()
 
     @handle_py4j
-    def group_cols_by(self, *exprs, **named_exprs):
-        raise NotImplementedError()
+    def explode_cols(self, expr):
+        if isinstance(expr, str) or isinstance(expr, unicode):
+            if not expr in self._fields:
+                raise KeyError("Matrix has no field '{}'".format(expr))
+            elif self._fields[expr].indices != self._col_indices:
+                raise ExpressionException("Method 'explode_cols' expects a field indexed by col, found axes '{}'"
+                                          .format(self._fields[expr].indices.axes))
+            s = expr
+        else:
+            e = to_expr(expr)
+            analyze(expr, self._col_indices, set(), set(self._fields.keys()))
+            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+                raise ExpressionException(
+                    "method 'explode_cols' requires a field or subfield, not a complex expression")
+            s = e._ast.to_hql()
+
+    @handle_py4j
+    def group_rows_by(self, expr):
+        expr = to_expr(expr)
+        analyze(expr, self._row_indices, {self._col_axis}, set(self._fields.keys()))
+        return GroupedMatrix(self, expr, self._row_indices)
+
+    @handle_py4j
+    def group_cols_by(self, expr):
+        expr = to_expr(expr)
+        analyze(expr, self._col_indices, {self._row_axis}, set(self._fields.keys()))
+        return GroupedMatrix(self, expr, self._col_indices)
 
     @handle_py4j
     def count_rows(self):

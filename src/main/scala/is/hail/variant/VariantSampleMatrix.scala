@@ -1193,11 +1193,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     }
     val inserters = inserterBuilder.result()
 
-    info(
-      s"""Modified the genotype schema with annotateGenotypesExpr.
-         |  Original: ${ genotypeSignature.toPrettyString(compact = true) }
-         |  New: ${ finalType.toPrettyString(compact = true) }""".stripMargin)
-
     mapValuesWithAll(finalType, { (v: Annotation, va: Annotation, s: Annotation, sa: Annotation, g: Annotation) =>
       ec.setAll(v, va, s, sa, g)
       f().zip(inserters)

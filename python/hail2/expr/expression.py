@@ -834,11 +834,8 @@ class CallExpression(Expression):
     def gtk(self):
         return self._method("gtk", TInt32())
 
-    def is_called(self):
-        return self._method("isCalled", TBoolean())
-
-    def is_called_nonref(self):
-        return self._method("isCalledNonRef", TBoolean())
+    def is_non_ref(self):
+        return self._method("isNonRef", TBoolean())
 
     def is_het(self):
         return self._method("isHet", TBoolean())
@@ -854,9 +851,6 @@ class CallExpression(Expression):
 
     def is_hom_var(self):
         return self._method("isHomVar", TBoolean())
-
-    def is_not_called(self):
-        return self._method("isNotCalled", TBoolean())
 
     def num_nonref_alleles(self):
         return self._method("nNonRefAlleles", TInt32())

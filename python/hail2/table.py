@@ -103,9 +103,6 @@ class GroupedTable(TableTemplate):
     def aggregate(self, **named_exprs):
         """Aggregate columns programmatically by key.
 
-        :param num_partitions: Target number of partitions in the resulting table.
-        :type num_partitions: int or None
-
         :param named_exprs: Annotation expression with the left hand side equal to the new column name and the right hand side is any type.
         :type named_exprs: dict of str to anytype
 
