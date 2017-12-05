@@ -66,13 +66,13 @@ class OrderedRVD private(
   override def persist(level: StorageLevel): OrderedRVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
     new OrderedRVD(typ, partitioner, iterationRDD) {
-      override def storageLevel: StorageLevel = rdd.getStorageLevel
+      override def storageLevel: StorageLevel = persistedRDD.getStorageLevel
 
       override def persist(newLevel: StorageLevel): OrderedRVD = {
         if (newLevel == StorageLevel.NONE)
           unpersist()
         else {
-          rdd.persist(newLevel)
+          persistedRDD.persist(newLevel)
           this
         }
       }
