@@ -123,14 +123,14 @@ def unify_all(*exprs):
 
 
 def convert_expr(x):
-    if isinstance(x, Expression) and x._type.__class__ in typ_to_column:
-        x = typ_to_column[x._type.__class__](x._ast, x._type, x._indices, x._aggregations, x._joins)
+    if isinstance(x, Expression) and x._type.__class__ in typ_to_expr:
+        x = typ_to_expr[x._type.__class__](x._ast, x._type, x._indices, x._aggregations, x._joins)
 
-        if isinstance(x, ArrayExpression) and x._type.element_type.__class__ in elt_typ_to_array_column:
-            return elt_typ_to_array_column[x._type.element_type.__class__](
+        if isinstance(x, ArrayExpression) and x._type.element_type.__class__ in elt_typ_to_array_expr:
+            return elt_typ_to_array_expr[x._type.element_type.__class__](
                 x._ast, x._type, x._indices, x._aggregations, x._joins)
-        elif isinstance(x, SetExpression) and x._type.element_type.__class__ in elt_typ_to_set_column:
-            return elt_typ_to_set_column[x._type.element_type.__class__](
+        elif isinstance(x, SetExpression) and x._type.element_type.__class__ in elt_typ_to_set_expr:
+            return elt_typ_to_set_expr[x._type.element_type.__class__](
                 x._ast, x._type, x._indices, x._aggregations, x._joins)
         else:
             return x
@@ -235,19 +235,19 @@ class Expression(object):
             s += '\n  Index{agg}: None'.format(agg=' (aggregated)' if self._aggregations else '')
         else:
             s += '\n  {ind}{agg}:\n    {index_lines}'.format(ind=plural('Index', len(indices.axes), 'Indices'),
-                                            agg=' (aggregated)' if self._aggregations else '',
-                                            index_lines='\n    '.join('{} of {}'.format(
-                                                axis, indices.source) for axis in indices.axes))
+                                                             agg=' (aggregated)' if self._aggregations else '',
+                                                             index_lines='\n    '.join('{} of {}'.format(
+                                                                 axis, indices.source) for axis in indices.axes))
         if self._joins:
             s += '\n  Dependent on {} {}'.format(len(self._joins),
-                                                     plural('broadcast/join', len(self._joins), 'broadcasts/joins'))
+                                                 plural('broadcast/join', len(self._joins), 'broadcasts/joins'))
         return s
 
     def _init(self):
         pass
 
     def __nonzero__(self):
-        raise NotImplementedError('The truth value of an expression is undefined')
+        raise NotImplementedError("The truth value of an expression is undefined\n  Hint: instead of if/else, use 'f.cond'")
 
     def _unary_op(self, name):
         return convert_expr(Expression(UnaryOperation(self._ast, name),
@@ -365,7 +365,7 @@ class CollectionExpression(Expression):
         return self._method("toSet", TSet(self._type.element_type))
 
 
-class CollectionNumericColumn(CollectionExpression):
+class CollectionNumericExpression(CollectionExpression):
     def max(self):
         return self._method("max", self._type.element_type)
 
@@ -415,7 +415,7 @@ class ArrayBooleanExpression(ArrayExpression):
         return self._method("sort", self._type, ascending)
 
 
-class ArrayNumericExpression(ArrayExpression, CollectionNumericColumn):
+class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
     def _bin_op_ret_typ(self, other):
         if isinstance(self, ArrayNumericExpression) and isinstance(other, float):
             return TArray(TFloat64())
@@ -553,19 +553,19 @@ class SetExpression(CollectionExpression):
         return self._method("union", self._type, s)
 
 
-class SetFloat64Expression(SetExpression, CollectionNumericColumn):
+class SetFloat64Expression(SetExpression, CollectionNumericExpression):
     pass
 
 
-class SetFloat32Expression(SetExpression, CollectionNumericColumn):
+class SetFloat32Expression(SetExpression, CollectionNumericExpression):
     pass
 
 
-class SetInt32Expression(SetExpression, CollectionNumericColumn):
+class SetInt32Expression(SetExpression, CollectionNumericExpression):
     pass
 
 
-class SetInt64Expression(SetExpression, CollectionNumericColumn):
+class SetInt64Expression(SetExpression, CollectionNumericExpression):
     pass
 
 
@@ -638,8 +638,8 @@ class StructExpression(Expression):
         self._fields = {}
 
         for fd in self._type.fields:
-            expr = typ_to_column[fd.typ.__class__](Select(self._ast, fd.name), fd.typ,
-                                                   self._indices, self._aggregations, self._joins)
+            expr = typ_to_expr[fd.typ.__class__](Select(self._ast, fd.name), fd.typ,
+                                                 self._indices, self._aggregations, self._joins)
             self._set_field(fd.name, expr)
 
     def _set_field(self, key, value):
@@ -999,7 +999,7 @@ class VariantExpression(Expression):
         return self._field("start", TInt32())
 
 
-typ_to_column = {
+typ_to_expr = {
     TBoolean: BooleanExpression,
     TInt32: Int32Expression,
     TInt64: Int64Expression,
@@ -1018,7 +1018,7 @@ typ_to_column = {
     # TAggregable: AggregableColumn
 }
 
-elt_typ_to_array_column = {
+elt_typ_to_array_expr = {
     TBoolean: ArrayBooleanExpression,
     TInt32: ArrayInt32Expression,
     TFloat64: ArrayFloat64Expression,
@@ -1029,7 +1029,7 @@ elt_typ_to_array_column = {
     TArray: ArrayArrayExpression
 }
 
-elt_typ_to_set_column = {
+elt_typ_to_set_expr = {
     TInt32: SetInt32Expression,
     TFloat64: SetFloat64Expression,
     TFloat32: SetFloat32Expression,
@@ -1073,7 +1073,7 @@ def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
                 expected_source, source
             )))
 
-    # TODO: use ast.search to find the references to bad-indexed columns
+    # TODO: use ast.search to find the references to bad-indexed exprs
 
     # check for stray indices
     unexpected_axes = axes - expected_axes

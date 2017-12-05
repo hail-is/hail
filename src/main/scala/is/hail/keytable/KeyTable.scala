@@ -750,7 +750,8 @@ class KeyTable(val hc: HailContext,
 
   def group(dest: String, columns: Array[String]): KeyTable = {
     val (newSignature, grouper) = signature.group(dest, columns)
-    copy(rdd = rdd.map(grouper), signature = newSignature)
+    val newKey = key.filter(!columns.contains(_))
+    copy(rdd = rdd.map(grouper), signature = newSignature, key = newKey)
   }
 
 

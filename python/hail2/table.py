@@ -33,6 +33,23 @@ class TableTemplate(HistoryMixin):
         else:
             self.__dict__[key] = value
 
+    @typecheck_method(item=strlike)
+    def _get_field(self, item):
+        if item in self._fields:
+            return self._fields[item]
+        else:
+            # no field detected
+            raise KeyError("No field '{name} found. "
+                           "Global fields: [{global_fields}], "
+                           "Row-indexed fields: [{row_fields}]".format(
+                name=item,
+                global_fields=', '.join(repr(f.name) for f in self.global_schema.fields),
+                row_fields=', '.join(repr(f.name) for f in self.schema.fields),
+            ))
+
+    def __getitem__(self, item):
+        return self._get_field(item)
+
     def __delattr__(self, item):
         if not item[0] == '_':
             raise NotImplementedError('Table objects are not mutable')
@@ -41,6 +58,12 @@ class TableTemplate(HistoryMixin):
         if not key[0] == '_':
             raise NotImplementedError('Table objects are not mutable')
         self.__dict__[key] = value
+
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        else:
+            return self[item]
 
     def __repr__(self):
         return self._jkt.toString()
@@ -145,30 +168,34 @@ class Table(TableTemplate):
     >>> table1 = hc.import_table('data/kt_example1.tsv', impute=True)
     >>> table1.show()
 
-    +-------+-------+--------+-------+-------+-------+-------+-------+
-    |    ID |    HT | SEX    |     X |     Z |    C1 |    C2 |    C3 |
-    +-------+-------+--------+-------+-------+-------+-------+-------+
-    | Int32 | Int32 | String | Int32 | Int32 | Int32 | Int32 | Int32 |
-    +-------+-------+--------+-------+-------+-------+-------+-------+
-    |     1 |    65 | M      |     5 |     4 |     2 |    50 |     5 |
-    |     2 |    72 | M      |     6 |     3 |     2 |    61 |     1 |
-    |     3 |    70 | F      |     7 |     3 |    10 |    81 |    -5 |
-    |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
-    +-------+-------+--------+-------+-------+-------+-------+-------+
+    .. code-block:: text
+
+        +-------+-------+--------+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX    |     X |     Z |    C1 |    C2 |    C3 |
+        +-------+-------+--------+-------+-------+-------+-------+-------+
+        | Int32 | Int32 | String | Int32 | Int32 | Int32 | Int32 | Int32 |
+        +-------+-------+--------+-------+-------+-------+-------+-------+
+        |     1 |    65 | M      |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | M      |     6 |     3 |     2 |    61 |     1 |
+        |     3 |    70 | F      |     7 |     3 |    10 |    81 |    -5 |
+        |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
+        +-------+-------+--------+-------+-------+-------+-------+-------+
 
     >>> table2 = hc.import_table('data/kt_example2.tsv', impute=True)
     >>> table2.show()
 
-    +-------+-------+--------+
-    |    ID |     A | B      |
-    +-------+-------+--------+
-    | Int32 | Int32 | String |
-    +-------+-------+--------+
-    |     1 |    65 | cat    |
-    |     2 |    72 | dog    |
-    |     3 |    70 | mouse  |
-    |     4 |    60 | rabbit |
-    +-------+-------+--------+
+    .. code-block:: text
+
+        +-------+-------+--------+
+        |    ID |     A | B      |
+        +-------+-------+--------+
+        | Int32 | Int32 | String |
+        +-------+-------+--------+
+        |     1 |    65 | cat    |
+        |     2 |    72 | dog    |
+        |     3 |    70 | mouse  |
+        |     4 |    60 | rabbit |
+        +-------+-------+--------+
 
     Define new annotations:
 
@@ -207,8 +234,6 @@ class Table(TableTemplate):
     >>> table1 = table1.annotate(B = table2[table1.ID].B)
     >>> table1.show()
 
-    :ivar hc: Hail Context
-    :vartype hc: :class:`~hail2.HailContext`
     """
 
     def __init__(self, hc, jkt):
@@ -230,10 +255,7 @@ class Table(TableTemplate):
     @typecheck_method(item=oneof(strlike, Expression, slice, tupleof(Expression)))
     def __getitem__(self, item):
         if isinstance(item, str) or isinstance(item, unicode):
-            if item in self._fields:
-                return self._fields[item]
-            else:
-                raise KeyError("Table has no field '{}'".format(item))
+            return self._get_field(item)
         elif isinstance(item, slice):
             s = item
             if not (s.start is None and s.stop is None and s.step is None):
@@ -426,7 +448,6 @@ class Table(TableTemplate):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
                             .format(expr._type.__class__))
 
-
         return cleanup(Table(self._hc, base._jkt.filter(expr._ast.to_hql(), keep)))
 
     @handle_py4j
@@ -560,7 +581,6 @@ class Table(TableTemplate):
             analyze(v, self._global_indices, {self._row_axis}, set(self.columns))
             replace_aggregables(v._ast, agg_base)
             strs.append(v._ast.to_hql())
-
 
         result_list = base._jkt.query(jarray(Env.jvm().java.lang.String, strs))
         ptypes = [Type._from_java(x._2()) for x in result_list]
@@ -704,7 +724,8 @@ class Table(TableTemplate):
                 assert isinstance(obj, Table)
                 return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jkt, uid))
 
-        return convert_expr(Expression(GlobalJoinReference(uid), self.global_schema, Indices(source=self), (), (Join(joiner, [uid]),)))
+        return convert_expr(
+            Expression(GlobalJoinReference(uid), self.global_schema, Indices(source=self), (), (Join(joiner, [uid]),)))
 
     @typecheck_method(exprs=tupleof(Expression))
     def _process_joins(self, *exprs):
@@ -719,7 +740,6 @@ class Table(TableTemplate):
             for j in e._joins:
                 left = j.join_function(left)
                 all_uids.extend(j.temp_vars)
-
 
         if left is not self:
             left = left.key_by(*original_key)

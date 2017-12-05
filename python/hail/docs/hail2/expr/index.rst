@@ -9,6 +9,6 @@ expr
 .. toctree::
     :maxdepth: 1
 
-    column <column>
+    expressions <expressions>
     functions <functions>
 

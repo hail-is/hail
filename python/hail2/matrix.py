@@ -167,6 +167,24 @@ class Matrix(object):
         else:
             self.__dict__[key] = value
 
+    @typecheck_method(item=strlike)
+    def _get_field(self, item):
+        if item in self._fields:
+            return self._fields[item]
+        else:
+            # no field detected
+            raise KeyError("No field '{name}' found. "
+                           "Global fields: [{global_fields}], "
+                           "Row-indexed fields: [{row_fields}], "
+                           "Column-indexed fields: [{col_fields}], "
+                           "Row/Column-indexed fields: [{entry_fields}]".format(
+                name=item,
+                global_fields=', '.join(repr(f.name) for f in self.global_schema.fields),
+                row_fields=', '.join(repr(f.name) for f in self.row_schema.fields),
+                col_fields=', '.join(repr(f.name) for f in self.col_schema.fields),
+                entry_fields=', '.join(repr(f.name) for f in self.entry_schema.fields),
+            ))
+
     def __delattr__(self, item):
         if not item[0] == '_':
             raise NotImplementedError('Dataset objects are not mutable')
@@ -176,13 +194,16 @@ class Matrix(object):
             raise NotImplementedError('Dataset objects are not mutable')
         self.__dict__[key] = value
 
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        else:
+            return self[item]
+
     @typecheck_method(item=oneof(strlike, sized_tupleof(oneof(slice, Expression), oneof(slice, Expression))))
     def __getitem__(self, item):
         if isinstance(item, str) or isinstance(item, unicode):
-            if item in self._fields:
-                return self._fields[item]
-            else:
-                raise KeyError("Dataset has no field '{}'".format(item))
+            return self._get_field(item)
         else:
             # this is the join path
             exprs = item
@@ -339,7 +360,8 @@ class Matrix(object):
             analyze(e, self._global_indices, set(), {'globals'})
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name, e._ast.to_hql()))
+            strs.append(
+                '`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name, e._ast.to_hql()))
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze(e, self._global_indices, set(), {'globals'})
@@ -412,7 +434,8 @@ class Matrix(object):
             analyze(e, self._entry_indices, set(), set(self._fields.keys()))
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name, e._ast.to_hql()))
+            strs.append(
+                '`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name, e._ast.to_hql()))
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze(e, self._entry_indices, set(), set(self._fields.keys()))
@@ -852,7 +875,6 @@ class Matrix(object):
             for j in e._joins:
                 left = j.join_function(left)
                 all_uids.extend(j.temp_vars)
-
 
         def cleanup(matrix):
             return matrix.drop(*all_uids)
