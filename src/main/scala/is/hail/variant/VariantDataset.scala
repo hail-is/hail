@@ -5,14 +5,15 @@ import is.hail.expr.{EvalContext, Parser, TAggregable, TString, TStruct, Type, _
 import is.hail.io.plink.ExportBedBimFam
 import is.hail.keytable.KeyTable
 import is.hail.methods._
-import is.hail.sparkextras.OrderedRDD2
+import is.hail.rvd.OrderedRVD
 import is.hail.stats.ComputeRRM
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import scala.language.implicitConversions
+import scala.language.existentials
 
 object VariantDataset {
 
@@ -108,9 +109,9 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
     val newMatrixType = vsm.matrixType.copy(vaType = newType)
     val newRowType = newMatrixType.rowType
 
-    val newRDD2 = OrderedRDD2(
-      newMatrixType.orderedRDD2Type,
-      vsm.rdd2.orderedPartitioner,
+    val newRDD2 = OrderedRVD(
+      newMatrixType.orderedRVType,
+      vsm.rdd2.partitioner,
       vsm.rdd2.mapPartitions { it =>
         val splitcontext = new SplitMultiPartitionContext(true, localNSamples, localGlobalAnnotation, localRowType,
           localVAnnotator, localGAnnotator, splitRowType)
@@ -339,11 +340,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     LDMatrix(vsm, Some(forceLocal))
   }
 
-  def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): VariantDataset = {
-    require(vsm.wasSplit)
-    LDPrune(vsm, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
-  }
-
   def nirvana(config: String, blockSize: Int = 500000, root: String): VariantDataset = {
     Nirvana.annotate(vsm, config, blockSize, root)
   }
@@ -435,7 +431,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     } else {
       val localRowType = vsm.rowType
       vsm.copy2(
-        rdd2 = vsm.rdd2.mapPreservesPartitioning { rv =>
+        rdd2 = vsm.rdd2.mapPreservesPartitioning(vsm.rdd2.typ) { rv =>
           val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
           val v = ur.getAs[Variant](1)
           if (!v.isBiallelic)

@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.sparkextras.OrderedRDD2
+import is.hail.rvd.OrderedRVD
 import is.hail.utils._
 import is.hail.variant.{Locus, Variant, VariantSampleMatrix}
 import org.apache.spark.rdd.RDD
@@ -124,10 +124,10 @@ class SplitMultiPartitionContext(
 }
 
 object SplitMulti {
-  def unionMovedVariants(ordered: OrderedRDD2,
-    moved: RDD[RegionValue]): OrderedRDD2 = {
-    ordered.partitionSortedUnion(OrderedRDD2.shuffle(ordered.typ,
-      ordered.orderedPartitioner,
+  def unionMovedVariants(ordered: OrderedRVD,
+    moved: RDD[RegionValue]): OrderedRVD = {
+    ordered.partitionSortedUnion(OrderedRVD.shuffle(ordered.typ,
+      ordered.partitioner,
       moved))
   }
 }
@@ -179,16 +179,16 @@ class SplitMulti(vsm: VariantSampleMatrix, variantExpr: String, genotypeExpr: St
   }
 
   def split(): VariantSampleMatrix = {
-    val newRDD2: OrderedRDD2 =
+    val newRDD2: OrderedRVD =
       if (leftAligned)
-        OrderedRDD2(
-          newMatrixType.orderedRDD2Type,
-          vsm.rdd2.orderedPartitioner,
+        OrderedRVD(
+          newMatrixType.orderedRVType,
+          vsm.rdd2.partitioner,
           split(sortAlleles = true, removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
       else
-        SplitMulti.unionMovedVariants(OrderedRDD2(
-          newMatrixType.orderedRDD2Type,
-          vsm.rdd2.orderedPartitioner,
+        SplitMulti.unionMovedVariants(OrderedRVD(
+          newMatrixType.orderedRVType,
+          vsm.rdd2.partitioner,
           split(sortAlleles = true, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
           split(sortAlleles = false, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 
