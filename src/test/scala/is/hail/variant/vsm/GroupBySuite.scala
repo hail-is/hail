@@ -1,10 +1,11 @@
 package is.hail.variant.vsm
 
 import is.hail.SparkSuite
-import is.hail.expr.{TFloat64, TInt64}
+import is.hail.expr.{TArray, TCall, TFloat64, TInt32, TInt64, TStruct}
 import is.hail.io.annotators.IntervalList
 import org.testng.annotations.Test
 import is.hail.TestUtils._
+import is.hail.annotations.UnsafeRow
 import is.hail.check.Prop.forAll
 import is.hail.utils._
 import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
@@ -14,7 +15,7 @@ class GroupBySuite extends SparkSuite {
 
   @Test def testGroupVariantsBy() {
     val vds = hc.importVCF("src/test/resources/sample.vcf").annotateVariantsExpr("va.AC = gs.map(g => g.GT.gt).sum()")
-    val vds2 = vds.groupVariantsBy("va.AC", "gs.map(g => g.GT.gt).max()")
+    val vds2 = vds.groupVariantsBy("va.AC", "max = gs.map(g => g.GT.gt).max()")
   }
 
   @Test def testGroupByStruct() {
@@ -29,11 +30,11 @@ class GroupBySuite extends SparkSuite {
       val uniqueVariants = variants.toSet
       if (variants.length != uniqueVariants.size) {
         skipped += 1
-        val grouped = vsm.groupVariantsBy("v", "gs.collect()[0]")
+        val grouped = vsm.groupVariantsBy("v", "first = gs.collect()[0]")
         grouped.countVariants() == uniqueVariants.size
       } else {
         val vaKT = vsm.variantsKT()
-        val grouped = vsm.groupVariantsBy("v", "gs.collect()[0]")
+        val grouped = vsm.groupVariantsBy("v", "GT = gs.collect()[0].GT, AD = gs.collect()[0].AD, DP = gs.collect()[0].DP, GQ = gs.collect()[0].GQ, PL = gs.collect()[0].PL")
         vsm.annotateVariantsExpr("va = {}").same(grouped)
       }
     }
@@ -55,19 +56,19 @@ class GroupBySuite extends SparkSuite {
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
-    val vdsGrouped = vds.explodeVariants("va.genes").groupVariantsBy("va.genes", "gs.map(g => va.weight * g.GT.gt).sum()")
+    val vdsGrouped = vds.explodeVariants("va.genes").groupVariantsBy("va.genes", "sum = gs.map(g => va.weight * g.GT.gt).sum()")
     println(vds.rowType)
     println(vdsGrouped.rowType)
 
-    val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g.sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val linregMap = resultsVSM.variantsKT().select("v", "va.linreg.beta", "va.linreg.se", "va.linreg.tstat", "va.linreg.pval")
       .mapAnnotations { r => (r.getAs[String](0), (1 to 4).map{ i => Double.box(r.getAs[IndexedSeq[Double]](i)(0)) }) }
       .collect()
       .toMap
     val sampleMap = resultsVSM.unsafeRowRDD().map {ur =>
       val k = ur.getAs[String](0)
-      val v = ur.getAs[IndexedSeq[Double]](3)
-      k -> v.map(Double.box)
+      val v = ur.getAs[IndexedSeq[UnsafeRow]](3)
+      k -> v.map{ ur => Double.box(ur.getAs[Double](0)) }
     }.collect().toMap
 
     /*

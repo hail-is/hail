@@ -148,7 +148,9 @@ object Aggregators {
   def makeSampleFunctions(vsm: VariantSampleMatrix, aggExpr: String): SampleFunctions = {
     val ec = vsm.sampleEC
 
-    val (resultType, aggF) = Parser.parseExpr(aggExpr, ec)
+    val (resultNames, resultTypes, aggF) = Parser.parseAnnotationExprs(aggExpr, ec, None)
+
+    val newType = TStruct(resultNames.map(_.head).zip(resultTypes).toSeq: _*)
 
     val localNSamples = vsm.nSamples
     val localGlobalAnnotations = vsm.globalAnnotation
@@ -206,13 +208,20 @@ object Aggregators {
           aggregations(j)._1.v = ma(i, j).result
           j += 1
         }
-        rvb.addAnnotation(resultType, aggF())
+        rvb.startStruct()
+        val fields = aggF()
+        var k = 0
+        while (k < fields.size) {
+          rvb.addAnnotation(newType.fieldType(k), fields(k))
+          k += 1
+        }
+        rvb.endStruct()
         i += 1
       }
       rvb.endArray()
     }
 
-    SampleFunctions(zVal, seqOp, combOp, resultOp, resultType)
+    SampleFunctions(zVal, seqOp, combOp, resultOp, newType)
   }
 
   case class SampleFunctions(

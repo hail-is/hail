@@ -432,7 +432,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def collect(): Array[UnsafeRow] = unsafeRowRDD().collect()
 
   def take(n: Int): Array[UnsafeRow] = unsafeRowRDD().take(n)
-
+  
   def groupVariantsBy(keyExpr: String, aggExpr: String): VariantSampleMatrix = {
     val localRowType = rowType
     val vEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
