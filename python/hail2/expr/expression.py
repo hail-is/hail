@@ -221,11 +221,23 @@ class Expression(object):
 
         self._init()
 
-    # def __str__(self):
-    #     return self._expr
-    #
-    # def __repr__(self):
-    #     return self._expr
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        s = "{super_repr}\n  Type: {type}".format(
+            super_repr=super(Expression, self).__repr__(),
+            type=str(self._type),
+        )
+        if self._indices.source is not None:
+            s += '\n  Indexed by {} [{}] of {}'.format(plural('axis', len(self._indices.axes), 'axes'),
+                                                       ', '.join(self._indices.axes), self._indices.source)
+        if self._aggregations:
+            s += '\n    (Aggregated)'
+        if self._joins:
+            s += '\n    (Dependent on {} {})'.format(len(self._joins), plural('broadcast/join', len(self._joins), 'broadcasts/joins'))
+        return s
+
 
     def _init(self):
         pass

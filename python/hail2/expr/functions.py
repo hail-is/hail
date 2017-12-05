@@ -411,7 +411,7 @@ def _agg_func(name, aggregable, ret_type, *args):
         raise ValueError('cannot aggregate an already-aggregated expression')
 
     ast = ClassMethod(name, aggregable._ast, *[a._ast for a in args])
-    return convert_expr(Expression(ast, ret_type, Indices(), (Aggregation(indices),), joins))
+    return convert_expr(Expression(ast, ret_type, Indices(source=indices.source), (Aggregation(indices),), joins))
 
 
 def collect(expr):
@@ -456,7 +456,7 @@ def take(expr, n, ordering=None):
         if aggregations:
             raise ValueError('cannot aggregate an already-aggregated expression')
 
-        return convert_expr(Expression(ast, TArray(agg._type), Indices(), (Aggregation(indices),), joins))
+        return convert_expr(Expression(ast, TArray(agg._type), Indices(source=indices.source), (Aggregation(indices),), joins))
 
 
 def min(expr):
@@ -502,7 +502,7 @@ def fraction(expr):
 
     uid = Env._get_uid()
     ast = LambdaClassMethod('fraction', uid, agg._ast, Reference(uid))
-    return convert_expr(Expression(ast, TBoolean(), Indices(), (Aggregation(agg._indices),), agg._joins))
+    return convert_expr(Expression(ast, TBoolean(), Indices(source=indices.source), (Aggregation(agg._indices),), agg._joins))
 
 
 def hardy_weinberg(expr):
@@ -560,7 +560,7 @@ def inbreeding(expr, prior):
 
     t = TStruct(['Fstat', 'nTotal', 'nCalled', 'expectedHoms', 'observedHoms'],
                 [TFloat64(), TInt64(), TInt64(), TFloat64(), TInt64()])
-    return convert_expr(Expression(ast, t, Indices(), (Aggregation(indices),), joins))
+    return convert_expr(Expression(ast, t, Indices(source=indices.source), (Aggregation(indices),), joins))
 
 
 @typecheck(expr=oneof(Aggregable, expr_call), variant=expr_variant)
@@ -581,7 +581,7 @@ def call_stats(expr, variant):
         raise ValueError('cannot aggregate an already-aggregated expression')
 
     t = TStruct(['AC', 'AF', 'AN', 'GC'], [TArray(TInt32()), TArray(TFloat64()), TInt32(), TArray(TInt32())])
-    return convert_expr(Expression(ast, t, Indices(), (Aggregation(indices),), joins))
+    return convert_expr(Expression(ast, t, Indices(source=indices.source), (Aggregation(indices),), joins))
 
 
 def hist(expr, start, end, bins):
