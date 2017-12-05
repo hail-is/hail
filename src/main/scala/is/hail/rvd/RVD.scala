@@ -29,13 +29,23 @@ trait RVD {
 
   def partitions: Array[Partition] = rdd.partitions
 
+  def filter(f: (RegionValue) => Boolean): RVD = RVD(rowType, rdd.filter(f))
+
+  def map(newRowType: Type)(f: (RegionValue) => RegionValue): RVD = RVD(newRowType, rdd.map(f))
+
+  def mapWithContext[C](newRowType: Type)(makeContext: () => C)(f: (C, RegionValue) => RegionValue) =
+    RVD(newRowType, rdd.mapPartitions { it =>
+      val c = makeContext()
+      it.map { rv => f(c, rv) }
+    })
+
   def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(f)
 
-  def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitions(f)
+  def mapPartitions(newRowType: Type)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD = RVD(newRowType, rdd.mapPartitions(f))
 
   def mapPartitionsWithIndex[T](f: (Int, Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitionsWithIndex(f)
 
-  def map(newRowType: Type)(f: (RegionValue) => RegionValue): RVD = RVD(newRowType, rdd.map(f))
+  def mapPartitions[T](f: (Iterator[RegionValue]) => Iterator[T])(implicit tct: ClassTag[T]): RDD[T] = rdd.mapPartitions(f)
 
   def treeAggregate[U: ClassTag](zeroValue: U)(
     seqOp: (U, RegionValue) => U,
@@ -46,16 +56,6 @@ trait RVD {
     (seqOp: (V, U, RegionValue) => U, combOp: (U, U) => U): U = {
     AggregateWithContext.aggregateWithContext(rdd)(context)(zeroValue)(seqOp, combOp)
   }
-
-  def mapWithContext[C](newRowType: Type)(makeContext: () => C)(f: (C, RegionValue) => RegionValue) =
-    RVD(newRowType, rdd.mapPartitions { it =>
-      val c = makeContext()
-      it.map { rv => f(c, rv) }
-    })
-
-  def mapPartitions(newRowType: Type)(f: (Iterator[RegionValue]) => Iterator[RegionValue]): RVD = RVD(newRowType, rdd.mapPartitions(f))
-
-  def filter(f: (RegionValue) => Boolean): RVD = RVD(rowType, rdd.filter(f))
 
   def count(): Long = rdd.count()
 

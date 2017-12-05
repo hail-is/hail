@@ -85,7 +85,7 @@ class OrderedRVD private(
   }
 
   override def cache(): OrderedRVD = persist(StorageLevel.MEMORY_ONLY)
-  
+
   override def unpersist(): OrderedRVD = this
 
   def orderedJoinDistinct(right: OrderedRVD, joinType: String): RDD[JoinedRegionValue] = {
@@ -520,6 +520,8 @@ object OrderedRVD {
     })
   }
 
-  def apply(typ: OrderedRVType, partitioner: OrderedRVPartitioner, rvd: RVD): OrderedRVD =
+  def apply(typ: OrderedRVType, partitioner: OrderedRVPartitioner, rvd: RVD): OrderedRVD = {
+    assert(typ.rowType == rvd.rowType)
     apply(typ, partitioner, rvd.rdd)
+  }
 }
