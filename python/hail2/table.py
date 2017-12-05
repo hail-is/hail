@@ -114,14 +114,12 @@ class GroupedTable(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
-        all_exprs = [e for _, e in self._groups]
+        base, cleanup = self._parent._process_joins(*(tuple(v for _, v in self._groups) + tuple(named_exprs.values())))
         for k, v in named_exprs.items():
             analyze(v, self._parent._global_indices, {self._parent._row_axis}, set(self._parent.columns))
             replace_aggregables(v._ast, agg_base)
             strs.append('`{}` = {}'.format(k, v._ast.to_hql()))
-            all_exprs.append(v)
 
-        base, cleanup = self._parent._process_joins(*all_exprs)
         group_strs = ',\n'.join('`{}` = {}'.format(k, v._ast.to_hql()) for k, v in self._groups)
         return cleanup(
             Table(self._hc, base._jkt.aggregate(group_strs, ",\n".join(strs), joption(self._npartitions))))
@@ -325,32 +323,33 @@ class Table(TableTemplate):
     def annotate_globals(self, **named_exprs):
         exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
             analyze(v, self._global_indices, set(), {f.name for f in self.global_schema.fields})
             exprs.append('`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
 
-        base, cleanup = self._process_joins(*named_exprs.values())
         m = Table(self._hc, base._jkt.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
 
     @handle_py4j
     def select_globals(self, *exprs, **named_exprs):
+        exprs = tuple(to_expr(e) for e in exprs)
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
+        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+
         for e in exprs:
-            e = to_expr(e)
             all_exprs.append(e)
             analyze(e, self._global_indices, set(), set(f.name for f in self.global_schema.fields))
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
         for k, e in named_exprs.items():
-            e = to_expr(e)
             all_exprs.append(e)
             analyze(e, self._global_indices, set(), set(f.name for f in self.global_schema.fields))
             strs.append('`{}` = {}'.format(k, to_expr(e)._ast.to_hql()))
 
-        base, cleanup = self._process_joins(*all_exprs)
         return cleanup(Table(self._hc, base._jkt.selectGlobal(strs)))
 
     @handle_py4j
@@ -381,11 +380,11 @@ class Table(TableTemplate):
 
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         exprs = []
+        base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
             analyze(v, self._row_indices, set(), set(self.columns))
             exprs.append('{k} = {v}'.format(k=k, v=v._ast.to_hql()))
 
-        base, cleanup = self._process_joins(*named_exprs.values())
         return cleanup(Table(self._hc, base._jkt.annotate(",\n".join(exprs))))
 
     @handle_py4j
@@ -422,11 +421,11 @@ class Table(TableTemplate):
 
         expr = to_expr(expr)
         analyze(expr, self._row_indices, set(), set(self.columns))
+        base, cleanup = self._process_joins(expr)
         if not isinstance(expr._type, TBoolean):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
                             .format(expr._type.__class__))
 
-        base, cleanup = self._process_joins(expr)
 
         return cleanup(Table(self._hc, base._jkt.filter(expr._ast.to_hql(), keep)))
 
@@ -461,22 +460,23 @@ class Table(TableTemplate):
         :rtype: :class:`.KeyTable`
         """
 
+        exprs = tuple(to_expr(e) for e in exprs)
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
+        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+
         for e in exprs:
-            e = to_expr(e)
             all_exprs.append(e)
             analyze(e, self._row_indices, set(), set(self.columns))
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
         for k, e in named_exprs.items():
-            e = to_expr(e)
             all_exprs.append(e)
             analyze(e, self._row_indices, set(), set(self.columns))
             strs.append('`{}` = {}'.format(k, to_expr(e)._ast.to_hql()))
 
-        base, cleanup = self._process_joins(*all_exprs)
         return cleanup(Table(self._hc, base._jkt.select(strs, False)))
 
     @handle_py4j
@@ -556,12 +556,12 @@ class Table(TableTemplate):
 
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
+        base, _ = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
             analyze(v, self._global_indices, {self._row_axis}, set(self.columns))
             replace_aggregables(v._ast, agg_base)
             strs.append(v._ast.to_hql())
 
-        base, _ = self._process_joins(*named_exprs.values())
 
         result_list = base._jkt.query(jarray(Env.jvm().java.lang.String, strs))
         ptypes = [Type._from_java(x._2()) for x in result_list]
@@ -701,13 +701,12 @@ class Table(TableTemplate):
         def joiner(obj):
             from hail2.matrix import Matrix
             if isinstance(obj, Matrix):
-                raise NotImplementedError('global join from table to matrix')
-                # return VariantDataset(obj._hc, Env.jutils().joinGlobals(obj._jvds, self._jkt, uid))
+                return Matrix(obj._hc, Env.jutils().joinGlobals(obj._jvds, self._jkt, uid))
             else:
                 assert isinstance(obj, Table)
                 return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jkt, uid))
 
-        return convert_expr(Expression(Reference(uid), self.global_schema, Indices(), (), (Join(joiner, [uid]),)))
+        return convert_expr(Expression(GlobalJoinReference(uid), self.global_schema, Indices(), (), (Join(joiner, [uid]),)))
 
     @typecheck_method(exprs=tupleof(Expression))
     def _process_joins(self, *exprs):
@@ -718,9 +717,11 @@ class Table(TableTemplate):
         left = self
 
         for e in exprs:
+            rewrite_global_refs(e._ast, self)
             for j in e._joins:
                 left = j.join_function(left)
                 all_uids.extend(j.temp_vars)
+
 
         if left is not self:
             left = left.key_by(*original_key)

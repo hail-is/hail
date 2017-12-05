@@ -92,11 +92,11 @@ trait Py4jUtils {
   }
 
   def joinGlobals(left: VariantSampleMatrix, right: KeyTable, identifier: String): VariantSampleMatrix = {
-    left.annotateGlobal(right.globals, right.globalSignature, identifier)
+    left.annotateGlobal(right.globals, right.globalSignature, "global." + identifier)
   }
 
   def joinGlobals(left: VariantSampleMatrix, right: VariantSampleMatrix, identifier: String): VariantSampleMatrix = {
-    left.annotateGlobal(right.globalAnnotation, right.globalSignature, identifier)
+    left.annotateGlobal(right.globalAnnotation, right.globalSignature, "global." + identifier)
   }
 }
 

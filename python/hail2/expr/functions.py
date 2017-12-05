@@ -44,7 +44,7 @@ def broadcast(x):
             assert isinstance(obj, Matrix)
             return Matrix(obj._hc, obj._jvds.annotateGlobalExpr('global.{} = {}'.format(uid, expr._ast.to_hql())))
 
-    return convert_expr(Expression(Select(Reference('global'), uid), expr._type, joins=(Join(joiner, [uid]),)))
+    return convert_expr(Expression(GlobalJoinReference(uid), expr._type, joins=(Join(joiner, [uid]),)))
 
 
 @args_to_expr

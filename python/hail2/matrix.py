@@ -35,19 +35,17 @@ class GroupedMatrix(object):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
-        all_exprs = [self._group]
 
         # FIXME
         assert len(named_exprs) == 1, named_exprs
 
+        base, cleanup = self._parent._process_joins(*((self._group,) + tuple(named_exprs.values())))
         for k, v in named_exprs.items():
             analyze(v, self._grouped_indices, {self._parent._row_axis, self._parent._col_axis},
                     set(self._parent._fields.keys()))
             replace_aggregables(v._ast, 'gs')
             strs.append((k, v._ast.to_hql()))
-            all_exprs.append(v)
 
-        base, cleanup = self._parent._process_joins(*all_exprs)
         group_str = self._group._ast.to_hql()
 
         if self._grouped_indices == self._parent._row_indices:
@@ -282,11 +280,12 @@ class Matrix(object):
     def annotate_globals(self, **named_exprs):
         exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        base, cleanup = self._process_joins(*named_exprs.values())
+
         for k, v in named_exprs.items():
             analyze(v, self._global_indices, set(), {'globals'})
             exprs.append('global.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._global_indices)
-        base, cleanup = self._process_joins(*named_exprs.values())
         m = Matrix(self._hc, base._jvds.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
 
@@ -294,12 +293,13 @@ class Matrix(object):
     def annotate_rows(self, **named_exprs):
         exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        base, cleanup = self._process_joins(*named_exprs.values())
+
         for k, v in named_exprs.items():
             analyze(v, self._row_indices, {self._col_axis}, set(self._fields.keys()))
             replace_aggregables(v._ast, 'gs')
             exprs.append('va.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._row_indices)
-        base, cleanup = self._process_joins(*named_exprs.values())
         m = Matrix(self._hc, base._jvds.annotateVariantsExpr(",\n".join(exprs)))
         return cleanup(m)
 
@@ -307,12 +307,13 @@ class Matrix(object):
     def annotate_cols(self, **named_exprs):
         exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        base, cleanup = self._process_joins(*named_exprs.values())
+
         for k, v in named_exprs.items():
             analyze(v, self._col_indices, {self._row_axis}, set(self._fields.keys()))
             replace_aggregables(v._ast, 'gs')
             exprs.append('sa.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._col_indices)
-        base, cleanup = self._process_joins(*named_exprs.values())
         m = Matrix(self._hc, base._jvds.annotateSamplesExpr(",\n".join(exprs)))
         return cleanup(m)
 
@@ -320,43 +321,45 @@ class Matrix(object):
     def annotate_entries(self, **named_exprs):
         exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        base, cleanup = self._process_joins(*named_exprs.values())
 
         for k, v in named_exprs.items():
             analyze(v, self._entry_indices, set(), set(self._fields.keys()))
             exprs.append('g.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._entry_indices)
-        base, cleanup = self._process_joins(*named_exprs.values())
         m = Matrix(self._hc, base._jvds.annotateGenotypesExpr(",\n".join(exprs)))
         return cleanup(m)
 
     @handle_py4j
     def select_globals(self, *exprs, **named_exprs):
+        exprs = tuple(to_expr(e) for e in exprs)
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
+        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
         for e in exprs:
-            e = to_expr(e)
             all_exprs.append(e)
-            analyze(e, self, self._global_indices, set(), {'globals'})
+            analyze(e, self._global_indices, set(), {'globals'})
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
             strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e.name, e._ast.to_hql()))
         for k, e in named_exprs.items():
-            e = to_expr(e)
             all_exprs.append(e)
-            analyze(e, self, self._global_indices, set(), {'globals'})
+            analyze(e, self._global_indices, set(), {'globals'})
             self._check_field_name(k, self._global_indices)
             strs.append('`{}`: {}'.format(k, to_expr(e)._ast.to_hql()))
-        base, cleanup = self._process_joins(*all_exprs)
         m = Matrix(self._hc, base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
     def select_rows(self, *exprs, **named_exprs):
+        exprs = tuple(to_expr(e) for e in exprs)
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
+        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
 
         for e in exprs:
-            e = to_expr(e)
             all_exprs.append(e)
             analyze(e, self._row_indices, {self._col_axis}, set(self._fields.keys()))
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
@@ -365,22 +368,23 @@ class Matrix(object):
             strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e.name,
                                           e._ast.to_hql()))
         for k, e in named_exprs.items():
-            e = to_expr(e)
             all_exprs.append(e)
             analyze(e, self._row_indices, {self._col_axis}, set(self._fields.keys()))
             self._check_field_name(k, self._row_indices)
             replace_aggregables(e._ast, 'gs')
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
-        base, cleanup = self._process_joins(*all_exprs)
         m = Matrix(self._hc, base._jvds.annotateVariantsExpr('va = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
     def select_cols(self, *exprs, **named_exprs):
+        exprs = tuple(to_expr(e) for e in exprs)
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
+        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+
         for e in exprs:
-            e = to_expr(e)
             all_exprs.append(e)
             analyze(e, self._col_indices, {self._row_axis}, set(self._fields.keys()))
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
@@ -389,35 +393,34 @@ class Matrix(object):
             strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e.name,
                                           e._ast.to_hql()))
         for k, e in named_exprs.items():
-            e = to_expr(e)
             all_exprs.append(e)
             analyze(e, self._col_indices, {self._row_axis}, set(self._fields.keys()))
             self._check_field_name(k, self._col_indices)
             replace_aggregables(e._ast, 'gs')
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
 
-        base, cleanup = self._process_joins(*all_exprs)
         m = Matrix(self._hc, base._jvds.annotateSamplesExpr('sa = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
     def select_entries(self, *exprs, **named_exprs):
+        exprs = tuple(to_expr(e) for e in exprs)
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
+        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+
         for e in exprs:
-            e = to_expr(e)
             all_exprs.append(e)
             analyze(e, self._entry_indices, set(), set(self._fields.keys()))
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
             strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e.name, e._ast.to_hql()))
         for k, e in named_exprs.items():
-            e = to_expr(e)
             all_exprs.append(e)
             analyze(e, self._entry_indices, set(), set(self._fields.keys()))
             self._check_field_name(k, self._entry_indices)
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
-        base, cleanup = self._process_joins(*all_exprs)
         m = Matrix(self._hc, base._jvds.annotateGenotypesExpr('g = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
@@ -509,6 +512,8 @@ class Matrix(object):
     def aggregate_rows(self, **named_exprs):
         str_exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        base, _ = self._process_joins(*named_exprs.values())
+
         for k, v in named_exprs.items():
             allowed_fields = {'v', 'globals'}
             for f in self.row_schema.fields:
@@ -517,7 +522,6 @@ class Matrix(object):
             replace_aggregables(v._ast, 'variants')
             str_exprs.append(v._ast.to_hql())
 
-        base, _ = self._process_joins(*named_exprs.values())
         result_list = self._jvds.queryVariants(jarray(Env.jvm().java.lang.String, str_exprs))
         ptypes = [Type._from_java(x._2()) for x in result_list]
 
@@ -529,6 +533,8 @@ class Matrix(object):
     def aggregate_cols(self, **named_exprs):
         str_exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        base, _ = self._process_joins(*named_exprs.values())
+
         for k, v in named_exprs.items():
             allowed_fields = {'s', 'globals'}
             for f in self.col_schema.fields:
@@ -537,7 +543,6 @@ class Matrix(object):
             replace_aggregables(v._ast, 'samples')
             str_exprs.append(v._ast.to_hql())
 
-        base, _ = self._process_joins(*named_exprs.values())
         result_list = base._jvds.querySamples(jarray(Env.jvm().java.lang.String, str_exprs))
         ptypes = [Type._from_java(x._2()) for x in result_list]
 
@@ -549,13 +554,13 @@ class Matrix(object):
     def aggregate_entries(self, **named_exprs):
         str_exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        base, _ = self._process_joins(*named_exprs.values())
 
         for k, v in named_exprs.items():
             analyze(v, self._global_indices, {self._row_axis, self._col_axis}, set(self._fields.keys()))
             replace_aggregables(v._ast, 'gs')
             str_exprs.append(v._ast.to_hql())
 
-        base, _ = self._process_joins(*named_exprs.values())
         result_list = base._jvds.queryGenotypes(jarray(Env.jvm().java.lang.String, str_exprs))
         ptypes = [Type._from_java(x._2()) for x in result_list]
 
@@ -648,16 +653,15 @@ class Matrix(object):
         uid = Env._get_uid()
 
         def joiner(obj):
-            from hail2.table import Table
             if isinstance(obj, Matrix):
                 return Matrix(obj._hc, Env.jutils().joinGlobals(obj._jvds, self._jvds, uid))
             else:
-                raise NotImplementedError('global join from matrix to table')
-                # assert isinstance(obj, KeyTable)
-                # return KeyTable(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jvds, uid))
+                from hail2.table import Table
+                assert isinstance(obj, Table)
+                return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jvds, uid))
 
         return convert_expr(
-            Expression(Select(Reference('global'), uid), self.global_schema, joins=(Join(joiner, [uid]))))
+            Expression(GlobalJoinReference, self.global_schema, joins=(Join(joiner, [uid]))))
 
     @handle_py4j
     def index_rows(self, expr):
@@ -848,9 +852,11 @@ class Matrix(object):
         left = self
 
         for e in exprs:
+            rewrite_global_refs(e._ast, self)
             for j in e._joins:
                 left = j.join_function(left)
                 all_uids.extend(j.temp_vars)
+
 
         def cleanup(matrix):
             return matrix.drop(*all_uids)
