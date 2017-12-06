@@ -50,7 +50,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     val rows = indexedRowMatrix.numRows()
     val cols = indexedRowMatrix.numCols()
     val partitioner = GridPartitioner(blockSize, rows, cols)
-    val colPartitions = partitioner.colPartitions
+    val colPartitions = partitioner.nBlockCols
     // NB: if excessRows == 0, we never reach the truncatedBlockRow
     val truncatedBlockRow = (rows / blockSize).toInt
     val truncatedBlockCol = (cols / blockSize).toInt
