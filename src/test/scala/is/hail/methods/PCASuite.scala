@@ -3,16 +3,28 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TFloat64, TStruct}
-import is.hail.variant.Variant
+import is.hail.keytable.KeyTable
+import is.hail.variant.{Variant, VariantSampleMatrix}
+import org.apache.spark.mllib.linalg.DenseMatrix
 import org.testng.annotations.Test
+
+object PCASuite {
+  def samplePCA(vsm: VariantSampleMatrix, k: Int = 10, computeLoadings: Boolean = false, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix, Option[KeyTable]) = {
+    val prePCA = vsm.annotateVariantsExpr("va.mean = gs.map(g => g.GT.gt).sum() / gs.filter(g => isDefined(g.GT)).count()")
+      .filterVariantsExpr(s"isDefined(va.mean) && gs.filter(g => isDefined(g.GT)).map(g => g.GT.gt).collectAsSet().size() != 1").persist()
+    val nVariants = prePCA.countVariants()
+    val expr = s"if (isDefined(g.GT)) (g.GT.gt - va.mean) / sqrt(va.mean * (2 - va.mean) * $nVariants / 2) else 0"
+    PCA(prePCA, expr, k, computeLoadings, asArray)
+  }
+}
 
 class PCASuite extends SparkSuite {
 
   @Test def test() {
 
     val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
-    val (scores, loadings, eigenvalues) = SamplePCA(vds, 3, true, true, true)
-    val (scoresStruct, loadingsStruct, eigenvaluesStruct) = SamplePCA(vds, 3, true, true, false)
+    val (eigenvalues, scores, loadings) = PCASuite.samplePCA(vds, 3, true, true)
+    val (eigenvaluesStruct, scoresStruct, loadingsStruct) = PCASuite.samplePCA(vds, 3, true, false)
 
     // comparing against numbers computed via Python script test/resources/PCA.py
 
@@ -41,6 +53,15 @@ class PCASuite extends SparkSuite {
 
     val pyEigen = IndexedSeq(3.0541488634265739, 1.0471401535365061, 0.5082347925607319)
 
-    assert(arrayT.valuesSimilar(eigenvalues.get.toIndexedSeq, pyEigen), s"$eigenvalues")
+    assert(arrayT.valuesSimilar(eigenvalues, pyEigen), s"$eigenvalues")
+  }
+
+  @Test def testExpr() {
+    val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
+    val (eigenvalues, scores, loadings) = PCA(vds, "if (isDefined(g.GT)) g.GT.gt else 0", 3, true, true)
+
+    println(scores)
+    println(loadings.get.collect())
+    println(eigenvalues)
   }
 }

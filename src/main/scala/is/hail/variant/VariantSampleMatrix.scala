@@ -15,6 +15,7 @@ import is.hail.rvd.{OrderedRVD, OrderedRVType}
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import org.apache.hadoop
+import org.apache.spark.mllib.linalg.DenseMatrix
 import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.AggregateWithContext._
 import org.apache.spark.sql.Row
@@ -2587,9 +2588,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       genotypeSignature = newEntryType)
   }
 
-  def pcaResults(k: Int = 10, computeLoadings: Boolean = false, computeEigenvalues: Boolean = false, asArrays: Boolean = false): (KeyTable, Option[KeyTable], Option[IndexedSeq[Double]]) = {
-    require(wasSplit)
-
+  def pca(expr: String, k: Int = 10, computeLoadings: Boolean = false, asArrays: Boolean = false): (IndexedSeq[Double], KeyTable, Option[KeyTable]) = {
     if (k < 1)
       fatal(
         s"""requested invalid number of components: $k
@@ -2597,9 +2596,9 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     info(s"Running PCA with $k components...")
 
-    val (scoresmatrix, optionLoadings, optionEigenvalues) = SamplePCA(this, k, computeLoadings, computeEigenvalues, asArrays)
+    val (eigenvalues, scoresmatrix, optionLoadings) = PCA(this, expr, k, computeLoadings, asArrays)
 
-    val rowType = TStruct("s" -> sSignature, "pcaScores" -> SamplePCA.pcSchema(k, asArrays))
+    val rowType = TStruct("s" -> sSignature, "pcaScores" -> PCA.pcSchema(k, asArrays))
     val rowTypeBc = sparkContext.broadcast(rowType)
 
     val scoresrdd = sparkContext.parallelize(sampleIds.zip(scoresmatrix.rowIter.toSeq)).mapPartitions[RegionValue] { it =>
@@ -2629,33 +2628,35 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       rowType,
       Array("s"))
 
-    (scores, optionLoadings, optionEigenvalues)
+    (eigenvalues, scores, optionLoadings)
   }
 
   /**
     *
-    * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')
-    * @param k            Number of principal components
-    * @param loadingsRoot Variant annotation path for site loadings (period-delimited path starting in 'va')
-    * @param eigenRoot    Global annotation path for eigenvalues (period-delimited path starting in 'global'
-    * @param asArrays     Store score and loading results as arrays, rather than structs
+    * @param k          the number of principal components to use to distinguish
+    *                   ancestries
+    * @param maf        the minimum individual-specific allele frequency for an
+    *                   allele used to measure relatedness
+    * @param blockSize  the side length of the blocks of the block-distributed
+    *                   matrices; this should be set such that atleast three of
+    *                   these matrices fit in memory (in addition to all other
+    *                   objects necessary for Spark and Hail).
+    * @param statistics which subset of the four statistics to compute
     */
-
-  def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
-    asArrays: Boolean = false): VariantSampleMatrix = {
-
-    val pcSchema = SamplePCA.pcSchema(k, asArrays)
-
-    val (scores, loadings, eigenvalues) = pcaResults(k, loadingsRoot.isDefined, eigenRoot.isDefined)
-    var ret = annotateSamplesTable(scores, root = scoresRoot)
-
-    loadings.foreach { kt =>
-      ret = ret.annotateVariantsTable(kt, root = loadingsRoot.get)
+  def pcRelate(k: Int, pcaScores: KeyTable, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): KeyTable = {
+    require(wasSplit)
+    val scoreArray = new Array[Double](nSamples*k)
+    val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
+    var i = 0
+    while (i < nSamples) {
+      val row = pcs(i).getAs[IndexedSeq[Double]](1)
+      var j = 0
+      while (j < k) {
+        scoreArray(j*nSamples + i) = row(j)
+        j += 1
+      }
+      i += 1
     }
-
-    eigenvalues.foreach { eig =>
-      ret = ret.annotateGlobal(if (asArrays) eig else Annotation.fromSeq(eig), pcSchema, eigenRoot.get)
-    }
-    ret
+    PCRelate.toKeyTable(this, new DenseMatrix(nSamples, k, scoreArray, false), maf, blockSize, minKinship, statistics)
   }
 }

@@ -1,15 +1,16 @@
 package is.hail.methods
 
-import is.hail.annotations.{Annotation, MemoryBuffer, RegionValue, RegionValueBuilder}
+import is.hail.annotations._
 import is.hail.expr._
 import is.hail.keytable.KeyTable
-import is.hail.stats.ToHWENormalizedIndexedRowMatrix
+import is.hail.stats.{RegressionUtils, ToHWENormalizedIndexedRowMatrix}
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantSampleMatrix}
-import org.apache.spark.mllib.linalg.{DenseMatrix, Vector}
-import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
+import is.hail.variant.{HTSGenotypeView, Variant, VariantSampleMatrix}
+import org.apache.spark.mllib.linalg.{DenseMatrix, Vector, Vectors}
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.sql.Row
 
-trait PCA {
+object PCA {
   def pcSchema(k: Int, asArray: Boolean = false): Type =
     if (asArray)
       TArray(TFloat64())
@@ -17,9 +18,9 @@ trait PCA {
       TStruct((1 to k).map(i => (s"PC$i", TFloat64())): _*)
 
   //returns (sample scores, variant loadings, eigenvalues)
-  def apply(vsm: VariantSampleMatrix, k: Int, computeLoadings: Boolean, computeEigenvalues: Boolean, asArray: Boolean = false): (DenseMatrix, Option[KeyTable], Option[IndexedSeq[Double]]) = {
+  def apply(vsm: VariantSampleMatrix, expr: String, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix, Option[KeyTable]) = {
     val sc = vsm.sparkContext
-    val (maybeVariants, mat) = doubleMatrixFromVSM(vsm, computeLoadings)
+    val (maybeVariants, mat) = doubleMatrixFromVSM(vsm, expr, computeLoadings)
     val svd = mat.computeSVD(k, computeLoadings)
     if (svd.s.size < k)
       fatal(
@@ -53,15 +54,66 @@ trait PCA {
       new KeyTable(vsm.hc, rdd, rowType, Array("v"))
     })
 
-    (svd.V.multiply(DenseMatrix.diag(svd.s)), optionLoadings, someIf(computeEigenvalues, svd.s.toArray.map(math.pow(_, 2))))
+    (svd.s.toArray.map(math.pow(_, 2)), svd.V.multiply(DenseMatrix.diag(svd.s)), optionLoadings)
   }
 
-  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix)
-}
+  def doubleMatrixFromVSM(vsm: VariantSampleMatrix, expr: String, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix) = {
 
-object SamplePCA extends PCA {
-  override def doubleMatrixFromVSM(vsm: VariantSampleMatrix, getVariants: Boolean): (Option[Array[Variant]], IndexedRowMatrix) = {
-    val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vsm)
-    (if (getVariants) Option(variants) else None, mat)
+    val partitionSizes = vsm.rdd2.mapPartitions(it => Iterator.single(it.size)).collect().scanLeft(0)(_ + _)
+    assert(partitionSizes.length == vsm.rdd2.getNumPartitions + 1)
+    val pSizeBc = vsm.sparkContext.broadcast(partitionSizes)
+
+    val rowType = vsm.rowType
+    val samplesBc = vsm.sampleIdsBc
+    val sampleAnnotationsBc = vsm.sampleAnnotationsBc
+
+    val ec = EvalContext(Map(
+      "global" -> (0, vsm.globalSignature),
+      "v" -> (1, vsm.vSignature),
+      "va" -> (2, vsm.vaSignature),
+      "s" -> (3, vsm.sSignature),
+      "sa" -> (4, vsm.saSignature),
+      "g" -> (5, vsm.genotypeSignature)))
+    val f = RegressionUtils.parseExprAsDouble(expr, ec)
+    ec.set(0, vsm.globalAnnotation)
+
+    val mat = vsm.rdd2.mapPartitionsWithIndex {case (i, it) =>
+      val pStartIdx = pSizeBc.value(i)
+      var j = 0
+      val ur = new UnsafeRow(rowType)
+      it.map {rv =>
+        ur.set(rv)
+        ec.set(1, ur.get(1))
+        ec.set(2, ur.get(2))
+        val gs = ur.getAs[IndexedSeq[Any]](3)
+        val ns = gs.length
+        val a = new Array[Double](ns)
+        var k = 0
+        while(k < ns) {
+          ec.set(3, samplesBc.value(k))
+          ec.set(4, sampleAnnotationsBc.value(k))
+          ec.set(5, gs(k))
+          a(k) = f() match {
+            case null => fatal(s"Entry expr for PCA must be non-missing. Found missing value for sample ${ samplesBc.value(k) } and variant ${ ur.get(1) }")
+            case t => t.toDouble
+          }
+          k += 1
+        }
+        val row = IndexedRow(pStartIdx + j, Vectors.dense(a))
+        j += 1
+        row
+      }
+    }
+
+    (someIf(getVariants,
+      vsm.rdd2.mapPartitions{it =>
+        val ur = new UnsafeRow(rowType)
+        it.map { rv =>
+          ur.set(rv)
+          ur.get(1)
+        }
+      }.collect()
+    ),
+    new IndexedRowMatrix(mat, partitionSizes(partitionSizes.length - 1), vsm.sampleIds.length))
   }
 }

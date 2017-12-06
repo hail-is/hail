@@ -3403,43 +3403,58 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvds.minRep(left_aligned))
 
     @handle_py4j
-    @require_biallelic
     @record_method
-    @typecheck_method(scores=strlike,
-                      loadings=nullable(strlike),
-                      eigenvalues=nullable(strlike),
-                      k=integral,
+    @require_biallelic
+    @typecheck_method(k=integral,
+                      compute_loadings=bool,
                       as_array=bool)
-    def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
-        """Run Principal Component Analysis (PCA) on the matrix of genotypes.
+    def normalized_genotype_pca(self, k=10, compute_loadings=False, as_array=False):
+        """Run Principal Component Analysis (PCA) on the HWE-normalized genotype matrix of this VSM.
 
-        .. include:: _templates/req_tvariant.rst
+        Variants with constant or all-missing genotypes will be removed before evaluation.
 
         .. include:: _templates/req_biallelic.rst
 
+        :param int k: Number of principal components.
+
+        :param bool compute_loadings: If true, computes variant loadings. Default: False
+
+        :param bool as_array: If true, stores KeyTable rows as type Array rather than Struct
+
+        :return: Tuple of: list of eigenvalues, KeyTable of scores, KeyTable of loadings
+        :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
+        """
+
+        vds = self.annotate_variants_expr('va.mean = gs.map(g => g.GT.gt).sum() / gs.filter(g => isDefined(g.GT)).count()')\
+                .filter_variants_expr('isDefined(va.mean) && gs.filter(g => isDefined(g.GT)).map(g => g.GT.gt).collectAsSet().size() != 1').persist()
+        nVariants = vds.count_variants()
+        if nVariants == 0:
+            fatal("Cannot run PCA: found 0 variants after filtering out variants with constant genotypes.")
+        print('Running PCA using ' + str(nVariants) + ' variants.')
+        stddev = 'sqrt(va.mean * (2 - va.mean) * ' + str(nVariants) + ' / 2)'
+        result = vds.pca('if (isDefined(g.GT)) (g.GT.gt - va.mean) / ' + stddev + ' else 0', k, compute_loadings, as_array)
+        vds.unpersist()
+        return result
+
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(entry_expr=strlike,
+                      k=integral,
+                      compute_loadings=bool,
+                      as_array=bool)
+    def pca(self, entry_expr, k=10, compute_loadings=False, as_array=False):
+        """Run Principal Component Analysis (PCA) on a VariantSampleMatrix, using ``entry_expr`` to convert each entry into a numeric value.
+
         **Examples**
 
-        Compute the top 5 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC5`` of type Double:
+        Compute the top 2 principal component scores and eigenvalues of genotype's missingness matrix.
 
-        >>> vds_result = vds.pca('sa.scores', k=5)
-
-        Compute the top 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double]:
-
-        >>> vds_result = vds.pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True)
+        >>> eigenvalues, scores, _ = vds.pca('if (isDefined(g.GT)) 1 else 0', k=2)
 
         **Notes**
 
-        Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`__. This method expects a variant dataset with biallelic autosomal variants. Scores are computed and stored as sample annotations of type Struct by default; variant loadings and eigenvalues can optionally be computed and stored in variant and global annotations, respectively.
-
-        PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix :math:`M`, computed as follows. An :math:`n \\times m` matrix :math:`C` records raw genotypes, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
-
-        .. math::
-
-          M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
-
-        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes genotype variances to a common value :math:`1/m` for variants in Hardy-Weinberg equilibrium and is further motivated in the paper cited above. (The resulting amplification of signal from the low end of the allele frequency spectrum will also introduce noise for rare variants; common practice is to filter out variants with minor allele frequency below some cutoff.)  The factor :math:`1/m` gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the sample correlation or genetic relationship matrix (GRM) as simply :math:`MM^T`.
-
-        PCA then computes the SVD
+        PCA computes the SVD
 
         .. math::
 
@@ -3459,50 +3474,38 @@ class VariantDataset(HistoryMixin):
 
         Separately, for the PCs PLINK/GCTA output the eigenvectors of the GRM; even ignoring the above discrepancy that means the left singular vectors :math:`U_k` instead of the component scores :math:`U_k S_k`. While this is just a matter of the scale on each PC, the scores have the advantage of representing true projections of the data onto features with the variance of a score reflecting the variance explained by the corresponding feature. (In PC bi-plots this amounts to a change in aspect ratio; for use of PCs as covariates in regression it is immaterial.)
 
-        **Annotations**
+        Scores are stored in a KeyTable with the following structure:
 
-        Given root ``scores='sa.scores'`` and ``as_array=False``, :py:meth:`~hail.VariantDataset.pca` adds a Struct to sample annotations:
+        **s** (*Sample*) The sample ID.
 
-         - **sa.scores** (*Struct*) -- Struct of sample scores
+        **pcaScores** The principal component scores. This can have two different structures, depending on the value of the ``as_array`` flag.
 
-        With ``k=3``, the Struct has three field:
+        If ``as_array`` is ``False`` (the default), then ``pcaScores`` is a Struct with fields ``PC1``, ``PC2``, etc. If ``as_array`` is ``True``, then ``pcaScores`` is a double-valued array containing the principal component scores.
 
-         - **sa.scores.PC1** (*Double*) -- Score from first PC
+        Loadings are stored in a KeyTable with a structure similar to the scores KeyTable:
 
-         - **sa.scores.PC2** (*Double*) -- Score from second PC
+        **v** (*Variant*) The variant ID.
 
-         - **sa.scores.PC3** (*Double*) -- Score from third PC
+        **pcaLoadings** (*Struct* or *Array*) The variant loadings.
 
-        Analogous variant and global annotations of type Struct are added by specifying the ``loadings`` and ``eigenvalues`` arguments, respectively.
+        Eigenvalues are returned as a list of doubles.
 
-        Given roots ``scores='sa.scores'``, ``loadings='va.loadings'``, and ``eigenvalues='global.evals'``, and ``as_array=True``, :py:meth:`~hail.VariantDataset.pca` adds the following annotations:
+        :param entry_expr: Per-entry Hail expression for converting the VariantDataset to a double-valued matrix.
+        :type entry_expr: str
 
-         - **sa.scores** (*Array[Double]*) -- Array of sample scores from the top k PCs
+        :param int k: Number of principal components.
 
-         - **va.loadings** (*Array[Double]*) -- Array of variant loadings in the top k PCs
+        :param bool compute_loadings: If true, computes variant loadings. Default: False
 
-         - **global.evals** (*Array[Double]*) -- Array of the top k eigenvalues
+        :param bool as_array: If true, stores KeyTable rows as type Array rather than Struct
 
-        :param str scores: Sample annotation path to store scores.
-
-        :param loadings: Variant annotation path to store site loadings.
-        :type loadings: str or None
-
-        :param eigenvalues: Global annotation path to store eigenvalues.
-        :type eigenvalues: str or None
-
-        :param k: Number of principal components.
-        :type k: int or None
-
-        :param bool as_array: Store annotations as type Array rather than Struct
-        :type k: bool or None
-
-        :return: Dataset with new PCA annotations.
-        :rtype: :class:`.VariantDataset`
+        :return: Tuple of: list of eigenvalues, KeyTable of scores, KeyTable of loadings
+        :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        jvds = self._jvds.pca(scores, k, joption(loadings), joption(eigenvalues), as_array)
-        return VariantDataset(self.hc, jvds)
+        r = self._jvds.pca(entry_expr, k, compute_loadings, as_array)
+        jloadings = from_option(r._3())
+        return jiterable_to_list(r._1()), KeyTable(self.hc, r._2()), None if not jloadings else KeyTable(self.hc, jloadings)
 
     @handle_py4j
     @require_biallelic
@@ -3745,8 +3748,8 @@ class VariantDataset(HistoryMixin):
         """
 
         intstatistics = { "phi" : 0, "phik2" : 1, "phik2k0" : 2, "all" : 3 }[statistics]
-
-        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship, intstatistics))
+        _, scores, _ = self.normalized_genotype_pca(k, False, True)
+        return KeyTable(self.hc, self._jvds.pcRelate(k, scores._jkt, maf, block_size, min_kinship, intstatistics))
 
     @handle_py4j
     @record_method
@@ -3782,7 +3785,7 @@ class VariantDataset(HistoryMixin):
             The above code does NOT persist ``vds``. Instead, it copies ``vds`` and persists that result. 
             The proper usage is this:
             
-            >>> vds = vds.pca().persist() # doctest: +SKIP
+            >>> vds = vds.pca('g').persist() # doctest: +SKIP
 
         :param storage_level: Storage level.  One of: NONE, DISK_ONLY,
             DISK_ONLY_2, MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_ONLY_SER,

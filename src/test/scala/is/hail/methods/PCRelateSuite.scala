@@ -7,6 +7,7 @@ import is.hail.expr.{TFloat64, TString}
 import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}
 import is.hail.variant.VariantDataset
+import is.hail.methods.PCASuite.samplePCA
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -125,7 +126,7 @@ class PCRelateSuite extends SparkSuite {
     val n = 100
     val nVariants = 10000
     val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
-    val (pcs, _, _) = SamplePCA(vds, 2, false, false)
+    val pcs = samplePCA(vds, 2, false)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
     val actual = runPcRelateHail(vds, pcs, maf=0.01)
 
@@ -138,7 +139,7 @@ class PCRelateSuite extends SparkSuite {
     val n = 100
     val nVariants = 10000
     val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
-    val (pcs, _, _) = SamplePCA(vds, 2, false, false)
+    val pcs = samplePCA(vds, 2, false)._2
     val truth = runPcRelateR(vds, maf=0.01)
     val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
 
@@ -164,7 +165,7 @@ class PCRelateSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
       .verifyBiallelic()
 
-    val (pcs, _, _) = SamplePCA(vds.coalesce(10), 2, false, false)
+    val pcs = samplePCA(vds.coalesce(10), 2, false)._2
 
     val (truth, truth_g, truth_ibs0, truth_mu) = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
 
@@ -189,7 +190,7 @@ class PCRelateSuite extends SparkSuite {
   def sampleVcfReferenceMatchesR() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz").splitMulti()
 
-    val (pcs, _, _) = SamplePCA(vds.coalesce(10), 2, false, false)
+    val pcs = samplePCA(vds.coalesce(10), 2, false)._2
 
     val truth = runPcRelateR(vds, maf=0.01)
     val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
@@ -201,7 +202,7 @@ class PCRelateSuite extends SparkSuite {
   def kinshipFiltering() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz").splitMulti()
 
-    val (pcs, _, _) = SamplePCA(vds.coalesce(10), 2, false, false)
+    val pcs = samplePCA(vds.coalesce(10), 2, false)._2
 
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
       .filter { case (_, (kin, _, _, _)) => kin >= 0.125 }
@@ -217,7 +218,7 @@ class PCRelateSuite extends SparkSuite {
     val n = 100
     val nVariants = 1000
     val vds = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
-    val (pcs, _, _) = SamplePCA(vds, 10, false, false)
+    val pcs = samplePCA(vds, 10, false)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
       .mapValues(quadMap(toBoxedD).tupled)
     val phionly = runPcRelateHail(vds, pcs, 0.01, PCRelate.defaultMinKinship, statistics=PCRelate.PhiOnly)
