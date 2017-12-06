@@ -737,7 +737,7 @@ object FunctionRegistry {
   registerMethod("nAltAlleles", { (x: Variant) => x.nAltAlleles }, "Number of alternate alleles, equal to ``nAlleles - 1``.")(variantHr(GR), int32Hr)
   registerMethod("nAlleles", { (x: Variant) => x.nAlleles }, "Number of alleles.")(variantHr(GR), int32Hr)
   registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic }, "True if `v` has one alternate allele.")(variantHr(GR), boolHr)
-  registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes }, "Number of genotypes.")(variantHr(GR), int32Hr)
+  registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes }, "Number of possible genotypes, equal to ``nAlleles * (nAlleles + 1) / 2``.")(variantHr(GR), int32Hr)
   registerMethodDependent("inXPar", { () =>
     val gr = GR.gr
     (x: Variant) => x.inXPar(gr)

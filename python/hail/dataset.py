@@ -3408,7 +3408,7 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(k=integral,
                       compute_loadings=bool,
                       as_array=bool)
-    def normalized_genotype_pca(self, k=10, compute_loadings=False, as_array=False):
+    def pca_normalized_genotypes(self, k=10, compute_loadings=False, as_array=False):
         """Run Principal Component Analysis (PCA) on the HWE-normalized genotype matrix of this VSM.
 
         Variants with constant or all-missing genotypes will be removed before evaluation.
@@ -3425,14 +3425,15 @@ class VariantDataset(HistoryMixin):
         :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        vds = self.annotate_variants_expr('va.mean = gs.map(g => g.GT.gt).sum() / gs.filter(g => isDefined(g.GT)).count()')\
-                .filter_variants_expr('isDefined(va.mean) && gs.filter(g => isDefined(g.GT)).map(g => g.GT.gt).collectAsSet().size() != 1').persist()
+        vds = (self.annotate_variants_expr('va.AC = gs.map(g => g.GT.gt).sum(), va.nCalled = gs.filter(g => isDefined(g.GT)).count()')
+            .filter_variants_expr('va.AC > 0 && va.AC < 2 * va.nCalled').persist())
         nVariants = vds.count_variants()
         if nVariants == 0:
-            fatal("Cannot run PCA: found 0 variants after filtering out variants with constant genotypes.")
+            fatal("Cannot run PCA: found 0 variants after filtering out variants that are all HomRef or all HomVar.")
         print('Running PCA using ' + str(nVariants) + ' variants.')
-        stddev = 'sqrt(va.mean * (2 - va.mean) * ' + str(nVariants) + ' / 2)'
-        result = vds.pca('if (isDefined(g.GT)) (g.GT.gt - va.mean) / ' + stddev + ' else 0', k, compute_loadings, as_array)
+        result = vds.pca('let mean = va.AC / va.nCalled in' +
+                         'if (isDefined(g.GT)) (g.GT.gt - mean) / sqrt(mean * (2 - mean) * ' + str(nVariants) + ' / 2) else 0',
+                         k, compute_loadings, as_array)
         vds.unpersist()
         return result
 
@@ -3748,7 +3749,7 @@ class VariantDataset(HistoryMixin):
         """
 
         intstatistics = { "phi" : 0, "phik2" : 1, "phik2k0" : 2, "all" : 3 }[statistics]
-        _, scores, _ = self.normalized_genotype_pca(k, False, True)
+        _, scores, _ = self.pca_normalized_genotypes(k, False, True)
         return KeyTable(self.hc, self._jvds.pcRelate(k, scores._jkt, maf, block_size, min_kinship, intstatistics))
 
     @handle_py4j
