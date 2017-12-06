@@ -18,7 +18,19 @@ abstract class GRBase extends Serializable {
   val locus: TLocus = TLocus(this)
   val interval: TInterval = TInterval(this)
 
+  def name: String
+
   def isValidContig(contig: String): Boolean
+
+  def isValidPosition(contig: String, start: Int): Boolean
+
+  def checkVariant(v: Variant): Unit
+
+  def checkLocus(l: Locus): Unit
+
+  def checkLocus(contig: String, pos: Int): Unit
+
+  def checkInterval(i: Interval[Locus]): Unit
 
   def contigLength(contig: String): Int
 
@@ -84,6 +96,11 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     if ((!xContigs.contains(i.start.contig) && !yContigs.contains(i.start.contig)) ||
       (!xContigs.contains(i.end.contig) && !yContigs.contains(i.end.contig)))
       fatal(s"The contig name for PAR interval `$i' was not found in xContigs `$xContigs' or in yContigs `$yContigs'.")
+
+    if (!isValidPosition(i.start.contig, i.start.position))
+      fatal(s"Invalid PAR interval `$i' found. Start `${ i.start }' is not within the range [1-${ contigLength(i.start.contig) }] for reference genome `$name'.")
+    if (!isValidPosition(i.end.contig, i.end.position))
+      fatal(s"Invalid PAR interval `$i' found. End `${ i.end }' is not within the range [1-${ contigLength(i.end.contig) }] for reference genome `$name'.")
   }
 
   val contigsIndex: Map[String, Int] = contigs.zipWithIndex.toMap
@@ -124,6 +141,47 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 
   def isValidContig(contig: String): Boolean = contigsSet.contains(contig)
 
+  def isValidPosition(contig: String, pos: Int): Boolean = pos > 0 && pos <= contigLength(contig)
+
+  def checkLocus(l: Locus): Unit = checkLocus(l.contig, l.position)
+
+  def checkLocus(contig: String, pos: Int): Unit = {
+    if (!isValidContig(contig))
+      fatal(s"Invalid locus `$contig:$pos' found. Contig `$contig' is not in the reference genome `$name'.")
+    if (!isValidPosition(contig, pos))
+      fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+  }
+
+  def checkVariant(v: Variant): Unit = {
+    if (!isValidContig(v.contig))
+      fatal(s"Invalid variant `$v' found. Contig `${ v.contig }' is not in the reference genome `$name'.")
+    if (!isValidPosition(v.contig, v.start))
+      fatal(s"Invalid variant `$v' found. Start `${ v.start }' is not within the range [1-${ contigLength(v.contig) }] for reference genome `$name'.")
+  }
+
+  def checkVariant(contig: String, start: Int, ref: String, alt: String): Unit = {
+    val v = s"$contig:$start:$ref:$alt"
+    if (!isValidContig(contig))
+      fatal(s"Invalid variant `$v' found. Contig `$contig' is not in the reference genome `$name'.")
+    if (!isValidPosition(contig, start))
+      fatal(s"Invalid variant `$v' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+  }
+
+  def checkVariant(contig: String, start: Int, ref: String, alts: Array[String]): Unit = checkVariant(contig, start, ref, alts.mkString(","))
+
+  def checkVariant(contig: String, start: Int, ref: String, alts: java.util.ArrayList[String]): Unit = checkVariant(contig, start, ref, alts.asScala.toArray)
+
+  def checkInterval(i: Interval[Locus]): Unit = {
+    if (!isValidContig(i.start.contig))
+      fatal(s"Invalid interval `$i' found. Contig `${ i.start.contig }' is not in the reference genome `$name'.")
+    if (!isValidContig(i.end.contig))
+      fatal(s"Invalid interval `$i' found. Contig `${ i.end.contig }' is not in the reference genome `$name'.")
+    if (!isValidPosition(i.start.contig, i.start.position))
+      fatal(s"Invalid interval `$i' found. Start `${ i.start }' is not within the range [1-${ contigLength(i.start.contig) }] for reference genome `$name'.")
+    if (!isValidPosition(i.end.contig, i.end.position))
+      fatal(s"Invalid interval `$i' found. End `${ i.end }' is not within the range [1-${ contigLength(i.end.contig) }] for reference genome `$name'.")
+  }
+
   def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
 
   def inX(contig: String): Boolean = xContigs.contains(contig)
@@ -136,9 +194,9 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 
   def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
 
-  def inXPar(locus: Locus): Boolean = inX(locus.contig) && par.exists(_.contains(locus))
+  def inXPar(l: Locus): Boolean = inX(l.contig) && par.exists(_.contains(l))
 
-  def inYPar(locus: Locus): Boolean = inY(locus.contig) && par.exists(_.contains(locus))
+  def inYPar(l: Locus): Boolean = inY(l.contig) && par.exists(_.contains(l))
 
   def toJSON: JValue = JObject(
     ("name", JString(name)),
@@ -251,8 +309,8 @@ object GenomeReference {
 
   def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
     xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
-    mtContigs: java.util.ArrayList[String], par: Array[Interval[Locus]]): GenomeReference = {
-    val gr = GenomeReference(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet, yContigs.asScala.toSet, mtContigs.asScala.toSet, par)
+    mtContigs: java.util.ArrayList[String], par: java.util.ArrayList[Interval[Locus]]): GenomeReference = {
+    val gr = GenomeReference(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet, yContigs.asScala.toSet, mtContigs.asScala.toSet, par.asScala.toArray)
     addReference(gr)
     gr
   }
@@ -281,8 +339,20 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
     gr
   }
 
+  def name: String = ???
+
   def isValidContig(contig: String): Boolean = ???
 
+  def isValidPosition(contig: String, start: Int): Boolean = ???
+
+  def checkVariant(v: Variant): Unit = ???
+
+  def checkLocus(l: Locus): Unit = ???
+
+  def checkLocus(contig: String, pos: Int): Unit = ???
+
+  def checkInterval(i: Interval[Locus]): Unit = ???
+  
   def contigLength(contig: String): Int = ???
 
   def contigLength(contigIdx: Int): Int = ???

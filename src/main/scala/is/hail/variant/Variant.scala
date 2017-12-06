@@ -58,12 +58,14 @@ object Variant {
     ref: String,
     alts: java.util.ArrayList[String]): Variant = Variant(contig, start, ref, alts.asScala.toArray)
 
-  def parse(str: String): Variant = {
+  def parse(str: String, gr: GRBase): Variant = {
     val colonSplit = str.split(":")
     if (colonSplit.length != 4)
       fatal(s"invalid variant, expected 4 colon-delimited fields, found ${ colonSplit.length }: $str")
     val Array(contig, start, ref, alts) = colonSplit
-    Variant(contig, start.toInt, ref, alts.split(","))
+    val v = Variant(contig, start.toInt, ref, alts.split(","))
+    gr.checkVariant(v)
+    v
   }
 
   def fromRegionValue(r: MemoryBuffer, offset: Long): Variant = {

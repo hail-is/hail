@@ -58,31 +58,35 @@ object Locus {
 
   implicit val locusJSONRWer: JSONReaderWriter[Locus] = caseClassJSONReaderWriter[Locus]
 
-  def parse(str: String): Locus = {
+  def parse(str: String, gr: GRBase): Locus = {
     str.split(":") match {
-      case Array(chr, pos) => Locus(chr, pos.toInt)
+      case Array(chr, pos) =>
+        val l = Locus(chr, pos.toInt)
+        gr.checkLocus(l)
+        l
       case a => fatal(s"invalid locus: expected 2 colon-delimited fields, found ${ a.length }: $str")
     }
   }
 
   object LocusIntervalParser extends JavaTokenParsers {
-    def parseInterval(input: String): Interval[Locus] = {
-      parseAll[Interval[Locus]](interval, input) match {
+    def parseInterval(input: String, gr: GRBase): Interval[Locus] = {
+      parseAll[Interval[Locus]](interval(gr), input) match {
         case Success(r, _) => r
         case NoSuccess(msg, next) => fatal(s"invalid interval expression: `$input': $msg")
       }
     }
 
-    def interval: Parser[Interval[Locus]] = {
-      locus ~ "-" ~ locus ^^ { case l1 ~ _ ~ l2 => Interval(l1, l2) } |
-        locus ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => Interval(l1, l1.copy(position = p2)) } |
-        contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => Interval(Locus(c1, 0), Locus(c2, Int.MaxValue)) } |
-        contig ^^ { c => Interval(Locus(c, 0), Locus(c, Int.MaxValue)) }
+    def interval(gr: GRBase): Parser[Interval[Locus]] = {
+      {locus(gr) ~ "-" ~ locus(gr) ^^ { case l1 ~ _ ~ l2 => Interval(l1, l2) } |
+        locus(gr) ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => Interval(l1, l1.copy(position = p2.getOrElse(gr.contigLength(l1.contig)))) } |
+        contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => Interval(Locus(c1, 1), Locus(c2, gr.contigLength(c2))) } |
+        contig ^^ { c => Interval(Locus(c, 1), Locus(c, gr.contigLength(c))) }} ^^ { i =>
+        gr.checkInterval(i)
+        i
+      }
     }
 
-    def locus: Parser[Locus] = {
-      contig ~ ":" ~ pos ^^ { case c ~ _ ~ p => Locus(c, p) }
-    }
+    def locus(gr: GRBase): Parser[Locus] = contig ~ ":" ~ pos ^^ { case c ~ _ ~ p => Locus(c, p.getOrElse(gr.contigLength(c))) }
 
     def contig: Parser[String] = "\\w+".r
 
@@ -102,22 +106,22 @@ object Locus {
       mult
     }
 
-    def pos: Parser[Int] = {
-      "[sS][Tt][Aa][Rr][Tt]".r ^^ { _ => 0 } |
-        "[Ee][Nn][Dd]".r ^^ { _ => Int.MaxValue } |
-        "\\d+".r <~ "[Kk]".r ^^ { i => coerceInt(i) * 1000 } |
-        "\\d+".r <~ "[Mm]".r ^^ { i => coerceInt(i) * 1000000 } |
-        "\\d+".r ~ "." ~ "\\d{1,3}".r ~ "[Kk]".r ^^ { case lft ~ _ ~ rt ~ _ => coerceInt(lft + rt) * exp10(3 - rt.length) } |
-        "\\d+".r ~ "." ~ "\\d{1,6}".r ~ "[Mm]".r ^^ { case lft ~ _ ~ rt ~ _ => coerceInt(lft + rt) * exp10(6 - rt.length) } |
-        "\\d+".r ^^ { i => coerceInt(i) }
+    def pos: Parser[Option[Int]] = {
+      "[sS][Tt][Aa][Rr][Tt]".r ^^ { _ => Some(1) } |
+        "[Ee][Nn][Dd]".r ^^ { _ => None } |
+        "\\d+".r <~ "[Kk]".r ^^ { i => Some(coerceInt(i) * 1000) } |
+        "\\d+".r <~ "[Mm]".r ^^ { i => Some(coerceInt(i) * 1000000) } |
+        "\\d+".r ~ "." ~ "\\d{1,3}".r ~ "[Kk]".r ^^ { case lft ~ _ ~ rt ~ _ => Some(coerceInt(lft + rt) * exp10(3 - rt.length)) } |
+        "\\d+".r ~ "." ~ "\\d{1,6}".r ~ "[Mm]".r ^^ { case lft ~ _ ~ rt ~ _ => Some(coerceInt(lft + rt) * exp10(6 - rt.length)) } |
+        "\\d+".r ^^ { i => Some(coerceInt(i)) }
     }
   }
 
-  def parseInterval(str: String): Interval[Locus] = LocusIntervalParser.parseInterval(str)
+  def parseInterval(str: String, gr: GRBase): Interval[Locus] = LocusIntervalParser.parseInterval(str, gr)
 
-  def parseIntervals(arr: Array[String]): Array[Interval[Locus]] = arr.map(parseInterval)
+  def parseIntervals(arr: Array[String], gr: GRBase): Array[Interval[Locus]] = arr.map(parseInterval(_, gr))
 
-  def parseIntervals(arr: java.util.ArrayList[String]): Array[Interval[Locus]] = parseIntervals(arr.asScala.toArray)
+  def parseIntervals(arr: java.util.ArrayList[String], gr: GRBase): Array[Interval[Locus]] = parseIntervals(arr.asScala.toArray, gr)
 
   def makeInterval(start: Locus, end: Locus): Interval[Locus] = Interval(start, end)
 
