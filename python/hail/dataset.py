@@ -2385,15 +2385,15 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        (Help I can't think of a good example)
+        Compute call stats on each variant for each population:
 
-        >>> grouped_vds = vds.group_samples_by("s.length()", "sum = gs.map(g => g.GT.gt).sum()")
+        >>> grouped_vds = vds.group_samples_by("sa.pop", "call_stats = gs.map(g => g.GT).call_stats(g => v)")
 
         :param str key_expr: Expression for new column key.
 
-        :param str agg_expr: Expression for aggregating along variants.
+        :param str agg_expr: Expression for aggregating over samples.
 
-        :return: Variant dataset keyed by key_expr instead of variant.
+        :return: Variant dataset keyed by key_expr instead of sample.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -2420,7 +2420,7 @@ class VariantDataset(HistoryMixin):
 
         :param str key_expr: Expression for new row key.
 
-        :param str agg_expr: Expression for aggregating along samples.
+        :param str agg_expr: Expression for aggregating over variants.
 
         :return: Variant dataset keyed by key_expr instead of variant.
         :rtype: :py:class:`.VariantDataset`

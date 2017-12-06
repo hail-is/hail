@@ -17,7 +17,7 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def buildVariantAggregationsByKey(vsm: VariantSampleMatrix, nKeys: Int, keyMap: Array[Int], ec: EvalContext): Option[(RegionValue) => Iterator[() => Unit]] =
+  def buildVariantAggregationsByKey(vsm: VariantSampleMatrix, nKeys: Int, keyMap: Array[Int], ec: EvalContext): (RegionValue) => Array[() => Unit] =
     buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, nKeys, keyMap, ec)
 
   // keyMap is just a mapping of sampleIds.map { s => newKey(s) }
@@ -26,11 +26,11 @@ object Aggregators {
     localValue: VSMLocalValue,
     nKeys: Int,
     keyMap: Array[Int],
-    ec: EvalContext): Option[(RegionValue) => Iterator[() => Unit]] = {
+    ec: EvalContext): (RegionValue) => Array[() => Unit] = {
 
     val aggregations = ec.aggregations
     if (aggregations.isEmpty)
-      return None
+      return { rv => Array.fill[() => Unit](nKeys) { () => Unit } }
 
     val localA = ec.a
     val localNSamples = localValue.nSamples
@@ -39,7 +39,7 @@ object Aggregators {
     val localGlobalAnnotations = localValue.globalAnnotation
     val localRowType = typ.rowType
 
-    Some({ (rv: RegionValue) =>
+    { (rv: RegionValue) =>
       val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
 
       val v = ur.get(1)
@@ -61,9 +61,8 @@ object Aggregators {
       localA(2) = va
 
       var i = 0
-      val git = gs.iterator
       while (i < localNSamples) {
-        localA(3) = git.next()
+        localA(3) = gs(i)
         if (keyMap(i) != -1) {
           localA(4) = localSamplesBc.value(i)
           localA(5) = localAnnotationsBc.value(i)
@@ -76,14 +75,20 @@ object Aggregators {
         }
         i += 1
       }
-      aggs.rowIndices.map { k => () => {
-        var i = 0
-        while (i < aggs.n2) {
-          aggregations(i)._1.v = aggs(k, i).result
-          i += 1
-        }
-      } }.iterator
-    })
+      val result = Array.fill[() => Unit](nKeys)(null)
+      var k = 0
+      while (k < nKeys) {
+        result.update(k, { () => {
+          var j = 0
+          while (j < aggs.n2) {
+            aggregations(j)._1.v = aggs(k, j).result
+            j += 1
+          }
+        }})
+        k += 1
+      }
+      result
+    }
   }
 
   def buildVariantAggregations(vsm: VariantSampleMatrix, ec: EvalContext): Option[(RegionValue) => Unit] =

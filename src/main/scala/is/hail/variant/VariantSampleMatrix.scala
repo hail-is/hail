@@ -458,12 +458,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val mt = matrixType.copy(sType = keyType, saType = TStruct.empty(), genotypeType = entryType)
     val newRowType = mt.rowType
 
-    val aggregateOption = Aggregators.buildVariantAggregationsByKey(this, nKeys, samplesMap, ec)
-
-    val (applyAggregate, aggregate) = aggregateOption match {
-      case None => (false, null)
-      case Some(fIt) => (true, fIt)
-    }
+    val aggregate = Aggregators.buildVariantAggregationsByKey(this, nKeys, samplesMap, ec)
 
     val groupedRDD2 = rdd2.mapPartitionsPreservesPartitioning(mt.orderedRVType) { it =>
       val region2 = MemoryBuffer()
@@ -472,10 +467,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       val ur = new UnsafeRow(localRowType)
       it.map { rv =>
         ur.set(rv)
-        val aggIt = if (applyAggregate)
-          aggregate(rv)
-        else
-          null
+        val aggArr = aggregate(rv)
         rv2b.start(newRowType)
         rv2b.startStruct()
         rv2b.addAnnotation(mt.locusType, ur.get(0))
@@ -485,8 +477,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         rv2b.startArray(nKeys)
         var i = 0
         while (i < nKeys) {
-          if (applyAggregate)
-            aggIt.next()()
+          aggArr(i)()
           rv2b.startStruct()
           val fields = resultF()
           var j = 0
