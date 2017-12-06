@@ -2385,17 +2385,19 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        >>> grouped_vds = vds.group_samples_by("s.length()", "gs.map(g => g.DP).max()")
+        (Help I can't think of a good example)
+
+        >>> grouped_vds = vds.group_samples_by("s.length()", "sum = gs.map(g => g.GT.gt).sum()")
 
         :param str key_expr: Expression for new column key.
 
-        :param str agg_expr: Expression for aggregating over grouped samples.
+        :param str agg_expr: Expression for aggregating along variants.
 
         :return: Variant dataset keyed by key_expr instead of variant.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.groupVariantsBy(key_expr, agg_expr))
+        return VariantDataset(self.hc, self._jvds.groupSamplesBy(key_expr, agg_expr))
 
 
     @handle_py4j
@@ -2414,7 +2416,7 @@ class VariantDataset(HistoryMixin):
 
         Compute the max depth of each sample on each contig:
 
-        >>> grouped_vds = vds.group_variants_by("v.contig", "gs.map(g => g.DP).max()")
+        >>> grouped_vds = vds.group_variants_by("v.contig", "maxdepth = gs.map(g => g.DP).max()")
 
         :param str key_expr: Expression for new row key.
 
