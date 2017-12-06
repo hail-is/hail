@@ -87,7 +87,7 @@ class SplitMultiPartitionContext(
     val va = ur.get(2)
 
     if (sortAlleles)
-      splitVariants = splitVariants.sortBy { case (svj, i) => svj }
+      splitVariants = splitVariants.sortBy { case (svj, i) => svj } (rowType.fieldType(1).asInstanceOf[TVariant].variantOrdering)
 
     val nAlleles = v.nAlleles
     val nGenotypes = v.nGenotypes

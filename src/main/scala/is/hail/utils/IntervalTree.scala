@@ -23,7 +23,7 @@ case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Order
   def isEmpty: Boolean = start == end
 
   def compare(that: Interval[T]): Int = {
-    var c = ev.compare(start, that.start)
+    val c = ev.compare(start, that.start)
     if (c != 0)
       return c
 
@@ -36,10 +36,6 @@ case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Order
 }
 
 object Interval {
-  implicit def intervalOrder[T](ev: Ordering[T]): Ordering[Interval[T]] = new Ordering[Interval[T]] {
-    def compare(x: Interval[T], y: Interval[T]): Int = x.compare(y)
-  }
-
   def gen[T: Ordering](tgen: Gen[T]): Gen[Interval[T]] =
     Gen.zip(tgen, tgen)
       .filter { case (x, y) => x != y }

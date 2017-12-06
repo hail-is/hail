@@ -18,6 +18,12 @@ abstract class GRBase extends Serializable {
   val locus: TLocus = TLocus(this)
   val interval: TInterval = TInterval(this)
 
+  def variantOrdering: Ordering[Variant]
+
+  def locusOrdering: Ordering[Locus]
+
+  def intervalOrdering: Ordering[Interval[Locus]]
+
   def isValidContig(contig: String): Boolean
 
   def contigLength(contig: String): Int
@@ -39,6 +45,12 @@ abstract class GRBase extends Serializable {
   def inXPar(locus: Locus): Boolean
 
   def inYPar(locus: Locus): Boolean
+
+  def compare(c1: String, c2: String): Int
+
+  def compare(v1: IVariant, v2: IVariant): Int
+
+  def compare(l1: Locus, l2: Locus): Int
 
   def toJSON: JValue
 
@@ -107,6 +119,18 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   val yContigIndices = yContigs.map(contigsIndex)
   val mtContigIndices = mtContigs.map(contigsIndex)
 
+  val variantOrdering = new Ordering[Variant] {
+    def compare(x: Variant, y: Variant): Int = GenomeReference.compare(contigsIndex, x, y)
+  }
+
+  val locusOrdering = new Ordering[Locus] {
+    def compare(x: Locus, y: Locus): Int = GenomeReference.compare(contigsIndex, x, y)
+  }
+
+  val intervalOrdering = new Ordering[Interval[Locus]] {
+    def compare(x: Interval[Locus], y: Interval[Locus]): Int = GenomeReference.compare(contigsIndex, x, y)
+  }
+
   val par = parInput.map { case (start, end) =>
     if (start.contig != end.contig)
       fatal(s"The contigs for the `start' and `end' of a PAR interval must be the same. Found `$start-$end'.")
@@ -115,6 +139,7 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
       (!xContigs.contains(end.contig) && !yContigs.contains(end.contig)))
       fatal(s"The contig name for PAR interval `$start-$end' was not found in xContigs `${ xContigs.mkString(",") }' or in yContigs `${ yContigs.mkString(",") }'.")
 
+    implicit val locusOrd = locusOrdering
     Interval(start, end)
   }
 
@@ -145,6 +170,14 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   def inXPar(locus: Locus): Boolean = inX(locus.contig) && par.exists(_.contains(locus))
 
   def inYPar(locus: Locus): Boolean = inY(locus.contig) && par.exists(_.contains(locus))
+
+  def compare(contig1: String, contig2: String): Int = GenomeReference.compare(contigsIndex, contig1, contig2)
+
+  def compare(v1: IVariant, v2: IVariant): Int = GenomeReference.compare(contigsIndex, v1, v2)
+
+  def compare(l1: Locus, l2: Locus): Int = GenomeReference.compare(contigsIndex, l1, l2)
+
+  def compare(i1: Interval[Locus], i2: Interval[Locus]): Int = GenomeReference.compare(contigsIndex, i1, i2)
 
   def toJSON: JValue = JObject(
     ("name", JString(name)),
@@ -243,16 +276,67 @@ object GenomeReference {
     gr
   }
 
+  def compare(contigsIndex: Map[String, Int], c1: String, c2: String): Int = {
+    (contigsIndex.get(c1), contigsIndex.get(c2)) match {
+      case (Some(i), Some(j)) => i.compare(j)
+      case (Some(_), None) => -1
+      case (None, Some(_)) => 1
+      case (None, None) => c1.compare(c2)
+    }
+  }
+
+  def compare(contigsIndex: Map[String, Int], v1: IVariant, v2: IVariant): Int = {
+    var c = compare(contigsIndex, v1.contig(), v2.contig())
+    if (c != 0)
+      return c
+
+    c = v1.start().compare(v2.start())
+    if (c != 0)
+      return c
+
+    c = v1.ref().compare(v2.ref())
+    if (c != 0)
+      return c
+
+    Ordering.Iterable[AltAllele].compare(v1.altAlleles(), v2.altAlleles())
+  }
+
+  def compare(contigsIndex: Map[String, Int], l1: Locus, l2: Locus): Int = {
+    val c = compare(contigsIndex, l1.contig, l2.contig)
+    if (c != 0)
+      return c
+
+    Integer.compare(l1.position, l2.position)
+  }
+
+  def compare(contigsIndex: Map[String, Int], i1: Interval[Locus], i2: Interval[Locus]): Int = {
+    val c = compare(contigsIndex, i1.start, i2.start)
+    if (c != 0)
+      return c
+
+    compare(contigsIndex, i1.end, i2.end)
+  }
+
   def gen: Gen[GenomeReference] = for {
     name <- Gen.identifier
     nContigs <- Gen.choose(3, 50)
     contigs <- Gen.distinctBuildableOfN[Array, String](nContigs, Gen.identifier)
     lengths <- Gen.distinctBuildableOfN[Array, Int](nContigs, Gen.choose(1000000, 500000000))
+    contigsIndex = contigs.zip(lengths).toMap
     xContig <- Gen.oneOfSeq(contigs)
     yContig <- Gen.oneOfSeq((contigs.toSet - xContig).toSeq)
     mtContig <- Gen.oneOfSeq((contigs.toSet - xContig - yContig).toSeq)
-    parX <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(xContig))))
-    parY <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(yContig))))
+    locusOrd = new Ordering[Locus] {
+      def compare(x: Locus, y: Locus): Int = {
+        val c = Integer.compare(contigsIndex(x.contig), contigsIndex(y.contig))
+        if (c != 0)
+          return c
+
+        Integer.compare(x.position, y.position)
+      }
+    }
+    parX <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(xContig, contigsIndex(xContig)))(locusOrd))
+    parY <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(yContig, contigsIndex(yContig)))(locusOrd))
   } yield GenomeReference(name, contigs, contigs.zip(lengths).toMap, Set(xContig), Set(yContig), Set(mtContig),
     (parX ++ parY).map(i => (i.start, i.end)))
 
@@ -296,6 +380,12 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
     gr
   }
 
+  def variantOrdering: Ordering[Variant] = ???
+
+  def locusOrdering: Ordering[Locus] = ???
+
+  def intervalOrdering: Ordering[Interval[Locus]] = ???
+
   def isValidContig(contig: String): Boolean = ???
 
   def contigLength(contig: String): Int = ???
@@ -317,6 +407,12 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
   def inXPar(locus: Locus): Boolean = ???
 
   def inYPar(locus: Locus): Boolean = ???
+
+  def compare(c1: String, c2: String): Int = ???
+
+  def compare(v1: IVariant, v2: IVariant): Int = ???
+
+  def compare(l1: Locus, l2: Locus): Int = ???
 
   def toJSON: JValue = ???
 }

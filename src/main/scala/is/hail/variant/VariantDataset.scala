@@ -365,6 +365,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
   }
 
   def filterIntervals(intervals: java.util.ArrayList[Interval[Locus]], keep: Boolean): VariantSampleMatrix = {
+    implicit val locusOrd = vsm.genomeReference.locusOrdering
     val iList = IntervalTree[Locus](intervals.asScala.toArray)
     filterIntervals(iList, keep)
   }

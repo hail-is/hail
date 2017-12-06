@@ -4,7 +4,7 @@ import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
 import is.hail.keytable.KeyTable
-import is.hail.variant.{Locus, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, Locus, VariantSampleMatrix}
 
 import scala.collection.JavaConverters._
 
@@ -23,11 +23,16 @@ trait Py4jUtils {
     list
   }
 
-  def parseIntervalList(strs: java.util.ArrayList[String]): IntervalTree[Locus, Unit] =
-    IntervalTree(Locus.parseIntervals(strs.asScala.toArray))
+  def parseIntervalList(strs: java.util.ArrayList[String], gr: GenomeReference): IntervalTree[Locus, Unit] = {
+    implicit val locusOrd = gr.locusOrdering
+    IntervalTree(Locus.parseIntervals(strs.asScala.toArray, gr))
+  }
 
-  def makeIntervalList(intervals: java.util.ArrayList[Interval[Locus]]): IntervalTree[Locus, Unit] =
+
+  def makeIntervalList(intervals: java.util.ArrayList[Interval[Locus]], gr: GenomeReference): IntervalTree[Locus, Unit] = {
+    implicit val locusOrd = gr.locusOrdering
     IntervalTree(intervals.asScala.toArray)
+  }
 
   // we cannot construct an array because we don't have the class tag
   def arrayListToISeq[T](al: java.util.ArrayList[T]): IndexedSeq[T] = al.asScala.toIndexedSeq

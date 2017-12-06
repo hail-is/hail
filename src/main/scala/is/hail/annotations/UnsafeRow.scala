@@ -214,7 +214,7 @@ object UnsafeRow {
         val ft = x.fundamentalType.asInstanceOf[TStruct]
         Interval[Locus](
           readLocus(region, ft.loadField(region, offset, 0), x.gr),
-          readLocus(region, ft.loadField(region, offset, 1), x.gr))
+          readLocus(region, ft.loadField(region, offset, 1), x.gr))(x.locusOrdering)
     }
   }
 }

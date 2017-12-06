@@ -90,6 +90,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Locus(r.getAs[String](0), r.getAs[Int](1))
         case x: TInterval =>
           val r = a.asInstanceOf[Row]
+          implicit val locusOrd = x.locusOrdering
           Interval(importAnnotation(r.get(0), TLocus(x.gr)).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus(x.gr)).asInstanceOf[Locus])
         case TStruct(fields, _) =>
           if (fields.isEmpty)
@@ -194,7 +195,10 @@ case class JSONExtractVariant(contig: String,
 }
 
 case class JSONExtractInterval(start: Locus, end: Locus) {
-  def toInterval = Interval(start, end)
+  def toInterval(ord: Ordering[Locus]) = {
+    implicit val locusOrd = ord
+    Interval(start, end)
+  }
 
   def toLocusTuple: (Locus, Locus) = (start, end)
 }
@@ -377,8 +381,8 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         jv.extract[JSONExtractVariant].toVariant
       case (_, TLocus(_, _)) =>
         jv.extract[Locus]
-      case (_, TInterval(_, _)) =>
-        jv.extract[JSONExtractInterval].toInterval
+      case (_, TInterval(gr, _)) =>
+        jv.extract[JSONExtractInterval].toInterval(gr.locusOrdering)
       case (JInt(x), _: TCall) => x.toInt
 
       case (JArray(a), TArray(elementType, _)) =>
@@ -430,7 +434,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case _: TFloat64 => if (a == "nan") Double.NaN else a.toDouble
       case _: TBoolean => a.toBoolean
       case _: TLocus => Locus.parse(a)
-      case _: TInterval => Locus.parseInterval(a)
+      case t: TInterval => Locus.parseInterval(a, t.gr)
       case _: TVariant => Variant.parse(a)
       case _: TAltAllele => a.split("/") match {
         case Array(ref, alt) => AltAllele(ref, alt)

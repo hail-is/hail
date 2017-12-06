@@ -1375,7 +1375,7 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Variant]]))
+      extendOrderingToNull(missingGreatest)(variantOrdering))
 
   override val partitionKey: Type = TLocus(gr)
 
@@ -1415,7 +1415,7 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
         val contig1 = TString.loadString(r1, cOff1)
         val contig2 = TString.loadString(r2, cOff2)
 
-        val c = Contig.compare(contig1, contig2)
+        val c = gr.compare(contig1, contig2)
         if (c != 0)
           return c
 
@@ -1434,6 +1434,8 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
       }
     }
   }
+
+  def variantOrdering: Ordering[Variant] = gr.variantOrdering
 
   val representation: TStruct = TVariant.representation(required)
 
@@ -1469,7 +1471,7 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]]))
+      extendOrderingToNull(missingGreatest)(locusOrdering))
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
@@ -1483,7 +1485,7 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
         val contig1 = TString.loadString(r1, cOff1)
         val contig2 = TString.loadString(r2, cOff2)
 
-        val c = Contig.compare(contig1, contig2)
+        val c = gr.compare(contig1, contig2)
         if (c != 0)
           return c
 
@@ -1495,6 +1497,8 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
   }
 
   val representation: TStruct = TLocus.representation(required)
+
+  def locusOrdering: Ordering[Locus] = gr.locusOrdering
 
   override def unify(concrete: Type): Boolean = concrete match {
     case TLocus(cgr, _) => gr.unify(cgr)
@@ -1520,7 +1524,10 @@ case class TInterval(gr: GRBase, override val required: Boolean = false) extends
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
 
-  override def genNonmissingValue: Gen[Annotation] = Interval.gen(Locus.gen)
+  override def genNonmissingValue: Gen[Annotation] = {
+    implicit val locusOrdering = gr.locusOrdering
+    Interval.gen(Locus.gen)
+  }
 
   override def desc: String = "An ``Interval(GR)`` is a Hail data type representing a range of genomic locations in the dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38."
 
@@ -1528,7 +1535,7 @@ case class TInterval(gr: GRBase, override val required: Boolean = false) extends
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]]))
+      extendOrderingToNull(missingGreatest)(intervalOrdering))
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
@@ -1549,6 +1556,10 @@ case class TInterval(gr: GRBase, override val required: Boolean = false) extends
       }
     }
   }
+
+  def locusOrdering: Ordering[Locus] = gr.locusOrdering
+
+  def intervalOrdering: Ordering[Interval[Locus]] = gr.intervalOrdering
 
   val representation: TStruct = TInterval.representation(required)
 

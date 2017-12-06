@@ -13,9 +13,8 @@ object ImputeSexPlink {
     popFrequencyExpr: Option[String]): VariantSampleMatrix = {
     var vsm = in
 
-    val gr = vsm.vSignature match {
-      case TVariant(x, _) => x.asInstanceOf[GenomeReference]
-    }
+    val gr = vsm.genomeReference
+    implicit val locusOrd = gr.locusOrdering
 
     val xIntervals = IntervalTree(gr.xContigs.map(contig => Interval(Locus(contig, 0), Locus(contig, gr.contigLength(contig)))).toArray)
     vsm = vsm.filterIntervals(xIntervals, keep = true)
