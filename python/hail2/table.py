@@ -788,3 +788,28 @@ class Table(TableTemplate):
     @handle_py4j
     def collect(self):
         return TArray(self.schema)._convert_to_py(self._jkt.collect())
+
+    def describe(self):
+
+        def format_type(typ, max_len=60):
+            typ_str = str(typ)
+            if len(typ_str) > max_len - 3:
+                typ_str = typ_str[:max_len - 3] + '...'
+            return typ_str
+
+        if len(self.global_schema.fields) == 0:
+            global_fields = '\n    None'
+        else:
+            global_fields = ''.join("\n    '{name}': {type} ".format(
+                name=fd.name, type=format_type(fd.typ)) for fd in self.global_schema.fields)
+
+        key_set = set(self.key)
+        if len(self.schema.fields) == 0:
+            row_fields = '\n    None'
+        else:
+            row_fields = ''.join("\n    '{name}'{is_key}: {type} ".format(
+                name=fd.name, is_key='' if fd.name not in key_set else ' [key field]',
+                type=format_type(fd.typ)) for fd in self.schema.fields)
+
+        s = 'Global fields:{}\nRow fields:{}'.format(global_fields, row_fields)
+        print(s)

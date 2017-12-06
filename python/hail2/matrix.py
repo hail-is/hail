@@ -61,11 +61,16 @@ class Matrix(object):
 
     **Examples**
 
+    .. testsetup::
+
+        hc.stop()
+        import hail2 as h2
+        from hail2 import *
+        hc = h2.HailContext()
+
     Read a matrix:
 
-    >>> from hail2 import *
-    >>> hc = HailContext()
-    >>> m = hc.import_vcf('data/example2.vcf.bgz', generic=True)
+    >>> m = hc.import_vcf('data/example2.vcf.bgz')
 
     Add annotations:
 
@@ -880,3 +885,35 @@ class Matrix(object):
             return matrix.drop(*all_uids)
 
         return left, cleanup
+
+    def describe(self):
+
+        def format_type(typ, max_len=60):
+            typ_str = str(typ)
+            if len(typ_str) > max_len - 3:
+                typ_str = typ_str[:max_len - 3] + '...'
+            return typ_str
+
+        if len(self.global_schema.fields) == 0:
+            global_fields = '\n    None'
+        else:
+            global_fields = ''.join("\n    '{name}': {type} ".format(
+                name=fd.name, type=format_type(fd.typ)) for fd in self.global_schema.fields)
+
+        row_fields = "\n    'v' [row key]: {}".format(format_type(self.rowkey_schema))
+        row_fields += ''.join("\n    '{name}': {type} ".format(
+            name=fd.name, type=format_type(fd.typ)) for fd in self.row_schema.fields)
+
+        col_fields = "\n    's' [col key]: {}".format(format_type(self.colkey_schema))
+        col_fields += ''.join("\n    '{name}': {type} ".format(
+            name=fd.name, type=format_type(fd.typ)) for fd in self.col_schema.fields)
+
+        if len(self.entry_schema.fields) == 0:
+            entry_fields = '\n    None'
+        else:
+            entry_fields = ''.join("\n    '{name}': {type} ".format(
+                name=fd.name, type=format_type(fd.typ)) for fd in self.entry_schema.fields)
+
+        s = 'Global fields:{}\nRow-indexed fields:{}\nColumn-indexed fields:{}\nEntry-indexed fields:{}'.format(
+            global_fields, row_fields, col_fields, entry_fields)
+        print(s)
