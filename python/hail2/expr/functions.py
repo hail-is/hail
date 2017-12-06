@@ -502,7 +502,7 @@ def fraction(expr):
 
     uid = Env._get_uid()
     ast = LambdaClassMethod('fraction', uid, agg._ast, Reference(uid))
-    return convert_expr(Expression(ast, TBoolean(), Indices(source=indices.source), (Aggregation(agg._indices),), agg._joins))
+    return convert_expr(Expression(ast, TBoolean(), Indices(source=agg._indices.source), (Aggregation(agg._indices),), agg._joins))
 
 
 def hardy_weinberg(expr):

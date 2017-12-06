@@ -1081,7 +1081,7 @@ def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
         errors.append(ExpressionException(
             'out-of-scope expression: expected an expression indexed by {}, found indices {}'.format(
                 list(expected_axes),
-                list(indices)
+                list(indices.axes)
             )))
 
     if aggregations:
@@ -1090,8 +1090,11 @@ def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
             for agg in aggregations:
                 agg_indices = agg.indices
                 agg_axes = agg_indices.axes
-                if agg_indices.source is not None:
-                    assert agg_indices.source is expected_source
+                if agg_indices.source is not None and agg_indices.source is not expected_source:
+                    errors.append(
+                        ExpressionException('Expected an expression from source {}, found expression derived from {}'.format(
+                            expected_source, source
+                        )))
 
                 # check for stray indices
                 unexpected_agg_axes = agg_axes - expected_agg_axes
@@ -1123,13 +1126,13 @@ def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
         missing_axes = expected_axes - axes
         if missing_axes:
             pass
-            # warnings.append(ExpressionWarning(
-            #     'low complexity: expected an expression indexed by {}, found indices {}. Results will be broadcast along {}.'.format(
-            #         list(expected_axes),
-            #         list(axes),
-            #         list(missing_axes)
-            #     )
-            # ))
+            warnings.append(ExpressionWarning(
+                'low complexity: expected an expression indexed by {}, found indices {}. Results will be broadcast along {}.'.format(
+                    list(expected_axes),
+                    list(axes),
+                    list(missing_axes)
+                )
+            ))
 
     # this may already be checked by the above, but it seems like a good idea
     references = [r.name for r in expr._ast.search(lambda ast: isinstance(ast, Reference) and ast.top_level)]
