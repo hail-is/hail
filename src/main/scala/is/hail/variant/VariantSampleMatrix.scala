@@ -492,8 +492,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     }
     val newKeys = keysBySample.toSet.toIndexedSeq
     val keyMap = newKeys.zipWithIndex.toMap
-    val samplesMap = keysBySample.map { k => keyMap(k) }.toArray
-    
+    val samplesMap = keysBySample.map { k => if (k==null) -1 else keyMap(k) }.toArray
+
     val nKeys = newKeys.size
 
     val ec = variantEC

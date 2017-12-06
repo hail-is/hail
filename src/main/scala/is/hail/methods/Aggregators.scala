@@ -64,15 +64,16 @@ object Aggregators {
       val git = gs.iterator
       while (i < localNSamples) {
         localA(3) = git.next()
-        localA(4) = localSamplesBc.value(i)
-        localA(5) = localAnnotationsBc.value(i)
+        if (keyMap(i) != -1) {
+          localA(4) = localSamplesBc.value(i)
+          localA(5) = localAnnotationsBc.value(i)
 
-        var j = 0
-        while (j < aggs.n2) {
-          aggregations(j)._2(aggs(keyMap(i), j).seqOp)
-          j += 1
+          var j = 0
+          while (j < aggs.n2) {
+            aggregations(j)._2(aggs(keyMap(i), j).seqOp)
+            j += 1
+          }
         }
-
         i += 1
       }
       aggs.rowIndices.map { k => () => {
