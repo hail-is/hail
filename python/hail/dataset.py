@@ -2385,9 +2385,9 @@ class VariantDataset(HistoryMixin):
 
         **Examples**
 
-        Compute call stats on each variant for each population:
+        Compute call stats on each variant by age:
 
-        >>> grouped_vds = vds.group_samples_by("sa.pop", "call_stats = gs.map(g => g.GT).call_stats(g => v)")
+        >>> grouped_vds = vds.group_samples_by("sa.pheno.age", "call_stats = gs.map(g => g.GT).callStats(g => v)")
 
         :param str key_expr: Expression for new column key.
 
