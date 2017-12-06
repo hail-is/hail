@@ -433,50 +433,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
   def take(n: Int): Array[UnsafeRow] = unsafeRowRDD().take(n)
 
-
-  def annotateVariantsExpr2(expr: String): VariantSampleMatrix = {
-    val localGlobalAnnotation = globalAnnotation
-
-    val ec = variantEC
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
-
-    var newVASignature = vaSignature
-    val inserters = new Array[Inserter](types.length)
-    var i = 0
-    while (i < types.length) {
-      val (newSig, ins) = newVASignature.insert(types(i), paths(i))
-      inserters(i) = ins
-      newVASignature = newSig
-      i += 1
-    }
-
-    val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
-
-    val localRowType = rowType
-    insertIntoRow(() => new UnsafeRow(localRowType))(
-      newVASignature, List("va"), { (ur, rv, rvb) =>
-        ur.set(rv)
-
-        val v = ur.getAs[Annotation](1)
-        val va = ur.get(2)
-        val gs = ur.getAs[Iterable[Annotation]](3)
-
-        ec.setAll(localGlobalAnnotation, v, va)
-
-        aggregateOption.foreach(f => f(rv))
-
-        var newVA = va
-        var i = 0
-        var newA = f()
-        while (i < newA.length) {
-          newVA = inserters(i)(newVA, newA(i))
-          i += 1
-        }
-
-        rvb.addAnnotation(newVASignature, newVA)
-      })
-  }
-
   def groupSamplesBy(keyExpr: String, aggExpr: String): VariantSampleMatrix = {
     val localRowType = rowType
     val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
