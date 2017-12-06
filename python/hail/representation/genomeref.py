@@ -47,7 +47,9 @@ class GenomeReference(HistoryMixin):
         x_contigs = wrap_to_list(x_contigs)
         y_contigs = wrap_to_list(y_contigs)
         mt_contigs = wrap_to_list(mt_contigs)
-        self._par_jrep = Env.hail().variant.Locus.parseIntervals(wrap_to_list(["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]))
+
+        par_strings = ["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]
+        self._par_jrep = Env.hail().variant.Locus.parseIntervals(wrap_to_list(par_strings))
 
         jrep = (Env.hail().variant.GenomeReference
                 .apply(name,
@@ -56,7 +58,7 @@ class GenomeReference(HistoryMixin):
                        x_contigs,
                        y_contigs,
                        mt_contigs,
-                       self._par_jrep))
+                       par_strings))
 
         self._init_from_java(jrep)
         self._name = name
