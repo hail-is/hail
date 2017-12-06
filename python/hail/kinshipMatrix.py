@@ -45,7 +45,7 @@ class KinshipMatrix(HistoryMixin):
         """
         Gets the matrix backing this kinship matrix.
 
-        :return: Matrix of kinship values.
+        :return: MatrixTable of kinship values.
         :rtype: `IndexedRowMatrix <https://spark.apache.org/docs/latest/api/python/pyspark.mllib.html#pyspark.mllib.linalg.distributed.IndexedRowMatrix>`__
         """
         from pyspark.mllib.linalg.distributed import IndexedRowMatrix

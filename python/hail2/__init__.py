@@ -1,6 +1,6 @@
 from hail2.context import HailContext
 from hail2.table import *
-from hail2.matrix import *
+from hail2.matrixtable import *
 from hail2.expr.expression import Expression
 from hail2.expr import functions as f
 from hail.representation import *
@@ -13,7 +13,7 @@ from hail2.methods import *
 __all__ = ['HailContext',
            'Table',
            'GroupedTable',
-           'Matrix',
+           'MatrixTable',
            'Variant',
            'Locus',
            'AltAllele',

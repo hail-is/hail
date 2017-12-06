@@ -3,7 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
-from hail2.matrix import Matrix
+from hail2.matrixtable import MatrixTable
 from hail.typ import Type
 from hail.java import *
 from hail2.table import Table

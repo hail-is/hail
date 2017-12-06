@@ -37,12 +37,12 @@ def broadcast(x):
 
     def joiner(obj):
         from hail2.table import Table
-        from hail2.matrix import Matrix
+        from hail2.matrixtable import MatrixTable
         if isinstance(obj, Table):
             return Table(obj._hc, obj._jkt.annotateGlobalExpr('{} = {}'.format(uid, expr._ast.to_hql())))
         else:
-            assert isinstance(obj, Matrix)
-            return Matrix(obj._hc, obj._jvds.annotateGlobalExpr('global.{} = {}'.format(uid, expr._ast.to_hql())))
+            assert isinstance(obj, MatrixTable)
+            return MatrixTable(obj._hc, obj._jvds.annotateGlobalExpr('global.{} = {}'.format(uid, expr._ast.to_hql())))
 
     return convert_expr(Expression(GlobalJoinReference(uid), expr._type, joins=(Join(joiner, [uid]),)))
 

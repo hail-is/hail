@@ -1,6 +1,6 @@
 from decorator import decorator
 
-from hail2.matrix import Matrix
+from hail2.matrixtable import MatrixTable
 from hail2.table import Table
 import hail2.expr.functions as f
 from hail2.expr.expression import *
@@ -12,7 +12,7 @@ from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.history import *
 
 
-@typecheck(matrix=Matrix,
+@typecheck(matrix=MatrixTable,
            ys=oneof(Expression, listof(Expression)),
            x=Expression,
            covariates=listof(Expression),
@@ -77,4 +77,4 @@ def linreg(matrix, ys, x, covariates=[], root='linreg', block_size=16):
         block_size
     )
 
-    return cleanup(Matrix(matrix._hc, jm))
+    return cleanup(MatrixTable(matrix._hc, jm))

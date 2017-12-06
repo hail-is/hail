@@ -7,7 +7,7 @@ from hail.typecheck import *
 import hail2
 
 
-class GroupedMatrix(object):
+class GroupedMatrixTable(object):
     def __init__(self, parent, group, grouped_indices):
         self._parent = parent
         self._group = group
@@ -49,14 +49,14 @@ class GroupedMatrix(object):
         if self._grouped_indices == self._parent._row_indices:
             # group variants
             return cleanup(
-                Matrix(self._parent._hc, base._jvds.groupVariantsBy(group_str, struct_expr._ast.to_hql(), True)))
+                MatrixTable(self._parent._hc, base._jvds.groupVariantsBy(group_str, struct_expr._ast.to_hql(), True)))
         else:
             assert self._grouped_indices == self._parent._col_indices
             # group samples
             raise NotImplementedError()
 
 
-class Matrix(object):
+class MatrixTable(object):
     """Hail's representation of a structured matrix.
 
     **Examples**
@@ -105,7 +105,7 @@ class Matrix(object):
     >>> row_stats = m.aggregate_rows(het_dist = f.stats(m.sas_hets))
     >>> print(row_stats.het_dist)
 
-    >>> entry_stats = m.aggregate_entries(call_rate = f.fraction(m.GT.is_called()),
+    >>> entry_stats = m.aggregate_entries(call_rate = f.fraction(f.is_defined(m.GT)),
     ...                                   global_gq_mean = f.mean(m.GQ))
     >>> print(entry_stats.call_rate)
     >>> print(entry_stats.global_gq_mean)
@@ -217,7 +217,7 @@ class Matrix(object):
                 s = exprs[0]
                 if not (s.start is None and s.stop is None and s.step is None):
                     raise ExpressionException(
-                        "Expect unbounded slice syntax ':' to indicate axes of a Matrix, but found parameter(s) [{}]".format(
+                        "Expect unbounded slice syntax ':' to indicate axes of a MatrixTable, but found parameter(s) [{}]".format(
                             ', '.join(x for x in ['start' if s.start is not None else None,
                                                   'stop' if s.stop is not None else None,
                                                   'step' if s.step is not None else None] if x is not None)
@@ -227,7 +227,7 @@ class Matrix(object):
                 row_key = to_expr(exprs[0])
                 if row_key._type != self.rowkey_schema:
                     raise ExpressionException(
-                        'Type mismatch for Matrix row key: expected key type {}, found {}'.format(
+                        'Type mismatch for MatrixTable row key: expected key type {}, found {}'.format(
                             str(self.rowkey_schema), str(row_key._type)))
 
             col_key = None
@@ -235,7 +235,7 @@ class Matrix(object):
                 s = exprs[1]
                 if not (s.start is None and s.stop is None and s.step is None):
                     raise ExpressionException(
-                        "Expect unbounded slice syntax ':' to indicate axes of a Matrix, but found parameter(s) [{}]".format(
+                        "Expect unbounded slice syntax ':' to indicate axes of a MatrixTable, but found parameter(s) [{}]".format(
                             ', '.join(x for x in ['start' if s.start is not None else None,
                                                   'stop' if s.stop is not None else None,
                                                   'step' if s.step is not None else None] if x is not None)
@@ -245,7 +245,7 @@ class Matrix(object):
                 col_key = to_expr(exprs[1])
                 if col_key._type != self.colkey_schema:
                     raise ExpressionException(
-                        'Type mismatch for Matrix col key: expected key type {}, found {}'.format(
+                        'Type mismatch for MatrixTable col key: expected key type {}, found {}'.format(
                             str(self.colkey_schema), str(col_key._type)))
 
             if row_key is not None and col_key is not None:
@@ -309,7 +309,7 @@ class Matrix(object):
             analyze(v, self._global_indices, set(), {'globals'})
             exprs.append('global.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._global_indices)
-        m = Matrix(self._hc, base._jvds.annotateGlobalExpr(",\n".join(exprs)))
+        m = MatrixTable(self._hc, base._jvds.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
 
     @handle_py4j
@@ -323,7 +323,7 @@ class Matrix(object):
             replace_aggregables(v._ast, 'gs')
             exprs.append('va.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._row_indices)
-        m = Matrix(self._hc, base._jvds.annotateVariantsExpr(",\n".join(exprs)))
+        m = MatrixTable(self._hc, base._jvds.annotateVariantsExpr(",\n".join(exprs)))
         return cleanup(m)
 
     @handle_py4j
@@ -337,7 +337,7 @@ class Matrix(object):
             replace_aggregables(v._ast, 'gs')
             exprs.append('sa.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._col_indices)
-        m = Matrix(self._hc, base._jvds.annotateSamplesExpr(",\n".join(exprs)))
+        m = MatrixTable(self._hc, base._jvds.annotateSamplesExpr(",\n".join(exprs)))
         return cleanup(m)
 
     @handle_py4j
@@ -350,7 +350,7 @@ class Matrix(object):
             analyze(v, self._entry_indices, set(), set(self._fields.keys()))
             exprs.append('g.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._entry_indices)
-        m = Matrix(self._hc, base._jvds.annotateGenotypesExpr(",\n".join(exprs)))
+        m = MatrixTable(self._hc, base._jvds.annotateGenotypesExpr(",\n".join(exprs)))
         return cleanup(m)
 
     @handle_py4j
@@ -372,7 +372,7 @@ class Matrix(object):
             analyze(e, self._global_indices, set(), {'globals'})
             self._check_field_name(k, self._global_indices)
             strs.append('`{}`: {}'.format(k, to_expr(e)._ast.to_hql()))
-        m = Matrix(self._hc, base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
+        m = MatrixTable(self._hc, base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -398,7 +398,7 @@ class Matrix(object):
             replace_aggregables(e._ast, 'gs')
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
 
-        m = Matrix(self._hc, base._jvds.annotateSamplesExpr('sa = {' + ',\n'.join(strs) + '}'))
+        m = MatrixTable(self._hc, base._jvds.annotateSamplesExpr('sa = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -423,7 +423,7 @@ class Matrix(object):
             self._check_field_name(k, self._row_indices)
             replace_aggregables(e._ast, 'gs')
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
-        m = Matrix(self._hc, base._jvds.annotateVariantsExpr('va = {' + ',\n'.join(strs) + '}'))
+        m = MatrixTable(self._hc, base._jvds.annotateVariantsExpr('va = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -446,7 +446,7 @@ class Matrix(object):
             analyze(e, self._entry_indices, set(), set(self._fields.keys()))
             self._check_field_name(k, self._entry_indices)
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
-        m = Matrix(self._hc, base._jvds.annotateGenotypesExpr('g = {' + ',\n'.join(strs) + '}'))
+        m = MatrixTable(self._hc, base._jvds.annotateGenotypesExpr('g = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -500,7 +500,7 @@ class Matrix(object):
         base, cleanup = self._process_joins(expr)
         analyze(expr, self._row_indices, {self._col_axis}, set(self._fields.keys()))
         replace_aggregables(expr._ast, 'gs')
-        m = Matrix(self._hc, base._jvds.filterVariantsExpr(expr._ast.to_hql(), True))
+        m = MatrixTable(self._hc, base._jvds.filterVariantsExpr(expr._ast.to_hql(), True))
         return cleanup(m)
 
     @handle_py4j
@@ -510,7 +510,7 @@ class Matrix(object):
         analyze(expr, self._col_indices, {self._row_axis}, set(self._fields.keys()))
 
         replace_aggregables(expr._ast, 'gs')
-        m = Matrix(self._hc, base._jvds.filterSamplesExpr(expr._ast.to_hql(), True))
+        m = MatrixTable(self._hc, base._jvds.filterSamplesExpr(expr._ast.to_hql(), True))
         return cleanup(m)
 
     @handle_py4j
@@ -519,7 +519,7 @@ class Matrix(object):
         base, cleanup = self._process_joins(expr)
         analyze(expr, self._entry_indices, set(), set(self._fields.keys()))
 
-        m = Matrix(self._hc, base._jvds.filterGenotypes(expr._ast.to_hql(), True))
+        m = MatrixTable(self._hc, base._jvds.filterGenotypes(expr._ast.to_hql(), True))
         return cleanup(m)
 
     def transmute_rows(self, **named_exprs):
@@ -597,7 +597,7 @@ class Matrix(object):
     def explode_rows(self, expr):
         if isinstance(expr, str) or isinstance(expr, unicode):
             if not expr in self._fields:
-                raise KeyError("Matrix has no field '{}'".format(expr))
+                raise KeyError("MatrixTable has no field '{}'".format(expr))
             elif self._fields[expr].indices != self._row_indices:
                 raise ExpressionException("Method 'explode_rows' expects a field indexed by row, found axes '{}'"
                                           .format(self._fields[expr].indices.axes))
@@ -614,7 +614,7 @@ class Matrix(object):
     def explode_cols(self, expr):
         if isinstance(expr, str) or isinstance(expr, unicode):
             if not expr in self._fields:
-                raise KeyError("Matrix has no field '{}'".format(expr))
+                raise KeyError("MatrixTable has no field '{}'".format(expr))
             elif self._fields[expr].indices != self._col_indices:
                 raise ExpressionException("Method 'explode_cols' expects a field indexed by col, found axes '{}'"
                                           .format(self._fields[expr].indices.axes))
@@ -631,13 +631,13 @@ class Matrix(object):
     def group_rows_by(self, expr):
         expr = to_expr(expr)
         analyze(expr, self._row_indices, {self._col_axis}, set(self._fields.keys()))
-        return GroupedMatrix(self, expr, self._row_indices)
+        return GroupedMatrixTable(self, expr, self._row_indices)
 
     @handle_py4j
     def group_cols_by(self, expr):
         expr = to_expr(expr)
         analyze(expr, self._col_indices, {self._row_axis}, set(self._fields.keys()))
-        return GroupedMatrix(self, expr, self._col_indices)
+        return GroupedMatrixTable(self, expr, self._col_indices)
 
     @handle_py4j
     def count_rows(self):
@@ -677,8 +677,8 @@ class Matrix(object):
         uid = Env._get_uid()
 
         def joiner(obj):
-            if isinstance(obj, Matrix):
-                return Matrix(obj._hc, Env.jutils().joinGlobals(obj._jvds, self._jvds, uid))
+            if isinstance(obj, MatrixTable):
+                return MatrixTable(obj._hc, Env.jutils().joinGlobals(obj._jvds, self._jvds, uid))
             else:
                 from hail2.table import Table
                 assert isinstance(obj, Table)
@@ -723,27 +723,27 @@ class Matrix(object):
                 Expression(Reference(uid), self.row_schema, indices, aggregations,
                            joins + (Join(joiner, uids_to_delete),)))
         else:
-            assert isinstance(src, Matrix)
+            assert isinstance(src, MatrixTable)
 
             # fast path
             if expr is src.v:
                 prefix = 'va'
                 joiner = lambda left: (
-                    Matrix(left._hc,
-                           left._jvds.annotateVariantsVDS(src._jvds, jsome('{}.{}'.format(prefix, uid)),
+                    MatrixTable(left._hc,
+                                left._jvds.annotateVariantsVDS(src._jvds, jsome('{}.{}'.format(prefix, uid)),
                                                           jnone())))
             elif indices == {'row'}:
                 prefix = 'va'
                 joiner = lambda left: (
-                    Matrix(left._hc,
-                           left._jvds.annotateVariantsTable(src._jvds.variantsKT(),
+                    MatrixTable(left._hc,
+                                left._jvds.annotateVariantsTable(src._jvds.variantsKT(),
                                                             [expr._ast.to_hql()],
                                                             '{}.{}'.format(prefix, uid), None)))
             elif indices == {'column'}:
                 prefix = 'sa'
                 joiner = lambda left: (
-                    Matrix(left._hc,
-                           left._jvds.annotateSamplesTable(src._jvds.samplesKT(),
+                    MatrixTable(left._hc,
+                                left._jvds.annotateSamplesTable(src._jvds.samplesKT(),
                                                            [expr._ast.to_hql()],
                                                            '{}.{}'.format(prefix, uid), None)))
             else:
@@ -790,19 +790,19 @@ class Matrix(object):
                 Expression(Reference(uid),
                            self.col_schema, indices, aggregations, joins + (Join(joiner, uids_to_delete),)))
         else:
-            assert isinstance(src, Matrix)
+            assert isinstance(src, MatrixTable)
             if indices == src._row_indices:
                 prefix = 'sa'
                 joiner = lambda left: (
-                    Matrix(left._hc,
-                           left._jvds.annotateSamplesTable(src._jvds.samplesKT(),
+                    MatrixTable(left._hc,
+                                left._jvds.annotateSamplesTable(src._jvds.samplesKT(),
                                                            [expr._ast.to_hql()],
                                                            '{}.{}'.format(prefix, uid), None)))
             elif indices == src._col_indices:
                 prefix = 'va'
                 joiner = lambda left: (
-                    Matrix(left._hc,
-                           left._jvds.annotateVariantsTable(src._jvds.samplesKT(),
+                    MatrixTable(left._hc,
+                                left._jvds.annotateVariantsTable(src._jvds.samplesKT(),
                                                             [expr._ast.to_hql()],
                                                             '{}.{}'.format(prefix, uid), None)))
             else:

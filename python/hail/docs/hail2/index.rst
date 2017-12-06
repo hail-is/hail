@@ -12,10 +12,10 @@ hail2
     :template: class.rst
 
     hail2.HailContext
-    hail2.Matrix
+    hail2.MatrixTable
     hail2.Table
     hail2.GroupedTable
-    hail2.GroupedMatrix
+    hail2.GroupedMatrixTable
 
 .. rubric:: Modules
 

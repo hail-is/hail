@@ -156,7 +156,7 @@ class Table(TableTemplate):
     with :py:meth:`~hail2.VariantDataset.make_table`, :py:meth:`~hail2.VariantDataset.genotypes_table`,
     :py:meth:`~hail2.VariantDataset.samples_table`, or :py:meth:`~hail2.VariantDataset.variants_table`.
 
-    In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
+    In the examples below, we have imported two key tables from text files (``table1`` and ``table2``).
 
     .. testsetup::
 
@@ -224,8 +224,8 @@ class Table(TableTemplate):
 
     Group columns and aggregate to produce a new table:
 
-    >>> table3 = table1.group_by(table1.SEX)\
-    ...                .aggregate(mean_height_data = f.mean(table1.HT))
+    >>> table3 = (table1.group_by(table1.SEX)
+    ...                 .aggregate(mean_height_data = f.mean(table1.HT)))
     >>> table3.show()
 
     Join tables together inside an annotation expression:
@@ -324,13 +324,13 @@ class Table(TableTemplate):
 
         Change key columns:
 
-        >>> kt_result = kt1.key_by('C2', 'C3')
+        >>> table_result = table1.key_by('C2', 'C3')
 
-        >>> kt_result = kt1.key_by('C2')
+        >>> table_result = table1.key_by('C2')
 
         Set to no keys:
 
-        >>> kt_result = kt1.key_by()
+        >>> table_result = table1.key_by()
 
         :param key: List of columns to be used as keys.
         :type key: str or list of str
@@ -383,12 +383,12 @@ class Table(TableTemplate):
 
         Add new column ``Y`` which is equal to 5 times ``X``:
 
-        >>> kt_result = kt1.annotate(Y = 5 * kt1.X)
+        >>> table_result = table1.annotate(Y = 5 * table1.X)
 
         Add multiple columns simultaneously:
 
-        >>> kt_result = kt1.annotate(A = kt1.X / 2,
-        ...                          B = kt1.X + 21)
+        >>> table_result = table1.annotate(A = table1.X / 2,
+        ...                          B = table1.X + 21)
 
         :param kwargs: Annotation expression with the left hand side equal to the new column name and the right hand side is any type.
         :type kwargs: dict of str to anytype
@@ -419,11 +419,11 @@ class Table(TableTemplate):
 
         Keep rows where ``C1`` equals 5:
 
-        >>> kt_result = kt1.filter(kt1.C1 == 5)
+        >>> table_result = table1.filter(table1.C1 == 5)
 
         Remove rows where ``C1`` equals 10:
 
-        >>> kt_result = kt1.filter(kt1.C1 == 10, keep=False)
+        >>> table_result = table1.filter(table1.C1 == 10, keep=False)
 
         **Notes**
 
@@ -458,24 +458,24 @@ class Table(TableTemplate):
 
         **Examples**
 
-        Assume ``kt1`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
+        Assume ``table1`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
         C3.
 
         Select/drop columns:
 
-        >>> kt_result = kt1.select(kt1.C1)
+        >>> table_result = table1.select(table1.C1)
 
         Reorder the columns:
 
-        >>> kt_result = kt1.select(kt1.C3, kt1.C1, kt1.C2)
+        >>> table_result = table1.select(table1.C3, table1.C1, table1.C2)
 
         Drop all columns:
 
-        >>> kt_result = kt1.select()
+        >>> table_result = table1.select()
 
         Create a new column computed from existing columns:
 
-        >>> kt_result = kt1.select(C_NEW = kt1.C1 + kt1.C2 + kt1.C3)
+        >>> table_result = table1.select(C_NEW = table1.C1 + table1.C2 + table1.C3)
 
         :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
@@ -597,7 +597,7 @@ class Table(TableTemplate):
 
         ***Examples***
 
-        >>> kt1.write('output/kt1.kt')
+        >>> table1.write('output/table1.kt')
 
         .. note:: The write path must end in ".kt".
 
@@ -647,7 +647,7 @@ class Table(TableTemplate):
 
         indices, aggregations, joins = unify_all(*exprs)
 
-        from hail2.matrix import Matrix
+        from hail2.matrixtable import MatrixTable
         uid = Env._get_uid()
 
         src = indices.source
@@ -674,7 +674,7 @@ class Table(TableTemplate):
             all_uids.append(uid)
             return convert_expr(Expression(Reference(uid), self.schema, indices, aggregations,
                                            joins + (Join(joiner, all_uids),)))
-        elif isinstance(src, Matrix):
+        elif isinstance(src, MatrixTable):
             for e in exprs:
                 analyze(e, src._entry_indices, set(), set(src._fields.keys()))
 
@@ -685,11 +685,11 @@ class Table(TableTemplate):
             elif indices == src._row_indices:
                 if len(exprs) == 1 and exprs[0] is src['v']:
                     # no vds_key (way faster)
-                    joiner = lambda left: Matrix(self._hc, left._jvds.annotateVariantsTable(
+                    joiner = lambda left: MatrixTable(self._hc, left._jvds.annotateVariantsTable(
                         right._jkt, None, 'va.{}'.format(uid), None, False))
                 else:
                     # use vds_key
-                    joiner = lambda left: Matrix(self._hc, left._jvds.annotateVariantsTable(
+                    joiner = lambda left: MatrixTable(self._hc, left._jvds.annotateVariantsTable(
                         right._jkt, [e._ast.to_hql() for e in exprs], 'va.{}'.format(uid), None, False))
 
                 return convert_expr(
@@ -698,11 +698,11 @@ class Table(TableTemplate):
             elif indices == src._col_indices:
                 if len(exprs) == 1 and exprs[0] is src['s']:
                     # no vds_key (faster)
-                    joiner = lambda left: Matrix(self._hc, left._jvds.annotateSamplesTable(
+                    joiner = lambda left: MatrixTable(self._hc, left._jvds.annotateSamplesTable(
                         right._jkt, None, 'sa.{}'.format(uid), None, False))
                 else:
                     # use vds_key
-                    joiner = lambda left: Matrix(self._hc, left._jvds.annotateSamplesTable(
+                    joiner = lambda left: MatrixTable(self._hc, left._jvds.annotateSamplesTable(
                         right._jkt, [e._ast.to_hql() for e in exprs], 'sa.{}'.format(uid), None, False))
                 return convert_expr(
                     Expression(Select(Reference('sa'), uid), self.schema,
@@ -717,9 +717,9 @@ class Table(TableTemplate):
         uid = Env._get_uid()
 
         def joiner(obj):
-            from hail2.matrix import Matrix
-            if isinstance(obj, Matrix):
-                return Matrix(obj._hc, Env.jutils().joinGlobals(obj._jvds, self._jkt, uid))
+            from hail2.matrixtable import MatrixTable
+            if isinstance(obj, MatrixTable):
+                return MatrixTable(obj._hc, Env.jutils().joinGlobals(obj._jvds, self._jkt, uid))
             else:
                 assert isinstance(obj, Table)
                 return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jkt, uid))

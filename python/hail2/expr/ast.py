@@ -221,9 +221,9 @@ class GlobalJoinReference(AST):
         super(GlobalJoinReference, self).__init__()
 
     def set(self, target):
-        from hail2.matrix import Matrix
+        from hail2.matrixtable import MatrixTable
         self.is_set = True
-        if isinstance(target, Matrix):
+        if isinstance(target, MatrixTable):
             self.is_matrix = True
         else:
             self.is_matrix = False
