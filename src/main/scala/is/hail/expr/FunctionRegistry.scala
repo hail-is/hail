@@ -519,6 +519,11 @@ object FunctionRegistry {
     bind(name, FunType(hrt.typ), UnaryDependentFunCode[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
+  def registerDependent[T, U](name: String, impl: () => T => U, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, FunType(hrt.typ), UnaryDependentFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
   def registerSpecial[T, U](name: String, impl: (() => Any) => U, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, FunType(hrt.typ), UnarySpecial[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
@@ -554,6 +559,11 @@ object FunctionRegistry {
     bind(name, FunType(hrt.typ, hru.typ), BinarySpecialCode[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
   }
 
+  def registerDependent[T, U, V](name: String, impl: () => (T, U) => V, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
+    bind(name, FunType(hrt.typ, hru.typ), BinaryDependentFun[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
   def register[T, U, V, W](name: String, impl: (T, U, V) => W, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
     bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3Fun[T, U, V, W](hrw.typ, impl), MetaData(Option(docstring), argNames))
@@ -564,9 +574,19 @@ object FunctionRegistry {
     bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3Special[T, U, V, W](hrw.typ, impl), MetaData(Option(docstring), argNames))
   }
 
+  def registerDependent[T, U, V, W](name: String, impl: () => (T, U, V) => W, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3DependentFun[T, U, V, W](hrw.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
   def register[T, U, V, W, X](name: String, impl: (T, U, V, W) => X, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
     bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity4Fun[T, U, V, W, X](hrx.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerDependent[T, U, V, W, X](name: String, impl: () => (T, U, V, W) => X, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity4DependentFun[T, U, V, W, X](hrx.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerSpecial[T, U, V, W, X, Y, Z](name: String, impl: (() => Any, () => Any, () => Any, () => Any, () => Any, () => Any) => Z, docstring: String, argNames: (String, String)*)
@@ -577,6 +597,11 @@ object FunctionRegistry {
   def register[T, U, V, W, X, Y](name: String, impl: (T, U, V, W, X) => Y, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X], hry: HailRep[Y]) = {
     bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ), Arity5Fun[T, U, V, W, X, Y](hry.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerDependent[T, U, V, W, X, Y](name: String, impl: () => (T, U, V, W, X) => Y, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X], hry: HailRep[Y]) = {
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ), Arity5DependentFun[T, U, V, W, X, Y](hry.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerAnn[T](name: String, t: TStruct, impl: T => Annotation, docstring: String, argNames: (String, String)*)
