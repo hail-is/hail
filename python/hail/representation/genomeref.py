@@ -47,7 +47,6 @@ class GenomeReference(HistoryMixin):
         x_contigs = wrap_to_list(x_contigs)
         y_contigs = wrap_to_list(y_contigs)
         mt_contigs = wrap_to_list(mt_contigs)
-        self._par_jrep = Env.hail().variant.Locus.parseIntervals(wrap_to_list(["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]))
 
         jrep = (Env.hail().variant.GenomeReference
                 .apply(name,
@@ -56,7 +55,7 @@ class GenomeReference(HistoryMixin):
                        x_contigs,
                        y_contigs,
                        mt_contigs,
-                       self._par_jrep))
+                       ["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]))
 
         self._init_from_java(jrep)
         self._name = name
@@ -82,6 +81,8 @@ class GenomeReference(HistoryMixin):
         return self._jrep.toString()
 
     def __repr__(self):
+        if not self._par_tuple:
+            self._par_tuple = [(x.start().contig(), x.start().position(), x.end().position()) for x in self._jrep.par()]
         return 'GenomeReference(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % \
                (self.name, self.contigs, self.lengths, self.x_contigs, self.y_contigs, self.mt_contigs, self._par_tuple)
 
@@ -99,6 +100,8 @@ class GenomeReference(HistoryMixin):
 
         :rtype: str
         """
+        if not self._name:
+            self._name = self._jrep.name()
         return self._name
 
     @property
@@ -107,6 +110,8 @@ class GenomeReference(HistoryMixin):
 
         :rtype: list of str
         """
+        if not self._contigs:
+            self._contigs = [str(x) for x in self._jrep.contigs()]
         return self._contigs
 
     @property
@@ -115,6 +120,8 @@ class GenomeReference(HistoryMixin):
 
         :rtype: dict of str to int
         """
+        if not self._lengths:
+            self._lengths = {str(x._1()): int(x._2()) for x in jiterable_to_list(self._jrep.lengths())}
         return self._lengths
 
     @property
@@ -123,6 +130,8 @@ class GenomeReference(HistoryMixin):
 
         :rtype: list of str
         """
+        if not self._x_contigs:
+            self._x_contigs = [str(x) for x in jiterable_to_list(self._jrep.xContigs())]
         return self._x_contigs
 
     @property
@@ -131,6 +140,8 @@ class GenomeReference(HistoryMixin):
 
         :rtype: list of str
         """
+        if not self._y_contigs:
+            self._y_contigs = [str(x) for x in jiterable_to_list(self._jrep.yContigs())]
         return self._y_contigs
 
     @property
@@ -139,6 +150,8 @@ class GenomeReference(HistoryMixin):
 
         :rtype: list of str
         """
+        if not self._mt_contigs:
+            self._mt_contigs = [str(x) for x in jiterable_to_list(self._jrep.mtContigs())]
         return self._mt_contigs
 
     @property
@@ -150,7 +163,7 @@ class GenomeReference(HistoryMixin):
 
         from hail.representation.interval import Interval
         if not self._par:
-            self._par = [Interval._from_java(jrep, self) for jrep in self._par_jrep]
+            self._par = [Interval._from_java(jrep, self) for jrep in self._jrep.par()]
         return self._par
 
     @typecheck_method(contig=strlike)
@@ -163,8 +176,8 @@ class GenomeReference(HistoryMixin):
         :return: Length of contig.
         :rtype: int
         """
-        if contig in self._lengths:
-            return self._lengths[contig]
+        if contig in self.lengths:
+            return self.lengths[contig]
         else:
             raise KeyError("Contig `{}' is not in reference genome.".format(contig))
 
@@ -242,14 +255,14 @@ class GenomeReference(HistoryMixin):
     def _from_java(cls, jrep):
         gr = GenomeReference.__new__(cls)
         gr._init_from_java(jrep)
-        gr._name = jrep.name()
-        gr._contigs = [str(x) for x in jrep.contigs()]
-        gr._lengths = {str(x._1()): int(x._2()) for x in jiterable_to_list(jrep.lengths())}
-        gr._x_contigs = [str(x) for x in jiterable_to_list(jrep.xContigs())]
-        gr._y_contigs = [str(x) for x in jiterable_to_list(jrep.yContigs())]
-        gr._mt_contigs = [str(x) for x in jiterable_to_list(jrep.mtContigs())]
+        gr._name = None
+        gr._contigs = None
+        gr._lengths = None
+        gr._x_contigs = None
+        gr._y_contigs = None
+        gr._mt_contigs = None
         gr._par = None
-        gr._par_jrep = jrep.par()
-        gr._par_tuple = [(x.start().contig(), x.start().position(), x.end().position()) for x in jrep.par()]
+        gr._par_jrep = None
+        gr._par_tuple = None
         super(GenomeReference, gr).__init__()
         return gr

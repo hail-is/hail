@@ -195,6 +195,8 @@ case class JSONExtractVariant(contig: String,
 
 case class JSONExtractInterval(start: Locus, end: Locus) {
   def toInterval = Interval(start, end)
+
+  def toIntervalTuple: (String, Int, Int) = (start.contig, start.position, end.position)
 }
 
 case class JSONExtractContig(name: String, length: Int)
@@ -203,7 +205,7 @@ case class JSONExtractGenomeReference(name: String, contigs: Array[JSONExtractCo
   yContigs: Set[String], mtContigs: Set[String], par: Array[JSONExtractInterval]) {
 
   def toGenomeReference: GenomeReference = GenomeReference(name, contigs.map(_.name),
-    contigs.map(c => (c.name, c.length)).toMap, xContigs, yContigs, mtContigs, par.map(_.toInterval))
+    contigs.map(c => (c.name, c.length)).toMap, xContigs, yContigs, mtContigs, par.map(_.toIntervalTuple))
 }
 
 object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {

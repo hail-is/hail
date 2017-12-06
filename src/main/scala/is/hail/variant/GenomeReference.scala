@@ -52,7 +52,7 @@ abstract class GRBase extends Serializable {
 }
 
 case class GenomeReference(name: String, contigs: Array[String], lengths: Map[String, Int], xContigs: Set[String],
-  yContigs: Set[String], mtContigs: Set[String], par: Array[Interval[Locus]]) extends GRBase {
+  yContigs: Set[String], mtContigs: Set[String], parInput: Array[(String, Int, Int)]) extends GRBase {
 
   val nContigs = contigs.length
 
@@ -80,12 +80,6 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   if (yContigs.intersect(mtContigs).nonEmpty)
     fatal(s"Found the contigs `${ yContigs.intersect(mtContigs).mkString(", ") }' in both Y and MT contigs.")
 
-  par.foreach { i =>
-    if ((!xContigs.contains(i.start.contig) && !yContigs.contains(i.start.contig)) ||
-      (!xContigs.contains(i.end.contig) && !yContigs.contains(i.end.contig)))
-      fatal(s"The contig name for PAR interval `$i' was not found in xContigs `$xContigs' or in yContigs `$yContigs'.")
-  }
-
   val contigsIndex: Map[String, Int] = contigs.zipWithIndex.toMap
   val contigsSet: Set[String] = contigs.toSet
   val lengthsByIndex: Array[Int] = contigs.map(lengths)
@@ -111,6 +105,13 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   val xContigIndices = xContigs.map(contigsIndex)
   val yContigIndices = yContigs.map(contigsIndex)
   val mtContigIndices = mtContigs.map(contigsIndex)
+
+  val par = parInput.map { case (contig, start, end) => Interval(Locus(contig, start), Locus(contig, end)) }
+  par.foreach { i =>
+    if ((!xContigs.contains(i.start.contig) && !yContigs.contains(i.start.contig)) ||
+      (!xContigs.contains(i.end.contig) && !yContigs.contains(i.end.contig)))
+      fatal(s"The contig name for PAR interval `$i' was not found in xContigs `$xContigs' or in yContigs `$yContigs'.")
+  }
 
   def contigLength(contig: String): Int = lengths.get(contig) match {
     case Some(l) => l
@@ -247,12 +248,21 @@ object GenomeReference {
     mtContig <- Gen.oneOfSeq((contigs.toSet - xContig - yContig).toSeq)
     parX <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(xContig))))
     parY <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(yContig))))
-  } yield GenomeReference(name, contigs, contigs.zip(lengths).toMap, Set(xContig), Set(yContig), Set(mtContig), parX ++ parY)
+  } yield GenomeReference(name, contigs, contigs.zip(lengths).toMap, Set(xContig), Set(yContig), Set(mtContig),
+    (parX ++ parY).map(i => (i.start.contig, i.start.position, i.end.position)))
 
   def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
     xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
-    mtContigs: java.util.ArrayList[String], par: Array[Interval[Locus]]): GenomeReference = {
-    val gr = GenomeReference(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet, yContigs.asScala.toSet, mtContigs.asScala.toSet, par)
+    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): GenomeReference = {
+    val parRegex = """(\w+):(\d+)-(\d+)""".r
+    val par = parInput.asScala.toArray.map { s =>
+      s match {
+        case parRegex(contig, start, end) => (contig.toString, start.toInt, end.toInt)
+        case _ => fatal("expected par input of form contig:start-end")
+      }
+    }
+    val gr = GenomeReference(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet,
+      yContigs.asScala.toSet, mtContigs.asScala.toSet, par)
     addReference(gr)
     gr
   }
