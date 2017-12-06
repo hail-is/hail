@@ -3431,9 +3431,9 @@ class VariantDataset(HistoryMixin):
         if nVariants == 0:
             fatal("Cannot run PCA: found 0 variants after filtering out variants that are all HomRef or all HomVar.")
         print('Running PCA using ' + str(nVariants) + ' variants.')
-        result = vds.pca('let mean = va.AC / va.nCalled in' +
-                         'if (isDefined(g.GT)) (g.GT.gt - mean) / sqrt(mean * (2 - mean) * ' + str(nVariants) + ' / 2) else 0',
-                         k, compute_loadings, as_array)
+        result = vds.pca('let mean = va.AC / va.nCalled in ' +
+            'if (isDefined(g.GT)) (g.GT.gt - mean) / sqrt(mean * (2 - mean) * ' + str(nVariants) + ' / 2) else 0',
+            k, compute_loadings, as_array)
         vds.unpersist()
         return result
 
