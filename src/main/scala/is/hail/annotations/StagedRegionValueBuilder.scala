@@ -118,10 +118,8 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
         case _ =>
           region.storeAddress(currentOffset, endOffset)
       },
-      region.appendInt32(bytes.length()),
-      Code._pop2,
-      region.appendBytes(bytes),
-      Code._pop2
+      toUnit(region.appendInt32(bytes.length())),
+      toUnit(region.appendBytes(bytes))
     )
   }
 

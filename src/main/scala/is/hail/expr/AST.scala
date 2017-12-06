@@ -281,7 +281,7 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
     // This method returns `Void` which is only inhabited by `null`, we treat
     // these calls as non-stack-modifying functions so we must include a pop
     // to reset the stack.
-    ) yield Code(k.invoke[AnyRef, AnyRef]("apply", me), Code._pop[Unit])
+    ) yield Code.toUnit(k.invoke[AnyRef, AnyRef]("apply", me))
     }).map(x => Code(x, Code._null[AnyRef])).runWithDelayedValues(typedNames, ec)
 
     { (k: (Any => Unit)) =>
