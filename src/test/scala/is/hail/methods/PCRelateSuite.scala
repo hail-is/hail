@@ -217,7 +217,7 @@ class PCRelateSuite extends SparkSuite {
     val seed = 0
     val n = 100
     val nVariants = 1000
-    val vds = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
+    val vds = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
     val pcs = samplePCA(vds, 10, false)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
       .mapValues(quadMap(toBoxedD).tupled)
