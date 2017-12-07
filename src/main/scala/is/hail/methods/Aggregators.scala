@@ -17,6 +17,74 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
+  def buildVariantAggregationsByKey(vsm: VariantSampleMatrix, nKeys: Int, keyMap: Array[Int], ec: EvalContext): (RegionValue) => Array[() => Unit] =
+    buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, nKeys, keyMap, ec)
+
+  // keyMap is just a mapping of sampleIds.map { s => newKey(s) }
+  def buildVariantAggregationsByKey(sc: SparkContext,
+    typ: MatrixType,
+    localValue: VSMLocalValue,
+    nKeys: Int,
+    keyMap: Array[Int],
+    ec: EvalContext): (RegionValue) => Array[() => Unit] = {
+
+    val aggregations = ec.aggregations
+    if (aggregations.isEmpty)
+      return { rv => Array.fill[() => Unit](nKeys) { () => Unit } }
+
+    val localA = ec.a
+    val localNSamples = localValue.nSamples
+    val localSamplesBc = sc.broadcast(localValue.sampleIds)
+    val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
+    val localGlobalAnnotations = localValue.globalAnnotation
+    val localRowType = typ.rowType
+
+    { (rv: RegionValue) =>
+      val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
+
+      val v = ur.get(1)
+      val va = ur.get(2)
+      val gs = ur.getAs[IndexedSeq[Annotation]](3)
+
+      val aggs = MultiArray2.fill[Aggregator](nKeys, aggregations.size)(null)
+      var nk = 0
+      while (nk < nKeys) {
+        var nagg = 0
+        while (nagg < aggregations.size) {
+          aggs.update(nk, nagg, aggregations(nagg)._3.copy())
+          nagg += 1
+        }
+        nk += 1
+      }
+      localA(0) = localGlobalAnnotations
+      localA(1) = v
+      localA(2) = va
+
+      var i = 0
+      while (i < localNSamples) {
+        localA(3) = gs(i)
+        if (keyMap(i) != -1) {
+          localA(4) = localSamplesBc.value(i)
+          localA(5) = localAnnotationsBc.value(i)
+
+          var j = 0
+          while (j < aggs.n2) {
+            aggregations(j)._2(aggs(keyMap(i), j).seqOp)
+            j += 1
+          }
+        }
+        i += 1
+      }
+      Array.tabulate[() => Unit](nKeys) { k => { () => {
+        var j = 0
+        while (j < aggs.n2) {
+          aggregations(j)._1.v = aggs(k, j).result
+          j += 1
+        }
+      }}}
+    }
+  }
+
   def buildVariantAggregations(vsm: VariantSampleMatrix, ec: EvalContext): Option[(RegionValue) => Unit] =
     buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, ec)
 
@@ -148,7 +216,9 @@ object Aggregators {
   def makeSampleFunctions(vsm: VariantSampleMatrix, aggExpr: String): SampleFunctions = {
     val ec = vsm.sampleEC
 
-    val (resultType, aggF) = Parser.parseExpr(aggExpr, ec)
+    val (resultNames, resultTypes, aggF) = Parser.parseAnnotationExprs(aggExpr, ec, None)
+
+    val newType = TStruct(resultNames.map(_.head).zip(resultTypes).toSeq: _*)
 
     val localNSamples = vsm.nSamples
     val localGlobalAnnotations = vsm.globalAnnotation
@@ -206,13 +276,20 @@ object Aggregators {
           aggregations(j)._1.v = ma(i, j).result
           j += 1
         }
-        rvb.addAnnotation(resultType, aggF())
+        rvb.startStruct()
+        val fields = aggF()
+        var k = 0
+        while (k < fields.size) {
+          rvb.addAnnotation(newType.fieldType(k), fields(k))
+          k += 1
+        }
+        rvb.endStruct()
         i += 1
       }
       rvb.endArray()
     }
 
-    SampleFunctions(zVal, seqOp, combOp, resultOp, resultType)
+    SampleFunctions(zVal, seqOp, combOp, resultOp, newType)
   }
 
   case class SampleFunctions(

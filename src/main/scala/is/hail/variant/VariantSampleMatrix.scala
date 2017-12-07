@@ -434,41 +434,93 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
   def take(n: Int): Array[UnsafeRow] = unsafeRowRDD().take(n)
 
-  def groupVariantsBy(keyExpr: String, aggExpr: String, singleKey: Boolean = false): VariantSampleMatrix = {
+  def groupSamplesBy(keyExpr: String, aggExpr: String): VariantSampleMatrix = {
+    val localRowType = rowType
+    val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
+      "s" -> (1, sSignature),
+      Annotation.SAMPLE_HEAD -> (2, saSignature)))
+    val (keyType, keyF) = Parser.parseExpr(keyExpr, sEC)
+    sEC.set(0, globalAnnotation)
+
+    val keysBySample = sampleIds.zip(sampleAnnotations).map { case (s, sa) =>
+      sEC.set(1, s)
+      sEC.set(2, sa)
+      keyF()
+    }
+    val newKeys = keysBySample.toSet.toArray
+    val keyMap = newKeys.zipWithIndex.toMap
+    val samplesMap = keysBySample.map { k => if (k==null) -1 else keyMap(k) }.toArray
+
+    val nKeys = newKeys.size
+
+    val ec = variantEC
+    val (resultNames, resultTypes, resultF) = Parser.parseAnnotationExprs(aggExpr, ec, None)
+    val entryType = TStruct(resultNames.map(_.head).zip(resultTypes).toSeq: _*)
+    val mt = matrixType.copy(sType = keyType, saType = TStruct.empty(), genotypeType = entryType)
+    val newRowType = mt.rowType
+
+    val aggregate = Aggregators.buildVariantAggregationsByKey(this, nKeys, samplesMap, ec)
+
+    val groupedRDD2 = rdd2.mapPartitionsPreservesPartitioning(mt.orderedRVType) { it =>
+      val region2 = MemoryBuffer()
+      val rv2 = RegionValue(region2)
+      val rv2b = new RegionValueBuilder(region2)
+      val ur = new UnsafeRow(localRowType)
+      it.map { rv =>
+        ur.set(rv)
+        val aggArr = aggregate(rv)
+        rv2b.start(newRowType)
+        rv2b.startStruct()
+        rv2b.addAnnotation(mt.locusType, ur.get(0))
+        rv2b.addAnnotation(mt.vType, ur.get(1))
+        rv2b.addAnnotation(mt.vaType, ur.get(2))
+
+        rv2b.startArray(nKeys)
+        var i = 0
+        while (i < nKeys) {
+          aggArr(i)()
+          rv2b.startStruct()
+          val fields = resultF()
+          var j = 0
+          while (j < fields.size) {
+            rv2b.addAnnotation(entryType.fieldType(j), fields(j))
+            j += 1
+          }
+          rv2b.endStruct()
+          i += 1
+        }
+        rv2b.endArray()
+        rv2b.endStruct()
+        rv2.setOffset(rv2b.end())
+        rv2
+      }
+    }
+
+    copy2(rdd2 = groupedRDD2,
+      sampleIds = newKeys,
+      sampleAnnotations = Array.fill(newKeys.length)(Annotation.empty),
+      sSignature = keyType,
+      saSignature = TStruct.empty(),
+      genotypeSignature = entryType)
+  }
+  
+  def groupVariantsBy(keyExpr: String, aggExpr: String): VariantSampleMatrix = {
     val localRowType = rowType
     val vEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
                               "v" -> (1, vSignature),
                               Annotation.VARIANT_HEAD -> (2, vaSignature)))
-    val (keysType, keyF) = Parser.parseExpr(keyExpr, vEC)
+    val (keyType, keyF) = Parser.parseExpr(keyExpr, vEC)
     vEC.set(0, globalAnnotation)
 
-    val (keyType, keyedRDD) =
-      if (singleKey) {
-        (keysType, rdd2.rdd.mapPartitions { it =>
-          val ur = new UnsafeRow(localRowType)
-          it.flatMap { rv =>
-            ur.set(rv)
-            vEC.set(1, ur.get(1))
-            vEC.set(2, ur.get(2))
-            Option(keyF()).map{ key => (Annotation.copy(keysType, key), ur) }
-          }
-        })
-      } else {
-        val keyType = keysType match {
-          case TArray(e, _) => e
-          case TSet(e, _) => e
-          case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
-        }
-        (keyType, rdd2.rdd.mapPartitions { it =>
-          val ur = new UnsafeRow(localRowType)
-          it.flatMap { rv =>
-            ur.set(rv)
-            vEC.set(1, ur.get(1))
-            vEC.set(2, ur.get(2))
-            Option(keyF().asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map{ key => (Annotation.copy(keyType, key), ur) }
-          }
-        })
+    val keyedRDD = rdd2.rdd.mapPartitions { it =>
+      val ur = new UnsafeRow(localRowType)
+      it.flatMap { rv =>
+        ur.set(rv)
+        vEC.set(1, ur.get(1))
+        vEC.set(2, ur.get(2))
+        Option(keyF()).map{ key => (Annotation.copy(keyType, key), ur) }
       }
+    }
 
     val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions(this, aggExpr)
 
