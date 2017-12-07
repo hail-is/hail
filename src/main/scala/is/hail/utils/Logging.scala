@@ -47,4 +47,8 @@ trait Logging {
       log.warn(format(msg, logged))
     }
   }
+
+  def error(msg: String) {
+    consoleLog.error(msg)
+  }
 }

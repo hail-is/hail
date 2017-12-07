@@ -12,11 +12,10 @@ hail2
     :template: class.rst
 
     hail2.HailContext
-    hail2.VariantDataset
-    hail2.AggregatedVariantDataset
-    hail2.KeyTable
-    hail2.AggregatedKeyTable
-    hail2.GroupedKeyTable
+    hail2.MatrixTable
+    hail2.Table
+    hail2.GroupedTable
+    hail2.GroupedMatrixTable
 
 .. rubric:: Modules
 

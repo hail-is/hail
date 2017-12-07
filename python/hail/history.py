@@ -17,7 +17,7 @@ def parse_args(f, args, kwargs, is_method=True):
     n_postnl_args = len(arg_names) - len(defaults)
     defaults = n_postnl_args * [None] + defaults
 
-    parsed_args = OrderedDict({k: v for k, (v, d) in zip(arg_names, zip(args, defaults)) if v != d})
+    parsed_args = OrderedDict({k: v for k, (v, d) in zip(arg_names, zip(args, defaults)) if v is not d})
     parsed_args.update(OrderedDict({k:v for k,v in kwargs.iteritems()}))
     return parsed_args
 

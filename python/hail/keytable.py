@@ -1435,6 +1435,7 @@ class KeyTable(HistoryMixin):
 
         return KeyTable(self.hc, self._jkt.indexed(name))
 
+    @handle_py4j
     @typecheck_method(n=integral,
                       truncate_to=nullable(integral),
                       print_types=bool)
@@ -1740,6 +1741,6 @@ class KeyTable(HistoryMixin):
     @record_method
     def to_hail2(self):
         import hail2
-        return hail2.KeyTable(self.hc, self._jkt)
+        return hail2.Table(self.hc, self._jkt)
 
 kt_type.set(KeyTable)

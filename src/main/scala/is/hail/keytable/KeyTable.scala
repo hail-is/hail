@@ -372,6 +372,45 @@ class KeyTable(val hc: HailContext,
       globalSignature = finalType)
   }
 
+  def selectGlobal(exprs: java.util.ArrayList[String]): KeyTable = {
+    val ec = EvalContext(globalSignature.fields.map(fd => (fd.name, fd.typ)): _*)
+    ec.setAllFromRow(globals.asInstanceOf[Row])
+
+    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs.asScala.toArray, ec)
+
+    val paths = maybePaths.zip(isNamedExpr).map { case (p, isNamed) =>
+      if (isNamed)
+        List(p.mkString(".")) // FIXME: Not certain what behavior we want here
+      else {
+          List(p.last)
+      }
+    }
+
+    val overlappingPaths = paths.counter().filter { case (n, i) => i != 1 }.keys
+
+    if (overlappingPaths.nonEmpty)
+      fatal(s"Found ${ overlappingPaths.size } ${ plural(overlappingPaths.size, "selected field name") } that are duplicated.\n" +
+        "Overlapping fields:\n  " +
+        s"@1", overlappingPaths.truncatable("\n  "))
+
+    val inserterBuilder = new ArrayBuilder[Inserter]()
+
+    val finalSignature = (paths, types).zipped.foldLeft(TStruct()) { case (vs, (p, sig)) =>
+      val (s: TStruct, i) = vs.insert(sig, p)
+      inserterBuilder += i
+      s
+    }
+
+    val inserters = inserterBuilder.result()
+
+    val newGlobal = f().zip(inserters)
+      .foldLeft(Row()) { case (a1, (v, inserter)) =>
+        inserter(a1, v).asInstanceOf[Row]
+      }
+
+    copy2(rdd2, signature, key, finalSignature, newGlobal)
+  }
+
   def annotate(cond: String): KeyTable = {
     val ec = rowEvalContext()
 
@@ -396,7 +435,7 @@ class KeyTable(val hc: HailContext,
         }
     }
 
-    KeyTable(hc, mapAnnotations(annotF), finalSignature, key)
+    copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = key)
   }
 
   def filter(p: Annotation => Boolean): KeyTable = copy(rdd = rdd.filter(p))
@@ -480,7 +519,7 @@ class KeyTable(val hc: HailContext,
 
     val newKey = key.filter(paths.map(_.mkString(".")).toSet)
 
-    KeyTable(hc, mapAnnotations(annotF), finalSignature, newKey)
+    copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = newKey)
   }
 
   def select(selectedColumns: String*): KeyTable = select(selectedColumns.toArray)
@@ -510,7 +549,7 @@ class KeyTable(val hc: HailContext,
     if (duplicateColumns.nonEmpty)
       fatal(s"Found duplicate column names after renaming columns: `${ duplicateColumns.keys.mkString(", ") }'")
 
-    KeyTable(hc, rdd, newSignature, newKey)
+    copy(rdd = rdd, signature = newSignature, key = newKey)
   }
 
   def rename(newColumns: Array[String]): KeyTable = {
@@ -588,7 +627,7 @@ class KeyTable(val hc: HailContext,
       case _ => fatal("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
     }
 
-    KeyTable(hc, joinedRDD, newSignature, key)
+    copy(rdd = joinedRDD, signature = newSignature, key = key)
   }
 
   def forall(code: String): Boolean = {
@@ -699,19 +738,20 @@ class KeyTable(val hc: HailContext,
           Row.fromSeq(k.toSeq ++ aggF())
       }
 
-    KeyTable(hc, newRDD, keySignature.merge(aggSignature)._1, newKey)
+    copy(rdd = newRDD, signature = keySignature.merge(aggSignature)._1, key = newKey)
   }
 
   def ungroup(column: String, mangle: Boolean = false): KeyTable = {
     val (finalSignature, ungrouper) = signature.ungroup(column, mangle)
-    KeyTable(hc, rdd.map(ungrouper), finalSignature)
+    copy(rdd = rdd.map(ungrouper), signature = finalSignature)
   }
 
   def group(dest: String, columns: java.util.ArrayList[String]): KeyTable = group(dest, columns.asScala.toArray)
 
   def group(dest: String, columns: Array[String]): KeyTable = {
     val (newSignature, grouper) = signature.group(dest, columns)
-    KeyTable(hc, rdd.map(grouper), newSignature)
+    val newKey = key.filter(!columns.contains(_))
+    copy(rdd = rdd.map(grouper), signature = newSignature, key = newKey)
   }
 
 
@@ -719,9 +759,9 @@ class KeyTable(val hc: HailContext,
     val localSignature = signature
     val expandedSignature = Annotation.expandType(localSignature).asInstanceOf[TStruct]
 
-    KeyTable(hc, rdd.map { a => Annotation.expandAnnotation(a, localSignature).asInstanceOf[Row] },
-      expandedSignature,
-      key)
+    copy(rdd = rdd.map { a => Annotation.expandAnnotation(a, localSignature).asInstanceOf[Row] },
+      signature = expandedSignature,
+      key = key)
   }
 
   def flatten(): KeyTable = {
@@ -730,9 +770,9 @@ class KeyTable(val hc: HailContext,
     val flattenedSignature = Annotation.flattenType(localSignature).asInstanceOf[TStruct]
     val flattenedKey = Annotation.flattenType(keySignature).asInstanceOf[TStruct].fields.map(_.name).toArray
 
-    KeyTable(hc, rdd.map { a => Annotation.flattenAnnotation(a, localSignature).asInstanceOf[Row] },
-      flattenedSignature,
-      flattenedKey)
+    copy(rdd = rdd.map { a => Annotation.flattenAnnotation(a, localSignature).asInstanceOf[Row] },
+      signature = flattenedSignature,
+      key = flattenedKey)
   }
 
   def toDF(sqlContext: SQLContext): DataFrame = {
@@ -773,7 +813,7 @@ class KeyTable(val hc: HailContext,
         for (element <- row(index).asInstanceOf[Iterable[_]]) yield Row.fromSeq(row.updated(index, element))
     }
 
-    KeyTable(hc, explodedRDD, newSignature, key)
+    copy(rdd = explodedRDD, signature = newSignature, key = key)
   }
 
   def explode(columnNames: Array[String]): KeyTable = {

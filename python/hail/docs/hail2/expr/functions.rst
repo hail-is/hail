@@ -35,7 +35,6 @@ functions
     pchisqtail
     pcoin
     pnorm
-    pow
     ppois
     qchisqtail
     qnorm
@@ -46,8 +45,27 @@ functions
     runif
     select
     sqrt
-    to_str
-    where
+    str
+    cond
+    collect
+    collect_as_set
+    count
+    count_where
+    counter
+    take
+    min
+    max
+    sum
+    mean
+    stats
+    product
+    fraction
+    hardy_weinberg
+    explode
+    filter
+    inbreeding
+    call_stats
+    hist
 
 
 .. autofunction:: chisq
@@ -76,7 +94,6 @@ functions
 .. autofunction:: pchisqtail
 .. autofunction:: pcoin
 .. autofunction:: pnorm
-.. autofunction:: pow
 .. autofunction:: ppois
 .. autofunction:: qchisqtail
 .. autofunction:: qnorm
@@ -87,5 +104,24 @@ functions
 .. autofunction:: runif
 .. autofunction:: select
 .. autofunction:: sqrt
-.. autofunction:: to_str
-.. autofunction:: where
+.. autofunction:: str
+.. autofunction:: cond
+.. autofunction:: collect
+.. autofunction:: collect_as_set
+.. autofunction:: count
+.. autofunction:: count_where
+.. autofunction:: counter
+.. autofunction:: take
+.. autofunction:: min
+.. autofunction:: max
+.. autofunction:: sum
+.. autofunction:: mean
+.. autofunction:: stats
+.. autofunction:: product
+.. autofunction:: fraction
+.. autofunction:: hardy_weinberg
+.. autofunction:: explode
+.. autofunction:: filter
+.. autofunction:: inbreeding
+.. autofunction:: call_stats
+.. autofunction:: hist

@@ -1,7 +1,9 @@
 import abc
-from hail.java import scala_object, Env, jset, jindexed_seq
-from hail.representation import Variant, AltAllele, Locus, Interval, Struct, Call, GenomeReference
-from hail.typecheck import typecheck_method, nullable, integral
+from hail.java import jindexed_seq
+from hail.java import scala_object, Env, jset
+from hail.representation import GenomeReference
+from hail.representation import Variant, AltAllele, Locus, Interval, Struct, Call
+from hail.typecheck import *
 from hail.history import *
 
 
@@ -65,7 +67,10 @@ class Type(HistoryMixin):
         return self._jtype.toPrettyString(0, True)
 
     def __eq__(self, other):
-        return self._jtype.equals(other._jtype)
+        return isinstance(other, Type) and self._jtype.equals(other._jtype)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __hash__(self):
         return self._jtype.hashCode()
@@ -102,8 +107,6 @@ class Type(HistoryMixin):
             return TLocus._from_java(jtype)
         elif class_name == 'is.hail.expr.TInterval':
             return TInterval._from_java(jtype)
-        elif class_name == "is.hail.expr.TAggregable":
-            return TAggregable._from_java(jtype)
         else:
             raise TypeError("unknown type class: '%s'" % class_name)
 
@@ -568,12 +571,13 @@ class TStruct(Type):
     :vartype fields: list of :class:`.Field`
     """
 
-    @record_init
+    @typecheck_method(names=listof(strlike), types=listof(Type), required=bool)
     def __init__(self, names, types, required=False):
+
         if len(names) != len(types):
             raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
         jtype = scala_object(Env.hail().expr, 'TStruct').apply(names, map(lambda t: t._jtype, types), required)
-        self.fields = [Field(names[i], types[i]) for i in xrange(len(names))]
+        self.fields = [Field(names[i], types[i]) for i in range(len(names))]
 
         super(TStruct, self).__init__(jtype)
 
@@ -615,7 +619,7 @@ class TStruct(Type):
             d = dict()
             for i, f in enumerate(self.fields):
                 d[f.name] = f.typ._convert_to_py(annotation.get(i))
-            return Struct(d)
+            return Struct(**d)
         else:
             return None
 
@@ -642,8 +646,9 @@ class TStruct(Type):
         elif self.required:
             raise TypeCheckError("!TStruct cannot be missing")
 
-    def _repr(self):
-        names, types = zip(*[(fd.name, fd.typ) for fd in self.fields])
+    def __repr__(self):
+        names = [fd.name for fd in self.fields]
+        types = [fd.typ for fd in self.fields]
         return "TStruct({}, {})".format(repr(list(names)), repr(list(types)))
 
     def _merge(self, other):
@@ -920,39 +925,6 @@ class TInterval(Type):
         :return: :class:`.GenomeReference`
         """
         return self._rg
-
-
-class TAggregable(Type):
-    """
-    Hail type corresponding to aggregable
-
-    :param element_type: type of aggregable elements
-    :type element_type: :class:`.Type`
-
-    :ivar element_type: type of aggregable elements
-    :vartype element_type: :class:`.Type`
-    """
-
-    @record_init
-    def __init__(self, element_type, required=False):
-        """
-        :param :class:`.Type` element_type: Hail type of array element
-        """
-        jtype = scala_object(Env.hail().expr, 'TAggregable').apply(element_type._jtype, required)
-        self.element_type = element_type
-        super(TAggregable, self).__init__(jtype)
-
-    @classmethod
-    def _from_java(cls, jtype):
-        t = TAggregable.__new__(cls)
-        t.element_type = Type._from_java(jtype.elementType())
-        t._jtype = jtype
-        t.required = jtype.required()
-        super(Type, t).__init__()
-        return t
-
-    def _typecheck(self, annotation):
-        return
 
 _intern_classes = {'is.hail.expr.TInt32Optional$': (TInt32, False),
                    'is.hail.expr.TInt32Required$': (TInt32, True),

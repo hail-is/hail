@@ -5120,7 +5120,7 @@ class VariantDataset(HistoryMixin):
          (hom_var, hom_ref, het, hemiX, 1, 0),
          (hom_var, hom_var, het, hemiX, 1, 0)]
 
-        mapping = {Struct({'kid': v[0], 'dad': v[1], 'mom': v[2], 'copy_state': v[3]}): [v[4], v[5]] for v in l}
+        mapping = {Struct(**{'kid': v[0], 'dad': v[1], 'mom': v[2], 'copy_state': v[3]}): [v[4], v[5]] for v in l}
 
         trio_matrix = trio_matrix.annotate_global('global.mapping', mapping, t)
 
@@ -5867,7 +5867,7 @@ class VariantDataset(HistoryMixin):
     @record_method
     def to_hail2(self):
         import hail2
-        return hail2.VariantDataset(self.hc, self._jvds)
+        return hail2.MatrixTable(self.hc, self._jvds)
 
     @handle_py4j
     @record_method
