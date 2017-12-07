@@ -513,7 +513,7 @@ class ContextTests(unittest.TestCase):
         kt.join(kt2, 'left').count()
 
         # AggregateByKey
-        (kt.aggregate("Status = Status", "Sum = qPhen.sum()")
+        (kt.aggregate_by_key("Status = Status", "Sum = qPhen.sum()")
          .count())
 
         # Forall, Exists
