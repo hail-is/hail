@@ -1015,7 +1015,6 @@ typ_to_expr = {
     TArray: ArrayExpression,
     TSet: SetExpression,
     TStruct: StructExpression
-    # TAggregable: AggregableColumn
 }
 
 elt_typ_to_array_expr = {
