@@ -259,7 +259,7 @@ object GenomeReference {
   def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
     xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
     mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): GenomeReference = {
-    val parRegex = """(\w+):(\d+)-(\d+)""".r
+    val parRegex = """(.+):(\d+)-(\d+)""".r
 
     val par = parInput.asScala.toArray.map {
         case parRegex(contig, start, end) => (Locus(contig.toString, start.toInt), Locus(contig.toString, end.toInt))
