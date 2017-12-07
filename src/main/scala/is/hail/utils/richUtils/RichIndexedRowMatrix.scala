@@ -106,7 +106,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     // write metadata
     hadoop.writeDataFile(uri + BlockMatrix.metadataRelativePath) { os =>
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, rows, cols, transposed = false),
+        BlockMatrixMetadata(blockSize, rows, cols),
         os)
     }
   }
