@@ -421,7 +421,7 @@ class KeyTable(val hc: HailContext,
         inserter(a1, v).asInstanceOf[Row]
       }
 
-    copy2(rdd2, signature, key, finalSignature, newGlobal)
+    copy2(globalSignature = finalSignature, globals = newGlobal)
   }
 
   def annotate(cond: String): KeyTable = {
