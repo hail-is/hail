@@ -3,6 +3,7 @@ package is.hail.utils.richUtils
 import java.io.{DataInputStream, DataOutputStream}
 
 import breeze.linalg.DenseMatrix
+import is.hail.annotations.Memory
 import is.hail.utils.ArrayBuilder
 
 object RichDenseMatrixDouble {
@@ -19,17 +20,17 @@ object RichDenseMatrixDouble {
     val rows = in.readInt()
     val cols = in.readInt()
     val isTranspose = in.readBoolean()
-    val majorStride = if (isTranspose) cols else rows
+    val length = rows * cols
     
-    val data = new Array[Double](rows * cols)
-    var i = 0
-    while (i < rows * cols) {
-      data(i) = in.readDouble()
-      i += 1
-    }
+    val n = length << 3
+    val bytes = Array.ofDim[Byte](n)
+    in.read(bytes, 0, n)
+    
+    val data = Array.ofDim[Double](length)
+    Memory.memcpy(data, 0, bytes, 0, length)
     
     new DenseMatrix[Double](rows, cols, data,
-      offset = 0, majorStride = majorStride, isTranspose = isTranspose)
+      offset = 0, majorStride = if (isTranspose) cols else rows, isTranspose = isTranspose)
   }
 }
 
@@ -93,13 +94,13 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     out.writeInt(m.cols)
     out.writeBoolean(m.isTranspose)
     
-    val data = m.data
-    assert(data.length == m.rows * m.cols)
+    val length = m.data.length
+    assert(length == m.rows * m.cols)
+
+    val n = length << 3
+    val bytes = Array.ofDim[Byte](n)    
+    Memory.memcpy(bytes, 0, m.data, 0, length)
     
-    var i = 0
-    while (i < data.length) {
-      out.writeDouble(data(i))
-      i += 1
-    }
+    out.write(bytes, 0, n)
   }
 }

@@ -60,6 +60,16 @@ public final class Memory {
         unsafe.copyMemory(src, Unsafe.ARRAY_BYTE_BASE_OFFSET + srcOff, dst, Unsafe.ARRAY_BYTE_BASE_OFFSET + dstOff, n);
     }
 
+    // srcOff is in doubles, n is in doubles
+    public static void memcpy(byte[] dst, long dstOff, double[] src, long srcOff, long n) {
+        unsafe.copyMemory(src, Unsafe.ARRAY_DOUBLE_BASE_OFFSET + srcOff * 8, dst, Unsafe.ARRAY_BYTE_BASE_OFFSET + dstOff, n * 8);
+    }
+
+    // dstOff is in doubles, n is in doubles
+    public static void memcpy(double[] dst, long dstOff, byte[] src, long srcOff, long n) {
+        unsafe.copyMemory(src, Unsafe.ARRAY_BYTE_BASE_OFFSET + srcOff, dst, Unsafe.ARRAY_DOUBLE_BASE_OFFSET + dstOff * 8, n * 8);
+    }
+    
     public static void memcpy(long dst, byte[] src, long srcOff, long n) {
         copyFromArray(dst, src, srcOff, n);
     }
