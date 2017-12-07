@@ -75,19 +75,13 @@ object Aggregators {
         }
         i += 1
       }
-      val result = Array.fill[() => Unit](nKeys)(null)
-      var k = 0
-      while (k < nKeys) {
-        result.update(k, { () => {
-          var j = 0
-          while (j < aggs.n2) {
-            aggregations(j)._1.v = aggs(k, j).result
-            j += 1
-          }
-        }})
-        k += 1
-      }
-      result
+      Array.tabulate[() => Unit](nKeys) { k => { () => {
+        var j = 0
+        while (j < aggs.n2) {
+          aggregations(j)._1.v = aggs(k, j).result
+          j += 1
+        }
+      }}}
     }
   }
 
