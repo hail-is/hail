@@ -35,26 +35,22 @@ class BlockMatrixSuite extends SparkSuite {
   def toBM(lm: BDM[Double], blockSize: Int): BlockMatrix =
     BlockMatrix.from(sc, lm, blockSize)
  
-  private val defaultBlockSize = choose(0, 1 << 6)
+  private val defaultBlockSize = choose(1, 1 << 6)
   private val defaultDims = nonEmptySquareOfAreaAtMostSize
-  private val defaultTransposed = coin()
   private val defaultElement = arbitrary[Double]
 
   def blockMatrixGen(
     blockSize: Gen[Int] = defaultBlockSize,
     dims: Gen[(Int, Int)] = defaultDims,
-    transposed: Gen[Boolean] = defaultTransposed,
     element: Gen[Double] = defaultElement
   ): Gen[BlockMatrix] = for {
     blockSize <- blockSize
     (rows, columns) <- dims
-    transposed <- transposed
     arrays <- buildableOfN[Seq, Array[Double]](rows, buildableOfN(columns, element))
     m = toBM(arrays, blockSize)
-  } yield if (transposed) m.t else m
+  } yield m
 
   def squareBlockMatrixGen(
-    transposed: Gen[Boolean] = defaultTransposed,
     element: Gen[Double] = defaultElement
   ): Gen[BlockMatrix] = blockMatrixGen(
     blockSize = interestingPosInt.map(math.sqrt(_).toInt),
@@ -63,17 +59,15 @@ class BlockMatrixSuite extends SparkSuite {
       l <- interestingPosInt
       s = math.sqrt(math.min(l, size)).toInt
     } yield (s, s),
-    transposed = transposed,
     element = element
   )
 
   def twoMultipliableBlockMatrices(element: Gen[Double] = defaultElement): Gen[(BlockMatrix, BlockMatrix)] = for {
     Array(rows, inner, cols) <- nonEmptyNCubeOfVolumeAtMostSize(3)
     blockSize <- interestingPosInt.map(math.pow(_, 1.0 / 3.0).toInt)
-    transposed <- coin()
-    l <- blockMatrixGen(const(blockSize), const(rows -> inner), const(transposed), element)
-    r <- blockMatrixGen(const(blockSize), const(inner -> cols), const(transposed), element)
-  } yield if (transposed) (r, l) else (l, r)
+    l <- blockMatrixGen(const(blockSize), const(rows -> inner), element)
+    r <- blockMatrixGen(const(blockSize), const(inner -> cols), element)
+  } yield (l, r)
 
   implicit val arbitraryBlockMatrix =
     Arbitrary(blockMatrixGen())
@@ -582,5 +576,5 @@ class BlockMatrixSuite extends SparkSuite {
     assert(mt.t.map2WithIndex(m.t.t, (i,j,x,y) => 3 * x + 5 * y + i * 2 + j + 1).toLocalMatrix() ===
       9.0 * lm)
   }
-
+  
 }

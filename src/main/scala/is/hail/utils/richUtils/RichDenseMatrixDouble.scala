@@ -14,9 +14,12 @@ object RichDenseMatrixDouble {
       Some(DenseMatrix.horzcat(ms: _*))
   }
   
+  // assumes zero offset and minimal majorStride 
   def read(in: DataInputStream): DenseMatrix[Double] = {
     val rows = in.readInt()
     val cols = in.readInt()
+    val isTranspose = in.readBoolean()
+    val majorStride = if (isTranspose) cols else rows
     
     val data = new Array[Double](rows * cols)
     var i = 0
@@ -25,7 +28,8 @@ object RichDenseMatrixDouble {
       i += 1
     }
     
-    new DenseMatrix[Double](rows, cols, data)
+    new DenseMatrix[Double](rows, cols, data,
+      offset = 0, majorStride = majorStride, isTranspose = isTranspose)
   }
 }
 
@@ -82,12 +86,18 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
   }
   
   def write(out: DataOutputStream) {
+    assert(m.offset == 0)
+    assert(m.majorStride == (if (m.isTranspose) m.cols else m.rows))
+
     out.writeInt(m.rows)
     out.writeInt(m.cols)
-
-    val data = m.toArray
+    out.writeBoolean(m.isTranspose)
+    
+    val data = m.data
+    assert(data.length == m.rows * m.cols)
+    
     var i = 0
-    while (i < m.rows * m.cols) {
+    while (i < data.length) {
       out.writeDouble(data(i))
       i += 1
     }

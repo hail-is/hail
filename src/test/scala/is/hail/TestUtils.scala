@@ -20,13 +20,23 @@ object TestUtils {
            |  Found: ${thrown.getMessage} """.stripMargin)
     assert(p)
   }
-
+  
   def interceptSpark(regex: String)(f: => Any) {
     val thrown = intercept[SparkException](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     if (!p)
       println(
         s"""expected fatal exception with pattern `$regex'
+           |  Found: ${thrown.getMessage} """.stripMargin)
+    assert(p)
+  }
+  
+  def interceptAssertion(regex: String)(f: => Any) {
+    val thrown = intercept[AssertionError](f)
+    val p = regex.r.findFirstIn(thrown.getMessage).isDefined
+    if (!p)
+      println(
+        s"""expected assertion error with pattern `$regex'
            |  Found: ${thrown.getMessage} """.stripMargin)
     assert(p)
   }

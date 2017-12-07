@@ -6,6 +6,7 @@ import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.distributedmatrix._
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
+import org.json4s.jackson
 
 object RichIndexedRowMatrix {
   private def seqOp(truncatedBlockRow: Int, truncatedBlockCol: Int, excessRows: Int, excessCols: Int, blockSize: Int)
@@ -87,12 +88,33 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
 
     new BlockMatrix(new EmptyPartitionIsAZeroMatrixRDD(blocks), blockSize, rows, cols)
   }
-
+  
+  def writeAsBlockMatrix(uri: String, blockSize: Int) {
+    val rows = indexedRowMatrix.numRows()
+    val cols = indexedRowMatrix.numCols()
+    
+    val hadoop = indexedRowMatrix.rows.sparkContext.hadoopConfiguration
+    hadoop.mkDir(uri)
+    
+    // write blocks
+    hadoop.mkDir(uri + "/parts")
+    val gp = GridPartitioner(blockSize, rows, cols)
+    val blockCount = new WriteBlocksRDD(indexedRowMatrix, uri, gp).reduce(_ + _)
+    assert(blockCount == gp.numPartitions)
+    info(s"Wrote all $blockCount blocks of $rows x $cols matrix with block size $blockSize.")
+    
+    // write metadata
+    hadoop.writeDataFile(uri + BlockMatrix.metadataRelativePath) { os =>
+      jackson.Serialization.write(
+        BlockMatrixMetadata(blockSize, rows, cols),
+        os)
+    }
+  }
 }
 
 private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double])])
     extends RDD[((Int, Int), BDM[Double])](blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(blocks))) {
-  @transient val gp = (blocks.partitioner: @unchecked) match {
+  @transient val gp: GridPartitioner = (blocks.partitioner: @unchecked) match {
     case Some(p: GridPartitioner) => p
   }
 
