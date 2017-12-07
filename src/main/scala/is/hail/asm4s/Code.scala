@@ -189,12 +189,18 @@ object Code {
 
   def _null[T >: Null]: Code[T] = Code(new InsnNode(ACONST_NULL))
 
-  // FIXME: code should really carry around the stack so this type can be correct
-  // Currently, this is a huge potential place for errors.
-  def _pop[T]: Code[T] = Code(new InsnNode(POP))
-
-  // only use to pop long or double
-  def _pop2[T]: Code[T] = Code(new InsnNode(POP2))
+  def toUnit[T](c: Code[T])(implicit tti: TypeInfo[T]): Code[Unit] = {
+    val op = tti.slots match {
+      case 1 => POP
+      case 2 => POP2
+    }
+    new Code[Unit] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+          c.emit(il)
+          il += new InsnNode(op)
+      }
+    }
+  }
 
   // FIXME: code should really carry around the stack so this type can be correct
   // Currently, this is a huge potential place for errors.
