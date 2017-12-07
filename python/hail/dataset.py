@@ -3431,10 +3431,10 @@ class VariantDataset(HistoryMixin):
         nVariants = vds.count_variants()
         if nVariants == 0:
             fatal("Cannot run PCA: found 0 variants after filtering out variants that are all homozygous reference or all homozygous variant.")
-        print('Running PCA using {} variants.'.format(nVariants))
-        result = vds.pca("""let mean = va.AC / va.nCalled in
+        print("Running PCA using {} variants.".format(nVariants))
+        result = vds.pca('''let mean = va.AC / va.nCalled in
             if (isDefined(g.GT)) (g.GT.gt - mean) / sqrt(mean * (2 - mean) * {} / 2)
-            else 0""".format(nVariants),
+            else 0'''.format(nVariants),
             k, compute_loadings, as_array)
         vds.unpersist()
         return result
