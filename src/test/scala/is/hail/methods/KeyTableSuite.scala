@@ -145,17 +145,17 @@ class KeyTableSuite extends SparkSuite {
     assert(ktLeftJoin.count == ktLeft.count &&
       ktLeftJoin.nKeys == nExpectedKeys &&
       ktLeftJoin.nColumns == nExpectedColumns &&
-      ktLeftJoin.filter { a =>
+      ktLeftJoin.copy(rdd = ktLeftJoin.rdd.filter { a =>
         !rightKeys.contains(Option(leftJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
-      }.forall("isMissing(qPhen2) && isMissing(qPhen3)")
+      }).forall("isMissing(qPhen2) && isMissing(qPhen3)")
     )
 
     assert(ktRightJoin.count == ktRight.count &&
       ktRightJoin.nKeys == nExpectedKeys &&
       ktRightJoin.nColumns == nExpectedColumns &&
-      ktRightJoin.filter { a =>
+      ktRightJoin.copy(rdd = ktRightJoin.rdd.filter { a =>
         !leftKeys.contains(Option(rightJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
-      }.forall("isMissing(Status) && isMissing(qPhen)"))
+      }).forall("isMissing(Status) && isMissing(qPhen)"))
 
     assert(ktOuterJoin.count == nUnionRows &&
       ktOuterJoin.nKeys == ktLeft.nKeys &&
@@ -587,6 +587,10 @@ class KeyTableSuite extends SparkSuite {
       .annotateGlobalExpr("foo = [1,2,3]")
       .annotateGlobal(Map(5 -> "bar"), TDict(TInt32Optional, TStringOptional), "dict")
       .annotateGlobalExpr("another = foo[1]")
+
+    println(kt.globalSignature)
+    println(kt.globals.get(1))
+    println(kt.globals.get(2))
 
     assert(kt.filter("dict.get(index) == \"bar\"", true).count() == 1)
     assert(kt.annotate("baz = foo").forall("baz == [1,2,3]"))

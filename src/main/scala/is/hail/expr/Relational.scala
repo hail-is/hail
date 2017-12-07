@@ -2,7 +2,8 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.asm4s.FunctionBuilder
+import is.hail.asm4s.{Code, FunctionBuilder}
+import is.hail.expr.ir._
 import is.hail.keytable.KTLocalValue
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
@@ -539,9 +540,30 @@ case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rvd: RVD) 
     val localRowType = typ.rowType
     rvd.rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
   }
+
+  def filter(p: () => (RegionValue) => Boolean): KeyTableValue = {
+    copy(rvd = rvd.mapPartitions(typ.rowType) { it =>
+      val f = p()
+      it.flatMap { rv =>
+        if (f(rv))
+          Iterator.apply(rv)
+        else
+          Iterator.empty
+      }
+    })
+  }
 }
 
-case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruct) extends BaseType
+case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruct) extends BaseType {
+  def rowEC: EvalContext = EvalContext(rowType.fields.map { f => f.name -> f.typ } ++
+      globalType.fields.map { f => f.name -> f.typ }: _*)
+  def fields: Map[String, Type] = Map(rowType.fields.map { f => f.name -> f.typ } ++ globalType.fields.map { f => f.name -> f.typ }: _*)
+
+  def remapIR(ir: IR): IR = ir match {
+    case Ref(y, _) if rowType.selfField(y).isDefined => GetField(In(0, rowType), y, rowType.field(y).typ)
+    case ir2 => Recur(remapIR)(ir2)
+  }
+}
 
 object KeyTableIR {
   def optimize(ir: KeyTableIR): KeyTableIR = ir
@@ -564,4 +586,25 @@ case class KeyTableLiteral(value: KeyTableValue) extends KeyTableIR {
   }
 
   def execute(hc: HailContext): KeyTableValue = value
+}
+
+case class FilterKT(child: KeyTableIR, pred: IR) extends KeyTableIR {
+  def children: IndexedSeq[BaseIR] = Array(child, pred)
+
+  def typ: KeyTableType = child.typ
+
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterKT = {
+    assert(newChildren.length == 1)
+    FilterKT(newChildren(0).asInstanceOf[KeyTableIR], pred)
+  }
+  def execute(hc: HailContext): KeyTableValue = {
+    val ktv = child.execute(hc)
+
+    val mappedPred = typ.remapIR(pred)
+    Infer(mappedPred)
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Boolean]
+    Emit(mappedPred, fb)
+    val f = fb.result()
+    ktv.filter(() => rv => f()(rv.region, rv.offset, false))
+  }
 }
