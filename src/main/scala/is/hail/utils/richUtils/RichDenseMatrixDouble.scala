@@ -15,19 +15,52 @@ object RichDenseMatrixDouble {
       Some(DenseMatrix.horzcat(ms: _*))
   }
   
+  // copies n doubles as bytes from data to dos
+  def writeDoubles(dos: DataOutputStream, data: Array[Double], n: Int) {
+    assert(n <= data.length)
+    var nLeft = n
+    val bufSize = if (nLeft < (1 << 14)) nLeft else 1 << 14 // up to 8k doubles
+    val buf = new Array[Byte](bufSize << 3) // up to 64k bytes
+
+    var off = 0
+    while (nLeft > 0) {
+      val nCopy = if (nLeft <= bufSize) nLeft else bufSize
+      
+      Memory.memcpy(buf, 0, data, off, nCopy)
+      dos.write(buf, 0, nCopy << 3)
+
+      off += nCopy
+      nLeft -= nCopy
+    }
+  }
+
+  // copies n doubles as bytes from dis to data
+  def readDoubles(dis: DataInputStream, data: Array[Double], n: Int) {
+    assert(n <= data.length)
+    var nLeft = n
+    val bufSize = if (nLeft < (1 << 14)) nLeft else 1 << 14 // up to 8k doubles
+    val buf = new Array[Byte](bufSize << 3) // up to 64k bytes
+
+    var off = 0
+    while (nLeft > 0) {
+      val nCopy = if (nLeft <= bufSize) nLeft else bufSize
+      
+      dis.readFully(buf, 0, nCopy << 3)
+      Memory.memcpy(data, off, buf, 0, nCopy)
+
+      off += nCopy
+      nLeft -= nCopy
+    }
+  }
+  
   // assumes zero offset and minimal majorStride 
   def read(dis: DataInputStream): DenseMatrix[Double] = {
     val rows = dis.readInt()
     val cols = dis.readInt()
     val isTranspose = dis.readBoolean()
-    val length = rows * cols
-    
-    val n = length << 3
-    val bytes = new Array[Byte](n)
-    dis.readFully(bytes, 0, n)
-        
-    val data = new Array[Double](length)
-    Memory.memcpy(data, 0, bytes, 0, length)
+
+    val data = new Array[Double](rows * cols)
+    readDoubles(dis, data, data.length)
     
     new DenseMatrix[Double](rows, cols, data,
       offset = 0, majorStride = if (isTranspose) cols else rows, isTranspose = isTranspose)
@@ -92,16 +125,9 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
 
     dos.writeInt(m.rows)
     dos.writeInt(m.cols)
+    assert(m.data.length == m.rows * m.cols)
     dos.writeBoolean(m.isTranspose)
     
-    val length = m.data.length
-    assert(length == m.rows * m.cols)
-    assert(length.toLong << 3 <= Int.MaxValue)
-
-    val n = length << 3
-    val bytes = new Array[Byte](n)    
-    Memory.memcpy(bytes, 0, m.data, 0, length)
-
-    dos.write(bytes, 0, n)
+    RichDenseMatrixDouble.writeDoubles(dos, m.data, m.data.length)
   }
 }
