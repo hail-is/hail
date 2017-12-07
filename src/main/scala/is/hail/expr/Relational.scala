@@ -518,7 +518,7 @@ case class FilterVariants(
 case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rvd: RVD) {
   def rdd: RDD[Row] = {
     val localRowType = typ.rowType
-    rvd.rdd.map { rv => new UnsafeRow(localRowType, rv) }
+    rvd.rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
   }
 }
 
