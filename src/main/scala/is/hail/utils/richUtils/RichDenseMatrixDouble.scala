@@ -23,10 +23,10 @@ object RichDenseMatrixDouble {
     val length = rows * cols
     
     val n = length << 3
-    val bytes = Array.ofDim[Byte](n)
+    val bytes = new Array[Byte](n)
     in.read(bytes, 0, n)
     
-    val data = Array.ofDim[Double](length)
+    val data = new Array[Double](length)
     Memory.memcpy(data, 0, bytes, 0, length)
     
     new DenseMatrix[Double](rows, cols, data,
@@ -98,7 +98,7 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     assert(length == m.rows * m.cols)
 
     val n = length << 3
-    val bytes = Array.ofDim[Byte](n)    
+    val bytes = new Array[Byte](n)    
     Memory.memcpy(bytes, 0, m.data, 0, length)
     
     out.write(bytes, 0, n)
