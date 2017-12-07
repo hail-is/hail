@@ -64,7 +64,7 @@ object BaldingNicholsModel {
     val popDist = DenseVector(popDistArray)
     val FstOfPop = DenseVector(FstOfPopArray)
 
-    info(s"balding nichols: generating genotypes for $K populations, $N samples, and $M variants...")
+    info(s"balding_nichols_model: generating genotypes for $K populations, $N samples, and $M variants...")
 
     Rand.generator.setSeed(seed)
 
@@ -118,7 +118,6 @@ object BaldingNicholsModel {
     val matrixType = MatrixType(vsmMetadata)
 
     val rowType = matrixType.rowType
-
 
     val rdd = sc.parallelize((0 until M).view.map(m => (m, Rand.randInt.draw())), nPartitions)
       .mapPartitions { it =>
