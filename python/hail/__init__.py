@@ -1,7 +1,7 @@
 from hail.representation import *
 from hail.context import HailContext
 from hail.dataset import VariantDataset
-from hail.typ import TInt32, TInt64, TFloat32, TFloat64, TSet, TString, TBoolean, TArray, TDict, TLocus, TVariant, TAltAllele, TCall, TInterval
+from hail.typ import Type, TInt32, TInt64, TFloat32, TFloat64, TSet, TString, TBoolean, TArray, TDict, TLocus, TVariant, TAltAllele, TCall, TInterval
 from hail.keytable import KeyTable
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
