@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.keytable.KTLocalValue
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
-import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType}
+import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType, RVD}
 import is.hail.variant.{VSMFileMetadata, VSMLocalValue, VSMMetadata}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -515,7 +515,9 @@ case class FilterVariants(
   }
 }
 
-case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rdd2: RDD[RegionValue])
+case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rvd: RVD) {
+  def rdd: RDD[Row] = rvd.rdd.map { rv => new UnsafeRow(typ.rowType, rv) }
+}
 
 case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruct) extends BaseType
 

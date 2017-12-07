@@ -7,6 +7,7 @@ import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
+import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, VSMLocalValue}
 import org.apache.commons.lang3.StringUtils
@@ -156,7 +157,7 @@ object KeyTable {
 
     new KeyTable(hc, KeyTableLiteral(
       KeyTableType(signature, key, globalSignature),
-      KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), rdd2)
+      KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), RVD(signature, rdd2))
       ))
   }
 }
@@ -164,10 +165,10 @@ object KeyTable {
 class KeyTable(val hc: HailContext,
   val ir: KeyTableIR) {
 
-  def this(hc: HailContext, rdd2: RDD[RegionValue], signature: TStruct, key: Array[String] = Array.empty,
+  def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: Array[String] = Array.empty,
     globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, KeyTableLiteral(
     KeyTableType(signature, key, globalSignature),
-    KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), rdd2)
+    KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), RVD(signature, rdd))
   ))
 
   lazy val value: KeyTableValue = {
@@ -175,16 +176,11 @@ class KeyTable(val hc: HailContext,
     opt.execute(hc)
   }
 
-  lazy val KeyTableValue(ktType, KTLocalValue(globals), rdd2) = value
+  lazy val KeyTableValue(ktType, KTLocalValue(globals), rvd) = value
 
   val KeyTableType(signature, key, globalSignature) = ir.typ
 
-  lazy val rdd: RDD[Row] = {
-    val localSignature = signature
-    rdd2.map { rv =>
-      new UnsafeRow(localSignature, rv.region.copy(), rv.offset)
-    }
-  }
+  lazy val rdd: RDD[Row] = value.rdd
 
   if (!(columns ++ globalSignature.fieldNames).areDistinct())
     fatal(s"Column names are not distinct: ${ (columns ++ globalSignature.fieldNames).duplicates().mkString(", ") }")
@@ -210,13 +206,13 @@ class KeyTable(val hc: HailContext,
 
   def columns: Array[String] = fields.map(_.name)
 
-  def count(): Long = rdd2.count()
+  def count(): Long = rvd.count()
 
   def nColumns: Int = fields.length
 
   def nKeys: Int = key.length
 
-  def nPartitions: Int = rdd2.partitions.length
+  def nPartitions: Int = rvd.partitions.length
 
   def keySignature: TStruct = {
     val (t, _) = signature.select(key)
@@ -857,11 +853,11 @@ class KeyTable(val hc: HailContext,
       signature.toPrettyString(compact = true),
       Some(globalSignature.toPrettyString(compact = true)),
       Some(JSONAnnotationImpex.exportAnnotation(globals, globalSignature)),
-      rdd2.partitions.length)
+      nPartitions)
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))
 
-    rdd2.writeRows(path, signature)
+    rvd.rdd.writeRows(path, signature)
   }
 
   def cache(): KeyTable = persist("MEMORY_ONLY")
@@ -1101,11 +1097,14 @@ class KeyTable(val hc: HailContext,
     KeyTable(hc, rdd, signature, key, globalSignature, globals)
   }
 
-  def copy2(rdd2: RDD[RegionValue] = rdd2,
+  def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
     key: Array[String] = key,
     globalSignature: TStruct = globalSignature,
     globals: Row = globals): KeyTable = {
-    new KeyTable(hc, rdd2, signature, key, globalSignature, globals)
+    new KeyTable(hc, KeyTableLiteral(
+      KeyTableType(signature, key, globalSignature),
+      KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), rvd)
+    ))
   }
 }

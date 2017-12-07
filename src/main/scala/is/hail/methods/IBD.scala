@@ -3,10 +3,11 @@ package is.hail.methods
 import is.hail.HailContext
 import is.hail.expr.{EvalContext, Parser, TFloat64, TInt64, TString, TStruct, TVariant}
 import is.hail.keytable.KeyTable
-import is.hail.annotations.{Annotation, RegionValue, RegionValueBuilder, MemoryBuffer, UnsafeRow}
+import is.hail.annotations.{Annotation, MemoryBuffer, RegionValue, RegionValueBuilder, UnsafeRow}
 import is.hail.expr._
 import is.hail.variant.{GenomeReference, Genotype, HardCallView, Variant, VariantSampleMatrix}
 import is.hail.methods.IBD.generateComputeMaf
+import is.hail.rvd.RVD
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -326,8 +327,8 @@ object IBD {
   }
 
   def toRDD(kt: KeyTable): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
-    val rdd2 = kt.rdd2
-    rdd2.map { rv =>
+    val rvd = kt.rvd
+    rvd.map { rv =>
       val region = rv.region
       val i = TString.loadString(region, ibdSignature.loadField(rv, 0))
       val j = TString.loadString(region, ibdSignature.loadField(rv, 1))
