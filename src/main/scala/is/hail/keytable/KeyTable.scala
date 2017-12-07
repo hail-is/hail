@@ -8,7 +8,7 @@ import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.utils._
-import is.hail.variant.GenomeReference
+import is.hail.variant.{GenomeReference, VSMLocalValue}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
@@ -41,6 +41,8 @@ case class KeyTableMetadata(
   globalSchema: Option[String],
   globals: Option[JValue],
   n_partitions: Int)
+
+case class KTLocalValue(globals: Row)
 
 object KeyTable {
   final val fileVersion: Int = 0x101
@@ -151,16 +153,31 @@ object KeyTable {
         rv
       }
     }
-    new KeyTable(hc, rdd2, signature, key, globalSignature, globals)
+
+    new KeyTable(hc, KeyTableLiteral(
+      KeyTableType(signature, key, globalSignature),
+      KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), rdd2)
+      ))
   }
 }
 
 class KeyTable(val hc: HailContext,
-  val rdd2: RDD[RegionValue],
-  val signature: TStruct,
-  val key: Array[String] = Array.empty,
-  val globalSignature: TStruct = TStruct.empty(),
-  val globals: Row = Row.empty) {
+  val ir: KeyTableIR) {
+
+  def this(hc: HailContext, rdd2: RDD[RegionValue], signature: TStruct, key: Array[String] = Array.empty,
+    globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, KeyTableLiteral(
+    KeyTableType(signature, key, globalSignature),
+    KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), rdd2)
+  ))
+
+  lazy val value: KeyTableValue = {
+    val opt = KeyTableIR.optimize(ir)
+    opt.execute(hc)
+  }
+
+  lazy val KeyTableValue(ktType, KTLocalValue(globals), rdd2) = value
+
+  val KeyTableType(signature, key, globalSignature) = ir.typ
 
   lazy val rdd: RDD[Row] = {
     val localSignature = signature
