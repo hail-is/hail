@@ -42,18 +42,20 @@ class GroupedMatrixTable(object):
             analyze(v, self._grouped_indices, {self._parent._row_axis, self._parent._col_axis},
                     set(self._parent._fields.keys()))
             replace_aggregables(v._ast, 'gs')
+            strs.append('`{}` = {}'.format(k, v._ast.to_hql()))
 
-        struct_expr = to_expr(Struct(**named_exprs))
-        group_str = self._group._ast.to_hql()
 
         if self._grouped_indices == self._parent._row_indices:
             # group variants
             return cleanup(
-                MatrixTable(self._parent._hc, base._jvds.groupVariantsBy(group_str, struct_expr._ast.to_hql(), True)))
+                MatrixTable(self._parent._hc,
+                            base._jvds.groupVariantsBy(self._group._ast.to_hql(), ',\n'.join(strs))))
         else:
             assert self._grouped_indices == self._parent._col_indices
             # group samples
-            raise NotImplementedError()
+            return cleanup(
+                MatrixTable(self._parent._hc,
+                            base._jvds.groupSamplesBy(self._group._ast.to_hql(), ',\n'.join(strs))))
 
 
 class MatrixTable(object):
