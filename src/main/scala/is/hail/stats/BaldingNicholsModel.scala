@@ -82,12 +82,36 @@ object BaldingNicholsModel {
     val saSignature = TStruct("pop" -> TInt32())
     val vaSignature = TStruct("ancestralAF" -> TFloat64(), "AF" -> TArray(TFloat64()))
 
+    val ancestralAFAnnotation = af_dist match {
+      case UniformDist(minVal, maxVal) => Annotation("UniformDist", minVal, maxVal)
+      case BetaDist(a, b) => Annotation("BetaDist", a, b)
+      case TruncatedBetaDist(a, b, minVal, maxVal) => Annotation("TruncatedBetaDist", a, b, minVal, maxVal)
+    }
+    val globalAnnotation =
+      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
+
+
+    val ancestralAFAnnotationSignature = af_dist match {
+      case UniformDist(minVal, maxVal) => TStruct("type" -> TString(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
+      case BetaDist(a, b) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64())
+      case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
+    }
+
+    val globalSignature = TStruct(
+      "nPops" -> TInt32(),
+      "nSamples" -> TInt32(),
+      "nVariants" -> TInt32(),
+      "popDist" -> TArray(TFloat64()),
+      "Fst" -> TArray(TFloat64()),
+      "ancestralAFDist" -> ancestralAFAnnotationSignature,
+      "seed" -> TInt32())
+
     val vsmMetadata = VSMMetadata(
       TString(),
       saSignature,
       TVariant(gr),
       vaSignature,
-      TStruct.empty(),
+      globalSignature,
       TStruct("GT" -> TCall()),
       wasSplit = true)
 
@@ -174,34 +198,8 @@ object BaldingNicholsModel {
         }
       }
 
-
     val sampleIds = (0 until N).map(_.toString).toArray
     val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(pop))
-
-    val ancestralAFAnnotation = af_dist match {
-      case UniformDist(minVal, maxVal) => Annotation("UniformDist", minVal, maxVal)
-      case BetaDist(a, b) => Annotation("BetaDist", a, b)
-      case TruncatedBetaDist(a, b, minVal, maxVal) => Annotation("TruncatedBetaDist", a, b, minVal, maxVal)
-    }
-    val globalAnnotation =
-      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
-
-
-    val ancestralAFAnnotationSignature = af_dist match {
-      case UniformDist(minVal, maxVal) => TStruct("type" -> TString(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
-      case BetaDist(a, b) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64())
-      case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
-    }
-
-    val globalSignature = TStruct(
-      "nPops" -> TInt32(),
-      "nSamples" -> TInt32(),
-      "nVariants" -> TInt32(),
-      "popDist" -> TArray(TFloat64()),
-      "Fst" -> TArray(TFloat64()),
-      "ancestralAFDist" -> ancestralAFAnnotationSignature,
-      "seed" -> TInt32())
-
 
     // FIXME: should use fast keys
     val ordrdd = OrderedRVD(matrixType.orderedRVType, rdd, None, None)

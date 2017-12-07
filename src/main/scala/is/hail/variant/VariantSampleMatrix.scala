@@ -2110,6 +2110,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   def typecheck() {
     var foundError = false
     if (!globalSignature.typeCheck(globalAnnotation)) {
+      foundError = true
       warn(
         s"""found violation in global annotation
            |Schema: ${ globalSignature.toPrettyString() }
