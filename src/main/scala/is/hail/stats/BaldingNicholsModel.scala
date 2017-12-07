@@ -123,7 +123,8 @@ object BaldingNicholsModel {
     val rdd = sc.parallelize((0 until M).view.map(m => (m, Rand.randInt.draw())), nPartitions)
       .mapPartitions { it =>
 
-        val rvb = new RegionValueBuilder(MemoryBuffer())
+        val rv = RegionValue(MemoryBuffer())
+        val rvb = new RegionValueBuilder(rv.region)
 
         it.map { case (m, perVariantSeed) =>
           val perVariantRandomGenerator = new JDKRandomGenerator
@@ -194,7 +195,8 @@ object BaldingNicholsModel {
           }
           rvb.endArray()
           rvb.endStruct()
-          rvb.result()
+          rv.setOffset(rvb.end())
+          rv
         }
       }
 

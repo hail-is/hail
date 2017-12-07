@@ -125,7 +125,7 @@ class PCRelateSuite extends SparkSuite {
     val seed = 0
     val n = 100
     val nVariants = 10000
-    val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
+    val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
     val pcs = samplePCA(vds, 2, false)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
     val actual = runPcRelateHail(vds, pcs, maf=0.01)
@@ -138,7 +138,7 @@ class PCRelateSuite extends SparkSuite {
     val seed = 0
     val n = 100
     val nVariants = 10000
-    val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
+    val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
     val pcs = samplePCA(vds, 2, false)._2
     val truth = runPcRelateR(vds, maf=0.01)
     val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
