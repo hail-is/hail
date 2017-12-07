@@ -103,7 +103,7 @@ class GenomeReference(HistoryMixin):
 
         :rtype: str
         """
-        if not self._name:
+        if self._name is None:
             self._name = self._jrep.name()
         return self._name
 
@@ -113,7 +113,7 @@ class GenomeReference(HistoryMixin):
 
         :rtype: list of str
         """
-        if not self._contigs:
+        if self._contigs is None:
             self._contigs = [str(x) for x in self._jrep.contigs()]
         return self._contigs
 
@@ -123,7 +123,7 @@ class GenomeReference(HistoryMixin):
 
         :rtype: dict of str to int
         """
-        if not self._lengths:
+        if self._lengths is None:
             self._lengths = {str(x._1()): int(x._2()) for x in jiterable_to_list(self._jrep.lengths())}
         return self._lengths
 
@@ -133,7 +133,7 @@ class GenomeReference(HistoryMixin):
 
         :rtype: list of str
         """
-        if not self._x_contigs:
+        if self._x_contigs is None:
             self._x_contigs = [str(x) for x in jiterable_to_list(self._jrep.xContigs())]
         return self._x_contigs
 
@@ -143,7 +143,7 @@ class GenomeReference(HistoryMixin):
 
         :rtype: list of str
         """
-        if not self._y_contigs:
+        if self._y_contigs is None:
             self._y_contigs = [str(x) for x in jiterable_to_list(self._jrep.yContigs())]
         return self._y_contigs
 
@@ -153,7 +153,7 @@ class GenomeReference(HistoryMixin):
 
         :rtype: list of str
         """
-        if not self._mt_contigs:
+        if self._mt_contigs is None:
             self._mt_contigs = [str(x) for x in jiterable_to_list(self._jrep.mtContigs())]
         return self._mt_contigs
 
@@ -165,9 +165,9 @@ class GenomeReference(HistoryMixin):
         """
 
         from hail.representation.interval import Interval
-        if not self._par_jrep:
+        if self._par_jrep is None:
             self._par_jrep = self._jrep.par()
-        if not self._par:
+        if self._par is None:
             self._par = [Interval._from_java(jrep, self) for jrep in self._par_jrep]
         return self._par
 
