@@ -16,16 +16,16 @@ object RichDenseMatrixDouble {
   }
   
   // assumes zero offset and minimal majorStride 
-  def read(in: DataInputStream): DenseMatrix[Double] = {
-    val rows = in.readInt()
-    val cols = in.readInt()
-    val isTranspose = in.readBoolean()
+  def read(dis: DataInputStream): DenseMatrix[Double] = {
+    val rows = dis.readInt()
+    val cols = dis.readInt()
+    val isTranspose = dis.readBoolean()
     val length = rows * cols
     
     val n = length << 3
     val bytes = new Array[Byte](n)
-    in.read(bytes, 0, n)
-    
+    dis.readFully(bytes, 0, n)
+        
     val data = new Array[Double](length)
     Memory.memcpy(data, 0, bytes, 0, length)
     
@@ -86,21 +86,22 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     }
   }
   
-  def write(out: DataOutputStream) {
+  def write(dos: DataOutputStream) {
     assert(m.offset == 0)
     assert(m.majorStride == (if (m.isTranspose) m.cols else m.rows))
 
-    out.writeInt(m.rows)
-    out.writeInt(m.cols)
-    out.writeBoolean(m.isTranspose)
+    dos.writeInt(m.rows)
+    dos.writeInt(m.cols)
+    dos.writeBoolean(m.isTranspose)
     
     val length = m.data.length
     assert(length == m.rows * m.cols)
+    assert(length.toLong << 3 <= Int.MaxValue)
 
     val n = length << 3
     val bytes = new Array[Byte](n)    
     Memory.memcpy(bytes, 0, m.data, 0, length)
-    
-    out.write(bytes, 0, n)
+
+    dos.write(bytes, 0, n)
   }
 }
