@@ -43,22 +43,14 @@ class GenomeReferenceSuite extends SparkSuite {
   }
 
   @Test def testAssertions() {
-    TestUtils.interceptFatal("The following X contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
-      Set("X"), Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    TestUtils.interceptFatal("No lengths given for the following contigs:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5),
-      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    TestUtils.interceptFatal("Contigs found in `lengths' that are not present in `contigs'")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100),
-      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    TestUtils.interceptFatal("The following Y contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
-      Set.empty[String], Set("Y"), Set.empty[String], Array.empty[Interval[Locus]]))
-    TestUtils.interceptFatal("The following mitochondrial contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
-      Set.empty[String], Set.empty[String], Set("MT"), Array.empty[Interval[Locus]]))
-    TestUtils.interceptFatal("Must have at least one contig in the reference genome.")(GenomeReference("test", Array.empty[String], Map.empty[String, Int],
-      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    TestUtils.interceptFatal("The contig name for PAR interval")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
-      Set.empty[String], Set.empty[String], Set.empty[String], Array(Interval(Locus("X", 1), Locus("X", 5)))))
-    TestUtils.interceptFatal("in both X and Y contigs.")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
-      Set("1"), Set("1"), Set.empty[String], Array.empty[Interval[Locus]]))
+    TestUtils.interceptFatal("Must have at least one contig in the reference genome.")(GenomeReference("test", Array.empty[String], Map.empty[String, Int]))
+    TestUtils.interceptFatal("No lengths given for the following contigs:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5)))
+    TestUtils.interceptFatal("Contigs found in `lengths' that are not present in `contigs'")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100)))
+    TestUtils.interceptFatal("The following X contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), xContigs = Set("X")))
+    TestUtils.interceptFatal("The following Y contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), yContigs = Set("Y")))
+    TestUtils.interceptFatal("The following mitochondrial contig names are absent from the reference:")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), mtContigs = Set("MT")))
+    TestUtils.interceptFatal("The contig name for PAR interval")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), parInput = Array((Locus("X", 1), Locus("X", 5)))))
+    TestUtils.interceptFatal("in both X and Y contigs.")(GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), xContigs = Set("1"), yContigs = Set("1")))
   }
 
   @Test def testVariant() {
@@ -91,8 +83,7 @@ class GenomeReferenceSuite extends SparkSuite {
   }
 
   @Test def testParser() {
-    val gr = GenomeReference("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
-      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]])
+    val gr = GenomeReference("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     GenomeReference.addReference(gr)
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
@@ -169,8 +160,7 @@ class GenomeReferenceSuite extends SparkSuite {
       "l1.position == 100 && l2.position == 100 &&" +
       """i1.start == Locus(GRCh37)("1", 5) && !i2.contains(l1)"""))
 
-    val gr = GenomeReference("foo2", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
-        Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]])
+    val gr = GenomeReference("foo2", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     GenomeReference.addReference(gr)
     GenomeReference.setDefaultReference(gr)
     assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == gr.variant)
