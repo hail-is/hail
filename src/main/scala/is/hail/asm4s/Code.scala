@@ -423,7 +423,11 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def <(rhs: Code[Long]): Code[Boolean] = compare(rhs) < 0
 
+  def <=(rhs: Code[Long]): Code[Boolean] = compare(rhs) <= 0
+
   def >(rhs: Code[Long]): Code[Boolean] = compare(rhs) > 0
+
+  def >=(rhs: Code[Long]): Code[Boolean] = compare(rhs) >= 0
 
   def ceq(rhs: Code[Long]): Code[Boolean] = compare(rhs) ceq 0
 
