@@ -1,7 +1,5 @@
-from hail.stats.methods import linreg
-from hail.stats.distributions import TruncatedBetaDist, BetaDist, UniformDist
+from .distributions import TruncatedBetaDist, BetaDist, UniformDist
 
-__all__ = ['linreg',
-           'TruncatedBetaDist',
+__all__ = ['TruncatedBetaDist',
            'BetaDist',
            'UniformDist']

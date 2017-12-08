@@ -20,17 +20,17 @@ def require_biallelic(func, vds, *args, **kwargs):
 class VariantDataset(HistoryMixin):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
-    Variant datasets may be generated from other formats using the :py:class:`.HailContext` import methods,
+    Variant datasets may be generated from other formats using the :py:class:`hail.api1.context.HailContext` import methods,
     constructed from a variant-keyed :py:class:`~hail.KeyTable` using :py:meth:`.VariantDataset.from_table`,
-    and simulated using :py:meth:`~hail.HailContext.balding_nichols_model`.
+    and simulated using :py:meth:`~hail.api1.HailContext.balding_nichols_model`.
 
     Once a variant dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`,
-    use :py:meth:`~hail.HailContext.read` to load the variant dataset into the environment.
+    use :py:meth:`~hail.api1.HailContext.read` to load the variant dataset into the environment.
 
     >>> vds = hc.read("data/example.vds")
 
     :ivar hc: Hail Context.
-    :vartype hc: :class:`.HailContext`
+    :vartype hc: :class:`hail.api1.context.HailContext`
     """
 
     def __init__(self, hc, jvds):
@@ -140,8 +140,8 @@ class VariantDataset(HistoryMixin):
         """True if multiallelic variants have been split into multiple biallelic variants.
 
         Result is True if :py:meth:`~hail.VariantDataset.split_multi` or :py:meth:`~hail.VariantDataset.filter_multi` has been called on this variant dataset,
-        or if the variant dataset was imported with :py:meth:`~hail.HailContext.import_plink`, :py:meth:`~hail.HailContext.import_gen`,
-        or :py:meth:`~hail.HailContext.import_bgen`, or if the variant dataset was simulated with :py:meth:`~hail.HailContext.balding_nichols_model`.
+        or if the variant dataset was imported with :py:meth:`~hail.api1.HailContext.import_plink`, :py:meth:`~hail.api1.HailContext.import_gen`,
+        or :py:meth:`~hail.api1.HailContext.import_bgen`, or if the variant dataset was simulated with :py:meth:`~hail.api1.HailContext.balding_nichols_model`.
 
         :rtype: bool
         """
@@ -235,7 +235,7 @@ class VariantDataset(HistoryMixin):
     def annotate_alleles_expr(self, expr):
         """Annotate alleles with expression.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         **Examples**
 
@@ -592,7 +592,7 @@ class VariantDataset(HistoryMixin):
                 sa.annotations.toKeep3 = table.toKeep3'''
                 
         Finally, for more information about importing key tables from text, 
-        see the documentation for :py:meth:`.HailContext.import_table`.
+        see the documentation for :py:meth:`hail.api1.HailContext.import_table`.
 
         :param table: Key table.
         :type table: :py:class:`.KeyTable`
@@ -797,7 +797,7 @@ class VariantDataset(HistoryMixin):
                 va.annotations.toKeep3 = table.toKeep3'''
                 
         Finally, for more information about importing key tables from text, 
-        see the documentation for :py:meth:`.HailContext.import_table`.
+        see the documentation for :py:meth:`hail.api1.HailContext.import_table`.
 
         :param table: Key table.
         :type table: :py:class:`.KeyTable`
@@ -1152,9 +1152,9 @@ class VariantDataset(HistoryMixin):
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Example**
         
@@ -1360,9 +1360,9 @@ class VariantDataset(HistoryMixin):
     def export_gen(self, output, precision=4):
         """Export variant dataset as GEN and SAMPLE file.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
 
@@ -1391,7 +1391,7 @@ class VariantDataset(HistoryMixin):
         - 3 probabilities per sample ``(pHomRef, pHet, pHomVar)``.
         - Any filtered genotypes will be output as ``(0.0, 0.0, 0.0)``.
         - If the input data contained Phred-scaled likelihoods, the probabilities in the GEN file will be the normalized genotype probabilities assuming a uniform prior.
-        - If the input data did not have genotype probabilities such as data imported using :py:meth:`~hail.HailContext.import_plink`, all genotype probabilities will be ``(0.0, 0.0, 0.0)``.
+        - If the input data did not have genotype probabilities such as data imported using :py:meth:`~hail.api1.HailContext.import_plink`, all genotype probabilities will be ``(0.0, 0.0, 0.0)``.
 
         The sample file has 3 columns:
 
@@ -1414,9 +1414,9 @@ class VariantDataset(HistoryMixin):
     def export_plink(self, output, fam_expr='id = s'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
 
@@ -1484,7 +1484,7 @@ class VariantDataset(HistoryMixin):
     def export_vcf(self, output, append_to_header=None, parallel=False, metadata=None):
         """Export variant dataset as a .vcf or .vcf.bgz file.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         **Examples**
 
@@ -1530,7 +1530,7 @@ class VariantDataset(HistoryMixin):
         will have empty Description fields and the Number and Type fields will be determined from their corresponding Hail types.
         To add a desired Description, Number, and/or Type to a FORMAT or INFO field or to specify FILTER lines, use the
         ``metadata`` option to supply a dictionary with the relevant information.
-        See :py:class:`~hail.HailContext.get_vcf_metadata` for how this dictionary should be structured.
+        See :py:class:`~hail.api1.HailContext.get_vcf_metadata` for how this dictionary should be structured.
 
 
         The *example_out.vcf* header will *not* contain lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
@@ -1553,7 +1553,7 @@ class VariantDataset(HistoryMixin):
 
         :param bool parallel: If true, return a set of VCF files (one per partition) rather than serially concatenating these files.
 
-        :param metadata: Dictionary with information to fill in the VCF header. See :py:class:`~hail.HailContext.get_vcf_metadata` for an example.
+        :param metadata: Dictionary with information to fill in the VCF header. See :py:class:`~hail.api1.HailContext.get_vcf_metadata` for an example.
         :type metadata: (dict of str to (dict of str to (dict of str to str))) or None
         """
 
@@ -1743,7 +1743,7 @@ class VariantDataset(HistoryMixin):
         alternate allele, but not for the reference allele
         (i.e. ``aIndex`` will never be zero).
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         **Examples**
 
@@ -1927,7 +1927,7 @@ class VariantDataset(HistoryMixin):
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         This method is much less computationally expensive than
         :py:meth:`.split_multi`, and can also be used to produce
@@ -1951,7 +1951,7 @@ class VariantDataset(HistoryMixin):
     def verify_biallelic(self):
         """Verify dataset has only biallelic variants.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         :return: Dataset which can be used for biallelic-only methods.
         :rtype: :class:`.VariantDataset`
@@ -2159,7 +2159,7 @@ class VariantDataset(HistoryMixin):
     def filter_intervals(self, intervals, keep=True):
         """Filter variants with an interval or list of intervals.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         **Examples**
 
@@ -2335,9 +2335,9 @@ class VariantDataset(HistoryMixin):
     def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
         
@@ -2426,7 +2426,7 @@ class VariantDataset(HistoryMixin):
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         A hard-called variant dataset is about two orders of magnitude
         smaller than a standard sequencing dataset. Use this
@@ -2473,9 +2473,9 @@ class VariantDataset(HistoryMixin):
     def ibd(self, maf=None, bounded=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
 
@@ -2552,9 +2552,9 @@ class VariantDataset(HistoryMixin):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
 
@@ -2696,9 +2696,9 @@ class VariantDataset(HistoryMixin):
     def ld_prune(self, num_cores, r2=0.2, window=1000000, memory_per_core=256):
         """Prune variants in linkage disequilibrium (LD).
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
 
@@ -2769,9 +2769,9 @@ class VariantDataset(HistoryMixin):
     def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
 
@@ -3243,9 +3243,9 @@ class VariantDataset(HistoryMixin):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
 
@@ -3400,7 +3400,7 @@ class VariantDataset(HistoryMixin):
     def min_rep(self, left_aligned=False):
         """Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         **Examples**
 
@@ -3431,7 +3431,7 @@ class VariantDataset(HistoryMixin):
 
         Variants that are all homozygous reference or all homozygous variant are filtered before evaluation.
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         :param int k: Number of principal components.
 
@@ -3540,11 +3540,11 @@ class VariantDataset(HistoryMixin):
         """Compute relatedness estimates between individuals using a variant of the
         PC-Relate method.
 
-        .. include:: _templates/experimental.rst
+        .. include:: ../_templates/experimental.rst
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
 
@@ -4372,9 +4372,9 @@ class VariantDataset(HistoryMixin):
     def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
 
@@ -4444,7 +4444,7 @@ class VariantDataset(HistoryMixin):
     def sample_qc(self, root='sa.qc'):
         """Compute per-sample QC metrics.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         **Annotations**
 
@@ -4585,7 +4585,7 @@ class VariantDataset(HistoryMixin):
     def summarize(self):
         """Returns a summary of useful information about the dataset.
         
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
         
         **Examples**
         
@@ -4981,9 +4981,9 @@ class VariantDataset(HistoryMixin):
     def tdt(self, pedigree, root='va.tdt'):
         """Performs a transmission disequilibrium test and returns results as a key table..
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
-        .. include:: _templates/req_biallelic.rst
+        .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
 
@@ -5164,8 +5164,8 @@ class VariantDataset(HistoryMixin):
     def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
 
-        .. include:: _templates/req_biallelic.rst
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_biallelic.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         **Examples**
 
@@ -5240,7 +5240,7 @@ class VariantDataset(HistoryMixin):
     def vep(self, config, block_size=1000, root='va.vep', csq=False):
         """Annotate variants with VEP.
 
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with
         the `LOFTEE plugin <https://github.com/konradjk/loftee>`__
@@ -5466,9 +5466,9 @@ class VariantDataset(HistoryMixin):
     def nirvana(self, config, block_size=500000, root='va.nirvana'):
         """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
         
-        .. include:: _templates/experimental.rst
+        .. include:: ../_templates/experimental.rst
         
-        .. include:: _templates/req_tvariant.rst
+        .. include:: ../_templates/req_tvariant.rst
 
         :py:meth:`~hail.VariantDataset.nirvana` runs `Nirvana <https://github.com/Illumina/Nirvana>`_ on the current
         variant dataset and adds the result as a variant annotation.

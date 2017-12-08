@@ -1,13 +1,13 @@
 from hail.typecheck import *
 from hail.utils.java import handle_py4j
-
+from hail.api2 import MatrixTable
 
 @handle_py4j
-@typecheck_method(dataset=anytype, root=strlike)
+@typecheck_method(dataset=MatrixTable, root=strlike)
 def sample_qc(dataset, name='sample_qc'):
     """Compute per-sample metrics useful for quality control.
 
-    .. include:: _templates/req_tvariant.rst
+    .. include:: ../_templates/req_tvariant.rst
 
     **Examples**
 

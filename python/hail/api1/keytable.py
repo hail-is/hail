@@ -40,7 +40,7 @@ kt_type = lazy()
 class KeyTable(HistoryMixin):
     """Hail's version of a SQL table where columns can be designated as keys.
 
-    Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_table`
+    Key tables may be imported from a text file or Spark DataFrame with :py:meth:`hail.api1.HailContext.import_table`
     or :py:meth:`~hail.KeyTable.from_dataframe`, generated from a variant dataset
     with :py:meth:`~hail.VariantDataset.make_table`, :py:meth:`~hail.VariantDataset.genotypes_table`,
     :py:meth:`~hail.VariantDataset.samples_table`, or :py:meth:`~hail.VariantDataset.variants_table`.
@@ -76,7 +76,7 @@ class KeyTable(HistoryMixin):
     +---+---+------+
 
     :ivar hc: Hail Context
-    :vartype hc: :class:`.HailContext`
+    :vartype hc: :class:`hail.api1.HailContext`
     """
 
     def __init__(self, hc, jkt):
@@ -1119,7 +1119,7 @@ class KeyTable(HistoryMixin):
         
         :param str filename: Path to file.
 
-        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :class:`hail.api1.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
         
         :return: Interval-keyed table.
@@ -1192,7 +1192,7 @@ class KeyTable(HistoryMixin):
 
         :param str path: Path to .bed file.
 
-        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
         :rtype: :class:`.KeyTable`

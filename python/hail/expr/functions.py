@@ -376,7 +376,7 @@ def sqrt(x):
 
 @typecheck(x=anytype)
 @args_to_expr
-def str(x):
+def to_str(x):
     return _func("str", TString(), x)
 
 

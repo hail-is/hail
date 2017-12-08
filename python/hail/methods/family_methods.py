@@ -1,9 +1,10 @@
 from hail.genetics.pedigree import Pedigree
 from hail.typecheck import *
 from hail.utils.java import handle_py4j
+from hail.api2 import MatrixTable
 
 @handle_py4j
-@typecheck_method(dataset=anytype, # fix this
+@typecheck_method(dataset=MatrixTable, # fix this
                   pedigree=Pedigree,
                   complete_trios=bool)
 def trio_matrix(dataset, pedigree, complete_trios=False):
@@ -53,5 +54,4 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
 
     :rtype: :class:`.VariantDataset`
     """
-    from hail.api2 import MatrixTable
     return MatrixTable(dataset._, dataset._jvds.trioMatrix(pedigree._jrep, complete_trios))

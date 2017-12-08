@@ -7,7 +7,7 @@ from hail.expr.types import Type, TInt32, TInt64, TFloat32, TFloat64, TSet, TStr
     TVariant, \
     TAltAllele, TCall, TInterval, TStruct
 from hail.genetics import *
-from hail.utils import hadoop_read, hadoop_write, hadoop_copy
+from hail.utils import hadoop_read, hadoop_write, hadoop_copy, Struct
 
 if sys.version_info >= (3, 0) or sys.version_info <= (2, 6):
     raise EnvironmentError('Hail requires Python 2.7, found {}.{}'.format(
@@ -46,5 +46,4 @@ __all__ = ['HailContext',
            'hadoop_copy',
            'KinshipMatrix',
            'LDMatrix',
-           'representation'
            ]

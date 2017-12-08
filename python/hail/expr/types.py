@@ -138,7 +138,7 @@ class TInt32(Type):
     """
     Hail type corresponding to 32-bit integers.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#int>`__
     - in Python, these are represented natively as Python integers
@@ -172,7 +172,7 @@ class TInt64(Type):
     """
     Hail type corresponding to 64-bit integers.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#long>`__
     - in Python, these are represented natively as Python integers
@@ -208,7 +208,7 @@ class TFloat32(Type):
     """
     Hail type for 32-bit floating point numbers.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#float>`__
     - in Python, these are represented natively as Python floats
@@ -246,7 +246,7 @@ class TFloat64(Type):
     """
     Hail type for 64-bit floating point numbers.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#double>`__
     - in Python, these are represented natively as Python floats
@@ -281,7 +281,7 @@ class TString(Type):
     """
     Hail type corresponding to str.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#string>`__
     - in Python, these are represented natively as Python unicode strings
@@ -313,7 +313,7 @@ class TBoolean(Type):
     """
     Hail type corresponding to bool.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#boolean>`__
     - in Python, these are represented natively as Python booleans (i.e. ``True`` and ``False``)
@@ -345,7 +345,7 @@ class TArray(Type):
     """
     Hail type corresponding to list.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#array>`__
     - in Python, these are represented natively as Python sequences
@@ -407,7 +407,7 @@ class TSet(Type):
     """
     Hail type corresponding to set.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#set>`__
     - in Python, these are represented natively as Python mutable sets
@@ -470,7 +470,7 @@ class TDict(Type):
     """
     Hail type corresponding to dict.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#dict>`__
     - in Python, these are represented natively as Python dict
@@ -555,12 +555,12 @@ class Field(object):
 
 class TStruct(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Struct`.
+    Hail type corresponding to :class:`hail.utils.Struct`.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#struct>`__
-    - in Python, values are instances of :class:`hail.representation.Struct`
+    - in Python, values are instances of :class:`hail.genetics.Struct`
 
     :param names: names of fields
     :type names: list of str
@@ -589,7 +589,7 @@ class TStruct(Type):
         :type fields: list of :class:`.Field`
 
         :param bool required: Flag for whether the struct can be missing.
-        
+
         :return: TStruct from input fields
         :rtype: :class:`.TStruct`
         """
@@ -636,7 +636,7 @@ class TStruct(Type):
     def _typecheck(self, annotation):
         if annotation:
             if not isinstance(annotation, Struct):
-                raise TypeCheckError("TStruct expected type hail.representation.Struct, but found '%s'" %
+                raise TypeCheckError("TStruct expected type hail.genetics.Struct, but found '%s'" %
                                      type(annotation))
             for f in self.fields:
                 if not (f.name in annotation):
@@ -663,14 +663,14 @@ class TStruct(Type):
 
 class TVariant(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Variant`.
+    Hail type corresponding to :class:`hail.genetics.Variant`.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#variant>`__
-    - in Python, values are instances of :class:`hail.representation.Variant`
+    - in Python, values are instances of :class:`hail.genetics.Variant`
 
-    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+    :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
     :type reference_genome: :class:`.GenomeReference`
 
     """
@@ -706,7 +706,7 @@ class TVariant(Type):
 
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, genetics.Variant):
-            raise TypeCheckError('TVariant expected type hail.representation.Variant, but found %s' %
+            raise TypeCheckError('TVariant expected type hail.genetics.Variant, but found %s' %
                                  type(annotation))
 
     def _repr(self):
@@ -724,12 +724,12 @@ class TVariant(Type):
 
 class TAltAllele(Type):
     """
-    Hail type corresponding to :class:`hail.representation.AltAllele`.
+    Hail type corresponding to :class:`hail.genetics.AltAllele`.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#altallele>`__
-    - in Python, values are instances of :class:`hail.representation.AltAllele`
+    - in Python, values are instances of :class:`hail.genetics.AltAllele`
 
     """
     __metaclass__ = InternType
@@ -754,7 +754,7 @@ class TAltAllele(Type):
         if not annotation and self.required:
             raise TypeCheckError('!TAltAllele cannot be missing')
         if annotation and not isinstance(annotation, genetics.AltAllele):
-            raise TypeCheckError('TAltAllele expected type hail.representation.AltAllele, but found %s' %
+            raise TypeCheckError('TAltAllele expected type hail.genetics.AltAllele, but found %s' %
                                  type(annotation))
 
     def _repr(self):
@@ -763,12 +763,12 @@ class TAltAllele(Type):
 
 class TCall(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Call`.
+    Hail type corresponding to :class:`hail.genetics.Call`.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#call>`__
-    - in Python, values are instances of :class:`hail.representation.Call`
+    - in Python, values are instances of :class:`hail.genetics.Call`
 
     """
     __metaclass__ = InternType
@@ -795,7 +795,7 @@ class TCall(Type):
         if not annotation and self.required:
             raise TypeCheckError('!TCall cannot be missing')
         if annotation and not isinstance(annotation, genetics.Call):
-            raise TypeCheckError('TCall expected type hail.representation.Call, but found %s' %
+            raise TypeCheckError('TCall expected type hail.genetics.Call, but found %s' %
                                  type(annotation))
 
     def _repr(self):
@@ -804,14 +804,14 @@ class TCall(Type):
 
 class TLocus(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Locus`.
+    Hail type corresponding to :class:`hail.genetics.Locus`.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#locus>`__
-    - in Python, values are instances of :class:`hail.representation.Locus`
+    - in Python, values are instances of :class:`hail.genetics.Locus`
 
-    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+    :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
     :type reference_genome: :class:`.GenomeReference`
 
     """
@@ -849,7 +849,7 @@ class TLocus(Type):
         if not annotation and self.required:
             raise TypeCheckError('!TLocus cannot be missing')
         if annotation and not isinstance(annotation, genetics.Locus):
-            raise TypeCheckError('TLocus expected type hail.representation.Locus, but found %s' %
+            raise TypeCheckError('TLocus expected type hail.genetics.Locus, but found %s' %
                                  type(annotation))
 
     def _repr(self):
@@ -867,14 +867,14 @@ class TLocus(Type):
 
 class TInterval(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Interval`.
+    Hail type corresponding to :class:`hail.genetics.Interval`.
 
-    .. include:: hailType.rst
+    .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#interval>`__
-    - in Python, values are instances of :class:`hail.representation.Interval`
+    - in Python, values are instances of :class:`hail.genetics.Interval`
 
-    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+    :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
     :type reference_genome: :class:`.GenomeReference`
     """
 
@@ -911,7 +911,7 @@ class TInterval(Type):
         if not annotation and self.required:
             raise TypeCheckError('!TInterval is a required field')
         if annotation and not isinstance(annotation, genetics.Interval):
-            raise TypeCheckError('TInterval expected type hail.representation.Interval, but found %s' %
+            raise TypeCheckError('TInterval expected type hail.genetics.Interval, but found %s' %
                                  type(annotation))
 
     def _repr(self):

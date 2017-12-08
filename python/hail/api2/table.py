@@ -105,10 +105,6 @@ class GroupedTable(TableTemplate):
         for fd in parent._fields:
             self._set_field(fd, parent._fields[fd])
 
-    @property
-    def groups(self):
-        return self._groups
-
     @handle_py4j
     @typecheck_method(n=integral)
     def set_partitions(self, n):

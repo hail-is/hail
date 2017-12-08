@@ -1,19 +1,13 @@
-from hail.genetics.qc import sample_qc
-from hail.genetics.ldMatrix import LDMatrix
-from hail.genetics.kinshipMatrix import KinshipMatrix
-from hail.genetics.statgen import ld_matrix
-from hail.genetics.family_methods import trio_matrix
-from hail.genetics.variant import Variant, Locus, AltAllele
-from hail.genetics.call import Call
-from hail.genetics.pedigree import Pedigree, Trio
-from hail.genetics.interval import Interval
-from hail.genetics.genomeref import GenomeReference
+from .call import Call
+from .genomeref import GenomeReference
+from .interval import Interval
+from .kinshipMatrix import KinshipMatrix
+from .ldMatrix import LDMatrix
+from .pedigree import Pedigree, Trio
+from .variant import Variant, Locus, AltAllele
 
-__all__ = ['sample_qc',
-           'LDMatrix',
+__all__ = ['LDMatrix',
            'KinshipMatrix',
-           'ld_matrix',
-           'trio_matrix',
            'Variant',
            'Locus',
            'AltAllele',

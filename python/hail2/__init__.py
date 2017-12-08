@@ -6,6 +6,7 @@ from hail.expr import Type, TInt32, TInt64, TFloat32, TFloat64, TString, TBoolea
 import hail.expr.functions as f
 from hail.utils import hadoop_read, hadoop_write, hadoop_copy
 from hail.api2 import MatrixTable, Table, HailContext
+from hail.methods import trio_matrix, ld_matrix, linreg, sample_qc
 
 __all__ = ['HailContext',
            'Table',
@@ -40,4 +41,8 @@ __all__ = ['HailContext',
            'hadoop_copy',
            'KinshipMatrix',
            'LDMatrix',
-           'f']
+           'f',
+           'trio_matrix',
+           'ld_matrix',
+           'linreg',
+           'sample_qc']

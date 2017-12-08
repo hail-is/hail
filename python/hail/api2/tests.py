@@ -467,7 +467,7 @@ class FunctionsTests(unittest.TestCase):
             runif=f.runif(kt.b, kt.a),
             select=f.select(kt.h, 'c', 'b'),
             sqrt=f.sqrt(kt.a),
-            to_str=[f.str(5), f.str(kt.a), f.str(kt.g)],
+            to_str=[f.to_str(5), f.to_str(kt.a), f.to_str(kt.g)],
             where=f.cond(kt.i, 5, 10)
         ).to_hail1().take(1)[0])
 

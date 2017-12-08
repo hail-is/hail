@@ -19,7 +19,7 @@ class Variant(HistoryMixin):
     :param str ref: reference allele
     :param alts: single alternate allele, or list of alternate alleles
     :type alts: str or list of str
-    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+    :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
     :type reference_genome: :class:`.GenomeReference`
     """
 
@@ -83,7 +83,7 @@ class Variant(HistoryMixin):
         >>> v_multiallelic = Variant.parse('16:12311:T:C,TTT,A')
 
         :param str string: String to parse.
-        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
         :rtype: :class:`.Variant`
@@ -460,7 +460,7 @@ class Locus(HistoryMixin):
     :param contig: chromosome identifier
     :type contig: str or int
     :param int position: chromosomal position (1-indexed)
-    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+    :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
     :type reference_genome: :class:`.GenomeReference`
     """
 
@@ -517,7 +517,7 @@ class Locus(HistoryMixin):
         >>> l2 = Locus.parse('X:4201230')
 
         :param str string: String to parse.
-        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
         :rtype: :class:`.Locus`

@@ -1,5 +1,5 @@
 import hail.expr.functions
-from hail.expr.types import *
+from .types import *
 
 __all__ = ['Type',
            'TInt32',
