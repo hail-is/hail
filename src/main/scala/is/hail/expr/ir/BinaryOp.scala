@@ -5,34 +5,28 @@ import is.hail.asm4s._
 import is.hail.expr._
 
 object BinaryOp {
-  def inferReturnType(op: BinaryOp, l: Type, r: Type): Type = op match {
-    case Add() | Subtract() | Multiply() | Divide() => (l, r) match {
-      case (_: TInt32, _: TInt32) => TInt32()
-      case (_: TInt64, _: TInt64) => TInt64()
-      case (_: TFloat32, _: TFloat32) => TFloat32()
-      case (_: TFloat64, _: TFloat64) => TFloat64()
-      case _ => incompatible(l, r, op)
-    }
-    case GT() | GTEQ() | LTEQ() | LT() => (l, r) match {
-      case (_: TInt32, _: TInt32) => TBoolean()
-      case (_: TInt64, _: TInt64) => TBoolean()
-      case (_: TFloat32, _: TFloat32) => TBoolean()
-      case (_: TFloat64, _: TFloat64) => TBoolean()
-      case _ => incompatible(l, r, op)
-    }
-    case EQ() | NEQ() => (l, r) match {
-      case (_: TInt32, _: TInt32) => TBoolean()
-      case (_: TInt64, _: TInt64) => TBoolean()
-      case (_: TFloat32, _: TFloat32) => TBoolean()
-      case (_: TFloat64, _: TFloat64) => TBoolean()
-      case (_: TBoolean, _: TBoolean) => TBoolean()
-      case _ => incompatible(l, r, op)
-    }
-    case DoubleAmpersand() | DoublePipe() => (l, r) match {
-      case (_: TBoolean, _: TBoolean) => TBoolean()
-      case _ => incompatible(l, r, op)
-    }
+  private val returnType: PartialFunction[(BinaryOp, Type, Type), Type] = {
+    case (Add() | Subtract() | Multiply() | Divide(), _: TInt32, _: TInt32) => TInt32()
+    case (Add() | Subtract() | Multiply() | Divide(), _: TInt64, _: TInt64) => TInt64()
+    case (Add() | Subtract() | Multiply() | Divide(), _: TFloat32, _: TFloat32) => TFloat32()
+    case (Add() | Subtract() | Multiply() | Divide(), _: TFloat64, _: TFloat64) => TFloat64()
+    case (GT() | GTEQ() | LTEQ() | LT(), _: TInt32, _: TInt32) => TBoolean()
+    case (GT() | GTEQ() | LTEQ() | LT(), _: TInt64, _: TInt64) => TBoolean()
+    case (GT() | GTEQ() | LTEQ() | LT(), _: TFloat32, _: TFloat32) => TBoolean()
+    case (GT() | GTEQ() | LTEQ() | LT(), _: TFloat64, _: TFloat64) => TBoolean()
+    case (EQ() | NEQ(), _: TInt32, _: TInt32) => TBoolean()
+    case (EQ() | NEQ(), _: TInt64, _: TInt64) => TBoolean()
+    case (EQ() | NEQ(), _: TFloat32, _: TFloat32) => TBoolean()
+    case (EQ() | NEQ(), _: TFloat64, _: TFloat64) => TBoolean()
+    case (EQ() | NEQ(), _: TBoolean, _: TBoolean) => TBoolean()
+    case (DoubleAmpersand() | DoublePipe(), _: TBoolean, _: TBoolean) => TBoolean()
   }
+
+  def maybeReturnType(op: BinaryOp, l: Type, r: Type): Option[Type] =
+    returnType.lift(op, l, r)
+
+  def getReturnType(op: BinaryOp, l: Type, r: Type): Type =
+    returnType.lift(op, l, r).getOrElse(incompatible(l, r, op))
 
   private def incompatible[T](lt: Type, rt: Type, op: BinaryOp): T =
     fatal(s"Cannot apply $op to $lt and $rt")

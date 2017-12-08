@@ -50,10 +50,10 @@ object Infer {
       case x@ApplyBinaryPrimOp(op, l, r, _) =>
         infer(l)
         infer(r)
-        x.typ = BinaryOp.inferReturnType(op, l.typ, r.typ)
+        x.typ = BinaryOp.getReturnType(op, l.typ, r.typ)
       case x@ApplyUnaryPrimOp(op, v, _) =>
         infer(v)
-        x.typ = UnaryOp.inferReturnType(op, v.typ)
+        x.typ = UnaryOp.getReturnType(op, v.typ)
       case x@MakeArray(args, typ) =>
         if (args.length == 0)
           assert(typ != null)
