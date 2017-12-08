@@ -11,14 +11,14 @@ object UnaryOp {
     case (Bang(), t: TBoolean) => t
   }
 
-  def maybeReturnType(op: UnaryOp, t: Type): Option[Type] =
+  def returnTypeOption(op: UnaryOp, t: Type): Option[Type] =
     returnType.lift(op, t)
 
   def getReturnType(op: UnaryOp, t: Type): Type =
     returnType.lift(op, t).getOrElse(incompatible(t, op))
 
   private def incompatible[T](t: Type, op: UnaryOp): T =
-    fatal(s"Cannot apply $op to values of type $t")
+    throw new RuntimeException(s"Cannot apply $op to values of type $t")
 
   def compile(op: UnaryOp, t: Type, x: Code[_]): Code[_] = t match {
     case _: TBoolean =>

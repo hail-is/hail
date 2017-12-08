@@ -122,4 +122,5 @@ trait Implicits {
 
   implicit def toRichCodeRegion(r: Code[Region]): RichCodeRegion = new RichCodeRegion(r)
 
+  implicit def toRichPartialFunction[A, B](x: PartialFunction[A, B]): RichPartialFunction[A, B] = new RichPartialFunction(x)
 }

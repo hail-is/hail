@@ -3,7 +3,7 @@ package is.hail.expr
 import is.hail.expr.ir._
 import org.testng.annotations.Test
 
-class AstToIrSuite {
+class ASTToIRSuite {
   private def toIR[T](s: String): Option[IR] = {
     val ast = Parser.parseToAST(s, EvalContext())
     ast.toIR match {

@@ -405,7 +405,7 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
 
   def toIR: Option[IR] = for {
     irElements <- anyFailAllFail(elements.map(_.toIR))
-  } yield ir.MakeArray(irElements.toArray, this.`type`.asInstanceOf[TArray])
+  } yield ir.MakeArray(irElements.toArray, `type`.asInstanceOf[TArray])
 }
 
 case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
@@ -725,18 +725,18 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
 
-  private val tryPrimOpConversion: IndexedSeq[IR] => Option[IR] = {
+  private val tryPrimOpConversion: PartialFunction[IndexedSeq[IR], IR] = {
     val pf: PartialFunction[IndexedSeq[IR], Option[IR]] = {
       case IndexedSeq(x) => for {
         op <- ir.UnaryOp.fromString.lift(fn)
-        t <- ir.UnaryOp.maybeReturnType(op, x.typ)
+        t <- ir.UnaryOp.returnTypeOption(op, x.typ)
       } yield ir.ApplyUnaryPrimOp(op, x, t)
       case IndexedSeq(x, y) => for {
         op <- ir.BinaryOp.fromString.lift(fn)
-        t <- ir.BinaryOp.maybeReturnType(op, x.typ, y.typ)
+        t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
       } yield ir.ApplyBinaryPrimOp(op, x, y, t)
     }
-    pf.lift.andThen(_.flatten)
+    pf.flatten
   }
 
   def toIR: Option[IR] = for {
@@ -831,7 +831,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     if method == "[]" && lhs.`type`.isInstanceOf[TArray]
     a <- lhs.toIR
     i <- rhs.toIR
-  } yield ir.ArrayRef(a, i, this.`type`)
+  } yield ir.ArrayRef(a, i, `type`)
 }
 
 case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extends AST(posn, bindings.map(_._2) :+ body) {
@@ -879,7 +879,7 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 
   def compile() = CM.lookup(symbol)
 
-  def toIR: Option[IR] = Some(ir.Ref(symbol, this.`type`))
+  def toIR: Option[IR] = Some(ir.Ref(symbol, `type`))
 }
 
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
@@ -917,5 +917,5 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     condition <- cond.toIR
     consequent <- thenTree.toIR
     alternate <- elseTree.toIR
-  } yield ir.If(condition, consequent, alternate, this.`type`)
+  } yield ir.If(condition, consequent, alternate, `type`)
 }

@@ -22,14 +22,14 @@ object BinaryOp {
     case (DoubleAmpersand() | DoublePipe(), _: TBoolean, _: TBoolean) => TBoolean()
   }
 
-  def maybeReturnType(op: BinaryOp, l: Type, r: Type): Option[Type] =
+  def returnTypeOption(op: BinaryOp, l: Type, r: Type): Option[Type] =
     returnType.lift(op, l, r)
 
   def getReturnType(op: BinaryOp, l: Type, r: Type): Type =
     returnType.lift(op, l, r).getOrElse(incompatible(l, r, op))
 
   private def incompatible[T](lt: Type, rt: Type, op: BinaryOp): T =
-    fatal(s"Cannot apply $op to $lt and $rt")
+    throw new RuntimeException(s"Cannot apply $op to $lt and $rt")
 
   def compile(op: BinaryOp, lt: Type, rt: Type, l: Code[_], r: Code[_]): Code[_] = (lt, rt) match {
     case (_: TInt32, _: TInt32) =>
