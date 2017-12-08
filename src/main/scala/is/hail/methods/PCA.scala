@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.keytable.KeyTable
+import is.hail.rvd.RVD
 import is.hail.stats.{RegressionUtils, ToHWENormalizedIndexedRowMatrix}
 import is.hail.utils._
 import is.hail.variant.{HTSGenotypeView, Variant, VariantSampleMatrix}

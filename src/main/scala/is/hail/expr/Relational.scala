@@ -2,9 +2,10 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.keytable.KTLocalValue
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
-import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType}
+import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType, RVD}
 import is.hail.variant.{VSMFileMetadata, VSMLocalValue, VSMMetadata}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -514,17 +515,27 @@ case class FilterVariants(
   }
 }
 
-case class KeyTableType(rowType: TStruct, key: Array[String]) extends BaseType
+case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rvd: RVD) {
+  def rdd: RDD[Row] = {
+    val localRowType = typ.rowType
+    rvd.rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
+  }
+}
+
+case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruct) extends BaseType
+
+object KeyTableIR {
+  def optimize(ir: KeyTableIR): KeyTableIR = ir
+}
 
 abstract sealed class KeyTableIR extends BaseIR {
   def typ: KeyTableType
 
-  def execute(hc: HailContext): RDD[RegionValue]
+  def execute(hc: HailContext): KeyTableValue
 }
 
-case class KeyTableLiteral(
-  typ: KeyTableType,
-  rdd2: RDD[RegionValue]) extends KeyTableIR {
+case class KeyTableLiteral(value: KeyTableValue) extends KeyTableIR {
+  def typ: KeyTableType = value.typ
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -533,5 +544,5 @@ case class KeyTableLiteral(
     this
   }
 
-  def execute(hc: HailContext): RDD[RegionValue] = rdd2
+  def execute(hc: HailContext): KeyTableValue = value
 }
