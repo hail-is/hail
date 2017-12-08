@@ -582,8 +582,8 @@ class BlockMatrixSuite extends SparkSuite {
   
   @Test
   def readWriteBDM() {
-    val lm = BDM.rand[Double](1 << 8, (1 << 8) + 1)
-
+    val lm = BDM.rand[Double](256, 129) // 33024 doubles
+    
     val fname = tmpDir.createTempFile("test")
     
     val dos = new DataOutputStream(hadoopConf.unsafeWriter(fname))
@@ -593,7 +593,7 @@ class BlockMatrixSuite extends SparkSuite {
     val dis = new DataInputStream(hadoopConf.unsafeReader(fname))
     val lm2 = RichDenseMatrixDouble.read(dis)
     dis.close()
-        
+    
     assert(lm === lm2)
   }
 }

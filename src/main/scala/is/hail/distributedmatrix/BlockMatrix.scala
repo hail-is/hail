@@ -768,7 +768,7 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, gp: GridPartitioner) e
       dos
     }
     
-    assert(gp.cols << 3 <= Int.MaxValue)
+    assert((gp.cols << 3) <= Int.MaxValue)
     val bytes = new Array[Byte]((gp.cols << 3).toInt)
     
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]

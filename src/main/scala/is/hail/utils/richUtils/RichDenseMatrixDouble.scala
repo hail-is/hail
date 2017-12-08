@@ -19,12 +19,12 @@ object RichDenseMatrixDouble {
   def writeDoubles(dos: DataOutputStream, data: Array[Double], n: Int) {
     assert(n <= data.length)
     var nLeft = n
-    val bufSize = if (nLeft < (1 << 14)) nLeft else 1 << 14 // up to 8k doubles
-    val buf = new Array[Byte](bufSize << 3) // up to 64k bytes
+    val bufSize = math.min(nLeft, 8192)
+    val buf = new Array[Byte](bufSize << 3) // up to 64KB of doubles
 
     var off = 0
     while (nLeft > 0) {
-      val nCopy = if (nLeft <= bufSize) nLeft else bufSize
+      val nCopy = math.min(nLeft, bufSize)
       
       Memory.memcpy(buf, 0, data, off, nCopy)
       dos.write(buf, 0, nCopy << 3)
@@ -38,12 +38,12 @@ object RichDenseMatrixDouble {
   def readDoubles(dis: DataInputStream, data: Array[Double], n: Int) {
     assert(n <= data.length)
     var nLeft = n
-    val bufSize = if (nLeft < (1 << 14)) nLeft else 1 << 14 // up to 8k doubles
-    val buf = new Array[Byte](bufSize << 3) // up to 64k bytes
+    val bufSize = math.min(nLeft, 8192)
+    val buf = new Array[Byte](bufSize << 3) // up to 64KB of doubles
 
     var off = 0
     while (nLeft > 0) {
-      val nCopy = if (nLeft <= bufSize) nLeft else bufSize
+      val nCopy = math.min(nLeft, bufSize)
       
       dis.readFully(buf, 0, nCopy << 3)
       Memory.memcpy(data, off, buf, 0, nCopy)
