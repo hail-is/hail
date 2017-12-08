@@ -12,10 +12,12 @@ import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods._
 import is.hail.sparkextras._
 import is.hail.rvd.{OrderedRVD, OrderedRVType}
+import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import org.apache.hadoop
-import org.apache.spark.mllib.linalg.DenseMatrix
+import org.apache.spark.mllib.linalg.{DenseMatrix, Vectors}
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.AggregateWithContext._
 import org.apache.spark.sql.Row
@@ -2706,5 +2708,64 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       i += 1
     }
     PCRelate.toKeyTable(this, new DenseMatrix(nSamples, k, scoreArray, false), maf, blockSize, minKinship, statistics)
+  }
+  
+  def toIndexedRowMatrix(expr: String, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix) = {
+    val partitionSizes = rdd2.mapPartitions(it => Iterator.single(it.size)).collect().scanLeft(0)(_ + _)
+    assert(partitionSizes.length == rdd2.getNumPartitions + 1)
+    val pSizeBc = sparkContext.broadcast(partitionSizes)
+
+    val localRowType = rowType
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+    
+    val ec = EvalContext(Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, vSignature),
+      "va" -> (2, vaSignature),
+      "s" -> (3, sSignature),
+      "sa" -> (4, saSignature),
+      "g" -> (5, genotypeSignature)))
+    val f = RegressionUtils.parseExprAsDouble(expr, ec)
+    ec.set(0, globalAnnotation)
+
+    val indexedRows = rdd2.mapPartitionsWithIndex {case (i, it) =>
+      val pStartIdx = pSizeBc.value(i)
+      var j = 0
+      val ur = new UnsafeRow(localRowType)
+      it.map {rv =>
+        ur.set(rv)
+        ec.set(1, ur.get(1))
+        ec.set(2, ur.get(2))
+        val gs = ur.getAs[IndexedSeq[Any]](3)
+        val ns = gs.length
+        val a = new Array[Double](ns)
+        var k = 0
+        while(k < ns) {
+          ec.set(3, localSampleIdsBc.value(k))
+          ec.set(4, localSampleAnnotationsBc.value(k))
+          ec.set(5, gs(k))
+          a(k) = f() match {
+            case null => fatal(s"Entry expr must be non-missing. Found missing value for sample ${ localSampleIdsBc.value(k) } and variant ${ ur.get(1) }")
+            case t => t.toDouble
+          }
+          k += 1
+        }
+        val row = IndexedRow(pStartIdx + j, Vectors.dense(a))
+        j += 1
+        row
+      }
+    }
+
+    (someIf(getVariants,
+      rdd2.mapPartitions{it =>
+        val ur = new UnsafeRow(localRowType)
+        it.map { rv =>
+          ur.set(rv)
+          ur.get(1)
+        }
+      }.collect()
+    ),
+    new IndexedRowMatrix(indexedRows, partitionSizes(partitionSizes.length - 1), nSamples))
   }
 }
