@@ -268,7 +268,7 @@ class GenomeReference(HistoryMixin):
         :type file: str
         """
 
-        self._jrep.write(Env.hc(), file)
+        self._jrep.write(Env.hc()._jhc, file)
 
     @handle_py4j
     def _init_from_java(self, jrep):
