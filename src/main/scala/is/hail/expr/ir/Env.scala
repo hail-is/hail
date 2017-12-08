@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 object Env {
   type K = String
+  def empty[V]: Env[V] = new Env()
 }
 
 class Env[V] private (val m: Map[Env.K,V]) {
