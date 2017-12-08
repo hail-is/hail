@@ -4,9 +4,8 @@ import datetime
 import inspect
 import itertools
 from collections import OrderedDict
+
 from decorator import decorator
-from hail.utils import hadoop_write
-from hail.java import Env
 
 
 def parse_args(f, args, kwargs, is_method=True):
@@ -18,7 +17,7 @@ def parse_args(f, args, kwargs, is_method=True):
     defaults = n_postnl_args * [None] + defaults
 
     parsed_args = OrderedDict({k: v for k, (v, d) in zip(arg_names, zip(args, defaults)) if v is not d})
-    parsed_args.update(OrderedDict({k:v for k,v in kwargs.iteritems()}))
+    parsed_args.update(OrderedDict({k: v for k, v in kwargs.iteritems()}))
     return parsed_args
 
 
@@ -31,6 +30,7 @@ def set_history(result, f):
             f(r, index=i)
     else:
         f(result)
+
 
 @decorator
 def record_init(func, obj, *args, **kwargs):
@@ -91,6 +91,7 @@ def write_history(path_arg_name, is_dir=False, parallel_write=None):
          .write(output_path))
 
         return result
+
     return decorator(_write)
 
 
@@ -156,11 +157,13 @@ class History(object):
         return History(expr, statements)
 
     def write(self, file):
+        from hail.utils import hadoop_write
         with hadoop_write(file) as f:
             f.write(self.formatted() + "\n")
 
     def formatted(self):
         now = datetime.datetime.utcnow()
+        from hail.utils.java import Env
         history = "# {}\n# version: {}\n\n".format(now.isoformat(), Env.hc().version)
         history += "from hail import *\n\n"
         for stmt in self.statements:
