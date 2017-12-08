@@ -524,7 +524,7 @@ object RichRDDRegionValue {
 }
 
 class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
-  def writeRows(path: String, t: TStruct) {
+  def writeRows(path: String, t: TStruct): Array[Long] = {
     rdd.writePartitions(path, RichRDDRegionValue.writeRowsPartition(t))
   }
 }

@@ -24,6 +24,8 @@ case class VSMLocalValue(
 }
 
 object VSMFileMetadata {
+  def apply(metadata: VSMMetadata, localValue: VSMLocalValue): VSMFileMetadata = VSMFileMetadata(metadata, localValue, None)
+
   def apply(sampleIds: IndexedSeq[String],
     sampleAnnotations: IndexedSeq[Annotation] = null,
     globalAnnotation: Annotation = Annotation.empty,
@@ -47,7 +49,9 @@ object VSMFileMetadata {
 
 case class VSMFileMetadata(
   metadata: VSMMetadata,
-  localValue: VSMLocalValue)
+  localValue: VSMLocalValue,
+  partitionCounts: Option[Array[Long]]) {
+}
 
 case class VSMMetadata(
   sSignature: Type = TString(),

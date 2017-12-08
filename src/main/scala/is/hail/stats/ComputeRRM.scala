@@ -96,27 +96,27 @@ object ToNormalizedIndexedRowMatrix {
     require(vds.wasSplit)
     val n = vds.nSamples
 
-    // extra leading 0 from scanLeft
-    val partitionSizes = vds.rdd2.mapPartitions(it => Iterator.single(it.size)).collect().scanLeft(0)(_ + _)
-    assert(partitionSizes.length == vds.rdd2.getNumPartitions + 1)
-    val pSizeBc = vds.sparkContext.broadcast(partitionSizes)
+    val partStarts = vds.partitionStarts()
+
+    assert(partStarts.length == vds.rdd2.getNumPartitions + 1)
+    val partStartsBc = vds.sparkContext.broadcast(partStarts)
 
     val rowType = vds.rowType
     val indexedRows = vds.rdd2.mapPartitionsWithIndex { case (i, it) =>
       val view = HardCallView(rowType)
 
-      val partitionStartIndex = pSizeBc.value(i)
-      var indexInPartition = 0
+      val start = partStartsBc.value(i)
+      var j = 0
       it.flatMap { rv =>
         view.setRegion(rv)
         val row = RegressionUtils.normalizedHardCalls(view, n)
-            .map { a => IndexedRow(partitionStartIndex + indexInPartition, Vectors.dense(a)) }
-        indexInPartition += 1
+            .map { a => IndexedRow(start + j, Vectors.dense(a)) }
+        j += 1
         row
       }
     }.persist()
 
-    new IndexedRowMatrix(indexedRows, partitionSizes(partitionSizes.length - 1), n)
+    new IndexedRowMatrix(indexedRows, partStarts.last, n)
   }
 }
 

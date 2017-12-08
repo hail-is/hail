@@ -43,13 +43,16 @@ case class VDSMetadata(
   genotype_schema: String,
   sample_annotations: JValue,
   global_annotation: JValue,
-  n_partitions: Int)
+  // FIXME make partition_counts non-optional, remove n_partitions at next reimport
+  n_partitions: Int,
+  partition_counts: Option[Array[Long]])
 
 object VariantSampleMatrix {
   final val fileVersion: Int = 0x101
 
   def read(hc: HailContext, dirname: String,
     dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix = {
+    // FIXME check _SUCCESS next time we force reimport
     val (fileMetadata, nPartitions) = readFileMetadata(hc.hadoopConf, dirname)
     new VariantSampleMatrix(hc,
       fileMetadata.metadata,
@@ -165,7 +168,8 @@ object VariantSampleMatrix {
     val annotations = sampleInfo.map(_._2)
 
     (VSMFileMetadata(VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, metadata.split),
-      VSMLocalValue(globalAnnotation, ids, annotations)),
+      VSMLocalValue(globalAnnotation, ids, annotations),
+      metadata.partition_counts),
       metadata.n_partitions)
   }
 
@@ -404,6 +408,16 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     }
       .toOrderedRDD
   }
+
+  def partitionCounts(): Array[Long] = {
+    ast.partitionCounts match {
+      case Some(counts) => counts
+      case None => rdd2.countPerPartition()
+    }
+  }
+
+  // length nPartitions + 1, first element 0, last element rdd2 count
+  def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)
 
   def stringSampleIds: IndexedSeq[String] = {
     assert(sSignature.isInstanceOf[TString])
@@ -1044,7 +1058,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
   def count(): (Long, Long) = (nSamples, countVariants())
 
-  def countVariants(): Long = rdd2.count()
+  def countVariants(): Long = partitionCounts().sum
 
   def variants: RDD[Annotation] = rdd.keys
 
@@ -2193,7 +2207,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       Array("v", "s"))
   }
 
-  def writeMetadata(dirname: String, nPartitions: Int) {
+  def writeMetadata(dirname: String, partitionCounts: Array[Long]) {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
@@ -2221,7 +2235,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       global_schema = globalSignature.toPrettyString(compact = true),
       sample_annotations = sampleAnnotationsJ,
       global_annotation = globalJ,
-      n_partitions = nPartitions)
+      n_partitions = partitionCounts.length,
+      partition_counts = Some(partitionCounts))
 
     hConf.writeTextFile(dirname + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))
@@ -2287,13 +2302,15 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     else if (hadoopConf.exists(dirname))
       fatal(s"file already exists at `$dirname'")
 
-    writeMetadata(dirname, rdd2.partitions.length)
+    val partitionCounts = rdd2.rdd.writeRows(dirname, rowType)
+
+    writeMetadata(dirname, partitionCounts)
 
     hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
       Serialization.write(rdd2.partitioner.toJSON, out)
     }
 
-    rdd2.rdd.writeRows(dirname, rowType)
+    hadoopConf.writeTextFile(dirname + "/_SUCCESS")(out => ())
   }
 
   def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "va.linreg", variantBlockSize: Int = 16): VariantSampleMatrix = {
@@ -2625,9 +2642,9 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   def toIndexedRowMatrix(expr: String, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix) = {
-    val partitionSizes = rdd2.mapPartitions(it => Iterator.single(it.size)).collect().scanLeft(0)(_ + _)
-    assert(partitionSizes.length == rdd2.getNumPartitions + 1)
-    val pSizeBc = sparkContext.broadcast(partitionSizes)
+    val partStarts = partitionStarts()
+    assert(partStarts.length == rdd2.getNumPartitions + 1)
+    val partStartsBc = sparkContext.broadcast(partStarts)
 
     val localRowType = rowType
     val localSampleIdsBc = sampleIdsBc
@@ -2644,7 +2661,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     ec.set(0, globalAnnotation)
 
     val indexedRows = rdd2.mapPartitionsWithIndex { case (i, it) =>
-      val pStartIdx = pSizeBc.value(i)
+      val start = partStartsBc.value(i)
       var j = 0
       val ur = new UnsafeRow(localRowType)
       it.map { rv =>
@@ -2665,7 +2682,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
           }
           k += 1
         }
-        val row = IndexedRow(pStartIdx + j, Vectors.dense(a))
+        val row = IndexedRow(start + j, Vectors.dense(a))
         j += 1
         row
       }
@@ -2680,6 +2697,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         }
       }.collect()
     ),
-      new IndexedRowMatrix(indexedRows, partitionSizes(partitionSizes.length - 1), nSamples))
+      new IndexedRowMatrix(indexedRows, partStarts.last, nSamples))
   }
 }
