@@ -235,13 +235,16 @@ class ContextTests(unittest.TestCase):
                 cols.append('`{s}`.gt = va.G["{s}"].gt'.format(s=s))
                 cols.append('`{s}`.gq = va.G["{s}"].gq'.format(s=s))
 
-            (dataset
+            dataset_table = (dataset
              .annotate_variants_expr('va.G = index(gs.map(g => { s: s, %s }).collect(), s)' % gt_string2)
-             .variants_table().select(cols).export('/tmp/sample_kt.tsv'))
+             .variants_table().select(cols))
 
-            ((dataset
+            dataset_table_typs = {fd.name: fd.typ for fd in dataset_table.schema.fields}
+            dataset_table.export('/tmp/sample_kt.tsv')
+
+            self.assertTrue((dataset
               .make_table('v = v, info = va.info', gt_string, ['v']))
-             .same(hc.import_table('/tmp/sample_kt.tsv').key_by('v')))
+             .same(hc.import_table('/tmp/sample_kt.tsv', types=dataset_table_typs).key_by('v')))
 
             dataset.annotate_variants_expr("va.nHet = gs.filter(g => {0}.isHet()).count()".format(gt))
 
@@ -445,13 +448,16 @@ class ContextTests(unittest.TestCase):
             cols.append('{s}.gt = va.G["{s}"].gt'.format(s=s))
             cols.append('{s}.gq = va.G["{s}"].gq'.format(s=s))
 
-        (sample2
+        sample2_table = (sample2
          .annotate_variants_expr('va.G = index(gs.map(g => { s: s, gt: g.GT, gq: g.GQ }).collect(), s)')
-         .variants_table().select(cols).export('/tmp/sample_kt.tsv'))
+         .variants_table().select(cols))
 
-        ((sample2
+        sample2_table.export('/tmp/sample_kt.tsv')
+        sample2_typs = {fd.name: fd.typ for fd in sample2_table.schema.fields}
+
+        self.assertTrue((sample2
           .make_table('v = v, info = va.info', 'gt = g.GT, gq = g.GQ', ['v']))
-         .same(hc.import_table('/tmp/sample_kt.tsv').key_by('v')))
+         .same(hc.import_table('/tmp/sample_kt.tsv', types=sample2_typs).key_by('v')))
 
         sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.GT.isHet()).count()")
 
