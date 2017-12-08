@@ -93,7 +93,7 @@ class TableTemplate(HistoryMixin):
 
 
 class GroupedTable(TableTemplate):
-    """KeyTable that has been grouped.
+    """Table that has been grouped.
     """
 
     def __init__(self, parent, groups):
@@ -119,8 +119,8 @@ class GroupedTable(TableTemplate):
         :param named_exprs: Annotation expression with the left hand side equal to the new column name and the right hand side is any type.
         :type named_exprs: dict of str to anytype
 
-        :return: Key table with new columns specified by ``kwargs`` that have been aggregated by the key specified by groups.
-        :rtype: :class:`.KeyTable`
+        :return: Table with new columns specified by ``kwargs`` that have been aggregated by the key specified by groups.
+        :rtype: :class:`.Table`
         """
         agg_base = self._parent.columns[0]  # FIXME hack
 

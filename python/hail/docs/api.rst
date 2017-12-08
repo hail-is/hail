@@ -8,7 +8,7 @@ This is the API documentation for ``Hail``, and provides detailed information
 on the Python programming interface.
 
 
-``api1`` is the old 0.1-style interface.
+``api1`` is the old 0.1-style interface. Use ``from hail import *`` to access this functionality.
 
 .. toctree::
     :maxdepth: 2
@@ -22,7 +22,7 @@ on the Python programming interface.
     hail.api1.KeyTable
     hail.api1.VariantDataset
 
-``api2`` is the shiny new interface.
+``api2`` is the shiny new interface. Use ``from hail2 import *`` to access this functionality.
 
 .. toctree::
     :maxdepth: 2
@@ -32,11 +32,11 @@ on the Python programming interface.
     :toctree: ./api2/
     :template: class.rst
 
-    hail.api2.context.HailContext
-    hail.api2.table.Table
-    hail.api2.table.GroupedTable
-    hail.api2.matrixtable.MatrixTable
-    hail.api2.matrixtable.GroupedMatrixTable
+    hail.api2.HailContext
+    hail.api2.Table
+    hail.api2.GroupedTable
+    hail.api2.MatrixTable
+    hail.api2.GroupedMatrixTable
 
 .. rubric:: Modules
 
