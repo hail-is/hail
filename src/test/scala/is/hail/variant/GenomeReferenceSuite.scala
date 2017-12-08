@@ -227,4 +227,19 @@ class GenomeReferenceSuite extends SparkSuite {
 
     assert(gr.compare(i1, i2) < 0)
   }
+
+  @Test def testWriteToFile() {
+    val tmpFile = tmpDir.createTempFile("grWrite", ".json")
+
+    val gr = GenomeReference.GRCh37
+    gr.copy(name = "foo").write(hc, tmpFile)
+    val gr2 = GenomeReference.fromFile(hc, tmpFile)
+
+    assert((gr.contigs sameElements gr2.contigs) &&
+      gr.lengths == gr2.lengths &&
+      gr.xContigs == gr2.xContigs &&
+      gr.yContigs == gr2.yContigs &&
+      gr.mtContigs == gr2.mtContigs &&
+      (gr.parInput sameElements gr2.parInput))
+  }
 }

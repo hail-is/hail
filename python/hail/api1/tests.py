@@ -724,6 +724,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(gr2.par, [Interval.parse("X:5-1000", gr2)])
         self.assertEqual(gr2.contig_length("1"), 10000)
         self.assertDictEqual(gr2.lengths, lengths)
+        gr2.write("/tmp/my_gr.json")
 
         gr3 = GenomeReference.from_file("src/test/resources/fake_ref_genome.json")
         self.assertEqual(gr3.name, "my_reference_genome")

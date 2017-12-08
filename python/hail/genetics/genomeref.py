@@ -250,6 +250,27 @@ class GenomeReference(HistoryMixin):
         return GenomeReference._from_java(Env.hail().variant.GenomeReference.fromFile(Env.hc()._jhc, file))
 
     @handle_py4j
+    @typecheck_method(file=strlike)
+    def write(self, file):
+        """Write reference genome to file as JSON.
+
+        **Examples**
+
+        >>> my_gr = GenomeReference("new_reference", ["x", "y", "z"], {"x": 500, "y": 300, "z": 200})
+        >>> my_gr.write("output/new_reference.json")
+
+        **Notes**
+
+        Use :py:class:`~hail.GenomeReference.from_file` to reimport the exported reference genome
+        in a new HailContext session.
+
+        :param file: File path to write to.
+        :type file: str
+        """
+
+        self._jrep.write(Env.hc(), file)
+
+    @handle_py4j
     def _init_from_java(self, jrep):
         self._jrep = jrep
 

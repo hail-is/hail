@@ -7,7 +7,7 @@ import is.hail.check.Gen
 import is.hail.expr.{JSONExtractGenomeReference, TInterval, TLocus, TVariant}
 import is.hail.utils._
 import org.json4s._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -224,6 +224,9 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   def subst(): GenomeReference = this
 
   override def toString: String = name
+
+  def write(hc: HailContext, file: String): Unit =
+    hc.hadoopConf.writeTextFile(file)(out => Serialization.write(toJSON, out))
 }
 
 object GenomeReference {
