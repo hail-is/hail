@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.utils._
 import is.hail.asm4s._
 import is.hail.expr._
 
@@ -10,39 +11,54 @@ object UnaryOp {
       case _: TInt64 => TInt64()
       case _: TFloat32 => TFloat32()
       case _: TFloat64 => TFloat64()
-      case _ => throw new RuntimeException(s"$op cannot be applied to $t")
+      case _ => incompatible(t, op)
     }
     case Bang() => t match {
       case _: TBoolean => TBoolean()
+      case _ => incompatible(t, op)
     }
   }
+
+  private def incompatible[T](t: Type, op: UnaryOp): T =
+    fatal(s"Cannot apply $op to values of type $t")
 
   def compile(op: UnaryOp, t: Type, x: Code[_]): Code[_] = t match {
     case _: TBoolean =>
       val xx = coerce[Boolean](x)
       op match {
         case Bang() => !xx
+        case _ => incompatible(t, op)
       }
     case _: TInt32 =>
       val xx = coerce[Int](x)
       op match {
         case Negate() => -xx
+        case _ => incompatible(t, op)
       }
     case _: TInt64 =>
       val xx = coerce[Long](x)
       op match {
         case Negate() => -xx
+        case _ => incompatible(t, op)
       }
     case _: TFloat32 =>
       val xx = coerce[Float](x)
       op match {
         case Negate() => -xx
+        case _ => incompatible(t, op)
       }
     case _: TFloat64 =>
       val xx = coerce[Double](x)
       op match {
         case Negate() => -xx
+        case _ => incompatible(t, op)
       }
+    case _ => incompatible(t, op)
+  }
+
+  val fromString: PartialFunction[String, UnaryOp] = {
+    case "-" => Negate()
+    case "!" => Bang()
   }
 }
 
