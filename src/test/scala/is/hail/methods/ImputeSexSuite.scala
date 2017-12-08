@@ -5,12 +5,12 @@ import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.Type
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant._
 import org.testng.annotations.Test
 
 import scala.language._
 import scala.sys.process._
-
 
 class ImputeSexSuite extends SparkSuite {
 

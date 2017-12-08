@@ -7,6 +7,7 @@ import is.hail.variant.{Call, Genotype, VSMSubgen, Variant, VariantSampleMatrix}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
+import is.hail.testUtils._
 
 class ImportVCFSuite extends SparkSuite {
 

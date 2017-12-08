@@ -3,6 +3,7 @@ package is.hail.io
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test

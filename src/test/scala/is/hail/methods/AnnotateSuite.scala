@@ -9,6 +9,7 @@ import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test

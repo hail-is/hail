@@ -4,7 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.io.annotators.IntervalList
 import is.hail.utils._
-import is.hail.utils.TestRDDBuilder
+import is.hail.testUtils._
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 

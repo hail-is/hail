@@ -6,6 +6,7 @@ import is.hail.io.annotators.IntervalList
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.stats.RegressionUtils._
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant._
 import is.hail.stats.vdsFromGtMatrix
 
@@ -160,9 +161,9 @@ class SkatSuite extends SparkSuite {
     val phenoArray: Array[Boolean] = pi.toArray.map(_ > rand.nextDouble())
     
     vdsBN0
-      .annotateSamples(TFloat64(), List("cov", "Cov1"), s => cov1Array(s.asInstanceOf[String].toInt))
-      .annotateSamples(TFloat64(), List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
-      .annotateSamples(TBoolean(), List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
+      .annotateSamplesF(TFloat64(), List("cov", "Cov1"), s => cov1Array(s.asInstanceOf[String].toInt))
+      .annotateSamplesF(TFloat64(), List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
+      .annotateSamplesF(TBoolean(), List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
       .annotateVariantsExpr("va.genes = [v.start % 2, v.start % 3].toSet") // three overlapping genes
       .annotateVariantsExpr("va.AF = gs.map(g => g.GT).callStats(GT => v).AF")
       .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +

@@ -3,6 +3,7 @@ package is.hail.annotations
 import is.hail.SparkSuite
 import is.hail.expr._
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant.Variant
 import org.apache.spark.sql.types._
 import org.testng.annotations.Test

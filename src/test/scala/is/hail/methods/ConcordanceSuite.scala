@@ -3,12 +3,12 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantSampleMatrix}
 import org.apache.spark.SparkContext
 import org.testng.annotations.Test
 
 import scala.language._
-
 
 class ConcordanceSuite extends SparkSuite {
   def gen(sc: SparkContext) = for (vds1 <- VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic);
