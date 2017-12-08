@@ -1,10 +1,73 @@
-functions
+Functions
 =========
 
 .. toctree::
     :maxdepth: 2
 
 .. currentmodule:: hail.expr.functions
+
+.. autosummary::
+
+    hail.expr.functions.broadcast
+    hail.expr.functions.capture
+    hail.expr.functions.chisq
+    hail.expr.functions.combine_variants
+    hail.expr.functions.ctt
+    hail.expr.functions.Dict
+    hail.expr.functions.dpois
+    hail.expr.functions.drop
+    hail.expr.functions.exp
+    hail.expr.functions.fet
+    hail.expr.functions.gt_index
+    hail.expr.functions.gtj
+    hail.expr.functions.gtk
+    hail.expr.functions.hwe
+    hail.expr.functions.index
+    hail.expr.functions.is_defined
+    hail.expr.functions.is_missing
+    hail.expr.functions.is_nan
+    hail.expr.functions.json
+    hail.expr.functions.log
+    hail.expr.functions.log10
+    hail.expr.functions.logical_not
+    hail.expr.functions.merge
+    hail.expr.functions.or_else
+    hail.expr.functions.or_missing
+    hail.expr.functions.pchisqtail
+    hail.expr.functions.pcoin
+    hail.expr.functions.pnorm
+    hail.expr.functions.ppois
+    hail.expr.functions.qchisqtail
+    hail.expr.functions.qnorm
+    hail.expr.functions.qpois
+    hail.expr.functions.range
+    hail.expr.functions.rnorm
+    hail.expr.functions.rpois
+    hail.expr.functions.runif
+    hail.expr.functions.select
+    hail.expr.functions.sqrt
+    hail.expr.functions.to_str
+    hail.expr.functions.cond
+    hail.expr.functions.collect
+    hail.expr.functions.collect_as_set
+    hail.expr.functions.count
+    hail.expr.functions.count_where
+    hail.expr.functions.counter
+    hail.expr.functions.take
+    hail.expr.functions.min
+    hail.expr.functions.max
+    hail.expr.functions.sum
+    hail.expr.functions.mean
+    hail.expr.functions.stats
+    hail.expr.functions.product
+    hail.expr.functions.fraction
+    hail.expr.functions.hardy_weinberg
+    hail.expr.functions.explode
+    hail.expr.functions.filter
+    hail.expr.functions.inbreeding
+    hail.expr.functions.call_stats
+    hail.expr.functions.hist
+
 
 .. autofunction:: hail.expr.functions.broadcast
 .. autofunction:: hail.expr.functions.capture
