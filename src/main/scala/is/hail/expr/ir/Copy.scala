@@ -67,6 +67,9 @@ object Copy {
       case GetField(_, name, typ) =>
         val IndexedSeq(o) = children
         GetField(o, name, typ)
+      case GetFieldMissingness(_, name) =>
+        val IndexedSeq(o) = children
+        GetFieldMissingness(o, name)
       case AggIn(_) =>
         same
       case AggMap(_, name, _, typ) =>
@@ -75,9 +78,6 @@ object Copy {
       case AggSum(a, typ) =>
         val IndexedSeq(a) = children
         AggSum(a, typ)
-      case GetFieldMissingness(_, name) =>
-        val IndexedSeq(o) = children
-        GetFieldMissingness(o, name)
       case In(_, _) =>
         same
       case InMissingness(_) =>

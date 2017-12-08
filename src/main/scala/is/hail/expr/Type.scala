@@ -845,7 +845,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
     symTab.map { case (n, (_, t)) => (n, t) }.toArray
 
   private def scopeStruct: TStruct =
-    TStruct(bindings:_*)
+    TStruct(bindings: _*)
 
   private val elementField = "x"
 
@@ -858,10 +858,12 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
 
   def getElement(agg: IR): IR = GetField(agg, elementField, elementType)
 
+  private def getScope(agg: IR): IR = GetField(agg, scopeField, scopeStruct)
+
   def inScope(agg: IR, body: IR => IR): IR = {
-    val b = body(GetField(agg, elementField, elementType))
+    val b = body(getElement(agg))
     bindings.foldLeft[IR](
-      MakeStruct(Array(("x", b.typ, b), (scopeField, scopeStruct, GetField(agg, scopeField, scopeStruct))))
+      MakeStruct(Array((elementField, b.typ, b), (scopeField, scopeStruct, getScope(agg))))
     ) { case (body, (n, t)) => Let(n, GetField(GetField(agg, scopeField, scopeStruct), n, t), body, body.typ) }
   }
 
