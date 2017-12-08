@@ -736,7 +736,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
       } yield ir.ApplyBinaryPrimOp(op, x, y, t)
     }
-    pf.flatten
+    pf.flatten[IR]
   }
 
   def toIR: Option[IR] = for {
