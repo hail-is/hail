@@ -9,19 +9,19 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.json4s.jackson
 
 object RichIndexedRowMatrix {
-  private def seqOp(truncatedBlockRow: Int, truncatedBlockCol: Int, excessRows: Int, excessCols: Int, blockSize: Int)
-    (block: Array[Double], row: (Int, Int, Int, Array[Double])): Array[Double] = row match {
-    case (i, j, ii, a) =>
-      val rowsInBlock: Int = if (i == truncatedBlockRow) excessRows else blockSize
-      val colsInBlock: Int = if (j == truncatedBlockCol) excessCols else blockSize
-      val block2 = if (block == null) new Array[Double](rowsInBlock * colsInBlock) else block
+  private def seqOp(gp: GridPartitioner)
+    (block: Array[Double], row: (Int, Int, Int, Array[Double])): Array[Double] = {
 
-      var jj = 0
-      while (jj < a.length) {
-        block2(jj * rowsInBlock + ii) = a(jj)
-        jj += 1
-      }
-      block2
+    val (i, j, ii, rowSegment) = row
+    val nRowsInBlock = gp.blockRowNRows(i)
+    val block2 = if (block == null) new Array[Double](nRowsInBlock * gp.blockColNCols(j)) else block
+
+    var jj = 0
+    while (jj < rowSegment.length) {
+      block2(jj * nRowsInBlock + ii) = rowSegment(jj)
+      jj += 1
+    }
+    block2
   }
 
   private def combOp(l: Array[Double], r: Array[Double]): Array[Double] = {
@@ -44,69 +44,56 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
   import RichIndexedRowMatrix._
 
   def toHailBlockMatrix(blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix = {
-    require(blockSize > 0,
-      s"blockSize needs to be greater than 0. blockSize: $blockSize")
+    require(blockSize > 0, s"blockSize must be greater than 0. blockSize: $blockSize")
 
-    val rows = indexedRowMatrix.numRows()
-    val cols = indexedRowMatrix.numCols()
-    val partitioner = GridPartitioner(blockSize, rows, cols)
-    val colPartitions = partitioner.nBlockCols
-    // NB: if excessRows == 0, we never reach the truncatedBlockRow
-    val truncatedBlockRow = (rows / blockSize).toInt
-    val truncatedBlockCol = (cols / blockSize).toInt
-    val excessRows = (rows % blockSize).toInt
-    val excessCols = (cols % blockSize).toInt
-    val fullColPartitions = if (excessCols == 0) colPartitions else colPartitions - 1
+    val nRows = indexedRowMatrix.numRows()
+    val nCols = indexedRowMatrix.numCols()
+    val gp = GridPartitioner(blockSize, nRows, nCols)
+    val nBlockCols = gp.nBlockCols
 
     val blocks = indexedRowMatrix.rows.flatMap { ir =>
       val i = (ir.index / blockSize).toInt
       val ii = (ir.index % blockSize).toInt
-      val a = ir.vector.toArray
-      val grouped = new Array[((Int, Int), (Int, Int, Int, Array[Double]))](colPartitions)
+      val entireRow = ir.vector.toArray
+      val rowSegments = new Array[((Int, Int), (Int, Int, Int, Array[Double]))](nBlockCols)
 
       var j = 0
-      while (j < fullColPartitions) {
-        val group = new Array[Double](blockSize)
-        grouped(j) = ((i, j), (i, j, ii, group))
-        System.arraycopy(a, j * blockSize, group, 0, blockSize)
+      while (j < nBlockCols) {
+        val nColsInBlock = gp.blockColNCols(j)
+        val rowSegmentInBlock = new Array[Double](nColsInBlock)
+        System.arraycopy(entireRow, j * blockSize, rowSegmentInBlock, 0, nColsInBlock)
+        rowSegments(j) = ((i, j), (i, j, ii, rowSegmentInBlock))
         j += 1
       }
-      if (excessCols > 0) {
-        val group = new Array[Double](excessCols)
-        grouped(j) = ((i, j), (i, j, ii, group))
-        System.arraycopy(a, j * blockSize, group, 0, excessCols)
-      }
 
-      grouped.iterator
-    }.aggregateByKey(null: Array[Double], partitioner)(
-      seqOp(truncatedBlockRow, truncatedBlockCol, excessRows, excessCols, blockSize), combOp)
-      .mapValuesWithKey { case ((i, j), a) =>
-        val rowsInBlock: Int = if (i == truncatedBlockRow) excessRows else blockSize
-        val colsInBlock: Int = if (j == truncatedBlockCol) excessCols else blockSize
-        new BDM[Double](rowsInBlock, colsInBlock, a)
+      rowSegments.iterator
+    }.aggregateByKey(null: Array[Double], gp)(
+      seqOp(gp), combOp)
+      .mapValuesWithKey { case ((i, j), data) =>
+        new BDM[Double](gp.blockRowNRows(i), gp.blockColNCols(j), data)
     }
 
-    new BlockMatrix(new EmptyPartitionIsAZeroMatrixRDD(blocks), blockSize, rows, cols)
+    new BlockMatrix(new EmptyPartitionIsAZeroMatrixRDD(blocks), blockSize, nRows, nCols)
   }
   
   def writeAsBlockMatrix(uri: String, blockSize: Int) {
-    val rows = indexedRowMatrix.numRows()
-    val cols = indexedRowMatrix.numCols()
+    val nRows = indexedRowMatrix.numRows()
+    val nCols = indexedRowMatrix.numCols()
     
     val hadoop = indexedRowMatrix.rows.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
     
     // write blocks
     hadoop.mkDir(uri + "/parts")
-    val gp = GridPartitioner(blockSize, rows, cols)
+    val gp = GridPartitioner(blockSize, nRows, nCols)
     val blockCount = new WriteBlocksRDD(indexedRowMatrix, uri, gp).reduce(_ + _)
     assert(blockCount == gp.numPartitions)
-    info(s"Wrote all $blockCount blocks of $rows x $cols matrix with block size $blockSize.")
+    info(s"Wrote all $blockCount blocks of $nRows x $nCols matrix with block size $blockSize.")
     
     // write metadata
     hadoop.writeDataFile(uri + BlockMatrix.metadataRelativePath) { os =>
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, rows, cols),
+        BlockMatrixMetadata(blockSize, nRows, nCols),
         os)
     }
   }
