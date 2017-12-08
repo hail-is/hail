@@ -803,8 +803,8 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, gp: GridPartitioner) e
       dos
     }
     
-    assert((gp.cols << 3) <= Int.MaxValue)
-    val bytes = new Array[Byte]((gp.cols << 3).toInt)
+    assert((gp.nCols << 3) <= Int.MaxValue)
+    val bytes = new Array[Byte]((gp.nCols << 3).toInt)
     
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
@@ -829,14 +829,14 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, gp: GridPartitioner) e
         Memory.memcpy(bytes, 0, data, 0, data.length)
 
         var off = 0
-        var blockColIndex = 0
-        while (blockColIndex < gp.colPartitions) {
-          val n = gp.colPartitionCols(blockColIndex) << 3
+        var blockCol = 0
+        while (blockCol < gp.nBlockCols) {
+          val n = gp.blockColNCols(blockCol) << 3
           
-          dosArray(blockColIndex).write(bytes, off, n)
+          dosArray(blockCol).write(bytes, off, n)
           
           off += blockSize << 3
-          blockColIndex += 1
+          blockCol+= 1
         }
         i += 1
       }
