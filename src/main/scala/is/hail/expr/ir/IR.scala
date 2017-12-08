@@ -34,6 +34,8 @@ case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) extends IR
 
 case class MakeArray(args: Array[IR], var typ: TArray = null) extends IR {
   override def toString(): String = s"MakeArray(${args: IndexedSeq[IR]}, $typ)"
+  override def hashCode(): Int =
+    scala.util.hashing.MurmurHash3.arrayHash(args) + typ.##
   override def equals(that: Any): Boolean = that match {
     case MakeArray(args2, typ2) =>
       args.length == args2.length &&
@@ -53,6 +55,8 @@ case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR {
   val typ: TStruct = TStruct(fields.map(x => x._1 -> x._2):_*)
   override def toString(): String =
     s"MakeStruct(${fields: IndexedSeq[(String, Type, IR)]})"
+  override def hashCode(): Int =
+    scala.util.hashing.MurmurHash3.arrayHash(fields)
   override def equals(that: Any): Boolean = that match {
     case MakeStruct(fields2) =>
       fields.length == fields2.length &&
