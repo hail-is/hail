@@ -67,7 +67,6 @@ class GenomeReference(HistoryMixin):
         self._y_contigs = y_contigs
         self._mt_contigs = mt_contigs
         self._par = None
-        self._par_jrep = None
         self._par_tuple = par
 
         super(GenomeReference, self).__init__()
@@ -165,10 +164,8 @@ class GenomeReference(HistoryMixin):
         """
 
         from hail.representation.interval import Interval
-        if self._par_jrep is None:
-            self._par_jrep = self._jrep.par()
         if self._par is None:
-            self._par = [Interval._from_java(jrep, self) for jrep in self._par_jrep]
+            self._par = [Interval._from_java(jrep, self) for jrep in self._jrep.par()]
         return self._par
 
     @typecheck_method(contig=strlike)
@@ -267,7 +264,6 @@ class GenomeReference(HistoryMixin):
         gr._y_contigs = None
         gr._mt_contigs = None
         gr._par = None
-        gr._par_jrep = None
         gr._par_tuple = None
         super(GenomeReference, gr).__init__()
         return gr
