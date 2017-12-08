@@ -9,6 +9,8 @@ import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
+import scala.util.Random
+
 class GenomeReferenceSuite extends SparkSuite {
   @Test def testGRCh37() {
     val grch37 = GenomeReference.GRCh37
@@ -235,7 +237,8 @@ class GenomeReferenceSuite extends SparkSuite {
     val tmpFile = tmpDir.createTempFile("grWrite", ".json")
 
     val gr = GenomeReference.GRCh37
-    gr.copy(name = "foo").write(hc, tmpFile)
+    val name = Random.alphanumeric.take(12).mkString
+    gr.copy(name = name).write(hc, tmpFile)
     val gr2 = GenomeReference.fromFile(hc, tmpFile)
 
     assert((gr.contigs sameElements gr2.contigs) &&
@@ -244,7 +247,7 @@ class GenomeReferenceSuite extends SparkSuite {
       gr.yContigs == gr2.yContigs &&
       gr.mtContigs == gr2.mtContigs &&
       (gr.parInput sameElements gr2.parInput))
-  }
 
-  GenomeReference.deleteReference("foo")
+    GenomeReference.deleteReference(name)
+  }
 }

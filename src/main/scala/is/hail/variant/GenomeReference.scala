@@ -236,11 +236,8 @@ object GenomeReference {
   var defaultReference = GRCh37
 
   def addReference(gr: GenomeReference) {
-    if (gr.name == "GRCh37" || gr.name == "GRCh38")
-      fatal(s"Reference genome `${ gr.name }' already exists. Cannot overwrite `GRCh37' or `GRCh38'.")
-
-    if (references.contains(gr.name))
-      warn(s"Reference genome `${ gr.name }' already exists. Overwriting old reference.")
+    if (hasReference(gr.name))
+      fatal(s"Reference genome `${ gr.name }' already exists.")
 
     references += (gr.name -> gr)
   }
