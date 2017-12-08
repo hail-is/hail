@@ -534,9 +534,8 @@ abstract sealed class KeyTableIR extends BaseIR {
   def execute(hc: HailContext): KeyTableValue
 }
 
-case class KeyTableLiteral(
-  typ: KeyTableType,
-  value: KeyTableValue) extends KeyTableIR {
+case class KeyTableLiteral(value: KeyTableValue) extends KeyTableIR {
+  def typ: KeyTableType = value.typ
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 

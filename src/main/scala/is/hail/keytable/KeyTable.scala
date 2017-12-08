@@ -156,8 +156,9 @@ object KeyTable {
     }
 
     new KeyTable(hc, KeyTableLiteral(
-      KeyTableType(signature, key, globalSignature),
-      KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), RVD(signature, rdd2))
+      KeyTableValue(KeyTableType(signature, key, globalSignature),
+        KTLocalValue(globals),
+        RVD(signature, rdd2))
       ))
   }
 }
@@ -167,7 +168,6 @@ class KeyTable(val hc: HailContext,
 
   def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: Array[String] = Array.empty,
     globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, KeyTableLiteral(
-    KeyTableType(signature, key, globalSignature),
     KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), RVD(signature, rdd))
   ))
 
@@ -1103,7 +1103,6 @@ class KeyTable(val hc: HailContext,
     globalSignature: TStruct = globalSignature,
     globals: Row = globals): KeyTable = {
     new KeyTable(hc, KeyTableLiteral(
-      KeyTableType(signature, key, globalSignature),
       KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), rvd)
     ))
   }
