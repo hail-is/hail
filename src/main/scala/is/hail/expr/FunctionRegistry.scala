@@ -1088,10 +1088,7 @@ object FunctionRegistry {
     "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GR))
   registerDependent("Interval", () => {
     val gr = GR.gr
-    (x: Locus, y: Locus) => {
-      implicit val locusOrdering = gr.locusOrdering
-      Interval(x, y)
-    }
+    (x: Locus, y: Locus) => Interval(x, y)(gr.locusOrdering)
   },
     """
     Construct a :ref:`interval(gr)` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.

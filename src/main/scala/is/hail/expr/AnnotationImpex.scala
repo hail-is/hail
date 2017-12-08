@@ -195,10 +195,7 @@ case class JSONExtractVariant(contig: String,
 }
 
 case class JSONExtractInterval(start: Locus, end: Locus) {
-  def toInterval(ord: Ordering[Locus]) = {
-    implicit val locusOrd = ord
-    Interval(start, end)
-  }
+  def toInterval(ord: Ordering[Locus]) = Interval(start, end)(ord)
 
   def toLocusTuple: (Locus, Locus) = (start, end)
 }
