@@ -58,8 +58,7 @@ object Skat {
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
   
   def apply(vsm: VariantSampleMatrix,
-    variantKeys: String,
-    singleKey: Boolean,
+    keyExpr: String,
     weightExpr: String,
     yExpr: String,
     xExpr: String,
@@ -95,7 +94,7 @@ object Skat {
     }
     
     val (keyGsWeightRdd, keyType) =
-      computeKeyGsWeightRdd(vsm, xExpr, completeSampleIndex, variantKeys, singleKey, weightExpr)
+      computeKeyGsWeightRdd(vsm, xExpr, completeSampleIndex, keyExpr, weightExpr)
 
     val sc = keyGsWeightRdd.sparkContext
 
@@ -202,29 +201,18 @@ object Skat {
   def computeKeyGsWeightRdd(vsm: VariantSampleMatrix,
     xExpr: String,
     completeSampleIndex: Array[Int],
-    variantKeys: String,
-    singleKey: Boolean,
+    keyExpr: String,
     // returns ((key, [(gs_v, weight_v)]), keyType)
     weightExpr: String): (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
     val ec = vsm.matrixType.genotypeEC
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
 
-    val (keysType, keysQuerier) = vsm.queryVA(variantKeys)
+    val (keyType, keyQuerier) = vsm.queryVA(keyExpr)
     val (weightType, weightQuerier) = vsm.queryVA(weightExpr)
 
     val typedWeightQuerier = weightType match {
       case _: TNumeric => (a: Annotation) => Option(weightQuerier(a)).map(DoubleNumericConversion.to)
       case _ => fatal(s"Weight must have numeric type, got $weightType")
-    }
-
-    val (keyType, keyIterator): (Type, Annotation => Iterator[Annotation]) = if (singleKey) {
-      (keysType, (key: Annotation) => Iterator.single(key))
-    } else {
-      val keyType = keysType match {
-        case t: TIterable => t.elementType
-        case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
-      }
-      (keyType, (keys: Annotation) => keys.asInstanceOf[Iterable[Annotation]].iterator)
     }
     
     val nSamples = completeSampleIndex.length
@@ -238,7 +226,7 @@ object Skat {
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
 
     (vsm.rdd.flatMap { case (v, (va, gs)) =>
-      (Option(keysQuerier(va)), typedWeightQuerier(va)) match {
+      (Option(keyQuerier(va)), typedWeightQuerier(va)) match {
         case (Some(key), Some(w)) =>
           if (w < 0)
             fatal(s"Variant weights must be non-negative, got $w")
@@ -253,8 +241,8 @@ object Skat {
             ec, xf,
             completeSampleIndexBc.value, missingSamples)
 
-          keyIterator(key).map((_, (x: Vector[Double], w)))
-        case _ => Iterator.empty
+          Option((key, (x: Vector[Double], w)))
+        case _ => None
       }
     }.groupByKey(), keyType)
   }

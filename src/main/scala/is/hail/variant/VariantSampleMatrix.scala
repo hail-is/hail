@@ -2322,8 +2322,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       runAssoc, delta, sparsityThreshold, nEigs, optDroppedVarianceFraction)
   }
 
-  def skat(variantKeys: String,
-    singleKey: Boolean,
+  def skat(keyExpr: String,
     weightExpr: String,
     y: String,
     x: String,
@@ -2332,7 +2331,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     maxSize: Int = 46340, // floor(sqrt(Int.MaxValue))
     accuracy: Double = 1e-6,
     iterations: Int = 10000): KeyTable = {
-    Skat(this, variantKeys, singleKey, weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
+    Skat(this, keyExpr, weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
   }
 
   /**

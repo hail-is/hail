@@ -4619,8 +4619,7 @@ class VariantDataset(HistoryMixin):
     @handle_py4j
     @require_biallelic
     @record_method
-    @typecheck_method(variant_keys=strlike,
-                      single_key=bool,
+    @typecheck_method(key_expr=strlike,
                       weight_expr=strlike,
                       y=strlike,
                       x=strlike,
@@ -4629,32 +4628,21 @@ class VariantDataset(HistoryMixin):
                       max_size=integral,
                       accuracy=numeric,
                       iterations=integral)
-    def skat(self, variant_keys, single_key, weight_expr, y, x, covariates=[], logistic=False,
+    def skat(self, key_expr, weight_expr, y, x, covariates=[], logistic=False,
              max_size=46340, accuracy=1e-6, iterations=10000):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
 
         **Examples**
 
-        Test each gene for association using the linear sequence kernel association test. Here ``va.genes``
-        is a variant annotation of type Set[String] giving the set of genes containing the variant:
+        Test each gene for association using the linear sequence kernel association test:
 
         >>> skat_kt = (hc.read('data/example_burden.vds')
-        ...              .skat(variant_keys='va.genes',
+        ...              .skat(key_expr='va.gene',
         ...                    weight_expr='va.weight',
-        ...                    single_key=False,
         ...                    y='sa.burden.pheno',
         ...                    x='g.GT.nNonRefAlleles()',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
-        .. caution::
-
-          With ``single_key=False``, ``variant_keys`` expects a variant annotation of Set or Array type, in order to
-          allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
-          genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
-          variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
-          variant annotation whose value is itself the key of interest. In both cases, variants with missing keys are
-          ignored.
-          
         .. caution::
 
           By default, the Davies algorithm iterates up to 10k times until an accuracy of 1e-6 is achieved.
@@ -4664,7 +4652,7 @@ class VariantDataset(HistoryMixin):
 
         .. caution::
 
-          To process a group with math:`m` variants, several copies of an math:`m \times m` matrix of doubles must fit
+          To process a group with :math:`m` variants, several copies of an :math:`m \times m` matrix of doubles must fit
           in worker memory. Groups with tens of thousands of variants may exhaust worker memory causing the entire
           job to fail. In this case, use the ``max_size`` parameter to skip groups larger than ``max_size``.
         
@@ -4729,11 +4717,8 @@ class VariantDataset(HistoryMixin):
         +------+------+-----------------------------------------+
         |      5      | out of memory                           |
         +------+------+-----------------------------------------+
-                     
-        :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
-
-        :param bool single_key: If true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
-                                rather than as a collection of keys.
+        
+        :param str key_expr: Variant expression for key associated to each variant.
 
         :param str weight_expr: Variant expression of numeric type for variant weights.
 
@@ -4756,7 +4741,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvds.skat(variant_keys, single_key, weight_expr, y, x,
+        return KeyTable(self.hc, self._jvds.skat(key_expr, weight_expr, y, x,
                                                  jarray(Env.jvm().java.lang.String, covariates),
                                                  logistic, max_size, accuracy, iterations))
 

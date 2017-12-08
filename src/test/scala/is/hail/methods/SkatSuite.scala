@@ -23,8 +23,7 @@ case class SkatAggForR(xs: ArrayBuilder[Vector[Double]], weights: ArrayBuilder[D
 
 class SkatSuite extends SparkSuite {
   def skatInR(vds: VariantDataset,
-    variantKeys: String,
-    singleKey: Boolean,
+    keyExpr: String,
     weightExpr: String,
     yExpr: String,
     covExpr: Array[String],
@@ -112,7 +111,7 @@ class SkatSuite extends SparkSuite {
     val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
     val (keyGsWeightRdd, keyType) =
-      Skat.computeKeyGsWeightRdd(vds, if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()", completeSampleIndex, variantKeys, singleKey, weightExpr)
+      Skat.computeKeyGsWeightRdd(vds, if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()", completeSampleIndex, keyExpr, weightExpr)
 
     runInR(keyGsWeightRdd, keyType, y, cov)
   }
@@ -135,7 +134,7 @@ class SkatSuite extends SparkSuite {
 
     hc.importVCF("src/test/resources/sample2.vcf")
       .filterMulti()
-      .annotateVariantsTable(intervalsSkat, root = "va.genes") // intervals do not overlap
+      .annotateVariantsTable(intervalsSkat, root = "va.gene") // intervals do not overlap
       .annotateVariantsTable(weightsSkat, root = "va.weight")
       .annotateSamplesTable(covSkat, root = "sa.cov")
       .annotateSamplesTable(phenoSkat, root = "sa.pheno")
@@ -164,7 +163,7 @@ class SkatSuite extends SparkSuite {
       .annotateSamplesF(TFloat64(), List("cov", "Cov1"), s => cov1Array(s.asInstanceOf[String].toInt))
       .annotateSamplesF(TFloat64(), List("cov", "Cov2"), s => cov2Array(s.asInstanceOf[String].toInt))
       .annotateSamplesF(TBoolean(), List("pheno"), s => phenoArray(s.asInstanceOf[String].toInt))
-      .annotateVariantsExpr("va.genes = [v.start % 2, v.start % 3].toSet") // three overlapping genes
+      .annotateVariantsExpr("va.gene = v.start % 3") // three genes
       .annotateVariantsExpr("va.AF = gs.map(g => g.GT).callStats(GT => v).AF")
       .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in " +
         "dbeta(af, 1.0, 25.0)**2")
@@ -175,9 +174,9 @@ class SkatSuite extends SparkSuite {
     
     require(!(useBN && useDosages))
     
-    val (vds, singleKey) = if (useBN) (vdsBN, false) else (vdsSkat, true)
+    val vds = if (useBN) vdsBN else vdsSkat
     
-    val hailKT = vds.skat("va.genes", singleKey = singleKey, "va.weight", "sa.pheno",
+    val hailKT = vds.skat("va.gene", "va.weight", "sa.pheno",
       if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
       Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic)
 
@@ -185,7 +184,7 @@ class SkatSuite extends SparkSuite {
     
     val resultHail = hailKT.rdd.collect()
 
-    val resultsR = skatInR(vds, "va.genes", singleKey = singleKey, "va.weight", "sa.pheno",
+    val resultsR = skatInR(vds, "va.gene", "va.weight", "sa.pheno",
       Array("sa.cov.Cov1", "sa.cov.Cov2"), logistic, useDosages)
 
     var i = 0
@@ -225,7 +224,7 @@ class SkatSuite extends SparkSuite {
   @Test def maxSizeTest() {
     val maxSize = 27
     
-    val kt = vdsSkat.skat("va.genes", singleKey = true, y = "sa.pheno", x = "g.GT.nNonRefAlleles()", weightExpr = "1", maxSize = maxSize)
+    val kt = vdsSkat.skat("va.gene", y = "sa.pheno", x = "g.GT.nNonRefAlleles()", weightExpr = "1", maxSize = maxSize)
       
     val ktMap = kt.rdd.collect().map{ case Row(key, size, qstat, pval, fault) => 
         key.asInstanceOf[String] -> (size.asInstanceOf[Int], qstat == null, pval == null, fault == null) }.toMap
@@ -277,7 +276,7 @@ class SkatSuite extends SparkSuite {
       .annotateVariantsExpr("va.intkey = v.start % 2, va.weight = v.start") // 1 = {v1, v3}, 0 = {v2}
     
     val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, "g.GT.nNonRefAlleles()", completeSampleIndex = Array(1, 3),
-      variantKeys = "va.intkey", singleKey = true, weightExpr = "va.weight")
+      keyExpr = "va.intkey", weightExpr = "va.weight")
         
     val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => 
         key.asInstanceOf[Int] -> it.toSet }.toMap
