@@ -94,6 +94,8 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(vas.field("v").typ == TVariant(gr))
     assert(vas.field("l").typ == TLocus(gr))
     assert(vas.field("i").typ == TInterval(gr))
+
+    GenomeReference.deleteReference("foo")
   }
 
   @Test def testDefaultReference() {
@@ -167,6 +169,7 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"))""").signature.field("i1").typ == gr.interval)
 
     GenomeReference.setDefaultReference(GenomeReference.GRCh37)
+    GenomeReference.deleteReference("foo2")
   }
 
   @Test def testContigRemap() {
@@ -242,4 +245,6 @@ class GenomeReferenceSuite extends SparkSuite {
       gr.mtContigs == gr2.mtContigs &&
       (gr.parInput sameElements gr2.parInput))
   }
+
+  GenomeReference.deleteReference("foo")
 }

@@ -236,8 +236,12 @@ object GenomeReference {
   var defaultReference = GRCh37
 
   def addReference(gr: GenomeReference) {
+    if (gr.name == "GRCh37" || gr.name == "GRCh38")
+      fatal(s"Reference genome `${ gr.name }' already exists. Cannot overwrite `GRCh37' or `GRCh38'.")
+
     if (references.contains(gr.name))
-      fatal(s"Cannot add reference genome. Reference genome `${ gr.name }' already exists.")
+      warn(s"Reference genome `${ gr.name }' already exists. Overwriting old reference.")
+
     references += (gr.name -> gr)
   }
 
@@ -249,6 +253,12 @@ object GenomeReference {
   }
 
   def hasReference(name: String): Boolean = references.contains(name)
+
+  def deleteReference(name: String): Unit = {
+    if (!hasReference(name))
+      fatal(s"Cannot delete reference genome. Reference genome `$name' does not exist.")
+    references -= name
+  }
 
   def setDefaultReference(gr: GenomeReference) {
     assert(references.contains(gr.name))
