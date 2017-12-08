@@ -7,7 +7,7 @@ class GridPartitionerSuite extends TestNGSuite {
 
   private def assertLayout(hg: GridPartitioner, layout: ((Int, Int), Int)*) {
     layout.foreach { case ((i, j), p) =>
-      assert(hg.partitionIdFromBlockIndices(i, j) === p, s"at coordiantes ${(i,j)}")
+      assert(hg.coordinatesBlock(i, j) === p, s"at coordinates ${(i,j)}")
     }
     layout.foreach { case ((i, j), p) =>
       assert(hg.blockCoordinates(p) === (i, j), s"at pid $p")
