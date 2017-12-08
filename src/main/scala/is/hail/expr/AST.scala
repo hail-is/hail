@@ -741,7 +741,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
   def toIR: Option[IR] = for {
     irArgs <- anyFailAllFail(args.map(_.toIR))
-    ir <- tryPrimOpConversion(irArgs)
+    ir <- tryPrimOpConversion.lift(irArgs)
   } yield ir
 }
 
