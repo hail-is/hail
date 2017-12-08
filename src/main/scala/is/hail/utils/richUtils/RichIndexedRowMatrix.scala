@@ -67,8 +67,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
       }
 
       rowSegments.iterator
-    }.aggregateByKey(null: Array[Double], gp)(
-      seqOp(gp), combOp)
+    }.aggregateByKey(null: Array[Double], gp)(seqOp(gp), combOp)
       .mapValuesWithKey { case ((i, j), data) =>
         new BDM[Double](gp.blockRowNRows(i), gp.blockColNCols(j), data)
     }
