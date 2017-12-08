@@ -4,6 +4,7 @@ import java.io._
 
 import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail._
+import is.hail.annotations.Memory
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.lang3.StringUtils
@@ -767,6 +768,9 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, gp: GridPartitioner) e
       dos
     }
     
+    assert((gp.cols << 3) <= Int.MaxValue)
+    val bytes = new Array[Byte]((gp.cols << 3).toInt)
+    
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
     var i = 0
@@ -786,16 +790,17 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, gp: GridPartitioner) e
         assert(indexedRow.index == firstRowInBlock + i,
           s"IndexedRow index ${indexedRow.index} in partition $pi does not equal RDD index ${firstRowInBlock + i}")
         
+        val data = indexedRow.vector.toArray // free on Spark DenseVector
+        Memory.memcpy(bytes, 0, data, 0, data.length)
+
+        var off = 0
         var blockColIndex = 0
-        var lastColInBlock = 0
-        var j = 0
         while (blockColIndex < gp.colPartitions) {
-          val dos = dosArray(blockColIndex)
-          lastColInBlock += gp.colPartitionCols(blockColIndex)
-          while (j < lastColInBlock) {
-            dos.writeDouble(indexedRow.vector(j))
-            j += 1
-          }
+          val n = gp.colPartitionCols(blockColIndex) << 3
+          
+          dosArray(blockColIndex).write(bytes, off, n)
+          
+          off += blockSize << 3
           blockColIndex += 1
         }
         i += 1

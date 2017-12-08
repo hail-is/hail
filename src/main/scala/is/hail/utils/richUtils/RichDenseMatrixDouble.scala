@@ -3,6 +3,7 @@ package is.hail.utils.richUtils
 import java.io.{DataInputStream, DataOutputStream}
 
 import breeze.linalg.DenseMatrix
+import is.hail.annotations.Memory
 import is.hail.utils.ArrayBuilder
 
 object RichDenseMatrixDouble {
@@ -14,22 +15,55 @@ object RichDenseMatrixDouble {
       Some(DenseMatrix.horzcat(ms: _*))
   }
   
-  // assumes zero offset and minimal majorStride 
-  def read(in: DataInputStream): DenseMatrix[Double] = {
-    val rows = in.readInt()
-    val cols = in.readInt()
-    val isTranspose = in.readBoolean()
-    val majorStride = if (isTranspose) cols else rows
-    
-    val data = new Array[Double](rows * cols)
-    var i = 0
-    while (i < rows * cols) {
-      data(i) = in.readDouble()
-      i += 1
+  // copies n doubles as bytes from data to dos
+  def writeDoubles(dos: DataOutputStream, data: Array[Double], n: Int) {
+    assert(n <= data.length)
+    var nLeft = n
+    val bufSize = math.min(nLeft, 8192)
+    val buf = new Array[Byte](bufSize << 3) // up to 64KB of doubles
+
+    var off = 0
+    while (nLeft > 0) {
+      val nCopy = math.min(nLeft, bufSize)
+      
+      Memory.memcpy(buf, 0, data, off, nCopy)
+      dos.write(buf, 0, nCopy << 3)
+
+      off += nCopy
+      nLeft -= nCopy
     }
+  }
+
+  // copies n doubles as bytes from dis to data
+  def readDoubles(dis: DataInputStream, data: Array[Double], n: Int) {
+    assert(n <= data.length)
+    var nLeft = n
+    val bufSize = math.min(nLeft, 8192)
+    val buf = new Array[Byte](bufSize << 3) // up to 64KB of doubles
+
+    var off = 0
+    while (nLeft > 0) {
+      val nCopy = math.min(nLeft, bufSize)
+      
+      dis.readFully(buf, 0, nCopy << 3)
+      Memory.memcpy(data, off, buf, 0, nCopy)
+
+      off += nCopy
+      nLeft -= nCopy
+    }
+  }
+  
+  // assumes zero offset and minimal majorStride 
+  def read(dis: DataInputStream): DenseMatrix[Double] = {
+    val rows = dis.readInt()
+    val cols = dis.readInt()
+    val isTranspose = dis.readBoolean()
+
+    val data = new Array[Double](rows * cols)
+    readDoubles(dis, data, data.length)
     
     new DenseMatrix[Double](rows, cols, data,
-      offset = 0, majorStride = majorStride, isTranspose = isTranspose)
+      offset = 0, majorStride = if (isTranspose) cols else rows, isTranspose = isTranspose)
   }
 }
 
@@ -85,21 +119,15 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     }
   }
   
-  def write(out: DataOutputStream) {
+  def write(dos: DataOutputStream) {
     assert(m.offset == 0)
     assert(m.majorStride == (if (m.isTranspose) m.cols else m.rows))
 
-    out.writeInt(m.rows)
-    out.writeInt(m.cols)
-    out.writeBoolean(m.isTranspose)
+    dos.writeInt(m.rows)
+    dos.writeInt(m.cols)
+    assert(m.data.length == m.rows * m.cols)
+    dos.writeBoolean(m.isTranspose)
     
-    val data = m.data
-    assert(data.length == m.rows * m.cols)
-    
-    var i = 0
-    while (i < data.length) {
-      out.writeDouble(data(i))
-      i += 1
-    }
+    RichDenseMatrixDouble.writeDoubles(dos, m.data, m.data.length)
   }
 }
