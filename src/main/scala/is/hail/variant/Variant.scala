@@ -16,18 +16,6 @@ import scala.math.Numeric.Implicits._
 import scala.reflect.ClassTag
 
 object Contig {
-  val standardContigs = (1 to 23).map(_.toString) ++ IndexedSeq("X", "Y", "MT")
-  val standardContigIdx = standardContigs.zipWithIndex.toMap
-
-  def compare(lhs: String, rhs: String): Int = {
-    (standardContigIdx.get(lhs), standardContigIdx.get(rhs)) match {
-      case (Some(i), Some(j)) => i.compare(j)
-      case (Some(_), None) => -1
-      case (None, Some(_)) => 1
-      case (None, None) => lhs.compare(rhs)
-    }
-  }
-
   def gen(gr: GenomeReference): Gen[(String, Int)] = Gen.oneOfSeq(gr.lengths.toSeq)
 
   def gen(gr: GenomeReference, contig: String): Gen[(String, Int)] = {
@@ -114,13 +102,13 @@ object Variant {
         .map(s => AltAllele.fromRow(s))
         .toArray)
 
-  implicit val orderedKey: OrderedKey[Locus, Variant] =
+  def orderedKey(gr: GenomeReference): OrderedKey[Locus, Variant] =
     new OrderedKey[Locus, Variant] {
       def project(key: Variant): Locus = key.locus
 
-      val kOrd: Ordering[Variant] = Variant.order
+      val kOrd: Ordering[Variant] = gr.variantOrdering
 
-      val pkOrd: Ordering[Locus] = Locus.order
+      val pkOrd: Ordering[Locus] = gr.locusOrdering
 
       val kct: ClassTag[Variant] = implicitly[ClassTag[Variant]]
 
@@ -141,10 +129,6 @@ object Variant {
             fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
         }.value
       }
-
-  implicit def order: Ordering[Variant] = new Ordering[Variant] {
-    def compare(x: Variant, y: Variant): Int = x.compare(y)
-  }
 }
 
 object VariantSubgen {
@@ -247,21 +231,7 @@ trait IVariant { self =>
     else
       Auto
 
-  def compare(that: Variant): Int = {
-    var c = Contig.compare(contig, that.contig)
-    if (c != 0)
-      return c
-
-    c = start.compare(that.start)
-    if (c != 0)
-      return c
-
-    c = ref.compare(that.ref)
-    if (c != 0)
-      return c
-
-    Ordering.Iterable[AltAllele].compare(altAlleles, that.altAlleles)
-  }
+  def compare(that: Variant, gr: GenomeReference): Int = gr.compare(this, that)
 
   def minRep: IVariant = {
     if (ref.length == 1)

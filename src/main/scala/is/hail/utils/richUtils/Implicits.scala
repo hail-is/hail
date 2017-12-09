@@ -80,9 +80,6 @@ trait Implicits {
   implicit def toRichPairRDD[K, V](r: RDD[(K, V)])(implicit kct: ClassTag[K],
     vct: ClassTag[V]): RichPairRDD[K, V] = new RichPairRDD(r)
 
-  implicit def toRichVariantPairRDD[V](r: RDD[(Variant, V)])(implicit vct: ClassTag[V]): RichVariantPairRDD[V] =
-    RichVariantPairRDD(r)
-
   implicit def toRichPairTraversableOnce[K, V](t: TraversableOnce[(K, V)]): RichPairTraversableOnce[K, V] =
     new RichPairTraversableOnce[K, V](t)
 

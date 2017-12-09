@@ -18,7 +18,15 @@ case class PartitionSummary(partitionIndex: Int,
   correctPartitioning: Boolean,
   maybeBounds: Option[(Variant, Variant)])
 
+object OrderedRDDSuite {
+  val gr = GenomeReference.GRCh37
+  implicit val locusOrd = gr.locusOrdering
+  implicit val variantOrd = gr.variantOrdering
+  implicit val kOk = Variant.orderedKey(gr)
+}
+
 class OrderedRDDSuite extends SparkSuite {
+  import OrderedRDDSuite._
 
   object Spec extends Properties("OrderedRDDFunctions") {
     val v = for (pos <- Gen.choose(1, 1000);

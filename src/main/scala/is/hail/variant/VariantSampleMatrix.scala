@@ -885,6 +885,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
           annotateLoci(ord, finalType, inserter, product = product)
 
         case Array(TInterval(_, _)) if vSignature.isInstanceOf[TVariant] =>
+          implicit val locusOrd = genomeReference.locusOrdering
           val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
           val partitionKeyedIntervals = keyedRDD
             .flatMap { case (k, v) =>
@@ -1354,6 +1355,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
           rdd.orderedPartitioner)
 
       case Array(TInterval(_, _)) if vSignature.isInstanceOf[TVariant] =>
+        implicit val locusOrd = genomeReference.locusOrdering
         val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
         val intRDD = kt.keyedRDD()
           .map { case (k, _) => k.getAs[Interval[Locus]](0) }

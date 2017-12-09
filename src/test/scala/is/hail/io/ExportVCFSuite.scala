@@ -61,6 +61,8 @@ class ExportVCFSuite extends SparkSuite {
 
     val vdsNew = hc.importVCF(outFile, nPartitions = Some(10))
 
+    implicit val variantOrd = vdsNew.genomeReference.variantOrdering
+
     assert(hadoopConf.readFile(outFile) { s =>
       Source.fromInputStream(s)
         .getLines()

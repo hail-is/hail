@@ -8,7 +8,7 @@ import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils.{Interval, _}
-import is.hail.variant.{Call, Genotype, Locus, Variant}
+import is.hail.variant.{Call, GenomeReference, Genotype, Locus, Variant}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.json4s._
@@ -683,6 +683,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Locus]("""Locus("1:1")""").contains(Locus("1", 1)))
     assert(eval[Boolean]("""let l = Locus("1", 1) in Locus(str(l)) == l""").contains(true))
 
+    implicit val locusOrd = GenomeReference.GRCh37.locusOrdering
     assert(eval[Interval[Locus]]("""Interval(Locus("1", 1), Locus("2", 2))""").contains(Interval(Locus("1", 1), Locus("2", 2))))
     assert(eval[Locus](""" Interval(Locus("1", 1), Locus("2", 2)).start """).contains(Locus("1", 1)))
     assert(eval[Locus](""" Interval(Locus("1", 1), Locus("2", 2)).end """).contains(Locus("2", 2)))

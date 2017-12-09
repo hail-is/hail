@@ -304,6 +304,7 @@ class VSMSuite extends SparkSuite {
     forAll(g) { case (vsm, k) =>
       val coalesced = vsm.coalesce(k)
       val n = coalesced.nPartitions
+      implicit val variantOrd = vsm.genomeReference.variantOrdering
       VSMSuite.checkOrderedRDD(coalesced.typedRDD[Locus, Variant]) && vsm.same(coalesced) && n <= k
     }.check()
   }
@@ -317,6 +318,7 @@ class VSMSuite extends SparkSuite {
     forAll(g) { case (vsm, k) =>
       val coalesced = vsm.naiveCoalesce(k)
       val n = coalesced.nPartitions
+      implicit val variantOrd = vsm.genomeReference.variantOrdering
       VSMSuite.checkOrderedRDD(coalesced.typedRDD[Locus, Variant]) && vsm.same(coalesced) && n <= k
     }.check()
   }

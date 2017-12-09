@@ -48,6 +48,7 @@ class LDMatrixSuite extends SparkSuite {
     * Tests that variants are ordered in array.
     */
   @Test def testOrderingOfVariants() {
+    implicit val variantOrd = vds.genomeReference.variantOrdering
     assert(distLDMatrix.variants.isSorted)
     assert(localLDMatrix.variants.isSorted)
   }

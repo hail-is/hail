@@ -13,21 +13,6 @@ import scala.util.parsing.combinator.JavaTokenParsers
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
 
-object LocusImplicits {
-  /* We cannot add this to the Locus companion object because it breaks serialization. */
-  implicit val orderedKey = new OrderedKey[Locus, Locus] {
-    def project(key: Locus): Locus = key
-
-    val kOrd: Ordering[Locus] = Locus.order
-
-    val pkOrd: Ordering[Locus] = Locus.order
-
-    val kct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
-
-    val pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
-  }
-}
-
 object Locus {
   val simpleContigs: Seq[String] = (1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")
 
@@ -39,14 +24,7 @@ object Locus {
   def fromRow(r: Row): Locus = {
     Locus(r.getAs[String](0), r.getInt(1))
   }
-
-  def intervalFromRow(r: Row): Interval[Locus] = {
-    Interval[Locus](
-      Locus.fromRow(r.getAs[Row](0)),
-      Locus.fromRow(r.getAs[Row](1))
-    )
-  }
-
+  
   def intervalToRow(i: Interval[Locus]): Row =
     Row(i.start.toRow, i.end.toRow)
 
@@ -55,6 +33,15 @@ object Locus {
       .map { case (contig, pos) => Locus(contig, pos) }
 
   def gen: Gen[Locus] = gen(simpleContigs)
+
+  def gen(gr: GenomeReference): Gen[Locus] = for {
+    (contig, length) <- Contig.gen(gr)
+    pos <- Gen.choose(1, length)
+  } yield Locus(contig, pos)
+
+  def gen(contig: String, length: Int): Gen[Locus] = for {
+    pos <- Gen.choose(1, length)
+  } yield Locus(contig, pos)
 
   implicit val locusJSONRWer: JSONReaderWriter[Locus] = caseClassJSONReaderWriter[Locus]
 
@@ -66,14 +53,15 @@ object Locus {
   }
 
   object LocusIntervalParser extends JavaTokenParsers {
-    def parseInterval(input: String): Interval[Locus] = {
-      parseAll[Interval[Locus]](interval, input) match {
+    def parseInterval(input: String, gr: GRBase): Interval[Locus] = {
+      parseAll[Interval[Locus]](interval(gr), input) match {
         case Success(r, _) => r
         case NoSuccess(msg, next) => fatal(s"invalid interval expression: `$input': $msg")
       }
     }
 
-    def interval: Parser[Interval[Locus]] = {
+    def interval(gr: GRBase): Parser[Interval[Locus]] = {
+      implicit val locusOrd = gr.locusOrdering
       locus ~ "-" ~ locus ^^ { case l1 ~ _ ~ l2 => Interval(l1, l2) } |
         locus ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => Interval(l1, l1.copy(position = p2)) } |
         contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => Interval(Locus(c1, 0), Locus(c2, Int.MaxValue)) } |
@@ -113,27 +101,20 @@ object Locus {
     }
   }
 
-  def parseInterval(str: String): Interval[Locus] = LocusIntervalParser.parseInterval(str)
+  def parseInterval(str: String, gr: GRBase): Interval[Locus] = LocusIntervalParser.parseInterval(str, gr)
 
-  def parseIntervals(arr: Array[String]): Array[Interval[Locus]] = arr.map(parseInterval)
+  def parseIntervals(arr: Array[String], gr: GRBase): Array[Interval[Locus]] = arr.map(parseInterval(_, gr))
 
-  def parseIntervals(arr: java.util.ArrayList[String]): Array[Interval[Locus]] = parseIntervals(arr.asScala.toArray)
+  def parseIntervals(arr: java.util.ArrayList[String], gr: GRBase): Array[Interval[Locus]] = parseIntervals(arr.asScala.toArray, gr)
 
-  def makeInterval(start: Locus, end: Locus): Interval[Locus] = Interval(start, end)
-
-  implicit val order: Ordering[Locus] = new Ordering[Locus] {
-    def compare(x: Locus, y: Locus): Int = x.compare(y)
+  def makeInterval(start: Locus, end: Locus, gr: GRBase): Interval[Locus] = {
+    implicit val locusOrd = gr.locusOrdering
+    Interval(start, end)
   }
 }
 
-case class Locus(contig: String, position: Int) extends Ordered[Locus] {
-  def compare(that: Locus): Int = {
-    var c = Contig.compare(contig, that.contig)
-    if (c != 0)
-      return c
-
-    position.compare(that.position)
-  }
+case class Locus(contig: String, position: Int) {
+  def compare(that: Locus, gr: GenomeReference): Int = gr.compare(this, that)
 
   def toRow: Row = Row(contig, position)
 

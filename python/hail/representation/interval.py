@@ -30,8 +30,8 @@ class Interval(HistoryMixin):
     def __init__(self, start, end):
         if start._rg != end._rg:
             raise TypeError("expect `start' and `end' to have the same reference genome but found ({}, {})".format(start._rg.name, end._rg.name))
-        jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep)
         self._rg = start._rg
+        jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep, self._rg._jrep)
         self._init_from_java(jrep)
 
     def __str__(self):
@@ -105,7 +105,7 @@ class Interval(HistoryMixin):
         """
 
         rg = reference_genome if reference_genome else Env.hc().default_reference
-        jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string)
+        jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string, rg._jrep)
         return Interval._from_java(jrep, rg)
 
     @property

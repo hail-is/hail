@@ -42,6 +42,8 @@ object BedAnnotator {
     else
       TStruct("interval" -> TInterval(gr))
 
+    implicit val locusOrd = gr.locusOrdering
+
     val rdd = hc.sc.textFileLines(filename)
       .filter(line =>
         !(line.value.startsWith("browser") ||

@@ -35,6 +35,8 @@ object LDMatrix {
         RegressionUtils.normalizedHardCalls(view, nSamples).map(x => (v, x))
       }
     }.persist()
+
+    implicit val variantOrd = vds.genomeReference.variantOrdering
     
     val variantsKept = filteredNormalizedHardCalls.map(_._1).collect()
     assert(variantsKept.isSorted, "ld_matrix: Array of variants is not sorted. This is a bug")

@@ -1086,7 +1086,10 @@ object FunctionRegistry {
     """,
     "contig" -> "String representation of contig.",
     "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GR))
-  register("Interval", { (x: Locus, y: Locus) => Interval(x, y) },
+  registerDependent("Interval", () => {
+    val gr = GR.gr
+    (x: Locus, y: Locus) => Interval(x, y)(gr.locusOrdering)
+  },
     """
     Construct a :ref:`interval(gr)` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
     """,
@@ -1262,7 +1265,10 @@ object FunctionRegistry {
     """,
     "x" -> "the input to gamma.")
 
-  register("Interval", (s: String) => Locus.parseInterval(s),
+  registerDependent("Interval", () => {
+    val gr = GR.gr
+   (s: String) => Locus.parseInterval(s, gr)
+  },
     """
     Returns an interval parsed in the same way as :py:meth:`~hail.representation.Interval.parse`
 
@@ -1275,7 +1281,13 @@ object FunctionRegistry {
     "s" -> "The string to parse."
   )(stringHr, locusIntervalHr(GR))
 
-  register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
+  registerDependent("Interval", () => {
+    val gr = GR.gr
+    (chr: String, start: Int, end: Int) => {
+      implicit val locusOrdering = gr.locusOrdering
+      Interval(Locus(chr, start), Locus(chr, end))
+    }
+  },
     """
     Constructs an interval from a given chromosome, start, and end.
 

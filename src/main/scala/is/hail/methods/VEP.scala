@@ -379,7 +379,7 @@ object VEP {
               }
 
             val r = kt.toArray
-              .sortBy(_._1)
+              .sortBy(_._1)(localRowType.fieldType(1).asInstanceOf[TVariant].gr.variantOrdering)
 
             val rc = proc.waitFor()
             if (rc != 0)
@@ -393,6 +393,8 @@ object VEP {
     info(s"vep: annotated ${ annotations.count() } variants")
 
     val (newVASignature, insertVEP) = vsm.vaSignature.insert(if (csq) TArray(TString()) else vepSignature, parsedRoot)
+
+    implicit val variantOrd = vsm.genomeReference.variantOrdering
 
     val newRDD = vsm.typedRDD[Locus, Variant]
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>

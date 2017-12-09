@@ -173,4 +173,58 @@ class GenomeReferenceSuite extends SparkSuite {
     val mapping = Map("23" -> "foo")
     TestUtils.interceptFatal("do not have remapped contigs in the reference genome")(GenomeReference.GRCh37.validateContigRemap(mapping))
   }
+
+  @Test def testComparisonOps() {
+    val gr = GenomeReference.GRCh37
+
+    // Test contigs
+    assert(gr.compare("3", "18") < 0)
+    assert(gr.compare("18", "3") > 0)
+    assert(gr.compare("7", "7") == 0)
+
+    assert(gr.compare("3", "X") < 0)
+    assert(gr.compare("X", "3") > 0)
+    assert(gr.compare("X", "X") == 0)
+
+    assert(gr.compare("X", "Y") < 0)
+    assert(gr.compare("Y", "X") > 0)
+    assert(gr.compare("Y", "MT") < 0)
+
+    assert(gr.compare("18", "SPQR") < 0)
+    assert(gr.compare("MT", "SPQR") < 0)
+
+    // Test variants
+    val v1 = Variant("1", 500, "A", "T")
+    val v2 = Variant("1", 600, "T", "A")
+    val v3 = Variant("1", 600, "G", "A")
+    val v4 = Variant("1", 600, "G", Array("A", "C"))
+    val v5 = Variant("2", 700, "T", "C")
+
+    assert(gr.compare(v1, v2) < 0)
+    assert(gr.compare(v2, v1) > 0)
+    assert(gr.compare(v1, v1) == 0)
+
+    assert(gr.compare(v2, v3) > 0)
+    assert(gr.compare(v3, v2) < 0)
+    assert(gr.compare(v3, v4) < 0)
+
+    assert(gr.compare(v5, v1) > 0)
+
+    // Test loci
+    val l1 = Locus("1", 25)
+    val l2 = Locus("1", 13000)
+    val l3 = Locus("2", 26)
+
+    assert(gr.compare(l1, l3) < 1)
+    assert(gr.compare(l1, l1) == 0)
+    assert(gr.compare(l3, l1) > 0)
+    assert(gr.compare(l2, l1) > 0)
+
+    // Test intervals
+    implicit val locusOrd = gr.locusOrdering
+    val i1 = Interval(l1, l2)
+    val i2 = Interval(l2, Locus("1", 27000))
+
+    assert(gr.compare(i1, i2) < 0)
+  }
 }

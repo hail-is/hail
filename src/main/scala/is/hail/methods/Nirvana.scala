@@ -279,6 +279,8 @@ object Nirvana {
     val oldSignature = vds.vaSignature
     val localBlockSize = blockSize
 
+    implicit val variantOrd = vds.genomeReference.variantOrdering
+
     info("Running Nirvana")
 
     val annotations = vds.typedRDD[Locus, Variant].mapValues { case (va, gs) => va }
