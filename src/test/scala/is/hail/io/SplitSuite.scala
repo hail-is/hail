@@ -4,6 +4,7 @@ import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant.{AltAllele, VSMSubgen, Variant, VariantSampleMatrix}
 import org.testng.annotations.Test
 

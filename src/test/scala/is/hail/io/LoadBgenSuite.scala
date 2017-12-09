@@ -6,6 +6,7 @@ import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.io.bgen.BGen12ProbabilityArray
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test

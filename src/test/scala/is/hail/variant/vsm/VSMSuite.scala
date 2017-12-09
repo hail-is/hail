@@ -7,6 +7,7 @@ import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics

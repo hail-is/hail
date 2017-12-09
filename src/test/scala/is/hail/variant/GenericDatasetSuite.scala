@@ -3,6 +3,7 @@ package is.hail.variant
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.expr.{TFloat64, TInt32, TString, TStruct}
 import org.testng.annotations.Test
 

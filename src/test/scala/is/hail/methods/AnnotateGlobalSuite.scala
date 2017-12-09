@@ -4,9 +4,9 @@ import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
+import is.hail.testUtils._
 import org.apache.spark.util.StatCounter
 import org.testng.annotations.Test
-
 
 class AnnotateGlobalSuite extends SparkSuite {
   @Test def test() {

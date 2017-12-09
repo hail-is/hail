@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.expr.{Parser, TFloat64, TInt64}
 import is.hail.utils._
+import is.hail.testUtils._
 import org.testng.annotations.Test
 
 import scala.io.Source
