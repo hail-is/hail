@@ -2,8 +2,9 @@ from hail.typecheck import *
 from hail.utils.java import handle_py4j
 from hail.api2 import MatrixTable
 
+
 @handle_py4j
-@typecheck_method(dataset=MatrixTable, root=strlike)
+@typecheck(dataset=MatrixTable, name=strlike)
 def sample_qc(dataset, name='sample_qc'):
     """Compute per-sample metrics useful for quality control.
 
@@ -11,9 +12,10 @@ def sample_qc(dataset, name='sample_qc'):
 
     **Examples**
 
-    .. testsetup ::
-        dataset = vds1.to_hail2()
-        from hail2.genetics import sample_qc
+    .. testsetup::
+
+        dataset = vds.annotate_samples_expr('sa = drop(sa, qc)').to_hail2()
+        from hail.methods import sample_qc
 
     Compute sample QC metrics and remove low-quality samples:
 
@@ -79,4 +81,4 @@ def sample_qc(dataset, name='sample_qc'):
     :rtype: :class:`.MatrixTable`
     """
 
-    return MatrixTable(dataset.hc, dataset._jvds.sampleQC('sa.`{}`'.format(name)))
+    return MatrixTable(dataset._hc, dataset._jvds.sampleQC('sa.`{}`'.format(name)))

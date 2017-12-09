@@ -6,13 +6,13 @@ from hail.utils import wrap_to_list
 from hail.utils.java import handle_py4j
 
 
-@typecheck(matrix=MatrixTable,
+@typecheck(dataset=MatrixTable,
            ys=oneof(Expression, listof(Expression)),
            x=Expression,
            covariates=listof(Expression),
            root=strlike,
            block_size=integral)
-def linreg(matrix, ys, x, covariates=[], root='linreg', block_size=16):
+def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     """Test each variant for association with multiple phenotypes using linear regression.
 
     .. warning::
@@ -54,14 +54,14 @@ def linreg(matrix, ys, x, covariates=[], root='linreg', block_size=16):
     ys = wrap_to_list(ys)
 
     # x is entry-indexed
-    analyze(x, matrix._entry_indices, set(), set(matrix._fields.keys()))
+    analyze(x, dataset._entry_indices, set(), set(dataset._fields.keys()))
 
     # ys and covariates are col-indexed
     for e in (tuple(wrap_to_list(ys)) + tuple(covariates)):
         all_exprs.append(e)
-        analyze(e, matrix._col_indices, set(), set(matrix._fields.keys()))
+        analyze(e, dataset._col_indices, set(), set(dataset._fields.keys()))
 
-    base, cleanup = matrix._process_joins(*all_exprs)
+    base, cleanup = dataset._process_joins(*all_exprs)
 
     jm = base._jvds.linreg(
         jarray(Env.jvm().java.lang.String, [y._ast.to_hql() for y in ys]),
@@ -71,7 +71,7 @@ def linreg(matrix, ys, x, covariates=[], root='linreg', block_size=16):
         block_size
     )
 
-    return cleanup(MatrixTable(matrix._hc, jm))
+    return cleanup(MatrixTable(dataset._hc, jm))
 
 
 @handle_py4j
@@ -82,6 +82,11 @@ def ld_matrix(dataset, force_local=False):
     .. include:: ../_templates/req_tvariant.rst
 
     .. include:: ../_templates/req_biallelic.rst
+
+    .. testsetup::
+
+        dataset = vds.annotate_samples_expr('sa = drop(sa, qc)').to_hail2()
+        from hail.methods import ld_matrix
 
     **Examples**
 
@@ -121,4 +126,3 @@ def ld_matrix(dataset, force_local=False):
 
     jldm = dataset._jvdf.ldMatrix(force_local)
     return LDMatrix(jldm)
-

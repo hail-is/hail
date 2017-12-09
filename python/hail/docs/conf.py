@@ -62,8 +62,6 @@ templates_path = ['_templates', '_templates/_autosummary']
 
 doctest_global_setup = """import os, shutil
 from hail import *
-from hail.typ import *
-from hail.genetics import *
 from hail.stats import *
 
 if not os.path.isdir("output/"):
