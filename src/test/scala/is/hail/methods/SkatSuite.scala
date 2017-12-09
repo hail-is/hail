@@ -273,16 +273,18 @@ class SkatSuite extends SparkSuite {
     val G = new DenseMatrix[Int](4, 3, v1 ++ v2 ++ v3)
     
     val vds = vdsFromGtMatrix(hc)(G)
-      .annotateVariantsExpr("va.intkey = v.start % 2, va.weight = v.start") // 1 = {v1, v3}, 0 = {v2}
+      .annotateVariantsExpr("va.intkey = [9, v.start % 2, v.start // 2 + 1].toSet(), va.weight = v.start") // v1 -> {9, 1}, v2 -> {9, 0, 2}, v3 -> {9, 1, 2}
+      .explodeVariants("va.intkey") // 0 -> {v2}, 1 -> {v1, v2}, 2 -> {v3}, 9 -> {v1, v2, v3}
     
-    val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, "g.GT.nNonRefAlleles()", completeSampleIndex = Array(1, 3),
-      keyExpr = "va.intkey", weightExpr = "va.weight")
-        
-    val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => 
-        key.asInstanceOf[Int] -> it.toSet }.toMap
+    val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, "g.GT.nNonRefAlleles()",
+      completeSampleIndex = Array(1, 3), keyExpr = "va.intkey", weightExpr = "va.weight")
     
-    assert(keyToSet(0) == Set((Vector(2.0, 0.0), 2)))    
+    val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => key.asInstanceOf[Int] -> it.toSet }.toMap
+    
+    assert(keyToSet(0) == Set((Vector(2.0, 0.0), 2)))
     assert(keyToSet(1) == Set((Vector(1.0, 2.0), 1), (Vector(0.0, 1.0), 3)))
+    assert(keyToSet(2) == Set((Vector(2.0, 0.0), 2), (Vector(0.0, 1.0), 3)))
+    assert(keyToSet(9) == Set((Vector(1.0, 2.0), 1), (Vector(2.0, 0.0), 2), (Vector(0.0, 1.0), 3)))
     
     assert(keyType == TInt32())
   }
