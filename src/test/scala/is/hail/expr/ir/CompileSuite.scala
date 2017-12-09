@@ -380,8 +380,7 @@ class CompileSuite {
       val region = MemoryBuffer()
       val fb1 = FunctionBuilder.functionBuilder[MemoryBuffer, Long]
       doit(MakeSet(Array(I32(0), I32(1), I32(10), I32(-5), I32(3))), fb1)
-      import java.io.PrintWriter
-      val aOff = fb1.result(Some(new PrintWriter(System.out)))()(region)
+      val aOff = fb1.result()()(region)
 
       val fb2 = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Boolean]
       doit(SetContains(In(0, TSet(TInt32())), I32(testElement)), fb2)

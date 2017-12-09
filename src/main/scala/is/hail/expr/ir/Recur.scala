@@ -30,6 +30,9 @@ object Recur {
     case AggIn(typ) => ir
     case AggMap(a, name, body, typ) => AggMap(f(a), name, f(body), typ)
     case AggSum(a, typ) => AggSum(f(a), typ)
+    case MakeSet(args, elementType) => MakeSet(args map f, elementType)
+    case SetAdd(set, element, elementType) => SetAdd(f(set), f(element), elementType)
+    case SetContains(set, element) => SetContains(f(set), f(element))
     case In(i, typ) => ir
     case InMissingness(i) => ir
     case Die(message) => ir

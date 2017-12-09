@@ -324,50 +324,49 @@ object Compile {
         val len = fb.newLocal[Int]
         val i = fb.newLocal[Int]
         val s = fb.newLocal[Long]
-        val mx = mb.newBit()
         val x = fb.newLocal[Long]
         val storedElement = fb.newLocal()(TypeToTypeInfo(tArray.elementType)).asInstanceOf[LocalRef[Any]]
         val elementPointer = fb.newLocal[Long]
-        val ord = tArray.unsafeOrdering(true)
+        val ord = elementType.unsafeOrdering(true)
         val sortedArray = Code(
           doelement,
           s := coerce[Long](vset),
           len := TContainer.loadLength(region, s),
-          melement.mux(
+          (len.ceq(0)).mux(
             Code(
               srvb.start(len + 1, init = true),
-              i := 0,
-              Code.whileLoop(i < len,
-                srvb.addRegionValue(elementType)(tArray.loadElement(region, s, i)),
-                i++),
-              srvb.setMissing()),
-            Code(
-              storedElement := velement,
-              elementPointer := region.irIntermediateToRegionValue(tArray.elementType)(storedElement),
-              srvb.start(len + 1, init = true),
-              (len.ceq(0)).mux(
+              melement.mux(srvb.setMissing(), srvb.addIRIntermediate(elementType)(velement)),
+              srvb.offset),
+            melement.mux(
+              tArray.isElementMissing(region, s, len - 1).mux(
+                s, // if there's already one missing element, the set is unchanged
                 Code(
-                  melement.mux(
-                    srvb.setMissing(),
-                    srvb.addIRIntermediate(elementType)(velement))),
+                  srvb.start(len + 1, init = true),
+                  i := 0,
+                  Code.whileLoop(i < len,
+                    srvb.addRegionValue(elementType)(tArray.loadElement(region, s, i)),
+                    i++),
+                  srvb.setMissing(),
+                  srvb.offset)),
+              Code(
+                srvb.start(len + 1, init = true),
+                storedElement := velement,
+                elementPointer := region.irIntermediateToRegionValue(tArray.elementType)(storedElement),
                 Code(
                   i := 0,
-                  mx := tArray.isElementMissing(region, s, i),
-                  x := mx.mux(0L, tArray.loadElement(region, s, i)),
-                  Code.whileLoop(i < len && !mx && (ord.compare(region, x, region, elementPointer)(fb, mb) < 0),
-                    mx.mux(srvb.setMissing(), srvb.addRegionValue(elementType)(x)),
-                    mx := tArray.isElementMissing(region, s, i),
-                    x := mx.mux(0L, tArray.loadElement(region, s, i)),
+                  Code.whileLoop(
+                    i < len && tArray.isElementDefined(region, s, i) && Code(
+                      x := tArray.loadElement(region, s, i),
+                      ord.compare(region, x, region, elementPointer)(fb, mb) < 0),
+                    srvb.addRegionValue(elementType)(x),
                     i++),
-                  melement.mux(
-                    srvb.setMissing(),
-                    srvb.addIRIntermediate(elementType)(storedElement)),
+                  srvb.addIRIntermediate(elementType)(storedElement),
                   Code.whileLoop(i < len,
                     tArray.isElementMissing(region, s, i).mux(
                       srvb.setMissing(),
-                      srvb.addRegionValue(elementType)(x)),
-                    i++))))),
-          srvb.offset)
+                      srvb.addRegionValue(elementType)(tArray.loadElement(region, s, i))),
+                    i++)),
+                  srvb.offset))))
 
         (doset, mset, sortedArray)
       case SetContains(set, element) =>
@@ -380,7 +379,7 @@ object Compile {
         val notfound = mb.newBit()
         val storedElement = fb.newLocal()(TypeToTypeInfo(tArray.elementType)).asInstanceOf[LocalRef[Any]]
         val elementPointer = fb.newLocal[Long]
-        val ord = tArray.unsafeOrdering(true)
+        val ord = tArray.elementType.unsafeOrdering(true)
         val result = Code(
           doelement,
           s := coerce[Long](vset),
