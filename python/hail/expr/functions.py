@@ -18,7 +18,12 @@ expr_call = oneof(Call, CallExpression)
 
 def _func(name, ret_type, *args):
     indices, aggregations, joins = unify_all(*args)
-    return convert_expr(Expression(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins))
+    return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins)
+
+
+@decorator
+def args_to_expr(func, *args):
+    return func(*(to_expr(a) for a in args))
 
 
 @typecheck(t=Type)
@@ -26,9 +31,8 @@ def null(t):
     return Expression(Literal('NA: {}'.format(t)), t)
 
 
-@args_to_expr
 def capture(x):
-    return convert_expr(x)
+    return to_expr(x)
 
 
 def broadcast(x):
@@ -44,7 +48,7 @@ def broadcast(x):
             assert isinstance(obj, MatrixTable)
             return MatrixTable(obj._hc, obj._jvds.annotateGlobalExpr('global.{} = {}'.format(uid, expr._ast.to_hql())))
 
-    return convert_expr(Expression(GlobalJoinReference(uid), expr._type, joins=(Join(joiner, [uid]),)))
+    return construct_expr(GlobalJoinReference(uid), expr._type, joins=(Join(joiner, [uid]),))
 
 
 @args_to_expr
@@ -90,8 +94,8 @@ def dpois(x, lamb, logP=False):
 def drop(s, *identifiers):
     s = to_expr(s)
     ret_type = s._type._drop(*identifiers)
-    return convert_expr(Expression(StructOp('drop', s._ast, *identifiers),
-                                   ret_type, s._indices, s._aggregations, s._joins))
+    return construct_expr(StructOp('drop', s._ast, *identifiers),
+                          ret_type, s._indices, s._aggregations, s._joins)
 
 
 @typecheck(x=expr_numeric)
@@ -148,8 +152,8 @@ def index(structs, identifier):
     value_type = struct_type._drop(identifier)
 
     ast = StructOp('index', structs._ast, identifier)
-    return convert_expr(Expression(ast, TDict(key_type, value_type),
-                                   structs._indices, structs._aggregations, structs._joins))
+    return construct_expr(ast, TDict(key_type, value_type),
+                          structs._indices, structs._aggregations, structs._joins)
 
 
 @typecheck(contig=expr_str, pos=expr_int32, reference_genome=nullable(GenomeReference))
@@ -159,8 +163,8 @@ def locus(contig, pos, reference_genome=None):
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
     indices, aggregations, joins = unify_all(contig, pos)
-    return LocusExpression(ApplyMethod('Locus({})'.format(reference_genome.name), contig._ast, pos._ast),
-                           TLocus(reference_genome), indices, aggregations, joins)
+    return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), contig._ast, pos._ast),
+                          TLocus(reference_genome), indices, aggregations, joins)
 
 
 @typecheck(s=expr_str, reference_genome=nullable(GenomeReference))
@@ -168,8 +172,8 @@ def parse_locus(s, reference_genome=None):
     s = to_expr(s)
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
-    return LocusExpression(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), TLocus(reference_genome),
-                           s._indices, s._aggregations, s._joins)
+    return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), TLocus(reference_genome),
+                          s._indices, s._aggregations, s._joins)
 
 
 @typecheck(start=expr_locus, end=expr_locus)
@@ -180,7 +184,7 @@ def interval(start, end):
     indices, aggregations, joins = unify_all(start, end)
     if not start._type._rg == end._type._rg:
         raise TypeError('Reference genome mismatch: {}, {}'.format(start._type._rg, end._type._rg))
-    return IntervalExpression(
+    return construct_expr(
         ApplyMethod('Interval({})'.format(start._type._rg.name), start._ast, end._ast), TInterval(start._type._rg),
         indices, aggregations, joins)
 
@@ -190,7 +194,7 @@ def parse_interval(s, reference_genome=None):
     s = to_expr(s)
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
-    return IntervalExpression(
+    return construct_expr(
         ApplyMethod('Interval({})'.format(reference_genome.name), s._ast), TInterval(reference_genome),
         s._indices, s._aggregations, s._joins)
 
@@ -216,8 +220,8 @@ def parse_variant(s, reference_genome=None):
     s = to_expr(s)
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
-    return VariantExpression(ApplyMethod('Variant({})'.format(reference_genome.name), s._ast),
-                             TVariant(reference_genome), s._indices, s._aggregations, s._joins)
+    return construct_expr(ApplyMethod('Variant({})'.format(reference_genome.name), s._ast),
+                          TVariant(reference_genome), s._indices, s._aggregations, s._joins)
 
 
 @args_to_expr
@@ -364,8 +368,7 @@ def runif(min, max):
 def select(s, *identifiers):
     s = to_expr(s)
     ret_type = s._type._select(*identifiers)
-    return convert_expr(
-        Expression(StructOp('select', s._ast, *identifiers), ret_type, s._indices, s._aggregations, s._joins))
+    return construct_expr(StructOp('select', s._ast, *identifiers), ret_type, s._indices, s._aggregations, s._joins)
 
 
 @typecheck(x=expr_numeric)
@@ -389,8 +392,8 @@ def cond(pred, then_case, else_case):
 
     indices, aggregations, joins = unify_all(pred, then_case, else_case)
     # TODO: promote types
-    return convert_expr(
-        Expression(Condition(pred._ast, then_case._ast, else_case._ast), then_case._type, indices, aggregations, joins))
+    return construct_expr(Condition(pred._ast, then_case._ast, else_case._ast), then_case._type, indices, aggregations,
+                          joins)
 
 
 def _to_agg(x):
@@ -411,7 +414,7 @@ def _agg_func(name, aggregable, ret_type, *args):
         raise ValueError('cannot aggregate an already-aggregated expression')
 
     ast = ClassMethod(name, aggregable._ast, *[a._ast for a in args])
-    return convert_expr(Expression(ast, ret_type, Indices(source=indices.source), (Aggregation(indices),), joins))
+    return construct_expr(ast, ret_type, Indices(source=indices.source), (Aggregation(indices),), joins)
 
 
 def collect(expr):
@@ -446,8 +449,8 @@ def take(expr, n, ordering=None):
         uid = Env._get_uid()
         if callable(ordering):
             lambda_result = to_expr(
-                ordering(convert_expr(Expression(Reference(uid), agg._type, agg._indices,
-                                                 agg._aggregations, agg._joins))))
+                ordering(construct_expr(Reference(uid), agg._type, agg._indices,
+                                        agg._aggregations, agg._joins)))
         else:
             lambda_result = to_expr(ordering)
         indices, aggregations, joins = unify_all(agg, lambda_result)
@@ -456,8 +459,7 @@ def take(expr, n, ordering=None):
         if aggregations:
             raise ValueError('cannot aggregate an already-aggregated expression')
 
-        return convert_expr(
-            Expression(ast, TArray(agg._type), Indices(source=indices.source), (Aggregation(indices),), joins))
+        return construct_expr(ast, TArray(agg._type), Indices(source=indices.source), (Aggregation(indices),), joins)
 
 
 def min(expr):
@@ -503,8 +505,8 @@ def fraction(expr):
 
     uid = Env._get_uid()
     ast = LambdaClassMethod('fraction', uid, agg._ast, Reference(uid))
-    return convert_expr(
-        Expression(ast, TBoolean(), Indices(source=agg._indices.source), (Aggregation(agg._indices),), agg._joins))
+    return construct_expr(ast, TBoolean(), Indices(source=agg._indices.source), (Aggregation(agg._indices),),
+                          agg._joins)
 
 
 def hardy_weinberg(expr):
@@ -531,7 +533,7 @@ def filter(expr, condition):
     if callable(condition):
         lambda_result = to_expr(
             condition(
-                convert_expr(Expression(Reference(uid), agg._type, agg._indices, agg._aggregations, agg._joins))))
+                construct_expr(Reference(uid), agg._type, agg._indices, agg._aggregations, agg._joins)))
     else:
         lambda_result = to_expr(condition)
 
@@ -562,7 +564,7 @@ def inbreeding(expr, prior):
 
     t = TStruct(['Fstat', 'nTotal', 'nCalled', 'expectedHoms', 'observedHoms'],
                 [TFloat64(), TInt64(), TInt64(), TFloat64(), TInt64()])
-    return convert_expr(Expression(ast, t, Indices(source=indices.source), (Aggregation(indices),), joins))
+    return construct_expr(ast, t, Indices(source=indices.source), (Aggregation(indices),), joins)
 
 
 @typecheck(expr=oneof(Aggregable, expr_call), variant=expr_variant)
@@ -583,7 +585,7 @@ def call_stats(expr, variant):
         raise ValueError('cannot aggregate an already-aggregated expression')
 
     t = TStruct(['AC', 'AF', 'AN', 'GC'], [TArray(TInt32()), TArray(TFloat64()), TInt32(), TArray(TInt32())])
-    return convert_expr(Expression(ast, t, Indices(source=indices.source), (Aggregation(indices),), joins))
+    return construct_expr(ast, t, Indices(source=indices.source), (Aggregation(indices),), joins)
 
 
 def hist(expr, start, end, bins):

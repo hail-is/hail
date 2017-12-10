@@ -4,6 +4,7 @@ from hail.expr.expression import *
 from hail.utils.java import handle_py4j
 from hail.api2 import Table
 
+
 class GroupedMatrixTable(object):
     def __init__(self, parent, group, grouped_indices):
         self._parent = parent
@@ -138,28 +139,28 @@ class MatrixTable(object):
         assert isinstance(self.row_schema, TStruct), self.row_schema
         assert isinstance(self.entry_schema, TStruct), self.entry_schema
 
-        self._set_field('v', convert_expr(Expression(Reference('v'), self.rowkey_schema, self._row_indices)))
-        self._set_field('s', convert_expr(Expression(Reference('s'), self.colkey_schema, self._col_indices)))
+        self._set_field('v', construct_expr(Reference('v'), self.rowkey_schema, self._row_indices))
+        self._set_field('s', construct_expr(Reference('s'), self.colkey_schema, self._col_indices))
 
         for f in self.global_schema.fields:
             assert f.name not in self._reserved, f.name
             self._set_field(f.name,
-                            convert_expr(Expression(Select(Reference('global'), f.name), f.typ, self._global_indices)))
+                            construct_expr(Select(Reference('global'), f.name), f.typ, self._global_indices))
 
         for f in self.col_schema.fields:
             assert f.name not in self._reserved, f.name
-            self._set_field(f.name, convert_expr(Expression(Select(Reference('sa'), f.name), f.typ,
-                                                            self._col_indices)))
+            self._set_field(f.name, construct_expr(Select(Reference('sa'), f.name), f.typ,
+                                                   self._col_indices))
 
         for f in self.row_schema.fields:
             assert f.name not in self._reserved, f.name
-            self._set_field(f.name, convert_expr(Expression(Select(Reference('va'), f.name), f.typ,
-                                                            self._row_indices)))
+            self._set_field(f.name, construct_expr(Select(Reference('va'), f.name), f.typ,
+                                                   self._row_indices))
 
         for f in self.entry_schema.fields:
             assert f.name not in self._reserved, f.name
-            self._set_field(f.name, convert_expr(Expression(Select(Reference('g'), f.name), f.typ,
-                                                            self._entry_indices)))
+            self._set_field(f.name, construct_expr(Select(Reference('g'), f.name), f.typ,
+                                                   self._entry_indices))
 
     def _set_field(self, key, value):
         assert key not in self._fields, key
@@ -681,8 +682,7 @@ class MatrixTable(object):
                 assert isinstance(obj, Table)
                 return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jvds, uid))
 
-        return convert_expr(
-            Expression(GlobalJoinReference, self.global_schema, joins=(Join(joiner, [uid]))))
+        return construct_expr(GlobalJoinReference, self.global_schema, joins=(Join(joiner, [uid])))
 
     @handle_py4j
     def index_rows(self, expr):
@@ -715,9 +715,8 @@ class MatrixTable(object):
                 left = left.key_by(*pre_key)
                 return left
 
-            return convert_expr(
-                Expression(Reference(uid), self.row_schema, indices, aggregations,
-                           joins + (Join(joiner, uids_to_delete),)))
+            return construct_expr(Reference(uid), self.row_schema, indices, aggregations,
+                                  joins + (Join(joiner, uids_to_delete),))
         else:
             assert isinstance(src, MatrixTable)
 
@@ -746,9 +745,8 @@ class MatrixTable(object):
                 # FIXME: implement entry-based join in the expression language
                 raise NotImplementedError('vds join with indices {}'.format(indices))
 
-            return convert_expr(
-                Expression(Select(Reference(prefix), uid),
-                           self.row_schema, indices, aggregations, joins + (Join(joiner, uids_to_delete),)))
+            return construct_expr(Select(Reference(prefix), uid),
+                                  self.row_schema, indices, aggregations, joins + (Join(joiner, uids_to_delete),))
 
     @handle_py4j
     def index_cols(self, expr):
@@ -781,9 +779,8 @@ class MatrixTable(object):
                 left = left.key_by(*pre_key)
                 return left
 
-            return convert_expr(
-                Expression(Reference(uid),
-                           self.col_schema, indices, aggregations, joins + (Join(joiner, uids_to_delete),)))
+            return construct_expr(Reference(uid),
+                                  self.col_schema, indices, aggregations, joins + (Join(joiner, uids_to_delete),))
         else:
             assert isinstance(src, MatrixTable)
             if indices == src._row_indices:
@@ -803,9 +800,8 @@ class MatrixTable(object):
             else:
                 # FIXME: implement entry-based join in the expression language
                 raise NotImplementedError('vds join with indices {}'.format(indices))
-            return convert_expr(
-                Expression(Select(Reference(prefix), uid),
-                           self.col_schema, indices, aggregations, joins + (Join(joiner, uids_to_delete),)))
+            return construct_expr(Select(Reference(prefix), uid),
+                                  self.col_schema, indices, aggregations, joins + (Join(joiner, uids_to_delete),))
 
     @handle_py4j
     def index_entries(self, row_expr, col_expr):
@@ -840,9 +836,8 @@ class MatrixTable(object):
                 left = left.key_by(*pre_key)
                 return left
 
-            return convert_expr(
-                Expression(Reference(uid),
-                           self.entry_schema, indices, aggregations, joins + (Join(joiner, uids_to_delete),)))
+            return construct_expr(Reference(uid),
+                                  self.entry_schema, indices, aggregations, joins + (Join(joiner, uids_to_delete),))
         else:
             raise NotImplementedError('matrix.index_entries with {}'.format(src.__class__))
 

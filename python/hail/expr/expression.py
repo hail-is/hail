@@ -5,157 +5,6 @@ from hail.expr.types import *
 from hail.utils.java import *
 from hail.genetics import Locus, Variant, Interval
 
-def to_expr(e):
-    if isinstance(e, Expression):
-        return e
-    elif isinstance(e, str) or isinstance(e, unicode):
-        return Expression(Literal('"{}"'.format(e)), TString())
-    elif isinstance(e, bool):
-        return Expression(Literal("true" if e else "false"), TBoolean())
-    elif isinstance(e, int):
-        return Expression(Literal(str(e)), TInt32())
-    elif isinstance(e, long):
-        return Expression(ClassMethod('toInt64', Literal('"{}"'.format(e))), TInt64())
-    elif isinstance(e, float):
-        return Expression(Literal(str(e)), TFloat64())
-    elif isinstance(e, Variant):
-        return Expression(ApplyMethod('Variant', Literal('"{}"'.format(str(e)))), TVariant(e.reference_genome))
-    elif isinstance(e, Locus):
-        return Expression(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), TLocus(e.reference_genome))
-    elif isinstance(e, Interval):
-        return Expression(ApplyMethod('Interval', Literal('"{}"'.format(str(e)))), TInterval(e.reference_genome))
-    elif isinstance(e, Struct):
-        attrs = e._attrs.items()
-        cols = [to_expr(x) for _, x in attrs]
-        names = [k for k, _ in attrs]
-        indices, aggregations, joins = unify_all(*cols)
-        t = TStruct(names, [col._type for col in cols])
-        return Expression(StructDeclaration(names, [c._ast for c in cols]),
-                          t, indices, aggregations, joins)
-    elif isinstance(e, list):
-        cols = [to_expr(x) for x in e]
-        types = list({col._type for col in cols})
-        if len(cols) == 0:
-            raise ValueError("Don't support empty lists.")
-        elif len(types) == 1:
-            t = TArray(types[0])
-        elif all([is_numeric(t) for t in types]):
-            t = TArray(convert_numeric_typ(*types))
-        else:
-            raise ValueError("Don't support lists with multiple element types.")
-        indices, aggregations, joins = unify_all(*cols)
-        return Expression(ArrayDeclaration([col._ast for col in cols]),
-                          t, indices, aggregations, joins)
-    elif isinstance(e, set):
-        cols = [to_expr(x) for x in e]
-        types = list({col._type for col in cols})
-        if len(cols) == 0:
-            raise ValueError("Don't support empty sets.")
-        elif len(types) == 1:
-            t = TArray(types[0])
-        elif all([is_numeric(t) for t in types]):
-            t = TArray(convert_numeric_typ(*types))
-        else:
-            raise ValueError("Don't support sets with multiple element types.")
-        indices, aggregations, joins = unify_all(*cols)
-        return Expression(ClassMethod('toSet', ArrayDeclaration([col._ast for col in cols])), t, indices, aggregations,
-                          joins)
-    elif isinstance(e, dict):
-        key_cols = []
-        value_cols = []
-        keys = []
-        values = []
-        for k, v in e.items():
-            key_cols.append(to_expr(k))
-            keys.append(k)
-            value_cols.append(to_expr(v))
-            values.append(v)
-        key_types = list({col._type for col in key_cols})
-        value_types = list({col._type for col in value_cols})
-
-        if len(key_types) == 0:
-            raise ValueError("Don't support empty dictionaries.")
-        elif len(key_types) == 1:
-            key_type = key_types[0]
-        elif all([is_numeric(t) for t in key_types]):
-            key_type = convert_numeric_typ(*key_types)
-        else:
-            raise ValueError("Don't support dictionaries with multiple key types.")
-
-        if len(value_types) == 1:
-            value_type = value_types[0]
-        elif all([is_numeric(t) for t in value_types]):
-            value_type = convert_numeric_typ(*value_types)
-        else:
-            raise ValueError("Don't support dictionaries with multiple value types.")
-
-        kc = to_expr(keys)
-        vc = to_expr(values)
-
-        indices, aggregations, joins = unify_all(kc, vc)
-
-        assert key_type == kc._type.element_type
-        assert value_type == vc._type.element_type
-
-        ast = ApplyMethod('Dict',
-                          ArrayDeclaration([k._ast for k in key_cols]),
-                          ArrayDeclaration([v._ast for v in value_cols]))
-        return Expression(ast, TDict(key_type, value_type), indices, aggregations, joins)
-    else:
-        raise ValueError("Cannot implicitly capture value `{}' with type `{}'.".format(e, e.__class__))
-
-
-@decorator
-def args_to_expr(func, *args):
-    return func(*(convert_expr(to_expr(a)) for a in args))
-
-
-def unify_all(*exprs):
-    assert len(exprs) > 0
-    new_indices = Indices.unify(*[e._indices for e in exprs])
-    agg = list(exprs[0]._aggregations)
-    joins = list(exprs[0]._joins)
-    for e in exprs[1:]:
-        agg.extend(e._aggregations)
-        joins.extend(e._joins)
-    return new_indices, tuple(agg), tuple(joins)
-
-
-def convert_expr(x):
-    if isinstance(x, Expression) and x._type.__class__ in typ_to_expr:
-        x = typ_to_expr[x._type.__class__](x._ast, x._type, x._indices, x._aggregations, x._joins)
-
-        if isinstance(x, ArrayExpression) and x._type.element_type.__class__ in elt_typ_to_array_expr:
-            return elt_typ_to_array_expr[x._type.element_type.__class__](
-                x._ast, x._type, x._indices, x._aggregations, x._joins)
-        elif isinstance(x, SetExpression) and x._type.element_type.__class__ in elt_typ_to_set_expr:
-            return elt_typ_to_set_expr[x._type.element_type.__class__](
-                x._ast, x._type, x._indices, x._aggregations, x._joins)
-        else:
-            return x
-    else:
-        raise NotImplementedError("Can't convert column with type `" + str(x._type.__class__) + "'.")
-
-
-__numeric_types = [TInt32, TInt64, TFloat32, TFloat64]
-
-
-@typecheck(t=Type)
-def is_numeric(t):
-    return t.__class__ in __numeric_types
-
-
-@typecheck(types=tupleof(Type))
-def convert_numeric_typ(*types):
-    priority_map = {t: p for t, p in zip(__numeric_types, range(len(__numeric_types)))}
-    priority = 0
-    for t in types:
-        assert (is_numeric(t)), t
-        t_priority = priority_map[t.__class__]
-        if t_priority > priority:
-            priority = t_priority
-    return __numeric_types[priority]()
-
 
 class Indices(object):
     @typecheck_method(source=anytype, axes=setof(strlike))
@@ -204,9 +53,151 @@ class Aggregation(object):
 class Join(object):
     def __init__(self, join_function, temp_vars):
         self.join_function = join_function
-        # self.right = right
-        # self.index_exprs = index_exprs
         self.temp_vars = temp_vars
+
+
+@typecheck(ast=AST, type=Type, indices=Indices, aggregations=tupleof(Aggregation), joins=tupleof(Join))
+def construct_expr(ast, type, indices=Indices(), aggregations=(), joins=()):
+    if isinstance(type, TArray) and type.element_type.__class__ in elt_typ_to_array_expr:
+        return elt_typ_to_array_expr[type.element_type.__class__](ast, type, indices, aggregations, joins)
+    elif isinstance(type, TSet) and type.element_type.__class__ in elt_typ_to_set_expr:
+        return elt_typ_to_set_expr[type.element_type.__class__](ast, type, indices, aggregations, joins)
+    elif type.__class__ in typ_to_expr:
+        return typ_to_expr[type.__class__](ast, type, indices, aggregations, joins)
+    else:
+        raise NotImplementedError(type)
+
+
+def to_expr(e):
+    if isinstance(e, Expression):
+        return e
+    elif isinstance(e, str) or isinstance(e, unicode):
+        return construct_expr(Literal('"{}"'.format(e)), TString())
+    elif isinstance(e, bool):
+        return construct_expr(Literal("true" if e else "false"), TBoolean())
+    elif isinstance(e, int):
+        return construct_expr(Literal(str(e)), TInt32())
+    elif isinstance(e, long):
+        return construct_expr(ClassMethod('toInt64', Literal('"{}"'.format(e))), TInt64())
+    elif isinstance(e, float):
+        return construct_expr(Literal(str(e)), TFloat64())
+    elif isinstance(e, Variant):
+        return construct_expr(ApplyMethod('Variant', Literal('"{}"'.format(str(e)))), TVariant(e.reference_genome))
+    elif isinstance(e, Locus):
+        return construct_expr(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), TLocus(e.reference_genome))
+    elif isinstance(e, Interval):
+        return construct_expr(ApplyMethod('Interval', Literal('"{}"'.format(str(e)))), TInterval(e.reference_genome))
+    elif isinstance(e, Struct):
+        attrs = e._attrs.items()
+        cols = [to_expr(x) for _, x in attrs]
+        names = [k for k, _ in attrs]
+        indices, aggregations, joins = unify_all(*cols)
+        t = TStruct(names, [col._type for col in cols])
+        return construct_expr(StructDeclaration(names, [c._ast for c in cols]),
+                              t, indices, aggregations, joins)
+    elif isinstance(e, list):
+        cols = [to_expr(x) for x in e]
+        types = list({col._type for col in cols})
+        if len(cols) == 0:
+            raise ValueError("Don't support empty lists.")
+        elif len(types) == 1:
+            t = TArray(types[0])
+        elif all([is_numeric(t) for t in types]):
+            t = TArray(convert_numeric_typ(*types))
+        else:
+            raise ValueError("Don't support lists with multiple element types.")
+        indices, aggregations, joins = unify_all(*cols)
+        return construct_expr(ArrayDeclaration([col._ast for col in cols]),
+                              t, indices, aggregations, joins)
+    elif isinstance(e, set):
+        cols = [to_expr(x) for x in e]
+        types = list({col._type for col in cols})
+        if len(cols) == 0:
+            raise ValueError("Don't support empty sets.")
+        elif len(types) == 1:
+            t = TArray(types[0])
+        elif all([is_numeric(t) for t in types]):
+            t = TArray(convert_numeric_typ(*types))
+        else:
+            raise ValueError("Don't support sets with multiple element types.")
+        indices, aggregations, joins = unify_all(*cols)
+        return construct_expr(ClassMethod('toSet', ArrayDeclaration([col._ast for col in cols])), t, indices,
+                              aggregations,
+                              joins)
+    elif isinstance(e, dict):
+        key_cols = []
+        value_cols = []
+        keys = []
+        values = []
+        for k, v in e.items():
+            key_cols.append(to_expr(k))
+            keys.append(k)
+            value_cols.append(to_expr(v))
+            values.append(v)
+        key_types = list({col._type for col in key_cols})
+        value_types = list({col._type for col in value_cols})
+
+        if len(key_types) == 0:
+            raise ValueError("Don't support empty dictionaries.")
+        elif len(key_types) == 1:
+            key_type = key_types[0]
+        elif all([is_numeric(t) for t in key_types]):
+            key_type = convert_numeric_typ(*key_types)
+        else:
+            raise ValueError("Don't support dictionaries with multiple key types.")
+
+        if len(value_types) == 1:
+            value_type = value_types[0]
+        elif all([is_numeric(t) for t in value_types]):
+            value_type = convert_numeric_typ(*value_types)
+        else:
+            raise ValueError("Don't support dictionaries with multiple value types.")
+
+        kc = to_expr(keys)
+        vc = to_expr(values)
+
+        indices, aggregations, joins = unify_all(kc, vc)
+
+        assert key_type == kc._type.element_type
+        assert value_type == vc._type.element_type
+
+        ast = ApplyMethod('Dict',
+                          ArrayDeclaration([k._ast for k in key_cols]),
+                          ArrayDeclaration([v._ast for v in value_cols]))
+        return construct_expr(ast, TDict(key_type, value_type), indices, aggregations, joins)
+    else:
+        raise ValueError("Cannot implicitly capture value `{}' with type `{}'.".format(e, e.__class__))
+
+
+def unify_all(*exprs):
+    assert len(exprs) > 0
+    new_indices = Indices.unify(*[e._indices for e in exprs])
+    agg = list(exprs[0]._aggregations)
+    joins = list(exprs[0]._joins)
+    for e in exprs[1:]:
+        agg.extend(e._aggregations)
+        joins.extend(e._joins)
+    return new_indices, tuple(agg), tuple(joins)
+
+
+__numeric_types = [TInt32, TInt64, TFloat32, TFloat64]
+
+
+@typecheck(t=Type)
+def is_numeric(t):
+    return t.__class__ in __numeric_types
+
+
+@typecheck(types=tupleof(Type))
+def convert_numeric_typ(*types):
+    priority_map = {t: p for t, p in zip(__numeric_types, range(len(__numeric_types)))}
+    priority = 0
+    for t in types:
+        assert (is_numeric(t)), t
+        t_priority = priority_map[t.__class__]
+        if t_priority > priority:
+            priority = t_priority
+    return __numeric_types[priority]()
 
 
 class Expression(object):
@@ -246,39 +237,37 @@ class Expression(object):
         pass
 
     def __nonzero__(self):
-        raise NotImplementedError("The truth value of an expression is undefined\n  Hint: instead of if/else, use 'f.cond'")
+        raise NotImplementedError(
+            "The truth value of an expression is undefined\n  Hint: instead of if/else, use 'f.cond'")
 
     def _unary_op(self, name):
-        return convert_expr(Expression(UnaryOperation(self._ast, name),
-                                       self._type, self._indices, self._aggregations, self._joins))
+        return construct_expr(UnaryOperation(self._ast, name),
+                              self._type, self._indices, self._aggregations, self._joins)
 
     def _bin_op(self, name, other, ret_typ):
         other = to_expr(other)
         indices, aggregations, joins = unify_all(self, other)
-        return convert_expr(
-            Expression(BinaryOperation(self._ast, other._ast, name), ret_typ, indices, aggregations, joins))
+        return construct_expr(BinaryOperation(self._ast, other._ast, name), ret_typ, indices, aggregations, joins)
 
     def _bin_op_reverse(self, name, other, ret_typ):
         other = to_expr(other)
         indices, aggregations, joins = unify_all(self, other)
-        return convert_expr(
-            Expression(BinaryOperation(other._ast, self._ast, name), ret_typ, indices, aggregations, joins))
+        return construct_expr(BinaryOperation(other._ast, self._ast, name), ret_typ, indices, aggregations, joins)
 
     def _field(self, name, ret_typ):
-        return convert_expr(
-            Expression(Select(self._ast, name), ret_typ, self._indices, self._aggregations, self._joins))
+        return construct_expr(Select(self._ast, name), ret_typ, self._indices, self._aggregations, self._joins)
 
     def _method(self, name, ret_typ, *args):
         args = (to_expr(arg) for arg in args)
         indices, aggregations, joins = unify_all(self, *args)
-        return convert_expr(Expression(ClassMethod(name, self._ast, *(a._ast for a in args)),
-                                       ret_typ, indices, aggregations, joins))
+        return construct_expr(ClassMethod(name, self._ast, *(a._ast for a in args)),
+                              ret_typ, indices, aggregations, joins)
 
     def _index(self, ret_typ, key):
         key = to_expr(key)
         indices, aggregations, joins = unify_all(self, key)
-        return convert_expr(Expression(Index(self._ast, key._ast),
-                                       ret_typ, indices, aggregations, joins))
+        return construct_expr(Index(self._ast, key._ast),
+                              ret_typ, indices, aggregations, joins)
 
     def _slice(self, ret_typ, start=None, stop=None, step=None):
         if start is not None:
@@ -296,27 +285,23 @@ class Expression(object):
 
         non_null = [x for x in [start, stop] if x is not None]
         indices, aggregations, joins = unify_all(self, *non_null)
-        return convert_expr(Expression(Index(self._ast, Slice(start_ast, stop_ast)),
-                                       ret_typ, indices, aggregations, joins))
+        return construct_expr(Index(self._ast, Slice(start_ast, stop_ast)),
+                              ret_typ, indices, aggregations, joins)
 
     def _bin_lambda_method(self, name, f, inp_typ, ret_typ_f, *args):
         args = (to_expr(arg) for arg in args)
         new_id = Env._get_uid()
         lambda_result = to_expr(
-            f(convert_expr(Expression(Reference(new_id), inp_typ, self._indices, self._aggregations, self._joins))))
+            f(construct_expr(Reference(new_id), inp_typ, self._indices, self._aggregations, self._joins)))
         indices, aggregations, joins = unify_all(self, lambda_result)
         ast = LambdaClassMethod(name, new_id, self._ast, lambda_result._ast, *(a._ast for a in args))
-        return convert_expr(Expression(ast, ret_typ_f(lambda_result._type), indices, aggregations, joins))
+        return construct_expr(ast, ret_typ_f(lambda_result._type), indices, aggregations, joins)
 
     def __eq__(self, other):
         return self._bin_op("==", other, TBoolean())
 
     def __ne__(self, other):
         return self._bin_op("!=", other, TBoolean())
-
-    @staticmethod
-    def null(typ):
-        return convert_expr(Expression("NA: {}".format(typ), typ))
 
 
 class CollectionExpression(Expression):
@@ -465,12 +450,12 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
                 other = {}'''.format(type(self), type(other)))
 
     def _bin_op_numeric(self, name, other):
-        other = convert_expr(to_expr(other))
+        other = to_expr(other)
         ret_typ = self._bin_op_ret_typ(other)
         return self._bin_op(name, other, ret_typ)
 
     def _bin_op_numeric_reverse(self, name, other):
-        other = convert_expr(to_expr(other))
+        other = to_expr(other)
         ret_typ = self._bin_op_ret_typ(other)
         return self._bin_op_reverse(name, other, ret_typ)
 
@@ -834,11 +819,6 @@ class StringExpression(AtomicExpression):
 
 
 class CallExpression(Expression):
-    @staticmethod
-    @args_to_expr
-    def from_int32(i):
-        return CallExpression(ApplyMethod('Call', i._ast), TCall(), i._indices, i._source, i._aggregations)
-
     @property
     def gt(self):
         return self._field("gt", TInt32())
@@ -1090,9 +1070,10 @@ def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
                 agg_axes = agg_indices.axes
                 if agg_indices.source is not None and agg_indices.source is not expected_source:
                     errors.append(
-                        ExpressionException('Expected an expression from source {}, found expression derived from {}'.format(
-                            expected_source, source
-                        )))
+                        ExpressionException(
+                            'Expected an expression from source {}, found expression derived from {}'.format(
+                                expected_source, source
+                            )))
 
                 # check for stray indices
                 unexpected_agg_axes = agg_axes - expected_agg_axes
