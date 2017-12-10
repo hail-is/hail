@@ -76,7 +76,7 @@ class MatrixTable(object):
     >>> m = m.annotate_globals(pli={'SCN1A': 0.999, 'SONIC': 0.014},
     ...                        populations = ['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
 
-    >>> m = m.annotate_cols(pop = m.populations[f.runif(0, 6).to_int32()],
+    >>> m = m.annotate_cols(pop = m.populations[f.rand_unif(0, 6).to_int32()],
     ...                     sample_gq = f.mean(m.GQ),
     ...                     sample_dp = f.mean(m.DP))
 

@@ -395,7 +395,7 @@ class MatrixTests(unittest.TestCase):
                                  y=f.collect(vds.y1))
 
         qgs = vds.aggregate_entries(x=f.collect(f.filter(vds.y1, False)),
-                                    y=f.collect(f.filter(vds.GT, f.pcoin(0.1))))
+                                    y=f.collect(f.filter(vds.GT, f.rand_bool(0.1))))
 
     def test_drop(self):
         vds = self.get_vds()
@@ -440,11 +440,9 @@ class FunctionsTests(unittest.TestCase):
             dpois=f.dpois(4, kt.a),
             drop=f.drop(kt.h, 'b', 'c'),
             exp=f.exp(kt.c),
-            fet=f.fet(kt.a, kt.b, kt.c, kt.d),
+            fet=f.fisher_exact_test(kt.a, kt.b, kt.c, kt.d),
             gt_index=f.gt_index(kt.a, kt.b),
-            gtj=f.gtj(kt.a),
-            gtk=f.gtk(kt.b),
-            hwe=f.hwe(1, 2, 1),
+            hwe=f.hardy_weinberg_p(1, 2, 1),
             index=f.index(kt.g, 'z'),
             is_defined=f.is_defined(kt.i),
             is_missing=f.is_missing(kt.i),
@@ -456,15 +454,15 @@ class FunctionsTests(unittest.TestCase):
             or_else=f.or_else(kt.a, 5),
             or_missing=f.or_missing(kt.i, kt.j),
             pchisqtail=f.pchisqtail(kt.a.to_float64(), kt.b.to_float64()),
-            pcoin=f.pcoin(0.5),
+            pcoin=f.rand_bool(0.5),
             pnorm=f.pnorm(0.2),
             pow=2.0 ** kt.b,
             ppois=f.ppois(kt.a.to_float64(), kt.b.to_float64()),
             qchisqtail=f.qchisqtail(kt.a.to_float64(), kt.b.to_float64()),
             range=f.range(0, 5, kt.b),
-            rnorm=f.rnorm(0.0, kt.b),
-            rpois=f.rpois(kt.a),
-            runif=f.runif(kt.b, kt.a),
+            rnorm=f.rand_norm(0.0, kt.b),
+            rpois=f.rand_pois(kt.a),
+            runif=f.rand_unif(kt.b, kt.a),
             select=f.select(kt.h, 'c', 'b'),
             sqrt=f.sqrt(kt.a),
             to_str=[f.to_str(5), f.to_str(kt.a), f.to_str(kt.g)],
@@ -608,7 +606,7 @@ class ColumnTests(unittest.TestCase):
         kt = Table.parallelize(rows, schema)
 
         kt = kt.annotate(v1=f.parse_variant("1:500:A:T", reference_genome=rg),
-                         v2=f.variant("1", 23, "A", "T", reference_genome=rg),
+                         v2=f.variant("1", 23, "A", ["T"], reference_genome=rg),
                          v3=f.variant("1", 23, "A", ["T", "G"], reference_genome=rg),
                          l1=f.parse_locus("1:51"),
                          l2=f.locus("1", 51, reference_genome=rg),
