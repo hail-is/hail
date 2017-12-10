@@ -8,9 +8,8 @@ import random
 import shutil
 import unittest
 
-from hail import HailContext, KeyTable, VariantDataset, LDMatrix
-from hail.api1.keytable import asc
-from hail.api1.keytable import desc
+from hail import HailContext, KeyTable, VariantDataset
+from hail.api1.keytable import asc, desc
 from hail.expr.types import *
 from hail.genetics import *
 from hail.utils import *

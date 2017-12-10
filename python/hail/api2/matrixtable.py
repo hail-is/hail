@@ -678,7 +678,6 @@ class MatrixTable(object):
             if isinstance(obj, MatrixTable):
                 return MatrixTable(obj._hc, Env.jutils().joinGlobals(obj._jvds, self._jvds, uid))
             else:
-                from hail.api2.table import Table
                 assert isinstance(obj, Table)
                 return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jvds, uid))
 
@@ -699,7 +698,6 @@ class MatrixTable(object):
         if src is None:
             raise ExpressionException('Cannot index with a scalar expression')
 
-        from hail.api2.table import Table
         if isinstance(src, Table):
             # join table with matrix.rows_table()
             right = self.rows_table()
@@ -766,7 +764,6 @@ class MatrixTable(object):
         if src is None:
             raise ExpressionException('Cannot index with a scalar expression')
 
-        from hail.api2.table import Table
         if isinstance(src, Table):
             # join table with matrix.cols_table()
             right = self.cols_table()
@@ -822,7 +819,6 @@ class MatrixTable(object):
         uid = Env._get_uid()
         uids_to_delete = [uid]
 
-        from hail.api2.table import Table
         if isinstance(src, Table):
             # join table with matrix.entries_table()
             right = self.entries_table()

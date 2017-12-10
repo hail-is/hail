@@ -3,8 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
-import hail
-
+from hail.genetics import Locus, Variant, Interval
 
 def to_expr(e):
     if isinstance(e, Expression):
@@ -19,11 +18,11 @@ def to_expr(e):
         return Expression(ClassMethod('toInt64', Literal('"{}"'.format(e))), TInt64())
     elif isinstance(e, float):
         return Expression(Literal(str(e)), TFloat64())
-    elif isinstance(e, hail.genetics.Variant):
+    elif isinstance(e, Variant):
         return Expression(ApplyMethod('Variant', Literal('"{}"'.format(str(e)))), TVariant(e.reference_genome))
-    elif isinstance(e, hail.genetics.Locus):
+    elif isinstance(e, Locus):
         return Expression(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), TLocus(e.reference_genome))
-    elif isinstance(e, hail.genetics.Interval):
+    elif isinstance(e, Interval):
         return Expression(ApplyMethod('Interval', Literal('"{}"'.format(str(e)))), TInterval(e.reference_genome))
     elif isinstance(e, Struct):
         attrs = e._attrs.items()
@@ -889,7 +888,7 @@ class LocusExpression(Expression):
 
 
 class IntervalExpression(Expression):
-    @typecheck_method(locus=oneof(LocusExpression, hail.genetics.Locus))
+    @typecheck_method(locus=oneof(LocusExpression, Locus))
     def contains(self, locus):
         locus = to_expr(locus)
         if not locus._type._rg == self._type._rg:

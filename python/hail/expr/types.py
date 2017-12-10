@@ -560,7 +560,7 @@ class TStruct(Type):
     .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#struct>`__
-    - in Python, values are instances of :class:`hail.genetics.Struct`
+    - in Python, values are instances of :class:`hail.utils.Struct`
 
     :param names: names of fields
     :type names: list of str

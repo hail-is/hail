@@ -1,8 +1,6 @@
 import sys
 
-from hail.api1.context import HailContext
-from hail.api1.dataset import VariantDataset
-from hail.api1.keytable import KeyTable
+from hail.api1 import HailContext, VariantDataset, KeyTable
 from hail.expr.types import Type, TInt32, TInt64, TFloat32, TFloat64, TSet, TString, TBoolean, TArray, TDict, TLocus, \
     TVariant, TAltAllele, TCall, TInterval, TStruct
 from hail.genetics import *
