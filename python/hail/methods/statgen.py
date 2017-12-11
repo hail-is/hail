@@ -75,7 +75,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
 
 @handle_py4j
-@typecheck(dataset=anytype, force_local=bool)
+@typecheck(dataset=MatrixTable, force_local=bool)
 def ld_matrix(dataset, force_local=False):
     """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
 

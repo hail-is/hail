@@ -618,7 +618,6 @@ class ColumnTests(unittest.TestCase):
 
         expected_schema = {'a': TFloat64(), 'b': TFloat64(), 'c': TInt32(), 'd': TInt64(), 'v1': TVariant(rg),
                            'v2': TVariant(rg), 'v3': TVariant(rg), 'l1': TLocus(), 'l2': TLocus(rg),
-                           'i1': TInterval(rg),
-                           'i2': TInterval(rg)}
+                           'i1': TInterval(rg), 'i2': TInterval(rg)}
 
         self.assertTrue(all([expected_schema[fd.name] == fd.typ for fd in kt.schema.fields]))
