@@ -8,10 +8,6 @@ import is.hail.utils._
 
 import scala.language.implicitConversions
 
-class StagedEncoder {
-
-}
-
 object StagedDecoder {
 
   private def storeType(typ: Type, srvb: StagedRegionValueBuilder): Code[Unit] = {
