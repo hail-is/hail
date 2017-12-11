@@ -451,7 +451,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     }
     val newKeys = keysBySample.toSet.toArray
     val keyMap = newKeys.zipWithIndex.toMap
-    val samplesMap = keysBySample.map { k => if (k==null) -1 else keyMap(k) }.toArray
+    val samplesMap = keysBySample.map { k => if (k == null) -1 else keyMap(k) }.toArray
 
     val nKeys = newKeys.size
 
@@ -505,12 +505,12 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       saSignature = TStruct.empty(),
       genotypeSignature = entryType)
   }
-  
+
   def groupVariantsBy(keyExpr: String, aggExpr: String): VariantSampleMatrix = {
     val localRowType = rowType
     val vEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
-                              "v" -> (1, vSignature),
-                              Annotation.VARIANT_HEAD -> (2, vaSignature)))
+      "v" -> (1, vSignature),
+      Annotation.VARIANT_HEAD -> (2, vaSignature)))
     val (keyType, keyF) = Parser.parseExpr(keyExpr, vEC)
     vEC.set(0, globalAnnotation)
 
@@ -520,15 +520,15 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         ur.set(rv)
         vEC.set(1, ur.get(1))
         vEC.set(2, ur.get(2))
-        Option(keyF()).map{ key => (Annotation.copy(keyType, key), ur) }
+        Option(keyF()).map { key => (Annotation.copy(keyType, key), ur) }
       }
     }
 
     val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions(this, aggExpr)
 
     val (pkType, pkF: (Annotation => Annotation)) = keyType match {
-      case TVariant(gr, _) => (TLocus(gr), {key: Variant => key.locus})
-      case t => (t, {key: Annotation => key})
+      case TVariant(gr, _) => (TLocus(gr), { key: Variant => key.locus })
+      case t => (t, { key: Annotation => key })
     }
 
     val signature = TStruct("pk" -> pkType, "v" -> keyType, Annotation.VARIANT_HEAD -> TStruct.empty(), Annotation.GENOTYPE_HEAD -> TArray(resultType))
@@ -538,7 +538,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         val region = MemoryBuffer()
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
-        it.map {case (key, agg) =>
+        it.map { case (key, agg) =>
           rvb.start(signature)
           rvb.startStruct()
           rvb.addAnnotation(pkType, pkF(key))
@@ -555,9 +555,9 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val mt = matrixType.copy(vType = keyType, vaType = TStruct.empty(), genotypeType = resultType)
 
     copy2(rdd2 = OrderedRVD(mt.orderedRVType, rdd, None, None),
-    vSignature = keyType,
-    vaSignature = TStruct.empty(),
-    genotypeSignature = resultType)
+      vSignature = keyType,
+      vaSignature = TStruct.empty(),
+      genotypeSignature = resultType)
   }
 
   def annotateGlobal(a: Annotation, t: Type, code: String): VariantSampleMatrix = {
@@ -1118,9 +1118,9 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         ks
       }
     }
-    
+
     val (newSASig, inserter) = saSignature.insert(keyType, path)
-    
+
     val sampleMap = new Array[Int](size)
     val newSampleIds = new Array[Annotation](size)
     val newSampleAnnotations = new Array[Annotation](size)
@@ -1136,7 +1136,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       }
       i += 1
     }
-    
+
     val sampleMapBc = sparkContext.broadcast(sampleMap)
     val localRowType = rowType
     val localGSSig = rowType.fieldType(3).asInstanceOf[TArray]
@@ -1158,7 +1158,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         i = 0
         val arrayOff = localRowType.loadField(rv, 3)
         while (i < newSampleIds.length) {
-          rv2b.addRegionValue(localGSSig.elementType, rv.region, 
+          rv2b.addRegionValue(localGSSig.elementType, rv.region,
             localGSSig.loadElement(rv.region, arrayOff, sampleMapBc.value(i)))
           i += 1
         }
@@ -1221,24 +1221,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     })
   }
 
-  def filterSamplesMask(mask: Array[Boolean]): VariantSampleMatrix = {
-    require(mask.length == nSamples)
-    val maskBc = sparkContext.broadcast(mask)
-    copy(sampleIds = sampleIds.zipWithIndex
-      .filter { case (s, i) => mask(i) }
-      .map(_._1),
-      sampleAnnotations = sampleAnnotations.zipWithIndex
-        .filter { case (sa, i) => mask(i) }
-        .map(_._1),
-      rdd = rdd.mapValues { case (va, gs) =>
-        (va, gs.lazyFilterWith(maskBc.value, (g: Annotation, m: Boolean) => m))
-      })
-  }
-
-  // FIXME see if we can remove broadcasts elsewhere in the code
   def filterSamples(p: (Annotation, Annotation) => Boolean): VariantSampleMatrix = {
-    val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }.toArray
-    filterSamplesMask(mask)
+    copyAST(ast = MatrixLiteral(matrixType, value.filterSamples(p)))
   }
 
   /**
@@ -2625,21 +2609,21 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     */
   def pcRelate(k: Int, pcaScores: KeyTable, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): KeyTable = {
     require(wasSplit)
-    val scoreArray = new Array[Double](nSamples*k)
+    val scoreArray = new Array[Double](nSamples * k)
     val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
     var i = 0
     while (i < nSamples) {
       val row = pcs(i).getAs[IndexedSeq[Double]](1)
       var j = 0
       while (j < k) {
-        scoreArray(j*nSamples + i) = row(j)
+        scoreArray(j * nSamples + i) = row(j)
         j += 1
       }
       i += 1
     }
     PCRelate.toKeyTable(this, new DenseMatrix(nSamples, k, scoreArray, false), maf, blockSize, minKinship, statistics)
   }
-  
+
   def toIndexedRowMatrix(expr: String, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix) = {
     val partitionSizes = rdd2.mapPartitions(it => Iterator.single(it.size)).collect().scanLeft(0)(_ + _)
     assert(partitionSizes.length == rdd2.getNumPartitions + 1)
@@ -2648,7 +2632,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val localRowType = rowType
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
-    
+
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature),
       "v" -> (1, vSignature),
@@ -2659,11 +2643,11 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val f = RegressionUtils.parseExprAsDouble(expr, ec)
     ec.set(0, globalAnnotation)
 
-    val indexedRows = rdd2.mapPartitionsWithIndex {case (i, it) =>
+    val indexedRows = rdd2.mapPartitionsWithIndex { case (i, it) =>
       val pStartIdx = pSizeBc.value(i)
       var j = 0
       val ur = new UnsafeRow(localRowType)
-      it.map {rv =>
+      it.map { rv =>
         ur.set(rv)
         ec.set(1, ur.get(1))
         ec.set(2, ur.get(2))
@@ -2671,7 +2655,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         val ns = gs.length
         val a = new Array[Double](ns)
         var k = 0
-        while(k < ns) {
+        while (k < ns) {
           ec.set(3, localSampleIdsBc.value(k))
           ec.set(4, localSampleAnnotationsBc.value(k))
           ec.set(5, gs(k))
@@ -2688,7 +2672,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     }
 
     (someIf(getVariants,
-      rdd2.mapPartitions{it =>
+      rdd2.mapPartitions { it =>
         val ur = new UnsafeRow(localRowType)
         it.map { rv =>
           ur.set(rv)
@@ -2696,6 +2680,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
         }
       }.collect()
     ),
-    new IndexedRowMatrix(indexedRows, partitionSizes(partitionSizes.length - 1), nSamples))
+      new IndexedRowMatrix(indexedRows, partitionSizes(partitionSizes.length - 1), nSamples))
   }
 }
