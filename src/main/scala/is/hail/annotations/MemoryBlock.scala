@@ -228,6 +228,16 @@ final class MemoryBuffer(private var mem: Array[Byte], private var end: Long = 0
     off
   }
 
+  def appendBinary(bytes: Array[Byte]): Long = {
+    align(TBinary.contentAlignment)
+    val startOff = appendInt(bytes.length)
+    appendBytes(bytes)
+    startOff
+  }
+
+  def appendString(s: String): Long =
+    appendBinary(s.getBytes)
+
   def clear(newEnd: Long) {
     assert(newEnd <= end)
     end = newEnd
