@@ -1,6 +1,9 @@
 expr
 ====
 
+The ``expr`` module contains classes and functions comprising the Hail expression
+language. It contains three submodules:
+
 .. toctree::
     :maxdepth: 2
 
@@ -12,3 +15,13 @@ expr
     expression <expression>
     functions <functions>
     types <types>
+
+In addition, the following functions are provided as learning tools:
+
+.. autosummary::
+
+    hail.expr.eval_expr
+    hail.expr.eval_expr_typed
+
+.. autofunction:: hail.expr.eval_expr
+.. autofunction:: hail.expr.eval_expr_typed
