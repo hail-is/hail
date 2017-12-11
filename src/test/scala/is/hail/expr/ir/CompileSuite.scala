@@ -4,7 +4,7 @@ import is.hail.annotations._
 import ScalaToRegionValue._
 import is.hail.asm4s._
 import is.hail.check.{Gen, Parameters, Prop}
-import is.hail.expr.{TArray, TFloat64, TInt32}
+import is.hail.expr.{TArray, TFloat64, TInt32, TStruct}
 import is.hail.expr.ir._
 import org.testng.annotations.Test
 import org.scalatest._
@@ -290,4 +290,47 @@ class CompileSuite {
     intercept[RuntimeException](run(Array(-1.0,null,1.0), 1))
   }
 
+  @Test
+  def getFieldSum() {
+    val tL = TStruct("0" -> TFloat64())
+    val scopeStruct = TStruct("foo" -> TInt32())
+    val tR = TStruct("x" -> TFloat64(), "scope" -> scopeStruct)
+    val ir = ApplyBinaryPrimOp(Add(),
+      GetField(In(0, tL), "0"),
+      GetField(In(1, tR), "x"))
+    val region = MemoryBuffer()
+    val loff = addStruct(region, "0", 3.0)
+    val roff = addStruct(region,
+      "x", 5.0,
+      "scope", scopeStruct, addStruct(region, "foo", 7))
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long, Boolean, Double]
+    doit(ir, fb)
+    val f = fb.result()()
+    assert(f(region, loff, false, roff, false) === 8.0)
+  }
+
+  @Test
+  def getFieldSumStruct() {
+    val tL = TStruct("0" -> TFloat64())
+    val scopeStruct = TStruct("foo" -> TInt32())
+    val tR = TStruct("x" -> TFloat64(), "scope" -> scopeStruct)
+    val tOut = TStruct("0" -> TFloat64())
+    val ir = MakeStruct(Array(
+      ("0", TFloat64(),
+        ApplyBinaryPrimOp(Add(),
+          GetField(In(0, tL), "0"),
+          GetField(In(1, tR), "x")))))
+    val region = MemoryBuffer()
+    val rvb = new RegionValueBuilder()
+    val loff = addStruct(region, "0", 3.0)
+    val roff = addStruct(region,
+      "0", 5.0,
+      "scope", scopeStruct, addStruct(region, "foo", 7))
+    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    val outOff = f(region, loff, false, roff, false)
+    assert(tOut.isFieldDefined(region, outOff, tOut.fieldIdx("0")))
+    assert(region.loadDouble(tOut.loadField(region, outOff, tOut.fieldIdx("0"))) === 8.0)
+  }
 }
