@@ -9,8 +9,6 @@ import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-import scala.util.Random
-
 class GenomeReferenceSuite extends SparkSuite {
   @Test def testGRCh37() {
     val grch37 = GenomeReference.GRCh37
@@ -97,7 +95,7 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(vas.field("l").typ == TLocus(gr))
     assert(vas.field("i").typ == TInterval(gr))
 
-    GenomeReference.deleteReference("foo")
+    GenomeReference.removeReference("foo")
   }
 
   @Test def testDefaultReference() {
@@ -108,7 +106,7 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(GenomeReference.defaultReference.name == "my_reference_genome")
     GenomeReference.setDefaultReference(hc, "GRCh37")
 
-    TestUtils.interceptFatal("Cannot add reference genome. Reference genome `GRCh38' already exists.")(GenomeReference.setDefaultReference(hc, "src/main/resources/reference/grch38.json"))
+    TestUtils.interceptFatal("Reference genome `GRCh38' already exists.")(GenomeReference.setDefaultReference(hc, "src/main/resources/reference/grch38.json"))
     intercept[FileNotFoundException](GenomeReference.setDefaultReference(hc, "grch38.json"))
   }
 
@@ -171,7 +169,7 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"))""").signature.field("i1").typ == gr.interval)
 
     GenomeReference.setDefaultReference(GenomeReference.GRCh37)
-    GenomeReference.deleteReference("foo2")
+    GenomeReference.removeReference("foo2")
   }
 
   @Test def testContigRemap() {
@@ -237,8 +235,7 @@ class GenomeReferenceSuite extends SparkSuite {
     val tmpFile = tmpDir.createTempFile("grWrite", ".json")
 
     val gr = GenomeReference.GRCh37
-    val name = Random.alphanumeric.take(12).mkString
-    gr.copy(name = name).write(hc, tmpFile)
+    gr.copy(name = "GRCh37_2").write(hc, tmpFile)
     val gr2 = GenomeReference.fromFile(hc, tmpFile)
 
     assert((gr.contigs sameElements gr2.contigs) &&
@@ -248,6 +245,6 @@ class GenomeReferenceSuite extends SparkSuite {
       gr.mtContigs == gr2.mtContigs &&
       (gr.parInput sameElements gr2.parInput))
 
-    GenomeReference.deleteReference(name)
+    GenomeReference.removeReference("GRCh37_2")
   }
 }

@@ -726,7 +726,7 @@ class ContextTests(unittest.TestCase):
         self.assertDictEqual(gr2.lengths, lengths)
         gr2.write("/tmp/my_gr.json")
 
-        gr3 = GenomeReference.from_file("src/test/resources/fake_ref_genome.json")
+        gr3 = GenomeReference.read("src/test/resources/fake_ref_genome.json")
         self.assertEqual(gr3.name, "my_reference_genome")
 
     def test_types(self):

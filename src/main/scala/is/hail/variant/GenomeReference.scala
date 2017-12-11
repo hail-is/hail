@@ -237,7 +237,8 @@ object GenomeReference {
 
   def addReference(gr: GenomeReference) {
     if (hasReference(gr.name))
-      fatal(s"Reference genome `${ gr.name }' already exists.")
+      fatal(s"Reference genome `${ gr.name }' already exists. Choose a reference name NOT in the following list:\n  " +
+        s"@1", references.keys.truncatable("\n  "))
 
     references += (gr.name -> gr)
   }
@@ -251,9 +252,9 @@ object GenomeReference {
 
   def hasReference(name: String): Boolean = references.contains(name)
 
-  def deleteReference(name: String): Unit = {
+  def removeReference(name: String): Unit = {
     if (!hasReference(name))
-      fatal(s"Cannot delete reference genome. Reference genome `$name' does not exist.")
+      fatal(s"Cannot remove reference genome. `$name' does not exist. Available references: `${ references.keys.mkString(", ") }'.")
     references -= name
   }
 
