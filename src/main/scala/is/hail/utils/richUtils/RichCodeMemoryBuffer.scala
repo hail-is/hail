@@ -2,7 +2,7 @@ package is.hail.utils.richUtils
 
 import is.hail.expr._
 import is.hail.annotations.MemoryBuffer
-import is.hail.asm4s.Code
+import is.hail.asm4s._
 
 
 class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
@@ -100,15 +100,15 @@ class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
 
   def appendPrimitive(typ: Type): (Code[_]) => Code[Long] = typ match {
     case _: TBoolean =>
-      x => this.appendInt32(x.asInstanceOf[Code[Int]])
+      x => this.appendInt32(coerce[Int](x))
     case _: TInt32 =>
-      x => this.appendInt32(x.asInstanceOf[Code[Int]])
+      x => this.appendInt32(coerce[Int](x))
     case _: TInt64 =>
-      x => this.appendInt64(x.asInstanceOf[Code[Long]])
+      x => this.appendInt64(coerce[Long](x))
     case _: TFloat32 =>
-      x => this.appendFloat32(x.asInstanceOf[Code[Float]])
+      x => this.appendFloat32(coerce[Float](x))
     case _: TFloat64 =>
-      x => this.appendFloat64(x.asInstanceOf[Code[Double]])
+      x => this.appendFloat64(coerce[Double](x))
     case _ =>
       throw new UnsupportedOperationException("cannot append non-primitive type: $typ")
   }
