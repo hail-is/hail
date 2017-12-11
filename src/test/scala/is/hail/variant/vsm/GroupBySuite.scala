@@ -79,8 +79,6 @@ class GroupBySuite extends SparkSuite {
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
     val vdsGrouped = vds.explodeVariants("va.genes").groupVariantsBy("va.genes", "sum = gs.map(g => va.weight * g.GT.gt).sum()")
-    println(vds.rowType)
-    println(vdsGrouped.rowType)
 
     val resultsVSM = vdsGrouped.linreg(Array("sa.pheno"), "g.sum", covExpr = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val linregMap = resultsVSM.variantsKT().select("v", "va.linreg.beta", "va.linreg.se", "va.linreg.tstat", "va.linreg.pval")

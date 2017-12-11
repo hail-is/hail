@@ -264,17 +264,30 @@ class SkatSuite extends SparkSuite {
     val v2 = Array(0, 2, 1, 0)
     val v3 = Array(1, 0, 0, 1)
 
-    val G = new DenseMatrix[Int](4, 3, v1 ++ v2 ++ v3)
+    val vds0 = vdsFromGtMatrix(hc)(new DenseMatrix[Int](4, 3, v1 ++ v2 ++ v3))
     
-    val vds = vdsFromGtMatrix(hc)(G)
-      .annotateVariantsExpr("va.intkey = [9, v.start % 2, v.start // 2 + 1].toSet(), va.weight = v.start") // v1 -> {9, 1}, v2 -> {9, 0, 2}, v3 -> {9, 1, 2}
-      .explodeVariants("va.intkey") // 0 -> {v2}, 1 -> {v1, v2}, 2 -> {v3}, 9 -> {v1, v2, v3}
+    // annotations from table
+    val kt = IntervalList.read(hc, "src/test/resources/skat2.interval_list")
+    val vds = vds0
+      .annotateVariantsTable(kt, root = "va.key", product = true)
+      .annotateVariantsExpr("va.key = va.key.toSet(), va.weight = v.start")
+      .explodeVariants("va.key")
+      .annotateVariantsExpr("va.key = va.key.toInt32()")
+    
+    // annotations from expr
+    val vds2 = vds0
+      .annotateVariantsExpr("va.key = [9, v.start % 2, v.start // 2 + 1].toSet(), va.weight = v.start") // v1 -> {9, 1}, v2 -> {9, 0, 2}, v3 -> {9, 1, 2}
+      .explodeVariants("va.key") // 0 -> {v2}, 1 -> {v1, v3}, 2 -> {v2, v3}, 9 -> {v1, v2, v3}
+    
+    // table/explode and annotate/explode give same keys
+    assert(vds.same(vds2))
     
     val (keyGsWeightRdd, keyType) = Skat.computeKeyGsWeightRdd(vds, "g.GT.nNonRefAlleles()",
-      completeSampleIndex = Array(1, 3), keyExpr = "va.intkey", weightExpr = "va.weight")
+      completeSampleIndex = Array(1, 3), keyExpr = "va.key", weightExpr = "va.weight")
     
     val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => key.asInstanceOf[Int] -> it.toSet }.toMap
     
+    // groups of SkatTuples are as expected
     assert(keyToSet(0) == Set((DenseVector(2.0, 0.0), 2)))
     assert(keyToSet(1) == Set((DenseVector(1.0, 2.0), 1), (DenseVector(0.0, 1.0), 3)))
     assert(keyToSet(2) == Set((DenseVector(2.0, 0.0), 2), (DenseVector(0.0, 1.0), 3)))
