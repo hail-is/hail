@@ -24,6 +24,7 @@ object Infer {
         assert(Casts.valid(v.typ, typ))
 
       case NA(t) =>
+        assert(t != null)
       case x@MapNA(name, value, body, _) =>
         infer(value)
         infer(body, env = env.bind(name, value.typ))
@@ -53,14 +54,19 @@ object Infer {
       case x@ApplyUnaryPrimOp(op, v, _) =>
         infer(v)
         x.typ = UnaryOp.inferReturnType(op, v.typ)
-      case x@MakeArray(args, _) =>
-        args.map(infer(_))
-        val t = args.head.typ
-        args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x == t, s"at position $i type mismatch: $t $x") }
-        x.typ = TArray(t)
-      case MakeArrayN(len, _) =>
+      case x@MakeArray(args, typ) =>
+        if (args.length == 0)
+          assert(typ != null)
+        else {
+          args.map(infer(_))
+          val t = args.head.typ
+          args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x == t, s"at position $i type mismatch: $t $x") }
+          x.typ = TArray(t)
+        }
+      case MakeArrayN(len, typ) =>
         infer(len)
         assert(len.typ.isOfType(TInt32()))
+        assert(typ != null)
       case x@ArrayRef(a, i, _) =>
         infer(a)
         infer(i)
