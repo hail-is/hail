@@ -192,7 +192,6 @@ object HailContext {
 
         region.clear()
         rv.setOffset(f(region, dec))
-//        rv.setOffset(dec.readRegionValue(t, region))
 
         cont = dec.readByte()
         if (cont == 0)
