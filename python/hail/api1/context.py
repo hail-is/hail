@@ -551,10 +551,12 @@ class HailContext(HistoryMixin):
                       quant_pheno=bool,
                       a2_reference=bool,
                       reference_genome=nullable(GenomeReference),
-                      contig_recoding=nullable(dictof(strlike, strlike)))
+                      contig_recoding=nullable(dictof(strlike, strlike)),
+                      drop_chr0=bool)
     def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
                      missing='NA', quant_pheno=False, a2_reference=True,
-                     reference_genome=None, contig_recoding={'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}):
+                     reference_genome=None, contig_recoding={'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'},
+                     drop_chr0=False):
         """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
 
         **Examples**
@@ -616,6 +618,8 @@ class HailContext(HistoryMixin):
         :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
         :type contig_recoding: dict of str to str (or None).        
 
+        :param bool drop_chr0: If True, do not include variants with contig == "0".
+
         :return: Variant dataset imported from PLINK binary file.
         :rtype: :class:`.VariantDataset`
         """
@@ -627,7 +631,7 @@ class HailContext(HistoryMixin):
 
         jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter,
                                      missing, quant_pheno, a2_reference, rg._jrep,
-                                     joption(contig_recoding))
+                                     joption(contig_recoding), drop_chr0)
 
         return VariantDataset(self, jvds)
 

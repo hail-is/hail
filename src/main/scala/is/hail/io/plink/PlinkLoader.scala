@@ -24,7 +24,7 @@ object PlinkLoader {
 
   val plinkSchema = TStruct(("rsid", TString()))
 
-  private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true, gr: GenomeReference,
+  private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true,
     contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(Variant, String)] = {
     hConf.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
@@ -32,9 +32,9 @@ object PlinkLoader {
           val recodedContig = contigRecoding.getOrElse(contig, contig)
 
           if (a2Reference)
-            (Variant(recodedContig, bpPos.toInt, allele2, allele1, gr), rsId)
+            (Variant(recodedContig, bpPos.toInt, allele2, allele1), rsId)
           else
-            (Variant(recodedContig, bpPos.toInt, allele1, allele2, gr), rsId)
+            (Variant(recodedContig, bpPos.toInt, allele1, allele2), rsId)
 
         case other => fatal(s"Invalid .bim line.  Expected 6 fields, found ${ other.length } ${ plural(other.length, "field") }")
       }
@@ -118,7 +118,8 @@ object PlinkLoader {
     variants: Array[(Variant, String)],
     nPartitions: Option[Int] = None,
     a2Reference: Boolean = true,
-    gr: GenomeReference = GenomeReference.defaultReference): MatrixTable = {
+    gr: GenomeReference = GenomeReference.defaultReference,
+    dropChr0: Boolean = false): MatrixTable = {
 
     val sc = hc.sc
     val nSamples = sampleIds.length
@@ -145,18 +146,22 @@ object PlinkLoader {
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
-      it.map { case (_, record) =>
+      it.flatMap { case (_, record) =>
         val (v, _) = variantsBc.value(record.getKey)
 
-        region.clear()
-        rvb.start(kType)
-        rvb.startStruct()
-        rvb.addAnnotation(kType.fieldType(0), v.locus) // locus/pk
-        rvb.addAnnotation(kType.fieldType(1), v)
-        rvb.endStruct()
+        if (dropChr0 && v.contig == "0")
+          None
+        else {
+          region.clear()
+          rvb.start(kType)
+          rvb.startStruct()
+          rvb.addAnnotation(kType.fieldType(0), v.locus) // locus/pk
+          rvb.addAnnotation(kType.fieldType(1), v)
+          rvb.endStruct()
 
-        rv.setOffset(rvb.end())
-        rv
+          rv.setOffset(rvb.end())
+          Some(rv)
+        }
       }
     }
 
@@ -165,22 +170,26 @@ object PlinkLoader {
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
-      it.map { case (_, record) =>
+      it.flatMap { case (_, record) =>
         val (v, rsid) = variantsBc.value(record.getKey)
 
-        region.clear()
-        rvb.start(rowType)
-        rvb.startStruct()
-        rvb.addAnnotation(rowType.fieldType(0), v.locus) // locus/pk
-        rvb.addAnnotation(rowType.fieldType(1), v)
-        rvb.startStruct()
-        rvb.addAnnotation(TString(), rsid)
-        rvb.endStruct()
-        record.getValue(rvb)
-        rvb.endStruct()
+        if (dropChr0 && v.contig == "0")
+          None
+        else {
+          region.clear()
+          rvb.start(rowType)
+          rvb.startStruct()
+          rvb.addAnnotation(rowType.fieldType(0), v.locus) // locus/pk
+          rvb.addAnnotation(rowType.fieldType(1), v)
+          rvb.startStruct()
+          rvb.addAnnotation(TString(), rsid)
+          rvb.endStruct()
+          record.getValue(rvb)
+          rvb.endStruct()
 
-        rv.setOffset(rvb.end())
-        rv
+          rv.setOffset(rvb.end())
+          Some(rv)
+        }
       }
     }
 
@@ -193,13 +202,13 @@ object PlinkLoader {
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
     nPartitions: Option[Int] = None, a2Reference: Boolean = true, gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Map[String, String] = Map.empty[String, String]): MatrixTable = {
+    contigRecoding: Map[String, String] = Map.empty[String, String], dropChr0: Boolean = false): MatrixTable = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
     val nSamples = sampleInfo.length
     if (nSamples <= 0)
       fatal(".fam file does not contain any samples")
 
-    val variants = parseBim(bimPath, hc.hadoopConf, a2Reference, gr, contigRecoding)
+    val variants = parseBim(bimPath, hc.hadoopConf, a2Reference, contigRecoding)
     val nVariants = variants.length
     if (nVariants <= 0)
       fatal(".bim file does not contain any variants")
@@ -236,7 +245,7 @@ object PlinkLoader {
            |  Duplicate IDs: @1""".stripMargin, duplicateIds)
     }
 
-    val vds = parseBed(hc, bedPath, ids, annotations, signature, variants, nPartitions, a2Reference, gr)
+    val vds = parseBed(hc, bedPath, ids, annotations, signature, variants, nPartitions, a2Reference, gr, dropChr0)
     vds
   }
 
