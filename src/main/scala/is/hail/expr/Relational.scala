@@ -271,10 +271,7 @@ case class MatrixValue(
 
   def sampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = sampleIds.zip(sampleAnnotations)
 
-  def filterSamples(p: (Annotation, Annotation) => Boolean): MatrixValue = {
-    val keep = sampleIdsAndAnnotations.zipWithIndex
-      .filter { case ((s, sa), i) => p(s, sa) }
-      .map(_._2)
+  def filterSamplesKeep(keep: IndexedSeq[Int]): MatrixValue = {
     val keepBc = sparkContext.broadcast(keep)
     val localRowType = typ.rowType
     val localNSamples = nSamples
@@ -312,6 +309,13 @@ case class MatrixValue(
           rv2
         }
       })
+  }
+
+  def filterSamples(p: (Annotation, Annotation) => Boolean): MatrixValue = {
+    val keep = sampleIdsAndAnnotations.zipWithIndex
+      .filter { case ((s, sa), i) => p(s, sa) }
+      .map(_._2)
+    filterSamplesKeep(keep)
   }
 }
 
