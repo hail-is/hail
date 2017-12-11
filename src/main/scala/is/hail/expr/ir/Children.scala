@@ -42,14 +42,20 @@ object Children {
       Array(a, body)
     case ArrayFold(a, zero, accumName, valueName, body, typ) =>
       Array(a, zero, body)
-    case MakeStruct(fields) =>
-      fields.map(_._3)
     case AggIn(_) =>
       none
     case AggMap(a, _, body, _) =>
       Array(a, body)
     case AggSum(a, _) =>
       Array(a)
+    case MakeStruct(fields) =>
+      fields.map(_._3)
+    case MakeSet(args, _) =>
+      args
+    case SetAdd(set, element, _) =>
+      Array(set, element)
+    case SetContains(set, element) =>
+      Array(set, element)
     case GetField(o, name, typ) =>
       Array(o)
     case GetFieldMissingness(o, name) =>

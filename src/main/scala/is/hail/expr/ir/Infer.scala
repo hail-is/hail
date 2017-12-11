@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.utils._
 import is.hail.annotations.MemoryBuffer
 import is.hail.asm4s._
-import is.hail.expr.{TAggregable, TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction, TNumeric}
+import is.hail.expr.{TAggregable, TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction, TNumeric, TSet}
 import is.hail.annotations.StagedRegionValueBuilder
 
 object Infer {
@@ -46,6 +46,7 @@ object Infer {
         x.typ = body.typ
       case x@Ref(_, _) =>
         x.typ = env.lookup(x)
+
       case x@ApplyBinaryPrimOp(op, l, r, _) =>
         infer(l)
         infer(r)
@@ -53,6 +54,7 @@ object Infer {
       case x@ApplyUnaryPrimOp(op, v, _) =>
         infer(v)
         x.typ = UnaryOp.inferReturnType(op, v.typ)
+
       case x@MakeArray(args, _) =>
         args.map(infer(_))
         val t = args.head.typ
@@ -85,6 +87,7 @@ object Infer {
         infer(body, env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
         assert(body.typ == zero.typ)
         x.typ = zero.typ
+
       case AggIn(typ) =>
         tAgg.foreach(x => assert(typ == x))
       case x@AggMap(a, name, body, _) =>
@@ -99,6 +102,7 @@ object Infer {
         infer(a)
         val tAgg = a.typ.asInstanceOf[TAggregable]
         x.typ = tAgg.elementType
+
       case MakeStruct(fields) =>
         fields.map { case (_, typ, v) =>
           infer(v)
@@ -113,6 +117,27 @@ object Infer {
         infer(o)
         val t = o.typ.asInstanceOf[TStruct]
         assert(t.index(name).nonEmpty)
+
+      case x@MakeSet(args, _) =>
+        args.foreach(infer(_))
+        if (args.isEmpty)
+          assert(x.elementType != null)
+        else {
+          assert(args.tail.forall(_.typ == args(0).typ))
+          x.elementType = args(0).typ
+        }
+      case x@SetAdd(set, element, elementType) =>
+        infer(set)
+        infer(element)
+        val tSet = set.typ.asInstanceOf[TSet]
+        assert(tSet.elementType == element.typ)
+        x.elementType = tSet.elementType
+      case SetContains(set, element) =>
+        infer(set)
+        infer(element)
+        val tSet = set.typ.asInstanceOf[TSet]
+        assert(tSet.elementType == element.typ)
+
       case In(i, typ) =>
         assert(typ != null)
       case InMissingness(i) =>

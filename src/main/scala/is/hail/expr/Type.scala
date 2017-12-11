@@ -1,6 +1,7 @@
 package is.hail.expr
 
-import is.hail.annotations.{Annotation, AnnotationPathException, _}
+import is.hail.annotations.ordering._
+import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.asm4s._
 import is.hail.check.Arbitrary._
@@ -139,7 +140,7 @@ sealed abstract class Type extends BaseType with Serializable {
       }
   }
 
-  def unsafeOrdering(missingGreatest: Boolean = false): UnsafeOrdering = ???
+  def unsafeOrdering(missingIsGreatest: Boolean = false): CodifiedUnsafeOrdering = ???
 
   def getOption(fields: String*): Option[Type] = getOption(fields.toList)
 
@@ -237,16 +238,16 @@ sealed abstract class Type extends BaseType with Serializable {
 
   def canCompare(other: Type): Boolean = this == other
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation]
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation]
 
   val partitionKey: Type = this
 
   def typedOrderedKey[PK, K] = new OrderedKey[PK, K] {
     def project(key: K): PK = key.asInstanceOf[PK]
 
-    val kOrd: Ordering[K] = ordering(missingGreatest = true).asInstanceOf[Ordering[K]]
+    val kOrd: Ordering[K] = ordering(missingIsGreatest = true).asInstanceOf[Ordering[K]]
 
-    val pkOrd: Ordering[PK] = ordering(missingGreatest = true).asInstanceOf[Ordering[PK]]
+    val pkOrd: Ordering[PK] = ordering(missingIsGreatest = true).asInstanceOf[Ordering[PK]]
 
     val kct: ClassTag[K] = scalaClassTag.asInstanceOf[ClassTag[K]]
 
@@ -256,9 +257,9 @@ sealed abstract class Type extends BaseType with Serializable {
   def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
     def project(key: Annotation): Annotation = key
 
-    val kOrd: Ordering[Annotation] = ordering(missingGreatest = true)
+    val kOrd: Ordering[Annotation] = ordering(missingIsGreatest = true)
 
-    val pkOrd: Ordering[Annotation] = ordering(missingGreatest = true)
+    val pkOrd: Ordering[Annotation] = ordering(missingIsGreatest = true)
 
     val kct: ClassTag[Annotation] = classTag[Annotation]
 
@@ -359,7 +360,7 @@ case object TVoid extends Type {
 
   override def _toString = "Void"
 
-  override def ordering(missingGreatest: Boolean): Ordering[is.hail.annotations.Annotation] = throw new UnsupportedOperationException("No ordering on Void")
+  override def ordering(missingIsGreatest: Boolean): Ordering[is.hail.annotations.Annotation] = throw new UnsupportedOperationException("No ordering on Void")
 
   override def scalaClassTag: scala.reflect.ClassTag[_ <: AnyRef] = throw new UnsupportedOperationException("No ClassTag for Void")
 
@@ -375,7 +376,8 @@ abstract class ComplexType extends Type {
 
   override def alignment: Long = representation.alignment
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = representation.unsafeOrdering(missingGreatest)
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering =
+    representation.unsafeOrdering(missingIsGreatest)
 
   override def fundamentalType: Type = representation.fundamentalType
 }
@@ -389,33 +391,12 @@ sealed class TBinary(override val required: Boolean) extends Type {
 
   override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-      val l1 = TBinary.loadLength(r1, o1)
-      val l2 = TBinary.loadLength(r2, o2)
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering = BinaryUnsafeOrdering
 
-      val bOff1 = TBinary.bytesOffset(o1)
-      val bOff2 = TBinary.bytesOffset(o2)
-
-      val lim = math.min(l1, l2)
-      var i = 0
-
-      while (i < lim) {
-        val b1 = r1.loadByte(bOff1 + i)
-        val b2 = r2.loadByte(bOff2 + i)
-        if (b1 != b2)
-          return java.lang.Byte.compare(b1, b2)
-
-        i += 1
-      }
-      Integer.compare(l1, l2)
-    }
-  }
-
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation] = {
     val ord = Ordering.Iterable[Byte]
 
-    annotationOrdering(extendOrderingToNull(missingGreatest)(
+    annotationOrdering(extendOrderingToNull(missingIsGreatest)(
       new Ordering[Array[Byte]] {
         def compare(a: Array[Byte], b: Array[Byte]): Int = ord.compare(a, b)
       }))
@@ -436,7 +417,12 @@ object TBinary {
   def loadLength(region: MemoryBuffer, boff: Long): Int =
     region.loadInt(boff)
 
+  def loadLength(region: Code[MemoryBuffer], boff: Code[Long]): Code[Int] =
+    region.loadInt(boff)
+
   def bytesOffset(boff: Long): Long = boff + 4
+
+  def bytesOffset(boff: Code[Long]): Code[Long] = boff + 4
 
   def allocate(region: MemoryBuffer, length: Int): Long = {
     region.align(contentAlignment)
@@ -460,15 +446,11 @@ sealed class TBoolean(override val required: Boolean) extends Type {
 
   override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-      java.lang.Boolean.compare(r1.loadBoolean(o1), r2.loadBoolean(o2))
-    }
-  }
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering = BooleanUnsafeOrdering
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Boolean]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[Boolean]]))
 
   override def byteSize: Long = 1
 }
@@ -520,15 +502,11 @@ sealed class TInt32(override val required: Boolean) extends TIntegral {
 
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-      Integer.compare(r1.loadInt(o1), r2.loadInt(o2))
-    }
-  }
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering = IntegerUnsafeOrdering
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[Int]]))
 
   override def byteSize: Long = 4
 }
@@ -554,15 +532,11 @@ sealed class TInt64(override val required: Boolean) extends TIntegral {
 
   override def scalaClassTag: ClassTag[java.lang.Long] = classTag[java.lang.Long]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-      java.lang.Long.compare(r1.loadLong(o1), r2.loadLong(o2))
-    }
-  }
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering = LongUnsafeOrdering
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Long]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[Long]]))
 
   override def byteSize: Long = 8
 }
@@ -595,15 +569,11 @@ sealed class TFloat32(override val required: Boolean) extends TNumeric {
 
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-      java.lang.Float.compare(r1.loadFloat(o1), r2.loadFloat(o2))
-    }
-  }
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering = FloatUnsafeOrdering
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Float]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[Float]]))
 
   override def byteSize: Long = 4
 }
@@ -636,15 +606,11 @@ sealed class TFloat64(override val required: Boolean) extends TNumeric {
 
   override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-      java.lang.Double.compare(r1.loadDouble(o1), r2.loadDouble(o2))
-    }
-  }
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering = DoubleUnsafeOrdering
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Double]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[Double]]))
 
   override def byteSize: Long = 8
 }
@@ -668,11 +634,11 @@ sealed class TString(override val required: Boolean) extends Type {
 
   override def scalaClassTag: ClassTag[String] = classTag[String]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = TBinary(required).unsafeOrdering(missingGreatest)
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering = TBinary(required).unsafeOrdering(missingIsGreatest)
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[String]]))
 
   override def byteSize: Long = 8
 
@@ -688,6 +654,11 @@ object TString {
   def loadString(region: MemoryBuffer, boff: Long): String = {
     val length = TBinary.loadLength(region, boff)
     new String(region.loadBytes(TBinary.bytesOffset(boff), length))
+  }
+
+  def loadString(region: Code[MemoryBuffer], boff: Code[Long]): Code[String] = {
+    val length = TBinary.loadLength(region, boff)
+    Code.newInstance[String, Array[Byte]](region.loadBytes(TBinary.bytesOffset(boff), length))
   }
 }
 
@@ -724,7 +695,7 @@ final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TFunction is not realizable")
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  override def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TFunction is not realizable")
 }
 
@@ -778,7 +749,7 @@ final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) ex
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TAggregableVariable is not realizable")
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  override def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TAggregableVariable is not realizable")
 }
 
@@ -816,7 +787,7 @@ final case class TVariable(name: String, var t: Type = null) extends Type {
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TVariable is not realizable")
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  override def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TVariable is not realizable")
 }
 
@@ -992,7 +963,7 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
 
   override def scalaClassTag: ClassTag[_ <: AnyRef] = elementType.scalaClassTag
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  override def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TAggregable is not realizable")
 }
 
@@ -1152,38 +1123,8 @@ abstract class TContainer extends Type {
     )
   }
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
-    val eltOrd = elementType.unsafeOrdering(missingGreatest)
-
-    new UnsafeOrdering {
-      override def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-        val length1 = loadLength(r1, o1)
-        val length2 = loadLength(r2, o2)
-
-        var i = 0
-        while (i < math.min(length1, length2)) {
-          val leftDefined = isElementDefined(r1, o1, i)
-          val rightDefined = isElementDefined(r2, o2, i)
-
-          if (leftDefined && rightDefined) {
-            val eOff1 = loadElement(r1, o1, length1, i)
-            val eOff2 = loadElement(r2, o2, length2, i)
-            val c = eltOrd.compare(r1, eOff1, r2, eOff2)
-            if (c != 0)
-              return c
-          } else if (leftDefined != rightDefined) {
-            val c = if (leftDefined) -1 else 1
-            if (missingGreatest)
-              return c
-            else
-              return -c
-          }
-          i += 1
-        }
-        Integer.compare(length1, length2)
-      }
-    }
-  }
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering =
+    new ContainerUnsafeOrdering(this, elementType.unsafeOrdering(missingIsGreatest), missingIsGreatest)
 }
 
 abstract class TIterable extends TContainer {
@@ -1236,9 +1177,9 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
   override def genNonmissingValue: Gen[Annotation] =
     Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    annotationOrdering(extendOrderingToNull(missingGreatest)(
-      Ordering.Iterable(elementType.ordering(missingGreatest))))
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
+    annotationOrdering(extendOrderingToNull(missingIsGreatest)(
+      Ordering.Iterable(elementType.ordering(missingIsGreatest))))
 
   override def desc: String =
     """
@@ -1294,9 +1235,9 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
     sb.append("]")
   }
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation] = {
     val elementSortOrd = elementType.ordering(true)
-    val itOrd = Ordering.Iterable(elementType.ordering(missingGreatest))
+    val itOrd = Ordering.Iterable(elementType.ordering(missingIsGreatest))
     val setOrdering = new Ordering[Set[Annotation]] {
       def compare(x: Set[Annotation], y: Set[Annotation]): Int = {
         val s1 = x.toArray.sorted(elementSortOrd)
@@ -1306,7 +1247,7 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
       }
     }
 
-    annotationOrdering(extendOrderingToNull(missingGreatest)(setOrdering))
+    annotationOrdering(extendOrderingToNull(missingIsGreatest)(setOrdering))
   }
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
@@ -1395,9 +1336,9 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
+  def ordering(missingIsGreatest: Boolean): Ordering[Annotation] = {
     val elementSortOrd = elementType.ordering(true)
-    val itOrd = Ordering.Iterable(elementType.ordering(missingGreatest))
+    val itOrd = Ordering.Iterable(elementType.ordering(missingIsGreatest))
     val dict = new Ordering[Map[Annotation, Annotation]] {
       def compare(x: Map[Annotation, Annotation], y: Map[Annotation, Annotation]): Int = {
         val s1 = x.toArray.map { case (k, v) => Row(k, v) }.sorted(elementSortOrd)
@@ -1407,7 +1348,7 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
       }
     }
 
-    annotationOrdering(extendOrderingToNull(missingGreatest)(dict))
+    annotationOrdering(extendOrderingToNull(missingIsGreatest)(dict))
   }
 }
 
@@ -1424,9 +1365,9 @@ sealed class TCall(override val required: Boolean) extends ComplexType {
 
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  override def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[Int]]))
 }
 
 object TCall {
@@ -1452,9 +1393,9 @@ sealed class TAltAllele(override val required: Boolean) extends ComplexType {
 
   override def scalaClassTag: ClassTag[AltAllele] = classTag[AltAllele]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  override def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[AltAllele]]))
 
   val representation: TStruct = TAltAllele.representation(required)
 }
@@ -1509,18 +1450,18 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
 
   override def scalaClassTag: ClassTag[Variant] = classTag[Variant]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  override def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Variant]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[Variant]]))
 
   override val partitionKey: Type = TLocus(gr)
 
   override def typedOrderedKey[PK, K]: OrderedKey[PK, K] = new OrderedKey[PK, K] {
     def project(key: K): PK = key.asInstanceOf[Variant].locus.asInstanceOf[PK]
 
-    val kOrd: Ordering[K] = ordering(missingGreatest = true).asInstanceOf[Ordering[K]]
+    val kOrd: Ordering[K] = ordering(missingIsGreatest = true).asInstanceOf[Ordering[K]]
 
-    val pkOrd: Ordering[PK] = TLocus(gr).ordering(missingGreatest = true).asInstanceOf[Ordering[PK]]
+    val pkOrd: Ordering[PK] = TLocus(gr).ordering(missingIsGreatest = true).asInstanceOf[Ordering[PK]]
 
     val kct: ClassTag[K] = classTag[Variant].asInstanceOf[ClassTag[K]]
 
@@ -1530,9 +1471,9 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
   override def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
     def project(key: Annotation): Annotation = key.asInstanceOf[Variant].locus
 
-    val kOrd: Ordering[Annotation] = ordering(missingGreatest = true)
+    val kOrd: Ordering[Annotation] = ordering(missingIsGreatest = true)
 
-    val pkOrd: Ordering[Annotation] = TLocus(gr).ordering(missingGreatest = true)
+    val pkOrd: Ordering[Annotation] = TLocus(gr).ordering(missingIsGreatest = true)
 
     val kct: ClassTag[Annotation] = classTag[Annotation]
 
@@ -1540,36 +1481,8 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
   }
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
-    val fundamentalComparators = representation.fields.map(_.typ.unsafeOrdering(missingGreatest)).toArray
-    val repr = representation.fundamentalType
-    new UnsafeOrdering {
-      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-        val cOff1 = repr.loadField(r1, o1, 0)
-        val cOff2 = repr.loadField(r2, o2, 0)
-
-        val contig1 = TString.loadString(r1, cOff1)
-        val contig2 = TString.loadString(r2, cOff2)
-
-        val c = Contig.compare(contig1, contig2)
-        if (c != 0)
-          return c
-
-        var i = 1
-        while (i < representation.size) {
-          val fOff1 = repr.loadField(r1, o1, i)
-          val fOff2 = repr.loadField(r2, o2, i)
-
-          val c = fundamentalComparators(i).compare(r1, fOff1, r2, fOff2)
-          if (c != 0)
-            return c
-
-          i += 1
-        }
-        0
-      }
-    }
-  }
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering =
+    new VariantUnsafeOrdering(this, missingIsGreatest)
 
   val representation: TStruct = TVariant.representation(required)
 
@@ -1603,32 +1516,13 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  override def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[Locus]]))
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
-    val repr = representation.fundamentalType
-
-    new UnsafeOrdering {
-      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-        val cOff1 = repr.loadField(r1, o1, 0)
-        val cOff2 = repr.loadField(r2, o2, 0)
-
-        val contig1 = TString.loadString(r1, cOff1)
-        val contig2 = TString.loadString(r2, cOff2)
-
-        val c = Contig.compare(contig1, contig2)
-        if (c != 0)
-          return c
-
-        val posOff1 = repr.loadField(r1, o1, 1)
-        val posOff2 = repr.loadField(r2, o2, 1)
-        java.lang.Integer.compare(r1.loadInt(posOff1), r2.loadInt(posOff2))
-      }
-    }
-  }
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering =
+    new LocusUnsafeOrdering(this, missingIsGreatest)
 
   val representation: TStruct = TLocus.representation(required)
 
@@ -1662,29 +1556,13 @@ case class TInterval(gr: GRBase, override val required: Boolean = false) extends
 
   override def scalaClassTag: ClassTag[Interval[Locus]] = classTag[Interval[Locus]]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  override def ordering(missingIsGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]]))
+      extendOrderingToNull(missingIsGreatest)(implicitly[Ordering[Interval[Locus]]]))
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
-    val locusOrd = TLocus(gr).unsafeOrdering(missingGreatest)
-    new UnsafeOrdering {
-      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-        val sOff1 = representation.loadField(r1, o1, 0)
-        val sOff2 = representation.loadField(r2, o2, 0)
-
-        val c1 = locusOrd.compare(r1, sOff1, r2, sOff2)
-        if (c1 != 0)
-          return c1
-
-        val eOff1 = representation.loadField(r1, o1, 1)
-        val eOff2 = representation.loadField(r2, o2, 1)
-
-        locusOrd.compare(r1, eOff1, r2, eOff2)
-      }
-    }
-  }
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering =
+    new IntervalUnsafeOrdering(this, missingIsGreatest)
 
   val representation: TStruct = TInterval.representation(required)
 
@@ -2259,11 +2137,11 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
-    val fieldOrderings = fields.map(f => f.typ.ordering(missingGreatest))
+  override def ordering(missingIsGreatest: Boolean): Ordering[Annotation] = {
+    val fieldOrderings = fields.map(f => f.typ.ordering(missingIsGreatest))
 
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(new Ordering[Row] {
+      extendOrderingToNull(missingIsGreatest)(new Ordering[Row] {
         def compare(a: Row, b: Row): Int = {
           var i = 0
           while (i < a.size) {
@@ -2280,33 +2158,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       }))
   }
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
-    val fieldOrderings = fields.map(_.typ.unsafeOrdering(missingGreatest)).toArray
-
-    new UnsafeOrdering {
-      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
-        var i = 0
-        while (i < size) {
-          val leftDefined = isFieldDefined(r1, o1, i)
-          val rightDefined = isFieldDefined(r2, o2, i)
-
-          if (leftDefined && rightDefined) {
-            val c = fieldOrderings(i).compare(r1, loadField(r1, o1, i), r2, loadField(r2, o2, i))
-            if (c != 0)
-              return c
-          } else if (leftDefined != rightDefined) {
-            val c = if (leftDefined) -1 else 1
-            if (missingGreatest)
-              return c
-            else
-              return -c
-          }
-          i += 1
-        }
-        0
-      }
-    }
-  }
+  override def unsafeOrdering(missingIsGreatest: Boolean): CodifiedUnsafeOrdering =
+    new StructUnsafeOrdering(this, missingIsGreatest)
 
   def select(keep: Array[String]): (TStruct, (Row) => Row) = {
     val t = TStruct(keep.map { n =>
@@ -2443,4 +2296,13 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       case _ => off
     }
   }
+
+  def loadField(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Long] = {
+    val off = fieldOffset(offset, fieldIdx)
+    fields(fieldIdx).typ.fundamentalType match {
+      case _: TArray | _: TBinary => region.loadAddress(off)
+      case _ => off
+    }
+  }
+
 }

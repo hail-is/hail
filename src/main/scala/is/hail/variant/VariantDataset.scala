@@ -370,7 +370,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
   }
 
   def filterIntervals[T](iList: IntervalTree[Locus, _], keep: Boolean): VariantSampleMatrix = {
-    implicit val locusOrd = vsm.matrixType.locusType.ordering(missingGreatest = true)
+    implicit val locusOrd = vsm.matrixType.locusType.ordering(missingIsGreatest = true)
 
     val ab = new ArrayBuilder[(Interval[Annotation], Annotation)]()
     iList.foreach { case (i, v) =>

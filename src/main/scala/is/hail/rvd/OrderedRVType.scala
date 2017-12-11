@@ -27,8 +27,8 @@ class OrderedRVType(
   val pkKFieldIdx: Array[Int] = partitionKey.map(n => kType.fieldIdx(n))
   assert(pkKFieldIdx sameElements (0 until pkType.size))
 
-  val pkOrd: UnsafeOrdering = pkType.unsafeOrdering(missingGreatest = true)
-  val kOrd: UnsafeOrdering = kType.unsafeOrdering(missingGreatest = true)
+  val pkOrd: UnsafeOrdering = pkType.unsafeOrdering(missingIsGreatest = true)
+  val kOrd: UnsafeOrdering = kType.unsafeOrdering(missingIsGreatest = true)
 
   val pkRowOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, rowType, pkRowFieldIdx)
   val pkKOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx)
@@ -82,7 +82,7 @@ object OrderedRVType {
     })
 
     val nFields = fields1.length
-    val fieldOrderings = fields1.map(f1 => t1.fieldType(f1).unsafeOrdering(missingGreatest = true))
+    val fieldOrderings = fields1.map(f1 => t1.fieldType(f1).unsafeOrdering(missingIsGreatest = true))
 
     new UnsafeOrdering {
       def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {

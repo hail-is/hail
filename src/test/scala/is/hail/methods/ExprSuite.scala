@@ -1076,7 +1076,7 @@ class ExprSuite extends SparkSuite {
       b <- t.genValue) yield (t, a, b)
 
     val p = forAll(g) { case (t, a, b) =>
-      val ord = t.ordering(missingGreatest = true)
+      val ord = t.ordering(missingIsGreatest = true)
       ord.compare(a, b) == -ord.compare(b, a)
     }
     p.check()
