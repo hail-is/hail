@@ -19,7 +19,7 @@ import org.testng.annotations.Test
 import scala.sys.process._
 import scala.language.postfixOps
 
-case class SkatAggForR(xs: ArrayBuilder[Vector[Double]], weights: ArrayBuilder[Double])
+case class SkatAggForR(xs: ArrayBuilder[DenseVector[Double]], weights: ArrayBuilder[Double])
 
 class SkatSuite extends SparkSuite {
   def skatInR(vds: VariantDataset,
@@ -41,7 +41,7 @@ class SkatSuite extends SparkSuite {
     }
   
     def formGenotypeMatrixAndWeightVector(
-      xwArray: Array[(Vector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
+      xwArray: Array[(DenseVector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
       
       val m = xwArray.length
       val genotypeData = Array.ofDim[Double](m * n)
@@ -63,7 +63,7 @@ class SkatSuite extends SparkSuite {
       (new DenseMatrix(n, m, genotypeData), DenseVector(weightData))
     }
     
-    def runInR(keyGsWeightRdd:  RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
+    def runInR(keyGsWeightRdd:  RDD[(Annotation, Iterable[(DenseVector[Double], Double)])], keyType: Type,
       y: DenseVector[Double], cov: DenseMatrix[Double]): Array[Row] = {
 
       val inputFilePheno = tmpDir.createLocalTempFile("skatPhenoVec", ".txt")
@@ -111,7 +111,8 @@ class SkatSuite extends SparkSuite {
     val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
     val (keyGsWeightRdd, keyType) =
-      Skat.computeKeyGsWeightRdd(vds, if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()", completeSampleIndex, keyExpr, weightExpr)
+      Skat.computeKeyGsWeightRdd(vds, if (useDosages) "plDosage(g.PL)" else "g.GT.nNonRefAlleles()",
+        completeSampleIndex, keyExpr, weightExpr)
 
     runInR(keyGsWeightRdd, keyType, y, cov)
   }
@@ -244,25 +245,18 @@ class SkatSuite extends SparkSuite {
     val m = 5 // variants
     val k = 3 // covariates
     
-    val stDense = Array.tabulate(m){ _ => 
+    val st = Array.tabulate(m){ _ => 
       SkatTuple(rand.nextDouble(),
         DenseVector(Array.fill(n)(rand.nextDouble())),
         DenseVector(Array.fill(k)(rand.nextDouble())))
     }
-    
-    val stSparse = Array.tabulate(m){ _ => 
-      SkatTuple(rand.nextDouble(),
-        SparseVector(n)(Array.tabulate(n / 2)(i => (2 * i, rand.nextDouble())): _*),
-        DenseVector(Array.fill(k)(rand.nextDouble())))
-    }
-    
-    for (st <- Array(stDense, stSparse)) {
-      val (qSmall, gramianSmall) = Skat.computeGramianSmallN(st)
-      val (qLarge, gramianLarge) = Skat.computeGramianLargeN(st)
+        
+
+    val (qSmall, gramianSmall) = Skat.computeGramianSmallN(st)
+    val (qLarge, gramianLarge) = Skat.computeGramianLargeN(st)
       
-      assert(D_==(qSmall, qLarge))
-      TestUtils.assertMatrixEqualityDouble(gramianSmall, gramianLarge)
-    }
+    assert(D_==(qSmall, qLarge))
+    TestUtils.assertMatrixEqualityDouble(gramianSmall, gramianLarge)
   }
   
   @Test def testToKeyGsWeightRdd() {
@@ -281,10 +275,10 @@ class SkatSuite extends SparkSuite {
     
     val keyToSet = keyGsWeightRdd.collect().map { case (key, it) => key.asInstanceOf[Int] -> it.toSet }.toMap
     
-    assert(keyToSet(0) == Set((Vector(2.0, 0.0), 2)))
-    assert(keyToSet(1) == Set((Vector(1.0, 2.0), 1), (Vector(0.0, 1.0), 3)))
-    assert(keyToSet(2) == Set((Vector(2.0, 0.0), 2), (Vector(0.0, 1.0), 3)))
-    assert(keyToSet(9) == Set((Vector(1.0, 2.0), 1), (Vector(2.0, 0.0), 2), (Vector(0.0, 1.0), 3)))
+    assert(keyToSet(0) == Set((DenseVector(2.0, 0.0), 2)))
+    assert(keyToSet(1) == Set((DenseVector(1.0, 2.0), 1), (DenseVector(0.0, 1.0), 3)))
+    assert(keyToSet(2) == Set((DenseVector(2.0, 0.0), 2), (DenseVector(0.0, 1.0), 3)))
+    assert(keyToSet(9) == Set((DenseVector(1.0, 2.0), 1), (DenseVector(2.0, 0.0), 2), (DenseVector(0.0, 1.0), 3)))
     
     assert(keyType == TInt32())
   }
