@@ -40,7 +40,7 @@ case class MakeArray(args: Array[IR], var typ: TArray = null) extends IR {
     case MakeArray(args2, typ2) =>
       args.length == args2.length &&
       typ == typ2 &&
-      args.zip(args2).forall { case (x, y) => x == y }
+      args.sameElements(args2)
     case _ => false
   }
 }
@@ -60,7 +60,7 @@ case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR {
   override def equals(that: Any): Boolean = that match {
     case MakeStruct(fields2) =>
       fields.length == fields2.length &&
-      fields.zip(fields2).forall { case (x, y) => x == y }
+      fields.sameElements(fields2)
     case _ => false
   }}
 case class GetField(o: IR, name: String, var typ: Type = null) extends IR
