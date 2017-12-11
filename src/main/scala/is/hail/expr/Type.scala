@@ -841,6 +841,136 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
   // not used for equality
   var symTab: SymbolTable = _
 
+  def bindings: Array[(String, Type)] =
+    symTab.map { case (n, (_, t)) => (n, t) }.toArray
+
+  private def scopeStruct: TStruct =
+    TStruct(bindings: _*)
+
+  private val elementField = "x"
+
+  private val scopeField = "scope"
+
+  def elementAndScopeStruct: TStruct =
+    TStruct(elementField -> elementType, scopeField -> scopeStruct)
+
+  import is.hail.expr.ir.{IR, GetField, MakeStruct, Let}
+
+  def getElement(agg: IR): IR = GetField(agg, elementField, elementType)
+
+  private def getScope(agg: IR): IR = GetField(agg, scopeField, scopeStruct)
+
+  def inScope(agg: IR, body: IR => IR): IR = {
+    val b = body(getElement(agg))
+    bindings.foldLeft[IR](
+      MakeStruct(Array((elementField, b.typ, b), (scopeField, scopeStruct, getScope(agg))))
+    ) { case (body, (n, t)) => Let(n, GetField(GetField(agg, scopeField, scopeStruct), n, t), body, body.typ) }
+  }
+
+  /**
+    * FIXME: how to abstract over the next five methods without allocation
+    *
+    **/
+  def createScopeCarrier(region: MemoryBuffer,
+    x: Long, mx: Boolean,
+    a0: Long, ma0: Boolean): Long = {
+    assert(bindings.length == 1)
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(elementAndScopeStruct)
+    rvb.startStruct()
+    if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
+    rvb.startStruct()
+    if (ma0) rvb.setMissing() else rvb.addRegionValue(bindings(0)._2, region, a0)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
+  def createScopeCarrier(region: MemoryBuffer,
+    x: Long, mx: Boolean,
+    a0: Long, ma0: Boolean,
+    a1: Long, ma1: Boolean): Long = {
+    assert(bindings.length == 2)
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(elementAndScopeStruct)
+    rvb.startStruct()
+    if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
+    rvb.startStruct()
+    if (ma0) rvb.setMissing() else rvb.addRegionValue(bindings(0)._2, region, a0)
+    if (ma1) rvb.setMissing() else rvb.addRegionValue(bindings(1)._2, region, a1)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
+  def createScopeCarrier(region: MemoryBuffer,
+    x: Long, mx: Boolean,
+    a0: Long, ma0: Boolean,
+    a1: Long, ma1: Boolean,
+    a2: Long, ma2: Boolean): Long = {
+    assert(bindings.length == 3)
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(elementAndScopeStruct)
+    rvb.startStruct()
+    if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
+    rvb.startStruct()
+    if (ma0) rvb.setMissing() else rvb.addRegionValue(bindings(0)._2, region, a0)
+    if (ma1) rvb.setMissing() else rvb.addRegionValue(bindings(1)._2, region, a1)
+    if (ma2) rvb.setMissing() else rvb.addRegionValue(bindings(2)._2, region, a2)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
+  def createScopeCarrier(region: MemoryBuffer,
+    x: Long, mx: Boolean,
+    a0: Long, ma0: Boolean,
+    a1: Long, ma1: Boolean,
+    a2: Long, ma2: Boolean,
+    a3: Long, ma3: Boolean): Long = {
+    assert(bindings.length == 4)
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(elementAndScopeStruct)
+    rvb.startStruct()
+    if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
+    rvb.startStruct()
+    if (ma0) rvb.setMissing() else rvb.addRegionValue(bindings(0)._2, region, a0)
+    if (ma1) rvb.setMissing() else rvb.addRegionValue(bindings(1)._2, region, a1)
+    if (ma2) rvb.setMissing() else rvb.addRegionValue(bindings(2)._2, region, a2)
+    if (ma3) rvb.setMissing() else rvb.addRegionValue(bindings(3)._2, region, a3)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
+  def createScopeCarrier(region: MemoryBuffer,
+    x: Long, mx: Boolean,
+    a0: Long, ma0: Boolean,
+    a1: Long, ma1: Boolean,
+    a2: Long, ma2: Boolean,
+    a3: Long, ma3: Boolean,
+    a4: Long, ma4: Boolean): Long = {
+    assert(bindings.length == 5)
+    val rvb = new RegionValueBuilder()
+    rvb.set(region)
+    rvb.start(elementAndScopeStruct)
+    rvb.startStruct()
+    if (mx) rvb.setMissing() else rvb.addRegionValue(elementType, region, x)
+    rvb.startStruct()
+    if (ma0) rvb.setMissing() else rvb.addRegionValue(bindings(0)._2, region, a0)
+    if (ma1) rvb.setMissing() else rvb.addRegionValue(bindings(1)._2, region, a1)
+    if (ma2) rvb.setMissing() else rvb.addRegionValue(bindings(2)._2, region, a2)
+    if (ma3) rvb.setMissing() else rvb.addRegionValue(bindings(3)._2, region, a3)
+    if (ma4) rvb.setMissing() else rvb.addRegionValue(bindings(4)._2, region, a4)
+    rvb.endStruct()
+    rvb.endStruct()
+    rvb.end()
+  }
+
   override def unify(concrete: Type): Boolean = {
     concrete match {
       case TAggregable(celementType, _) => elementType.unify(celementType)
@@ -927,8 +1057,14 @@ abstract class TContainer extends Type {
     elementsOffset(length) + length.toL * elementByteSize
   }
 
+  def isElementMissing(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
+    !isElementDefined(region, aoff, i)
+
   def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
     elementType.required || !region.loadBit(aoff + 4, i)
+
+  def isElementMissing(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+    !isElementDefined(region, aoff, i)
 
   def isElementDefined(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     if (elementType.required)

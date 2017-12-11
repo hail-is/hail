@@ -11,15 +11,6 @@ import org.objectweb.asm.tree._
 import scala.language.existentials
 
 object Compile {
-  private def defaultValue(t: expr.Type): Code[_] = t match {
-    case _: TBoolean => false
-    case _: TInt32 => 0
-    case _: TInt64 => 0L
-    case _: TFloat32 => 0.0f
-    case _: TFloat64 => 0.0
-    case _ => 0L // reference types
-  }
-
   private def typeToTypeInfo(t: expr.Type): TypeInfo[_] = t match {
     case _: TInt32 => typeInfo[Int]
     case _: TInt64 => typeInfo[Long]
@@ -317,6 +308,9 @@ object Compile {
         val fieldIdx = t.fieldIdx(name)
         val (doo, mo, vo) = compile(o)
         present(Code(doo, mo || !t.isFieldDefined(region, coerce[Long](vo), fieldIdx)))
+
+      case AggIn(_) | AggMap(_, _, _, _) | AggSum(_, _) =>
+        throw new RuntimeException(s"Aggregations must be extracted with ExtractAggregators before compilation: $ir")
 
       case In(i, typ) =>
         (Code._empty, fb.getArg[Boolean](i*2 + 3), fb.getArg(i*2 + 2)(typeToTypeInfo(typ)))
