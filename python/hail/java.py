@@ -4,6 +4,7 @@ import sys
 from threading import Thread
 
 import py4j
+from pyspark.sql.utils import CapturedException
 from decorator import decorator
 
 
@@ -160,6 +161,10 @@ def handle_py4j(func, *args, **kwargs):
                              'Error summary: %s' % (msg, e.message, Env.hc().version, msg))
         else:
             raise e
+    except CapturedException as e:
+        raise FatalError('%s\n\nJava stack trace:\n%s\n'
+                         'Hail version: %s\n'
+                         'Error summary: %s' % (e.desc, e.stackTrace, Env.hc().version, e.desc))
     return r
 
 
