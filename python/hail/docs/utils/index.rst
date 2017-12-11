@@ -3,6 +3,8 @@ utils
 
 .. currentmodule:: hail.utils
 
+.. autoclass:: Struct
+
 .. autofunction:: hadoop_copy
 
 .. autofunction:: hadoop_read

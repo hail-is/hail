@@ -1,18 +1,15 @@
-from hail2.context import HailContext
-from hail2.table import *
-from hail2.matrixtable import *
-from hail2.expr.expression import Expression
-from hail2.expr import functions as f
-from hail.representation import *
-from hail.typ import *
-from hail.kinshipMatrix import KinshipMatrix
-from hail.ldMatrix import LDMatrix
+from hail.genetics import LDMatrix, KinshipMatrix, Variant, Locus, AltAllele, Interval, Call, Pedigree, Trio, \
+    GenomeReference
+from hail.utils import Struct, hadoop_write, hadoop_read, hadoop_copy
+from hail.expr import Type, TInt32, TInt64, TFloat32, TFloat64, TString, TBoolean, TArray, TSet, TDict, TStruct, \
+    TLocus, TVariant, TAltAllele, TCall, TInterval
+import hail.expr.functions as f
 from hail.utils import hadoop_read, hadoop_write, hadoop_copy
-from hail2.methods import *
+from hail.api2 import MatrixTable, Table, HailContext
+from hail.methods import trio_matrix, ld_matrix, linreg, sample_qc
 
 __all__ = ['HailContext',
            'Table',
-           'GroupedTable',
            'MatrixTable',
            'Variant',
            'Locus',
@@ -22,6 +19,7 @@ __all__ = ['HailContext',
            'Call',
            'Pedigree',
            'Trio',
+           'GenomeReference',
            'Type',
            'TInt32',
            'TInt64',
@@ -43,7 +41,8 @@ __all__ = ['HailContext',
            'hadoop_copy',
            'KinshipMatrix',
            'LDMatrix',
-           'Expression',
            'f',
-           'linreg'
-           ]
+           'trio_matrix',
+           'ld_matrix',
+           'linreg',
+           'sample_qc']

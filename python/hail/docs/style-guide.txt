@@ -71,7 +71,7 @@
 
     ```
     from hail import *
-    from hail.representation import *
+    from hail.genetics import *
     from hail.expr import *
     from hail.stats import *
     ```

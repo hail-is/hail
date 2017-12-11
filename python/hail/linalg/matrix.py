@@ -1,5 +1,4 @@
-from hail.java import Env
-from hail.java import handle_py4j, scala_object
+from hail.utils.java import Env, handle_py4j, scala_object
 from hail.typecheck import *
 
 block_matrix_type = lazy()
