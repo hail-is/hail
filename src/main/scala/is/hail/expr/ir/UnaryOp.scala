@@ -6,16 +6,16 @@ import is.hail.expr._
 
 object UnaryOp {
 
-  private val returnType: PartialFunction[(UnaryOp, Type), Type] = {
+  private val returnType: ((UnaryOp, Type)) => Option[Type] = lift {
     case (Negate(), t@(_: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64)) => t
     case (Bang(), t: TBoolean) => t
   }
 
   def returnTypeOption(op: UnaryOp, t: Type): Option[Type] =
-    returnType.lift(op, t)
+    returnType(op, t)
 
   def getReturnType(op: UnaryOp, t: Type): Type =
-    returnType.lift(op, t).getOrElse(incompatible(t, op))
+    returnType(op, t).getOrElse(incompatible(t, op))
 
   private def incompatible[T](t: Type, op: UnaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to values of type $t")

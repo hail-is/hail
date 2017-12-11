@@ -725,23 +725,21 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
 
-  private val tryPrimOpConversion: PartialFunction[IndexedSeq[IR], IR] = {
-    val pf: PartialFunction[IndexedSeq[IR], Option[IR]] = {
-      case IndexedSeq(x) => for {
-        op <- ir.UnaryOp.fromString.lift(fn)
-        t <- ir.UnaryOp.returnTypeOption(op, x.typ)
-      } yield ir.ApplyUnaryPrimOp(op, x, t)
-      case IndexedSeq(x, y) => for {
-        op <- ir.BinaryOp.fromString.lift(fn)
-        t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
-      } yield ir.ApplyBinaryPrimOp(op, x, y, t)
-    }
-    pf.flatten[IR]
+  private val tryPrimOpConversion: IndexedSeq[IR] => Option[IR] = flatLift {
+    case IndexedSeq(x) => for {
+      op <- ir.UnaryOp.fromString.lift(fn)
+      t <- ir.UnaryOp.returnTypeOption(op, x.typ)
+    } yield ir.ApplyUnaryPrimOp(op, x, t)
+    case IndexedSeq(x, y) => for {
+      op <- ir.BinaryOp.fromString.lift(fn)
+      t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
+    } yield ir.ApplyBinaryPrimOp(op, x, y, t)
   }
+
 
   def toIR: Option[IR] = for {
     irArgs <- anyFailAllFail(args.map(_.toIR))
-    ir <- tryPrimOpConversion.lift(irArgs)
+    ir <- tryPrimOpConversion(irArgs)
   } yield ir
 }
 
@@ -822,12 +820,12 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case (t, _, _) => FunctionRegistry.call(method, lhs +: args, t +: args.map(_.`type`))
   }
 
-  private val hasOneArgument: PartialFunction[IndexedSeq[AST], AST] = {
+  private val hasOneArgument: IndexedSeq[AST] => Option[AST] = lift {
     case IndexedSeq(x) => x
   }
 
   def toIR: Option[IR] = for {
-    rhs <- hasOneArgument.lift(args)
+    rhs <- hasOneArgument(args)
     if method == "[]" && lhs.`type`.isInstanceOf[TArray]
     a <- lhs.toIR
     i <- rhs.toIR

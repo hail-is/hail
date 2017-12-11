@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr._
 
 object BinaryOp {
-  private val returnType: PartialFunction[(BinaryOp, Type, Type), Type] = {
+  private val returnType: ((BinaryOp, Type, Type)) => Option[Type] = lift {
     case (Add() | Subtract() | Multiply() | Divide(), _: TInt32, _: TInt32) => TInt32()
     case (Add() | Subtract() | Multiply() | Divide(), _: TInt64, _: TInt64) => TInt64()
     case (Add() | Subtract() | Multiply() | Divide(), _: TFloat32, _: TFloat32) => TFloat32()
@@ -23,10 +23,10 @@ object BinaryOp {
   }
 
   def returnTypeOption(op: BinaryOp, l: Type, r: Type): Option[Type] =
-    returnType.lift(op, l, r)
+    returnType(op, l, r)
 
   def getReturnType(op: BinaryOp, l: Type, r: Type): Type =
-    returnType.lift(op, l, r).getOrElse(incompatible(l, r, op))
+    returnType(op, l, r).getOrElse(incompatible(l, r, op))
 
   private def incompatible[T](lt: Type, rt: Type, op: BinaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to $lt and $rt")

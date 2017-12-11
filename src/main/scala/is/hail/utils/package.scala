@@ -518,6 +518,9 @@ package object utils extends Logging
 
     b.result() -> mapping.result()
   }
+
+  def lift[T, S](pf: PartialFunction[T, S]): (T) => Option[S] = pf.lift
+  def flatLift[T, S](pf: PartialFunction[T, Option[S]]): (T) => Option[S] = pf.flatLift
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
