@@ -52,14 +52,13 @@ For each variant, SkatTuple encodes the corresponding summand of Q and columns o
 We compute and group SkatTuples by key. Then, for each key, we compute Q and A.t * A - B.t * B,
 the eigenvalues of the latter, and the p-value with the Davies algorithm.
 */
-case class SkatTuple(q: Double, a: Vector[Double], b: DenseVector[Double])
+case class SkatTuple(q: Double, a: DenseVector[Double], b: DenseVector[Double])
 
 object Skat {
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
   
   def apply(vsm: VariantSampleMatrix,
-    variantKeys: String,
-    singleKey: Boolean,
+    keyExpr: String,
     weightExpr: String,
     yExpr: String,
     xExpr: String,
@@ -95,7 +94,7 @@ object Skat {
     }
     
     val (keyGsWeightRdd, keyType) =
-      computeKeyGsWeightRdd(vsm, xExpr, completeSampleIndex, variantKeys, singleKey, weightExpr)
+      computeKeyGsWeightRdd(vsm, xExpr, completeSampleIndex, keyExpr, weightExpr)
 
     val sc = keyGsWeightRdd.sparkContext
 
@@ -111,7 +110,7 @@ object Skat {
       val resBc = sc.broadcast(res)
       val QtBc = sc.broadcast(Qt)
       
-      def linearTuple(x: Vector[Double], w: Double): SkatTuple = {
+      def linearTuple(x: DenseVector[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
         val sqrt_q = resBc.value dot xw
         SkatTuple(sqrt_q * sqrt_q, xw, QtBc.value * xw)
@@ -165,7 +164,7 @@ object Skat {
       val resBc = sc.broadcast(res)
       val CinvXtVBc = sc.broadcast(Cinv * VX.t)
   
-      def logisticTuple(x: Vector[Double], w: Double): SkatTuple = {
+      def logisticTuple(x: DenseVector[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
         val sqrt_q = resBc.value dot xw      
         SkatTuple(sqrt_q * sqrt_q, xw :* sqrtVBc.value , CinvXtVBc.value * xw)
@@ -202,33 +201,20 @@ object Skat {
   def computeKeyGsWeightRdd(vsm: VariantSampleMatrix,
     xExpr: String,
     completeSampleIndex: Array[Int],
-    variantKeys: String,
-    singleKey: Boolean,
+    keyExpr: String,
     // returns ((key, [(gs_v, weight_v)]), keyType)
-    weightExpr: String): (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
+    weightExpr: String): (RDD[(Annotation, Iterable[(DenseVector[Double], Double)])], Type) = {
     val ec = vsm.matrixType.genotypeEC
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
 
-    val (keysType, keysQuerier) = vsm.queryVA(variantKeys)
+    val (keyType, keyQuerier) = vsm.queryVA(keyExpr)
     val (weightType, weightQuerier) = vsm.queryVA(weightExpr)
 
     val typedWeightQuerier = weightType match {
       case _: TNumeric => (a: Annotation) => Option(weightQuerier(a)).map(DoubleNumericConversion.to)
       case _ => fatal(s"Weight must have numeric type, got $weightType")
     }
-
-    val (keyType, keyIterator): (Type, Annotation => Iterator[Annotation]) = if (singleKey) {
-      (keysType, (key: Annotation) => Iterator.single(key))
-    } else {
-      val keyType = keysType match {
-        case t: TIterable => t.elementType
-        case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
-      }
-      (keyType, (keys: Annotation) => keys.asInstanceOf[Iterable[Annotation]].iterator)
-    }
     
-    val nSamples = completeSampleIndex.length
-
     val sc = vsm.sparkContext
 
     val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
@@ -238,7 +224,7 @@ object Skat {
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
 
     (vsm.rdd.flatMap { case (v, (va, gs)) =>
-      (Option(keysQuerier(va)), typedWeightQuerier(va)) match {
+      (Option(keyQuerier(va)), typedWeightQuerier(va)) match {
         case (Some(key), Some(w)) =>
           if (w < 0)
             fatal(s"Variant weights must be non-negative, got $w")
@@ -253,8 +239,8 @@ object Skat {
             ec, xf,
             completeSampleIndexBc.value, missingSamples)
 
-          keyIterator(key).map((_, (x: Vector[Double], w)))
-        case _ => Iterator.empty
+          Option((key, (x: DenseVector[Double], w)))
+        case _ => None
       }
     }.groupByKey(), keyType)
   }
@@ -265,36 +251,20 @@ object Skat {
 
   def computeGramianSmallN(st: Array[SkatTuple]): (Double, DenseMatrix[Double]) = {
     require(st.nonEmpty)
+    val st0 = st(0)
     
+    // Holds for all st(i) by construction of linearTuple and logisticTuple, checking st(0) defensively
+    require(st0.a.offset == 0 && st0.a.stride == 1 && st0.b.offset == 0 && st0.b.stride == 1)
+
     val m = st.length
-    val n = st(0).a.size    
-    val k = st(0).b.size
-    val isDenseVector = st(0).a.isInstanceOf[DenseVector[Double]]
-        
+    val n = st0.a.size
+    val k = st0.b.size
+    
     val AData = new Array[Double](m * n)
     var i = 0
-    if (isDenseVector) {
-      while (i < m) {
-        val ai = st(i).a
-        var j = 0
-        while (j < n) {
-          AData(i * n + j) = ai(j)
-          j += 1
-        }
-        i += 1
-      }
-    } else {
-      while (i < m) {
-        val ai = st(i).a.asInstanceOf[SparseVector[Double]]
-        val nnz = ai.used
-        var j = 0
-        while (j < nnz) {
-          val index = ai.index(j)
-          AData(i * n + index) = ai.data(j)
-          j += 1
-        }
-        i += 1
-      }
+    while (i < m) {
+      System.arraycopy(st(i).a.data, 0, AData, i * n, n)
+      i += 1
     }
     
     val BData = new Array[Double](k * m)
@@ -302,12 +272,7 @@ object Skat {
     i = 0
     while (i < m) {
       q += st(i).q
-      val bi = st(i).b
-      var j = 0
-      while (j < k) {
-        BData(i * k + j) = bi(j)
-        j += 1
-      }
+      System.arraycopy(st(i).b.data, 0, BData, i * k, k)
       i += 1
     }
 

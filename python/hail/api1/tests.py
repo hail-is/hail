@@ -378,27 +378,25 @@ class ContextTests(unittest.TestCase):
                        .key_by("locus"))
 
         skatVds = (vds2.split_multi()
-            .annotate_variants_table(intervalsSkat, root="va.genes", product=True)
+            .annotate_variants_table(intervalsSkat, root="va.gene")
             .annotate_variants_table(weightsSkat, root="va.weight")
             .annotate_samples_table(phenotypesSkat, root="sa.pheno")
             .annotate_samples_table(covariatesSkat, root="sa.cov")
             .annotate_samples_expr("sa.pheno = if (sa.pheno == 1.0) false else " +
                                    "if (sa.pheno == 2.0) true else NA: Boolean"))
 
-        (skatVds.skat(variant_keys='va.genes',
-                      single_key=False,
+        (skatVds.skat(key_expr='va.gene',
+                      weight_expr='va.weight',
                       y='sa.pheno',
                       x='g.GT.nNonRefAlleles()',
                       covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
-                      weight_expr='va.weight',
                       logistic=False).count())
 
-        (skatVds.skat(variant_keys='va.genes',
-                      single_key=False,
+        (skatVds.skat(key_expr='va.gene',
+                      weight_expr='va.weight',
                       y='sa.pheno',
                       x='plDosage(g.PL)',
                       covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
-                      weight_expr='va.weight',
                       logistic=True).count())
 
         vds_kinship = vds_assoc.filter_variants_expr('v.start < 4')
