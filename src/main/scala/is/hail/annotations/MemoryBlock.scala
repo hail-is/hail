@@ -10,18 +10,18 @@ import is.hail.utils._
 import is.hail.variant.{AltAllele, Locus, Variant}
 import org.apache.spark.sql.Row
 
-object MemoryBuffer {
-  def apply(sizeHint: Long = 128): MemoryBuffer = {
-    new MemoryBuffer(new Array[Byte](sizeHint.toInt))
+object Region {
+  def apply(sizeHint: Long = 128): Region = {
+    new Region(new Array[Byte](sizeHint.toInt))
   }
 }
 
-final class MemoryBuffer(private var mem: Array[Byte], private var end: Long = 0) extends KryoSerializable with Serializable {
+final class Region(private var mem: Array[Byte], private var end: Long = 0) extends KryoSerializable with Serializable {
   def size: Long = end
 
   def capacity: Long = mem.length
 
-  def copyFrom(other: MemoryBuffer, readStart: Long, writeStart: Long, n: Long) {
+  def copyFrom(other: Region, readStart: Long, writeStart: Long, n: Long) {
     assert(size <= capacity)
     assert(other.size <= other.capacity)
     assert(n >= 0)
@@ -247,7 +247,7 @@ final class MemoryBuffer(private var mem: Array[Byte], private var end: Long = 0
     end = 0
   }
 
-  def setFrom(from: MemoryBuffer) {
+  def setFrom(from: Region) {
     if (from.end > capacity) {
       val newLength = math.max((capacity * 3) / 2, from.end)
       mem = new Array[Byte](newLength.toInt)
@@ -256,8 +256,8 @@ final class MemoryBuffer(private var mem: Array[Byte], private var end: Long = 0
     end = from.end
   }
 
-  def copy(): MemoryBuffer = {
-    new MemoryBuffer(util.Arrays.copyOf(mem, end.toInt), end)
+  def copy(): Region = {
+    new Region(util.Arrays.copyOf(mem, end.toInt), end)
   }
 
   override def write(kryo: Kryo, output: Output) {
@@ -480,19 +480,19 @@ final class JoinedRegionValue(var rvLeft: RegionValue, var rvRight: RegionValue)
 object RegionValue {
   def apply(): RegionValue = new RegionValue(null, 0)
 
-  def apply(region: MemoryBuffer): RegionValue = new RegionValue(region, 0)
+  def apply(region: Region): RegionValue = new RegionValue(region, 0)
 
-  def apply(region: MemoryBuffer, offset: Long) = new RegionValue(region, offset)
+  def apply(region: Region, offset: Long) = new RegionValue(region, offset)
 }
 
-final class RegionValue(var region: MemoryBuffer,
+final class RegionValue(var region: Region,
   var offset: Long) extends Serializable {
-  def set(newRegion: MemoryBuffer, newOffset: Long) {
+  def set(newRegion: Region, newOffset: Long) {
     region = newRegion
     offset = newOffset
   }
 
-  def setRegion(newRegion: MemoryBuffer) {
+  def setRegion(newRegion: Region) {
     region = newRegion
   }
 
@@ -505,7 +505,7 @@ final class RegionValue(var region: MemoryBuffer,
   def copy(): RegionValue = RegionValue(region.copy(), offset)
 }
 
-class RegionValueBuilder(var region: MemoryBuffer) {
+class RegionValueBuilder(var region: Region) {
   def this() = this(null)
 
   var start: Long = _
@@ -526,7 +526,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     indexstk.clear()
   }
 
-  def set(newRegion: MemoryBuffer) {
+  def set(newRegion: Region) {
     assert(inactive)
     region = newRegion
   }
@@ -745,7 +745,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     endStruct()
   }
 
-  def fixupBinary(fromRegion: MemoryBuffer, fromBOff: Long): Long = {
+  def fixupBinary(fromRegion: Region, fromBOff: Long): Long = {
     val length = TBinary.loadLength(fromRegion, fromBOff)
     region.align(TBinary.contentAlignment)
     val toBOff = TBinary.allocate(region, length)
@@ -761,7 +761,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     }
   }
 
-  def fixupArray(t: TArray, fromRegion: MemoryBuffer, fromAOff: Long): Long = {
+  def fixupArray(t: TArray, fromRegion: Region, fromAOff: Long): Long = {
     val length = t.loadLength(fromRegion, fromAOff)
     region.align(t.contentsAlignment)
     val toAOff = t.allocate(region, length)
@@ -794,7 +794,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     toAOff
   }
 
-  def fixupStruct(t: TStruct, toOff: Long, fromRegion: MemoryBuffer, fromOff: Long) {
+  def fixupStruct(t: TStruct, toOff: Long, fromRegion: Region, fromOff: Long) {
     assert(region.ne(fromRegion))
 
     var i = 0
@@ -819,7 +819,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     }
   }
 
-  def addField(t: TStruct, fromRegion: MemoryBuffer, fromOff: Long, i: Int) {
+  def addField(t: TStruct, fromRegion: Region, fromOff: Long, i: Int) {
     if (t.isFieldDefined(fromRegion, fromOff, i))
       addRegionValue(t.fieldType(i), fromRegion, t.loadField(fromRegion, fromOff, i))
     else
@@ -830,7 +830,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     addField(t, rv.region, rv.offset, i)
   }
 
-  def addElement(t: TArray, fromRegion: MemoryBuffer, fromAOff: Long, i: Int) {
+  def addElement(t: TArray, fromRegion: Region, fromAOff: Long, i: Int) {
     if (t.isElementDefined(fromRegion, fromAOff, i))
       addRegionValue(t.elementType, fromRegion,
         t.elementOffsetInRegion(fromRegion, fromAOff, i))
@@ -846,7 +846,7 @@ class RegionValueBuilder(var region: MemoryBuffer) {
     addRegionValue(t, rv.region, rv.offset)
   }
 
-  def addRegionValue(t: Type, fromRegion: MemoryBuffer, fromOff: Long) {
+  def addRegionValue(t: Type, fromRegion: Region, fromOff: Long) {
     val toT = currentType()
     assert(toT == t.fundamentalType)
 

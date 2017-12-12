@@ -16,7 +16,7 @@ class StagedRegionValueSuite extends SparkSuite {
   def testString() {
     val rt = TString()
     val input = "hello"
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, String, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -27,7 +27,7 @@ class StagedRegionValueSuite extends SparkSuite {
       )
     )
 
-    val region = MemoryBuffer()
+    val region = Region()
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -36,7 +36,7 @@ class StagedRegionValueSuite extends SparkSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = MemoryBuffer()
+    val region2 = Region()
     val rv2 = RegionValue(region2)
     rv2.setOffset(region2.appendString(input))
 
@@ -53,7 +53,7 @@ class StagedRegionValueSuite extends SparkSuite {
   def testInt() {
     val rt = TInt32()
     val input = 3
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Int, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -64,7 +64,7 @@ class StagedRegionValueSuite extends SparkSuite {
       )
     )
 
-    val region = MemoryBuffer()
+    val region = Region()
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -73,7 +73,7 @@ class StagedRegionValueSuite extends SparkSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = MemoryBuffer()
+    val region2 = Region()
     val rv2 = RegionValue(region2)
     rv2.setOffset(region2.appendInt(input))
 
@@ -90,7 +90,7 @@ class StagedRegionValueSuite extends SparkSuite {
   def testArray() {
     val rt = TArray(TInt32())
     val input = 3
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Int, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val srvb = new StagedRegionValueBuilder(fb, TArray(TInt32()))
 
     fb.emit(
@@ -102,7 +102,7 @@ class StagedRegionValueSuite extends SparkSuite {
       )
     )
 
-    val region = MemoryBuffer()
+    val region = Region()
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -111,7 +111,7 @@ class StagedRegionValueSuite extends SparkSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = MemoryBuffer()
+    val region2 = Region()
     val rv2 = RegionValue(region2)
     rv2.setOffset(addArray(region2, input))
 
@@ -130,7 +130,7 @@ class StagedRegionValueSuite extends SparkSuite {
   def testStruct() {
     val rt = TStruct("a" -> TString(), "b" -> TInt32())
     val input = 3
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Int, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -143,7 +143,7 @@ class StagedRegionValueSuite extends SparkSuite {
       )
     )
 
-    val region = MemoryBuffer()
+    val region = Region()
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -152,7 +152,7 @@ class StagedRegionValueSuite extends SparkSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = MemoryBuffer()
+    val region2 = Region()
     val rv2 = RegionValue(region2)
     rv2.setOffset(addStruct(region2, "a", "hello", "b", input))
 
@@ -169,7 +169,7 @@ class StagedRegionValueSuite extends SparkSuite {
   def testArrayOfStruct() {
     val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString()))
     val input = "hello"
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, String, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     val struct = { ssb: StagedRegionValueBuilder =>
@@ -195,7 +195,7 @@ class StagedRegionValueSuite extends SparkSuite {
     )
 
 
-    val region = MemoryBuffer()
+    val region = Region()
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -204,7 +204,7 @@ class StagedRegionValueSuite extends SparkSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = MemoryBuffer()
+    val region2 = Region()
     val rv2 = RegionValue(region2)
     val rvb = new RegionValueBuilder(region2)
     rvb.start(rt)
@@ -232,7 +232,7 @@ class StagedRegionValueSuite extends SparkSuite {
   def testStructWithArray() {
     val rt = TStruct("a" -> TString(), "b" -> TArray(TInt32()))
     val input = "hello"
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, String, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val codeInput = fb.getArg[String](2)
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
@@ -258,7 +258,7 @@ class StagedRegionValueSuite extends SparkSuite {
       )
     )
 
-    val region = MemoryBuffer()
+    val region = Region()
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -267,7 +267,7 @@ class StagedRegionValueSuite extends SparkSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = MemoryBuffer()
+    val region2 = Region()
     val rv2 = RegionValue(region2)
     val rvb = new RegionValueBuilder(region2)
 
@@ -296,7 +296,7 @@ class StagedRegionValueSuite extends SparkSuite {
   def testMissingArray() {
     val rt = TArray(TInt32())
     val input = 3
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Int, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val codeInput = fb.getArg[Int](2)
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
@@ -311,7 +311,7 @@ class StagedRegionValueSuite extends SparkSuite {
       )
     )
 
-    val region = MemoryBuffer()
+    val region = Region()
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -320,7 +320,7 @@ class StagedRegionValueSuite extends SparkSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = MemoryBuffer()
+    val region2 = Region()
     val rv2 = RegionValue(region2)
     rv2.setOffset(addArray[java.lang.Integer](region2, input, null))
 
@@ -334,7 +334,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   }
 
-  def printRegion(region: MemoryBuffer, string: String) {
+  def printRegion(region: Region, string: String) {
     println(string)
     val size = region.size
     println("Region size: " + size.toString)
@@ -356,7 +356,7 @@ class StagedRegionValueSuite extends SparkSuite {
   @Test
   def testAddPrimitive() {
     val t = TStruct("a" -> TInt32(), "b" -> TBoolean(), "c" -> TFloat64())
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Int, Boolean, Double, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Double, Long]
     val srvb = new StagedRegionValueBuilder(fb, t)
 
     fb.emit(
@@ -372,7 +372,7 @@ class StagedRegionValueSuite extends SparkSuite {
       )
     )
 
-    val region = MemoryBuffer()
+    val region = Region()
     val f = fb.result()()
     def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
       val off = f(region, i, b, d)

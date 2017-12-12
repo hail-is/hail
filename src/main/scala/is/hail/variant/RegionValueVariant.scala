@@ -7,7 +7,7 @@ import is.hail.expr._
 
 class RegionValueVariant(tv: TVariant) extends IVariant with View {
   private val t: TStruct = tv.representation.asInstanceOf[TStruct]
-  private var region: MemoryBuffer = _
+  private var region: Region = _
   private var offset: Long = _
   private val contigIdx: Int = t.fieldIdx("contig")
   private val startIdx: Int = t.fieldIdx("start")
@@ -23,7 +23,7 @@ class RegionValueVariant(tv: TVariant) extends IVariant with View {
   assert(tAltAlleles.required)
   assert(tAltAlleles.elementType.required)
 
-  def setRegion(region: MemoryBuffer, offset: Long) {
+  def setRegion(region: Region, offset: Long) {
     this.region = region
     this.offset = offset
     cachedContig = null

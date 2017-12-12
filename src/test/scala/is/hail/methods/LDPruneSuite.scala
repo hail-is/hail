@@ -2,7 +2,7 @@ package is.hail.methods
 
 import breeze.linalg.{Vector => BVector}
 import is.hail.SparkSuite
-import is.hail.annotations.{Annotation, MemoryBuffer, RegionValue, RegionValueBuilder}
+import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.{TArray, TStruct}
@@ -50,7 +50,7 @@ object LDPruneSuite {
 
   def makeRV(gs: Iterable[Annotation]): RegionValue = {
     val gArr = gs.toIndexedSeq
-    val rvb = new RegionValueBuilder(MemoryBuffer())
+    val rvb = new RegionValueBuilder(Region())
     rvb.start(rowType)
     rvb.startStruct()
     rvb.setMissing()
@@ -82,7 +82,7 @@ object LDPruneSuite {
   }
 
   def toBitPackedVectorRegionValue(rv: RegionValue, nSamples: Int): Option[RegionValue] = {
-    val rvb = new RegionValueBuilder(MemoryBuffer())
+    val rvb = new RegionValueBuilder(Region())
     val hcView = HardCallView(rowType)
     hcView.setRegion(rv)
 

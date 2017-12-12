@@ -26,11 +26,11 @@ class CompileSuite {
             ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))),
           Cast(ArrayLen(Ref("x")), TFloat64())))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Double]
     doit(meanIr, fb)
     val f = fb.result()()
     def run(a: Array[Double]): Double = {
-      val mb = MemoryBuffer()
+      val mb = Region()
       val aoff = addArray(mb, a:_*)
       f(mb, aoff, false)
     }
@@ -48,10 +48,10 @@ class CompileSuite {
         ApplyBinaryPrimOp(Add(),
           Ref("foo"), Cast(I32(1), TFloat64())))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Double]
+    val fb = FunctionBuilder.functionBuilder[Region, Double]
     doit(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
-    val mb = MemoryBuffer()
+    val mb = Region()
     assert(f(mb) === 1.0)
   }
 
@@ -62,12 +62,12 @@ class CompileSuite {
         ArrayFold(Ref("in"), I32(0), "count", "v",
           ApplyBinaryPrimOp(Add(), Ref("count"), I32(1))))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Int]
     doit(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Int = {
-      val mb = MemoryBuffer()
+      val mb = Region()
       val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       f(mb, aoff, false)
@@ -85,12 +85,12 @@ class CompileSuite {
         ArrayFold(Ref("in"), F64(0), "sum", "v",
           ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Double]
     doit(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Double = {
-      val mb = MemoryBuffer()
+      val mb = Region()
       val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       f(mb, aoff, false)
@@ -110,12 +110,12 @@ class CompileSuite {
         ArrayFold(Ref("in"), I32(0), "count", "v",
           ApplyBinaryPrimOp(Add(), Ref("count"), If(IsNA(Ref("v")), I32(0), I32(1)))))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Int]
     doit(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Double = {
-      val mb = MemoryBuffer()
+      val mb = Region()
       val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       f(mb, aoff, false)
@@ -133,12 +133,12 @@ class CompileSuite {
     val sumIr =
       ArrayFold(In(0, TArray(TFloat64())), F64(0), "sum", "v",
         ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v"))))
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Double]
     doit(sumIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Double = {
-      val mb = MemoryBuffer()
+      val mb = Region()
       val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       f(mb, aoff, false)
@@ -162,12 +162,12 @@ class CompileSuite {
               ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v")))),
             ApplyBinaryPrimOp(Divide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64())))))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Double]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Double]
     doit(letAddIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
 
     def run(a: Array[java.lang.Double]): Double = {
-      val mb = MemoryBuffer()
+      val mb = Region()
       val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       f(mb, aoff, false)
@@ -180,7 +180,7 @@ class CompileSuite {
   }
 
 
-  def printRegion(region: MemoryBuffer, string: String) {
+  def printRegion(region: Region, string: String) {
     println(string)
     val size = region.size
     println("Region size: " + size.toString)
@@ -204,11 +204,11 @@ class CompileSuite {
       Let("mean", F64(42.0),
         ArrayMap(In(0, TArray(TFloat64())), "v",
           If(IsNA(Ref("v")), Ref("mean"), Ref("v"))))
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long]
     doit(replaceMissingIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
     def run(a: Array[java.lang.Double]): Array[java.lang.Double] = {
-      val mb = MemoryBuffer()
+      val mb = Region()
       val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       val roff = f(mb, aoff, false)
@@ -242,11 +242,11 @@ class CompileSuite {
               ArrayMap(Ref("in"), "v",
                 If(IsNA(Ref("v")), Ref("mean"), Ref("v")))))))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long]
     doit(meanImputeIr, fb)
     val f = fb.result(Some(new java.io.PrintWriter(System.out)))()
     def run(a: Array[java.lang.Double]): Array[java.lang.Double] = {
-      val mb = MemoryBuffer()
+      val mb = Region()
       val aoff = addBoxedArray(mb, a:_*)
       val t = TArray(TFloat64())
       val roff = f(mb, aoff, false)
@@ -272,11 +272,11 @@ class CompileSuite {
     val mapNaIr = MapNA("foo", In(0, TArray(TFloat64())),
       ArrayRef(Ref("foo"), In(1, TInt32())))
 
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Int, Boolean, Double]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Int, Boolean, Double]
     doit(mapNaIr, fb)
     val f = fb.result()()
     def run(a: Array[java.lang.Double], i: Int): Double = {
-      val mb = MemoryBuffer()
+      val mb = Region()
       val aoff = if (a != null) addBoxedArray(mb, a:_*) else -1L
       f(mb, aoff, a == null, i, false)
     }
@@ -298,12 +298,12 @@ class CompileSuite {
     val ir = ApplyBinaryPrimOp(Add(),
       GetField(In(0, tL), "0"),
       GetField(In(1, tR), "x"))
-    val region = MemoryBuffer()
+    val region = Region()
     val loff = addStruct(region, "0", 3.0)
     val roff = addStruct(region,
       "x", 5.0,
       "scope", scopeStruct, addStruct(region, "foo", 7))
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long, Boolean, Double]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Double]
     doit(ir, fb)
     val f = fb.result()()
     assert(f(region, loff, false, roff, false) === 8.0)
@@ -320,13 +320,13 @@ class CompileSuite {
         ApplyBinaryPrimOp(Add(),
           GetField(In(0, tL), "0"),
           GetField(In(1, tR), "x")))))
-    val region = MemoryBuffer()
+    val region = Region()
     val rvb = new RegionValueBuilder()
     val loff = addStruct(region, "0", 3.0)
     val roff = addStruct(region,
       "0", 5.0,
       "scope", scopeStruct, addStruct(region, "foo", 7))
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, Long, Boolean, Long]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Long]
     doit(ir, fb)
     val f = fb.result()()
     val outOff = f(region, loff, false, roff, false)

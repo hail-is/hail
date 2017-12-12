@@ -8,7 +8,7 @@ class RegionValueAltAllele(taa: TAltAllele) extends View with IAltAllele {
   private val t = taa.fundamentalType.asInstanceOf[TStruct]
   private val refIdx = t.fieldIdx("ref")
   private val altIdx = t.fieldIdx("alt")
-  private var region: MemoryBuffer = _
+  private var region: Region = _
   private var offset: Long = _
   private var cachedRef: String = null
   private var cachedAlt: String = null
@@ -16,7 +16,7 @@ class RegionValueAltAllele(taa: TAltAllele) extends View with IAltAllele {
   assert(t.isFieldRequired(refIdx))
   assert(t.isFieldRequired(altIdx))
 
-  def setRegion(region: MemoryBuffer, offset: Long) {
+  def setRegion(region: Region, offset: Long) {
     this.region = region
     this.offset = offset
     this.cachedRef = null

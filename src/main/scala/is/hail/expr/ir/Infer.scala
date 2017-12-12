@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.utils._
-import is.hail.annotations.MemoryBuffer
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction, TNumeric}
 import is.hail.annotations.StagedRegionValueBuilder

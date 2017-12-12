@@ -122,7 +122,7 @@ object BaldingNicholsModel {
     val rdd = sc.parallelize((0 until M).view.map(m => (m, Rand.randInt.draw())), nPartitions)
       .mapPartitions { it =>
 
-        val rv = RegionValue(MemoryBuffer())
+        val rv = RegionValue(Region())
         val rvb = new RegionValueBuilder(rv.region)
 
         it.map { case (m, perVariantSeed) =>

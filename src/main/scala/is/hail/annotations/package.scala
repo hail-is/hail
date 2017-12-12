@@ -18,5 +18,5 @@ package object annotations {
 
   type Filterer = (Annotation) => Annotation
 
-  type UnsafeInserter = (MemoryBuffer, Long, RegionValueBuilder, () => Unit) => Unit
+  type UnsafeInserter = (Region, Long, RegionValueBuilder, () => Unit) => Unit
 }

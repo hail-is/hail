@@ -29,7 +29,7 @@ object PCA {
       val rowTypeBc = vsm.sparkContext.broadcast(rowType)
       val variantsBc = vsm.sparkContext.broadcast(maybeVariants.get)
       val rdd = svd.U.rows.mapPartitions[RegionValue] { it =>
-        val region = MemoryBuffer()
+        val region = Region()
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         it.map { ir =>

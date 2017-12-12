@@ -12,7 +12,7 @@ import org.apache.spark.sql.Row
 
 object UnsafeIndexedSeq {
   def apply(t: TArray, elements: Array[RegionValue]): UnsafeIndexedSeq = {
-    val region = MemoryBuffer()
+    val region = Region()
     val rvb = new RegionValueBuilder(region)
     rvb.start(t)
     rvb.startArray(elements.length)
@@ -27,7 +27,7 @@ object UnsafeIndexedSeq {
   }
 
   def apply(t: TArray, a: IndexedSeq[Annotation]): UnsafeIndexedSeq = {
-    val region = MemoryBuffer()
+    val region = Region()
     val rvb = new RegionValueBuilder(region)
     rvb.start(t)
     rvb.startArray(a.length)
@@ -41,7 +41,7 @@ object UnsafeIndexedSeq {
   }
 
   def empty(t: TArray): UnsafeIndexedSeq = {
-    val region = MemoryBuffer()
+    val region = Region()
     val rvb = new RegionValueBuilder(region)
     rvb.start(t)
     rvb.startArray(0)
@@ -52,7 +52,7 @@ object UnsafeIndexedSeq {
 
 class UnsafeIndexedSeq(
   var t: TContainer,
-  var region: MemoryBuffer, var aoff: Long) extends IndexedSeq[Annotation] with KryoSerializable with Serializable {
+  var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with KryoSerializable with Serializable {
 
   var length: Int = t.loadLength(region, aoff)
 
@@ -99,7 +99,7 @@ class UnsafeIndexedSeq(
       new LZ4InputBuffer(
         new ArrayInputStream(a)))
 
-    region = MemoryBuffer()
+    region = Region()
     aoff = dec.readRegionValue(t, region)
 
     length = region.loadInt(aoff)
@@ -115,7 +115,7 @@ class UnsafeIndexedSeq(
       new LZ4InputBuffer(
         new ArrayInputStream(a)))
 
-    region = MemoryBuffer()
+    region = Region()
     aoff = dec.readRegionValue(t, region)
 
     length = region.loadInt(aoff)
@@ -123,28 +123,28 @@ class UnsafeIndexedSeq(
 }
 
 object UnsafeRow {
-  def readBinary(region: MemoryBuffer, boff: Long): Array[Byte] = {
+  def readBinary(region: Region, boff: Long): Array[Byte] = {
     val binLength = TBinary.loadLength(region, boff)
     region.loadBytes(TBinary.bytesOffset(boff), binLength)
   }
 
-  def readArray(t: TContainer, region: MemoryBuffer, aoff: Long): IndexedSeq[Any] =
+  def readArray(t: TContainer, region: Region, aoff: Long): IndexedSeq[Any] =
     new UnsafeIndexedSeq(t, region, aoff)
 
-  def readStruct(t: TStruct, region: MemoryBuffer, offset: Long): UnsafeRow =
+  def readStruct(t: TStruct, region: Region, offset: Long): UnsafeRow =
     new UnsafeRow(t, region, offset)
 
-  def readString(region: MemoryBuffer, boff: Long): String =
+  def readString(region: Region, boff: Long): String =
     new String(readBinary(region, boff))
 
-  def readLocus(region: MemoryBuffer, offset: Long, gr: GRBase): Locus = {
+  def readLocus(region: Region, offset: Long, gr: GRBase): Locus = {
     val ft = gr.locus.fundamentalType.asInstanceOf[TStruct]
     Locus(
       readString(region, ft.loadField(region, offset, 0)),
       region.loadInt(ft.loadField(region, offset, 1)))
   }
 
-  def readAltAllele(region: MemoryBuffer, offset: Long): AltAllele = {
+  def readAltAllele(region: Region, offset: Long): AltAllele = {
     val ft = TAltAllele().fundamentalType.asInstanceOf[TStruct]
     AltAllele(
       readString(region, ft.loadField(region, offset, 0)),
@@ -153,7 +153,7 @@ object UnsafeRow {
 
   private val tArrayAltAllele = TArray(TAltAllele())
 
-  def readArrayAltAllele(region: MemoryBuffer, aoff: Long): Array[AltAllele] = {
+  def readArrayAltAllele(region: Region, aoff: Long): Array[AltAllele] = {
     val t = tArrayAltAllele
 
     val length = region.loadInt(aoff)
@@ -168,7 +168,7 @@ object UnsafeRow {
 
   private val tArrayInt32 = TArray(!TInt32())
 
-  def readArrayInt(region: MemoryBuffer, aoff: Long): Array[Int] = {
+  def readArrayInt(region: Region, aoff: Long): Array[Int] = {
     val t = tArrayInt32
 
     val length = region.loadInt(aoff)
@@ -181,7 +181,7 @@ object UnsafeRow {
     a
   }
 
-  def read(t: Type, region: MemoryBuffer, offset: Long): Any = {
+  def read(t: Type, region: Region, offset: Long): Any = {
     t match {
       case _: TBoolean =>
         region.loadBoolean(offset)
@@ -220,13 +220,13 @@ object UnsafeRow {
 }
 
 class UnsafeRow(var t: TStruct,
-  var region: MemoryBuffer, var offset: Long) extends Row with KryoSerializable {
+  var region: Region, var offset: Long) extends Row with KryoSerializable {
 
   def this(t: TStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
   def this(t: TStruct) = this(t, null, 0)
   def this() = this(null, null, 0)
 
-  def set(newRegion: MemoryBuffer, newOffset: Long) {
+  def set(newRegion: Region, newOffset: Long) {
     region = newRegion
     offset = newOffset
   }
@@ -319,7 +319,7 @@ class UnsafeRow(var t: TStruct,
       new LZ4InputBuffer(
         new ArrayInputStream(a)))
 
-    region = MemoryBuffer()
+    region = Region()
     offset = dec.readRegionValue(t, region)
   }
 
@@ -333,7 +333,7 @@ class UnsafeRow(var t: TStruct,
       new LZ4InputBuffer(
         new ArrayInputStream(a)))
 
-    region = MemoryBuffer()
+    region = Region()
     offset = dec.readRegionValue(t, region)
   }
 }

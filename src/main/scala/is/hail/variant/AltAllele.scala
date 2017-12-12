@@ -20,7 +20,7 @@ object CopyState extends Enumeration {
 
 object AltAllele {
 
-  def fromRegionValue(m: MemoryBuffer, offset: Long): AltAllele = {
+  def fromRegionValue(m: Region, offset: Long): AltAllele = {
     val t = TAltAllele.representation()
     val ref = TString.loadString(m, t.loadField(m, offset, 0))
     val alt = TString.loadString(m, t.loadField(m, offset, 1))

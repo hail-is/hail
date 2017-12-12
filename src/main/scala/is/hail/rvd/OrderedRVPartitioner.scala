@@ -27,7 +27,7 @@ class OrderedRVPartitioner(
   val ordering: Ordering[Annotation] = pkType.ordering(missingGreatest = true)
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left, right) => ordering.compare(left, right) < 0 })
 
-  def region: MemoryBuffer = rangeBounds.region
+  def region: Region = rangeBounds.region
 
   def loadElement(i: Int): Long = rangeBoundsType.loadElement(rangeBounds.region, rangeBounds.aoff, rangeBounds.length, i)
 

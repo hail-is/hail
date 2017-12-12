@@ -81,7 +81,7 @@ object BgenLoader {
     val rowType = matrixType.rowType
 
     val fastKeys = sc.union(results.map(_.rdd.mapPartitions { it =>
-      val region = MemoryBuffer()
+      val region = Region()
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
@@ -102,7 +102,7 @@ object BgenLoader {
     }))
 
     val rdd2 = sc.union(results.map(_.rdd.mapPartitions { it =>
-      val region = MemoryBuffer()
+      val region = Region()
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 

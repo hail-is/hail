@@ -43,7 +43,7 @@ class SplitMultiPartitionContext(
   vAnnotator: ExprAnnotator, gAnnotator: ExprAnnotator, newRowType: TStruct) {
   var prevLocus: Locus = null
   var ur = new UnsafeRow(rowType)
-  val splitRegion = MemoryBuffer()
+  val splitRegion = Region()
   val rvb = new RegionValueBuilder()
   val splitrv = RegionValue()
 

@@ -390,7 +390,7 @@ sealed class TBinary(override val required: Boolean) extends Type {
   override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       val l1 = TBinary.loadLength(r1, o1)
       val l2 = TBinary.loadLength(r2, o2)
 
@@ -433,12 +433,12 @@ object TBinary {
 
   def contentByteSize(length: Int): Long = 4 + length
 
-  def loadLength(region: MemoryBuffer, boff: Long): Int =
+  def loadLength(region: Region, boff: Long): Int =
     region.loadInt(boff)
 
   def bytesOffset(boff: Long): Long = boff + 4
 
-  def allocate(region: MemoryBuffer, length: Int): Long = {
+  def allocate(region: Region, length: Int): Long = {
     region.align(contentAlignment)
     region.allocate(contentByteSize(length))
   }
@@ -461,7 +461,7 @@ sealed class TBoolean(override val required: Boolean) extends Type {
   override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       java.lang.Boolean.compare(r1.loadBoolean(o1), r2.loadBoolean(o2))
     }
   }
@@ -521,7 +521,7 @@ sealed class TInt32(override val required: Boolean) extends TIntegral {
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       Integer.compare(r1.loadInt(o1), r2.loadInt(o2))
     }
   }
@@ -555,7 +555,7 @@ sealed class TInt64(override val required: Boolean) extends TIntegral {
   override def scalaClassTag: ClassTag[java.lang.Long] = classTag[java.lang.Long]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       java.lang.Long.compare(r1.loadLong(o1), r2.loadLong(o2))
     }
   }
@@ -596,7 +596,7 @@ sealed class TFloat32(override val required: Boolean) extends TNumeric {
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       java.lang.Float.compare(r1.loadFloat(o1), r2.loadFloat(o2))
     }
   }
@@ -637,7 +637,7 @@ sealed class TFloat64(override val required: Boolean) extends TNumeric {
   override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       java.lang.Double.compare(r1.loadDouble(o1), r2.loadDouble(o2))
     }
   }
@@ -685,7 +685,7 @@ object TString {
 
   def unapply(t: TString): Option[Boolean] = Option(t.required)
 
-  def loadString(region: MemoryBuffer, boff: Long): String = {
+  def loadString(region: Region, boff: Long): String = {
     val length = TBinary.loadLength(region, boff)
     new String(region.loadBytes(TBinary.bytesOffset(boff), length))
   }
@@ -867,10 +867,10 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
 }
 
 object TContainer {
-  def loadLength(region: MemoryBuffer, aoff: Long): Int =
+  def loadLength(region: Region, aoff: Long): Int =
     region.loadInt(aoff)
 
-  def loadLength(region: Code[MemoryBuffer], aoff: Code[Long]): Code[Int] =
+  def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
     region.loadInt(aoff)
 }
 
@@ -885,10 +885,10 @@ abstract class TContainer extends Type {
 
   override def children = Seq(elementType)
 
-  final def loadLength(region: MemoryBuffer, aoff: Long): Int =
+  final def loadLength(region: Region, aoff: Long): Int =
     TContainer.loadLength(region, aoff)
 
-  final def loadLength(region: Code[MemoryBuffer], aoff: Code[Long]): Code[Int] =
+  final def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
     TContainer.loadLength(region, aoff)
 
   def _elementsOffset(length: Int): Long =
@@ -927,37 +927,37 @@ abstract class TContainer extends Type {
     elementsOffset(length) + length.toL * elementByteSize
   }
 
-  def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
+  def isElementDefined(region: Region, aoff: Long, i: Int): Boolean =
     elementType.required || !region.loadBit(aoff + 4, i)
 
-  def isElementDefined(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+  def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     if (elementType.required)
       true
     else
       !region.loadBit(aoff + 4, i.toL)
 
-  def setElementMissing(region: MemoryBuffer, aoff: Long, i: Int) {
+  def setElementMissing(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
     region.setBit(aoff + 4, i)
   }
 
-  def setElementMissing(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
+  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
     region.setBit(aoff + 4L, i.toL)
   }
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * elementByteSize
 
-  def elementOffsetInRegion(region: MemoryBuffer, aoff: Long, i: Int): Long =
+  def elementOffsetInRegion(region: Region, aoff: Long, i: Int): Long =
     elementOffset(aoff, loadLength(region, aoff), i)
 
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
     aoff + elementsOffset(length) + i.toL * const(elementByteSize)
 
-  def elementOffsetInRegion(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Long] =
+  def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     elementOffset(aoff, loadLength(region, aoff), i)
 
-  def loadElement(region: MemoryBuffer, aoff: Long, length: Int, i: Int): Long = {
+  def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: TArray | _: TBinary => region.loadAddress(off)
@@ -965,7 +965,7 @@ abstract class TContainer extends Type {
     }
   }
 
-  def loadElement(region: Code[MemoryBuffer], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
+  def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: TArray | _: TBinary => region.loadAddress(off)
@@ -973,18 +973,18 @@ abstract class TContainer extends Type {
     }
   }
 
-  def loadElement(region: MemoryBuffer, aoff: Long, i: Int): Long =
+  def loadElement(region: Region, aoff: Long, i: Int): Long =
     loadElement(region, aoff, region.loadInt(aoff), i)
 
-  def loadElement(region: Code[MemoryBuffer], aoff: Code[Long], i: Code[Int]): Code[Long] =
+  def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     loadElement(region, aoff, region.loadInt(aoff), i)
 
-  def allocate(region: MemoryBuffer, length: Int): Long = {
+  def allocate(region: Region, length: Int): Long = {
     region.align(contentsAlignment)
     region.allocate(contentsByteSize(length))
   }
 
-  def clearMissingBits(region: MemoryBuffer, aoff: Long, length: Int) {
+  def clearMissingBits(region: Region, aoff: Long, length: Int) {
     if (elementType.required)
       return
     val nMissingBytes = (length + 7) / 8
@@ -995,12 +995,12 @@ abstract class TContainer extends Type {
     }
   }
 
-  def initialize(region: MemoryBuffer, aoff: Long, length: Int) {
+  def initialize(region: Region, aoff: Long, length: Int) {
     region.storeInt(aoff, length)
     clearMissingBits(region, aoff, length)
   }
 
-  def initialize(region: Code[MemoryBuffer], aoff: Code[Long], length: Code[Int], a: LocalRef[Int]): Code[Unit] = {
+  def initialize(region: Code[Region], aoff: Code[Long], length: Code[Int], a: LocalRef[Int]): Code[Unit] = {
     var c = region.storeInt32(aoff, length)
     if (elementType.required)
       return c
@@ -1020,7 +1020,7 @@ abstract class TContainer extends Type {
     val eltOrd = elementType.unsafeOrdering(missingGreatest)
 
     new UnsafeOrdering {
-      override def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+      override def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         val length1 = loadLength(r1, o1)
         val length2 = loadLength(r2, o2)
 
@@ -1408,7 +1408,7 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
     val fundamentalComparators = representation.fields.map(_.typ.unsafeOrdering(missingGreatest)).toArray
     val repr = representation.fundamentalType
     new UnsafeOrdering {
-      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         val cOff1 = repr.loadField(r1, o1, 0)
         val cOff2 = repr.loadField(r2, o2, 0)
 
@@ -1478,7 +1478,7 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
     val repr = representation.fundamentalType
 
     new UnsafeOrdering {
-      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         val cOff1 = repr.loadField(r1, o1, 0)
         val cOff2 = repr.loadField(r2, o2, 0)
 
@@ -1541,7 +1541,7 @@ case class TInterval(gr: GRBase, override val required: Boolean = false) extends
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
     val locusOrd = TLocus(gr).unsafeOrdering(missingGreatest)
     new UnsafeOrdering {
-      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         val sOff1 = representation.loadField(r1, o1, 0)
         val sOff2 = representation.loadField(r2, o2, 0)
 
@@ -2159,7 +2159,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     val fieldOrderings = fields.map(_.typ.unsafeOrdering(missingGreatest)).toArray
 
     new UnsafeOrdering {
-      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         var i = 0
         while (i < size) {
           val leftDefined = isFieldDefined(r1, o1, i)
@@ -2256,12 +2256,12 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  def allocate(region: MemoryBuffer): Long = {
+  def allocate(region: Region): Long = {
     region.align(alignment)
     region.allocate(byteSize)
   }
 
-  def clearMissingBits(region: MemoryBuffer, off: Long) {
+  def clearMissingBits(region: Region, off: Long) {
     var i = 0
     while (i < nMissingBytes) {
       region.storeByte(off + i, 0)
@@ -2269,7 +2269,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  def clearMissingBits(region: Code[MemoryBuffer], off: Code[Long]): Code[Unit] = {
+  def clearMissingBits(region: Code[Region], off: Code[Long]): Code[Unit] = {
     var c: Code[Unit] = Code._empty
     var i = 0
     while (i < nMissingBytes) {
@@ -2284,21 +2284,21 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
     isFieldDefined(rv.region, rv.offset, fieldIdx)
 
-  def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =
+  def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
     isFieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
 
-  def isFieldDefined(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
+  def isFieldDefined(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     if (isFieldRequired(fieldIdx))
       true
     else
       !region.loadBit(offset, missingIdx(fieldIdx))
 
-  def setFieldMissing(region: MemoryBuffer, offset: Long, fieldIdx: Int) {
+  def setFieldMissing(region: Region, offset: Long, fieldIdx: Int) {
     assert(!isFieldRequired(fieldIdx))
     region.setBit(offset, missingIdx(fieldIdx))
   }
 
-  def setFieldMissing(region: Code[MemoryBuffer], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
+  def setFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
     assert(!isFieldRequired(fieldIdx))
     region.setBit(offset, missingIdx(fieldIdx))
   }
@@ -2311,7 +2311,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def loadField(rv: RegionValue, fieldIdx: Int): Long = loadField(rv.region, rv.offset, fieldIdx)
 
-  def loadField(region: MemoryBuffer, offset: Long, fieldIdx: Int): Long = {
+  def loadField(region: Region, offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
     fields(fieldIdx).typ.fundamentalType match {
       case _: TArray | _: TBinary => region.loadAddress(off)

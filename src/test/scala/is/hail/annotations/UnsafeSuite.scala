@@ -14,8 +14,8 @@ import org.testng.annotations.Test
 
 class UnsafeSuite extends SparkSuite {
   @Test def testCodec() {
-    val region = MemoryBuffer()
-    val region2 = MemoryBuffer()
+    val region = Region()
+    val region2 = Region()
     val rvb = new RegionValueBuilder(region)
 
     val path = tmpDir.createTempFile(extension = "ser")
@@ -52,8 +52,8 @@ class UnsafeSuite extends SparkSuite {
   }
 
   @Test def testRegionValue() {
-    val region = MemoryBuffer()
-    val region2 = MemoryBuffer()
+    val region = Region()
+    val region2 = Region()
     val rvb = new RegionValueBuilder(region)
     val rvb2 = new RegionValueBuilder(region2)
 
@@ -133,8 +133,8 @@ class UnsafeSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testMemoryBuffer() {
-    val buff = MemoryBuffer()
+  @Test def testRegion() {
+    val buff = Region()
 
     buff.appendLong(124L)
     buff.appendByte(2)
@@ -206,8 +206,8 @@ class UnsafeSuite extends SparkSuite {
   }
 
   @Test def orderingRegression() {
-    val region = MemoryBuffer()
-    val region2 = MemoryBuffer()
+    val region = Region()
+    val region2 = Region()
     val rvb = new RegionValueBuilder(region)
     val rvb2 = new RegionValueBuilder(region2)
 
@@ -229,8 +229,8 @@ class UnsafeSuite extends SparkSuite {
   }
 
   @Test def testUnsafeOrdering() {
-    val region = MemoryBuffer()
-    val region2 = MemoryBuffer()
+    val region = Region()
+    val region2 = Region()
     val rvb = new RegionValueBuilder(region)
     val rvb2 = new RegionValueBuilder(region2)
 
@@ -282,7 +282,7 @@ class UnsafeSuite extends SparkSuite {
   }
 
   @Test def unsafeSer() {
-    val region = MemoryBuffer()
+    val region = Region()
     val rvb = new RegionValueBuilder(region)
 
     val path = tmpDir.createTempFile(extension = "ser")
@@ -317,7 +317,7 @@ class UnsafeSuite extends SparkSuite {
     val ser = SparkEnv.get.serializer.asInstanceOf[KryoSerializer]
     val kryo = ser.newKryo()
 
-    val region = MemoryBuffer()
+    val region = Region()
     val rvb = new RegionValueBuilder(region)
     val path = tmpDir.createTempFile(extension = "ser")
     val g = Type.genStruct
@@ -346,7 +346,7 @@ class UnsafeSuite extends SparkSuite {
   }
 
   @Test def testRegionSer() {
-    val region = MemoryBuffer()
+    val region = Region()
     val path = tmpDir.createTempFile(extension = "ser")
     val g = Gen.buildableOf[Array, Byte](arbitrary[Byte])
     val p = Prop.forAll(g) { (a: Array[Byte]) =>
@@ -358,7 +358,7 @@ class UnsafeSuite extends SparkSuite {
       }
 
       val region2 = hadoopConf.readObjectFile(path) { in =>
-        in.readObject().asInstanceOf[MemoryBuffer]
+        in.readObject().asInstanceOf[Region]
       }
 
       assert(region2.size.toInt == a.length)
@@ -374,7 +374,7 @@ class UnsafeSuite extends SparkSuite {
     val ser = SparkEnv.get.serializer.asInstanceOf[KryoSerializer]
     val kryo = ser.newKryo()
 
-    val region = MemoryBuffer()
+    val region = Region()
     val path = tmpDir.createTempFile(extension = "ser")
     val g = Gen.buildableOf[Array, Byte](arbitrary[Byte])
     val p = Prop.forAll(g) { (a: Array[Byte]) =>
@@ -386,7 +386,7 @@ class UnsafeSuite extends SparkSuite {
       }
 
       val region2 = hadoopConf.readKryoFile(path) { in =>
-        kryo.readObject[MemoryBuffer](in, classOf[MemoryBuffer])
+        kryo.readObject[Region](in, classOf[Region])
       }
 
       assert(region2.size.toInt == a.length)

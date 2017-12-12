@@ -1,6 +1,6 @@
 package is.hail.rvd
 
-import is.hail.annotations.{MemoryBuffer, UnsafeInserter, UnsafeOrdering}
+import is.hail.annotations.{Region, UnsafeInserter, UnsafeOrdering}
 import is.hail.expr.{Parser, TStruct, Type}
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
@@ -85,7 +85,7 @@ object OrderedRVType {
     val fieldOrderings = fields1.map(f1 => t1.fieldType(f1).unsafeOrdering(missingGreatest = true))
 
     new UnsafeOrdering {
-      def compare(r1: MemoryBuffer, o1: Long, r2: MemoryBuffer, o2: Long): Int = {
+      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         var i = 0
         while (i < nFields) {
           val f1 = fields1(i)
