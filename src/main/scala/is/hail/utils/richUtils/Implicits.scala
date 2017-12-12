@@ -5,7 +5,7 @@ import java.io.InputStream
 import breeze.linalg.DenseMatrix
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s.Code
-import is.hail.io.RichRDDRegionValue
+import is.hail.io.{Decoder, RichRDDRegionValue}
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import is.hail.variant.Variant
 import org.apache.hadoop
@@ -123,4 +123,6 @@ trait Implicits {
   implicit def toRichCodeRegion(r: Code[Region]): RichCodeRegion = new RichCodeRegion(r)
 
   implicit def toRichPartialKleisliOptionFunction[A, B](x: PartialFunction[A, Option[B]]): RichPartialKleisliOptionFunction[A, B] = new RichPartialKleisliOptionFunction(x)
+
+  implicit def toRichCodeDecoder(d: Code[Decoder]): RichCodeDecoder = new RichCodeDecoder(d)
 }

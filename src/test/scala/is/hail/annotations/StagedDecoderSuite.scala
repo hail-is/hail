@@ -7,6 +7,8 @@ import org.testng.annotations.{BeforeMethod, Test}
 import is.hail.annotations.StagedDecoder._
 import is.hail.io._
 import is.hail.TestUtils._
+import is.hail.check.{Gen, Prop}
+import org.apache.spark.sql.Row
 
 class StagedDecoderSuite extends SparkSuite {
 
@@ -104,114 +106,43 @@ class StagedDecoderSuite extends SparkSuite {
     checkDecoding(t)
   }
 
-  def performanceComparison1(nCols: Int, nIter: Int): (Long, Long) = {
-    val t = TStruct("a" -> TString(), "b" -> TArray(TInt32()))
+  @Test def testStagedCodec() {
+    val region = Region()
+    val region2 = Region()
+    val rvb = new RegionValueBuilder(region)
 
-    rvb.start(t)
-    rvb.startStruct()
-    rvb.addString("row1")
-    rvb.startArray(nCols)
-    for (i <- 1 to nCols) {
-      rvb.addInt(i)
-    }
-    rvb.endArray()
-    rvb.endStruct()
-    rv1.setOffset(rvb.end())
+    val path = tmpDir.createTempFile(extension = "ser")
 
-    if (verbose) {
-      printRegion(rv1.region, "1")
-      println(rv1.pretty(t))
-    }
-    val aos = new ArrayOutputStream()
-    val en = new Encoder(new LZ4OutputBuffer(aos))
-    en.writeRegionValue(t, rv1.region, rv1.offset)
-    en.flush()
-    val ais1 = new ArrayInputStream(aos.a, aos.off)
-    val dec1 = new Decoder(new LZ4InputBuffer(ais1))
+    val g = Type.genStruct
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
+      .filter { case (t, a) => a != null }
+    val p = Prop.forAll(g) { case (t, a) =>
+      t.typeCheck(a)
+      val f = t.fundamentalType
 
-    val start1 = System.nanoTime()
-    for (i <- 0 until nIter) {
+      region.clear()
+      rvb.start(f)
+      rvb.addRow(t, a.asInstanceOf[Row])
+      val offset = rvb.end()
+      val ur = new UnsafeRow(t, region, offset)
+
+      val aos = new ArrayOutputStream()
+      val en = new Encoder(new LZ4OutputBuffer(aos))
+      en.writeRegionValue(f, region, offset)
+      en.flush()
+
       region2.clear()
-      ais1.clear()
-      rv2.setOffset(dec1.readRegionValue(t, region2))
+      val ais = new ArrayInputStream(aos.a, aos.off)
+      val dec = new Decoder(new LZ4InputBuffer(ais))
+      val dF = StagedDecoder.getRVReader(t)()
+
+      val offset2 = dF(region2, dec)
+      val ur2 = new UnsafeRow(t, region2, offset2)
+
+      assert(t.valuesSimilar(a, ur2))
+
+      true
     }
-    val stop1 = System.nanoTime()
-
-
-    val ais2 = new ArrayInputStream(aos.a, aos.off)
-    val dec2 = new Decoder(new LZ4InputBuffer(ais2))
-    val readRV = StagedDecoder.getRVReader(t)()
-
-    val start2 = System.nanoTime()
-    for (i <- 0 until nIter) {
-      region2.clear()
-      ais2.clear()
-      rv2.setOffset(readRV(region2, dec2))
-    }
-    val stop2 = System.nanoTime()
-
-    (stop1 - start1, stop2 - start2)
-  }
-
-  def performanceComparison2(nCols: Int, nIter: Int): (Long, Long) = {
-    val t = TArray(TStruct("a" -> TString(), "b" -> TInt32()))
-
-    rvb.start(t)
-    rvb.startArray(nCols)
-    for (i <- 1 to nCols) {
-      rvb.startStruct()
-      rvb.addString("row1")
-      rvb.addInt(i)
-      rvb.endStruct()
-    }
-    rvb.endArray()
-    rv1.setOffset(rvb.end())
-
-    if (verbose) {
-      printRegion(rv1.region, "1")
-      println(rv1.pretty(t))
-    }
-
-    val aos = new ArrayOutputStream()
-    val en = new Encoder(new LZ4OutputBuffer(aos))
-    en.writeRegionValue(t, rv1.region, rv1.offset)
-    en.flush()
-    val ais1 = new ArrayInputStream(aos.a, aos.off)
-    val dec1 = new Decoder(new LZ4InputBuffer(ais1))
-
-    val start1 = System.nanoTime()
-    for (i <- 0 until nIter) {
-      region2.clear()
-      ais1.clear()
-      rv2.setOffset(dec1.readRegionValue(t, region2))
-    }
-    val stop1 = System.nanoTime()
-
-
-    val ais2 = new ArrayInputStream(aos.a, aos.off)
-    val dec2 = new Decoder(new LZ4InputBuffer(ais2))
-    val readRV = StagedDecoder.getRVReader(t)()
-
-    val start2 = System.nanoTime()
-    for (i <- 0 until nIter) {
-      region2.clear()
-      ais2.clear()
-      rv2.setOffset(readRV(region2, dec2))
-    }
-    val stop2 = System.nanoTime()
-
-    (stop1 - start1, stop2 - start2)
-  }
-
-//  @Test
-  def testPerformance() {
-    val nIter = 1000
-
-    printf("nCols   |  delta1  | percent1 |  delta2  | percent2%n")
-    for (i <- Array(100, 1000, 10000)) {
-      val (old1, new1) = performanceComparison1(i, nIter)
-      val (old2, new2) = performanceComparison2(i, nIter)
-      printf("%7d | %+7.5f | %+7.5f | %+7.5f | %+7.5f %n", i, (new1-old1)/1000000000.0, (new1 - old1).toDouble/old1, (new2-old2)/1000000000.0, (new2 - old2).toDouble/old2)
-    }
+    p.check()
   }
 }
