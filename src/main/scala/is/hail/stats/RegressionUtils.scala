@@ -133,27 +133,6 @@ object RegressionUtils {
       case _ => fatal(s"Expression `$expr' must be numeric or Boolean, got $xt")
     }
   }
-  
-//  def parseExprAsRequiredDouble(expr: String, ec: EvalContext): () => Double = {
-//    val (xt, xf0) = Parser.parseExpr(expr, ec)
-//
-//    def castToDouble[T](f: (T) => Double): () => Double = { () =>
-//      val a = xf0()
-//      if (a == null)
-//        fatal("expr must be non-missing for all entries.")
-//      else
-//        f(a.asInstanceOf[T])
-//    }
-//    
-//    xt match {
-//      case _: TInt32 => castToDouble[Int](_.toDouble)
-//      case _: TInt64 => castToDouble[Long](_.toDouble)
-//      case _: TFloat32 => castToDouble[Float](_.toDouble)
-//      case _: TFloat64 => () => xf0().asInstanceOf[Double]
-//      case _: TBoolean => castToDouble[Boolean](_.toDouble)
-//      case _ => fatal(s"Expression `$expr' must be numeric or Boolean, got $xt")
-//    }
-//  }
 
   // IndexedSeq indexed by samples, Array by annotations
   def getSampleAnnotations(vds: VariantSampleMatrix, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {

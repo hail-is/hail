@@ -2707,9 +2707,8 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
   }
   
   def writeBlockMatrix(dirname: String, expr: String, blockSize: Int): Unit = {
-    val partitionStarts = rdd2.mapPartitions(it => Iterator.single(it.size)).collect().scanLeft(0L)(_ + _)
-    assert(partitionStarts.length == rdd2.getNumPartitions + 1)
-    val pSizeBc = sparkContext.broadcast(partitionStarts)
+    val partStarts = partitionStarts()
+    assert(partStarts.length == rdd2.getNumPartitions + 1)
 
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature),
@@ -2721,7 +2720,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val f = RegressionUtils.parseExprAsDouble(expr, ec)
     ec.set(0, globalAnnotation)
     
-    val nRows = partitionStarts.last
+    val nRows = partStarts.last
     val nCols = nSamples
     
     val hadoop = sparkContext.hadoopConfiguration
@@ -2737,7 +2736,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     // write blocks
     hadoop.mkDir(dirname + "/parts")
     val gp = GridPartitioner(blockSize, nRows, nCols)
-    val blockCount = new WriteBlocksRDD2(rdd2, dirname, partitionStarts, f, ec, gp).reduce(_ + _)
+    val blockCount = new WriteBlocksRDD(dirname, rdd2, sparkContext, rowType, sampleIds, sampleAnnotations, partStarts, f, ec, gp).reduce(_ + _)
     assert(blockCount == gp.numPartitions)
     info(s"Wrote all $blockCount blocks of $nRows x $nCols matrix with block size $blockSize.")
   }

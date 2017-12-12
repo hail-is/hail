@@ -4,12 +4,11 @@ import java.io._
 
 import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail._
-import is.hail.annotations.{Memory, UnsafeRow}
-import is.hail.expr.EvalContext
+import is.hail.annotations.{Annotation, Memory, UnsafeRow}
+import is.hail.expr.{EvalContext, TStruct}
 import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
-import is.hail.variant.VariantSampleMatrix
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.mllib.linalg.distributed._
@@ -722,59 +721,68 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
 
 case class IntPartition(index: Int) extends Partition
 
-// On compute, WriteBlocksRDDPartition writes the blockRow with blockRow index
-// [start, end] is the range of indices of IRM (parent) partitions overlapping this blockRow
-// skip is the index in start corresponding to the first row of this blockRow
+
+// On compute, WriteBlocksRDDPartition writes the block row with index `index`
+// [`start`, `end`] is the range of indices of parent partitions overlapping this block row
+// `skip` is the index in the start partition corresponding to the first row of this block row
 case class WriteBlocksRDDPartition(index: Int, start: Int, skip: Int, end: Int) extends Partition {
   def range: Range = start to end
 }
 
-// IRM must be complete (IRM numRows == RDD count) and ordered (IndexedRow index == RDD index); checked by assertions
-class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, gp: GridPartitioner) extends RDD[Int](irm.rows.sparkContext, Nil) {
-  private val parentPartitions = irm.rows.partitions
-  private val parentPartitionBoundaries: Array[Long] = irm.rows.countPerPartition().scanLeft(0L)(_ + _)
+class WriteBlocksRDD(path: String,
+  rdd2: RVD,
+  sc: SparkContext,
+  rowType: TStruct,
+  sampleIds: IndexedSeq[Annotation],
+  sampleAnnotations: IndexedSeq[Annotation],
+  parentPartStarts: Array[Long],
+  f: () => java.lang.Double,
+  ec: EvalContext,
+  gp: GridPartitioner) extends RDD[Int](sc, Nil) {
 
-  assert(gp.nRows == parentPartitionBoundaries.last,
-    s"IndexedRowMatrix has ${ gp.nRows } rows but RDD only has ${ parentPartitionBoundaries.last } IndexedRows.")
+  require(gp.nRows == parentPartStarts.last)
 
+  private val parentParts = rdd2.partitions
   private val blockSize = gp.blockSize
-  private val d = digitsNeeded(gp.numPartitions)
-  private val sHadoopBc = irm.rows.sparkContext.broadcast(
-    new SerializableHadoopConfiguration(irm.rows.sparkContext.hadoopConfiguration))
 
-  override def getDependencies: Seq[Dependency[_]] = {
+  private val sampleIdsBc = sc.broadcast(sampleIds)
+  private val sampleAnnotationsBc = sc.broadcast(sampleAnnotations)
+
+  private val d = digitsNeeded(gp.numPartitions)
+  private val sHadoopBc = rdd2.sparkContext.broadcast(
+    new SerializableHadoopConfiguration(rdd2.sparkContext.hadoopConfiguration))
+
+  override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
-      new NarrowDependency(irm.rows) {
+      new NarrowDependency(rdd2.rdd) {
         def getParents(partitionId: Int): Seq[Int] =
           partitions(partitionId).asInstanceOf[WriteBlocksRDDPartition].range
       }
     )
-  }
 
   protected def getPartitions: Array[Partition] = {
-    val rows = parentPartitionBoundaries.last
+    val rows = parentPartStarts.last
     assert(rows == gp.nRows)
     val nBlockRows = gp.nBlockRows
 
-    val parts = Array.ofDim[Partition](nBlockRows)
+    val parts = new Array[Partition](nBlockRows)
 
     var firstRowInBlock = 0L
     var firstRowInNextBlock = 0L
-    var pi = 0
-    // parent partition index
+    var pi = 0 // parent partition index
     var blockRow = 0
     while (blockRow < nBlockRows) {
-      val skip = (firstRowInBlock - parentPartitionBoundaries(pi)).toInt
+      val skip = (firstRowInBlock - parentPartStarts(pi)).toInt
 
-      firstRowInNextBlock = if (blockRow < nBlockRows - 1) firstRowInBlock + blockSize else rows
+      firstRowInNextBlock = if (blockRow < nBlockRows - 1) firstRowInBlock + gp.blockSize else rows
 
       val start = pi
-      while (parentPartitionBoundaries(pi) < firstRowInNextBlock)
+      while (parentPartStarts(pi) < firstRowInNextBlock)
         pi += 1
       val end = pi - 1
 
       // if last parent partition overlaps next blockRow, don't advance
-      if (parentPartitionBoundaries(pi) > firstRowInNextBlock)
+      if (parentPartStarts(pi) > firstRowInNextBlock)
         pi -= 1
 
       parts(blockRow) = WriteBlocksRDDPartition(blockRow, start, skip, end)
@@ -807,39 +815,48 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, gp: GridPartitioner) e
       dos
     }
 
-    assert((gp.nCols << 3) <= Int.MaxValue)
-    val bytes = new Array[Byte]((gp.nCols << 3).toInt)
+    val bytes = new Array[Byte](blockSize << 3)
+
+    val ur = new UnsafeRow(rowType)
 
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
-    var i = 0
     writeBlocksPart.range.foreach { pi =>
-      val indexedRows = irm.rows.iterator(parentPartitions(pi), context)
+      val it = rdd2.rdd.iterator(parentParts(pi), context)
 
       if (pi == start) {
         var j = 0
         while (j < writeBlocksPart.skip) {
-          indexedRows.next()
+          it.next()
           j += 1
         }
       }
 
-      while (indexedRows.hasNext && i < nRowsInBlock) {
-        val indexedRow = indexedRows.next()
-        assert(indexedRow.index == firstRowInBlock + i,
-          s"IndexedRow index ${ indexedRow.index } in partition $pi does not equal RDD index ${ firstRowInBlock + i }")
-
-        val data = indexedRow.vector.toArray // free on Spark DenseVector
-        Memory.memcpy(bytes, 0, data, 0, data.length)
-
-        var off = 0
+      var i = 0
+      while (it.hasNext && i < nRowsInBlock) {
+        val rv = it.next()
+        ur.set(rv)
+        ec.set(1, ur.get(1))
+        ec.set(2, ur.get(2))
+        val gs = ur.getAs[IndexedSeq[Any]](3)
+        var offset = 0
         var blockCol = 0
         while (blockCol < gp.nBlockCols) {
-          val n = gp.blockColNCols(blockCol) << 3
+          val n = gp.blockColNCols(blockCol)
+          var j = 0
+          while (j < n) {
+            ec.set(3, sampleIdsBc.value(j))
+            ec.set(4, sampleAnnotationsBc.value(j))
+            ec.set(5, gs(offset + j))
+            f() match {
+              case null => fatal(s"Entry expr must be non-missing. Found missing value for sample ${ sampleIdsBc.value(j) } and variant ${ ur.get(1) }")
+              case t => Memory.storeDouble(bytes, j << 3, t.toDouble)
+            }
+            j += 1
+          }
+          dosArray(blockCol).write(bytes, 0, n << 3)
 
-          dosArray(blockCol).write(bytes, off, n)
-
-          off += blockSize << 3
+          offset += blockSize
           blockCol += 1
         }
         i += 1
@@ -848,141 +865,6 @@ class WriteBlocksRDD(irm: IndexedRowMatrix, path: String, gp: GridPartitioner) e
 
     dosArray.foreach(_.close())
 
-    Iterator.single(gp.nBlockCols) // number of blocks written
-  }
-}
-
-class WriteBlocksRDD2(vsm: VariantSampleMatrix, path: String, parentPartitionStarts: Array[Long], f: () => java.lang.Double, ec: EvalContext, gp: GridPartitioner) extends RDD[Int](vsm.sparkContext, Nil) {
-  private val rdd2 = vsm.rdd2
-  private val parentPartitions = rdd2.partitions
-  
-  assert(gp.nRows == parentPartitionStarts.last,
-    s"IndexedRowMatrix has ${gp.nRows} rows but RDD only has ${parentPartitionStarts.last} IndexedRows.")
-  
-  private val blockSize = gp.blockSize
-  private val d = digitsNeeded(gp.numPartitions)
-  private val sHadoopBc = rdd2.sparkContext.broadcast(
-    new SerializableHadoopConfiguration(rdd2.sparkContext.hadoopConfiguration))
-
-  override def getDependencies: Seq[Dependency[_]] = {  
-    Array[Dependency[_]](
-      new NarrowDependency(rdd2.rdd) {
-        def getParents(partitionId: Int): Seq[Int] =
-          partitions(partitionId).asInstanceOf[WriteBlocksRDDPartition].range
-      }
-    )
-  }
-
-  protected def getPartitions: Array[Partition] = {
-    val rows = parentPartitionStarts.last
-    assert(rows == gp.nRows)
-    val nBlockRows = gp.nBlockRows
-        
-    val parts = Array.ofDim[Partition](nBlockRows)
-    
-    var firstRowInBlock = 0L
-    var firstRowInNextBlock = 0L
-    var pi = 0 // parent partition index
-    var blockRow = 0
-    while (blockRow < nBlockRows) {
-      val skip = (firstRowInBlock - parentPartitionStarts(pi)).toInt
-      
-      firstRowInNextBlock = if (blockRow < nBlockRows - 1) firstRowInBlock + blockSize else rows
-
-      val start = pi
-      while (parentPartitionStarts(pi) < firstRowInNextBlock)
-        pi += 1
-      val end = pi - 1
-      
-      // if last parent partition overlaps next blockRow, don't advance
-      if (parentPartitionStarts(pi) > firstRowInNextBlock)
-        pi -= 1
-      
-      parts(blockRow) = WriteBlocksRDDPartition(blockRow, start, skip, end)
-      
-      firstRowInBlock = firstRowInNextBlock
-      blockRow += 1
-    }
-
-    parts
-  }
-  
-  def compute(split: Partition, context: TaskContext): Iterator[Int] = {
-    val blockRow = split.index
-    val firstRowInBlock = blockRow.toLong * blockSize
-    val nRowsInBlock = gp.blockRowNRows(blockRow)
-
-    val dosArray = Array.tabulate(gp.nBlockCols) { blockCol =>
-      val nColsInBlock = gp.blockColNCols(blockCol)
-
-      val is = gp.coordinatesBlock(blockRow, blockCol).toString
-      assert(is.length <= d)
-      val pis = StringUtils.leftPad(is, d, "0")
-      val filename = path + "/parts/part-" + pis
-
-      val dos = new DataOutputStream(sHadoopBc.value.value.unsafeWriter(filename))      
-      dos.writeInt(nRowsInBlock)
-      dos.writeInt(nColsInBlock)
-      dos.writeBoolean(true) // transposed, stored row major
-      
-      dos
-    }
-    
-    val nSamples = vsm.nSamples
-    val localRowType = vsm.rowType
-    val localSampleIdsBc = vsm.sampleIdsBc
-    val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
-    val ur = new UnsafeRow(localRowType)
-    
-    val bytes = new Array[Byte](blockSize << 3)
-    
-    val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
-    val start = writeBlocksPart.start
-    var i = 0
-    writeBlocksPart.range.foreach { pi =>
-      val rvIter = rdd2.rdd.iterator(parentPartitions(pi), context)
-
-      if (pi == start) {
-        var j = 0
-        while (j < writeBlocksPart.skip) {
-          rvIter.next()
-          j += 1
-        }
-      }
-
-      while (rvIter.hasNext && i < nRowsInBlock) {
-        ur.set(rvIter.next())
-        ec.set(1, ur.get(1))
-        ec.set(2, ur.get(2))
-        val gs = ur.getAs[IndexedSeq[Any]](3)
-        var k = 0
-        while (k < nSamples) { // FIXME: break into block cols
-          ec.set(3, localSampleIdsBc.value(k))
-          ec.set(4, localSampleAnnotationsBc.value(k))
-          ec.set(5, gs(k))
-          f() match {
-            case null => fatal(s"Entry expr must be non-missing. Found missing value for sample ${ localSampleIdsBc.value(k) } and variant ${ ur.get(1) }")
-            case t => Memory.storeDouble(bytes, t.toDouble, k)
-          }
-          k += 1
-        }
-
-        var off = 0
-        var blockCol = 0
-        while (blockCol < gp.nBlockCols) {
-          val n = gp.blockColNCols(blockCol) << 3
-          
-          dosArray(blockCol).write(bytes, off, n)
-          
-          off += blockSize << 3
-          blockCol+= 1
-        }
-        i += 1
-      }
-    }
-    
-    dosArray.foreach(_.close())
-    
     Iterator.single(gp.nBlockCols) // number of blocks written
   }
 }
