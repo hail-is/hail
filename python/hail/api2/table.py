@@ -233,13 +233,11 @@ class Table(TableTemplate):
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
         for fd in self.global_schema.fields:
-            column = convert_expr(
-                Expression(Reference(fd.name), fd.typ, indices=self._global_indices, aggregations=(), joins=()))
+            column = construct_expr(Reference(fd.name), fd.typ, indices=self._global_indices, aggregations=(), joins=())
             self._set_field(fd.name, column)
 
         for fd in self.schema.fields:
-            column = convert_expr(
-                Expression(Reference(fd.name), fd.typ, indices=self._row_indices, aggregations=(), joins=()))
+            column = construct_expr(Reference(fd.name), fd.typ, indices=self._row_indices, aggregations=(), joins=())
             self._set_field(fd.name, column)
 
     @typecheck_method(item=oneof(strlike, Expression, slice, tupleof(Expression)))
@@ -662,8 +660,8 @@ class Table(TableTemplate):
 
             all_uids = uids[:]
             all_uids.append(uid)
-            return convert_expr(Expression(Reference(uid), self.schema, indices, aggregations,
-                                           joins + (Join(joiner, all_uids),)))
+            return construct_expr(Reference(uid), self.schema, indices, aggregations,
+                                           joins + (Join(joiner, all_uids),))
         elif isinstance(src, MatrixTable):
             for e in exprs:
                 analyze(e, src._entry_indices, set(), set(src._fields.keys()))
@@ -682,9 +680,8 @@ class Table(TableTemplate):
                     joiner = lambda left: MatrixTable(self._hc, left._jvds.annotateVariantsTable(
                         right._jkt, [e._ast.to_hql() for e in exprs], 'va.{}'.format(uid), None, False))
 
-                return convert_expr(
-                    Expression(Select(Reference('va'), uid), self.schema,
-                               indices, aggregations, joins + (Join(joiner, [uid]),)))
+                return construct_expr(Select(Reference('va'), uid), self.schema,
+                               indices, aggregations, joins + (Join(joiner, [uid]),))
             elif indices == src._col_indices:
                 if len(exprs) == 1 and exprs[0] is src['s']:
                     # no vds_key (faster)
@@ -694,9 +691,8 @@ class Table(TableTemplate):
                     # use vds_key
                     joiner = lambda left: MatrixTable(self._hc, left._jvds.annotateSamplesTable(
                         right._jkt, [e._ast.to_hql() for e in exprs], 'sa.{}'.format(uid), None, False))
-                return convert_expr(
-                    Expression(Select(Reference('sa'), uid), self.schema,
-                               indices, aggregations, joins + (Join(joiner, [uid]),)))
+                return construct_expr(Select(Reference('sa'), uid), self.schema,
+                               indices, aggregations, joins + (Join(joiner, [uid]),))
             else:
                 raise NotImplementedError()
         else:
@@ -714,8 +710,7 @@ class Table(TableTemplate):
                 assert isinstance(obj, Table)
                 return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jkt, uid))
 
-        return convert_expr(
-            Expression(GlobalJoinReference(uid), self.global_schema, joins=(Join(joiner, [uid]),)))
+        return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=(Join(joiner, [uid]),))
 
     @typecheck_method(exprs=tupleof(Expression))
     def _process_joins(self, *exprs):
