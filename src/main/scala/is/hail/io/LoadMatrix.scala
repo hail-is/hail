@@ -228,7 +228,7 @@ object LoadMatrix {
         }
       }
 
-      val region = MemoryBuffer()
+      val region = Region()
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
       it.map { v =>
@@ -252,7 +252,7 @@ object LoadMatrix {
 
     val rdd = lines.filter(l => l.value.nonEmpty)
       .mapPartitionsWithIndex { (i, it) =>
-        val region = MemoryBuffer()
+        val region = Region()
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 

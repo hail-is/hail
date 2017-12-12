@@ -173,7 +173,7 @@ object HailContext {
 
   def readRowsPartition(t: TStruct)(i: Int, in: InputStream): Iterator[RegionValue] = {
     new Iterator[RegionValue] {
-      val region = MemoryBuffer()
+      val region = Region()
       val rv = RegionValue(region)
 
       val dec = new Decoder(new LZ4InputBuffer(in))

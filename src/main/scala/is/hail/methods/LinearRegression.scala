@@ -60,7 +60,7 @@ object LinearRegression {
     val newRDD2 = vsm.rdd2.copy(
       typ = newRDD2Type,
       rdd = vsm.rdd2.mapPartitions { it =>
-        val region2 = MemoryBuffer()
+        val region2 = Region()
         val rvb = new RegionValueBuilder(region2)
         val rv2 = RegionValue(region2)
 

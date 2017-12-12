@@ -478,7 +478,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val aggregate = Aggregators.buildVariantAggregationsByKey(this, nKeys, samplesMap, ec)
 
     val groupedRDD2 = rdd2.mapPartitionsPreservesPartitioning(mt.orderedRVType) { it =>
-      val region2 = MemoryBuffer()
+      val region2 = Region()
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
       val ur = new UnsafeRow(localRowType)
@@ -549,7 +549,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val rdd = keyedRDD
       .aggregateByKey(zero)(seqOp, combOp)
       .mapPartitions { it =>
-        val region = MemoryBuffer()
+        val region = Region()
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         it.map { case (key, agg) =>
@@ -1089,7 +1089,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val localRowType = rowType
 
     val explodedRDD = rdd2.rdd.mapPartitions { it =>
-      val region2 = MemoryBuffer()
+      val region2 = Region()
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
       val ur = new UnsafeRow(localRowType)
@@ -1156,7 +1156,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val localGSSig = rowType.fieldType(3).asInstanceOf[TArray]
 
     val newRDD = rdd2.rdd.mapPartitions { it =>
-      val region2 = MemoryBuffer()
+      val region2 = Region()
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
       it.map { rv =>
@@ -2519,7 +2519,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     val newRDD = rdd2.mapPartitionsPreservesPartitioning(new OrderedRVType(rdd2.typ.partitionKey, rdd2.typ.key, newRowType)) { it =>
       it.map { r =>
-        val rvb = new RegionValueBuilder(MemoryBuffer())
+        val rvb = new RegionValueBuilder(Region())
         rvb.start(newRowType)
         rvb.startStruct()
 
@@ -2582,7 +2582,7 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     val rowTypeBc = sparkContext.broadcast(rowType)
 
     val scoresrdd = sparkContext.parallelize(sampleIds.zip(scoresmatrix.rowIter.toSeq)).mapPartitions[RegionValue] { it =>
-      val region = MemoryBuffer()
+      val region = Region()
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
       val localRowType = rowTypeBc.value

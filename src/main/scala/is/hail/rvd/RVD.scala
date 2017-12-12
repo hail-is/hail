@@ -1,6 +1,6 @@
 package is.hail.rvd
 
-import is.hail.annotations.{MemoryBuffer, RegionValue, RegionValueBuilder}
+import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.Type
 import is.hail.utils._
 import org.apache.spark.{Partition, SparkContext}
@@ -66,7 +66,7 @@ trait RVD {
 
     // copy, persist region values
     val persistedRDD = rdd.mapPartitions { it =>
-      val region = MemoryBuffer()
+      val region = Region()
       val rvb = new RegionValueBuilder(region)
       it.map { rv =>
         region.clear()
@@ -81,7 +81,7 @@ trait RVD {
     PersistedRVRDD(persistedRDD,
       persistedRDD
         .mapPartitions { it =>
-          val region = MemoryBuffer()
+          val region = Region()
           val rv2 = RegionValue(region)
           it.map { rv =>
             region.setFrom(rv.region)

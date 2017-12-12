@@ -2,7 +2,7 @@ package is.hail.methods
 
 import java.util
 
-import is.hail.annotations.{Annotation, MemoryBuffer, RegionValue, RegionValueBuilder}
+import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.{TArray, TFloat64Required, TInt32Required, TInt64Required, TStruct, TVariant, Type}
 import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.storage.StorageLevel
@@ -30,7 +30,7 @@ class BitPackedVectorView(rowType: TStruct) {
   private val meanIndex = 4
   private val sdIndex = 5
 
-  private var m: MemoryBuffer = _
+  private var m: Region = _
   private var vOffset: Long = _
   private var bpvOffset: Long = _
   private var bpvLength: Int = _
@@ -39,7 +39,7 @@ class BitPackedVectorView(rowType: TStruct) {
   private var meanOffset: Long = _
   private var sdOffset: Long = _
 
-  def setRegion(mb: MemoryBuffer, offset: Long) {
+  def setRegion(mb: Region, offset: Long) {
     this.m = mb
     vOffset = rowType.loadField(m, offset, vIndex)
     bpvOffset = rowType.loadField(m, offset, bpvIndex)
@@ -445,7 +445,7 @@ object LDPrune {
     val standardizedRDD = vsm.filterVariantsExpr("v.isBiallelic()").rdd2
       .mapPartitionsPreservesPartitioning(new OrderedRVType(typ.partitionKey, typ.key, bpvType))({ it =>
         val hcView = HardCallView(localRowType)
-        val region = MemoryBuffer()
+        val region = Region()
         val rvb = new RegionValueBuilder(region)
         val rv2 = RegionValue(region)
 

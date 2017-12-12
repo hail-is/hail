@@ -4,7 +4,7 @@ import is.hail.expr._
 
 object ScalaToRegionValue {
 
-  def addStruct[T: HailRep](region: MemoryBuffer,
+  def addStruct[T: HailRep](region: Region,
     n1: String, v1: T): Long = {
     val rvb = new RegionValueBuilder(region)
     rvb.start(TStruct(
@@ -15,7 +15,7 @@ object ScalaToRegionValue {
     rvb.end()
   }
 
-  def addStruct(region: MemoryBuffer,
+  def addStruct(region: Region,
     n1: String, t1: Type, offset1: Long): Long = {
     val rvb = new RegionValueBuilder(region)
     rvb.start(TStruct(n1 -> t1))
@@ -25,7 +25,7 @@ object ScalaToRegionValue {
     rvb.end()
   }
 
-  def addStruct[T: HailRep](region: MemoryBuffer,
+  def addStruct[T: HailRep](region: Region,
     n1: String, v1: T,
     n2: String, t2: Type, offset2: Long): Long = {
     val rvb = new RegionValueBuilder(region)
@@ -37,7 +37,7 @@ object ScalaToRegionValue {
     rvb.end()
   }
 
-  def addStruct[T: HailRep, U: HailRep](region: MemoryBuffer,
+  def addStruct[T: HailRep, U: HailRep](region: Region,
     n1: String, v1: T,
     n2: String, v2: U): Long = {
 
@@ -52,7 +52,7 @@ object ScalaToRegionValue {
     rvb.end()
   }
 
-  def addStruct[T: HailRep, U: HailRep, V: HailRep](region: MemoryBuffer,
+  def addStruct[T: HailRep, U: HailRep, V: HailRep](region: Region,
     n1: String, v1: T,
     n2: String, v2: U,
     n3: String, v3: V): Long = {
@@ -70,7 +70,7 @@ object ScalaToRegionValue {
     rvb.end()
   }
 
-  def addArray[T: HailRep](region: MemoryBuffer, a: T*): Long = {
+  def addArray[T: HailRep](region: Region, a: T*): Long = {
     val rvb = new RegionValueBuilder(region)
     rvb.start(TArray(hailType[T]))
     rvb.startArray(a.length)
@@ -79,7 +79,7 @@ object ScalaToRegionValue {
     rvb.end()
   }
 
-  def addBoxedArray[T: HailRep](region: MemoryBuffer, a: T*): Long = {
+  def addBoxedArray[T: HailRep](region: Region, a: T*): Long = {
     val rvb = new RegionValueBuilder(region)
     rvb.start(TArray(hailType[T]))
     rvb.startArray(a.length)

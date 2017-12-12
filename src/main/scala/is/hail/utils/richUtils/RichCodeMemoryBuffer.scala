@@ -1,18 +1,18 @@
 package is.hail.utils.richUtils
 
 import is.hail.expr._
-import is.hail.annotations.MemoryBuffer
+import is.hail.annotations.Region
 import is.hail.asm4s.Code
 
 
-class RichCodeMemoryBuffer(val region: Code[MemoryBuffer]) extends AnyVal {
+class RichCodeRegion(val region: Code[Region]) extends AnyVal {
 
   def size: Code[Long] = region.invoke[Long]("size")
 
   def offset: Code[Long] = region.invoke[Long]("size")
 
-  def copyFrom(other: Code[MemoryBuffer], readStart: Code[Long], writeStart: Code[Long], n: Code[Long]): Code[Unit] = {
-    region.invoke[MemoryBuffer, Long, Long, Long, Unit]("copyFrom", other, readStart, writeStart, n)
+  def copyFrom(other: Code[Region], readStart: Code[Long], writeStart: Code[Long], n: Code[Long]): Code[Unit] = {
+    region.invoke[Region, Long, Long, Long, Unit]("copyFrom", other, readStart, writeStart, n)
   }
 
   def storeInt32(off: Code[Long], v: Code[Int]): Code[Unit] = {

@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{MemoryBuffer, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr
 import is.hail.expr.{TArray, TBoolean, TContainer, TFloat32, TFloat64, TInt32, TInt64, TStruct}
@@ -57,7 +57,7 @@ object Compile {
   // JVM gotcha:
   //  a variable must be initialized on all static code-paths to its use (ergo defaultValue)
   def compile(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
-    val region = fb.getArg[MemoryBuffer](1).load()
+    val region = fb.getArg[Region](1).load()
     def compile(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: StagedBitSet = mb): (Code[Unit], Code[Boolean], Code[_]) =
       Compile.compile(ir, fb, env, mb)
     ir match {

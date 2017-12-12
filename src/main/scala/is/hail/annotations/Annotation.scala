@@ -159,14 +159,14 @@ object Annotation {
 
     t match {
       case t: TStruct =>
-        val region = MemoryBuffer()
+        val region = Region()
         val rvb = new RegionValueBuilder(region)
         rvb.start(t)
         rvb.addAnnotation(t, a)
         new UnsafeRow(t, region, rvb.end())
 
       case t: TContainer =>
-        val region = MemoryBuffer()
+        val region = Region()
         val rvb = new RegionValueBuilder(region)
         rvb.start(t)
         rvb.addAnnotation(t, a)

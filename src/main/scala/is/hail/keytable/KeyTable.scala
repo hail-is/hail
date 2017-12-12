@@ -145,7 +145,7 @@ object KeyTable {
   def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: Array[String] = Array.empty,
     globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty): KeyTable = {
     val rdd2 = rdd.mapPartitions { it =>
-      val region = MemoryBuffer()
+      val region = Region()
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
       it.map { row =>

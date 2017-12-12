@@ -2,7 +2,7 @@ package is.hail.variant
 
 import java.util.zip.DataFormatException
 
-import is.hail.annotations.{MemoryBuffer, RegionValue, UnsafeRow, UnsafeUtils}
+import is.hail.annotations.{Region, RegionValue, UnsafeRow, UnsafeUtils}
 import is.hail.expr._
 import is.hail.utils._
 
@@ -35,14 +35,14 @@ final class HTSGenotypeView(rs: TStruct) {
   private val (gqExists, gqIndex) = lookupField("GQ", TInt32())
   private val (plExists, plIndex) = lookupField("PL", HTSGenotypeView.tArrayInt32)
 
-  private var m: MemoryBuffer = _
+  private var m: Region = _
   private var gsOffset: Long = _
   private var gsLength: Int = _
   private var gOffset: Long = _
 
   var gIsDefined: Boolean = _
 
-  def setRegion(mb: MemoryBuffer, offset: Long) {
+  def setRegion(mb: Region, offset: Long) {
     this.m = mb
     gsOffset = rs.loadField(m, offset, 3)
     gsLength = tgs.loadLength(m, gsOffset)
@@ -141,14 +141,14 @@ final class ArrayGenotypeView(rowType: TStruct) {
   private val (gtExists, gtIndex) = lookupField("GT", TCall())
   private val (gpExists, gpIndex) = lookupField("GP", ArrayGenotypeView.tArrayFloat64)
 
-  private var m: MemoryBuffer = _
+  private var m: Region = _
   private var gsOffset: Long = _
   private var gsLength: Int = _
   private var gOffset: Long = _
 
   var gIsDefined: Boolean = _
 
-  def setRegion(mb: MemoryBuffer, offset: Long) {
+  def setRegion(mb: Region, offset: Long) {
     this.m = mb
     gsOffset = rowType.loadField(m, offset, 3)
     gsLength = tgs.loadLength(m, gsOffset)
@@ -212,14 +212,14 @@ final class HardCallView(rowType: TStruct, callField: String) {
 
   private val (gtExists, gtIndex) = lookupField(callField, TCall())
 
-  private var m: MemoryBuffer = _
+  private var m: Region = _
   private var gsOffset: Long = _
   private var gOffset: Long = _
 
   var gsLength: Int = _
   var gIsDefined: Boolean = _
 
-  def setRegion(mb: MemoryBuffer, offset: Long) {
+  def setRegion(mb: Region, offset: Long) {
     this.m = mb
     gsOffset = rowType.loadField(m, offset, 3)
     gsLength = tgs.loadLength(m, gsOffset)
@@ -261,7 +261,7 @@ final class HardcallTrioGenotypeView(rs: TStruct, callField: String) {
   private val gtIndex = tg.fieldIdx(callField)
   require(tg.unify(trioTg.fieldType(motherIndex).fundamentalType) && tg.unify(trioTg.fieldType(fatherIndex).fundamentalType))
 
-  private var m: MemoryBuffer = _
+  private var m: Region = _
   private var gsOffset: Long = _
   private var gsLength: Int = _
   private var gOffset: Long = _
@@ -271,7 +271,7 @@ final class HardcallTrioGenotypeView(rs: TStruct, callField: String) {
 
   var gIsDefined: Boolean = _
 
-  def setRegion(mb: MemoryBuffer, offset: Long) {
+  def setRegion(mb: Region, offset: Long) {
     this.m = mb
     gsOffset = rs.loadField(m, offset, 3)
     gsLength = trioTgs.loadLength(m, gsOffset)

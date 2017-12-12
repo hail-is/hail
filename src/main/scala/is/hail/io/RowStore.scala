@@ -2,7 +2,7 @@ package is.hail.io
 
 import java.io.{InputStream, OutputStream}
 
-import is.hail.annotations.{Memory, MemoryBuffer, RegionValue}
+import is.hail.annotations.{Memory, Region, RegionValue}
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.LZ4Utils
@@ -93,7 +93,7 @@ abstract class OutputBuffer {
 
   def writeDouble(d: Double): Unit
 
-  def writeBytes(region: MemoryBuffer, off: Long, n: Int): Unit
+  def writeBytes(region: Region, off: Long, n: Int): Unit
 
   def writeBoolean(b: Boolean) {
     writeByte(b.toByte)
@@ -177,7 +177,7 @@ class LZ4OutputBuffer(out: OutputStream) extends OutputBuffer {
     off += 8
   }
 
-  def writeBytes(fromRegion: MemoryBuffer, fromOff0: Long, n0: Int) {
+  def writeBytes(fromRegion: Region, fromOff0: Long, n0: Int) {
     assert(n0 >= 0)
     var fromOff = fromOff0
     var n = n0
@@ -207,7 +207,7 @@ abstract class InputBuffer {
 
   def readDouble(): Double
 
-  def readBytes(toRegion: MemoryBuffer, toOff: Long, n: Int)
+  def readBytes(toRegion: Region, toOff: Long, n: Int)
 
   def readBoolean(): Boolean = readByte() != 0
 }
@@ -296,7 +296,7 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
     d
   }
 
-  def readBytes(toRegion: MemoryBuffer, toOff0: Long, n0: Int) {
+  def readBytes(toRegion: Region, toOff0: Long, n0: Int) {
     assert(n0 >= 0)
     var toOff = toOff0
     var n = n0
@@ -317,7 +317,7 @@ class LZ4InputBuffer(in: InputStream) extends InputBuffer {
 final class Decoder(in: InputBuffer) {
   def readByte(): Byte = in.readByte()
 
-  def readBinary(region: MemoryBuffer, off: Long) {
+  def readBinary(region: Region, off: Long) {
     val length = in.readInt()
     region.align(4)
     val boff = region.allocate(4 + length)
@@ -326,7 +326,7 @@ final class Decoder(in: InputBuffer) {
     in.readBytes(region, boff + 4, length)
   }
 
-  def readArray(t: TArray, region: MemoryBuffer): Long = {
+  def readArray(t: TArray, region: Region): Long = {
     val length = in.readInt()
 
     val contentSize = t.contentsByteSize(length)
@@ -375,7 +375,7 @@ final class Decoder(in: InputBuffer) {
     aoff
   }
 
-  def readStruct(t: TStruct, region: MemoryBuffer, offset: Long) {
+  def readStruct(t: TStruct, region: Region, offset: Long) {
     val nMissingBytes = t.nMissingBytes
     in.readBytes(region, offset, nMissingBytes)
 
@@ -401,7 +401,7 @@ final class Decoder(in: InputBuffer) {
     }
   }
 
-  def readRegionValue(t: Type, region: MemoryBuffer): Long = {
+  def readRegionValue(t: Type, region: Region): Long = {
     val f = t.fundamentalType
     f match {
       case t: TStruct =>
@@ -421,14 +421,14 @@ final class Encoder(out: OutputBuffer) {
 
   def writeByte(b: Byte): Unit = out.writeByte(b)
 
-  def writeBinary(region: MemoryBuffer, offset: Long) {
+  def writeBinary(region: Region, offset: Long) {
     val boff = region.loadAddress(offset)
     val length = region.loadInt(boff)
     out.writeInt(length)
     out.writeBytes(region, boff + 4, length)
   }
 
-  def writeArray(t: TArray, region: MemoryBuffer, aoff: Long) {
+  def writeArray(t: TArray, region: Region, aoff: Long) {
     val length = region.loadInt(aoff)
 
     out.writeInt(length)
@@ -469,7 +469,7 @@ final class Encoder(out: OutputBuffer) {
     }
   }
 
-  def writeStruct(t: TStruct, region: MemoryBuffer, offset: Long) {
+  def writeStruct(t: TStruct, region: Region, offset: Long) {
     val nMissingBytes = t.nMissingBytes
     out.writeBytes(region, offset, nMissingBytes)
 
@@ -493,7 +493,7 @@ final class Encoder(out: OutputBuffer) {
     }
   }
 
-  def writeRegionValue(t: Type, region: MemoryBuffer, offset: Long) {
+  def writeRegionValue(t: Type, region: Region, offset: Long) {
     val f = t.fundamentalType
     (f: @unchecked) match {
       case t: TStruct =>

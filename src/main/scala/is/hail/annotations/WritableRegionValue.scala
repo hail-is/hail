@@ -6,20 +6,20 @@ object WritableRegionValue {
   def apply(t: Type, initial: RegionValue): WritableRegionValue =
     WritableRegionValue(t, initial.region, initial.offset)
 
-  def apply(t: Type, initialRegion: MemoryBuffer, initialOffset: Long): WritableRegionValue = {
+  def apply(t: Type, initialRegion: Region, initialOffset: Long): WritableRegionValue = {
     val wrv = WritableRegionValue(t)
     wrv.set(initialRegion, initialOffset)
     wrv
   }
 
   def apply(t: Type): WritableRegionValue = {
-    val region = MemoryBuffer()
+    val region = Region()
     new WritableRegionValue(t, region, new RegionValueBuilder(region), RegionValue(region, 0))
   }
 }
 
 class WritableRegionValue(val t: Type,
-  val region: MemoryBuffer,
+  val region: Region,
   rvb: RegionValueBuilder,
   val value: RegionValue) {
 
@@ -43,7 +43,7 @@ class WritableRegionValue(val t: Type,
 
   def set(rv: RegionValue): Unit = set(rv.region, rv.offset)
 
-  def set(fromRegion: MemoryBuffer, fromOffset: Long) {
+  def set(fromRegion: Region, fromOffset: Long) {
     region.clear()
     rvb.start(t)
     rvb.addRegionValue(t, fromRegion, fromOffset)

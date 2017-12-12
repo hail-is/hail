@@ -11,14 +11,14 @@ import scala.collection.generic.Growable
 import scala.reflect.ClassTag
 import scala.language.postfixOps
 
-class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type, var region: Code[MemoryBuffer], val pOffset: Code[Long]) {
+class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type, var region: Code[Region], val pOffset: Code[Long]) {
 
   private def this(fb: FunctionBuilder[_], typ: Type, parent: StagedRegionValueBuilder) = {
     this(fb, typ, parent.region, parent.currentOffset)
   }
 
   def this(fb: FunctionBuilder[_], rowType: Type) = {
-    this(fb, rowType, fb.getArg[MemoryBuffer](1), null)
+    this(fb, rowType, fb.getArg[Region](1), null)
   }
 
   private var staticIdx: Int = 0

@@ -9,5 +9,5 @@ trait View {
     setRegion(rv.region, rv.offset)
   }
 
-  def setRegion(region: MemoryBuffer, offset: Long)
+  def setRegion(region: Region, offset: Long)
 }

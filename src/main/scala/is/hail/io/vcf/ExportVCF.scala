@@ -1,7 +1,7 @@
 package is.hail.io.vcf
 
 import is.hail
-import is.hail.annotations.MemoryBuffer
+import is.hail.annotations.Region
 import is.hail.expr._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
@@ -17,7 +17,7 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def strVCF(sb: StringBuilder, elementType: Type, m: MemoryBuffer, offset: Long) {
+  def strVCF(sb: StringBuilder, elementType: Type, m: Region, offset: Long) {
     elementType match {
       case TInt32(_) =>
         val x = m.loadInt(offset)
@@ -52,7 +52,7 @@ object ExportVCF {
     }
   }
   
-  def iterableVCF(sb: StringBuilder, t: TIterable, m: MemoryBuffer, length: Int, offset: Long) {
+  def iterableVCF(sb: StringBuilder, t: TIterable, m: Region, length: Int, offset: Long) {
     if (length > 0) {
       var i = 0
       while (i < length) {
@@ -69,7 +69,7 @@ object ExportVCF {
       sb += '.'
   }
 
-  def emitInfo(sb: StringBuilder, f: Field, m: MemoryBuffer, offset: Long, wroteLast: Boolean): Boolean = {
+  def emitInfo(sb: StringBuilder, f: Field, m: Region, offset: Long, wroteLast: Boolean): Boolean = {
     f.typ match {
       case it: TIterable if !it.elementType.isOfType(TBoolean()) =>
         val length = it.loadLength(m, offset)
@@ -166,7 +166,7 @@ object ExportVCF {
     }
   }
   
-  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: TStruct, m: MemoryBuffer, offset: Long) {
+  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: TStruct, m: Region, offset: Long) {
     formatFieldOrder.foreachBetween { j =>
       val fIsDefined = tg.isFieldDefined(m, offset, j)
       val fOffset = tg.loadField(m, offset, j)
@@ -348,7 +348,7 @@ object ExportVCF {
     
     vsm.rdd2.mapPartitions { it =>
       val sb = new StringBuilder
-      var m: MemoryBuffer = null
+      var m: Region = null
       
       it.map { rv =>
         sb.clear()

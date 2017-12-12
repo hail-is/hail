@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import is.hail.annotations.{MemoryBuffer, RegionValue}
+import is.hail.annotations.{Region, RegionValue}
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.sparkextras.OrderedKey
@@ -54,7 +54,7 @@ object Variant {
     Variant(contig, start.toInt, ref, alts.split(","))
   }
 
-  def fromRegionValue(r: MemoryBuffer, offset: Long): Variant = {
+  def fromRegionValue(r: Region, offset: Long): Variant = {
     val t = TVariant.representation()
     val altsType = t.fieldType(3).asInstanceOf[TArray]
 

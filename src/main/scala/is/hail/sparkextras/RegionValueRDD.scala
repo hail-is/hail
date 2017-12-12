@@ -1,6 +1,6 @@
 package is.hail.sparkextras
 
-import is.hail.annotations.{MemoryBuffer, RegionValue, RegionValueBuilder}
+import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.TStruct
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -15,7 +15,7 @@ class RegionValueRDD(val rdd: RDD[RegionValue], val rowType: TStruct) extends Se
 
     // copy, persist region values
     val persistedRDD = rdd.mapPartitions { it =>
-      val region = MemoryBuffer()
+      val region = Region()
       val rvb = new RegionValueBuilder(region)
       it.map { rv =>
         region.clear()
@@ -29,7 +29,7 @@ class RegionValueRDD(val rdd: RDD[RegionValue], val rowType: TStruct) extends Se
 
     val rdd2 = persistedRDD
       .mapPartitions { it =>
-        val region = MemoryBuffer()
+        val region = Region()
         val rv2 = RegionValue(region)
         it.map { rv =>
           region.setFrom(rv.region)

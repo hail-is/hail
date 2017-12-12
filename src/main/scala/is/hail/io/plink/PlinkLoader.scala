@@ -141,7 +141,7 @@ object PlinkLoader {
     val rowType = matrixType.rowType
 
     val fastKeys = rdd.mapPartitions { it =>
-      val region = MemoryBuffer()
+      val region = Region()
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
@@ -161,7 +161,7 @@ object PlinkLoader {
     }
 
     val rdd2 = rdd.mapPartitions { it =>
-      val region = MemoryBuffer()
+      val region = Region()
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 

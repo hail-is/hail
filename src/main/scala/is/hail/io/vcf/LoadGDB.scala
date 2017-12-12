@@ -163,7 +163,7 @@ object LoadGDB {
 
     val localRowType = rowType
 
-    val region = MemoryBuffer()
+    val region = Region()
     val rvb = new RegionValueBuilder(region)
 
     val records = gdbReader

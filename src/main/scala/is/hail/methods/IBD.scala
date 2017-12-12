@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.HailContext
 import is.hail.expr.{EvalContext, Parser, TFloat64, TInt64, TString, TStruct, TVariant}
 import is.hail.keytable.KeyTable
-import is.hail.annotations.{Annotation, MemoryBuffer, RegionValue, RegionValueBuilder, UnsafeRow}
+import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder, UnsafeRow}
 import is.hail.expr._
 import is.hail.variant.{GenomeReference, Genotype, HardCallView, Variant, VariantSampleMatrix}
 import is.hail.methods.IBD.generateComputeMaf
@@ -25,7 +25,7 @@ object IBDInfo {
   def fromRegionValue(rv: RegionValue): IBDInfo =
     fromRegionValue(rv.region, rv.offset)
 
-  def fromRegionValue(region: MemoryBuffer, offset: Long): IBDInfo = {
+  def fromRegionValue(region: Region, offset: Long): IBDInfo = {
     val Z0 = region.loadDouble(signature.loadField(region, offset, 0))
     val Z1 = region.loadDouble(signature.loadField(region, offset, 1))
     val Z2 = region.loadDouble(signature.loadField(region, offset, 2))
@@ -57,7 +57,7 @@ object ExtendedIBDInfo {
   def fromRegionValue(rv: RegionValue): ExtendedIBDInfo =
     fromRegionValue(rv.region, rv.offset)
 
-  def fromRegionValue(region: MemoryBuffer, offset: Long): ExtendedIBDInfo = {
+  def fromRegionValue(region: Region, offset: Long): ExtendedIBDInfo = {
     val ibd = IBDInfo.fromRegionValue(region, signature.loadField(region, offset, 0))
     val ibs0 = region.loadLong(signature.loadField(region, offset, 1))
     val ibs1 = region.loadLong(signature.loadField(region, offset, 2))
@@ -269,7 +269,7 @@ object IBD {
         a
       }
       .mapPartitions { it =>
-        val region = MemoryBuffer()
+        val region = Region()
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         for {

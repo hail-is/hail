@@ -746,7 +746,7 @@ object LoadVCF {
     lines: RDD[WithContext[String]], t: Type, contigRecoding: Map[String, String]): RDD[RegionValue] = {
     lines.mapPartitions { it =>
       new Iterator[RegionValue] {
-        val region = MemoryBuffer()
+        val region = Region()
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 
