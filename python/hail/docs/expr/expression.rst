@@ -11,7 +11,6 @@ Expressions
 
     AltAlleleExpression
     ArrayExpression
-    ArrayBooleanExpression
     ArrayFloat32Expression
     ArrayFloat64Expression
     ArrayInt32Expression
@@ -50,9 +49,6 @@ Expressions
     :show-inheritance:
 
 .. autoclass:: hail.expr.expression.ArrayExpression
-    :show-inheritance:
-
-.. autoclass:: hail.expr.expression.ArrayBooleanExpression
     :show-inheritance:
 
 .. autoclass:: hail.expr.expression.ArrayFloat32Expression
