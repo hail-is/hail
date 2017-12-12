@@ -41,7 +41,9 @@ case class KeyTableMetadata(
   schema: String,
   globalSchema: Option[String],
   globals: Option[JValue],
-  n_partitions: Int)
+  // FIXME make partition_counts non-optional, remove n_partitions at next reimport
+  n_partitions: Int,
+  partition_counts: Option[Array[Long]])
 
 case class KTLocalValue(globals: Row)
 
@@ -159,7 +161,7 @@ object KeyTable {
       KeyTableValue(KeyTableType(signature, key, globalSignature),
         KTLocalValue(globals),
         RVD(signature, rdd2))
-      ))
+    ))
   }
 }
 
@@ -395,7 +397,7 @@ class KeyTable(val hc: HailContext,
       if (isNamed)
         List(p.mkString(".")) // FIXME: Not certain what behavior we want here
       else {
-          List(p.last)
+        List(p.last)
       }
     }
 
@@ -848,16 +850,20 @@ class KeyTable(val hc: HailContext,
 
     hc.hadoopConf.mkDir(path)
 
+    val partitionCounts = rvd.rdd.writeRows(path, signature)
+
     val metadata = KeyTableMetadata(KeyTable.fileVersion,
       key,
       signature.toPrettyString(compact = true),
       Some(globalSignature.toPrettyString(compact = true)),
       Some(JSONAnnotationImpex.exportAnnotation(globals, globalSignature)),
-      nPartitions)
+      nPartitions,
+      Some(partitionCounts))
+
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))
 
-    rvd.rdd.writeRows(path, signature)
+    hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
   def cache(): KeyTable = persist("MEMORY_ONLY")

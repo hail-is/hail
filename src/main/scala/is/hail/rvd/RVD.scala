@@ -2,12 +2,12 @@ package is.hail.rvd
 
 import is.hail.annotations.{MemoryBuffer, RegionValue, RegionValueBuilder}
 import is.hail.expr.Type
+import is.hail.utils._
 import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.rdd.{AggregateWithContext, RDD}
 import org.apache.spark.storage.StorageLevel
 
 import scala.reflect.ClassTag
-
 
 object RVD {
   def apply(rowType: Type, rdd: RDD[RegionValue]): ConcreteRVD = new ConcreteRVD(rowType, rdd)
@@ -58,6 +58,8 @@ trait RVD {
   }
 
   def count(): Long = rdd.count()
+
+  def countPerPartition(): Array[Long] = rdd.countPerPartition()
 
   protected def persistRVRDD(level: StorageLevel): PersistedRVRDD = {
     val localRowType = rowType

@@ -352,6 +352,8 @@ object MatrixIR {
 abstract sealed class MatrixIR extends BaseIR {
   def typ: MatrixType
 
+  def partitionCounts: Option[Array[Long]] = None
+
   def execute(hc: HailContext): MatrixValue
 }
 
@@ -378,8 +380,9 @@ case class MatrixRead(
   fileMetadata: VSMFileMetadata,
   dropSamples: Boolean,
   dropVariants: Boolean) extends MatrixIR {
-
   def typ: MatrixType = MatrixType(fileMetadata.metadata)
+
+  override def partitionCounts: Option[Array[Long]] = fileMetadata.partitionCounts
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
