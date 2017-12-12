@@ -49,7 +49,7 @@ class ExtractAggregatorsSuite {
       (_, off) => off
   }
 
-  private def runStage1[T : HailRep : TypeInfo, U: HailRep : TypeInfo](region: Region, ir: IR, aOff: Long, scope1: Int => U): (IR, Long) = {
+  private def runStage1[T : HailRep : TypeInfo, U: HailRep : TypeInfo](region: Region, ir: IR, aOff: Long, scope0: Int => U): (IR, Long) = {
     val tAgg = TAggregable(hailType[T], Map("scope0" -> (0, hailType[U])))
 
     val aggFb = FunctionBuilder.functionBuilder[Region, Array[RegionValueAggregator], T, Boolean, U, Boolean, Unit]
@@ -68,7 +68,7 @@ class ExtractAggregatorsSuite {
       seqOp(region, aggregators,
         e,
         me,
-        scope1(i),
+        scope0(i),
         false)
     }
 
@@ -83,8 +83,8 @@ class ExtractAggregatorsSuite {
     fb.result()()
   }
 
-  private def run[T : HailRep : TypeInfo, U : HailRep : TypeInfo, R : TypeInfo](region: Region, ir: IR, aOff: Long, scope1: Int => U): R = {
-    val (post, ret) = runStage1[T, U](region, ir, aOff, scope1)
+  private def run[T : HailRep : TypeInfo, U : HailRep : TypeInfo, R : TypeInfo](region: Region, ir: IR, aOff: Long, scope0: Int => U): R = {
+    val (post, ret) = runStage1[T, U](region, ir, aOff, scope0)
     val f = compileStage0[R](post)
     f(region, ret, false)
   }
