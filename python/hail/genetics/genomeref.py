@@ -251,7 +251,7 @@ class GenomeReference(HistoryMixin):
 
     @handle_py4j
     @typecheck_method(output=strlike)
-    def write(self, otuput):
+    def write(self, output):
         """"Write this reference genome to a file in JSON format.
 
         **Examples**
@@ -267,7 +267,7 @@ class GenomeReference(HistoryMixin):
         :param str output: Path of JSON file to write.
         """
 
-        self._jrep.write(Env.hc()._jhc, file)
+        self._jrep.write(Env.hc()._jhc, output)
 
     @handle_py4j
     def _init_from_java(self, jrep):
