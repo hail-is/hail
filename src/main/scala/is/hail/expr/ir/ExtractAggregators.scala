@@ -48,8 +48,8 @@ object ExtractAggregators {
     }
   }
 
-  private def loadRegion(fb: FunctionBuilder[_]): Code[MemoryBuffer] =
-    fb.getArg[MemoryBuffer](1)
+  private def loadRegion(fb: FunctionBuilder[_]): Code[Region] =
+    fb.getArg[Region](1)
 
   private def loadAggArray(fb: FunctionBuilder[_]): Code[Array[RegionValueAggregator]] =
     fb.getArg[Array[RegionValueAggregator]](2)
@@ -60,7 +60,7 @@ object ExtractAggregators {
   private def isElementMissing(fb: FunctionBuilder[_]): Code[Boolean] =
     fb.getArg[Boolean](4)
 
-  private val nonScopeArguments = 5 // this, MemoryBuffer, Array[Aggregator], ElementType, Boolean
+  private val nonScopeArguments = 5 // this, Region, Array[Aggregator], ElementType, Boolean
 
   private def compileAgg(irs: Array[AggSum], tAggIn: TAggregable, fb: FunctionBuilder[_]): Array[RegionValueAggregator] = {
     val scopeBindings = tAggIn.bindings.zipWithIndex

@@ -40,7 +40,7 @@ class RegionValueSumBooleanAggregator extends RegionValueAggregator {
       sum |= b
   }
 
-  def seqOp(region: MemoryBuffer, off: Long, missing: Boolean) {
+  def seqOp(region: Region, off: Long, missing: Boolean) {
     seqOp(region.loadBoolean(off), missing)
   }
 
@@ -48,7 +48,7 @@ class RegionValueSumBooleanAggregator extends RegionValueAggregator {
     sum |= agg2.asInstanceOf[RegionValueSumBooleanAggregator].sum
   }
 
-  def result(region: MemoryBuffer): Long =
+  def result(region: Region): Long =
     region.appendByte(if (sum) 1.toByte else 0.toByte)
 
   def copy(): RegionValueSumBooleanAggregator = new RegionValueSumBooleanAggregator()
@@ -62,7 +62,7 @@ class RegionValueSumIntAggregator extends RegionValueAggregator {
       sum += i
   }
 
-  def seqOp(region: MemoryBuffer, off: Long, missing: Boolean) {
+  def seqOp(region: Region, off: Long, missing: Boolean) {
     seqOp(region.loadInt(off), missing)
   }
 
@@ -70,7 +70,7 @@ class RegionValueSumIntAggregator extends RegionValueAggregator {
     sum += agg2.asInstanceOf[RegionValueSumIntAggregator].sum
   }
 
-  def result(region: MemoryBuffer): Long =
+  def result(region: Region): Long =
     region.appendInt(sum)
 
   def copy(): RegionValueSumIntAggregator = new RegionValueSumIntAggregator()
@@ -84,7 +84,7 @@ class RegionValueSumLongAggregator extends RegionValueAggregator {
       sum += l
   }
 
-  def seqOp(region: MemoryBuffer, off: Long, missing: Boolean) {
+  def seqOp(region: Region, off: Long, missing: Boolean) {
     seqOp(region.loadLong(off), missing)
   }
 
@@ -92,7 +92,7 @@ class RegionValueSumLongAggregator extends RegionValueAggregator {
     sum += agg2.asInstanceOf[RegionValueSumLongAggregator].sum
   }
 
-  def result(region: MemoryBuffer): Long =
+  def result(region: Region): Long =
     region.appendLong(sum)
 
   def copy(): RegionValueSumLongAggregator = new RegionValueSumLongAggregator()
@@ -106,7 +106,7 @@ class RegionValueSumFloatAggregator extends RegionValueAggregator {
       sum += f
   }
 
-  def seqOp(region: MemoryBuffer, off: Long, missing: Boolean) {
+  def seqOp(region: Region, off: Long, missing: Boolean) {
     seqOp(region.loadFloat(off), missing)
   }
 
@@ -114,7 +114,7 @@ class RegionValueSumFloatAggregator extends RegionValueAggregator {
     sum += agg2.asInstanceOf[RegionValueSumFloatAggregator].sum
   }
 
-  def result(region: MemoryBuffer): Long =
+  def result(region: Region): Long =
     region.appendFloat(sum)
 
   def copy(): RegionValueSumFloatAggregator = new RegionValueSumFloatAggregator()
@@ -129,7 +129,7 @@ class RegionValueSumDoubleAggregator extends RegionValueAggregator {
       sum += d
   }
 
-  def seqOp(region: MemoryBuffer, off: Long, missing: Boolean) {
+  def seqOp(region: Region, off: Long, missing: Boolean) {
     seqOp(region.loadDouble(off), missing)
   }
 
@@ -137,7 +137,7 @@ class RegionValueSumDoubleAggregator extends RegionValueAggregator {
     sum += agg2.asInstanceOf[RegionValueSumDoubleAggregator].sum
   }
 
-  def result(region: MemoryBuffer): Long =
+  def result(region: Region): Long =
     region.appendDouble(sum)
 
   def copy(): RegionValueSumDoubleAggregator = new RegionValueSumDoubleAggregator()
