@@ -5,22 +5,20 @@ import is.hail.asm4s._
 import is.hail.expr._
 
 object UnaryOp {
-  def inferReturnType(op: UnaryOp, t: Type): Type = op match {
-    case Negate() => t match {
-      case _: TInt32 => TInt32()
-      case _: TInt64 => TInt64()
-      case _: TFloat32 => TFloat32()
-      case _: TFloat64 => TFloat64()
-      case _ => incompatible(t, op)
-    }
-    case Bang() => t match {
-      case _: TBoolean => TBoolean()
-      case _ => incompatible(t, op)
-    }
+
+  private val returnType: ((UnaryOp, Type)) => Option[Type] = lift {
+    case (Negate(), t@(_: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64)) => t
+    case (Bang(), t: TBoolean) => t
   }
 
+  def returnTypeOption(op: UnaryOp, t: Type): Option[Type] =
+    returnType(op, t)
+
+  def getReturnType(op: UnaryOp, t: Type): Type =
+    returnType(op, t).getOrElse(incompatible(t, op))
+
   private def incompatible[T](t: Type, op: UnaryOp): T =
-    fatal(s"Cannot apply $op to values of type $t")
+    throw new RuntimeException(s"Cannot apply $op to values of type $t")
 
   def compile(op: UnaryOp, t: Type, x: Code[_]): Code[_] = t match {
     case _: TBoolean =>

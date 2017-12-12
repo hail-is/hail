@@ -34,6 +34,15 @@ case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) extends IR
 
 case class MakeArray(args: Array[IR], var typ: TArray = null) extends IR {
   override def toString(): String = s"MakeArray(${args: IndexedSeq[IR]}, $typ)"
+  override def hashCode(): Int =
+    scala.util.hashing.MurmurHash3.arrayHash(args) + typ.##
+  override def equals(that: Any): Boolean = that match {
+    case MakeArray(args2, typ2) =>
+      args.length == args2.length &&
+      typ == typ2 &&
+      args.sameElements(args2)
+    case _ => false
+  }
 }
 case class MakeArrayN(len: IR, elementType: Type) extends IR { def typ: TArray = TArray(elementType) }
 case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
@@ -46,7 +55,14 @@ case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR {
   val typ: TStruct = TStruct(fields.map(x => x._1 -> x._2):_*)
   override def toString(): String =
     s"MakeStruct(${fields: IndexedSeq[(String, Type, IR)]})"
-}
+  override def hashCode(): Int =
+    scala.util.hashing.MurmurHash3.arrayHash(fields)
+  override def equals(that: Any): Boolean = that match {
+    case MakeStruct(fields2) =>
+      fields.length == fields2.length &&
+      fields.sameElements(fields2)
+    case _ => false
+  }}
 case class GetField(o: IR, name: String, var typ: Type = null) extends IR
 case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean() }
 

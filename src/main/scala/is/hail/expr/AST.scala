@@ -1,5 +1,6 @@
 package is.hail.expr
 
+import is.hail.expr.ir.IR
 import is.hail.asm4s.{Code, _}
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils.{HailException, _}
@@ -289,6 +290,8 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
       f(values)
     }
   }
+
+  def toIR: Option[IR]
 }
 
 case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
@@ -307,6 +310,17 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
   })
 
   override def typecheckThis(): Type = t
+
+  def toIR: Option[IR] = (t, value) match {
+    case (t: TInt32, x: Int) => Some(ir.I32(x))
+    case (t: TInt64, x: Long) => Some(ir.I64(x))
+    case (t: TFloat32, x: Float) => Some(ir.F32(x))
+    case (t: TFloat64, x: Double) => Some(ir.F64(x))
+    case (t: TBoolean, x: Boolean) => Some(if (x) ir.True() else ir.False())
+    case (t: TString, x: String) => None
+    case (t, null) => Some(ir.NA(t))
+    case _ => throw new RuntimeException(s"Unrecognized constant of type $t: $value")
+  }
 }
 
 case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
@@ -353,6 +367,12 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
           case otherwise => fatal(otherwise.message)
         }
   }
+
+  def toIR: Option[IR] = for {
+    s <- lhs.toIR
+    t <- someIf(lhs.`type`.isInstanceOf[TStruct], lhs.`type`.asInstanceOf[TStruct])
+    f <- t.selfField(rhs)
+  } yield ir.GetField(s, rhs, f.typ)
 }
 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
@@ -382,6 +402,10 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
     convertedArray <- CompilationHelp.arrayOfWithConversion(`type`.asInstanceOf[TArray].elementType, celements))
     yield
       CompilationHelp.arrayToWrappedArray(convertedArray)
+
+  def toIR: Option[IR] = for {
+    irElements <- anyFailAllFail(elements.map(_.toIR))
+  } yield ir.MakeArray(irElements.toArray, `type`.asInstanceOf[TArray])
 }
 
 case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
@@ -403,6 +427,11 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
   def compile() = for (
     celements <- CM.sequence(elements.map(_.compile()))
   ) yield arrayToAnnotation(CompilationHelp.arrayOf(celements))
+
+  def toIR: Option[IR] = for {
+    irElements <- anyFailAllFail(elements.map(x => x.toIR.map(ir => (x.`type`, ir))))
+    fields = names.zip(irElements).map { case (x, (y, z)) => (x, y, z) }
+  } yield ir.MakeStruct(fields.toArray)
 }
 
 case class GenomeReferenceDependentConstructor(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
@@ -419,6 +448,8 @@ case class GenomeReferenceDependentConstructor(posn: Position, fName: String, gr
   override def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
   override def compile(): CM[Code[AnyRef]] = FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
+
+  def toIR: Option[IR] = None
 }
 
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {
@@ -427,6 +458,8 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
   def compile() = throw new UnsupportedOperationException
+
+  def toIR: Option[IR] = None
 }
 
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
@@ -691,6 +724,23 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case (_, _) =>
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
+
+  private val tryPrimOpConversion: IndexedSeq[IR] => Option[IR] = flatLift {
+    case IndexedSeq(x) => for {
+      op <- ir.UnaryOp.fromString.lift(fn)
+      t <- ir.UnaryOp.returnTypeOption(op, x.typ)
+    } yield ir.ApplyUnaryPrimOp(op, x, t)
+    case IndexedSeq(x, y) => for {
+      op <- ir.BinaryOp.fromString.lift(fn)
+      t <- ir.BinaryOp.returnTypeOption(op, x.typ, y.typ)
+    } yield ir.ApplyBinaryPrimOp(op, x, y, t)
+  }
+
+
+  def toIR: Option[IR] = for {
+    irArgs <- anyFailAllFail(args.map(_.toIR))
+    ir <- tryPrimOpConversion(irArgs)
+  } yield ir
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
@@ -769,6 +819,17 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       FunctionRegistry.call(method, lhs +: args, it +: funType +: rest.map(_.`type`))
     case (t, _, _) => FunctionRegistry.call(method, lhs +: args, t +: args.map(_.`type`))
   }
+
+  private val hasOneArgument: IndexedSeq[AST] => Option[AST] = lift {
+    case IndexedSeq(x) => x
+  }
+
+  def toIR: Option[IR] = for {
+    rhs <- hasOneArgument(args)
+    if method == "[]" && lhs.`type`.isInstanceOf[TArray]
+    a <- lhs.toIR
+    i <- rhs.toIR
+  } yield ir.ArrayRef(a, i, `type`)
 }
 
 case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extends AST(posn, bindings.map(_._2) :+ body) {
@@ -787,6 +848,11 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
   def compile() = CM.bindRepIn(bindings.map { case (name, expr) => (name, expr.`type`, expr.compile()) })(body.compile())
+
+  def toIR: Option[IR] = for {
+    irBindings <- anyFailAllFail(bindings.map { case (x, y) => y.toIR.map(irY => (x, irY)) })
+    irBody <- body.toIR
+  } yield irBindings.foldRight(irBody) { case ((name, v), x) => ir.Let(name, v, x, x.typ) }
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
@@ -810,6 +876,8 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   }
 
   def compile() = CM.lookup(symbol)
+
+  def toIR: Option[IR] = Some(ir.Ref(symbol, `type`))
 }
 
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
@@ -842,4 +910,10 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
         coerce(cc.invoke[Boolean]("booleanValue").mux(tc, ec)))
     ) yield result
   }
+
+  def toIR: Option[IR] = for {
+    condition <- cond.toIR
+    consequent <- thenTree.toIR
+    alternate <- elseTree.toIR
+  } yield ir.If(condition, consequent, alternate, `type`)
 }
