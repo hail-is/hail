@@ -22,7 +22,7 @@ class ExtractAggregatorsSuite {
     case _ => 0L // reference types
   }
 
-  private def packageResults(region: MemoryBuffer, t: TStruct, a: Array[RegionValueAggregator]): Long = {
+  private def packageResults(region: Region, t: TStruct, a: Array[RegionValueAggregator]): Long = {
     val rvb = new RegionValueBuilder()
     rvb.set(region)
     rvb.start(t)
@@ -34,7 +34,7 @@ class ExtractAggregatorsSuite {
     rvb.end()
   }
 
-  private def loadIRIntermediate(typ: Type): (MemoryBuffer, Long) => Any = typ match {
+  private def loadIRIntermediate(typ: Type): (Region, Long) => Any = typ match {
     case _: TBoolean =>
       _.loadBoolean(_)
     case _: TInt32 =>
@@ -49,10 +49,10 @@ class ExtractAggregatorsSuite {
       (_, off) => off
   }
 
-  private def runStage1[T : HailRep : TypeInfo, U: HailRep : TypeInfo](region: MemoryBuffer, ir: IR, aOff: Long, scope1: Int => U): (IR, Long) = {
+  private def runStage1[T : HailRep : TypeInfo, U: HailRep : TypeInfo](region: Region, ir: IR, aOff: Long, scope1: Int => U): (IR, Long) = {
     val tAgg = TAggregable(hailType[T], Map("scope0" -> (0, hailType[U])))
 
-    val aggFb = FunctionBuilder.functionBuilder[MemoryBuffer, Array[RegionValueAggregator], T, Boolean, U, Boolean, Unit]
+    val aggFb = FunctionBuilder.functionBuilder[Region, Array[RegionValueAggregator], T, Boolean, U, Boolean, Unit]
     Infer(ir, Some(tAgg))
     val (post, aggResultStruct, aggregators) = ExtractAggregators(ir, tAgg, aggFb)
     val seqOp = aggFb.result()()
@@ -76,21 +76,22 @@ class ExtractAggregatorsSuite {
     (post, aggResultsOff)
   }
 
-  private def inferCompileStage0[R: TypeInfo](ir: IR): AsmFunction3[MemoryBuffer, Long, Boolean, R] = {
-    val fb = FunctionBuilder.functionBuilder[MemoryBuffer, Long, Boolean, R]
+  private def compileStage0[R: TypeInfo](ir: IR): AsmFunction3[Region, Long, Boolean, R] = {
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, R]
+    // nb: inference is done by stage1
     Compile(ir, fb)
     fb.result()()
   }
 
-  private def run[T : HailRep : TypeInfo, U : HailRep : TypeInfo, R : TypeInfo](region: MemoryBuffer, ir: IR, aOff: Long, scope1: Int => U): R = {
+  private def run[T : HailRep : TypeInfo, U : HailRep : TypeInfo, R : TypeInfo](region: Region, ir: IR, aOff: Long, scope1: Int => U): R = {
     val (post, ret) = runStage1[T, U](region, ir, aOff, scope1)
-    val f = inferCompileStage0[R](post)
+    val f = compileStage0[R](post)
     f(region, ret, false)
   }
 
   @Test
   def sum() {
-    val region = MemoryBuffer()
+    val region = Region()
     val sum = run[Double, Int, Double](region,
       AggSum(AggIn()),
       addArray(region, (0 to 100).map(_.toDouble):_*),
@@ -101,7 +102,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def sumEmpty() {
-    val region = MemoryBuffer()
+    val region = Region()
     val sum = run[Double, Int, Double](region,
       AggSum(AggIn()),
       addArray[Double](region),
@@ -112,7 +113,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def sumOne() {
-    val region = MemoryBuffer()
+    val region = Region()
     val sum = run[Double, Int, Double](region,
       AggSum(AggIn()),
       addArray[Double](region, 42.0),
@@ -123,7 +124,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def sumMissing() {
-    val region = MemoryBuffer()
+    val region = Region()
     val sum = run[Double, Int, Double](region,
       AggSum(AggIn()),
       addBoxedArray[java.lang.Double](region, null, 42.0, null),
@@ -133,7 +134,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def sumAllMissing() {
-    val region = MemoryBuffer()
+    val region = Region()
     val sum = run[Double, Int, Double](region,
       AggSum(AggIn()),
       addBoxedArray[java.lang.Double](region, null, null, null),
@@ -143,7 +144,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def usingScope1() {
-    val region = MemoryBuffer()
+    val region = Region()
     val sum = run[Double, Int, Int](region,
       AggSum(AggMap(AggIn(), "x", Ref("scope0"))),
       addBoxedArray[java.lang.Double](region, null, null, null),
@@ -153,7 +154,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def usingScope2() {
-    val region = MemoryBuffer()
+    val region = Region()
     val sum = run[Double, Int, Int](region,
       AggSum(AggMap(AggIn(), "x", Ref("scope0"))),
       addBoxedArray[java.lang.Double](region, 1.0, 2.0, null),
@@ -163,7 +164,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def usingScope3() {
-    val region = MemoryBuffer()
+    val region = Region()
     val sum = run[Double, Double, Double](region,
       AggSum(AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("scope0"), Ref("x")))),
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -173,7 +174,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def filter1() {
-    val region = MemoryBuffer()
+    val region = Region()
     val ir =
       AggSum(
         AggMap(
@@ -189,7 +190,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def filter2() {
-    val region = MemoryBuffer()
+    val region = Region()
     val ir =
       AggSum(
         AggMap(
@@ -207,7 +208,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def filter3() {
-    val region = MemoryBuffer()
+    val region = Region()
     val ir =
       AggSum(
         AggFilter(
@@ -225,7 +226,7 @@ class ExtractAggregatorsSuite {
 
   @Test
   def flatMap() {
-    val region = MemoryBuffer()
+    val region = Region()
     val ir =
       AggSum(
         AggFlatMap(
