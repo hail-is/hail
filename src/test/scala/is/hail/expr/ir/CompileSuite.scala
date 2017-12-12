@@ -316,7 +316,7 @@ class CompileSuite {
     val tR = TStruct("x" -> TFloat64(), "scope" -> scopeStruct)
     val tOut = TStruct("0" -> TFloat64())
     val ir = MakeStruct(Array(
-      ("0", TFloat64(),
+      ("0",
         ApplyBinaryPrimOp(Add(),
           GetField(In(0, tL), "0"),
           GetField(In(1, tR), "x")))))

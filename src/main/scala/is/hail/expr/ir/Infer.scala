@@ -1,10 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
-import is.hail.annotations.Region
-import is.hail.asm4s._
-import is.hail.expr.{TInt32, TInt64, TArray, TContainer, TStruct, TFloat32, TFloat64, TBoolean, Type, TVoid, TFunction, TNumeric}
-import is.hail.annotations.StagedRegionValueBuilder
+import is.hail.expr.{TInt32, TArray, TStruct, TBoolean, Type}
 
 object Infer {
   def apply(ir: IR) { apply(ir, new Env[Type]()) }
@@ -58,7 +54,7 @@ object Infer {
         if (args.length == 0)
           assert(typ != null)
         else {
-          args.map(infer(_))
+          args.foreach(infer(_))
           val t = args.head.typ
           args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x == t, s"at position $i type mismatch: $t $x") }
           x.typ = TArray(t)
@@ -91,11 +87,11 @@ object Infer {
         infer(body, env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
         assert(body.typ == zero.typ)
         x.typ = zero.typ
-      case MakeStruct(fields) =>
-        fields.map { case (_, typ, v) =>
-          infer(v)
-          assert(typ == v.typ)
-        }
+      case x@MakeStruct(fields, _) =>
+        fields.foreach { case (name, a) => infer(a) }
+        x.typ = TStruct(fields.map { case (name, a) =>
+          (name, a.typ)
+        }: _*)
       case x@GetField(o, name, _) =>
         infer(o)
         val t = o.typ.asInstanceOf[TStruct]

@@ -33,7 +33,7 @@ case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR, var typ: Type = null) e
 case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) extends IR
 
 case class MakeArray(args: Array[IR], var typ: TArray = null) extends IR {
-  override def toString(): String = s"MakeArray(${args: IndexedSeq[IR]}, $typ)"
+  override def toString: String = s"MakeArray(${ args.toIndexedSeq }, $typ)"
   override def hashCode(): Int =
     scala.util.hashing.MurmurHash3.arrayHash(args) + typ.##
   override def equals(that: Any): Boolean = that match {
@@ -51,10 +51,8 @@ case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
 case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR, var typ: Type = null) extends IR
 
-case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR {
-  val typ: TStruct = TStruct(fields.map(x => x._1 -> x._2):_*)
-  override def toString(): String =
-    s"MakeStruct(${fields: IndexedSeq[(String, Type, IR)]})"
+case class MakeStruct(fields: Array[(String, Type, IR)], var typ: TStruct = null) extends IR {
+  override def toString: String = s"MakeStruct(${ fields.toIndexedSeq })"
   override def hashCode(): Int =
     scala.util.hashing.MurmurHash3.arrayHash(fields)
   override def equals(that: Any): Boolean = that match {
@@ -62,11 +60,12 @@ case class MakeStruct(fields: Array[(String, Type, IR)]) extends IR {
       fields.length == fields2.length &&
       fields.sameElements(fields2)
     case _ => false
-  }}
+  }
+}
 case class GetField(o: IR, name: String, var typ: Type = null) extends IR
 case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean() }
 
-case class In(i: Int, val typ: Type) extends IR
+case class In(i: Int, typ: Type) extends IR
 case class InMissingness(i: Int) extends IR { val typ: Type = TBoolean() }
 // FIXME: should be type any
 case class Die(message: String) extends IR { val typ = TVoid }
