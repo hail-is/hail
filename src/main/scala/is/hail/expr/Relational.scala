@@ -287,7 +287,7 @@ case class MatrixValue(
     val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Long]
     ir.Infer(e)
     assert(e.typ == rowType)
-    ir.Compile(e, fb)
+    ir.Emit(e, fb)
     val f = fb.result()
 
     val keepBc = sparkContext.broadcast(keep)

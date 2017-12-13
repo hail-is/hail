@@ -31,7 +31,7 @@ object BinaryOp {
   private def incompatible[T](lt: Type, rt: Type, op: BinaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to $lt and $rt")
 
-  def compile(op: BinaryOp, lt: Type, rt: Type, l: Code[_], r: Code[_]): Code[_] = (lt, rt) match {
+  def emit(op: BinaryOp, lt: Type, rt: Type, l: Code[_], r: Code[_]): Code[_] = (lt, rt) match {
     case (_: TInt32, _: TInt32) =>
       val ll = coerce[Int](l)
       val rr = coerce[Int](r)

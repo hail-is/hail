@@ -9,7 +9,7 @@ import org.objectweb.asm.tree._
 
 import scala.language.existentials
 
-object Compile {
+object Emit {
   private def defaultValue(t: expr.Type): Code[_] = t match {
     case _: TBoolean => false
     case _: TInt32 => 0
@@ -35,7 +35,7 @@ object Compile {
   }
 
   def apply(ir: IR, fb: FunctionBuilder[_], env: E) {
-    val (dov, mv, vv) = compile(ir, fb, env, new StagedBitSet(fb))
+    val (dov, mv, vv) = emit(ir, fb, env, new StagedBitSet(fb))
     typeToTypeInfo(ir.typ) match { case ti: TypeInfo[t] =>
       fb.emit(Code(dov, mv.mux(
         Code._throw(Code.newInstance[RuntimeException, String]("cannot return empty")),
@@ -55,10 +55,10 @@ object Compile {
   //
   // JVM gotcha:
   //  a variable must be initialized on all static code-paths to its use (ergo defaultValue)
-  def compile(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
+  def emit(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
     val region = fb.getArg[Region](1).load()
-    def compile(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: StagedBitSet = mb): (Code[Unit], Code[Boolean], Code[_]) =
-      Compile.compile(ir, fb, env, mb)
+    def emit(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: StagedBitSet = mb): (Code[Unit], Code[Boolean], Code[_]) =
+      Emit.emit(ir, fb, env, mb)
     ir match {
       case I32(x) =>
         present(const(x))
@@ -74,14 +74,14 @@ object Compile {
         present(const(false))
 
       case Cast(v, typ) =>
-        val (dov, mv, vv) = compile(v)
+        val (dov, mv, vv) = emit(v)
         val cast = Casts.get(v.typ, typ)
         (dov, mv, cast(vv))
 
       case NA(typ) =>
         (Code._empty, const(true), defaultValue(typ))
       case IsNA(v) =>
-        val (dov, mv, _) = compile(v)
+        val (dov, mv, _) = emit(v)
         (dov, const(false), mv)
       case MapNA(name, value, body, typ) =>
         val vti = typeToTypeInfo(value.typ)
@@ -90,9 +90,9 @@ object Compile {
         val x = fb.newLocal(name)(vti).asInstanceOf[LocalRef[Any]]
         val mout = mb.newBit()
         val out = fb.newLocal(name)(bti).asInstanceOf[LocalRef[Any]]
-        val (dovalue, mvalue, vvalue) = compile(value)
+        val (dovalue, mvalue, vvalue) = emit(value)
         val bodyenv = env.bind(name -> (vti, mx, x))
-        val (dobody, mbody, vbody) = compile(body, env = bodyenv)
+        val (dobody, mbody, vbody) = emit(body, env = bodyenv)
         val setup = Code(
           dovalue,
           mx := mvalue,
@@ -103,12 +103,12 @@ object Compile {
         (setup, mout, out)
 
       case expr.ir.If(cond, cnsq, altr, typ) =>
-        val (docond, mcond, vcond) = compile(cond)
+        val (docond, mcond, vcond) = emit(cond)
         val xvcond = mb.newBit()
         val out = fb.newLocal()(typeToTypeInfo(typ)).asInstanceOf[LocalRef[Any]]
         val mout = mb.newBit()
-        val (docnsq, mcnsq, vcnsq) = compile(cnsq)
-        val (doaltr, maltr, valtr) = compile(altr)
+        val (docnsq, mcnsq, vcnsq) = emit(cnsq)
+        val (doaltr, maltr, valtr) = emit(altr)
         val setup = Code(
           docond,
           mcond.mux(
@@ -125,9 +125,9 @@ object Compile {
         val vti = typeToTypeInfo(value.typ)
         val mx = mb.newBit()
         val x = fb.newLocal(name)(vti).asInstanceOf[LocalRef[Any]]
-        val (dovalue, mvalue, vvalue) = compile(value)
+        val (dovalue, mvalue, vvalue) = emit(value)
         val bodyenv = env.bind(name -> (vti, mx, x))
-        val (dobody, mbody, vbody) = compile(body, env = bodyenv)
+        val (dobody, mbody, vbody) = emit(body, env = bodyenv)
         val setup = Code(
           dovalue,
           mx := mvalue,
@@ -142,19 +142,19 @@ object Compile {
         (Code._empty, m, v)
 
       case ApplyBinaryPrimOp(op, l, r, typ) =>
-        val (dol, ml, vl) = compile(l)
-        val (dor, mr, vr) = compile(r)
+        val (dol, ml, vl) = emit(l)
+        val (dor, mr, vr) = emit(r)
         (Code(dol, dor),
           ml || mr,
-          BinaryOp.compile(op, l.typ, r.typ, vl, vr))
+          BinaryOp.emit(op, l.typ, r.typ, vl, vr))
       case ApplyUnaryPrimOp(op, x, typ) =>
-        val (dox, mx, vx) = compile(x)
-        (dox, mx, UnaryOp.compile(op, x.typ, vx))
+        val (dox, mx, vx) = emit(x)
+        (dox, mx, UnaryOp.emit(op, x.typ, vx))
 
       case MakeArray(args, typ) =>
         val srvb = new StagedRegionValueBuilder(fb, typ)
         val addElement = srvb.addIRIntermediate(typ.elementType)
-        val mvargs = args.map(compile(_))
+        val mvargs = args.map(emit(_))
         present(Code(
           srvb.start(args.length, init = true),
           Code(mvargs.map { case (dov, m, v) =>
@@ -163,7 +163,7 @@ object Compile {
           srvb.offset))
       case x@MakeArrayN(len, elementType) =>
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
-        val (dolen, mlen, vlen) = compile(len)
+        val (dolen, mlen, vlen) = emit(len)
         (dolen,
           mlen,
           Code(srvb.start(coerce[Int](vlen), init = true),
@@ -172,8 +172,8 @@ object Compile {
         val ti = typeToTypeInfo(typ)
         val tarray = TArray(typ)
         val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
-        val (doa, ma, va) = compile(a)
-        val (doi, mi, vi) = compile(i)
+        val (doa, ma, va) = emit(a)
+        val (doi, mi, vi) = emit(i)
         val xma = mb.newBit()
         val xa = fb.newLocal()(ati)
         val xi = fb.newLocal[Int]
@@ -192,14 +192,14 @@ object Compile {
       case ArrayMissingnessRef(a, i) =>
         val tarray = tcoerce[TArray](a.typ)
         val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
-        val (doa, ma, va) = compile(a)
-        val (doi, mi, vi) = compile(i)
+        val (doa, ma, va) = emit(a)
+        val (doi, mi, vi) = emit(i)
         present(Code(
           doa,
           doi,
           ma || mi || !tarray.isElementDefined(region, coerce[Long](va), coerce[Int](vi))))
       case ArrayLen(a) =>
-        val (doa, ma, va) = compile(a)
+        val (doa, ma, va) = emit(a)
         (doa, ma, TContainer.loadLength(region, coerce[Long](va)))
       case x@ArrayMap(a, name, body, elementTyp) =>
         val tin = a.typ.asInstanceOf[TArray]
@@ -219,8 +219,8 @@ object Compile {
         val ltop = new LabelNode()
         val lnext = new LabelNode()
         val lend = new LabelNode()
-        val (doa, ma, va) = compile(a)
-        val (dobody, mbody, vbody) = compile(body, env = bodyenv)
+        val (doa, ma, va) = emit(a)
+        val (dobody, mbody, vbody) = emit(body, env = bodyenv)
 
         (doa, ma, Code(
           xa := coerce[Long](va),
@@ -257,9 +257,9 @@ object Compile {
         val ltop = new LabelNode()
         val lnext = new LabelNode()
         val lend = new LabelNode()
-        val (doa, ma, va) = compile(a)
-        val (dozero, mzero, vzero) = compile(zero)
-        val (dobody, mbody, vbody) = compile(body, env = bodyenv)
+        val (doa, ma, va) = emit(a)
+        val (dozero, mzero, vzero) = emit(zero)
+        val (dobody, mbody, vbody) = emit(body, env = bodyenv)
         val setup = Code(
           doa,
           ma.mux(
@@ -283,7 +283,7 @@ object Compile {
         (setup, xmout, xvout)
 
       case x@MakeStruct(fields, _) =>
-        val initializers = fields.map { case (_, v) => (v.typ, compile(v)) }
+        val initializers = fields.map { case (_, v) => (v.typ, emit(v)) }
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
         present(Code(
           srvb.start(init = true),
@@ -296,7 +296,7 @@ object Compile {
       case GetField(o, name, _) =>
         val t = o.typ.asInstanceOf[TStruct]
         val fieldIdx = t.fieldIdx(name)
-        val (doo, mo, vo) = compile(o)
+        val (doo, mo, vo) = emit(o)
         val xmo = mb.newBit()
         val xo = fb.newLocal[Long]
         val setup = Code(
@@ -309,7 +309,7 @@ object Compile {
       case GetFieldMissingness(o, name) =>
         val t = o.typ.asInstanceOf[TStruct]
         val fieldIdx = t.fieldIdx(name)
-        val (doo, mo, vo) = compile(o)
+        val (doo, mo, vo) = emit(o)
         present(Code(doo, mo || !t.isFieldDefined(region, coerce[Long](vo), fieldIdx)))
 
       case In(i, typ) =>
