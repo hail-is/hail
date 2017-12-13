@@ -218,8 +218,8 @@ class LDPruneSuite extends SparkSuite {
       nPartitions: Int <- Gen.choose(5, 10)) yield (r2, windowSize, nPartitions)
 
     val vectorGen = for (nSamples: Int <- Gen.choose(1, 1000);
-      v1: Array[Int] <- Gen.buildableOfN[Array, Int](nSamples, Gen.choose(-1, 2));
-      v2: Array[Int] <- Gen.buildableOfN[Array, Int](nSamples, Gen.choose(-1, 2))
+      v1: Array[Int] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2));
+      v2: Array[Int] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2))
     ) yield (nSamples, v1, v2)
 
     property("bitPacked pack and unpack give same as orig") =

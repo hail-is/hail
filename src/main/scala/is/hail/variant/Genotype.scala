@@ -328,12 +328,12 @@ object Genotype {
     val m = Int.MaxValue / (nAlleles + 1)
     val nGenotypes = triangle(nAlleles)
     val gg = for (gt: Option[Int] <- Gen.option(Gen.choose(0, nGenotypes - 1));
-      ad <- Gen.option(Gen.buildableOfN[Array, Int](nAlleles, Gen.choose(0, m)));
+      ad <- Gen.option(Gen.buildableOfN[Array](nAlleles, Gen.choose(0, m)));
       dp <- Gen.option(Gen.choose(0, m));
       gq <- Gen.option(Gen.choose(0, 10000));
       pl <- Gen.oneOfGen(
-        Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, m))),
-        Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, 100))))) yield {
+        Gen.option(Gen.buildableOfN[Array](nGenotypes, Gen.choose(0, m))),
+        Gen.option(Gen.buildableOfN[Array](nGenotypes, Gen.choose(0, 100))))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
@@ -365,17 +365,17 @@ object Genotype {
     val nAlleles = v.nAlleles
     val nGenotypes = triangle(nAlleles)
     val gg = for (callRate <- Gen.choose(0d, 1d);
-      alleleFrequencies <- Gen.buildableOfN[Array, Double](nAlleles, Gen.choose(1e-6, 1d)) // avoid divison by 0
+      alleleFrequencies <- Gen.buildableOfN[Array](nAlleles, Gen.choose(1e-6, 1d)) // avoid divison by 0
         .map { rawWeights =>
         val sum = rawWeights.sum
         rawWeights.map(_ / sum)
       };
       gt <- Gen.option(Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
         .map { case (gti, gtj) => gtIndexWithSwap(gti, gtj) }, callRate);
-      ad <- Gen.option(Gen.buildableOfN[Array, Int](nAlleles,
+      ad <- Gen.option(Gen.buildableOfN[Array](nAlleles,
         Gen.choose(0, 50)));
       dp <- Gen.choose(0, 30).map(d => ad.map(o => o.sum + d));
-      pl <- Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, 1000)).map { arr =>
+      pl <- Gen.option(Gen.buildableOfN[Array](nGenotypes, Gen.choose(0, 1000)).map { arr =>
         gt match {
           case Some(i) =>
             arr(i) = 0

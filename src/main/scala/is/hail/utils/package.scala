@@ -276,8 +276,8 @@ package object utils extends Logging
 
   def uninitialized[T]: T = null.asInstanceOf[T]
 
-  sealed trait MapAccumulate[C[_]] {
-    def apply[T, S, U](a: Iterable[T], z: S)(f: (T, S) => (U, S))
+  sealed trait MapAccumulate[C[_], U] {
+    def apply[T, S](a: Iterable[T], z: S)(f: (T, S) => (U, S))
       (implicit uct: ClassTag[U], cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
       val b = cbf()
       var acc = z
@@ -290,10 +290,10 @@ package object utils extends Logging
     }
   }
 
-  private object mapAccumulateInstance extends MapAccumulate[Nothing]
+  private object mapAccumulateInstance extends MapAccumulate[Nothing, Nothing]
 
-  def mapAccumulate[C[_]] =
-    mapAccumulateInstance.asInstanceOf[MapAccumulate[C]]
+  def mapAccumulate[C[_], U] =
+    mapAccumulateInstance.asInstanceOf[MapAccumulate[C, U]]
 
   /**
     * An abstraction for building an {@code Array} of known size. Guarantees a left-to-right traversal

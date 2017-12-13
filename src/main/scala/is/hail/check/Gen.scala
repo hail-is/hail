@@ -295,14 +295,14 @@ object Gen {
   implicit def buildableOfFromElements[C[_], T](implicit g: Gen[T], cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     buildableOf[C](g)
 
-  sealed trait BuildableOf2[C[_]] {
+  sealed trait BuildableOf2[C[_, _]] {
     def apply[T, U](g: Gen[(T, U)])(implicit cbf: CanBuildFrom[Nothing, (T, U), C[T, U]]): Gen[C[T, U]] =
       unsafeBuildableOf(g)
   }
 
   private object buildableOf2Instance extends BuildableOf2[Nothing]
 
-  def buildableOf2[C[_, _]] = buildableOf2Instance.asInstanceOf[C]
+  def buildableOf2[C[_, _]] = buildableOf2Instance.asInstanceOf[BuildableOf2[C]]
 
   private val buildableOfAlpha = 3
   private val buildableOfBeta = 6
@@ -322,76 +322,100 @@ object Gen {
       }
     }
 
-  def distinctBuildableOf[C[_], T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-    Gen { (p: Parameters) =>
-      val b = cbf()
-      if (p.size == 0)
-        b.result()
-      else {
-        // scale up a bit by log, so that we can spread out a bit more with
-        // higher sizes
-        val part = partitionBetaDirichlet(p.rng, p.size, buildableOfAlpha, buildableOfBeta * math.log(p.size + 0.01))
-        val s = part.length
-        val t = mutable.Set.empty[T]
-        for (i <- 0 until s)
-          t += g(p.copy(size = part(i)))
-        b ++= t
-        b.result()
+  sealed trait DistinctBuildableOf[C[_]] {
+    def apply[T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+      Gen { (p: Parameters) =>
+        val b = cbf()
+        if (p.size == 0)
+          b.result()
+        else {
+          // scale up a bit by log, so that we can spread out a bit more with
+          // higher sizes
+          val part = partitionBetaDirichlet(p.rng, p.size, buildableOfAlpha, buildableOfBeta * math.log(p.size + 0.01))
+          val s = part.length
+          val t = mutable.Set.empty[T]
+          for (i <- 0 until s)
+            t += g(p.copy(size = part(i)))
+          b ++= t
+          b.result()
+        }
       }
-    }
+  }
+
+  private object distinctBuildableOfInstance extends DistinctBuildableOf[Nothing]
+
+  def distinctBuildableOf[C[_]] = distinctBuildableOfInstance.asInstanceOf[DistinctBuildableOf[C]]
 
   /**
     * This function terminates with probability equal to the probability of {@code g} generating {@code min} distinct
     * elements in finite time.
     */
-  def distinctBuildableOfAtLeast[C[_], T](min: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] = {
-    Gen { (p: Parameters) =>
-      val b = cbf()
-      if (p.size < min) {
-        throw new RuntimeException(s"Size (${ p.size }) is too small for buildable of size at least $min")
-      } else if (p.size == 0)
-        b.result()
-      else {
-        // scale up a bit by log, so that we can spread out a bit more with
-        // higher sizes
-        val s = min + sampleBetaBinomial(p.rng, p.size - min, buildableOfAlpha, buildableOfBeta * math.log((p.size - min) + 0.01))
-        val part = partitionDirichlet(p.rng, p.size, s)
-        val t = mutable.Set.empty[T]
-        for (i <- 0 until s) {
-          var element = g.resize(part(i))(p)
-          while (t.contains(element)) {
-            element = g.resize(part(i))(p)
+  sealed trait DistinctBuildableOfAtLeast[C[_]] {
+    def apply[T](min: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] = {
+      Gen { (p: Parameters) =>
+        val b = cbf()
+        if (p.size < min) {
+          throw new RuntimeException(s"Size (${ p.size }) is too small for buildable of size at least $min")
+        } else if (p.size == 0)
+          b.result()
+        else {
+          // scale up a bit by log, so that we can spread out a bit more with
+          // higher sizes
+          val s = min + sampleBetaBinomial(p.rng, p.size - min, buildableOfAlpha, buildableOfBeta * math.log((p.size - min) + 0.01))
+          val part = partitionDirichlet(p.rng, p.size, s)
+          val t = mutable.Set.empty[T]
+          for (i <- 0 until s) {
+            var element = g.resize(part(i))(p)
+            while (t.contains(element)) {
+              element = g.resize(part(i))(p)
+            }
+            t += element
           }
-          t += element
+          b ++= t
+          b.result()
         }
-        b ++= t
-        b.result()
       }
     }
   }
 
-  def buildableOfN[C[_], T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-    Gen { (p: Parameters) =>
-      val part = partitionDirichlet(p.rng, p.size, n)
-      val b = cbf()
-      for (i <- 0 until n)
-        b += g(p.copy(size = part(i)))
-      b.result()
-    }
+  private object distinctBuildableOfAtLeastInstance extends DistinctBuildableOfAtLeast[Nothing]
 
-  def distinctBuildableOfN[C[_], T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-    Gen { (p: Parameters) =>
-      val part = partitionDirichlet(p.rng, p.size, n)
-      val t: mutable.Set[T] = mutable.Set.empty[T]
-      var i = 0
-      while (i < n) {
-        t += g(p.copy(size = part(i)))
-        i = t.size
+  def distinctBuildableOfAtLeast[C[_]] = distinctBuildableOfAtLeastInstance.asInstanceOf[DistinctBuildableOfAtLeast[C]]
+
+  sealed trait BuildableOfN[C[_]] {
+    def apply[T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+      Gen { (p: Parameters) =>
+        val part = partitionDirichlet(p.rng, p.size, n)
+        val b = cbf()
+        for (i <- 0 until n)
+          b += g(p.copy(size = part(i)))
+        b.result()
       }
-      val b = cbf()
-      b ++= t
-      b.result()
-    }
+  }
+
+  private object buildableOfNInstance extends BuildableOfN[Nothing]
+
+  def buildableOfN[C[_]] = buildableOfNInstance.asInstanceOf[BuildableOfN[C]]
+
+  sealed trait DistinctBuildableOfN[C[_]] {
+    def apply[T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+      Gen { (p: Parameters) =>
+        val part = partitionDirichlet(p.rng, p.size, n)
+        val t: mutable.Set[T] = mutable.Set.empty[T]
+        var i = 0
+        while (i < n) {
+          t += g(p.copy(size = part(i)))
+          i = t.size
+        }
+        val b = cbf()
+        b ++= t
+        b.result()
+      }
+  }
+
+  private object distinctBuildableOfNInstance extends DistinctBuildableOfN[Nothing]
+
+  def distinctBuildableOfN[C[_]] = distinctBuildableOfNInstance.asInstanceOf[DistinctBuildableOfN[C]]
 
   def randomOneOf[T](rng: RandomDataGenerator, is: IndexedSeq[T]): T = {
     assert(is.nonEmpty)

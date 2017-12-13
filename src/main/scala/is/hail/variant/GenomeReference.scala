@@ -338,8 +338,8 @@ object GenomeReference {
   def gen: Gen[GenomeReference] = for {
     name <- Gen.identifier
     nContigs <- Gen.choose(3, 50)
-    contigs <- Gen.distinctBuildableOfN[Array, String](nContigs, Gen.identifier)
-    lengths <- Gen.distinctBuildableOfN[Array, Int](nContigs, Gen.choose(1000000, 500000000))
+    contigs <- Gen.distinctBuildableOfN[Array](nContigs, Gen.identifier)
+    lengths <- Gen.distinctBuildableOfN[Array](nContigs, Gen.choose(1000000, 500000000))
     contigsIndex = contigs.zip(lengths).toMap
     xContig <- Gen.oneOfSeq(contigs)
     yContig <- Gen.oneOfSeq((contigs.toSet - xContig).toSeq)
@@ -353,8 +353,8 @@ object GenomeReference {
         Integer.compare(x.position, y.position)
       }
     }
-    parX <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(xContig, contigsIndex(xContig)))(locusOrd))
-    parY <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(yContig, contigsIndex(yContig)))(locusOrd))
+    parX <- Gen.distinctBuildableOfN[Array](2, Interval.gen(Locus.gen(xContig, contigsIndex(xContig)))(locusOrd))
+    parY <- Gen.distinctBuildableOfN[Array](2, Interval.gen(Locus.gen(yContig, contigsIndex(yContig)))(locusOrd))
   } yield GenomeReference(name, contigs, contigs.zip(lengths).toMap, Set(xContig), Set(yContig), Set(mtContig),
     (parX ++ parY).map(i => (i.start, i.end)))
 

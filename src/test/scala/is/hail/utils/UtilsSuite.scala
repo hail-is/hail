@@ -105,7 +105,7 @@ class UtilsSuite extends SparkSuite {
 
   @Test def testLeftJoinIterators() {
     val g = for (uniqueInts <- Gen.buildableOf[Set](Gen.choose(0, 1000)).map(set => set.toIndexedSeq.sorted);
-      toZip <- Gen.buildableOfN[IndexedSeq, String](uniqueInts.size, arbitrary[String])
+      toZip <- Gen.buildableOfN[IndexedSeq](uniqueInts.size, arbitrary[String])
     ) yield {
       uniqueInts.zip(toZip)
     }
@@ -127,7 +127,7 @@ class UtilsSuite extends SparkSuite {
   @Test def testKeySortIterator() {
     val g = for {
       gr <- GenomeReference.gen
-      seq <- Gen.distinctBuildableOf[IndexedSeq, (Variant, Int)](Gen.zip(VariantSubgen.fromGenomeRef(gr).gen, arbitrary[Int]))
+      seq <- Gen.distinctBuildableOf[IndexedSeq](Gen.zip(VariantSubgen.fromGenomeRef(gr).gen, arbitrary[Int]))
     } yield (gr, seq)
 
     val p = Prop.forAll(g) { case (gr, indSeq) =>

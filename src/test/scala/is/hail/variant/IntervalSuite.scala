@@ -162,7 +162,7 @@ class IntervalSuite extends SparkSuite {
       end <- Gen.choose(start, endPos))
       yield Interval(Locus("22", start), Locus("22", end))
     val intervalsGen = for (nIntervals <- Gen.choose(0, 10);
-      g <- Gen.buildableOfN[Array, Interval[Locus]](nIntervals, intervalGen)) yield g
+      g <- Gen.buildableOfN[Array](nIntervals, intervalGen)) yield g
 
     Prop.forAll(intervalsGen.filter(_.nonEmpty)) { intervals =>
       hadoopConf.writeTextFile(iList) { out =>
