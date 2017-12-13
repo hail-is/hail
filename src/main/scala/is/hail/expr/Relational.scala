@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.asm4s.FunctionBuilder
 import is.hail.keytable.KTLocalValue
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
@@ -40,7 +41,7 @@ case class MatrixType(
       "pk" -> locusType,
       "v" -> vType,
       "va" -> vaType,
-      "gs" -> !TArray(genotypeType))
+      "gs" -> TArray(genotypeType))
 
   def orderedRVType: OrderedRVType = {
     new OrderedRVType(Array("pk"),
@@ -271,40 +272,50 @@ case class MatrixValue(
 
   def sampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = sampleIds.zip(sampleAnnotations)
 
-  def filterSamplesKeep(keep: IndexedSeq[Int]): MatrixValue = {
+  def filterSamplesKeep(keep: Array[Int]): MatrixValue = {
+    val keepTyp = TArray(!TInt32())
+
+    val rowType = typ.rowType
+    val e = ir.MakeStruct(Array(
+      ("pk", ir.GetField(ir.In(0, rowType), "pk")),
+      ("v", ir.GetField(ir.In(0, rowType), "v")),
+      ("va", ir.GetField(ir.In(0, rowType), "va")),
+      ("gs", ir.ArrayMap(ir.In(1, keepTyp), "i",
+        ir.ArrayRef(ir.GetField(ir.In(0, rowType), "gs"),
+          ir.Ref("i"))))))
+
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Long]
+    ir.Infer(e)
+    assert(e.typ == rowType)
+    ir.Compile(e, fb)
+    val f = fb.result()
+
     val keepBc = sparkContext.broadcast(keep)
-    val localRowType = typ.rowType
-    val localNSamples = nSamples
     copy(localValue =
       localValue.copy(
         sampleIds = keep.map(sampleIds),
         sampleAnnotations = keep.map(sampleAnnotations)),
       rdd2 = rdd2.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
-        var rv2b = new RegionValueBuilder()
+        val keep = keepBc.value
+        var rvb = new RegionValueBuilder()
         var rv2 = RegionValue()
 
         it.map { rv =>
-          rv2b.set(rv.region)
-          rv2b.start(localRowType)
-          rv2b.startStruct()
-          rv2b.addField(localRowType, rv, 0)
-          rv2b.addField(localRowType, rv, 1)
-          rv2b.addField(localRowType, rv, 2)
+          val region = rv.region
+          rvb.set(region)
 
-          rv2b.startArray(keepBc.value.length)
-          val gst = localRowType.fieldType(3).asInstanceOf[TArray]
-          val gt = gst.elementType
-          val aoff = localRowType.loadField(rv, 3)
+          rvb.start(keepTyp)
+          rvb.startArray(keep.length)
           var i = 0
-          val length = keepBc.value.length
-          while (i < length) {
-            val j = keepBc.value(i)
-            rv2b.addElement(gst, rv.region, aoff, j)
+          while (i < keep.length) {
+            rvb.addInt(keep(i))
             i += 1
           }
-          rv2b.endArray()
-          rv2b.endStruct()
-          rv2.set(rv.region, rv2b.end())
+          rvb.endArray()
+          val keepOffset = rvb.end()
+
+          val offset2 = f()(region, rv.offset, false, keepOffset, false)
+          rv2.set(region, offset2)
 
           rv2
         }
@@ -315,6 +326,7 @@ case class MatrixValue(
     val keep = sampleIdsAndAnnotations.zipWithIndex
       .filter { case ((s, sa), i) => p(s, sa) }
       .map(_._2)
+      .toArray
     filterSamplesKeep(keep)
   }
 }

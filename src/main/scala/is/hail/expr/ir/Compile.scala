@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.expr
 import is.hail.expr.{TArray, TBoolean, TContainer, TFloat32, TFloat64, TInt32, TInt64, TStruct}
 import is.hail.utils._
-import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
 import scala.language.existentials
@@ -139,7 +138,7 @@ object Compile {
       case Ref(name, typ) =>
         val ti = typeToTypeInfo(typ)
         val (t, m, v) = env.lookup(name)
-        assert(t == ti, s"$name type annotation, $typ, doesn't match typeinfo: $ti")
+        assert(t == ti, s"$name type annotation, $typ, $t doesn't match typeinfo: $ti")
         (Code._empty, m, v)
 
       case ApplyBinaryPrimOp(op, l, r, typ) =>
@@ -204,17 +203,17 @@ object Compile {
         (doa, ma, TContainer.loadLength(region, coerce[Long](va)))
       case x@ArrayMap(a, name, body, elementTyp) =>
         val tin = a.typ.asInstanceOf[TArray]
-        val tout = x.typ.asInstanceOf[TArray]
+        val tout = x.typ
         val srvb = new StagedRegionValueBuilder(fb, tout)
         val addElement = srvb.addIRIntermediate(tout.elementType)
-        val eti = typeToTypeInfo(elementTyp).asInstanceOf[TypeInfo[Any]]
+        val etiin = typeToTypeInfo(tin.elementType).asInstanceOf[TypeInfo[Any]]
         val xa = fb.newLocal[Long]("am_a")
         val xmv = mb.newBit()
-        val xvv = fb.newLocal(name)(eti)
+        val xvv = fb.newLocal(name)(etiin)
         val i = fb.newLocal[Int]("am_i")
         val len = fb.newLocal[Int]("am_len")
         val out = fb.newLocal[Long]("am_out")
-        val bodyenv = env.bind(name -> (eti, xmv, xvv))
+        val bodyenv = env.bind(name -> (etiin, xmv, xvv))
         val lmissing = new LabelNode()
         val lnonmissing = new LabelNode()
         val ltop = new LabelNode()
@@ -231,7 +230,7 @@ object Compile {
           Code.whileLoop(i < len,
             xmv := !tin.isElementDefined(region, xa, i),
             xvv := xmv.mux(
-              defaultValue(elementTyp),
+              defaultValue(tin.elementType),
               region.loadPrimitive(tin.elementType)(tin.loadElement(region, xa, i))),
             dobody,
             mbody.mux(srvb.setMissing(), addElement(vbody)),
@@ -287,7 +286,7 @@ object Compile {
         val initializers = fields.map { case (_, v) => (v.typ, compile(v)) }
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
         present(Code(
-          srvb.start(true),
+          srvb.start(init = true),
           Code(initializers.map { case (t, (dov, mv, vv)) =>
             Code(
               dov,

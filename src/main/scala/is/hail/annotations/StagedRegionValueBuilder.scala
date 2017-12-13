@@ -87,6 +87,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
       )
     else
       startOffset.store(pOffset)
+    assert(staticIdx == 0)
     c = Code(c, elementsOffset.store(startOffset + t.byteOffsets(0)))
     if (init)
       c = Code(c, t.clearMissingBits(region, startOffset))
@@ -135,9 +136,11 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     case _: TInt64 => v => addInt64(v.asInstanceOf[Code[Long]])
     case _: TFloat32 => v => addFloat32(v.asInstanceOf[Code[Float]])
     case _: TFloat64 => v => addFloat64(v.asInstanceOf[Code[Double]])
-    case _: TStruct => v => region.copyFrom(region, v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
-    case _: TArray => v => region.storeAddress(v.asInstanceOf[Code[Long]], currentOffset)
-    case _: TBinary => v => region.storeAddress(v.asInstanceOf[Code[Long]], currentOffset)
+    case _: TStruct => v =>
+      region.copyFrom(region, v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
+    case _: TArray => v =>
+      region.storeAddress(currentOffset, v.asInstanceOf[Code[Long]])
+    case _: TBinary => v => region.storeAddress(currentOffset, v.asInstanceOf[Code[Long]])
     case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
   }
 
