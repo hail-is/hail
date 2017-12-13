@@ -1001,7 +1001,7 @@ abstract class TContainer extends Type {
   }
 
   def initialize(region: Code[Region], aoff: Code[Long], length: Code[Int], a: LocalRef[Int]): Code[Unit] = {
-    var c = region.storeInt32(aoff, length)
+    var c = region.storeInt(aoff, length)
     if (elementType.required)
       return c
     Code(

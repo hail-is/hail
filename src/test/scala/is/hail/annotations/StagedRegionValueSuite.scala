@@ -59,7 +59,7 @@ class StagedRegionValueSuite extends SparkSuite {
     fb.emit(
       Code(
         srvb.start(),
-        srvb.addInt32(fb.getArg[Int](2)),
+        srvb.addInt(fb.getArg[Int](2)),
         srvb.returnStart()
       )
     )
@@ -96,7 +96,7 @@ class StagedRegionValueSuite extends SparkSuite {
     fb.emit(
       Code(
         srvb.start(1),
-        srvb.addInt32(fb.getArg[Int](2)),
+        srvb.addInt(fb.getArg[Int](2)),
         srvb.advance(),
         srvb.returnStart()
       )
@@ -138,7 +138,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.start(),
         srvb.addString("hello"),
         srvb.advance(),
-        srvb.addInt32(fb.getArg[Int](2)),
+        srvb.addInt(fb.getArg[Int](2)),
         srvb.returnStart()
       )
     )
@@ -175,7 +175,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val struct = { ssb: StagedRegionValueBuilder =>
       Code(
         ssb.start(),
-        ssb.addInt32(srvb.arrayIdx + 1),
+        ssb.addInt(srvb.arrayIdx + 1),
         ssb.advance(),
         ssb.addString(fb.getArg[String](2))
       )
@@ -241,7 +241,7 @@ class StagedRegionValueSuite extends SparkSuite {
         sab.start(2),
         Code.whileLoop(sab.arrayIdx < 2,
           Code(
-            sab.addInt32(sab.arrayIdx + 1),
+            sab.addInt(sab.arrayIdx + 1),
             sab.advance()
           )
         )
@@ -303,7 +303,7 @@ class StagedRegionValueSuite extends SparkSuite {
     fb.emit(
       Code(
         srvb.start(2),
-        srvb.addInt32(codeInput),
+        srvb.addInt(codeInput),
         srvb.advance(),
         srvb.setMissing(),
         srvb.advance(),
