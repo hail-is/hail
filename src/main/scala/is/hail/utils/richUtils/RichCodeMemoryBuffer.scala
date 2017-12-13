@@ -6,28 +6,25 @@ import is.hail.asm4s.Code
 
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
-
   def size: Code[Long] = region.invoke[Long]("size")
-
-  def offset: Code[Long] = region.invoke[Long]("size")
 
   def copyFrom(other: Code[Region], readStart: Code[Long], writeStart: Code[Long], n: Code[Long]): Code[Unit] = {
     region.invoke[Region, Long, Long, Long, Unit]("copyFrom", other, readStart, writeStart, n)
   }
 
-  def storeInt32(off: Code[Long], v: Code[Int]): Code[Unit] = {
+  def storeInt(off: Code[Long], v: Code[Int]): Code[Unit] = {
     region.invoke[Long,Int,Unit]("storeInt", off, v)
   }
 
-  def storeInt64(off: Code[Long], v: Code[Long]): Code[Unit] = {
+  def storeLong(off: Code[Long], v: Code[Long]): Code[Unit] = {
     region.invoke[Long,Long,Unit]("storeLong", off, v)
   }
 
-  def storeFloat32(off: Code[Long], v: Code[Float]): Code[Unit] = {
+  def storeFloat(off: Code[Long], v: Code[Float]): Code[Unit] = {
     region.invoke[Long,Float,Unit]("storeFloat", off, v)
   }
 
-  def storeFloat64(off: Code[Long], v: Code[Double]): Code[Unit] = {
+  def storeDouble(off: Code[Long], v: Code[Double]): Code[Unit] = {
     region.invoke[Long,Double,Unit]("storeDouble", off, v)
   }
 
@@ -84,35 +81,27 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   }
 
   def loadPrimitive(typ: Type): Code[Long] => Code[_] = typ.fundamentalType match {
-    case _: TBoolean =>
-      loadBoolean
-    case _: TInt32 =>
-      loadInt
-    case _: TInt64 =>
-      loadLong
-    case _: TFloat32 =>
-      loadFloat
-    case _: TFloat64 =>
-      loadDouble
-    case _: TArray =>
-      loadAddress
-    case _: TBinary =>
-      loadAddress
-    case _: TStruct =>
-      off => off
+    case _: TBoolean => loadBoolean
+    case _: TInt32 => loadInt
+    case _: TInt64 => loadLong
+    case _: TFloat32 => loadFloat
+    case _: TFloat64 => loadDouble
+    case _: TArray => loadAddress
+    case _: TBinary => loadAddress
+    case _: TStruct => off => off
   }
 
   def appendPrimitive(typ: Type): (Code[_]) => Code[Long] = typ match {
     case _: TBoolean =>
-      x => this.appendInt32(x.asInstanceOf[Code[Int]])
+      x => this.appendInt(x.asInstanceOf[Code[Int]])
     case _: TInt32 =>
-      x => this.appendInt32(x.asInstanceOf[Code[Int]])
+      x => this.appendInt(x.asInstanceOf[Code[Int]])
     case _: TInt64 =>
-      x => this.appendInt64(x.asInstanceOf[Code[Long]])
+      x => this.appendLong(x.asInstanceOf[Code[Long]])
     case _: TFloat32 =>
-      x => this.appendFloat32(x.asInstanceOf[Code[Float]])
+      x => this.appendFloat(x.asInstanceOf[Code[Float]])
     case _: TFloat64 =>
-      x => this.appendFloat64(x.asInstanceOf[Code[Double]])
+      x => this.appendDouble(x.asInstanceOf[Code[Double]])
     case _ =>
       throw new UnsupportedOperationException("cannot append non-primitive type: $typ")
   }
@@ -133,19 +122,19 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Long, Long, Boolean, Unit]("setBit", byteOff, bitOff, b)
   }
 
-  def appendInt32(i: Code[Int]): Code[Long] = {
+  def appendInt(i: Code[Int]): Code[Long] = {
     region.invoke[Int, Long]("appendInt", i)
   }
 
-  def appendInt64(l: Code[Long]): Code[Long] = {
+  def appendLong(l: Code[Long]): Code[Long] = {
     region.invoke[Long, Long]("appendLong", l)
   }
 
-  def appendFloat32(f: Code[Float]): Code[Long] = {
+  def appendFloat(f: Code[Float]): Code[Long] = {
     region.invoke[Float, Long]("appendFloat", f)
   }
 
-  def appendFloat64(d: Code[Double]): Code[Long] = {
+  def appendDouble(d: Code[Double]): Code[Long] = {
     region.invoke[Double, Long]("appendDouble", d)
   }
 

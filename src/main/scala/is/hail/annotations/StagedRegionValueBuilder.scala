@@ -103,13 +103,13 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
 
   def addBoolean(v: Code[Boolean]): Code[Unit] = region.storeByte(currentOffset, v.toI.toB)
 
-  def addInt32(v: Code[Int]): Code[Unit] = region.storeInt32(currentOffset, v)
+  def addInt(v: Code[Int]): Code[Unit] = region.storeInt(currentOffset, v)
 
-  def addInt64(v: Code[Long]): Code[Unit] = region.storeInt64(currentOffset, v)
+  def addLong(v: Code[Long]): Code[Unit] = region.storeLong(currentOffset, v)
 
-  def addFloat32(v: Code[Float]): Code[Unit] = region.storeFloat32(currentOffset, v)
+  def addFloat(v: Code[Float]): Code[Unit] = region.storeFloat(currentOffset, v)
 
-  def addFloat64(v: Code[Double]): Code[Unit] = region.storeFloat64(currentOffset, v)
+  def addDouble(v: Code[Double]): Code[Unit] = region.storeDouble(currentOffset, v)
 
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
     Code(
@@ -119,10 +119,12 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
         case _ =>
           region.storeAddress(currentOffset, endOffset)
       },
-      toUnit(region.appendInt32(bytes.length())),
+      toUnit(region.appendInt(bytes.length())),
       toUnit(region.appendBytes(bytes))
     )
   }
+
+  def addAddress(v: Code[Long]): Code[Unit] = region.storeAddress(currentOffset, v)
 
   def addString(str: Code[String]): Code[Unit] = addBinary(str.invoke[Array[Byte]]("getBytes"))
 
@@ -132,15 +134,14 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
 
   def addIRIntermediate(t: Type): (Code[_]) => Code[Unit] = t.fundamentalType match {
     case _: TBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
-    case _: TInt32 => v => addInt32(v.asInstanceOf[Code[Int]])
-    case _: TInt64 => v => addInt64(v.asInstanceOf[Code[Long]])
-    case _: TFloat32 => v => addFloat32(v.asInstanceOf[Code[Float]])
-    case _: TFloat64 => v => addFloat64(v.asInstanceOf[Code[Double]])
+    case _: TInt32 => v => addInt(v.asInstanceOf[Code[Int]])
+    case _: TInt64 => v => addLong(v.asInstanceOf[Code[Long]])
+    case _: TFloat32 => v => addFloat(v.asInstanceOf[Code[Float]])
+    case _: TFloat64 => v => addDouble(v.asInstanceOf[Code[Double]])
     case _: TStruct => v =>
       region.copyFrom(region, v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
-    case _: TArray => v =>
-      region.storeAddress(currentOffset, v.asInstanceOf[Code[Long]])
-    case _: TBinary => v => region.storeAddress(currentOffset, v.asInstanceOf[Code[Long]])
+    case _: TArray => v => addAddress(v.asInstanceOf[Code[Long]])
+    case _: TBinary => v => addAddress(v.asInstanceOf[Code[Long]])
     case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
   }
 
