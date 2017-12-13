@@ -52,12 +52,12 @@ case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) extends IR { def typ: TArray = TArray(elementTyp) }
 case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR, var typ: Type = null) extends IR
 
-case class MakeStruct(fields: Array[(String, Type, IR)], var typ: TStruct = null) extends IR {
+case class MakeStruct(fields: Array[(String, IR)], var typ: TStruct = null) extends IR {
   override def toString: String = s"MakeStruct(${ fields.toFastIndexedSeq })"
   override def hashCode(): Int =
     scala.util.hashing.MurmurHash3.arrayHash(fields)
   override def equals(that: Any): Boolean = that match {
-    case MakeStruct(fields2) =>
+    case MakeStruct(fields2, _) =>
       fields.length == fields2.length &&
       fields.sameElements(fields2)
     case _ => false
