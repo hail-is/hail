@@ -319,8 +319,7 @@ final class Decoder(in: InputBuffer) {
 
   def readBinary(region: Region, off: Long) {
     val length = in.readInt()
-    region.align(4)
-    val boff = region.allocate(4 + length)
+    val boff = region.allocate(4, 4 + length)
     region.storeAddress(off, boff)
     region.storeInt(boff, length)
     in.readBytes(region, boff + 4, length)
@@ -330,8 +329,7 @@ final class Decoder(in: InputBuffer) {
     val length = in.readInt()
 
     val contentSize = t.contentsByteSize(length)
-    region.align(t.contentsAlignment)
-    val aoff = region.allocate(contentSize)
+    val aoff = region.allocate(t.contentsAlignment, contentSize)
 
     region.storeInt(aoff, length)
     if (!t.elementType.required) {
@@ -405,8 +403,7 @@ final class Decoder(in: InputBuffer) {
     val f = t.fundamentalType
     f match {
       case t: TStruct =>
-        region.align(t.alignment)
-        val start = region.allocate(t.byteSize)
+        val start = region.allocate(t.alignment, t.byteSize)
         readStruct(t, region, start)
         start
 

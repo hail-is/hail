@@ -70,8 +70,7 @@ class RegionValueBuilder(var region: Region) {
       case t: TArray =>
       case _: TBinary =>
       case _ =>
-        region.align(root.alignment)
-        start = region.allocate(root.byteSize)
+        start = region.allocate(root.alignment, root.byteSize)
     }
   }
 
@@ -115,8 +114,7 @@ class RegionValueBuilder(var region: Region) {
 
   def startArray(length: Int, init: Boolean = true) {
     val t = currentType().asInstanceOf[TArray]
-    region.align(t.contentsAlignment)
-    val aoff = region.allocate(t.contentsByteSize(length))
+    val aoff = region.allocate(t.contentsAlignment, t.contentsByteSize(length))
 
     if (typestk.nonEmpty) {
       val off = currentOffset()
@@ -215,9 +213,7 @@ class RegionValueBuilder(var region: Region) {
   def addBinary(bytes: Array[Byte]) {
     assert(currentType().isInstanceOf[TBinary])
 
-    region.align(TBinary.contentAlignment)
-    val boff = region.size
-    region.appendInt(bytes.length)
+    val boff = region.appendInt(bytes.length)
     region.appendBytes(bytes)
 
     if (typestk.nonEmpty) {
@@ -247,7 +243,6 @@ class RegionValueBuilder(var region: Region) {
 
   def fixupBinary(fromRegion: Region, fromBOff: Long): Long = {
     val length = TBinary.loadLength(fromRegion, fromBOff)
-    region.align(TBinary.contentAlignment)
     val toBOff = TBinary.allocate(region, length)
     region.copyFrom(fromRegion, fromBOff, toBOff, TBinary.contentByteSize(length))
     toBOff
@@ -263,7 +258,6 @@ class RegionValueBuilder(var region: Region) {
 
   def fixupArray(t: TArray, fromRegion: Region, fromAOff: Long): Long = {
     val length = t.loadLength(fromRegion, fromAOff)
-    region.align(t.contentsAlignment)
     val toAOff = t.allocate(region, length)
 
     region.copyFrom(fromRegion, fromAOff, toAOff, t.contentsByteSize(length))

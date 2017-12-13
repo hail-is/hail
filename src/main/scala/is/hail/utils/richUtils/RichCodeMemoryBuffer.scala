@@ -40,16 +40,8 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Long, Array[Byte], Unit]("storeBytes", off, bytes)
   }
 
-  def align(alignment: Code[Long]): Code[Unit] = {
-    region.invoke[Long, Unit]("align", alignment)
-  }
-
-  def allocate(n: Code[Long]): Code[Long] = {
-    region.invoke[Long, Long]("allocate",n)
-  }
-
-  def alignAndAllocate(n: Code[Long]): Code[Long] = {
-    region.invoke[Long, Long]("alignAndAllocate",n)
+  def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] = {
+    region.invoke[Long, Long, Long]("allocate", alignment, n)
   }
 
   def loadBoolean(off: Code[Long]): Code[Boolean] = {
