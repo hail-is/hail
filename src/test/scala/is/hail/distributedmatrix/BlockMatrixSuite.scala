@@ -49,7 +49,7 @@ class BlockMatrixSuite extends SparkSuite {
   ): Gen[BlockMatrix] = for {
     blockSize <- blockSize
     (rows, columns) <- dims
-    arrays <- buildableOfN[Seq](rows, buildableOfN(columns, element))
+    arrays <- buildableOfN[Seq](rows, buildableOfN[Array](columns, element))
     m = toBM(arrays, blockSize)
   } yield m
 
