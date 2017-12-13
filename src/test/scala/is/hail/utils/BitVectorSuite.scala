@@ -22,7 +22,7 @@ class BitVectorSuite extends TestNGSuite {
     val g =
       for (
         n <- Gen.choose(1, 1000);
-        s <- Gen.buildableOf[Set, Int](Gen.choose(0, n - 1))
+        s <- Gen.buildableOf[Set](Gen.choose(0, n - 1))
       ) yield {
         val bv = new BitVector(n)
 

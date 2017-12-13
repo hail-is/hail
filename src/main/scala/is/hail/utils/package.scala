@@ -240,14 +240,21 @@ package object utils extends Logging
     }
   }
 
-  def flattenOrNull[C[_] >: Null, T >: Null](b: mutable.Builder[T, C[T]], it: Iterable[Iterable[T]]): C[T] = {
-    for (elt <- it) {
-      if (elt == null)
-        return null
-      b ++= elt
+  sealed trait FlattenOrNull[C[_] >: Null] {
+    def apply[T >: Null](b: mutable.Builder[T, C[T]], it: Iterable[Iterable[T]]): C[T] = {
+      for (elt <- it) {
+        if (elt == null)
+          return null
+        b ++= elt
+      }
+      b.result()
     }
-    b.result()
   }
+
+  private object flattenOrNullInstance extends FlattenOrNull[Nothing]
+
+  def flattenOrNull[C[_] >: Null] =
+    flattenOrNullInstance.asInstanceOf[FlattenOrNull[C]]
 
   sealed trait AnyFailAllFail[C[_]] {
     def apply[T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Option[C[T]] = {
@@ -262,24 +269,31 @@ package object utils extends Logging
     }
   }
 
-  private final object anyFailAllFailInstance extends AnyFailAllFail[Nothing]
+  private object anyFailAllFailInstance extends AnyFailAllFail[Nothing]
 
   def anyFailAllFail[C[_]]: AnyFailAllFail[C] =
     anyFailAllFailInstance.asInstanceOf[AnyFailAllFail[C]]
 
   def uninitialized[T]: T = null.asInstanceOf[T]
 
-  def mapAccumulate[C[_], T, S, U](a: Iterable[T], z: S)(f: (T, S) => (U, S))(implicit uct: ClassTag[U],
-    cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
-    val b = cbf()
-    var acc = z
-    for ((x, i) <- a.zipWithIndex) {
-      val (y, newAcc) = f(x, acc)
-      b += y
-      acc = newAcc
+  sealed trait MapAccumulate[C[_]] {
+    def apply[T, S, U](a: Iterable[T], z: S)(f: (T, S) => (U, S))
+      (implicit uct: ClassTag[U], cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
+      val b = cbf()
+      var acc = z
+      for ((x, i) <- a.zipWithIndex) {
+        val (y, newAcc) = f(x, acc)
+        b += y
+        acc = newAcc
+      }
+      b.result()
     }
-    b.result()
   }
+
+  private object mapAccumulateInstance extends MapAccumulate[Nothing]
+
+  def mapAccumulate[C[_]] =
+    mapAccumulateInstance.asInstanceOf[MapAccumulate[C]]
 
   /**
     * An abstraction for building an {@code Array} of known size. Guarantees a left-to-right traversal

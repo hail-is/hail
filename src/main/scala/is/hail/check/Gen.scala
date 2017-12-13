@@ -283,14 +283,26 @@ object Gen {
   def stringOf[T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, String]): Gen[String] =
     unsafeBuildableOf(g)
 
-  def buildableOf[C[_], T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-    unsafeBuildableOf(g)
+  sealed trait BuildableOf[C[_]] {
+    def apply[T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+      unsafeBuildableOf(g)
+  }
+
+  private object buildableOfInstance extends BuildableOf[Nothing]
+
+  def buildableOf[C[_]] = buildableOfInstance.asInstanceOf[BuildableOf[C]]
 
   implicit def buildableOfFromElements[C[_], T](implicit g: Gen[T], cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-    buildableOf[C, T](g)
+    buildableOf[C](g)
 
-  def buildableOf2[C[_, _], T, U](g: Gen[(T, U)])(implicit cbf: CanBuildFrom[Nothing, (T, U), C[T, U]]): Gen[C[T, U]] =
-    unsafeBuildableOf(g)
+  sealed trait BuildableOf2[C[_]] {
+    def apply[T, U](g: Gen[(T, U)])(implicit cbf: CanBuildFrom[Nothing, (T, U), C[T, U]]): Gen[C[T, U]] =
+      unsafeBuildableOf(g)
+  }
+
+  private object buildableOf2Instance extends BuildableOf2[Nothing]
+
+  def buildableOf2[C[_, _]] = buildableOf2Instance.asInstanceOf[C]
 
   private val buildableOfAlpha = 3
   private val buildableOfBeta = 6

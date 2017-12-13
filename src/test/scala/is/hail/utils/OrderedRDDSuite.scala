@@ -33,7 +33,7 @@ class OrderedRDDSuite extends SparkSuite {
       alt <- Gen.oneOfGen(Gen.const("T"), Gen.const("C"), Gen.const("G"), Gen.const("TTT"), Gen.const("ATA")))
       yield Variant("16", pos, "A", alt)
 
-    val g = for (uniqueVariants <- Gen.buildableOf[Set, Variant](v).map(set => set.toIndexedSeq);
+    val g = for (uniqueVariants <- Gen.buildableOf[Set](v).map(set => set.toIndexedSeq);
       toZip <- Gen.buildableOfN[IndexedSeq, String](uniqueVariants.size, arbitrary[String]);
       nPar <- Gen.choose(1, 10)) yield (nPar, uniqueVariants.zip(toZip))
 
@@ -188,7 +188,7 @@ class OrderedRDDSuite extends SparkSuite {
         alt <- Gen.oneOf("T", "C")
       } yield Variant("1", pos, "A", alt)
 
-      val localG = for (variants <- Gen.buildableOf[Array, Variant](localV).map(x => x: IndexedSeq[Variant]);
+      val localG = for (variants <- Gen.buildableOf[Array](localV).map(x => x: IndexedSeq[Variant]);
         toZip <- Gen.buildableOfN[Array, String](variants.size, arbitrary[String]);
         nPar <- Gen.choose(1, 10)) yield (nPar, variants.zip(toZip))
 
@@ -200,7 +200,7 @@ class OrderedRDDSuite extends SparkSuite {
       alt <- Gen.oneOfGen(Gen.const("T"), Gen.const("C"), Gen.const("G"), Gen.const("TTT"), Gen.const("ATA")))
       yield Variant("16", pos, "A", alt)
 
-    val g2 = for (uniqueVariants <- Gen.buildableOf[Set, Variant](v2).map(set => set.toIndexedSeq);
+    val g2 = for (uniqueVariants <- Gen.buildableOf[Set](v2).map(set => set.toIndexedSeq);
       toZip <- Gen.buildableOfN[IndexedSeq, String](uniqueVariants.size, arbitrary[String]);
       nPar <- Gen.choose(1, 10)) yield (nPar, uniqueVariants.zip(toZip))
 

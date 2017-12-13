@@ -296,7 +296,7 @@ class ExportVCFSuite extends SparkSuite {
       TSet(TInt32()), TSet(TFloat32()), TSet(TFloat64()), TSet(TString()), TSet(TCall()))
   
   def genFormatStructVCF: Gen[TStruct] =
-    Gen.buildableOf[Array, (String, Type)](
+    Gen.buildableOf[Array](
       Gen.zip(Gen.identifier, genFormatFieldVCF))
       .filter(fields => fields.map(_._1).areDistinct())
       .map(fields => TStruct(fields

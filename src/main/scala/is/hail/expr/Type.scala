@@ -43,7 +43,7 @@ object Type {
   val requiredComplex = genComplexType(true)
 
   def preGenStruct(required: Boolean, genFieldType: Gen[Type]): Gen[TStruct] =
-    Gen.buildableOf[Array, (String, Type)](
+    Gen.buildableOf[Array](
       Gen.zip(Gen.identifier, genFieldType))
       .filter(fields => fields.map(_._1).areDistinct())
       .map(fields => TStruct(fields
@@ -1098,7 +1098,7 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
+    Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(extendOrderingToNull(missingGreatest)(
@@ -1175,7 +1175,7 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
+  override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue)
 
   override def desc: String =
     """
@@ -1243,7 +1243,7 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genValue, valueType.genValue))
+    Gen.buildableOf2[Map](Gen.zip(keyType.genValue, valueType.genValue))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null &&

@@ -1599,7 +1599,7 @@ object FunctionRegistry {
   registerMethod("isSubset", (x: Set[Any], a: Set[Any]) => x.subsetOf(a), "Returns true if this Set is a subset of Set `a`.")(setHr(TTHr), setHr(TTHr), boolHr)
 
   registerMethod("flatten", (a: IndexedSeq[IndexedSeq[Any]]) =>
-    flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any], a),
+    flattenOrNull[IndexedSeq](IndexedSeq.newBuilder[Any], a),
     """
     Flattens a nested array by concatenating all its rows into a single array.
 
@@ -1612,7 +1612,7 @@ object FunctionRegistry {
   )(arrayHr(arrayHr(TTHr)), arrayHr(TTHr))
 
   registerMethod("flatten", (s: Set[Set[Any]]) =>
-    flattenOrNull[Set, Any](Set.newBuilder[Any], s),
+    flattenOrNull[Set](Set.newBuilder[Any], s),
     """
     Flattens a nested set by concatenating all its elements into a single set.
 
@@ -1809,7 +1809,7 @@ object FunctionRegistry {
   //  )(TTHr, TUHr, unaryHr(TUHr, TVHr), TVHr)
 
   registerLambdaMethod("flatMap", (a: IndexedSeq[Any], f: (Any) => Any) =>
-    flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any],
+    flattenOrNull[IndexedSeq](IndexedSeq.newBuilder[Any],
       a.map(f).asInstanceOf[IndexedSeq[IndexedSeq[Any]]]),
     """
     Returns a new array by applying a function to each subarray and concatenating the resulting arrays.
@@ -1824,7 +1824,7 @@ object FunctionRegistry {
   )(arrayHr(TTHr), unaryHr(TTHr, arrayHr(TUHr)), arrayHr(TUHr))
 
   registerLambdaMethod("flatMap", (s: Set[Any], f: (Any) => Any) =>
-    flattenOrNull[Set, Any](Set.newBuilder[Any],
+    flattenOrNull[Set](Set.newBuilder[Any],
       s.map(f).asInstanceOf[Set[Set[Any]]]),
     """
     Returns a new set by applying a function to each subset and concatenating the resulting sets.

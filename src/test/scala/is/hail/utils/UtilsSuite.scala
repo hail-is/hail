@@ -104,7 +104,7 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testLeftJoinIterators() {
-    val g = for (uniqueInts <- Gen.buildableOf[Set, Int](Gen.choose(0, 1000)).map(set => set.toIndexedSeq.sorted);
+    val g = for (uniqueInts <- Gen.buildableOf[Set](Gen.choose(0, 1000)).map(set => set.toIndexedSeq.sorted);
       toZip <- Gen.buildableOfN[IndexedSeq, String](uniqueInts.size, arbitrary[String])
     ) yield {
       uniqueInts.zip(toZip)
@@ -164,8 +164,8 @@ class UtilsSuite extends SparkSuite {
     val g = for {
       gr <- GenomeReference.gen
       v = VariantSubgen.fromGenomeRef(gr).gen
-      a1 <- Gen.buildableOf[Array, Variant](v)
-      a2 <- Gen.buildableOf[Array, Variant](v)
+      a1 <- Gen.buildableOf[Array](v)
+      a2 <- Gen.buildableOf[Array](v)
     } yield (gr, a1, a2)
 
     val p = Prop.forAll(g) {
@@ -260,7 +260,7 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testCollectAsSet() {
-    Prop.forAll(Gen.buildableOf[Array, Int](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) { case (values, parts) =>
+    Prop.forAll(Gen.buildableOf[Array](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) { case (values, parts) =>
       val rdd = sc.parallelize(values, numSlices = parts)
       rdd.collectAsSet() == rdd.collect().toSet
     }.check()
@@ -289,7 +289,7 @@ class UtilsSuite extends SparkSuite {
 
   @Test def testBinarySearch() {
     val g = for {
-      a <- Gen.buildableOf[Array, Int](arbitrary[Int])
+      a <- Gen.buildableOf[Array](arbitrary[Int])
       s = a.sorted
       i <- Gen.choose(0, a.length - 1)
       v <- arbitrary[Int]
