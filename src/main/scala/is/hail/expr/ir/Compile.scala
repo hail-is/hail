@@ -283,10 +283,9 @@ object Compile {
                 i := i + 1))))
         (setup, xmout, xvout)
 
-      case MakeStruct(fields) =>
-        val t = TStruct(fields.map { case (name, t, _) => (name, t) }: _*)
-        val initializers = fields.map { case (_, t, v) => (t, compile(v)) }
-        val srvb = new StagedRegionValueBuilder(fb, t)
+      case x@MakeStruct(fields, _) =>
+        val initializers = fields.map { case (_, v) => (v.typ, compile(v)) }
+        val srvb = new StagedRegionValueBuilder(fb, x.typ)
         present(Code(
           srvb.start(true),
           Code(initializers.map { case (t, (dov, mv, vv)) =>

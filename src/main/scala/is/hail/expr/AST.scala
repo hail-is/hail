@@ -429,9 +429,9 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
   ) yield arrayToAnnotation(CompilationHelp.arrayOf(celements))
 
   def toIR: Option[IR] = for {
-    irElements <- anyFailAllFail(elements.map(x => x.toIR.map(ir => (x.`type`, ir))))
-    fields = names.zip(irElements).map { case (x, (y, z)) => (x, y, z) }
-  } yield ir.MakeStruct(fields.toArray)
+    irElements <- anyFailAllFail[Array, (Type, IR)](elements.map(x => x.toIR.map(ir => (x.`type`, ir))))
+    fields = names.zip(irElements).map { case (x, (y, z)) => (x, z) }
+  } yield ir.MakeStruct(fields)
 }
 
 case class GenomeReferenceDependentConstructor(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {

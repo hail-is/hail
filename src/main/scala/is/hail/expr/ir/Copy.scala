@@ -61,9 +61,9 @@ object Copy {
       case ArrayFold(_, _, accumName, valueName, _, typ) =>
         val IndexedSeq(a, zero, body) = children
         ArrayFold(a, zero, accumName, valueName, body, typ)
-      case MakeStruct(fields) =>
+      case MakeStruct(fields, _) =>
         assert(fields.length == children.length)
-        MakeStruct(fields.zip(children).map { case ((n, t, _), v) => (n, t, v) })
+        MakeStruct(fields.zip(children).map { case ((n, _), a) => (n, a) })
       case GetField(_, name, typ) =>
         val IndexedSeq(o) = children
         GetField(o, name, typ)

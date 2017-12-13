@@ -42,8 +42,8 @@ object Children {
       Array(a, body)
     case ArrayFold(a, zero, accumName, valueName, body, typ) =>
       Array(a, zero, body)
-    case MakeStruct(fields) =>
-      fields.map(_._3)
+    case MakeStruct(fields, _) =>
+      fields.map(_._2)
     case GetField(o, name, typ) =>
       Array(o)
     case GetFieldMissingness(o, name) =>

@@ -20,9 +20,9 @@ class ASTToIRSuite {
     "true" -> True(),
     "false" -> False(),
     "{}" -> MakeStruct(Array()),
-    "{a : 1}" -> MakeStruct(Array(("a", TInt32(), I32(1)))),
+    "{a : 1}" -> MakeStruct(Array(("a", I32(1)))),
     "{a: 1, b: 2}" -> MakeStruct(Array(
-      ("a", TInt32(), I32(1)), ("b", TInt32(), I32(2)))),
+      ("a", I32(1)), ("b", I32(2)))),
     "[1, 2]" -> MakeArray(Array(I32(1), I32(2)), TArray(TInt32())),
     "[42.0]" -> MakeArray(Array(F64(42.0)), TArray(TFloat64()))
   )
@@ -37,13 +37,13 @@ class ASTToIRSuite {
     "{a: 1, b: 2}.a" ->
       GetField(
         MakeStruct(Array(
-          ("a", TInt32(), I32(1)), ("b", TInt32(), I32(2)))),
+          ("a", I32(1)), ("b", I32(2)))),
         "a",
         TInt32()),
     "{a: 1, b: 2}.b" ->
       GetField(
         MakeStruct(Array(
-          ("a", TInt32(), I32(1)), ("b", TInt32(), I32(2)))),
+          ("a", I32(1)), ("b", I32(2)))),
         "b",
         TInt32())
   )
