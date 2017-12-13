@@ -630,7 +630,7 @@ class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
   def load(): Code[T] =
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
-        il += new IntInsnNode(tti.loadOp, i)
+        il += new VarInsnNode(tti.loadOp, i)
       }
     }
 
@@ -638,11 +638,11 @@ class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
     new Code[Unit] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         rhs.emit(il)
-        il += new IntInsnNode(tti.storeOp, i)
+        il += new VarInsnNode(tti.storeOp, i)
       }
     }
 
-  def storeInsn: Code[Unit] = Code(new IntInsnNode(tti.storeOp, i))
+  def storeInsn: Code[Unit] = Code(new VarInsnNode(tti.storeOp, i))
 }
 
 class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {

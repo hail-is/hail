@@ -119,6 +119,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = {
     val i = locals
+    assert(i < 65536)
     locals += tti.slots
 
     mn.localVariables.asInstanceOf[util.List[LocalVariableNode]]
