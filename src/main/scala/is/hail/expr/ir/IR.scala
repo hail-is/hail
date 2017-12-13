@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.utils._
 import is.hail.expr.{BaseIR, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type, TArray}
 
 sealed trait IR extends BaseIR {
@@ -33,7 +34,7 @@ case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR, var typ: Type = null) e
 case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) extends IR
 
 case class MakeArray(args: Array[IR], var typ: TArray = null) extends IR {
-  override def toString: String = s"MakeArray(${ args.toIndexedSeq }, $typ)"
+  override def toString: String = s"MakeArray(${ args.toFastIndexedSeq }, $typ)"
   override def hashCode(): Int =
     scala.util.hashing.MurmurHash3.arrayHash(args) + typ.##
   override def equals(that: Any): Boolean = that match {
@@ -52,7 +53,7 @@ case class ArrayMap(a: IR, name: String, body: IR, var elementTyp: Type = null) 
 case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR, var typ: Type = null) extends IR
 
 case class MakeStruct(fields: Array[(String, Type, IR)], var typ: TStruct = null) extends IR {
-  override def toString: String = s"MakeStruct(${ fields.toIndexedSeq })"
+  override def toString: String = s"MakeStruct(${ fields.toFastIndexedSeq })"
   override def hashCode(): Int =
     scala.util.hashing.MurmurHash3.arrayHash(fields)
   override def equals(that: Any): Boolean = that match {
