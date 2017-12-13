@@ -83,7 +83,7 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Long, Long, Boolean]("loadBit", byteOff, bitOff)
   }
 
-  def loadPrimitive(typ: Type): Code[Long] => Code[_] = typ match {
+  def loadPrimitive(typ: Type): Code[Long] => Code[_] = typ.fundamentalType match {
     case _: TBoolean =>
       loadBoolean
     case _: TInt32 =>
@@ -96,7 +96,9 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
       loadDouble
     case _: TArray =>
       loadAddress
-    case _ =>
+    case _: TBinary =>
+      loadAddress
+    case _: TStruct =>
       off => off
   }
 
