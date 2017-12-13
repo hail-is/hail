@@ -94,6 +94,8 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(vas.field("v").typ == TVariant(gr))
     assert(vas.field("l").typ == TLocus(gr))
     assert(vas.field("i").typ == TInterval(gr))
+
+    GenomeReference.removeReference("foo")
   }
 
   @Test def testDefaultReference() {
@@ -104,8 +106,9 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(GenomeReference.defaultReference.name == "my_reference_genome")
     GenomeReference.setDefaultReference(hc, "GRCh37")
 
-    TestUtils.interceptFatal("Cannot add reference genome. Reference genome `GRCh38' already exists.")(GenomeReference.setDefaultReference(hc, "src/main/resources/reference/grch38.json"))
+    TestUtils.interceptFatal("Cannot add reference genome. `GRCh38' already exists.")(GenomeReference.setDefaultReference(hc, "src/main/resources/reference/grch38.json"))
     intercept[FileNotFoundException](GenomeReference.setDefaultReference(hc, "grch38.json"))
+    TestUtils.interceptFatal("is a built-in Hail reference")(GenomeReference.removeReference("GRCh37"))
   }
 
   @Test def testFuncReg() {
@@ -167,6 +170,7 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"))""").signature.field("i1").typ == gr.interval)
 
     GenomeReference.setDefaultReference(GenomeReference.GRCh37)
+    GenomeReference.removeReference("foo2")
   }
 
   @Test def testContigRemap() {
@@ -226,5 +230,22 @@ class GenomeReferenceSuite extends SparkSuite {
     val i2 = Interval(l2, Locus("1", 27000))
 
     assert(gr.compare(i1, i2) < 0)
+  }
+
+  @Test def testWriteToFile() {
+    val tmpFile = tmpDir.createTempFile("grWrite", ".json")
+
+    val gr = GenomeReference.GRCh37
+    gr.copy(name = "GRCh37_2").write(hc, tmpFile)
+    val gr2 = GenomeReference.fromFile(hc, tmpFile)
+
+    assert((gr.contigs sameElements gr2.contigs) &&
+      gr.lengths == gr2.lengths &&
+      gr.xContigs == gr2.xContigs &&
+      gr.yContigs == gr2.yContigs &&
+      gr.mtContigs == gr2.mtContigs &&
+      (gr.parInput sameElements gr2.parInput))
+
+    GenomeReference.removeReference("GRCh37_2")
   }
 }

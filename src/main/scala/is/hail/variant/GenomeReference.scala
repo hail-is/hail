@@ -7,7 +7,7 @@ import is.hail.check.Gen
 import is.hail.expr.{JSONExtractGenomeReference, TInterval, TLocus, TVariant}
 import is.hail.utils._
 import org.json4s._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -224,6 +224,9 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   def subst(): GenomeReference = this
 
   override def toString: String = name
+
+  def write(hc: HailContext, file: String): Unit =
+    hc.hadoopConf.writeTextFile(file)(out => Serialization.write(toJSON, out))
 }
 
 object GenomeReference {
@@ -231,21 +234,36 @@ object GenomeReference {
   val GRCh37: GenomeReference = fromResource("reference/grch37.json")
   val GRCh38: GenomeReference = fromResource("reference/grch38.json")
   var defaultReference = GRCh37
+  val hailReferences = references.keySet
 
   def addReference(gr: GenomeReference) {
-    if (references.contains(gr.name))
-      fatal(s"Cannot add reference genome. Reference genome `${ gr.name }' already exists.")
+    if (hasReference(gr.name))
+      fatal(s"Cannot add reference genome. `${ gr.name }' already exists. Choose a reference name NOT in the following list:\n  " +
+        s"@1", references.keys.truncatable("\n  "))
+
     references += (gr.name -> gr)
   }
 
   def getReference(name: String): GenomeReference = {
     references.get(name) match {
       case Some(gr) => gr
-      case None => fatal(s"No genome reference with name `$name' exists. Available references: `${ references.keys.mkString(", ") }'.")
+      case None => fatal(s"Cannot get reference genome. `$name' does not exist. Choose a reference name from the following list:\n  " +
+        s"@1", references.keys.truncatable("\n  "))
     }
   }
 
   def hasReference(name: String): Boolean = references.contains(name)
+
+  def removeReference(name: String): Unit = {
+    val nonBuiltInReferences = references.keySet -- hailReferences
+    if (hailReferences.contains(name))
+      fatal(s"Cannot remove reference genome. `$name' is a built-in Hail reference. Choose a reference name from the following list:\n  " +
+        s"@1", nonBuiltInReferences.truncatable("\n  "))
+    if (!hasReference(name))
+      fatal(s"Cannot remove reference genome. `$name' does not exist. Choose a reference name from the following list:\n  " +
+        s"@1", nonBuiltInReferences.truncatable("\n  "))
+    references -= name
+  }
 
   def setDefaultReference(gr: GenomeReference) {
     assert(references.contains(gr.name))

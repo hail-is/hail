@@ -215,7 +215,7 @@ class GenomeReference(HistoryMixin):
     @record_classmethod
     @handle_py4j
     @typecheck_method(file=strlike)
-    def from_file(cls, file):
+    def read(cls, file):
         """Load reference genome from a JSON file.
 
         The JSON file must have the following format:
@@ -248,6 +248,26 @@ class GenomeReference(HistoryMixin):
         :rtype: :class:`.GenomeReference`
         """
         return GenomeReference._from_java(Env.hail().variant.GenomeReference.fromFile(Env.hc()._jhc, file))
+
+    @handle_py4j
+    @typecheck_method(output=strlike)
+    def write(self, output):
+        """"Write this reference genome to a file in JSON format.
+
+        **Examples**
+
+        >>> my_gr = GenomeReference("new_reference", ["x", "y", "z"], {"x": 500, "y": 300, "z": 200})
+        >>> my_gr.write("output/new_reference.json")
+
+        **Notes**
+
+        Use :py:class:`~hail.GenomeReference.read` to reimport the exported reference genome
+        in a new HailContext session.
+
+        :param str output: Path of JSON file to write.
+        """
+
+        self._jrep.write(Env.hc()._jhc, output)
 
     @handle_py4j
     def _init_from_java(self, jrep):
