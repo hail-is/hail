@@ -153,7 +153,7 @@ object PCRelate {
     * result: (SNP x (D+1))
     */
   def fitBeta(g: IndexedRowMatrix, pcs: DenseMatrix[Double], blockSize: Int): M = {
-    val aa = g.rows.sparkContext.broadcast(pcs(*,::).map(_.toArray).toArray)
+    val aa = g.rows.sparkContext.broadcast(pcs(*, ::).map(_.toArray).toArray)
     val rdd = g.rows.map { case IndexedRow(i, v) =>
       val ols = new OLSMultipleLinearRegression()
       ols.newSampleData(v.toArray, aa.value)
@@ -176,10 +176,8 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   require(maf >= 0.0)
   require(maf <= 1.0)
 
-  val antimaf = 1.0 - maf
-
   def badmu(mu: Double): Boolean =
-    mu <= maf || mu >= antimaf || mu <= 0.0 || mu >= 1.0
+    mu <= maf || mu >= (1.0 - maf) || mu <= 0.0 || mu >= 1.0
 
   def badgt(gt: Double): Boolean =
     gt != 0.0 && gt != 1.0 && gt != 2.0
@@ -196,12 +194,13 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val mu = this.mu(g, pcs).cache()
     val blockedG = BlockMatrix.from(g, blockSize).cache()
 
-    val variance = (BlockMatrix.map2 { (g, mu) =>
-      if (badgt(g) || badmu(mu))
-        0.0
-      else
-        mu * (1.0 - mu)
-    }(blockedG, mu)).cache()
+    val variance =
+      BlockMatrix.map2 { (g, mu) =>
+        if (badgt(g) || badmu(mu))
+          0.0
+        else
+          mu * (1.0 - mu)
+      } (blockedG, mu).cache()
 
     val phi = this.phi(mu, variance, blockedG).cache()
 
@@ -239,19 +238,24 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
         0.0
       else
         g - mu * 2.0
-    }(g, mu)
-    val stddev = variance.map(math.sqrt _)
+    } (g, mu)
+    
+    val stddev = variance.map(math.sqrt)
 
     (gram(centeredG) :/ gram(stddev)) / 4.0
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
-    val homalt = (BlockMatrix.map2 { (g, mu) =>
-      if (badgt(g) || badmu(mu) || g != 2.0) 0.0 else 1.0
-    }(g, mu)).cache()
-    val homref = (BlockMatrix.map2 { (g, mu) =>
-      if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
-    }(g, mu)).cache()
+    val homalt =
+      BlockMatrix.map2 { (g, mu) =>
+        if (badgt(g) || badmu(mu) || g != 2.0) 0.0 else 1.0
+      } (g, mu).cache()
+    
+    val homref =
+      BlockMatrix.map2 { (g, mu) =>
+        if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
+      } (g, mu).cache()
+    
     (homalt.t * homref) :+ (homref.t * homalt)
   }
 
@@ -273,25 +277,28 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
-    val mu2 = (BlockMatrix.map2 { (g, mu) =>
-      if (badgt(g) || badmu(mu))
-        0.0
-      else
-        mu * mu
-    }(g, mu)).cache()
-    val oneMinusMu2 = (BlockMatrix.map2 { (g, mu) =>
-      if (badgt(g) || badmu(mu))
-        0.0
-      else
-        (1.0 - mu) * (1.0 - mu)
-    }(g, mu)).cache()
+    val mu2 =
+      BlockMatrix.map2 { (g, mu) =>
+        if (badgt(g) || badmu(mu))
+          0.0
+        else
+          mu * mu
+      } (g, mu).cache()
+    
+    val oneMinusMu2 =
+      BlockMatrix.map2 { (g, mu) =>
+        if (badgt(g) || badmu(mu))
+          0.0
+        else
+          (1.0 - mu) * (1.0 - mu)
+      } (g, mu).cache()
+    
     val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
     BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phi <= k0cutoff)
         1.0 - 4.0 * phi + k2
       else
         ibs0 / denom
-    }(phi, denom, k2, ibs0)
+    } (phi, denom, k2, ibs0)
   }
-
 }
