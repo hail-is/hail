@@ -106,8 +106,9 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(GenomeReference.defaultReference.name == "my_reference_genome")
     GenomeReference.setDefaultReference(hc, "GRCh37")
 
-    TestUtils.interceptFatal("Reference genome `GRCh38' already exists.")(GenomeReference.setDefaultReference(hc, "src/main/resources/reference/grch38.json"))
+    TestUtils.interceptFatal("Cannot add reference genome. `GRCh38' already exists.")(GenomeReference.setDefaultReference(hc, "src/main/resources/reference/grch38.json"))
     intercept[FileNotFoundException](GenomeReference.setDefaultReference(hc, "grch38.json"))
+    TestUtils.interceptFatal("is a built-in Hail reference")(GenomeReference.removeReference("GRCh37"))
   }
 
   @Test def testFuncReg() {

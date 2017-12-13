@@ -234,10 +234,11 @@ object GenomeReference {
   val GRCh37: GenomeReference = fromResource("reference/grch37.json")
   val GRCh38: GenomeReference = fromResource("reference/grch38.json")
   var defaultReference = GRCh37
+  val hailReferences = references.keySet
 
   def addReference(gr: GenomeReference) {
     if (hasReference(gr.name))
-      fatal(s"Reference genome `${ gr.name }' already exists. Choose a reference name NOT in the following list:\n  " +
+      fatal(s"Cannot add reference genome. `${ gr.name }' already exists. Choose a reference name NOT in the following list:\n  " +
         s"@1", references.keys.truncatable("\n  "))
 
     references += (gr.name -> gr)
@@ -246,15 +247,21 @@ object GenomeReference {
   def getReference(name: String): GenomeReference = {
     references.get(name) match {
       case Some(gr) => gr
-      case None => fatal(s"No genome reference with name `$name' exists. Available references: `${ references.keys.mkString(", ") }'.")
+      case None => fatal(s"Cannot get reference genome. `$name' does not exist. Choose a reference name from the following list:\n  " +
+        s"@1", references.keys.truncatable("\n  "))
     }
   }
 
   def hasReference(name: String): Boolean = references.contains(name)
 
   def removeReference(name: String): Unit = {
+    val nonBuiltInReferences = references.keySet -- hailReferences
+    if (hailReferences.contains(name))
+      fatal(s"Cannot remove reference genome. `$name' is a built-in Hail reference. Choose a reference name from the following list:\n  " +
+        s"@1", nonBuiltInReferences.truncatable("\n  "))
     if (!hasReference(name))
-      fatal(s"Cannot remove reference genome. `$name' does not exist. Available references: `${ references.keys.mkString(", ") }'.")
+      fatal(s"Cannot remove reference genome. `$name' does not exist. Choose a reference name from the following list:\n  " +
+        s"@1", nonBuiltInReferences.truncatable("\n  "))
     references -= name
   }
 
