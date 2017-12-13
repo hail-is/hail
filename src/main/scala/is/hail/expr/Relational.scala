@@ -1,7 +1,5 @@
 package is.hail.expr
 
-import java.io.PrintWriter
-
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.FunctionBuilder
