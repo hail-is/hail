@@ -251,7 +251,8 @@ package object utils extends Logging
     }
   }
 
-  private object flattenOrNullInstance extends FlattenOrNull[Nothing]
+  // NB: can't use Nothing here because it is not a super type of Null
+  private object flattenOrNullInstance extends FlattenOrNull[Array]
 
   def flattenOrNull[C[_] >: Null] =
     flattenOrNullInstance.asInstanceOf[FlattenOrNull[C]]
