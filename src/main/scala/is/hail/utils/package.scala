@@ -249,16 +249,23 @@ package object utils extends Logging
     b.result()
   }
 
-  def anyFailAllFail[C[_], T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Option[C[T]] = {
-    val b = cbf()
-    for (t <- ts) {
-      if (t.isEmpty)
-        return None
-      else
-        b += t.get
+  sealed trait AnyFailAllFail[C[_]] {
+    def apply[T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Option[C[T]] = {
+      val b = cbf()
+      for (t <- ts) {
+        if (t.isEmpty)
+          return None
+        else
+          b += t.get
+      }
+      Some(b.result())
     }
-    Some(b.result())
   }
+
+  private final object anyFailAllFailInstance extends AnyFailAllFail[Nothing]
+
+  def anyFailAllFail[C[_]]: AnyFailAllFail[C] =
+    anyFailAllFailInstance.asInstanceOf[AnyFailAllFail[C]]
 
   def uninitialized[T]: T = null.asInstanceOf[T]
 

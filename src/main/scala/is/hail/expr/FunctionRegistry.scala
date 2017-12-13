@@ -87,7 +87,7 @@ object FunctionRegistry {
             None
         }
 
-        anyFailAllFail[Array, Option[(Int, Transformation[Any, Any])]](conversions)
+        anyFailAllFail[Array](conversions)
           .map { arr =>
             if (arr.forall(_.isEmpty))
               0 -> (tt.subst(), f.captureType().subst())
