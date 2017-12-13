@@ -2,6 +2,7 @@ package is.hail.variant
 
 import java.nio.ByteBuffer
 
+import breeze.linalg.{*, DenseMatrix}
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr._
@@ -16,7 +17,7 @@ import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import org.apache.hadoop
-import org.apache.spark.mllib.linalg.{DenseMatrix, Vectors}
+import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.AggregateWithContext._
@@ -2576,25 +2577,27 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
 
     info(s"Running PCA with $k components...")
 
-    val (eigenvalues, scoresmatrix, optionLoadings) = PCA(this, expr, k, computeLoadings, asArrays)
+    val (eigenvalues, scoresMatrix, optionLoadings) = PCA(this, expr, k, computeLoadings, asArrays)
 
     val rowType = TStruct("s" -> sSignature, "pcaScores" -> PCA.pcSchema(k, asArrays))
     val rowTypeBc = sparkContext.broadcast(rowType)
 
-    val scoresrdd = sparkContext.parallelize(sampleIds.zip(scoresmatrix.rowIter.toSeq)).mapPartitions[RegionValue] { it =>
+    val scoresMatrixBc = sparkContext.broadcast(scoresMatrix)
+    
+    val scoresrdd = sparkContext.parallelize(sampleIds.zipWithIndex).mapPartitions[RegionValue] { it =>
       val region = Region()
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
       val localRowType = rowTypeBc.value
 
-      it.map { case (s, v) =>
+      it.map { case (s, i) =>
         rvb.start(localRowType)
         rvb.startStruct()
         rvb.addAnnotation(rowType.fieldType(0), s)
         if (asArrays) rvb.startArray(k) else rvb.startStruct()
         var j = 0
         while (j < k) {
-          rvb.addDouble(v(j))
+          rvb.addDouble(scoresMatrixBc.value(i, j))
           j += 1
         }
         if (asArrays) rvb.endArray() else rvb.endStruct()
@@ -2637,10 +2640,10 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       }
       i += 1
     }
-    PCRelate.toKeyTable(this, new DenseMatrix(nSamples, k, scoreArray, false), maf, blockSize, minKinship, statistics)
+    PCRelate.toKeyTable(this, new DenseMatrix[Double](nSamples, k, scoreArray), maf, blockSize, minKinship, statistics)
   }
 
-  def toIndexedRowMatrix(expr: String, getVariants: Boolean): (Option[Array[Any]], IndexedRowMatrix) = {
+  def toIndexedRowMatrix(expr: String, getVariants: Boolean): (IndexedRowMatrix, Option[Array[Any]]) = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rdd2.getNumPartitions + 1)
     val partStartsBc = sparkContext.broadcast(partStarts)
@@ -2687,15 +2690,18 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       }
     }
 
-    (someIf(getVariants,
+    val irm = new IndexedRowMatrix(indexedRows, partStarts.last, nSamples)
+    
+    val optionVariants = 
+      someIf(getVariants,
       rdd2.mapPartitions { it =>
         val ur = new UnsafeRow(localRowType)
         it.map { rv =>
           ur.set(rv)
           ur.get(1)
         }
-      }.collect()
-    ),
-      new IndexedRowMatrix(indexedRows, partStarts.last, nSamples))
+      }.collect())
+    
+    (irm, optionVariants)
   }
 }
