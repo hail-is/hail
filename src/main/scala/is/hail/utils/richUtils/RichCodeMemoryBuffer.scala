@@ -85,15 +85,17 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
 
   def loadPrimitive(typ: Type): Code[Long] => Code[_] = typ match {
     case _: TBoolean =>
-      this.loadBoolean(_)
+      loadBoolean
     case _: TInt32 =>
-      this.loadInt(_)
+      loadInt
     case _: TInt64 =>
-      this.loadLong(_)
+      loadLong
     case _: TFloat32 =>
-      this.loadFloat(_)
+      loadFloat
     case _: TFloat64 =>
-      this.loadDouble(_)
+      loadDouble
+    case _: TArray =>
+      loadAddress
     case _ =>
       off => off
   }
