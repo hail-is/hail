@@ -17,7 +17,7 @@ class GroupedMatrixTable(object):
         dataset = (vds.annotate_samples_expr('sa = merge(drop(sa, qc), {sample_qc: sa.qc})')
                       .annotate_variants_expr('va = merge(drop(va, qc), {variant_qc: va.qc})').to_hail2())
 
-        dataset = dataset.annotate_rows(gene=['TITIN'])
+        dataset = dataset.annotate_rows(gene=['TTN'])
         dataset2 = dataset.annotate_globals(global_field=5)
         table1 = dataset.rows_table()
         table1 = table1.annotate_globals(global_field=5)
@@ -142,7 +142,7 @@ class MatrixTable(object):
                       .annotate_variants_expr('va = merge(drop(va, qc), {variant_qc: va.qc})').to_hail2())
 
 
-        dataset = dataset.annotate_rows(gene=['TITIN'])
+        dataset = dataset.annotate_rows(gene=['TTN'])
         dataset = dataset.annotate_cols(cohorts=['1kg'])
 
         dataset2 = dataset.annotate_globals(global_field=5)
@@ -496,7 +496,7 @@ class MatrixTable(object):
         ----
         This method supports aggregation over columns. For instance, the usage:
 
-        >>> dataset_result = dataset.select_rows(mean_GQ = f.mean(dataset.GQ))
+        >>> dataset_result = dataset.annotate_rows(mean_GQ = f.mean(dataset.GQ))
 
         will compute the mean per row.
 
@@ -535,7 +535,7 @@ class MatrixTable(object):
 
     @handle_py4j
     def annotate_cols(self, **named_exprs):
-        """Create new row-indexed fields by name.
+        """Create new column-indexed fields by name.
 
         Examples
         --------
@@ -551,7 +551,7 @@ class MatrixTable(object):
         ----
         This method supports aggregation over rows. For instance, the usage:
 
-        >>> dataset_result = dataset.select_cols(mean_GQ = f.mean(dataset.GQ))
+        >>> dataset_result = dataset.annotate_cols(mean_GQ = f.mean(dataset.GQ))
 
         will compute the mean per column.
 
@@ -925,6 +925,10 @@ class MatrixTable(object):
         (``'field'``), or top-level field references (``table.field`` or
         ``table['field']``).
 
+        While many operations exist independently for rows, columns, entries, and
+        globals, only one is needed for dropping due to the lack of any necessary
+        contextual information.
+
         Parameters
         ----------
         exprs : varargs of :obj:`str` or :class:`hail.expr.expression.Expression`
@@ -999,7 +1003,7 @@ class MatrixTable(object):
         is ``True``, then rows where `expr` evaluates to ``False`` will be removed (the
         filter keeps the rows where the predicate evaluates to ``True``). If `keep` is
         ``False``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter removes the rows where the predicate evaluates to ``True``.
+        filter removes the rows where the predicate evaluates to ``True``).
 
         Warning
         -------
@@ -1057,7 +1061,7 @@ class MatrixTable(object):
         removed (the filter keeps the columns where the predicate evaluates to
         ``True``). If `keep` is ``False``, then columns where `expr` evaluates to
         ``False`` will be removed (the filter removes the columns where the predicate
-        evaluates to ``True``.
+        evaluates to ``True``).
 
         Warning
         -------
@@ -1112,7 +1116,7 @@ class MatrixTable(object):
         removed (the filter keeps the entries where the predicate evaluates to
         ``True``). If `keep` is ``False``, then entries where `expr` evaluates to
         ``False`` will be removed (the filter removes the entries where the predicate
-        evaluates to ``True``.
+        evaluates to ``True``).
 
         Note
         ----
@@ -1240,7 +1244,7 @@ class MatrixTable(object):
 
             >>> dataset.aggregate_rows(n_high_quality=f.count_where(dataset.qual > 40),
             ...                        mean_qual = f.mean(dataset.qual))
-            Struct(n_high_quality=0.6109954, mean_qual=50.12515572)
+            Struct(n_high_quality=100150224, mean_qual=50.12515572)
 
         Notes
         -----
@@ -1422,6 +1426,8 @@ class MatrixTable(object):
 
         If the field referenced with `field_expr` is missing or empty, the row is
         removed entirely.
+
+
 
         Parameters
         ----------

@@ -525,7 +525,7 @@ class Table(TableTemplate):
         is ``True``, then rows where `expr` evaluates to ``False`` will be removed (the
         filter keeps the rows where the predicate evaluates to ``True``). If `keep` is
         ``False``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter removes the rows where the predicate evaluates to ``True``.
+        filter removes the rows where the predicate evaluates to ``True``).
 
         Warning
         -------
@@ -739,13 +739,15 @@ class Table(TableTemplate):
         Note
         ----
         It is highly recommended to export large files with a ``.bgz`` extension,
-        which will use a block gzipped compression codec.
+        which will use a block gzipped compression codec. These files can be
+        read natively with any Hail method, as well as with Python's ``gzip.open``
+        and R's ``read.table``.
 
         Parameters
         ----------
         output : str
             URI at which to write exported file.
-        types_file : str
+        types_file : str or None
             URI at which to write file containing column type information.
         header : bool
             Include a header in the file.
