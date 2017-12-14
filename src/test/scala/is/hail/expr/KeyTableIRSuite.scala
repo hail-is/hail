@@ -18,4 +18,15 @@ class KeyTableIRSuite extends SparkSuite {
     val kt2 = new KeyTable(hc, new FilterKT(kt.ir, ir.ApplyBinaryPrimOp(ir.EQ(), ir.Ref("field1"), ir.I32(3))))
     assert(kt2.count() == 1)
   }
+
+  @Test def testFilterGlobals() {
+    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
+    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
+    val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
+    val keyNames = Array("Sample")
+
+    val kt = KeyTable(hc, rdd, signature, keyNames).annotateGlobalExpr("g = 3")
+    val kt2 = new KeyTable(hc, new FilterKT(kt.ir, ir.ApplyBinaryPrimOp(ir.EQ(), ir.Ref("field1"), ir.Ref("g"))))
+    assert(kt2.count() == 1)
+  }
 }

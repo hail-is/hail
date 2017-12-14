@@ -541,11 +541,19 @@ case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rvd: RVD) 
     rvd.rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
   }
 
-  def filter(p: () => (RegionValue) => Boolean): KeyTableValue = {
+  def filter(p: () => (RegionValue, RegionValue) => Boolean): KeyTableValue = {
+    val globalType = typ.globalType
+    val globals = localValue.globals
     copy(rvd = rvd.mapPartitions(typ.rowType) { it =>
       val f = p()
+      val rv2 = RegionValue()
+      val rv2b = new RegionValueBuilder()
       it.flatMap { rv =>
-        if (f(rv))
+        rv2b.set(rv.region)
+        rv2b.start(globalType)
+        rv2b.addAnnotation(globalType, globals)
+        rv2.set(rv.region, rv2b.end())
+        if (f(rv, rv2))
           Iterator.apply(rv)
         else
           Iterator.empty
@@ -561,6 +569,7 @@ case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruc
 
   def remapIR(ir: IR): IR = ir match {
     case Ref(y, _) if rowType.selfField(y).isDefined => GetField(In(0, rowType), y, rowType.field(y).typ)
+    case Ref(y, _) if globalType.selfField(y).isDefined => GetField(In(1, globalType), y, globalType.field(y).typ)
     case ir2 => Recur(remapIR)(ir2)
   }
 }
@@ -599,12 +608,13 @@ case class FilterKT(child: KeyTableIR, pred: IR) extends KeyTableIR {
   }
   def execute(hc: HailContext): KeyTableValue = {
     val ktv = child.execute(hc)
-
     val mappedPred = typ.remapIR(pred)
     Infer(mappedPred)
-    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Boolean]
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Boolean]
     Emit(mappedPred, fb)
     val f = fb.result()
-    ktv.filter(() => rv => f()(rv.region, rv.offset, false))
+    ktv.filter(() => (rv, rv2) => {
+      f()(rv.region, rv.offset, false, rv2.offset, false)
+    })
   }
 }
