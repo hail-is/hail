@@ -94,6 +94,9 @@ class TableTemplate(HistoryMixin):
 
 class GroupedTable(TableTemplate):
     """Table that has been grouped.
+
+    There are only two operations on a grouped table, :meth:`GroupedTable.set_partitions`
+    and :meth:`GroupedTable.aggregate`.
     """
 
     def __init__(self, parent, groups):
@@ -107,20 +110,69 @@ class GroupedTable(TableTemplate):
 
     @handle_py4j
     @typecheck_method(n=integral)
-    def set_partitions(self, n):
+    def partition_hint(self, n):
+        """Set the target number of partitions for aggregation.
+
+        Examples
+        --------
+
+        Use `partition_hint` in a :meth:`Table.group_by` / :meth:`GroupedTable.aggregate`
+        pipeline:
+
+        >>> table_result = table1.group_by(table1.ID)
+        ...                      .set_partitions(5)
+        ...                      .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z))
+
+        Notes
+        -----
+        Until Hail's query optimizer is intelligent enough to sample records at all
+        stages of a pipeline, it can be necessary in some places to provide some
+        explicit hints.
+
+        The default number of partitions for :meth:`GroupedTable.aggregate` is the
+        number of partitions in the upstream table. If the aggregation greatly
+        reduces the size of the table, providing a hint for the target number of
+        partitions can accelerate downstream operations.
+
+        Parameters
+        ----------
+        n : int
+            Number of partitions.
+
+        Returns
+        -------
+        :class:`GroupedTable`
+            Same grouped table with a partition hint.
+        """
         self._npartitions = n
         return self
 
     @handle_py4j
     @typecheck_method(named_exprs=dictof(strlike, anytype))
     def aggregate(self, **named_exprs):
-        """Aggregate columns programmatically by key.
+        """Aggregate by group, used after :meth:`Table.group_by`.
 
-        :param named_exprs: Annotation expression with the left hand side equal to the new column name and the right hand side is any type.
-        :type named_exprs: dict of str to anytype
+        Examples
+        --------
+        Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
-        :return: Table with new columns specified by ``kwargs`` that have been aggregated by the key specified by groups.
-        :rtype: :class:`.Table`
+        >>> table_result = table1.group_by(table1.ID)
+        ...                      .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z))
+
+        Group by a height bin and compute sex ratio per bin:
+
+        >>> table_result = table1.group_by(height_bin = (table1.height / 20).to_int32())
+        ...                      .aggregate(fraction_female = f.fraction(table1.SEX == 'F'))
+
+        Parameters
+        ----------
+        named_exprs : varargs of :class:`hail.expr.expression.Expression`
+            Aggregation expressions.
+
+        Returns
+        -------
+        :class:`Table`
+            Aggregated table.
         """
         agg_base = self._parent.columns[0]  # FIXME hack
 
@@ -139,23 +191,11 @@ class GroupedTable(TableTemplate):
 
 
 class Table(TableTemplate):
-    """Hail's version of a SQL table where columns can be designated as keys.
-
-    Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail2.HailContext.import_table`
-    or :py:meth:`~hail2.KeyTable.from_dataframe`, generated from a variant dataset
-    with :py:meth:`~hail2.VariantDataset.make_table`, :py:meth:`~hail2.VariantDataset.genotypes_table`,
-    :py:meth:`~hail2.VariantDataset.samples_table`, or :py:meth:`~hail2.VariantDataset.variants_table`.
+    """Hail's distributed implementation of a dataframe or SQL table.
 
     In the examples below, we have imported two key tables from text files (``table1`` and ``table2``).
 
-    .. testsetup::
-
-        hc.stop()
-        import hail2 as h2
-        from hail2 import *
-        hc = h2.HailContext()
-
-    >>> table1 = hc.import_table('data/kt_example1.tsv', impute=True)
+    >>> table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
     >>> table1.show()
 
     .. code-block:: text
@@ -171,7 +211,7 @@ class Table(TableTemplate):
         |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
         +-------+-------+--------+-------+-------+-------+-------+-------+
 
-    >>> table2 = hc.import_table('data/kt_example2.tsv', impute=True)
+    >>> table2 = hc.import_table('data/kt_example2.tsv', impute=True, key='ID')
     >>> table2.show()
 
     .. code-block:: text
@@ -343,6 +383,46 @@ class Table(TableTemplate):
 
     @handle_py4j
     def select_globals(self, *exprs, **named_exprs):
+        """Select existing global fields or create new fields by name, dropping the rest.
+
+        Examples
+        --------
+        Select one existing field and compute a new one:
+
+        .. testsetup::
+
+            table1 = table1.annotate_globals(global_field_1 = 5, global_field_2 = 10)
+
+        >>> table_result = table1.select_globals(table1.global_field_1,
+        ...                                      another_global=['AFR', 'EUR', 'EAS', 'AMR', 'SAS'])
+
+        Notes
+        -----
+        This method creates new global fields. If a created field shares its name
+        with a row-indexed field of the table, the method will fail.
+
+        Note
+        ----
+
+        See :py:meth:`Table.select` for more information about using ``select`` methods.
+
+        Note
+        ----
+        This method does not support aggregation.
+
+        Parameters
+        ----------
+        exprs : variable-length args of :obj:`str` or :class:`hail.expr.expression.Expression`
+            Arguments that specify field names or nested field reference expressions.
+        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+            Field names and the expressions to compute them.
+
+        Returns
+        -------
+        :class:`Table`
+            Table with specified global fields.
+        """
+
         exprs = tuple(self[e] if not isinstance(e, Expression) else e for e in exprs)
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
@@ -403,7 +483,8 @@ class Table(TableTemplate):
     def filter(self, expr, keep=True):
         """Filter rows.
 
-        **Examples**
+        Examples
+        --------
 
         Keep rows where ``C1`` equals 5:
 
@@ -413,22 +494,35 @@ class Table(TableTemplate):
 
         >>> table_result = table1.filter(table1.C1 == 10, keep=False)
 
-        **Notes**
+        Notes
+        -----
 
-        The scope for ``expr`` is all column names in the input :class:`KeyTable`.
+        The expression `expr` will be evaluated for every row of the table. If `keep`
+        is ``True``, then rows where `expr` evaluates to ``False`` will be removed (the
+        filter keeps the rows where the predicate evaluates to ``True``). If `keep` is
+        ``False``, then rows where `expr` evaluates to ``False`` will be removed (the
+        filter removes the rows where the predicate evaluates to ``True``.
 
-        .. caution::
-           When ``expr`` evaluates to missing, the row will be removed regardless of whether ``keep=True`` or ``keep=False``.
+        Warning
+        -------
+        When `expr` evaluates to missing, the row will be removed regardless of `keep`.
 
-        :param expr: Boolean filter expression.
-        :type expr: :class:`~hail2.expr.column.BooleanColumn` or bool
+        Note
+        ----
+        This method does not support aggregation.
 
-        :param bool keep: Keep rows where ``expr`` is true.
+        Parameters
+        ----------
+        expr : bool or :class:`hail.expr.expression.BooleanExpression`
+            Filter expression.
+        keep : bool
+            Keep rows where `expr` is true.
 
-        :return: Filtered key table.
-        :rtype: :class:`.KeyTable`
+        Returns
+        -------
+        :class:`Table`
+            Filtered table.
         """
-
         expr = to_expr(expr)
         analyze(expr, self._row_indices, set(), set(self.columns))
         base, cleanup = self._process_joins(expr)
@@ -442,33 +536,85 @@ class Table(TableTemplate):
     @typecheck_method(exprs=tupleof(oneof(Expression, strlike)),
                       named_exprs=dictof(strlike, anytype))
     def select(self, *exprs, **named_exprs):
-        """Select a subset of columns.
+        """Select existing fields or create new fields by name, dropping the rest.
 
-        **Examples**
+        Examples
+        --------
+        Select a few old columns and compute a new one:
 
-        Assume ``table1`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
-        C3.
+        >>> table_result = table1.select(table1.ID, table1.C1, Y=table1.Z - table1.X)
 
-        Select/drop columns:
+        Notes
+        -----
+        This method creates new row-indexed fields. If a created field shares its name
+        with a global field of the table, the method will fail.
 
-        >>> table_result = table1.select(table1.C1)
+        Note
+        ----
 
-        Reorder the columns:
+        **Using select**
 
-        >>> table_result = table1.select(table1.C3, table1.C1, table1.C2)
+        Select and its sibling methods (:meth:`Table.select_globals`,
+        :meth:`MatrixTable.select_globals`, :meth:`MatrixTable.select_rows`,
+        :meth:`MatrixTable.select_cols`, and :meth:`MatrixTable.select_entries`) accept
+        both variable-length (``f(x, y, z)``) and keyword (``f(a=x, b=y, c=z)``)
+        arguments.
 
-        Drop all columns:
+        Variable-length arguments can be either strings or expressions that reference a
+        (possibly nested) field of the table. Keyword arguments can be arbitrary
+        expressions.
 
-        >>> table_result = table1.select()
+        **The following three usages are all equivalent**, producing a new table with
+        columns `C1` and `C2` of `table1`.
 
-        Create a new column computed from existing columns:
+        First, variable-length string arguments:
 
-        >>> table_result = table1.select(C_NEW = table1.C1 + table1.C2 + table1.C3)
+        >>> table_result = table1.select('C1', 'C2')
 
-        :return: Key table with selected columns.
-        :rtype: :class:`.KeyTable`
+        Second, field reference variable-length arguments:
+
+        >>> table_result = table1.select(table1.C1, table1.C2)
+
+        Last, expression keyword arguments:
+
+        >>> table_result = table1.select(C1 = table.C1, C2 = table1.C2)
+
+        Additionally, the variable-length argument syntax also permits nested field
+        references. Given the following struct field `s`:
+
+        >>> table3 = table1.annotate(s = Struct(x=table.X, z=table.Z))
+
+        The following two usages are equivalent, producing a table with one field, `x`.:
+
+        >>> table3_result = table3.select(table3.s.x)
+
+        >>> table3_result = table3.select(x = table3.s.x)
+
+        The keyword argument syntax permits arbitrary expressions:
+
+        >>> table_result = table1.select(foo=table1.X ** 2 + 1)
+
+        These syntaxes can be mixed together, with the stipulation that all keyword arguments
+        must come at the end due to Python language restrictions.
+
+        >>> table_result = table1.select(table1.X, 'Z', bar = [table1.A, table1.B])
+
+        Note
+        ----
+        This method does not support aggregation.
+
+        Parameters
+        ----------
+        exprs : variable-length args of :obj:`str` or :class:`hail.expr.expression.Expression`
+            Arguments that specify field names or nested field reference expressions.
+        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+            Field names and the expressions to compute them.
+
+        Returns
+        -------
+        :class:`Table`
+            Table with specified fields.
         """
-
         exprs = tuple(self[e] if not isinstance(e, Expression) else e for e in exprs)
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
@@ -491,8 +637,41 @@ class Table(TableTemplate):
     @handle_py4j
     @typecheck_method(exprs=tupleof(oneof(strlike, Expression)))
     def drop(self, *exprs):
-        """Drop fields from the table."""
+        """Drop fields from the table.
 
+        Examples
+        --------
+
+        Drop fields `C1` and `C2` using strings:
+
+        >>> table_result = table1.drop('C1', 'C2')
+
+        Drop fields `C1` and `C2` using field references:
+
+        >>> table_result = table1.drop(table1.C1, table1.C2)
+
+        Drop a list of fields:
+
+        >>> fields_to_drop = ['C1', 'C2']
+        >>> table_result = table1.drop(*fields_to_drop)
+
+        Notes
+        -----
+
+        This method can be used to drop global or row-indexed fields. The arguments
+        can be either strings (``'field'``), or top-level field references
+        (``table.field`` or ``table['field']``).
+
+        Parameters
+        ----------
+        exprs : varargs of :obj:`str` or :class:`hail.expr.expression.Expression`
+            Names of fields to drop or field reference expressions.
+
+        Returns
+        -------
+        :class:`Table`
+            Table without specified fields.
+        """
         all_field_exprs = {e: k for k, e in self._fields.items()}
         fields_to_drop = set()
         for e in exprs:
@@ -527,23 +706,129 @@ class Table(TableTemplate):
     def export(self, output, types_file=None, header=True, parallel=False):
         """Export to a TSV file.
 
-        :param output:
-        :param types_file:
-        :param header:
+        Examples
+        --------
+        Export to a tab-separated file:
+
+        >>> table1.export('output/table1.tsv.bgz')
+
+        Note
+        ----
+        It is highly recommended to export large files with a ``.bgz`` extension,
+        which will use a block gzipped compression codec.
+
+        Parameters
+        ----------
+        output : str
+            URI at which to write exported file.
+        types_file : str
+            URI at which to write file containing column type information.
+        header : bool
+            Include a header in the file.
+        parallel : bool
+            Skip the merge step after the parallel write, producing a directory instead
+            of a single file.
         """
         self._jkt.export(output, types_file, header, parallel)
 
     @typecheck_method(exprs=tupleof(anytype),
                       named_exprs=dictof(strlike, anytype))
     def group_by(self, *exprs, **named_exprs):
-        """Group by key.
+        """Group by a new set of keys for use with :meth:`GroupedTable.aggregate`.
 
-        :return: Key table where groupings are computed from expressions given by `kwargs`.
-        :rtype: :class:`.GroupedKeyTable`
+        Examples
+        --------
+        Compute the mean value of `X` and the sum of `Z` per unique `ID`:
+
+        >>> table_result = table1.group_by(table1.ID)
+        ...                      .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z))
+
+        Group by a height bin and compute sex ratio per bin:
+
+        >>> table_result = table1.group_by(height_bin = (table1.height / 20).to_int32())
+        ...                      .aggregate(fraction_female = f.fraction(table1.SEX == 'F'))
+
+        Notes
+        -----
+        This function is always followed by :meth:`GroupedTable.aggregate`. Follow the
+        link for documentation on the aggregation step.
+
+        Note
+        ----
+        **Using group_by**
+
+        **group_by** and its sibling methods (:meth:`MatrixTable.group_rows_by` and
+        :meth:`MatrixTable.group_cols_by` accept both variable-length (``f(x, y, z)``)
+        and keyword (``f(a=x, b=y, c=z)``) arguments.
+
+        Variable-length arguments can be either strings or expressions that reference a
+        (possibly nested) field of the table. Keyword arguments can be arbitrary
+        expressions.
+
+        **The following three usages are all equivalent**, producing a
+        :class:`GroupedTable` grouped by columns `C1` and `C2` of `table1`.
+
+        First, variable-length string arguments:
+
+        >>> table_result = table1.group_by('C1', 'C2')\
+        ...                      .aggregate(meanX = f.mean(table1.X))
+
+        Second, field reference variable-length arguments:
+
+        >>> table_result = table1.group_by(table1.C1, table1.C2)\
+        ...                      .aggregate(meanX = f.mean(table1.X))
+
+        Last, expression keyword arguments:
+
+        >>> table_result = table1.group_by(C1 = table.C1, C2 = table1.C2)\
+        ...                      .aggregate(meanX = f.mean(table1.X))
+
+        Additionally, the variable-length argument syntax also permits nested field
+        references. Given the following struct field `s`:
+
+        >>> table3 = table1.annotate(s = Struct(x=table.X, z=table.Z))
+
+        The following two usages are equivalent, grouping by one field, `x`:
+
+        >>> table_result = table3.group_by(table3.s.x)\
+        ...                      .aggregate(meanX = f.mean(table3.X))
+
+        >>> table_result = table3.group_by(x = table3.s.x)\
+        ...                      .aggregate(meanX = f.mean(table3.X))
+
+        The keyword argument syntax permits arbitrary expressions:
+
+        >>> table_result = table1.group_by(foo=table1.X ** 2 + 1)\
+        ...                      .aggregate(meanZ = f.mean(table1.Z))
+
+        These syntaxes can be mixed together, with the stipulation that all keyword arguments
+        must come at the end due to Python language restrictions.
+
+        >>> table_result = table1.group_by(table1.C1, 'C2', height_bin = (table1.height / 20).to_int32())\
+        ...                      .aggregate(meanX = f.mean(table1.X))
+
+        Note
+        ----
+        This method does not support aggregation in key expressions.
+
+        Arguments
+        ---------
+        exprs : varargs of type str or :class:`hail.expr.expression.Expression`
+            Field names or field reference expressions.
+        named_exprs : keyword args of type :class:`hail.expr.expression.Expression`
+            Field names and expressions to compute them.
+
+        Returns
+        -------
+        :class:`GroupedTable`
+            Grouped table; use :meth:`GroupedTable.aggregate` to complete the aggregation.
         """
         groups = []
         for e in exprs:
-            e = to_expr(e)
+            if isinstance(e, str) or isinstance(e, unicode):
+                e = self[e]
+            else:
+                e = to_expr(e)
             analyze(e, self._row_indices, set(), set(self.columns))
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
@@ -559,7 +844,32 @@ class Table(TableTemplate):
 
     @handle_py4j
     def aggregate(self, **named_exprs):
-        """Hail2's version of the old 'query' """
+        """Aggregate over rows into a local struct.
+
+        Examples
+        --------
+        Aggregate over rows:
+
+        .. doctest::
+
+            >>> table1.aggregate(fraction_male = f.fraction(table1.SEX == 'M'),
+            ...                  mean_x = f.mean(table1.X))
+            Struct(fraction_male=0.5, mean_x=6.5)
+
+        Note
+        ----
+        This method supports (and expects!) aggregation over rows.
+
+        Parameters
+        ----------
+        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+            Aggregation expressions.
+
+        Returns
+        -------
+        :class:`Struct`
+            Struct containing all results.
+        """
         agg_base = self.columns[0]  # FIXME hack
 
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
@@ -581,34 +891,59 @@ class Table(TableTemplate):
     @typecheck_method(output=strlike,
                       overwrite=bool)
     def write(self, output, overwrite=False):
-        """Write as KT file.
+        """Write to disk.
 
-        ***Examples***
+        Examples
+        --------
 
         >>> table1.write('output/table1.kt')
 
-        .. note:: The write path must end in ".kt".
+        Note
+        ----
+        The write path must end in ".kt".
 
-        **Notes**
+        Warning
+        -------
+        Do not write to a path that is being read from in the same computation.
 
-        A text file containing the python code to generate this output file is available at ``<output>/history.txt``.
-
-        :param str output: Path of KT file to write.
-
-        :param bool overwrite: If True, overwrite any existing KT file. Cannot be used
-               to read from and write to the same path.
+        Parameters
+        ----------
+        output : str
+            Path at which to write.
+        overwrite : bool
+            If ``True``, overwrite an existing file at the destination.
         """
 
         self._jkt.write(output, overwrite)
 
     @handle_py4j
+    @typecheck_method(n=integral, truncate_to=bool, print_types=bool)
     def show(self, n=10, truncate_to=None, print_types=True):
+        """Print the first few rows of the table to the console.
+
+        Examples
+        --------
+        Show the first 20 lines:
+
+        >>> table1.show(20)
+
+        Parameters
+        ----------
+        n : int
+            Maximum number of rows to show.
+        truncate_to : bool
+            Truncate each column to the given number of characters
+        print_types : bool
+            Print an extra header line with the type of each field.
+        """
         return self.to_hail1().show(n, truncate_to, print_types)
 
     def to_hail1(self):
-        """Convert table to :class:`hail.KeyTable`.
+        """Convert table to :class:`hail.api1.KeyTable`.
 
-        :rtype: :class:`hail.KeyTable`
+        Returns
+        -------
+        :class:`hail.api1.KeyTable`
         """
         import hail
         kt = hail.KeyTable(self._hc, self._jkt)
@@ -739,44 +1074,128 @@ class Table(TableTemplate):
     @typecheck_method(n=integral,
                       num_partitions=nullable(integral))
     def range(cls, n, num_partitions=None):
-        """Construct a table of ``n`` rows with values 0 to ``n - 1``.
+        """Construct a table with `n` rows with field `index` that ranges from 0 to ``n - 1``.
 
-        **Examples**
-
+        Examples
+        --------
         Construct a table with 100 rows:
 
-        >>> range_kt = Table.range(100)
+        >>> range_table = Table.range(100)
 
         Construct a table with one million rows and twenty partitions:
 
-        >>> range_kt = Table.range(1000000, num_partitions=20)
+        >>> range_table = Table.range(1000000, 20)
 
-        **Notes**
-
+        Notes
+        -----
         The resulting table has one column:
 
-         - **index** (*Int*) -- Unique row index from 0 to ``n - 1``
+         - **index** (`Int`) - Unique row index from 0 to ``n - 1``
 
-        :param int n: Number of rows.
+        Parameters
+        ----------
+        n : int
+            Number of rows.
+        num_partitions : int
+            Number of partitions
 
-        :param num_partitions: Number of partitions.
-        :type num_partitions: int or None
-
-        :rtype: :class:`.KeyTable`
+        Returns
+        -------
+        :class:`Table`
+            Table with one field, `index`.
         """
-
         return Table(Env.hc(), Env.hail().keytable.KeyTable.range(Env.hc()._jhc, n, joption(num_partitions)))
 
+    @handle_py4j
+    def cache(self):
+        """Persist this table in memory.
+
+        Examples
+        --------
+        Persist the table in memory:
+
+        >>> table = table.cache() # doctest: +SKIP
+
+        Notes
+        -----
+
+        This method is an alias for :func:`persist("MEMORY_ONLY") <hail.api2.Table.persist>`.
+
+        Returns
+        -------
+        :class:`Table`
+            Cached table.
+        """
+        return self.persist('MEMORY_ONLY')
+
+
     def persist(self, storage_level='MEMORY_AND_DISK'):
+        """Persist this table in memory or on disk.
+
+        Examples
+        --------
+        Persist the key table to both memory and disk:
+
+        >>> table = table.persist() # doctest: +SKIP
+
+        Notes
+        -----
+
+        The :py:meth:`Table.persist` and :py:meth:`Table.cache` methods store the
+        current table on disk or in memory temporarily to avoid redundant computation
+        and improve the performance of Hail pipelines. This method is not a substitution
+        for :py:meth:`Table.write`, which stores a permanent file.
+
+        Most users should use the "MEMORY_AND_DISK" storage level. See the `Spark
+        documentation
+        <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`__
+        for a more in-depth discussion of persisting data.
+
+        Parameters
+        ----------
+        storage_level : str
+            Storage level.  One of: NONE, DISK_ONLY,
+            DISK_ONLY_2, MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_ONLY_SER,
+            MEMORY_ONLY_SER_2, MEMORY_AND_DISK, MEMORY_AND_DISK_2,
+            MEMORY_AND_DISK_SER, MEMORY_AND_DISK_SER_2, OFF_HEAP
+
+        Returns
+        -------
+        :class:`Table`
+            Persisted table.
+        """
         return Table(self._hc, self._jkt.persist(storage_level))
 
     @handle_py4j
     def collect(self):
+        """Collect the rows of the table into a local list.
+
+        Examples
+        --------
+        Collect a list of all `X` records:
+
+        >>> all_xs = [row['X'] for row in table1.select(table1.X).collect()]
+
+        Notes
+        -----
+        This method returns a list whose elements are of type :class:`Struct`. Fields
+        of these structs can be accessed similarly to fields on a table, using dot
+        methods (``struct.foo``) or string indexing (``struct['foo']``).
+
+        Warning
+        -------
+        Using this method can cause out of memory errors. Only collect small tables.
+
+        Returns
+        -------
+        :obj:`list` of :class:`Struct`
+            List of rows.
+        """
         return TArray(self.schema)._convert_to_py(self._jkt.collect())
 
     @typecheck_method(truncate_at=integral)
     def describe(self, truncate_at=60):
-
+        """Print information about the fields in the table."""
         def format_type(typ):
             typ_str = str(typ)
             if len(typ_str) > truncate_at - 3:
