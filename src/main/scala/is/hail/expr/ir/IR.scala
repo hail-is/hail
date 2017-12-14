@@ -57,7 +57,13 @@ final case class AggIn(var typ: TAggregable = null) extends IR
 final case class AggMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
 final case class AggFilter(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
 final case class AggFlatMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
-final case class AggSum(a: IR, var typ: Type = null) extends IR
+sealed trait ApplyAggOp extends IR {
+  def a: IR
+  def inputType: Type = coerce[TAggregable](a.typ).elementType
+}
+final case class ApplyAggNullaryOp(a: IR, op: NullaryAggOp, var typ: Type = null) extends ApplyAggOp
+final case class ApplyAggUnaryOp(a: IR, op: UnaryAggOp, arg1: IR, var typ: Type = null) extends ApplyAggOp
+final case class ApplyAggTernaryOp(a: IR, op: TernaryAggOp, arg1: IR, arg2: IR, arg3: IR, var typ: Type = null) extends ApplyAggOp
 
 final case class MakeStruct(fields: Array[(String, IR)], var typ: TStruct = null) extends IR {
   override def toString: String = s"MakeStruct(${ fields.toFastIndexedSeq })"
