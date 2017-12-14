@@ -169,6 +169,11 @@ def to_expr(e):
         raise ValueError("Cannot implicitly capture value `{}' with type `{}'.".format(e, e.__class__))
 
 
+@decorator
+def args_to_expr(func, *args):
+    return func(*(to_expr(a) for a in args))
+
+
 def unify_all(*exprs):
     assert len(exprs) > 0
     new_indices = Indices.unify(*[e._indices for e in exprs])
@@ -1126,6 +1131,7 @@ def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
             error('Analysis exception: {}'.format(e.msg))
         raise errors[0]
 
+
 @args_to_expr
 def eval_expr(expression):
     """Evaluate a Hail expression, returning the result.
@@ -1157,6 +1163,7 @@ def eval_expr(expression):
         Result of evaluating `expression`.
     """
     return eval_expr_typed(expression)[0]
+
 
 @args_to_expr
 def eval_expr_typed(expression):
