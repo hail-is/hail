@@ -17,11 +17,11 @@ object Emit {
   }
 
   private[ir] def toCode(ir: IR, fb: FunctionBuilder[_], env: E): (Code[Unit], Code[Boolean], Code[_]) = {
-    compile(ir, fb, env, new StagedBitSet(fb))
+    emit(ir, fb, env, new StagedBitSet(fb))
   }
 
   private[ir] def toCode(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
-    compile(ir, fb, env, mb)
+    emit(ir, fb, env, mb)
   }
 
   def apply(ir: IR, fb: FunctionBuilder[_]) {
