@@ -1719,7 +1719,7 @@ class MatrixTable(object):
                 assert isinstance(obj, Table)
                 return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jvds, uid))
 
-        return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=(Join(joiner, [uid])))
+        return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=(Join(joiner, [uid]),))
 
     @handle_py4j
     def index_rows(self, expr):
