@@ -1,10 +1,13 @@
 package is.hail.asm4s
 
+import java.io.PrintWriter
+
 import is.hail.asm4s.Code._
 import is.hail.check.{Gen, Prop}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 import is.hail.asm4s.FunctionBuilder._
+import org.objectweb.asm.tree.InsnNode
 
 trait Z2Z { def apply(z:Boolean): Boolean }
 
@@ -303,7 +306,7 @@ class ASM4SSuite extends TestNGSuite {
         methods(i).emit(locals(3*i + j) := const(i))
         j += 1
       }
-      methods(i).emit(Code._return(locals(3*i)))
+      methods(i).emit(locals(3*i))
       methods(i).mn.instructions
       i += 1
     }
@@ -322,13 +325,13 @@ class ASM4SSuite extends TestNGSuite {
     sub.emit(sub.getArg[Int](1) - sub.getArg[Int](2))
     mult.emit(mult.getArg[Int](1) * mult.getArg[Int](2))
 
-    fb.emit(Code._return[Int](fb.getArg[Int](1).ceq(0).mux(
+    fb.emit(fb.getArg[Int](1).ceq(0).mux(
       add(fb.getArg[Int](2),fb.getArg[Int](3)),
       fb.getArg[Int](1).ceq(1).mux(
         sub(fb.getArg[Int](2),fb.getArg[Int](3)),
         mult(fb.getArg[Int](2),fb.getArg[Int](3))
-      ))))
-    val f = fb.result()()
+      )))
+    val f = fb.result(Some(new PrintWriter(System.out)))()
     assert(f(0,1,1) == 2)
     assert(f(1,5,1) == 4)
     assert(f(2,2,8) == 16)

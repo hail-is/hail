@@ -70,7 +70,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = {
     val i = locals
-    assert(i < 65536)
+    assert(i < (1 << 16))
     locals += tti.slots
 
     mn.localVariables.asInstanceOf[util.List[LocalVariableNode]]
@@ -98,6 +98,15 @@ class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo
 
   def emit(insn: AbstractInsnNode) {
     l += insn
+  }
+
+  def close() {
+    mn.instructions.add(start)
+    val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
+    assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${ dupes: Seq[Any] }")
+    l.foreach(mn.instructions.add _)
+    mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
+    mn.instructions.add(end)
   }
 
   def invoke(args: Code[_]*) = {
@@ -159,7 +168,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   var methods: mutable.ArrayBuffer[MethodBuilder] = new mutable.ArrayBuffer[MethodBuilder](16)
 
-  val apply = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
+  val apply_method = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
   val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
   // FIXME why is cast necessary?
   cn.methods.asInstanceOf[util.List[MethodNode]].add(init)
@@ -175,26 +184,25 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
       new Code[Unit] {
         def emit(il: Growable[AbstractInsnNode]) {
           returnTypeInfo.castToGeneric(
-            apply.invoke(parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
+            apply_method.invoke(parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
               ti.castFromGeneric(generic.getArg(i + 1)(ti.generic))
             }: _*)).emit(il)
-          il += new InsnNode(returnTypeInfo.generic.returnOp)
         }
       }
     )
   }
 
-  def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply.allocLocal[T](name)
+  def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)
 
   def newLocal[T](implicit tti: TypeInfo[T]): LocalRef[T] = newLocal()
 
-  def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] = apply.newLocal[T](name)
+  def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] = apply_method.newLocal[T](name)
 
-  def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = apply.getArg[T](i)
+  def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = apply_method.getArg[T](i)
 
-  def emit(c: Code[_]) = apply.emit(c)
+  def emit(c: Code[_]) = apply_method.emit(c)
 
-  def emit(insn: AbstractInsnNode) = apply.emit(insn)
+  def emit(insn: AbstractInsnNode) = apply_method.emit(insn)
 
   def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder = {
     val mb = new MethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)
@@ -239,16 +247,8 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
   }
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
-    def writeInsnsToMethod(m: MethodBuilder) {
-      m.mn.instructions.add(m.start)
-      val dupes = m.l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
-      assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${ dupes: Seq[Any] }")
-      m.l.foreach(m.mn.instructions.add _)
-      m.mn.instructions.add(new InsnNode(returnTypeInfo.base.returnOp))
-      m.mn.instructions.add(m.end)
-    }
-    writeInsnsToMethod(apply)
-    methods.toArray.foreach(writeInsnsToMethod)
+    apply_method.close()
+    methods.toArray.foreach { m => m.close() }
 
     val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
     val sw1 = new StringWriter()
