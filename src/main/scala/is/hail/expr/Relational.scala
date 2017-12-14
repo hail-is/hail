@@ -2,7 +2,6 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.asm4s.{Code, FunctionBuilder}
 import is.hail.expr.ir._
 import is.hail.keytable.KTLocalValue
 import is.hail.methods.Aggregators
@@ -16,7 +15,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.json4s.jackson.JsonMethods
 
-import scala.reflect.ClassTag
+import scala.reflect.{ClassTag, classTag}
 
 case class MatrixType(
   metadata: VSMMetadata) extends BaseType {
@@ -274,22 +273,15 @@ case class MatrixValue(
   def sampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = sampleIds.zip(sampleAnnotations)
 
   def filterSamplesKeep(keep: Array[Int]): MatrixValue = {
-    val keepTyp = TArray(!TInt32())
-
     val rowType = typ.rowType
-    val e = ir.MakeStruct(Array(
-      ("pk", ir.GetField(ir.In(0, rowType), "pk")),
-      ("v", ir.GetField(ir.In(0, rowType), "v")),
-      ("va", ir.GetField(ir.In(0, rowType), "va")),
-      ("gs", ir.ArrayMap(ir.In(1, keepTyp), "i",
-        ir.ArrayRef(ir.GetField(ir.In(0, rowType), "gs"),
-          ir.Ref("i"))))))
-
-    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Long]
-    ir.Infer(e)
-    assert(e.typ == rowType)
-    ir.Emit(e, fb)
-    val f = fb.result()
+    val keepType = TArray(!TInt32())
+    val makeF = ir.Compile("row", ir.RegionValueRep[Long](rowType),
+      "keep", ir.RegionValueRep[Long](keepType),
+      ir.RegionValueRep[Long](rowType),
+      body = ir.insertStruct(ir.Ref("row"), rowType, "gs",
+        ir.ArrayMap(ir.Ref("keep"), "i",
+          ir.ArrayRef(ir.GetField(ir.In(0, rowType), "gs"),
+            ir.Ref("i")))))
 
     val keepBc = sparkContext.broadcast(keep)
     copy(localValue =
@@ -297,27 +289,15 @@ case class MatrixValue(
         sampleIds = keep.map(sampleIds),
         sampleAnnotations = keep.map(sampleAnnotations)),
       rdd2 = rdd2.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
+        val f = makeF()
         val keep = keepBc.value
-        var rvb = new RegionValueBuilder()
         var rv2 = RegionValue()
 
         it.map { rv =>
           val region = rv.region
-          rvb.set(region)
-
-          rvb.start(keepTyp)
-          rvb.startArray(keep.length)
-          var i = 0
-          while (i < keep.length) {
-            rvb.addInt(keep(i))
-            i += 1
-          }
-          rvb.endArray()
-          val keepOffset = rvb.end()
-
-          val offset2 = f()(region, rv.offset, false, keepOffset, false)
-          rv2.set(region, offset2)
-
+          val offset2 =
+          rv2.set(region,
+            f(region, rv.offset, false, region.appendArrayInt(keep), false))
           rv2
         }
       })

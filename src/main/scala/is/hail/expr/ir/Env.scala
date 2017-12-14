@@ -10,9 +10,13 @@ class Env[V] private (val m: Map[Env.K,V]) {
     this(Map())
   }
 
-  def lookup(name: String) =
+  def lookup(name: String): V =
     m.get(name)
       .getOrElse(throw new RuntimeException(s"Cannot find $name in $m"))
+
+  def lookupOption(name: String): Option[V] = m.get(name)
+
+  def delete(name: String): Env[V] = new Env(m - name)
 
   def lookup(r: Ref): V =
     lookup(r.name)
