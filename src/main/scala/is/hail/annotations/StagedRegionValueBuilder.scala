@@ -149,5 +149,8 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     }
   }
 
-  def returnStart(): Code[Unit] = _return(startOffset)
+  // FIXME, remove this?
+  def returnStart(): Code[Unit] = _return(end())
+
+  def end(): Code[Long] = startOffset
 }

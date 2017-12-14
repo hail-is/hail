@@ -13,7 +13,7 @@ object HistogramCombiner {
     "nGreater" -> TInt64())
 }
 
-class HistogramCombiner(indices: Array[Double]) extends Serializable {
+class HistogramCombiner(val indices: Array[Double]) extends Serializable {
 
   val min = indices.head
   val max = indices(indices.length - 1)
