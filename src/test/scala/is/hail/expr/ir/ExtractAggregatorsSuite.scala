@@ -79,7 +79,7 @@ class ExtractAggregatorsSuite {
   private def compileStage0[R: TypeInfo](ir: IR): AsmFunction3[Region, Long, Boolean, R] = {
     val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, R]
     // nb: inference is done by stage1
-    Compile(ir, fb)
+    Emit(ir, fb)
     fb.result()()
   }
 
