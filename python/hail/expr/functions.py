@@ -28,11 +28,10 @@ def args_to_expr(func, *args):
 
 @typecheck(t=Type)
 def null(t):
-    """Creates a missing expression of a specified type.
+    """Creates an expression representing a missing value of a specified type.
 
-    Since missingness cannot be automatically interpreted with :py:meth:`hail.expr.functions.broadcast`
-    or :py:meth:`hail.expr.functions.capture`, this method is useful for constructing an expression that
-    includes missing values.
+    This method is useful for constructing an expression that includes missing
+    values, since :obj:`None` cannot be interpreted as an expression.
 
     Parameters
     ----------
@@ -48,9 +47,6 @@ def null(t):
 
 
 def capture(x):
-<<<<<<< 1f7f8e3e0988d9920bfe2a7eebd9071f5cc441d2
-    return to_expr(x)
-=======
     """Captures a Python variable or object as an expression.
 
     Warning
@@ -67,16 +63,15 @@ def capture(x):
     :py:class:`hail.expr.expression.Expression`
         An expression representing `x`.
     """
-    return convert_expr(x)
->>>>>>> Copy function docs to functions.py
+    return to_expr(x)
 
 
 def broadcast(x):
     """Broadcasts a Python variable or object as an expression.
 
-    Good for using large Python objects in expressions. Using this function is equivalent
-    to annotating the object as a global field of a :class:`hail.api2.Table` or
-    :class:`hail.api2.MatrixTable` and using that global field in the expression.
+    Use this function to capture large Python objects for use in expressions. This
+    function provides an alternative to adding an object as a global annotation on a
+    :class:hail.api2.Table or :class:hail.api2.MatrixTable.
 
     Parameters
     ----------
@@ -106,11 +101,11 @@ def broadcast(x):
 @typecheck(predicate=expr_bool, then_case=anytype, else_case=anytype)
 @args_to_expr
 def cond(predicate, then_case, else_case):
-    """The Hail expression if/else statement; tests a condition and returns two options based on the result.
+    """Expression for an if/else statement; tests a predicate and returns one of two options based on the result.
 
     If `predicate` evaluates to ``True``, returns `then_case`. If `predicate`
-    evaluates to ``False``, returns `else_case`. If `predicate` is missing, then the
-    result of the expression is missing.
+    evaluates to ``False``, returns `else_case`. If `predicate` is missing, returns
+    missing.
 
     Note
     ----
@@ -224,10 +219,9 @@ def ctt(c1, c2, c3, c4, min_cell_count):
 @typecheck(keys=expr_list, values=expr_list)
 @args_to_expr
 def Dict(keys, values):
-    """Creates a dictionary from a list of keys and values.
+    """Creates a dictionary from a list of keys and a list of values.
 
-    The length of `keys` and `values` must be identical, and all elements of each
-    must be the same type.
+    `keys` and `values` must be have the same length.
 
     Parameters
     ----------
@@ -251,7 +245,7 @@ def Dict(keys, values):
 @typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
 @args_to_expr
 def dpois(x, lamb, log_p=False):
-    """Returns Prob(:math:`X` = `x`) from a Poisson distribution with rate parameter `lambda`.
+    """Rompute the (log) probability density at x of a Poisson distribution with rate parameter `lamb`.
 
     Parameters
     ----------
@@ -260,12 +254,12 @@ def dpois(x, lamb, log_p=False):
     lamb : float or :py:class:`hail.expr.expression.Float64Expression`
         Poisson rate parameter. Must be non-negative.
     log_p : bool or :py:class:`hail.expr.expression.BooleanExpression`
-        If true, probabilities are returned as log(p).
+        If true, the natural logarithm of the probability density is returned.
 
     Returns
     -------
     :py:class:`hail.expr.expression.Float64Expression`
-        A p-value or log p-value.
+        The (log) probability density.
     """
     return _func("dpois", TFloat64(), x, lamb, log_p)
 
@@ -281,7 +275,7 @@ def drop(s, *identifiers):
 @typecheck(x=expr_numeric)
 @args_to_expr
 def exp(x):
-    """Computes `e` raised to the power of `x`.
+    """Computes `e` raised to the power `x`.
 
     Parameters
     ----------
@@ -330,6 +324,9 @@ def fisher_exact_test(c1, c2, c3, c4):
 def gt_index(j, k):
     """Convert from `j`/`k` pair to call index (the triangular number).
 
+    The call index is given by ``(k * (k + 1) / 2) + j`` if ``j <= k`` and
+    ``(j * (j + 1)) / 2 + k`` if ``k <= j``.
+
     Parameters
     ----------
     j : int or :py:class:`hail.expr.expression.Int32Expression`
@@ -347,7 +344,10 @@ def gt_index(j, k):
 @typecheck(num_hom_ref=expr_int32, num_het=expr_int32, num_hom_var=expr_int32)
 @args_to_expr
 def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
-    """Compute Hardy Weinberg Equilbrium p-value and heterozygosity ratio.
+    """Compute Hardy-Weinberg Equilbrium p-value and heterozygosity ratio.
+
+    For more information, see the
+    `Wikipedia page <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
 
     Parameters
     ----------
@@ -397,7 +397,7 @@ def locus(contig, pos, reference_genome=None):
     pos : int or :py:class:`hail.expr.expression.Int32Expression`
         Base position along the chromosome.
     reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses default reference if not passed).
+        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
@@ -416,14 +416,15 @@ def locus(contig, pos, reference_genome=None):
 def parse_locus(s, reference_genome=None):
     """Construct a locus expression by parsing a string or string expression.
 
-    This method expects strings of the form ``contig:position``, like ``16:29500000``.
+    This method expects strings of the form ``contig:position``, e.g. ``16:29500000``
+    or ``X:123456``.
 
     Parameters
     ----------
     s : str or :py:class:`hail.expr.expression.StringExpression`
         String to parse.
     reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses default reference if not passed).
+        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
@@ -447,7 +448,7 @@ def interval(start, end):
     end : :py:class:`.hail.genetics.Locus` or :py:class:`hail.expr.expression.LocusExpression`
         End locus (exclusive).
     reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses default reference if not passed).
+        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
@@ -468,7 +469,7 @@ def interval(start, end):
 def parse_interval(s, reference_genome=None):
     """Construct an interval expression by parsing a string or string expression.
 
-    This method expects strings of the form ``contig:start-end``, like ``16:29500000-30200000``,
+    This method expects strings of the form ``contig:start-end``, e.g. ``16:29500000-30200000``,
     ``8:start-end``, or ``X:10M-20M``.
 
     Parameters
@@ -476,7 +477,7 @@ def parse_interval(s, reference_genome=None):
     s : str or :py:class:`hail.expr.expression.StringExpression`
         String to parse.
     reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses default reference if not passed).
+        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
@@ -504,9 +505,9 @@ def variant(contig, pos, ref, alts, reference_genome=None):
     ref : str or :py:class:`hail.expr.expression.StringExpression`
         Reference allele.
     alts : :py:class:`hail.expr.expression.ArrayExpression` or list of str or :py:class:`hail.expr.expression.StringExpression`
-        Alternate allele(s).
+        List of alternate alleles.
     reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses default reference if not passed).
+        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
@@ -530,14 +531,14 @@ def parse_variant(s, reference_genome=None):
     """Construct a variant expression by parsing a string or string expression.
 
     This method expects strings of the form ``chromosome:position:ref:alt1,alt2...``, like ``1:1:A:T``
-    or ``1:100:A:T,C``.
+    or ``1:100:A:TC,C``.
 
     Parameters
     ----------
     s : str or :py:class:`hail.expr.expression.StringExpression`
         String to parse.
     reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses default reference if not passed).
+        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
@@ -554,13 +555,14 @@ def parse_variant(s, reference_genome=None):
 def call(i):
     """Construct a call expression from an integer or integer expression.
 
-    This method expects one argument, the triangle number of the two alleles. In order
-    to construct a call expression from two alleles, first use :py:meth:`hail.expr.functions.gt_index`.
+    This method expects one argument, the triangular number of the two allele
+    indices. In order to construct a call expression from two allele indices, first
+    use :py:meth:`hail.expr.functions.gt_index`.
 
     Parameters
     ----------
     i : int or :py:class:`hail.expr.expressions.Int32Expression`
-        Triangle number of two alleles for new call.
+        Triangular number of new call.
 
     Returns
     -------
@@ -572,12 +574,12 @@ def call(i):
 @args_to_expr
 @typecheck(expression=anytype)
 def is_defined(expression):
-    """Returns true if the argument is not missing.
+    """Returns ``True`` if the argument is not missing.
 
     Parameters
     ----------
     expression
-        Expression for missingness test.
+        Expression to test.
 
     Returns
     -------
@@ -590,12 +592,12 @@ def is_defined(expression):
 @args_to_expr
 @typecheck(expression=anytype)
 def is_missing(expression):
-    """Returns true if the argument is missing.
+    """Returns ``True`` if the argument is missing.
 
     Parameters
     ----------
     expression
-        Expression for missingness test.
+        Expression to test.
 
     Returns
     -------
@@ -608,9 +610,10 @@ def is_missing(expression):
 @args_to_expr
 @typecheck(x=expr_numeric)
 def is_nan(x):
-    """Returns true if the argument is ``NaN`` (not a number).
+    """Returns ``True`` if the argument is ``NaN`` (not a number).
 
-    This method is different from :py:meth:`hail.expr.functions.is_missing`.
+    Note that :py:meth:hail.expr.functions.is_missing will return ``False`` on
+    ``NaN`` since ``NaN`` is a defined value.
 
     Parameters
     ----------
@@ -633,7 +636,7 @@ def json(x):
     Parameters
     ----------
     x
-        Expression to convert to a JSON string.
+        Expression to convert.
 
     Returns
     -------
@@ -645,7 +648,7 @@ def json(x):
 
 @typecheck(x=expr_numeric, base=expr_numeric)
 def log(x, base=None):
-    """Take the logarithm of the `x` to base `base`.
+    """Take the logarithm of the `x` with base `base`.
 
     If the `base` argument is not supplied, then the natural logarithm is used.
 
@@ -668,7 +671,7 @@ def log(x, base=None):
 @args_to_expr
 @typecheck(x=expr_numeric)
 def log10(x):
-    """Take the logarithm of the `x` to base 10.
+    """Take the logarithm of the `x` with base 10.
 
     Parameters
     ----------
@@ -684,10 +687,10 @@ def log10(x):
 @args_to_expr
 @typecheck(b=expr_bool)
 def logical_not(b):
-    """Negates a boolean expression.
+    """Negates a boolean.
 
-    Applied to a `True` expression, the result is `False`. Applied to a `False` expression, the
-    result is `True`. Applied to a missing expression, the result is missing.
+    Returns ``False`` when `b` is ``True``, returns ``True`` when `b` is ``False``.
+    When `b` is missing, returns missing.
 
     Parameters
     ----------
@@ -729,7 +732,7 @@ def or_else(a, b):
 @args_to_expr
 @typecheck(predicate=expr_bool, value=anytype)
 def or_missing(predicate, value):
-    """If `predicate` is true, return `b`. Otherwise, return missing.
+    """Returns `value` if `predicate` is ``True``, otherwise returns missing.
 
     Parameters
     ----------
@@ -748,15 +751,12 @@ def or_missing(predicate, value):
 @typecheck(x=expr_numeric, df=expr_numeric)
 @args_to_expr
 def pchisqtail(x, df):
-    """Returns right-tail probability for `x` with `df` degrees of freedom.
-
-    Returns right-tail probability p for which p = Prob(:math:`Z^2` > x) with :math:`Z^2` a chi-squared
-    random variable with degrees of freedom specified by ``df``.
+    """Returns the probability under the right-tail starting at x for a chi-squared
+    distribution with df degrees of freedom.
 
     Parameters
     ----------
     x : float or :py:class:`hail.expr.expressions.Float64Expression`
-        Chi-squared statistic.
     df : float or :py:class:`hail.expr.expressions.Float64Expression`
         Degrees of freedom.
 
@@ -770,7 +770,9 @@ def pchisqtail(x, df):
 @typecheck(x=expr_numeric)
 @args_to_expr
 def pnorm(x):
-    """Returns left-tail probability p for which p = Prob(:math:`Z` < ``x``) with :math:`Z` a standard normal random variable.
+    """The cumulative probability function of a standard normal distribution.
+
+    Returns the left-tail probability `p` = Prob(:math:Z < x) with :math:Z a standard normal random variable.
 
     Parameters
     ----------
@@ -779,7 +781,6 @@ def pnorm(x):
     Returns
     -------
     :py:class:`hail.expr.expression.Float64Expression`
-        Left-tail p-value.
     """
     return _func("pnorm", TFloat64(), x)
 
@@ -787,10 +788,11 @@ def pnorm(x):
 @typecheck(x=expr_numeric, lamb=expr_numeric, lower_tail=expr_bool, log_p=expr_bool)
 @args_to_expr
 def ppois(x, lamb, lower_tail=True, log_p=False):
-    """Computes tailed p-value for drawing `x` from a Poisson distribution.
+    """The cumulative probability function of a Poisson distribution.
 
-    If `lower_tail` is true, returns Prob(:math:`X \leq` `x`) where :math:`X` is a Poisson random variable
-    with rate parameter `lamb`. If `lowerTail` is false, returns Prob(:math:`X` > `x`).
+    If `lower_tail` is true, returns Prob(:math:`X \leq` `x`) where :math:`X` is a
+    Poisson random variable with rate parameter `lamb`. If `lower_tail` is false,
+    returns Prob(:math:`X` > `x`).
 
     Parameters
     ----------
@@ -798,9 +800,10 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
     lamb : float or :py:class:`hail.expr.expression.Float64Expression`
         Rate parameter of Poisson distribution.
     lower_tail : bool or :py:class:`hail.expr.expression.BooleanExpression`
-        Test against the lower tail of the distribution.
+        If ``True``, compute the probability of an outcome at or below `x`,
+        otherwise greater than `x`.
     log_p : bool or :py:class:`hail.expr.expression.BooleanExpression`
-        Return the natural logarithm of the p-value.
+        Return the natural logarithm of the probability.
 
     Returns
     -------
@@ -820,7 +823,7 @@ def qchisqtail(p, df):
     Parameters
     ----------
     p : float or :py:class:`hail.expr.expression.Float64Expression`
-        p-value.
+        Probability.
     df : float or :py:class:`hail.expr.expression.Float64Expression`
         Degrees of freedom.
 
@@ -842,7 +845,7 @@ def qnorm(p):
     Parameters
     ----------
     p : float or :py:class:`hail.expr.expression.Float64Expression`
-        p-value.
+        Probability.
 
     Returns
     -------
@@ -865,7 +868,7 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
     lamb : float or :py:class:`hail.expr.expression.Float64Expression`
         Rate parameter of Poisson distribution.
     lower_tail : bool or :py:class:`hail.expr.expression.BooleanExpression`
-        Test against the lower tail of the distribution.
+        Corresponds to `lower_tail` parameter in inverse :py:meth:`ppois`.
     log_p : bool or :py:class:`hail.expr.expression.BooleanExpression`
         Exponentiate `p` before testing.
 
@@ -875,18 +878,40 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
     """
     return _func("qpois", TInt32(), p, lamb, lower_tail, log_p)
 
+@typecheck(stop=expr_int32)
+def range(stop):
+    """Returns an array of integers from `0` to `stop`.
 
-@typecheck(stop=expr_int32, start=expr_int32, step=expr_int32)
-@args_to_expr
-def range(stop, start=0, step=1):
-    """Returns an array of integers from `start` to `stop` by `step`.
+    Notes
+    -----
+    The range does not include `stop`.
 
     Parameters
     ----------
     stop : int or :py:class:`hail.expr.expression.Int32Expression`
         End of range.
+
+    Returns
+    -------
+    :py:class:`hail.expr.expression.ArrayInt32Expression`
+    """
+    return _func("range", TArray(TInt32()), stop)
+
+@typecheck(start=expr_int32, stop=expr_int32, step=expr_int32)
+@args_to_expr
+def range(start, stop, step=1):
+    """Returns an array of integers from `start` to `stop` by `step`.
+
+    Notes
+    -----
+    The range includes `start`, but excludes `stop`.
+
+    Parameters
+    ----------
     start : int or :py:class:`hail.expr.expression.Int32Expression`
         Start of range.
+    stop : int or :py:class:`hail.expr.expression.Int32Expression`
+        End of range.
     step : int or :py:class:`hail.expr.expression.Int32Expression`
         Step of range.
 
@@ -900,12 +925,12 @@ def range(stop, start=0, step=1):
 @typecheck(p=expr_numeric)
 @args_to_expr
 def rand_bool(p):
-    """Return `True` with probability `p` (random number generator).
+    """Returns ``True`` with probability `p` (RNG).
 
     Warning
     -------
     This function is non-deterministic, meaning that successive runs of the same pipeline including
-    RNG expressions may return different results. This is a known bug, but is difficult to fix.
+    RNG expressions may return different results. This is a known bug.
 
     Parameters
     ----------
@@ -922,12 +947,13 @@ def rand_bool(p):
 @typecheck(mean=expr_numeric, sd=expr_numeric)
 @args_to_expr
 def rand_norm(mean=0, sd=1):
-    """Returns a random sample from a normal distribution with mean `mean` and standard deviation `sd`.
+    """Samples from a normal distribution with mean `mean` and standard deviation `sd` (RNG).
 
     Warning
     -------
-    This function is non-deterministic, meaning that successive runs of the same pipeline including
-    RNG expressions may return different results. This is a known bug, but is difficult to fix.
+    This function is non-deterministic, meaning that successive runs of the same
+    pipeline including RNG expressions may return different results. This is a known
+    bug.
 
     Parameters
     ----------
@@ -945,12 +971,13 @@ def rand_norm(mean=0, sd=1):
 
 @typecheck(lamb=expr_numeric)
 def rand_pois(lamb):
-    """Returns a random draw from a Poisson distribution with rate parameter `lamb`.
+    """Samples from a Poisson distribution with rate parameter `lamb` (RNG).
 
     Warning
     -------
-    This function is non-deterministic, meaning that successive runs of the same pipeline including
-    RNG expressions may return different results. This is a known bug, but is difficult to fix.
+    This function is non-deterministic, meaning that successive runs of the same
+    pipeline including RNG expressions may return different results. This is a known
+    bug.
 
     Parameters
     ----------
@@ -967,12 +994,13 @@ def rand_pois(lamb):
 @typecheck(min=expr_numeric, max=expr_numeric)
 @args_to_expr
 def rand_unif(min, max):
-    """Returns a random floating-point number uniformly drawn from the range (`min`, `max`).
+    """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
 
     Warning
     -------
-    This function is non-deterministic, meaning that successive runs of the same pipeline including
-    RNG expressions may return different results. This is a known bug, but is difficult to fix.
+    This function is non-deterministic, meaning that successive runs of the same
+    pipeline including RNG expressions may return different results. This is a known
+    bug.
 
     Parameters
     ----------
