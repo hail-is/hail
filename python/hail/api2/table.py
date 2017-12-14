@@ -33,7 +33,7 @@ class TableTemplate(HistoryMixin):
             return self._fields[item]
         else:
             # no field detected
-            raise KeyError("No field '{name} found. "
+            raise KeyError("No field '{name}' found. "
                            "Global fields: [{global_fields}], "
                            "Row-indexed fields: [{row_fields}]".format(
                 name=item,
@@ -95,8 +95,14 @@ class TableTemplate(HistoryMixin):
 class GroupedTable(TableTemplate):
     """Table that has been grouped.
 
-    There are only two operations on a grouped table, :meth:`GroupedTable.set_partitions`
+    There are only two operations on a grouped table, :meth:`GroupedTable.partition_hint`
     and :meth:`GroupedTable.aggregate`.
+
+    .. testsetup ::
+
+        table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID').to_hail2()
+        from hail2 import *
+
     """
 
     def __init__(self, parent, groups):
@@ -119,9 +125,9 @@ class GroupedTable(TableTemplate):
         Use `partition_hint` in a :meth:`Table.group_by` / :meth:`GroupedTable.aggregate`
         pipeline:
 
-        >>> table_result = table1.group_by(table1.ID)
-        ...                      .set_partitions(5)
-        ...                      .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z))
+        >>> table_result = (table1.group_by(table1.ID)
+        ...                       .partition_hint(5)
+        ...                       .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z)))
 
         Notes
         -----
@@ -156,13 +162,13 @@ class GroupedTable(TableTemplate):
         --------
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
-        >>> table_result = table1.group_by(table1.ID)
-        ...                      .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z))
+        >>> table_result = (table1.group_by(table1.ID)
+        ...                       .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
-        >>> table_result = table1.group_by(height_bin = (table1.height / 20).to_int32())
-        ...                      .aggregate(fraction_female = f.fraction(table1.SEX == 'F'))
+        >>> table_result = (table1.group_by(height_bin = (table1.HT / 20).to_int32())
+        ...                       .aggregate(fraction_female = f.fraction(table1.SEX == 'F')))
 
         Parameters
         ----------
@@ -194,6 +200,12 @@ class Table(TableTemplate):
     """Hail's distributed implementation of a dataframe or SQL table.
 
     In the examples below, we have imported two key tables from text files (``table1`` and ``table2``).
+
+    .. testsetup ::
+
+        hc.stop()
+        from hail2 import *
+        hc = HailContext()
 
     >>> table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
     >>> table1.show()
@@ -240,6 +252,7 @@ class Table(TableTemplate):
     ...                  (height - height_mean_f) / height_sd_f)
     >>>
     >>> table1 = table1.annotate(height_z = get_z(table1.HT, table1.SEX))
+    >>> table1 = table1.annotate_globals(global_field_1 = [1, 2, 3])
 
     Filter rows of the table:
 
@@ -263,7 +276,6 @@ class Table(TableTemplate):
     >>> table2 = table2.key_by('ID')
     >>> table1 = table1.annotate(B = table2[table1.ID].B)
     >>> table1.show()
-
     """
 
     def __init__(self, hc, jkt):
@@ -371,6 +383,26 @@ class Table(TableTemplate):
 
     @handle_py4j
     def annotate_globals(self, **named_exprs):
+        """Add new global fields.
+
+        Examples
+        --------
+
+        Add a new global field:
+
+        >>> table_result = table1.annotate(pops = ['EUR', 'AFR', 'EAS', 'SAS'])
+
+        Parameters
+        ----------
+        named_exprs : varargs of :class:`hail.expr.expression.Expression`
+            Annotation expressions.
+
+        Returns
+        -------
+        :class:`Table`
+            Table with new global field(s).
+        """
+
         exprs = []
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         base, cleanup = self._process_joins(*named_exprs.values())
@@ -388,10 +420,6 @@ class Table(TableTemplate):
         Examples
         --------
         Select one existing field and compute a new one:
-
-        .. testsetup::
-
-            table1 = table1.annotate_globals(global_field_1 = 5, global_field_2 = 10)
 
         >>> table_result = table1.select_globals(table1.global_field_1,
         ...                                      another_global=['AFR', 'EUR', 'EAS', 'AMR', 'SAS'])
@@ -464,10 +492,6 @@ class Table(TableTemplate):
         :return: Key table with new columns specified by ``named_exprs``.
         :rtype: :class:`.KeyTable`
         """
-
-        # ordered to support nested joins
-        unique_join_ids = OrderedDict()
-
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         exprs = []
         base, cleanup = self._process_joins(*named_exprs.values())
@@ -577,12 +601,12 @@ class Table(TableTemplate):
 
         Last, expression keyword arguments:
 
-        >>> table_result = table1.select(C1 = table.C1, C2 = table1.C2)
+        >>> table_result = table1.select(C1 = table1.C1, C2 = table1.C2)
 
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
 
-        >>> table3 = table1.annotate(s = Struct(x=table.X, z=table.Z))
+        >>> table3 = table1.annotate(s = Struct(x=table1.X, z=table1.Z))
 
         The following two usages are equivalent, producing a table with one field, `x`.:
 
@@ -597,7 +621,7 @@ class Table(TableTemplate):
         These syntaxes can be mixed together, with the stipulation that all keyword arguments
         must come at the end due to Python language restrictions.
 
-        >>> table_result = table1.select(table1.X, 'Z', bar = [table1.A, table1.B])
+        >>> table_result = table1.select(table1.X, 'Z', bar = [table1.C1, table1.C2])
 
         Note
         ----
@@ -740,13 +764,13 @@ class Table(TableTemplate):
         --------
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
-        >>> table_result = table1.group_by(table1.ID)
-        ...                      .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z))
+        >>> table_result = (table1.group_by(table1.ID)
+        ...                       .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
-        >>> table_result = table1.group_by(height_bin = (table1.height / 20).to_int32())
-        ...                      .aggregate(fraction_female = f.fraction(table1.SEX == 'F'))
+        >>> table_result = (table1.group_by(height_bin = (table1.HT / 20).to_int32())
+        ...                       .aggregate(fraction_female = f.fraction(table1.SEX == 'F')))
 
         Notes
         -----
@@ -770,42 +794,42 @@ class Table(TableTemplate):
 
         First, variable-length string arguments:
 
-        >>> table_result = table1.group_by('C1', 'C2')\
-        ...                      .aggregate(meanX = f.mean(table1.X))
+        >>> table_result = (table1.group_by('C1', 'C2')
+        ...                       .aggregate(meanX = f.mean(table1.X)))
 
         Second, field reference variable-length arguments:
 
-        >>> table_result = table1.group_by(table1.C1, table1.C2)\
-        ...                      .aggregate(meanX = f.mean(table1.X))
+        >>> table_result = (table1.group_by(table1.C1, table1.C2)
+        ...                       .aggregate(meanX = f.mean(table1.X)))
 
         Last, expression keyword arguments:
 
-        >>> table_result = table1.group_by(C1 = table.C1, C2 = table1.C2)\
-        ...                      .aggregate(meanX = f.mean(table1.X))
+        >>> table_result = (table1.group_by(C1 = table1.C1, C2 = table1.C2)
+        ...                       .aggregate(meanX = f.mean(table1.X)))
 
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
 
-        >>> table3 = table1.annotate(s = Struct(x=table.X, z=table.Z))
+        >>> table3 = table1.annotate(s = Struct(x=table1.X, z=table1.Z))
 
         The following two usages are equivalent, grouping by one field, `x`:
 
-        >>> table_result = table3.group_by(table3.s.x)\
-        ...                      .aggregate(meanX = f.mean(table3.X))
+        >>> table_result = (table3.group_by(table3.s.x)
+        ...                       .aggregate(meanX = f.mean(table3.X)))
 
-        >>> table_result = table3.group_by(x = table3.s.x)\
-        ...                      .aggregate(meanX = f.mean(table3.X))
+        >>> table_result = (table3.group_by(x = table3.s.x)
+        ...                       .aggregate(meanX = f.mean(table3.X)))
 
         The keyword argument syntax permits arbitrary expressions:
 
-        >>> table_result = table1.group_by(foo=table1.X ** 2 + 1)\
-        ...                      .aggregate(meanZ = f.mean(table1.Z))
+        >>> table_result = (table1.group_by(foo=table1.X ** 2 + 1)
+        ...                       .aggregate(meanZ = f.mean(table1.Z)))
 
         These syntaxes can be mixed together, with the stipulation that all keyword arguments
         must come at the end due to Python language restrictions.
 
-        >>> table_result = table1.group_by(table1.C1, 'C2', height_bin = (table1.height / 20).to_int32())\
-        ...                      .aggregate(meanX = f.mean(table1.X))
+        >>> table_result = (table1.group_by(table1.C1, 'C2', height_bin = (table1.HT / 20).to_int32())
+        ...                       .aggregate(meanX = f.mean(table1.X)))
 
         Note
         ----
@@ -917,7 +941,7 @@ class Table(TableTemplate):
         self._jkt.write(output, overwrite)
 
     @handle_py4j
-    @typecheck_method(n=integral, truncate_to=bool, print_types=bool)
+    @typecheck_method(n=integral, truncate_to=nullable(integral), print_types=bool)
     def show(self, n=10, truncate_to=None, print_types=True):
         """Print the first few rows of the table to the console.
 

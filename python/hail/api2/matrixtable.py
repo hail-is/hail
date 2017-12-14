@@ -8,8 +8,24 @@ from hail.api2 import Table
 class GroupedMatrixTable(object):
     """Matrix table grouped by row or column that can be aggregated to produce a new matrix table.
 
-    There are only two operations on a grouped matrix table, :meth:`GroupedMatrixTable.set_partitions`
+    There are only two operations on a grouped matrix table, :meth:`GroupedMatrixTable.partition_hint`
     and :meth:`GroupedMatrixTable.aggregate`.
+
+    .. testsetup::
+
+        from hail2 import *
+        dataset = (vds.annotate_samples_expr('sa = merge(drop(sa, qc), {sample_qc: sa.qc})')
+                      .annotate_variants_expr('va = merge(drop(va, qc), {variant_qc: va.qc})').to_hail2())
+
+        dataset = dataset.annotate_rows(gene=['TITIN'])
+        dataset2 = dataset.annotate_globals(global_field=5)
+        table1 = dataset.rows_table()
+        table1 = table1.annotate_globals(global_field=5)
+        table1 = table1.annotate(consequence='SYN')
+
+        table2 = dataset.cols_table()
+        table2 = table2.annotate(pop='AMR', is_case=False, sex='F')
+
     """
     def __init__(self, parent, group, grouped_indices):
         self._parent = parent
@@ -30,13 +46,9 @@ class GroupedMatrixTable(object):
         Use `partition_hint` in a :meth:`MatrixTable.group_rows_by` /
         :meth:`GroupedMatrixTable.aggregate` pipeline:
 
-        .. testsetup::
-
-            dataset = dataset.annotate_rows(gene = 'gene')
-
-        >>> dataset_result = dataset.group_rows_by(dataset.gene)
-        ...                         .set_partitions(5)
-        ...                         .aggregate(n_non_ref = f.count_where(dataset.GT.is_non_ref()))
+        >>> dataset_result = (dataset.group_rows_by(dataset.gene)
+        ...                          .partition_hint(5)
+        ...                          .aggregate(n_non_ref = f.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -81,12 +93,8 @@ class GroupedMatrixTable(object):
         Aggregate to a matrix with genes as row keys, computing the number of
         non-reference calls as an entry field:
 
-        .. testsetup::
-
-            dataset = dataset.annotate_rows(gene = 'gene')
-
-        >>> dataset_result = dataset.group_rows_by(dataset.gene)
-        ...                         .aggregate(n_non_ref = f.count_where(dataset.GT.is_non_ref()))
+        >>> dataset_result = (dataset.group_rows_by(dataset.gene)
+        ...                          .aggregate(n_non_ref = f.count_where(dataset.GT.is_non_ref())))
 
         Parameters
         ----------
@@ -129,12 +137,13 @@ class MatrixTable(object):
 
     .. testsetup::
 
-        hc.stop()
-        import hail2 as h2
         from hail2 import *
-        hc = h2.HailContext()
         dataset = (vds.annotate_samples_expr('sa = merge(drop(sa, qc), {sample_qc: sa.qc})')
                       .annotate_variants_expr('va = merge(drop(va, qc), {variant_qc: va.qc})').to_hail2())
+
+
+        dataset = dataset.annotate_rows(gene=['TITIN'])
+        dataset = dataset.annotate_cols(cohorts=['1kg'])
 
         dataset2 = dataset.annotate_globals(global_field=5)
         table1 = dataset.rows_table()
@@ -144,45 +153,41 @@ class MatrixTable(object):
         table2 = dataset.cols_table()
         table2 = table2.annotate(pop='AMR', is_case=False, sex='F')
 
-    Read a matrix:
-
-    >>> m = hc.import_vcf('data/example2.vcf.bgz')
-
     Add annotations:
 
-    >>> m = m.annotate_globals(pli={'SCN1A': 0.999, 'SONIC': 0.014},
-    ...                        populations = ['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
+    >>> dataset = dataset.annotate_globals(pli={'SCN1A': 0.999, 'SONIC': 0.014},
+    ...                                    populations = ['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
 
-    >>> m = m.annotate_cols(pop = m.populations[f.rand_unif(0, 6).to_int32()],
-    ...                     sample_gq = f.mean(m.GQ),
-    ...                     sample_dp = f.mean(m.DP))
+    >>> dataset = dataset.annotate_cols(pop = dataset.populations[f.rand_unif(0, 6).to_int32()],
+    ...                                 sample_gq = f.mean(dataset.GQ),
+    ...                                 sample_dp = f.mean(dataset.DP))
 
-    >>> m = m.annotate_rows(variant_gq = f.mean(m.GQ),
-    ...                     variant_dp = f.mean(m.GQ),
-    ...                     sas_hets = f.count_where(m.GT.is_het()))
+    >>> dataset = dataset.annotate_rows(variant_gq = f.mean(dataset.GQ),
+    ...                                 variant_dp = f.mean(dataset.GQ),
+    ...                                 sas_hets = f.count_where(dataset.GT.is_het()))
 
-    >>> m = m.annotate_entries(gq_by_dp = m.GQ / m.DP)
+    >>> dataset = dataset.annotate_entries(gq_by_dp = dataset.GQ / dataset.DP)
 
     Filter:
 
-    >>> m = m.filter_cols(m.pop != 'EUR')
+    >>> dataset = dataset.filter_cols(dataset.pop != 'EUR')
 
-    >>> m = m.filter_rows((m.variant_gq > 10) & (m.variant_dp > 5))
+    >>> datasetm = dataset.filter_rows((dataset.variant_gq > 10) & (dataset.variant_dp > 5))
 
-    >>> m = m.filter_entries(m.gq_by_dp > 1)
+    >>> dataset = dataset.filter_entries(dataset.gq_by_dp > 1)
 
     Query:
 
-    >>> col_stats = m.aggregate_cols(pop_counts = f.counter(m.pop),
-    ...                              high_quality = f.fraction((m.sample_gq > 10) & (m.sample_dp > 5)))
+    >>> col_stats = dataset.aggregate_cols(pop_counts = f.counter(dataset.pop),
+    ...                                    high_quality = f.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5)))
     >>> print(col_stats.pop_counts)
     >>> print(col_stats.high_quality)
 
-    >>> row_stats = m.aggregate_rows(het_dist = f.stats(m.sas_hets))
+    >>> row_stats = dataset.aggregate_rows(het_dist = f.stats(dataset.sas_hets))
     >>> print(row_stats.het_dist)
 
-    >>> entry_stats = m.aggregate_entries(call_rate = f.fraction(f.is_defined(m.GT)),
-    ...                                   global_gq_mean = f.mean(m.GQ))
+    >>> entry_stats = dataset.aggregate_entries(call_rate = f.fraction(f.is_defined(dataset.GT)),
+    ...                                         global_gq_mean = f.mean(dataset.GQ))
     >>> print(entry_stats.call_rate)
     >>> print(entry_stats.global_gq_mean)
     """
@@ -478,8 +483,8 @@ class MatrixTable(object):
         --------
         Compute call statistics for high quality samples per variant:
 
-        >>> high_quality_calls = f.filter(dataset.GT, dataset.sample_qc.meanGQ > 20)
-        >>> dataset_result = dataset.annotate_rows(call_stats = f.call_stats(high_quality_calls, dataset.v)
+        >>> high_quality_calls = f.filter(dataset.GT, dataset.sample_qc.gqMean > 20)
+        >>> dataset_result = dataset.annotate_rows(call_stats = f.call_stats(high_quality_calls, dataset.v))
 
         Add functional annotations from a :class:`Table` keyed by :class:`hail.expr.TVariant`:, and another
         :class:`MatrixTable`.
@@ -776,7 +781,7 @@ class MatrixTable(object):
         --------
         Select existing fields and compute a new one:
 
-        >>> dataset_result = dataset.select_rows(dataset.variant_qc.meanGQ,
+        >>> dataset_result = dataset.select_rows(dataset.variant_qc.gqMean,
         ...                                      highQualityCases = f.count_where((dataset.GQ > 20) & (dataset.isCase)))
 
         Notes
@@ -897,19 +902,19 @@ class MatrixTable(object):
         Examples
         --------
 
-        Drop fields `PL` (an entry field), `info` (a row field), and `phenos` (a column
+        Drop fields `PL` (an entry field), `info` (a row field), and `pheno` (a column
         field): using strings:
 
-        >>> dataset_result = dataset.drop('PL', 'info', 'phenos')
+        >>> dataset_result = dataset.drop('PL', 'info', 'pheno')
 
-        Drop fields `PL` (an entry field), `info` (a row field), and `phenos` (a column
+        Drop fields `PL` (an entry field), `info` (a row field), and `pheno` (a column
         field): using field references:
 
-        >>> dataset_result = dataset.drop(dataset.PL, dataset.info, dataset.phenos)
+        >>> dataset_result = dataset.drop(dataset.PL, dataset.info, dataset.pheno)
 
         Drop a list of fields:
 
-        >>> fields_to_drop = ['PL', 'info', 'phenos']
+        >>> fields_to_drop = ['PL', 'info', 'pheno']
         >>> dataset_result = dataset.drop(*fields_to_drop)
 
         Notes
@@ -985,7 +990,7 @@ class MatrixTable(object):
 
         Remove rows where `filters` is non-empty:
 
-        >>> dataset_result = dataset.filter_rows(dataset.filters.length() > 0, keep=False)
+        >>> dataset_result = dataset.filter_rows(dataset.filters.size() > 0, keep=False)
 
         Notes
         -----
@@ -1029,7 +1034,7 @@ class MatrixTable(object):
         return cleanup(m)
 
     @handle_py4j
-    @typecheck_method(expr=anytype, keep=True)
+    @typecheck_method(expr=anytype, keep=bool)
     def filter_cols(self, expr, keep=True):
         """Filter columns of the matrix.
 
@@ -1040,9 +1045,9 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset.filter_cols(dataset.pheno.isCase & dataset.pheno.age > 50, keep=True)
 
-        Remove rows where `sample_qc.meanGQ` is less than 20:
+        Remove rows where `sample_qc.gqMean` is less than 20:
 
-        >>> dataset_result = dataset.filter_cols(dataset.sample_qc.meanGQ < 20, keep=False)
+        >>> dataset_result = dataset.filter_cols(dataset.sample_qc.gqMean < 20, keep=False)
 
         Notes
         -----
@@ -1403,11 +1408,6 @@ class MatrixTable(object):
 
         Examples
         --------
-
-        .. testsetup::
-
-            dataset = dataset.annotate_rows(gene=['TITIN'])
-
         Explode rows by annotated genes:
 
         >>> dataset_result = dataset.explode_rows(dataset.gene)
@@ -1455,11 +1455,6 @@ class MatrixTable(object):
 
         Examples
         --------
-
-        .. testsetup::
-
-            dataset = dataset.annotate_cols(cohorts=['1kg'])
-
         Explode columns by annotated cohorts:
 
         >>> dataset_result = dataset.explode_cols(dataset.cohorts)
@@ -1511,12 +1506,8 @@ class MatrixTable(object):
         Aggregate to a matrix with genes as row keys, computing the number of
         non-reference calls as an entry field:
 
-        .. testsetup::
-
-            dataset = dataset.annotate_rows(gene = 'gene')
-
-        >>> dataset_result = dataset.group_rows_by(dataset.gene)
-        ...                         .aggregate(n_non_ref = f.count_where(dataset.GT.is_non_ref()))
+        >>> dataset_result = (dataset.group_rows_by(dataset.gene)
+        ...                          .aggregate(n_non_ref = f.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -1550,10 +1541,10 @@ class MatrixTable(object):
 
         .. testsetup::
 
-            dataset = dataset.annotate_cols(cohorts = 'cohort')
+            dataset = dataset.annotate_cols(cohort = 'cohort')
 
-        >>> dataset_result = dataset.group_cols_by(dataset.cohort)
-        ...                         .aggregate(call_rate = f.fraction(f.is_defined(dataset.GT)))
+        >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
+        ...                          .aggregate(call_rate = f.fraction(f.is_defined(dataset.GT))))
 
         Notes
         -----
@@ -1722,7 +1713,7 @@ class MatrixTable(object):
                 assert isinstance(obj, Table)
                 return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jvds, uid))
 
-        return construct_expr(GlobalJoinReference, self.global_schema, joins=(Join(joiner, [uid])))
+        return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=(Join(joiner, [uid])))
 
     @handle_py4j
     def index_rows(self, expr):

@@ -114,6 +114,8 @@ multiallelic_generic_vds = hc.read('data/example2.multi.generic.vds')
 vds.split_multi().ld_matrix().write("data/ld_matrix")
 
 from hail2 import *
+table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID').to_hail2()
+table1 = table1.annotate_globals(global_field_1 = 5, global_field_2 = 10)
 """
 
 doctest_global_cleanup = """import shutil, os

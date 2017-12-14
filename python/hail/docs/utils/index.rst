@@ -11,6 +11,4 @@ utils
 
 .. autofunction:: hadoop_write
 
-.. currentmodule:: hail.utils
-
 .. autoclass:: Summary
