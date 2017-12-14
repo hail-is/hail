@@ -7,7 +7,6 @@ import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.VariantSampleMatrix
 
-
 object PCA {
   def pcSchema(k: Int, asArray: Boolean = false): Type =
     if (asArray)
@@ -52,10 +51,12 @@ object PCA {
       new KeyTable(vsm.hc, rdd, rowType, Array("v"))
     })
 
+    val data =
+      if (!svd.V.isTransposed)
+        svd.V.asInstanceOf[org.apache.spark.mllib.linalg.DenseMatrix].values
+      else
+        svd.V.toArray
     
-
-    assert(!svd.V.isTransposed)
-    val data = svd.V.asInstanceOf[org.apache.spark.mllib.linalg.DenseMatrix].values
     val V = new DenseMatrix[Double](svd.V.numRows, svd.V.numCols, data)
     val S = DenseVector(svd.s.toArray)
 
