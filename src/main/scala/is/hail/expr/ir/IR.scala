@@ -56,7 +56,7 @@ case class AggIn(var typ: TAggregable = null) extends IR
 case class AggMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
 case class AggFilter(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
 case class AggFlatMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
-case class AggSum(a: IR, var typ: Type = null) extends IR
+case class ApplyAggOp(a: IR, op: AggOp, var typ: Type = null) extends IR
 
 case class MakeStruct(fields: Array[(String, IR)], var typ: TStruct = null) extends IR {
   override def toString: String = s"MakeStruct(${ fields.toFastIndexedSeq })"
