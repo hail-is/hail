@@ -23,7 +23,7 @@ package object asm4s {
     def aloadOp: Int
     def astoreOp: Int
     val returnOp: Int
-    val slots: Int = 1
+    def slots: Int = 1
 
     def newArray(): AbstractInsnNode
   }
@@ -129,9 +129,9 @@ package object asm4s {
     def aloadOp = ???
     def astoreOp = ???
     val returnOp = RETURN
-    override val slots = 2
+    override def slots = ???
 
-    def newArray() = new IntInsnNode(NEWARRAY, T_CHAR)
+    def newArray() = ???
   }
 
   implicit def classInfo[C <: AnyRef](implicit cct: ClassTag[C]): TypeInfo[C] =

@@ -15,6 +15,15 @@ package object ir {
     case _ => typeInfo[Long] // reference types
   }
 
+  def defaultValue(t: Type): Code[_] = typeToTypeInfo(t) match {
+    case BooleanInfo => false
+    case IntInfo => 0
+    case LongInfo => 0L
+    case FloatInfo => 0.0f
+    case DoubleInfo => 0.0
+    case ti => throw new RuntimeException(s"unsupported type found: $t whose type info is $ti")
+  }
+
   // FIXME add InsertStruct IR node
   def insertStruct(s: ir.IR, typ: TStruct, name: String, v: ir.IR): ir.IR = {
     assert(typ.hasField(name))

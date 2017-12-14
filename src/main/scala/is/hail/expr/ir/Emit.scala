@@ -12,7 +12,7 @@ import scala.language.existentials
 object Emit {
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
 
-  def toCode(ir: IR, fb: FunctionBuilder[_]): (Code[Unit], Code[Boolean], Code[_]) = {
+  private[ir] def toCode(ir: IR, fb: FunctionBuilder[_]): (Code[Unit], Code[Boolean], Code[_]) = {
     toCode(ir, fb, Env.empty)
   }
 
@@ -45,7 +45,7 @@ object Emit {
   //
   // JVM gotcha:
   //  a variable must be initialized on all static code-paths to its use (ergo defaultValue)
-  private[ir] def emit(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
+  private def emit(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
     val region = fb.getArg[Region](1).load()
     def emit(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: StagedBitSet = mb): (Code[Unit], Code[Boolean], Code[_]) =
       Emit.emit(ir, fb, env, mb)
