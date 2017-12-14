@@ -245,7 +245,7 @@ def Dict(keys, values):
 @typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
 @args_to_expr
 def dpois(x, lamb, log_p=False):
-    """Rompute the (log) probability density at x of a Poisson distribution with rate parameter `lamb`.
+    """Compute the (log) probability density at x of a Poisson distribution with rate parameter `lamb`.
 
     Parameters
     ----------
