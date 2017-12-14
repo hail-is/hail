@@ -113,6 +113,7 @@ multiallelic_generic_vds = hc.read('data/example2.multi.generic.vds')
 
 vds.split_multi().ld_matrix().write("data/ld_matrix")
 
+from hail2 import *
 """
 
 doctest_global_cleanup = """import shutil, os

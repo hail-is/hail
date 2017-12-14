@@ -1,5 +1,6 @@
 import hail.expr.functions
 from .types import *
+from .expression import eval_expr, eval_expr_typed
 
 __all__ = ['Type',
            'TInt32',
@@ -16,4 +17,7 @@ __all__ = ['Type',
            'TVariant',
            'TAltAllele',
            'TCall',
-           'TInterval']
+           'TInterval',
+           'functions',
+           'eval_expr',
+           'eval_expr_typed']

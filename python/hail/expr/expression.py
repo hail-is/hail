@@ -169,6 +169,11 @@ def to_expr(e):
         raise ValueError("Cannot implicitly capture value `{}' with type `{}'.".format(e, e.__class__))
 
 
+@decorator
+def args_to_expr(func, *args):
+    return func(*(to_expr(a) for a in args))
+
+
 def unify_all(*exprs):
     assert len(exprs) > 0
     new_indices = Indices.unify(*[e._indices for e in exprs])
@@ -1125,3 +1130,73 @@ def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
         for e in errors:
             error('Analysis exception: {}'.format(e.msg))
         raise errors[0]
+
+
+@args_to_expr
+def eval_expr(expression):
+    """Evaluate a Hail expression, returning the result.
+
+    This method is extremely useful for learning about Hail expressions and understanding
+    how to compose them.
+
+    Expressions that refer to fields of :class:`hail.api2.Table` or :class:`hail.api.MatrixTable`
+    objects cannot be evaluated.
+
+    Examples
+    --------
+    Evaluate a conditional:
+
+    .. doctest::
+
+        >>> x = 6
+        >>> f.eval_expr(f.cond(x % 2 == 0, 'Even', 'Odd'))
+        'Even'
+
+    Parameters
+    ----------
+    expression : :class:`hail.expr.expression.Expression`
+        Any expression, or a Python value that can be implicitly interpreted as an expression.
+
+    Returns
+    -------
+    any
+        Result of evaluating `expression`.
+    """
+    return eval_expr_typed(expression)[0]
+
+
+@args_to_expr
+def eval_expr_typed(expression):
+    """Evaluate a Hail expression, returning the result and the type of the result.
+
+    This method is extremely useful for learning about Hail expressions and understanding
+    how to compose them.
+
+    Expressions that refer to fields of :class:`hail.api2.Table` or :class:`hail.api.MatrixTable`
+    objects cannot be evaluated.
+
+    Examples
+    --------
+    Evaluate a conditional:
+
+    .. doctest::
+
+        >>> x = 6
+        >>> f.eval_expr_typed(f.cond(x % 2 == 0, 'Even', 'Odd'))
+        ('Odd', TString())
+
+    Parameters
+    ----------
+    expression : :class:`hail.expr.expression.Expression`
+        Any expression, or a Python value that can be implicitly interpreted as an expression.
+
+    Returns
+    -------
+    (any, :class:`hail.expr.Type`)
+        Result of evaluating `expression`, and its type.
+    """
+    analyze(expression, Indices(), set(), set())
+    if len(expression._joins) > 0:
+        raise ExpressionException("'eval_expr' methods do not support joins or broadcasts")
+    r, t = Env.hc().eval_expr_typed(expression._ast.to_hql())
+    return r, t

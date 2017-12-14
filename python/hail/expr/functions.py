@@ -20,12 +20,6 @@ def _func(name, ret_type, *args):
     indices, aggregations, joins = unify_all(*args)
     return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins)
 
-
-@decorator
-def args_to_expr(func, *args):
-    return func(*(to_expr(a) for a in args))
-
-
 @typecheck(t=Type)
 def null(t):
     """Creates an expression representing a missing value of a specified type.
