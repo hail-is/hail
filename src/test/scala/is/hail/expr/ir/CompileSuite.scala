@@ -14,7 +14,7 @@ class CompileSuite {
   def doit(ir: IR, fb: FunctionBuilder[_]) {
     Infer(ir)
     println(ir)
-    Compile(ir, fb)
+    Emit(ir, fb)
   }
 
   @Test

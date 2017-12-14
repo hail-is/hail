@@ -20,7 +20,7 @@ object UnaryOp {
   private def incompatible[T](t: Type, op: UnaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to values of type $t")
 
-  def compile(op: UnaryOp, t: Type, x: Code[_]): Code[_] = t match {
+  def emit(op: UnaryOp, t: Type, x: Code[_]): Code[_] = t match {
     case _: TBoolean =>
       val xx = coerce[Boolean](x)
       op match {
