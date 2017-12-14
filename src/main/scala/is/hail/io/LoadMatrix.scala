@@ -23,13 +23,16 @@ object LoadMatrix {
   }
 
   // this assumes that col IDs are in last line of header.
-  def parseHeader(line: String, sep: String = "\t", nAnnotations: Int, annotationHeaders: Option[Seq[String]]): (Array[String], Array[String]) =
+  def parseHeader(line: String, sep: Char = '\t', nAnnotations: Int, annotationHeaders: Option[Seq[String]]): (Array[String], Array[String]) =
     annotationHeaders match {
       case None =>
         val r = line.split(sep)
+        if (r.length < nAnnotations) {
+          fatal(s"Expected $nAnnotations annotation columns; only ${ r.length } columns in table.")
+        }
         (r.slice(0, nAnnotations), r.slice(nAnnotations, r.length))
       case Some(h) =>
-        assert(h.length == nAnnotations, s"Expected $nAnnotations column annotations, but only ${ h.length } names provided as column headers")
+        assert(h.length == nAnnotations)
         (h.toArray, line.split(sep))
     }
 
@@ -39,26 +42,28 @@ object LoadMatrix {
 
   def apply(hc: HailContext,
     files: Array[String],
-    nAnnotations: Int = 1,
     annotationHeaders: Option[Seq[String]],
     annotationTypes: Seq[Type],
     keyExpr: String,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
-    seperator: String = "\t",
     missingValue: String = "NA"): MatrixTable = {
 
-    assert(annotationTypes.length == nAnnotations)
-    for (t <- annotationTypes) {
-      assert(t.isOfType(TString()) || t.isOfType(TInt32()) || t.isOfType(TInt64()) || t.isOfType(TFloat32()) || t.isOfType(TFloat64()))
-    }
+    val sep = '\t'
+    val nAnnotations = annotationTypes.length
 
-    val sep = seperator(0)
+      assert(annotationTypes.forall { t =>
+        t.isOfType(TString()) ||
+          t.isOfType(TInt32()) ||
+          t.isOfType(TInt64()) ||
+          t.isOfType(TFloat32()) ||
+          t.isOfType(TFloat64())
+      })
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
-    val (annotationNames, header1) = parseHeader(getHeaderLines(hConf, files.head), seperator, nAnnotations, annotationHeaders)
+    val (annotationNames, header1) = parseHeader(getHeaderLines(hConf, files.head), sep, nAnnotations, annotationHeaders)
     val symTab = annotationNames.zip(annotationTypes)
     val annotationType = TStruct(symTab: _*)
     val ec = EvalContext(symTab: _*)
@@ -73,13 +78,10 @@ object LoadMatrix {
         header1
 
     val nSamples = sampleIds.length
-    sampleIds.foreach(println)
 
     LoadMatrix.warnDuplicates(sampleIds)
 
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
-    for (l <- lines.collect())
-      println(l.value)
 
     val fileByPartition = lines.partitions.map(p => partitionPath(p))
     val firstPartitions = fileByPartition.zipWithIndex.filter {
@@ -103,7 +105,7 @@ object LoadMatrix {
 
         if (firstPartitions(i)) {
           val hd1 = header1Bc.value
-          val (annotationNamesCheck, hd) = parseHeader(it.next().value, seperator, nAnnotations, annotationHeaders)
+          val (annotationNamesCheck, hd) = parseHeader(it.next().value, sep, nAnnotations, annotationHeaders)
           if (!annotationNames.sameElements(annotationNamesCheck)) {
             fatal("column headers for annotations must be the same accross files.")
           }
@@ -153,7 +155,7 @@ object LoadMatrix {
             var v = 0
             var isNegative = false
             if (line(off) == sep) {
-              fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ if (rowID == null) "null" else rowID.toString() } in file: $file")
+              fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
             }
             if (line(off) == '-' || line(off) == '+') {
               isNegative = line(off) == '-'
@@ -174,13 +176,13 @@ object LoadMatrix {
                 missing = true
                 0
               } else {
-                fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ if (rowID == null) "null" else rowID.toString() } in file: $file")
+                fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
               }
             } else if (line.length == newoff || line(newoff) == sep) {
               off = newoff + 1
               if (isNegative) -v else v
             } else {
-              fatal(s"Error parsing matrix. $v Invalid Int32 at column: $colNum, row: ${ if (rowID == null) "null" else rowID.toString() } in file: $file")
+              fatal(s"Error parsing matrix. $v Invalid Int32 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
             }
           }
 
@@ -189,7 +191,7 @@ object LoadMatrix {
             var v = 0L
             var isNegative = false
             if (line(off) == sep) {
-              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ if (rowID == null) "null" else rowID.toString() } in file: $file")
+              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
             }
             if (line(off) == '-' || line(off) == '+') {
               isNegative = line(off) == '-'
@@ -210,13 +212,13 @@ object LoadMatrix {
                 missing = true
                 0L
               } else {
-                fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ if (rowID == null) "null" else rowID.toString() } in file: $file")
+                fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
               }
             } else if (line.length == newoff || line(newoff) == sep) {
               off = newoff + 1
               if (isNegative) -v else v
             } else {
-              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ if (rowID == null) "null" else rowID.toString() } in file: $file")
+              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
             }
           }
 
@@ -233,7 +235,7 @@ object LoadMatrix {
               try {
               v.toFloat
               } catch {
-                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float32. column: $colNum, row: ${ if (rowID == null) "null" else rowID.toString() } in file: $file")
+                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float32. column: $colNum, row: ${ t.str(rowID) } in file: $file")
               }
             }
           }
@@ -251,7 +253,7 @@ object LoadMatrix {
               try {
                 v.toDouble
               } catch {
-                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float64. column: $colNum, row: ${ if (rowID == null) "null" else rowID.toString() } in file: $file")
+                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float64. column: $colNum, row: ${ t.str(rowID) } in file: $file")
               }
             }
           }
@@ -329,27 +331,12 @@ object LoadMatrix {
           rv
         }
       }
-    
-    val rowKeys: RDD[RegionValue] = rdd.mapPartitions { it =>
-      val region2 = Region()
-      val rv2b = new RegionValueBuilder(region2)
-      val rv2 = RegionValue(region2)
-      it.map { rv =>
-          rv2b.start(keyType)
-          rv2b.startStruct()
-          rv2b.addRegionValue(t, rv.region, matrixType.rowType.fieldOffset(rv.offset,0))
-          rv2b.addRegionValue(t, rv.region, matrixType.rowType.fieldOffset(rv.offset,1))
-          rv2b.endStruct()
-          rv2.setOffset(rv2b.end())
-          rv2
-        }
-      }
 
     new MatrixTable(hc,
       matrixType.metadata,
       VSMLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
-      OrderedRVD(matrixType.orderedRVType, rdd, Some(rowKeys), None))
+      OrderedRVD(matrixType.orderedRVType, rdd, None, None))
   }
 }

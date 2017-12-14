@@ -15,7 +15,7 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testHeadersNotIdentical() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/sampleheader*.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, 1, Some(Array("v")), Array(TString()), "v")
+      val vsm = LoadMatrix(hc, files, Some(Array("v")), Array(TString()), "v")
     }
     assert(e.getMessage.contains("invalid sample ids"))
   }
@@ -23,7 +23,7 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testMissingVals() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, 1, Some(Array("v")), Array(TString()), "v")
+      val vsm = LoadMatrix(hc, files, Some(Array("v")), Array(TString()), "v")
       vsm.rdd.count()
     }
     assert(e.getMessage.contains("number of elements"))
@@ -51,7 +51,7 @@ class ImportMatrixSuite extends SparkSuite {
       val actual: MatrixTable = {
         val f = tmpDir.createTempFile(extension="txt")
         vsm.makeKT("v = v", "`` = g", Array("v")).export(f)
-        LoadMatrix(hc, Array(f), 1, None, Array(TString()), "v", cellType = vsm.genotypeSignature)
+        LoadMatrix(hc, Array(f), None, Array(TString()), "v", cellType = vsm.genotypeSignature)
       }
       assert(vsm.same(actual.annotateVariantsExpr("va = {}")))
 
