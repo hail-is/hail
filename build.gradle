@@ -209,7 +209,7 @@ test {
 test.dependsOn(checkSettings)
 
 task testPython(type: Exec, dependsOn: shadowJar) {
-     commandLine 'python', '-m', 'unittest', 'hail.api1.tests', 'hail.api2.tests', 'hail.typecheck.tests'
+     commandLine 'python', '-m', 'unittest', 'hail.api1.tests', 'hail.api2.tests', 'hail.typecheck.tests', 'hail.genetics.tests', 'hail.expr.tests', 'hail.utils.tests'
      environment SPARK_HOME: sparkHome
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
      environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
