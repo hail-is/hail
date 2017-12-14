@@ -548,15 +548,12 @@ case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rvd: RVD) 
       val f = p()
       val rv2 = RegionValue()
       val rv2b = new RegionValueBuilder()
-      it.flatMap { rv =>
+      it.filter { rv =>
         rv2b.set(rv.region)
         rv2b.start(globalType)
         rv2b.addAnnotation(globalType, globals)
         rv2.set(rv.region, rv2b.end())
-        if (f(rv, rv2))
-          Iterator.apply(rv)
-        else
-          Iterator.empty
+        f(rv, rv2)
       }
     })
   }
