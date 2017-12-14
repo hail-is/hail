@@ -571,9 +571,11 @@ case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruc
 }
 
 object KeyTableIR {
-  def optimize(ir: KeyTableIR): KeyTableIR = BaseIR.rewriteTopDown(ir, {
-    case FilterKT(FilterKT(x, p1), p2) => FilterKT(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
-  })
+  def optimize(ir: KeyTableIR): KeyTableIR = {
+    BaseIR.rewriteTopDown(ir, {
+      case FilterKT(FilterKT(x, p1), p2) => FilterKT(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
+    })
+  }
 }
 
 abstract sealed class KeyTableIR extends BaseIR {
