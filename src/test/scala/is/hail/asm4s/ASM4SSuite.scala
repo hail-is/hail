@@ -294,7 +294,7 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def makeMethods(): Unit = {
     val fb = FunctionBuilder.functionBuilder[Int]
-    val methods = Array.tabulate[MethodBuilder](3)(_ => fb.newMethod[Int, Int, Int])
+    val methods = Array.tabulate[Method2Builder[Int, Int, Int]](3)(_ => fb.newMethod[Int, Int, Int])
     val locals = Array.tabulate[LocalRef[Int]](9)(i => methods(i / 3).newLocal[Int])
     var i = 0
     while (i < 3) {
@@ -307,7 +307,7 @@ class ASM4SSuite extends TestNGSuite {
       methods(i).mn.instructions
       i += 1
     }
-    fb.emit(Code._return[Int](methods(1).invoke[Int](0,0)))
+    fb.emit(Code._return[Int](methods(1)(0,0)))
     val f = fb.result()()
     assert(f() == 1)
   }
@@ -323,10 +323,10 @@ class ASM4SSuite extends TestNGSuite {
     mult.emit(mult.getArg[Int](1) * mult.getArg[Int](2))
 
     fb.emit(Code._return[Int](fb.getArg[Int](1).ceq(0).mux(
-      add.invoke[Int](fb.getArg[Int](2),fb.getArg[Int](3)),
+      add(fb.getArg[Int](2),fb.getArg[Int](3)),
       fb.getArg[Int](1).ceq(1).mux(
-        sub.invoke[Int](fb.getArg[Int](2),fb.getArg[Int](3)),
-        mult.invoke[Int](fb.getArg[Int](2),fb.getArg[Int](3))
+        sub(fb.getArg[Int](2),fb.getArg[Int](3)),
+        mult(fb.getArg[Int](2),fb.getArg[Int](3))
       ))))
     val f = fb.result()()
     assert(f(0,1,1) == 2)

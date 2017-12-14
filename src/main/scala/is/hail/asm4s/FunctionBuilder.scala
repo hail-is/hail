@@ -53,29 +53,18 @@ object FunctionBuilder {
 
   def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction5[A, B, C, D, E, R]] =
     new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R])
-
-  private implicit def methodNodeToGrowable(mn: MethodNode): Growable[AbstractInsnNode] = new Growable[AbstractInsnNode] {
-    def +=(e: AbstractInsnNode) = {
-      mn.instructions.add(e);
-      this
-    }
-
-    def clear() {
-      throw new UnsupportedOperationException()
-    }
-  }
 }
 
-class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], returnTypeInfo: MaybeGenericTypeInfo[_]) {
+class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo: Array[TypeInfo[_]], returnTypeInfo: TypeInfo[_]) {
 
-  def descriptor: String = s"(${ parameterTypeInfo.map(_.base.name).mkString })${ returnTypeInfo.base.name }"
+  def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
   val mn = new MethodNode(ACC_PUBLIC, mname, descriptor, null, null)
   fb.cn.methods.asInstanceOf[util.List[MethodNode]].add(mn)
 
   val start = new LabelNode
   val end = new LabelNode
-  val layout: Array[Int] = 0 +: (parameterTypeInfo.scanLeft(1) { case (prev, gti) => prev + gti.base.slots })
+  val layout: Array[Int] = 0 +: (parameterTypeInfo.scanLeft(1) { case (prev, gti) => prev + gti.slots })
   val argIndex: Array[Int] = layout.init
   var locals: Int = layout.last
 
@@ -111,11 +100,47 @@ class MethodBuilder(val fb: FunctionBuilder[_], mname: String, parameterTypeInfo
     l += insn
   }
 
-  def invoke[R: TypeInfo](args: Code[_]*)(implicit rti :TypeInfo[R]): Code[R] = {
+  def invoke(args: Code[_]*) = {
     var c: Code[_] = getArg[java.lang.Object](0)
     args.foreach { a => c = Code(c, a) }
     Code(c, new MethodInsnNode(INVOKESPECIAL, fb.name, mname, descriptor, false))
   }
+}
+
+class Method0Builder[R](fb: FunctionBuilder[_], mname: String)
+  (implicit rti: TypeInfo[R])
+  extends MethodBuilder(fb, mname, Array[TypeInfo[_]](), rti) {
+  def apply(): Code[R] = invoke().asInstanceOf[Code[R]]
+}
+
+class Method1Builder[A, R](fb: FunctionBuilder[_], mname: String)
+  (implicit ati: TypeInfo[A], rti: TypeInfo[R])
+  extends MethodBuilder(fb, mname, Array[TypeInfo[_]](ati), rti) {
+  def apply(a:Code[A]): Code[R] = invoke(a).asInstanceOf[Code[R]]
+}
+
+class Method2Builder[A, B, R](fb: FunctionBuilder[_], mname: String)
+  (implicit ati: TypeInfo[A], bti: TypeInfo[B], rti: TypeInfo[R])
+  extends MethodBuilder(fb, mname, Array[TypeInfo[_]](ati, bti), rti) {
+  def apply(a:Code[A], b: Code[B]): Code[R] = invoke(a, b).asInstanceOf[Code[R]]
+}
+
+class Method3Builder[A, B, C, R](fb: FunctionBuilder[_], mname: String)
+  (implicit ati: TypeInfo[A], bti: TypeInfo[B], cti: TypeInfo[C], rti: TypeInfo[R])
+  extends MethodBuilder(fb, mname, Array[TypeInfo[_]](ati, bti, cti), rti) {
+  def apply(a:Code[A], b: Code[B], c: Code[C]): Code[R] = invoke(a, b, c).asInstanceOf[Code[R]]
+}
+
+class Method4Builder[A, B, C, D, R](fb: FunctionBuilder[_], mname: String)
+  (implicit  ati: TypeInfo[A], bti: TypeInfo[B], cti: TypeInfo[C], dti: TypeInfo[D], rti: TypeInfo[R])
+  extends MethodBuilder(fb, mname, Array[TypeInfo[_]](ati, bti, cti, dti), rti) {
+  def apply(a:Code[A], b: Code[B], c: Code[C], d: Code[D]): Code[R] = invoke(a, b, c, d).asInstanceOf[Code[R]]
+}
+
+class Method5Builder[A, B, C, D, E, R](fb: FunctionBuilder[_], mname: String)
+  (implicit  ati: TypeInfo[A], bti: TypeInfo[B], cti: TypeInfo[C], dti: TypeInfo[D], eti: TypeInfo[E], rti: TypeInfo[R])
+  extends MethodBuilder(fb, mname, Array[TypeInfo[_]](ati, bti, cti, dti, eti), rti) {
+  def apply(a:Code[A], b: Code[B], c: Code[C], d: Code[D], e: Code[E]): Code[R] = invoke(a, b, c, d, e).asInstanceOf[Code[R]]
 }
 
 class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], returnTypeInfo: MaybeGenericTypeInfo[_],
@@ -134,7 +159,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   var methods: mutable.ArrayBuffer[MethodBuilder] = new mutable.ArrayBuffer[MethodBuilder](16)
 
-  val apply = new MethodBuilder(this, "apply", parameterTypeInfo, returnTypeInfo)
+  val apply = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
   val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
   // FIXME why is cast necessary?
   cn.methods.asInstanceOf[util.List[MethodNode]].add(init)
@@ -144,26 +169,19 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
   init.instructions.add(new InsnNode(RETURN))
 
   if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
-    def genericDescriptor: String = s"(${ parameterTypeInfo.map(_.generic.name).mkString })${ returnTypeInfo.generic.name }"
-
-    val genericMn = new MethodNode(ACC_PUBLIC, "apply", genericDescriptor, null, null)
-    cn.methods.asInstanceOf[util.List[MethodNode]].add(genericMn)
-    val genericLayout: Array[Int] =
-      0 +: (parameterTypeInfo.scanLeft(1) { case (prev, ti) => prev + ti.generic.slots })
-    val genericArgIndex: Array[Int] = genericLayout.init
-
-    def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] =
-      new LocalRef[T](genericArgIndex(i))
-
-    val callSpecialized = Code(
-      getArg[java.lang.Object](0),
-      toCodeFromIndexedSeq(parameterTypeInfo.zipWithIndex.map { case (ti, i) => ti.castFromGeneric(getArg(i + 1)(ti.generic)) }),
-      Code(new MethodInsnNode(INVOKESPECIAL, name, "apply", apply.descriptor, false)))
-
-    Code(
-      returnTypeInfo.castToGeneric(callSpecialized),
-      new InsnNode(returnTypeInfo.generic.returnOp)
-    ).emit(genericMn)
+    val generic = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.generic), returnTypeInfo.generic)
+    methods.append(generic)
+    generic.emit(
+      new Code[Unit] {
+        def emit(il: Growable[AbstractInsnNode]) {
+          returnTypeInfo.castToGeneric(
+            apply.invoke(parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
+              ti.castFromGeneric(generic.getArg(i + 1)(ti.generic))
+            }: _*)).emit(il)
+          il += new InsnNode(returnTypeInfo.generic.returnOp)
+        }
+      }
+    )
   }
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply.allocLocal[T](name)
@@ -178,26 +196,47 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   def emit(insn: AbstractInsnNode) = apply.emit(insn)
 
-  def newMethod(argsInfo: Array[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]): MethodBuilder = {
+  def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder = {
     val mb = new MethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)
     methods.append(mb)
     mb
   }
 
-  def newMethod[A: TypeInfo, R: TypeInfo]: MethodBuilder =
-    newMethod(Array[MaybeGenericTypeInfo[_]](GenericTypeInfo[A]), GenericTypeInfo[R])
+  def newMethod[R: TypeInfo] = {
+    val mb = new Method0Builder[R](this, s"method${ methods.size }")
+    methods.append(mb)
+    mb
+  }
 
-  def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo]: MethodBuilder =
-    newMethod(Array[MaybeGenericTypeInfo[_]](GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
 
-  def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo]: MethodBuilder =
-    newMethod(Array[MaybeGenericTypeInfo[_]](GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]), GenericTypeInfo[R])
+  def newMethod[A: TypeInfo, R: TypeInfo] = {
+    val mb = new Method1Builder[A, R](this, s"method${ methods.size }")
+  }
 
-  def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo]: MethodBuilder =
-    newMethod(Array[MaybeGenericTypeInfo[_]](GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R])
+  def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo] = {
+    val mb = new Method2Builder[A, B, R](this, s"method${ methods.size }")
+    methods.append(mb)
+    mb
+  }
 
-  def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: MethodBuilder =
-    newMethod(Array[MaybeGenericTypeInfo[_]](GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R])
+
+  def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo] = {
+    val mb = new Method3Builder[A, B, C, R](this, s"method${ methods.size }")
+    methods.append(mb)
+    mb
+  }
+
+  def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo] = {
+    val mb = new Method4Builder[A, B, C, D, R](this, s"method${ methods.size }")
+    methods.append(mb)
+    mb
+  }
+
+  def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo] = {
+    val mb = new Method5Builder[A, B, C, D, E, R](this, s"method${ methods.size }")
+    methods.append(mb)
+    mb
+  }
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
     def writeInsnsToMethod(m: MethodBuilder) {
@@ -261,9 +300,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     val localName = name.replaceAll("/", ".")
 
     new (() => F) with java.io.Serializable {
-      @transient
-      @volatile private var f: F = null
-
+      @transient @volatile private var f: F = null
       def apply(): F = {
         try {
           if (f == null) {
