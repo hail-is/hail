@@ -9,6 +9,7 @@ Expressions
 .. autosummary::
     :nosignatures:
 
+    Expression
     AltAlleleExpression
     ArrayExpression
     ArrayBooleanExpression
@@ -25,7 +26,6 @@ Expressions
     CallExpression
     CollectionExpression
     CollectionNumericExpression
-    Expression
     DictExpression
     Float32Expression
     Float64Expression
@@ -45,6 +45,9 @@ Expressions
     StructExpression
     VariantExpression
 
+
+.. autoclass:: hail.expr.expression.Expression
+    :show-inheritance:
 
 .. autoclass:: hail.expr.expression.AltAlleleExpression
     :show-inheritance:
@@ -92,9 +95,6 @@ Expressions
     :show-inheritance:
 
 .. autoclass:: hail.expr.expression.CollectionNumericExpression
-    :show-inheritance:
-
-.. autoclass:: hail.expr.expression.Expression
     :show-inheritance:
 
 .. autoclass:: hail.expr.expression.DictExpression
