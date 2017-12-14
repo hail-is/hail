@@ -459,9 +459,15 @@ class VSMSuite extends SparkSuite {
       blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
     } {
       val vsm = hc.baldingNicholsModel(1, 6, 9, Some(numSlices), seed = blockSize + numSlices)      
-      vsm.writeBlockMatrix(dirname, "g.GT.gt", blockSize)
+      vsm.writeBlockMatrix(dirname, "g.GT.gt + v.start + s.toInt32()", blockSize)
 
-      val data = vsm.collect().flatMap(_.getAs[IndexedSeq[Row]](3).map(_.getInt(0).toDouble))
+      val data = vsm.collect().zipWithIndex.flatMap { 
+        case (row, v) => row.getAs[IndexedSeq[Row]](3).zipWithIndex.map { 
+          case (gt, s) => 
+            (gt.getInt(0) + (v + 1) + s).toDouble
+        }
+      }
+      
       val lm = new DenseMatrix[Double](6, 9, data).t // data is row major
       
       assert(BlockMatrix.read(hc, dirname).toLocalMatrix() === lm)

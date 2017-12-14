@@ -2736,8 +2736,13 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     // write blocks
     hadoop.mkDir(dirname + "/parts")
     val gp = GridPartitioner(blockSize, nRows, nCols)
-    val blockCount = new WriteBlocksRDD(dirname, rdd2, sparkContext, rowType, sampleIds, sampleAnnotations, partStarts, f, ec, gp).reduce(_ + _)
+    val blockCount =
+      new WriteBlocksRDD(dirname, rdd2, sparkContext, rowType, sampleIdsBc, sampleAnnotationsBc, partStarts, f, ec, gp)
+        .reduce(_ + _)
+    
     assert(blockCount == gp.numPartitions)
     info(s"Wrote all $blockCount blocks of $nRows x $nCols matrix with block size $blockSize.")
+    
+    hadoop.writeTextFile(dirname + "/_SUCCESS")(out => ())
   }
 }

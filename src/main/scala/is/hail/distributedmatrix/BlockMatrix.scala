@@ -11,6 +11,7 @@ import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -86,7 +87,9 @@ object BlockMatrix {
     **/
   def read(hc: HailContext, uri: String): M = {
     val hadoop = hc.hadoopConf
-    hadoop.mkDir(uri)
+    
+    if (!hadoop.exists(uri + "/_SUCCESS"))
+      fatal("Write failed: no success indicator found")
     
     val BlockMatrixMetadata(blockSize, rows, cols) =
       hadoop.readTextFile(uri + metadataRelativePath) { isr  =>
@@ -293,13 +296,15 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       1
     }
 
-    blocks.writePartitions(uri, writeBlock)
-
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, rows, cols),
         os)
     }
+
+    blocks.writePartitions(uri, writeBlock)    
+    
+    hadoop.writeTextFile(uri + "/_SUCCESS")(out => ())
   }
 
   def cache(): this.type = {
@@ -730,11 +735,11 @@ case class WriteBlocksRDDPartition(index: Int, start: Int, skip: Int, end: Int) 
 }
 
 class WriteBlocksRDD(path: String,
-  rdd2: RVD,
+  rvd: RVD,
   sc: SparkContext,
   rowType: TStruct,
-  sampleIds: IndexedSeq[Annotation],
-  sampleAnnotations: IndexedSeq[Annotation],
+  sampleIdsBc: Broadcast[IndexedSeq[Annotation]],
+  sampleAnnotationsBc: Broadcast[IndexedSeq[Annotation]],
   parentPartStarts: Array[Long],
   f: () => java.lang.Double,
   ec: EvalContext,
@@ -742,19 +747,15 @@ class WriteBlocksRDD(path: String,
 
   require(gp.nRows == parentPartStarts.last)
 
-  private val parentParts = rdd2.partitions
+  private val parentParts = rvd.partitions
   private val blockSize = gp.blockSize
 
-  private val sampleIdsBc = sc.broadcast(sampleIds)
-  private val sampleAnnotationsBc = sc.broadcast(sampleAnnotations)
-
   private val d = digitsNeeded(gp.numPartitions)
-  private val sHadoopBc = rdd2.sparkContext.broadcast(
-    new SerializableHadoopConfiguration(rdd2.sparkContext.hadoopConfiguration))
+  private val sHadoopBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
-      new NarrowDependency(rdd2.rdd) {
+      new NarrowDependency(rvd.rdd) {
         def getParents(partitionId: Int): Seq[Int] =
           partitions(partitionId).asInstanceOf[WriteBlocksRDDPartition].range
       }
@@ -822,7 +823,7 @@ class WriteBlocksRDD(path: String,
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
     writeBlocksPart.range.foreach { pi =>
-      val it = rdd2.rdd.iterator(parentParts(pi), context)
+      val it = rvd.rdd.iterator(parentParts(pi), context)
 
       if (pi == start) {
         var j = 0
@@ -839,24 +840,24 @@ class WriteBlocksRDD(path: String,
         ec.set(1, ur.get(1))
         ec.set(2, ur.get(2))
         val gs = ur.getAs[IndexedSeq[Any]](3)
-        var offset = 0
         var blockCol = 0
+        var sampleIndex = 0
         while (blockCol < gp.nBlockCols) {
           val n = gp.blockColNCols(blockCol)
           var j = 0
           while (j < n) {
-            ec.set(3, sampleIdsBc.value(j))
-            ec.set(4, sampleAnnotationsBc.value(j))
-            ec.set(5, gs(offset + j))
+            ec.set(3, sampleIdsBc.value(sampleIndex))
+            ec.set(4, sampleAnnotationsBc.value(sampleIndex))
+            ec.set(5, gs(sampleIndex))
             f() match {
               case null => fatal(s"Entry expr must be non-missing. Found missing value for sample ${ sampleIdsBc.value(j) } and variant ${ ur.get(1) }")
               case t => Memory.storeDouble(bytes, j << 3, t.toDouble)
             }
+            sampleIndex += 1
             j += 1
           }
           dosArray(blockCol).write(bytes, 0, n << 3)
 
-          offset += blockSize
           blockCol += 1
         }
         i += 1

@@ -39,18 +39,18 @@ object RichIndexedRowMatrix {
   }
 }
 
-class RichIndexedRowMatrix(irm: IndexedRowMatrix) {
+class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
   import RichIndexedRowMatrix._
 
   def toHailBlockMatrix(blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix = {
     require(blockSize > 0, s"blockSize must be greater than 0. blockSize: $blockSize")
 
-    val nRows = irm.numRows()
-    val nCols = irm.numCols()
+    val nRows = indexedRowMatrix.numRows()
+    val nCols = indexedRowMatrix.numCols()
     val gp = GridPartitioner(blockSize, nRows, nCols)
     val nBlockCols = gp.nBlockCols
 
-    val blocks = irm.rows.flatMap { ir =>
+    val blocks = indexedRowMatrix.rows.flatMap { ir =>
       val i = (ir.index / blockSize).toInt
       val ii = (ir.index % blockSize).toInt
       val entireRow = ir.vector.toArray
