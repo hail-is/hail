@@ -602,8 +602,8 @@ case class FilterKT(child: KeyTableIR, pred: IR) extends KeyTableIR {
   def typ: KeyTableType = child.typ
 
   def copy(newChildren: IndexedSeq[BaseIR]): FilterKT = {
-    assert(newChildren.length == 1)
-    FilterKT(newChildren(0).asInstanceOf[KeyTableIR], pred)
+    assert(newChildren.length == 2)
+    FilterKT(newChildren(0).asInstanceOf[KeyTableIR], newChildren(1).asInstanceOf[IR])
   }
   def execute(hc: HailContext): KeyTableValue = {
     val ktv = child.execute(hc)
