@@ -458,23 +458,22 @@ class KeyTable(val hc: HailContext,
     var filterAST = Parser.expr.parse(cond)
     val pred = filterAST.toIR
     pred match {
-      case None => {
+      case Some(irPred) =>
+        new KeyTable(hc, FilterKT(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
+      case None =>
         info("No AST to IR conversion found. Falling back to AST predicate for FilterKT.")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         val ec = ktType.rowEC
         val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
-
         val localGlobals = globals
         val localGlobalType = globalSignature
         val localSignature = signature
-
         var i = 0
         while (i < localGlobalType.size) {
           ec.set(localSignature.size + i, localGlobals.get(i))
           i += 1
         }
-
         val p = (rv: RegionValue) => {
           val ur = new UnsafeRow(localSignature, rv.region.copy(), rv.offset)
 
@@ -486,12 +485,7 @@ class KeyTable(val hc: HailContext,
           val ret = f()
           ret != null && ret.booleanValue()
         }
-
         copy2(rvd = rvd.filter(p))
-      }
-      case Some(irPred) => {
-        new KeyTable(hc, FilterKT(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred, TBoolean())))
-      }
     }
   }
 

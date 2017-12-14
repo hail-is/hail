@@ -588,10 +588,6 @@ class KeyTableSuite extends SparkSuite {
       .annotateGlobal(Map(5 -> "bar"), TDict(TInt32Optional, TStringOptional), "dict")
       .annotateGlobalExpr("another = foo[1]")
 
-    println(kt.globalSignature)
-    println(kt.globals.get(1))
-    println(kt.globals.get(2))
-
     assert(kt.filter("dict.get(index) == \"bar\"", true).count() == 1)
     assert(kt.annotate("baz = foo").forall("baz == [1,2,3]"))
     assert(kt.forall("foo == [1,2,3]"))

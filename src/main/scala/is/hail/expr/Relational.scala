@@ -541,19 +541,18 @@ case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rvd: RVD) 
     rvd.rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
   }
 
-  def filter(p: () => (RegionValue, RegionValue) => Boolean): KeyTableValue = {
+  def filter(p: (RegionValue, RegionValue) => Boolean): KeyTableValue = {
     val globalType = typ.globalType
     val globals = localValue.globals
     copy(rvd = rvd.mapPartitions(typ.rowType) { it =>
-      val f = p()
-      val rv2 = RegionValue()
-      val rv2b = new RegionValueBuilder()
+      val globalRV = RegionValue()
+      val globalRVb = new RegionValueBuilder()
       it.filter { rv =>
-        rv2b.set(rv.region)
-        rv2b.start(globalType)
-        rv2b.addAnnotation(globalType, globals)
-        rv2.set(rv.region, rv2b.end())
-        f(rv, rv2)
+        globalRVb.set(rv.region)
+        globalRVb.start(globalType)
+        globalRVb.addAnnotation(globalType, globals)
+        globalRV.set(rv.region, globalRVb.end())
+        p(rv, globalRV)
       }
     })
   }
@@ -610,8 +609,6 @@ case class FilterKT(child: KeyTableIR, pred: IR) extends KeyTableIR {
     val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Boolean]
     Emit(mappedPred, fb)
     val f = fb.result()
-    ktv.filter(() => (rv, rv2) => {
-      f()(rv.region, rv.offset, false, rv2.offset, false)
-    })
+    ktv.filter((rv, globalRV) => f()(rv.region, rv.offset, false, globalRV.offset, false))
   }
 }
