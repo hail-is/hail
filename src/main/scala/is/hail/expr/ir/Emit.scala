@@ -10,23 +10,22 @@ import org.objectweb.asm.tree._
 import scala.language.existentials
 
 object Emit {
-  private def defaultValue(t: expr.Type): Code[_] = t match {
-    case _: TBoolean => false
-    case _: TInt32 => 0
-    case _: TInt64 => 0L
-    case _: TFloat32 => 0.0f
-    case _: TFloat64 => 0.0
-    case _ => 0L // reference types
-  }
-
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
 
-  def apply(ir: IR, fb: FunctionBuilder[_]) {
-    apply(ir, fb, new Env())
+  private[ir] def toCode(ir: IR, fb: FunctionBuilder[_]): (Code[Unit], Code[Boolean], Code[_]) = {
+    toCode(ir, fb, Env.empty)
   }
 
-  def apply(ir: IR, fb: FunctionBuilder[_], env: E) {
-    val (dov, mv, vv) = emit(ir, fb, env, new StagedBitSet(fb))
+  private[ir] def toCode(ir: IR, fb: FunctionBuilder[_], env: E): (Code[Unit], Code[Boolean], Code[_]) = {
+    emit(ir, fb, env, new StagedBitSet(fb))
+  }
+
+  private[ir] def toCode(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
+    emit(ir, fb, env, mb)
+  }
+
+  def apply(ir: IR, fb: FunctionBuilder[_]) {
+    val (dov, mv, vv) = toCode(ir, fb)
     typeToTypeInfo(ir.typ) match { case ti: TypeInfo[t] =>
       fb.emit(Code(dov, mv.mux(
         Code._throw(Code.newInstance[RuntimeException, String]("cannot return empty")),
@@ -46,7 +45,7 @@ object Emit {
   //
   // JVM gotcha:
   //  a variable must be initialized on all static code-paths to its use (ergo defaultValue)
-  def emit(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
+  private def emit(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
     val region = fb.getArg[Region](1).load()
     def emit(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: StagedBitSet = mb): (Code[Unit], Code[Boolean], Code[_]) =
       Emit.emit(ir, fb, env, mb)
@@ -179,7 +178,7 @@ object Emit {
           xi := coerce[Int](xmi.mux(defaultValue(TInt32()), vi)),
           xmv := xma || xmi || !tarray.isElementDefined(region, xa, xi))
 
-        (setup, xmv, region.loadPrimitive(typ)(tarray.loadElement(region, xa, xi)))
+        (setup, xmv, region.loadIRIntermediate(typ)(tarray.loadElement(region, xa, xi)))
       case ArrayMissingnessRef(a, i) =>
         val tarray = tcoerce[TArray](a.typ)
         val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
@@ -222,7 +221,7 @@ object Emit {
             xmv := !tin.isElementDefined(region, xa, i),
             xvv := xmv.mux(
               defaultValue(tin.elementType),
-              region.loadPrimitive(tin.elementType)(tin.loadElement(region, xa, i))),
+              region.loadIRIntermediate(tin.elementType)(tin.loadElement(region, xa, i))),
             dobody,
             mbody.mux(srvb.setMissing(), addElement(vbody)),
             srvb.advance(),
@@ -266,7 +265,7 @@ object Emit {
                 xmv := !tarray.isElementDefined(region, xa, i),
                 xvv := xmv.mux(
                   defaultValue(tarray.elementType),
-                  region.loadPrimitive(tarray.elementType)(tarray.loadElement(region, xa, i))),
+                  region.loadIRIntermediate(tarray.elementType)(tarray.loadElement(region, xa, i))),
                 dobody,
                 xmout := mbody,
                 xvout := xmout.mux(defaultValue(typ), vbody),
@@ -296,12 +295,15 @@ object Emit {
           xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
         (setup,
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
-          region.loadPrimitive(t.fieldType(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
+          region.loadIRIntermediate(t.fieldType(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
       case GetFieldMissingness(o, name) =>
         val t = o.typ.asInstanceOf[TStruct]
         val fieldIdx = t.fieldIdx(name)
         val (doo, mo, vo) = emit(o)
         present(Code(doo, mo || !t.isFieldDefined(region, coerce[Long](vo), fieldIdx)))
+
+      case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap | _: AggSum =>
+        throw new RuntimeException(s"Aggregations must be extracted with ExtractAggregators before compilation: $ir")
 
       case In(i, typ) =>
         (Code._empty, fb.getArg[Boolean](i*2 + 3), fb.getArg(i*2 + 2)(typeToTypeInfo(typ)))

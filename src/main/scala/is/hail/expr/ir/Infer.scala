@@ -1,12 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.expr.{TInt32, TArray, TStruct, TBoolean, Type}
+import is.hail.expr.{TAggregable, TArray, TBoolean, TInt32, TStruct, Type}
 
 object Infer {
-  def apply(ir: IR) { apply(ir, new Env[Type]()) }
+  def apply(ir: IR, tAgg: Option[TAggregable] = None) { apply(ir, tAgg, new Env[Type]()) }
 
-  def apply(ir: IR, env: Env[Type]) {
-    def infer(ir: IR, env: Env[Type] = env) { apply(ir, env) }
+  def apply(ir: IR, tAgg: Option[TAggregable], env: Env[Type]) {
+    def infer(ir: IR, env: Env[Type] = env) { apply(ir, tAgg, env) }
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -84,9 +84,40 @@ object Infer {
         infer(a)
         val tarray = a.typ.asInstanceOf[TArray]
         infer(zero)
-        infer(body, env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
+        infer(body, env = env.bind(accumName -> zero.typ, valueName -> tarray.elementType))
         assert(body.typ == zero.typ)
         x.typ = zero.typ
+      case x@AggIn(typ) =>
+        (tAgg, typ) match {
+          case (Some(t), null) => x.typ = t
+          case (Some(t), t2) => assert(t == t2)
+          case (None, _) => throw new RuntimeException("must provide type of aggregable to Infer")
+        }
+      case x@AggMap(a, name, body, _) =>
+        infer(a)
+        val tagg = a.typ.asInstanceOf[TAggregable]
+        infer(body, env = aggScope(tagg).bind(name, tagg.elementType))
+        val tagg2 = tagg.copy(elementType = body.typ)
+        tagg2.symTab = tagg.symTab
+        x.typ = tagg2
+      case x@AggFilter(a, name, body, typ) =>
+        infer(a)
+        val tagg = a.typ.asInstanceOf[TAggregable]
+        infer(body, env = aggScope(tagg).bind(name, tagg.elementType))
+        assert(body.typ.isInstanceOf[TBoolean])
+        x.typ = tagg
+      case x@AggFlatMap(a, name, body, typ) =>
+        infer(a)
+        val tagg = a.typ.asInstanceOf[TAggregable]
+        infer(body, env = aggScope(tagg).bind(name, tagg.elementType))
+        val tout = body.typ.asInstanceOf[TArray]
+        val tagg2 = tagg.copy(elementType = tout.elementType)
+        tagg2.symTab = tagg.symTab
+        x.typ = tagg2
+      case x@AggSum(a, _) =>
+        infer(a)
+        val tAgg = a.typ.asInstanceOf[TAggregable]
+        x.typ = tAgg.elementType
       case x@MakeStruct(fields, _) =>
         fields.foreach { case (name, a) => infer(a) }
         x.typ = TStruct(fields.map { case (name, a) =>
@@ -105,5 +136,9 @@ object Infer {
         assert(typ != null)
       case InMissingness(i) =>
       case Die(msg) =>
-    } }
+    }
+  }
+
+  private def aggScope(t: TAggregable): Env[Type] =
+    Env.empty.bind(t.bindings:_*)
 }

@@ -4,7 +4,6 @@ import is.hail.expr._
 import is.hail.annotations.Region
 import is.hail.asm4s.Code
 
-
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def size: Code[Long] = region.invoke[Long]("size")
 
@@ -72,7 +71,7 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Long, Long, Boolean]("loadBit", byteOff, bitOff)
   }
 
-  def loadPrimitive(typ: Type): Code[Long] => Code[_] = typ.fundamentalType match {
+  def loadIRIntermediate(typ: Type): Code[Long] => Code[_] = typ.fundamentalType match {
     case _: TBoolean => loadBoolean
     case _: TInt32 => loadInt
     case _: TInt64 => loadLong
@@ -81,21 +80,6 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     case _: TArray => loadAddress
     case _: TBinary => loadAddress
     case _: TStruct => off => off
-  }
-
-  def appendPrimitive(typ: Type): (Code[_]) => Code[Long] = typ match {
-    case _: TBoolean =>
-      x => this.appendInt(x.asInstanceOf[Code[Int]])
-    case _: TInt32 =>
-      x => this.appendInt(x.asInstanceOf[Code[Int]])
-    case _: TInt64 =>
-      x => this.appendLong(x.asInstanceOf[Code[Long]])
-    case _: TFloat32 =>
-      x => this.appendFloat(x.asInstanceOf[Code[Float]])
-    case _: TFloat64 =>
-      x => this.appendDouble(x.asInstanceOf[Code[Double]])
-    case _ =>
-      throw new UnsupportedOperationException("cannot append non-primitive type: $typ")
   }
 
   def setBit(byteOff: Code[Long], bitOff: Code[Long]): Code[Unit] = {

@@ -12,15 +12,18 @@ package object asm4s {
 
   def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
 
-  abstract class TypeInfo[T] {
+  def coerce[T](c: Code[_]): Code[T] =
+    c.asInstanceOf[Code[T]]
+
+  trait TypeInfo[T] {
     val name: String
     val iname: String = name
-    val loadOp: Int
-    val storeOp: Int
-    val aloadOp: Int
-    val astoreOp: Int
+    def loadOp: Int
+    def storeOp: Int
+    def aloadOp: Int
+    def astoreOp: Int
     val returnOp: Int
-    val slots: Int = 1
+    def slots: Int = 1
 
     def newArray(): AbstractInsnNode
   }
@@ -117,6 +120,18 @@ package object asm4s {
     override val slots = 2
 
     def newArray() = new IntInsnNode(NEWARRAY, T_CHAR)
+  }
+
+  implicit object UnitInfo extends TypeInfo[Unit] {
+    val name = "V"
+    def loadOp = ???
+    def storeOp = ???
+    def aloadOp = ???
+    def astoreOp = ???
+    val returnOp = RETURN
+    override def slots = ???
+
+    def newArray() = ???
   }
 
   implicit def classInfo[C <: AnyRef](implicit cct: ClassTag[C]): TypeInfo[C] =

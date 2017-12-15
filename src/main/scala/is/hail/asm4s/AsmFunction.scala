@@ -6,3 +6,4 @@ trait AsmFunction2[A,B,R] { def apply(a: A, b: B): R }
 trait AsmFunction3[A,B,C,R] { def apply(a: A, b: B, c: C): R }
 trait AsmFunction4[A,B,C,D,R] { def apply(a: A, b: B, c: C, d: D): R }
 trait AsmFunction5[A,B,C,D,E,R] { def apply(a: A, b: B, c: C, d: D, e: E): R }
+trait AsmFunction6[A,B,C,D,E,F,R] { def apply(a: A, b: B, c: C, d: D, e: E, f: F): R }

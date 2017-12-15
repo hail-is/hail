@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
 import is.hail.asm4s._
 import is.hail.expr._
+import is.hail.utils._
 
 object UnaryOp {
 
