@@ -52,7 +52,7 @@ object Children {
       Array(a, body)
     case AggFlatMap(a, name, body, typ) =>
       Array(a, body)
-    case AggSum(a, _) =>
+    case ApplyAggNullaryOp(a, op, _) =>
       Array(a)
     case GetField(o, name, typ) =>
       Array(o)

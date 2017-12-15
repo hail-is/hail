@@ -114,10 +114,10 @@ object Infer {
         val tagg2 = tagg.copy(elementType = tout.elementType)
         tagg2.symTab = tagg.symTab
         x.typ = tagg2
-      case x@AggSum(a, _) =>
+      case x@ApplyAggNullaryOp(a, op, _) =>
         infer(a)
         val tAgg = a.typ.asInstanceOf[TAggregable]
-        x.typ = tAgg.elementType
+        x.typ = AggOp.getNullaryType(op, tAgg.elementType)
       case x@MakeStruct(fields, _) =>
         fields.foreach { case (name, a) => infer(a) }
         x.typ = TStruct(fields.map { case (name, a) =>

@@ -8,16 +8,33 @@ import is.hail.utils._
 import scala.reflect.ClassTag
 
 object AggOp {
+
+  def getNullary(op: AggOp, t: Type): NullaryAggregatorCode[_ <: RegionValueAggregator, _] =
+    nullary((op,t))._1
+
+  def getNullaryType(op: AggOp, t: Type): Type =
+    nullary((op,t))._2
+
   private val ternary: PartialFunction[(AggOp, Type, Type), TernaryAggregatorCode[_, _, _, _ <: RegionValueAggregator, _]] = {
     case (Histogram(), _: TFloat64, TArray(TFloat64(_), _)) =>
       ternaryAggregatorCode[Double, Double, Int, Double](new RegionValueHistogramAggregator(_, _, _))
   }
 
-  private val nullary: PartialFunction[(AggOp, Type), NullaryAggregatorCode[_ <: RegionValueAggregator, _]] = {
-    case (Fraction(), _: TBoolean) => nullaryAggregatorCode[Boolean](new RegionValueFractionAggregator())
-    case (Statistics(), _: TFloat64) => nullaryAggregatorCode[Double](new RegionValueStatisticsAggregator())
-      // case (CollectSet() =>
-      // case (Collect() =>
+  private val nullary: PartialFunction[(AggOp, Type), (NullaryAggregatorCode[_ <: RegionValueAggregator, _], Type)] = {
+    case (Fraction(), _: TBoolean) => (nullaryAggregatorCode[Boolean](new RegionValueFractionAggregator()), TFloat64())
+    case (Statistics(), _: TFloat64) => (nullaryAggregatorCode[Double](new RegionValueStatisticsAggregator()), RegionValueStatisticsAggregator.typ)
+    case (Collect(), _: TBoolean) => (nullaryAggregatorCode[Boolean](new RegionValueCollectBooleanAggregator()), TArray(TBoolean()))
+    case (Collect(), _: TInt32) => (nullaryAggregatorCode[Int](new RegionValueCollectIntAggregator()), TArray(TInt32()))
+    // FIXME: implement these
+    // case (Collect(), _: TInt64) => nullaryAggregatorCode[Long](new RegionValueCollectLongAggregator())
+    // case (Collect(), _: TFloat32) => nullaryAggregatorCode[Float](new RegionValueCollectFloatAggregator())
+    // case (Collect(), _: TFloat64) => nullaryAggregatorCode[Double](new RegionValueCollectDoubleAggregator())
+    // case (Collect(), _: TArray) => nullaryAggregatorCode[Long](new RegionValueCollectArrayAggregator())
+    // case (Collect(), _: TStruct) => nullaryAggregatorCode[Long](new RegionValueCollectStructAggregator())
+    case (Sum(), _: TInt32) => (nullaryAggregatorCode[Int](new RegionValueSumIntAggregator()), TInt32())
+    case (Sum(), _: TInt64) => (nullaryAggregatorCode[Int](new RegionValueSumLongAggregator()), TInt64())
+    case (Sum(), _: TFloat32) => (nullaryAggregatorCode[Int](new RegionValueSumFloatAggregator()), TFloat32())
+    case (Sum(), _: TFloat64) => (nullaryAggregatorCode[Int](new RegionValueSumDoubleAggregator()), TFloat64())
       // case (InfoScore() =>
       // case (HardyWeinberg() =>
       // case (Sum() =>
@@ -30,7 +47,7 @@ object AggOp {
 
 
   sealed trait NullaryAggregatorCodeCurried[T] {
-    def apply[Agg >: Null : ClassTag : TypeInfo]
+    def apply[Agg >: Null <: RegionValueAggregator : ClassTag : TypeInfo]
       (aggregator: Agg)
       (implicit tct: ClassTag[T], hrt: HailRep[T]): NullaryAggregatorCode[Agg, T] =
       new NullaryAggregatorCode(hailType[T], aggregator)
@@ -40,9 +57,9 @@ object AggOp {
 
   def nullaryAggregatorCode[T] = nullaryAggregatorCodeCurriedInstance.asInstanceOf[NullaryAggregatorCodeCurried[T]]
 
-  class NullaryAggregatorCode[Agg >: Null : ClassTag : TypeInfo, T : ClassTag]
+  class NullaryAggregatorCode[Agg >: Null <: RegionValueAggregator : ClassTag : TypeInfo, T : ClassTag]
     (t: Type, val aggregator: Agg) {
-    def seqOp(rva: Code[RegionValueAggregator], v: Code[T], mv: Code[Boolean]): Code[Unit] =
+    def seqOp(rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] =
       mv.mux(
         Code.checkcast[Agg](rva).invoke[T, Boolean, Unit]("seqOp", coerce[T](defaultValue(t)), true),
         Code.checkcast[Agg](rva).invoke[T, Boolean, Unit]("seqOp", coerce[T](v), false))
@@ -110,16 +127,15 @@ sealed trait AggOp { }
 final case class Fraction() extends AggOp { } // remove when prefixes work
 final case class Statistics() extends AggOp { } // remove when prefixes work
 final case class Histogram() extends AggOp { }
-final case class CollectSet() extends AggOp { }
 final case class Collect() extends AggOp { }
-final case class InfoScore() extends AggOp { }
-final case class HardyWeinberg() extends AggOp { } // remove when prefixes work
+// final case class InfoScore() extends AggOp { }
+// final case class HardyWeinberg() extends AggOp { } // remove when prefixes work
 final case class Sum() extends AggOp { }
-final case class Product() extends AggOp { }
-final case class Max() extends AggOp { }
-final case class Min() extends AggOp { }
-final case class Take() extends AggOp { }
-final case class TakeBy() extends AggOp { }
+// final case class Product() extends AggOp { }
+// final case class Max() extends AggOp { }
+// final case class Min() extends AggOp { }
+// final case class Take() extends AggOp { }
+// final case class TakeBy() extends AggOp { }
 
 // what to do about CallStats
 // what to do about InbreedingAggregator
@@ -133,4 +149,4 @@ final case class TakeBy() extends AggOp { }
 // Histogram === map(x => Cast(x, TDouble())).hist
 
 // Counter needs Dict
-
+// CollectSet needs Set

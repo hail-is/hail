@@ -10,13 +10,13 @@ import scala.language.{existentials, postfixOps}
 
 object ExtractAggregators {
 
-  private case class IRAgg(in: In, typ: Type, agg: AggSum) { }
+  private case class IRAgg(in: In, agg: ApplyAggNullaryOp) { }
 
   def apply(ir: IR, tAggIn: TAggregable, aggFb: FunctionBuilder[_]): (IR, TStruct, Array[RegionValueAggregator]) = {
     val (ir2, aggs) = extract(ir, tAggIn)
     val rvas = emitAgg(aggs.map(_.agg), tAggIn, aggFb)
 
-    val fields = aggs.map(_.typ).zipWithIndex.map { case (t, i) => i.toString -> t }
+    val fields = aggs.map(_.agg.typ).zipWithIndex.map { case (t, i) => i.toString -> t }
     val resultStruct = TStruct(fields: _*)
     // mutate the type of the input IR node now that we know what the combined
     // struct's type is
@@ -39,10 +39,10 @@ object ExtractAggregators {
         ir
       case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap =>
         throw new RuntimeException(s"Aggregable manipulations must appear inside the lexical scope of an Aggregation: $ir")
-      case x@AggSum(a, typ) =>
+      case x@ApplyAggNullaryOp(a, op, typ) =>
         val in = In(0, null)
 
-        ab += IRAgg(in, typ, x)
+        ab += IRAgg(in, x)
 
         GetField(in, (ab.length - 1).toString(), typ)
       case _ => Recur(extract)(ir)
@@ -63,17 +63,17 @@ object ExtractAggregators {
 
   private val nonScopeArguments = 5 // this, Region, Array[Aggregator], ElementType, Boolean
 
-  private def emitAgg(irs: Array[AggSum], tAggIn: TAggregable, fb: FunctionBuilder[_]): Array[RegionValueAggregator] = {
+  private def emitAgg(irs: Array[ApplyAggNullaryOp], tAggIn: TAggregable, fb: FunctionBuilder[_]): Array[RegionValueAggregator] = {
     val scopeBindings = tAggIn.bindings.zipWithIndex
       .map { case ((n, t), i) => n -> ((
         typeToTypeInfo(t),
         fb.getArg[Boolean](nonScopeArguments + i*2 + 1).load(),
         fb.getArg(nonScopeArguments + i*2)(typeToTypeInfo(t)).load())) }
 
-    irs.zipWithIndex.map { case (AggSum(a, typ), i) =>
-      val (seqOp, agg) = RegionValueSumAggregator(typ)
-      fb.emit(emitAgg2(a, tAggIn, seqOp(loadAggArray(fb)(i), _, _), fb, new StagedBitSet(fb), Env.empty.bind(scopeBindings: _*)))
-      agg
+    irs.zipWithIndex.map { case (ApplyAggNullaryOp(a, op, typ), i) =>
+      val nullaryAgg = AggOp.getNullary(op, a.typ.asInstanceOf[TAggregable].elementType)
+      fb.emit(emitAgg2(a, tAggIn, nullaryAgg.seqOp(loadAggArray(fb)(i), _, _), fb, new StagedBitSet(fb), Env.empty.bind(scopeBindings: _*)))
+      nullaryAgg.aggregator
     }
   }
 
@@ -146,7 +146,7 @@ object ExtractAggregators {
                     region.loadIRIntermediate(tArray.elementType)(tArray.loadElement(region, arr, i)),
                     tArray.isElementMissing(region, arr, i)),
                   i ++)))) }
-      case AggSum(_, _) =>
+      case ApplyAggNullaryOp(_, _, _) =>
         throw new RuntimeException(s"No nested aggregations allowed: $ir")
       case In(_, _) | InMissingness(_) =>
         throw new RuntimeException(s"No inputs may be referenced inside an aggregator: $ir")

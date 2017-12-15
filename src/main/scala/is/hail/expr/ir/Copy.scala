@@ -81,9 +81,9 @@ object Copy {
       case AggFlatMap(_, name, _, typ) =>
         val IndexedSeq(a, body) = children
         AggFlatMap(a, name, body, typ)
-      case AggSum(a, typ) =>
+      case ApplyAggNullaryOp(_, op, typ) =>
         val IndexedSeq(a) = children
-        AggSum(a, typ)
+        ApplyAggNullaryOp(a, op, typ)
       case In(_, _) =>
         same
       case InMissingness(_) =>

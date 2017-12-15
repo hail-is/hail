@@ -1,8 +1,5 @@
 package is.hail.annotations.aggregators
 
-import is.hail.asm4s._
-import is.hail.expr._
-import is.hail.expr.ir._
 import is.hail.annotations._
 import is.hail.expr.RegionValueAggregator
 
