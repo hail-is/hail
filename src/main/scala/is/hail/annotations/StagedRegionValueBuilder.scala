@@ -105,7 +105,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
     val boff = fb.newLocal[Long]
     Code(
-      boff := region.appendInt32(bytes.length()),
+      boff := region.appendInt(bytes.length()),
       toUnit(region.appendBytes(bytes)),
       typ.fundamentalType match {
         case _: TBinary => _empty
