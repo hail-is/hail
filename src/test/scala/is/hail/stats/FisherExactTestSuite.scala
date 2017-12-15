@@ -5,7 +5,7 @@ import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.utils._
-import is.hail.variant.{VariantSampleMatrix, _}
+import is.hail.variant.{MatrixTable, _}
 import org.testng.annotations.Test
 
 import scala.language.postfixOps
@@ -78,7 +78,7 @@ class FisherExactTestSuite extends SparkSuite {
       }
 
     property("expr gives same result as class") =
-      forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { (vds: VariantSampleMatrix) =>
+      forAll(MatrixTable.gen(hc, VSMSubgen.random)) { (vds: MatrixTable) =>
         val sampleIds = vds.sampleIds
         val phenotypes = sampleIds.zipWithIndex.map { case (sample, i) =>
           if (i % 3 == 0)

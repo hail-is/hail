@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.annotations.Annotation
 import is.hail.expr.{TStruct, _}
 import is.hail.utils._
-import is.hail.variant.{AltAlleleType, Genotype, HTSGenotypeView, Variant, VariantSampleMatrix}
+import is.hail.variant.{AltAlleleType, Genotype, HTSGenotypeView, Variant, MatrixTable}
 import org.apache.spark.util.StatCounter
 
 object SampleQCCombiner {
@@ -156,7 +156,7 @@ class SampleQCCombiner extends Serializable {
 }
 
 object SampleQC {
-  def results(vsm: VariantSampleMatrix): Array[SampleQCCombiner] = {
+  def results(vsm: MatrixTable): Array[SampleQCCombiner] = {
     val depth = treeAggDepth(vsm.hc, vsm.nPartitions)
     val rowType = vsm.rowType
     val nSamples = vsm.nSamples
@@ -211,9 +211,8 @@ object SampleQC {
       Array.fill(nSamples)(new SampleQCCombiner)
   }
 
-  def apply(vsm: VariantSampleMatrix, root: String = "sa.qc"): VariantSampleMatrix = {
+  def apply(vsm: MatrixTable, root: String = "sa.qc"): MatrixTable = {
     vsm.requireRowKeyVariant("sample_qc")
-
     val r = results(vsm).map(_.asAnnotation)
     vsm.annotateSamples(SampleQCCombiner.signature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), r)
   }

@@ -2,15 +2,15 @@ package is.hail.methods
 
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Locus, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, Locus, MatrixTable}
 
 object ImputeSexPlink {
-  def apply(in: VariantSampleMatrix,
+  def apply(in: MatrixTable,
     mafThreshold: Double,
     includePar: Boolean,
     fMaleThreshold: Double,
     fFemaleThreshold: Double,
-    popFrequencyExpr: Option[String]): VariantSampleMatrix = {
+    popFrequencyExpr: Option[String]): MatrixTable = {
     var vsm = in
 
     val gr = vsm.genomeReference

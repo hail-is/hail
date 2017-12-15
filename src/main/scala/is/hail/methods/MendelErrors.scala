@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TInt32, TString, TStruct, Type}
-import is.hail.keytable.KeyTable
+import is.hail.keytable.Table
 import is.hail.utils._
 import is.hail.variant.CopyState._
 import is.hail.variant.GenotypeType._
@@ -61,7 +61,7 @@ object MendelErrors {
     case _ => 0 // No error
   }
 
-  def apply(vds: VariantSampleMatrix, preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
+  def apply(vds: MatrixTable, preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
     vds.requireUniqueSamples("mendel_errors")
 
     val grLocal = vds.genomeReference
@@ -136,7 +136,7 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
       .reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2))
   }
 
-  def mendelKT(): KeyTable = {
+  def mendelKT(): Table = {
     val signature = TStruct(
       "fid" -> TString(),
       "s" -> TString(),
@@ -146,10 +146,10 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
 
     val rdd = mendelErrors.map { e => Row(e.trio.fam.orNull, e.trio.kid, e.variant, e.code, e.errorString) }
 
-    KeyTable(hc, rdd, signature, Array("s", "v"))
+    Table(hc, rdd, signature, Array("s", "v"))
   }
 
-  def fMendelKT(): KeyTable = {
+  def fMendelKT(): Table = {
     val signature = TStruct(
       "fid" -> TString(),
       "father" -> TString(),
@@ -168,10 +168,10 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
       Row(kids.flatMap(x => trioFamBc.value.get(x.head)).orNull, dad, mom, kids.map(_.length).getOrElse(0), n, nSNP)
     }
 
-    KeyTable(hc, rdd, signature, Array("fid"))
+    Table(hc, rdd, signature, Array("fid"))
   }
 
-  def iMendelKT(): KeyTable = {
+  def iMendelKT(): Table = {
 
     val signature = TStruct(
       "fid" -> TString(),
@@ -188,10 +188,10 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
 
     val rdd = nErrorPerIndiv.map { case (s, (n, nSNP)) => Row(trioFamBc.value.getOrElse(s, null), s, n, nSNP) }
 
-    KeyTable(hc, rdd, signature, Array("s"))
+    Table(hc, rdd, signature, Array("s"))
   }
 
-  def lMendelKT(): KeyTable = {
+  def lMendelKT(): Table = {
     val signature = TStruct(
       "v" -> vSig,
       "nError" -> TInt32()
@@ -199,6 +199,6 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
 
     val rdd = nErrorPerVariant.map { case (v, l) => Row(v, l.toInt) }
 
-    KeyTable(hc, rdd, signature, Array("v"))
+    Table(hc, rdd, signature, Array("v"))
   }
 }

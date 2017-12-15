@@ -15,7 +15,7 @@ class LDMatrixSuite extends SparkSuite {
   val m = 50
   val n = 60
   val seed: Int = scala.util.Random.nextInt()
-  lazy val vds: VariantSampleMatrix = hc.baldingNicholsModel(1, n, m, seed = seed)
+  lazy val vds: MatrixTable = hc.baldingNicholsModel(1, n, m, seed = seed)
   lazy val distLDMatrix: LDMatrix = LDMatrix.apply(vds, Some(false))
   lazy val localLDMatrix: LDMatrix = vds.ldMatrix(forceLocal = true)
 

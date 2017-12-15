@@ -109,7 +109,7 @@ class LoadBgenSuite extends SparkSuite {
   }
 
   object Spec extends Properties("ImportBGEN") {
-    val compGen = for (vds <- VariantSampleMatrix.gen(hc,
+    val compGen = for (vds <- MatrixTable.gen(hc,
       VSMSubgen.dosage.copy(
         vGen = _ => VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
         sGen = _ => Gen.identifier.filter(_ != "NA")))

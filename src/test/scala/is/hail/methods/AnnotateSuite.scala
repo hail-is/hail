@@ -7,7 +7,7 @@ import is.hail.check.Prop
 import is.hail.expr.{TFloat64, TInt32, TString, TStruct}
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
-import is.hail.keytable.KeyTable
+import is.hail.keytable.Table
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
@@ -61,7 +61,7 @@ class AnnotateSuite extends SparkSuite {
     List("0", "0.0", ".0", "-01", "1e5", "1e10", "1.1e10", ".1E-10").foreach(assertNumeric)
     List("", "a", "1.", ".1.", "1e", "e", "E0", "1e1.", "1e.1", "1e1.1").foreach(assertNonNumeric)
 
-    def qMap(query: String, vds: VariantSampleMatrix): Map[Annotation, Option[Any]] = {
+    def qMap(query: String, vds: MatrixTable): Map[Annotation, Option[Any]] = {
       val q = vds.querySA(query)._2
       vds.sampleIds
         .zip(vds.sampleAnnotations)
@@ -72,7 +72,7 @@ class AnnotateSuite extends SparkSuite {
     var vds = hc.importVCF("src/test/resources/importFam.vcf")
 
     vds = vds.annotateSamplesTable(
-      KeyTable.importFam(hc, "src/test/resources/importFamCaseControl.fam"), expr = "sa.fam=table")
+      Table.importFam(hc, "src/test/resources/importFamCaseControl.fam"), expr = "sa.fam=table")
     val m = qMap("sa.fam", vds)
 
     assert(m("A").contains(Annotation("Newton", "C", "D", false, false)))
@@ -83,11 +83,11 @@ class AnnotateSuite extends SparkSuite {
     assert(m("F").isEmpty)
 
     interceptFatal("non-numeric") {
-      KeyTable.importFam(hc, "src/test/resources/importFamCaseControlNumericException.fam")
+      Table.importFam(hc, "src/test/resources/importFamCaseControlNumericException.fam")
     }
 
     vds = vds.annotateSamplesTable(
-      KeyTable.importFam(hc, "src/test/resources/importFamQPheno.fam", isQuantitative = true), expr = "sa.fam=table")
+      Table.importFam(hc, "src/test/resources/importFamQPheno.fam", isQuantitative = true), expr = "sa.fam=table")
     val m1 = qMap("sa.fam", vds)
 
     assert(m1("A").contains(Annotation("Newton", "C", "D", false, 1.0)))
@@ -99,7 +99,7 @@ class AnnotateSuite extends SparkSuite {
 
 
     vds = vds.annotateSamplesTable(
-      KeyTable.importFam(hc, "src/test/resources/importFamQPheno.space.m9.fam", isQuantitative = true,
+      Table.importFam(hc, "src/test/resources/importFamQPheno.space.m9.fam", isQuantitative = true,
         delimiter = "\\\\s+", missingValue = "-9"), expr = "sa.ped = table")
 
     val m2 = qMap("sa.ped", vds)
@@ -442,8 +442,8 @@ class AnnotateSuite extends SparkSuite {
 
   @Test def testAnnotationsVDSReadWrite() {
     val outPath = tmpDir.createTempFile("annotationOut", ".vds")
-    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)
-      .filter(vds => vds.countVariants > 0)) { vds: VariantSampleMatrix =>
+    val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)
+      .filter(vds => vds.countVariants > 0)) { vds: MatrixTable =>
 
       vds.annotateVariantsVDS(vds, code = Some("va = vds")).same(vds)
     }

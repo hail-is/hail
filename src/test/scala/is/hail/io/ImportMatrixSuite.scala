@@ -5,7 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr._
-import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
+import is.hail.variant.{VSMSubgen, MatrixTable}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
@@ -46,9 +46,9 @@ class ImportMatrixSuite extends SparkSuite {
       vGen = (t: Type) => Gen.identifier,
       tGen = (t: Type, v: Annotation) => t.genValue)
 
-    forAll(VariantSampleMatrix.gen(hc, genMatrix)
+    forAll(MatrixTable.gen(hc, genMatrix)
         .filter(vsm => !vsm.sampleIds.contains("v"))) { vsm =>
-      val actual: VariantSampleMatrix = {
+      val actual: MatrixTable = {
         val f = tmpDir.createTempFile(extension="txt")
         vsm.makeKT("v = v", "`` = g", Array("v")).export(f)
         LoadMatrix(hc, Array(f), cellType = vsm.genotypeSignature, hasRowIDName = true)
@@ -58,7 +58,7 @@ class ImportMatrixSuite extends SparkSuite {
       val tmp1 = tmpDir.createTempFile(extension = "vds")
       vsm.write(tmp1, true)
 
-      val vsm2 = VariantSampleMatrix.read(hc, tmp1)
+      val vsm2 = MatrixTable.read(hc, tmp1)
       assert(vsm.same(vsm2))
       true
     }.check()

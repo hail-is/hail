@@ -3,7 +3,7 @@ package is.hail.variant
 import is.hail.annotations.{Annotation, _}
 import is.hail.expr.{EvalContext, Parser, TAggregable, TString, TStruct, Type, _}
 import is.hail.io.plink.ExportBedBimFam
-import is.hail.keytable.KeyTable
+import is.hail.keytable.Table
 import is.hail.methods._
 import is.hail.rvd.OrderedRVD
 import is.hail.stats.ComputeRRM
@@ -17,7 +17,7 @@ import scala.language.existentials
 
 object VariantDataset {
 
-  def fromKeyTable(kt: KeyTable): VariantSampleMatrix = {
+  def fromKeyTable(kt: Table): MatrixTable = {
     val vType: Type = kt.keyFields.map(_.typ) match {
       case Array(t@TVariant(_, _)) => t
       case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
@@ -35,14 +35,14 @@ object VariantDataset {
       vaSignature = kt.valueSignature,
       globalSignature = TStruct.empty())
 
-    VariantSampleMatrix.fromLegacy(kt.hc, metadata,
+    MatrixTable.fromLegacy(kt.hc, metadata,
       VSMLocalValue(Annotation.empty, Array.empty[Annotation], Array.empty[Annotation]), rdd)
   }
 }
 
-class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyVal {
+class VariantDatasetFunctions(private val vsm: MatrixTable) extends AnyVal {
 
-  def annotateAllelesExpr(expr: String): VariantSampleMatrix = {
+  def annotateAllelesExpr(expr: String): MatrixTable = {
     if (!vsm.genotypeSignature.isOfType(Genotype.htsGenotypeType))
       fatal(s"annotate_alleles: genotype_schema must be the HTS genotype schema, found: ${ vsm.genotypeSignature }")
 
@@ -65,7 +65,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
     annotateAllelesExprGeneric(splitVariantExpr, splitGenotypeExpr, variantExpr = expr)
   }
 
-  def annotateAllelesExprGeneric(splitVariantExpr: String, splitGenotypeExpr: String, variantExpr: String): VariantSampleMatrix = {
+  def annotateAllelesExprGeneric(splitVariantExpr: String, splitGenotypeExpr: String, variantExpr: String): MatrixTable = {
 
     val splitmulti = new SplitMulti(vsm, splitVariantExpr, splitGenotypeExpr,
       keepStar = true, leftAligned = false)
@@ -157,7 +157,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
     vsm.copy2(rdd2 = newRDD2, vaSignature = newType)
   }
 
-  def concordance(other: VariantSampleMatrix): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
+  def concordance(other: MatrixTable): (IndexedSeq[IndexedSeq[Long]], Table, Table) = {
     require(vsm.wasSplit)
     require(other.wasSplit)
 
@@ -254,7 +254,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
   }
 
   def filterAlleles(filterExpr: String, variantExpr: String = "",
-    keep: Boolean = true, subset: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantSampleMatrix = {
+    keep: Boolean = true, subset: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): MatrixTable = {
     if (!vsm.genotypeSignature.isOfType(Genotype.htsGenotypeType))
       fatal(s"filter_alleles: genotype_schema must be the HTS genotype schema, found: ${ vsm.genotypeSignature }")
 
@@ -300,7 +300,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
   }
 
   def filterAllelesGeneric(filterExpr: String, variantExpr: String, genotypeExpr: String,
-    keep: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantSampleMatrix = {
+    keep: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): MatrixTable = {
     FilterAlleles(vsm, filterExpr, variantExpr, genotypeExpr,
       keep = keep, leftAligned = leftAligned, keepStar = keepStar)
   }
@@ -311,7 +311,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     GRM(vsm)
   }
 
-  def hardCalls(): VariantSampleMatrix = {
+  def hardCalls(): MatrixTable = {
     vsm.annotateGenotypesExpr("g = {GT: g.GT}")
   }
 
@@ -324,7 +324,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     * @param popFreqExpr      Use an annotation expression for estimate of MAF rather than computing from the data
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
-    fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantSampleMatrix = {
+    fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): MatrixTable = {
     require(vsm.wasSplit)
 
     ImputeSexPlink(vsm,
@@ -340,7 +340,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     LDMatrix(vsm, Some(forceLocal))
   }
 
-  def nirvana(config: String, blockSize: Int = 500000, root: String): VariantSampleMatrix = {
+  def nirvana(config: String, blockSize: Int = 500000, root: String): MatrixTable = {
     Nirvana.annotate(vsm, config, blockSize, root)
   }
 
@@ -360,17 +360,17 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     * @param blockSize Variants per VEP invocation
     */
   def vep(config: String, root: String = "va.vep", csq: Boolean = false,
-    blockSize: Int = 1000): VariantSampleMatrix = {
+    blockSize: Int = 1000): MatrixTable = {
     VEP.annotate(vsm, config, root, csq, blockSize)
   }
 
-  def filterIntervals(intervals: java.util.ArrayList[Interval[Locus]], keep: Boolean): VariantSampleMatrix = {
+  def filterIntervals(intervals: java.util.ArrayList[Interval[Locus]], keep: Boolean): MatrixTable = {
     implicit val locusOrd = vsm.genomeReference.locusOrdering
     val iList = IntervalTree[Locus](intervals.asScala.toArray)
     filterIntervals(iList, keep)
   }
 
-  def filterIntervals[T, U](iList: IntervalTree[Locus, U], keep: Boolean): VariantSampleMatrix = {
+  def filterIntervals[T, U](iList: IntervalTree[Locus, U], keep: Boolean): MatrixTable = {
     implicit val locusOrd = vsm.matrixType.locusType.ordering(missingGreatest = true)
 
     val ab = new ArrayBuilder[(Interval[Annotation], Annotation)]()
@@ -393,7 +393,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     *
     * Useful for running methods that require biallelic variants without calling the more expensive split_multi step.
     */
-  def filterMulti(): VariantSampleMatrix = {
+  def filterMulti(): MatrixTable = {
     if (vsm.wasSplit) {
       warn("called redundant `filter_multi' on an already split or multiallelic-filtered VDS")
       vsm
@@ -404,10 +404,10 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     }
   }
 
-  def verifyBiallelic(): VariantSampleMatrix =
+  def verifyBiallelic(): MatrixTable =
     verifyBiallelic("verifyBiallelic")
 
-  def verifyBiallelic(method: String): VariantSampleMatrix = {
+  def verifyBiallelic(method: String): MatrixTable = {
     if (vsm.wasSplit) {
       warn("called redundant `$method' on biallelic VDS")
       vsm
@@ -505,7 +505,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     writeGenFile()
   }
 
-  def splitMulti(keepStar: Boolean = false, leftAligned: Boolean = false): VariantSampleMatrix = {
+  def splitMulti(keepStar: Boolean = false, leftAligned: Boolean = false): MatrixTable = {
     if (!vsm.genotypeSignature.isOfType(Genotype.htsGenotypeType))
       fatal(s"split_multi: genotype_schema must be the HTS genotype schema, found: ${ vsm.genotypeSignature }")
 
@@ -526,7 +526,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
       keepStar, leftAligned)
   }
 
-  def splitMultiGeneric(variantExpr: String, genotypeExpr: String, keepStar: Boolean = false, leftAligned: Boolean = false): VariantSampleMatrix = {
+  def splitMultiGeneric(variantExpr: String, genotypeExpr: String, keepStar: Boolean = false, leftAligned: Boolean = false): MatrixTable = {
     val splitmulti = new SplitMulti(vsm, variantExpr, genotypeExpr, keepStar, leftAligned)
     splitmulti.split()
   }

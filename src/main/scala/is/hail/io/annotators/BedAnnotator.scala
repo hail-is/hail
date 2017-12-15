@@ -2,13 +2,13 @@ package is.hail.io.annotators
 
 import is.hail.HailContext
 import is.hail.expr._
-import is.hail.keytable.KeyTable
+import is.hail.keytable.Table
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
 import org.apache.spark.sql.Row
 
 object BedAnnotator {
-  def apply(hc: HailContext, filename: String, gr: GenomeReference = GenomeReference.defaultReference): KeyTable = {
+  def apply(hc: HailContext, filename: String, gr: GenomeReference = GenomeReference.defaultReference): Table = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     val hasTarget = hc.hadoopConf.readLines(filename) { lines =>
@@ -68,6 +68,6 @@ object BedAnnotator {
         }.value
       }
 
-    KeyTable(hc, rdd, schema, Array("interval"))
+    Table(hc, rdd, schema, Array("interval"))
   }
 }

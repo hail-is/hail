@@ -5,7 +5,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.TVariant
 import is.hail.utils._
-import is.hail.variant.{HardCallView, Locus, Variant, VariantSampleMatrix}
+import is.hail.variant.{HardCallView, Locus, Variant, MatrixTable}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
 import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vectors}
@@ -30,7 +30,7 @@ object ComputeGramian {
 // diagonal values are approximately 1 assuming independent variants by Central Limit Theorem
 object ComputeRRM {
 
-  def apply(vds: VariantSampleMatrix, forceBlock: Boolean = false, forceGramian: Boolean = false): (IndexedRowMatrix, Long) = {
+  def apply(vds: MatrixTable, forceBlock: Boolean = false, forceGramian: Boolean = false): (IndexedRowMatrix, Long) = {
     def scaleMatrix(matrix: Matrix, scalar: Double): Matrix = {
       Matrices.dense(matrix.numRows, matrix.numCols, matrix.toArray.map(_ * scalar))
     }
@@ -70,7 +70,7 @@ object LocalDenseMatrixToIndexedRowMatrix {
 
 // each row has mean 0, norm sqrt(n), variance 1, constant variants are dropped
 object ToNormalizedRowMatrix {
-  def apply(vds: VariantSampleMatrix): RowMatrix = {
+  def apply(vds: MatrixTable): RowMatrix = {
     require(vds.wasSplit)
 
     val n = vds.nSamples
@@ -92,7 +92,7 @@ object ToNormalizedRowMatrix {
 
 // each row has mean 0, norm sqrt(n), variance 1
 object ToNormalizedIndexedRowMatrix {
-  def apply(vds: VariantSampleMatrix): IndexedRowMatrix = {
+  def apply(vds: MatrixTable): IndexedRowMatrix = {
     require(vds.wasSplit)
     val n = vds.nSamples
 
@@ -122,7 +122,7 @@ object ToNormalizedIndexedRowMatrix {
 
 // each row has mean 0, norm approx sqrt(n), variance approx 1, constant variants are included as zero vector
 object ToHWENormalizedIndexedRowMatrix {
-  def apply(vsm: VariantSampleMatrix): (Array[Variant], IndexedRowMatrix) = {
+  def apply(vsm: MatrixTable): (Array[Variant], IndexedRowMatrix) = {
     require(vsm.wasSplit)
     val rowType = vsm.rowType
 

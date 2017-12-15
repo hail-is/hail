@@ -1,9 +1,9 @@
 package is.hail
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
-import is.hail.keytable.KeyTable
+import is.hail.keytable.Table
 import is.hail.utils._
-import is.hail.variant.{Genotype, Locus, Variant, VariantSampleMatrix}
+import is.hail.variant.{Genotype, Locus, Variant, MatrixTable}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
@@ -71,14 +71,14 @@ object TestUtils {
   }
 
   // missing is -1
-  def vdsToMatrixInt(vds: VariantSampleMatrix): DenseMatrix[Int] =
+  def vdsToMatrixInt(vds: MatrixTable): DenseMatrix[Int] =
     new DenseMatrix[Int](
       vds.nSamples,
       vds.countVariants().toInt,
       vds.typedRDD[Locus, Variant].map(_._2._2.map(g => Genotype.unboxedGT(g))).collect().flatten)
 
   // missing is Double.NaN
-  def vdsToMatrixDouble(vds: VariantSampleMatrix): DenseMatrix[Double] =
+  def vdsToMatrixDouble(vds: MatrixTable): DenseMatrix[Double] =
     new DenseMatrix[Double](
       vds.nSamples,
       vds.countVariants().toInt,
@@ -93,7 +93,7 @@ object TestUtils {
         D_==(x.doubleValue(), y.doubleValue(), tolerance = tol)
     }
 
-  def keyTableBoxedDoubleToMap[T](kt: KeyTable): Map[T, IndexedSeq[java.lang.Double]] =
+  def keyTableBoxedDoubleToMap[T](kt: Table): Map[T, IndexedSeq[java.lang.Double]] =
     kt.collect().map { r =>
       val s = r.asInstanceOf[Row].toSeq
       s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toIndexedSeq

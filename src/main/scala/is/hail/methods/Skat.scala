@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
-import is.hail.keytable.KeyTable
+import is.hail.keytable.Table
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
 import is.hail.annotations.Annotation
 
@@ -57,7 +57,7 @@ case class SkatTuple(q: Double, a: DenseVector[Double], b: DenseVector[Double])
 object Skat {
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
   
-  def apply(vsm: VariantSampleMatrix,
+  def apply(vsm: MatrixTable,
     keyExpr: String,
     weightExpr: String,
     yExpr: String,
@@ -66,7 +66,7 @@ object Skat {
     logistic: Boolean,
     maxSize: Int,
     accuracy: Double,
-    iterations: Int): KeyTable = {
+    iterations: Int): Table = {
     
     if (maxSize <= 0 || maxSize > 46340)
       fatal(s"Maximum group size must be in [1, 46340], got $maxSize")
@@ -195,10 +195,10 @@ object Skat {
       ("pval", TFloat64()),
       ("fault", TInt32()))
 
-    KeyTable(vsm.hc, skatRdd, skatSignature, Array("key"))
+    Table(vsm.hc, skatRdd, skatSignature, Array("key"))
   }
 
-  def computeKeyGsWeightRdd(vsm: VariantSampleMatrix,
+  def computeKeyGsWeightRdd(vsm: MatrixTable,
     xExpr: String,
     completeSampleIndex: Array[Int],
     keyExpr: String,

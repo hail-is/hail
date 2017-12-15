@@ -8,7 +8,7 @@ import is.hail.TestUtils._
 import is.hail.annotations.UnsafeRow
 import is.hail.check.Prop.forAll
 import is.hail.utils._
-import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
+import is.hail.variant.{VSMSubgen, MatrixTable}
 
 
 class GroupBySuite extends SparkSuite {
@@ -36,7 +36,7 @@ class GroupBySuite extends SparkSuite {
   @Test def testRandomVSMEquivalence() {
     var vSkipped = 0
     var sSkipped = 0
-    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vsm =>
+    val p = forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vsm =>
       val variants = vsm.variants.collect()
       val uniqueVariants = variants.toSet
       if (variants.length != uniqueVariants.size) {

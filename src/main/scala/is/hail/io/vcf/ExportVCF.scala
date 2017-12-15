@@ -5,7 +5,7 @@ import is.hail.annotations.Region
 import is.hail.expr._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, VariantSampleMatrix}
+import is.hail.variant.{Genotype, Variant, MatrixTable}
 
 import scala.io.Source
 
@@ -198,7 +198,7 @@ object ExportVCF {
   def getAttributes(k1: String, k2: String, k3: String, attributes: Option[VCFMetadata]): Option[String] =
     getAttributes(k1, k2, attributes).flatMap(_.get(k3))
 
-  def apply(vsm: VariantSampleMatrix, path: String, append: Option[String] = None,
+  def apply(vsm: MatrixTable, path: String, append: Option[String] = None,
     parallel: Boolean = false, metadata: Option[VCFMetadata] = None) {
     
     vsm.requireColKeyString("export_vcf")

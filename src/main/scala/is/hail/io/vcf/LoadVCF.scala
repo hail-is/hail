@@ -814,7 +814,7 @@ object LoadVCF {
     dropSamples: Boolean = false,
     gr: GenomeReference = GenomeReference.defaultReference,
     contigRecoding: Map[String, String] = Map.empty[String, String],
-    arrayElementsRequired: Boolean = true): VariantSampleMatrix = {
+    arrayElementsRequired: Boolean = true): MatrixTable = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
@@ -929,7 +929,7 @@ object LoadVCF {
       }(lines, rowType, contigRecoding),
       Some(justVariants), None)
 
-    new VariantSampleMatrix(hc,
+    new MatrixTable(hc,
       vsmMetadata,
       VSMLocalValue(Annotation.empty,
         sampleIds,

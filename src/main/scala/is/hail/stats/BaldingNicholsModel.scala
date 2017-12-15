@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.{MatrixType, TArray, TCall, TFloat64, TInt32, TLocus, TString, TStruct, TVariant}
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, Genotype, VSMLocalValue, VSMMetadata, Variant, MatrixTable}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
@@ -15,7 +15,7 @@ object BaldingNicholsModel {
   def apply(hc: HailContext, nPops: Int, nSamples: Int, nVariants: Int,
     popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
     seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution,
-    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
+    gr: GenomeReference = GenomeReference.defaultReference): MatrixTable = {
 
     val sc = hc.sc
 
@@ -205,7 +205,7 @@ object BaldingNicholsModel {
     // FIXME: should use fast keys
     val ordrdd = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
 
-    new VariantSampleMatrix(hc,
+    new MatrixTable(hc,
       vsmMetadata,
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
       ordrdd)

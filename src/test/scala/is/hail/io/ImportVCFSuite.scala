@@ -3,7 +3,7 @@ package is.hail.io
 import is.hail.check.Prop._
 import is.hail.SparkSuite
 import is.hail.io.vcf.LoadVCF
-import is.hail.variant.{Call, Genotype, VSMSubgen, Variant, VariantSampleMatrix}
+import is.hail.variant.{Call, Genotype, VSMSubgen, Variant, MatrixTable}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
@@ -178,7 +178,7 @@ class ImportVCFSuite extends SparkSuite {
   }
 
   @Test def randomExportImportIsIdentity() {
-    forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+    forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
 
       val truth = {
         val f = tmpDir.createTempFile(extension="vcf")

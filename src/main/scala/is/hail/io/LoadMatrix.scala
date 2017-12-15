@@ -158,7 +158,7 @@ object LoadMatrix {
     cellType: Type = TInt64(),
     sep: String = "\t",
     missingValue: String = "NA",
-    hasRowIDName: Boolean = false): VariantSampleMatrix = {
+    hasRowIDName: Boolean = false): MatrixTable = {
 
     val cellParser: (String, Int, RegionValueBuilder, Char, String, String, String, Int) => Int = cellType match {
       case _: TInt32 => setInt
@@ -306,7 +306,7 @@ object LoadMatrix {
         }
       }
 
-    new VariantSampleMatrix(hc,
+    new MatrixTable(hc,
       VSMMetadata(TString(), vSignature = TString(), genotypeSignature = cellType),
       VSMLocalValue(Annotation.empty,
         sampleIds,

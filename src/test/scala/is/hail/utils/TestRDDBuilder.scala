@@ -80,7 +80,7 @@ object TestRDDBuilder {
   def buildRDD(nSamples: Int, nVariants: Int, hc: HailContext,
                       gqArray: Option[Array[Array[Int]]] = None,
                       dpArray: Option[Array[Array[Int]]] = None,
-                      gtArray: Option[Array[Array[Int]]] = None): VariantSampleMatrix = {
+                      gtArray: Option[Array[Array[Int]]] = None): MatrixTable = {
     /* Takes the arguments:
     nSamples(Int) -- number of samples (columns) to produce in VCF
     nVariants(Int) -- number of variants(rows) to produce in VCF
@@ -124,6 +124,6 @@ object TestRDDBuilder {
       }.toArray
     
     val variantRDD = hc.sc.parallelize(variantArray)
-    VariantSampleMatrix.fromLegacy(hc, VSMFileMetadata(sampleList), variantRDD)
+    MatrixTable.fromLegacy(hc, VSMFileMetadata(sampleList), variantRDD)
   }
 }

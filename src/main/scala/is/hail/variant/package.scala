@@ -24,5 +24,5 @@ package object variant {
 
   implicit def toRichIterableGenotype(ig: Iterable[Annotation]): RichIterableGenotype = new RichIterableGenotype(ig)
 
-  implicit def toVDSFunctions(vds: VariantSampleMatrix): VariantDatasetFunctions = new VariantDatasetFunctions(vds)
+  implicit def toVDSFunctions(vds: MatrixTable): VariantDatasetFunctions = new VariantDatasetFunctions(vds)
 }

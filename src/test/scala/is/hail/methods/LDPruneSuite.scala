@@ -126,7 +126,7 @@ class LDPruneSuite extends SparkSuite {
     new MultiArray2(nVariants, nVariants, r2.toArray)
   }
 
-  def isUncorrelated(vds: VariantSampleMatrix, r2Threshold: Double, windowSize: Int): Boolean = {
+  def isUncorrelated(vds: MatrixTable, r2Threshold: Double, windowSize: Int): Boolean = {
     val nSamplesLocal = vds.nSamples
     val r2Matrix = correlationMatrix(vds.typedRDD[Locus, Variant].map { case (v, (va, gs)) => gs }.collect(), nSamplesLocal)
     val variantMap = vds.variants.zipWithIndex().map { case (v, i) => (i.toInt, v.asInstanceOf[Variant]) }.collectAsMap()

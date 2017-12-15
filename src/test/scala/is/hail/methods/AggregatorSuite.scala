@@ -2,10 +2,10 @@ package is.hail.methods
 
 import is.hail.check.{Gen, Prop}
 import is.hail.expr._
-import is.hail.keytable.KeyTable
+import is.hail.keytable.Table
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{VSMSubgen, Variant, VariantSampleMatrix}
+import is.hail.variant.{VSMSubgen, Variant, MatrixTable}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
@@ -108,7 +108,7 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def testSum() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+    val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
       val vds2 = VariantQC(vds.splitMulti())
         .annotateVariantsExpr("va.oneHotAC = gs.map(g => g.GT.oneHotAlleles(v)).sum()")
         .annotateVariantsExpr("va.same = (gs.filter(g => isDefined(g.GT)).count() == 0) || " +
@@ -131,12 +131,12 @@ class AggregatorSuite extends SparkSuite {
     val signature = TStruct((("group" -> TString()) +: (0 until 8).map(i => s"s$i" -> TInt32()))
       ++ IndexedSeq("s8" -> TInt64(), "s9" -> TFloat32(), "s10" -> TFloat64()): _*)
 
-    val ktMax = KeyTable(hc, rdd, signature)
+    val ktMax = Table(hc, rdd, signature)
       .aggregate("group = group", (0 until 11).map(i => s"s$i = s$i.max()").mkString(","))
 
     assert(ktMax.collect() == IndexedSeq(Row("a", 1, -1, 2, -1, -1, 1, 1, null, 1l, 1f, 1d)))
 
-    val ktMin = KeyTable(hc, rdd, signature)
+    val ktMin = Table(hc, rdd, signature)
       .aggregate("group = group", (0 until 11).map(i => s"s$i = s$i.min()").mkString(","))
 
     assert(ktMin.collect() == IndexedSeq(Row("a", -1, -2, 1, -2, -1, 1, 1, null, -1l, -1f, -1d)))
@@ -151,7 +151,7 @@ class AggregatorSuite extends SparkSuite {
     val signature = TStruct((("group" -> TString()) +: (0 until 8).map(i => s"s$i" -> TInt32()))
       ++ IndexedSeq("s8" -> TInt64(), "s9" -> TFloat32(), "s10" -> TFloat64()): _*)
 
-    val ktProduct = KeyTable(hc, rdd, signature)
+    val ktProduct = Table(hc, rdd, signature)
       .aggregate("group = group", ((0 until 11).map(i => s"s$i = s$i.product()") :+ ("empty = s10.filter(x => false).product()")).mkString(","))
 
     assert(ktProduct.collect() == IndexedSeq(Row("a", 0l, 2l, 2l, 6l, -1l, -3l, 80l, 1l, 0l, -4d, 0d, 1d)))
@@ -253,7 +253,7 @@ va.hist.nGreater == va.nGreater
   }
 
   @Test def testCounter() {
-    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)) { vds =>
+    Prop.forAll(MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)) { vds =>
       val (r, t) = vds.queryVariants("variants.map(v => v.contig).counter()")
       val counterMap = r.asInstanceOf[Map[String, Long]]
       val aggMap = vds.variants.map(_.asInstanceOf[Variant].contig).countByValue()
@@ -277,7 +277,7 @@ va.hist.nGreater == va.nGreater
   @Test def testTransformations() {
     val p = Prop.forAll(
       for {
-        vds <- VariantSampleMatrix.gen(hc, VSMSubgen.random
+        vds <- MatrixTable.gen(hc, VSMSubgen.random
           .copy(sGen = _ => Gen.oneOf("a", "b")))
           .filter(vds => vds.nSamples > 0);
         s <- Gen.choose(0, vds.nSamples - 1)
@@ -303,7 +303,7 @@ va.hist.nGreater == va.nGreater
   }
 
   @Test def testQueryGenotypes() {
-    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+    Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
       val countResult = vds.summarize().callRate.getOrElse(null)
       val (queryResult, t) = vds.queryGenotypes("gs.fraction(g => isDefined(g.GT))")
       assert(t.valuesSimilar(countResult, queryResult))
@@ -363,7 +363,7 @@ va.hist.nGreater == va.nGreater
     val rng = new RandomDataGenerator()
     rng.reSeed(Prop.seed)
 
-    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantSampleMatrix) =>
+    Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)) { (vds: MatrixTable) =>
       val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])",
         "gs.map(g => [g.DP, g.GQ]).takeBy(x => x[1], 10)"))
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
@@ -382,7 +382,7 @@ va.hist.nGreater == va.nGreater
     val rng = new RandomDataGenerator()
     rng.reSeed(Prop.seed)
 
-    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantSampleMatrix) =>
+    Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)) { (vds: MatrixTable) =>
       vds.typecheck()
 
       val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => g.GQ).map(g => [g.DP, g.GQ])",
@@ -488,7 +488,7 @@ va.hist.nGreater == va.nGreater
   }
 
   @Test def testCollectAsSet() {
-    val kt = KeyTable.range(hc, 100, Some(10))
+    val kt = Table.range(hc, 100, Some(10))
 
     assert(kt.query(Array("index.collectAsSet()"))(0)._1 == (0 until 100).toSet)
     assert(kt.union(kt, kt).query(Array("index.collectAsSet()"))(0)._1 == (0 until 100).toSet)

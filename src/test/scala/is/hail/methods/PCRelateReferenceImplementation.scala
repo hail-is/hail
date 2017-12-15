@@ -1,10 +1,10 @@
 package is.hail.methods
 
 import breeze.linalg.{DenseMatrix, inv}
-import is.hail.variant.{Genotype, Locus, Variant, VariantSampleMatrix}
+import is.hail.variant.{Genotype, Locus, Variant, MatrixTable}
 
 object PCRelateReferenceImplementation {
-  def apply(vds: VariantSampleMatrix, pcs: DenseMatrix[Double], maf: Double = 0.0): (Map[(String, String), (Double, Double, Double, Double)], DenseMatrix[Double], DenseMatrix[Double], DenseMatrix[Double]) = {
+  def apply(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double = 0.0): (Map[(String, String), (Double, Double, Double, Double)], DenseMatrix[Double], DenseMatrix[Double], DenseMatrix[Double]) = {
     val indexToId: Map[Int, String] = vds.stringSampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
 
     val gts = vds.typedRDD[Locus, Variant].zipWithIndex.map { case ((v, (va, gs)), i) =>

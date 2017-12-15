@@ -45,7 +45,7 @@ class IBDSuite extends SparkSuite {
     }
   }
 
-  private def runPlinkIBD(vds: VariantSampleMatrix,
+  private def runPlinkIBD(vds: MatrixTable,
     min: Option[Double] = None,
     max: Option[Double] = None): Map[(Annotation, Annotation), ExtendedIBDInfo] = {
 
@@ -97,7 +97,7 @@ class IBDSuite extends SparkSuite {
   }
 
   object Spec extends Properties("IBD") {
-    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
+    val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
       .map { vds =>
         val gr = vds.genomeReference

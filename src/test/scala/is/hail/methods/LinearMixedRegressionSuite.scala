@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.{TArray, TFloat64, TStruct}
 import is.hail.stats._
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantSampleMatrix}
+import is.hail.variant.{Variant, MatrixTable}
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
@@ -439,7 +439,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
   //Tests that k eigenvectors give the same result as all n eigenvectors for a rank-k kinship matrix on n samples.
   @Test def testFullRankAndLowRank() {
-    val vdsChr1: VariantSampleMatrix = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
+    val vdsChr1: MatrixTable = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
 
     val notChr1VDSDownsampled = vdsFastLMM.filterVariantsExpr("""v.contig == "3" && v.start < 2242""")
 
@@ -460,7 +460,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     globalLMMCompare(vdsChr1FullRankML, vdsChr1LowRankML)
   }
 
-  private def globalLMMCompare(vds1: VariantSampleMatrix, vds2: VariantSampleMatrix) {
+  private def globalLMMCompare(vds1: MatrixTable, vds2: MatrixTable) {
     assert(D_==(vds1.queryGlobal("global.lmmreg.beta")._2.asInstanceOf[Map[String, Double]].apply("intercept"),
       vds2.queryGlobal("global.lmmreg.beta")._2.asInstanceOf[Map[String, Double]].apply("intercept")))
 

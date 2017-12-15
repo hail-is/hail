@@ -30,7 +30,7 @@ class HWESuite extends SparkSuite {
   }
 
   @Test def testExpr() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds: VariantSampleMatrix =>
+    val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds: MatrixTable =>
       val vds2 = VariantQC(vds.splitMulti())
         .annotateVariantsExpr("va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)")
         .annotateVariantsExpr("va.hweAgg = gs.map(g => g.GT).hardyWeinberg()")

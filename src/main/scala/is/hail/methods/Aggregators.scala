@@ -18,7 +18,7 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def buildVariantAggregationsByKey(vsm: VariantSampleMatrix, nKeys: Int, keyMap: Array[Int], ec: EvalContext): (RegionValue) => Array[() => Unit] =
+  def buildVariantAggregationsByKey(vsm: MatrixTable, nKeys: Int, keyMap: Array[Int], ec: EvalContext): (RegionValue) => Array[() => Unit] =
     buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, nKeys, keyMap, ec)
 
   // keyMap is just a mapping of sampleIds.map { s => newKey(s) }
@@ -86,7 +86,7 @@ object Aggregators {
     }
   }
 
-  def buildVariantAggregations(vsm: VariantSampleMatrix, ec: EvalContext): Option[(RegionValue) => Unit] =
+  def buildVariantAggregations(vsm: MatrixTable, ec: EvalContext): Option[(RegionValue) => Unit] =
     buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, ec)
 
   def buildVariantAggregations(sc: SparkContext,
@@ -214,7 +214,7 @@ object Aggregators {
     })
   }
 
-  def makeSampleFunctions(vsm: VariantSampleMatrix, aggExpr: String): SampleFunctions = {
+  def makeSampleFunctions(vsm: MatrixTable, aggExpr: String): SampleFunctions = {
     val ec = vsm.sampleEC
 
     val (resultNames, resultTypes, aggF) = Parser.parseAnnotationExprs(aggExpr, ec, None)

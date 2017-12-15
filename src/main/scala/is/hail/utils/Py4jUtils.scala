@@ -3,8 +3,8 @@ package is.hail.utils
 import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
-import is.hail.keytable.KeyTable
-import is.hail.variant.{GenomeReference, Locus, VariantSampleMatrix}
+import is.hail.keytable.Table
+import is.hail.variant.{GenomeReference, Locus, MatrixTable}
 
 import scala.collection.JavaConverters._
 
@@ -88,19 +88,19 @@ trait Py4jUtils {
     error(msg)
   }
 
-  def joinGlobals(left: KeyTable, right: KeyTable, identifier: String): KeyTable = {
+  def joinGlobals(left: Table, right: Table, identifier: String): Table = {
     left.annotateGlobal(right.globals, right.globalSignature, identifier)
   }
 
-  def joinGlobals(left: KeyTable, right: VariantSampleMatrix, identifier: String): KeyTable = {
+  def joinGlobals(left: Table, right: MatrixTable, identifier: String): Table = {
     left.annotateGlobal(right.globalAnnotation, right.globalSignature, identifier)
   }
 
-  def joinGlobals(left: VariantSampleMatrix, right: KeyTable, identifier: String): VariantSampleMatrix = {
+  def joinGlobals(left: MatrixTable, right: Table, identifier: String): MatrixTable = {
     left.annotateGlobal(right.globals, right.globalSignature, "global." + identifier)
   }
 
-  def joinGlobals(left: VariantSampleMatrix, right: VariantSampleMatrix, identifier: String): VariantSampleMatrix = {
+  def joinGlobals(left: MatrixTable, right: MatrixTable, identifier: String): MatrixTable = {
     left.annotateGlobal(right.globalAnnotation, right.globalSignature, "global." + identifier)
   }
 }
