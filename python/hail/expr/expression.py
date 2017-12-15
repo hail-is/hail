@@ -528,6 +528,16 @@ class SetExpression(CollectionExpression):
 
     def remove(self, x):
         """Returns the result of removing the argument from this Set.
+
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+        :py:class:`SetExpression`
+            This set with the element `x` removed.
+
         Examples
         --------
         .. doctest:
