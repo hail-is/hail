@@ -1,8 +1,5 @@
 package is.hail.variant
 
-import java.nio.ByteBuffer
-
-import breeze.linalg.{*, DenseMatrix}
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.distributedmatrix._
@@ -17,14 +14,14 @@ import is.hail.rvd.{OrderedRVD, OrderedRVType}
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.{HailContext, utils}
+import breeze.linalg.DenseMatrix
 import org.apache.hadoop
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.rdd.AggregateWithContext._
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{Partitioner, SparkContext, SparkEnv}
+import org.apache.spark.{Partitioner, SparkContext}
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jackson.Serialization
