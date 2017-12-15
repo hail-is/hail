@@ -13,15 +13,23 @@ import org.apache.spark.sql.Row
 object TextTableReader {
 
   def splitLine(s: String, separator: String, quote: java.lang.Character): Array[String] = {
-    val p = Pattern.compile(separator)
-    val m = p.matcher(s)
 
-    def matchSep(i: Int): Int = {
-      m.region(i, s.length)
-      if (m.lookingAt())
-        m.end() - m.start()
-      else
-        -1
+    val matchSep: Int => Int = separator.length match {
+      case 0 => fatal("Hail does not currently support 0-character separators")
+      case 1 =>
+        val sepChar = separator(0)
+        (i: Int) => if (s(i) == sepChar) 1 else -1
+      case _ =>
+        val p = Pattern.compile(separator)
+        val m = p.matcher(s)
+
+      { (i: Int) =>
+          m.region(i, s.length)
+          if (m.lookingAt())
+            m.end() - m.start()
+          else
+            -1
+        }
     }
 
     val ab = new ArrayBuilder[String]
@@ -38,7 +46,7 @@ object TextTableReader {
         sb.clear()
       } else if (quote != null && c == quote) {
         if (sb.nonEmpty)
-          fatal("opening quote character $quote not at start of field")
+          fatal(s"opening quote character '$quote' not at start of field")
         i += 1 // skip quote
 
         while (i < s.length && s(i) != quote) {
@@ -47,14 +55,14 @@ object TextTableReader {
         }
 
         if (i == s.length)
-          fatal(s"missing terminating quote character $quote")
+          fatal(s"missing terminating quote character '$quote'")
         i += 1 // skip quote
 
         // full field must be quoted
         if (i < s.length) {
           val l = matchSep(i)
           if (l == -1)
-            fatal(s"terminating quote character $quote not at end of field")
+            fatal(s"terminating quote character '$quote' not at end of field")
           i += l
           ab += sb.result()
           sb.clear()
