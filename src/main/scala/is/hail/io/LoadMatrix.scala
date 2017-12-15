@@ -27,9 +27,8 @@ object LoadMatrix {
     annotationHeaders match {
       case None =>
         val r = line.split(sep)
-        if (r.length < nAnnotations) {
+        if (r.length < nAnnotations)
           fatal(s"Expected $nAnnotations annotation columns; only ${ r.length } columns in table.")
-        }
         (r.slice(0, nAnnotations), r.slice(nAnnotations, r.length))
       case Some(h) =>
         assert(h.length == nAnnotations)

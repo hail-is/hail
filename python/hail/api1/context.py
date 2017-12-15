@@ -5,7 +5,7 @@ from pyspark.sql import SQLContext
 
 from hail.api1.dataset import VariantDataset
 from hail.api1.keytable import KeyTable
-from hail.expr.types import Type, TInt64, TDict, TString
+from hail.expr.types import Type, TInt32, TInt64, TFloat32, TFloat64, TDict, TString
 from hail.genetics.genomeref import GenomeReference
 from hail.history import *
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
@@ -845,7 +845,7 @@ class HailContext(HistoryMixin):
     @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       key_expr=strlike,
-                      annotation_types=listof(Type),
+                      annotation_types=listof(oneof(TInt32, TInt64, TFloat32, TFloat64, TString)),
                       annotation_headers=nullable(listof(strlike)),
                       min_partitions=nullable(integral),
                       drop_samples=bool,
