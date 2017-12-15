@@ -19,15 +19,6 @@ object Emit {
     case _ => 0L // reference types
   }
 
-  private def typeToTypeInfo(t: expr.Type): TypeInfo[_] = t match {
-    case _: TInt32 => typeInfo[Int]
-    case _: TInt64 => typeInfo[Long]
-    case _: TFloat32 => typeInfo[Float]
-    case _: TFloat64 => typeInfo[Double]
-    case _: TBoolean => typeInfo[Boolean]
-    case _ => typeInfo[Long] // reference types
-  }
-
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
 
   def apply(ir: IR, fb: FunctionBuilder[_]) {

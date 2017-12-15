@@ -238,6 +238,16 @@ final class Region(private var mem: Array[Byte], private var end: Long = 0) exte
   def appendString(s: String): Long =
     appendBinary(s.getBytes)
 
+  def appendArrayInt(a: Array[Int]): Long = {
+    val off = appendInt(a.length)
+    var i = 0
+    while (i < a.length) {
+      appendInt(a(i))
+      i += 1
+    }
+    off
+  }
+
   def clear(newEnd: Long) {
     assert(newEnd <= end)
     end = newEnd
