@@ -573,7 +573,11 @@ case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruc
 object KeyTableIR {
   def optimize(ir: KeyTableIR): KeyTableIR = {
     BaseIR.rewriteTopDown(ir, {
-      case FilterKT(FilterKT(x, p1), p2) => FilterKT(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
+      case FilterKT(FilterKT(x, p1), p2) =>
+        FilterKT(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
+      case FilterKT(x, True()) => x
+      case FilterKT(ReadKT(path, ktType, localVal, _, nPart, pCounts), False()) =>
+        ReadKT(path, ktType, localVal, true, nPart, pCounts)
     })
   }
 }
