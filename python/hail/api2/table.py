@@ -1248,3 +1248,53 @@ class Table(TableTemplate):
 
         s = 'Global fields:{}\n\nRow fields:{}'.format(global_fields, row_fields)
         print(s)
+
+
+    @handle_py4j
+    @typecheck_method(name=strlike)
+    def indexed(self, name='idx'):
+        """Add the numerical index of each row as a new field.
+
+        Examples
+        --------
+
+        .. doctest::
+
+            >>> table_result = table1.indexed()
+            >>> table_result.show()
+            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
+            |    ID |    HT | SEX    |     X |     Z |    C1 |    C2 |    C3 |   idx |
+            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
+            | Int32 | Int32 | String | Int32 | Int32 | Int32 | Int32 | Int32 | Int64 |
+            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
+            |     1 |    65 | M      |     5 |     4 |     2 |    50 |     5 |     0 |
+            |     2 |    72 | M      |     6 |     3 |     2 |    61 |     1 |     1 |
+            |     3 |    70 | F      |     7 |     3 |    10 |    81 |    -5 |     2 |
+            |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |     3 |
+            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
+
+        Notes
+        -----
+
+        This method returns a table with a new column whose name is given by
+        the `name` parameter, with type ``Int64``. The value of this column is
+        the numerical index of each row, starting from 0. Methods that respect
+        ordering (like :py:meth:`Table.take` or :py:meth:`Table.export` will
+        return rows in order.
+
+        This method is also helpful for creating a unique integer index for
+        rows of a table so that more complex types can be encoded as a simple
+        number for performance reasons.
+
+        Parameters
+        ----------
+        name : str
+            Name of index column.
+
+        Returns
+        -------
+        :class:`Table`
+            Table with a new index field.
+        """
+
+        return Table(self._hc, self._jkt.indexed(name))
