@@ -526,6 +526,18 @@ class SetExpression(CollectionExpression):
     def add(self, x):
         return self._method("add", self._type, x)
 
+    def remove(self, x):
+        """Returns the result of removing the argument from this Set.
+        Examples
+        --------
+        .. doctest:
+
+            >>> eval_expr(f.capture([1,2,3]).to_set.remove(1)
+            {2, 3}
+
+        """
+        return self._method("remove", self._type, x)
+
     def contains(self, x):
         return self._method("contains", TBoolean(), x)
 
