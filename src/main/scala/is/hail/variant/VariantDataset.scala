@@ -17,7 +17,7 @@ import scala.language.existentials
 
 object VariantDataset {
 
-  def fromKeyTable(kt: KeyTable): VariantDataset = {
+  def fromKeyTable(kt: KeyTable): VariantSampleMatrix = {
     val vType: Type = kt.keyFields.map(_.typ) match {
       case Array(t@TVariant(_, _)) => t
       case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
@@ -65,7 +65,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
     annotateAllelesExprGeneric(splitVariantExpr, splitGenotypeExpr, variantExpr = expr)
   }
 
-  def annotateAllelesExprGeneric(splitVariantExpr: String, splitGenotypeExpr: String, variantExpr: String): VariantDataset = {
+  def annotateAllelesExprGeneric(splitVariantExpr: String, splitGenotypeExpr: String, variantExpr: String): VariantSampleMatrix = {
 
     val splitmulti = new SplitMulti(vsm, splitVariantExpr, splitGenotypeExpr,
       keepStar = true, leftAligned = false)
@@ -157,7 +157,7 @@ class VariantDatasetFunctions(private val vsm: VariantSampleMatrix) extends AnyV
     vsm.copy2(rdd2 = newRDD2, vaSignature = newType)
   }
 
-  def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
+  def concordance(other: VariantSampleMatrix): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
     require(vsm.wasSplit)
     require(other.wasSplit)
 
@@ -324,7 +324,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     * @param popFreqExpr      Use an annotation expression for estimate of MAF rather than computing from the data
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
-    fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
+    fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantSampleMatrix = {
     require(vsm.wasSplit)
 
     ImputeSexPlink(vsm,
@@ -340,7 +340,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     LDMatrix(vsm, Some(forceLocal))
   }
 
-  def nirvana(config: String, blockSize: Int = 500000, root: String): VariantDataset = {
+  def nirvana(config: String, blockSize: Int = 500000, root: String): VariantSampleMatrix = {
     Nirvana.annotate(vsm, config, blockSize, root)
   }
 

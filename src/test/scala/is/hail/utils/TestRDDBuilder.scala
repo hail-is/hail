@@ -80,7 +80,7 @@ object TestRDDBuilder {
   def buildRDD(nSamples: Int, nVariants: Int, hc: HailContext,
                       gqArray: Option[Array[Array[Int]]] = None,
                       dpArray: Option[Array[Array[Int]]] = None,
-                      gtArray: Option[Array[Array[Int]]] = None): VariantDataset = {
+                      gtArray: Option[Array[Array[Int]]] = None): VariantSampleMatrix = {
     /* Takes the arguments:
     nSamples(Int) -- number of samples (columns) to produce in VCF
     nVariants(Int) -- number of variants(rows) to produce in VCF

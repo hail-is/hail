@@ -3,10 +3,10 @@ package is.hail.methods
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.stats.ToHWENormalizedIndexedRowMatrix
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.VariantSampleMatrix
 
 object GRM {
-  def apply(vds: VariantDataset): KinshipMatrix = {
+  def apply(vds: VariantSampleMatrix): KinshipMatrix = {
 
     val (_, irm) = ToHWENormalizedIndexedRowMatrix(vds)
 

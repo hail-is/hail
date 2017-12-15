@@ -7,7 +7,7 @@ import is.hail.expr._
 import is.hail.stats._
 import is.hail.stats.eigSymD.DenseEigSymD
 import is.hail.utils._
-import is.hail.variant.{VariantDataset, VariantSampleMatrix}
+import is.hail.variant.VariantSampleMatrix
 import org.apache.commons.math3.analysis.UnivariateFunction
 import org.apache.commons.math3.optim.MaxEval
 import org.apache.commons.math3.optim.nonlinear.scalar.GoalType

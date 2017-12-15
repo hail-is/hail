@@ -5,7 +5,7 @@ import java.util
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.VariantSampleMatrix
 import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
 import org.apache.solr.client.solrj.request.CollectionAdminRequest
 import org.apache.solr.client.solrj.request.schema.SchemaRequest
