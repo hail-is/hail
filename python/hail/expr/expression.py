@@ -540,9 +540,9 @@ class SetExpression(CollectionExpression):
 
         Examples
         --------
-        .. doctest:
+        .. doctest::
 
-            >>> eval_expr(f.capture([1,2,3]).to_set.remove(1)
+            >>> eval_expr(f.capture({1,2,3}).remove(1))
             {2, 3}
 
         """
