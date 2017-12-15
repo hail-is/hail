@@ -6,7 +6,18 @@ import is.hail.expr._
 import is.hail.stats.HistogramCombiner
 import is.hail.utils._
 
+object RegionValueHistogramAggregator {
+  val typ = HistogramCombiner.schema
+
+  def stagedNew(start: Code[Double], mstart: Code[Boolean], end: Code[Double], mend: Code[Boolean], bins: Code[Int], mbins: Code[Boolean]): Code[RegionValueHistogramAggregator] =
+    (mbins | mstart | mend).mux(
+      Code._throw(Code.newInstance[RuntimeException, String]("Histogram aggregator cannot take NA arguments")),
+      Code.newInstance[RegionValueHistogramAggregator, Double, Double, Int](start, end, bins))
+}
+
 class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) extends RegionValueAggregator {
+  import RegionValueHistogramAggregator._
+
   if (bins <= 0)
     fatal(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
 
@@ -38,7 +49,7 @@ class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) exte
 
   def result(region: Region): Long = {
     rvb.set(region)
-    rvb.start(HistogramCombiner.schema)
+    rvb.start(typ)
     rvb.startArray(combiner.indices.length)
     combiner.indices.foreach(rvb.addDouble _)
     rvb.endArray()
