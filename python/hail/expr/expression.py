@@ -263,7 +263,7 @@ class Expression(object):
         return construct_expr(Select(self._ast, name), ret_typ, self._indices, self._aggregations, self._joins)
 
     def _method(self, name, ret_typ, *args):
-        args = (to_expr(arg) for arg in args)
+        args = tuple(to_expr(arg) for arg in args)
         indices, aggregations, joins = unify_all(self, *args)
         return construct_expr(ClassMethod(name, self._ast, *(a._ast for a in args)),
                               ret_typ, indices, aggregations, joins)

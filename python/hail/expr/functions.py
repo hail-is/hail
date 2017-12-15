@@ -24,6 +24,16 @@ def _func(name, ret_type, *args):
 def null(t):
     """Creates an expression representing a missing value of a specified type.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.null(TString()))
+        None
+
+    Notes
+    -----
     This method is useful for constructing an expression that includes missing
     values, since :obj:`None` cannot be interpreted as an expression.
 
@@ -37,11 +47,21 @@ def null(t):
     :py:class:`hail.expr.expression.Expression`
         A missing expression of type `t`.
     """
-    return Expression(Literal('NA: {}'.format(t)), t)
+    return construct_expr(Literal('NA: {}'.format(t)), t)
 
 
 def capture(x):
     """Captures a Python variable or object as an expression.
+
+    Examples
+    --------
+        .. doctest::
+
+        >>> eval_expr(f.capture(5))
+        5
+
+        >>> eval_expr(f.capture([1, 2, 3]))
+        [1, 2, 3]
 
     Warning
     -------
@@ -63,6 +83,30 @@ def capture(x):
 def broadcast(x):
     """Broadcasts a Python variable or object as an expression.
 
+    Examples
+    --------
+    .. doctest::
+
+        >>> table = Table.range(8)
+        >>> greetings = f.broadcast({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
+        >>> table.annotate(greeting = greetings.get(table.index)).show()
+        +-------+----------------+
+        | index | greeting       |
+        +-------+----------------+
+        | Int32 | String         |
+        +-------+----------------+
+        |     0 | NA             |
+        |     1 | Good morning   |
+        |     2 | NA             |
+        |     3 | NA             |
+        |     4 | Good afternoon |
+        |     5 | NA             |
+        |     6 | Good evening   |
+        |     7 | NA             |
+        +-------+----------------+
+
+    Notes
+    -----
     Use this function to capture large Python objects for use in expressions. This
     function provides an alternative to adding an object as a global annotation on a
     :class:hail.api2.Table or :class:hail.api2.MatrixTable.
@@ -97,6 +141,24 @@ def broadcast(x):
 def cond(predicate, then_case, else_case):
     """Expression for an if/else statement; tests a predicate and returns one of two options based on the result.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> x = 5
+        >>> eval_expr( f.cond(x < 2, 'Hi', 'Bye') )
+        'Bye'
+
+        >>> a = f.capture([1, 2, 3, 4])
+        >>> eval_expr( f.cond(a.length() > 0,
+        ...                   2.0 * a,
+        ...                   a / 2.0) )
+        [2.0, 4.0, 6.0, 8.0]
+
+    Notes
+    -----
+
     If `predicate` evaluates to ``True``, returns `then_case`. If `predicate`
     evaluates to ``False``, returns `else_case`. If `predicate` is missing, returns
     missing.
@@ -129,6 +191,19 @@ def cond(predicate, then_case, else_case):
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
 def chisq(c1, c2, c3, c4):
     """Calculates p-value (Chi-square approximation) and odds ratio for a 2x2 table.
+
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.chisq(10, 10,
+        ...                   10, 10))
+        Struct(oddsRatio=1.0, pValue=1.0)
+
+        >>> eval_expr(f.chisq(30, 30,
+        ...                   50, 10))
+        Struct(oddsRatio=0.2, pValue=0.000107511176729)
 
     Parameters
     ----------
@@ -185,6 +260,21 @@ def combine_variants(left, right):
 def ctt(c1, c2, c3, c4, min_cell_count):
     """Calculates p-value and odds ratio for 2x2 table.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.ctt(10, 10,
+        ...                 10, 10, min_cell_count=15))
+        Struct(oddsRatio=1.0, pValue=1.0)
+
+        >>> eval_expr(f.ctt(30, 30,
+        ...                 50, 10, min_cell_count=15))
+        Struct(oddsRatio=0.202874620964, pValue=0.000190499944324)
+
+    Notes
+    -----
      If any cell is lower than `min_cell_count`, Fisher's exact test is used. Otherwise, faster
      chi-squared approximation is used.
 
@@ -215,6 +305,16 @@ def ctt(c1, c2, c3, c4, min_cell_count):
 def Dict(keys, values):
     """Creates a dictionary from a list of keys and a list of values.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.Dict(['foo', 'bar', 'baz'], [1, 2, 3]))
+        {u'bar': 2, u'baz': 3, u'foo': 1}
+
+    Notes
+    -----
     `keys` and `values` must be have the same length.
 
     Parameters
@@ -240,6 +340,14 @@ def Dict(keys, values):
 @args_to_expr
 def dpois(x, lamb, log_p=False):
     """Rompute the (log) probability density at x of a Poisson distribution with rate parameter `lamb`.
+
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.dpois(5, 3))
+        0.10081881344492458
 
     Parameters
     ----------
@@ -271,6 +379,14 @@ def drop(s, *identifiers):
 def exp(x):
     """Computes `e` raised to the power `x`.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.exp(2))
+        7.38905609893065
+
     Parameters
     ----------
     x : float or :py:class:`hail.expr.expression.Float64Expression`
@@ -287,6 +403,21 @@ def exp(x):
 def fisher_exact_test(c1, c2, c3, c4):
     """Calculates the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for a 2x2 table.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.fisher_exact_test(10, 10,
+        ...                               10, 10))
+        Struct(oddsRatio=1.0, pValue=1.0)
+
+        >>> eval_expr(f.fisher_exact_test(30, 30,
+        ...                               50, 10))
+        Struct(oddsRatio=0.202874620964, pValue=0.000190499944324)
+
+    Notes
+    -----
     This method is identical to the version implemented in
     `R <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html>`_ with default
     parameters (two-sided, alpha = 0.05, null hypothesis that the odds ratio equals 1).
@@ -318,6 +449,19 @@ def fisher_exact_test(c1, c2, c3, c4):
 def gt_index(j, k):
     """Convert from `j`/`k` pair to call index (the triangular number).
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.gt_index(0, 1))
+        1
+
+        >>> eval_expr(f.gt_index(1, 2))
+        4
+
+    Notes
+    -----
     The call index is given by ``(k * (k + 1) / 2) + j`` if ``j <= k`` and
     ``(j * (j + 1)) / 2 + k`` if ``k <= j``.
 
@@ -340,6 +484,19 @@ def gt_index(j, k):
 def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
     """Compute Hardy-Weinberg Equilbrium p-value and heterozygosity ratio.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.hardy_weinberg_p(20, 50, 26))
+        Struct(rExpectedHetFrequency=0.500654450262, pHWE=0.762089599352)
+
+        >>> eval_expr(f.hardy_weinberg_p(37, 200, 85))
+        Struct(rExpectedHetFrequency=0.489649643074, pHWE=1.13372103832e-06)
+
+    Notes
+    -----
     For more information, see the
     `Wikipedia page <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
 
@@ -384,6 +541,14 @@ def index(structs, identifier):
 def locus(contig, pos, reference_genome=None):
     """Construct a locus expression from a chromosome and position.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.locus("1", 10000))
+        Locus(contig=1, position=10000, reference_genome=GRCh37)
+
     Parameters
     ----------
     contig : str or :py:class:`hail.expr.expression.StringExpression`
@@ -410,6 +575,16 @@ def locus(contig, pos, reference_genome=None):
 def parse_locus(s, reference_genome=None):
     """Construct a locus expression by parsing a string or string expression.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.parse_locus("1:10000"))
+        Locus(contig=1, position=10000, reference_genome=GRCh37)
+
+    Notes
+    -----
     This method expects strings of the form ``contig:position``, e.g. ``16:29500000``
     or ``X:123456``.
 
@@ -435,6 +610,15 @@ def parse_locus(s, reference_genome=None):
 def interval(start, end):
     """Construct an interval expression from two loci.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.interval(f.locus("1", 100),
+        ...                      f.locus("1", 1000)))
+        Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
+                 end=Locus(contig=1, position=1000, reference_genome=GRCh37))
     Parameters
     ----------
     start : :py:class:`.hail.genetics.Locus` or :py:class:`hail.expr.expression.LocusExpression`
@@ -463,6 +647,21 @@ def interval(start, end):
 def parse_interval(s, reference_genome=None):
     """Construct an interval expression by parsing a string or string expression.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.parse_interval('1:1000-2000'))
+        Interval(start=Locus(contig=1, position=1000, reference_genome=GRCh37),
+                 end=Locus(contig=1, position=2000, reference_genome=GRCh37))
+
+        >>> eval_expr(f.parse_interval('1:start-10M'))
+        Interval(start=Locus(contig=1, position=0, reference_genome=GRCh37),
+                 end=Locus(contig=1, position=10000000, reference_genome=GRCh37))
+
+    Notes
+    -----
     This method expects strings of the form ``contig:start-end``, e.g. ``16:29500000-30200000``,
     ``8:start-end``, or ``X:10M-20M``.
 
@@ -489,6 +688,15 @@ def parse_interval(s, reference_genome=None):
            reference_genome=nullable(GenomeReference))
 def variant(contig, pos, ref, alts, reference_genome=None):
     """Construct a variant expression from fields.
+
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.variant('1', 1000, 'A', ['TC', 'T']))
+        Variant(contig=1, start=1000, ref=A,
+                alts=[AltAllele(ref=A, alt=TC), AltAllele(ref=A, alt=T)], reference_genome=GRCh37)
 
     Parameters
     ----------
@@ -524,6 +732,17 @@ def variant(contig, pos, ref, alts, reference_genome=None):
 def parse_variant(s, reference_genome=None):
     """Construct a variant expression by parsing a string or string expression.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.parse_variant('1:1000:A:TC,T'))
+        Variant(contig=1, start=1000, ref=A,
+                alts=[AltAllele(ref=A, alt=TC), AltAllele(ref=A, alt=T)], reference_genome=GRCh37)
+
+    Notes
+    -----
     This method expects strings of the form ``chromosome:position:ref:alt1,alt2...``, like ``1:1:A:T``
     or ``1:100:A:TC,C``.
 
@@ -549,6 +768,16 @@ def parse_variant(s, reference_genome=None):
 def call(i):
     """Construct a call expression from an integer or integer expression.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.call(1))
+        Call(gt=1)
+
+    Notes
+    -----
     This method expects one argument, the triangular number of the two allele
     indices. In order to construct a call expression from two allele indices, first
     use :py:meth:`hail.expr.functions.gt_index`.
@@ -570,6 +799,20 @@ def call(i):
 def is_defined(expression):
     """Returns ``True`` if the argument is not missing.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.is_defined(5))
+        True
+
+        >>> eval_expr(f.is_defined(f.null(TString())))
+        False
+
+        >>> eval_expr(f.is_defined(f.null(TBoolean()) & True))
+        False
+
     Parameters
     ----------
     expression
@@ -587,6 +830,20 @@ def is_defined(expression):
 @typecheck(expression=anytype)
 def is_missing(expression):
     """Returns ``True`` if the argument is missing.
+
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.is_missing(5))
+        False
+
+        >>> eval_expr(f.is_missing(f.null(TString())))
+        True
+
+        >>> eval_expr(f.is_missing(f.null(TBoolean()) & True))
+        True
 
     Parameters
     ----------
@@ -606,8 +863,25 @@ def is_missing(expression):
 def is_nan(x):
     """Returns ``True`` if the argument is ``NaN`` (not a number).
 
-    Note that :py:meth:hail.expr.functions.is_missing will return ``False`` on
-    ``NaN`` since ``NaN`` is a defined value.
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.is_nan(0))
+        False
+
+        >>> eval_expr(f.is_nan(f.capture(0) / 0))
+        True
+
+        >>> eval_expr(f.is_nan(f.capture(0) / f.null(TFloat64())))
+        None
+
+    Notes
+    -----
+    Note that :py:meth:`is_missing` will return ``False`` on ``NaN`` since ``NaN``
+    is a defined value. Additionally, this method will return missing if `x` is
+    missing.
 
     Parameters
     ----------
@@ -627,6 +901,17 @@ def is_nan(x):
 def json(x):
     """Convert an expression to a JSON string expression.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.json([1,2,3,4,5]))
+        '[1,2,3,4,5]'
+
+        >>> eval_expr(f.json(Struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
+        '{"a":"Hello","c":[1,2],"b":0.12345,"d":["bye","hi"]}'
+
     Parameters
     ----------
     x
@@ -640,10 +925,26 @@ def json(x):
     return _func("json", TString(), x)
 
 
-@typecheck(x=expr_numeric, base=expr_numeric)
+@typecheck(x=expr_numeric, base=nullable(expr_numeric))
 def log(x, base=None):
     """Take the logarithm of the `x` with base `base`.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.log(10))
+        2.302585092994046
+
+        >>> eval_expr(f.log(10, 10))
+        1.0
+
+        >>> eval_expr(f.log(1024, 2))
+        10.0
+
+    Notes
+    -----
     If the `base` argument is not supplied, then the natural logarithm is used.
 
     Parameters
@@ -667,6 +968,17 @@ def log(x, base=None):
 def log10(x):
     """Take the logarithm of the `x` with base 10.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.log10(1000))
+        3.0
+
+        >>> eval_expr(f.log10(0.0001123))
+        -3.949620243738542
+
     Parameters
     ----------
     x : float or :py:class:`hail.expr.expressions.Float64Expression`
@@ -683,6 +995,22 @@ def log10(x):
 def logical_not(b):
     """Negates a boolean.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.logical_not(False))
+        True
+
+        >>> eval_expr(f.logical_not(True))
+        False
+
+        >>> eval_expr(f.logical_not(f.null(TBoolean())))
+        None
+
+    Notes
+    -----
     Returns ``False`` when `b` is ``True``, returns ``True`` when `b` is ``False``.
     When `b` is missing, returns missing.
 
@@ -709,6 +1037,17 @@ def merge(s1, s2):
 def or_else(a, b):
     """If `a` is missing, return `b`.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.or_else(5, 7))
+        5
+
+        >>> eval_expr(f.or_else(f.null(TInt32()), 7))
+        7
+
     Parameters
     ----------
     a
@@ -727,6 +1066,17 @@ def or_else(a, b):
 @typecheck(predicate=expr_bool, value=anytype)
 def or_missing(predicate, value):
     """Returns `value` if `predicate` is ``True``, otherwise returns missing.
+
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.or_missing(True, 5))
+        5
+
+        >>> eval_expr(f.or_missing(False, 5))
+        None
 
     Parameters
     ----------
@@ -748,6 +1098,14 @@ def pchisqtail(x, df):
     """Returns the probability under the right-tail starting at x for a chi-squared
     distribution with df degrees of freedom.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.pchisqtail(5, 1))
+        0.025347318677468304
+
     Parameters
     ----------
     x : float or :py:class:`hail.expr.expressions.Float64Expression`
@@ -766,6 +1124,22 @@ def pchisqtail(x, df):
 def pnorm(x):
     """The cumulative probability function of a standard normal distribution.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.pnorm(0))
+        0.5
+
+        >>> eval_expr(f.pnorm(1))
+        0.8413447460685429
+
+        >>> eval_expr(f.pnorm(2))
+        0.9772498680518208
+
+    Notes
+    -----
     Returns the left-tail probability `p` = Prob(:math:Z < x) with :math:Z a standard normal random variable.
 
     Parameters
@@ -784,6 +1158,16 @@ def pnorm(x):
 def ppois(x, lamb, lower_tail=True, log_p=False):
     """The cumulative probability function of a Poisson distribution.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.ppois(2, 1))
+        0.9196986029286058
+
+    Notes
+    -----
     If `lower_tail` is true, returns Prob(:math:`X \leq` `x`) where :math:`X` is a
     Poisson random variable with rate parameter `lamb`. If `lower_tail` is false,
     returns Prob(:math:`X` > `x`).
@@ -811,6 +1195,16 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
 def qchisqtail(p, df):
     """Inverts :py:meth:`hail.expr.functions.pchisqtail`.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.qchisqtail(0.01, 1))
+        6.634896601021213
+
+    Notes
+    -----
     Returns right-quantile `x` for which `p` = Prob(:math:`Z^2` > x) with :math:`Z^2` a chi-squared random
      variable with degrees of freedom specified by `df`. `p` must satisfy 0 < `p` <= 1.
 
@@ -833,6 +1227,16 @@ def qchisqtail(p, df):
 def qnorm(p):
     """Inverts :py:meth:`hail.expr.functions.pnorm`.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.qnorm(0.90))
+        1.2815515655446008
+
+    Notes
+    -----
     Returns left-quantile `x` for which p = Prob(:math:`Z` < x) with :math:`Z` a standard normal random variable.
     `p` must satisfy 0 < `p` < 1.
 
@@ -853,6 +1257,16 @@ def qnorm(p):
 def qpois(p, lamb, lower_tail=True, log_p=False):
     """Inverts :py:meth:`hail.expr.functions.ppois`.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.qpois(0.99, 1))
+        4
+
+    Notes
+    -----
     Returns the smallest integer :math:`x` such that Prob(:math:`X \leq x`) :math:`\geq` `p` where :math:`X`
     is a Poisson random variable with rate parameter `lambda`.
 
@@ -872,29 +1286,22 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
     """
     return _func("qpois", TInt32(), p, lamb, lower_tail, log_p)
 
-@typecheck(stop=expr_int32)
-def range(stop):
-    """Returns an array of integers from `0` to `stop`.
-
-    Notes
-    -----
-    The range does not include `stop`.
-
-    Parameters
-    ----------
-    stop : int or :py:class:`hail.expr.expression.Int32Expression`
-        End of range.
-
-    Returns
-    -------
-    :py:class:`hail.expr.expression.ArrayInt32Expression`
-    """
-    return _func("range", TArray(TInt32()), stop)
 
 @typecheck(start=expr_int32, stop=expr_int32, step=expr_int32)
 @args_to_expr
 def range(start, stop, step=1):
     """Returns an array of integers from `start` to `stop` by `step`.
+
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.range(0, 10))
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        >>> eval_expr(f.range(0, 10, step=3))
+        [0, 3, 6, 9]
 
     Notes
     -----
@@ -921,6 +1328,17 @@ def range(start, stop, step=1):
 def rand_bool(p):
     """Returns ``True`` with probability `p` (RNG).
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.rand_bool(0.5))
+        True
+
+        >>> eval_expr(f.rand_bool(0.5))
+        False
+
     Warning
     -------
     This function is non-deterministic, meaning that successive runs of the same pipeline including
@@ -943,6 +1361,17 @@ def rand_bool(p):
 def rand_norm(mean=0, sd=1):
     """Samples from a normal distribution with mean `mean` and standard deviation `sd` (RNG).
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.rand_norm())
+        1.5388475315213386
+
+        >>> eval_expr(f.rand_norm())
+        -0.3006188509144124
+
     Warning
     -------
     This function is non-deterministic, meaning that successive runs of the same
@@ -963,9 +1392,21 @@ def rand_norm(mean=0, sd=1):
     return _func("rnorm", TFloat64(), mean, sd)
 
 
+@args_to_expr
 @typecheck(lamb=expr_numeric)
 def rand_pois(lamb):
     """Samples from a Poisson distribution with rate parameter `lamb` (RNG).
+
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.rand_pois(1))
+        2.0
+
+        >>> eval_expr(f.rand_pois(1))
+        3.0
 
     Warning
     -------
@@ -985,10 +1426,21 @@ def rand_pois(lamb):
     return _func("rpois", TFloat64(), lamb)
 
 
-@typecheck(min=expr_numeric, max=expr_numeric)
 @args_to_expr
+@typecheck(min=expr_numeric, max=expr_numeric)
 def rand_unif(min, max):
     """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
+
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.rand_unif(0, 1))
+        0.7983073825816226
+
+        >>> eval_expr(f.rand_unif(0, 1))
+        0.5161799497741769
 
     Warning
     -------
@@ -1022,6 +1474,19 @@ def select(s, *identifiers):
 def sqrt(x):
     """Returns the square root of `x`.
 
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.sqrt(3))
+        1.7320508075688772
+
+    Notes
+    -----
+    It is also possible to exponentiate expression with standard Python syntax,
+    e.g. ``x ** 0.5``.
+
     Parameters
     ----------
     x : float or :py:class:`hail.expr.expression.Float64Expression`
@@ -1037,6 +1502,14 @@ def sqrt(x):
 @args_to_expr
 def to_str(x):
     """Returns the string representation of `x`.
+
+    Examples
+    --------
+
+    .. doctest::
+
+        >>> eval_expr(f.to_str(Struct(a=5, b=7)))
+        '{"a":5,"b":7}'
 
     Parameters
     ----------

@@ -2,7 +2,7 @@ from hail.genetics import LDMatrix, KinshipMatrix, Variant, Locus, AltAllele, In
     GenomeReference
 from hail.utils import Struct, hadoop_write, hadoop_read, hadoop_copy
 from hail.expr import Type, TInt32, TInt64, TFloat32, TFloat64, TString, TBoolean, TArray, TSet, TDict, TStruct, \
-    TLocus, TVariant, TAltAllele, TCall, TInterval
+    TLocus, TVariant, TAltAllele, TCall, TInterval, eval_expr, eval_expr_typed
 import hail.expr.functions as f
 from hail.utils import hadoop_read, hadoop_write, hadoop_copy
 from hail.api2 import MatrixTable, Table, HailContext
@@ -45,4 +45,6 @@ __all__ = ['HailContext',
            'trio_matrix',
            'ld_matrix',
            'linreg',
-           'sample_qc']
+           'sample_qc',
+           'eval_expr',
+           'eval_expr_typed']
