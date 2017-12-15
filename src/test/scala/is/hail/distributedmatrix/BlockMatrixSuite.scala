@@ -49,7 +49,7 @@ class BlockMatrixSuite extends SparkSuite {
   ): Gen[BlockMatrix] = for {
     blockSize <- blockSize
     (rows, columns) <- dims
-    arrays <- buildableOfN[Seq, Array[Double]](rows, buildableOfN(columns, element))
+    arrays <- buildableOfN[Seq](rows, buildableOfN[Array](columns, element))
     m = toBM(arrays, blockSize)
   } yield m
 
@@ -230,7 +230,7 @@ class BlockMatrixSuite extends SparkSuite {
   def rowwiseMultiplicationRandom() {
     val g = for {
       l <- blockMatrixGen()
-      v <- buildableOfN[Array, Double](l.cols.toInt, arbitrary[Double])
+      v <- buildableOfN[Array](l.cols.toInt, arbitrary[Double])
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
@@ -266,7 +266,7 @@ class BlockMatrixSuite extends SparkSuite {
   def colwiseMultiplicationRandom() {
     val g = for {
       l <- blockMatrixGen()
-      v <- buildableOfN[Array, Double](l.rows.toInt, arbitrary[Double])
+      v <- buildableOfN[Array](l.rows.toInt, arbitrary[Double])
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>

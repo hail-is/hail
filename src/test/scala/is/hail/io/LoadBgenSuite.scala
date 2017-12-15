@@ -224,7 +224,7 @@ class LoadBgenSuite extends SparkSuite {
       nGenotypes <- Gen.choose(3, 5);
       nProbabilities = nSamples * (nGenotypes - 1);
       totalProb = ((1L << nBitsPerProb) - 1).toUInt;
-      sampleProbs <- Gen.buildableOfN[Array, Array[UInt]](nSamples, Gen.partition(nGenotypes - 1, totalProb));
+      sampleProbs <- Gen.buildableOfN[Array](nSamples, Gen.partition(nGenotypes - 1, totalProb));
       input = sampleProbs.flatten
     ) yield (nBitsPerProb, nSamples, nGenotypes, input)
 

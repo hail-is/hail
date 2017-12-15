@@ -113,7 +113,7 @@ class ConcordanceSuite extends SparkSuite {
   @Test def testNDiscordant() {
     val g = (for {i <- Gen.choose(-2, 2)
       j <- Gen.choose(-2, 2)} yield (i, j)).filter { case (i, j) => !(i == -2 && j == -2) }
-    val seqG = Gen.buildableOf[Array, (Int, Int)](g)
+    val seqG = Gen.buildableOf[Array](g)
 
     val comb = new ConcordanceCombiner
 

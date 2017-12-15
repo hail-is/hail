@@ -123,7 +123,7 @@ object IntervalTree {
   }
 
   def gen[T: Ordering](tgen: Gen[T]): Gen[IntervalTree[T, Unit]] = {
-    Gen.buildableOf[Array, Interval[T]](Interval.gen(tgen)).map(IntervalTree.apply(_))
+    Gen.buildableOf[Array](Interval.gen(tgen)).map(IntervalTree.apply(_))
   }
 }
 

@@ -294,15 +294,15 @@ case class VSMSubgen(
       global <- globalGen(globalSig).resize(25);
       nPartitions <- Gen.choose(1, 10);
 
-      sampleIds <- Gen.buildableOfN[Array, Annotation](w, sGen(sSig).resize(3))
+      sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
         .map(ids => ids.distinct);
       nSamples = sampleIds.length;
-      saValues <- Gen.buildableOfN[Array, Annotation](nSamples, saGen(saSig).resize(5));
-      rows <- Gen.distinctBuildableOfN[Array, (Annotation, (Annotation, Iterable[Annotation]))](l,
+      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
+      rows <- Gen.distinctBuildableOfN[Array](l,
         for (
           v <- vGen(vSig).resize(3);
           va <- vaGen(vaSig).resize(5);
-          ts <- Gen.buildableOfN[Array, Annotation](nSamples, tGen(tSig, v).resize(3)))
+          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
           yield (v, (va, ts: Iterable[Annotation]))))
       yield {
         assert(sampleIds.forall(_ != null))

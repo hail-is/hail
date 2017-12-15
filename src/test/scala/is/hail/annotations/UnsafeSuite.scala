@@ -348,7 +348,7 @@ class UnsafeSuite extends SparkSuite {
   @Test def testRegionSer() {
     val region = Region()
     val path = tmpDir.createTempFile(extension = "ser")
-    val g = Gen.buildableOf[Array, Byte](arbitrary[Byte])
+    val g = Gen.buildableOf[Array](arbitrary[Byte])
     val p = Prop.forAll(g) { (a: Array[Byte]) =>
       region.clear()
       region.appendBytes(a)
@@ -376,7 +376,7 @@ class UnsafeSuite extends SparkSuite {
 
     val region = Region()
     val path = tmpDir.createTempFile(extension = "ser")
-    val g = Gen.buildableOf[Array, Byte](arbitrary[Byte])
+    val g = Gen.buildableOf[Array](arbitrary[Byte])
     val p = Prop.forAll(g) { (a: Array[Byte]) =>
       region.clear()
       region.appendBytes(a)
