@@ -15,7 +15,7 @@ import is.hail.keytable.KeyTable
 import is.hail.rvd.OrderedRVD
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, GenomeReference, Genotype, HTSGenotypeView, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, Genotype, HTSGenotypeView, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantSampleMatrix}
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
@@ -228,7 +228,7 @@ class HailContext private(val sc: SparkContext,
     tolerance: Double = 0.2,
     nPartitions: Option[Int] = None,
     gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
+    contigRecoding: Option[Map[String, String]] = None): VariantSampleMatrix = {
     importBgens(List(file), sampleFile, tolerance, nPartitions, gr, contigRecoding)
   }
 
@@ -237,7 +237,7 @@ class HailContext private(val sc: SparkContext,
     tolerance: Double = 0.2,
     nPartitions: Option[Int] = None,
     gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
+    contigRecoding: Option[Map[String, String]] = None): VariantSampleMatrix = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -265,7 +265,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.2,
     gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
+    contigRecoding: Option[Map[String, String]] = None): VariantSampleMatrix = {
     importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, gr, contigRecoding)
   }
 
@@ -275,7 +275,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.2,
     gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
+    contigRecoding: Option[Map[String, String]] = None): VariantSampleMatrix = {
     val inputs = hadoopConf.globAll(files)
 
     inputs.foreach { input =>
@@ -384,7 +384,7 @@ class HailContext private(val sc: SparkContext,
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
     gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
+    contigRecoding: Option[Map[String, String]] = None): VariantSampleMatrix = {
 
     contigRecoding.foreach(gr.validateContigRemap)
 
@@ -401,7 +401,7 @@ class HailContext private(val sc: SparkContext,
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
     gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None): GenericDataset = {
+    contigRecoding: Option[Map[String, String]] = None): VariantSampleMatrix = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
       nPartitions, delimiter, missing, quantPheno, a2Reference, gr, contigRecoding)
   }
@@ -410,10 +410,10 @@ class HailContext private(val sc: SparkContext,
     VariantSampleMatrix.read(this, file, dropSamples = dropSamples, dropVariants = dropVariants)
   }
 
-  def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset =
+  def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix =
     read(file, dropSamples, dropVariants)
 
-  def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset =
+  def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix =
     read(file, dropSamples, dropVariants)
 
   def readTable(path: String): KeyTable =
@@ -556,10 +556,10 @@ class HailContext private(val sc: SparkContext,
     fst: Option[Array[Double]] = None,
     afDist: Distribution = UniformDist(0.1, 0.9),
     seed: Int = 0,
-    gr: GenomeReference = GenomeReference.defaultReference): VariantDataset =
+    gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix =
     BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist, gr)
 
-  def genDataset(): VariantDataset = VSMSubgen.realistic.gen(this).sample()
+  def genDataset(): VariantSampleMatrix = VSMSubgen.realistic.gen(this).sample()
 
   def eval(expr: String): (Annotation, Type) = {
     val ec = EvalContext(

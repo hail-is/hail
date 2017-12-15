@@ -6,7 +6,7 @@ import is.hail.distributedmatrix.BlockMatrix
 import is.hail.expr.{TFloat64, TString}
 import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}
-import is.hail.variant.VariantDataset
+import is.hail.variant.VariantSampleMatrix
 import is.hail.methods.PCASuite.samplePCA
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -31,15 +31,15 @@ class PCRelateSuite extends SparkSuite {
   private def quadMap[T,U](f: T => U): (T, T, T, T) => (U, U, U, U) =
     { case (x, y, z, w) => (f(x), f(y), f(z), f(w)) }
 
-  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix[Double], maf: Double): Map[(String, String), (Double, Double, Double, Double)] =
+  def runPcRelateHail(vds: VariantSampleMatrix, pcs: DenseMatrix[Double], maf: Double): Map[(String, String), (Double, Double, Double, Double)] =
     runPcRelateHail(vds, pcs, maf, PCRelate.defaultMinKinship, PCRelate.defaultStatisticSubset)
       .mapValues(quadMap(toD).tupled)
 
-  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix[Double], maf: Double, minKinship: Double): Map[(String, String), (Double, Double, Double, Double)] =
+  def runPcRelateHail(vds: VariantSampleMatrix, pcs: DenseMatrix[Double], maf: Double, minKinship: Double): Map[(String, String), (Double, Double, Double, Double)] =
     runPcRelateHail(vds, pcs, maf, minKinship, PCRelate.defaultStatisticSubset)
       .mapValues(quadMap(toD).tupled)
 
-  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix[Double], maf: Double, minKinship: Double, statistics: PCRelate.StatisticSubset): Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)] =
+  def runPcRelateHail(vds: VariantSampleMatrix, pcs: DenseMatrix[Double], maf: Double, minKinship: Double, statistics: PCRelate.StatisticSubset): Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)] =
     PCRelate.toKeyTable(vds, pcs, maf, blockSize, minKinship, statistics)
       .collect()
       .map(x => x.asInstanceOf[Row])
@@ -49,7 +49,7 @@ class PCRelateSuite extends SparkSuite {
       .asInstanceOf[Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)]]
 
   def runPcRelateR(
-    vds: VariantDataset,
+    vds: VariantSampleMatrix,
     maf: Double,
     rFile: String = "src/test/resources/is/hail/methods/runPcRelate.R"): Map[(String, String), (Double, Double, Double, Double)] = {
 
@@ -124,7 +124,7 @@ class PCRelateSuite extends SparkSuite {
     val seed = 0
     val n = 100
     val nVariants = 10000
-    val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
+    val vds: VariantSampleMatrix = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
     val pcs = samplePCA(vds, 2, false)._2
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
     val actual = runPcRelateHail(vds, pcs, maf=0.01)
@@ -137,7 +137,7 @@ class PCRelateSuite extends SparkSuite {
     val seed = 0
     val n = 100
     val nVariants = 10000
-    val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
+    val vds: VariantSampleMatrix = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9))
     val pcs = samplePCA(vds, 2, false)._2
     val truth = runPcRelateR(vds, maf=0.01)
     val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1

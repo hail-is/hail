@@ -61,7 +61,7 @@ class AnnotateSuite extends SparkSuite {
     List("0", "0.0", ".0", "-01", "1e5", "1e10", "1.1e10", ".1E-10").foreach(assertNumeric)
     List("", "a", "1.", ".1.", "1e", "e", "E0", "1e1.", "1e.1", "1e1.1").foreach(assertNonNumeric)
 
-    def qMap(query: String, vds: VariantDataset): Map[Annotation, Option[Any]] = {
+    def qMap(query: String, vds: VariantSampleMatrix): Map[Annotation, Option[Any]] = {
       val q = vds.querySA(query)._2
       vds.sampleIds
         .zip(vds.sampleAnnotations)
@@ -443,7 +443,7 @@ class AnnotateSuite extends SparkSuite {
   @Test def testAnnotationsVDSReadWrite() {
     val outPath = tmpDir.createTempFile("annotationOut", ".vds")
     val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)
-      .filter(vds => vds.countVariants > 0)) { vds: VariantDataset =>
+      .filter(vds => vds.countVariants > 0)) { vds: VariantSampleMatrix =>
 
       vds.annotateVariantsVDS(vds, code = Some("va = vds")).same(vds)
     }

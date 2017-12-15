@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr.{EvalContext, Parser, TArray, TInt32, TVariant}
 import is.hail.rvd.{OrderedRVD, RVD}
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Locus, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, Locus, Variant, VariantSampleMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
@@ -12,7 +12,7 @@ object FilterAlleles {
   def apply(vsm: VariantSampleMatrix, filterExpr: String,
     variantExpr: String = "",
     genotypeExpr: String = "",
-    keep: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantDataset = {
+    keep: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): VariantSampleMatrix = {
     if (vsm.wasSplit)
       warn("this VDS was already split; this module was designed to handle multi-allelics, perhaps you should use filter_variants instead.")
 

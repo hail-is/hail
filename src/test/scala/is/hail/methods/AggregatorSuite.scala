@@ -5,7 +5,7 @@ import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{VSMSubgen, Variant, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row

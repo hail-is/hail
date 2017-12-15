@@ -21,7 +21,7 @@ class ImportPlinkSuite extends SparkSuite {
     } yield (vds, nPartitions)
 
     property("import generates same output as export") =
-      forAll(compGen) { case (vds: VariantDataset, nPartitions: Int) =>
+      forAll(compGen) { case (vds: VariantSampleMatrix, nPartitions: Int) =>
 
         val truthRoot = tmpDir.createTempFile("truth")
         val testRoot = tmpDir.createTempFile("test")

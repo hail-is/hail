@@ -22,7 +22,7 @@ import scala.language.postfixOps
 case class SkatAggForR(xs: ArrayBuilder[DenseVector[Double]], weights: ArrayBuilder[Double])
 
 class SkatSuite extends SparkSuite {
-  def skatInR(vds: VariantDataset,
+  def skatInR(vds: VariantSampleMatrix,
     keyExpr: String,
     weightExpr: String,
     yExpr: String,
@@ -119,7 +119,7 @@ class SkatSuite extends SparkSuite {
 
   // 18 complete samples from sample2.vcf
   // 5 genes with sizes 24, 13, 66, 27, and 51
-  lazy val vdsSkat: VariantDataset = {
+  lazy val vdsSkat: VariantSampleMatrix = {
     val covSkat = hc.importTable("src/test/resources/skat.cov",
       impute = true).keyBy("Sample")
 
@@ -143,7 +143,7 @@ class SkatSuite extends SparkSuite {
   }
   
   // A larger deterministic example using the Balding-Nichols model (only hardcalls)
-  lazy val vdsBN: VariantDataset = {
+  lazy val vdsBN: VariantSampleMatrix = {
     val seed = 0
     val nSamples = 500
     val nVariants = 50

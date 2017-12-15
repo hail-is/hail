@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.{TStruct, TVariant}
 import is.hail.keytable.KeyTable
-import is.hail.variant.{GenomeReference, Variant, VariantDataset}
+import is.hail.variant.{GenomeReference, Variant, VariantSampleMatrix, VariantDataset}
 import is.hail.utils._
 
 import scala.language.implicitConversions
