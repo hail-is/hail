@@ -130,7 +130,7 @@ object RegressionUtils {
       case _: TFloat32 => castToDouble[Float](_.toDouble)
       case _: TFloat64 => () => xf0().asInstanceOf[java.lang.Double]
       case _: TBoolean => castToDouble[Boolean](_.toDouble)
-      case _ => fatal(s"x expression `$expr' must be numeric or Boolean, got $xt")
+      case _ => fatal(s"Expression `$expr' must be numeric or Boolean, got $xt")
     }
   }
 

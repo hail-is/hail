@@ -1,10 +1,8 @@
 package is.hail.variant
 
-import java.nio.ByteBuffer
-
-import breeze.linalg.{*, DenseMatrix}
 import is.hail.annotations._
 import is.hail.check.Gen
+import is.hail.distributedmatrix._
 import is.hail.expr._
 import is.hail.io.VCFMetadata
 import is.hail.io.vcf.ExportVCF
@@ -16,14 +14,14 @@ import is.hail.rvd.{OrderedRVD, OrderedRVType}
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.{HailContext, utils}
+import breeze.linalg.DenseMatrix
 import org.apache.hadoop
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.rdd.AggregateWithContext._
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{Partitioner, SparkContext, SparkEnv}
+import org.apache.spark.{Partitioner, SparkContext}
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jackson.Serialization
@@ -2703,5 +2701,45 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
       }.collect())
     
     (irm, optionVariants)
+  }
+  
+  def writeBlockMatrix(dirname: String, expr: String, blockSize: Int): Unit = {
+    val partStarts = partitionStarts()
+    assert(partStarts.length == rdd2.getNumPartitions + 1)
+
+    val ec = EvalContext(Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, vSignature),
+      "va" -> (2, vaSignature),
+      "s" -> (3, sSignature),
+      "sa" -> (4, saSignature),
+      "g" -> (5, genotypeSignature)))
+    val f = RegressionUtils.parseExprAsDouble(expr, ec)
+    ec.set(0, globalAnnotation)
+    
+    val nRows = partStarts.last
+    val nCols = nSamples
+    
+    val hadoop = sparkContext.hadoopConfiguration
+    hadoop.mkDir(dirname)
+    
+    // write metadata
+    hadoop.writeDataFile(dirname + BlockMatrix.metadataRelativePath) { os =>
+      jackson.Serialization.write(
+        BlockMatrixMetadata(blockSize, nRows, nCols),
+        os)
+    }
+    
+    // write blocks
+    hadoop.mkDir(dirname + "/parts")
+    val gp = GridPartitioner(blockSize, nRows, nCols)
+    val blockCount =
+      new WriteBlocksRDD(dirname, rdd2, sparkContext, rowType, sampleIdsBc, sampleAnnotationsBc, partStarts, f, ec, gp)
+        .reduce(_ + _)
+    
+    assert(blockCount == gp.numPartitions)
+    info(s"Wrote all $blockCount blocks of $nRows x $nCols matrix with block size $blockSize.")
+    
+    hadoop.writeTextFile(dirname + "/_SUCCESS")(out => ())
   }
 }

@@ -1,8 +1,10 @@
 package is.hail.variant.vsm
 
+import breeze.linalg.DenseMatrix
 import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Parameters}
+import is.hail.distributedmatrix.BlockMatrix
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.sparkextras.OrderedRDD
@@ -447,5 +449,28 @@ class VSMSuite extends SparkSuite {
 
     intercept[HailException](vds.reorderSamples(newOrder))
     intercept[HailException](vds.reorderSamples(vds.sampleIds.toArray ++ Array[Annotation]("foo", "bar")))
+  }
+  
+  @Test def testWriteBlockMatrix() {
+    val dirname = tmpDir.createTempFile()
+    
+    for {
+      numSlices <- Seq(1, 2, 4, 9, 11)
+      blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
+    } {
+      val vsm = hc.baldingNicholsModel(1, 6, 9, Some(numSlices), seed = blockSize + numSlices)      
+      vsm.writeBlockMatrix(dirname, "g.GT.gt + v.start + s.toInt32()", blockSize)
+
+      val data = vsm.collect().zipWithIndex.flatMap { 
+        case (row, v) => row.getAs[IndexedSeq[Row]](3).zipWithIndex.map { 
+          case (gt, s) => 
+            (gt.getInt(0) + (v + 1) + s).toDouble
+        }
+      }
+      
+      val lm = new DenseMatrix[Double](6, 9, data).t // data is row major
+      
+      assert(BlockMatrix.read(hc, dirname).toLocalMatrix() === lm)
+    }
   }
 }

@@ -79,40 +79,4 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
         10.0, 11.0, 12.0, 15.0, 16.0, 17.0, 16.0, 17.0, 20.0
       )))
   }
-  
-  @Test def testWriteAsBlockMatrix() {
-    val data = Seq(
-      (0L, Vectors.dense(0.0, 1.0, 2.0, 1.0, 3.0, 4.0)),
-      (1L, Vectors.dense(3.0, 4.0, 5.0, 1.0, 1.0, 1.0)),
-      (2L, Vectors.dense(9.0, 0.0, 2.0, 1.0, 2.0, 9.0)),
-      (3L, Vectors.dense(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)),
-      (4L, Vectors.dense(9.0, 1.0, 7.0, 1.0, 1.0, 2.0)),
-      (5L, Vectors.dense(6.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
-      (6L, Vectors.dense(1.0, 2.0, 3.0, 4.0, 2.0, 1.0)),
-      (7L, Vectors.dense(4.0, 5.0, 6.0, 1.0, 1.0, 5.0)),
-      (8L, Vectors.dense(7.0, 8.0, 9.0, 1.0, 0.0, 1.0))
-    ).map(IndexedRow.tupled)
-
-    val filename = tmpDir.createTempFile()
-    
-    for {
-      numSlices <- Seq(1, 2, 4, 9, 11)
-      blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
-    } {
-      val irm = new IndexedRowMatrix(sc.parallelize(data, numSlices))
-      irm.writeAsBlockMatrix(filename, blockSize)
-      
-      assert(BlockMatrix.read(hc, filename).toLocalMatrix() === irm.toHailBlockMatrix().toLocalMatrix())
-    }
-    
-    TestUtils.interceptAssertion("IndexedRowMatrix has 3 rows but RDD only has 2 IndexedRows.") {
-      val data = Seq((0L, Vectors.dense(0.0)), (2L, Vectors.dense(1.0))).map(IndexedRow.tupled)      
-      new IndexedRowMatrix(sc.parallelize(data)).writeAsBlockMatrix(filename, 1)
-    }
-    
-    TestUtils.interceptSpark("IndexedRow index") {
-      val data = Seq((1L, Vectors.dense(0.0)), (0L, Vectors.dense(1.0))).map(IndexedRow.tupled)
-      new IndexedRowMatrix(sc.parallelize(data)).writeAsBlockMatrix(filename, 1)
-    }
-  }
 }

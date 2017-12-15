@@ -6,7 +6,6 @@ import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.distributedmatrix._
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
-import org.json4s.jackson
 
 object RichIndexedRowMatrix {
   private def seqOp(gp: GridPartitioner)
@@ -73,28 +72,6 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     }
 
     new BlockMatrix(new EmptyPartitionIsAZeroMatrixRDD(blocks), blockSize, nRows, nCols)
-  }
-  
-  def writeAsBlockMatrix(uri: String, blockSize: Int) {
-    val nRows = indexedRowMatrix.numRows()
-    val nCols = indexedRowMatrix.numCols()
-    
-    val hadoop = indexedRowMatrix.rows.sparkContext.hadoopConfiguration
-    hadoop.mkDir(uri)
-    
-    // write blocks
-    hadoop.mkDir(uri + "/parts")
-    val gp = GridPartitioner(blockSize, nRows, nCols)
-    val blockCount = new WriteBlocksRDD(indexedRowMatrix, uri, gp).reduce(_ + _)
-    assert(blockCount == gp.numPartitions)
-    info(s"Wrote all $blockCount blocks of $nRows x $nCols matrix with block size $blockSize.")
-    
-    // write metadata
-    hadoop.writeDataFile(uri + BlockMatrix.metadataRelativePath) { os =>
-      jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, nCols),
-        os)
-    }
   }
 }
 
