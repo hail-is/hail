@@ -567,7 +567,7 @@ class ColumnTests(unittest.TestCase):
             x1=kt.a['cat'],
             x2=kt.a['dog'],
             x3=kt.a.keys().contains('rabbit'),
-            x4=kt.a.is_empty(),
+            x4=kt.a.size() == 0,
             x5=kt.a.key_set(),
             x6=kt.a.keys(),
             x7=kt.a.values(),
