@@ -6,15 +6,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations.Memory
 import is.hail.utils.ArrayBuilder
 
-object RichDenseMatrixDouble {
-  def horzcat(oms: Option[DenseMatrix[Double]]*): Option[DenseMatrix[Double]] = {
-    val ms = oms.flatten
-    if (ms.isEmpty)
-      None
-    else
-      Some(DenseMatrix.horzcat(ms: _*))
-  }
-  
+object RichDenseMatrixDouble {  
   // copies n doubles as bytes from data to dos
   def writeDoubles(dos: DataOutputStream, data: Array[Double], n: Int) {
     assert(n <= data.length)

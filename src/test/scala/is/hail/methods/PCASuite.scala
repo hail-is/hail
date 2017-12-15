@@ -1,19 +1,22 @@
 package is.hail.methods
 
+import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TFloat64, TStruct}
 import is.hail.keytable.KeyTable
 import is.hail.variant.{Variant, VariantSampleMatrix}
-import org.apache.spark.mllib.linalg.DenseMatrix
 import org.testng.annotations.Test
 
 object PCASuite {
-  def samplePCA(vsm: VariantSampleMatrix, k: Int = 10, computeLoadings: Boolean = false, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix, Option[KeyTable]) = {
+  def samplePCA(vsm: VariantSampleMatrix, k: Int = 10, computeLoadings: Boolean = false, 
+    asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[KeyTable]) = {
+    
     val prePCA = vsm.annotateVariantsExpr("va.AC = gs.map(g => g.GT.gt).sum(), va.nCalled = gs.filter(g => isDefined(g.GT)).count()")
       .filterVariantsExpr("va.AC > 0 && va.AC < 2 * va.nCalled").persist()
     val nVariants = prePCA.countVariants()
     val expr = s"let mean = va.AC / va.nCalled in if (isDefined(g.GT)) (g.GT.gt - mean) / sqrt(mean * (2 - mean) * $nVariants / 2) else 0"
+    
     PCA(prePCA, expr, k, computeLoadings, asArray)
   }
 }
@@ -59,9 +62,5 @@ class PCASuite extends SparkSuite {
   @Test def testExpr() {
     val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
     val (eigenvalues, scores, loadings) = PCA(vds, "if (isDefined(g.GT)) g.GT.gt else 0", 3, true, true)
-
-    println(scores)
-    println(loadings.get.collect())
-    println(eigenvalues)
   }
 }

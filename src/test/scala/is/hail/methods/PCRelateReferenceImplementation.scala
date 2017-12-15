@@ -1,23 +1,21 @@
 package is.hail.methods
 
-import breeze.linalg.{DenseMatrix => BDM, _}
-import org.apache.spark.mllib.linalg._
-import org.apache.spark.mllib.linalg.distributed._
+import breeze.linalg.{DenseMatrix, inv}
 import is.hail.variant.{Genotype, Locus, Variant, VariantDataset}
 
 object PCRelateReferenceImplementation {
-  def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double = 0.0): (Map[(String, String), (Double, Double, Double, Double)], BDM[Double], BDM[Double], BDM[Double]) = {
+  def apply(vds: VariantDataset, pcs: DenseMatrix[Double], maf: Double = 0.0): (Map[(String, String), (Double, Double, Double, Double)], DenseMatrix[Double], DenseMatrix[Double], DenseMatrix[Double]) = {
     val indexToId: Map[Int, String] = vds.stringSampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
 
     val gts = vds.typedRDD[Locus, Variant].zipWithIndex.map { case ((v, (va, gs)), i) =>
-      val a = gs.map(Genotype.gt _).toArray
+      val a = gs.map(Genotype.gt).toArray
       val mean = a.flatten.sum.toDouble / a.flatten.length
-      (i, a.map { case Some(v) => v.toDouble ; case None => mean }.toArray)
-    }.collect().sortBy(_._1).map(_._2).flatten
+      (i, a.map { case Some(v) => v.toDouble ; case None => mean })
+    }.collect().sortBy(_._1).flatMap(_._2)
 
-    val mat = new BDM[Double](vds.nSamples, vds.countVariants().toInt, gts)
+    val mat = new DenseMatrix[Double](vds.nSamples, vds.countVariants().toInt, gts)
 
-    val (foo, ibs0, mu_si) = forMatrices(mat, new BDM[Double](pcs.numRows, pcs.numCols, pcs.toArray), maf=0.01)
+    val (foo, ibs0, mu_si) = forMatrices(mat, new DenseMatrix[Double](pcs.rows, pcs.cols, pcs.toArray), maf=0.01)
 
     val PCRelate.Result(phi, k0, k1, k2) = foo.map(symmetricMatrixToMap(indexToId,_))
 
@@ -25,31 +23,30 @@ object PCRelateReferenceImplementation {
   }
 
   // keys.length == mat.rows == mat.cols
-  private def symmetricMatrixToMap[T,U](keys: Int => T, mat: BDM[U]): Map[(T, T), U] = (for {
+  private def symmetricMatrixToMap[T,U](keys: Int => T, mat: DenseMatrix[U]): Map[(T, T), U] = (for {
     i <- 0 until mat.rows
     j <- (i+1) until mat.cols
   } yield ((keys(i), keys(j)), mat(i, j))).toMap
 
   // g : N x M
   // pcs : N x K
-  def forMatrices(g: BDM[Double], pcs: BDM[Double], maf: Double = 0.0): (PCRelate.Result[BDM[Double]], BDM[Double], BDM[Double]) = {
+  def forMatrices(g: DenseMatrix[Double], pcs: DenseMatrix[Double], maf: Double = 0.0): (PCRelate.Result[DenseMatrix[Double]], DenseMatrix[Double], DenseMatrix[Double]) = {
     val n = g.rows
     val m = g.cols
     require(n == pcs.rows)
-    val k = pcs.cols
 
     // N x (K + 1)
-    val pcsWithIntercept = BDM.horzcat(new BDM(n, 1, Array.fill[Double](n)(1.0)), pcs)
+    val pcsWithIntercept = DenseMatrix.horzcat(new DenseMatrix(n, 1, Array.fill[Double](n)(1.0)), pcs)
 
     // beta : M x K
     val beta = (inv(pcsWithIntercept.t * pcsWithIntercept) * pcsWithIntercept.t * g).t
 
     // mu_si : M x N
-    val mu_si: BDM[Double] = (beta * pcsWithIntercept.t) / 2.0
+    val mu_si: DenseMatrix[Double] = (beta * pcsWithIntercept.t) / 2.0
 
     def goodMu(mu: Double): Boolean =
-      (mu > 0.0 && mu > maf &&
-       mu < 1.0 && mu < (1.0 - maf))
+       mu > 0.0 && mu > maf &&
+       mu < 1.0 && mu < (1.0 - maf)
     def goodGT(gt: Double): Boolean =
       gt == 0.0 || gt == 1.0 || gt == 2.0
 
@@ -70,7 +67,7 @@ object PCRelateReferenceImplementation {
       }
       i += 1
     }
-    val g2mu = new BDM[Double](m, n, g2mua)
+    val g2mu = new DenseMatrix[Double](m, n, g2mua)
 
     val numer = g2mu.t * g2mu
 
@@ -89,9 +86,9 @@ object PCRelateReferenceImplementation {
       }
       i += 1
     }
-    val stddev = new BDM[Double](m, n, stddeva)
+    val stddev = new DenseMatrix[Double](m, n, stddeva)
 
-    val denom = (stddev.t * stddev)
+    val denom = stddev.t * stddev
     val phi = (numer :/ denom) / 4.0
 
     def toDom(gt: Double, mu: Double): Double = gt match {
@@ -133,7 +130,7 @@ object PCRelateReferenceImplementation {
       }
       i += 1
     }
-    val k2 = new BDM[Double](n, n, k2a)
+    val k2 = new DenseMatrix[Double](n, n, k2a)
 
     val ibs0a = new Array[Double](n*n)
     i = 0
@@ -161,11 +158,11 @@ object PCRelateReferenceImplementation {
       }
       i += 1
     }
-    val ibs0 = new BDM[Double](n,n,ibs0a)
+    val ibs0 = new DenseMatrix[Double](n,n,ibs0a)
 
     val k0a = new Array[Double](n*n)
     i = 0
-    val k0cutoff = math.pow(2.0, (-5.0/2.0))
+    val k0cutoff = math.pow(2.0, -5.0 / 2.0)
     while (i < n) {
       var j = 0
       while (j < n) {
@@ -195,7 +192,7 @@ object PCRelateReferenceImplementation {
       i += 1
     }
 
-    val k0 = new BDM[Double](n, n, k0a)
+    val k0 = new DenseMatrix[Double](n, n, k0a)
 
     val k1 = 1.0 - (k0 :+ k2)
 

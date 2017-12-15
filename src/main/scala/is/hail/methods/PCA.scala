@@ -1,11 +1,11 @@
 package is.hail.methods
 
+import breeze.linalg.{*, DenseMatrix, DenseVector}
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.VariantSampleMatrix
-import org.apache.spark.mllib.linalg.DenseMatrix
 
 object PCA {
   def pcSchema(k: Int, asArray: Boolean = false): Type =
@@ -15,10 +15,10 @@ object PCA {
       TStruct((1 to k).map(i => (s"PC$i", TFloat64())): _*)
 
   //returns (sample scores, variant loadings, eigenvalues)
-  def apply(vsm: VariantSampleMatrix, expr: String, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix, Option[KeyTable]) = {
+  def apply(vsm: VariantSampleMatrix, expr: String, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[KeyTable]) = {
     val sc = vsm.sparkContext
-    val (maybeVariants, mat) = vsm.toIndexedRowMatrix(expr, computeLoadings)
-    val svd = mat.computeSVD(k, computeLoadings)
+    val (irm, optionVariants) = vsm.toIndexedRowMatrix(expr, computeLoadings)
+    val svd = irm.computeSVD(k, computeLoadings)
     if (svd.s.size < k)
       fatal(
         s"""Found only ${ svd.s.size } non-zero (or nearly zero) eigenvalues, but user requested ${ k }
@@ -27,7 +27,7 @@ object PCA {
     val optionLoadings = someIf(computeLoadings, {
       val rowType = TStruct("v" -> vsm.vSignature, "pcaLoadings" -> pcSchema(k, asArray))
       val rowTypeBc = vsm.sparkContext.broadcast(rowType)
-      val variantsBc = vsm.sparkContext.broadcast(maybeVariants.get)
+      val variantsBc = vsm.sparkContext.broadcast(optionVariants.get)
       val rdd = svd.U.rows.mapPartitions[RegionValue] { it =>
         val region = Region()
         val rv = RegionValue(region)
@@ -51,6 +51,18 @@ object PCA {
       new KeyTable(vsm.hc, rdd, rowType, Array("v"))
     })
 
-    (svd.s.toArray.map(math.pow(_, 2)), svd.V.multiply(DenseMatrix.diag(svd.s)), optionLoadings)
+    val data =
+      if (!svd.V.isTransposed)
+        svd.V.asInstanceOf[org.apache.spark.mllib.linalg.DenseMatrix].values
+      else
+        svd.V.toArray
+    
+    val V = new DenseMatrix[Double](svd.V.numRows, svd.V.numCols, data)
+    val S = DenseVector(svd.s.toArray)
+
+    val eigenvalues = svd.s.toArray.map(math.pow(_, 2))
+    val scaledEigenvectors = V(*, ::) :* S
+    
+    (eigenvalues, scaledEigenvectors, optionLoadings)
   }
 }

@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import breeze.linalg.{DenseMatrix => BDM}
+import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.expr.{TFloat64, TString}
@@ -8,7 +8,6 @@ import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}
 import is.hail.variant.VariantDataset
 import is.hail.methods.PCASuite.samplePCA
-import org.apache.spark.mllib.linalg._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -32,15 +31,15 @@ class PCRelateSuite extends SparkSuite {
   private def quadMap[T,U](f: T => U): (T, T, T, T) => (U, U, U, U) =
     { case (x, y, z, w) => (f(x), f(y), f(z), f(w)) }
 
-  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double): Map[(String, String), (Double, Double, Double, Double)] =
+  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix[Double], maf: Double): Map[(String, String), (Double, Double, Double, Double)] =
     runPcRelateHail(vds, pcs, maf, PCRelate.defaultMinKinship, PCRelate.defaultStatisticSubset)
       .mapValues(quadMap(toD).tupled)
 
-  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double, minKinship: Double): Map[(String, String), (Double, Double, Double, Double)] =
+  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix[Double], maf: Double, minKinship: Double): Map[(String, String), (Double, Double, Double, Double)] =
     runPcRelateHail(vds, pcs, maf, minKinship, PCRelate.defaultStatisticSubset)
       .mapValues(quadMap(toD).tupled)
 
-  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double, minKinship: Double, statistics: PCRelate.StatisticSubset): Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)] =
+  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix[Double], maf: Double, minKinship: Double, statistics: PCRelate.StatisticSubset): Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)] =
     PCRelate.toKeyTable(vds, pcs, maf, blockSize, minKinship, statistics)
       .collect()
       .map(x => x.asInstanceOf[Row])
@@ -100,7 +99,7 @@ class PCRelateSuite extends SparkSuite {
 
   @Test
   def trivialReference() {
-    val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
+    val genotypeMatrix = new DenseMatrix(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
     val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
     val pcsArray = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
     val pcs = new DenseMatrix(4,2,pcsArray)
@@ -111,7 +110,7 @@ class PCRelateSuite extends SparkSuite {
 
   @Test(enabled = false)
   def trivialReferenceMatchesR() {
-    val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
+    val genotypeMatrix = new DenseMatrix(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
     val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
     val pcsArray = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
     val pcs = new DenseMatrix(4,2,pcsArray)
@@ -146,7 +145,7 @@ class PCRelateSuite extends SparkSuite {
     assert(mapSameElements(actual, truth, compareDoubleQuadruplet((x, y) => D_==(x, y, tolerance=1e-2))))
   }
 
-  private def compareBDMs(l: BDM[Double], r: BDM[Double], tolerance: Double) {
+  private def compareBDMs(l: DenseMatrix[Double], r: DenseMatrix[Double], tolerance: Double) {
     val fails = l.toArray.zip(r.toArray).zipWithIndex.flatMap { case ((actual, truth), idx) =>
       val row = idx % l.rows
       val col = idx / l.rows
@@ -255,5 +254,4 @@ class PCRelateSuite extends SparkSuite {
       truth.mapValues(quadMap(toD).tupled),
       compareDoubleQuadruplet((x, y) => math.abs(x - y) < 1e-14)))
   }
-
 }
