@@ -575,7 +575,7 @@ object KeyTableIR {
       case FilterKT(FilterKT(x, p1), p2) =>
         FilterKT(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
       case FilterKT(x, True()) => x
-      case FilterKT(ReadKT(path, ktType, localVal, _, nPart, pCounts), p) if p == False() || p==NA(TBoolean()) =>
+      case FilterKT(ReadKT(path, ktType, localVal, _, nPart, pCounts), False() | NA(TBoolean(_))) =>
         ReadKT(path, ktType, localVal, true, nPart, pCounts)
     })
   }
