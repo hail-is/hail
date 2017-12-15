@@ -26,7 +26,6 @@ def null(t):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.null(TString()))
@@ -55,7 +54,7 @@ def capture(x):
 
     Examples
     --------
-        .. doctest::
+    .. doctest::
 
         >>> eval_expr(f.capture(5))
         5
@@ -143,7 +142,6 @@ def cond(predicate, then_case, else_case):
 
     Examples
     --------
-
     .. doctest::
 
         >>> x = 5
@@ -194,7 +192,6 @@ def chisq(c1, c2, c3, c4):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.chisq(10, 10,
@@ -262,7 +259,6 @@ def ctt(c1, c2, c3, c4, min_cell_count):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.ctt(10, 10,
@@ -307,7 +303,6 @@ def Dict(keys, values):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.Dict(['foo', 'bar', 'baz'], [1, 2, 3]))
@@ -343,7 +338,6 @@ def dpois(x, lamb, log_p=False):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.dpois(5, 3))
@@ -381,7 +375,6 @@ def exp(x):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.exp(2))
@@ -405,7 +398,6 @@ def fisher_exact_test(c1, c2, c3, c4):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.fisher_exact_test(10, 10,
@@ -451,7 +443,6 @@ def gt_index(j, k):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.gt_index(0, 1))
@@ -486,7 +477,6 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.hardy_weinberg_p(20, 50, 26))
@@ -543,7 +533,6 @@ def locus(contig, pos, reference_genome=None):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.locus("1", 10000))
@@ -577,7 +566,6 @@ def parse_locus(s, reference_genome=None):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.parse_locus("1:10000"))
@@ -612,7 +600,6 @@ def interval(start, end):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.interval(f.locus("1", 100),
@@ -649,7 +636,6 @@ def parse_interval(s, reference_genome=None):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.parse_interval('1:1000-2000'))
@@ -691,7 +677,6 @@ def variant(contig, pos, ref, alts, reference_genome=None):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.variant('1', 1000, 'A', ['TC', 'T']))
@@ -734,7 +719,6 @@ def parse_variant(s, reference_genome=None):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.parse_variant('1:1000:A:TC,T'))
@@ -770,7 +754,6 @@ def call(i):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.call(1))
@@ -801,7 +784,6 @@ def is_defined(expression):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.is_defined(5))
@@ -833,7 +815,6 @@ def is_missing(expression):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.is_missing(5))
@@ -865,7 +846,6 @@ def is_nan(x):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.is_nan(0))
@@ -903,7 +883,6 @@ def json(x):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.json([1,2,3,4,5]))
@@ -931,7 +910,6 @@ def log(x, base=None):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.log(10))
@@ -970,7 +948,6 @@ def log10(x):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.log10(1000))
@@ -997,7 +974,6 @@ def logical_not(b):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.logical_not(False))
@@ -1039,7 +1015,6 @@ def or_else(a, b):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.or_else(5, 7))
@@ -1069,7 +1044,6 @@ def or_missing(predicate, value):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.or_missing(True, 5))
@@ -1100,7 +1074,6 @@ def pchisqtail(x, df):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.pchisqtail(5, 1))
@@ -1126,7 +1099,6 @@ def pnorm(x):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.pnorm(0))
@@ -1160,7 +1132,6 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.ppois(2, 1))
@@ -1197,7 +1168,6 @@ def qchisqtail(p, df):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.qchisqtail(0.01, 1))
@@ -1229,7 +1199,6 @@ def qnorm(p):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.qnorm(0.90))
@@ -1259,7 +1228,6 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.qpois(0.99, 1))
@@ -1294,7 +1262,6 @@ def range(start, stop, step=1):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.range(0, 10))
@@ -1330,7 +1297,6 @@ def rand_bool(p):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.rand_bool(0.5))
@@ -1363,7 +1329,6 @@ def rand_norm(mean=0, sd=1):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.rand_norm())
@@ -1399,7 +1364,6 @@ def rand_pois(lamb):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.rand_pois(1))
@@ -1433,7 +1397,6 @@ def rand_unif(min, max):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.rand_unif(0, 1))
@@ -1476,7 +1439,6 @@ def sqrt(x):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.sqrt(3))
@@ -1505,7 +1467,6 @@ def to_str(x):
 
     Examples
     --------
-
     .. doctest::
 
         >>> eval_expr(f.to_str(Struct(a=5, b=7)))
