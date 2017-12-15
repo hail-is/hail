@@ -849,7 +849,7 @@ class HailContext(HistoryMixin):
                       annotation_headers=nullable(listof(strlike)),
                       min_partitions=nullable(integral),
                       drop_samples=bool,
-                      cell_type=nullable(Type),
+                      cell_type=nullable(oneof(TInt32, TInt64, TFloat32, TFloat64, TString)),
                       missing=strlike)
     def import_matrix(self, path, key_expr, annotation_types, annotation_headers=None,
                       min_partitions=None, drop_samples=False, cell_type=None, missing="NA"):
