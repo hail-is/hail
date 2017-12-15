@@ -716,30 +716,6 @@ class ContextTests(unittest.TestCase):
         glob, samples, variants = bn1.concordance(bn2)
         self.assertEqual(samples.collect()[0].concordance, glob)
 
-    def test_repr(self):
-        tv = TVariant()
-        tl = TLocus()
-        ti = TInterval()
-        tc = TCall()
-        taa = TAltAllele()
-
-        ti32 = TInt32()
-        ti64 = TInt64()
-        tf32 = TFloat32()
-        tf64 = TFloat64()
-        ts = TString()
-        tb = TBoolean()
-
-        tdict = TDict(TInterval(), TFloat32())
-        tarray = TArray(TString())
-        tset = TSet(TVariant())
-        tstruct = TStruct(['a', 'b'], [TBoolean(), TArray(TString())])
-
-        for typ in [tv, tl, ti, tc, taa,
-                    ti32, ti64, tf32, tf64, ts, tb,
-                    tdict, tarray, tset, tstruct]:
-            self.assertEqual(eval(repr(typ)), typ)
-
     def test_rename_duplicates(self):
         vds = hc.import_vcf('src/test/resources/duplicate_ids.vcf')
         vds = vds.rename_duplicates()

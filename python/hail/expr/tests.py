@@ -82,3 +82,27 @@ class Tests(unittest.TestCase):
 
         reqint2 = TInt32(required=True)
         self.assertEqual(id(reqint), id(reqint2))
+
+    def test_repr(self):
+        tv = TVariant()
+        tl = TLocus()
+        ti = TInterval()
+        tc = TCall()
+        taa = TAltAllele()
+
+        ti32 = TInt32()
+        ti64 = TInt64()
+        tf32 = TFloat32()
+        tf64 = TFloat64()
+        ts = TString()
+        tb = TBoolean()
+
+        tdict = TDict(TInterval(), TFloat32())
+        tarray = TArray(TString())
+        tset = TSet(TVariant())
+        tstruct = TStruct(['a', 'b'], [TBoolean(), TArray(TString())])
+
+        for typ in [tv, tl, ti, tc, taa,
+                    ti32, ti64, tf32, tf64, ts, tb,
+                    tdict, tarray, tset, tstruct]:
+            self.assertEqual(eval(repr(typ)), typ)
