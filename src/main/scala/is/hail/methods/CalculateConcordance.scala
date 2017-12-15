@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.expr._
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row

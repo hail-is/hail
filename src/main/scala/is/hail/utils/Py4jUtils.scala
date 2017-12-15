@@ -3,7 +3,7 @@ package is.hail.utils
 import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.variant.{GenomeReference, Locus, MatrixTable}
 
 import scala.collection.JavaConverters._

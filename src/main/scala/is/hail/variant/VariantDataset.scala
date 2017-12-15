@@ -3,7 +3,7 @@ package is.hail.variant
 import is.hail.annotations.{Annotation, _}
 import is.hail.expr.{EvalContext, Parser, TAggregable, TString, TStruct, Type, _}
 import is.hail.io.plink.ExportBedBimFam
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.methods._
 import is.hail.rvd.OrderedRVD
 import is.hail.stats.ComputeRRM

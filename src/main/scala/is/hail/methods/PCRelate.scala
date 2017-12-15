@@ -5,7 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.expr.{TFloat64, TString, TStruct}
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{HardCallView, Variant, MatrixTable}
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression

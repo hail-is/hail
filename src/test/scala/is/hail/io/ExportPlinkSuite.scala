@@ -1,7 +1,7 @@
 package is.hail.io
 
 import is.hail.SparkSuite
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.utils._
 import org.testng.annotations.Test
 

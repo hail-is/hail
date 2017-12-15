@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.check.{Gen, Prop}
 import is.hail.expr._
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant.{VSMSubgen, Variant, MatrixTable}

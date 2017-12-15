@@ -4,7 +4,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TFloat64, TStruct}
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.variant.{Variant, MatrixTable}
 import org.testng.annotations.Test
 

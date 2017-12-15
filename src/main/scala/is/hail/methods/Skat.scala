@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
 import is.hail.annotations.Annotation
 
@@ -127,7 +127,7 @@ object Skat {
             // using q / sigmaSq since Z.t * Z = gramian / sigmaSq
             val (pval, fault) = computePval(q / sigmaSq, gramian, accuracy, iterations)
             
-            // returning qstat = q / (2 * sigmaSq) to agree with skat R package convention
+            // returning qstat = q / (2 * sigmaSq) to agree with skat R table convention
             Row(key, size, q / (2 * sigmaSq), pval, fault)
           } else {
             Row(key, size, null, null, null)
@@ -178,7 +178,7 @@ object Skat {
           val (q, gramian) = computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
           val (pval, fault) = computePval(q, gramian, accuracy, iterations)
   
-          // returning qstat = q / 2 to agree with skat R package convention
+          // returning qstat = q / 2 to agree with skat R table convention
           Row(key, size, q / 2, pval, fault)
         } else {
           Row(key, size, null, null, null)

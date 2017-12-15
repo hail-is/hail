@@ -13,13 +13,13 @@ from hail.utils.java import *
 class Ascending(HistoryMixin):
     @record_init
     def __init__(self, col):
-        self._jrep = scala_package_object(Env.hail().keytable).asc(col)
+        self._jrep = scala_package_object(Env.hail().table).asc(col)
 
 
 class Descending(HistoryMixin):
     @record_init
     def __init__(self, col):
-        self._jrep = scala_package_object(Env.hail().keytable).desc(col)
+        self._jrep = scala_package_object(Env.hail().table).desc(col)
 
 
 def asc(col):
@@ -141,7 +141,7 @@ class KeyTable(HistoryMixin):
 
         return KeyTable(
             Env.hc(),
-            Env.hail().keytable.KeyTable.parallelize(
+            Env.hail().table.Table.parallelize(
                 Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],
                 schema._jtype, wrap_to_list(key), joption(num_partitions)))
 
@@ -1062,7 +1062,7 @@ class KeyTable(HistoryMixin):
 
         jsort_columns = [asc(col)._jrep if isinstance(col, str) else col._jrep for col in cols]
         return KeyTable(self.hc,
-                        self._jkt.orderBy(jarray(Env.hail().keytable.SortColumn, jsort_columns)))
+                        self._jkt.orderBy(jarray(Env.hail().table.SortColumn, jsort_columns)))
 
     @handle_py4j
     def num_partitions(self):
@@ -1127,7 +1127,7 @@ class KeyTable(HistoryMixin):
         """
 
         rg = reference_genome if reference_genome else Env.hc().default_reference
-        jkt = Env.hail().keytable.KeyTable.importIntervalList(Env.hc()._jhc, path, rg._jrep)
+        jkt = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, rg._jrep)
         return KeyTable(Env.hc(), jkt)
 
     @classmethod
@@ -1199,7 +1199,7 @@ class KeyTable(HistoryMixin):
         """
 
         rg = reference_genome if reference_genome else Env.hc().default_reference
-        jkt = Env.hail().keytable.KeyTable.importBED(Env.hc()._jhc, path, rg._jrep)
+        jkt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, rg._jrep)
         return KeyTable(Env.hc(), jkt)
 
     @classmethod
@@ -1242,7 +1242,7 @@ class KeyTable(HistoryMixin):
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
+        return KeyTable(Env.hc(), Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
 
     @handle_py4j
     @record_method
@@ -1319,7 +1319,7 @@ class KeyTable(HistoryMixin):
         """
 
         hc = Env.hc()
-        jkt = Env.hail().keytable.KeyTable.importFam(hc._jhc, path, quantitative, delimiter, missing)
+        jkt = Env.hail().table.Table.importFam(hc._jhc, path, quantitative, delimiter, missing)
         return KeyTable(hc, jkt)
 
     @handle_py4j
@@ -1501,7 +1501,7 @@ class KeyTable(HistoryMixin):
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.range(Env.hc()._jhc, n, joption(num_partitions)))
+        return KeyTable(Env.hc(), Env.hail().table.Table.range(Env.hc()._jhc, n, joption(num_partitions)))
 
     @handle_py4j
     @record_method

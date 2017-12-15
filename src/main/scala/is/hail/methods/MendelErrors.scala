@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TInt32, TString, TStruct, Type}
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.CopyState._
 import is.hail.variant.GenotypeType._

@@ -6,7 +6,7 @@ import is.hail.distributedmatrix._
 import is.hail.expr._
 import is.hail.io.VCFMetadata
 import is.hail.io.vcf.ExportVCF
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods._
 import is.hail.sparkextras._

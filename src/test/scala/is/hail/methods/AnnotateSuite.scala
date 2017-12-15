@@ -7,7 +7,7 @@ import is.hail.check.Prop
 import is.hail.expr.{TFloat64, TInt32, TString, TStruct}
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._

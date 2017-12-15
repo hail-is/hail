@@ -1,4 +1,4 @@
-package is.hail.keytable
+package is.hail.table
 
 import is.hail.HailContext
 import is.hail.annotations._

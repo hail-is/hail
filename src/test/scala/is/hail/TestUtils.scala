@@ -1,7 +1,7 @@
 package is.hail
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Genotype, Locus, Variant, MatrixTable}
 import org.apache.spark.SparkException

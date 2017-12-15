@@ -348,7 +348,7 @@ class Table(TableTemplate):
     def parallelize(cls, rows, schema, key=[], num_partitions=None):
         return Table(
             Env.hc(),
-            Env.hail().keytable.KeyTable.parallelize(
+            Env.hail().table.Table.parallelize(
                 Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],
                 schema._jtype, wrap_to_list(key), joption(num_partitions)))
 
@@ -1130,7 +1130,7 @@ class Table(TableTemplate):
         :class:`Table`
             Table with one field, `index`.
         """
-        return Table(Env.hc(), Env.hail().keytable.KeyTable.range(Env.hc()._jhc, n, joption(num_partitions)))
+        return Table(Env.hc(), Env.hail().table.Table.range(Env.hc()._jhc, n, joption(num_partitions)))
 
     @handle_py4j
     def cache(self):

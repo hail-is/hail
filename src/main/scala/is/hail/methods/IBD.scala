@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.HailContext
 import is.hail.expr.{EvalContext, Parser, TFloat64, TInt64, TString, TStruct, TVariant}
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder, UnsafeRow}
 import is.hail.expr._
 import is.hail.variant.{GenomeReference, Genotype, HardCallView, Variant, MatrixTable}

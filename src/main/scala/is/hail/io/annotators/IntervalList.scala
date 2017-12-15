@@ -2,7 +2,7 @@ package is.hail.io.annotators
 
 import is.hail.HailContext
 import is.hail.expr._
-import is.hail.keytable.Table
+import is.hail.table.Table
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
 import org.apache.spark.sql.Row
