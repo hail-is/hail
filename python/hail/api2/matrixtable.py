@@ -875,12 +875,13 @@ class MatrixTable(object):
 
         return left, cleanup
 
-    def describe(self):
+    @typecheck_method(truncate_at=integral)
+    def describe(self, truncate_at=60):
 
-        def format_type(typ, max_len=60):
+        def format_type(typ):
             typ_str = str(typ)
-            if len(typ_str) > max_len - 3:
-                typ_str = typ_str[:max_len - 3] + '...'
+            if len(typ_str) > truncate_at - 3:
+                typ_str = typ_str[:truncate_at - 3] + '...'
             return typ_str
 
         if len(self.global_schema.fields) == 0:
@@ -903,6 +904,6 @@ class MatrixTable(object):
             entry_fields = ''.join("\n    '{name}': {type} ".format(
                 name=fd.name, type=format_type(fd.typ)) for fd in self.entry_schema.fields)
 
-        s = 'Global fields:{}\nRow-indexed fields:{}\nColumn-indexed fields:{}\nEntry-indexed fields:{}'.format(
+        s = 'Global fields:{}\n\nRow-indexed fields:{}\n\nColumn-indexed fields:{}\n\nEntry-indexed fields:{}'.format(
             global_fields, row_fields, col_fields, entry_fields)
         print(s)

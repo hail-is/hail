@@ -774,12 +774,13 @@ class Table(TableTemplate):
     def collect(self):
         return TArray(self.schema)._convert_to_py(self._jkt.collect())
 
-    def describe(self):
+    @typecheck_method(truncate_at=integral)
+    def describe(self, truncate_at=60):
 
-        def format_type(typ, max_len=60):
+        def format_type(typ):
             typ_str = str(typ)
-            if len(typ_str) > max_len - 3:
-                typ_str = typ_str[:max_len - 3] + '...'
+            if len(typ_str) > truncate_at - 3:
+                typ_str = typ_str[:truncate_at - 3] + '...'
             return typ_str
 
         if len(self.global_schema.fields) == 0:
@@ -796,5 +797,5 @@ class Table(TableTemplate):
                 name=fd.name, is_key='' if fd.name not in key_set else ' [key field]',
                 type=format_type(fd.typ)) for fd in self.schema.fields)
 
-        s = 'Global fields:{}\nRow fields:{}'.format(global_fields, row_fields)
+        s = 'Global fields:{}\n\nRow fields:{}'.format(global_fields, row_fields)
         print(s)
