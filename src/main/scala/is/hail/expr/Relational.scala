@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.asm4s.FunctionBuilder
 import is.hail.expr.ir._
 import is.hail.keytable.KTLocalValue
 import is.hail.methods.Aggregators
