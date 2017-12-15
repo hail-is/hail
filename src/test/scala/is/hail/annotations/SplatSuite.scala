@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.SparkSuite
+import is.hail.methods.VariantQC
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -11,9 +12,8 @@ class SplatSuite extends SparkSuite {
     val out3 = tmpDir.createLocalTempFile("out3", ".txt")
     val out4 = tmpDir.createLocalTempFile("out4", ".txt")
 
-    val vkt = hc.importVCF("src/test/resources/sample2.vcf")
-      .splitMulti()
-      .variantQC()
+    val vkt = VariantQC(hc.importVCF("src/test/resources/sample2.vcf")
+      .splitMulti())
       .variantsKT()
 
     vkt.select("variant = v", "va.qc.callRate", "va.qc.AC", "va.qc.AF", "va.qc.nCalled", "va.qc.nNotCalled",

@@ -39,8 +39,7 @@ class ImputeSexSuite extends SparkSuite {
 
     property("hail generates same results as PLINK v1.9") =
       forAll(plinkSafeBiallelicVDS) { case (vds: VariantSampleMatrix) =>
-        var mappedVDS = vds
-          .variantQC()
+        var mappedVDS = VariantQC(vds)
           .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && " +
             "va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")
 

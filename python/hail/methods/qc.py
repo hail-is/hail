@@ -1,5 +1,5 @@
 from hail.typecheck import *
-from hail.utils.java import handle_py4j
+from hail.utils.java import Env, handle_py4j
 from hail.api2 import MatrixTable
 
 
@@ -81,4 +81,4 @@ def sample_qc(dataset, name='sample_qc'):
     :rtype: :class:`.MatrixTable`
     """
 
-    return MatrixTable(dataset._hc, dataset._jvds.sampleQC('sa.`{}`'.format(name)))
+    return MatrixTable(dataset._hc, Env.hail().methods.SampleQC(dataset._jvds, 'sa.`{}`'.format(name)))

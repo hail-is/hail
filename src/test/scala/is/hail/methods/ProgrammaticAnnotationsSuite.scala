@@ -9,10 +9,9 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
 
   @Test def testSamples() {
 
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = SampleQC(hc.importVCF("src/test/resources/sample.vcf")
       .cache()
-      .splitMulti()
-      .sampleQC()
+      .splitMulti())
       .annotateSamplesExpr(
         "sa.userdefined.missingness = (1 - sa.qc.callRate) * 100, sa.anotherthing = 5, " +
           "sa.`hi there i have spaces`.another = true")
@@ -30,11 +29,10 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
   }
 
   @Test def testVariants() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = VariantQC(hc.importVCF("src/test/resources/sample.vcf")
       .cache()
       .filterVariantsExpr("v.start == 10019093")
-      .splitMulti()
-      .variantQC()
+      .splitMulti())
       .annotateVariantsExpr(
         "va.a.b.c.d.e = va.qc.callRate * 100, va.a.c = if (va.filters.isEmpty) 1 else 0, va.`weird spaces name` = 5 / (va.qual - 5)")
 

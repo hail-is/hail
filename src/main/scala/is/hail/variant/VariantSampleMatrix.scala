@@ -2417,17 +2417,6 @@ class VariantSampleMatrix(val hc: HailContext, val metadata: VSMMetadata,
     copy2(rdd2 = newRDD2)
   }
 
-  def sampleQC(root: String = "sa.qc"): VariantSampleMatrix = {
-    requireRowKeyVariant("sample_qc")
-    SampleQC(this, root)
-  }
-
-  def variantQC(root: String = "va.qc"): VariantSampleMatrix = {
-    require(wasSplit)
-    requireRowKeyVariant("variant_qc")
-    VariantQC(this, root)
-  }
-
   def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): VariantSampleMatrix = {
     require(wasSplit)
     requireRowKeyVariant("ld_prune")

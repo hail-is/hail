@@ -22,9 +22,8 @@ class gqDpStatsSuite extends SparkSuite {
 
     // DP test first
     val dpVds = TestRDDBuilder.buildRDD(8, 4, hc, dpArray = Some(arr), gqArray = None)
-    val dpVariantR = dpVds
-      .filterMulti()
-      .variantQC()
+    val dpVariantR = VariantQC(dpVds
+      .filterMulti())
       .variantsKT()
       .query(Array("index(v.map(v => {v: v, dpMean: va.qc.dpMean, dpStDev: va.qc.dpStDev}).collect(), v)"))
       .apply(0)._1.asInstanceOf[Map[Variant, Row]]
@@ -51,9 +50,8 @@ class gqDpStatsSuite extends SparkSuite {
 
     // now test GQ
     val gqVds = TestRDDBuilder.buildRDD(8, 4, hc, dpArray = None, gqArray = Some(arr))
-    val gqVariantR = gqVds
-      .filterMulti()
-      .variantQC()
+    val gqVariantR = VariantQC(gqVds
+      .filterMulti())
       .variantsKT()
       .query(Array("index(v.map(v => {v: v, gqMean: va.qc.gqMean, gqStDev: va.qc.gqStDev}).collect(), v)"))
       .apply(0)._1.asInstanceOf[Map[Variant, Row]]

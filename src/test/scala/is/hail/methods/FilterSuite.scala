@@ -33,7 +33,7 @@ class FilterSuite extends SparkSuite {
 
     assert(vds.filterVariantsExpr("""va.rsid == "."""", keep = false).countVariants() == 258)
 
-    val sQcVds = vds.sampleQC()
+    val sQcVds = SampleQC(vds)
 
     assert(sQcVds.filterSamplesExpr("sa.qc.nCalled == 337").nSamples == 17)
 
@@ -42,7 +42,7 @@ class FilterSuite extends SparkSuite {
     assert(sQcVds.filterSamplesExpr("if (\"^C1048\" ~ s) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3")
       .nSamples == 16)
 
-    val vQcVds = vds.variantQC()
+    val vQcVds = VariantQC(vds)
 
     assert(vQcVds.filterVariantsExpr("va.qc.nCalled < 100").countVariants() == 36)
 
@@ -119,8 +119,7 @@ class FilterSuite extends SparkSuite {
   @Test def MissingTest() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()
-    val keepOneSample = vds.filterSamplesExpr("s == \"C1046::HG02024\"")
-      .variantQC()
+    val keepOneSample = VariantQC(vds.filterSamplesExpr("s == \"C1046::HG02024\""))
 
     val q = keepOneSample.queryVA("va.qc.rHetHomVar")._2
     val missingVariants = keepOneSample.variantsAndAnnotations

@@ -129,7 +129,10 @@ object VariantQC {
     "rExpectedHetFrequency" -> TFloat64(),
     "pHWE" -> TFloat64())
 
-  def apply(vsm: VariantSampleMatrix, root: String): VariantSampleMatrix = {
+  def apply(vsm: VariantSampleMatrix, root: String = "va.qc"): VariantSampleMatrix = {
+    require(vsm.wasSplit)
+    vsm.requireRowKeyVariant("variant_qc")
+
     val localNSamples = vsm.nSamples
     val localRowType = vsm.rowType
 

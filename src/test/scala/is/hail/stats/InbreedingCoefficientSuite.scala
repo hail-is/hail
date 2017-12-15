@@ -3,6 +3,7 @@ package is.hail.stats
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.Properties
+import is.hail.methods.VariantQC
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
@@ -42,8 +43,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
     property("hail generates same results as PLINK v1.9") =
       forAll(plinkSafeBiallelicVDS) { case (vds: VariantSampleMatrix) =>
 
-        val vds2 = vds
-          .variantQC()
+        val vds2 = VariantQC(vds)
           .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")
 
         if (vds2.nSamples < 5 || vds2.countVariants() < 5) {

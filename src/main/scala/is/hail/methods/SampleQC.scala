@@ -211,7 +211,9 @@ object SampleQC {
       Array.fill(nSamples)(new SampleQCCombiner)
   }
 
-  def apply[RPK, RK, T >: Null](vsm: VariantSampleMatrix, root: String): VariantSampleMatrix = {
+  def apply(vsm: VariantSampleMatrix, root: String = "sa.qc"): VariantSampleMatrix = {
+    vsm.requireRowKeyVariant("sample_qc")
+
     val r = results(vsm).map(_.asAnnotation)
     vsm.annotateSamples(SampleQCCombiner.signature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), r)
   }

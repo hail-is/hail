@@ -4508,7 +4508,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.sampleQC(root))
+        return VariantDataset(self.hc, Env.hail().methods.SampleQC.apply(self._jvds, root))
 
     @handle_py4j
     def storage_level(self):
@@ -5214,7 +5214,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.variantQC(root))
+        return VariantDataset(self.hc, Env.hail().methods.VariantQC.apply(self._jvds, root))
 
     @handle_py4j
     @record_method
