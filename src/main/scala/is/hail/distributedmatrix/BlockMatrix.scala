@@ -574,6 +574,25 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       .map { case (i, a) => IndexedRow(i, new DenseVector(a)) },
       rows, cols)
   }
+  
+  def filterCols(keep: Array[Long]): BlockMatrix = {
+    if (keep.isEmpty) {
+      fatal("error filtering columns: at least one column must remain")
+    }
+    
+    scala.util.Sorting.quickSort(keep)
+    assert(keep.sortedAreDistinct() && keep.head >= 0 && keep.last < rows) // require distinct?
+    
+    
+    
+    this
+  }
+}
+
+case class BlockMatrixFilterRDDPartition(index: Int) extends Partition // add fields
+
+private class BlockMatrixFilterRDD(dm: BlockMatrix, keep: Array[Long]) extends RDD(dm.blocks.sparkContext, Nil) {
+  
 }
 
 case class BlockMatrixTransposeRDDPartition(index: Int, prevPartition: Partition) extends Partition

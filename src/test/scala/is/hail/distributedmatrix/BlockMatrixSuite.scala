@@ -596,4 +596,13 @@ class BlockMatrixSuite extends SparkSuite {
     
     assert(lm === lm2)
   }
+  
+  @Test
+  def filterBlockMatrix() {
+    val bm = BlockMatrix.random(hc, 10, 10, 8)
+    
+    val keep = Array(2, 4, 7)
+    
+    bm.filterCols(keep)
+  }
 }
