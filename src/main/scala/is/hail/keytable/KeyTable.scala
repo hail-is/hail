@@ -3,6 +3,7 @@ package is.hail.keytable
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.ir.{ApplyUnaryPrimOp, Bang, IR, UnaryOp}
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
@@ -453,19 +454,39 @@ class KeyTable(val hc: HailContext,
     copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = key)
   }
 
-  def filter(p: Annotation => Boolean): KeyTable = copy(rdd = rdd.filter(p))
-
   def filter(cond: String, keep: Boolean): KeyTable = {
-    val ec = rowEvalContext()
+    var filterAST = Parser.expr.parse(cond)
+    val pred = filterAST.toIR
+    pred match {
+      case Some(irPred) =>
+        new KeyTable(hc, FilterKT(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
+      case None =>
+        info("No AST to IR conversion found. Falling back to AST predicate for FilterKT.")
+        if (!keep)
+          filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+        val ec = ktType.rowEC
+        val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](filterAST, ec)
+        val localGlobals = globals
+        val localGlobalType = globalSignature
+        val localSignature = signature
+        var i = 0
+        while (i < localGlobalType.size) {
+          ec.set(localSignature.size + i, localGlobals.get(i))
+          i += 1
+        }
+        val p = (rv: RegionValue) => {
+          val ur = new UnsafeRow(localSignature, rv.region.copy(), rv.offset)
 
-    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](cond, ec)
-
-    val p = (a: Annotation) => {
-      ec.setAllFromRow(a.asInstanceOf[Row])
-      Filter.boxedKeepThis(f(), keep)
+          var i = 0
+          while (i < localSignature.size) {
+            ec.set(i, ur.get(i))
+            i += 1
+          }
+          val ret = f()
+          ret != null && ret.booleanValue()
+        }
+        copy2(rvd = rvd.filter(p))
     }
-
-    filter(p)
   }
 
   def head(n: Long): KeyTable = {

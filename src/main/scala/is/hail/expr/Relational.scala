@@ -2,7 +2,8 @@ package is.hail.expr
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.asm4s.FunctionBuilder
+import is.hail.asm4s.{Code, FunctionBuilder}
+import is.hail.expr.ir._
 import is.hail.keytable.KTLocalValue
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
@@ -539,12 +540,42 @@ case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rvd: RVD) 
     val localRowType = typ.rowType
     rvd.rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
   }
+
+  def filter(p: (RegionValue, RegionValue) => Boolean): KeyTableValue = {
+    val globalType = typ.globalType
+    val globals = localValue.globals
+    copy(rvd = rvd.mapPartitions(typ.rowType) { it =>
+      val globalRV = RegionValue()
+      val globalRVb = new RegionValueBuilder()
+      it.filter { rv =>
+        globalRVb.set(rv.region)
+        globalRVb.start(globalType)
+        globalRVb.addAnnotation(globalType, globals)
+        globalRV.set(rv.region, globalRVb.end())
+        p(rv, globalRV)
+      }
+    })
+  }
 }
 
-case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruct) extends BaseType
+case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruct) extends BaseType {
+  def rowEC: EvalContext = EvalContext(rowType.fields.map { f => f.name -> f.typ } ++
+      globalType.fields.map { f => f.name -> f.typ }: _*)
+  def fields: Map[String, Type] = Map(rowType.fields.map { f => f.name -> f.typ } ++ globalType.fields.map { f => f.name -> f.typ }: _*)
+
+  def remapIR(ir: IR): IR = ir match {
+    case Ref(y, _) if rowType.selfField(y).isDefined => GetField(In(0, rowType), y, rowType.field(y).typ)
+    case Ref(y, _) if globalType.selfField(y).isDefined => GetField(In(1, globalType), y, globalType.field(y).typ)
+    case ir2 => Recur(remapIR)(ir2)
+  }
+}
 
 object KeyTableIR {
-  def optimize(ir: KeyTableIR): KeyTableIR = ir
+  def optimize(ir: KeyTableIR): KeyTableIR = {
+    BaseIR.rewriteTopDown(ir, {
+      case FilterKT(FilterKT(x, p1), p2) => FilterKT(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
+    })
+  }
 }
 
 abstract sealed class KeyTableIR extends BaseIR {
@@ -564,4 +595,24 @@ case class KeyTableLiteral(value: KeyTableValue) extends KeyTableIR {
   }
 
   def execute(hc: HailContext): KeyTableValue = value
+}
+
+case class FilterKT(child: KeyTableIR, pred: IR) extends KeyTableIR {
+  def children: IndexedSeq[BaseIR] = Array(child, pred)
+
+  def typ: KeyTableType = child.typ
+
+  def copy(newChildren: IndexedSeq[BaseIR]): FilterKT = {
+    assert(newChildren.length == 2)
+    FilterKT(newChildren(0).asInstanceOf[KeyTableIR], newChildren(1).asInstanceOf[IR])
+  }
+  def execute(hc: HailContext): KeyTableValue = {
+    val ktv = child.execute(hc)
+    val mappedPred = typ.remapIR(pred)
+    Infer(mappedPred)
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Boolean]
+    Emit(mappedPred, fb)
+    val f = fb.result()
+    ktv.filter((rv, globalRV) => f()(rv.region, rv.offset, false, globalRV.offset, false))
+  }
 }
