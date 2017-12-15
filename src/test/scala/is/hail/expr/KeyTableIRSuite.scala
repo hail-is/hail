@@ -2,7 +2,6 @@ package is.hail.expr
 
 import is.hail.SparkSuite
 import is.hail.keytable.KeyTable
-import is.hail.expr.ir
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
