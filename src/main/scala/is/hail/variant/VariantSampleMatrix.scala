@@ -57,7 +57,7 @@ object VariantSampleMatrix {
     val (fileMetadata, nPartitions) = readFileMetadata(hc.hadoopConf, dirname)
     new VariantSampleMatrix(hc,
       fileMetadata.metadata,
-      MatrixRead(hc, dirname, nPartitions, fileMetadata, dropSamples, dropVariants))
+      MatrixRead(dirname, nPartitions, fileMetadata, dropSamples, dropVariants))
   }
 
   def apply(hc: HailContext,

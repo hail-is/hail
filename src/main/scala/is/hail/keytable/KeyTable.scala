@@ -93,6 +93,7 @@ object KeyTable {
     val globalSchema = metadata.globalSchema.map(str => Parser.parseType(str).asInstanceOf[TStruct]).getOrElse(TStruct.empty())
     val globals = metadata.globals.map(g => JSONAnnotationImpex.importAnnotation(g, globalSchema).asInstanceOf[Row])
       .getOrElse(Row.empty)
+
     KeyTable(hc,
       hc.readRows(path, schema, metadata.n_partitions)
         .map { rv =>
@@ -102,6 +103,12 @@ object KeyTable {
       metadata.key,
       globalSchema,
       globals)
+    new KeyTable(hc, ReadKT(path,
+      KeyTableType(schema, metadata.key, globalSchema),
+      KTLocalValue(globals),
+      dropRows = false,
+      metadata.n_partitions,
+      metadata.partition_counts))
   }
 
   def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
