@@ -11,6 +11,8 @@ import scala.reflect.ClassTag
 
 object RVD {
   def apply(rowType: Type, rdd: RDD[RegionValue]): ConcreteRVD = new ConcreteRVD(rowType, rdd)
+
+  def empty(sc: SparkContext, rowType: Type) = ConcreteRVD.empty(sc, rowType)
 }
 
 case class PersistedRVRDD(

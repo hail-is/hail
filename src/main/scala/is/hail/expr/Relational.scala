@@ -7,7 +7,7 @@ import is.hail.expr.ir._
 import is.hail.keytable.KTLocalValue
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
-import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType, RVD}
+import is.hail.rvd._
 import is.hail.variant.{VSMFileMetadata, VSMLocalValue, VSMMetadata}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -575,7 +575,7 @@ object KeyTableIR {
       case FilterKT(FilterKT(x, p1), p2) =>
         FilterKT(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
       case FilterKT(x, True()) => x
-      case FilterKT(ReadKT(path, ktType, localVal, _, nPart, pCounts), False()) =>
+      case FilterKT(ReadKT(path, ktType, localVal, _, nPart, pCounts), p) if p == False() || p==NA(TBoolean()) =>
         ReadKT(path, ktType, localVal, true, nPart, pCounts)
     })
   }
@@ -621,11 +621,10 @@ case class ReadKT(path: String,
   def execute(hc: HailContext): KeyTableValue = {
     KeyTableValue(typ,
       localValue,
-      RVD(typ.rowType,
-        if (dropRows)
-          hc.sc.emptyRDD[RegionValue]
-        else
-          hc.readRows(path, typ.rowType, nPartitions)))
+      if (dropRows)
+        RVD.empty(hc.sc, typ.rowType)
+      else
+        RVD(typ.rowType,hc.readRows(path, typ.rowType, nPartitions)))
   }
 }
 
