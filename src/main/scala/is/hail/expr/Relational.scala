@@ -15,8 +15,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.json4s.jackson.JsonMethods
 
-import scala.reflect.{ClassTag, classTag}
-
 case class MatrixType(
   metadata: VSMMetadata) extends BaseType {
   def globalType: Type = metadata.globalSignature
