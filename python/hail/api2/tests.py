@@ -93,7 +93,7 @@ class TableTests(unittest.TestCase):
             x6=kt.f.product(),
             x7=kt.f.length(),
             x8=kt.f.filter(lambda x: x == 3),
-            x9=kt.f.tail(),
+            x9=kt.f[1:],
             x10=kt.f[:],
             x11=kt.f[1:2],
             x12=kt.f.map(lambda x: [x, x + 1]),
