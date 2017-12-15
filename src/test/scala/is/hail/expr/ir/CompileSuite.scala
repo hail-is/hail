@@ -1,5 +1,7 @@
 package is.hail.methods.ir
 
+import java.io.PrintWriter
+
 import is.hail.annotations._
 import ScalaToRegionValue._
 import is.hail.asm4s._
@@ -28,7 +30,7 @@ class CompileSuite {
 
     val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Double]
     doit(meanIr, fb)
-    val f = fb.result()()
+    val f = fb.result(Some(new PrintWriter(System.out)))()
     def run(a: Array[Double]): Double = {
       val mb = Region()
       val aoff = addArray(mb, a:_*)
