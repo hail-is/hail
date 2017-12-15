@@ -136,13 +136,13 @@ final class Region(private var mem: Array[Byte], private var end: Long = 0) exte
     }
   }
 
-  def align(alignment: Long) {
+  private def align(alignment: Long) {
     assert(alignment > 0)
     assert((alignment & (alignment - 1)) == 0) // power of 2
     end = (end + (alignment - 1)) & ~(alignment - 1)
   }
 
-  def allocate(n: Long): Long = {
+  private def allocate(n: Long): Long = {
     assert(n >= 0)
     val off = end
     ensure(n)
@@ -150,8 +150,8 @@ final class Region(private var mem: Array[Byte], private var end: Long = 0) exte
     off
   }
 
-  def alignAndAllocate(n: Long): Long = {
-    align(n)
+  def allocate(alignment: Long, n: Long): Long = {
+    align(alignment)
     allocate(n)
   }
 
@@ -186,25 +186,25 @@ final class Region(private var mem: Array[Byte], private var end: Long = 0) exte
   }
 
   def appendInt(i: Int): Long = {
-    val off = alignAndAllocate(4)
+    val off = allocate(4, 4)
     storeInt(off, i)
     off
   }
 
   def appendLong(l: Long): Long = {
-    val off = alignAndAllocate(8)
+    val off = allocate(8, 8)
     storeLong(off, l)
     off
   }
 
   def appendFloat(f: Float): Long = {
-    val off = alignAndAllocate(4)
+    val off = allocate(4, 4)
     storeFloat(off, f)
     off
   }
 
   def appendDouble(d: Double): Long = {
-    val off = alignAndAllocate(8)
+    val off = allocate(8, 8)
     storeDouble(off, d)
     off
   }

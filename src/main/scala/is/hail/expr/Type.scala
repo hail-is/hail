@@ -420,7 +420,7 @@ sealed class TBinary(override val required: Boolean) extends Type {
         def compare(a: Array[Byte], b: Array[Byte]): Int = ord.compare(a, b)
       }))
   }
-
+  
   override def byteSize: Long = 8
 }
 
@@ -439,8 +439,7 @@ object TBinary {
   def bytesOffset(boff: Long): Long = boff + 4
 
   def allocate(region: Region, length: Int): Long = {
-    region.align(contentAlignment)
-    region.allocate(contentByteSize(length))
+    region.allocate(contentAlignment, contentByteSize(length))
   }
 
 }
@@ -980,8 +979,7 @@ abstract class TContainer extends Type {
     loadElement(region, aoff, region.loadInt(aoff), i)
 
   def allocate(region: Region, length: Int): Long = {
-    region.align(contentsAlignment)
-    region.allocate(contentsByteSize(length))
+    region.allocate(contentsAlignment, contentsByteSize(length))
   }
 
   def clearMissingBits(region: Region, aoff: Long, length: Int) {
@@ -2257,8 +2255,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   def allocate(region: Region): Long = {
-    region.align(alignment)
-    region.allocate(byteSize)
+    region.allocate(alignment, byteSize)
   }
 
   def clearMissingBits(region: Region, off: Long) {

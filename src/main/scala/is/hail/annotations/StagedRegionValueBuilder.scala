@@ -28,10 +28,9 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
 
   typ match {
     case t: TStruct => elementsOffset = fb.newLocal[Long]
-    case t: TArray => {
+    case t: TArray =>
       elementsOffset = fb.newLocal[Long]
       idx = fb.newLocal[Int]
-    }
     case _ =>
   }
 
@@ -56,19 +55,14 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
       case _: TBinary =>
         assert(pOffset == null)
         startOffset.store(endOffset)
-      case _ => Code(
-        region.align(typ.alignment),
-        startOffset.store(region.allocate(typ.byteSize))
-      )
+      case _ =>
+        startOffset.store(region.allocate(typ.alignment, typ.byteSize))
     }
   }
 
   def start(length: Code[Int], init: Boolean = true): Code[Unit] = {
     val t = typ.asInstanceOf[TArray]
-    var c = Code(
-      region.align(t.contentsAlignment),
-      startOffset.store(region.allocate(t.contentsByteSize(length)))
-    )
+    var c = startOffset.store(region.allocate(t.contentsAlignment, t.contentsByteSize(length)))
     if (pOffset != null) {
       c = Code(c, region.storeAddress(pOffset, startOffset))
     }
@@ -81,10 +75,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   def start(init: Boolean): Code[Unit] = {
     val t = typ.asInstanceOf[TStruct]
     var c = if (pOffset == null)
-      Code(
-        region.align(t.alignment),
-        startOffset.store(region.allocate(t.byteSize))
-      )
+      startOffset.store(region.allocate(t.alignment, t.byteSize))
     else
       startOffset.store(pOffset)
     assert(staticIdx == 0)
@@ -112,16 +103,15 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   def addDouble(v: Code[Double]): Code[Unit] = region.storeDouble(currentOffset, v)
 
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
+    val boff = fb.newLocal[Long]
     Code(
-      region.align(TBinary.contentAlignment),
+      boff := region.appendInt(bytes.length()),
+      toUnit(region.appendBytes(bytes)),
       typ.fundamentalType match {
         case _: TBinary => _empty
         case _ =>
-          region.storeAddress(currentOffset, endOffset)
-      },
-      toUnit(region.appendInt(bytes.length())),
-      toUnit(region.appendBytes(bytes))
-    )
+          region.storeAddress(currentOffset, boff)
+      })
   }
 
   def addAddress(v: Code[Long]): Code[Unit] = region.storeAddress(currentOffset, v)

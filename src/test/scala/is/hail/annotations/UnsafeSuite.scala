@@ -65,7 +65,7 @@ class UnsafeSuite extends SparkSuite {
 
       // test addAnnotation
       region.clear()
-      region.allocate(n) // preallocate
+      region.allocate(1, n) // preallocate
 
       rvb.start(t)
       rvb.addAnnotation(t, a)
@@ -80,7 +80,7 @@ class UnsafeSuite extends SparkSuite {
 
       // test addAnnotation from ur
       region2.clear()
-      region2.allocate(n2) // preallocate
+      region2.allocate(1, n2) // preallocate
       rvb2.start(t)
       rvb2.addAnnotation(t, ur)
       val offset2 = rvb2.end()
@@ -90,7 +90,7 @@ class UnsafeSuite extends SparkSuite {
 
       // test addRegionValue
       region2.clear()
-      region2.allocate(n2) // preallocate
+      region2.allocate(1, n2) // preallocate
       rvb2.start(t)
       rvb2.addRegionValue(t, region, offset)
       val offset3 = rvb2.end()
@@ -101,7 +101,7 @@ class UnsafeSuite extends SparkSuite {
       t match {
         case t: TStruct =>
           region2.clear()
-          region2.allocate(n) // preallocate
+          region2.allocate(1, n) // preallocate
           rvb2.start(t)
           rvb2.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset4 = rvb2.end()
