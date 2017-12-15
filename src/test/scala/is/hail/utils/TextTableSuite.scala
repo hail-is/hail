@@ -106,4 +106,8 @@ class TextTableSuite extends SparkSuite {
 
     p.check()
   }
+
+  @Test def testPipeDelimiter() {
+    assert(TextTableReader.splitLine("a|b", "|", '#').toSeq == Seq("a", "b"))
+  }
 }
