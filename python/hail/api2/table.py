@@ -727,7 +727,7 @@ class Table(TableTemplate):
         return table
 
     @handle_py4j
-    def export(self, output, types_file=None, header=True, parallel=False):
+    def export(self, output, types_file=None, header=True, parallel=None):
         """Export to a TSV file.
 
         Examples

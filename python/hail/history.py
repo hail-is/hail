@@ -79,9 +79,9 @@ def write_history(path_arg_name, is_dir=False, parallel_write=None):
         result = f(obj, *args, **kwargs)
 
         output_path = argnames[path_arg_name]
-        parallel_write_bool = argnames[parallel_write] if parallel_write else False
+        parallel_write_case = argnames[parallel_write] if parallel_write else None
 
-        if is_dir or parallel_write_bool:
+        if is_dir or parallel_write_case is not None:
             output_path = output_path + "/history.txt"
         else:
             output_path += ".history.txt"

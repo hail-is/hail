@@ -135,24 +135,24 @@ class LDMatrixSuite extends SparkSuite {
       Array(7.0, 8.0, 9.0))
     val ldm = rowArrayToLDMatrix(fullExpected)
 
-    exportImportAssert(ldm.export(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(ldm.export(_, ",", header=None, exportType = ExportType.CONCATENATED),
       fullExpected:_*)
 
-    exportImportAssert(ldm.exportStrictLowerTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(ldm.exportStrictLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       Array(4.0),
       Array(7.0, 8.0))
 
-    exportImportAssert(ldm.exportLowerTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(ldm.exportLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       Array(1.0),
       Array(4.0, 5.0),
       Array(7.0, 8.0, 9.0))
 
-    exportImportAssert(ldm.exportUpperTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(ldm.exportUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       Array(1.0, 2.0, 3.0),
       Array(5.0, 6.0),
       Array(9.0))
 
-    exportImportAssert(ldm.exportStrictUpperTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(ldm.exportStrictUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       Array(2.0, 3.0),
       Array(6.0))
   }
@@ -165,26 +165,26 @@ class LDMatrixSuite extends SparkSuite {
       Array(0.0, 0.0, 0.0))
     val ldm = rowArrayToLDMatrix(allZeros)
 
-    exportImportAssert(ldm.export(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(ldm.export(_, ",", header=None, exportType = ExportType.CONCATENATED),
       Array(0.0, 0.0, 0.0),
       Array(0.0, 0.0, 0.0),
       Array(0.0, 0.0, 0.0))
 
-    exportImportAssert(ldm.exportStrictLowerTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(ldm.exportStrictLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       Array(0.0),
       Array(0.0, 0.0))
 
-    exportImportAssert(ldm.exportLowerTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(ldm.exportLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       Array(0.0),
       Array(0.0, 0.0),
       Array(0.0, 0.0, 0.0))
 
-    exportImportAssert(ldm.exportUpperTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(ldm.exportUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       Array(0.0, 0.0, 0.0),
       Array(0.0, 0.0),
       Array(0.0))
 
-    exportImportAssert(ldm.exportStrictUpperTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(ldm.exportStrictUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       Array(0.0, 0.0),
       Array(0.0))
   }
@@ -197,29 +197,29 @@ class LDMatrixSuite extends SparkSuite {
         lm(i, j)).toArray[Double])
       .toArray[Array[Double]]
 
-    exportImportAssert(distLDMatrix.export(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(distLDMatrix.export(_, ",", header=None, exportType = ExportType.CONCATENATED),
       expected:_*)
 
-    exportImportAssert(distLDMatrix.exportStrictLowerTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(distLDMatrix.exportStrictLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       expected.zipWithIndex
         .map { case (a,i) =>
           a.zipWithIndex.filter { case (_, j) => j < i }.map(_._1).toArray[Double] }
         .filter(_.nonEmpty)
         .toArray[Array[Double]]:_*)
 
-    exportImportAssert(distLDMatrix.exportLowerTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(distLDMatrix.exportLowerTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       expected.zipWithIndex
         .map { case (a,i) =>
           a.zipWithIndex.filter { case (_, j) => j <= i }.map(_._1).toArray[Double] }
         .toArray[Array[Double]]:_*)
 
-    exportImportAssert(distLDMatrix.exportUpperTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(distLDMatrix.exportUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       expected.zipWithIndex
         .map { case (a,i) =>
           a.zipWithIndex.filter { case (_, j) => j >= i }.map(_._1).toArray[Double] }
         .toArray[Array[Double]]:_*)
 
-    exportImportAssert(distLDMatrix.exportStrictUpperTriangle(_, ",", header=None, parallelWrite=false),
+    exportImportAssert(distLDMatrix.exportStrictUpperTriangle(_, ",", header=None, exportType = ExportType.CONCATENATED),
       expected.zipWithIndex
         .map { case (a,i) =>
           a.zipWithIndex.filter { case (_, j) => j > i }.map(_._1).toArray[Double] }

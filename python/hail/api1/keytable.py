@@ -6,7 +6,7 @@ from hail.expr.types import Type, TArray, TStruct
 from hail.history import *
 from hail.genetics import GenomeReference
 from hail.typecheck import *
-from hail.utils import wrap_to_list, Struct
+from hail.utils import wrap_to_list, Struct, get_export_type
 from hail.utils.java import *
 
 
@@ -248,8 +248,8 @@ class KeyTable(HistoryMixin):
     @typecheck_method(output=strlike,
                       types_file=nullable(strlike),
                       header=bool,
-                      parallel=bool)
-    def export(self, output, types_file=None, header=True, parallel=False):
+                      parallel=nullable(enumeration('separate_header', 'header_per_shard')))
+    def export(self, output, types_file=None, header=True, parallel=None):
         """Export to a TSV file.
 
         **Examples**
@@ -269,10 +269,12 @@ class KeyTable(HistoryMixin):
         
         :param bool header: Write a header using the column names.
 
-        :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
+        :param parallel: If 'header_per_shard', return a set of files (one per partition) each with a header rather than serially concatenating these files. If 'separate_header', return a separate header file and
+            a set of files (one per partition) without the header. If None, concatenate the header and all partitions into one file.
+        :type parallel: str or None
         """
 
-        self._jkt.export(output, types_file, header, parallel)
+        self._jkt.export(output, types_file, header, get_export_type(parallel))
 
     @handle_py4j
     @record_method

@@ -692,7 +692,7 @@ class Table(val hc: HailContext,
     }
   }
 
-  def export(output: String, typesFile: String = null, header: Boolean = true, parallel: Boolean = false) {
+  def export(output: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
     val hConf = hc.hadoopConf
     hConf.delete(output, recursive = true)
 
@@ -714,7 +714,7 @@ class Table(val hc: HailContext,
 
         sb.result()
       }
-    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), parallelWrite = parallel)
+    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
   }
 
   def aggregate(keyCond: String, aggCond: String, nPartitions: Option[Int] = None): Table = {

@@ -42,14 +42,21 @@ class RichRDDSuite extends SparkSuite {
     assert(r.getNumPartitions == 2)
 
     val notParallelWrite = tmpDir.createTempFile("notParallelWrite")
-    r.saveFromByteArrays(notParallelWrite, tmpDir.createTempFile("notParallelWrite_tmp"), Some(header), parallelWrite = false)
+    r.saveFromByteArrays(notParallelWrite, tmpDir.createTempFile("notParallelWrite_tmp"), Some(header), exportType = ExportType.CONCATENATED)
 
     assert(readBytes(notParallelWrite) sameElements (header ++: data.flatten))
 
     val parallelWrite = tmpDir.createTempFile("parallelWrite")
-    r.saveFromByteArrays(parallelWrite, tmpDir.createTempFile("parallelWrite_tmp"), Some(header), parallelWrite = true)
+    r.saveFromByteArrays(parallelWrite, tmpDir.createTempFile("parallelWrite_tmp"), Some(header), exportType = ExportType.PARALLEL_HEADER_IN_SHARD)
 
     assert(readBytes(parallelWrite + "/part-00000") sameElements header ++ data(0))
     assert(readBytes(parallelWrite + "/part-00001") sameElements header ++ data(1))
+
+    val parallelWriteHeader = tmpDir.createTempFile("parallelWriteHeader")
+    r.saveFromByteArrays(parallelWriteHeader, tmpDir.createTempFile("parallelHeaderWrite_tmp"), Some(header), exportType = ExportType.PARALLEL_SEPARATE_HEADER)
+
+    assert(readBytes(parallelWriteHeader + "/header") sameElements header)
+    assert(readBytes(parallelWriteHeader + "/part-00000") sameElements data(0))
+    assert(readBytes(parallelWriteHeader + "/part-00001") sameElements data(1))
   }
 }

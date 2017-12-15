@@ -10,32 +10,32 @@ trait ExportableMatrix {
   def matrix: IndexedRowMatrix
   def hc: HailContext
 
-  def export(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
-    exportDelimitedRowSlices(path, columnDelimiter, header, parallelWrite, i => 0, (i, v) => v.length)
+  def export(path: String, columnDelimiter: String, header: Option[String], exportType: Int) {
+    exportDelimitedRowSlices(path, columnDelimiter, header, exportType, i => 0, (i, v) => v.length)
   }
 
-  def exportStrictLowerTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
-    exportDelimitedRowSlices(path, columnDelimiter, header, parallelWrite, i => 0, (i, v) => i)
-  }
-
-  // includes the diagonal
-  def exportLowerTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
-    exportDelimitedRowSlices(path, columnDelimiter, header, parallelWrite, i => 0, (i, v) => i + 1)
+  def exportStrictLowerTriangle(path: String, columnDelimiter: String, header: Option[String], exportType: Int) {
+    exportDelimitedRowSlices(path, columnDelimiter, header, exportType, i => 0, (i, v) => i)
   }
 
   // includes the diagonal
-  def exportUpperTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
-    exportDelimitedRowSlices(path, columnDelimiter, header, parallelWrite, i => i, (i, v) => v.length)
+  def exportLowerTriangle(path: String, columnDelimiter: String, header: Option[String], exportType: Int) {
+    exportDelimitedRowSlices(path, columnDelimiter, header, exportType, i => 0, (i, v) => i + 1)
   }
 
-  def exportStrictUpperTriangle(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean) {
-    exportDelimitedRowSlices(path, columnDelimiter, header, parallelWrite, i => i + 1, (i, v) => v.length)
+  // includes the diagonal
+  def exportUpperTriangle(path: String, columnDelimiter: String, header: Option[String], exportType: Int) {
+    exportDelimitedRowSlices(path, columnDelimiter, header, exportType, i => i, (i, v) => v.length)
+  }
+
+  def exportStrictUpperTriangle(path: String, columnDelimiter: String, header: Option[String], exportType: Int) {
+    exportDelimitedRowSlices(path, columnDelimiter, header, exportType, i => i + 1, (i, v) => v.length)
   }
 
   // convert elements in [start, end) of each vector into a string, delimited by
   // columnDelimiter, dropping empty rows
-  def exportDelimitedRowSlices(path: String, columnDelimiter: String, header: Option[String], parallelWrite: Boolean, start: (Int) => Int, end: (Int, Vector) => Int) {
-    genericExport(path, header, parallelWrite, { (sb, i, v) =>
+  def exportDelimitedRowSlices(path: String, columnDelimiter: String, header: Option[String], exportType: Int, start: (Int) => Int, end: (Int, Vector) => Int) {
+    genericExport(path, header, exportType, { (sb, i, v) =>
       val l = start(i)
       val r = end(i, v)
       var j = l
@@ -50,7 +50,7 @@ trait ExportableMatrix {
 
   // uses writeRow to convert each row to a String and writes that to a file,
   // unless the String is empty
-  def genericExport(path: String, header: Option[String], parallelWrite: Boolean, writeRow: (StringBuilder, Int, Vector) => Unit) {
+  def genericExport(path: String, header: Option[String], exportType: Int, writeRow: (StringBuilder, Int, Vector) => Unit) {
     prepareMatrixForExport(matrix).rows.mapPartitions { it =>
       val sb = new StringBuilder()
       it.map { (row: IndexedRow) =>
@@ -58,7 +58,7 @@ trait ExportableMatrix {
         writeRow(sb, row.index.toInt, row.vector)
         sb.result()
       }.filter(s => s.nonEmpty)
-    }.writeTable(path, hc.tmpDir, header, parallelWrite)
+    }.writeTable(path, hc.tmpDir, header, exportType)
   }
 
   /**
