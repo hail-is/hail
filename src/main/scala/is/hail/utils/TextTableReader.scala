@@ -23,12 +23,12 @@ object TextTableReader {
         val m = p.matcher(s)
 
       { (i: Int) =>
-          m.region(i, s.length)
-          if (m.lookingAt())
-            m.end() - m.start()
-          else
-            -1
-        }
+        m.region(i, s.length)
+        if (m.lookingAt())
+          m.end() - m.start()
+        else
+          -1
+      }
     }
 
     val ab = new ArrayBuilder[String]
