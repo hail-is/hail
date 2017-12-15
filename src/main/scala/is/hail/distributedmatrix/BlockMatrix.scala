@@ -579,23 +579,30 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 case class BlockMatrixTransposeRDDPartition(index: Int, prevPartition: Partition) extends Partition
 
 private class BlockMatrixTransposeRDD(dm: BlockMatrix)
-  extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(dm.blocks))) {
+  extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
+
+  private val newPartitioner = dm.partitioner.transpose
+  
+  def transposePi(pi: Int): Int = dm.partitioner.coordinatesBlock(
+    newPartitioner.blockBlockCol(pi),
+    newPartitioner.blockBlockRow(pi))
+  
+  override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](    
+    new NarrowDependency(dm.blocks) {
+      def getParents(partitionId: Int): Seq[Int] = Array(transposePi(partitionId))
+    })
+  
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] =
     dm.blocks.iterator(split.asInstanceOf[BlockMatrixTransposeRDDPartition].prevPartition, context)
       .map { case ((j, i), lm) => ((i, j), lm.t) }
 
   protected def getPartitions: Array[Partition] = {
-    val newPartitioner = prevPartitioner.transpose
     Array.tabulate(newPartitioner.numPartitions) { pi =>
-      val prevPi = prevPartitioner.coordinatesBlock(
-        newPartitioner.blockBlockCol(pi), newPartitioner.blockBlockRow(pi))
-      BlockMatrixTransposeRDDPartition(pi, dm.blocks.partitions(prevPi))
+      BlockMatrixTransposeRDDPartition(pi, dm.blocks.partitions(transposePi(pi)))
     }
   }
 
-  private val prevPartitioner = dm.partitioner
-  @transient override val partitioner: Option[Partitioner] =
-    Some(prevPartitioner.transpose)
+  @transient override val partitioner: Option[Partitioner] = Some(newPartitioner)
 }
 
 private class BlockMatrixDiagonalRDD(m: BlockMatrix)
