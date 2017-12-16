@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.expr._
-import is.hail.keytable.KeyTable
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -66,7 +66,7 @@ class ConcordanceCombiner extends Serializable {
 
 object CalculateConcordance {
 
-  def apply(left: VariantSampleMatrix, right: VariantSampleMatrix): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
+  def apply(left: MatrixTable, right: MatrixTable): (IndexedSeq[IndexedSeq[Long]], Table, Table) = {
     require(left.wasSplit && right.wasSplit, "passed unsplit dataset to Concordance")
     val overlap = left.sampleIds.toSet.intersect(right.sampleIds.toSet)
     if (overlap.isEmpty)
@@ -191,9 +191,9 @@ object CalculateConcordance {
     val sampleRDD = left.hc.sc.parallelize(leftFiltered.sampleIds.zip(sampleResults)
       .map { case (id, comb) => Row(id, comb.nDiscordant, comb.toAnnotation) })
 
-    val sampleKT = KeyTable(left.hc, sampleRDD, sampleSchema, Array("s"))
+    val sampleKT = Table(left.hc, sampleRDD, sampleSchema, Array("s"))
 
-    val variantKT = KeyTable(left.hc, variantRDD, variantSchema, Array("v"))
+    val variantKT = Table(left.hc, variantRDD, variantSchema, Array("v"))
 
     (global.toAnnotation, sampleKT, variantKT)
   }

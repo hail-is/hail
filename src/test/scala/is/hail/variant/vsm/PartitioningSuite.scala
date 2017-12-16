@@ -2,12 +2,12 @@ package is.hail.variant.vsm
 
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
-import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
+import is.hail.variant.{VSMSubgen, MatrixTable}
 import org.testng.annotations.Test
 
 class PartitioningSuite extends SparkSuite {
 
-  def compare(vds1: VariantSampleMatrix, vds2: VariantSampleMatrix): Boolean = {
+  def compare(vds1: MatrixTable, vds2: MatrixTable): Boolean = {
     val s1 = vds1.variantsAndAnnotations
       .mapPartitionsWithIndex { case (i, it) => it.zipWithIndex.map(x => (i, x)) }
       .collect()
@@ -20,7 +20,7 @@ class PartitioningSuite extends SparkSuite {
   }
 
   @Test def testWriteRead() {
-    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random), Gen.choose(1, 10)) { case (vds, nPar) =>
+    Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random), Gen.choose(1, 10)) { case (vds, nPar) =>
 
       val out = tmpDir.createTempFile("out", ".vds")
       val out2 = tmpDir.createTempFile("out", ".vds")

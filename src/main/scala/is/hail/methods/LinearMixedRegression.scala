@@ -7,7 +7,7 @@ import is.hail.expr._
 import is.hail.stats._
 import is.hail.stats.eigSymD.DenseEigSymD
 import is.hail.utils._
-import is.hail.variant.VariantSampleMatrix
+import is.hail.variant.MatrixTable
 import org.apache.commons.math3.analysis.UnivariateFunction
 import org.apache.commons.math3.optim.MaxEval
 import org.apache.commons.math3.optim.nonlinear.scalar.GoalType
@@ -22,7 +22,7 @@ object LinearMixedRegression {
     ("pval", TFloat64()))
 
   def apply(
-    assocVSM: VariantSampleMatrix,
+    assocVSM: MatrixTable,
     kinshipMatrix: KinshipMatrix,
     yExpr: String,
     xExpr: String,
@@ -34,7 +34,7 @@ object LinearMixedRegression {
     optDelta: Option[Double],
     sparsityThreshold: Double,
     optNEigs: Option[Int],
-    optDroppedVarianceFraction: Option[Double]): VariantSampleMatrix = {
+    optDroppedVarianceFraction: Option[Double]): MatrixTable = {
 
     val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)

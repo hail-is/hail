@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
-import is.hail.variant.{Locus, Variant, VariantSampleMatrix}
+import is.hail.variant.{Locus, Variant, MatrixTable}
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
@@ -132,7 +132,7 @@ object SplitMulti {
   }
 }
 
-class SplitMulti(vsm: VariantSampleMatrix, variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean) {
+class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean, leftAligned: Boolean) {
   val vEC = EvalContext(Map(
     "global" -> (0, vsm.globalSignature),
     "v" -> (1, vsm.vSignature),
@@ -178,7 +178,7 @@ class SplitMulti(vsm: VariantSampleMatrix, variantExpr: String, genotypeExpr: St
     }
   }
 
-  def split(): VariantSampleMatrix = {
+  def split(): MatrixTable = {
     val newRDD2: OrderedRVD =
       if (leftAligned)
         OrderedRVD(

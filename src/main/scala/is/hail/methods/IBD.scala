@@ -2,10 +2,10 @@ package is.hail.methods
 
 import is.hail.HailContext
 import is.hail.expr.{EvalContext, Parser, TFloat64, TInt64, TString, TStruct, TVariant}
-import is.hail.keytable.KeyTable
+import is.hail.table.Table
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder, UnsafeRow}
 import is.hail.expr._
-import is.hail.variant.{GenomeReference, Genotype, HardCallView, Variant, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, Genotype, HardCallView, Variant, MatrixTable}
 import is.hail.methods.IBD.generateComputeMaf
 import is.hail.rvd.RVD
 import org.apache.spark.rdd.RDD
@@ -203,7 +203,7 @@ object IBD {
 
   final val chunkSize = 1024
 
-  def computeIBDMatrix(vds: VariantSampleMatrix,
+  def computeIBDMatrix(vds: MatrixTable,
     computeMaf: Option[(RegionValue) => Double],
     min: Option[Double],
     max: Option[Double],
@@ -296,11 +296,11 @@ object IBD {
       }
   }
 
-  def apply(vds: VariantSampleMatrix,
+  def apply(vds: MatrixTable,
     computeMafExpr: Option[String] = None,
     bounded: Boolean = true,
     min: Option[Double] = None,
-    max: Option[Double] = None): KeyTable = {
+    max: Option[Double] = None): Table = {
 
     min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
     max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
@@ -316,17 +316,17 @@ object IBD {
     val sampleIds = vds.sampleIds.asInstanceOf[IndexedSeq[String]]
 
     val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
-    new KeyTable(vds.hc, ktRdd2, ibdSignature, Array("i", "j"))
+    new Table(vds.hc, ktRdd2, ibdSignature, Array("i", "j"))
   }
 
   private val (ibdSignature, ibdMerger) = TStruct(("i", TString()), ("j", TString())).merge(ExtendedIBDInfo.signature)
 
-  def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): KeyTable = {
+  def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation).asInstanceOf[Row] }
-    KeyTable(sc, ktRdd, ibdSignature, Array("i", "j"))
+    Table(sc, ktRdd, ibdSignature, Array("i", "j"))
   }
 
-  def toRDD(kt: KeyTable): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
+  def toRDD(kt: Table): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
     val rvd = kt.rvd
     rvd.map { rv =>
       val region = rv.region
@@ -341,7 +341,7 @@ object IBD {
     }
   }
 
-  private[methods] def generateComputeMaf(vds: VariantSampleMatrix,
+  private[methods] def generateComputeMaf(vds: MatrixTable,
     computeMafExpr: String): (RegionValue) => Double = {
 
     val mafSymbolTable = Map("v" -> (0, vds.vSignature), "va" -> (1, vds.vaSignature))

@@ -2,12 +2,12 @@ package is.hail.utils
 
 import is.hail.annotations.{Annotation, Inserter, Querier, UnsafeRow}
 import is.hail.expr.{EvalContext, Parser, Type}
-import is.hail.variant.VariantSampleMatrix
+import is.hail.variant.MatrixTable
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
-class RichVariantSampleMatrix(vsm: VariantSampleMatrix) {
+class RichVariantSampleMatrix(vsm: MatrixTable) {
   def expand(): RDD[(Annotation, Annotation, Annotation)] =
     mapWithKeys[(Annotation, Annotation, Annotation)]((v, s, g) => (v, s, g))
 
@@ -35,7 +35,7 @@ class RichVariantSampleMatrix(vsm: VariantSampleMatrix) {
       }
   }
 
-  def annotateSamplesF(signature: Type, path: List[String], annotation: (Annotation) => Annotation): VariantSampleMatrix = {
+  def annotateSamplesF(signature: Type, path: List[String], annotation: (Annotation) => Annotation): MatrixTable = {
     val (t, i) = vsm.insertSA(signature, path)
     vsm.annotateSamples(annotation, t, i)
   }

@@ -22,7 +22,7 @@ object BgenLoader {
 
   def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
     tolerance: Double, nPartitions: Option[Int] = None, gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Map[String, String] = Map.empty[String, String]): VariantSampleMatrix = {
+    contigRecoding: Map[String, String] = Map.empty[String, String]): MatrixTable = {
     require(files.nonEmpty)
     val sampleIds = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
       .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))
@@ -126,7 +126,7 @@ object BgenLoader {
       }
     }))
 
-    new VariantSampleMatrix(hc, metadata,
+    new MatrixTable(hc, metadata,
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = Array.fill(nSamples)(Annotation.empty)),

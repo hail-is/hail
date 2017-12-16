@@ -4,13 +4,13 @@ import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TFloat64, TStruct}
-import is.hail.keytable.KeyTable
-import is.hail.variant.{Variant, VariantSampleMatrix}
+import is.hail.table.Table
+import is.hail.variant.{Variant, MatrixTable}
 import org.testng.annotations.Test
 
 object PCASuite {
-  def samplePCA(vsm: VariantSampleMatrix, k: Int = 10, computeLoadings: Boolean = false, 
-    asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[KeyTable]) = {
+  def samplePCA(vsm: MatrixTable, k: Int = 10, computeLoadings: Boolean = false,
+    asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
     
     val prePCA = vsm.annotateVariantsExpr("va.AC = gs.map(g => g.GT.gt).sum(), va.nCalled = gs.filter(g => isDefined(g.GT)).count()")
       .filterVariantsExpr("va.AC > 0 && va.AC < 2 * va.nCalled").persist()

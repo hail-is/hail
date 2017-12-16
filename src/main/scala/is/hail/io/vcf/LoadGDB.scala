@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, VSMLocalValue, VSMMetadata, Variant, MatrixTable}
 import org.json4s._
 
 import scala.collection.JavaConversions._
@@ -100,7 +100,7 @@ object LoadGDB {
                vcfHeaderPath: Option[String],
                nPartitions: Option[Int] = None,
                dropSamples: Boolean = false,
-               gr: GenomeReference = GenomeReference.defaultReference): VariantSampleMatrix = {
+               gr: GenomeReference = GenomeReference.defaultReference): MatrixTable = {
     val sc = hc.sc
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
@@ -188,7 +188,7 @@ object LoadGDB {
 
     queryFile.delete()
 
-    VariantSampleMatrix.fromLegacy(hc, VSMMetadata(
+    MatrixTable.fromLegacy(hc, VSMMetadata(
       TString(),
       TStruct.empty(),
       TVariant(gr),

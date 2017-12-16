@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations.{Annotation, Querier}
 import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TBoolean, TFloat64, TInt32, TSet, TString, TStruct, Type}
 import is.hail.utils._
-import is.hail.variant.{Locus, Variant, VariantSampleMatrix}
+import is.hail.variant.{Locus, Variant, MatrixTable}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
@@ -220,7 +220,7 @@ object Nirvana {
     Variant(contig, start, ref, altAlleles)
   }
 
-  def annotate(vds: VariantSampleMatrix, config: String, blockSize: Int, root: String = "va.nirvana"): VariantSampleMatrix = {
+  def annotate(vds: MatrixTable, config: String, blockSize: Int, root: String = "va.nirvana"): MatrixTable = {
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
     val rootType =

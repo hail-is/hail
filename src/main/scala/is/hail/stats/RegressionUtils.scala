@@ -4,7 +4,7 @@ import breeze.linalg._
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{HardCallView, VariantSampleMatrix}
+import is.hail.variant.{HardCallView, MatrixTable}
 
 object RegressionUtils {
   def inputVector(x: DenseVector[Double],
@@ -135,7 +135,7 @@ object RegressionUtils {
   }
 
   // IndexedSeq indexed by samples, Array by annotations
-  def getSampleAnnotations(vds: VariantSampleMatrix, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
+  def getSampleAnnotations(vds: MatrixTable, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
     val aQs = annots.map(parseExprAsDouble(_, ec))
 
     vds.sampleIdsAndAnnotations.map { case (s, sa) =>
@@ -151,7 +151,7 @@ object RegressionUtils {
   }
 
   def getPhenoCovCompleteSamples(
-    vsm: VariantSampleMatrix,
+    vsm: MatrixTable,
     yExpr: String,
     covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
     
@@ -161,7 +161,7 @@ object RegressionUtils {
   }
   
   def getPhenosCovCompleteSamples(
-    vsm: VariantSampleMatrix,
+    vsm: MatrixTable,
     yExpr: Array[String],
     covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
 

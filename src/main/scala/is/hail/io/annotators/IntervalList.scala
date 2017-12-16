@@ -2,7 +2,7 @@ package is.hail.io.annotators
 
 import is.hail.HailContext
 import is.hail.expr._
-import is.hail.keytable.KeyTable
+import is.hail.table.Table
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -12,7 +12,7 @@ object IntervalList {
 
   val intervalRegex = """([^:]*)[:\t](\d+)[\-\t](\d+)""".r
 
-  def read(hc: HailContext, filename: String, gr: GenomeReference = GenomeReference.defaultReference): KeyTable = {
+  def read(hc: HailContext, filename: String, gr: GenomeReference = GenomeReference.defaultReference): Table = {
     val hasValue = hc.hadoopConf.readLines(filename) {
       lines =>
         val skipHeader = lines.filter(l => !l.value.isEmpty && l.value(0) != '@')
@@ -61,6 +61,6 @@ object IntervalList {
         }.value
       }
 
-    KeyTable(hc, rdd, schema, Array("interval"))
+    Table(hc, rdd, schema, Array("interval"))
   }
 }

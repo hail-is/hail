@@ -30,7 +30,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
 
   object Spec extends Properties("InbreedingCoefficient") {
 
-    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
+    val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
       .map { vds =>
         val gr = vds.genomeReference
@@ -41,7 +41,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
       .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same results as PLINK v1.9") =
-      forAll(plinkSafeBiallelicVDS) { case (vds: VariantSampleMatrix) =>
+      forAll(plinkSafeBiallelicVDS) { case (vds: MatrixTable) =>
 
         val vds2 = VariantQC(vds)
           .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")

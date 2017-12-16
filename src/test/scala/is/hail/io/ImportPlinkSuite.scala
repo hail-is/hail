@@ -17,12 +17,12 @@ class ImportPlinkSuite extends SparkSuite {
 
   object Spec extends Properties("ImportPlink") {
     val compGen = for {
-      vds <- VariantSampleMatrix.gen(hc, VSMSubgen.random).map(_.cache().splitMulti())
+      vds <- MatrixTable.gen(hc, VSMSubgen.random).map(_.cache().splitMulti())
       nPartitions <- choose(1, PlinkLoader.expectedBedSize(vds.nSamples, vds.countVariants()).toInt.min(10))
     } yield (vds, nPartitions)
 
     property("import generates same output as export") =
-      forAll(compGen) { case (vds: VariantSampleMatrix, nPartitions: Int) =>
+      forAll(compGen) { case (vds: MatrixTable, nPartitions: Int) =>
 
         val truthRoot = tmpDir.createTempFile("truth")
         val testRoot = tmpDir.createTempFile("test")

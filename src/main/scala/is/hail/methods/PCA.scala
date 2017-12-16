@@ -3,9 +3,9 @@ package is.hail.methods
 import breeze.linalg.{*, DenseMatrix, DenseVector}
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.keytable.KeyTable
+import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.VariantSampleMatrix
+import is.hail.variant.MatrixTable
 
 object PCA {
   def pcSchema(k: Int, asArray: Boolean = false): Type =
@@ -15,7 +15,7 @@ object PCA {
       TStruct((1 to k).map(i => (s"PC$i", TFloat64())): _*)
 
   //returns (sample scores, variant loadings, eigenvalues)
-  def apply(vsm: VariantSampleMatrix, expr: String, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[KeyTable]) = {
+  def apply(vsm: MatrixTable, expr: String, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
     val sc = vsm.sparkContext
     val (irm, optionVariants) = vsm.toIndexedRowMatrix(expr, computeLoadings)
     val svd = irm.computeSVD(k, computeLoadings)
@@ -48,7 +48,7 @@ object PCA {
           rv
         }
       }
-      new KeyTable(vsm.hc, rdd, rowType, Array("v"))
+      new Table(vsm.hc, rdd, rowType, Array("v"))
     })
 
     val data =

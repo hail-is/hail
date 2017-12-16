@@ -2683,7 +2683,7 @@ class VariantDataset(HistoryMixin):
         elif len(datasets) == 1:
             return datasets[0]
         else:
-            return VariantDataset(Env.hc(), Env.hail().variant.VariantSampleMatrix.union([d._jvds for d in datasets]))
+            return VariantDataset(Env.hc(), Env.hail().variant.MatrixTable.union([d._jvds for d in datasets]))
 
 
     @handle_py4j
@@ -3465,7 +3465,7 @@ class VariantDataset(HistoryMixin):
                       compute_loadings=bool,
                       as_array=bool)
     def pca(self, entry_expr, k=10, compute_loadings=False, as_array=False):
-        """Run Principal Component Analysis (PCA) on a VariantSampleMatrix, using ``entry_expr`` to convert each entry into a numeric value.
+        """Run Principal Component Analysis (PCA) on a MatrixTable, using ``entry_expr`` to convert each entry into a numeric value.
 
         **Examples**
 

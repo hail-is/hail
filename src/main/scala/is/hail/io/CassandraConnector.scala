@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 import com.datastax.driver.core.querybuilder.QueryBuilder
 import com.datastax.driver.core.{Cluster, DataType, Session, TableMetadata, Row => CassRow}
 import is.hail.expr._
-import is.hail.keytable.KeyTable
+import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s._
@@ -217,7 +217,7 @@ object CassandraConnector {
     }
   }
 
-  def export(kt: KeyTable,
+  def export(kt: Table,
     address: String, keyspace: String, table: String,
     blockSize: Int = 100, rate: Int = 1000) {
 

@@ -3,9 +3,9 @@ package is.hail.io
 import java.util
 
 import is.hail.expr._
-import is.hail.keytable.KeyTable
+import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.VariantSampleMatrix
+import is.hail.variant.MatrixTable
 import org.apache.solr.client.solrj.impl.{CloudSolrClient, HttpSolrClient}
 import org.apache.solr.client.solrj.request.CollectionAdminRequest
 import org.apache.solr.client.solrj.request.schema.SchemaRequest
@@ -97,7 +97,7 @@ object SolrConnector {
     cc
   }
 
-  def export(kt: KeyTable,
+  def export(kt: Table,
     zkHost: String,
     collection: String,
     blockSize: Int) {

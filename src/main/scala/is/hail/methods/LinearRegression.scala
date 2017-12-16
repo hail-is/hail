@@ -19,9 +19,9 @@ object LinearRegression {
     ("tstat", TArray(TFloat64())),
     ("pval", TArray(TFloat64())))
 
-  def apply(vsm: VariantSampleMatrix,
+  def apply(vsm: MatrixTable,
     ysExpr: Array[String], xExpr: String, covExpr: Array[String], root: String, variantBlockSize: Int
-  ): VariantSampleMatrix = {
+  ): MatrixTable = {
     val ec = vsm.matrixType.genotypeEC
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
 

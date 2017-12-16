@@ -7,7 +7,7 @@ import is.hail.check.Prop._
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{VSMSubgen, Variant, VariantSampleMatrix}
+import is.hail.variant.{VSMSubgen, Variant, MatrixTable}
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -75,7 +75,7 @@ class ExportVCFSuite extends SparkSuite {
   @Test def testReadWrite() {
     val out = tmpDir.createTempFile("foo", "vcf.bgz")
     val out2 = tmpDir.createTempFile("foo2", "vcf.bgz")
-    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random), Gen.choose(1, 10),
+    val p = forAll(MatrixTable.gen(hc, VSMSubgen.random), Gen.choose(1, 10),
       Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
       hadoopConf.delete(out, recursive = true)
       hadoopConf.delete(out2, recursive = true)
@@ -312,7 +312,7 @@ class ExportVCFSuite extends SparkSuite {
       tGen = (t: Type, v: Annotation) => t.genValue)
     
     val out = tmpDir.createTempFile("foo", "vcf.bgz")
-    val p = forAll(VariantSampleMatrix.gen(hc, genericFormatFieldVCF)) { vsm =>
+    val p = forAll(MatrixTable.gen(hc, genericFormatFieldVCF)) { vsm =>
         hadoopConf.delete(out, recursive = true)
         vsm.exportVCF(out)
       

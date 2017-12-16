@@ -3,7 +3,7 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.expr._
-import is.hail.variant.{GenomeReference, VSMSubgen, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, VSMSubgen, MatrixTable}
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -92,8 +92,8 @@ class TextTableSuite extends SparkSuite {
 
   @Test def testAnnotationsReadWrite() {
     val outPath = tmpDir.createTempFile("annotationOut", ".tsv")
-    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)
-      .filter(vds => vds.countVariants > 0 && !vds.vaSignature.isOfType(TFloat64()))) { vds: VariantSampleMatrix =>
+    val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.realistic)
+      .filter(vds => vds.countVariants > 0 && !vds.vaSignature.isOfType(TFloat64()))) { vds: MatrixTable =>
 
       vds.variantsKT().export(outPath, typesFile = outPath + ".types")
 

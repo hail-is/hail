@@ -12,12 +12,12 @@ import scala.reflect.ClassTag
 
 object LogisticRegression {
 
-  def apply(vsm: VariantSampleMatrix,
+  def apply(vsm: MatrixTable,
     test: String,
     yExpr: String,
     xExpr: String,
     covExpr: Array[String],
-    root: String): VariantSampleMatrix = {
+    root: String): MatrixTable = {
     val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
       fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
 

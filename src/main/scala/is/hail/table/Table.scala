@@ -1,4 +1,4 @@
-package is.hail.keytable
+package is.hail.table
 
 import is.hail.HailContext
 import is.hail.annotations._
@@ -48,31 +48,31 @@ case class KeyTableMetadata(
 
 case class KTLocalValue(globals: Row)
 
-object KeyTable {
+object Table {
   final val fileVersion: Int = 0x101
 
-  def range(hc: HailContext, n: Int, partitions: Option[Int] = None): KeyTable = {
+  def range(hc: HailContext, n: Int, partitions: Option[Int] = None): Table = {
     val range = Range(0, n).view.map(Row(_))
     val rdd = partitions match {
       case Some(parts) => hc.sc.parallelize(range, numSlices = parts)
       case None => hc.sc.parallelize(range)
     }
-    KeyTable(hc, rdd, TStruct("index" -> TInt32()), Array("index"))
+    Table(hc, rdd, TStruct("index" -> TInt32()), Array("index"))
   }
 
-  def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): KeyTable = {
+  def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
     fromDF(hc, df, key.asScala.toArray)
   }
 
-  def fromDF(hc: HailContext, df: DataFrame, key: Array[String] = Array.empty[String]): KeyTable = {
+  def fromDF(hc: HailContext, df: DataFrame, key: Array[String] = Array.empty[String]): Table = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
-    KeyTable(hc, df.rdd.map { r =>
+    Table(hc, df.rdd.map { r =>
       SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
     },
       signature, key)
   }
 
-  def read(hc: HailContext, path: String): KeyTable = {
+  def read(hc: HailContext, path: String): Table = {
     if (!hc.hadoopConf.exists(path))
       fatal(s"$path does not exist")
     else if (!path.endsWith(".kt") && !path.endsWith(".kt/"))
@@ -81,7 +81,7 @@ object KeyTable {
     val metadataFile = path + "/metadata.json.gz"
     if (!hc.hadoopConf.exists(metadataFile))
       fatal(
-        s"corrupt KeyTable: metadata file does not exist: $metadataFile")
+        s"corrupt Table: metadata file does not exist: $metadataFile")
 
     val metadata = hc.hadoopConf.readFile(metadataFile) { in =>
       // FIXME why doesn't this work?  Serialization.read[KeyTableMetadata](in)
@@ -93,7 +93,7 @@ object KeyTable {
     val globalSchema = metadata.globalSchema.map(str => Parser.parseType(str).asInstanceOf[TStruct]).getOrElse(TStruct.empty())
     val globals = metadata.globals.map(g => JSONAnnotationImpex.importAnnotation(g, globalSchema).asInstanceOf[Row])
       .getOrElse(Row.empty)
-    new KeyTable(hc, ReadKT(path,
+    new Table(hc, ReadKT(path,
       KeyTableType(schema, metadata.key, globalSchema),
       KTLocalValue(globals),
       dropRows = false,
@@ -102,9 +102,9 @@ object KeyTable {
   }
 
   def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
-    keyNames: java.util.ArrayList[String], nPartitions: Option[Int]): KeyTable = {
+    keyNames: java.util.ArrayList[String], nPartitions: Option[Int]): Table = {
     val sc = hc.sc
-    KeyTable(hc,
+    Table(hc,
       nPartitions match {
         case Some(n) =>
           sc.parallelize(rows.asScala, n)
@@ -114,18 +114,18 @@ object KeyTable {
   }
 
   def importIntervalList(hc: HailContext, filename: String,
-    gr: GenomeReference = GenomeReference.defaultReference): KeyTable = {
+    gr: GenomeReference = GenomeReference.defaultReference): Table = {
     IntervalList.read(hc, filename, gr)
   }
 
   def importBED(hc: HailContext, filename: String,
-    gr: GenomeReference = GenomeReference.defaultReference): KeyTable = {
+    gr: GenomeReference = GenomeReference.defaultReference): Table = {
     BedAnnotator.apply(hc, filename, gr)
   }
 
   def importFam(hc: HailContext, path: String, isQuantitative: Boolean = false,
     delimiter: String = "\\t",
-    missingValue: String = "NA"): KeyTable = {
+    missingValue: String = "NA"): Table = {
 
     val ffConfig = FamFileConfig(isQuantitative, delimiter, missingValue)
 
@@ -137,11 +137,11 @@ object KeyTable {
     val newFields = List("ID" -> TString()) ++ typ.asInstanceOf[TStruct].fields.map(f => (f.name, f.typ))
     val struct = TStruct(newFields: _*)
 
-    KeyTable(hc, rdd, struct, Array("ID"))
+    Table(hc, rdd, struct, Array("ID"))
   }
 
   def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: Array[String] = Array.empty,
-    globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty): KeyTable = {
+    globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty): Table = {
     val rdd2 = rdd.mapPartitions { it =>
       val region = Region()
       val rvb = new RegionValueBuilder(region)
@@ -155,7 +155,7 @@ object KeyTable {
       }
     }
 
-    new KeyTable(hc, KeyTableLiteral(
+    new Table(hc, KeyTableLiteral(
       KeyTableValue(KeyTableType(signature, key, globalSignature),
         KTLocalValue(globals),
         RVD(signature, rdd2))
@@ -163,7 +163,7 @@ object KeyTable {
   }
 }
 
-class KeyTable(val hc: HailContext,
+class Table(val hc: HailContext,
   val ir: KeyTableIR) {
 
   def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: Array[String] = Array.empty,
@@ -253,7 +253,7 @@ class KeyTable(val hc: HailContext,
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
-  def same(other: KeyTable): Boolean = {
+  def same(other: Table): Boolean = {
     if (signature != other.signature) {
       info(
         s"""different signatures:
@@ -354,12 +354,12 @@ class KeyTable(val hc: HailContext,
     (t, f2)
   }
 
-  def annotateGlobal(a: Annotation, t: Type, name: String): KeyTable = {
+  def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
     val (newT, i) = globalSignature.insert(t, name)
     copy2(globalSignature = newT.asInstanceOf[TStruct], globals = i(globals, a).asInstanceOf[Row])
   }
 
-  def annotateGlobalExpr(expr: String): KeyTable = {
+  def annotateGlobalExpr(expr: String): Table = {
     val ec = EvalContext(globalSignature.fields.map(fd => (fd.name, fd.typ)): _*)
 
     ec.setAllFromRow(globals.asInstanceOf[Row])
@@ -385,7 +385,7 @@ class KeyTable(val hc: HailContext,
       globalSignature = finalType)
   }
 
-  def selectGlobal(exprs: java.util.ArrayList[String]): KeyTable = {
+  def selectGlobal(exprs: java.util.ArrayList[String]): Table = {
     val ec = EvalContext(globalSignature.fields.map(fd => (fd.name, fd.typ)): _*)
     ec.setAllFromRow(globals.asInstanceOf[Row])
 
@@ -424,7 +424,7 @@ class KeyTable(val hc: HailContext,
     copy2(globalSignature = finalSignature, globals = newGlobal)
   }
 
-  def annotate(cond: String): KeyTable = {
+  def annotate(cond: String): Table = {
     val ec = rowEvalContext()
 
     val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, None)
@@ -451,12 +451,12 @@ class KeyTable(val hc: HailContext,
     copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = key)
   }
 
-  def filter(cond: String, keep: Boolean): KeyTable = {
+  def filter(cond: String, keep: Boolean): Table = {
     var filterAST = Parser.expr.parse(cond)
     val pred = filterAST.toIR
     pred match {
       case Some(irPred) =>
-        new KeyTable(hc, FilterKT(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
+        new Table(hc, FilterKT(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
       case None =>
         info("No AST to IR conversion found. Falling back to AST predicate for FilterKT.")
         if (!keep)
@@ -486,17 +486,17 @@ class KeyTable(val hc: HailContext,
     }
   }
 
-  def head(n: Long): KeyTable = {
+  def head(n: Long): Table = {
     if (n < 0)
       fatal(s"n must be non-negative! Found `$n'.")
     copy(rdd = rdd.head(n))
   }
 
-  def keyBy(key: String*): KeyTable = keyBy(key)
+  def keyBy(key: String*): Table = keyBy(key)
 
-  def keyBy(key: java.util.ArrayList[String]): KeyTable = keyBy(key.asScala)
+  def keyBy(key: java.util.ArrayList[String]): Table = keyBy(key.asScala)
 
-  def keyBy(key: Iterable[String]): KeyTable = {
+  def keyBy(key: Iterable[String]): Table = {
     val colSet = columns.toSet
     val badKeys = key.filter(!colSet.contains(_))
 
@@ -508,7 +508,7 @@ class KeyTable(val hc: HailContext,
     copy(key = key.toArray)
   }
 
-  def select(exprs: Array[String], qualifiedName: Boolean = false): KeyTable = {
+  def select(exprs: Array[String], qualifiedName: Boolean = false): Table = {
     val ec = rowEvalContext()
 
     val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs, ec)
@@ -555,12 +555,12 @@ class KeyTable(val hc: HailContext,
     copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = newKey)
   }
 
-  def select(selectedColumns: String*): KeyTable = select(selectedColumns.toArray)
+  def select(selectedColumns: String*): Table = select(selectedColumns.toArray)
 
-  def select(selectedColumns: java.util.ArrayList[String], mangle: Boolean): KeyTable =
+  def select(selectedColumns: java.util.ArrayList[String], mangle: Boolean): Table =
     select(selectedColumns.asScala.toArray, mangle)
 
-  def drop(columnsToDrop: Array[String]): KeyTable = {
+  def drop(columnsToDrop: Array[String]): Table = {
     val nonexistentColumns = columnsToDrop.diff(columns)
     if (nonexistentColumns.nonEmpty)
       fatal(s"Columns `${ nonexistentColumns.mkString(", ") }' do not exist in key table. Choose from `${ columns.mkString(", ") }'.")
@@ -569,9 +569,9 @@ class KeyTable(val hc: HailContext,
     select(selectedColumns)
   }
 
-  def drop(columnsToDrop: java.util.ArrayList[String]): KeyTable = drop(columnsToDrop.asScala.toArray)
+  def drop(columnsToDrop: java.util.ArrayList[String]): Table = drop(columnsToDrop.asScala.toArray)
 
-  def rename(columnMap: Map[String, String]): KeyTable = {
+  def rename(columnMap: Map[String, String]): Table = {
     val newSignature = TStruct(signature.fields.map { fd => fd.copy(name = columnMap.getOrElse(fd.name, fd.name)) })
     val newColumns = newSignature.fields.map(_.name)
     val newKey = key.map(n => columnMap.getOrElse(n, n))
@@ -585,18 +585,18 @@ class KeyTable(val hc: HailContext,
     copy(rdd = rdd, signature = newSignature, key = newKey)
   }
 
-  def rename(newColumns: Array[String]): KeyTable = {
+  def rename(newColumns: Array[String]): Table = {
     if (newColumns.length != nColumns)
       fatal(s"Found ${ newColumns.length } new column names but need $nColumns.")
 
     rename((columns, newColumns).zipped.toMap)
   }
 
-  def rename(columnMap: java.util.HashMap[String, String]): KeyTable = rename(columnMap.asScala.toMap)
+  def rename(columnMap: java.util.HashMap[String, String]): Table = rename(columnMap.asScala.toMap)
 
-  def rename(newColumns: java.util.ArrayList[String]): KeyTable = rename(newColumns.asScala.toArray)
+  def rename(newColumns: java.util.ArrayList[String]): Table = rename(newColumns.asScala.toArray)
 
-  def join(other: KeyTable, joinType: String): KeyTable = {
+  def join(other: Table, joinType: String): Table = {
     if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
       fatal(
         s"""Both key tables must have the same number of keys and the types of keys must be identical. Order matters.
@@ -717,7 +717,7 @@ class KeyTable(val hc: HailContext,
     }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), parallelWrite = parallel)
   }
 
-  def aggregate(keyCond: String, aggCond: String, nPartitions: Option[Int] = None): KeyTable = {
+  def aggregate(keyCond: String, aggCond: String, nPartitions: Option[Int] = None): Table = {
 
     val aggregationST = (fields.map { f => f.name -> f.typ } ++
       globalSignature.fields.map { f => f.name -> f.typ })
@@ -774,21 +774,21 @@ class KeyTable(val hc: HailContext,
     copy(rdd = newRDD, signature = keySignature.merge(aggSignature)._1, key = newKey)
   }
 
-  def ungroup(column: String, mangle: Boolean = false): KeyTable = {
+  def ungroup(column: String, mangle: Boolean = false): Table = {
     val (finalSignature, ungrouper) = signature.ungroup(column, mangle)
     copy(rdd = rdd.map(ungrouper), signature = finalSignature)
   }
 
-  def group(dest: String, columns: java.util.ArrayList[String]): KeyTable = group(dest, columns.asScala.toArray)
+  def group(dest: String, columns: java.util.ArrayList[String]): Table = group(dest, columns.asScala.toArray)
 
-  def group(dest: String, columns: Array[String]): KeyTable = {
+  def group(dest: String, columns: Array[String]): Table = {
     val (newSignature, grouper) = signature.group(dest, columns)
     val newKey = key.filter(!columns.contains(_))
     copy(rdd = rdd.map(grouper), signature = newSignature, key = newKey)
   }
 
 
-  def expandTypes(): KeyTable = {
+  def expandTypes(): Table = {
     val localSignature = signature
     val expandedSignature = Annotation.expandType(localSignature).asInstanceOf[TStruct]
 
@@ -797,7 +797,7 @@ class KeyTable(val hc: HailContext,
       key = key)
   }
 
-  def flatten(): KeyTable = {
+  def flatten(): Table = {
     val localSignature = signature
     val keySignature = TStruct(keyFields)
     val flattenedSignature = Annotation.flattenType(localSignature).asInstanceOf[TStruct]
@@ -817,14 +817,14 @@ class KeyTable(val hc: HailContext,
       signature.schema.asInstanceOf[StructType])
   }
 
-  def explode(columnToExplode: String): KeyTable = {
+  def explode(columnToExplode: String): Table = {
 
     val explodeField = signature.fieldOption(columnToExplode) match {
       case Some(x) => x
       case None =>
         fatal(
-          s"""Input field name `${ columnToExplode }' not found in KeyTable.
-             |KeyTable field names are `${ columns.mkString(", ") }'.""".stripMargin)
+          s"""Input field name `${ columnToExplode }' not found in Table.
+             |Table field names are `${ columns.mkString(", ") }'.""".stripMargin)
     }
 
     val index = explodeField.index
@@ -849,11 +849,11 @@ class KeyTable(val hc: HailContext,
     copy(rdd = explodedRDD, signature = newSignature, key = key)
   }
 
-  def explode(columnNames: Array[String]): KeyTable = {
+  def explode(columnNames: Array[String]): Table = {
     columnNames.foldLeft(this)((kt, name) => kt.explode(name))
   }
 
-  def explode(columnNames: java.util.ArrayList[String]): KeyTable = explode(columnNames.asScala.toArray)
+  def explode(columnNames: java.util.ArrayList[String]): Table = explode(columnNames.asScala.toArray)
 
   def collect(): IndexedSeq[Annotation] = rdd.collect()
 
@@ -870,7 +870,7 @@ class KeyTable(val hc: HailContext,
 
     val partitionCounts = rvd.rdd.writeRows(path, signature)
 
-    val metadata = KeyTableMetadata(KeyTable.fileVersion,
+    val metadata = KeyTableMetadata(Table.fileVersion,
       key,
       signature.toPrettyString(compact = true),
       Some(globalSignature.toPrettyString(compact = true)),
@@ -884,9 +884,9 @@ class KeyTable(val hc: HailContext,
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  def cache(): KeyTable = persist("MEMORY_ONLY")
+  def cache(): Table = persist("MEMORY_ONLY")
 
-  def persist(storageLevel: String): KeyTable = {
+  def persist(storageLevel: String): Table = {
     val level = try {
       StorageLevel.fromString(storageLevel)
     } catch {
@@ -902,10 +902,10 @@ class KeyTable(val hc: HailContext,
     rdd.unpersist()
   }
 
-  def orderBy(sortCols: SortColumn*): KeyTable =
+  def orderBy(sortCols: SortColumn*): Table =
     orderBy(sortCols.toArray)
 
-  def orderBy(sortCols: Array[SortColumn]): KeyTable = {
+  def orderBy(sortCols: Array[SortColumn]): Table = {
     val sortColIndexOrd = sortCols.map { case SortColumn(n, so) =>
       val i = signature.fieldIdx(n)
       val f = signature.fields(i)
@@ -944,11 +944,11 @@ class KeyTable(val hc: HailContext,
     CassandraConnector.export(this, address, keyspace, table, blockSize, rate)
   }
 
-  def repartition(n: Int, shuffle: Boolean = true): KeyTable = copy(rdd = rdd.coalesce(n, shuffle))
+  def repartition(n: Int, shuffle: Boolean = true): Table = copy(rdd = rdd.coalesce(n, shuffle))
 
-  def union(kts: java.util.ArrayList[KeyTable]): KeyTable = union(kts.asScala.toArray: _*)
+  def union(kts: java.util.ArrayList[Table]): Table = union(kts.asScala.toArray: _*)
 
-  def union(kts: KeyTable*): KeyTable = {
+  def union(kts: Table*): Table = {
     kts.foreach { kt =>
       if (signature != kt.signature)
         fatal("cannot union tables with different schemas")
@@ -961,7 +961,7 @@ class KeyTable(val hc: HailContext,
 
   def take(n: Int): Array[Row] = rdd.take(n)
 
-  def indexed(name: String = "index"): KeyTable = {
+  def indexed(name: String = "index"): Table = {
     if (columns.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
 
@@ -1117,16 +1117,16 @@ class KeyTable(val hc: HailContext,
     signature: TStruct = signature,
     key: Array[String] = key,
     globalSignature: TStruct = globalSignature,
-    globals: Row = globals): KeyTable = {
-    KeyTable(hc, rdd, signature, key, globalSignature, globals)
+    globals: Row = globals): Table = {
+    Table(hc, rdd, signature, key, globalSignature, globals)
   }
 
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
     key: Array[String] = key,
     globalSignature: TStruct = globalSignature,
-    globals: Row = globals): KeyTable = {
-    new KeyTable(hc, KeyTableLiteral(
+    globals: Row = globals): Table = {
+    new Table(hc, KeyTableLiteral(
       KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), rvd)
     ))
   }

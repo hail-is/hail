@@ -33,12 +33,12 @@ class ImputeSexSuite extends SparkSuite {
     ).toMap)
 
   object Spec extends Properties("ImputeSex") {
-    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vGen = (t: Type) =>
+    val plinkSafeBiallelicVDS = MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vGen = (t: Type) =>
       VariantSubgen.biallelic.copy(contigGen = Contig.gen(GenomeReference.GRCh37, "X")).gen))
       .filter(vds => vds.countVariants() > 5 && vds.nSamples > 5)
 
     property("hail generates same results as PLINK v1.9") =
-      forAll(plinkSafeBiallelicVDS) { case (vds: VariantSampleMatrix) =>
+      forAll(plinkSafeBiallelicVDS) { case (vds: MatrixTable) =>
         var mappedVDS = VariantQC(vds)
           .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && " +
             "va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")

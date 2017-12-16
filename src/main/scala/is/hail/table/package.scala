@@ -1,6 +1,6 @@
 package is.hail
 
-package object keytable {
+package object table {
   def asc(field: String): SortColumn = SortColumn(field, Ascending)
 
   def desc(field: String): SortColumn = SortColumn(field, Descending)

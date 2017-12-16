@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
-import is.hail.keytable.KeyTable
+import is.hail.table.Table
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
 import is.hail.annotations.Annotation
 
@@ -57,7 +57,7 @@ case class SkatTuple(q: Double, a: DenseVector[Double], b: DenseVector[Double])
 object Skat {
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
   
-  def apply(vsm: VariantSampleMatrix,
+  def apply(vsm: MatrixTable,
     keyExpr: String,
     weightExpr: String,
     yExpr: String,
@@ -66,7 +66,7 @@ object Skat {
     logistic: Boolean,
     maxSize: Int,
     accuracy: Double,
-    iterations: Int): KeyTable = {
+    iterations: Int): Table = {
     
     if (maxSize <= 0 || maxSize > 46340)
       fatal(s"Maximum group size must be in [1, 46340], got $maxSize")
@@ -127,7 +127,7 @@ object Skat {
             // using q / sigmaSq since Z.t * Z = gramian / sigmaSq
             val (pval, fault) = computePval(q / sigmaSq, gramian, accuracy, iterations)
             
-            // returning qstat = q / (2 * sigmaSq) to agree with skat R package convention
+            // returning qstat = q / (2 * sigmaSq) to agree with skat R table convention
             Row(key, size, q / (2 * sigmaSq), pval, fault)
           } else {
             Row(key, size, null, null, null)
@@ -178,7 +178,7 @@ object Skat {
           val (q, gramian) = computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
           val (pval, fault) = computePval(q, gramian, accuracy, iterations)
   
-          // returning qstat = q / 2 to agree with skat R package convention
+          // returning qstat = q / 2 to agree with skat R table convention
           Row(key, size, q / 2, pval, fault)
         } else {
           Row(key, size, null, null, null)
@@ -195,10 +195,10 @@ object Skat {
       ("pval", TFloat64()),
       ("fault", TInt32()))
 
-    KeyTable(vsm.hc, skatRdd, skatSignature, Array("key"))
+    Table(vsm.hc, skatRdd, skatSignature, Array("key"))
   }
 
-  def computeKeyGsWeightRdd(vsm: VariantSampleMatrix,
+  def computeKeyGsWeightRdd(vsm: MatrixTable,
     xExpr: String,
     completeSampleIndex: Array[Int],
     keyExpr: String,

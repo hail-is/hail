@@ -6,7 +6,7 @@ import is.hail.check.Prop._
 import is.hail.check.{Gen, Parameters}
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.expr._
-import is.hail.keytable.KeyTable
+import is.hail.table.Table
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
 import is.hail.testUtils._
@@ -170,15 +170,15 @@ class VSMSuite extends SparkSuite {
         Iterable(Genotype(0),
           Genotype(0))))))
 
-    val vdss = Array(VariantSampleMatrix.fromLegacy(hc, s3mdata, s3rdd1),
-      VariantSampleMatrix.fromLegacy(hc, s3mdata, s3rdd2),
-      VariantSampleMatrix.fromLegacy(hc, s3mdata, s3rdd3),
-      VariantSampleMatrix.fromLegacy(hc, s2mdata, s2rdd4),
-      VariantSampleMatrix.fromLegacy(hc, s3mdata, s3rdd5),
-      VariantSampleMatrix.fromLegacy(hc, s3mdata, s3rdd6),
-      VariantSampleMatrix.fromLegacy(hc, s1mdata, s1rdd7),
-      VariantSampleMatrix.fromLegacy(hc, s2mdata, s2rdd8),
-      VariantSampleMatrix.fromLegacy(hc, s4mdata, s4rdd9))
+    val vdss = Array(MatrixTable.fromLegacy(hc, s3mdata, s3rdd1),
+      MatrixTable.fromLegacy(hc, s3mdata, s3rdd2),
+      MatrixTable.fromLegacy(hc, s3mdata, s3rdd3),
+      MatrixTable.fromLegacy(hc, s2mdata, s2rdd4),
+      MatrixTable.fromLegacy(hc, s3mdata, s3rdd5),
+      MatrixTable.fromLegacy(hc, s3mdata, s3rdd6),
+      MatrixTable.fromLegacy(hc, s1mdata, s1rdd7),
+      MatrixTable.fromLegacy(hc, s2mdata, s2rdd8),
+      MatrixTable.fromLegacy(hc, s4mdata, s4rdd9))
 
     for (vds <- vdss)
       vds.typecheck()
@@ -193,7 +193,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testWriteRead() {
-    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+    val p = forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
       val f = tmpDir.createTempFile(extension = "vds")
       vds.write(f)
       hc.readVDS(f).same(vds)
@@ -266,9 +266,9 @@ class VSMSuite extends SparkSuite {
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
     val minimumRSquareValue = 0.7
 
-    def vsmOfSize(size: Int): VariantSampleMatrix = {
+    def vsmOfSize(size: Int): MatrixTable = {
       val parameters = Parameters.default.copy(size = size, count = 1)
-      VariantSampleMatrix.gen(hc, VSMSubgen.random).apply(parameters)
+      MatrixTable.gen(hc, VSMSubgen.random).apply(parameters)
     }
 
     def spaceStatsOf[T](factory: () => T): SummaryStatistics = {
@@ -300,7 +300,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testCoalesce() {
     val g = for (
-      vsm <- VariantSampleMatrix.gen(hc, VSMSubgen.random);
+      vsm <- MatrixTable.gen(hc, VSMSubgen.random);
       k <- Gen.choose(1, math.max(1, vsm.nPartitions)))
       yield (vsm, k)
 
@@ -314,7 +314,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testNaiveCoalesce() {
     val g = for (
-      vsm <- VariantSampleMatrix.gen(hc, VSMSubgen.random);
+      vsm <- MatrixTable.gen(hc, VSMSubgen.random);
       k <- Gen.choose(1, math.max(1, vsm.nPartitions)))
       yield (vsm, k)
 
@@ -346,7 +346,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testAnnotateVariantsKeyTable() {
-    forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+    forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.bar = va")
       val kt = vds2.variantsKT()
       val resultVds = vds2.annotateVariantsTable(kt, expr = "va.foo = table.bar")
@@ -361,10 +361,10 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testAnnotateVariantsKeyTableWithComputedKey() {
-    forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+    forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.key = v.start % 2 == 0")
 
-      val kt = KeyTable(hc, sc.parallelize(Array(Row(true, 1), Row(false, 2))),
+      val kt = Table(hc, sc.parallelize(Array(Row(true, 1), Row(false, 2))),
         TStruct(("key", TBoolean()), ("value", TInt32())), Array("key"))
 
       val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Seq("va.key"), root = "va.foo")
@@ -385,7 +385,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testAnnotateVariantsKeyTableWithComputedKey2() {
-    forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+    forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.key1 =  v.start % 2 == 0, va.key2 = v.contig.length() % 2 == 0")
 
       def f(a: Boolean, b: Boolean): Int =
@@ -402,7 +402,7 @@ class VSMSuite extends SparkSuite {
         makeAnnotation(false, true),
         makeAnnotation(false, false)))
 
-      val kt = KeyTable(hc, mapping, TStruct(("key1", TBoolean()), ("key2", TBoolean()), ("value", TInt32())), Array("key1", "key2"))
+      val kt = Table(hc, mapping, TStruct(("key1", TBoolean()), ("key2", TBoolean()), ("value", TInt32())), Array("key1", "key2"))
 
       val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Seq("va.key1", "va.key2"),
         expr = "va.foo = table")
@@ -430,7 +430,7 @@ class VSMSuite extends SparkSuite {
     val filteredVds = vds.filterSamplesList(origOrder.toSet)
     val reorderedVds = filteredVds.reorderSamples(newOrder)
 
-    def getGenotypes(vds: VariantSampleMatrix): RDD[((Variant, Annotation), Annotation)] = {
+    def getGenotypes(vds: MatrixTable): RDD[((Variant, Annotation), Annotation)] = {
       val sampleIds = vds.sampleIds
       vds.typedRDD[Locus, Variant].flatMap { case (v, (_, gs)) =>
         gs.zip(sampleIds).map { case (g, s) =>

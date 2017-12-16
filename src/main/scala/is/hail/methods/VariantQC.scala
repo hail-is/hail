@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.stats.LeveneHaldane
-import is.hail.variant.{HTSGenotypeView, VariantSampleMatrix}
+import is.hail.variant.{HTSGenotypeView, MatrixTable}
 import org.apache.spark.util.StatCounter
 
 final class VariantQCCombiner {
@@ -129,7 +129,7 @@ object VariantQC {
     "rExpectedHetFrequency" -> TFloat64(),
     "pHWE" -> TFloat64())
 
-  def apply(vsm: VariantSampleMatrix, root: String = "va.qc"): VariantSampleMatrix = {
+  def apply(vsm: MatrixTable, root: String = "va.qc"): MatrixTable = {
     require(vsm.wasSplit)
     vsm.requireRowKeyVariant("variant_qc")
 
