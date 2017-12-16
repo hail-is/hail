@@ -93,7 +93,7 @@ object Table {
     val globalSchema = metadata.globalSchema.map(str => Parser.parseType(str).asInstanceOf[TStruct]).getOrElse(TStruct.empty())
     val globals = metadata.globals.map(g => JSONAnnotationImpex.importAnnotation(g, globalSchema).asInstanceOf[Row])
       .getOrElse(Row.empty)
-    Table(hc, ReadKT(path,
+    new Table(hc, ReadKT(path,
       KeyTableType(schema, metadata.key, globalSchema),
       KTLocalValue(globals),
       dropRows = false,
