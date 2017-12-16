@@ -1554,7 +1554,7 @@ class Table(TableTemplate):
         return cleanup(Table(self._hc, base._jkt.forall(expr._ast.to_hql())))
 
     @handle_py4j
-    @typecheck_method(expr=strlike)
+    @typecheck_method(expr=BooleanExpression)
     def exists(self, expr):
         """Evaluate whether a boolean expression is true for at least one row.
 
