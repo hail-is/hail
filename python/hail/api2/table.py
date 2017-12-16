@@ -1563,7 +1563,7 @@ class Table(TableTemplate):
 
         Test whether `C1` is equal to 5 any row in any row of the table:
 
-        >>> if table1.exists(table.C1 == 5):
+        >>> if table1.exists(table1.C1 == 5):
         ...     print("At least one row has C1 equal 5.")
 
         :param str expr: Boolean expression.
