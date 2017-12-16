@@ -671,6 +671,9 @@ class BooleanExpression(AtomicExpression):
     def __or__(self, other):
         return self._bin_op_logical("||", other)
 
+    def __invert__(self):
+        return self._unary_op("!")
+
 
 class NumericExpression(AtomicExpression):
     def _bin_op_ret_typ(self, other):
