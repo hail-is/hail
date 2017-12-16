@@ -2533,51 +2533,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       genotypeSignature = newEntryType)
   }
 
-  def pca(expr: String, k: Int = 10, computeLoadings: Boolean = false, asArrays: Boolean = false): (IndexedSeq[Double], Table, Option[Table]) = {
-    if (k < 1)
-      fatal(
-        s"""requested invalid number of components: $k
-           |  Expect componenents >= 1""".stripMargin)
-
-    info(s"Running PCA with $k components...")
-
-    val (eigenvalues, scoresMatrix, optionLoadings) = PCA(this, expr, k, computeLoadings, asArrays)
-
-    val rowType = TStruct("s" -> sSignature, "pcaScores" -> PCA.pcSchema(k, asArrays))
-    val rowTypeBc = sparkContext.broadcast(rowType)
-
-    val scoresMatrixBc = sparkContext.broadcast(scoresMatrix)
-    
-    val scoresrdd = sparkContext.parallelize(sampleIds.zipWithIndex).mapPartitions[RegionValue] { it =>
-      val region = Region()
-      val rv = RegionValue(region)
-      val rvb = new RegionValueBuilder(region)
-      val localRowType = rowTypeBc.value
-
-      it.map { case (s, i) =>
-        rvb.start(localRowType)
-        rvb.startStruct()
-        rvb.addAnnotation(rowType.fieldType(0), s)
-        if (asArrays) rvb.startArray(k) else rvb.startStruct()
-        var j = 0
-        while (j < k) {
-          rvb.addDouble(scoresMatrixBc.value(i, j))
-          j += 1
-        }
-        if (asArrays) rvb.endArray() else rvb.endStruct()
-        rvb.endStruct()
-        rv.setOffset(rvb.end())
-        rv
-      }
-    }
-    val scores = new Table(hc,
-      scoresrdd,
-      rowType,
-      Array("s"))
-
-    (eigenvalues, scores, optionLoadings)
-  }
-
   def toIndexedRowMatrix(expr: String, getVariants: Boolean): (IndexedRowMatrix, Option[Array[Any]]) = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rdd2.getNumPartitions + 1)

@@ -3525,9 +3525,14 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        r = self._jvds.pca(entry_expr, k, compute_loadings, as_array)
-        jloadings = from_option(r._3())
-        return jiterable_to_list(r._1()), KeyTable(self.hc, r._2()), None if not jloadings else KeyTable(self.hc, jloadings)
+        r = Env.hail().methods.PCA.apply(self._jvds, entry_expr, k, compute_loadings, as_array)
+        scores = r._2()
+        scores = Env.hail().methods.PCA.scoresTable(self._jvds, as_array, scores)
+        scores = KeyTable(self.hc, scores)
+        loadings = from_option(r._3())
+        if loadings:
+            loadings = KeyTable(self.hc, loadings)
+        return (jiterable_to_list(r._1()), scores, loadings)
 
     @handle_py4j
     @require_biallelic

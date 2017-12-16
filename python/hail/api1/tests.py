@@ -894,3 +894,16 @@ va.AC = gs.map(g => g.GT.nNonRefAlleles()).sum()
         (hc.balding_nichols_model(3, 100, 100)
          .pc_relate(2, 0.05, block_size=64, statistics="phi")
          .count())
+
+    def test_pca(self):
+        eigenvalues, scores, loadings = (hc.balding_nichols_model(3, 100, 100)
+                                         .pca('g.GT.nNonRefAlleles()', k=2, compute_loadings=True))
+        self.assertEqual(len(eigenvalues), 2)
+        self.assertTrue(isinstance(scores, KeyTable))
+        self.assertEqual(scores.count(), 100)
+        self.assertTrue(isinstance(loadings, KeyTable))
+        self.assertEqual(loadings.count(), 100)
+
+        _, _, loadings = (hc.balding_nichols_model(3, 100, 100)
+                          .pca('g.GT.nNonRefAlleles()', k=2))
+        self.assertEqual(loadings, None)

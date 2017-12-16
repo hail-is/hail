@@ -14,10 +14,54 @@ object PCA {
     else
       TStruct((1 to k).map(i => (s"PC$i", TFloat64())): _*)
 
-  //returns (sample scores, variant loadings, eigenvalues)
+  def scoresTable(vsm: MatrixTable, asArrays: Boolean, scores: DenseMatrix[Double]): Table = {
+    assert(vsm.nSamples == scores.rows)
+    val k = scores.cols
+    val hc = vsm.hc
+    val sc = hc.sc
+
+    val rowType = TStruct("s" -> vsm.sSignature, "pcaScores" -> PCA.pcSchema(k, asArrays))
+    val rowTypeBc = sc.broadcast(rowType)
+
+    val scoresBc = sc.broadcast(scores)
+
+    val scoresRDD = sc.parallelize(vsm.sampleIds.zipWithIndex).mapPartitions[RegionValue] { it =>
+      val region = Region()
+      val rv = RegionValue(region)
+      val rvb = new RegionValueBuilder(region)
+      val localRowType = rowTypeBc.value
+
+      it.map { case (s, i) =>
+        rvb.start(localRowType)
+        rvb.startStruct()
+        rvb.addAnnotation(rowType.fieldType(0), s)
+        if (asArrays) rvb.startArray(k) else rvb.startStruct()
+        var j = 0
+        while (j < k) {
+          rvb.addDouble(scoresBc.value(i, j))
+          j += 1
+        }
+        if (asArrays) rvb.endArray() else rvb.endStruct()
+        rvb.endStruct()
+        rv.setOffset(rvb.end())
+        rv
+      }
+    }
+    new Table(hc, scoresRDD, rowType, Array("s"))
+  }
+
+  // returns (eigenvalues, sample scores, optional variant loadings)
   def apply(vsm: MatrixTable, expr: String, k: Int, computeLoadings: Boolean, asArray: Boolean = false): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
+    if (k < 1)
+      fatal(
+        s"""requested invalid number of components: $k
+           |  Expect componenents >= 1""".stripMargin)
+
     val sc = vsm.sparkContext
     val (irm, optionVariants) = vsm.toIndexedRowMatrix(expr, computeLoadings)
+
+    info(s"Running PCA with $k components...")
+
     val svd = irm.computeSVD(k, computeLoadings)
     if (svd.s.size < k)
       fatal(
