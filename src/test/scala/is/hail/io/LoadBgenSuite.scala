@@ -5,6 +5,7 @@ import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.io.bgen.BGen12ProbabilityArray
+import is.hail.io.gen.ExportGen
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
@@ -141,7 +142,7 @@ class LoadBgenSuite extends SparkSuite {
         val genFile = fileRoot + ".gen"
         val bgenFile = fileRoot + ".bgen"
 
-        vds.exportGen(fileRoot, 5)
+        ExportGen(vds, fileRoot, 5)
 
         val localRoot = tmpDir.createLocalTempFile("testImportBgen")
         val localGenFile = localRoot + ".gen"

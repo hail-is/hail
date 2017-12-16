@@ -2,6 +2,8 @@ package is.hail.vds
 
 import is.hail.methods.{GRM, VariantQC}
 import is.hail.stats.ComputeRRM
+import is.hail.io.gen.ExportGen
+import is.hail.io.plink.ExportPlink
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
@@ -28,11 +30,11 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     interceptRequire {
-      multi.exportGen("foo")
+      ExportGen(multi, "foo")
     }
 
     interceptRequire {
-      multi.exportPlink("foo")
+      ExportPlink(multi, "foo")
     }
 
     interceptRequire {

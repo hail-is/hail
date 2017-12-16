@@ -4,6 +4,7 @@ import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.Type
+import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
@@ -52,7 +53,7 @@ class ImputeSexSuite extends SparkSuite {
         val sexcheckFile = root + ".sexcheck"
 
         mappedVDS = mappedVDS.imputeSex(0.0, includePAR = true)
-        mappedVDS.exportVCF(vcfFile)
+        ExportVCF(mappedVDS, vcfFile)
         mappedVDS.write(root + ".vds")
 
         hadoopConf.copy(vcfFile, localVCFFile)

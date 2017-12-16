@@ -4,6 +4,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.expr.{TFloat64, TString}
+import is.hail.io.plink.ExportPlink
 import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}
 import is.hail.variant.MatrixTable
@@ -57,7 +58,7 @@ class PCRelateSuite extends SparkSuite {
     val localTmpfile = tmpDir.createLocalTempFile(prefix = "pcrelate")
     val pcRelateScript = tmpDir.createLocalTempFile(prefix = "pcrelateScript")
 
-    vds.exportPlink(tmpfile)
+    ExportPlink(vds, tmpfile)
 
     for (suffix <- Seq(".bed", ".bim", ".fam")) {
       hadoopConf.copy(tmpfile + suffix, localTmpfile + suffix)

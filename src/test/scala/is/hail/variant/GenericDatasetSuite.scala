@@ -5,6 +5,7 @@ import is.hail.check.Prop._
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.expr.{TFloat64, TInt32, TString, TStruct}
+import is.hail.io.vcf.ExportVCF
 import org.testng.annotations.Test
 
 class GenericDatasetSuite extends SparkSuite {
@@ -47,45 +48,45 @@ class GenericDatasetSuite extends SparkSuite {
   @Test def testExportVCF() {
     val gds_exportvcf_path = tmpDir.createTempFile(extension = "vcf")
     val gds = hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Some(4))
-    gds.exportVCF(gds_exportvcf_path)
+    ExportVCF(gds, gds_exportvcf_path)
     assert(gds.same(hc.importVCF(gds_exportvcf_path)))
 
     // not TGenotype or TStruct signature
     intercept[HailException] {
       val path = tmpDir.createTempFile(extension = "vcf")
-      gds
-        .annotateGenotypesExpr("g = 5")
-        .exportVCF(path)
+      ExportVCF(gds
+        .annotateGenotypesExpr("g = 5"),
+        path)
     }
 
     // struct field
     intercept[HailException] {
       val path = tmpDir.createTempFile(extension = ".vcf")
-      gds
-        .annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\", g.d = {gene: 5}")
-        .exportVCF(path)
+      ExportVCF(gds
+        .annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\", g.d = {gene: 5}"),
+        path)
     }
 
     // nested arrays
     intercept[HailException] {
       val path = tmpDir.createTempFile(extension = ".vcf")
-      gds
-        .annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\", g.d = [[1, 5], [2], [3, 4]]")
-        .exportVCF(path)
+      ExportVCF(gds
+        .annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\", g.d = [[1, 5], [2], [3, 4]]"),
+        path)
     }
 
     // nested set
     intercept[HailException] {
       val path = tmpDir.createTempFile(extension = ".vcf")
-      gds
-        .annotateGenotypesExpr("g.dpset = g.PL.map(pl => [pl]).toSet()")
-        .exportVCF(path)
+      ExportVCF(gds
+        .annotateGenotypesExpr("g.dpset = g.PL.map(pl => [pl]).toSet()"),
+        path)
     }
 
     val path = tmpDir.createTempFile(extension = ".vcf")
     val path2 = tmpDir.createTempFile(extension = ".vds")
 
-    gds.exportVCF(path)
+    ExportVCF(gds, path)
 
     hc.importVCF(path).write(path2)
   }

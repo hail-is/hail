@@ -2,8 +2,8 @@ package is.hail.io
 
 import is.hail.check.Prop._
 import is.hail.SparkSuite
-import is.hail.io.vcf.LoadVCF
-import is.hail.variant.{Call, Genotype, VSMSubgen, Variant, MatrixTable}
+import is.hail.io.vcf.{ExportVCF, LoadVCF}
+import is.hail.variant.{Call, Genotype, MatrixTable, VSMSubgen, Variant}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
@@ -182,13 +182,13 @@ class ImportVCFSuite extends SparkSuite {
 
       val truth = {
         val f = tmpDir.createTempFile(extension="vcf")
-        vds.exportVCF(f)
+        ExportVCF(vds, f)
         hc.importVCF(f)
       }
 
       val actual = {
         val f = tmpDir.createTempFile(extension="vcf")
-        truth.exportVCF(f)
+        ExportVCF(truth, f)
         hc.importVCF(f)
       }
 
@@ -203,11 +203,11 @@ class ImportVCFSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     val sampleIds = vds.sampleIds
-    vds.filterSamplesList(Set(sampleIds(0))).exportVCF(tmp1)
-    vds.filterSamplesList(Set(sampleIds(1))).exportVCF(tmp2)
+    ExportVCF(vds.filterSamplesList(Set(sampleIds(0))), tmp1)
+    ExportVCF(vds.filterSamplesList(Set(sampleIds(1))), tmp2)
     assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp2))).getMessage.contains("invalid sample ids"))
 
-    vds.filterSamplesList(Set(sampleIds(0),sampleIds(1))).exportVCF(tmp3)
+    ExportVCF(vds.filterSamplesList(Set(sampleIds(0),sampleIds(1))), tmp3)
     assert(intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp3))).getMessage.contains("invalid sample ids"))
 
     // no error thrown if user provides own header
