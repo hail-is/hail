@@ -29,14 +29,6 @@ def float_eq(x, y, tol=10 ** -6):
     return abs(x - y) < tol
 
 class ContextTests(unittest.TestCase):
-    # FIXME remove when attributes get nuked
-    def assert_equal_struct(self, s1, s2):
-        # ignore attributes
-        self.assertEqual([f.name for f in s1.fields],
-                         [f.name for f in s2.fields])
-        self.assertEqual([f.typ for f in s1.fields],
-                         [f.typ for f in s2.fields])
-
     def test_context(self):
         test_resources = 'src/test/resources'
 
@@ -88,7 +80,7 @@ class ContextTests(unittest.TestCase):
         vcf_metadata = hc.get_vcf_metadata(test_resources + '/sample.vcf.bgz')
 
         gds = hc.import_vcf(test_resources + '/sample.vcf.bgz')
-        self.assert_equal_struct(gds.genotype_schema, Type.hts_schema())
+        self.assertEqual(gds.genotype_schema, Type.hts_schema())
         gds = hc.import_vcf(test_resources + '/sample.vcf.bgz')
 
         gds.write('/tmp/sample_generic.vds', overwrite=True)
@@ -333,7 +325,7 @@ class ContextTests(unittest.TestCase):
 
         sample2.split_multi().impute_sex().variant_schema
 
-        self.assert_equal_struct(sample2.genotype_schema, Type.hts_schema())
+        self.assertEqual(sample2.genotype_schema, Type.hts_schema())
 
         m2 = {r.f0: r.f1 for r in hc.import_table(test_resources + '/sample2_rename.tsv', no_header=True,
                                                   impute=True)
@@ -604,195 +596,6 @@ class ContextTests(unittest.TestCase):
 
         self.assertTrue(kt3.ungroup('A').group('A', 'c1', 'c2').same(kt3))
 
-    def test_representation(self):
-        v = Variant.parse('1:100:A:T')
-
-        self.assertEqual(v, Variant('1', 100, 'A', 'T'))
-        self.assertEqual(v, Variant(1, 100, 'A', ['T']))
-        self.assertEqual(v.reference_genome, hc.default_reference)
-
-        v2 = Variant.parse('1:100:A:T,C')
-
-        self.assertEqual(v2, Variant('1', 100, 'A', ['T', 'C']))
-
-        l = Locus.parse('1:100')
-
-        self.assertEqual(l, Locus('1', 100))
-        self.assertEqual(l, Locus(1, 100))
-        self.assertEqual(l.reference_genome, hc.default_reference)
-
-        self.assertEqual(l, v.locus())
-
-        self.assertEqual(v2.num_alt_alleles(), 2)
-        self.assertFalse(v2.is_biallelic())
-        self.assertTrue(v.is_biallelic())
-        self.assertEqual(v.alt_allele(), AltAllele('A', 'T'))
-        self.assertEqual(v.allele(0), 'A')
-        self.assertEqual(v.allele(1), 'T')
-        self.assertEqual(v2.num_alleles(), 3)
-        self.assertEqual(v.alt(), 'T')
-        self.assertEqual(v2.alt_alleles[0], AltAllele('A', 'T'))
-        self.assertEqual(v2.alt_alleles[1], AltAllele('A', 'C'))
-
-        self.assertTrue(v2.is_autosomal_or_pseudoautosomal())
-        self.assertTrue(v2.is_autosomal())
-        self.assertFalse(v2.is_mitochondrial())
-        self.assertFalse(v2.in_X_PAR())
-        self.assertFalse(v2.in_Y_PAR())
-        self.assertFalse(v2.in_X_non_PAR())
-        self.assertFalse(v2.in_Y_non_PAR())
-
-        aa1 = AltAllele('A', 'T')
-        aa2 = AltAllele('A', 'AAA')
-        aa3 = AltAllele('TTTT', 'T')
-        aa4 = AltAllele('AT', 'TC')
-        aa5 = AltAllele('AAAT', 'AAAA')
-
-        self.assertEqual(aa1.num_mismatch(), 1)
-        self.assertEqual(aa5.num_mismatch(), 1)
-        self.assertEqual(aa4.num_mismatch(), 2)
-
-        c1, c2 = aa5.stripped_snp()
-
-        self.assertEqual(c1, 'T')
-        self.assertEqual(c2, 'A')
-        self.assertTrue(aa1.is_SNP())
-        self.assertTrue(aa5.is_SNP())
-        self.assertTrue(aa4.is_MNP())
-        self.assertTrue(aa2.is_insertion())
-        self.assertTrue(aa3.is_deletion())
-        self.assertTrue(aa3.is_indel())
-        self.assertTrue(aa1.is_transversion())
-
-        interval = Interval.parse('1:100-110')
-
-        self.assertEqual(interval, Interval.parse('1:100-1:110'))
-        self.assertEqual(interval, Interval(Locus("1", 100), Locus("1", 110)))
-        self.assertTrue(interval.contains(Locus("1", 100)))
-        self.assertTrue(interval.contains(Locus("1", 109)))
-        self.assertFalse(interval.contains(Locus("1", 110)))
-        self.assertEqual(interval.reference_genome, hc.default_reference)
-
-        interval2 = Interval.parse("1:109-200")
-        interval3 = Interval.parse("1:110-200")
-        interval4 = Interval.parse("1:90-101")
-        interval5 = Interval.parse("1:90-100")
-
-        self.assertTrue(interval.overlaps(interval2))
-        self.assertTrue(interval.overlaps(interval4))
-        self.assertFalse(interval.overlaps(interval3))
-        self.assertFalse(interval.overlaps(interval5))
-
-        c_hom_ref = Call(0)
-
-        self.assertEqual(c_hom_ref.gt, 0)
-        self.assertEqual(c_hom_ref.num_alt_alleles(), 0)
-        self.assertTrue(c_hom_ref.one_hot_alleles(2) == [2, 0])
-        self.assertTrue(c_hom_ref.one_hot_genotype(3) == [1, 0, 0])
-        self.assertTrue(c_hom_ref.is_hom_ref())
-        self.assertFalse(c_hom_ref.is_het())
-        self.assertFalse(c_hom_ref.is_hom_var())
-        self.assertFalse(c_hom_ref.is_non_ref())
-        self.assertFalse(c_hom_ref.is_het_non_ref())
-        self.assertFalse(c_hom_ref.is_het_ref())
-
-        gr = GenomeReference.GRCh37()
-        self.assertEqual(gr.name, "GRCh37")
-        self.assertEqual(gr.contigs[0], "1")
-        self.assertListEqual(gr.x_contigs, ["X"])
-        self.assertListEqual(gr.y_contigs, ["Y"])
-        self.assertListEqual(gr.mt_contigs, ["MT"])
-        self.assertEqual(gr.par[0], Interval.parse("X:60001-2699521"))
-        self.assertEqual(gr.contig_length("1"), 249250621)
-
-        name = "test"
-        contigs = ["1", "X", "Y", "MT"]
-        lengths = {"1": 10000, "X": 2000, "Y": 4000, "MT": 1000}
-        x_contigs = ["X"]
-        y_contigs = ["Y"]
-        mt_contigs = ["MT"]
-        par = [("X", 5, 1000)]
-
-        gr2 = GenomeReference(name, contigs, lengths, x_contigs, y_contigs, mt_contigs, par)
-        self.assertEqual(gr2.name, name)
-        self.assertListEqual(gr2.contigs, contigs)
-        self.assertListEqual(gr2.x_contigs, x_contigs)
-        self.assertListEqual(gr2.y_contigs, y_contigs)
-        self.assertListEqual(gr2.mt_contigs, mt_contigs)
-        self.assertEqual(gr2.par, [Interval.parse("X:5-1000", gr2)])
-        self.assertEqual(gr2.contig_length("1"), 10000)
-        self.assertDictEqual(gr2.lengths, lengths)
-        gr2.write("/tmp/my_gr.json")
-
-        gr3 = GenomeReference.read("src/test/resources/fake_ref_genome.json")
-        self.assertEqual(gr3.name, "my_reference_genome")
-
-    def test_types(self):
-        self.assertEqual(TInt32(), TInt32())
-        self.assertEqual(TFloat64(), TFloat64())
-        self.assertEqual(TArray(TFloat64()), TArray(TFloat64()))
-        self.assertNotEqual(TArray(TFloat64()), TArray(TFloat32()))
-        self.assertNotEqual(TSet(TFloat64()), TArray(TFloat64()))
-        self.assertEqual(TSet(TFloat64()), TSet(TFloat64()))
-        self.assertEqual(TDict(TString(), TArray(TInt32())), TDict(TString(), TArray(TInt32())))
-
-        some_random_types = [
-            TInt32(),
-            TString(),
-            TFloat32(),
-            TFloat64(),
-            TBoolean(),
-            TArray(TString()),
-            TSet(TArray(TSet(TBoolean()))),
-            TDict(TString(), TInt32()),
-            TVariant(),
-            TLocus(),
-            TCall(),
-            TAltAllele(),
-            TInterval(),
-            TSet(TInterval()),
-            TStruct(['a', 'b', 'c'], [TInt32(), TInt32(), TArray(TString())]),
-            TStruct(['a', 'bb', 'c'], [TFloat64(), TInt32(), TBoolean()]),
-            TStruct(['a', 'b'], [TInt32(), TInt32()])]
-
-        #  copy and reinitialize to check that two initializations produce equality (not reference equality)
-        some_random_types_cp = [
-            TInt32(),
-            TString(),
-            TFloat32(),
-            TFloat64(),
-            TBoolean(),
-            TArray(TString()),
-            TSet(TArray(TSet(TBoolean()))),
-            TDict(TString(), TInt32()),
-            TVariant(),
-            TLocus(),
-            TCall(),
-            TAltAllele(),
-            TInterval(),
-            TSet(TInterval()),
-            TStruct(['a', 'b', 'c'], [TInt32(), TInt32(), TArray(TString())]),
-            TStruct(['a', 'bb', 'c'], [TFloat64(), TInt32(), TBoolean()]),
-            TStruct(['a', 'b'], [TInt32(), TInt32()])]
-
-        for i in range(len(some_random_types)):
-            for j in range(len(some_random_types)):
-                if (i == j):
-                    self.assertEqual(some_random_types[i], some_random_types_cp[j])
-                else:
-                    self.assertNotEqual(some_random_types[i], some_random_types_cp[j])
-
-        reqint = TInt32(required=True)
-        self.assertEqual(reqint.required, True)
-        optint = TInt32()
-        self.assertEqual(optint.required, False)
-        optint2 = TInt32(required=False)
-        self.assertEqual(optint2.required, False)
-        self.assertEqual(id(optint), id(optint2))
-
-        reqint2 = TInt32(required=True)
-        self.assertEqual(id(reqint), id(reqint2))
-
     def test_query(self):
         vds = hc.import_vcf('src/test/resources/sample.vcf').split_multi().sample_qc()
 
@@ -912,94 +715,6 @@ class ContextTests(unittest.TestCase):
 
         glob, samples, variants = bn1.concordance(bn2)
         self.assertEqual(samples.collect()[0].concordance, glob)
-
-    def test_hadoop_methods(self):
-        data = ['foo', 'bar', 'baz']
-        data.extend(map(str, range(100)))
-
-        with hadoop_write('/tmp/test_out.txt') as f:
-            for d in data:
-                f.write(d)
-                f.write('\n')
-
-        with hadoop_read('/tmp/test_out.txt') as f:
-            data2 = [line.strip() for line in f]
-
-        self.assertEqual(data, data2)
-
-        with hadoop_write('/tmp/test_out.txt.gz') as f:
-            for d in data:
-                f.write(d)
-                f.write('\n')
-
-        with hadoop_read('/tmp/test_out.txt.gz') as f:
-            data3 = [line.strip() for line in f]
-
-        self.assertEqual(data, data3)
-
-        hadoop_copy('/tmp/test_out.txt.gz', '/tmp/test_out.copy.txt.gz')
-
-        with hadoop_read('/tmp/test_out.copy.txt.gz') as f:
-            data4 = [line.strip() for line in f]
-
-        self.assertEqual(data, data4)
-
-        with hadoop_read('src/test/resources/randomBytes', buffer_size=100) as f:
-            with hadoop_write('/tmp/randomBytesOut', buffer_size=150) as out:
-                b = f.read()
-                out.write(b)
-
-        with hadoop_read('/tmp/randomBytesOut', buffer_size=199) as f:
-            b2 = f.read()
-
-        self.assertEqual(b, b2)
-
-    def test_pedigree(self):
-
-        ped = Pedigree.read('src/test/resources/sample.fam')
-        ped.write('/tmp/sample_out.fam')
-        ped2 = Pedigree.read('/tmp/sample_out.fam')
-        self.assertEqual(ped, ped2)
-        print(ped.trios[:5])
-        print(ped.complete_trios)
-
-        t1 = Trio('kid1', father='dad1', is_female=True)
-        t2 = Trio('kid1', father='dad1', is_female=True)
-
-        self.assertEqual(t1, t2)
-
-        self.assertEqual(t1.fam, None)
-        self.assertEqual(t1.proband, 'kid1')
-        self.assertEqual(t1.father, 'dad1')
-        self.assertEqual(t1.mother, None)
-        self.assertEqual(t1.is_female, True)
-        self.assertEqual(t1.is_complete(), False)
-        self.assertEqual(t1.is_female, True)
-        self.assertEqual(t1.is_male, False)
-
-    def test_repr(self):
-        tv = TVariant()
-        tl = TLocus()
-        ti = TInterval()
-        tc = TCall()
-        taa = TAltAllele()
-
-        ti32 = TInt32()
-        ti64 = TInt64()
-        tf32 = TFloat32()
-        tf64 = TFloat64()
-        ts = TString()
-        tb = TBoolean()
-
-        tdict = TDict(TInterval(), TFloat32())
-        tarray = TArray(TString())
-        tset = TSet(TVariant())
-        tstruct = TStruct(['a', 'b'], [TBoolean(), TArray(TString())])
-
-        for typ in [tv, tl, ti, tc, taa,
-                    ti32, ti64, tf32, tf64, ts, tb,
-                    tdict, tarray, tset, tstruct]:
-            self.assertEqual(eval(repr(typ)), typ)
 
     def test_rename_duplicates(self):
         vds = hc.import_vcf('src/test/resources/duplicate_ids.vcf')
