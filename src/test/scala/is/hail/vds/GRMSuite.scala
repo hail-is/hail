@@ -8,6 +8,7 @@ import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.Type
+import is.hail.methods.GRM
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -151,7 +152,7 @@ class GRMSuite extends SparkSuite {
 
         vds.exportPlink(bFile)
 
-        val grm = vds.grm()
+        val grm = GRM(vds)
         grm.exportIdFile(relIDFile)
 
         format match {

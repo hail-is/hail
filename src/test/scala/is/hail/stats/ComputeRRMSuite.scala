@@ -43,8 +43,8 @@ class ComputeRRMSuite extends SparkSuite {
       W(::, i) *= math.sqrt(n) / norm(W(::, i))
     }
     val Klocal = (W * W.t) / W.cols.toDouble
-    val KwithoutBlock = ComputeRRM(vds)._1
-    val KwithBlock = ComputeRRM(vds, forceBlock = true)._1
+    val KwithoutBlock = ComputeRRM(vds).matrix
+    val KwithBlock = ComputeRRM(vds, forceBlock = true).matrix
 
 
     //RRM originally returned Breeze matrices, now it returns IndexedRowMatrices, but until the interface is locked in
@@ -78,8 +78,8 @@ class ComputeRRMSuite extends SparkSuite {
     }
 
     val K1local = (W1 * W1.t) / W1.cols.toDouble
-    val K1withoutBlock = ComputeRRM(vds1)._1
-    val K1withBlock = ComputeRRM(vds1, forceBlock = true)._1
+    val K1withoutBlock = ComputeRRM(vds1).matrix
+    val K1withBlock = ComputeRRM(vds1, forceBlock = true).matrix
 
     TestUtils.assertMatrixEqualityDouble(K1local, convertToBreeze(K1withoutBlock))
     TestUtils.assertMatrixEqualityDouble(convertToBreeze(K1withBlock), convertToBreeze(K1withoutBlock))

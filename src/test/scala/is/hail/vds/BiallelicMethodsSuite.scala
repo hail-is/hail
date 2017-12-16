@@ -1,6 +1,7 @@
 package is.hail.vds
 
-import is.hail.methods.VariantQC
+import is.hail.methods.{GRM, VariantQC}
+import is.hail.stats.ComputeRRM
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
@@ -39,7 +40,7 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     interceptRequire {
-      multi.grm()
+      GRM(multi)
     }
 
     interceptRequire {
@@ -47,7 +48,7 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     interceptRequire {
-      multi.rrm()
+      ComputeRRM(multi)
     }
 
     interceptRequire {
