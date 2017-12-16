@@ -2417,22 +2417,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     copy2(rdd2 = newRDD2)
   }
 
-<<<<<<< 4e50b291a72a86a0529d75f29e1520edf5bef894:src/main/scala/is/hail/variant/VariantSampleMatrix.scala
-  def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): VariantSampleMatrix = {
-=======
-  def sampleQC(root: String = "sa.qc"): MatrixTable = {
-    requireRowKeyVariant("sample_qc")
-    SampleQC(this, root)
-  }
-
-  def variantQC(root: String = "va.qc"): MatrixTable = {
-    require(wasSplit)
-    requireRowKeyVariant("variant_qc")
-    VariantQC(this, root)
-  }
-
   def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): MatrixTable = {
->>>>>>> Renamed VSM => MatrixTable, KeyTable => Table.:src/main/scala/is/hail/variant/MatrixTable.scala
     require(wasSplit)
     requireRowKeyVariant("ld_prune")
     LDPrune(this, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
