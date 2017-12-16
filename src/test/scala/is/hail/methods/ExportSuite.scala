@@ -11,9 +11,8 @@ import scala.io.Source
 class ExportSuite extends SparkSuite {
 
   @Test def test() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
-      .sampleQC()
+    val vds = SampleQC(hc.importVCF("src/test/resources/sample.vcf")
+      .splitMulti())
 
     val out = tmpDir.createTempFile("out", ".tsv")
     vds.samplesKT().select("Sample = s", "sa.qc.*").export(out)
@@ -100,9 +99,8 @@ class ExportSuite extends SparkSuite {
 
     // this should run without errors
     val f = tmpDir.createTempFile("samples", ".tsv")
-    hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
-      .sampleQC()
+    SampleQC(hc.importVCF("src/test/resources/sample.vcf")
+      .splitMulti())
       .samplesKT()
       .select("computation = 5 * (if (sa.qc.callRate < .95) 0 else 1)")
       .export(f)

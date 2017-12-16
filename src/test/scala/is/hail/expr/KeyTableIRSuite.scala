@@ -14,7 +14,7 @@ class KeyTableIRSuite extends SparkSuite {
     val keyNames = Array("Sample")
 
     val kt = KeyTable(hc, rdd, signature, keyNames)
-    val kt2 = new KeyTable(hc, new FilterKT(kt.ir, ir.ApplyBinaryPrimOp(ir.EQ(), ir.Ref("field1"), ir.I32(3))))
+    val kt2 = new KeyTable(hc, FilterKT(kt.ir, ir.ApplyBinaryPrimOp(ir.EQ(), ir.Ref("field1"), ir.I32(3))))
     assert(kt2.count() == 1)
   }
 
@@ -25,7 +25,7 @@ class KeyTableIRSuite extends SparkSuite {
     val keyNames = Array("Sample")
 
     val kt = KeyTable(hc, rdd, signature, keyNames).annotateGlobalExpr("g = 3")
-    val kt2 = new KeyTable(hc, new FilterKT(kt.ir, ir.ApplyBinaryPrimOp(ir.EQ(), ir.Ref("field1"), ir.Ref("g"))))
+    val kt2 = new KeyTable(hc, FilterKT(kt.ir, ir.ApplyBinaryPrimOp(ir.EQ(), ir.Ref("field1"), ir.Ref("g"))))
     assert(kt2.count() == 1)
   }
 }

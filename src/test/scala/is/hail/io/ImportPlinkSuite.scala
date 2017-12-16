@@ -4,6 +4,7 @@ import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.io.plink.PlinkLoader
+import is.hail.methods.VariantQC
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
@@ -77,16 +78,14 @@ class ImportPlinkSuite extends SparkSuite {
 
     val a2ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = true)
 
-    val a1kt = a1ref
-      .variantQC()
+    val a1kt = VariantQC(a1ref)
       .variantsKT()
       .select("va.rsid", "v", "va.qc.nNotCalled", "va.qc.nHomRef", "va.qc.nHet", "va.qc.nHomVar")
       .rename(Map("v" -> "vA1", "nNotCalled" -> "nNotCalledA1",
         "nHomRef" -> "nHomRefA1", "nHet" -> "nHetA1", "nHomVar" -> "nHomVarA1"))
       .keyBy("rsid")
 
-    val a2kt = a2ref
-      .variantQC()
+    val a2kt = VariantQC(a2ref)
       .variantsKT()
       .select("va.rsid", "v", "va.qc.nNotCalled", "va.qc.nHomRef", "va.qc.nHet", "va.qc.nHomVar")
       .rename(Map("v" -> "vA2", "nNotCalled" -> "nNotCalledA2",
