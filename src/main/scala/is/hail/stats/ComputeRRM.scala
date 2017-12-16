@@ -4,8 +4,9 @@ import is.hail.distributedmatrix.BlockMatrix.ops._
 import breeze.linalg.DenseMatrix
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.TVariant
+import is.hail.methods.KinshipMatrix
 import is.hail.utils._
-import is.hail.variant.{HardCallView, Locus, Variant, MatrixTable}
+import is.hail.variant.{HardCallView, Locus, MatrixTable, Variant}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
 import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vectors}
@@ -30,7 +31,10 @@ object ComputeGramian {
 // diagonal values are approximately 1 assuming independent variants by Central Limit Theorem
 object ComputeRRM {
 
-  def apply(vds: MatrixTable, forceBlock: Boolean = false, forceGramian: Boolean = false): (IndexedRowMatrix, Long) = {
+  def apply(vds: MatrixTable, forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
+    require(vds.wasSplit)
+    info(s"rrm: Computing Realized Relationship Matrix...")
+
     def scaleMatrix(matrix: Matrix, scalar: Double): Matrix = {
       Matrices.dense(matrix.numRows, matrix.numCols, matrix.toArray.map(_ * scalar))
     }
@@ -55,7 +59,10 @@ object ComputeRRM {
 
     val mRec = 1d / rowCount
 
-    (new IndexedRowMatrix(computedGramian.rows.map(ir => IndexedRow(ir.index, ir.vector.map(_ * mRec)))), rowCount)
+    val rrm = new IndexedRowMatrix(computedGramian.rows.map(ir => IndexedRow(ir.index, ir.vector.map(_ * mRec))))
+
+    info(s"rrm: RRM computed using $rowCount variants.")
+    KinshipMatrix(vds.hc, vds.sSignature, rrm, vds.sampleIds.toArray, rowCount)
   }
 }
 
@@ -110,7 +117,7 @@ object ToNormalizedIndexedRowMatrix {
       it.flatMap { rv =>
         view.setRegion(rv)
         val row = RegressionUtils.normalizedHardCalls(view, n)
-            .map { a => IndexedRow(start + j, Vectors.dense(a)) }
+          .map { a => IndexedRow(start + j, Vectors.dense(a)) }
         j += 1
         row
       }

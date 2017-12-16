@@ -2361,8 +2361,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`KinshipMatrix`
         """
 
-        jkm = self._jvdf.grm()
-        return KinshipMatrix(jkm)
+        return KinshipMatrix(Env.hail().methods.GRM.apply(self._jvds))
 
     @handle_py4j
     @record_method
@@ -4406,7 +4405,7 @@ class VariantDataset(HistoryMixin):
         :return: Realized Relationship Matrix for all samples.
         :rtype: :py:class:`KinshipMatrix`
         """
-        return KinshipMatrix(self._jvdf.rrm(force_block, force_gramian))
+        return KinshipMatrix(Env.hail().stats.ComputeRRM.apply(self._jvds, force_block, force_gramian))
 
     @handle_py4j
     @typecheck_method(other=vds_type,
