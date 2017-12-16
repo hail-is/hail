@@ -47,7 +47,7 @@ class HailContext(HistoryMixin):
     :param default_reference: Default reference genome to use. Can be set to "GRCh37" for
                              :py:meth:`.GenomeReference.GRCh37`, "GRCh38" for :py:meth:`.GenomeReference.GRCh38`,
                              or the path to a JSON file for constructing a reference genome as described in
-                             :py:meth:`.GenomeReference.from_file`.
+                             :py:meth:`.GenomeReference.read`.
     :type default_reference: str
 
     :ivar sc: Spark context

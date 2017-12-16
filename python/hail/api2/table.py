@@ -1495,7 +1495,7 @@ class Table(TableTemplate):
          - **left** -- Key present in the left table. For keys not found on
             the right, the right table's fields will be missing.
          - **right** -- Key present in the right table. For keys not found on
-         the right, the right table's fields will be missing.
+            the right, the right table's fields will be missing.
 
         Both tables must have the same number of keys and the corresponding
         types of each key must be the same (order matters), but the key names
