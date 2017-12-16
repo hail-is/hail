@@ -22,13 +22,13 @@ object TextTableReader {
         val p = Pattern.compile(separator)
         val m = p.matcher(s)
 
-      { (i: Int) =>
-        m.region(i, s.length)
-        if (m.lookingAt())
-          m.end() - m.start()
-        else
-          -1
-      }
+        (i: Int) => {
+          m.region(i, s.length)
+          if (m.lookingAt())
+            m.end() - m.start()
+          else
+            -1
+        }
     }
 
     val ab = new ArrayBuilder[String]
@@ -59,7 +59,7 @@ object TextTableReader {
 
         // full field must be quoted
         if (i < s.length) {
-          val l =  matchSep(i)
+          val l = matchSep(i)
           if (l == -1)
             fatal(s"terminating quote character '$quote' not at end of field")
           i += l
@@ -153,7 +153,7 @@ object TextTableReader {
       if (filt.isEmpty)
         fatal(
           s"""invalid file: no lines remaining after comment filter
-              |  Offending file: $firstFile""".stripMargin)
+             |  Offending file: $firstFile""".stripMargin)
       else
         filt.next().value
     }
