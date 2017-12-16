@@ -361,7 +361,7 @@ class CollectionExpression(Expression):
         return self._bin_lambda_method("filter", f, self._type.element_type, lambda t: self._type)
 
     def find(self, f):
-        """Returns a the first element where `f` returns `True`.
+        """Returns the first element where `f` returns `True`.
 
         Parameters
         ----------
@@ -382,8 +382,9 @@ class CollectionExpression(Expression):
         Parameters
         ----------
         f : callable
-            Function from element type of the collection to the type of the collection. For instance,
-            `flatmap` on a ``Set[String]`` should take a ``String`` and return a ``Set``.
+            Function from the element type of the collection to the type of the
+            collection. For instance, `flatmap` on a ``Set[String]`` should take
+            a ``String`` and return a ``Set``.
 
         Returns
         -------
@@ -446,6 +447,17 @@ class CollectionExpression(Expression):
             The number of elements in the collection.
         """
         return self._method("size", TInt32())
+
+    def size(self):
+        """Returns the size of a collection.
+
+        Returns
+        -------
+        :py:class:`hail.expr.Int32Expression`
+            The number of elements in the collection.
+        """
+        return self._method("size", TInt32())
+
 
 
 class CollectionNumericExpression(CollectionExpression):
@@ -1570,7 +1582,7 @@ class AltAlleleExpression(Expression):
         return self._method("isSNP", TBoolean())
 
     def is_star(self):
-        """Returns true if the polymorphism is not a star (upstream deletion) allele.
+        """Returns true if the polymorphism is a star (upstream deletion) allele.
 
         Returns
         -------
