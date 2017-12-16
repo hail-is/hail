@@ -395,8 +395,9 @@ class HailContext(object):
         information about possible field types. While this is a bit slower for large files, (the 
         file is parsed twice), the convenience is often worth this cost.
         
-        The ``delimiter`` parameter is a field separator regex. This regex follows the 
-         `Java regex standard <http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html>`_.
+        The ``delimiter`` parameter is either a delimiter character (if a single character) or a field separator
+        regex (2 or more characters). This regex follows the `Java regex standard
+        <http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html>`_.
         
         .. note::
         
