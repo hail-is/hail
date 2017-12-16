@@ -7,7 +7,7 @@ import is.hail.expr.ir._
 import is.hail.keytable.KTLocalValue
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
-import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType, RVD}
+import is.hail.rvd._
 import is.hail.variant.{VSMFileMetadata, VSMLocalValue, VSMMetadata}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -315,13 +315,13 @@ object MatrixIR {
   def optimize(ast: MatrixIR): MatrixIR = {
     BaseIR.rewriteTopDown(ast, {
       case FilterVariants(
-      MatrixRead(hc, path, nPartitions, fileMetadata, dropSamples, _),
+      MatrixRead(path, nPartitions, fileMetadata, dropSamples, _),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(hc, path, nPartitions, fileMetadata, dropSamples, dropVariants = true)
+        MatrixRead(path, nPartitions, fileMetadata, dropSamples, dropVariants = true)
       case FilterSamples(
-      MatrixRead(hc, path, nPartitions, fileMetadata, _, dropVariants),
+      MatrixRead(path, nPartitions, fileMetadata, _, dropVariants),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(hc, path, nPartitions, fileMetadata, dropSamples = true, dropVariants)
+        MatrixRead(path, nPartitions, fileMetadata, dropSamples = true, dropVariants)
 
       case FilterVariants(m, Const(_, true, TBoolean(_))) =>
         m
@@ -366,7 +366,6 @@ case class MatrixLiteral(
 }
 
 case class MatrixRead(
-  hc: HailContext,
   path: String,
   nPartitions: Int,
   fileMetadata: VSMFileMetadata,
@@ -552,13 +551,19 @@ case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruc
 object KeyTableIR {
   def optimize(ir: KeyTableIR): KeyTableIR = {
     BaseIR.rewriteTopDown(ir, {
-      case FilterKT(FilterKT(x, p1), p2) => FilterKT(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
+      case FilterKT(FilterKT(x, p1), p2) =>
+        FilterKT(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
+      case FilterKT(x, True()) => x
+      case FilterKT(ReadKT(path, ktType, localVal, _, nPart, pCounts), False() | NA(TBoolean(_))) =>
+        ReadKT(path, ktType, localVal, true, nPart, pCounts)
     })
   }
 }
 
 abstract sealed class KeyTableIR extends BaseIR {
   def typ: KeyTableType
+
+  def partitionCounts: Option[Array[Long]] = None
 
   def execute(hc: HailContext): KeyTableValue
 }
@@ -574,6 +579,32 @@ case class KeyTableLiteral(value: KeyTableValue) extends KeyTableIR {
   }
 
   def execute(hc: HailContext): KeyTableValue = value
+}
+
+case class ReadKT(path: String,
+  ktType: KeyTableType,
+  localValue: KTLocalValue,
+  dropRows: Boolean,
+  nPartitions: Int,
+  override val partitionCounts: Option[Array[Long]]) extends KeyTableIR {
+
+  val typ: KeyTableType = ktType
+
+  def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
+  def copy(newChildren: IndexedSeq[BaseIR]): ReadKT = {
+    assert(newChildren.isEmpty)
+    this
+  }
+
+  def execute(hc: HailContext): KeyTableValue = {
+    KeyTableValue(typ,
+      localValue,
+      if (dropRows)
+        RVD.empty(hc.sc, typ.rowType)
+      else
+        RVD(typ.rowType,hc.readRows(path, typ.rowType, nPartitions)))
+  }
 }
 
 case class FilterKT(child: KeyTableIR, pred: IR) extends KeyTableIR {
