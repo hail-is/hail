@@ -1404,7 +1404,7 @@ class VariantDataset(HistoryMixin):
         :param int precision: Number of digits after the decimal point each probability is truncated to.
         """
 
-        self._jvdf.exportGen(output, precision)
+        Env.hail().io.gen.ExportGen.apply(self._jvds, output, precision)
 
     @handle_py4j
     @require_biallelic
@@ -1473,7 +1473,7 @@ class VariantDataset(HistoryMixin):
         :param str fam_expr: Expression for FAM file fields.
         """
 
-        self._jvdf.exportPlink(output, fam_expr)
+        Env.hail().io.plink.ExportPlink.apply(self._jvds, output, fam_expr)
 
     @handle_py4j
     @write_history('output', parallel_write='parallel')
@@ -1558,7 +1558,7 @@ class VariantDataset(HistoryMixin):
         """
 
         typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
-        self._jvds.exportVCF(output, joption(append_to_header), parallel, joption(typ._convert_to_j(metadata)))
+        Env.hail().io.vcf.ExportVCF.apply(self._jvds, output, joption(append_to_header), parallel, joption(typ._convert_to_j(metadata)))
 
     @handle_py4j
     @write_history('output', is_dir=True)
