@@ -7,7 +7,7 @@ import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
-class RichVariantSampleMatrix(vsm: MatrixTable) {
+class RichMatrixTable(vsm: MatrixTable) {
   def expand(): RDD[(Annotation, Annotation, Annotation)] =
     mapWithKeys[(Annotation, Annotation, Annotation)]((v, s, g) => (v, s, g))
 
