@@ -889,3 +889,8 @@ va.AC = gs.map(g => g.GT.nNonRefAlleles()).sum()
                   .split_multi_hts(keep_star = True)
                   .count_variants())
             self.assertEqual(n1, n2)
+
+    def test_pc_relate(self):
+        (hc.balding_nichols_model(3, 100, 100)
+         .pc_relate(2, 0.05, block_size=64, statistics="phi")
+         .count())
