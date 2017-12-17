@@ -305,12 +305,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
       keep = keep, leftAligned = leftAligned, keepStar = keepStar)
   }
 
-  def grm(): KinshipMatrix = {
-    require(vsm.wasSplit)
-    info("Computing GRM...")
-    GRM(vsm)
-  }
-
   def hardCalls(): MatrixTable = {
     vsm.annotateGenotypesExpr("g = {GT: g.GT}")
   }
@@ -342,14 +336,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
   def nirvana(config: String, blockSize: Int = 500000, root: String): MatrixTable = {
     Nirvana.annotate(vsm, config, blockSize, root)
-  }
-
-  def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
-    require(vsm.wasSplit)
-    info(s"rrm: Computing Realized Relationship Matrix...")
-    val (rrm, m) = ComputeRRM(vsm, forceBlock, forceGramian)
-    info(s"rrm: RRM computed using $m variants.")
-    KinshipMatrix(vsm.hc, vsm.sSignature, rrm, vsm.sampleIds.toArray, m)
   }
 
   /**

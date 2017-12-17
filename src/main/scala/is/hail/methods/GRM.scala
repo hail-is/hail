@@ -7,6 +7,8 @@ import is.hail.variant.MatrixTable
 
 object GRM {
   def apply(vds: MatrixTable): KinshipMatrix = {
+    require(vds.wasSplit)
+    info("Computing GRM...")
 
     val (_, irm) = ToHWENormalizedIndexedRowMatrix(vds)
 
