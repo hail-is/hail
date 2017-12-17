@@ -551,13 +551,13 @@ class HailContext private(val sc: SparkContext,
       hadoopConf.set("io.compression.codecs",
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
-    val settings = VCFSettings(storeGQ, dropSamples, ppAsPL, skipBadAD)
-    val reader = new GenotypeRecordReader(settings)
-    val vds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
-
-    hadoopConf.set("io.compression.codecs", codecs)
-
-    vds
+    try {
+      val settings = VCFSettings(storeGQ, dropSamples, ppAsPL, skipBadAD)
+      val reader = new GenotypeRecordReader(settings)
+      LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
+    } finally {
+      hadoopConf.set("io.compression.codecs", codecs)
+    }
   }
 
   def importVCFGeneric(file: String, force: Boolean = false,
