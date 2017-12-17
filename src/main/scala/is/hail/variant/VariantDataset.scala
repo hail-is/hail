@@ -212,16 +212,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     Nirvana.annotate(vsm, config, blockSize, root)
   }
 
-<<<<<<< 6132801e0afb2ba454a7bfc09ee47f2258ed4232
-=======
-  def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
-    info(s"rrm: Computing Realized Relationship Matrix...")
-    val (rrm, m) = ComputeRRM(vsm, forceBlock, forceGramian)
-    info(s"rrm: RRM computed using $m variants.")
-    KinshipMatrix(vsm.hc, vsm.sSignature, rrm, vsm.sampleIds.toArray, m)
-  }
-
->>>>>>> Moved allele methods to method objects.
   /**
     *
     * @param config    VEP configuration file

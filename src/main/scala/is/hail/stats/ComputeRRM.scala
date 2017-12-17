@@ -32,7 +32,6 @@ object ComputeGramian {
 object ComputeRRM {
 
   def apply(vds: MatrixTable, forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
-    require(vds.wasSplit)
     info(s"rrm: Computing Realized Relationship Matrix...")
 
     def scaleMatrix(matrix: Matrix, scalar: Double): Matrix = {
