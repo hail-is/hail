@@ -1217,7 +1217,7 @@ object FunctionRegistry {
 
     Test each variant for allele balance across all heterozygous genotypes, under the null hypothesis that the two alleles are sampled with equal probability.
 
-    >>> (vds.split_multi()
+    >>> (vds.split_multi_hts()
     ...   .annotate_variants_expr(
     ...   'va.ab_binom_test = let all_samples_ad = gs.filter(g => g.GT.isHet).map(g => g.AD).sum() in '
     ...   'binomTest(all_samples_ad[1], all_samples_ad.sum(), 0.5, "two.sided")'))

@@ -1755,7 +1755,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         indices:
 
         >>> vds_result = vds.filter_alleles_hts('va.info.AC[aIndex - 1] == 0',
-        ...     annotation='va.info.AC = newToOld[1:].map(i => va.info.AC[i - 1])',
+        ...     variant_expr='va.info.AC = newToOld[1:].map(i => va.info.AC[i - 1])',
         ...     keep=False)
 
         Note that we skip the first element of ``newToOld`` because
