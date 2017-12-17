@@ -63,7 +63,6 @@ class LoadBgenSuite extends SparkSuite {
 
       hc.indexBgen(bgen)
       val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10))
-        .verifyBiallelic()
       assert(bgenVDS.nSamples == nSamples && bgenVDS.countVariants() == nVariants)
 
       val genVDS = hc.importGen(gen, sampleFile)
@@ -114,8 +113,7 @@ class LoadBgenSuite extends SparkSuite {
       VSMSubgen.dosage.copy(
         vGen = _ => VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
         sGen = _ => Gen.identifier.filter(_ != "NA")))
-      .filter(_.countVariants > 0)
-      .map(_.copy(wasSplit = true));
+      .filter(_.countVariants > 0);
       nPartitions <- choose(1, 10))
       yield (vds, nPartitions)
 

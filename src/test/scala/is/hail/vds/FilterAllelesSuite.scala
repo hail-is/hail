@@ -9,24 +9,6 @@ import is.hail.variant.{AltAllele, Genotype, VSMFileMetadata, VSMSubgen, Variant
 import org.testng.annotations.Test
 
 class FilterAllelesSuite extends SparkSuite {
-
-  @Test def testRandom() {
-    Prop.forAll(VSMSubgen.random.gen(hc)) { vds =>
-      val vds2 = vds.annotateAllelesExpr("va.p = pcoin(0.2)")
-        .cache()
-
-      val (nAlleles1, _) = vds2.queryVariants("variants.map(v => va.p.map(x => if (x) 1 else 0).sum()).sum()")
-
-      val nAlleles2 = vds2.filterAlleles("va.p[aIndex - 1]", keepStar = true)
-        .splitMulti(keepStar = true)
-        .countVariants()
-
-      assert(nAlleles1 == nAlleles2)
-
-      true
-    }.check()
-  }
-
   @Test def filterAllAlleles(): Unit = {
     Prop.forAll(VSMSubgen.random.gen(hc)) { vds =>
       vds.filterAlleles("false", subset = true).countVariants() == 0

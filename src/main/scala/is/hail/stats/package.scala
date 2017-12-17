@@ -353,7 +353,7 @@ package object stats {
       },
       nPartitions)
 
-    MatrixTable.fromLegacy(hc, VSMFileMetadata(sampleIds, wasSplit = true), rdd)
+    MatrixTable.fromLegacy(hc, VSMFileMetadata(sampleIds), rdd)
   }
 
   // genotypes(i,j) is genotype of variant j in sample i; i and j are 0-based indices
@@ -383,8 +383,7 @@ package object stats {
     MatrixTable.fromLegacy(hc, VSMFileMetadata(sampleIds,
       vSignature = TVariant(GenomeReference.defaultReference),
       genotypeSignature = TStruct(
-        "GP" -> TArray(TFloat64())),
-      wasSplit = true),
+        "GP" -> TArray(TFloat64()))),
       rdd)
   }
 }

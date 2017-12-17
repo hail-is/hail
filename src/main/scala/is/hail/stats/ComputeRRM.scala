@@ -78,8 +78,6 @@ object LocalDenseMatrixToIndexedRowMatrix {
 // each row has mean 0, norm sqrt(n), variance 1, constant variants are dropped
 object ToNormalizedRowMatrix {
   def apply(vds: MatrixTable): RowMatrix = {
-    require(vds.wasSplit)
-
     val n = vds.nSamples
 
     val rowType = vds.rowType
@@ -100,7 +98,6 @@ object ToNormalizedRowMatrix {
 // each row has mean 0, norm sqrt(n), variance 1
 object ToNormalizedIndexedRowMatrix {
   def apply(vds: MatrixTable): IndexedRowMatrix = {
-    require(vds.wasSplit)
     val n = vds.nSamples
 
     val partStarts = vds.partitionStarts()
@@ -130,7 +127,6 @@ object ToNormalizedIndexedRowMatrix {
 // each row has mean 0, norm approx sqrt(n), variance approx 1, constant variants are included as zero vector
 object ToHWENormalizedIndexedRowMatrix {
   def apply(vsm: MatrixTable): (Array[Variant], IndexedRowMatrix) = {
-    require(vsm.wasSplit)
     val rowType = vsm.rowType
 
     val n = vsm.nSamples

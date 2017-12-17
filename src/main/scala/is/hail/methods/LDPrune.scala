@@ -442,7 +442,7 @@ object LDPrune {
 
     val typ = vsm.rdd2.typ
 
-    val standardizedRDD = vsm.filterVariantsExpr("v.isBiallelic()").rdd2
+    val standardizedRDD = vsm.rdd2
       .mapPartitionsPreservesPartitioning(new OrderedRVType(typ.partitionKey, typ.key, bpvType))({ it =>
         val hcView = HardCallView(localRowType)
         val region = Region()

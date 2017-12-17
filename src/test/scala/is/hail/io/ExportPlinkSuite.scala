@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.io.plink.ExportPlink
+import is.hail.methods.SplitMulti
 import is.hail.table.Table
 import is.hail.utils._
 import org.testng.annotations.Test
@@ -29,8 +30,7 @@ class ExportPlinkSuite extends SparkSuite {
 
     val hailFile = tmpDir.createTempFile("hail")
 
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
     ExportPlink(vds, hailFile)
 
     rewriteBimIDs(hailFile + ".bim")
@@ -69,8 +69,7 @@ class ExportPlinkSuite extends SparkSuite {
   @Test def testFamExport() {
     val plink = tmpDir.createTempFile("mendel")
 
-    val vds = hc.importVCF("src/test/resources/mendel.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/mendel.vcf"))
       .hardCalls()
       .annotateSamplesTable(Table.importFam(hc, "src/test/resources/mendel.fam", delimiter = "\\\\s+"), expr = "sa.fam = table")
       .annotateSamplesExpr("sa = sa.fam")

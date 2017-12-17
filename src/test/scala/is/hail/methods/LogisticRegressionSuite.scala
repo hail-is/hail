@@ -46,7 +46,6 @@ class LogisticRegressionSuite extends SparkSuite {
       types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
-      .verifyBiallelic()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .logreg("wald", "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
@@ -110,7 +109,6 @@ class LogisticRegressionSuite extends SparkSuite {
       types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
-      .verifyBiallelic()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .logreg("wald", "sa.pheno", "plDosage(g.PL)", Array("sa.cov.Cov1", "sa.cov.Cov2"))
@@ -234,7 +232,6 @@ class LogisticRegressionSuite extends SparkSuite {
 
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
-      .verifyBiallelic()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .logreg("lrt", "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
@@ -296,7 +293,6 @@ class LogisticRegressionSuite extends SparkSuite {
       types = Map("isCase" -> TBoolean()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
-      .verifyBiallelic()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .logreg("score", "sa.pheno", "g.GT.nNonRefAlleles()", Array("sa.cov.Cov1", "sa.cov.Cov2"))
@@ -349,7 +345,6 @@ class LogisticRegressionSuite extends SparkSuite {
       types = Map("PC1" -> TFloat64(), "PC2" -> TFloat64()), missing = "0").keyBy("IND_ID")
 
     val vds = hc.importVCF("src/test/resources/regressionLogisticEpacts.vcf")
-      .verifyBiallelic()
       .annotateSamplesTable(Table.importFam(hc, "src/test/resources/regressionLogisticEpacts.fam"), root = "sa.fam")
       .annotateSamplesTable(covariates, root = "sa.pc")
       .logreg("wald", "sa.fam.isCase", "g.GT.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")

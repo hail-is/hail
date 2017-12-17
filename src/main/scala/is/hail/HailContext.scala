@@ -321,8 +321,7 @@ class HailContext private(val sc: SparkContext,
       VSMFileMetadata(samples,
         vaSignature = signature,
         genotypeSignature = TStruct("GT" -> TCall(),
-          "GP" -> TArray(TFloat64())),
-        wasSplit = true),
+          "GP" -> TArray(TFloat64()))),
       rdd)
   }
 

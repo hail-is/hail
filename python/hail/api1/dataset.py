@@ -13,8 +13,7 @@ vds_type = lazy()
 
 @decorator
 def require_biallelic(func, vds, *args, **kwargs):
-    if not vds.was_split():
-        vds = vds._verify_biallelic(func.__name__)
+    vds = vds._verify_biallelic(func.__name__)
     return func(vds, *args, **kwargs)
 
 class VariantDataset(HistoryMixin):
@@ -136,19 +135,6 @@ class VariantDataset(HistoryMixin):
         return self._jvds.countVariants()
 
     @handle_py4j
-    def was_split(self):
-        """True if multiallelic variants have been split into multiple biallelic variants.
-
-        Result is True if :py:meth:`~hail.VariantDataset.split_multi` or :py:meth:`~hail.VariantDataset.filter_multi` has been called on this variant dataset,
-        or if the variant dataset was imported with :py:meth:`~hail.api1.HailContext.import_plink`, :py:meth:`~hail.api1.HailContext.import_gen`,
-        or :py:meth:`~hail.api1.HailContext.import_bgen`, or if the variant dataset was simulated with :py:meth:`~hail.api1.HailContext.balding_nichols_model`.
-
-        :rtype: bool
-        """
-
-        return self._jvds.wasSplit()
-
-    @handle_py4j
     def file_version(self):
         """File version of variant dataset.
 
@@ -162,7 +148,7 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(split_variant_expr=oneof(strlike, listof(strlike)),
                       split_genotype_expr=oneof(strlike, listof(strlike)),
                       variant_expr=oneof(strlike, listof(strlike)))
-    def annotate_alleles_expr_generic(self, split_variant_expr, split_genotype_expr, variant_expr):
+    def annotate_alleles_expr(self, split_variant_expr, split_genotype_expr, variant_expr):
         """Annotate alleles with expression.
 
         ``annotate_alleles_expr`` works by splitting variants into
@@ -226,13 +212,13 @@ class VariantDataset(HistoryMixin):
         if isinstance(variant_expr, list):
             variant_expr = ",".join(variant_expr)
 
-        jvds = self._jvdf.annotateAllelesExprGeneric(split_variant_expr, split_genotype_expr, variant_expr)
+        jvds = Env.hail().methods.AnnotateAllelesExpr.apply(self._jvds, split_variant_expr, split_genotype_expr, variant_expr)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
-    def annotate_alleles_expr(self, expr):
+    def annotate_alleles_expr_hts(self, expr):
         """Annotate alleles with expression.
 
         .. include:: ../_templates/req_tvariant.rst
@@ -242,11 +228,11 @@ class VariantDataset(HistoryMixin):
         To create a variant annotation ``va.nNonRefSamples: Array[Int]`` where the ith entry of
         the array is the number of samples carrying the ith alternate allele:
 
-        >>> vds_result = vds.annotate_alleles_expr('va.nNonRefSamples = gs.filter(g => g.GT.isNonRef()).count()')
+        >>> vds_result = vds.annotate_alleles_expr_hts('va.nNonRefSamples = gs.filter(g => g.GT.isNonRef()).count()')
 
         **Notes**
 
-        This method is similar to :py:meth:`.annotate_variants_expr`. :py:meth:`.annotate_alleles_expr` dynamically splits multi-allelic sites,
+        This method is similar to :py:meth:`.annotate_variants_expr`. :py:meth:`.annotate_alleles_expr_hts` dynamically splits multi-allelic sites,
         evaluates each expression on each split allele separately, and for each expression annotates with an array with one element per alternate allele. In the splitting, genotypes are downcoded and each alternate allele is represented
         using its minimal representation (see :py:meth:`split_multi` for more details).
 
@@ -258,11 +244,29 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        if isinstance(expr, list):
-            expr = ",".join(expr)
+        if self.genotype_schema != Type.hts_schema():
+            raise ValueError(
+                'annotate_alleles_expr_hts requires HTS genotype_schema, found {}'.format(self.genotype_schema))
 
-        jvds = self._jvdf.annotateAllelesExpr(expr)
-        return VariantDataset(self.hc, jvds)
+        if isinstance(expr, list):
+            expr = ','.join(expr)
+
+        split_variant_expr = 'va.aIndex = aIndex, va.wasSplit = wasSplit'
+        split_genotype_expr = '''
+g = let
+  newgt = downcode(g.GT, aIndex) and
+  newad = if (isDefined(g.AD))
+      let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+    else
+      NA: Array[Int] and
+  newpl = if (isDefined(g.PL))
+      range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
+    else
+      NA: Array[Int] and
+  newgq = gqFromPL(newpl)
+in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
+'''
+        return self.annotate_alleles_expr(split_variant_expr, split_genotype_expr, expr)
 
     @handle_py4j
     @record_method
@@ -933,7 +937,7 @@ class VariantDataset(HistoryMixin):
         method is recommended to capture all appropriate annotations from the database. To do this, run :py:meth:`split_multi` 
         prior to annotating variants with this method:
 
-        >>> vds = vds.split_multi().annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
+        >>> vds = vds.split_multi_hts().annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
 
         To add VEP annotations, or to add gene-level annotations without a predefined gene symbol for each variant, the 
         :py:meth:`~.VariantDataset.annotate_variants_db` method runs Hail's :py:meth:`~.VariantDataset.vep` method on the 
@@ -1230,8 +1234,7 @@ class VariantDataset(HistoryMixin):
         :rtype: (list of list of int, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        if not right.was_split():
-            right = right._verify_biallelic("concordance, right")
+        right = right._verify_biallelic("concordance, right")
 
         r = self._jvdf.concordance(right._jvds)
         j_global_concordance = r._1()
@@ -1422,7 +1425,7 @@ class VariantDataset(HistoryMixin):
 
         Import data from a VCF file, split multi-allelic variants, and export to a PLINK binary file:
 
-        >>> vds.split_multi().export_plink('output/plink')
+        >>> vds.split_multi_hts().export_plink('output/plink')
 
         **Notes**
 
@@ -1452,7 +1455,7 @@ class VariantDataset(HistoryMixin):
 
         This code:
 
-        >>> vds.split_multi().export_plink('output/plink')
+        >>> vds.split_multi_hts().export_plink('output/plink')
 
         will behave similarly to the PLINK VCF conversion command
 
@@ -1593,8 +1596,8 @@ class VariantDataset(HistoryMixin):
                       keep=bool,
                       left_aligned=bool,
                       keep_star=bool)
-    def filter_alleles_generic(self, expr, variant_expr, genotype_expr,
-                               keep=True, left_aligned=False, keep_star=False):
+    def filter_alleles(self, expr, variant_expr, genotype_expr,
+                       keep=True, left_aligned=False, keep_star=False):
         """Filter to a user-defined set of alternate alleles for each variant.
         If all alternate alleles of a variant are filtered out, the
         variant itself is filtered out.  The ``expr`` expression is evaluated
@@ -1603,11 +1606,11 @@ class VariantDataset(HistoryMixin):
 
         **Example**
 
-        :py:meth:`~hail.VariantDataset.filter_alleles`, which filters
+        :py:meth:`~hail.VariantDataset.filter_alleles_hts`, which filters
         alleles with zero allele count for the HTS schema, supports
         two modes: downcode and subset.  Subset is implemented as:
 
-        >>> multiallelic_generic_vds.filter_alleles_generic('va.info.AC[aIndex - 1] == 0',
+        >>> multiallelic_generic_vds.filter_alleles('va.info.AC[aIndex - 1] == 0',
         ...     variant_expr='va.info.AC = newToOld[1:].map(i => va.info.AC[i - 1])',
         ...     genotype_expr='''
         ...     g = let newpl = if (isDefined(g.PL))
@@ -1630,7 +1633,7 @@ class VariantDataset(HistoryMixin):
 
         Downcode is implemented as:
 
-        >>> multiallelic_generic_vds.filter_alleles_generic('va.info.AC[aIndex - 1] == 0',
+        >>> multiallelic_generic_vds.filter_alleles('va.info.AC[aIndex - 1] == 0',
         ...     variant_expr='va.info.AC = newToOld[1:].map(i => va.info.AC[i - 1])',
         ...     genotype_expr='''
         ...     g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
@@ -1707,20 +1710,20 @@ class VariantDataset(HistoryMixin):
 
         """
         
-        jvds = self._jvdf.filterAllelesGeneric(expr, variant_expr, genotype_expr,
-                                               keep, left_aligned, keep_star)
+        jvds = Env.hail().methods.FilterAlleles.apply(self._jvds, expr, variant_expr, genotype_expr,
+                                                      keep, left_aligned, keep_star)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     @record_method
     @typecheck_method(expr=strlike,
-                      annotation=strlike,
+                      variant_expr=strlike,
                       subset=bool,
                       keep=bool,
                       left_aligned=bool,
                       keep_star=bool)
-    def filter_alleles(self, expr, annotation='', subset=True,
-                       keep=True, left_aligned=False, keep_star=False):
+    def filter_alleles_hts(self, expr, variant_expr='', subset=True,
+                           keep=True, left_aligned=False, keep_star=False):
         """Filter a user-defined set of alternate alleles for each variant for
         :py:meth:`.VariantDataset.genotype_schema`
         :py:class:`~hail.expr.TGenotype` or the HTS schema:
@@ -1736,7 +1739,7 @@ class VariantDataset(HistoryMixin):
           }
 
         For generic genotype schema, use
-        :py:meth:`~hail.VariantDataset.filter_alleles_generic`.
+        :py:meth:`~hail.VariantDataset.filter_alleles`.
 
         If all alternate alleles of a variant are filtered, the
         variant itself is filtered.  ``expr`` is evaluated for each
@@ -1751,7 +1754,7 @@ class VariantDataset(HistoryMixin):
         update the alternate allele count annotation with the new
         indices:
 
-        >>> vds_result = vds.filter_alleles('va.info.AC[aIndex - 1] == 0',
+        >>> vds_result = vds.filter_alleles_hts('va.info.AC[aIndex - 1] == 0',
         ...     annotation='va.info.AC = newToOld[1:].map(i => va.info.AC[i - 1])',
         ...     keep=False)
 
@@ -1761,7 +1764,7 @@ class VariantDataset(HistoryMixin):
 
         **Notes**
 
-        :py:meth:`~hail.VariantDataset.filter_alleles` implements two algorithms for filtering alleles: subset and downcode. We will illustrate their
+        :py:meth:`~hail.VariantDataset.filter_alleles_hts` implements two algorithms for filtering alleles: subset and downcode. We will illustrate their
         behavior on the example genotype below when filtering the first alternate allele (allele 1) at a site with 1 reference
         allele and 2 alternate alleles.
 
@@ -1876,9 +1879,44 @@ class VariantDataset(HistoryMixin):
 
         """
 
-        jvds = self._jvdf.filterAlleles(expr, annotation, keep, subset,
-                                        left_aligned, keep_star)
-        return VariantDataset(self.hc, jvds)
+        if subset:
+            genotype_expr = '''
+g = let newpl = if (isDefined(g.PL))
+        let unnorm = range(newV.nGenotypes).map(newi =>
+            let oldi = gtIndex(newToOld[gtj(newi)], newToOld[gtk(newi)])
+             in g.PL[oldi]) and
+            minpl = unnorm.min()
+         in unnorm - minpl
+      else
+        NA: Array[Int] and
+    newgt = gtFromPL(newpl) and
+    newad = if (isDefined(g.AD))
+        range(newV.nAlleles).map(newi => g.AD[newToOld[newi]])
+      else
+        NA: Array[Int] and
+    newgq = gqFromPL(newpl) and
+    newdp = g.DP
+ in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }
+'''
+        else:
+            # downcode
+            genotype_expr = '''
+g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
+    newad = if (isDefined(g.AD))
+        range(newV.nAlleles).map(i => range(v.nAlleles).filter(j => oldToNew[j] == i).map(j => g.AD[j]).sum())
+      else
+        NA: Array[Int] and
+    newdp = g.DP and
+    newpl = if (isDefined(g.PL))
+        range(newV.nGenotypes).map(gi => range(v.nGenotypes).filter(gj => gtIndex(oldToNew[gtj(gj)], oldToNew[gtk(gj)]) == gi).map(gj => g.PL[gj]).min())
+      else
+        NA: Array[Int] and
+    newgq = gqFromPL(newpl)
+ in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }
+'''
+
+        return self.filter_alleles(expr, variant_expr, genotype_expr,
+                                   keep=keep, left_aligned=left_aligned, keep_star=keep_star)
 
     @handle_py4j
     @record_method
@@ -1923,42 +1961,10 @@ class VariantDataset(HistoryMixin):
         return VariantDataset(self.hc, self._jvds.filterGenotypes(expr, keep))
 
     @handle_py4j
-    @record_method
-    def filter_multi(self):
-        """Filter out multi-allelic sites.
-
-        .. include:: ../_templates/req_tvariant.rst
-
-        This method is much less computationally expensive than
-        :py:meth:`.split_multi`, and can also be used to produce
-        a variant dataset that can be used with methods that do not
-        support multiallelic variants.
-
-        :return: Dataset with no multiallelic sites, which can
-            be used for biallelic-only methods.
-        :rtype: :class:`.VariantDataset`
-        """
-
-        return VariantDataset(self.hc, self._jvdf.filterMulti())
-
-    @handle_py4j
     def _verify_biallelic(self, method):
-        vds = VariantDataset(self.hc, self._jvdf.verifyBiallelic(method))
+        vds = VariantDataset(self.hc, Env.hail().methods.VerifyBiallelic.apply(self._jvds, method))
         vds._history = self._history
         return vds
-
-    @record_method
-    def verify_biallelic(self):
-        """Verify dataset has only biallelic variants.
-
-        .. include:: ../_templates/req_tvariant.rst
-
-        :return: Dataset which can be used for biallelic-only methods.
-        :rtype: :class:`.VariantDataset`
-
-        """
-
-        return self._verify_biallelic("verify_biallelic")
 
     @handle_py4j
     @record_method
@@ -2495,9 +2501,9 @@ class VariantDataset(HistoryMixin):
         paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`__.
 
         :py:meth:`~hail.VariantDataset.ibd` requires the dataset to be
-        bi-allelic (otherwise run :py:meth:`~hail.VariantDataset.split_multi` or otherwise run :py:meth:`~hail.VariantDataset.filter_multi`)
-        and does not perform LD pruning. Linkage disequilibrium may bias the
-        result so consider filtering variants first.
+        bi-allelic and does not perform LD pruning. Linkage
+        disequilibrium may bias the result so consider filtering
+        variants first.
 
         The resulting :py:class:`.KeyTable` entries have the type: *{ i: String,
         j: String, ibd: { Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double },
@@ -4748,19 +4754,19 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(variant_expr=strlike,
                       genotype_expr=strlike,
-                      keep_star_alleles=bool,
+                      keep_star=bool,
                       left_aligned=bool)
-    def split_multi_generic(self, variant_expr, genotype_expr, keep_star_alleles=False, left_aligned=False):
+    def split_multi(self, variant_expr, genotype_expr, keep_star=False, left_aligned=False):
         """Split multiallelic variants.
 
         **Example**
 
-        :py:meth:`~hail.VariantDataset.split_multi`, which splits
+        :py:meth:`~hail.VariantDataset.split_multi_hts`, which splits
         multiallelic variants for the HTS genotype schema and updates
         the genotype annotations by downcoding the genotype, is
         implemented as:
 
-        >>> multiallelic_generic_vds.split_multi_generic(
+        >>> multiallelic_generic_vds.split_multi(
         ...   'va.aIndex = aIndex, va.wasSplit = wasSplit',
         ...   '''g = let
         ...         newgt = downcode(g.GT, aIndex) and
@@ -4812,21 +4818,22 @@ class VariantDataset(HistoryMixin):
 
         :param str genotype_expr: Annotation expressions to update the genotype annotations for the new, split variants.
         
-        :param bool keep_star_alleles: Do not filter out * alleles.
+        :param bool keep_star: Do not filter out * alleles.
         :param bool left_aligned: If True, variants are assumed to be
           left aligned and have unique loci.  This avoids a shuffle.
           If the assumption is violated, an error is generated.
 
         """
 
-        jvds = self._jvdf.splitMultiGeneric(variant_expr, genotype_expr, keep_star_alleles, left_aligned)
+        jvds = scala_object(Env.hail().methods, 'SplitMulti').apply(
+            self._jvds, variant_expr, genotype_expr, keep_star, left_aligned)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     @record_method
-    @typecheck_method(keep_star_alleles=bool,
+    @typecheck_method(keep_star=bool,
                       left_aligned=bool)
-    def split_multi(self, keep_star_alleles=False, left_aligned=False):
+    def split_multi_hts(self, keep_star=False, left_aligned=False):
         """Split multiallelic variants for :py:meth:`.VariantDataset.genotype_schema` :py:class:`~hail.expr.TGenotype` or the HTS schema:
 
         .. code-block:: text
@@ -4839,11 +4846,11 @@ class VariantDataset(HistoryMixin):
             PL: Array[!Int32].
           }
         
-        For generic genotype schema, use :py:meth:`~hail.VariantDataset.split_multi_generic`.
+        For generic genotype schema, use :py:meth:`~hail.VariantDataset.split_multi`.
 
         **Examples**
 
-        >>> vds.split_multi().write('output/split.vds')
+        >>> vds.split_multi_hts().write('output/split.vds')
 
         **Notes**
 
@@ -4911,7 +4918,7 @@ class VariantDataset(HistoryMixin):
         to select the value corresponding to the split allele's
         position:
 
-        >>> vds_result = (vds.split_multi()
+        >>> vds_result = (vds.split_multi_hts()
         ...     .filter_variants_expr('va.info.AC[va.aIndex - 1] < 10', keep = False))
 
         VCFs split by Hail and exported to new VCFs may be
@@ -4925,7 +4932,7 @@ class VariantDataset(HistoryMixin):
         possible to use annotate_variants_expr to remap these
         values. Here is an example:
 
-        >>> (vds.split_multi()
+        >>> (vds.split_multi_hts()
         ...     .annotate_variants_expr('va.info.AC = va.info.AC[va.aIndex - 1]')
         ...     .export_vcf('output/export.vcf'))
 
@@ -4933,7 +4940,7 @@ class VariantDataset(HistoryMixin):
 
         **Annotations**
 
-        :py:meth:`~hail.VariantDataset.split_multi` adds the
+        :py:meth:`~hail.VariantDataset.split_multi_hts` adds the
         following annotations:
 
          - **va.wasSplit** (*Boolean*) -- true if this variant was
@@ -4945,7 +4952,7 @@ class VariantDataset(HistoryMixin):
            into two variants: 1:100:A:T with ``aIndex = 1`` and
            1:100:A:C with ``aIndex = 2``.
 
-        :param bool keep_star_alleles: Do not filter out * alleles.
+        :param bool keep_star: Do not filter out * alleles.
         :param bool left_aligned: If True, variants are assumed to be
           left aligned and have unique loci.  This avoids a shuffle.
           If the assumption is violated, an error is generated.
@@ -4954,11 +4961,24 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.splitMulti(keep_star_alleles, left_aligned)
-        return VariantDataset(self.hc, jvds)
+        variant_expr = 'va.aIndex = aIndex, va.wasSplit = wasSplit'
+        genotype_expr = '''
+g = let
+  newgt = downcode(g.GT, aIndex) and
+  newad = if (isDefined(g.AD))
+      let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+    else
+      NA: Array[Int] and
+  newpl = if (isDefined(g.PL))
+      range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
+    else
+      NA: Array[Int] and
+  newgq = gqFromPL(newpl)
+in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
+'''
+        return self.split_multi(variant_expr, genotype_expr, keep_star, left_aligned)
 
     @handle_py4j
-    @require_biallelic
     @record_method
     @typecheck_method(pedigree=Pedigree,
                       root=strlike)

@@ -11,10 +11,10 @@ import org.testng.annotations.Test
 class AnnotateGlobalSuite extends SparkSuite {
   @Test def test() {
 
-    val vds = SampleQC(
-      VariantQC(
-        hc.importVCF("src/test/resources/sample2.vcf")
-          .splitMulti()))
+    var vds = hc.importVCF("src/test/resources/sample2.vcf")
+    vds = SplitMulti(vds)
+    vds = VariantQC(vds)
+    vds = SampleQC(vds)
 
     val (afDist, _) = vds.queryVariants("variants.map(v => va.qc.AF).stats()")
     val (singStats, _) = vds.querySamples("samples.filter(s => sa.qc.nSingleton > 2).count()")

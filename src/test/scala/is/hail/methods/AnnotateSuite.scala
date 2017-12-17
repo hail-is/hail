@@ -114,8 +114,7 @@ class AnnotateSuite extends SparkSuite {
   }
 
   @Test def testVariantTSVAnnotator() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
 
     val fileMap = hadoopConf.readFile("src/test/resources/variantAnnotations.tsv") { reader =>
       Source.fromInputStream(reader)
@@ -167,18 +166,17 @@ class AnnotateSuite extends SparkSuite {
   }
 
   @Test def testVCFAnnotator() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
 
     val anno1 = vds.annotateVariantsVDS(
       // sampleInfoOnly.vcf has empty genotype schema
-      hc.importVCF("src/test/resources/sampleInfoOnly.vcf")
-        .splitMultiGeneric("va.aIndex = aIndex, va.wasSplit = wasSplit", ""),
+      SplitMulti(hc.importVCF("src/test/resources/sampleInfoOnly.vcf"),
+        "va.aIndex = aIndex, va.wasSplit = wasSplit", ""),
       root = Some("va.other"))
 
-    val otherMap = hc.importVCF("src/test/resources/sampleInfoOnly.vcf")
+    val otherMap = SplitMulti(hc.importVCF("src/test/resources/sampleInfoOnly.vcf"),
       // sampleInfoOnly.vcf has empty genotype schema
-      .splitMultiGeneric("va.aIndex = aIndex, va.wasSplit = wasSplit", "")
+      "va.aIndex = aIndex, va.wasSplit = wasSplit", "")
       .variantsAndAnnotations
       .collect()
       .toMap
@@ -197,9 +195,8 @@ class AnnotateSuite extends SparkSuite {
   }
 
   @Test def testBedIntervalAnnotator() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
       .cache()
-      .splitMulti()
 
     val bed1r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example1.bed"), root = "va.test")
     val bed2r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example2.bed"), root = "va.test")
@@ -259,7 +256,7 @@ class AnnotateSuite extends SparkSuite {
   @Test def testImportAnnotations() {
     var vds = hc.importVCF("src/test/resources/sample.vcf")
 
-    val sSample = vds.splitMulti()
+    val sSample = SplitMulti(vds)
 
     // tsv
     val importTSVFile = tmpDir.createTempFile("variantAnnotationsTSV", ".vds")
@@ -267,7 +264,8 @@ class AnnotateSuite extends SparkSuite {
       impute = true, types = Map("Chromosome" -> TString()))
       .annotate("v = Variant(Chromosome, Position, Ref, Alt)")
       .keyBy("v"))
-      .splitMulti()
+    vds = SplitMulti(vds)
+    vds = vds
       .annotateVariantsExpr(
         """va = {Chromosome: va.Chromosome,
           |Position: va.Position,
@@ -303,7 +301,7 @@ class AnnotateSuite extends SparkSuite {
 
     vds = VariantDataset.fromKeyTable(kt2)
       .annotateVariantsExpr("va = va.f0")
-      .filterMulti()
+      .filterVariantsExpr("v.isBiallelic")
     vds.write(importJSONFile)
 
     vds = sSample.annotateVariantsTable(kt2, root = "va.third")
@@ -314,8 +312,7 @@ class AnnotateSuite extends SparkSuite {
   }
 
   @Test def testAnnotateSamples() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
 
     val annoMap = vds.sampleIds.map(id => (id, 5))
       .toMap
@@ -452,8 +449,7 @@ class AnnotateSuite extends SparkSuite {
   }
 
   @Test def testPositions() {
-    val vds = hc.importVCF("src/test/resources/sample2.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample2.vcf"))
 
     val kt = hc.importTable("src/test/resources/sample2_va_positions.tsv",
       types = Map("Rand1" -> TFloat64(), "Rand2" -> TFloat64()))

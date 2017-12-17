@@ -11,8 +11,9 @@ import scala.io.Source
 class ExportSuite extends SparkSuite {
 
   @Test def test() {
-    val vds = SampleQC(hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti())
+    var vds = hc.importVCF("src/test/resources/sample.vcf")
+    vds = SplitMulti(vds)
+    vds = SampleQC(vds)
 
     val out = tmpDir.createTempFile("out", ".tsv")
     vds.samplesKT().select("Sample = s", "sa.qc.*").export(out)
@@ -57,9 +58,8 @@ class ExportSuite extends SparkSuite {
   }
 
   @Test def testExportSamples() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
-      .filterSamplesExpr("""s == "C469::HG02026"""")
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf")
+      .filterSamplesExpr("""s == "C469::HG02026""""))
     assert(vds.nSamples == 1)
 
     // verify exports localSamples
@@ -73,8 +73,7 @@ class ExportSuite extends SparkSuite {
     val f2 = tmpDir.createTempFile("samples", ".tsv")
     val f3 = tmpDir.createTempFile("samples", ".tsv")
 
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
     vds.samplesKT().select("`S.A.M.P.L.E.ID` = s").export(f)
     vds.samplesKT().select("`$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS****` = s", "ANOTHERTHING = s").export(f2)
     vds.samplesKT().select("`I have some spaces and tabs\\there` = s", "`more weird stuff here` = s").export(f3)
@@ -99,22 +98,23 @@ class ExportSuite extends SparkSuite {
 
     // this should run without errors
     val f = tmpDir.createTempFile("samples", ".tsv")
-    SampleQC(hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti())
+    var vds = hc.importVCF("src/test/resources/sample.vcf")
+    vds = SplitMulti(vds)
+    vds = SampleQC(vds)
+    vds
       .samplesKT()
       .select("computation = 5 * (if (sa.qc.callRate < .95) 0 else 1)")
       .export(f)
   }
 
   @Test def testTypes() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
     val out = tmpDir.createTempFile("export", ".out")
 
     vds.variantsKT().export(out, typesFile = out + ".types")
 
     val types = Parser.parseAnnotationTypes(hadoopConf.readFile(out + ".types")(Source.fromInputStream(_).mkString))
-    val readBack = vds.annotateVariantsTable(hc.importTable(out, types=types).keyBy("v"),
+    val readBack = vds.annotateVariantsTable(hc.importTable(out, types = types).keyBy("v"),
       root = "va")
     assert(vds.same(readBack))
   }

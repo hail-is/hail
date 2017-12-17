@@ -112,8 +112,7 @@ object BaldingNicholsModel {
       TVariant(gr),
       vaSignature,
       globalSignature,
-      TStruct("GT" -> TCall()),
-      wasSplit = true)
+      TStruct("GT" -> TCall()))
 
     val matrixType = MatrixType(vsmMetadata)
 

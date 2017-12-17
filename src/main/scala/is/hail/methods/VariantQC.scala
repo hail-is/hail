@@ -130,7 +130,6 @@ object VariantQC {
     "pHWE" -> TFloat64())
 
   def apply(vsm: MatrixTable, root: String = "va.qc"): MatrixTable = {
-    require(vsm.wasSplit)
     vsm.requireRowKeyVariant("variant_qc")
 
     val localNSamples = vsm.nSamples

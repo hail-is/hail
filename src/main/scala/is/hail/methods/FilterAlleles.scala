@@ -13,9 +13,6 @@ object FilterAlleles {
     variantExpr: String = "",
     genotypeExpr: String = "",
     keep: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): MatrixTable = {
-    if (vsm.wasSplit)
-      warn("this VDS was already split; this module was designed to handle multi-allelics, perhaps you should use filter_variants instead.")
-
     val conditionEC = EvalContext(Map(
       "global" -> (0, vsm.globalSignature),
       "v" -> (1, vsm.vSignature),
@@ -54,7 +51,7 @@ object FilterAlleles {
     def filter(rdd: RVD,
       removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RVD = {
 
-      def filterAllelesInVariant(prevlocus: Locus, v: Variant, va: Annotation): Option[(Variant, IndexedSeq[Int], IndexedSeq[Int])] = {
+      def filterAllelesInVariant(v: Variant, va: Annotation): Option[(Variant, IndexedSeq[Int], IndexedSeq[Int])] = {
         var alive = 0
         val oldToNew = new Array[Int](v.nAlleles)
         for (aai <- v.altAlleles.indices) {
@@ -87,19 +84,6 @@ object FilterAlleles {
           return None
 
         val filtv = v.copy(altAlleles = altAlleles).minRep
-        val isLeftAligned = (prevlocus == null || prevlocus != filtv.locus) &&
-          filtv.locus == v.locus
-
-        if (isLeftAligned) {
-          if (removeLeftAligned)
-            return None
-        } else {
-          if (removeMoving)
-            return None
-          else if (verifyLeftAligned)
-            fatal("found non-left aligned variant: $v")
-        }
-
         Some((filtv, newToOld, oldToNew))
       }
 
@@ -122,37 +106,48 @@ object FilterAlleles {
           val va = ur.get(2)
           val gs = ur.getAs[IndexedSeq[Annotation]](3)
 
-          filterAllelesInVariant(prevLocus, v, va)
-            .map { case (newV, newToOld, oldToNew) =>
-              rvb.set(rv.region)
-              rvb.start(newRowType)
-              rvb.startStruct()
-              rvb.addAnnotation(newRowType.fieldType(0), newV.locus)
-              rvb.addAnnotation(newRowType.fieldType(1), newV)
-
-              vAnnotator.ec.setAll(localGlobalAnnotation, v, va, newV, oldToNew, newToOld)
-              val newVA = vAnnotator.insert(va)
-              rvb.addAnnotation(newRowType.fieldType(2), newVA)
-
-              gAnnotator.ec.setAll(localGlobalAnnotation, v, va, newV, oldToNew, newToOld)
-
-              rvb.startArray(localNSamples) // gs
-              var k = 0
-              while (k < localNSamples) {
-                val g = gs(k)
-                gAnnotator.ec.set(6, localSampleIdsBc.value(k))
-                gAnnotator.ec.set(7, localSampleAnnotationsBc.value(k))
-                gAnnotator.ec.set(8, g)
-                rvb.addAnnotation(newRowType.fieldType(3).asInstanceOf[TArray].elementType, gAnnotator.insert(g))
-                k += 1
-              }
-              rvb.endArray()
-              rvb.endStruct()
-              rv2.set(rv.region, rvb.end())
+          filterAllelesInVariant(v, va)
+            .flatMap { case (newV, newToOld, oldToNew) =>
+              val isLeftAligned = (prevLocus == null || prevLocus != newV.locus) &&
+                newV.locus == v.locus
 
               prevLocus = newV.locus
 
-              rv2
+              if (verifyLeftAligned && !isLeftAligned)
+                fatal(s"found non-left aligned variant: $v")
+
+              if ((isLeftAligned && removeLeftAligned)
+                || (!isLeftAligned && removeMoving))
+                None
+              else {
+                rvb.set(rv.region)
+                rvb.start(newRowType)
+                rvb.startStruct()
+                rvb.addAnnotation(newRowType.fieldType(0), newV.locus)
+                rvb.addAnnotation(newRowType.fieldType(1), newV)
+
+                vAnnotator.ec.setAll(localGlobalAnnotation, v, va, newV, oldToNew, newToOld)
+                val newVA = vAnnotator.insert(va)
+                rvb.addAnnotation(newRowType.fieldType(2), newVA)
+
+                gAnnotator.ec.setAll(localGlobalAnnotation, v, va, newV, oldToNew, newToOld)
+
+                rvb.startArray(localNSamples) // gs
+                var k = 0
+                while (k < localNSamples) {
+                  val g = gs(k)
+                  gAnnotator.ec.set(6, localSampleIdsBc.value(k))
+                  gAnnotator.ec.set(7, localSampleAnnotationsBc.value(k))
+                  gAnnotator.ec.set(8, g)
+                  rvb.addAnnotation(newRowType.fieldType(3).asInstanceOf[TArray].elementType, gAnnotator.insert(g))
+                  k += 1
+                }
+                rvb.endArray()
+                rvb.endStruct()
+                rv2.set(rv.region, rvb.end())
+
+                Some(rv2)
+              }
             }
         }
       }

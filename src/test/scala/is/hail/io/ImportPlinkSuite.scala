@@ -4,7 +4,7 @@ import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.io.plink.{ExportPlink, PlinkLoader}
-import is.hail.methods.VariantQC
+import is.hail.methods.{SplitMulti, VariantQC}
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
@@ -17,7 +17,7 @@ class ImportPlinkSuite extends SparkSuite {
 
   object Spec extends Properties("ImportPlink") {
     val compGen = for {
-      vds <- MatrixTable.gen(hc, VSMSubgen.random).map(_.cache().splitMulti())
+      vds <- MatrixTable.gen(hc, VSMSubgen.random).map(vds => SplitMulti(vds).cache())
       nPartitions <- choose(1, PlinkLoader.expectedBedSize(vds.nSamples, vds.countVariants()).toInt.min(10))
     } yield (vds, nPartitions)
 
@@ -70,8 +70,7 @@ class ImportPlinkSuite extends SparkSuite {
 
   @Test def testA1Major() {
     val plinkFileRoot = tmpDir.createTempFile("plink_reftest")
-    ExportPlink(hc.importVCF("src/test/resources/sample.vcf")
-      .verifyBiallelic(),
+    ExportPlink(hc.importVCF("src/test/resources/sample.vcf"),
       plinkFileRoot)
 
     val a1ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = false)

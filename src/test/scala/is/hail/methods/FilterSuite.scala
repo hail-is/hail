@@ -10,8 +10,7 @@ import org.testng.annotations.Test
 
 class FilterSuite extends SparkSuite {
   @Test def filterTest() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
 
     assert(vds.filterSamplesExpr("\"^HG\" ~ s").nSamples == 63)
 
@@ -64,9 +63,8 @@ class FilterSuite extends SparkSuite {
       .expand()
       .collect()
 
-    val vds2 = hc.importVCF("src/test/resources/filter.vcf")
+    val vds2 = SplitMulti(hc.importVCF("src/test/resources/filter.vcf"))
       .cache()
-      .splitMulti()
 
     assert(vds2.filterGenotypes("g.AD[0] < 30").genotypeKT().count() == 3)
 
@@ -94,8 +92,7 @@ class FilterSuite extends SparkSuite {
 
   @Test def filterFromFileTest() {
 
-    val vds = TestRDDBuilder.buildRDD(8, 8, hc)
-      .splitMulti()
+    val vds = SplitMulti(TestRDDBuilder.buildRDD(8, 8, hc))
 
     val sampleList = hadoopConf.readLines("src/test/resources/filter.sample_list")(_.map(_.value: Annotation).toSet)
     assert(vds.filterSamplesList(sampleList).nSamples == 3)
@@ -110,15 +107,13 @@ class FilterSuite extends SparkSuite {
   }
 
   @Test def filterRegexTest() {
-    val vds = hc.importVCF("src/test/resources/multipleChromosomes.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/multipleChromosomes.vcf"))
     val vds2 = vds.filterVariantsExpr(""" "^\\d+$" ~ v.contig """)
     assert(vds.countVariants() == vds2.countVariants())
   }
 
   @Test def MissingTest() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
     val keepOneSample = VariantQC(vds.filterSamplesExpr("s == \"C1046::HG02024\""))
 
     val q = keepOneSample.queryVA("va.qc.rHetHomVar")._2

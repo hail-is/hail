@@ -25,7 +25,8 @@ class PCASuite extends SparkSuite {
 
   @Test def test() {
 
-    val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
+    val vds = hc.importVCF("src/test/resources/tiny_m.vcf")
+        .filterVariantsExpr("v.isBiallelic")
     val (eigenvalues, scores, loadings) = PCASuite.samplePCA(vds, 3, true, true)
     val (eigenvaluesStruct, scoresStruct, loadingsStruct) = PCASuite.samplePCA(vds, 3, true, false)
 
@@ -60,7 +61,8 @@ class PCASuite extends SparkSuite {
   }
 
   @Test def testExpr() {
-    val vds = hc.importVCF("src/test/resources/tiny_m.vcf").filterMulti()
+    val vds = hc.importVCF("src/test/resources/tiny_m.vcf")
+        .filterVariantsExpr("v.isBiallelic")
     val (eigenvalues, scores, loadings) = PCA(vds, "if (isDefined(g.GT)) g.GT.gt else 0", 3, true, true)
   }
 }

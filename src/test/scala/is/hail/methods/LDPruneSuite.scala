@@ -199,7 +199,7 @@ class LDPruneSuite extends SparkSuite {
   }
 
   @Test def testIdenticalVariants() {
-    val vds = hc.importVCF("src/test/resources/ldprune2.vcf", nPartitions = Option(2)).splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/ldprune2.vcf", nPartitions = Option(2)))
     val prunedVds = LDPrune(vds, nCores, 0.2, 700, memoryPerCore = bytesPerCore)
     assert(prunedVds.countVariants() == 1)
   }
@@ -207,7 +207,7 @@ class LDPruneSuite extends SparkSuite {
   @Test def testMultipleChr() = {
     val r2 = 0.2
     val windowSize = 500
-    val vds = hc.importVCF("src/test/resources/ldprune_multchr.vcf", nPartitions = Option(10)).splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/ldprune_multchr.vcf", nPartitions = Option(10)))
     val prunedVds = LDPrune(vds, nCores, r2, windowSize, bytesPerCore)
     assert(isUncorrelated(prunedVds, r2, windowSize))
   }
@@ -267,7 +267,7 @@ class LDPruneSuite extends SparkSuite {
 
     property("uncorrelated") =
       forAll(compGen) { case (r2: Double, windowSize: Int, nPartitions: Int) =>
-        val vds = hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(nPartitions)).splitMulti()
+        val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(nPartitions)))
         val prunedVds = LDPrune(vds, nCores, r2, windowSize, bytesPerCore)
         isUncorrelated(prunedVds, r2, windowSize)
       }
@@ -278,7 +278,7 @@ class LDPruneSuite extends SparkSuite {
   }
 
   @Test def testInputs() {
-    def vds = hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)).splitMulti()
+    def vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)))
 
     // memory per core requirement
     intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000, memoryPerCore = 0))
@@ -310,14 +310,13 @@ class LDPruneSuite extends SparkSuite {
   }
 
   @Test def testWindow() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz").splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz"))
     val prunedVds = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 100000, memoryPerCore = 200000)
     assert(isUncorrelated(prunedVds, 0.2, 1000))
   }
 
   @Test def testNoPrune() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
-      .splitMulti()
+    val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz"))
     val nSamples = vds.nSamples
     val filteredVDS = vds.copyLegacy(
       genotypeSignature = Genotype.htsGenotypeType,

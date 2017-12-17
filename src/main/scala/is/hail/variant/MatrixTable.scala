@@ -32,7 +32,8 @@ import scala.reflect.ClassTag
 
 case class VDSMetadata(
   version: Int,
-  split: Boolean,
+  // FIXME remove on next reimport
+  split: Option[Boolean],
   sample_schema: String,
   sample_annotation_schema: String,
   variant_schema: String,
@@ -165,7 +166,7 @@ object MatrixTable {
     val ids = sampleInfo.map(_._1)
     val annotations = sampleInfo.map(_._2)
 
-    (VSMFileMetadata(VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, metadata.split),
+    (VSMFileMetadata(VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       VSMLocalValue(globalAnnotation, ids, annotations),
       metadata.partition_counts),
       metadata.n_partitions)
@@ -194,7 +195,6 @@ object MatrixTable {
     val first = datasets(0)
     val sampleIds = first.sampleIds
     val vaSchema = first.vaSignature
-    val wasSplit = first.wasSplit
     val genotypeSchema = first.genotypeSignature
     val rowKeySchema = first.vSignature
     val colKeySchema = first.sSignature
@@ -228,11 +228,6 @@ object MatrixTable {
           s"""cannot combine datasets with different column identifiers or ordering
              |  IDs in datasets[0]: @1
              |  IDs in datasets[$i]: @2""".stripMargin, sampleIds, ids)
-      } else if (wasSplit != vds.wasSplit) {
-        fatal(
-          s"""cannot combine split and unsplit datasets
-             |  Split status in datasets[0]: $wasSplit
-             |  Split status in datasets[$i]: ${ vds.wasSplit }""".stripMargin)
       } else if (vas != vaSchema) {
         fatal(
           s"""cannot combine datasets with different row annotation schemata
@@ -277,8 +272,7 @@ case class VSMSubgen(
   vaGen: (Type) => Gen[Annotation],
   globalGen: (Type) => Gen[Annotation],
   vGen: (Type) => Gen[Annotation],
-  tGen: (Type, Annotation) => Gen[Annotation],
-  wasSplit: Boolean = false) {
+  tGen: (Type, Annotation) => Gen[Annotation]) {
 
   def gen(hc: HailContext): Gen[MatrixTable] =
     for (size <- Gen.size;
@@ -307,7 +301,7 @@ case class VSMSubgen(
         assert(sampleIds.forall(_ != null))
         assert(rows.forall(_._1 != null))
         MatrixTable.fromLegacy(hc,
-          VSMMetadata(sSig, saSig, vSig, vaSig, globalSig, tSig, wasSplit = wasSplit),
+          VSMMetadata(sSig, saSig, vSig, vaSig, globalSig, tSig),
           VSMLocalValue(global, sampleIds, saValues),
           hc.sc.parallelize(rows, nPartitions))
           .deduplicate()
@@ -331,8 +325,7 @@ object VSMSubgen {
 
   val plinkSafeBiallelic = random.copy(
     sGen = (t: Type) => Gen.plinkSafeIdentifier,
-    vGen = (t: Type) => VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2)).gen,
-    wasSplit = true)
+    vGen = (t: Type) => VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2)).gen)
 
   val dosage = VSMSubgen(
     sSigGen = Gen.const(TString()),
@@ -388,7 +381,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
   def genomeReference: GenomeReference = vSignature.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference]
 
-  val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit) = metadata
+  val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature) = metadata
 
   lazy val value: MatrixValue = {
     val opt = MatrixIR.optimize(ast)
@@ -1429,7 +1422,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     */
   def ibd(computeMafExpr: Option[String] = None, bounded: Boolean = true,
     minimum: Option[Double] = None, maximum: Option[Double] = None): Table = {
-    require(wasSplit)
     IBD(this, computeMafExpr, bounded, minimum, maximum)
   }
 
@@ -1455,13 +1447,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     * @param right right-hand dataset with which to join
     */
   def join(right: MatrixTable): MatrixTable = {
-    if (wasSplit != right.wasSplit) {
-      warn(
-        s"""cannot join split and unsplit datasets
-           |  left was split: ${ wasSplit }
-           |  light was split: ${ right.wasSplit }""".stripMargin)
-    }
-
     if (genotypeSignature != right.genotypeSignature) {
       fatal(
         s"""cannot join datasets with different genotype schemata
@@ -1627,7 +1612,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   def mendelErrors(ped: Pedigree): (Table, Table, Table, Table) = {
-    require(wasSplit)
     requireColKeyString("mendel errors")
     requireRowKeyVariant("mendel errors")
 
@@ -1907,13 +1891,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
            |  left:  $globalAnnotation
            |  right: ${ that.globalAnnotation }""".stripMargin)
     }
-    if (wasSplit != that.wasSplit) {
-      metadataSame = false
-      println(
-        s"""different was split:
-           |  left:  $wasSplit
-           |  right: ${ that.wasSplit }""".stripMargin)
-    }
     if (!metadataSame)
       println("metadata were not the same")
 
@@ -2002,10 +1979,9 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     vSignature: Type = vSignature,
     vaSignature: Type = vaSignature,
     globalSignature: Type = globalSignature,
-    genotypeSignature: Type = genotypeSignature,
-    wasSplit: Boolean = wasSplit): MatrixTable =
+    genotypeSignature: Type = genotypeSignature): MatrixTable =
     MatrixTable(hc,
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit),
+      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
 
   def copyLegacy[RK, T](rdd: RDD[(RK, (Annotation, Iterable[T]))],
@@ -2017,10 +1993,9 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     vSignature: Type = vSignature,
     vaSignature: Type = vaSignature,
     globalSignature: Type = globalSignature,
-    genotypeSignature: Type = genotypeSignature,
-    wasSplit: Boolean = wasSplit): MatrixTable =
+    genotypeSignature: Type = genotypeSignature): MatrixTable =
     MatrixTable.fromLegacy(hc,
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit),
+      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
       rdd)
 
@@ -2033,10 +2008,9 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     vSignature: Type = vSignature,
     vaSignature: Type = vaSignature,
     globalSignature: Type = globalSignature,
-    genotypeSignature: Type = genotypeSignature,
-    wasSplit: Boolean = wasSplit): MatrixTable =
+    genotypeSignature: Type = genotypeSignature): MatrixTable =
     new MatrixTable(hc,
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit),
+      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd2)
 
   def copyAST(ast: MatrixIR = ast,
@@ -2045,10 +2019,9 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     vSignature: Type = vSignature,
     vaSignature: Type = vaSignature,
     globalSignature: Type = globalSignature,
-    genotypeSignature: Type = genotypeSignature,
-    wasSplit: Boolean = wasSplit): MatrixTable =
+    genotypeSignature: Type = genotypeSignature): MatrixTable =
     new MatrixTable(hc,
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit),
+      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       ast)
 
   def samplesKT(): Table = {
@@ -2080,7 +2053,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   override def toString =
-    s"MatrixTable(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
+    s"MatrixTable(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation)"
 
   def nSamples: Int = sampleIds.length
 
@@ -2224,7 +2197,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
     val metadata = VDSMetadata(
       version = MatrixTable.fileVersion,
-      split = wasSplit,
+      split = None,
       sample_schema = sSignature.toPrettyString(compact = true),
       sample_annotation_schema = saSignature.toPrettyString(compact = true),
       variant_schema = vSignature.toPrettyString(compact = true),
@@ -2406,7 +2379,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): MatrixTable = {
-    require(wasSplit)
     requireRowKeyVariant("ld_prune")
     LDPrune(this, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
   }
@@ -2602,7 +2574,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     * @param statistics which subset of the four statistics to compute
     */
   def pcRelate(k: Int, pcaScores: Table, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): Table = {
-    require(wasSplit)
     val scoreArray = new Array[Double](nSamples * k)
     val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
     var i = 0
