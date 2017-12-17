@@ -1551,7 +1551,7 @@ class Table(TableTemplate):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
                             .format(expr._type.__class__))
 
-        return cleanup(Table(self._hc, base._jkt.forall(expr._ast.to_hql())))
+        return base._jkt.forall(expr._ast.to_hql())
 
     @handle_py4j
     @typecheck_method(expr=BooleanExpression)
@@ -1577,7 +1577,7 @@ class Table(TableTemplate):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
                             .format(expr._type.__class__))
 
-        return cleanup(Table(self._hc, base._jkt.exists(expr._ast.to_hql())))
+        return base._jkt.exists(expr._ast.to_hql())
 
     @handle_py4j
     @typecheck_method(mapping=dictof(strlike, strlike))
