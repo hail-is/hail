@@ -491,13 +491,13 @@ class HailContext private(val sc: SparkContext,
     if (forceBGZ)
       hadoopConf.set("io.compression.codecs",
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
-
-    val reader = new HtsjdkRecordReader(callFields)
-    val vkds = LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, gr, contigRecoding.getOrElse(Map.empty[String, String]))
-
-    hadoopConf.set("io.compression.codecs", codecs)
-
-    vkds
+    try {
+      val reader = new HtsjdkRecordReader(callFields)
+      LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, gr,
+        contigRecoding.getOrElse(Map.empty[String, String]))
+    } finally {
+      hadoopConf.set("io.compression.codecs", codecs)
+    }
   }
 
   def importMatrix(file: String,
