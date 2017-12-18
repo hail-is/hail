@@ -530,6 +530,6 @@ class ExtractAggregatorsSuite {
       region, t.loadField(region, hOff, binFrequencies))
     assert(binFrequenciesArray === Array[Long](3L, 0L, 1L, 0L, 0L))
     assert(region.loadLong(t.loadField(region, hOff, nLess)) === 1L)
-    assert(region.loadLong(t.loadField(region, hOff, nGreater)) === 1L)
+    assert(region.loadLong(t.loadField(region, hOff, nGreater)) === 2L)
   }
 }
