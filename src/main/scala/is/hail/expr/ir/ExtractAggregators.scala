@@ -76,15 +76,27 @@ object ExtractAggregators {
         fb.emit(emitAgg2(a, tAggIn, agg.seqOp(loadAggArray(fb)(i), _, _),
           fb, new StagedBitSet(fb), Env.empty.bind(scopeBindings: _*)))
         agg.aggregator
+      case (ApplyAggUnaryOp(a, op, arg1, typ), i) =>
+        val agg = AggOp.getUnary(op, arg1.typ, a.typ.asInstanceOf[TAggregable].elementType)
+        fb.emit(emitAgg2(a, tAggIn, agg.seqOp(loadAggArray(fb)(i), _, _),
+          fb, new StagedBitSet(fb), Env.empty.bind(scopeBindings: _*)))
+
+        val constfb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator]
+        val (doarg1, marg1, varg1) = Emit.toCode(arg1, constfb)
+        constfb.emit(Code(
+          doarg1,
+          agg.aggregator.asInstanceOf[(Code[Any], Code[Boolean]) => Code[RegionValueAggregator]](
+            varg1, coerce[Boolean](marg1))))
+        constfb.result()()(Region())
       case (ApplyAggTernaryOp(a, op, arg1, arg2, arg3, typ), i) =>
         val agg = AggOp.getTernary(op, arg1.typ, arg2.typ, arg3.typ, a.typ.asInstanceOf[TAggregable].elementType)
         fb.emit(emitAgg2(a, tAggIn, agg.seqOp(loadAggArray(fb)(i), _, _),
           fb, new StagedBitSet(fb), Env.empty.bind(scopeBindings: _*)))
 
         val constfb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator]
-        val (doarg1, varg1, marg1) = Emit.toCode(arg1, constfb)
-        val (doarg2, varg2, marg2) = Emit.toCode(arg2, constfb)
-        val (doarg3, varg3, marg3) = Emit.toCode(arg3, constfb)
+        val (doarg1, marg1, varg1) = Emit.toCode(arg1, constfb)
+        val (doarg2, marg2, varg2) = Emit.toCode(arg2, constfb)
+        val (doarg3, marg3, varg3) = Emit.toCode(arg3, constfb)
         constfb.emit(Code(
           doarg1,
           doarg2,

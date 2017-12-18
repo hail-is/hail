@@ -366,7 +366,7 @@ class ExtractAggregatorsSuite {
         Collect())
     val aOff = run[Int, Double, Long](region,
       ir,
-      addBoxedArray(region, expected: _*),
+      addBoxedArray(region, input: _*),
       _ => 10.0)
 
     val actual = RegionValueToScala.loadArray[Int](region, aOff)
@@ -455,5 +455,81 @@ class ExtractAggregatorsSuite {
       _ => 10.0)
 
     assert(actual === 10.0)
+  }
+
+  @Test
+  def takeInt() {
+    val region = Region()
+    val input = Array[Int](5, 10, -5)
+    val expected = input.take(2)
+    val ir =
+      ApplyAggUnaryOp(AggIn(), Take(), I32(2))
+    val aOff = run[Int, Double, Long](region,
+      ir,
+      addBoxedArray(region, input: _*),
+      _ => 10.0)
+
+    assert(RegionValueToScala.loadArray[Int](region, aOff) === expected)
+  }
+
+  @Test
+  def takeDouble() {
+    val region = Region()
+    val input = Array[Double](5.0, 10.0, -5.0)
+    val expected = input.take(2)
+    val ir =
+      ApplyAggUnaryOp(AggIn(), Take(), I32(2))
+    val aOff = run[Double, Double, Long](region,
+      ir,
+      addBoxedArray(region, input: _*),
+      _ => 10.0)
+
+    assert(RegionValueToScala.loadArray[Double](region, aOff) === expected)
+  }
+
+  @Test
+  def takeDoubleWithMissingness() {
+    val region = Region()
+    val input = Array[java.lang.Double](5.0, null, -5.0)
+    val expected = input.take(2)
+    val ir =
+      ApplyAggUnaryOp(AggIn(), Take(), I32(2))
+    val aOff = run[Double, Double, Long](region,
+      ir,
+      addBoxedArray(region, input: _*),
+      _ => 10.0)
+
+    assert(RegionValueToScala.loadArray[java.lang.Double](region, aOff) === expected)
+  }
+
+  @Test
+  def histogram() {
+    val region = Region()
+    val input = Array[java.lang.Double](5.0, null, -5.0, 1.0, 15.0, 1.0, 17.0, 1.5)
+    val expected = input.take(2)
+    val ir =
+      ApplyAggTernaryOp(AggIn(), Histogram(), F64(0.0), F64(10.0), I32(5))
+    val hOff = run[Double, Double, Long](region,
+      ir,
+      addBoxedArray(region, input: _*),
+      _ => 10.0)
+
+    val t = RegionValueHistogramAggregator.typ
+    val binEdges = t.fieldIdx("binEdges")
+    val binFrequencies = t.fieldIdx("binFrequencies")
+    val nLess = t.fieldIdx("nLess")
+    val nGreater = t.fieldIdx("nGreater")
+    assert(t.isFieldDefined(region, hOff, binEdges))
+    assert(t.isFieldDefined(region, hOff, binFrequencies))
+    assert(t.isFieldDefined(region, hOff, nLess))
+    assert(t.isFieldDefined(region, hOff, nGreater))
+    val binEdgeArray = RegionValueToScala.loadArray[Double](
+      region, t.loadField(region, hOff, binEdges))
+    assert(binEdgeArray === Array(0.0, 2.0, 4.0, 6.0, 8.0, 10.0))
+    val binFrequenciesArray = RegionValueToScala.loadArray[Long](
+      region, t.loadField(region, hOff, binFrequencies))
+    assert(binFrequenciesArray === Array[Long](3L, 0L, 1L, 0L, 0L))
+    assert(region.loadLong(t.loadField(region, hOff, nLess)) === 1L)
+    assert(region.loadLong(t.loadField(region, hOff, nGreater)) === 1L)
   }
 }

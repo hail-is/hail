@@ -84,6 +84,9 @@ object Copy {
       case ApplyAggNullaryOp(_, op, typ) =>
         val IndexedSeq(a) = children
         ApplyAggNullaryOp(a, op, typ)
+      case ApplyAggUnaryOp(_, op, _, typ) =>
+        val IndexedSeq(a, arg1) = children
+        ApplyAggUnaryOp(a, op, arg1, typ)
       case ApplyAggTernaryOp(_, op, _, _, _, typ) =>
         val IndexedSeq(a, arg1, arg2, arg3) = children
         ApplyAggTernaryOp(a, op, arg1, arg2, arg3, typ)

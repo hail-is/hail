@@ -39,11 +39,9 @@ object RegionValueToScala {
   def loadArray[T : ClassTag](elementType: Type)(region: Region, aOff: Long): Array[T] = {
     val arrayType = TArray(elementType)
     val len = arrayType.loadLength(region, aOff)
-    println(s"rvts length $len")
     val a = new Array[T](len)
     var i = 0
     while (i < len) {
-      println(s"rvts $i")
       if (arrayType.isElementDefined(region, aOff, i))
         a(i) = load[T](elementType)(region, arrayType.loadElement(region, aOff, i))
       i += 1

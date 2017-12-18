@@ -59,6 +59,7 @@ final case class AggFlatMap(a: IR, name: String, body: IR, var typ: TAggregable 
 
 sealed trait ApplyAggOp extends IR { }
 final case class ApplyAggNullaryOp(a: IR, op: NullaryAggOp, var typ: Type = null) extends ApplyAggOp
+final case class ApplyAggUnaryOp(a: IR, op: UnaryAggOp, arg1: IR, var typ: Type = null) extends ApplyAggOp
 final case class ApplyAggTernaryOp(a: IR, op: TernaryAggOp, arg1: IR, arg2: IR, arg3: IR, var typ: Type = null) extends ApplyAggOp
 
 final case class MakeStruct(fields: Array[(String, IR)], var typ: TStruct = null) extends IR {

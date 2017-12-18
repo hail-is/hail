@@ -118,6 +118,11 @@ object Infer {
         infer(a)
         val tAgg = a.typ.asInstanceOf[TAggregable]
         x.typ = AggOp.getNullaryType(op, tAgg.elementType)
+      case x@ApplyAggUnaryOp(a, op, arg1, _) =>
+        infer(a)
+        infer(arg1)
+        val tAgg = a.typ.asInstanceOf[TAggregable]
+        x.typ = AggOp.getUnaryType(op, arg1.typ, tAgg.elementType)
       case x@ApplyAggTernaryOp(a, op, arg1, arg2, arg3, _) =>
         infer(a)
         infer(arg1)

@@ -7,7 +7,7 @@ import is.hail.stats.HistogramCombiner
 import is.hail.utils._
 
 object RegionValueHistogramAggregator {
-  val typ = HistogramCombiner.schema
+  val typ: TStruct = HistogramCombiner.schema
 
   def stagedNew(start: Code[Double], mstart: Code[Boolean], end: Code[Double], mend: Code[Boolean], bins: Code[Int], mbins: Code[Boolean]): Code[RegionValueHistogramAggregator] =
     (mbins | mstart | mend).mux(
@@ -50,6 +50,7 @@ class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) exte
   def result(region: Region): Long = {
     rvb.set(region)
     rvb.start(typ)
+    rvb.startStruct()
     rvb.startArray(combiner.indices.length)
     combiner.indices.foreach(rvb.addDouble _)
     rvb.endArray()
@@ -58,6 +59,7 @@ class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) exte
     rvb.endArray()
     rvb.addLong(combiner.nLess)
     rvb.addLong(combiner.nGreater)
+    rvb.endStruct()
     rvb.end()
   }
 

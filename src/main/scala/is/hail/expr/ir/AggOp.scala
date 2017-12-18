@@ -86,9 +86,11 @@ object AggOp {
   }
 
   private val unary: ((UnaryAggOp, Type, Type)) => Option[CodeAggregator.Unary] = lift {
-    case (Take(), _: TInt32, _: TBoolean) => CodeAggregator.unary[Int, Boolean](new RegionValueTakeBooleanAggregator(), TArray(TBoolean()))
-    case (Take(), _: TInt32, _: TInt32) => CodeAggregator.unary[Int, Int](new RegionValueTakeIntAggregator(), TArray(TInt32()))
-    case (Take(), _: TInt32, _: TInt64) => CodeAggregator.unary[Int, Long](new RegionValueTakeLongAggregator(), TArray(TInt32()))
+    case (Take(), _: TInt32, _: TBoolean) => CodeAggregator.unary[Int, Boolean](RegionValueTakeBooleanAggregator.stagedNew, TArray(TBoolean()))
+    case (Take(), _: TInt32, _: TInt32) => CodeAggregator.unary[Int, Int](RegionValueTakeIntAggregator.stagedNew, TArray(TInt32()))
+    case (Take(), _: TInt32, _: TInt64) => CodeAggregator.unary[Int, Long](RegionValueTakeLongAggregator.stagedNew, TArray(TInt64()))
+    case (Take(), _: TInt32, _: TFloat32) => CodeAggregator.unary[Int, Float](RegionValueTakeFloatAggregator.stagedNew, TArray(TFloat32()))
+    case (Take(), _: TInt32, _: TFloat64) => CodeAggregator.unary[Int, Double](RegionValueTakeDoubleAggregator.stagedNew, TArray(TFloat64()))
   }
 
   private val ternary: ((TernaryAggOp, Type, Type, Type, Type)) => Option[CodeAggregator.Ternary] = lift {

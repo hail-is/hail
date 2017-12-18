@@ -7,16 +7,13 @@ import is.hail.utils._
 import scala.collection.mutable.BitSet
 
 class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
-  private var length = 0
-  private val elements = new BitSet()
-  private val isMissing = new BitSet()
+  private val ab = new MissingBooleanArrayBuilder()
 
   def seqOp(b: Boolean, missing: Boolean) {
     if (missing)
-      isMissing.add(length)
+      ab.addMissing()
     else if (b)
-      elements.add(length)
-    length += 1
+      ab.add(b)
   }
 
   def seqOp(region: Region, off: Long, missing: Boolean) {
@@ -25,51 +22,27 @@ class RegionValueCollectBooleanAggregator extends RegionValueAggregator {
 
   def combOp(agg2: RegionValueAggregator) {
     val other = agg2.asInstanceOf[RegionValueCollectBooleanAggregator]
-    var i = 0
-    while (i < other.length) {
-      if (other.isMissing(i))
-        isMissing.add(i)
-      else if (other.elements(i))
-        elements.add(length + i)
-      i += 1
+    other.ab.foreach { _ =>
+      ab.addMissing()
+    } { (_, x) =>
+      ab.add(x)
     }
-    length += other.length
   }
 
-  private val rvb = new RegionValueBuilder()
-
-  private val typ = TArray(TBoolean())
-
-  def result(region: Region): Long = {
-    rvb.set(region)
-    rvb.start(typ)
-    rvb.startArray(length)
-    var i = 0
-    while (i < length) {
-      if (isMissing(i))
-        rvb.setMissing()
-      else
-        rvb.addBoolean(elements(i))
-      i += 1
-    }
-    rvb.endArray()
-    rvb.end()
-  }
+  def result(region: Region): Long =
+    ab.writeIntoRegion(region)
 
   def copy(): RegionValueCollectBooleanAggregator = new RegionValueCollectBooleanAggregator()
 }
 
 class RegionValueCollectIntAggregator extends RegionValueAggregator {
-  private var length = 0
-  private val elements = new ArrayBuilder[Int]()
-  private val isMissing = new BitSet()
+  private val ab = new MissingIntArrayBuilder()
 
-  def seqOp(b: Int, missing: Boolean) {
+  def seqOp(x: Int, missing: Boolean) {
     if (missing)
-      isMissing.add(length)
+      ab.addMissing()
     else
-      elements += (b)
-    length += 1
+      ab.add(x)
   }
 
   def seqOp(region: Region, off: Long, missing: Boolean) {
@@ -78,42 +51,15 @@ class RegionValueCollectIntAggregator extends RegionValueAggregator {
 
   def combOp(agg2: RegionValueAggregator) {
     val other = agg2.asInstanceOf[RegionValueCollectIntAggregator]
-    var i = 0
-    var j = 0
-    while (i < other.length) {
-      if (isMissing(i))
-        isMissing.add(length + i)
-      else {
-        elements += other.elements(j)
-        j += 1
-      }
-      i += 1
+    other.ab.foreach { _ =>
+      ab.addMissing()
+    } { (_, x) =>
+      ab.add(x)
     }
-    length += other.length
   }
 
-  private val rvb = new RegionValueBuilder()
-
-  private val typ = TArray(TInt32())
-
-  def result(region: Region): Long = {
-    rvb.set(region)
-    rvb.start(typ)
-    rvb.startArray(length)
-    var i = 0
-    var j = 0
-    while (i < length) {
-      if (isMissing(i))
-        rvb.setMissing()
-      else {
-        rvb.addInt(elements(j))
-        j += 1
-      }
-      i += 1
-    }
-    rvb.endArray()
-    rvb.end()
-  }
+  def result(region: Region): Long =
+    ab.writeIntoRegion(region)
 
   def copy(): RegionValueCollectIntAggregator = new RegionValueCollectIntAggregator()
 }

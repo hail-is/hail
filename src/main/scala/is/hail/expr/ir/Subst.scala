@@ -14,6 +14,15 @@ object Subst {
         ArrayMap(subst(a), name, subst(body, env.delete(name)))
       case ArrayFold(a, zero, accumName, valueName, body, _) =>
         ArrayFold(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
+      case AggMap(a, name, body, typ) =>
+        // body has empty environment, ergo substitutions to be made
+        AggMap(subst(a), name, body, typ)
+      case AggFilter(a, name, body, typ) =>
+        // body has empty environment, ergo substitutions to be made
+        AggFilter(subst(a), name, body, typ)
+      case AggFlatMap(a, name, body, typ) =>
+        // body has empty environment, ergo substitutions to be made
+        AggFlatMap(subst(a), name, body, typ)
       case _ =>
         Recur(subst(_))(e)
     }

@@ -32,6 +32,7 @@ object Recur {
     case AggFilter(a, name, body, typ) => AggFilter(f(a), name, f(body), typ)
     case AggFlatMap(a, name, body, typ) => AggFlatMap(f(a), name, f(body), typ)
     case ApplyAggNullaryOp(a, op, typ) => ApplyAggNullaryOp(f(a), op, typ)
+    case ApplyAggUnaryOp(a, op, arg1, typ) => ApplyAggUnaryOp(f(a), op, f(arg1), typ)
     case ApplyAggTernaryOp(a, op, arg1, arg2, arg3, typ) => ApplyAggTernaryOp(f(a), op, f(arg1), f(arg2), f(arg3), typ)
     case In(i, typ) => ir
     case InMissingness(i) => ir

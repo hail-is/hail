@@ -6,7 +6,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 
 object HistogramCombiner {
-  def schema: Type = TStruct(
+  def schema: TStruct = TStruct(
     "binEdges" -> TArray(TFloat64()),
     "binFrequencies" -> TArray(TInt64()),
     "nLess" -> TInt64(),

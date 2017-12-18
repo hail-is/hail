@@ -39,7 +39,7 @@ class NullaryCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo, 
 }
 
 class UnaryCodeAggregator[T, Agg <: RegionValueAggregator : ClassTag : TypeInfo, U : ClassTag]
-  (in: Type, val aggregator: (T) => Agg, val out: Type) {
+  (in: Type, val aggregator: (Code[T], Code[Boolean]) => Code[Agg], val out: Type) {
   def seqOp(rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] =
     mv.mux(
       Code.checkcast[Agg](rva).invoke[U, Boolean, Unit]("seqOp", coerce[U](defaultValue(in)), true),
@@ -47,7 +47,7 @@ class UnaryCodeAggregator[T, Agg <: RegionValueAggregator : ClassTag : TypeInfo,
 }
 
 class BinaryCodeAggregator[T, U, Agg <: RegionValueAggregator : ClassTag : TypeInfo, V : ClassTag]
-  (in: Type, val aggregator: (T, U) => Agg, val out: Type) {
+  (in: Type, val aggregator: (Code[T], Code[Boolean], Code[U], Code[Boolean]) => Code[Agg], val out: Type) {
   def seqOp(rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] =
     mv.mux(
       Code.checkcast[Agg](rva).invoke[V, Boolean, Unit]("seqOp", coerce[V](defaultValue(in)), true),
@@ -79,7 +79,7 @@ private object nullaryCodeAggregatorCurriedInstance extends NullaryCodeAggregato
 
 sealed trait UnaryCodeAggregatorCurried[T, U] {
   def apply[Agg <: RegionValueAggregator : ClassTag : TypeInfo]
-    (aggregator: (T) => Agg, out: Type)
+    (aggregator: (Code[T], Code[Boolean]) => Code[Agg], out: Type)
     (implicit uct: ClassTag[U], hrt: HailRep[U]): UnaryCodeAggregator[T, Agg, U] =
     new UnaryCodeAggregator(hailType[U], aggregator, out)
 }
@@ -88,7 +88,7 @@ private object unaryCodeAggregatorCurriedInstance extends UnaryCodeAggregatorCur
 
 sealed trait BinaryCodeAggregatorCurried[T, U, V] {
   def apply[Agg <: RegionValueAggregator : ClassTag : TypeInfo]
-    (aggregator: (T, U) => Agg, out: Type)
+    (aggregator: (Code[T], Code[Boolean], Code[U], Code[Boolean]) => Code[Agg], out: Type)
     (implicit uct: ClassTag[V], hrt: HailRep[V]): BinaryCodeAggregator[T, U, Agg, V] =
     new BinaryCodeAggregator(hailType[V], aggregator, out)
 }
