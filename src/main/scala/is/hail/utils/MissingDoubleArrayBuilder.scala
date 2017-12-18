@@ -14,8 +14,8 @@ class MissingDoubleArrayBuilder {
     len += 1
   }
 
-  def add(i: Double) {
-    elements += i
+  def add(x: Double) {
+    elements += x
     len += 1
   }
 

@@ -14,8 +14,8 @@ class MissingLongArrayBuilder {
     len += 1
   }
 
-  def add(i: Long) {
-    elements += i
+  def add(x: Long) {
+    elements += x
     len += 1
   }
 

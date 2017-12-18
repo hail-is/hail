@@ -14,8 +14,8 @@ class MissingFloatArrayBuilder {
     len += 1
   }
 
-  def add(i: Float) {
-    elements += i
+  def add(x: Float) {
+    elements += x
     len += 1
   }
 

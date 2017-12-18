@@ -14,8 +14,8 @@ class MissingIntArrayBuilder {
     len += 1
   }
 
-  def add(i: Int) {
-    elements += i
+  def add(x: Int) {
+    elements += x
     len += 1
   }
 
