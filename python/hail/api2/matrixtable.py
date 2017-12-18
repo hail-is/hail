@@ -1746,25 +1746,26 @@ class MatrixTable(object):
                                   joins + (Join(joiner, uids_to_delete),))
         else:
             assert isinstance(src, MatrixTable)
+            right = self
 
             # fast path
             if expr is src.v:
                 prefix = 'va'
                 joiner = lambda left: (
-                    MatrixTable(left._jvds.annotateVariantsVDS(src._jvds, jsome('{}.{}'.format(prefix, uid)),
+                    MatrixTable(left._jvds.annotateVariantsVDS(right._jvds, jsome('{}.{}'.format(prefix, uid)),
                                                                jnone())))
             elif indices == {'row'}:
                 prefix = 'va'
                 joiner = lambda left: (
-                    MatrixTable(left._jvds.annotateVariantsTable(src._jvds.variantsKT(),
+                    MatrixTable(left._jvds.annotateVariantsTable(right._jvds.variantsKT(),
                                                                  [expr._ast.to_hql()],
-                                                                 '{}.{}'.format(prefix, uid), None)))
+                                                                 '{}.{}'.format(prefix, uid), None, False)))
             elif indices == {'column'}:
                 prefix = 'sa'
                 joiner = lambda left: (
-                    MatrixTable(left._jvds.annotateSamplesTable(src._jvds.samplesKT(),
+                    MatrixTable(left._jvds.annotateSamplesTable(right._jvds.samplesKT(),
                                                                 [expr._ast.to_hql()],
-                                                                '{}.{}'.format(prefix, uid), None)))
+                                                                '{}.{}'.format(prefix, uid), None, False)))
             else:
                 # FIXME: implement entry-based join in the expression language
                 raise NotImplementedError('vds join with indices {}'.format(indices))
@@ -1807,18 +1808,20 @@ class MatrixTable(object):
                                   self.col_schema, indices, aggregations, joins + (Join(joiner, uids_to_delete),))
         else:
             assert isinstance(src, MatrixTable)
-            if indices == src._row_indices:
+            right = self
+
+            if indices == src._col_indices:
                 prefix = 'sa'
                 joiner = lambda left: (
-                    MatrixTable(left._jvds.annotateSamplesTable(src._jvds.samplesKT(),
+                    MatrixTable(left._jvds.annotateSamplesTable(right._jvds.samplesKT(),
                                                                 [expr._ast.to_hql()],
-                                                                '{}.{}'.format(prefix, uid), None)))
-            elif indices == src._col_indices:
+                                                                '{}.{}'.format(prefix, uid), None, False)))
+            elif indices == src._row_indices:
                 prefix = 'va'
                 joiner = lambda left: (
-                    MatrixTable(left._jvds.annotateVariantsTable(src._jvds.samplesKT(),
+                    MatrixTable(left._jvds.annotateVariantsTable(right._jvds.samplesKT(),
                                                                  [expr._ast.to_hql()],
-                                                                 '{}.{}'.format(prefix, uid), None)))
+                                                                 '{}.{}'.format(prefix, uid), None, False)))
             else:
                 # FIXME: implement entry-based join in the expression language
                 raise NotImplementedError('vds join with indices {}'.format(indices))
