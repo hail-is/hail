@@ -49,23 +49,22 @@ class ExtractAggregatorsSuite {
       (_, off) => off
   }
 
-  private def runStage1[T : HailRep : TypeInfo, U: HailRep : TypeInfo](region: Region, ir: IR, aOff: Long, scope0: Int => U): (IR, Long) = {
-    val tAgg = TAggregable(hailType[T], Map("scope0" -> (0, hailType[U])))
+  private def runStage1[IN : HailRep : TypeInfo, SCOPE0: HailRep : TypeInfo](region: Region, ir: IR, aOff: Long, scope0: Int => SCOPE0): (IR, Long) = {
+    val tAgg = TAggregable(hailType[IN], Map("scope0" -> (0, hailType[SCOPE0])))
 
-    val aggFb = FunctionBuilder.functionBuilder[Region, Array[RegionValueAggregator], T, Boolean, U, Boolean, Unit]
+    val aggFb = FunctionBuilder.functionBuilder[Region, Array[RegionValueAggregator], IN, Boolean, SCOPE0, Boolean, Unit]
     Infer(ir, Some(tAgg))
-    println(ir)
     val (post, aggResultStruct, aggregators) = ExtractAggregators(ir, tAgg, aggFb)
-    val seqOp = aggFb.result()()
+    val seqOp = aggFb.result(Some(new java.io.PrintWriter(System.out)))()
 
-    val tArray = TArray(hailType[T])
+    val tArray = TArray(hailType[IN])
     val len = tArray.loadLength(region, aOff)
-    val loadT = loadIRIntermediate(hailType[T])
+    val loadT = loadIRIntermediate(hailType[IN])
     for (i <- 0 until len) {
       val me = tArray.isElementMissing(region, aOff, i)
       val e =
-        if (me) defaultValue(hailType[T]).asInstanceOf[T]
-        else loadT(region, tArray.loadElement(region, aOff, i)).asInstanceOf[T]
+        if (me) defaultValue(hailType[IN]).asInstanceOf[IN]
+        else loadT(region, tArray.loadElement(region, aOff, i)).asInstanceOf[IN]
       seqOp(region, aggregators,
         e,
         me,
@@ -84,8 +83,8 @@ class ExtractAggregatorsSuite {
     fb.result()()
   }
 
-  private def run[T : HailRep : TypeInfo, U : HailRep : TypeInfo, R : TypeInfo](region: Region, ir: IR, aOff: Long, scope0: Int => U): R = {
-    val (post, ret) = runStage1[T, U](region, ir, aOff, scope0)
+  private def run[IN : HailRep : TypeInfo, SCOPE0 : HailRep : TypeInfo, R : TypeInfo](region: Region, ir: IR, aOff: Long, scope0: Int => SCOPE0): R = {
+    val (post, ret) = runStage1[IN, SCOPE0](region, ir, aOff, scope0)
     val f = compileStage0[R](post)
     f(region, ret, false)
   }
@@ -267,5 +266,194 @@ class ExtractAggregatorsSuite {
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
       _ => 10.0)
     assert(fraction === 1.0/3.0)
+  }
+
+  @Test
+  def fractionNaDoesNotContribute1() {
+    val region = Region()
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Fraction())
+    val fraction = run[Boolean, Double, Double](region,
+      ir,
+      addBoxedArray[java.lang.Boolean](region, true, false, null),
+      _ => 10.0)
+    assert(fraction === 1.0/3.0)
+  }
+
+  @Test
+  def fractionNaDoesNotContribute2() {
+    val region = Region()
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Fraction())
+    val fraction = run[Boolean, Double, Double](region,
+      ir,
+      addBoxedArray[java.lang.Boolean](region, false, false, null),
+      _ => 10.0)
+    assert(fraction === 0.0/3.0)
+  }
+
+  @Test
+  def fractionNaDoesNotContribute3() {
+    val region = Region()
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Fraction())
+    val fraction = run[Boolean, Double, Double](region,
+      ir,
+      addBoxedArray[java.lang.Boolean](region, true, true, null),
+      _ => 10.0)
+    assert(fraction === 2.0/3.0)
+  }
+
+  @Test
+  def collectBoxedBoolean() {
+    val region = Region()
+    val expected = Array[java.lang.Boolean](true, true, null)
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Collect())
+    val aOff = run[Boolean, Double, Long](region,
+      ir,
+      addBoxedArray(region, expected: _*),
+      _ => 10.0)
+
+    val actual = RegionValueToScala.loadArray[java.lang.Boolean](region, aOff)
+    assert(actual === expected)
+  }
+
+  @Test
+  def collectBoxedInt() {
+    val region = Region()
+    val expected = Array[java.lang.Integer](5, 10, null)
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Collect())
+    val aOff = run[Int, Double, Long](region,
+      ir,
+      addBoxedArray(region, expected: _*),
+      _ => 10.0)
+
+    val actual = RegionValueToScala.loadArray[java.lang.Integer](region, aOff)
+    assert(actual === expected)
+  }
+
+  @Test
+  def collectInt() {
+    val region = Region()
+    val expected = Array[Int](5, 10, -5)
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Collect())
+    val aOff = run[Int, Double, Long](region,
+      ir,
+      addBoxedArray(region, expected: _*),
+      _ => 10.0)
+
+    val actual = RegionValueToScala.loadArray[Int](region, aOff)
+    assert(actual === expected)
+  }
+
+  @Test
+  def mapCollectInt() {
+    val region = Region()
+    val input = Array[Int](5, 10, -5)
+    val expected = input.map(x => x * x).toArray
+    val ir =
+      ApplyAggNullaryOp(
+        AggMap(
+          AggIn(),
+          "x",
+          ApplyBinaryPrimOp(
+            Multiply(),
+            Ref("x"),
+            Ref("x"))),
+        Collect())
+    val aOff = run[Int, Double, Long](region,
+      ir,
+      addBoxedArray(region, expected: _*),
+      _ => 10.0)
+
+    val actual = RegionValueToScala.loadArray[Int](region, aOff)
+    assert(actual === expected)
+  }
+
+  @Test
+  def maxBoolean1() {
+    val region = Region()
+    val input = Array[Boolean](true, false, false)
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Max())
+    val actual = run[Boolean, Double, Boolean](region,
+      ir,
+      addBoxedArray(region, input: _*),
+      _ => 10.0)
+
+    assert(actual === true)
+  }
+
+  @Test
+  def maxBoolean2() {
+    val region = Region()
+    val input = Array[Boolean](false, false, false)
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Max())
+    val actual = run[Boolean, Double, Boolean](region,
+      ir,
+      addBoxedArray(region, input: _*),
+      _ => 10.0)
+
+    assert(actual === false)
+  }
+
+  @Test
+  def maxInt() {
+    val region = Region()
+    val input = Array[Int](5, 10, -5)
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Max())
+    val actual = run[Int, Double, Int](region,
+      ir,
+      addBoxedArray(region, input: _*),
+      _ => 10.0)
+
+    assert(actual === 10)
+  }
+
+  @Test
+  def maxLong() {
+    val region = Region()
+    val input = Array[Long](5L, 10L, -5L)
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Max())
+    val actual = run[Long, Double, Long](region,
+      ir,
+      addBoxedArray(region, input: _*),
+      _ => 10.0)
+
+    assert(actual === 10L)
+  }
+
+  @Test
+  def maxFloat() {
+    val region = Region()
+    val input = Array[Float](5.0f, 10.0f, -5.0f)
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Max())
+    val actual = run[Float, Double, Float](region,
+      ir,
+      addBoxedArray(region, input: _*),
+      _ => 10.0)
+
+    assert(actual === 10.0f)
+  }
+
+  @Test
+  def maxDouble() {
+    val region = Region()
+    val input = Array[Double](5.0, 10.0, -5.0)
+    val ir =
+      ApplyAggNullaryOp(AggIn(), Max())
+    val actual = run[Double, Double, Double](region,
+      ir,
+      addBoxedArray(region, input: _*),
+      _ => 10.0)
+
+    assert(actual === 10.0)
   }
 }

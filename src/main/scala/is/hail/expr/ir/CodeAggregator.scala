@@ -30,34 +30,35 @@ object CodeAggregator {
   *
   **/
 class NullaryCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo, T : ClassTag]
-  (t: Type, val aggregator: Agg) {
-  def seqOp(rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] =
+  (in: Type, val aggregator: Agg, val out: Type) {
+  def seqOp(rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] = {
     mv.mux(
-      Code.checkcast[Agg](rva).invoke[T, Boolean, Unit]("seqOp", coerce[T](defaultValue(t)), true),
+      Code.checkcast[Agg](rva).invoke[T, Boolean, Unit]("seqOp", coerce[T](defaultValue(in)), true),
       Code.checkcast[Agg](rva).invoke[T, Boolean, Unit]("seqOp", coerce[T](v), false))
+  }
 }
 
 class UnaryCodeAggregator[T, Agg <: RegionValueAggregator : ClassTag : TypeInfo, U : ClassTag]
-  (t: Type, val aggregator: (T) => Agg) {
+  (in: Type, val aggregator: (T) => Agg, val out: Type) {
   def seqOp(rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] =
     mv.mux(
-      Code.checkcast[Agg](rva).invoke[U, Boolean, Unit]("seqOp", coerce[U](defaultValue(t)), true),
+      Code.checkcast[Agg](rva).invoke[U, Boolean, Unit]("seqOp", coerce[U](defaultValue(in)), true),
       Code.checkcast[Agg](rva).invoke[U, Boolean, Unit]("seqOp", coerce[U](v), false))
 }
 
 class BinaryCodeAggregator[T, U, Agg <: RegionValueAggregator : ClassTag : TypeInfo, V : ClassTag]
-  (t: Type, val aggregator: (T, U) => Agg) {
+  (in: Type, val aggregator: (T, U) => Agg, val out: Type) {
   def seqOp(rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] =
     mv.mux(
-      Code.checkcast[Agg](rva).invoke[V, Boolean, Unit]("seqOp", coerce[V](defaultValue(t)), true),
+      Code.checkcast[Agg](rva).invoke[V, Boolean, Unit]("seqOp", coerce[V](defaultValue(in)), true),
       Code.checkcast[Agg](rva).invoke[V, Boolean, Unit]("seqOp", coerce[V](v), false))
 }
 
 class TernaryCodeAggregator[T, U, V, Agg <: RegionValueAggregator : ClassTag : TypeInfo, W : ClassTag]
-  (t: Type, val aggregator: (Code[T], Code[Boolean], Code[U], Code[Boolean], Code[V], Code[Boolean]) => Code[Agg]) {
+  (in: Type, val aggregator: (Code[T], Code[Boolean], Code[U], Code[Boolean], Code[V], Code[Boolean]) => Code[Agg], val out: Type) {
   def seqOp(rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] =
     mv.mux(
-      Code.checkcast[Agg](rva).invoke[W, Boolean, Unit]("seqOp", coerce[W](defaultValue(t)), true),
+      Code.checkcast[Agg](rva).invoke[W, Boolean, Unit]("seqOp", coerce[W](defaultValue(in)), true),
       Code.checkcast[Agg](rva).invoke[W, Boolean, Unit]("seqOp", coerce[W](v), false))
 }
 
@@ -69,36 +70,36 @@ class TernaryCodeAggregator[T, U, V, Agg <: RegionValueAggregator : ClassTag : T
   **/
 sealed trait NullaryCodeAggregatorCurried[T] {
   def apply[Agg <: RegionValueAggregator : ClassTag : TypeInfo]
-    (aggregator: Agg)
+    (aggregator: Agg, out: Type)
     (implicit tct: ClassTag[T], hrt: HailRep[T]): NullaryCodeAggregator[Agg, T] =
-    new NullaryCodeAggregator(hailType[T], aggregator)
+    new NullaryCodeAggregator(hailType[T], aggregator, out)
 }
 
 private object nullaryCodeAggregatorCurriedInstance extends NullaryCodeAggregatorCurried[Nothing]
 
 sealed trait UnaryCodeAggregatorCurried[T, U] {
   def apply[Agg <: RegionValueAggregator : ClassTag : TypeInfo]
-    (aggregator: (T) => Agg)
+    (aggregator: (T) => Agg, out: Type)
     (implicit uct: ClassTag[U], hrt: HailRep[U]): UnaryCodeAggregator[T, Agg, U] =
-    new UnaryCodeAggregator(hailType[U], aggregator)
+    new UnaryCodeAggregator(hailType[U], aggregator, out)
 }
 
 private object unaryCodeAggregatorCurriedInstance extends UnaryCodeAggregatorCurried[Nothing, Nothing]
 
 sealed trait BinaryCodeAggregatorCurried[T, U, V] {
   def apply[Agg <: RegionValueAggregator : ClassTag : TypeInfo]
-    (aggregator: (T, U) => Agg)
+    (aggregator: (T, U) => Agg, out: Type)
     (implicit uct: ClassTag[V], hrt: HailRep[V]): BinaryCodeAggregator[T, U, Agg, V] =
-    new BinaryCodeAggregator(hailType[V], aggregator)
+    new BinaryCodeAggregator(hailType[V], aggregator, out)
 }
 
 private object binaryCodeAggregatorCurriedInstance extends BinaryCodeAggregatorCurried[Nothing, Nothing, Nothing]
 
 sealed trait TernaryCodeAggregatorCurried[T, U, V, W] {
   def apply[Agg <: RegionValueAggregator : ClassTag : TypeInfo]
-    (aggregator: (Code[T], Code[Boolean], Code[U], Code[Boolean], Code[V], Code[Boolean]) => Code[Agg])
+    (aggregator: (Code[T], Code[Boolean], Code[U], Code[Boolean], Code[V], Code[Boolean]) => Code[Agg], out: Type)
     (implicit uct: ClassTag[W], hrt: HailRep[W]): TernaryCodeAggregator[T, U, V, Agg, W] =
-    new TernaryCodeAggregator(hailType[W], aggregator)
+    new TernaryCodeAggregator(hailType[W], aggregator, out)
 }
 
 private object ternaryCodeAggregatorCurriedInstance extends TernaryCodeAggregatorCurried[Nothing, Nothing, Nothing, Nothing]
