@@ -10,13 +10,13 @@ import scala.language.{existentials, postfixOps}
 
 object ExtractAggregators {
 
-  private case class IRAgg(in: In, typ: Type, agg: AggSum) { }
+  private case class IRAgg(in: In, agg: ApplyAggOp) { }
 
   def apply(ir: IR, tAggIn: TAggregable, aggFb: FunctionBuilder[_]): (IR, TStruct, Array[RegionValueAggregator]) = {
     val (ir2, aggs) = extract(ir, tAggIn)
     val rvas = emitAgg(aggs.map(_.agg), tAggIn, aggFb)
 
-    val fields = aggs.map(_.typ).zipWithIndex.map { case (t, i) => i.toString -> t }
+    val fields = aggs.map(_.agg.typ).zipWithIndex.map { case (t, i) => i.toString -> t }
     val resultStruct = TStruct(fields: _*)
     // mutate the type of the input IR node now that we know what the combined
     // struct's type is
@@ -39,12 +39,12 @@ object ExtractAggregators {
         ir
       case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap =>
         throw new RuntimeException(s"Aggregable manipulations must appear inside the lexical scope of an Aggregation: $ir")
-      case x@AggSum(a, typ) =>
+      case x: ApplyAggOp =>
         val in = In(0, null)
 
-        ab += IRAgg(in, typ, x)
+        ab += IRAgg(in, x)
 
-        GetField(in, (ab.length - 1).toString(), typ)
+        GetField(in, (ab.length - 1).toString(), x.typ)
       case _ => Recur(extract)(ir)
     }
   }
@@ -61,19 +61,49 @@ object ExtractAggregators {
   private def isElementMissing(fb: FunctionBuilder[_]): Code[Boolean] =
     fb.getArg[Boolean](4)
 
-  private val nonScopeArguments = 5 // this, Region, Array[Aggregator], ElementType, Boolean
+ private val nonScopeArguments = 5 // this, Region, Array[Aggregator], ElementType, Boolean
 
-  private def emitAgg(irs: Array[AggSum], tAggIn: TAggregable, fb: FunctionBuilder[_]): Array[RegionValueAggregator] = {
+  private def emitAgg(irs: Array[ApplyAggOp], tAggIn: TAggregable, fb: FunctionBuilder[_]): Array[RegionValueAggregator] = {
     val scopeBindings = tAggIn.bindings.zipWithIndex
       .map { case ((n, t), i) => n -> ((
         typeToTypeInfo(t),
         fb.getArg[Boolean](nonScopeArguments + i*2 + 1).load(),
         fb.getArg(nonScopeArguments + i*2)(typeToTypeInfo(t)).load())) }
 
-    irs.zipWithIndex.map { case (AggSum(a, typ), i) =>
-      val (seqOp, agg) = RegionValueSumAggregator(typ)
-      fb.emit(emitAgg2(a, tAggIn, seqOp(loadAggArray(fb)(i), _, _), fb, new StagedBitSet(fb), Env.empty.bind(scopeBindings: _*)))
-      agg
+    irs.zipWithIndex.map {
+      case (ApplyAggNullaryOp(a, op, typ), i) =>
+        val agg = AggOp.getNullary(op, a.typ.asInstanceOf[TAggregable].elementType)
+        fb.emit(emitAgg2(a, tAggIn, agg.seqOp(loadAggArray(fb)(i), _, _),
+          fb, new StagedBitSet(fb), Env.empty.bind(scopeBindings: _*)))
+        agg.aggregator
+      case (ApplyAggUnaryOp(a, op, arg1, typ), i) =>
+        val agg = AggOp.getUnary(op, arg1.typ, a.typ.asInstanceOf[TAggregable].elementType)
+        fb.emit(emitAgg2(a, tAggIn, agg.seqOp(loadAggArray(fb)(i), _, _),
+          fb, new StagedBitSet(fb), Env.empty.bind(scopeBindings: _*)))
+
+        val constfb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator]
+        val (doarg1, marg1, varg1) = Emit.toCode(arg1, constfb)
+        constfb.emit(Code(
+          doarg1,
+          agg.aggregator.asInstanceOf[(Code[Any], Code[Boolean]) => Code[RegionValueAggregator]](
+            varg1, coerce[Boolean](marg1))))
+        constfb.result()()(Region())
+      case (ApplyAggTernaryOp(a, op, arg1, arg2, arg3, typ), i) =>
+        val agg = AggOp.getTernary(op, arg1.typ, arg2.typ, arg3.typ, a.typ.asInstanceOf[TAggregable].elementType)
+        fb.emit(emitAgg2(a, tAggIn, agg.seqOp(loadAggArray(fb)(i), _, _),
+          fb, new StagedBitSet(fb), Env.empty.bind(scopeBindings: _*)))
+
+        val constfb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator]
+        val (doarg1, marg1, varg1) = Emit.toCode(arg1, constfb)
+        val (doarg2, marg2, varg2) = Emit.toCode(arg2, constfb)
+        val (doarg3, marg3, varg3) = Emit.toCode(arg3, constfb)
+        constfb.emit(Code(
+          doarg1,
+          doarg2,
+          doarg3,
+          agg.aggregator.asInstanceOf[(Code[Any], Code[Boolean], Code[Any], Code[Boolean], Code[Any], Code[Boolean]) => Code[RegionValueAggregator]](
+            varg1, coerce[Boolean](marg1), varg2, coerce[Boolean](marg2), varg3, coerce[Boolean](marg3))))
+        constfb.result()()(Region())
     }
   }
 
@@ -146,7 +176,7 @@ object ExtractAggregators {
                     region.loadIRIntermediate(tArray.elementType)(tArray.loadElement(region, arr, i)),
                     tArray.isElementMissing(region, arr, i)),
                   i ++)))) }
-      case AggSum(_, _) =>
+      case _: ApplyAggNullaryOp | _: ApplyAggTernaryOp =>
         throw new RuntimeException(s"No nested aggregations allowed: $ir")
       case In(_, _) | InMissingness(_) =>
         throw new RuntimeException(s"No inputs may be referenced inside an aggregator: $ir")

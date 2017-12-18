@@ -302,7 +302,7 @@ object Emit {
         val (doo, mo, vo) = emit(o)
         present(Code(doo, mo || !t.isFieldDefined(region, coerce[Long](vo), fieldIdx)))
 
-      case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap | _: AggSum =>
+      case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap | _: ApplyAggNullaryOp | _: ApplyAggUnaryOp | _: ApplyAggTernaryOp =>
         throw new RuntimeException(s"Aggregations must be extracted with ExtractAggregators before compilation: $ir")
 
       case In(i, typ) =>
