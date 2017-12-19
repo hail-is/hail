@@ -5,7 +5,7 @@ from hail.expr.ast import *
 from hail.genetics import Variant, Locus, Call, GenomeReference
 
 expr_int32 = oneof(Int32Expression, int)
-expr_numeric = oneof(Float32Expression, Float64Expression, Int64Expression, float, expr_int32)
+expr_numeric = oneof(Float32Expression, Float64Expression, Int64Expression, float, int, expr_int32)
 expr_list = oneof(list, ArrayExpression)
 expr_set = oneof(set, SetExpression)
 expr_bool = oneof(bool, BooleanExpression)
@@ -1065,6 +1065,40 @@ def or_missing(predicate, value):
     predicate = to_expr(predicate)
     return _func("orMissing", predicate._type, predicate, value)
 
+@typecheck(x=expr_int32, n=expr_int32, p=expr_numeric,
+           alternative=enumeration("two.sided", "greater", "less"))
+@args_to_expr
+def binom_test(x, n, p, alternative):
+    """Performs an exact binomial test on `x` with `n` trials at probability `p`.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(f.binom_test(5, 10, 0.5, 'less'))
+        0.6230468749999999
+
+    Returns the p-value from the `exact binomial test
+    <https://en.wikipedia.org/wiki/Binomial_test>`__ of the null hypothesis that
+    success has probability `p`, given `x` successes in `n` trials.
+
+    Parameters
+    ----------
+    x : int or :class:`Int32Expression`
+        Number of successes.
+    n : int or :class:`Int32Expression`
+        Number of trials.
+    p : float or :class:`Float64Expression`
+        Probability of success, between 0 and 1.
+    alternative
+        : One of, "two.sided", "greater", "less".
+
+    Returns
+    -------
+    :class:`Float64Expression`
+        p-value.
+    """
+    return _func("binomTest", TFloat64(), x, n, p, alternative)
 
 @typecheck(x=expr_numeric, df=expr_numeric)
 @args_to_expr
