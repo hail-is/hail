@@ -421,6 +421,9 @@ class MatrixTests(unittest.TestCase):
 
         vds = vds.annotate_rows(y2 = vds2[vds.v, :].y2)
         vds = vds.annotate_cols(c2 = vds2[:, vds.s].c2)
+
+        vds = vds.annotate_rows(y2 = vds2[f.parse_variant(f.to_str(vds.v)), :].y2)
+        vds = vds.annotate_cols(c2 = vds2[:, f.to_str(vds.s)].c2)
         # FIXME add asserts when forall is implemented in hail2
 
 

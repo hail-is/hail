@@ -1754,16 +1754,16 @@ class MatrixTable(object):
                 joiner = lambda left: (
                     MatrixTable(left._jvds.annotateVariantsVDS(right._jvds, jsome('{}.{}'.format(prefix, uid)),
                                                                jnone())))
-            elif indices == {'row'}:
+            elif indices == src._row_indices:
                 prefix = 'va'
                 joiner = lambda left: (
                     MatrixTable(left._jvds.annotateVariantsTable(right._jvds.variantsKT(),
                                                                  [expr._ast.to_hql()],
                                                                  '{}.{}'.format(prefix, uid), None, False)))
-            elif indices == {'column'}:
+            elif indices == src._col_indices:
                 prefix = 'sa'
                 joiner = lambda left: (
-                    MatrixTable(left._jvds.annotateSamplesTable(right._jvds.samplesKT(),
+                    MatrixTable(left._jvds.annotateSamplesTable(right._jvds.variantsKT(),
                                                                 [expr._ast.to_hql()],
                                                                 '{}.{}'.format(prefix, uid), None, False)))
             else:
