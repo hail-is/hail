@@ -9,7 +9,7 @@ import is.hail.expr.RegionValueAggregator
 import scala.reflect.ClassTag
 
 object RegionValueSumAggregator {
-  private def seqOp[Agg >: Null : ClassTag : TypeInfo, T : ClassTag](t: Type): (Code[RegionValueAggregator], Code[_], Code[Boolean]) => Code[Unit] =
+  private def seqOp[Agg <: RegionValueAggregator : ClassTag : TypeInfo, T : ClassTag](t: Type): (Code[RegionValueAggregator], Code[_], Code[Boolean]) => Code[Unit] =
   { (rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]) =>
     mv.mux(
       Code.checkcast[Agg](rva).invoke[T, Boolean, Unit]("seqOp", coerce[T](defaultValue(t)), true),
