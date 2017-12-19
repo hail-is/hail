@@ -149,5 +149,5 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     }
   }
 
-  def returnStart(): Code[Unit] = _return(startOffset)
+  def end(): Code[Long] = startOffset
 }
