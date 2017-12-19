@@ -23,7 +23,7 @@ class StagedRegionValueSuite extends SparkSuite {
       Code(
         srvb.start(),
         srvb.addString(fb.getArg[String](2)),
-        srvb.returnStart()
+        srvb.end()
       )
     )
 
@@ -60,7 +60,7 @@ class StagedRegionValueSuite extends SparkSuite {
       Code(
         srvb.start(),
         srvb.addInt(fb.getArg[Int](2)),
-        srvb.returnStart()
+        srvb.end()
       )
     )
 
@@ -98,7 +98,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.start(1),
         srvb.addInt(fb.getArg[Int](2)),
         srvb.advance(),
-        srvb.returnStart()
+        srvb.end()
       )
     )
 
@@ -139,7 +139,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.addString("hello"),
         srvb.advance(),
         srvb.addInt(fb.getArg[Int](2)),
-        srvb.returnStart()
+        srvb.end()
       )
     )
 
@@ -190,7 +190,7 @@ class StagedRegionValueSuite extends SparkSuite {
             srvb.advance()
           )
         ),
-        srvb.returnStart()
+        srvb.end()
       )
     )
 
@@ -254,7 +254,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.addString(codeInput),
         srvb.advance(),
         srvb.addArray(TArray(TInt32()), array),
-        srvb.returnStart()
+        srvb.end()
       )
     )
 
@@ -307,7 +307,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.advance(),
         srvb.setMissing(),
         srvb.advance(),
-        srvb.returnStart()
+        srvb.end()
       )
     )
 
@@ -368,7 +368,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.advance(),
         srvb.addIRIntermediate(TFloat64())(fb.getArg[Double](4)),
         srvb.advance(),
-        srvb.returnStart()
+        srvb.end()
       )
     )
 
