@@ -583,13 +583,13 @@ private class BlockMatrixTransposeRDD(dm: BlockMatrix)
 
   private val newPartitioner = dm.partitioner.transpose
   
-  def transposePi(pi: Int): Int = dm.partitioner.coordinatesBlock(
+  def transposePI(pi: Int): Int = dm.partitioner.coordinatesBlock(
     newPartitioner.blockBlockCol(pi),
     newPartitioner.blockBlockRow(pi))
   
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](    
     new NarrowDependency(dm.blocks) {
-      def getParents(partitionId: Int): Seq[Int] = Array(transposePi(partitionId))
+      def getParents(partitionId: Int): Seq[Int] = Array(transposePI(partitionId))
     })
   
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] =
@@ -598,7 +598,7 @@ private class BlockMatrixTransposeRDD(dm: BlockMatrix)
 
   protected def getPartitions: Array[Partition] = {
     Array.tabulate(newPartitioner.numPartitions) { pi =>
-      BlockMatrixTransposeRDDPartition(pi, dm.blocks.partitions(transposePi(pi)))
+      BlockMatrixTransposeRDDPartition(pi, dm.blocks.partitions(transposePI(pi)))
     }
   }
 
