@@ -1563,7 +1563,8 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         """
 
         typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
-        Env.hail().io.vcf.ExportVCF.apply(self._jvds, output, joption(append_to_header), get_export_type(parallel), joption(typ._convert_to_j(metadata)))
+        Env.hail().io.vcf.ExportVCF.apply(self._jvds, output, joption(append_to_header),
+                                          Env.hail().utils.ExportType.getExportType(joption(parallel)), joption(typ._convert_to_j(metadata)))
 
     @handle_py4j
     @write_history('output', is_dir=True)
