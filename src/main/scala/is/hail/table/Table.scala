@@ -453,7 +453,7 @@ class Table(val hc: HailContext,
 
   def filter(cond: String, keep: Boolean): Table = {
     var filterAST = Parser.expr.parse(cond)
-    val pred = filterAST.toIR
+    val pred = filterAST.toIR()
     pred match {
       case Some(irPred) =>
         new Table(hc, FilterKT(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
