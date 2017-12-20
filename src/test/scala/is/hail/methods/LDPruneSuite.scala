@@ -284,16 +284,16 @@ class LDPruneSuite extends SparkSuite {
     intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000, memoryPerCoreMB = 0))
 
     // r2 negative
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = -0.1, windowSize = 1000, memoryPerCoreMB = 1000))
+    intercept[HailException](LDPrune(vds, nCores, r2Threshold = -0.1, windowSize = 1000))
 
     // r2 > 1
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 1.1, windowSize = 1000, memoryPerCoreMB = 1000))
+    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 1.1, windowSize = 1000))
 
     // windowSize negative
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.5, windowSize = -2, memoryPerCoreMB = 1000))
+    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.5, windowSize = -2))
 
     // parallelism negative
-    intercept[HailException](LDPrune(vds, nCores = -1, r2Threshold = 0.5, windowSize = 100, memoryPerCoreMB = 1000))
+    intercept[HailException](LDPrune(vds, nCores = -1, r2Threshold = 0.5, windowSize = 100))
   }
 
   @Test def testMemoryRequirements() {
