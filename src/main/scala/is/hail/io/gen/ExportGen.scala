@@ -7,8 +7,6 @@ import is.hail.utils._
 
 object ExportGen {
   def apply(vsm: MatrixTable, path: String, precision: Int = 4) {
-    require(vsm.wasSplit)
-
     def writeSampleFile() {
       // FIXME: should output all relevant sample annotations such as phenotype, gender, ...
       vsm.hc.hadoopConf.writeTable(path + ".sample",

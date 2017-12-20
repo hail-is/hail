@@ -31,14 +31,6 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfGA == gdbGA)
   }
 
-  @Test(enabled = false) def genomicsDBNoMulti() {
-    val reader = new HtsjdkRecordReader(Set.empty)
-    val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
-    val vcfVariantSampleMatrix = LoadVCF(hc, reader, Some(vcf), Array(vcf))
-
-    assert(vcfVariantSampleMatrix.wasSplit == gdbVariantSampleMatrix.wasSplit) // wasSplit == noMulti
-  }
-
   @Test def genomicsDBVariantAnnotationSignatures() {
     val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)

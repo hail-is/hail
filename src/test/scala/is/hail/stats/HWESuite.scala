@@ -2,7 +2,7 @@ package is.hail.stats
 
 import is.hail.SparkSuite
 import is.hail.check._
-import is.hail.methods.VariantQC
+import is.hail.methods.{SplitMulti, VariantQC}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -11,8 +11,7 @@ import org.testng.annotations.Test
 class HWESuite extends SparkSuite {
 
   @Test def test() {
-    val a = VariantQC(hc.importVCF("src/test/resources/HWE_test.vcf")
-      .verifyBiallelic())
+    val a = VariantQC(hc.importVCF("src/test/resources/HWE_test.vcf"))
       .variantsKT()
       .query(Array("v.map(v => v.start).collect()",
         "v.map(v => {r: va.qc.rExpectedHetFrequency, p: va.qc.pHWE}).collect()"))
@@ -31,7 +30,9 @@ class HWESuite extends SparkSuite {
 
   @Test def testExpr() {
     val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds: MatrixTable =>
-      val vds2 = VariantQC(vds.splitMulti())
+      var vds2 = SplitMulti(vds)
+      vds2 = VariantQC(vds2)
+      vds2 = vds2
         .annotateVariantsExpr("va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)")
         .annotateVariantsExpr("va.hweAgg = gs.map(g => g.GT).hardyWeinberg()")
 

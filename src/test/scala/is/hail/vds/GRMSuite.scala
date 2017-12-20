@@ -10,6 +10,7 @@ import is.hail.check.{Gen, Prop}
 import is.hail.expr.Type
 import is.hail.methods.GRM
 import is.hail.io.plink.ExportPlink
+import is.hail.methods.SplitMulti
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -140,7 +141,7 @@ class GRMSuite extends SparkSuite {
           Genotype.unboxedGT(g) != -1
         })
         .gen(hc)
-        .map(_.splitMulti())
+        .map(vds => SplitMulti(vds))
         // plink fails with fewer than 2 samples, no variants
         .filter(vsm => vsm.nSamples > 1 && vsm.countVariants > 0),
       Gen.oneOf("rel", "gcta-grm", "gcta-grm-bin")) {

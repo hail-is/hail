@@ -2,6 +2,7 @@ package is.hail.annotations
 
 import is.hail.SparkSuite
 import is.hail.expr._
+import is.hail.methods.SplitMulti
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant.Variant
@@ -281,8 +282,7 @@ class AnnotationsSuite extends SparkSuite {
   }
 
   @Test def testWeirdNamesReadWrite() {
-    var vds = hc.importVCF("src/test/resources/sample.vcf")
-      .splitMulti()
+    var vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
 
     val f = tmpDir.createTempFile("testwrite", extension = ".vds")
     val (newS, ins) = vds.insertVA(TInt32(), "ThisName(won'twork)=====")

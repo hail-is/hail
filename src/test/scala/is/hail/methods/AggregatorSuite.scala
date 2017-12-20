@@ -14,8 +14,10 @@ import org.testng.annotations.Test
 class AggregatorSuite extends SparkSuite {
 
   @Test def testRows() {
-    val vds = VariantQC(hc.importVCF("src/test/resources/sample2.vcf")
-      .splitMulti())
+    var vds = hc.importVCF("src/test/resources/sample2.vcf")
+    vds = SplitMulti(vds)
+    vds = VariantQC(vds)
+    vds = vds
       .annotateVariantsExpr(
         """va.test.callrate = gs.fraction(g => isDefined(g.GT)),
           |va.test.AC = gs.map(g => g.GT.nNonRefAlleles()).sum(),
@@ -109,7 +111,9 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testSum() {
     val p = Prop.forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
-      val vds2 = VariantQC(vds.splitMulti())
+      var vds2 = SplitMulti(vds)
+      vds2 = VariantQC(vds2)
+      vds2 = vds2
         .annotateVariantsExpr("va.oneHotAC = gs.map(g => g.GT.oneHotAlleles(v)).sum()")
         .annotateVariantsExpr("va.same = (gs.filter(g => isDefined(g.GT)).count() == 0) || " +
           "(va.oneHotAC[0] == va.qc.nCalled * 2  - va.qc.AC) && (va.oneHotAC[1] == va.qc.nHet + 2 * va.qc.nHomVar)")

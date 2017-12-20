@@ -8,7 +8,6 @@ import org.testng.annotations.Test
 class MendelErrorsSuite extends SparkSuite {
   @Test def test() {
     val vds = hc.importVCF("src/test/resources/mendel.vcf")
-      .verifyBiallelic()
     val ped = Pedigree.read("src/test/resources/mendel.fam", sc.hadoopConfiguration)
     val men = MendelErrors(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios)
 
@@ -67,7 +66,6 @@ class MendelErrorsSuite extends SparkSuite {
 
   @Test def testUniqueIds() {
     val vds = hc.importVCF("src/test/resources/mendel.vcf")
-      .verifyBiallelic()
     val ped = Pedigree.read("src/test/resources/mendel.fam", sc.hadoopConfiguration)
     val men = MendelErrors(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios)
 

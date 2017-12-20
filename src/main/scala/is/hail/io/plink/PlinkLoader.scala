@@ -133,8 +133,7 @@ object PlinkLoader {
       vaSignature = plinkSchema,
       vSignature = TVariant(gr),
       globalSignature = TStruct.empty(),
-      genotypeSignature = TStruct("GT" -> TCall()),
-      wasSplit = true)
+      genotypeSignature = TStruct("GT" -> TCall()))
 
     val matrixType = MatrixType(metadata)
     val kType = matrixType.kType

@@ -423,7 +423,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     var vdsAssoc = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .filterMulti()
+      .filterVariantsExpr("v.isBiallelic")
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno.Pheno")
       .annotateSamplesExpr("""sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.GT.gt).collect()[0]""")

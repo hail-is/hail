@@ -51,7 +51,7 @@ class ContextTests(unittest.TestCase):
 
         vcf = hc.import_vcf(test_resources + '/sample2.vcf',
                             reference_genome=GenomeReference.GRCh38(),
-                            contig_recoding={"22": "chr22"}).split_multi()
+                            contig_recoding={"22": "chr22"}).split_multi_hts()
 
         self.assertTrue(vcf.variants_table().forall("""v.contig == "chr22" """))
         vcf.export_plink('/tmp/sample_plink')
@@ -293,17 +293,15 @@ class ContextTests(unittest.TestCase):
         sample.summarize().report()
         sample.drop_samples().summarize().report()
 
-        self.assertEqual(sample.verify_biallelic().was_split(), True)
-
-        sample_split = sample.split_multi()
+        sample_split = sample.split_multi_hts()
 
         sample2 = hc.import_vcf(test_resources + '/sample2.vcf')
         sample2 = sample2.persist()
 
-        sample2_split = sample2.split_multi()
+        sample2_split = sample2.split_multi_hts()
 
-        sample.annotate_alleles_expr('va.gs = gs.map(g => g.GT).callStats(g => v)').count()
-        sample.annotate_alleles_expr(['va.gs = gs.map(g => g.GT).callStats(g => v)', 'va.foo = 5']).count()
+        sample.annotate_alleles_expr_hts('va.gs = gs.map(g => g.GT).callStats(g => v)').count()
+        sample.annotate_alleles_expr_hts(['va.gs = gs.map(g => g.GT).callStats(g => v)', 'va.foo = 5']).count()
 
         glob, concordance1, concordance2 = (sample2_split.concordance(sample2_split))
         print(glob[1][4])
@@ -315,15 +313,15 @@ class ContextTests(unittest.TestCase):
         sample2_split.export_gen('/tmp/sample2.gen', 5)
         sample2_split.export_plink('/tmp/sample2')
 
-        sample2.filter_multi().count()
+        sample2.filter_variants_expr('v.isBiallelic').count()
 
-        sample2.split_multi().grm().export_gcta_grm_bin('/tmp/sample2.grm')
+        sample2.split_multi_hts().grm().export_gcta_grm_bin('/tmp/sample2.grm')
 
         sample2.hardcalls().count()
 
         sample2_split.ibd(min=0.2, max=0.6)
 
-        sample2.split_multi().impute_sex().variant_schema
+        sample2.split_multi_hts().impute_sex().variant_schema
 
         self.assertEqual(sample2.genotype_schema, Type.hts_schema())
 
@@ -342,7 +340,7 @@ class ContextTests(unittest.TestCase):
                                 types={'isCase': TBoolean()}).key_by('Sample')
 
         regression = (hc.import_vcf(test_resources + '/regressionLinear.vcf')
-                      .split_multi()
+                      .split_multi_hts()
                       .annotate_samples_table(cov, root='sa.cov')
                       .annotate_samples_table(phen1, root='sa.pheno.Pheno')
                       .annotate_samples_table(phen2, root='sa.pheno.isCase'))
@@ -369,7 +367,7 @@ class ContextTests(unittest.TestCase):
                                        types={"locus": TLocus(), "weight": TFloat64()})
                        .key_by("locus"))
 
-        skatVds = (vds2.split_multi()
+        skatVds = (vds2.split_multi_hts()
             .annotate_variants_table(intervalsSkat, root="va.gene")
             .annotate_variants_table(weightsSkat, root="va.weight")
             .annotate_samples_table(phenotypesSkat, root="sa.pheno")
@@ -453,11 +451,7 @@ class ContextTests(unittest.TestCase):
         sample.file_version()
         sample.sample_ids[:5]
 
-        self.assertFalse(sample2.was_split())
-
-        self.assertTrue(sample_split.was_split())
-
-        sample2.filter_alleles('pcoin(0.5)')
+        sample2.filter_alleles_hts('pcoin(0.5)')
 
         sample_split.ld_prune(8).variants_table().select('v').export("/tmp/testLDPrune.tsv")
         kt = (sample2.variants_table()
@@ -597,7 +591,7 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(kt3.ungroup('A').group('A', 'c1', 'c2').same(kt3))
 
     def test_query(self):
-        vds = hc.import_vcf('src/test/resources/sample.vcf').split_multi().sample_qc()
+        vds = hc.import_vcf('src/test/resources/sample.vcf').split_multi_hts().sample_qc()
 
         self.assertEqual(vds.sample_ids, vds.query_samples(['samples.collect()'])[0])
 
@@ -831,7 +825,7 @@ class ContextTests(unittest.TestCase):
     def test_tdt(self):
         pedigree = Pedigree.read('src/test/resources/tdt.fam')
         tdt_res = (hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4)
-                   .split_multi()
+                   .split_multi_hts()
                    .tdt(pedigree))
 
         truth = (hc
@@ -857,3 +851,41 @@ class ContextTests(unittest.TestCase):
         kt = kt.annotate_global_expr('foo = [1,2,3]')
         kt = kt.annotate_global('bar', [4, 5, 6], TArray(TInt32()))
         self.assertEqual(kt.filter('foo.exists(x => x == index) || bar.exists(x => x == index)').count(), 6)
+
+    def test_annotate_alleles_expr(self):
+        paths = ['src/test/resources/sample.vcf',
+                 'src/test/resources/multipleChromosomes.vcf',
+                 'src/test/resources/sample2.vcf']
+        for path in paths:
+            vds = hc.import_vcf(path)
+            vds = vds.annotate_alleles_expr_hts('''
+va.gqMean = gs.map(g => g.GQ).stats().mean,
+va.AC = gs.map(g => g.GT.nNonRefAlleles()).sum()
+''')
+            vds = vds.annotate_variants_expr('va.callStatsAC = gs.map(g => g.GT).callStats(g => v).AC[1:]')
+            
+            self.assertTrue(vds.variants_table()
+                            .forall('va.AC == va.callStatsAC'))
+            
+            split_vds = vds.split_multi_hts()
+            split_vds = split_vds.annotate_variants_expr(
+                'va.splitGqMean = gs.map(g => g.GQ).stats().mean')
+            self.assertTrue(split_vds
+                            .variants_table()
+                            .forall('va.gqMean[va.aIndex - 1] == va.splitGqMean'))
+
+    def test_filter_alelles_random(self):
+        paths = ['src/test/resources/sample.vcf',
+                 'src/test/resources/multipleChromosomes.vcf',
+                 'src/test/resources/sample2.vcf']
+        for path in paths:
+            vds = hc.import_vcf(path)
+            vds = vds.annotate_alleles_expr_hts('va.p = pcoin(0.2)')
+            vds = vds.cache()
+
+            n1 = vds.query_variants('variants.map(v => va.p.map(x => if (x) 1 else 0).sum()).sum()')
+
+            n2 = (vds.filter_alleles_hts('va.p[aIndex - 1]', keep_star = True)
+                  .split_multi_hts(keep_star = True)
+                  .count_variants())
+            self.assertEqual(n1, n2)

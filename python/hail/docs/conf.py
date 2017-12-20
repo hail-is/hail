@@ -86,14 +86,14 @@ hc = HailContext(log="output/hail.log", quiet=True)
 
 (hc.import_vcf("data/sample.vcf.bgz")
  .sample_variants(0.015).annotate_variants_expr('va.anno1 = 5, va.toKeep1 = true, va.toKeep2 = false, va.toKeep3 = true')
- .split_multi()
+ .split_multi_hts()
  .write("data/example2.vds", overwrite=True))
 
 (hc.import_vcf("data/sample.vcf.bgz")
  .write("data/example2.multi.generic.vds", overwrite=True))
 
 (hc.import_vcf('data/sample.vcf.bgz')
- .split_multi()
+ .split_multi_hts()
  .variant_qc()
  .annotate_samples_table(hc.import_table('data/example_lmmreg.tsv', 'Sample', impute=True), root='sa')
  .annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
@@ -111,7 +111,7 @@ vds = hc.read('data/example.vds')
 
 multiallelic_generic_vds = hc.read('data/example2.multi.generic.vds')
 
-vds.split_multi().ld_matrix().write("data/ld_matrix")
+vds.split_multi_hts().ld_matrix().write("data/ld_matrix")
 
 from hail2 import *
 table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID').to_hail2()

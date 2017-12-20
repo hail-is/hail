@@ -3,9 +3,10 @@ package is.hail.io
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
+import is.hail.methods.SplitMulti
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{AltAllele, VSMSubgen, Variant, MatrixTable}
+import is.hail.variant.{AltAllele, MatrixTable, VSMSubgen, Variant}
 import org.testng.annotations.Test
 
 class SplitSuite extends SparkSuite {
@@ -21,7 +22,7 @@ class SplitSuite extends SparkSuite {
 
     property("splitMulti maintains variants") = forAll(MatrixTable.gen(hc,
       VSMSubgen.random.copy(vGen = _ => splittableVariantGen))) { vds =>
-      val method1 = vds.splitMulti().variants.collect().toSet
+      val method1 = SplitMulti(vds).variants.collect().toSet
       val method2 = vds.variants.flatMap { v1 =>
         val v = v1.asInstanceOf[Variant]
         v.altAlleles.iterator
@@ -37,8 +38,7 @@ class SplitSuite extends SparkSuite {
   @Test def splitTest() {
     Spec.check()
 
-    val vds1 = hc.importVCF("src/test/resources/split_test.vcf")
-      .splitMulti()
+    val vds1 = SplitMulti(hc.importVCF("src/test/resources/split_test.vcf"))
 
     val vds2 = hc.importVCF("src/test/resources/split_test_b.vcf")
 

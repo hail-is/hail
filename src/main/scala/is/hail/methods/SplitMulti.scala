@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
-import is.hail.variant.{Locus, Variant, MatrixTable}
+import is.hail.variant.{Genotype, Locus, MatrixTable, Variant}
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
@@ -124,6 +124,31 @@ class SplitMultiPartitionContext(
 }
 
 object SplitMulti {
+  def apply(vsm: MatrixTable): MatrixTable = {
+    if (!vsm.genotypeSignature.isOfType(Genotype.htsGenotypeType))
+      fatal(s"split_multi: genotype_schema must be the HTS genotype schema, found: ${ vsm.genotypeSignature }")
+
+    apply(vsm, "va.aIndex = aIndex, va.wasSplit = wasSplit",
+      s"""g =
+    let
+      newgt = downcode(g.GT, aIndex) and
+      newad = if (isDefined(g.AD))
+          let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+        else
+          NA: Array[Int] and
+      newpl = if (isDefined(g.PL))
+          range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
+        else
+          NA: Array[Int] and
+      newgq = gqFromPL(newpl)
+    in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }""")
+  }
+
+  def apply(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean = false, leftAligned: Boolean = false): MatrixTable = {
+    val splitmulti = new SplitMulti(vsm, variantExpr, genotypeExpr, keepStar, leftAligned)
+    splitmulti.split()
+  }
+
   def unionMovedVariants(ordered: OrderedRVD,
     moved: RDD[RegionValue]): OrderedRVD = {
     ordered.partitionSortedUnion(OrderedRVD.shuffle(ordered.typ,
@@ -192,6 +217,6 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
           split(sortAlleles = true, removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
           split(sortAlleles = false, removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 
-    vsm.copy2(rdd2 = newRDD2, vaSignature = vAnnotator.newT, genotypeSignature = gAnnotator.newT, wasSplit = true)
+    vsm.copy2(rdd2 = newRDD2, vaSignature = vAnnotator.newT, genotypeSignature = gAnnotator.newT)
   }
 }

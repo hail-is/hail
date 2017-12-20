@@ -134,7 +134,7 @@ class SkatSuite extends SparkSuite {
       types = Map("locus" -> TLocus(rg), "weight" -> TFloat64())).keyBy("locus")
 
     hc.importVCF("src/test/resources/sample2.vcf")
-      .filterMulti()
+      .filterVariantsExpr("v.isBiallelic")
       .annotateVariantsTable(intervalsSkat, root = "va.gene") // intervals do not overlap
       .annotateVariantsTable(weightsSkat, root = "va.weight")
       .annotateSamplesTable(covSkat, root = "sa.cov")
