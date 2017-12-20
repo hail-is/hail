@@ -1065,6 +1065,46 @@ def or_missing(predicate, value):
     predicate = to_expr(predicate)
     return _func("orMissing", predicate._type, predicate, value)
 
+@typecheck(x=expr_int32, n=expr_int32, p=expr_numeric,
+           alternative=enumeration("two.sided", "greater", "less"))
+@args_to_expr
+def binom_test(x, n, p, alternative):
+    """Performs a binomial test on `p` given `x` successes in `n` trials.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(f.binom_test(5, 10, 0.5, 'less'))
+        0.6230468749999999
+
+    With alternative ``less``, the p-value is the probability of at most `x`
+    successes, i.e. the cumulative probability at `x` of the distribution
+    Binom(`n`, `p`). With ``greater``, the p-value is the probably of at least
+    `x` successes. With ``two.sided``, the p-value is the total probability of
+    all outcomes with probability at most that of `x`.
+
+    Returns the p-value from the `exact binomial test
+    <https://en.wikipedia.org/wiki/Binomial_test>`__ of the null hypothesis that
+    success has probability `p`, given `x` successes in `n` trials.
+
+    Parameters
+    ----------
+    x : int or :class:`Int32Expression`
+        Number of successes.
+    n : int or :class:`Int32Expression`
+        Number of trials.
+    p : float or :class:`Float64Expression`
+        Probability of success, between 0 and 1.
+    alternative
+        : One of, "two.sided", "greater", "less".
+
+    Returns
+    -------
+    :class:`Float64Expression`
+        p-value.
+    """
+    return _func("binomTest", TFloat64(), x, n, p, alternative)
 
 @typecheck(x=expr_numeric, df=expr_numeric)
 @args_to_expr
