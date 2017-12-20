@@ -311,7 +311,7 @@ class LDPruneSuite extends SparkSuite {
 
   @Test def testWindow() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz"))
-    val prunedVds = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 100000, memoryPerCoreMB = 200000)
+    val prunedVds = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 100000, memoryPerCoreMB = 200)
     assert(isUncorrelated(prunedVds, 0.2, 1000))
   }
 
@@ -325,7 +325,7 @@ class LDPruneSuite extends SparkSuite {
           v.isBiallelic &&
             LDPruneSuite.toBitPackedVectorView(gs.hardCallIterator, nSamples).isDefined
         })
-    val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200000)
+    val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
     assert(prunedVDS.countVariants() == filteredVDS.countVariants())
   }
 }
