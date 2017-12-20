@@ -5,7 +5,7 @@ from hail.expr.ast import *
 from hail.genetics import Variant, Locus, Call, GenomeReference
 
 expr_int32 = oneof(Int32Expression, int)
-expr_numeric = oneof(Float32Expression, Float64Expression, Int64Expression, float, int, expr_int32)
+expr_numeric = oneof(Float32Expression, Float64Expression, Int64Expression, float, expr_int32)
 expr_list = oneof(list, ArrayExpression)
 expr_set = oneof(set, SetExpression)
 expr_bool = oneof(bool, BooleanExpression)
@@ -1069,7 +1069,7 @@ def or_missing(predicate, value):
            alternative=enumeration("two.sided", "greater", "less"))
 @args_to_expr
 def binom_test(x, n, p, alternative):
-    """Performs an exact binomial test on `x` with `n` trials at probability `p`.
+    """Performs a binomial test on `p` given `x` successes in `n` trials.
 
     Examples
     --------
@@ -1077,6 +1077,12 @@ def binom_test(x, n, p, alternative):
 
         >>> eval_expr(f.binom_test(5, 10, 0.5, 'less'))
         0.6230468749999999
+
+    With alternative ``less``, the p-value is the probability of at most `x`
+    successes, i.e. the cumulative probability at `x` of the distribution
+    Binom(`n`, `p`). With ``greater``, the p-value is the probably of at least
+    `x` successes. With ``two.sided``, the p-value is the total probability of
+    all outcomes with probability at most that of `x`.
 
     Returns the p-value from the `exact binomial test
     <https://en.wikipedia.org/wiki/Binomial_test>`__ of the null hypothesis that
