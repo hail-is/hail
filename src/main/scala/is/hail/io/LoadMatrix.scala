@@ -23,160 +23,51 @@ object LoadMatrix {
   }
 
   // this assumes that col IDs are in last line of header.
-  def parseHeader(line: String, sep: String = "\t", hasRowIDName: Boolean = false): Array[String] =
-    if (hasRowIDName)
-      line.split(sep).tail
-    else
-      line.split(sep)
+  def parseHeader(line: String, sep: Char = '\t', nAnnotations: Int, annotationHeaders: Option[Seq[String]]): (Array[String], Array[String]) =
+    annotationHeaders match {
+      case None =>
+        val r = line.split(sep)
+        if (r.length < nAnnotations)
+          fatal(s"Expected $nAnnotations annotation columns; only ${ r.length } columns in table.")
+        (r.slice(0, nAnnotations), r.slice(nAnnotations, r.length))
+      case Some(h) =>
+        assert(h.length == nAnnotations)
+        (h.toArray, line.split(sep))
+    }
 
   def getHeaderLines[T](hConf: Configuration, file: String, nLines: Int = 1): String = hConf.readFile(file) { s =>
     Source.fromInputStream(s).getLines().next()
   }
 
-  def setString(string: String, off: Int, rvb: RegionValueBuilder, sep: Char, missingValue: String, file: String, rowID: String, colNum: Int): Int = {
-    var newoff = string.indexOf(sep, off)
-    if (newoff == -1) {
-      newoff = string.length
-    }
-    val v = string.substring(off, newoff)
-    if (v == missingValue) {
-      rvb.setMissing()
-    } else {
-      rvb.addString(v)
-    }
-    newoff
-  }
-
-  def setInt(string: String, off: Int, rvb: RegionValueBuilder, sep: Char, missingValue: String, file: String, rowID: String, colNum: Int): Int = {
-    var newoff = off
-    var v = 0
-    var isNegative = false
-    if (string(off) == sep) {
-      fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowID in file: $file")
-    }
-    if (string(off) == '-' || string(off) == '+') {
-      isNegative = string(off) == '-'
-      newoff += 1
-    }
-    while (newoff < string.length && string(newoff) >= '0' && string(newoff) <= '9') {
-      v *= 10
-      v += string(newoff) - '0'
-      newoff += 1
-    }
-    if (newoff == off) {
-      while (newoff - off < missingValue.length && missingValue(newoff - off) == string(newoff)) {
-        newoff += 1
-      }
-      if (newoff - off == missingValue.length && (string.length == newoff || string(newoff) == sep)) {
-        rvb.setMissing()
-        newoff
-      } else {
-        fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowID in file: $file")
-      }
-    } else if (string.length == newoff || string(newoff) == sep) {
-      rvb.addInt(if (isNegative) -v else v)
-      newoff
-    } else {
-      fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: $rowID in file: $file")
-    }
-  }
-
-  def setLong(string: String, off: Int, rvb: RegionValueBuilder, sep: Char, missingValue: String, file: String, rowID: String, colNum: Int): Int = {
-    var newoff = off
-    var v = 0L
-    var isNegative = false
-    if (string(off) == sep) {
-      fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowID in file: $file")
-    }
-    if (string(off) == '-' || string(off) == '+') {
-      isNegative = string(off) == '-'
-      newoff += 1
-    }
-    while (newoff < string.length && string(newoff) >= '0' && string(newoff) <= '9') {
-      v *= 10
-      v += string(newoff) - '0'
-      newoff += 1
-    }
-    if (newoff == off) {
-      while (newoff - off < missingValue.length && missingValue(newoff - off) == string(newoff)) {
-        newoff += 1
-      }
-      if (newoff - off == missingValue.length && (string.length == newoff || string(newoff) == sep)) {
-        rvb.setMissing()
-        newoff
-      } else {
-        fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowID in file: $file")
-      }
-    } else if (string.length == newoff || string(newoff) == sep) {
-      rvb.addLong(if (isNegative) -v else v)
-      newoff
-    } else {
-      fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: $rowID in file: $file")
-    }
-  }
-
-  def setFloat(string: String, off: Int, rvb: RegionValueBuilder, sep: Char, missingValue: String, file: String, rowID: String, colNum: Int): Int = {
-    var newoff = string.indexOf(sep, off)
-    if (newoff == -1) {
-      newoff = string.length
-    }
-    val v = string.substring(off, newoff)
-    if (v == missingValue) {
-      rvb.setMissing()
-    } else {
-      try {
-        rvb.addFloat(v.toFloat)
-      } catch {
-        case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float32. column: $colNum, row: $rowID in file: $file")
-      }
-    }
-    newoff
-  }
-
-  def setDouble(string: String, off: Int, rvb: RegionValueBuilder, sep: Char, missingValue: String, file: String, rowID: String, colNum: Int): Int = {
-    var newoff = string.indexOf(sep, off)
-    if (newoff == -1) {
-      newoff = string.length
-    }
-    val v = string.substring(off, newoff)
-    if (v == missingValue) {
-      rvb.setMissing()
-    } else {
-      try {
-        rvb.addDouble(v.toDouble)
-      } catch {
-        case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float64! column: $colNum, row: $rowID in file: $file")
-      }
-    }
-    newoff
-  }
-
   def apply(hc: HailContext,
     files: Array[String],
+    annotationHeaders: Option[Seq[String]],
+    annotationTypes: Seq[Type],
+    keyExpr: String,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
-    sep: String = "\t",
-    missingValue: String = "NA",
-    hasRowIDName: Boolean = false): MatrixTable = {
+    missingValue: String = "NA"): MatrixTable = {
 
-    val cellParser: (String, Int, RegionValueBuilder, Char, String, String, String, Int) => Int = cellType match {
-      case _: TInt32 => setInt
-      case _: TInt64 => setLong
-      case _: TFloat32 => setFloat
-      case _: TFloat64 => setDouble
-      case _: TString => setString
-      case _ =>
-      fatal(
-        s"""expected cell type Int32, Int64, Float32, Float64, or String but got:
-           |    ${ cellType.toPrettyString() }
-         """.stripMargin)
-    }
+    val sep = '\t'
+    val nAnnotations = annotationTypes.length
 
+      assert(annotationTypes.forall { t =>
+        t.isOfType(TString()) ||
+          t.isOfType(TInt32()) ||
+          t.isOfType(TInt64()) ||
+          t.isOfType(TFloat32()) ||
+          t.isOfType(TFloat64())
+      })
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
-    val header1 = parseHeader(getHeaderLines(hConf, files.head), sep, hasRowIDName)
+    val (annotationNames, header1) = parseHeader(getHeaderLines(hConf, files.head), sep, nAnnotations, annotationHeaders)
+    val symTab = annotationNames.zip(annotationTypes)
+    val annotationType = TStruct(symTab: _*)
+    val ec = EvalContext(symTab: _*)
+    val (t, f) = Parser.parseExpr(keyExpr, ec)
+
     val header1Bc = sc.broadcast(header1)
 
     val sampleIds: Array[String] =
@@ -198,57 +89,12 @@ object LoadMatrix {
 
     val matrixType = MatrixType(VSMMetadata(
       sSignature = TString(),
-      vSignature = TString(),
+      vSignature = t,
+      vaSignature = annotationType,
       genotypeSignature = cellType
     ))
 
     val keyType = matrixType.kType
-    val rowKeys: RDD[RegionValue] = lines.mapPartitionsWithIndex { (i, it) =>
-      if (firstPartitions(i)) {
-        val hd1 = header1Bc.value
-        val hd = parseHeader(it.next().value, sep, hasRowIDName)
-        if (!hd1.sameElements(hd)) {
-          if (hd1.length != hd.length) {
-            fatal(
-              s"""invalid sample ids: lengths of headers differ.
-                 |    ${ hd1.length } elements in ${ files(0) }
-                 |    ${ hd.length } elements in ${ fileByPartition(i) }
-               """.stripMargin
-            )
-          }
-          hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
-            if (s1 != s2) {
-              fatal(
-                s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $j.
-                   |    ${ files(0) }: $s1
-                   |    ${ fileByPartition(i) }: $s2""".
-                  stripMargin)
-            }
-          }
-        }
-      }
-
-      val region = Region()
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
-      it.map { v =>
-        val line = v.value
-        if (line.nonEmpty) {
-          var newoff = line.indexOf(sep)
-          if (newoff == -1)
-            newoff = line.length
-          val k = line.substring(0, newoff)
-          region.clear()
-          rvb.start(keyType)
-          rvb.startStruct()
-          rvb.addString(k)
-          rvb.addString(k)
-          rvb.endStruct()
-          rv.setOffset(rvb.end())
-        }
-        rv
-      }
-    }
 
     val rdd = lines.filter(l => l.value.nonEmpty)
       .mapPartitionsWithIndex { (i, it) =>
@@ -256,28 +102,191 @@ object LoadMatrix {
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 
-        if (firstPartitions(i))
-          it.next()
+        if (firstPartitions(i)) {
+          val hd1 = header1Bc.value
+          val (annotationNamesCheck, hd) = parseHeader(it.next().value, sep, nAnnotations, annotationHeaders)
+          if (!annotationNames.sameElements(annotationNamesCheck)) {
+            fatal("column headers for annotations must be the same accross files.")
+          }
+          if (!hd1.sameElements(hd)) {
+            if (hd1.length != hd.length) {
+              fatal(
+                s"""invalid sample ids: lengths of headers differ.
+                   |    ${ hd1.length } elements in ${ files(0) }
+                   |    ${ hd.length } elements in ${ fileByPartition(i) }
+               """.stripMargin
+              )
+            }
+            hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
+              if (s1 != s2) {
+                fatal(
+                  s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $j.
+                     |    ${ files(0) }: $s1
+                     |    ${ fileByPartition(i) }: $s2""".
+                    stripMargin)
+              }
+            }
+          }
+        }
+
+        val at = matrixType.vaType.asInstanceOf[TStruct]
 
         it.map { v =>
           val line = v.value
-          var newoff = line.indexOf(sep)
-          if (newoff == -1)
-            newoff = line.length
-          val rowKey = line.substring(0, newoff)
+          var off = 0
+          var missing = false
+
+          def getString(file: String, rowID: Annotation, colNum: Int): String = {
+            var newoff = line.indexOf(sep, off)
+            if (newoff == -1) {
+              newoff = line.length
+            }
+            val v = line.substring(off, newoff)
+            off = newoff + 1
+            if (v == missingValue){
+              missing = true
+              null
+            } else v
+          }
+
+          def getInt(file: String, rowID: Annotation, colNum: Int): Int = {
+            var newoff = off
+            var v = 0
+            var isNegative = false
+            if (line(off) == sep) {
+              fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+            }
+            if (line(off) == '-' || line(off) == '+') {
+              isNegative = line(off) == '-'
+              newoff += 1
+            }
+            while (newoff < line.length && line(newoff) >= '0' && line(newoff) <= '9') {
+              v *= 10
+              v += (line(newoff) - '0')
+              newoff += 1
+            }
+            if (newoff == off) {
+              while (newoff - off < missingValue.length && missingValue(newoff - off) == line(newoff)) {
+                newoff += 1
+              }
+
+              if (newoff - off == missingValue.length && (line.length == newoff || line(newoff) == sep)) {
+                off = newoff + 1
+                missing = true
+                0
+              } else {
+                fatal(s"Error parsing matrix. Invalid Int32 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+              }
+            } else if (line.length == newoff || line(newoff) == sep) {
+              off = newoff + 1
+              if (isNegative) -v else v
+            } else {
+              fatal(s"Error parsing matrix. $v Invalid Int32 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+            }
+          }
+
+          def getLong(file: String, rowID: Annotation, colNum: Int): Long = {
+            var newoff = off
+            var v = 0L
+            var isNegative = false
+            if (line(off) == sep) {
+              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+            }
+            if (line(off) == '-' || line(off) == '+') {
+              isNegative = line(off) == '-'
+              newoff += 1
+            }
+            while (newoff < line.length && line(newoff) >= '0' && line(newoff) <= '9') {
+              v *= 10
+              v += line(newoff) - '0'
+              newoff += 1
+            }
+            if (newoff == off) {
+              while (newoff - off < missingValue.length && missingValue(newoff - off) == line(newoff)) {
+                newoff += 1
+              }
+
+              if (newoff - off == missingValue.length && (line.length == newoff || line(newoff) == sep)) {
+                off = newoff + 1
+                missing = true
+                0L
+              } else {
+                fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+              }
+            } else if (line.length == newoff || line(newoff) == sep) {
+              off = newoff + 1
+              if (isNegative) -v else v
+            } else {
+              fatal(s"Error parsing matrix. Invalid Int64 at column: $colNum, row: ${ t.str(rowID) } in file: $file")
+            }
+          }
+
+          def getFloat(file: String, rowID: Annotation, colNum: Int): Float = {
+            var newoff = line.indexOf(sep, off)
+            if (newoff == -1)
+              newoff = line.length
+            val v = line.substring(off, newoff)
+            off = newoff + 1
+            if (v == missingValue) {
+              missing = true
+              0.0F
+            } else {
+              try {
+              v.toFloat
+              } catch {
+                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float32. column: $colNum, row: ${ t.str(rowID) } in file: $file")
+              }
+            }
+          }
+
+          def getDouble(file: String, rowID: Annotation, colNum: Int): Double = {
+            var newoff = line.indexOf(sep, off)
+            if (newoff == -1)
+              newoff = line.length
+            val v = line.substring(off, newoff)
+            off = newoff + 1
+            if (v == missingValue) {
+              missing = true
+              0.0
+            } else {
+              try {
+                v.toDouble
+              } catch {
+                case _: NumberFormatException => fatal(s"Error parsing matrix: $v is not a Float64. column: $colNum, row: ${ t.str(rowID) } in file: $file")
+              }
+            }
+          }
+
+          var ii = 0
+          while (ii < nAnnotations) {
+            val t = at.fieldType(ii)
+            ec.set(ii, t match {
+              case _: TInt32 => getInt(fileByPartition(i), null, ii)
+              case _: TInt64 => getLong(fileByPartition(i), null, ii)
+              case _: TFloat32 => getFloat(fileByPartition(i), null, ii)
+              case _: TFloat64 => getDouble(fileByPartition(i), null, ii)
+              case _: TString => getString(fileByPartition(i), null, ii)
+            })
+            ii += 1
+          }
+
+          val rowKey = f()
 
           region.clear()
           rvb.start(matrixType.rowType)
           rvb.startStruct()
-
-          rvb.addString(rowKey)
-          rvb.addString(rowKey)
+          rvb.addAnnotation(t, rowKey)
+          rvb.addAnnotation(t, rowKey)
           rvb.startStruct()
+          ii = 0
+          while (ii < at.size) {
+            rvb.addAnnotation(at.fieldType(ii), ec.a(ii))
+            ii += 1
+          }
           rvb.endStruct()
 
           rvb.startArray(nSamples)
           if (nSamples > 0) {
-            var off = rowKey.length() + 1
             var ii = 0
             while (ii < nSamples) {
               if (off > line.length) {
@@ -287,9 +296,25 @@ object LoadMatrix {
                      |    in file ${ fileByPartition(i) }""".stripMargin
                 )
               }
-              off = cellParser(line, off, rvb, sep(0), missingValue, fileByPartition(i), rowKey, ii)
+              missing = false
+              cellType match {
+                case _: TInt32 =>
+                  val v = getInt(fileByPartition(i), rowKey, ii + nAnnotations)
+                  if (missing) rvb.setMissing() else rvb.addInt(v)
+                case _: TInt64 =>
+                  val v = getLong(fileByPartition(i), rowKey, ii + nAnnotations)
+                  if (missing) rvb.setMissing() else rvb.addLong(v)
+                case _: TFloat32 =>
+                  val v = getFloat(fileByPartition(i), rowKey, ii + nAnnotations)
+                  if (missing) rvb.setMissing() else rvb.addFloat(v)
+                case _: TFloat64 =>
+                  val v = getDouble(fileByPartition(i), rowKey, ii + nAnnotations)
+                  if (missing) rvb.setMissing() else rvb.addDouble(v)
+                case _: TString =>
+                  val v = getString(fileByPartition(i), rowKey, ii + nAnnotations)
+                  if (missing) rvb.setMissing() else rvb.addString(v)
+              }
               ii += 1
-              off += 1
             }
             if (off < line.length) {
               fatal(
@@ -307,10 +332,10 @@ object LoadMatrix {
       }
 
     new MatrixTable(hc,
-      VSMMetadata(TString(), vSignature = TString(), genotypeSignature = cellType),
+      matrixType.metadata,
       VSMLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
-      OrderedRVD(matrixType.orderedRVType, rdd, Some(rowKeys), None))
+      OrderedRVD(matrixType.orderedRVType, rdd, None, None))
   }
 }

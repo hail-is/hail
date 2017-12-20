@@ -94,7 +94,7 @@ class ContextTests(unittest.TestCase):
         metadata_imported = hc.get_vcf_metadata('/tmp/sample_generic.vcf')
         self.assertDictEqual(vcf_metadata, metadata_imported)
 
-        matrix = hc.import_matrix(test_resources + '/samplematrix1.txt')
+        matrix = hc.import_matrix(test_resources + '/samplematrix1.txt', 'v', [TString()], annotation_headers=['v'])
         self.assertEqual(matrix.count()[1], 10)
 
     def test_dataset(self):

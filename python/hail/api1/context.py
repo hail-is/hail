@@ -5,7 +5,7 @@ from pyspark.sql import SQLContext
 
 from hail.api1.dataset import VariantDataset
 from hail.api1.keytable import KeyTable
-from hail.expr.types import Type, TInt64, TDict, TString
+from hail.expr.types import Type, TInt32, TInt64, TFloat32, TFloat64, TDict, TString
 from hail.genetics.genomeref import GenomeReference
 from hail.history import *
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
@@ -844,15 +844,26 @@ class HailContext(HistoryMixin):
     @handle_py4j
     @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
+                      key_expr=strlike,
+                      annotation_types=listof(oneof(TInt32, TInt64, TFloat32, TFloat64, TString)),
+                      annotation_headers=nullable(listof(strlike)),
                       min_partitions=nullable(integral),
                       drop_samples=bool,
-                      cell_type=nullable(Type),
-                      missing=strlike,
-                      has_row_id_name=bool)
-    def import_matrix(self, path, min_partitions=None, drop_samples=False, cell_type=None, missing="NA", has_row_id_name = False):
+                      cell_type=nullable(oneof(TInt32, TInt64, TFloat32, TFloat64, TString)),
+                      missing=strlike)
+    def import_matrix(self, path, key_expr, annotation_types, annotation_headers=None,
+                      min_partitions=None, drop_samples=False, cell_type=None, missing="NA"):
         """
         :param path: File(s) to read. Currently, takes 1 header line of column ids and subsequent lines of rowID, data... in TSV form where data can be parsed as an integer.
         :type path: str or list of str
+
+        :param str key_expr: Expression to use for the row key.
+
+        :param annotation_types: List of types to use for the annotation fields. Must be one of: TInt32, TInt64, TFloat32, TFloat64, TString.
+        :type min_partitions: list of Type
+
+        :param annotation_headers: List of names to use for the annotation fields. If None, read from file header. Default: None
+        :type annotation_headers: list of str or None
 
         :param min_partitions: Number of partitions.
         :type min_partitions: int or None
@@ -863,21 +874,26 @@ class HailContext(HistoryMixin):
 
         :param str missing: notation for cell with missing value. Default: "NA"
 
-        :param str has_row_id_name: whether or not the table header has an entry for the Row IDs. Default: False
-
         :return: Variant dataset imported from file(s)
         :rtype: :py:class:`.VariantDataset`
         """
 
         if not cell_type:
             cell_type = TInt64()
+
+        if annotation_headers != None and len(annotation_headers) != len(annotation_types):
+            raise FatalError("""annotation_headers and annotation_types have different lengths: 
+            each annotation header column must correspond to exactly one annotation type""")
+
         return VariantDataset(self,
                               self._jhc.importMatrices(jindexed_seq_args(path),
+                                                       jsome(jindexed_seq_args(annotation_headers)) if annotation_headers else jnone(),
+                                                       jindexed_seq_args([t._jtype for t in annotation_types]),
+                                                       key_expr,
                                                        joption(min_partitions),
                                                        drop_samples,
                                                        cell_type._jtype,
-                                                       missing,
-                                                       has_row_id_name))
+                                                       missing))
 
     @handle_py4j
     @typecheck_method(path=oneof(strlike, listof(strlike)))
