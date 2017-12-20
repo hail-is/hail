@@ -2764,7 +2764,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.ldPrune(num_cores, r2, window, memory_per_core)
+        jvds = Env.hail().methods.LDPrune.apply(self._jvds, num_cores, r2, window, memory_per_core)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

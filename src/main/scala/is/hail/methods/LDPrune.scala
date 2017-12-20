@@ -412,7 +412,12 @@ object LDPrune {
   }
 
   def apply(vsm: MatrixTable, nCores: Int,
-    r2Threshold: Double, windowSize: Int, memoryPerCore: Long): MatrixTable = {
+    r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCoreMB: Long = 256): MatrixTable = {
+    vsm.requireRowKeyVariant("ld_prune")
+
+    // in bytes
+    val memoryPerCore = memoryPerCoreMB * 1024L * 1024L
+
     if (nCores <= 0)
       fatal(s"Number of cores must be positive.")
 

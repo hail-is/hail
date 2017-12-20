@@ -2378,11 +2378,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     copy2(rdd2 = newRDD2)
   }
 
-  def ldPrune(nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCore: Int = 256): MatrixTable = {
-    requireRowKeyVariant("ld_prune")
-    LDPrune(this, nCores, r2Threshold, windowSize, memoryPerCore * 1024L * 1024L)
-  }
-
   def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): MatrixTable = {
     if (!sSignature.isInstanceOf[TString])
       fatal("trio_matrix requires column keys of type String")

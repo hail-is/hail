@@ -110,7 +110,7 @@ object LDPruneSuite {
 }
 
 class LDPruneSuite extends SparkSuite {
-  val bytesPerCore = 256L * 1024L * 1024L
+  val bytesPerCoreMB = 256
   val nCores = 4
 
   def correlationMatrix(gts: Array[Iterable[Annotation]], nSamples: Int) = {
@@ -200,7 +200,7 @@ class LDPruneSuite extends SparkSuite {
 
   @Test def testIdenticalVariants() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/ldprune2.vcf", nPartitions = Option(2)))
-    val prunedVds = LDPrune(vds, nCores, 0.2, 700, memoryPerCore = bytesPerCore)
+    val prunedVds = LDPrune(vds, nCores, 0.2, 700, memoryPerCoreMB = bytesPerCoreMB)
     assert(prunedVds.countVariants() == 1)
   }
 
@@ -208,7 +208,7 @@ class LDPruneSuite extends SparkSuite {
     val r2 = 0.2
     val windowSize = 500
     val vds = SplitMulti(hc.importVCF("src/test/resources/ldprune_multchr.vcf", nPartitions = Option(10)))
-    val prunedVds = LDPrune(vds, nCores, r2, windowSize, bytesPerCore)
+    val prunedVds = LDPrune(vds, nCores, r2, windowSize, bytesPerCoreMB)
     assert(isUncorrelated(prunedVds, r2, windowSize))
   }
 
@@ -268,7 +268,7 @@ class LDPruneSuite extends SparkSuite {
     property("uncorrelated") =
       forAll(compGen) { case (r2: Double, windowSize: Int, nPartitions: Int) =>
         val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(nPartitions)))
-        val prunedVds = LDPrune(vds, nCores, r2, windowSize, bytesPerCore)
+        val prunedVds = LDPrune(vds, nCores, r2, windowSize, bytesPerCoreMB)
         isUncorrelated(prunedVds, r2, windowSize)
       }
   }
@@ -281,19 +281,19 @@ class LDPruneSuite extends SparkSuite {
     def vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)))
 
     // memory per core requirement
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000, memoryPerCore = 0))
+    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000, memoryPerCoreMB = 0))
 
     // r2 negative
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = -0.1, windowSize = 1000, memoryPerCore = 1000))
+    intercept[HailException](LDPrune(vds, nCores, r2Threshold = -0.1, windowSize = 1000))
 
     // r2 > 1
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 1.1, windowSize = 1000, memoryPerCore = 1000))
+    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 1.1, windowSize = 1000))
 
     // windowSize negative
-    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.5, windowSize = -2, memoryPerCore = 1000))
+    intercept[HailException](LDPrune(vds, nCores, r2Threshold = 0.5, windowSize = -2))
 
     // parallelism negative
-    intercept[HailException](LDPrune(vds, nCores = -1, r2Threshold = 0.5, windowSize = 100, memoryPerCore = 1000))
+    intercept[HailException](LDPrune(vds, nCores = -1, r2Threshold = 0.5, windowSize = 100))
   }
 
   @Test def testMemoryRequirements() {
@@ -311,7 +311,7 @@ class LDPruneSuite extends SparkSuite {
 
   @Test def testWindow() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf.bgz"))
-    val prunedVds = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 100000, memoryPerCore = 200000)
+    val prunedVds = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 100000, memoryPerCoreMB = 200)
     assert(isUncorrelated(prunedVds, 0.2, 1000))
   }
 
@@ -325,7 +325,7 @@ class LDPruneSuite extends SparkSuite {
           v.isBiallelic &&
             LDPruneSuite.toBitPackedVectorView(gs.hardCallIterator, nSamples).isDefined
         })
-    val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCore = 200000)
+    val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
     assert(prunedVDS.countVariants() == filteredVDS.countVariants())
   }
 }
