@@ -6,7 +6,6 @@ import is.hail.utils._
 
 object ExportPlink {
   def apply(vsm: MatrixTable, path: String, famExpr: String = "id = s") {
-    require(vsm.wasSplit)
     vsm.requireColKeyString("export plink")
 
     val ec = EvalContext(Map(
