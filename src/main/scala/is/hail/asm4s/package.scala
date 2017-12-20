@@ -201,8 +201,11 @@ package object asm4s {
 
   implicit def toCodeArray[T](c: Code[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
 
-  implicit def toCodeObject[T >: Null](c: Code[T])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CodeObject[T] =
+  implicit def toCodeObject[T <: AnyRef : ClassTag](c: Code[T]): CodeObject[T] =
     new CodeObject(c)
+
+  implicit def toCodeNullable[T >: Null : TypeInfo](c: Code[T]): CodeNullable[T] =
+    new CodeNullable(c)
 
   implicit def toCode[T](insn: => AbstractInsnNode): Code[T] = new Code[T] {
     def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -229,7 +232,9 @@ package object asm4s {
 
   implicit def toCodeBoolean(f: LocalRef[Boolean]): CodeBoolean = new CodeBoolean(f.load())
 
-  implicit def toCodeObject[T >: Null](f: LocalRef[T])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CodeObject[T] = new CodeObject[T](f.load())
+  implicit def toCodeObject[T <: AnyRef : ClassTag](f: LocalRef[T]): CodeObject[T] = new CodeObject[T](f.load())
+
+  implicit def toCodeNullable[T >: Null : TypeInfo](f: LocalRef[T]): CodeNullable[T] = new CodeNullable[T](f.load())
 
   implicit def toLocalRefInt(f: LocalRef[Int]): LocalRefInt = new LocalRefInt(f)
 
