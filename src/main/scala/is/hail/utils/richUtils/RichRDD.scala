@@ -67,8 +67,10 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       case None => rWithHeader.saveAsTextFile(parallelOutputPath)
     }
 
-    if (exportType == ExportType.PARALLEL_SEPARATE_HEADER)
-      hConf.writeTextFile(parallelOutputPath + "/header")(out => out.write(header.getOrElse("")))
+    if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
+      val headerExt = hConf.getCodec(filename)
+      hConf.writeTextFile(parallelOutputPath + "/header" + headerExt)(out => out.write(header.getOrElse("")))
+    }
 
     if (!hConf.exists(parallelOutputPath + "/_SUCCESS"))
       fatal("write failed: no success indicator found")

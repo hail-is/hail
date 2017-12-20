@@ -79,11 +79,11 @@ class RichRDDSuite extends SparkSuite {
     assert(read(shardHeaders + "/part-00000") sameElements header +: Array(data(0)))
     assert(read(shardHeaders + "/part-00001") sameElements header +: Array(data(1)))
 
-    val separateHeader = tmpDir.createTempFile("separateHeader")
+    val separateHeader = tmpDir.createTempFile("separateHeader", ".gz")
     r.writeTable(separateHeader, tmpDir.createTempFile("separateHeader"), Some(header), exportType = ExportType.PARALLEL_SEPARATE_HEADER)
 
-    assert(read(separateHeader + "/header") sameElements Array(header))
-    assert(read(separateHeader + "/part-00000") sameElements Array(data(0)))
-    assert(read(separateHeader + "/part-00001") sameElements Array(data(1)))
+    assert(read(separateHeader + "/header.gz") sameElements Array(header))
+    assert(read(separateHeader + "/part-00000.gz") sameElements Array(data(0)))
+    assert(read(separateHeader + "/part-00001.gz") sameElements Array(data(1)))
   }
 }
