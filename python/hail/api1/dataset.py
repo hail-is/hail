@@ -6,7 +6,7 @@ from hail.api1.keytable import KeyTable
 from hail.expr.types import *
 from hail.genetics import LDMatrix, KinshipMatrix, Pedigree, Interval, Variant
 from hail.typecheck import *
-from hail.utils import Summary, wrap_to_list, hadoop_read, get_export_type
+from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.utils.java import *
 
 vds_type = lazy()
