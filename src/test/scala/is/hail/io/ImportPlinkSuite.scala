@@ -3,7 +3,7 @@ package is.hail.io
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
-import is.hail.io.plink.PlinkLoader
+import is.hail.io.plink.{ExportPlink, PlinkLoader}
 import is.hail.methods.VariantQC
 import is.hail.utils._
 import is.hail.variant._
@@ -27,7 +27,7 @@ class ImportPlinkSuite extends SparkSuite {
         val truthRoot = tmpDir.createTempFile("truth")
         val testRoot = tmpDir.createTempFile("test")
 
-        vds.exportPlink(truthRoot)
+        ExportPlink(vds, truthRoot)
 
         if (vds.nSamples == 0) {
           TestUtils.interceptFatal("Empty .fam file") {
@@ -40,8 +40,8 @@ class ImportPlinkSuite extends SparkSuite {
           }
           true
         } else {
-          hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
-            .exportPlink(testRoot)
+          ExportPlink(hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions)),
+            testRoot)
 
           val localTruthRoot = tmpDir.createLocalTempFile("truth")
           val localTestRoot = tmpDir.createLocalTempFile("test")
@@ -70,9 +70,9 @@ class ImportPlinkSuite extends SparkSuite {
 
   @Test def testA1Major() {
     val plinkFileRoot = tmpDir.createTempFile("plink_reftest")
-    hc.importVCF("src/test/resources/sample.vcf")
-      .verifyBiallelic()
-      .exportPlink(plinkFileRoot)
+    ExportPlink(hc.importVCF("src/test/resources/sample.vcf")
+      .verifyBiallelic(),
+      plinkFileRoot)
 
     val a1ref = hc.importPlinkBFile(plinkFileRoot, a2Reference = false)
 

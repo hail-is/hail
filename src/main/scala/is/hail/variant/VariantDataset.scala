@@ -2,14 +2,12 @@ package is.hail.variant
 
 import is.hail.annotations.{Annotation, _}
 import is.hail.expr.{EvalContext, Parser, TAggregable, TString, TStruct, Type, _}
-import is.hail.io.plink.ExportBedBimFam
 import is.hail.table.Table
 import is.hail.methods._
 import is.hail.rvd.OrderedRVD
 import is.hail.stats.ComputeRRM
 import is.hail.utils._
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
 
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
@@ -162,95 +160,6 @@ class VariantDatasetFunctions(private val vsm: MatrixTable) extends AnyVal {
     require(other.wasSplit)
 
     CalculateConcordance(vsm, other)
-  }
-
-  def exportPlink(path: String, famExpr: String = "id = s") {
-    require(vsm.wasSplit)
-    vsm.requireColKeyString("export plink")
-
-    val ec = EvalContext(Map(
-      "s" -> (0, TString()),
-      "sa" -> (1, vsm.saSignature),
-      "global" -> (2, vsm.globalSignature)))
-
-    ec.set(2, vsm.globalAnnotation)
-
-    type Formatter = (Option[Any]) => String
-
-    val formatID: Formatter = _.map(_.asInstanceOf[String]).getOrElse("0")
-    val formatIsFemale: Formatter = _.map { a =>
-      if (a.asInstanceOf[Boolean])
-        "2"
-      else
-        "1"
-    }.getOrElse("0")
-    val formatIsCase: Formatter = _.map { a =>
-      if (a.asInstanceOf[Boolean])
-        "2"
-      else
-        "1"
-    }.getOrElse("-9")
-    val formatQPheno: Formatter = a => a.map(_.toString).getOrElse("-9")
-
-    val famColumns: Map[String, (Type, Int, Formatter)] = Map(
-      "famID" -> (TString(), 0, formatID),
-      "id" -> (TString(), 1, formatID),
-      "patID" -> (TString(), 2, formatID),
-      "matID" -> (TString(), 3, formatID),
-      "isFemale" -> (TBoolean(), 4, formatIsFemale),
-      "qPheno" -> (TFloat64(), 5, formatQPheno),
-      "isCase" -> (TBoolean(), 5, formatIsCase))
-
-    val (names, types, f) = Parser.parseNamedExprs(famExpr, ec)
-
-    val famFns: Array[(Array[Option[Any]]) => String] = Array(
-      _ => "0", _ => "0", _ => "0", _ => "0", _ => "-9", _ => "-9")
-
-    (names.zipWithIndex, types).zipped.foreach { case ((name, i), t) =>
-      famColumns.get(name) match {
-        case Some((colt, j, formatter)) =>
-          if (colt != t)
-            fatal(s"invalid type for .fam file column $i: expected $colt, got $t")
-          famFns(j) = (a: Array[Option[Any]]) => formatter(a(i))
-
-        case None =>
-          fatal(s"no .fam file column $name")
-      }
-    }
-
-    val spaceRegex = """\s+""".r
-    val badSampleIds = vsm.stringSampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
-    if (badSampleIds.nonEmpty) {
-      fatal(
-        s"""Found ${ badSampleIds.length } sample IDs with whitespace
-           |  Please run `renamesamples' to fix this problem before exporting to plink format
-           |  Bad sample IDs: @1 """.stripMargin, badSampleIds)
-    }
-
-    val bedHeader = Array[Byte](108, 27, 1)
-
-    // FIXME: don't reevaluate the upstream RDD twice
-    vsm.rdd2.mapPartitions(
-      ExportBedBimFam.bedRowTransformer(vsm.nSamples, vsm.rdd2.typ.rowType)
-    ).saveFromByteArrays(path + ".bed", vsm.hc.tmpDir, header = Some(bedHeader))
-
-    vsm.rdd2.mapPartitions(
-      ExportBedBimFam.bimRowTransformer(vsm.rdd2.typ.rowType)
-    ).writeTable(path + ".bim", vsm.hc.tmpDir)
-
-    val famRows = vsm
-      .sampleIdsAndAnnotations
-      .map { case (s, sa) =>
-        ec.setAll(s, sa)
-        val a = f().map(Option(_))
-        famFns.map(_ (a)).mkString("\t")
-      }
-
-    vsm.hc.hadoopConf.writeTextFile(path + ".fam")(out =>
-      famRows.foreach(line => {
-        out.write(line)
-        out.write("\n")
-      }))
   }
 
   def filterAlleles(filterExpr: String, variantExpr: String = "",
@@ -409,86 +318,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         },
         wasSplit = true)
     }
-  }
-
-  def exportGen(path: String, precision: Int = 4) {
-    require(vsm.wasSplit)
-
-    def writeSampleFile() {
-      // FIXME: should output all relevant sample annotations such as phenotype, gender, ...
-      vsm.hc.hadoopConf.writeTable(path + ".sample",
-        "ID_1 ID_2 missing" :: "0 0 0" :: vsm.sampleIds.map(s => s"$s $s 0").toList)
-    }
-
-    def writeGenFile() {
-      val varidSignature = vsm.vaSignature.getOption("varid")
-      val varidQuery: Querier = varidSignature match {
-        case Some(_) =>
-          val (t, q) = vsm.queryVA("va.varid")
-          t match {
-            case _: TString => q
-            case _ => a => null
-          }
-        case None => a => null
-      }
-
-      val rsidSignature = vsm.vaSignature.getOption("rsid")
-      val rsidQuery: Querier = rsidSignature match {
-        case Some(_) =>
-          val (t, q) = vsm.queryVA("va.rsid")
-          t match {
-            case _: TString => q
-            case _ => a => null
-          }
-        case None => a => null
-      }
-
-      val localNSamples = vsm.nSamples
-      val localRowType = vsm.rowType
-      vsm.rdd2.mapPartitions { it =>
-        val sb = new StringBuilder
-        val view = new ArrayGenotypeView(localRowType)
-        it.map { rv =>
-          view.setRegion(rv)
-          val ur = new UnsafeRow(localRowType, rv)
-
-          val v = ur.getAs[Variant](1)
-          val va = ur.get(2)
-
-          sb.clear()
-          sb.append(v.contig)
-          sb += ' '
-          sb.append(Option(varidQuery(va)).getOrElse(v.toString))
-          sb += ' '
-          sb.append(Option(rsidQuery(va)).getOrElse("."))
-          sb += ' '
-          sb.append(v.start)
-          sb += ' '
-          sb.append(v.ref)
-          sb += ' '
-          sb.append(v.alt)
-
-          var i = 0
-          while (i < localNSamples) {
-            view.setGenotype(i)
-            if (view.hasGP) {
-              sb += ' '
-              sb.append(formatDouble(view.getGP(0), precision))
-              sb += ' '
-              sb.append(formatDouble(view.getGP(1), precision))
-              sb += ' '
-              sb.append(formatDouble(view.getGP(2), precision))
-            } else
-              sb.append(" 0 0 0")
-            i += 1
-          }
-          sb.result()
-        }
-      }.writeTable(path + ".gen", vsm.hc.tmpDir, None)
-    }
-
-    writeSampleFile()
-    writeGenFile()
   }
 
   def splitMulti(keepStar: Boolean = false, leftAligned: Boolean = false): MatrixTable = {

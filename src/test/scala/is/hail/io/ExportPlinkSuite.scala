@@ -1,6 +1,7 @@
 package is.hail.io
 
 import is.hail.SparkSuite
+import is.hail.io.plink.ExportPlink
 import is.hail.table.Table
 import is.hail.utils._
 import org.testng.annotations.Test
@@ -30,7 +31,7 @@ class ExportPlinkSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()
-    vds.exportPlink(hailFile)
+    ExportPlink(vds, hailFile)
 
     rewriteBimIDs(hailFile + ".bim")
 
@@ -75,7 +76,7 @@ class ExportPlinkSuite extends SparkSuite {
       .annotateSamplesExpr("sa = sa.fam")
       .annotateVariantsExpr("va = {rsid: str(v)}")
 
-    vds.exportPlink(plink,
+    ExportPlink(vds, plink,
       "famID = sa.famID, id = s, matID = sa.matID, patID = sa.patID, isFemale = sa.isFemale, isCase = sa.isCase")
 
     assert(hc.importPlinkBFile(plink)

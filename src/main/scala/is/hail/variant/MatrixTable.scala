@@ -5,7 +5,6 @@ import is.hail.check.Gen
 import is.hail.distributedmatrix._
 import is.hail.expr._
 import is.hail.io.VCFMetadata
-import is.hail.io.vcf.ExportVCF
 import is.hail.table.Table
 import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods._
@@ -2348,17 +2347,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     accuracy: Double = 1e-6,
     iterations: Int = 10000): Table = {
     Skat(this, keyExpr, weightExpr, y, x, covariates, logistic, maxSize, accuracy, iterations)
-  }
-
-  /**
-    *
-    * @param path     output path
-    * @param append   append file to header
-    * @param parallel export VCF in parallel using the path argument as a directory
-    * @param metadata metadata to export in header
-    */
-  def exportVCF(path: String, append: Option[String] = None, parallel: Boolean = false, metadata: Option[VCFMetadata] = None) {
-    ExportVCF(this, path, append, parallel, metadata)
   }
 
   def minRep(leftAligned: Boolean = false): MatrixTable = {

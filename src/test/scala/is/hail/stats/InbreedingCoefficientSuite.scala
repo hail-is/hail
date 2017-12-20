@@ -3,6 +3,7 @@ package is.hail.stats
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.Properties
+import is.hail.io.vcf.ExportVCF
 import is.hail.methods.VariantQC
 import is.hail.utils._
 import is.hail.testUtils._
@@ -59,7 +60,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
 
           val vds3 = vds2.annotateSamplesExpr("sa.het = gs.map(g => g.GT).inbreeding(g => va.qc.AF)")
 
-          vds3.exportVCF(vcfFile)
+          ExportVCF(vds3, vcfFile)
 
           hadoopConf.copy(vcfFile, localVCFFile)
 
