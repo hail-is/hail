@@ -191,6 +191,9 @@ final class Region(private var mem: Array[Byte], private var end: Long = 0) exte
     off
   }
 
+  def appendBoolean(b: Boolean): Long =
+    appendByte(b.toByte)
+
   def appendLong(l: Long): Long = {
     val off = allocate(8, 8)
     storeLong(off, l)
