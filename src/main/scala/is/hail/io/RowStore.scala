@@ -327,12 +327,12 @@ final class Decoder(in: InputBuffer) {
 
   def readBytes(region:Region, toOff: Long, n: Int): Unit = in.readBytes(region, toOff, n)
 
-  def readBinary(region: Region, off: Long) {
+  def readBinary(region: Region): Long = {
     val length = in.readInt()
     val boff = region.allocate(4, 4 + length)
-    region.storeAddress(off, boff)
     region.storeInt(boff, length)
     in.readBytes(region, boff + 4, length)
+    boff
   }
 
   def readArray(t: TArray, region: Region): Long = {
@@ -373,7 +373,7 @@ final class Decoder(in: InputBuffer) {
             case _: TInt64 => region.storeLong(off, in.readLong())
             case _: TFloat32 => region.storeFloat(off, in.readFloat())
             case _: TFloat64 => region.storeDouble(off, in.readDouble())
-            case _: TBinary => readBinary(region, off)
+            case _: TBinary => region.storeAddress(off, readBinary(region))
           }
         }
         i += 1
@@ -402,7 +402,7 @@ final class Decoder(in: InputBuffer) {
           case _: TInt64 => region.storeLong(off, in.readLong())
           case _: TFloat32 => region.storeFloat(off, in.readFloat())
           case _: TFloat64 => region.storeDouble(off, in.readDouble())
-          case _: TBinary => readBinary(region, off)
+          case _: TBinary => region.storeAddress(off, readBinary(region))
         }
       }
       i += 1
@@ -428,8 +428,7 @@ final class Encoder(out: OutputBuffer) {
 
   def writeByte(b: Byte): Unit = out.writeByte(b)
 
-  def writeBinary(region: Region, offset: Long) {
-    val boff = region.loadAddress(offset)
+  def writeBinary(region: Region, boff: Long) {
     val length = region.loadInt(boff)
     out.writeInt(length)
     out.writeBytes(region, boff + 4, length)
@@ -467,7 +466,7 @@ final class Encoder(out: OutputBuffer) {
             case _: TInt64 => out.writeLong(region.loadLong(off))
             case _: TFloat32 => out.writeFloat(region.loadFloat(off))
             case _: TFloat64 => out.writeDouble(region.loadDouble(off))
-            case _: TBinary => writeBinary(region, off)
+            case _: TBinary => writeBinary(region, region.loadAddress(off))
           }
         }
 
@@ -492,7 +491,7 @@ final class Encoder(out: OutputBuffer) {
           case _: TInt64 => out.writeLong(region.loadLong(off))
           case _: TFloat32 => out.writeFloat(region.loadFloat(off))
           case _: TFloat64 => out.writeDouble(region.loadDouble(off))
-          case _: TBinary => writeBinary(region, off)
+          case _: TBinary => writeBinary(region, region.loadAddress(off))
         }
       }
 
@@ -503,10 +502,15 @@ final class Encoder(out: OutputBuffer) {
   def writeRegionValue(t: Type, region: Region, offset: Long) {
     val f = t.fundamentalType
     (f: @unchecked) match {
-      case t: TStruct =>
-        writeStruct(t, region, offset)
-      case t: TArray =>
-        writeArray(t, region, offset)
+      case t: TStruct => writeStruct(t, region, offset)
+      case t: TArray => writeArray(t, region, offset)
+      case _: TBinary => writeBinary(region, offset)
+      case _: TBoolean => out.writeBoolean(region.loadByte(offset) != 0)
+      case _: TInt32 => out.writeInt(region.loadInt(offset))
+      case _: TInt64 => out.writeLong(region.loadLong(offset))
+      case _: TFloat32 => out.writeFloat(region.loadFloat(offset))
+      case _: TFloat64 => out.writeDouble(region.loadDouble(offset))
+
     }
   }
 }

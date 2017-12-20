@@ -20,7 +20,7 @@ object StagedDecoder {
     val dec: Code[Decoder] = srvb.fb.getArg[Decoder](2)
 
     typ.fundamentalType match {
-      case _: TBinary => dec.readBinary(srvb.region, srvb.currentOffset)
+      case _: TBinary => srvb.addAddress(dec.readBinary(srvb.region))
       case _ => srvb.addIRIntermediate(typ)(dec.readPrimitive(typ))
     }
   }
@@ -93,9 +93,12 @@ object StagedDecoder {
         fb.emit(length := dec.readInt())
         fb.emit(StagedDecoder.storeArray(srvb, length))
       case t2: TStruct => fb.emit(StagedDecoder.storeStruct(srvb))
-      case t2 => fb.emit(StagedDecoder.storeNonNested(t, srvb))
+      case t2: TBinary =>
+        val dec: Code[Decoder] = fb.getArg[Decoder](2)
+        fb.emit(Code(srvb.start(), dec.readBinary(srvb.region)))
+      case t2 => fb.emit(Code(srvb.start(), StagedDecoder.storeNonNested(t, srvb)))
     }
-    fb.emit(srvb.returnStart())
+    fb.emit(srvb.end())
     fb.result()
   }
 }

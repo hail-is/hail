@@ -19,8 +19,8 @@ class RichCodeDecoder(val dec: Code[Decoder]) extends AnyVal {
   def readBytes(region: Code[Region], toOff: Code[Long], n: Code[Int]): Code[Unit] =
     dec.invoke[Region,Long,Int, Unit]("readBytes", region, toOff, n)
 
-  def readBinary(region: Code[Region], off: Code[Long]): Code[Unit] =
-    dec.invoke[Region, Long, Unit]("readBinary", region, off)
+  def readBinary(region: Code[Region]): Code[Long] =
+    dec.invoke[Region, Long]("readBinary", region)
 
   def readPrimitive(t: Type): Code[_] = t match {
     case _: TBoolean => readByte()

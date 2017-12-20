@@ -54,7 +54,7 @@ class StagedDecoderSuite extends SparkSuite {
       println(rv2.pretty(t))
     }
     assert(rv1.pretty(t) == rv2.pretty(t))
-    assert(java.util.Arrays.equals(region.loadBytes(0, region.size.toInt), region2.loadBytes(0, region2.size.toInt)))
+    assert(java.util.Arrays.equals(region.loadBytes(rv1.offset, (region.size - rv1.offset).toInt), region2.loadBytes(0, region2.size.toInt)))
 
   }
 
@@ -84,6 +84,30 @@ class StagedDecoderSuite extends SparkSuite {
     rvb.endStruct()
     rv1.setOffset(rvb.end())
     checkDecoding(t)
+
+  }
+
+  @Test def decodeBinary() {
+    rvb.start(TInt32())
+    rvb.addInt(5)
+    rv1.setOffset(rvb.end())
+    checkDecoding(TInt32())
+
+    rvb.clear()
+
+    rvb.start(TString())
+    rvb.addString("hello")
+    rv1.setOffset(rvb.end())
+    checkDecoding(TString())
+
+    rvb.clear()
+
+    rvb.start(TString())
+    rvb.addString("hello")
+    rv1.setOffset(rvb.end())
+    checkDecoding(TString())
+
+
 
   }
 
