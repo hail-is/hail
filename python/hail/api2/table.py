@@ -1481,7 +1481,7 @@ class Table(TableTemplate):
         --------
         Join `table1` to `table2` to produce `table_joined`:
 
-        >>> table_result = table1.key_by('ID').join(table2.key_by('ID'))
+        >>> table_joined = table1.key_by('ID').join(table2.key_by('ID'))
 
         Notes
         -----
@@ -1566,9 +1566,15 @@ class Table(TableTemplate):
         >>> if table1.exists(table1.C1 == 5):
         ...     print("At least one row has C1 equal 5.")
 
-        :param str expr: Boolean expression.
+        Parameters
+        ----------
+        expr : :class:`hail.expr.expression.BooleanExpression`
+            Boolean expression.
 
-        :rtype: bool
+        Returns
+        -------
+        :obj:`bool`
+            ``True`` if the predicate evaluated for ``True`` for any row, otherwise ``False``.
         """
         expr = to_expr(expr)
         analyze(expr, self._row_indices, set(), set(self.columns))
