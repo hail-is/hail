@@ -751,11 +751,15 @@ class Table(TableTemplate):
             URI at which to write file containing column type information.
         header : bool
             Include a header in the file.
-        parallel : bool
-            Skip the merge step after the parallel write, producing a directory instead
-            of a single file.
+        parallel : str or None
+            If None, a single file is produced, otherwise a
+            folder of file shards is produced. If 'separate_header',
+            the header file is output separately from the file shards. If
+            'header_per_shard', each file shard has a header. If set to None
+            the export will be slower.
         """
-        self._jkt.export(output, types_file, header, parallel)
+
+        self._jkt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(joption(parallel)))
 
     @typecheck_method(exprs=tupleof(anytype),
                       named_exprs=dictof(strlike, anytype))

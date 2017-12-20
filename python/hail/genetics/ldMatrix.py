@@ -1,7 +1,7 @@
 from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *
-from hail.utils.misc import get_export_type
+
 import hail
 
 class LDMatrix(HistoryMixin):
@@ -194,7 +194,7 @@ class LDMatrix(HistoryMixin):
 
         """
 
-        parallel = get_export_type(parallel)
+        parallel = Env.hail().utils.ExportType.getExportType(joption(parallel))
 
         if entries == 'full':
             self._jldm.export(path, column_delimiter, joption(header), parallel)

@@ -6,7 +6,7 @@ from hail.expr.types import Type, TArray, TStruct
 from hail.history import *
 from hail.genetics import GenomeReference
 from hail.typecheck import *
-from hail.utils import wrap_to_list, Struct, get_export_type
+from hail.utils import wrap_to_list, Struct
 from hail.utils.java import *
 
 
@@ -274,7 +274,7 @@ class KeyTable(HistoryMixin):
         :type parallel: str or None
         """
 
-        self._jkt.export(output, types_file, header, get_export_type(parallel))
+        self._jkt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(joption(parallel)))
 
     @handle_py4j
     @record_method
