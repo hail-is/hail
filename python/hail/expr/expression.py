@@ -115,9 +115,9 @@ def to_expr(e):
         if len(cols) == 0:
             raise ValueError("Don't support empty sets.")
         elif len(types) == 1:
-            t = TArray(types[0])
+            t = TSet(types[0])
         elif all([is_numeric(t) for t in types]):
-            t = TArray(convert_numeric_typ(*types))
+            t = TSet(convert_numeric_typ(*types))
         else:
             raise ValueError("Don't support sets with multiple element types.")
         indices, aggregations, joins = unify_all(*cols)
