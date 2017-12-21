@@ -5,8 +5,11 @@ import org.testng.annotations.Test
 
 class ASTToIRSuite {
   private def toIR[T](s: String): Option[IR] = {
-    val ast = Parser.parseToAST(s, EvalContext())
-    ast.toIR match {
+    val ast = Parser.parseToAST(s, EvalContext(Map(
+      "aggregable"-> (0, TAggregable(TInt32(),
+        Map("agg" -> (0, TInt32()),
+          "something" -> (1, TInt32())))))))
+    ast.toIR(Some("aggregable")) match {
       case Some(ir) => Some(ir)
       case None => println(s"$s -> $ast -> None"); None
     }
@@ -92,6 +95,20 @@ class ASTToIRSuite {
       ApplyBinaryPrimOp(Divide(), I32(0), I32(0), TInt32()),
       I32(1),
       TInt32())
+  )
+  } {
+    assert(toIR(in).contains(out),
+      s"expected '$in' to parse and convert into $out, but got ${toIR(in)}")
+  }
+  }
+
+  @Test
+  def aggs() { for { (in, out) <- Array(
+    "aggregable.sum()" -> AggSum(AggIn()),
+    "aggregable.map(x => x * 5).sum()" -> AggSum(AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), I32(5), TInt32()))),
+    "aggregable.map(x => x * something).sum()" -> AggSum(AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), Ref("something", TInt32()), TInt32()))),
+    "aggregable.filter(x => x > 2).sum()" -> AggSum(AggFilter(AggIn(), "x", ApplyBinaryPrimOp(GT(), Ref("x", TInt32()), I32(2), TBoolean()))),
+    "aggregable.flatMap(x => [x * 5]).sum()" -> AggSum(AggFlatMap(AggIn(), "x", MakeArray(Array(ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()) ,I32(5), TInt32())), TArray(TInt32()))))
   )
   } {
     assert(toIR(in).contains(out),

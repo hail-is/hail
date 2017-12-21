@@ -291,7 +291,7 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
     }
   }
 
-  def toIR: Option[IR]
+  def toIR(agg: Option[String] = None): Option[IR]
 }
 
 case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
@@ -311,7 +311,7 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
 
   override def typecheckThis(): Type = t
 
-  def toIR: Option[IR] = (t, value) match {
+  def toIR(agg: Option[String] = None): Option[IR] = (t, value) match {
     case (t: TInt32, x: Int) => Some(ir.I32(x))
     case (t: TInt64, x: Long) => Some(ir.I64(x))
     case (t: TFloat32, x: Float) => Some(ir.F32(x))
@@ -368,8 +368,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
         }
   }
 
-  def toIR: Option[IR] = for {
-    s <- lhs.toIR
+  def toIR(agg: Option[String] = None): Option[IR] = for {
+    s <- lhs.toIR(agg)
     t <- someIf(lhs.`type`.isInstanceOf[TStruct], lhs.`type`.asInstanceOf[TStruct])
     f <- t.selfField(rhs)
   } yield ir.GetField(s, rhs, f.typ)
@@ -403,8 +403,8 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
     yield
       CompilationHelp.arrayToWrappedArray(convertedArray)
 
-  def toIR: Option[IR] = for {
-    irElements <- anyFailAllFail(elements.map(_.toIR))
+  def toIR(agg: Option[String] = None): Option[IR] = for {
+    irElements <- anyFailAllFail(elements.map(_.toIR(agg)))
   } yield ir.MakeArray(irElements.toArray, `type`.asInstanceOf[TArray])
 }
 
@@ -428,8 +428,8 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
     celements <- CM.sequence(elements.map(_.compile()))
   ) yield arrayToAnnotation(CompilationHelp.arrayOf(celements))
 
-  def toIR: Option[IR] = for {
-    irElements <- anyFailAllFail[Array](elements.map(x => x.toIR.map(ir => (x.`type`, ir))))
+  def toIR(agg: Option[String] = None): Option[IR] = for {
+    irElements <- anyFailAllFail[Array](elements.map(x => x.toIR(agg).map(ir => (x.`type`, ir))))
     fields = names.zip(irElements).map { case (x, (y, z)) => (x, z) }
   } yield ir.MakeStruct(fields)
 }
@@ -449,7 +449,7 @@ case class GenomeReferenceDependentConstructor(posn: Position, fName: String, gr
 
   override def compile(): CM[Code[AnyRef]] = FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
 
-  def toIR: Option[IR] = None
+  def toIR(agg: Option[String] = None): Option[IR] = None
 }
 
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {
@@ -459,7 +459,7 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
 
   def compile() = throw new UnsupportedOperationException
 
-  def toIR: Option[IR] = None
+  def toIR(agg: Option[String] = None): Option[IR] = None
 }
 
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
@@ -737,8 +737,8 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   }
 
 
-  def toIR: Option[IR] = for {
-    irArgs <- anyFailAllFail(args.map(_.toIR))
+  def toIR(agg: Option[String] = None): Option[IR] = for {
+    irArgs <- anyFailAllFail(args.map(_.toIR(agg)))
     ir <- tryPrimOpConversion(irArgs)
   } yield ir
 }
@@ -820,16 +820,26 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case (t, _, _) => FunctionRegistry.call(method, lhs +: args, t +: args.map(_.`type`))
   }
 
-  private val hasOneArgument: IndexedSeq[AST] => Option[AST] = lift {
-    case IndexedSeq(x) => x
+  def toIR(agg: Option[String] = None): Option[IR] = (method, args: IndexedSeq[AST]) match {
+    case ("[]", IndexedSeq(rhs)) if lhs.`type`.isInstanceOf[TArray] =>
+      for {
+        a <- lhs.toIR(agg)
+        i <- rhs.toIR(agg)
+      } yield ir.ArrayRef(a, i, `type`)
+    case ("sum", IndexedSeq()) =>
+      lhs.toIR(agg).flatMap { a2 => Some(ir.AggSum(a2)) }
+    case (m, IndexedSeq(Lambda(_, name, body))) =>
+      for {
+        a <- lhs.toIR(agg)
+        b <- body.toIR(agg)
+        result <- optMatch(m) {
+          case "map" => ir.AggMap(a, name, b)
+          case "filter" => ir.AggFilter(a, name, b)
+          case "flatMap" => ir.AggFlatMap(a, name, b)
+        }
+      } yield result
+    case _ => None
   }
-
-  def toIR: Option[IR] = for {
-    rhs <- hasOneArgument(args)
-    if method == "[]" && lhs.`type`.isInstanceOf[TArray]
-    a <- lhs.toIR
-    i <- rhs.toIR
-  } yield ir.ArrayRef(a, i, `type`)
 }
 
 case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extends AST(posn, bindings.map(_._2) :+ body) {
@@ -849,9 +859,9 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 
   def compile() = CM.bindRepIn(bindings.map { case (name, expr) => (name, expr.`type`, expr.compile()) })(body.compile())
 
-  def toIR: Option[IR] = for {
-    irBindings <- anyFailAllFail(bindings.map { case (x, y) => y.toIR.map(irY => (x, irY)) })
-    irBody <- body.toIR
+  def toIR(agg: Option[String] = None): Option[IR] = for {
+    irBindings <- anyFailAllFail(bindings.map { case (x, y) => y.toIR(agg).map(irY => (x, irY)) })
+    irBody <- body.toIR(agg)
   } yield irBindings.foldRight(irBody) { case ((name, v), x) => ir.Let(name, v, x, x.typ) }
 }
 
@@ -877,7 +887,10 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
 
   def compile() = CM.lookup(symbol)
 
-  def toIR: Option[IR] = Some(ir.Ref(symbol, `type`))
+  def toIR(agg: Option[String] = None): Option[IR] = agg match {
+    case Some(x) if x == symbol => Some(ir.AggIn())
+    case _ => Some(ir.Ref(symbol, `type`))
+  }
 }
 
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
@@ -911,9 +924,9 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
     ) yield result
   }
 
-  def toIR: Option[IR] = for {
-    condition <- cond.toIR
-    consequent <- thenTree.toIR
-    alternate <- elseTree.toIR
+  def toIR(agg: Option[String] = None): Option[IR] = for {
+    condition <- cond.toIR(agg)
+    consequent <- thenTree.toIR(agg)
+    alternate <- elseTree.toIR(agg)
   } yield ir.If(condition, consequent, alternate, `type`)
 }
