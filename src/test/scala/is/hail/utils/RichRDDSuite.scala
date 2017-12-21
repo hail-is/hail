@@ -42,14 +42,48 @@ class RichRDDSuite extends SparkSuite {
     assert(r.getNumPartitions == 2)
 
     val notParallelWrite = tmpDir.createTempFile("notParallelWrite")
-    r.saveFromByteArrays(notParallelWrite, tmpDir.createTempFile("notParallelWrite_tmp"), Some(header), parallelWrite = false)
+    r.saveFromByteArrays(notParallelWrite, tmpDir.createTempFile("notParallelWrite_tmp"), Some(header), exportType = ExportType.CONCATENATED)
 
     assert(readBytes(notParallelWrite) sameElements (header ++: data.flatten))
 
     val parallelWrite = tmpDir.createTempFile("parallelWrite")
-    r.saveFromByteArrays(parallelWrite, tmpDir.createTempFile("parallelWrite_tmp"), Some(header), parallelWrite = true)
+    r.saveFromByteArrays(parallelWrite, tmpDir.createTempFile("parallelWrite_tmp"), Some(header), exportType = ExportType.PARALLEL_HEADER_IN_SHARD)
 
     assert(readBytes(parallelWrite + "/part-00000") sameElements header ++ data(0))
     assert(readBytes(parallelWrite + "/part-00001") sameElements header ++ data(1))
+
+    val parallelWriteHeader = tmpDir.createTempFile("parallelWriteHeader")
+    r.saveFromByteArrays(parallelWriteHeader, tmpDir.createTempFile("parallelHeaderWrite_tmp"), Some(header), exportType = ExportType.PARALLEL_SEPARATE_HEADER)
+
+    assert(readBytes(parallelWriteHeader + "/header") sameElements header)
+    assert(readBytes(parallelWriteHeader + "/part-00000") sameElements data(0))
+    assert(readBytes(parallelWriteHeader + "/part-00001") sameElements data(1))
+  }
+
+  @Test def parallelWrite() {
+    def read(file: String): Array[String] = hc.hadoopConf.readLines(file)(_.map(_.value).toArray)
+
+    val header = "my header is awesome!"
+    val data = Array("the cat jumped over the moon.", "all creatures great and small")
+    val r = sc.parallelize(data, numSlices = 2)
+    assert(r.getNumPartitions == 2)
+
+    val concatenated = tmpDir.createTempFile("concatenated")
+    r.writeTable(concatenated, tmpDir.createTempFile("concatenated"), Some(header), exportType = ExportType.CONCATENATED)
+
+    assert(read(concatenated) sameElements (header +: data))
+
+    val shardHeaders = tmpDir.createTempFile("shardHeader")
+    r.writeTable(shardHeaders, tmpDir.createTempFile("shardHeader"), Some(header), exportType = ExportType.PARALLEL_HEADER_IN_SHARD)
+
+    assert(read(shardHeaders + "/part-00000") sameElements header +: Array(data(0)))
+    assert(read(shardHeaders + "/part-00001") sameElements header +: Array(data(1)))
+
+    val separateHeader = tmpDir.createTempFile("separateHeader", ".gz")
+    r.writeTable(separateHeader, tmpDir.createTempFile("separateHeader"), Some(header), exportType = ExportType.PARALLEL_SEPARATE_HEADER)
+
+    assert(read(separateHeader + "/header.gz") sameElements Array(header))
+    assert(read(separateHeader + "/part-00000.gz") sameElements Array(data(0)))
+    assert(read(separateHeader + "/part-00001.gz") sameElements Array(data(1)))
   }
 }

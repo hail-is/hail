@@ -54,11 +54,11 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
     */
   def exportTSV(output: String) {
     require(output.endsWith(".tsv"), "Kinship matrix output must end in '.tsv'")
-    export(output, "\t", Some(sampleIds.mkString("\t")), false)
+    export(output, "\t", Some(sampleIds.mkString("\t")), ExportType.CONCATENATED)
   }
 
   def exportRel(output: String) {
-    exportLowerTriangle(output, "\t", None, false)
+    exportLowerTriangle(output, "\t", None, ExportType.CONCATENATED)
   }
 
   def exportGctaGrm(output: String) {

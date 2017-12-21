@@ -244,12 +244,12 @@ class KeyTable(HistoryMixin):
         return self._jkt.same(other._jkt)
 
     @handle_py4j
-    @write_history('output', parallel_write='parallel')
+    @write_history('output', parallel='parallel')
     @typecheck_method(output=strlike,
                       types_file=nullable(strlike),
                       header=bool,
-                      parallel=bool)
-    def export(self, output, types_file=None, header=True, parallel=False):
+                      parallel=nullable(enumeration('separate_header', 'header_per_shard')))
+    def export(self, output, types_file=None, header=True, parallel=None):
         """Export to a TSV file.
 
         **Examples**
@@ -269,10 +269,12 @@ class KeyTable(HistoryMixin):
         
         :param bool header: Write a header using the column names.
 
-        :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
+        :param parallel: If 'header_per_shard', return a set of files (one per partition) each with a header rather than serially concatenating these files. If 'separate_header', return a separate header file and
+            a set of files (one per partition) without the header. If None, concatenate the header and all partitions into one file.
+        :type parallel: str or None
         """
 
-        self._jkt.export(output, types_file, header, parallel)
+        self._jkt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
 
     @handle_py4j
     @record_method

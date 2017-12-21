@@ -199,7 +199,7 @@ object ExportVCF {
     getAttributes(k1, k2, attributes).flatMap(_.get(k3))
 
   def apply(vsm: MatrixTable, path: String, append: Option[String] = None,
-    parallel: Boolean = false, metadata: Option[VCFMetadata] = None) {
+    exportType: Int = ExportType.CONCATENATED, metadata: Option[VCFMetadata] = None) {
     
     vsm.requireColKeyString("export_vcf")
     vsm.requireRowKeyVariant("export_vcf")
@@ -433,6 +433,6 @@ object ExportVCF {
         
         sb.result()
       }
-    }.writeTable(path, vsm.hc.tmpDir, Some(header), parallelWrite = parallel)
+    }.writeTable(path, vsm.hc.tmpDir, Some(header), exportType = exportType)
   }
 }

@@ -1,6 +1,7 @@
 from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *
+
 import hail
 
 class LDMatrix(HistoryMixin):
@@ -92,13 +93,13 @@ class LDMatrix(HistoryMixin):
         return LDMatrix(jldm)
 
     @handle_py4j
-    @write_history('path', is_dir=False, parallel_write='parallel_write')
+    @write_history('path', is_dir=False, parallel='parallel')
     @typecheck_method(path=strlike,
                       column_delimiter=strlike,
                       header=nullable(strlike),
-                      parallel_write=bool,
+                      parallel=nullable(enumeration('separate_header', 'header_per_shard')),
                       entries=enumeration('full', 'lower', 'strict_lower', 'upper', 'strict_upper'))
-    def export(self, path, column_delimiter, header=None, parallel_write=False, entries='full'):
+    def export(self, path, column_delimiter, header=None, parallel=None, entries='full'):
         """Exports this matrix as a delimited text file.
 
         **Examples**
@@ -114,13 +115,13 @@ class LDMatrix(HistoryMixin):
         ...            column_delimiter=',',
         ...            header=','.join([str(v) for v in ldm.variant_list()]))
 
-        Write a full LD matrix as a folder of comma-separated file shards:
+        Write a full LD matrix as a folder of comma-separated file shards with a separate header file:
 
         >>> ldm = vds.ld_matrix()
         >>> ldm.export('output/ld_matrix.tsv',
         ...            column_delimiter=',',
         ...            header=None,
-        ...            parallel_write=True)
+        ...            parallel='separate_header')
 
         Write the upper-triangle with the diagonal as a comma-separated file:
 
@@ -180,10 +181,12 @@ class LDMatrix(HistoryMixin):
         :param header: a string to append before the first row of the matrix
         :type path: str or None
 
-        :param parallel_write: if false, a single file is produced, otherwise a
-                               folder of file shards is produce; if set to false
-                               the export will be slower
-        :type parallel_write: bool
+        :param parallel: If None, a single file is produced, otherwise a
+                               folder of file shards is produced. If 'separate_header',
+                               the header file is output separately from the file shards. If
+                               'header_per_shard', each file shard has a header. If set to None
+                               the export will be slower.
+        :type parallel: str or None
 
         :param entries: describes what portion of the entries should be printed,
                         see the notes for a detailed description
@@ -191,13 +194,15 @@ class LDMatrix(HistoryMixin):
 
         """
 
+        parallel = Env.hail().utils.ExportType.getExportType(parallel)
+
         if entries == 'full':
-            self._jldm.export(path, column_delimiter, joption(header), parallel_write)
+            self._jldm.export(path, column_delimiter, joption(header), parallel)
         elif entries == 'lower':
-            self._jldm.exportLowerTriangle(path, column_delimiter, joption(header), parallel_write)
+            self._jldm.exportLowerTriangle(path, column_delimiter, joption(header), parallel)
         elif entries == 'strict_lower':
-            self._jldm.exportStrictLowerTriangle(path, column_delimiter, joption(header), parallel_write)
+            self._jldm.exportStrictLowerTriangle(path, column_delimiter, joption(header), parallel)
         elif entries == 'upper':
-            self._jldm.exportUpperTriangle(path, column_delimiter, joption(header), parallel_write)
+            self._jldm.exportUpperTriangle(path, column_delimiter, joption(header), parallel)
         else:
-            self._jldm.exportStrictUpperTriangle(path, column_delimiter, joption(header), parallel_write)
+            self._jldm.exportStrictUpperTriangle(path, column_delimiter, joption(header), parallel)

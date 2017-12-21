@@ -1479,12 +1479,12 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         Env.hail().io.plink.ExportPlink.apply(self._jvds, output, fam_expr)
 
     @handle_py4j
-    @write_history('output', parallel_write='parallel')
+    @write_history('output', parallel='parallel')
     @typecheck_method(output=strlike,
                       append_to_header=nullable(strlike),
-                      parallel=bool,
+                      parallel=nullable(enumeration('separate_header', 'header_per_shard')),
                       metadata=nullable(dictof(strlike, dictof(strlike, dictof(strlike, strlike)))))
-    def export_vcf(self, output, append_to_header=None, parallel=False, metadata=None):
+    def export_vcf(self, output, append_to_header=None, parallel=None, metadata=None):
         """Export variant dataset as a .vcf or .vcf.bgz file.
 
         .. include:: ../_templates/req_tvariant.rst
@@ -1554,14 +1554,17 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param append_to_header: Path of file to append to VCF header.
         :type append_to_header: str or None
 
-        :param bool parallel: If true, return a set of VCF files (one per partition) rather than serially concatenating these files.
+        :param parallel: If 'header_per_shard', return a set of VCF files (one per partition) rather than serially concatenating these files. If 'separate_header', return a separate VCF header file and
+            a set of VCF files (one per partition) without the header. If None, concatenate the header and all partitions into one VCF file.
+        :type parallel: str or None
 
         :param metadata: Dictionary with information to fill in the VCF header. See :py:class:`~hail.api1.HailContext.get_vcf_metadata` for an example.
         :type metadata: (dict of str to (dict of str to (dict of str to str))) or None
         """
 
         typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
-        Env.hail().io.vcf.ExportVCF.apply(self._jvds, output, joption(append_to_header), parallel, joption(typ._convert_to_j(metadata)))
+        Env.hail().io.vcf.ExportVCF.apply(self._jvds, output, joption(append_to_header),
+                                          Env.hail().utils.ExportType.getExportType(parallel), joption(typ._convert_to_j(metadata)))
 
     @handle_py4j
     @write_history('output', is_dir=True)

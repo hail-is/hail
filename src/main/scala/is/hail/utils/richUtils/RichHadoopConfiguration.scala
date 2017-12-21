@@ -220,6 +220,18 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       }.getOrElse(s)
   }
 
+  def getCodec(s: String): String = {
+    val path = new org.apache.hadoop.fs.Path(s)
+
+    Option(new CompressionCodecFactory(hConf)
+      .getCodec(path))
+      .map { codec =>
+        val ext = codec.getDefaultExtension
+        assert(s.endsWith(ext))
+        s.takeRight(ext.length)
+      }.getOrElse("")
+  }
+
   def fileStatus(filename: String): FileStatus = fileSystem(filename).getFileStatus(new hadoop.fs.Path(filename))
 
   private def using[R <: Closeable, T](r: R)(consume: (R) => T): T = {
