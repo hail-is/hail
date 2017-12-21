@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.FunctionBuilder
 import is.hail.expr.ir._
-import is.hail.table.KTLocalValue
+import is.hail.table.TableLocalValue
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
 import is.hail.rvd._
@@ -124,8 +124,8 @@ object BaseIR {
   def rewriteTopDown(ast: MatrixIR, rule: PartialFunction[BaseIR, BaseIR]): MatrixIR =
     genericRewriteTopDown(ast, rule).asInstanceOf[MatrixIR]
 
-  def rewriteTopDown(ast: KeyTableIR, rule: PartialFunction[BaseIR, BaseIR]): KeyTableIR =
-    genericRewriteTopDown(ast, rule).asInstanceOf[KeyTableIR]
+  def rewriteTopDown(ast: TableIR, rule: PartialFunction[BaseIR, BaseIR]): TableIR =
+    genericRewriteTopDown(ast, rule).asInstanceOf[TableIR]
 
   def genericRewriteBottomUp(ast: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
     def rewrite(ast: BaseIR): BaseIR = {
@@ -152,8 +152,8 @@ object BaseIR {
   def rewriteBottomUp(ast: MatrixIR, rule: PartialFunction[BaseIR, BaseIR]): MatrixIR =
     genericRewriteBottomUp(ast, rule).asInstanceOf[MatrixIR]
 
-  def rewriteBottomUp(ast: KeyTableIR, rule: PartialFunction[BaseIR, BaseIR]): KeyTableIR =
-    genericRewriteBottomUp(ast, rule).asInstanceOf[KeyTableIR]
+  def rewriteBottomUp(ast: TableIR, rule: PartialFunction[BaseIR, BaseIR]): TableIR =
+    genericRewriteBottomUp(ast, rule).asInstanceOf[TableIR]
 }
 
 abstract class BaseIR {
@@ -513,13 +513,13 @@ case class FilterVariants(
   }
 }
 
-case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rvd: RVD) {
+case class TableValue(typ: TableType, localValue: TableLocalValue, rvd: RVD) {
   def rdd: RDD[Row] = {
     val localRowType = typ.rowType
     rvd.rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
   }
 
-  def filter(p: (RegionValue, RegionValue) => Boolean): KeyTableValue = {
+  def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
     val globalType = typ.globalType
     val globals = localValue.globals
     copy(rvd = rvd.mapPartitions(typ.rowType) { it =>
@@ -536,7 +536,7 @@ case class KeyTableValue(typ: KeyTableType, localValue: KTLocalValue, rvd: RVD) 
   }
 }
 
-case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruct) extends BaseType {
+case class TableType(rowType: TStruct, key: Array[String], globalType: TStruct) extends BaseType {
   def rowEC: EvalContext = EvalContext(rowType.fields.map { f => f.name -> f.typ } ++
       globalType.fields.map { f => f.name -> f.typ }: _*)
   def fields: Map[String, Type] = Map(rowType.fields.map { f => f.name -> f.typ } ++ globalType.fields.map { f => f.name -> f.typ }: _*)
@@ -548,57 +548,57 @@ case class KeyTableType(rowType: TStruct, key: Array[String], globalType: TStruc
   }
 }
 
-object KeyTableIR {
-  def optimize(ir: KeyTableIR): KeyTableIR = {
+object TableIR {
+  def optimize(ir: TableIR): TableIR = {
     BaseIR.rewriteTopDown(ir, {
-      case FilterKT(FilterKT(x, p1), p2) =>
-        FilterKT(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
-      case FilterKT(x, True()) => x
-      case FilterKT(ReadKT(path, ktType, localVal, _, nPart, pCounts), False() | NA(TBoolean(_))) =>
-        ReadKT(path, ktType, localVal, true, nPart, pCounts)
+      case TableFilter(TableFilter(x, p1), p2) =>
+        TableFilter(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
+      case TableFilter(x, True()) => x
+      case TableFilter(TableRead(path, ktType, localVal, _, nPart, pCounts), False() | NA(TBoolean(_))) =>
+        TableRead(path, ktType, localVal, true, nPart, pCounts)
     })
   }
 }
 
-abstract sealed class KeyTableIR extends BaseIR {
-  def typ: KeyTableType
+abstract sealed class TableIR extends BaseIR {
+  def typ: TableType
 
   def partitionCounts: Option[Array[Long]] = None
 
-  def execute(hc: HailContext): KeyTableValue
+  def execute(hc: HailContext): TableValue
 }
 
-case class KeyTableLiteral(value: KeyTableValue) extends KeyTableIR {
-  def typ: KeyTableType = value.typ
+case class TableLiteral(value: TableValue) extends TableIR {
+  def typ: TableType = value.typ
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
-  def copy(newChildren: IndexedSeq[BaseIR]): KeyTableLiteral = {
+  def copy(newChildren: IndexedSeq[BaseIR]): TableLiteral = {
     assert(newChildren.isEmpty)
     this
   }
 
-  def execute(hc: HailContext): KeyTableValue = value
+  def execute(hc: HailContext): TableValue = value
 }
 
-case class ReadKT(path: String,
-  ktType: KeyTableType,
-  localValue: KTLocalValue,
+case class TableRead(path: String,
+  ktType: TableType,
+  localValue: TableLocalValue,
   dropRows: Boolean,
   nPartitions: Int,
-  override val partitionCounts: Option[Array[Long]]) extends KeyTableIR {
+  override val partitionCounts: Option[Array[Long]]) extends TableIR {
 
-  val typ: KeyTableType = ktType
+  val typ: TableType = ktType
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
-  def copy(newChildren: IndexedSeq[BaseIR]): ReadKT = {
+  def copy(newChildren: IndexedSeq[BaseIR]): TableRead = {
     assert(newChildren.isEmpty)
     this
   }
 
-  def execute(hc: HailContext): KeyTableValue = {
-    KeyTableValue(typ,
+  def execute(hc: HailContext): TableValue = {
+    TableValue(typ,
       localValue,
       if (dropRows)
         RVD.empty(hc.sc, typ.rowType)
@@ -607,16 +607,16 @@ case class ReadKT(path: String,
   }
 }
 
-case class FilterKT(child: KeyTableIR, pred: IR) extends KeyTableIR {
+case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def typ: KeyTableType = child.typ
+  def typ: TableType = child.typ
 
-  def copy(newChildren: IndexedSeq[BaseIR]): FilterKT = {
+  def copy(newChildren: IndexedSeq[BaseIR]): TableFilter = {
     assert(newChildren.length == 2)
-    FilterKT(newChildren(0).asInstanceOf[KeyTableIR], newChildren(1).asInstanceOf[IR])
+    TableFilter(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
-  def execute(hc: HailContext): KeyTableValue = {
+  def execute(hc: HailContext): TableValue = {
     val ktv = child.execute(hc)
     val mappedPred = typ.remapIR(pred)
     Infer(mappedPred)
