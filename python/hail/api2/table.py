@@ -127,7 +127,7 @@ class GroupedTable(TableTemplate):
 
         >>> table_result = (table1.group_by(table1.ID)
         ...                       .partition_hint(5)
-        ...                       .aggregate(meanX = functions.mean(table1.X), sumZ = functions.sum(table1.Z)))
+        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
 
         Notes
         -----
@@ -163,12 +163,12 @@ class GroupedTable(TableTemplate):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = functions.mean(table1.X), sumZ = functions.sum(table1.Z)))
+        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = (table1.HT / 20).to_int32())
-        ...                       .aggregate(fraction_female = functions.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
 
         Parameters
         ----------
@@ -260,15 +260,15 @@ class Table(TableTemplate):
 
     Compute global aggregation statistics:
 
-    >>> t1_stats = table1.aggregate(mean_c1 = functions.mean(table1.C1),
-    ...                             mean_c2 = functions.mean(table1.C2),
-    ...                             stats_c3 = functions.stats(table1.C3))
+    >>> t1_stats = table1.aggregate(mean_c1 = agg.mean(table1.C1),
+    ...                             mean_c2 = agg.mean(table1.C2),
+    ...                             stats_c3 = agg.stats(table1.C3))
     >>> print(t1_stats)
 
     Group columns and aggregate to produce a new table:
 
     >>> table3 = (table1.group_by(table1.SEX)
-    ...                 .aggregate(mean_height_data = functions.mean(table1.HT)))
+    ...                 .aggregate(mean_height_data = agg.mean(table1.HT)))
     >>> table3.show()
 
     Join tables together inside an annotation expression:
@@ -771,12 +771,12 @@ class Table(TableTemplate):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = functions.mean(table1.X), sumZ = functions.sum(table1.Z)))
+        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = (table1.HT / 20).to_int32())
-        ...                       .aggregate(fraction_female = functions.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
 
         Notes
         -----
@@ -801,17 +801,17 @@ class Table(TableTemplate):
         First, variable-length string arguments:
 
         >>> table_result = (table1.group_by('C1', 'C2')
-        ...                       .aggregate(meanX = functions.mean(table1.X)))
+        ...                       .aggregate(meanX = agg.mean(table1.X)))
 
         Second, field reference variable-length arguments:
 
         >>> table_result = (table1.group_by(table1.C1, table1.C2)
-        ...                       .aggregate(meanX = functions.mean(table1.X)))
+        ...                       .aggregate(meanX = agg.mean(table1.X)))
 
         Last, expression keyword arguments:
 
         >>> table_result = (table1.group_by(C1 = table1.C1, C2 = table1.C2)
-        ...                       .aggregate(meanX = functions.mean(table1.X)))
+        ...                       .aggregate(meanX = agg.mean(table1.X)))
 
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
@@ -821,21 +821,21 @@ class Table(TableTemplate):
         The following two usages are equivalent, grouping by one field, `x`:
 
         >>> table_result = (table3.group_by(table3.s.x)
-        ...                       .aggregate(meanX = functions.mean(table3.X)))
+        ...                       .aggregate(meanX = agg.mean(table3.X)))
 
         >>> table_result = (table3.group_by(x = table3.s.x)
-        ...                       .aggregate(meanX = functions.mean(table3.X)))
+        ...                       .aggregate(meanX = agg.mean(table3.X)))
 
         The keyword argument syntax permits arbitrary expressions:
 
         >>> table_result = (table1.group_by(foo=table1.X ** 2 + 1)
-        ...                       .aggregate(meanZ = functions.mean(table1.Z)))
+        ...                       .aggregate(meanZ = agg.mean(table1.Z)))
 
         These syntaxes can be mixed together, with the stipulation that all keyword arguments
         must come at the end due to Python language restrictions.
 
         >>> table_result = (table1.group_by(table1.C1, 'C2', height_bin = (table1.HT / 20).to_int32())
-        ...                       .aggregate(meanX = functions.mean(table1.X)))
+        ...                       .aggregate(meanX = agg.mean(table1.X)))
 
         Note
         ----
@@ -882,8 +882,8 @@ class Table(TableTemplate):
 
         .. doctest::
 
-            >>> table1.aggregate(fraction_male = functions.fraction(table1.SEX == 'M'),
-            ...                  mean_x = functions.mean(table1.X))
+            >>> table1.aggregate(fraction_male = agg.fraction(table1.SEX == 'M'),
+            ...                  mean_x = agg.mean(table1.X))
             Struct(fraction_male=0.5, mean_x=6.5)
 
         Note

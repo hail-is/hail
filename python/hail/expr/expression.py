@@ -3,7 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
-from hail.genetics import Locus, Variant, Interval
+from hail.genetics import Locus, Variant, Interval, Call
 
 
 class Indices(object):
@@ -2018,3 +2018,14 @@ def eval_expr_typed(expression):
         raise ExpressionException("'eval_expr' methods do not support joins or broadcasts")
     r, t = Env.hc().eval_expr_typed(expression._ast.to_hql())
     return r, t
+
+expr_int32 = oneof(Int32Expression, int)
+expr_numeric = oneof(Float32Expression, Float64Expression, Int64Expression, float, expr_int32)
+expr_list = oneof(list, ArrayExpression)
+expr_set = oneof(set, SetExpression)
+expr_bool = oneof(bool, BooleanExpression)
+expr_struct = oneof(Struct, StructExpression)
+expr_str = oneof(strlike, StringExpression)
+expr_variant = oneof(Variant, VariantExpression)
+expr_locus = oneof(Locus, LocusExpression)
+expr_call = oneof(Call, CallExpression)
