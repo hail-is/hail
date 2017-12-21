@@ -2068,7 +2068,7 @@ class MatrixTable(object):
         The data in a dataset is divided into chunks called partitions, which
         may be stored together or across a network, so that each partition may
         be read and processed in parallel by available cores. When a matrix with
-        :math:`M` rows is first imported, each of the :math:`k` partition will
+        :math:`M` rows is first imported, each of the :math:`k` partitions will
         contain about :math:`M/k` of the rows. Since each partition has some
         computational overhead, decreasing the number of partitions can improve
         performance after significant filtering. Since it's recommended to have
