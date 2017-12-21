@@ -1950,3 +1950,155 @@ class MatrixTable(object):
         s = 'Global fields:{}\n\nRow-indexed fields:{}\n\nColumn-indexed fields:{}\n\nEntry-indexed fields:{}'.format(
             global_fields, row_fields, col_fields, entry_fields)
         print(s)
+
+    @handle_py4j
+    @typecheck_method(keys=list, keep=bool)
+    def filter_rows_list(self, keys, keep=True):
+        """Filter rows with a list of keys to keep or exclude.
+
+        Examples
+        --------
+        Subset to two specific rows:
+
+        >>> to_keep = [Variant.parse('20:10626633:G:GC'), Variant.parse('20:10019093:A:G')]
+        >>> dataset_result = dataset.filter_rows_list(to_keep, keep=True)
+
+        Notes
+        -----
+
+        This method is extremely efficient when `keep` is ``True``: data shards
+        that don't overlap with any supplied key will not be loaded at all. This
+        method can therefore be used for reasonably low-latency queries of one
+        or more rows, even on large datasets.
+
+        Parameters
+        ----------
+        keys : list
+            List of row keys to keep or remove.
+        keep : bool
+            If ``True``, subset rows to those appearing in `keys`. If
+            ``False``, remove rows in `keys`.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Matrix table with rows removed.
+        """
+        rk_type = self.rowkey_schema
+        jkeys = []
+        for k in keys:
+            rk_type._typecheck(k)
+            jkeys.append(rk_type._convert_to_j(k))
+
+        return MatrixTable(
+            self._hc, self._jvds.filterVariantsList(jkeys, keep))
+
+    @handle_py4j
+    @typecheck_method(keys=list, keep=bool)
+    def filter_cols_list(self, keys, keep=True):
+        """Filter columns with a list of keys to keep or exclude.
+
+        Examples
+        --------
+        Remove three columns:
+
+        >>> to_remove = ['NA12878', 'NA12891', 'NA12892']
+        >>> dataset_result = dataset.filter_cols_list(to_remove, keep=False)
+
+        Parameters
+        ----------
+        keys : list
+            List of column keys to keep or remove.
+        keep : bool
+            If ``True``, subset columns to those appearing in `keys`. If
+            ``False``, remove columns in `keys`.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Matrix table with columns removed.
+        """
+
+        ck_type = self.colkey_schema
+        jkeys = []
+        for k in keys:
+            ck_type._typecheck(k)
+            jkeys.append(ck_type._convert_to_j(k))
+        return MatrixTable(self._hc, self._jvds.filterSamplesList(jkeys, keep))
+
+    @handle_py4j
+    def num_partitions(self):
+        """Number of partitions.
+
+        Notes
+        -----
+
+        The data in a dataset is divided into chunks called partitions, which
+        may be stored together or across a network, so that each partition may
+        be read and processed in parallel by available cores. Partitions are a
+        core concept of distributed computation in Spark, see `here
+        <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__
+        for details.
+
+        Returns
+        -------
+        int
+            Number of partitions.
+        """
+        return self._jvds.nPartitions()
+
+    @handle_py4j
+    @typecheck_method(num_partitions=integral,
+                      shuffle=bool)
+    def repartition(self, num_partitions, shuffle=True):
+        """Increase or decrease the number of partitions.
+
+        Examples
+        --------
+
+        Repartition to 500 partitions:
+
+        >>> dataset_result = dataset.repartition(500)
+
+        Notes
+        -----
+
+        Check the current number of partitions with :meth:`num_partitions`.
+
+        The data in a dataset is divided into chunks called partitions, which
+        may be stored together or across a network, so that each partition may
+        be read and processed in parallel by available cores. When a matrix with
+        :math:`M` rows is first imported, each of the :math:`k` partitions will
+        contain about :math:`M/k` of the rows. Since each partition has some
+        computational overhead, decreasing the number of partitions can improve
+        performance after significant filtering. Since it's recommended to have
+        at least 2 - 4 partitions per core, increasing the number of partitions
+        can allow one to take advantage of more cores. Partitions are a core
+        concept of distributed computation in Spark, see `their documentation
+        <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__
+        for details. With ``shuffle=True``, Hail does a full shuffle of the data
+        and creates equal sized partitions. With ``shuffle=False``, Hail
+        combines existing partitions to avoid a full shuffle. These algorithms
+        correspond to the `repartition` and `coalesce` commands in Spark,
+        respectively. In particular, when ``shuffle=False``, ``num_partitions``
+        cannot exceed current number of partitions.
+
+        Note
+        ----
+        If `shuffle` is ``False``, the number of partitions may only be
+        reduced, not increased.
+
+        Parameters
+        ----------
+        num_partitions : int
+            Desired number of partitions.
+        shuffle : bool
+            If ``True``, use full shuffle to repartition.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Repartitioned dataset.
+        """
+        jvds = self._jvds.coalesce(num_partitions, shuffle)
+        return MatrixTable(self._hc, jvds)
