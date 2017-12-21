@@ -33,7 +33,6 @@ object PCRelate {
   val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
 
   def apply(vds: MatrixTable, k: Int, pcaScores: Table, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): Table = {
-    require(vds.wasSplit)
     val scoreArray = new Array[Double](vds.nSamples * k)
     val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
     var i = 0
