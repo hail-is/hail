@@ -93,7 +93,7 @@ class LDMatrix(HistoryMixin):
         return LDMatrix(jldm)
 
     @handle_py4j
-    @write_history('path', is_dir=False, parallel_write='parallel')
+    @write_history('path', is_dir=False, parallel='parallel')
     @typecheck_method(path=strlike,
                       column_delimiter=strlike,
                       header=nullable(strlike),
@@ -121,7 +121,7 @@ class LDMatrix(HistoryMixin):
         >>> ldm.export('output/ld_matrix.tsv',
         ...            column_delimiter=',',
         ...            header=None,
-        ...            parallel_write=True)
+        ...            parallel=True)
 
         Write the upper-triangle with the diagonal as a comma-separated file:
 

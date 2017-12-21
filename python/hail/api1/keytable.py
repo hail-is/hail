@@ -244,7 +244,7 @@ class KeyTable(HistoryMixin):
         return self._jkt.same(other._jkt)
 
     @handle_py4j
-    @write_history('output', parallel_write='parallel')
+    @write_history('output', parallel='parallel')
     @typecheck_method(output=strlike,
                       types_file=nullable(strlike),
                       header=bool,

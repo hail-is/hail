@@ -1479,7 +1479,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         Env.hail().io.plink.ExportPlink.apply(self._jvds, output, fam_expr)
 
     @handle_py4j
-    @write_history('output', parallel_write='parallel')
+    @write_history('output', parallel='parallel')
     @typecheck_method(output=strlike,
                       append_to_header=nullable(strlike),
                       parallel=nullable(enumeration('separate_header', 'header_per_shard')),
