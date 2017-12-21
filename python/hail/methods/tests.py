@@ -29,7 +29,7 @@ class Tests(unittest.TestCase):
     def test_ld_matrix(self):
         dataset = self.get_dataset()
 
-        ldm = ld_matrix(dataset, force_local=True)
+        ldm = methods.ld_matrix(dataset, force_local=True)
 
     def test_linreg(self):
         dataset = hc.import_vcf('src/test/resources/regressionLinear.vcf')
@@ -42,7 +42,7 @@ class Tests(unittest.TestCase):
                                key='Sample')
 
         dataset = dataset.annotate_cols(pheno=phenos[dataset.s], cov = covs[dataset.s])
-        dataset = linreg(dataset,
+        dataset = methods.linreg(dataset,
                          ys=dataset.pheno,
                          x=dataset.GT.num_alt_alleles(),
                          covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
@@ -57,10 +57,10 @@ class Tests(unittest.TestCase):
         dataset = hc.import_vcf('src/test/resources/triomatrix.vcf')
         dataset = dataset.annotate_cols(fam = fam_table[dataset.s])
 
-        tm = trio_matrix(dataset, ped, complete_trios=True)
+        tm = methods.trio_matrix(dataset, ped, complete_trios=True)
 
         tm.count_rows()
 
     def test_sample_qc(self):
         dataset = self.get_dataset()
-        dataset = sample_qc(dataset)
+        dataset = methods.sample_qc(dataset)
