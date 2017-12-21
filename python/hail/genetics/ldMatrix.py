@@ -194,7 +194,7 @@ class LDMatrix(HistoryMixin):
 
         """
 
-        parallel = Env.hail().utils.ExportType.getExportType(joption(parallel))
+        parallel = Env.hail().utils.ExportType.getExportType(parallel)
 
         if entries == 'full':
             self._jldm.export(path, column_delimiter, joption(header), parallel)

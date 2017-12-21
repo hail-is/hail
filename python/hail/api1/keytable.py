@@ -274,7 +274,7 @@ class KeyTable(HistoryMixin):
         :type parallel: str or None
         """
 
-        self._jkt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(joption(parallel)))
+        self._jkt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
 
     @handle_py4j
     @record_method

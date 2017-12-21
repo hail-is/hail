@@ -759,7 +759,7 @@ class Table(TableTemplate):
             the export will be slower.
         """
 
-        self._jkt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(joption(parallel)))
+        self._jkt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
 
     @typecheck_method(exprs=tupleof(anytype),
                       named_exprs=dictof(strlike, anytype))
