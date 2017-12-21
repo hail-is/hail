@@ -606,4 +606,9 @@ class TableSuite extends SparkSuite {
     val kt = Table.range(hc, 10).annotate("FOO = if (false) {AC: [0, 5]} else NA:Struct{AC:Array[Int32]" +
       "@Description=\"Allele count in genotypes, for each ALT allele, in the same order as listed\"@Number=\"A\"@Type=\"Integer\"}")
   }
+
+  @Test def testFlatten() {
+    val table = Table.range(hc, 1).annotate("x = 5").keyBy("x")
+    table.flatten()
+  }
 }
