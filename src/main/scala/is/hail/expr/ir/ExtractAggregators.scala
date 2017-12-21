@@ -93,10 +93,10 @@ object ExtractAggregators {
         assert(tAggIn == typ)
         continuation(loadElement(tAggIn.elementType, fb), isElementMissing(fb))
       case AggMap(a, name, body, typ) =>
-        val tA = a.typ.asInstanceOf[TAggregable]
+        val tA = coerce[TAggregable](a.typ)
         val tElement = tA.elementType
         val elementTi = typeToTypeInfo(tElement)
-        val x = fb.newLocal()(elementTi).asInstanceOf[LocalRef[Any]]
+        val x = coerce[Any](fb.newLocal()(elementTi))
         val mx = mb.newBit
         val (dobody, mbody, vbody) = Emit.toCode(body, fb, env = env.bind(name, (elementTi, mx.load(), x.load())), mb)
         emitAgg2(a) { (v, mv) =>
@@ -106,10 +106,10 @@ object ExtractAggregators {
             dobody,
             continuation(vbody, mbody)) }
       case AggFilter(a, name, body, typ) =>
-        val tA = a.typ.asInstanceOf[TAggregable]
+        val tA = coerce[TAggregable](a.typ)
         val tElement = tA.elementType
         val elementTi = typeToTypeInfo(tElement)
-        val x = fb.newLocal()(elementTi).asInstanceOf[LocalRef[Any]]
+        val x = coerce[Any](fb.newLocal()(elementTi))
         val mx = mb.newBit
         val (dobody, mbody, vbody) = Emit.toCode(body, fb, env = env.bind(name, (elementTi, mx.load(), x.load())), mb)
         emitAgg2(a) { (v, mv) =>
@@ -120,11 +120,11 @@ object ExtractAggregators {
             // missing is false
             (!mbody && coerce[Boolean](vbody)).mux(continuation(x, mx), Code._empty)) }
       case AggFlatMap(a, name, body, typ) =>
-        val tA = a.typ.asInstanceOf[TAggregable]
+        val tA = coerce[TAggregable](a.typ)
         val tElement = tA.elementType
         val elementTi = typeToTypeInfo(tElement)
-        val tArray = body.typ.asInstanceOf[TArray]
-        val x = fb.newLocal()(elementTi).asInstanceOf[LocalRef[Any]]
+        val tArray = coerce[TArray](body.typ)
+        val x = coerce[Any](fb.newLocal()(elementTi))
         val arr = fb.newLocal[Long]
         val len = fb.newLocal[Int]
         val i = fb.newLocal[Int]

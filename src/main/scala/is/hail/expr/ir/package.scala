@@ -35,4 +35,12 @@ package object ir {
           ir.GetField(s, f.name))
     }.toArray)
   }
+
+  def coerce[T](x: Code[_]): Code[T] = x.asInstanceOf[Code[T]]
+
+  def coerce[T](lr: LocalRef[_]): LocalRef[T] = lr.asInstanceOf[LocalRef[T]]
+
+  def coerce[T <: Type](x: Type): T = x.asInstanceOf[T]
+
+  def coerce[T](ti: TypeInfo[_]): TypeInfo[T] = ti.asInstanceOf[TypeInfo[T]]
 }

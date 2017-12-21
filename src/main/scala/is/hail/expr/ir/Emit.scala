@@ -35,7 +35,6 @@ object Emit {
 
   private def present(x: Code[_]): (Code[Unit], Code[Boolean], Code[_]) =
     (Code._empty, const(false), x)
-  private def tcoerce[T <: expr.Type](x: expr.Type): T = x.asInstanceOf[T]
 
   // the return value is interpreted as: (precompute, missingness, value)
   // rules:
@@ -77,9 +76,9 @@ object Emit {
         val vti = typeToTypeInfo(value.typ)
         val bti = typeToTypeInfo(typ)
         val mx = mb.newBit()
-        val x = fb.newLocal(name)(vti).asInstanceOf[LocalRef[Any]]
+        val x = coerce[Any](fb.newLocal(name)(vti))
         val mout = mb.newBit()
-        val out = fb.newLocal(name)(bti).asInstanceOf[LocalRef[Any]]
+        val out = coerce[Any](fb.newLocal(name)(bti))
         val (dovalue, mvalue, vvalue) = emit(value)
         val bodyenv = env.bind(name -> (vti, mx, x))
         val (dobody, mbody, vbody) = emit(body, env = bodyenv)
@@ -95,7 +94,7 @@ object Emit {
       case expr.ir.If(cond, cnsq, altr, typ) =>
         val (docond, mcond, vcond) = emit(cond)
         val xvcond = mb.newBit()
-        val out = fb.newLocal()(typeToTypeInfo(typ)).asInstanceOf[LocalRef[Any]]
+        val out = coerce[Any](fb.newLocal()(typeToTypeInfo(typ)))
         val mout = mb.newBit()
         val (docnsq, mcnsq, vcnsq) = emit(cnsq)
         val (doaltr, maltr, valtr) = emit(altr)
@@ -114,7 +113,7 @@ object Emit {
       case expr.ir.Let(name, value, body, typ) =>
         val vti = typeToTypeInfo(value.typ)
         val mx = mb.newBit()
-        val x = fb.newLocal(name)(vti).asInstanceOf[LocalRef[Any]]
+        val x = coerce[Any](fb.newLocal(name)(vti))
         val (dovalue, mvalue, vvalue) = emit(value)
         val bodyenv = env.bind(name -> (vti, mx, x))
         val (dobody, mbody, vbody) = emit(body, env = bodyenv)
@@ -161,7 +160,7 @@ object Emit {
       case ArrayRef(a, i, typ) =>
         val ti = typeToTypeInfo(typ)
         val tarray = TArray(typ)
-        val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
+        val ati = coerce[Long](typeToTypeInfo(tarray))
         val (doa, ma, va) = emit(a)
         val (doi, mi, vi) = emit(i)
         val xma = mb.newBit()
@@ -180,8 +179,8 @@ object Emit {
 
         (setup, xmv, region.loadIRIntermediate(typ)(tarray.loadElement(region, xa, xi)))
       case ArrayMissingnessRef(a, i) =>
-        val tarray = tcoerce[TArray](a.typ)
-        val ati = typeToTypeInfo(tarray).asInstanceOf[TypeInfo[Long]]
+        val tarray = coerce[TArray](a.typ)
+        val ati = coerce[Long](typeToTypeInfo(tarray))
         val (doa, ma, va) = emit(a)
         val (doi, mi, vi) = emit(i)
         present(Code(
@@ -192,11 +191,11 @@ object Emit {
         val (doa, ma, va) = emit(a)
         (doa, ma, TContainer.loadLength(region, coerce[Long](va)))
       case x@ArrayMap(a, name, body, elementTyp) =>
-        val tin = a.typ.asInstanceOf[TArray]
+        val tin = coerce[TArray](a.typ)
         val tout = x.typ
         val srvb = new StagedRegionValueBuilder(fb, tout)
         val addElement = srvb.addIRIntermediate(tout.elementType)
-        val etiin = typeToTypeInfo(tin.elementType).asInstanceOf[TypeInfo[Any]]
+        val etiin = coerce[Any](typeToTypeInfo(tin.elementType))
         val xa = fb.newLocal[Long]("am_a")
         val xmv = mb.newBit()
         val xvv = fb.newLocal(name)(etiin)
@@ -228,15 +227,15 @@ object Emit {
             i := i + 1),
           srvb.offset))
       case ArrayFold(a, zero, name1, name2, body, typ) =>
-        val tarray = a.typ.asInstanceOf[TArray]
+        val tarray = coerce[TArray](a.typ)
         val tti = typeToTypeInfo(typ)
         val eti = typeToTypeInfo(tarray.elementType)
         val xma = mb.newBit()
         val xa = fb.newLocal[Long]("af_array")
         val xmv = mb.newBit()
-        val xvv = fb.newLocal(name2)(eti).asInstanceOf[LocalRef[Any]]
+        val xvv = coerce[Any](fb.newLocal(name2)(eti))
         val xmout = mb.newBit()
-        val xvout = fb.newLocal(name1)(tti).asInstanceOf[LocalRef[Any]]
+        val xvout = coerce[Any](fb.newLocal(name1)(tti))
         val i = fb.newLocal[Int]("af_i")
         val len = fb.newLocal[Int]("af_len")
         val bodyenv = env.bind(
@@ -284,7 +283,7 @@ object Emit {
               srvb.advance()) }: _*),
           srvb.offset))
       case GetField(o, name, _) =>
-        val t = o.typ.asInstanceOf[TStruct]
+        val t = coerce[TStruct](o.typ)
         val fieldIdx = t.fieldIdx(name)
         val (doo, mo, vo) = emit(o)
         val xmo = mb.newBit()
@@ -297,7 +296,7 @@ object Emit {
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
           region.loadIRIntermediate(t.fieldType(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
       case GetFieldMissingness(o, name) =>
-        val t = o.typ.asInstanceOf[TStruct]
+        val t = coerce[TStruct](o.typ)
         val fieldIdx = t.fieldIdx(name)
         val (doo, mo, vo) = emit(o)
         present(Code(doo, mo || !t.isFieldDefined(region, coerce[Long](vo), fieldIdx)))
