@@ -808,7 +808,7 @@ class SetExpression(CollectionExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(f.capture({1,2,3}).remove(1))
+            >>> eval_expr(functions.capture({1,2,3}).remove(1))
             {2, 3}
 
         """
@@ -1967,7 +1967,7 @@ def eval_expr(expression):
     .. doctest::
 
         >>> x = 6
-        >>> eval_expr(f.cond(x % 2 == 0, 'Even', 'Odd'))
+        >>> eval_expr(functions.cond(x % 2 == 0, 'Even', 'Odd'))
         'Even'
 
     Parameters
@@ -2000,7 +2000,7 @@ def eval_expr_typed(expression):
     .. doctest::
 
         >>> x = 6
-        >>> eval_expr_typed(f.cond(x % 2 == 0, 'Even', 'Odd'))
+        >>> eval_expr_typed(functions.cond(x % 2 == 0, 'Even', 'Odd'))
         ('Odd', TString())
 
     Parameters

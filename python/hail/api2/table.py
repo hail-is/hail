@@ -127,7 +127,7 @@ class GroupedTable(TableTemplate):
 
         >>> table_result = (table1.group_by(table1.ID)
         ...                       .partition_hint(5)
-        ...                       .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z)))
+        ...                       .aggregate(meanX = functions.mean(table1.X), sumZ = functions.sum(table1.Z)))
 
         Notes
         -----
@@ -163,12 +163,12 @@ class GroupedTable(TableTemplate):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z)))
+        ...                       .aggregate(meanX = functions.mean(table1.X), sumZ = functions.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = (table1.HT / 20).to_int32())
-        ...                       .aggregate(fraction_female = f.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = functions.fraction(table1.SEX == 'F')))
 
         Parameters
         ----------
@@ -247,7 +247,7 @@ class Table(TableTemplate):
     >>> height_sd_f = 2.5
     >>>
     >>> def get_z(height, sex):
-    ...    return f.cond(sex == 'M',
+    ...    return functions.cond(sex == 'M',
     ...                  (height - height_mean_m) / height_sd_m,
     ...                  (height - height_mean_f) / height_sd_f)
     >>>
@@ -260,15 +260,15 @@ class Table(TableTemplate):
 
     Compute global aggregation statistics:
 
-    >>> t1_stats = table1.aggregate(mean_c1 = f.mean(table1.C1),
-    ...                             mean_c2 = f.mean(table1.C2),
-    ...                             stats_c3 = f.stats(table1.C3))
+    >>> t1_stats = table1.aggregate(mean_c1 = functions.mean(table1.C1),
+    ...                             mean_c2 = functions.mean(table1.C2),
+    ...                             stats_c3 = functions.stats(table1.C3))
     >>> print(t1_stats)
 
     Group columns and aggregate to produce a new table:
 
     >>> table3 = (table1.group_by(table1.SEX)
-    ...                 .aggregate(mean_height_data = f.mean(table1.HT)))
+    ...                 .aggregate(mean_height_data = functions.mean(table1.HT)))
     >>> table3.show()
 
     Join tables together inside an annotation expression:
@@ -767,7 +767,7 @@ class Table(TableTemplate):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = f.mean(table1.X), sumZ = f.sum(table1.Z)))
+        ...                       .aggregate(meanX = functions.mean(table1.X), sumZ = functions.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
