@@ -11,6 +11,7 @@ import is.hail.expr.types._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
+import org.apache.spark.sql.Row
 
 class CompileSuite {
   def doit(ir: IR, fb: FunctionBuilder[_]) {
@@ -191,15 +192,53 @@ class CompileSuite {
     var j = 0
     for (i <- bytes) {
       j += 1
-      print(i)
+      printf("%02X", i)
       if (j % 32 == 0) {
         print('\n')
       } else {
-        print('\t')
+        print(' ')
       }
     }
     print('\n')
   }
+
+
+  def checkRegion(region: Region, offset: Long, typ: Type, a: Annotation): Boolean = {
+    val v = typ match {
+      case t: TStruct if a.isInstanceOf[IndexedSeq[Annotation]] =>
+        assert(t.size == a.asInstanceOf[IndexedSeq[Annotation]].size, "lengths of struct differ.")
+        t.fields.foreach { f =>
+          assert(
+            checkRegion(region, t.loadField(region, offset, f.index), f.typ, a.asInstanceOf[IndexedSeq[Annotation]](f.index)),
+            s"failed for type $t, expected $a")
+        }
+      case t: TStruct if a.isInstanceOf[Row] =>
+        assert(t.size == a.asInstanceOf[Row].size, "lengths of struct differ.")
+        t.fields.foreach { f =>
+          assert(
+            checkRegion(region, t.loadField(region, offset, f.index), f.typ, a.asInstanceOf[Row].get(f.index)),
+            s"failed for type $t, expected $a")
+        }
+      case t: TArray =>
+        val length = t.loadLength(region, offset)
+        val arr = a.asInstanceOf[IndexedSeq[Annotation]]
+        assert(length == arr.size, s"for array of type $t, expected length=${ arr.size } but got length=$length")
+        arr.zipWithIndex.foreach { case (a,i) =>
+          checkRegion(region, t.loadElement(region, offset, i), t.elementType, a) }
+      case _: TBoolean =>
+        assert(region.loadBoolean(offset) === a)
+      case _: TInt32 =>
+        assert(region.loadInt(offset) === a)
+      case _: TInt64 =>
+        assert(region.loadLong(offset) === a)
+      case _: TFloat32 =>
+        assert(region.loadFloat(offset) === a)
+      case _: TFloat64 =>
+        assert(region.loadDouble(offset) === a)
+    }
+    true
+  }
+
   @Test
   def replaceMissingValues() {
     val replaceMissingIr =
@@ -309,6 +348,40 @@ class CompileSuite {
     doit(ir, fb)
     val f = fb.result()()
     assert(f(region, loff, false, roff, false) === 8.0)
+  }
+
+  @Test
+  def appendField() {
+    val a = TArray(TFloat64())
+    val t = TStruct("0" -> a)
+    val ir = InsertFields(In(0, t), Array(("1", I32(532)), ("2", F64(3.2)), ("3", I64(533))))
+    val region = Region()
+    val off = addStruct[IndexedSeq[Double]](region, "0", IndexedSeq(3.0, 5.0, 7.0))
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    checkRegion(region, f(region, off, false), ir.typ,
+      IndexedSeq(IndexedSeq(3.0, 5.0, 7.0), 532, 3.2, 533L))
+  }
+
+  @Test
+  def insertField() {
+    val a = TArray(TFloat64())
+    val t = TStruct("0" -> a, "1" -> TStruct("a" -> TArray(TInt32())))
+    val ir = InsertFields(In(0, t), Array(("0", I32(44)),
+      ("1", ArrayRef(GetField(GetField(In(0, t), "1"), "a"), I32(0))),
+      ("2", F64(3.2)),
+      ("3", I64(533))))
+    val region = Region()
+    val off1 = addStruct(region, "a", IndexedSeq(1, 2, 3))
+    val off = addStruct(region, "0", IndexedSeq(3.0, 5.0, 7.0), "1", TStruct("a" -> TArray(TInt32())), off1)
+
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long]
+    doit(ir, fb)
+    val f = fb.result()()
+    val noff = f(region, off, false)
+    checkRegion(region, noff, ir.typ,
+      IndexedSeq(44, 1, 3.2, 533L))
   }
 
   @Test

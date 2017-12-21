@@ -148,6 +148,39 @@ object Parser extends JavaTokenParsers {
     })
   }
 
+  def parseAnnotationExprsToAST(code: String, ec: EvalContext, expectedHead: Option[String]): (
+    Array[List[String]], Array[AST]) = {
+
+    val parsed = named_exprs(annotationIdentifier).parse(code)
+
+    val names = new Array[List[String]](parsed.size)
+    val asts = new Array[AST](parsed.size)
+
+    var i = 0
+    parsed.foreach { case (name, ast, _) =>
+      name match {
+        case Some(n) => names(i) = n
+        case None => fatal("left-hand side required in annotation expression")
+      }
+      asts(i) = ast
+      i += 1
+    }
+
+    expectedHead.foreach { h =>
+      names.foreach { n =>
+        if (n.head != h)
+          fatal(
+            s"""invalid annotation path `${ n.map(prettyIdentifier).mkString(".") }'
+               |  Path should begin with `$h'
+           """.stripMargin)
+      }
+    }
+
+    (names.map { n =>
+      if (expectedHead.isDefined) n.tail else n
+    }, asts)
+  }
+
   def parseNamedExprs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[Any]) = {
     val (maybeNames, types, f, _) = parseNamedExprs[String](code, identifier, ec,
       (t, s) => Some(t.map(_ + "." + s).getOrElse(s)))

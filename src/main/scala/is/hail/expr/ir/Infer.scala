@@ -123,6 +123,19 @@ object Infer {
         x.typ = TStruct(fields.map { case (name, a) =>
           (name, a.typ)
         }: _*)
+      case x@InsertFields(old, fields, _) =>
+        infer(old)
+        fields.foreach { case (name, a) => infer(a) }
+        x.typ = fields.foldLeft(old.typ){ case (t, (name, a)) =>
+          t match {
+            case t2: TStruct =>
+              t2.selfField(name) match {
+                case Some(f2) => t2.updateKey(name, f2.index, a.typ)
+                case None => t2.appendKey(name, a.typ)
+              }
+            case _ => TStruct(name -> a.typ)
+          }
+        }.asInstanceOf[TStruct]
       case x@GetField(o, name, _) =>
         infer(o)
         val t = coerce[TStruct](o.typ)

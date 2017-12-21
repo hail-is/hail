@@ -1,7 +1,7 @@
 package is.hail.expr
 
 import is.hail.HailContext
-import is.hail.annotations._
+import is.hail.annotations.{RegionValueBuilder, _}
 import is.hail.asm4s.FunctionBuilder
 import is.hail.expr.ir._
 import is.hail.table.TableLocalValue
@@ -16,6 +16,8 @@ import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.json4s.jackson.JsonMethods
+
+import scala.collection.mutable
 
 case class MatrixType(
   metadata: VSMMetadata) extends BaseType {
@@ -570,9 +572,9 @@ abstract sealed class TableIR extends BaseIR {
 }
 
 case class TableLiteral(value: TableValue) extends TableIR {
-  def typ: TableType = value.typ
+  val typ: TableType = value.typ
 
-  def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableLiteral = {
     assert(newChildren.isEmpty)
@@ -591,7 +593,7 @@ case class TableRead(path: String,
 
   val typ: TableType = ktType
 
-  def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRead = {
     assert(newChildren.isEmpty)
@@ -609,14 +611,15 @@ case class TableRead(path: String,
 }
 
 case class TableFilter(child: TableIR, pred: IR) extends TableIR {
-  def children: IndexedSeq[BaseIR] = Array(child, pred)
+  val children: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def typ: TableType = child.typ
+  val typ: TableType = child.typ
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableFilter = {
     assert(newChildren.length == 2)
     TableFilter(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
+
   def execute(hc: HailContext): TableValue = {
     val ktv = child.execute(hc)
     val mappedPred = typ.remapIR(pred)
@@ -627,3 +630,77 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
     ktv.filter((rv, globalRV) => f()(rv.region, rv.offset, false, globalRV.offset, false))
   }
 }
+
+case class TableAnnotate(child: TableIR, paths: IndexedSeq[List[String]], preds: IndexedSeq[IR]) extends TableIR {
+
+  val children: IndexedSeq[BaseIR] = Array(child) ++ preds
+
+  private def insertIR(path: List[String], old: IR, ir: IR): IR = {
+    if (path.isEmpty)
+      ir
+    else {
+      Infer(old)
+      old.typ match {
+        case t: TStruct => t.selfField(path.head) match {
+          case Some(f) =>
+            InsertFields(old, Array((path.head, insertIR(path.tail, GetField(old, path.head), ir))))
+          case None =>
+            if (path.tail.isEmpty)
+              InsertFields(old, Array((path.head, ir)))
+            else
+              InsertFields(old, Array((path.head, insertIR(path.tail, MakeStruct(Array()), ir))))
+        }
+        case _ =>
+          if (path.tail.isEmpty)
+            InsertFields(old, Array((path.head, ir)))
+          else
+            InsertFields(old, Array((path.head, insertIR(path.tail, MakeStruct(Array()), ir))))
+      }
+    }
+  }
+
+  private var newIR: IR = In(0, child.typ.rowType)
+
+  val typ: TableType = {
+    var i = 0
+    paths.zip(preds).foreach { case (path, pred) =>
+      val mappedPred = child.typ.remapIR(pred)
+      Infer(mappedPred)
+      newIR = insertIR(path, newIR, mappedPred)
+    }
+    Infer(newIR)
+    child.typ.copy(rowType = newIR.typ.asInstanceOf[TStruct])
+  }
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableAnnotate = {
+    assert(newChildren.length == children.length)
+    TableAnnotate(newChildren(0).asInstanceOf[TableIR], paths, newChildren.tail.asInstanceOf[IndexedSeq[IR]])
+  }
+
+  def execute(hc: HailContext): TableValue = {
+    val tv = child.execute(hc)
+    Infer(newIR)
+    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Long]
+    Emit(newIR, fb)
+    val f = fb.result()
+    val globals = tv.localValue.globals
+    val gType = typ.globalType
+    TableValue(typ,
+      tv.localValue,
+      tv.rvd.mapPartitions(typ.rowType) { it =>
+      val globalRV = RegionValue()
+      val globalRVb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      val newRow = f()
+      it.map { rv =>
+        globalRVb.set(rv.region)
+        globalRVb.start(gType)
+        globalRVb.addAnnotation(gType, globals)
+        globalRV.set(rv.region, globalRVb.end())
+        rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
+        rv2
+      }
+    })
+  }
+}
+

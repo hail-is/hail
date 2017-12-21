@@ -430,30 +430,41 @@ class Table(val hc: HailContext,
   }
 
   def annotate(cond: String): Table = {
+
     val ec = rowEvalContext()
 
-    val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, None)
+    val (paths, asts) = Parser.parseAnnotationExprsToAST(cond, ec, None)
+    val irs = asts.flatMap(_.toIR())
 
-    val inserterBuilder = new ArrayBuilder[Inserter]()
+    if (irs.length != asts.length) {
+      info("Some ASTs could not be converted to IR. Falling back to AST predicate for Table.annotate.")
+      val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, None)
 
-    val finalSignature = (paths, types).zipped.foldLeft(signature) { case (vs, (ids, sig)) =>
-      val (s: TStruct, i) = vs.insert(sig, ids)
-      inserterBuilder += i
-      s
+      val inserterBuilder = new ArrayBuilder[Inserter]()
+
+      val finalSignature = (paths, types).zipped.foldLeft(signature) { case (vs, (ids, sig)) =>
+        val (s: TStruct, i) = vs.insert(sig, ids)
+        inserterBuilder += i
+        s
+      }
+
+      val inserters = inserterBuilder.result()
+
+      val annotF: Row => Row = { r =>
+        ec.setAllFromRow(r)
+
+        f().zip(inserters)
+          .foldLeft(r) { case (a1, (v, inserter)) =>
+            inserter(a1, v).asInstanceOf[Row]
+          }
+      }
+
+      copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = key)
+    } else {
+      new Table(hc, TableAnnotate(ir, paths, irs))
     }
 
-    val inserters = inserterBuilder.result()
 
-    val annotF: Row => Row = { r =>
-      ec.setAllFromRow(r)
-
-      f().zip(inserters)
-        .foldLeft(r) { case (a1, (v, inserter)) =>
-          inserter(a1, v).asInstanceOf[Row]
-        }
-    }
-
-    copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = key)
   }
 
   def filter(cond: String, keep: Boolean): Table = {
@@ -463,7 +474,7 @@ class Table(val hc: HailContext,
       case Some(irPred) =>
         new Table(hc, TableFilter(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
       case None =>
-        info("No AST to IR conversion found. Falling back to AST predicate for FilterKT.")
+        info("No AST to IR conversion found. Falling back to AST predicate for Table.filter.")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         val ec = ktType.rowEC
