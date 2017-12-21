@@ -799,7 +799,7 @@ class Table(val hc: HailContext,
 
   def flatten(): Table = {
     val localSignature = signature
-    val keySignature = TStruct(keyFields.map { f => f.name -> f.typ}: _*)
+    val keySignature = TStruct(keyFields.map { f => f.name -> f.typ }: _*)
     val flattenedSignature = Annotation.flattenType(localSignature).asInstanceOf[TStruct]
     val flattenedKey = Annotation.flattenType(keySignature).asInstanceOf[TStruct].fields.map(_.name).toArray
 
