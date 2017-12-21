@@ -2556,34 +2556,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     (eigenvalues, scores, optionLoadings)
   }
 
-  /**
-    *
-    * @param k          the number of principal components to use to distinguish
-    *                   ancestries
-    * @param maf        the minimum individual-specific allele frequency for an
-    *                   allele used to measure relatedness
-    * @param blockSize  the side length of the blocks of the block-distributed
-    *                   matrices; this should be set such that atleast three of
-    *                   these matrices fit in memory (in addition to all other
-    *                   objects necessary for Spark and Hail).
-    * @param statistics which subset of the four statistics to compute
-    */
-  def pcRelate(k: Int, pcaScores: Table, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): Table = {
-    val scoreArray = new Array[Double](nSamples * k)
-    val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
-    var i = 0
-    while (i < nSamples) {
-      val row = pcs(i).getAs[IndexedSeq[Double]](1)
-      var j = 0
-      while (j < k) {
-        scoreArray(j * nSamples + i) = row(j)
-        j += 1
-      }
-      i += 1
-    }
-    PCRelate.toKeyTable(this, new DenseMatrix[Double](nSamples, k, scoreArray), maf, blockSize, minKinship, statistics)
-  }
-
   def toIndexedRowMatrix(expr: String, getVariants: Boolean): (IndexedRowMatrix, Option[Array[Any]]) = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rdd2.getNumPartitions + 1)

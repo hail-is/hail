@@ -1,13 +1,13 @@
 package is.hail.methods
 
 import breeze.linalg.{*, DenseMatrix}
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, UnsafeRow}
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.expr.{TFloat64, TString, TStruct}
 import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.{HardCallView, Variant, MatrixTable}
+import is.hail.variant.{HardCallView, MatrixTable, Variant}
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -32,8 +32,21 @@ object PCRelate {
   val defaultMinKinship = Double.NegativeInfinity
   val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
 
-  def apply(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double, blockSize: Int, statistics: StatisticSubset = defaultStatisticSubset): Result[M] =
-    new PCRelate(maf, blockSize)(vds, pcs, statistics)
+  def apply(vds: MatrixTable, k: Int, pcaScores: Table, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): Table = {
+    val scoreArray = new Array[Double](vds.nSamples * k)
+    val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
+    var i = 0
+    while (i < vds.nSamples) {
+      val row = pcs(i).getAs[IndexedSeq[Double]](1)
+      var j = 0
+      while (j < k) {
+        scoreArray(j * vds.nSamples + i) = row(j)
+        j += 1
+      }
+      i += 1
+    }
+    PCRelate.toTable(vds, new DenseMatrix[Double](vds.nSamples, k, scoreArray), maf, blockSize, minKinship, statistics)
+  }
 
   private val signature =
     TStruct(("i", TString()), ("j", TString()), ("kin", TFloat64()), ("k0", TFloat64()), ("k1", TFloat64()), ("k2", TFloat64()))
@@ -41,7 +54,7 @@ object PCRelate {
 
   private def toRowRdd(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double, blockSize: Int, minKinship: Double, statistics: StatisticSubset): RDD[Row] = {
     val localSampleIds = vds.sampleIds
-    val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, statistics)
+    val Result(phi, k0, k1, k2) = new PCRelate(maf, blockSize)(vds, pcs, statistics)
 
     def fuseBlocks(i: Int, j: Int, lmPhi: DenseMatrix[Double], lmK0: DenseMatrix[Double], lmK1: DenseMatrix[Double], lmK2: DenseMatrix[Double]) = {
       val iOffset = i * blockSize
@@ -84,7 +97,7 @@ object PCRelate {
     }
   }
 
-  def toKeyTable(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, statistics: StatisticSubset = defaultStatisticSubset): Table =
+  def toTable(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, statistics: StatisticSubset = defaultStatisticSubset): Table =
     Table(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship, statistics), signature, keys)
 
   private val k0cutoff = math.pow(2.0, -5.0 / 2.0)
@@ -170,7 +183,6 @@ object PCRelate {
 }
 
 class PCRelate(maf: Double, blockSize: Int) extends Serializable {
-
   import PCRelate._
 
   require(maf >= 0.0)

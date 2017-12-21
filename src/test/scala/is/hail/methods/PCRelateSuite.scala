@@ -41,7 +41,7 @@ class PCRelateSuite extends SparkSuite {
       .mapValues(quadMap(toD).tupled)
 
   def runPcRelateHail(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double, minKinship: Double, statistics: PCRelate.StatisticSubset): Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)] =
-    PCRelate.toKeyTable(vds, pcs, maf, blockSize, minKinship, statistics)
+    PCRelate.toTable(vds, pcs, maf, blockSize, minKinship, statistics)
       .collect()
       .map(x => x.asInstanceOf[Row])
       .map(r => ((r(0), r(1)), (r(2), r(3), r(4), r(5))))
