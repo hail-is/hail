@@ -115,13 +115,13 @@ class LDMatrix(HistoryMixin):
         ...            column_delimiter=',',
         ...            header=','.join([str(v) for v in ldm.variant_list()]))
 
-        Write a full LD matrix as a folder of comma-separated file shards:
+        Write a full LD matrix as a folder of comma-separated file shards with a separate header file:
 
         >>> ldm = vds.ld_matrix()
         >>> ldm.export('output/ld_matrix.tsv',
         ...            column_delimiter=',',
         ...            header=None,
-        ...            parallel=True)
+        ...            parallel='separate_header')
 
         Write the upper-triangle with the diagonal as a comma-separated file:
 
