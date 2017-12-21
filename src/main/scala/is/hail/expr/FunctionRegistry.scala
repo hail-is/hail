@@ -1593,6 +1593,7 @@ object FunctionRegistry {
   registerMethod("extend", (x: IndexedSeq[Any], a: IndexedSeq[Any]) => x ++ a, "Returns the concatenation of this Array followed by Array `a`.")(arrayHr(TTHr), arrayHr(TTHr), arrayHr(TTHr))
 
   registerMethod("add", (x: Set[Any], a: Any) => x + a, "Returns the result of adding the element `a` to this Set.")(setHr(TTHr), TTHr, setHr(TTHr))
+  registerMethod("remove", (x: Set[Any], a: Any) => x - a, "Returns the result of removing the element `a` from this Set.")(setHr(TTHr), TTHr, setHr(TTHr))
   registerMethod("union", (x: Set[Any], a: Set[Any]) => x ++ a, "Returns the union of this Set and Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
   registerMethod("intersection", (x: Set[Any], a: Set[Any]) => x & a, "Returns the intersection of this Set and Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
   registerMethod("difference", (x: Set[Any], a: Set[Any]) => x &~ a, "Returns the elements of this Set that are not in Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))

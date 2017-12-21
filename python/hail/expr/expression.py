@@ -115,9 +115,9 @@ def to_expr(e):
         if len(cols) == 0:
             raise ValueError("Don't support empty sets.")
         elif len(types) == 1:
-            t = TArray(types[0])
+            t = TSet(types[0])
         elif all([is_numeric(t) for t in types]):
-            t = TArray(convert_numeric_typ(*types))
+            t = TSet(convert_numeric_typ(*types))
         else:
             raise ValueError("Don't support sets with multiple element types.")
         indices, aggregations, joins = unify_all(*cols)
@@ -791,6 +791,28 @@ class SetExpression(CollectionExpression):
     """Expression of type :class:`hail.expr.types.TSet`."""
     def add(self, x):
         return self._method("add", self._type, x)
+
+    def remove(self, x):
+        """Returns the result of removing the argument from this Set.
+
+        Parameters
+        ----------
+        x
+
+        Returns
+        -------
+        :py:class:`SetExpression`
+            This set with the element `x` removed.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(f.capture({1,2,3}).remove(1))
+            {2, 3}
+
+        """
+        return self._method("remove", self._type, x)
 
     def contains(self, x):
         return self._method("contains", TBoolean(), x)
