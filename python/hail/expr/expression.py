@@ -1967,7 +1967,7 @@ def eval_expr(expression):
     .. doctest::
 
         >>> x = 6
-        >>> f.eval_expr(f.cond(x % 2 == 0, 'Even', 'Odd'))
+        >>> eval_expr(f.cond(x % 2 == 0, 'Even', 'Odd'))
         'Even'
 
     Parameters
@@ -2000,7 +2000,7 @@ def eval_expr_typed(expression):
     .. doctest::
 
         >>> x = 6
-        >>> f.eval_expr_typed(f.cond(x % 2 == 0, 'Even', 'Odd'))
+        >>> eval_expr_typed(f.cond(x % 2 == 0, 'Even', 'Odd'))
         ('Odd', TString())
 
     Parameters

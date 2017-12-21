@@ -48,7 +48,7 @@ class GroupedMatrixTable(object):
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
         ...                          .partition_hint(5)
-        ...                          .aggregate(n_non_ref = f.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = functions.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -94,7 +94,7 @@ class GroupedMatrixTable(object):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate(n_non_ref = f.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = functions.count_where(dataset.GT.is_non_ref())))
 
         Parameters
         ----------
@@ -159,12 +159,12 @@ class MatrixTable(object):
     ...                                    populations = ['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
 
     >>> dataset = dataset.annotate_cols(pop = dataset.populations[f.rand_unif(0, 6).to_int32()],
-    ...                                 sample_gq = f.mean(dataset.GQ),
-    ...                                 sample_dp = f.mean(dataset.DP))
+    ...                                 sample_gq = functions.mean(dataset.GQ),
+    ...                                 sample_dp = functions.mean(dataset.DP))
 
-    >>> dataset = dataset.annotate_rows(variant_gq = f.mean(dataset.GQ),
-    ...                                 variant_dp = f.mean(dataset.GQ),
-    ...                                 sas_hets = f.count_where(dataset.GT.is_het()))
+    >>> dataset = dataset.annotate_rows(variant_gq = functions.mean(dataset.GQ),
+    ...                                 variant_dp = functions.mean(dataset.GQ),
+    ...                                 sas_hets = functions.count_where(dataset.GT.is_het()))
 
     >>> dataset = dataset.annotate_entries(gq_by_dp = dataset.GQ / dataset.DP)
 
@@ -178,16 +178,16 @@ class MatrixTable(object):
 
     Query:
 
-    >>> col_stats = dataset.aggregate_cols(pop_counts = f.counter(dataset.pop),
-    ...                                    high_quality = f.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5)))
+    >>> col_stats = dataset.aggregate_cols(pop_counts = functions.counter(dataset.pop),
+    ...                                    high_quality = functions.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5)))
     >>> print(col_stats.pop_counts)
     >>> print(col_stats.high_quality)
 
-    >>> row_stats = dataset.aggregate_rows(het_dist = f.stats(dataset.sas_hets))
+    >>> row_stats = dataset.aggregate_rows(het_dist = functions.stats(dataset.sas_hets))
     >>> print(row_stats.het_dist)
 
-    >>> entry_stats = dataset.aggregate_entries(call_rate = f.fraction(f.is_defined(dataset.GT)),
-    ...                                         global_gq_mean = f.mean(dataset.GQ))
+    >>> entry_stats = dataset.aggregate_entries(call_rate = functions.fraction(functions.is_defined(dataset.GT)),
+    ...                                         global_gq_mean = functions.mean(dataset.GQ))
     >>> print(entry_stats.call_rate)
     >>> print(entry_stats.global_gq_mean)
     """
@@ -483,8 +483,8 @@ class MatrixTable(object):
         --------
         Compute call statistics for high quality samples per variant:
 
-        >>> high_quality_calls = f.filter(dataset.GT, dataset.sample_qc.gqMean > 20)
-        >>> dataset_result = dataset.annotate_rows(call_stats = f.call_stats(high_quality_calls, dataset.v))
+        >>> high_quality_calls = functions.filter(dataset.GT, dataset.sample_qc.gqMean > 20)
+        >>> dataset_result = dataset.annotate_rows(call_stats = functions.call_stats(high_quality_calls, dataset.v))
 
         Add functional annotations from a :class:`Table` keyed by :class:`hail.expr.TVariant`:, and another
         :class:`MatrixTable`.
@@ -496,7 +496,7 @@ class MatrixTable(object):
         ----
         This method supports aggregation over columns. For instance, the usage:
 
-        >>> dataset_result = dataset.annotate_rows(mean_GQ = f.mean(dataset.GQ))
+        >>> dataset_result = dataset.annotate_rows(mean_GQ = functions.mean(dataset.GQ))
 
         will compute the mean per row.
 
@@ -541,7 +541,7 @@ class MatrixTable(object):
         --------
         Compute statistics about the GQ distribution per sample:
 
-        >>> dataset_result = dataset.annotate_cols(sample_gq_stats = f.stats(dataset.GQ))
+        >>> dataset_result = dataset.annotate_cols(sample_gq_stats = functions.stats(dataset.GQ))
 
         Add sample metadata from a :class:`hail.api2.Table`.
 
@@ -551,7 +551,7 @@ class MatrixTable(object):
         ----
         This method supports aggregation over rows. For instance, the usage:
 
-        >>> dataset_result = dataset.annotate_cols(mean_GQ = f.mean(dataset.GQ))
+        >>> dataset_result = dataset.annotate_cols(mean_GQ = functions.mean(dataset.GQ))
 
         will compute the mean per column.
 
@@ -732,7 +732,7 @@ class MatrixTable(object):
         ----
         This method supports aggregation over rows. For instance, the usage:
 
-        >>> dataset_result = dataset.select_cols(mean_GQ = f.mean(dataset.GQ))
+        >>> dataset_result = dataset.select_cols(mean_GQ = functions.mean(dataset.GQ))
 
         will compute the mean per column.
 
@@ -782,7 +782,7 @@ class MatrixTable(object):
         Select existing fields and compute a new one:
 
         >>> dataset_result = dataset.select_rows(dataset.variant_qc.gqMean,
-        ...                                      highQualityCases = f.count_where((dataset.GQ > 20) & (dataset.isCase)))
+        ...                                      highQualityCases = functions.count_where((dataset.GQ > 20) & (dataset.isCase)))
 
         Notes
         -----
@@ -798,7 +798,7 @@ class MatrixTable(object):
         ----
         This method supports aggregation over columns. For instance, the usage:
 
-        >>> dataset_result = dataset.select_rows(mean_GQ = f.mean(dataset.GQ))
+        >>> dataset_result = dataset.select_rows(mean_GQ = functions.mean(dataset.GQ))
 
         will compute the mean per row.
 
@@ -1013,7 +1013,7 @@ class MatrixTable(object):
         ----
         This method supports aggregation over columns. For instance,
 
-        >>> dataset_result = dataset.filter_rows(f.mean(dataset.GQ) > 20.0)
+        >>> dataset_result = dataset.filter_rows(functions.mean(dataset.GQ) > 20.0)
 
         will remove rows where the mean GQ of all entries in the row is smaller than
         20.
@@ -1072,7 +1072,7 @@ class MatrixTable(object):
         ----
         This method supports aggregation over rows. For instance,
 
-        >>> dataset_result = dataset.filter_cols(f.mean(dataset.GQ) > 20.0)
+        >>> dataset_result = dataset.filter_cols(functions.mean(dataset.GQ) > 20.0)
 
         will remove columns where the mean GQ of all entries in the column is smaller
         than 20.
@@ -1242,8 +1242,8 @@ class MatrixTable(object):
 
         .. doctest::
 
-            >>> dataset.aggregate_rows(n_high_quality=f.count_where(dataset.qual > 40),
-            ...                        mean_qual = f.mean(dataset.qual))
+            >>> dataset.aggregate_rows(n_high_quality=functions.count_where(dataset.qual > 40),
+            ...                        mean_qual = functions.mean(dataset.qual))
             Struct(n_high_quality=100150224, mean_qual=50.12515572)
 
         Notes
@@ -1255,8 +1255,8 @@ class MatrixTable(object):
         the following:
 
         >>> rows_table = dataset.rows_table()
-        >>> rows_table.aggregate(n_high_quality=f.count_where(rows_table.qual > 40),
-        ...                      mean_qual = f.mean(rows_table.qual))
+        >>> rows_table.aggregate(n_high_quality=functions.count_where(rows_table.qual > 40),
+        ...                      mean_qual = functions.mean(rows_table.qual))
 
         Note
         ----
@@ -1302,8 +1302,8 @@ class MatrixTable(object):
 
         .. doctest::
 
-            >>> dataset.aggregate_cols(fraction_female=f.fraction(dataset.pheno.isFemale),
-            ...                        case_ratio = f.count_where(dataset.isCase) / f.count(dataset.s))
+            >>> dataset.aggregate_cols(fraction_female=functions.fraction(dataset.pheno.isFemale),
+            ...                        case_ratio = functions.count_where(dataset.isCase) / functions.count(dataset.s))
             Struct(fraction_female=0.5102222, case_ratio=0.35156)
 
         Notes
@@ -1315,8 +1315,8 @@ class MatrixTable(object):
         the following:
 
         >>> cols_table = dataset.cols_table()
-        >>> cols_table.aggregate(fraction_female=f.fraction(cols_table.pheno.isFemale),
-        ...                      case_ratio = f.count_where(cols_table.isCase) / f.count(cols_table.s))
+        >>> cols_table.aggregate(fraction_female=functions.fraction(cols_table.pheno.isFemale),
+        ...                      case_ratio = functions.count_where(cols_table.isCase) / functions.count(cols_table.s))
 
         Note
         ----
@@ -1362,8 +1362,8 @@ class MatrixTable(object):
 
         .. doctest::
 
-            >>> dataset.aggregate_entries(global_gq_mean = f.mean(dataset.GQ),
-            ...                           call_rate = f.fraction(f.is_defined(dataset.GT)))
+            >>> dataset.aggregate_entries(global_gq_mean = functions.mean(dataset.GQ),
+            ...                           call_rate = functions.fraction(functions.is_defined(dataset.GT)))
             Struct(global_gq_mean=31.16200, call_rate=0.981682)
 
         Notes
@@ -1372,8 +1372,8 @@ class MatrixTable(object):
         the following:
 
         >>> entries_table = dataset.entries_table()
-        >>> entries_table.aggregate(global_gq_mean = f.mean(entries_table.GQ),
-        ...                         call_rate = f.fraction(f.is_defined(entries_table.GT)))
+        >>> entries_table.aggregate(global_gq_mean = functions.mean(entries_table.GQ),
+        ...                         call_rate = functions.fraction(functions.is_defined(entries_table.GT)))
 
         Note
         ----
@@ -1513,7 +1513,7 @@ class MatrixTable(object):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate(n_non_ref = f.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = functions.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -1550,7 +1550,7 @@ class MatrixTable(object):
             dataset = dataset.annotate_cols(cohort = 'cohort')
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate(call_rate = f.fraction(f.is_defined(dataset.GT))))
+        ...                          .aggregate(call_rate = functions.fraction(functions.is_defined(dataset.GT))))
 
         Notes
         -----
