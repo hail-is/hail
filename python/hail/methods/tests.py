@@ -23,7 +23,7 @@ class Tests(unittest.TestCase):
 
     def get_dataset(self):
         if Tests._dataset is None:
-            Tests._dataset = hc.import_vcf('src/test/resources/sample.vcf').to_hail1().split_multi().to_hail2()
+            Tests._dataset = hc.import_vcf('src/test/resources/sample.vcf').to_hail1().split_multi_hts().to_hail2()
         return Tests._dataset
 
     def test_ld_matrix(self):
@@ -44,7 +44,7 @@ class Tests(unittest.TestCase):
         dataset = dataset.annotate_cols(pheno=phenos[dataset.s], cov = covs[dataset.s])
         dataset = linreg(dataset,
                          ys=dataset.pheno,
-                         x=dataset.GT.num_nonref_alleles(),
+                         x=dataset.GT.num_alt_alleles(),
                          covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
 
         dataset.count_rows()
