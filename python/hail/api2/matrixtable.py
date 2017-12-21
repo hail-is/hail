@@ -1960,7 +1960,7 @@ class MatrixTable(object):
         --------
         Subset to two specific rows:
 
-        >>> to_keep = [Variant.parse('20:10626633:G:GC', Variant.parse('20:10019093:A:G')]
+        >>> to_keep = [Variant.parse('20:10626633:G:GC'), Variant.parse('20:10019093:A:G')]
         >>> dataset_result = dataset.filter_rows_list(to_keep, keep=True)
 
         Notes
