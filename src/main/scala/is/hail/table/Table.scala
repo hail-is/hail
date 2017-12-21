@@ -46,7 +46,7 @@ case class KeyTableMetadata(
   n_partitions: Int,
   partition_counts: Option[Array[Long]])
 
-case class KTLocalValue(globals: Row)
+case class TableLocalValue(globals: Row)
 
 object Table {
   final val fileVersion: Int = 0x101
@@ -93,9 +93,9 @@ object Table {
     val globalSchema = metadata.globalSchema.map(str => Parser.parseType(str).asInstanceOf[TStruct]).getOrElse(TStruct.empty())
     val globals = metadata.globals.map(g => JSONAnnotationImpex.importAnnotation(g, globalSchema).asInstanceOf[Row])
       .getOrElse(Row.empty)
-    new Table(hc, ReadKT(path,
-      KeyTableType(schema, metadata.key, globalSchema),
-      KTLocalValue(globals),
+    new Table(hc, TableRead(path,
+      TableType(schema, metadata.key, globalSchema),
+      TableLocalValue(globals),
       dropRows = false,
       metadata.n_partitions,
       metadata.partition_counts))
@@ -155,30 +155,30 @@ object Table {
       }
     }
 
-    new Table(hc, KeyTableLiteral(
-      KeyTableValue(KeyTableType(signature, key, globalSignature),
-        KTLocalValue(globals),
+    new Table(hc, TableLiteral(
+      TableValue(TableType(signature, key, globalSignature),
+        TableLocalValue(globals),
         RVD(signature, rdd2))
     ))
   }
 }
 
 class Table(val hc: HailContext,
-  val ir: KeyTableIR) {
+  val ir: TableIR) {
 
   def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: Array[String] = Array.empty,
-    globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, KeyTableLiteral(
-    KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), RVD(signature, rdd))
+    globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, TableLiteral(
+    TableValue(TableType(signature, key, globalSignature), TableLocalValue(globals), RVD(signature, rdd))
   ))
 
-  lazy val value: KeyTableValue = {
-    val opt = KeyTableIR.optimize(ir)
+  lazy val value: TableValue = {
+    val opt = TableIR.optimize(ir)
     opt.execute(hc)
   }
 
-  lazy val KeyTableValue(ktType, KTLocalValue(globals), rvd) = value
+  lazy val TableValue(ktType, TableLocalValue(globals), rvd) = value
 
-  val KeyTableType(signature, key, globalSignature) = ir.typ
+  val TableType(signature, key, globalSignature) = ir.typ
 
   lazy val rdd: RDD[Row] = value.rdd
 
@@ -456,7 +456,7 @@ class Table(val hc: HailContext,
     val pred = filterAST.toIR
     pred match {
       case Some(irPred) =>
-        new Table(hc, FilterKT(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
+        new Table(hc, TableFilter(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
       case None =>
         info("No AST to IR conversion found. Falling back to AST predicate for FilterKT.")
         if (!keep)
@@ -1126,8 +1126,8 @@ class Table(val hc: HailContext,
     key: Array[String] = key,
     globalSignature: TStruct = globalSignature,
     globals: Row = globals): Table = {
-    new Table(hc, KeyTableLiteral(
-      KeyTableValue(KeyTableType(signature, key, globalSignature), KTLocalValue(globals), rvd)
+    new Table(hc, TableLiteral(
+      TableValue(TableType(signature, key, globalSignature), TableLocalValue(globals), rvd)
     ))
   }
 }
