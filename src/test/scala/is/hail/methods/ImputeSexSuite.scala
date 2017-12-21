@@ -52,7 +52,7 @@ class ImputeSexSuite extends SparkSuite {
         val vcfFile = root + ".vcf"
         val sexcheckFile = root + ".sexcheck"
 
-        mappedVDS = mappedVDS.imputeSex(0.0, includePAR = true)
+        mappedVDS = ImputeSexPlink(mappedVDS, 0.0, includePar = true)
         ExportVCF(mappedVDS, vcfFile)
         mappedVDS.write(root + ".vds")
 
@@ -94,7 +94,7 @@ class ImputeSexSuite extends SparkSuite {
 
         val countAnnotated = mappedVDS.annotateVariantsExpr(
           "va.maf = let a = gs.map(g => g.GT.oneHotAlleles(v)).sum() in a[1] / a.sum()")
-        val sexcheck2 = countAnnotated.imputeSex(popFreqExpr = Some("va.maf"), includePAR = true)
+        val sexcheck2 = ImputeSexPlink(countAnnotated, popFrequencyExpr = Some("va.maf"), includePar = true)
 
         result &&
           sexcheck2.saSignature == mappedVDS.saSignature &&

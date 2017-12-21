@@ -407,4 +407,7 @@ object VEP {
       case _ => vsm.copyLegacy(rdd = newRDD, vaSignature = newVASignature)
     }
   }
+
+  def apply(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean = false, blockSize: Int = 1000): MatrixTable =
+    annotate(vsm, config, root, csq, blockSize)
 }

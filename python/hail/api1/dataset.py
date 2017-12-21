@@ -46,7 +46,6 @@ class VariantDataset(HistoryMixin):
         self._genotype_schema = None
         self._sample_ids = None
         self._num_samples = None
-        self._jvdf_cache = None
         super(VariantDataset, self).__init__()
 
     @classmethod
@@ -78,14 +77,8 @@ class VariantDataset(HistoryMixin):
         :return: Sites-only variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
-        jvds = scala_object(Env.hail().variant, 'VariantDataset').fromKeyTable(table._jkt)
+        jvds = scala_object(Env.hail().variant, 'MatrixTable').fromKeyTable(table._jkt)
         return VariantDataset(table.hc, jvds)
-
-    @property
-    def _jvdf(self):
-        if self._jvdf_cache is None:
-            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds)
-        return self._jvdf_cache
 
     @property
     @handle_py4j
@@ -1236,7 +1229,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         right = right._verify_biallelic("concordance, right")
 
-        r = self._jvdf.concordance(right._jvds)
+        r = Env.hail().methods.CalculateConcordance.apply(self._jvds, right._jvds)
         j_global_concordance = r._1()
         sample_kt = KeyTable(self.hc, r._2())
         variant_kt = KeyTable(self.hc, r._3())
@@ -2228,7 +2221,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         intervals = wrap_to_list(intervals)
 
-        jvds = self._jvdf.filterIntervals([x._jrep for x in intervals], keep)
+        jvds = Env.hail().methods.FilterIntervals.apply(self._jvds, [x._jrep for x in intervals], keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2443,7 +2436,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.hardCalls())
+        return self.annotate_genotypes_expr('g = {GT: g.GT}')
 
     @handle_py4j
     @record_method
@@ -2611,7 +2604,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.imputeSex(maf_threshold, include_par, female_threshold, male_threshold, joption(pop_freq))
+        jvds = Env.hail().methods.ImputeSexPlink.apply(self._jvds, maf_threshold, include_par, female_threshold, male_threshold, joption(pop_freq))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2808,7 +2801,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: :py:class:`LDMatrix`
         """
 
-        jldm = self._jvdf.ldMatrix(force_local)
+        jldm = Env.hail().methods.LDMatrix.apply(self._jvds, force_local)
         return LDMatrix(jldm)
 
     @handle_py4j
@@ -5459,7 +5452,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.vep(config, root, csq, block_size)
+        jvds = Env.hail().methods.VEP.apply(self._jvds, config, root, csq, block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -5702,7 +5695,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :rtype: :py:class:`.VariantDataset`
 
         """
-        jvds = self._jvdf.nirvana(config, block_size, root)
+        jvds = Env.hail().methods.Nirvana.apply(self._jvds, config, block_size, root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

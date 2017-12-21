@@ -339,4 +339,7 @@ object Nirvana {
     vds.copyLegacy(rdd = newRDD,
       vaSignature = newVASignature)
   }
+
+  def apply(vsm: MatrixTable, config: String, blockSize: Int = 500000, root: String): MatrixTable =
+    annotate(vsm, config, blockSize, root)
 }
