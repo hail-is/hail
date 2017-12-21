@@ -206,7 +206,6 @@ class MatrixTable(object):
         self._genotype_schema = None
         self._sample_ids = None
         self._num_samples = None
-        self._jvdf_cache = None
         self._row_axis = 'row'
         self._col_axis = 'column'
         self._global_indices = Indices(self, set())
@@ -337,12 +336,6 @@ class MatrixTable(object):
                 return self.index_cols(col_key)
             else:
                 return self.index_globals()
-
-    @property
-    def _jvdf(self):
-        if self._jvdf_cache is None:
-            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds)
-        return self._jvdf_cache
 
     @property
     def global_schema(self):

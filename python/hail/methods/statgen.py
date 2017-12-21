@@ -124,5 +124,5 @@ def ld_matrix(dataset, force_local=False):
     :rtype: :py:class:`LDMatrix`
     """
 
-    jldm = dataset._jvdf.ldMatrix(force_local)
+    jldm = Env.hail().methods.LDMatrix.apply(dataset._jvds, force_local)
     return LDMatrix(jldm)
