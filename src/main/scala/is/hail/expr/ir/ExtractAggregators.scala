@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
-import is.hail.expr.typ.{TArray, TStruct}
+import is.hail.expr.typ._
 import is.hail.expr.RegionValueAggregator
 import is.hail.utils._
 

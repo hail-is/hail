@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.expr.TFloat64
+import is.hail.expr.typ._
 
 import scala.language.existentials
 

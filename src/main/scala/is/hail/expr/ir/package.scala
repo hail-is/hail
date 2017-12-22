@@ -2,7 +2,6 @@ package is.hail.expr
 
 import is.hail.asm4s
 import is.hail.asm4s._
-import is.hail.expr
 import is.hail.expr.typ._
 
 package object ir {

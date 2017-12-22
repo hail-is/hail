@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.Region
-import is.hail.asm4s.{AsmFunction5, FunctionBuilder, TypeInfo}
-import is.hail.expr.typ.Type
+import is.hail.annotations._
+import is.hail.asm4s._
+import is.hail.expr.typ._
 
 import scala.reflect.{ClassTag, classTag}
 

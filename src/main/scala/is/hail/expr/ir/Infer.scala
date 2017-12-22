@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.typ.{TArray, TBoolean, TStruct}
-import is.hail.expr.TArray
+import is.hail.expr.typ._
 
 object Infer {
   def apply(ir: IR, tAgg: Option[TAggregable] = None) { apply(ir, tAgg, new Env[Type]()) }

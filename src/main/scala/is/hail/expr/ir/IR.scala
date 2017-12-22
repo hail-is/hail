@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.typ.{TArray, TVoid}
+import is.hail.expr.typ._
 import is.hail.expr.BaseIR
 import is.hail.utils._
 

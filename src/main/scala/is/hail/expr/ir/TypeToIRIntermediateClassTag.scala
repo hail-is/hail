@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.expr.typ._
-import is.hail.expr.TFloat64
 
 import scala.reflect.{ClassTag, classTag}
 
