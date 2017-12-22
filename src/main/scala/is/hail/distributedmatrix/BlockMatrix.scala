@@ -596,10 +596,7 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, colsToKeep: Array[Long])
   private val gp = dm.partitioner
   private val blockSize = gp.blockSize
   private val newGP = GridPartitioner(blockSize, gp.nRows, colsToKeep.length.toLong)
-  
-//  println(gp)
-//  println(newGP)
-  
+    
   protected def getPartitions: Array[Partition] = {
     val nBlockRows: Int = gp.nBlockRows
     colsToKeep.grouped(blockSize).zipWithIndex.flatMap { case (cols, j) =>
@@ -621,46 +618,35 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, colsToKeep: Array[Long])
   
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val (blockRow, newBlockCol) = newGP.blockCoordinates(split.index)
-    val (blockNRows, blockNCols) = newGP.blockDims(split.index)
+    val (blockNRows, newBlockNCols) = newGP.blockDims(split.index)
     
-    val colsInBlock = split.asInstanceOf[BlockMatrixFilterRDDPartition].keep
-    assert(colsInBlock.length == blockNCols)
+    val colsInNewBlock = split.asInstanceOf[BlockMatrixFilterRDDPartition].keep
+    assert(colsInNewBlock.length == newBlockNCols)
     
-//    println(split.index, blockRow, newBlockCol, colsInBlock.toIndexedSeq)
-    
-    val newBlock = BDM.zeros[Double](blockNRows, blockNCols)
+    val newBlock = BDM.zeros[Double](blockNRows, newBlockNCols)
     
     // fix? this is being redone for every blockRow...
     var j = 0
-    while (j < blockNCols) {
-      val startCol = colsInBlock(j)
+    while (j < newBlockNCols) {
+      val startCol = colsInNewBlock(j)
+      val startColIndex = (startCol % blockSize).toInt
       val blockCol = (startCol / blockSize).toInt
-
-      val pi = gp.coordinatesBlock(blockRow, blockCol)      
+      val blockNCols = gp.blockColNCols(blockCol)
+      val pi = gp.coordinatesBlock(blockRow, blockCol)
       val ((i0, j0), block) = dm.blocks.iterator(dm.blocks.partitions(pi), context).next()
       assert(i0 == blockRow, j0 == blockCol)
       
-      val lastColInBlockCol = blockCol + gp.blockColNCols(blockCol) // exclusive
-      var endCol = startCol + 1 // exclusive      
       var k = j + 1
-      while (k < blockNCols && // column indexed k exists in newBlock
-        colsInBlock(k) == endCol && // column is consecutive
-        endCol < lastColInBlockCol) { // column endCol in dm remains in this blockCol 
-                
-        endCol += 1
+      var endColIndex = startColIndex + 1
+      while (colsInNewBlock(k) == endColIndex && // contiguous slice
+        k < newBlockNCols &&
+        endColIndex < blockNCols) {
+        
+        endColIndex += 1
         k += 1
       }
       
-      val startColIndex = (startCol % blockSize).toInt
-      val endColIndex = ((endCol - 1) % blockSize).toInt + 1
-
-      //println(startCol, startColIndex, endCol, endColIndex, j, k)
-      
-      assert(endColIndex - startColIndex == k - j)
-      
       newBlock(::, j until k) := block(::, startColIndex until endColIndex)
-      //newBlock(::, j until k) := block(::, 0 until 2)
-
 
       j = k
     }
