@@ -28,7 +28,7 @@ def null(t):
     --------
     .. doctest::
 
-        >>> eval_expr(f.null(TString()))
+        >>> eval_expr(functions.null(TString()))
         None
 
     Notes
@@ -56,10 +56,10 @@ def capture(x):
     --------
     .. doctest::
 
-        >>> eval_expr(f.capture(5))
+        >>> eval_expr(functions.capture(5))
         5
 
-        >>> eval_expr(f.capture([1, 2, 3]))
+        >>> eval_expr(functions.capture([1, 2, 3]))
         [1, 2, 3]
 
     Warning
@@ -87,7 +87,7 @@ def broadcast(x):
     .. doctest::
 
         >>> table = Table.range(8)
-        >>> greetings = f.broadcast({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
+        >>> greetings = functions.broadcast({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
         >>> table.annotate(greeting = greetings.get(table.index)).show()
         +-------+----------------+
         | index | greeting       |
@@ -145,11 +145,11 @@ def cond(predicate, then_case, else_case):
     .. doctest::
 
         >>> x = 5
-        >>> eval_expr( f.cond(x < 2, 'Hi', 'Bye') )
+        >>> eval_expr( functions.cond(x < 2, 'Hi', 'Bye') )
         'Bye'
 
-        >>> a = f.capture([1, 2, 3, 4])
-        >>> eval_expr( f.cond(a.length() > 0,
+        >>> a = functions.capture([1, 2, 3, 4])
+        >>> eval_expr( functions.cond(a.length() > 0,
         ...                   2.0 * a,
         ...                   a / 2.0) )
         [2.0, 4.0, 6.0, 8.0]
@@ -194,11 +194,11 @@ def chisq(c1, c2, c3, c4):
     --------
     .. doctest::
 
-        >>> eval_expr(f.chisq(10, 10,
+        >>> eval_expr(functions.chisq(10, 10,
         ...                   10, 10))
         Struct(oddsRatio=1.0, pValue=1.0)
 
-        >>> eval_expr(f.chisq(30, 30,
+        >>> eval_expr(functions.chisq(30, 30,
         ...                   50, 10))
         Struct(oddsRatio=0.2, pValue=0.000107511176729)
 
@@ -261,11 +261,11 @@ def ctt(c1, c2, c3, c4, min_cell_count):
     --------
     .. doctest::
 
-        >>> eval_expr(f.ctt(10, 10,
+        >>> eval_expr(functions.ctt(10, 10,
         ...                 10, 10, min_cell_count=15))
         Struct(oddsRatio=1.0, pValue=1.0)
 
-        >>> eval_expr(f.ctt(30, 30,
+        >>> eval_expr(functions.ctt(30, 30,
         ...                 50, 10, min_cell_count=15))
         Struct(oddsRatio=0.202874620964, pValue=0.000190499944324)
 
@@ -305,7 +305,7 @@ def Dict(keys, values):
     --------
     .. doctest::
 
-        >>> eval_expr(f.Dict(['foo', 'bar', 'baz'], [1, 2, 3]))
+        >>> eval_expr(functions.Dict(['foo', 'bar', 'baz'], [1, 2, 3]))
         {u'bar': 2, u'baz': 3, u'foo': 1}
 
     Notes
@@ -340,7 +340,7 @@ def dpois(x, lamb, log_p=False):
     --------
     .. doctest::
 
-        >>> eval_expr(f.dpois(5, 3))
+        >>> eval_expr(functions.dpois(5, 3))
         0.10081881344492458
 
     Parameters
@@ -377,7 +377,7 @@ def exp(x):
     --------
     .. doctest::
 
-        >>> eval_expr(f.exp(2))
+        >>> eval_expr(functions.exp(2))
         7.38905609893065
 
     Parameters
@@ -400,11 +400,11 @@ def fisher_exact_test(c1, c2, c3, c4):
     --------
     .. doctest::
 
-        >>> eval_expr(f.fisher_exact_test(10, 10,
+        >>> eval_expr(functions.fisher_exact_test(10, 10,
         ...                               10, 10))
         Struct(oddsRatio=1.0, pValue=1.0)
 
-        >>> eval_expr(f.fisher_exact_test(30, 30,
+        >>> eval_expr(functions.fisher_exact_test(30, 30,
         ...                               50, 10))
         Struct(oddsRatio=0.202874620964, pValue=0.000190499944324)
 
@@ -445,10 +445,10 @@ def gt_index(j, k):
     --------
     .. doctest::
 
-        >>> eval_expr(f.gt_index(0, 1))
+        >>> eval_expr(functions.gt_index(0, 1))
         1
 
-        >>> eval_expr(f.gt_index(1, 2))
+        >>> eval_expr(functions.gt_index(1, 2))
         4
 
     Notes
@@ -479,10 +479,10 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
     --------
     .. doctest::
 
-        >>> eval_expr(f.hardy_weinberg_p(20, 50, 26))
+        >>> eval_expr(functions.hardy_weinberg_p(20, 50, 26))
         Struct(rExpectedHetFrequency=0.500654450262, pHWE=0.762089599352)
 
-        >>> eval_expr(f.hardy_weinberg_p(37, 200, 85))
+        >>> eval_expr(functions.hardy_weinberg_p(37, 200, 85))
         Struct(rExpectedHetFrequency=0.489649643074, pHWE=1.13372103832e-06)
 
     Notes
@@ -535,7 +535,7 @@ def locus(contig, pos, reference_genome=None):
     --------
     .. doctest::
 
-        >>> eval_expr(f.locus("1", 10000))
+        >>> eval_expr(functions.locus("1", 10000))
         Locus(contig=1, position=10000, reference_genome=GRCh37)
 
     Parameters
@@ -568,7 +568,7 @@ def parse_locus(s, reference_genome=None):
     --------
     .. doctest::
 
-        >>> eval_expr(f.parse_locus("1:10000"))
+        >>> eval_expr(functions.parse_locus("1:10000"))
         Locus(contig=1, position=10000, reference_genome=GRCh37)
 
     Notes
@@ -602,8 +602,8 @@ def interval(start, end):
     --------
     .. doctest::
 
-        >>> eval_expr(f.interval(f.locus("1", 100),
-        ...                      f.locus("1", 1000)))
+        >>> eval_expr(functions.interval(functions.locus("1", 100),
+        ...                              functions.locus("1", 1000)))
         Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
                  end=Locus(contig=1, position=1000, reference_genome=GRCh37))
     Parameters
@@ -638,11 +638,11 @@ def parse_interval(s, reference_genome=None):
     --------
     .. doctest::
 
-        >>> eval_expr(f.parse_interval('1:1000-2000'))
+        >>> eval_expr(functions.parse_interval('1:1000-2000'))
         Interval(start=Locus(contig=1, position=1000, reference_genome=GRCh37),
                  end=Locus(contig=1, position=2000, reference_genome=GRCh37))
 
-        >>> eval_expr(f.parse_interval('1:start-10M'))
+        >>> eval_expr(functions.parse_interval('1:start-10M'))
         Interval(start=Locus(contig=1, position=0, reference_genome=GRCh37),
                  end=Locus(contig=1, position=10000000, reference_genome=GRCh37))
 
@@ -679,7 +679,7 @@ def variant(contig, pos, ref, alts, reference_genome=None):
     --------
     .. doctest::
 
-        >>> eval_expr(f.variant('1', 1000, 'A', ['TC', 'T']))
+        >>> eval_expr(functions.variant('1', 1000, 'A', ['TC', 'T']))
         Variant(contig=1, start=1000, ref=A,
                 alts=[AltAllele(ref=A, alt=TC), AltAllele(ref=A, alt=T)], reference_genome=GRCh37)
 
@@ -721,7 +721,7 @@ def parse_variant(s, reference_genome=None):
     --------
     .. doctest::
 
-        >>> eval_expr(f.parse_variant('1:1000:A:TC,T'))
+        >>> eval_expr(functions.parse_variant('1:1000:A:TC,T'))
         Variant(contig=1, start=1000, ref=A,
                 alts=[AltAllele(ref=A, alt=TC), AltAllele(ref=A, alt=T)], reference_genome=GRCh37)
 
@@ -756,7 +756,7 @@ def call(i):
     --------
     .. doctest::
 
-        >>> eval_expr(f.call(1))
+        >>> eval_expr(functions.call(1))
         Call(gt=1)
 
     Notes
@@ -786,13 +786,13 @@ def is_defined(expression):
     --------
     .. doctest::
 
-        >>> eval_expr(f.is_defined(5))
+        >>> eval_expr(functions.is_defined(5))
         True
 
-        >>> eval_expr(f.is_defined(f.null(TString())))
+        >>> eval_expr(functions.is_defined(functions.null(TString())))
         False
 
-        >>> eval_expr(f.is_defined(f.null(TBoolean()) & True))
+        >>> eval_expr(functions.is_defined(functions.null(TBoolean()) & True))
         False
 
     Parameters
@@ -817,13 +817,13 @@ def is_missing(expression):
     --------
     .. doctest::
 
-        >>> eval_expr(f.is_missing(5))
+        >>> eval_expr(functions.is_missing(5))
         False
 
-        >>> eval_expr(f.is_missing(f.null(TString())))
+        >>> eval_expr(functions.is_missing(functions.null(TString())))
         True
 
-        >>> eval_expr(f.is_missing(f.null(TBoolean()) & True))
+        >>> eval_expr(functions.is_missing(functions.null(TBoolean()) & True))
         True
 
     Parameters
@@ -848,13 +848,13 @@ def is_nan(x):
     --------
     .. doctest::
 
-        >>> eval_expr(f.is_nan(0))
+        >>> eval_expr(functions.is_nan(0))
         False
 
-        >>> eval_expr(f.is_nan(f.capture(0) / 0))
+        >>> eval_expr(functions.is_nan(functions.capture(0) / 0))
         True
 
-        >>> eval_expr(f.is_nan(f.capture(0) / f.null(TFloat64())))
+        >>> eval_expr(functions.is_nan(functions.capture(0) / functions.null(TFloat64())))
         None
 
     Notes
@@ -885,10 +885,10 @@ def json(x):
     --------
     .. doctest::
 
-        >>> eval_expr(f.json([1,2,3,4,5]))
+        >>> eval_expr(functions.json([1,2,3,4,5]))
         '[1,2,3,4,5]'
 
-        >>> eval_expr(f.json(Struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
+        >>> eval_expr(functions.json(Struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
         '{"a":"Hello","c":[1,2],"b":0.12345,"d":["bye","hi"]}'
 
     Parameters
@@ -912,13 +912,13 @@ def log(x, base=None):
     --------
     .. doctest::
 
-        >>> eval_expr(f.log(10))
+        >>> eval_expr(functions.log(10))
         2.302585092994046
 
-        >>> eval_expr(f.log(10, 10))
+        >>> eval_expr(functions.log(10, 10))
         1.0
 
-        >>> eval_expr(f.log(1024, 2))
+        >>> eval_expr(functions.log(1024, 2))
         10.0
 
     Notes
@@ -950,10 +950,10 @@ def log10(x):
     --------
     .. doctest::
 
-        >>> eval_expr(f.log10(1000))
+        >>> eval_expr(functions.log10(1000))
         3.0
 
-        >>> eval_expr(f.log10(0.0001123))
+        >>> eval_expr(functions.log10(0.0001123))
         -3.949620243738542
 
     Parameters
@@ -976,13 +976,13 @@ def logical_not(b):
     --------
     .. doctest::
 
-        >>> eval_expr(f.logical_not(False))
+        >>> eval_expr(functions.logical_not(False))
         True
 
-        >>> eval_expr(f.logical_not(True))
+        >>> eval_expr(functions.logical_not(True))
         False
 
-        >>> eval_expr(f.logical_not(f.null(TBoolean())))
+        >>> eval_expr(functions.logical_not(functions.null(TBoolean())))
         None
 
     Notes
@@ -1017,10 +1017,10 @@ def or_else(a, b):
     --------
     .. doctest::
 
-        >>> eval_expr(f.or_else(5, 7))
+        >>> eval_expr(functions.or_else(5, 7))
         5
 
-        >>> eval_expr(f.or_else(f.null(TInt32()), 7))
+        >>> eval_expr(functions.or_else(functions.null(TInt32()), 7))
         7
 
     Parameters
@@ -1046,10 +1046,10 @@ def or_missing(predicate, value):
     --------
     .. doctest::
 
-        >>> eval_expr(f.or_missing(True, 5))
+        >>> eval_expr(functions.or_missing(True, 5))
         5
 
-        >>> eval_expr(f.or_missing(False, 5))
+        >>> eval_expr(functions.or_missing(False, 5))
         None
 
     Parameters
@@ -1075,7 +1075,7 @@ def binom_test(x, n, p, alternative):
     --------
     .. doctest::
 
-        >>> eval_expr(f.binom_test(5, 10, 0.5, 'less'))
+        >>> eval_expr(functions.binom_test(5, 10, 0.5, 'less'))
         0.6230468749999999
 
     With alternative ``less``, the p-value is the probability of at most `x`
@@ -1116,7 +1116,7 @@ def pchisqtail(x, df):
     --------
     .. doctest::
 
-        >>> eval_expr(f.pchisqtail(5, 1))
+        >>> eval_expr(functions.pchisqtail(5, 1))
         0.025347318677468304
 
     Parameters
@@ -1141,13 +1141,13 @@ def pnorm(x):
     --------
     .. doctest::
 
-        >>> eval_expr(f.pnorm(0))
+        >>> eval_expr(functions.pnorm(0))
         0.5
 
-        >>> eval_expr(f.pnorm(1))
+        >>> eval_expr(functions.pnorm(1))
         0.8413447460685429
 
-        >>> eval_expr(f.pnorm(2))
+        >>> eval_expr(functions.pnorm(2))
         0.9772498680518208
 
     Notes
@@ -1174,7 +1174,7 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
     --------
     .. doctest::
 
-        >>> eval_expr(f.ppois(2, 1))
+        >>> eval_expr(functions.ppois(2, 1))
         0.9196986029286058
 
     Notes
@@ -1210,7 +1210,7 @@ def qchisqtail(p, df):
     --------
     .. doctest::
 
-        >>> eval_expr(f.qchisqtail(0.01, 1))
+        >>> eval_expr(functions.qchisqtail(0.01, 1))
         6.634896601021213
 
     Notes
@@ -1241,7 +1241,7 @@ def qnorm(p):
     --------
     .. doctest::
 
-        >>> eval_expr(f.qnorm(0.90))
+        >>> eval_expr(functions.qnorm(0.90))
         1.2815515655446008
 
     Notes
@@ -1270,7 +1270,7 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
     --------
     .. doctest::
 
-        >>> eval_expr(f.qpois(0.99, 1))
+        >>> eval_expr(functions.qpois(0.99, 1))
         4
 
     Notes
@@ -1304,10 +1304,10 @@ def range(start, stop, step=1):
     --------
     .. doctest::
 
-        >>> eval_expr(f.range(0, 10))
+        >>> eval_expr(functions.range(0, 10))
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-        >>> eval_expr(f.range(0, 10, step=3))
+        >>> eval_expr(functions.range(0, 10, step=3))
         [0, 3, 6, 9]
 
     Notes
@@ -1339,10 +1339,10 @@ def rand_bool(p):
     --------
     .. doctest::
 
-        >>> eval_expr(f.rand_bool(0.5))
+        >>> eval_expr(functions.rand_bool(0.5))
         True
 
-        >>> eval_expr(f.rand_bool(0.5))
+        >>> eval_expr(functions.rand_bool(0.5))
         False
 
     Warning
@@ -1371,10 +1371,10 @@ def rand_norm(mean=0, sd=1):
     --------
     .. doctest::
 
-        >>> eval_expr(f.rand_norm())
+        >>> eval_expr(functions.rand_norm())
         1.5388475315213386
 
-        >>> eval_expr(f.rand_norm())
+        >>> eval_expr(functions.rand_norm())
         -0.3006188509144124
 
     Warning
@@ -1406,10 +1406,10 @@ def rand_pois(lamb):
     --------
     .. doctest::
 
-        >>> eval_expr(f.rand_pois(1))
+        >>> eval_expr(functions.rand_pois(1))
         2.0
 
-        >>> eval_expr(f.rand_pois(1))
+        >>> eval_expr(functions.rand_pois(1))
         3.0
 
     Warning
@@ -1439,10 +1439,10 @@ def rand_unif(min, max):
     --------
     .. doctest::
 
-        >>> eval_expr(f.rand_unif(0, 1))
+        >>> eval_expr(functions.rand_unif(0, 1))
         0.7983073825816226
 
-        >>> eval_expr(f.rand_unif(0, 1))
+        >>> eval_expr(functions.rand_unif(0, 1))
         0.5161799497741769
 
     Warning
@@ -1481,7 +1481,7 @@ def sqrt(x):
     --------
     .. doctest::
 
-        >>> eval_expr(f.sqrt(3))
+        >>> eval_expr(functions.sqrt(3))
         1.7320508075688772
 
     Notes
@@ -1509,7 +1509,7 @@ def to_str(x):
     --------
     .. doctest::
 
-        >>> eval_expr(f.to_str(Struct(a=5, b=7)))
+        >>> eval_expr(functions.to_str(Struct(a=5, b=7)))
         '{"a":5,"b":7}'
 
     Parameters
