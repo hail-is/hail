@@ -219,7 +219,7 @@ def bind(expr, f):
 
     .. doctest::
 
-        >>> eval_expr(bind(x, lambda y: [y, y, y]))
+        >>> eval_expr(functions.bind(x, lambda y: [y, y, y]))
         [0.7897028763765286, 0.7897028763765286, 0.7897028763765286]
 
     Parameters
