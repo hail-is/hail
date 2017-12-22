@@ -359,7 +359,7 @@ class Table(TableTemplate):
 
         **Examples**
 
-        Assume ``kt`` is a :py:class:`.KeyTable` with three columns: c1, c2 and
+        Assume ``kt`` is a :py:class:`.Table` with three columns: c1, c2 and
         c3 and key c1.
 
         Change key columns:
@@ -376,7 +376,7 @@ class Table(TableTemplate):
         :type key: str or list of str
 
         :return: Key table whose key columns are given by ``key``.
-        :rtype: :class:`.KeyTable`
+        :rtype: :class:`.Table`
         """
 
         return Table(self._hc, self._jkt.keyBy(list(keys)))
@@ -490,7 +490,7 @@ class Table(TableTemplate):
         :type kwargs: dict of str to anytype
 
         :return: Key table with new columns specified by ``named_exprs``.
-        :rtype: :class:`.KeyTable`
+        :rtype: :class:`.Table`
         """
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         exprs = []
