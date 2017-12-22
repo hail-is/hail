@@ -120,14 +120,12 @@ class GroupedMatrixTable(object):
         if self._grouped_indices == self._parent._row_indices:
             # group variants
             return cleanup(
-                MatrixTable(self._parent._hc,
-                            base._jvds.groupVariantsBy(self._group._ast.to_hql(), ',\n'.join(strs))))
+                MatrixTable(base._jvds.groupVariantsBy(self._group._ast.to_hql(), ',\n'.join(strs))))
         else:
             assert self._grouped_indices == self._parent._col_indices
             # group samples
             return cleanup(
-                MatrixTable(self._parent._hc,
-                            base._jvds.groupSamplesBy(self._group._ast.to_hql(), ',\n'.join(strs))))
+                MatrixTable(base._jvds.groupSamplesBy(self._group._ast.to_hql(), ',\n'.join(strs))))
 
 
 class MatrixTable(object):
@@ -192,8 +190,7 @@ class MatrixTable(object):
     >>> print(entry_stats.global_gq_mean)
     """
 
-    def __init__(self, hc, jvds):
-        self._hc = hc
+    def __init__(self, jvds):
         self._jvds = jvds
 
         self._globals = None
@@ -465,7 +462,7 @@ class MatrixTable(object):
             analyze(v, self._global_indices, set(), {'global'})
             exprs.append('global.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._global_indices)
-        m = MatrixTable(self._hc, base._jvds.annotateGlobalExpr(",\n".join(exprs)))
+        m = MatrixTable(base._jvds.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
 
     @handle_py4j
@@ -523,7 +520,7 @@ class MatrixTable(object):
             replace_aggregables(v._ast, 'gs')
             exprs.append('va.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._row_indices)
-        m = MatrixTable(self._hc, base._jvds.annotateVariantsExpr(",\n".join(exprs)))
+        m = MatrixTable(base._jvds.annotateVariantsExpr(",\n".join(exprs)))
         return cleanup(m)
 
     @handle_py4j
@@ -578,7 +575,7 @@ class MatrixTable(object):
             replace_aggregables(v._ast, 'gs')
             exprs.append('sa.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._col_indices)
-        m = MatrixTable(self._hc, base._jvds.annotateSamplesExpr(",\n".join(exprs)))
+        m = MatrixTable(base._jvds.annotateSamplesExpr(",\n".join(exprs)))
         return cleanup(m)
 
     @handle_py4j
@@ -635,7 +632,7 @@ class MatrixTable(object):
             analyze(v, self._entry_indices, set(), set(self._fields.keys()))
             exprs.append('g.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._entry_indices)
-        m = MatrixTable(self._hc, base._jvds.annotateGenotypesExpr(",\n".join(exprs)))
+        m = MatrixTable(base._jvds.annotateGenotypesExpr(",\n".join(exprs)))
         return cleanup(m)
 
     @handle_py4j
@@ -696,7 +693,7 @@ class MatrixTable(object):
             analyze(e, self._global_indices, set(), {'globals'})
             self._check_field_name(k, self._global_indices)
             strs.append('`{}`: {}'.format(k, to_expr(e)._ast.to_hql()))
-        m = MatrixTable(self._hc, base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
+        m = MatrixTable(base._jvds.annotateGlobalExpr('global = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -763,7 +760,7 @@ class MatrixTable(object):
             replace_aggregables(e._ast, 'gs')
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
 
-        m = MatrixTable(self._hc, base._jvds.annotateSamplesExpr('sa = {' + ',\n'.join(strs) + '}'))
+        m = MatrixTable(base._jvds.annotateSamplesExpr('sa = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -827,7 +824,7 @@ class MatrixTable(object):
             self._check_field_name(k, self._row_indices)
             replace_aggregables(e._ast, 'gs')
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
-        m = MatrixTable(self._hc, base._jvds.annotateVariantsExpr('va = {' + ',\n'.join(strs) + '}'))
+        m = MatrixTable(base._jvds.annotateVariantsExpr('va = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -884,7 +881,7 @@ class MatrixTable(object):
             analyze(e, self._entry_indices, set(), set(self._fields.keys()))
             self._check_field_name(k, self._entry_indices)
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
-        m = MatrixTable(self._hc, base._jvds.annotateGenotypesExpr('g = {' + ',\n'.join(strs) + '}'))
+        m = MatrixTable(base._jvds.annotateGenotypesExpr('g = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -1027,7 +1024,7 @@ class MatrixTable(object):
         base, cleanup = self._process_joins(expr)
         analyze(expr, self._row_indices, {self._col_axis}, set(self._fields.keys()))
         replace_aggregables(expr._ast, 'gs')
-        m = MatrixTable(self._hc, base._jvds.filterVariantsExpr(expr._ast.to_hql(), keep))
+        m = MatrixTable(base._jvds.filterVariantsExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
     @handle_py4j
@@ -1087,7 +1084,7 @@ class MatrixTable(object):
         analyze(expr, self._col_indices, {self._row_axis}, set(self._fields.keys()))
 
         replace_aggregables(expr._ast, 'gs')
-        m = MatrixTable(self._hc, base._jvds.filterSamplesExpr(expr._ast.to_hql(), keep))
+        m = MatrixTable(base._jvds.filterSamplesExpr(expr._ast.to_hql(), keep))
         return cleanup(m)
 
     @handle_py4j
@@ -1143,7 +1140,7 @@ class MatrixTable(object):
         base, cleanup = self._process_joins(expr)
         analyze(expr, self._entry_indices, set(), set(self._fields.keys()))
 
-        m = MatrixTable(self._hc, base._jvds.filterGenotypes(expr._ast.to_hql(), keep))
+        m = MatrixTable(base._jvds.filterGenotypes(expr._ast.to_hql(), keep))
         return cleanup(m)
 
     def transmute_globals(self, **named_exprs):
@@ -1446,7 +1443,7 @@ class MatrixTable(object):
                 raise ExpressionException(
                     "method 'explode_rows' requires a field or subfield, not a complex expression")
             s = e._ast.to_hql()
-        return MatrixTable(self._hc, self._jvds.explodeVariants(s))
+        return MatrixTable(self._jvds.explodeVariants(s))
 
     @handle_py4j
     def explode_cols(self, field_expr):
@@ -1494,7 +1491,7 @@ class MatrixTable(object):
                 raise ExpressionException(
                     "method 'explode_cols' requires a field or subfield, not a complex expression")
             s = e._ast.to_hql()
-        return MatrixTable(self._hc, self._jvds.explodeSamples(s))
+        return MatrixTable(self._jvds.explodeSamples(s))
 
     @handle_py4j
     def group_rows_by(self, key_expr):
@@ -1646,7 +1643,7 @@ class MatrixTable(object):
         :class:`Table`
             Table with all row fields from the matrix, with one row per row of the matrix.
         """
-        kt = Table(self._hc, self._jvds.variantsKT())
+        kt = Table(self._jvds.variantsKT())
 
         # explode the 'va' struct to the top level
         return kt.select(kt.v, *kt.va)
@@ -1666,7 +1663,7 @@ class MatrixTable(object):
         :class:`Table`
             Table with all column fields from the matrix, with one row per column of the matrix.
         """
-        kt = Table(self._hc, self._jvds.samplesKT())
+        kt = Table(self._jvds.samplesKT())
 
         # explode the 'sa' struct to the top level
         return kt.select(kt.s, *kt.sa)
@@ -1694,7 +1691,7 @@ class MatrixTable(object):
         :class:`Table`
             Table with all non-global fields from the matrix, with **one row per entry of the matrix**.
         """
-        kt = Table(self._hc, self._jvds.genotypeKT())
+        kt = Table(self._jvds.genotypeKT())
 
         # explode the 'va', 'sa', 'g' structs to the top level
         # FIXME: this part should really be in Scala
@@ -1707,10 +1704,10 @@ class MatrixTable(object):
 
         def joiner(obj):
             if isinstance(obj, MatrixTable):
-                return MatrixTable(obj._hc, Env.jutils().joinGlobals(obj._jvds, self._jvds, uid))
+                return MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jvds, uid))
             else:
                 assert isinstance(obj, Table)
-                return Table(obj._hc, Env.jutils().joinGlobals(obj._jkt, self._jvds, uid))
+                return Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
 
         return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=(Join(joiner, [uid]),))
 
@@ -1739,7 +1736,7 @@ class MatrixTable(object):
 
             def joiner(left):
                 pre_key = left.key
-                left = Table(left._hc, left._jkt.annotate('{} = {}'.format(key_uid, expr._ast.to_hql())))
+                left = Table(left._jt.annotate('{} = {}'.format(key_uid, expr._ast.to_hql())))
                 left = left.key_by(key_uid)
                 left = left.to_hail1().join(right.to_hail1(), 'left').to_hail2()
                 left = left.key_by(*pre_key)
@@ -1754,21 +1751,18 @@ class MatrixTable(object):
             if expr is src.v:
                 prefix = 'va'
                 joiner = lambda left: (
-                    MatrixTable(left._hc,
-                                left._jvds.annotateVariantsVDS(src._jvds, jsome('{}.{}'.format(prefix, uid)),
+                    MatrixTable(left._jvds.annotateVariantsVDS(src._jvds, jsome('{}.{}'.format(prefix, uid)),
                                                                jnone())))
             elif indices == {'row'}:
                 prefix = 'va'
                 joiner = lambda left: (
-                    MatrixTable(left._hc,
-                                left._jvds.annotateVariantsTable(src._jvds.variantsKT(),
+                    MatrixTable(left._jvds.annotateVariantsTable(src._jvds.variantsKT(),
                                                                  [expr._ast.to_hql()],
                                                                  '{}.{}'.format(prefix, uid), None)))
             elif indices == {'column'}:
                 prefix = 'sa'
                 joiner = lambda left: (
-                    MatrixTable(left._hc,
-                                left._jvds.annotateSamplesTable(src._jvds.samplesKT(),
+                    MatrixTable(left._jvds.annotateSamplesTable(src._jvds.samplesKT(),
                                                                 [expr._ast.to_hql()],
                                                                 '{}.{}'.format(prefix, uid), None)))
             else:
@@ -1803,7 +1797,7 @@ class MatrixTable(object):
 
             def joiner(left):
                 pre_key = left.key
-                left = Table(left._hc, left._jkt.annotate('{} = {}'.format(key_uid, expr._ast.to_hql())))
+                left = Table(left._jt.annotate('{} = {}'.format(key_uid, expr._ast.to_hql())))
                 left = left.key_by(key_uid)
                 left = left.to_hail1().join(right.to_hail1(), 'left').to_hail2()
                 left = left.key_by(*pre_key)
@@ -1816,15 +1810,13 @@ class MatrixTable(object):
             if indices == src._row_indices:
                 prefix = 'sa'
                 joiner = lambda left: (
-                    MatrixTable(left._hc,
-                                left._jvds.annotateSamplesTable(src._jvds.samplesKT(),
+                    MatrixTable(left._jvds.annotateSamplesTable(src._jvds.samplesKT(),
                                                                 [expr._ast.to_hql()],
                                                                 '{}.{}'.format(prefix, uid), None)))
             elif indices == src._col_indices:
                 prefix = 'va'
                 joiner = lambda left: (
-                    MatrixTable(left._hc,
-                                left._jvds.annotateVariantsTable(src._jvds.samplesKT(),
+                    MatrixTable(left._jvds.annotateVariantsTable(src._jvds.samplesKT(),
                                                                  [expr._ast.to_hql()],
                                                                  '{}.{}'.format(prefix, uid), None)))
             else:
@@ -1858,7 +1850,7 @@ class MatrixTable(object):
 
             def joiner(left):
                 pre_key = left.key
-                left = Table(left._hc, left._jkt.annotate('{} = {}, {} = {}'.format(
+                left = Table(left._jt.annotate('{} = {}, {} = {}'.format(
                     row_key_uid, row_expr._ast.to_hql(),
                     col_key_uid, col_expr._ast.to_hql())))
                 left = left.key_by(row_key_uid, col_key_uid)
@@ -1879,7 +1871,7 @@ class MatrixTable(object):
         :class:`hail.api1.VariantDataset`
         """
         import hail
-        h1vds = hail.VariantDataset(self._hc, self._jvds)
+        h1vds = hail.VariantDataset(Env.hc(), self._jvds)
         h1vds._set_history(History('is a mystery'))
         return h1vds
 
@@ -1984,7 +1976,7 @@ class MatrixTable(object):
             jkeys.append(rk_type._convert_to_j(k))
 
         return MatrixTable(
-            self._hc, self._jvds.filterVariantsList(jkeys, keep))
+            self._jvds.filterVariantsList(jkeys, keep))
 
     @handle_py4j
     @typecheck_method(keys=list, keep=bool)
@@ -2017,7 +2009,7 @@ class MatrixTable(object):
         for k in keys:
             ck_type._typecheck(k)
             jkeys.append(ck_type._convert_to_j(k))
-        return MatrixTable(self._hc, self._jvds.filterSamplesList(jkeys, keep))
+        return MatrixTable(self._jvds.filterSamplesList(jkeys, keep))
 
     @handle_py4j
     def num_partitions(self):
@@ -2094,4 +2086,4 @@ class MatrixTable(object):
             Repartitioned dataset.
         """
         jvds = self._jvds.coalesce(num_partitions, shuffle)
-        return MatrixTable(self._hc, jvds)
+        return MatrixTable(jvds)

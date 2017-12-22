@@ -1744,6 +1744,6 @@ class KeyTable(HistoryMixin):
     @record_method
     def to_hail2(self):
         import hail2
-        return hail2.Table(self.hc, self._jkt)
+        return hail2.Table(self._jkt)
 
 kt_type.set(KeyTable)

@@ -115,10 +115,10 @@ def broadcast(x):
         from hail.api2.table import Table
         from hail.api2.matrixtable import MatrixTable
         if isinstance(obj, Table):
-            return Table(obj._hc, obj._jkt.annotateGlobalExpr('{} = {}'.format(uid, expr._ast.to_hql())))
+            return Table(obj._jt.annotateGlobalExpr('{} = {}'.format(uid, expr._ast.to_hql())))
         else:
             assert isinstance(obj, MatrixTable)
-            return MatrixTable(obj._hc, obj._jvds.annotateGlobalExpr('global.{} = {}'.format(uid, expr._ast.to_hql())))
+            return MatrixTable(obj._jvds.annotateGlobalExpr('global.{} = {}'.format(uid, expr._ast.to_hql())))
 
     return construct_expr(GlobalJoinReference(uid), expr._type, joins=(Join(joiner, [uid]),))
 

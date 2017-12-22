@@ -350,7 +350,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         **Examples**
 
         Add populations as a global annotation:
-        
+
         >>> vds_result = vds.annotate_global('global.populations',
         ...                                     ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
         ...                                     TArray(TString()))
@@ -492,8 +492,8 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         >>> annotations = hc.import_table('data/samples2.tsv', delimiter=',', missing='.').key_by('PT-ID')
         >>> vds_result = vds.annotate_samples_table(annotations, root='sa.batch')
 
-        Let's import annotations from a file with no header and sample IDs that need to be transformed. 
-        Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the 
+        Let's import annotations from a file with no header and sample IDs that need to be transformed.
+        Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the
         sample ID is hidden in a field with other information.
 
         .. code-block:: text
@@ -513,28 +513,28 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         >>> vds_result = vds.annotate_samples_table(annotations,
         ...                             expr='sa.sex = table.f1, sa.batch = table.f0.split("_")[0]')
 
-        **Notes** 
+        **Notes**
 
         This method takes as an argument a :class:`.KeyTable` object. Hail has a default join strategy
         for tables keyed by String, which is to join by sample ID. If the table is keyed by something else, like
-        population or cohort, then the ``vds_key`` argument must be passed to describe the key in the dataset 
-        to use for the join. This argument expects a list of Hail expressions whose types match, in order, the 
+        population or cohort, then the ``vds_key`` argument must be passed to describe the key in the dataset
+        to use for the join. This argument expects a list of Hail expressions whose types match, in order, the
         table's key types.
-        
+
         Each expression in the list ``vds_key`` has the following symbols in
         scope:
 
           - ``s`` (*String*): sample ID
           - ``sa``: sample annotations
-        
+
         **The** ``root`` **and** ``expr`` **arguments**
-        
+
         .. note::
-        
-            One of ``root`` or ``expr`` is required, but not both. 
-            
-        The ``expr`` parameter expects an annotation expression involving ``sa`` (the existing 
-        sample annotations in the dataset) and ``table`` (a struct containing the columns in 
+
+            One of ``root`` or ``expr`` is required, but not both.
+
+        The ``expr`` parameter expects an annotation expression involving ``sa`` (the existing
+        sample annotations in the dataset) and ``table`` (a struct containing the columns in
         the table), like ``sa.col1 = table.col1, sa.col2 = table.col2`` or ``sa = merge(sa, table)``.
         The ``root`` parameter expects an annotation path beginning in ``sa``, like ``sa.annotations``.
         Passing ``root='sa.annotations'`` is exactly the same as passing ``expr='sa.annotations = table'``.
@@ -544,12 +544,12 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
           - ``sa``: sample annotations
           - ``table``: See note.
 
-        .. note:: 
-        
-            The value of ``table`` inside root/expr depends on the number of values in the key table, 
+        .. note::
+
+            The value of ``table`` inside root/expr depends on the number of values in the key table,
             as well as the ``product`` argument. There are three behaviors based on the number of values
             and one branch for ``product`` being true and false, for a total of six modes:
-            
+
             +-------------------------+-------------+--------------------+-----------------------------------------------+
             | Number of value columns | ``product`` | Type of  ``table`` | Value of  ``table``                           |
             +=========================+=============+====================+===============================================+
@@ -564,7 +564,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
             | 1                       | True        | ``Array[T]``       | An array with a value for each matching key.  |
             +-------------------------+-------------+--------------------+-----------------------------------------------+
             | 0                       | True        | ``Int``            | The number of matching keys.                  |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+  
+            +-------------------------+-------------+--------------------+-----------------------------------------------+
 
         **Common uses for the** ``expr`` **argument**
 
@@ -587,8 +587,8 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
             expr='''sa.annotations.toKeep1 = table.toKeep1,
                 sa.annotations.toKeep2 = table.toKeep2,
                 sa.annotations.toKeep3 = table.toKeep3'''
-                
-        Finally, for more information about importing key tables from text, 
+
+        Finally, for more information about importing key tables from text,
         see the documentation for :py:meth:`hail.api1.HailContext.import_table`.
 
         :param table: Key table.
@@ -599,10 +599,10 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         :param expr: Annotation expression. (This or ``root`` required).
         :type expr: str or None
-        
+
         :param vds_key: Join key for the dataset, if not sample ID.
         :type vds_key: str, list of str, or None.
-        
+
         :param bool product: Join with all matching keys (see note).
 
         :return: Annotated variant dataset.
@@ -674,56 +674,56 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         >>> table = hc.import_table('data/variant-lof.tsv', impute=True).key_by('v')
         >>> vds_result = vds.annotate_variants_table(table, root='va.lof')
-        
+
         Add annotations from a locus-keyed TSV:
-        
+
         >>> kt = hc.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
         >>> vds_result = vds.annotate_variants_table(table, root='va.scores')
 
         Add annotations from a gene-and-type-keyed TSV:
-    
+
         >>> table = hc.import_table('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
         >>> vds_result = (vds.annotate_variants_table(table,
         ...       root='va.foo',
         ...       vds_key=['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
 
         Annotate variants with the target in a GATK interval list file:
-        
+
         >>> intervals = KeyTable.import_interval_list('data/exons2.interval_list')
         >>> vds_result = vds.annotate_variants_table(intervals, root='va.exon')
-        
+
         Annotate variants with all targets from matching intervals in a GATK interval list file:
-        
+
         >>> intervals = KeyTable.import_interval_list('data/exons2.interval_list')
         >>> vds_result = vds.annotate_variants_table(intervals, root='va.exons', product=True)
-        
+
         Annotate variants using a UCSC BED file, marking each variant true/false for an overlap with any interval:
-        
+
         >>> intervals = KeyTable.import_bed('data/file2.bed')
         >>> vds_result = vds.annotate_variants_table(intervals, root='va.bed')
-        
+
         **Notes**
-        
+
         This method takes as an argument a :class:`.KeyTable` object. Hail has default join strategies
         for tables keyed by Variant, Locus, or Interval.
-        
+
         **Join strategies:**
-                  
-        If the key is a ``Variant``, then a variant in the dataset will match a variant in the 
-        table that is equivalent. Be careful, however: ``1:1:A:T`` does not match ``1:1:A:T,C``, 
-        and vice versa. 
-        
+
+        If the key is a ``Variant``, then a variant in the dataset will match a variant in the
+        table that is equivalent. Be careful, however: ``1:1:A:T`` does not match ``1:1:A:T,C``,
+        and vice versa.
+
         If the key is a ``Locus``, then a variant in the dataset will match any locus in the table
         which is equivalent to ``v.locus`` (same chromosome and position).
-            
-        If the key is an ``Interval``, then a variant in the dataset will match any interval in 
+
+        If the key is an ``Interval``, then a variant in the dataset will match any interval in
         the table that contains the variant's locus (chromosome and position).
-        
+
         If the key is not one of the above three types (a String representing gene ID, for instance),
-        or if another join strategy should be used for a key of one of these three types (join with a 
-        locus object in variant annotations, for instance) for these types, then the ``vds_key`` argument 
-        should be passed. This argument expects a list of expressions whose types match, in order, 
-        the table's key types. Note that using ``vds_key`` is slower than annotation with a standard 
+        or if another join strategy should be used for a key of one of these three types (join with a
+        locus object in variant annotations, for instance) for these types, then the ``vds_key`` argument
+        should be passed. This argument expects a list of expressions whose types match, in order,
+        the table's key types. Note that using ``vds_key`` is slower than annotation with a standard
         key type.
 
         Each expression in the list ``vds_key`` has the following symbols in
@@ -731,14 +731,14 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
           - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
           - ``va``: variant annotations
-        
+
         **The** ``root`` **and** ``expr`` **arguments**
-        
+
         .. note::
-        
-            One of ``root`` or ``expr`` is required, but not both. 
-            
-        The ``expr`` parameter expects an annotation assignment involving ``va`` (the existing 
+
+            One of ``root`` or ``expr`` is required, but not both.
+
+        The ``expr`` parameter expects an annotation assignment involving ``va`` (the existing
         variant annotations in the dataset) and ``table`` (the values(s) in the table),
         like ``va.col1 = table.col1, va.col2 = table.col2`` or ``va = merge(va, table)``.
         The ``root`` parameter expects an annotation path beginning in ``va``, like ``va.annotations``.
@@ -749,12 +749,12 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
           - ``va``: variant annotations
           - ``table``: See note.
 
-        .. note:: 
-        
-            The value of ``table`` inside root/expr depends on the number of values in the key table, 
+        .. note::
+
+            The value of ``table`` inside root/expr depends on the number of values in the key table,
             as well as the ``product`` argument. There are three behaviors based on the number of values
             and one branch for ``product`` being true and false, for a total of six modes:
-            
+
             +-------------------------+-------------+--------------------+-----------------------------------------------+
             | Number of value columns | ``product`` | Type of  ``table`` | Value of  ``table``                           |
             +=========================+=============+====================+===============================================+
@@ -769,8 +769,8 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
             | 1                       | True        | ``Array[T]``       | An array with a value for each matching key.  |
             +-------------------------+-------------+--------------------+-----------------------------------------------+
             | 0                       | True        | ``Int``            | The number of matching keys.                  |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+  
-                      
+            +-------------------------+-------------+--------------------+-----------------------------------------------+
+
         **Common uses for the** ``expr`` **argument**
 
         Put annotations on the top level under ``va``:
@@ -792,8 +792,8 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
             expr='''va.annotations.toKeep1 = table.toKeep1,
                 va.annotations.toKeep2 = table.toKeep2,
                 va.annotations.toKeep3 = table.toKeep3'''
-                
-        Finally, for more information about importing key tables from text, 
+
+        Finally, for more information about importing key tables from text,
         see the documentation for :py:meth:`hail.api1.HailContext.import_table`.
 
         :param table: Key table.
@@ -804,10 +804,10 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         :param expr: Annotation expression. (This or ``root`` required).
         :type expr: str or None
-        
+
         :param vds_key: Join key for the dataset. Much slower than default joins.
         :type vds_key: str, list of str, or None.
-        
+
         :param bool product: Join with all matching keys (see note).
 
         :return: Annotated variant dataset.
@@ -915,37 +915,37 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         >>> vds = vds.annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
 
-        Annotate variants with gene-level PLI score, using the VEP-generated gene symbol to map variants to genes: 
+        Annotate variants with gene-level PLI score, using the VEP-generated gene symbol to map variants to genes:
 
         >>> pli_vds = vds.annotate_variants_db('va.gene.constraint.pli') # doctest: +SKIP
 
-        Again annotate variants with gene-level PLI score, this time using the existing ``va.gene_symbol`` annotation 
+        Again annotate variants with gene-level PLI score, this time using the existing ``va.gene_symbol`` annotation
         to map variants to genes:
 
         >>> vds = vds.annotate_variants_db('va.gene.constraint.pli', gene_key='va.gene_symbol') # doctest: +SKIP
 
         **Notes**
 
-        Annotations in the database are bi-allelic, so splitting multi-allelic variants in the VDS before using this 
-        method is recommended to capture all appropriate annotations from the database. To do this, run :py:meth:`split_multi` 
+        Annotations in the database are bi-allelic, so splitting multi-allelic variants in the VDS before using this
+        method is recommended to capture all appropriate annotations from the database. To do this, run :py:meth:`split_multi`
         prior to annotating variants with this method:
 
         >>> vds = vds.split_multi_hts().annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
 
-        To add VEP annotations, or to add gene-level annotations without a predefined gene symbol for each variant, the 
-        :py:meth:`~.VariantDataset.annotate_variants_db` method runs Hail's :py:meth:`~.VariantDataset.vep` method on the 
+        To add VEP annotations, or to add gene-level annotations without a predefined gene symbol for each variant, the
+        :py:meth:`~.VariantDataset.annotate_variants_db` method runs Hail's :py:meth:`~.VariantDataset.vep` method on the
         VDS. This means that your cluster must be properly initialized to run VEP.
 
         .. warning::
 
-            If you want to add VEP annotations to your VDS, make sure to add the initialization action 
+            If you want to add VEP annotations to your VDS, make sure to add the initialization action
             :code:`gs://hail-common/vep/vep/vep85-init.sh` when starting your cluster.
 
         :param annotations: List of annotations to import from the database.
-        :type annotations: str or list of str 
+        :type annotations: str or list of str
 
-        :param gene_key: Existing variant annotation used to map variants to gene symbols if importing gene-level 
-            annotations. If not provided, the method will add VEP annotations and parse them as described in the 
+        :param gene_key: Existing variant annotation used to map variants to gene symbols if importing gene-level
+            annotations. If not provided, the method will add VEP annotations and parse them as described in the
             database documentation to obtain one gene symbol per variant.
         :type gene_key: str
 
@@ -974,7 +974,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         # parameter substitution string to put in SQL query
         like = ' OR '.join('a.annotation LIKE ?' for i in xrange(2*len(annotations)))
 
-        # query to extract path of all needed database files and their respective annotation exprs 
+        # query to extract path of all needed database files and their respective annotation exprs
         qry = """SELECT file_path, annotation, file_type, file_element, f.file_id
                  FROM files AS f INNER JOIN annotations AS a ON f.file_id = a.file_id
                  WHERE {}""".format(like)
@@ -1136,7 +1136,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         """Mark this variant dataset to be cached in memory.
 
         :py:meth:`~hail.VariantDataset.cache` is the same as :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.
-        
+
         :rtype: :class:`.VariantDataset`
         """
 
@@ -1154,22 +1154,22 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         .. include:: ../_templates/req_biallelic.rst
 
         **Example**
-        
+
         >>> comparison_vds = hc.read('data/example2.vds')
         >>> summary, samples, variants = vds.concordance(comparison_vds)
 
         **Notes**
 
-        This method computes the genotype call concordance between two bialellic variant datasets. 
+        This method computes the genotype call concordance between two bialellic variant datasets.
         It performs an inner join on samples (only samples in both datasets will be considered), and an outer join
         on variants. If a variant is only in one dataset, then each genotype is treated as "no data" in the other.
         This method returns a tuple of three objects: a nested list of list of int with global concordance
-        summary statistics, a key table with sample concordance statistics, and a key table with variant concordance 
+        summary statistics, a key table with sample concordance statistics, and a key table with variant concordance
         statistics.
-        
+
         **Using the global summary result**
-        
-        The global summary is a list of list of int (conceptually a 5 by 5 matrix), 
+
+        The global summary is a list of list of int (conceptually a 5 by 5 matrix),
         where the indices have special meaning:
 
         0. No Data (missing variant)
@@ -1177,48 +1177,48 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         2. Hom Ref
         3. Heterozygous
         4. Hom Var
-        
+
         The first index is the state in the left dataset (the one on which concordance was called), and the second
-        index is the state in the right dataset (the argument to the concordance method call). Typical uses of 
+        index is the state in the right dataset (the argument to the concordance method call). Typical uses of
         the summary list are shown below.
-          
+
         >>> summary, samples, variants = vds.concordance(hc.read('data/example2.vds'))
         >>> left_homref_right_homvar = summary[2][4]
         >>> left_het_right_missing = summary[3][1]
         >>> left_het_right_something_else = sum(summary[3][:]) - summary[3][3]
         >>> total_concordant = summary[2][2] + summary[3][3] + summary[4][4]
         >>> total_discordant = sum([sum(s[2:]) for s in summary[2:]]) - total_concordant
-        
+
         **Using the key table results**
-        
+
         Columns of the sample key table:
-        
+
            - **s** (*String*) -- Sample ID, key column.
            - **nDiscordant** (*Long*) -- Count of discordant calls (see below for full definition).
            - **concordance** (*Array[Array[Long]]*) -- Array of concordance per state on left and right,
              matching the structure of the global summary defined above.
-             
+
         Columns of the variant key table:
-        
+
            - **v** (*Variant*) -- Key column.
            - **nDiscordant** (*Long*) -- Count of discordant calls (see below for full definition).
            - **concordance** (*Array[Array[Long]]*) -- Array of concordance per state on left and right,
              matches the structure of the global summary defined above.
-             
-        The two key tables produced by the concordance method can be queried with :py:meth:`.KeyTable.query`, 
+
+        The two key tables produced by the concordance method can be queried with :py:meth:`.KeyTable.query`,
         exported to text with :py:meth:`.KeyTable.export`, and used to annotate a variant dataset with
         :py:meth:`.VariantDataset.annotate_variants_table`, among other things.
-        
+
         In these tables, the column **nDiscordant** is provided as a convenience, because this is often one
-        of the most useful concordance statistics. This value is the number of genotypes 
-        which were called (homozygous reference, heterozygous, or homozygous variant) in both datasets, 
+        of the most useful concordance statistics. This value is the number of genotypes
+        which were called (homozygous reference, heterozygous, or homozygous variant) in both datasets,
         but where the call did not match between the two.
-        
+
         The column **concordance** matches the structure of the global summmary, which is detailed above. Once again,
         the first index into this array is the state on the left, and the second index is the state on the right.
-        For example, ``concordance[1][4]`` is the number of "no call" genotypes on the left that were called 
-        homozygous variant on the right. 
-        
+        For example, ``concordance[1][4]`` is the number of "no call" genotypes on the left that were called
+        homozygous variant on the right.
+
         :param right: right hand variant dataset for concordance
         :type right: :class:`.VariantDataset`
 
@@ -1240,15 +1240,15 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
     @handle_py4j
     def count(self):
         """Returns number of samples and variants in the dataset.
-        
+
         **Examples**
-        
+
         >>> samples, variants = vds.count()
-        
+
         **Notes**
-        
+
         This is also the fastest way to force evaluation of a Hail pipeline.
-        
+
         :returns: The sample and variant counts.
         :rtype: (int, int)
         """
@@ -1274,13 +1274,13 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                       seed=integral)
     def sample_variants(self, fraction, seed=1):
         """Downsample variants to a given fraction of the dataset.
-        
+
         **Examples**
-        
+
         >>> small_vds = vds.sample_variants(0.01)
-        
+
         **Notes**
-        
+
         This method may not sample exactly ``(fraction * n_variants)``
         variants from the dataset.
 
@@ -1502,11 +1502,11 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         the elements of Set[String] ``va.filters`` as FILTERS, and the
         value of Float64 ``va.qual`` as QUAL. No other variant
         annotations are exported.
-        
+
         The FORMAT field is generated from the genotype schema, which
         must be a :py:class:`~hail.expr.TStruct`.  There is a FORMAT
         field for each field of the struct.
-        
+
         INFO and FORMAT fields may be generated from Struct fields of type Call, Int32, Float32, Float64, or String.
         If a field has type Int64, every value must be a valid Int32.
         Arrays and Sets containing these types are also allowed but cannot be nested;
@@ -1705,7 +1705,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :rtype: :py:class:`.VariantDataset`
 
         """
-        
+
         jvds = Env.hail().methods.FilterAlleles.apply(self._jvds, expr, variant_expr, genotype_expr,
                                                       keep, left_aligned, keep_star)
         return VariantDataset(self.hc, jvds)
@@ -1854,7 +1854,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         - ``va``: variant annotations
         - ``newToOld`` (*Array[Int]*): the array of old indices (such that ``newToOld[newIndex] = oldIndex`` and ``newToOld[0] = 0``)
 
-        :param str expr: Boolean filter expression involving ``v`` (variant), ``va`` (variant annotations), 
+        :param str expr: Boolean filter expression involving ``v`` (variant), ``va`` (variant annotations),
             and ``aIndex`` (allele index)
 
         :param str annotation: Annotation modifying expression involving ``v`` (old variant), ``newV`` (new variant), ``va`` (old variant annotations), and ``newToOld`` (maps from new to old indices).
@@ -1947,7 +1947,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
             When ``expr`` evaluates to missing, the genotype will be removed regardless of whether ``keep=True`` or ``keep=False``.
 
         :param str expr: Boolean filter expression.
-        
+
         :param bool keep: Keep genotypes where ``expr`` evaluates to true.
 
         :return: Filtered variant dataset.
@@ -2016,7 +2016,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
 
         :param str expr: Boolean filter expression.
-        
+
         :param bool keep: Keep samples where ``expr`` evaluates to true.
 
         :return: Filtered variant dataset.
@@ -2032,22 +2032,22 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
                       keep=bool)
     def filter_samples_list(self, samples, keep=True):
         """Filter samples with a list of samples.
-    
+
         **Examples**
-    
+
         >>> to_remove = ['NA12878', 'NA12891', 'NA12892']
         >>> vds_result = vds.filter_samples_list(to_remove, keep=False)
-        
+
         Read list from a file:
-        
+
         >>> to_remove = [s.strip() for s in open('data/exclude_samples.txt')]
         >>> vds_result = vds.filter_samples_list(to_remove, keep=False)
-    
+
         :param samples: List of samples to keep or remove.
         :type samples: list of str
 
         :param bool keep: If true, keep samples in ``samples``, otherwise remove them.
-    
+
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
@@ -2060,29 +2060,29 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
                       keep=bool)
     def filter_samples_table(self, table, keep=True):
         """Filter samples with a table keyed by sample ID.
-        
+
         **Examples**
-        
+
         Keep samples in a text file:
-        
+
         >>> table = hc.import_table('data/samples1.tsv').key_by('Sample')
         >>> vds_filtered = vds.filter_samples_table(table, keep=True)
-        
+
         Remove samples in a text file with 1 field, and no header:
-        
+
         >>> to_remove = hc.import_table('data/exclude_samples.txt', no_header=True).key_by('f0')
         >>> vds_filtered = vds.filter_samples_table(to_remove, keep=False)
-        
+
         **Notes**
-        
-        This method filters out or filters to the keys of a table. The table must have a key of 
-        type ``String``. 
-        
+
+        This method filters out or filters to the keys of a table. The table must have a key of
+        type ``String``.
+
         :param table: Key table.
         :type table: :class:`.KeyTable`
-        
+
         :param bool keep: If true, keep only the keys in ``table``, otherwise remove them.
-        
+
         :return: Filtered dataset.
         :rtype: :class:`.VariantDataset`
         """
@@ -2146,7 +2146,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param str expr: Boolean filter expression.
 
         :param bool keep: Keep variants where ``expr`` evaluates to true.
-        
+
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
@@ -2166,24 +2166,24 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         **Examples**
 
         Filter to one interval:
-        
+
         >>> vds_result = vds.filter_intervals(Interval.parse('17:38449840-38530994'))
-        
+
         Another way of writing this same query:
-        
+
         >>> vds_result = vds.filter_intervals(Interval(Locus('17', 38449840), Locus('17', 38530994)))
-        
+
         Two identical ways of parsing a list of intervals:
-        
+
         >>> intervals = map(Interval.parse, ['1:50M-75M', '2:START-400000', '3-22'])
         >>> intervals = [Interval.parse(x) for x in ['1:50M-75M', '2:START-400000', '3-22']]
-        
+
         Use this interval list to filter:
-        
+
         >>> vds_result = vds.filter_intervals(intervals)
-        
+
         **Notes**
-        
+
         This method takes an argument of :class:`.Interval` or list of :class:`.Interval`.
 
         Based on the ``keep`` argument, this method will either restrict to variants in the
@@ -2196,14 +2196,14 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         This method performs predicate pushdown when ``keep=True``, meaning that data shards
         that don't overlap any supplied interval will not be loaded at all.  This property
         enables ``filter_intervals`` to be used for reasonably low-latency queries of small ranges
-        of the genome, even on large datasets. Suppose we are interested in variants on 
+        of the genome, even on large datasets. Suppose we are interested in variants on
         chromosome 15 between 100000 and 200000. This implementation with :py:meth:`.filter_variants_expr`
         may come to mind first:
-        
+
         >>> vds_filtered = vds.filter_variants_expr('v.contig == "15" && v.start >= 100000 && v.start < 200000')
-        
+
         However, it is **much** faster (and easier!) to use this method:
-        
+
         >>> vds_filtered = vds.filter_intervals(Interval.parse('15:100000-200000'))
 
         .. note::
@@ -2238,17 +2238,17 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         Filter VDS down to a list of variants:
 
-        >>> vds_filtered = vds.filter_variants_list([Variant.parse('20:10626633:G:GC'), 
+        >>> vds_filtered = vds.filter_variants_list([Variant.parse('20:10626633:G:GC'),
         ...                                          Variant.parse('20:10019093:A:G')], keep=True)
-        
+
         **Notes**
 
 
         This method performs predicate pushdown when ``keep=True``, meaning that data shards
         that don't overlap with any supplied variant will not be loaded at all.  This property
         enables ``filter_variants_list`` to be used for reasonably low-latency queries of one
-        or more variants, even on large datasets. 
-        
+        or more variants, even on large datasets.
+
         :param variants: List of variants to keep or remove.
         :type variants: list of :py:class:`~hail.representation.Variant`
 
@@ -2275,34 +2275,34 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         >>> kt = hc.import_table('data/sample_variants.txt', key='Variant', impute=True)
         >>> filtered_vds = vds.filter_variants_table(kt, keep=True)
-        
-        Keep all variants whose chromosome and position (locus) appear in a file with 
+
+        Keep all variants whose chromosome and position (locus) appear in a file with
         a chromosome:position column:
-        
+
         >>> kt = hc.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
         >>> filtered_vds = vds.filter_variants_table(kt, keep=True)
-        
+
         Remove all variants which overlap an interval in a UCSC BED file:
-        
+
         >>> kt = KeyTable.import_bed('data/file2.bed')
         >>> filtered_vds = vds.filter_variants_table(kt, keep=False)
-        
+
         **Notes**
-        
+
         This method takes a key table as an argument, which must be keyed by one of the following:
-        
+
             - ``Interval``
             - ``Locus``
             - ``Variant``
-            
+
         If the key is a ``Variant``, then a variant in the dataset will be kept or removed based
-        on finding a complete match in the table. Be careful, however: ``1:1:A:T`` does not match 
-        ``1:1:A:T,C``, and vice versa. 
-        
-        If the key is a ``Locus``, then a variant in the dataset will be kept or removed based on 
+        on finding a complete match in the table. Be careful, however: ``1:1:A:T`` does not match
+        ``1:1:A:T,C``, and vice versa.
+
+        If the key is a ``Locus``, then a variant in the dataset will be kept or removed based on
         finding a locus in the table that matches by chromosome and position.
-        
-        If the key is an ``Interval``, then a variant in the dataset will be kept or removed based 
+
+        If the key is an ``Interval``, then a variant in the dataset will be kept or removed based
         on finding an interval in the table that contains the variant's chromosome and position.
 
         :param table: Key table object.
@@ -2342,11 +2342,11 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         .. include:: ../_templates/req_biallelic.rst
 
         **Examples**
-        
+
         >>> km = vds.grm()
-        
+
         **Notes**
-        
+
         The genetic relationship matrix (GRM) :math:`G` encodes genetic correlation between each pair of samples. It is defined by :math:`G = MM^T` where :math:`M` is a standardized version of the genotype matrix, computed as follows. Let :math:`C` be the :math:`n \\times m` matrix of raw genotypes in the variant dataset, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
 
         .. math::
@@ -2354,11 +2354,11 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
           M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
 
         with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes genotype variances to a common value :math:`1/m` for variants in Hardy-Weinberg equilibrium and is further motivated in the paper `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`__. (The resulting amplification of signal from the low end of the allele frequency spectrum will also introduce noise for rare variants; common practice is to filter out variants with minor allele frequency below some cutoff.)  The factor :math:`1/m` gives each sample row approximately unit total variance (assuming linkage equilibrium) so that the diagonal entries of the GRM are approximately 1. Equivalently,
-        
+
         .. math::
 
-          G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}  
-                
+          G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
+
         :return: Genetic Relatedness Matrix for all samples.
         :rtype: :py:class:`KinshipMatrix`
         """
@@ -2405,7 +2405,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         used to compute the new VariantDataset.
 
         ``key_expr`` can be defined in terms of ``v``, ``va``, and ``gs``.
-        
+
         **Examples**
 
         Compute the max depth of each sample on each contig:
@@ -2958,7 +2958,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         ...        .select(['variant = v', 'va.lmmreg.*'])
         ...        .export('output/lmmreg.tsv.bgz')
         >>> lmmreg_results = lmm_vds.globals['lmmreg']
-        
+
         **Performance**
 
         Hail's initial version of :py:meth:`.lmmreg` scales beyond 15k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. Analysts have used :py:meth:`.lmmreg` in research to compute kinship from 100k common variants and test 32 million non-rare variants on 8k whole genomes in about 10 minutes on `Google cloud <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__.
@@ -3255,79 +3255,79 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         >>> ped = Pedigree.read('data/trios.fam')
         >>> all, per_fam, per_sample, per_variant = vds.mendel_errors(ped)
-        
+
         Export all mendel errors to a text file:
-        
+
         >>> all.export('output/all_mendel_errors.tsv')
 
         Annotate samples with the number of Mendel errors:
-        
+
         >>> annotated_vds = vds.annotate_samples_table(per_sample, root="sa.mendel")
-        
+
         Annotate variants with the number of Mendel errors:
-        
+
         >>> annotated_vds = vds.annotate_variants_table(per_variant, root="va.mendel")
-        
+
         **Notes**
 
         The example above returns four tables, which contain Mendelian violations grouped in
-        various ways. These tables are modeled after the 
+        various ways. These tables are modeled after the
         `PLINK mendel formats <https://www.cog-genomics.org/plink2/formats#mendel>`_. The four
         tables contain the following columns:
-        
+
         **First table:** all Mendel errors. This table contains one row per Mendel error in the dataset;
         it is possible that a variant or sample may be found on more than one row. This table closely
         reflects the structure of the ".mendel" PLINK format detailed below.
-        
+
         Columns:
-        
+
             - **fid** (*String*) -- Family ID.
             - **s** (*String*) -- Proband ID.
             - **v** (*Variant*) -- Variant in which the error was found.
-            - **code** (*Int*) -- Mendel error code, see below. 
+            - **code** (*Int*) -- Mendel error code, see below.
             - **error** (*String*) -- Readable representation of Mendel error.
-        
+
         **Second table:** errors per nuclear family. This table contains one row per nuclear family in the dataset.
-        This table closely reflects the structure of the ".fmendel" PLINK format detailed below. 
-        
+        This table closely reflects the structure of the ".fmendel" PLINK format detailed below.
+
         Columns:
-        
+
             - **fid** (*String*) -- Family ID.
             - **father** (*String*) -- Paternal ID.
             - **mother** (*String*) -- Maternal ID.
             - **nChildren** (*Int*) -- Number of children in this nuclear family.
             - **nErrors** (*Int*) -- Number of Mendel errors in this nuclear family.
             - **nSNP** (*Int*) -- Number of Mendel errors at SNPs in this nuclear family.
-        
-        **Third table:** errors per individual. This table contains one row per individual in the dataset, 
-        including founders. This table closely reflects the structure of the ".imendel" PLINK format detailed 
+
+        **Third table:** errors per individual. This table contains one row per individual in the dataset,
+        including founders. This table closely reflects the structure of the ".imendel" PLINK format detailed
         below.
-        
+
         Columns:
-        
+
             - **s** (*String*) -- Sample ID (key column).
             - **fid** (*String*) -- Family ID.
             - **nErrors** (*Int*) -- Number of Mendel errors found involving this individual.
             - **nSNP** (*Int*) -- Number of Mendel errors found involving this individual at SNPs.
             - **error** (*String*) -- Readable representation of Mendel error.
-        
+
         **Fourth table:** errors per variant. This table contains one row per variant in the dataset.
-        
+
         Columns:
-        
+
             - **v** (*Variant*) -- Variant (key column).
             - **nErrors** (*Int*) -- Number of Mendel errors in this variant.
-        
+
         **PLINK Mendel error formats:**
 
             - ``*.mendel`` -- all mendel errors: FID KID CHR SNP CODE ERROR
             - ``*.fmendel`` -- error count per nuclear family: FID PAT MAT CHLD N
             - ``*.imendel`` -- error count per individual: FID IID N
             - ``*.lmendel`` -- error count per variant: CHR SNP N
-        
+
         In the PLINK formats, **FID**, **KID**, **PAT**, **MAT**, and **IID** refer to family, kid,
-        dad, mom, and individual ID, respectively, with missing values set to ``0``. SNP denotes 
-        the variant identifier ``chr:pos:ref:alt``. N is the error count. CHLD is the number of 
+        dad, mom, and individual ID, respectively, with missing values set to ``0``. SNP denotes
+        the variant identifier ``chr:pos:ref:alt``. N is the error count. CHLD is the number of
         children in a nuclear family.
 
         The CODE of each Mendel error is determined by the table below,
@@ -5865,7 +5865,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
     @record_method
     def to_hail2(self):
         import hail2
-        return hail2.MatrixTable(self.hc, self._jvds)
+        return hail2.MatrixTable(self._jvds)
 
     @handle_py4j
     @record_method
