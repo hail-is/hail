@@ -14,6 +14,7 @@ language. It contains three submodules:
 
     expression <expression>
     functions <functions>
+    aggregators <aggregators>
     types <types>
 
 In addition, the following functions are provided as learning tools:

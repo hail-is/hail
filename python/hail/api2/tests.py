@@ -162,10 +162,10 @@ class TableTests(unittest.TestCase):
                 {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]}]
 
         kt = Table.parallelize(rows, schema)
-        results = kt.aggregate(q1=functions.sum(kt.b),
-                               q2=functions.count(kt.b),
-                               q3=functions.collect(kt.e),
-                               q4=functions.collect(functions.filter(kt.e, (kt.d >= 5) | (kt.a == 0))))
+        results = kt.aggregate(q1=agg.sum(kt.b),
+                               q2=agg.count(kt.b),
+                               q3=agg.collect(kt.e),
+                               q4=agg.collect(agg.filter(kt.e, (kt.d >= 5) | (kt.a == 0))))
 
         self.assertEqual(results.q1, 8)
         self.assertEqual(results.q2, 3)
@@ -214,21 +214,21 @@ class TableTests(unittest.TestCase):
 
         result = convert_struct_to_dict(
             kt.group_by(status=kt.status)
-                .aggregate(x1=functions.collect(kt.qPheno * 2),
-                           x2=functions.collect(functions.explode([kt.qPheno, kt.qPheno + 1])),
-                           x3=functions.min(kt.qPheno),
-                           x4=functions.max(kt.qPheno),
-                           x5=functions.sum(kt.qPheno),
-                           x6=functions.product(kt.qPheno.to_int64()),
-                           x7=functions.count(kt.qPheno),
-                           x8=functions.count(functions.filter(kt.qPheno, lambda x: x == 3)),
-                           x9=functions.fraction(kt.qPheno == 1),
-                           x10=functions.stats(kt.qPheno.to_float64()),
-                           x11=functions.hardy_weinberg(kt.GT),
-                           x13=functions.inbreeding(kt.GT, 0.1),
-                           x14=functions.call_stats(kt.GT, Variant("1", 10000, "A", "T")),
-                           x15=functions.collect(Struct(a=5, b="foo", c=Struct(banana='apple')))[0],
-                           x16=functions.collect(Struct(a=5, b="foo", c=Struct(banana='apple')).c.banana)[0]
+                .aggregate(x1=agg.collect(kt.qPheno * 2),
+                           x2=agg.collect(agg.explode([kt.qPheno, kt.qPheno + 1])),
+                           x3=agg.min(kt.qPheno),
+                           x4=agg.max(kt.qPheno),
+                           x5=agg.sum(kt.qPheno),
+                           x6=agg.product(kt.qPheno.to_int64()),
+                           x7=agg.count(kt.qPheno),
+                           x8=agg.count(agg.filter(kt.qPheno, lambda x: x == 3)),
+                           x9=agg.fraction(kt.qPheno == 1),
+                           x10=agg.stats(kt.qPheno.to_float64()),
+                           x11=agg.hardy_weinberg(kt.GT),
+                           x13=agg.inbreeding(kt.GT, 0.1),
+                           x14=agg.call_stats(kt.GT, Variant("1", 10000, "A", "T")),
+                           x15=agg.collect(Struct(a=5, b="foo", c=Struct(banana='apple')))[0],
+                           x16=agg.collect(Struct(a=5, b="foo", c=Struct(banana='apple')).c.banana)[0]
                            ).to_hail1().take(1)[0])
 
         expected = {u'status': 0,
@@ -275,7 +275,7 @@ class TableTests(unittest.TestCase):
         kt4 = kt4.annotate(d='qux', e='quam').key_by('d')
 
         ktr = kt.annotate(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
-        self.assertTrue(ktr.aggregate(result=functions.collect(ktr.e)).result == ['quam'])
+        self.assertTrue(ktr.aggregate(result=agg.collect(ktr.e)).result == ['quam'])
 
         self.assertEqual(kt.filter(kt4[kt3[kt2[kt1[kt.a].b].c].d].e == 'quam').count(), 1)
 
@@ -331,9 +331,9 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(new_global_schema, TStruct(['foo'], [TInt32()]))
 
         orig_variant_schema = vds.row_schema
-        vds = vds.annotate_rows(x1=functions.count(vds.GT),
-                                x2=functions.fraction(False),
-                                x3=functions.count_where(True),
+        vds = vds.annotate_rows(x1=agg.count(vds.GT),
+                                x2=agg.fraction(False),
+                                x3=agg.count_where(True),
                                 x4=vds.info.AC + vds.foo)
 
         expected_fields = [(fd.name, fd.typ) for fd in orig_variant_schema.fields] + \
@@ -345,9 +345,9 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(orig_variant_schema, TStruct(*[list(x) for x in zip(*expected_fields)]))
 
         vds = vds.annotate_cols(apple=6)
-        vds = vds.annotate_cols(y1=functions.count(vds.GT),
-                                y2=functions.fraction(False),
-                                y3=functions.count_where(True),
+        vds = vds.annotate_cols(y1=agg.count(vds.GT),
+                                y2=agg.fraction(False),
+                                y3=agg.count_where(True),
                                 y4=vds.foo + vds.apple)
 
         expected_schema = TStruct(['apple', 'y1', 'y2', 'y3', 'y4'],
@@ -363,12 +363,12 @@ class MatrixTests(unittest.TestCase):
     def test_filter(self):
         vds = self.get_vds()
         vds = vds.annotate_globals(foo=5)
-        vds = vds.annotate_rows(x1=functions.count(1))
-        vds = vds.annotate_cols(y1=functions.count(1))
+        vds = vds.annotate_rows(x1=agg.count(1))
+        vds = vds.annotate_cols(y1=agg.count(1))
         vds = vds.annotate_entries(z1=vds.DP)
 
-        vds = vds.filter_rows((vds.x1 == 5) & (functions.count(vds.GT) == 3) & (vds.foo == 2))
-        vds = vds.filter_cols((vds.y1 == 5) & (functions.count(vds.GT) == 3) & (vds.foo == 2))
+        vds = vds.filter_rows((vds.x1 == 5) & (agg.count(vds.GT) == 3) & (vds.foo == 2))
+        vds = vds.filter_cols((vds.y1 == 5) & (agg.count(vds.GT) == 3) & (vds.foo == 2))
         vds = vds.filter_entries((vds.z1 < 5) & (vds.y1 == 3) & (vds.x1 == 5) & (vds.foo == 2))
         vds.count_rows()
 
@@ -376,26 +376,26 @@ class MatrixTests(unittest.TestCase):
         vds = self.get_vds()
 
         vds = vds.annotate_globals(foo=5)
-        vds = vds.annotate_rows(x1=functions.count(1))
-        vds = vds.annotate_cols(y1=functions.count(1))
+        vds = vds.annotate_rows(x1=agg.count(1))
+        vds = vds.annotate_cols(y1=agg.count(1))
         vds = vds.annotate_entries(z1=vds.DP)
 
-        qv = vds.aggregate_rows(x=functions.count(vds.v)).x
-        qs = vds.aggregate_cols(x=functions.count(vds.s)).x
-        qg = vds.aggregate_entries(x=functions.count(vds.GT)).x
+        qv = vds.aggregate_rows(x=agg.count(vds.v)).x
+        qs = vds.aggregate_cols(x=agg.count(vds.s)).x
+        qg = vds.aggregate_entries(x=agg.count(vds.GT)).x
 
         self.assertEqual(qv, 346)
         self.assertEqual(qs, 100)
         self.assertEqual(qg, qv * qs)
 
-        qvs = vds.aggregate_rows(x=functions.collect(vds.v.contig),
-                                 y=functions.collect(vds.x1))
+        qvs = vds.aggregate_rows(x=agg.collect(vds.v.contig),
+                                 y=agg.collect(vds.x1))
 
-        qss = vds.aggregate_cols(x=functions.collect(vds.s),
-                                 y=functions.collect(vds.y1))
+        qss = vds.aggregate_cols(x=agg.collect(vds.s),
+                                 y=agg.collect(vds.y1))
 
-        qgs = vds.aggregate_entries(x=functions.collect(functions.filter(vds.y1, False)),
-                                    y=functions.collect(functions.filter(vds.GT, functions.rand_bool(0.1))))
+        qgs = vds.aggregate_entries(x=agg.collect(agg.filter(vds.y1, False)),
+                                    y=agg.collect(agg.filter(vds.GT, functions.rand_bool(0.1))))
 
     def test_drop(self):
         vds = self.get_vds()
