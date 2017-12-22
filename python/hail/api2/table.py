@@ -1343,9 +1343,10 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            other_table = table1
+            table = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
+            other_table = table
 
-        >>> union_table = table1.union(other_table)
+        >>> union_table = table.union(other_table)
 
         Notes
         -----
