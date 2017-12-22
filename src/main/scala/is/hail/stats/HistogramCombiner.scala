@@ -3,8 +3,7 @@ package is.hail.stats
 import java.util.Arrays.binarySearch
 
 import is.hail.annotations.Annotation
-import is.hail.expr._
-import is.hail.expr.typ.{TArray, TStruct}
+import is.hail.expr.typ._
 
 object HistogramCombiner {
   def schema: Type = TStruct(

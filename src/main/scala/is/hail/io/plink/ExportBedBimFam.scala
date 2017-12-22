@@ -1,7 +1,7 @@
 package is.hail.io.plink
 
 import is.hail.sparkextras._
-import is.hail.expr._
+import is.hail.expr.typ._
 import is.hail.annotations._
 import is.hail.variant._
 

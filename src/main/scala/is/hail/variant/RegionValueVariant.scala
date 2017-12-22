@@ -2,8 +2,7 @@ package is.hail.variant
 
 import is.hail.utils._
 import is.hail.annotations._
-import is.hail.expr._
-import is.hail.expr.typ.{TAltAllele, TArray}
+import is.hail.expr.typ._
 
 class RegionValueVariant(tv: TVariant) extends IVariant with View {
   private val t: TStruct = tv.representation.asInstanceOf[TStruct]

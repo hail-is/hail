@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.expr.typ.TArray
+import is.hail.expr.typ._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
 import is.hail.utils._
 import is.hail.sparkextras.BinarySearch

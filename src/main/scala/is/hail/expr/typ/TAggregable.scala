@@ -1,10 +1,10 @@
 package is.hail.expr.typ
 
+import is.hail.annotations._
 import is.hail.expr._
 
-/**
-  * Created by dking on 12/21/17.
-  */
+import scala.reflect.ClassTag
+
 object TAggregable {
   val desc = """An ``Aggregable`` is a Hail data type representing a distributed row or column of a matrix. Hail exposes a number of methods to compute on aggregables depending on the data type."""
 

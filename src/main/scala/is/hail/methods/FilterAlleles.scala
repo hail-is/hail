@@ -1,8 +1,8 @@
 package is.hail.methods
 
 import is.hail.annotations._
-import is.hail.expr.typ.TArray
-import is.hail.expr.{EvalContext, Parser, TArray}
+import is.hail.expr.typ._
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.rvd.{OrderedRVD, RVD}
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, Locus, MatrixTable, Variant}

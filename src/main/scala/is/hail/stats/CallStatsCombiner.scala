@@ -1,8 +1,7 @@
 package is.hail.stats
 
 import is.hail.annotations.Annotation
-import is.hail.expr._
-import is.hail.expr.typ.{TArray, TStruct}
+import is.hail.expr.typ._
 import is.hail.utils._
 import is.hail.variant.{Call, Genotype, Variant}
 
