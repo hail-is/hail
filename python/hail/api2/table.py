@@ -1341,8 +1341,11 @@ class Table(TableTemplate):
 
         Take the union of rows from two tables:
 
-        >>> other = hc.import_table('data/kt_example1.tsv', impute=True)
-        >>> union_table = table1.union(other)
+        .. testsetup::
+
+            other_table = table1
+
+        >>> union_table = table1.union(other_table)
 
         Notes
         -----
