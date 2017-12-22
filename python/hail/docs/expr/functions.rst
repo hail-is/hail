@@ -47,25 +47,6 @@ Functions
     hail.expr.functions.select
     hail.expr.functions.sqrt
     hail.expr.functions.to_str
-    hail.expr.functions.collect
-    hail.expr.functions.collect_as_set
-    hail.expr.functions.count
-    hail.expr.functions.count_where
-    hail.expr.functions.counter
-    hail.expr.functions.take
-    hail.expr.functions.min
-    hail.expr.functions.max
-    hail.expr.functions.sum
-    hail.expr.functions.mean
-    hail.expr.functions.stats
-    hail.expr.functions.product
-    hail.expr.functions.fraction
-    hail.expr.functions.hardy_weinberg
-    hail.expr.functions.explode
-    hail.expr.functions.filter
-    hail.expr.functions.inbreeding
-    hail.expr.functions.call_stats
-    hail.expr.functions.hist
 
 
 .. autofunction:: hail.expr.functions.broadcast
@@ -107,22 +88,3 @@ Functions
 .. autofunction:: hail.expr.functions.select
 .. autofunction:: hail.expr.functions.sqrt
 .. autofunction:: hail.expr.functions.to_str
-.. autofunction:: hail.expr.functions.collect
-.. autofunction:: hail.expr.functions.collect_as_set
-.. autofunction:: hail.expr.functions.count
-.. autofunction:: hail.expr.functions.count_where
-.. autofunction:: hail.expr.functions.counter
-.. autofunction:: hail.expr.functions.take
-.. autofunction:: hail.expr.functions.min
-.. autofunction:: hail.expr.functions.max
-.. autofunction:: hail.expr.functions.sum
-.. autofunction:: hail.expr.functions.mean
-.. autofunction:: hail.expr.functions.stats
-.. autofunction:: hail.expr.functions.product
-.. autofunction:: hail.expr.functions.fraction
-.. autofunction:: hail.expr.functions.hardy_weinberg
-.. autofunction:: hail.expr.functions.explode
-.. autofunction:: hail.expr.functions.filter
-.. autofunction:: hail.expr.functions.inbreeding
-.. autofunction:: hail.expr.functions.call_stats
-.. autofunction:: hail.expr.functions.hist
