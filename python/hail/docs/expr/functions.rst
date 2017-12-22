@@ -13,6 +13,7 @@ Functions
     hail.expr.functions.chisq
     hail.expr.functions.combine_variants
     hail.expr.functions.cond
+    hail.expr.functions.bind
     hail.expr.functions.ctt
     hail.expr.functions.Dict
     hail.expr.functions.dpois
@@ -73,6 +74,7 @@ Functions
 .. autofunction:: hail.expr.functions.chisq
 .. autofunction:: hail.expr.functions.combine_variants
 .. autofunction:: hail.expr.functions.cond
+.. autofunction:: hail.expr.functions.bind
 .. autofunction:: hail.expr.functions.ctt
 .. autofunction:: hail.expr.functions.Dict
 .. autofunction:: hail.expr.functions.dpois
