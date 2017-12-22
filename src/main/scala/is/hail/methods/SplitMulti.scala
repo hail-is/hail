@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.annotations._
+import is.hail.expr._
 import is.hail.expr.typ._
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._

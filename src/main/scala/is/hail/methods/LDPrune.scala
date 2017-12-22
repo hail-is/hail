@@ -4,7 +4,6 @@ import java.util
 
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.typ._
-import is.hail.expr.TArray
 import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.storage.StorageLevel
 import is.hail.sparkextras._

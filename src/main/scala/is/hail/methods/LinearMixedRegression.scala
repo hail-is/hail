@@ -4,7 +4,7 @@ import breeze.linalg._
 import breeze.numerics.{sigmoid, sqrt}
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.typ.{TArray, TDict, TStruct}
+import is.hail.expr.typ._
 import is.hail.stats._
 import is.hail.stats.eigSymD.DenseEigSymD
 import is.hail.utils._
