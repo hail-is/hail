@@ -8,6 +8,7 @@ from hail.genetics import LDMatrix, KinshipMatrix, Variant, Locus, AltAllele, In
     GenomeReference
 from hail.utils import Struct, hadoop_write, hadoop_read, hadoop_copy
 from hail.utils import hadoop_read, hadoop_write, hadoop_copy
+from hail.api2 import MatrixTable, Table, HailContext
 
 __all__ = ['HailContext',
            'Table',

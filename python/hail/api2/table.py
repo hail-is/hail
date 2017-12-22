@@ -5,6 +5,8 @@ import hail.expr.functions as f
 from hail.expr.expression import *
 from hail.utils import wrap_to_list
 
+table_type = lazy()
+
 
 class TableTemplate(HistoryMixin):
     def __init__(self, hc, jkt):
@@ -335,6 +337,16 @@ class Table(TableTemplate):
         return self._num_columns
 
     @handle_py4j
+    def num_partitions(self):
+        """Returns the number of partitions in the table.
+
+        Returns
+        -------
+        :obj:`int`
+        """
+        return self._jkt.nPartitions()
+
+    @handle_py4j
     def count(self):
         return self._jkt.count()
 
@@ -357,10 +369,10 @@ class Table(TableTemplate):
     def key_by(self, *keys):
         """Change which columns are keys.
 
-        **Examples**
-
-        Assume ``kt`` is a :py:class:`.Table` with three columns: c1, c2 and
-        c3 and key c1.
+        Examples
+        --------
+        Assume `table1` is a :py:class:`Table` with three columns: `C1`, `C2`
+        and `C3`.
 
         Change key columns:
 
@@ -372,11 +384,15 @@ class Table(TableTemplate):
 
         >>> table_result = table1.key_by()
 
-        :param key: List of columns to be used as keys.
-        :type key: str or list of str
+        Parameters
+        ----------
+        keys : varargs of type :obj:`str`
+            Field(s) to key by.
 
-        :return: Key table whose key columns are given by ``key``.
-        :rtype: :class:`.Table`
+        Returns
+        -------
+        :class:`Table`
+            Table with new set of keys.
         """
 
         return Table(self._hc, self._jkt.keyBy(list(keys)))
@@ -1026,7 +1042,7 @@ class Table(TableTemplate):
             all_uids = uids[:]
             all_uids.append(uid)
             return construct_expr(Reference(uid), self.schema, indices, aggregations,
-                                           joins + (Join(joiner, all_uids),))
+                                  joins + (Join(joiner, all_uids),))
         elif isinstance(src, MatrixTable):
             for e in exprs:
                 analyze(e, src._entry_indices, set(), set(src._fields.keys()))
@@ -1046,7 +1062,7 @@ class Table(TableTemplate):
                         right._jkt, [e._ast.to_hql() for e in exprs], 'va.{}'.format(uid), None, False))
 
                 return construct_expr(Select(Reference('va'), uid), self.schema,
-                               indices, aggregations, joins + (Join(joiner, [uid]),))
+                                      indices, aggregations, joins + (Join(joiner, [uid]),))
             elif indices == src._col_indices:
                 if len(exprs) == 1 and exprs[0] is src['s']:
                     # no vds_key (faster)
@@ -1057,7 +1073,7 @@ class Table(TableTemplate):
                     joiner = lambda left: MatrixTable(self._hc, left._jvds.annotateSamplesTable(
                         right._jkt, [e._ast.to_hql() for e in exprs], 'sa.{}'.format(uid), None, False))
                 return construct_expr(Select(Reference('sa'), uid), self.schema,
-                               indices, aggregations, joins + (Join(joiner, [uid]),))
+                                      indices, aggregations, joins + (Join(joiner, [uid]),))
             else:
                 raise NotImplementedError()
         else:
@@ -1158,7 +1174,6 @@ class Table(TableTemplate):
         """
         return self.persist('MEMORY_ONLY')
 
-
     def persist(self, storage_level='MEMORY_AND_DISK'):
         """Persist this table in memory or on disk.
 
@@ -1197,6 +1212,23 @@ class Table(TableTemplate):
         return Table(self._hc, self._jkt.persist(storage_level))
 
     @handle_py4j
+    def unpersist(self):
+        """
+        Unpersists this table from memory/disk.
+
+        Notes
+        -----
+        This function will have no effect on a table that was not previously
+        persisted.
+
+        Returns
+        -------
+        :class:`Table`
+            Unpersisted table.
+        """
+        self._jkt.unpersist()
+
+    @handle_py4j
     def collect(self):
         """Collect the rows of the table into a local list.
 
@@ -1226,6 +1258,7 @@ class Table(TableTemplate):
     @typecheck_method(truncate_at=integral)
     def describe(self, truncate_at=60):
         """Print information about the fields in the table."""
+
         def format_type(typ):
             typ_str = str(typ)
             if len(typ_str) > truncate_at - 3:
@@ -1248,3 +1281,430 @@ class Table(TableTemplate):
 
         s = 'Global fields:{}\n\nRow fields:{}'.format(global_fields, row_fields)
         print(s)
+
+    @handle_py4j
+    @typecheck_method(name=strlike)
+    def indexed(self, name='idx'):
+        """Add the numerical index of each row as a new field.
+
+        Examples
+        --------
+
+        .. doctest::
+
+            >>> table_result = table1.indexed()
+            >>> table_result.show()
+            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
+            |    ID |    HT | SEX    |     X |     Z |    C1 |    C2 |    C3 |   idx |
+            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
+            | Int32 | Int32 | String | Int32 | Int32 | Int32 | Int32 | Int32 | Int64 |
+            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
+            |     1 |    65 | M      |     5 |     4 |     2 |    50 |     5 |     0 |
+            |     2 |    72 | M      |     6 |     3 |     2 |    61 |     1 |     1 |
+            |     3 |    70 | F      |     7 |     3 |    10 |    81 |    -5 |     2 |
+            |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |     3 |
+            +-------+-------+--------+-------+-------+-------+-------+-------+-------+
+
+        Notes
+        -----
+
+        This method returns a table with a new column whose name is given by
+        the `name` parameter, with type ``Int64``. The value of this column is
+        the numerical index of each row, starting from 0. Methods that respect
+        ordering (like :py:meth:`Table.take` or :py:meth:`Table.export` will
+        return rows in order.
+
+        This method is also helpful for creating a unique integer index for
+        rows of a table so that more complex types can be encoded as a simple
+        number for performance reasons.
+
+        Parameters
+        ----------
+        name : str
+            Name of index column.
+
+        Returns
+        -------
+        :class:`Table`
+            Table with a new index field.
+        """
+
+        return Table(self._hc, self._jkt.indexed(name))
+
+    @handle_py4j
+    @typecheck_method(tables=tupleof(table_type))
+    def union(self, *tables):
+        """Union the rows of multiple tables.
+
+        Examples
+        --------
+
+        Take the union of rows from two tables:
+
+        .. testsetup::
+
+            table = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
+            other_table = table
+
+        >>> union_table = table.union(other_table)
+
+        Notes
+        -----
+
+        If a row appears in both tables identically, it is duplicated in the
+        result. The left and right tables must have the same schema and key.
+
+        Parameters
+        ----------
+        tables : varargs of :class:`Table`
+            Tables to union.
+
+        Returns
+        -------
+        :class:`Table`
+            Table with all rows from each component table.
+        """
+
+        return Table(self._hc, self._jkt.union([table._jkt for table in tables]))
+
+    @handle_py4j
+    @typecheck_method(n=integral)
+    def take(self, n):
+        """Collect the first `n` rows of the table into a local list.
+
+        Examples
+        --------
+        Take the first three rows:
+
+        .. doctest::
+
+            >>> first3 = table1.take(3)
+            >>> print(first3)
+            [Struct(HT=65, SEX=M, X=5, C3=5, C2=50, C1=2, Z=4, ID=1),
+             Struct(HT=72, SEX=M, X=6, C3=1, C2=61, C1=2, Z=3, ID=2),
+             Struct(HT=70, SEX=F, X=7, C3=-5, C2=81, C1=10, Z=3, ID=3)]
+
+        Notes
+        -----
+
+        This method does not need to look at all the data in the table, and
+        allows for fast queries of the start of the table.
+
+        This method is equivalent to :py:meth:`Table.head` followed by
+        :py:meth:`Table.collect`.
+
+        Parameters
+        ----------
+        n : int
+            Number of rows to take.
+
+        Returns
+        -------
+        :obj:`list` of :class:`Struct`
+            List of row structs.
+        """
+
+        return [self.schema._convert_to_py(r) for r in self._jkt.take(n)]
+
+    @handle_py4j
+    @typecheck_method(n=integral)
+    def head(self, n):
+        """Subset table to first `n` rows.
+
+        Examples
+        --------
+        Subset to the first three rows:
+
+        .. doctest::
+
+            >>> table_result = table1.head(3)
+            >>> table_result.count()
+            3
+
+        Notes
+        -----
+
+        The number of partitions in the new table is equal to the number of
+        partitions containing the first `n` rows.
+
+        Parameters
+        ----------
+        n : int
+            Number of rows to include.
+
+        Returns
+        -------
+        :class:`Table`
+            Table including the first `n` rows.
+        """
+
+        return Table(self._hc, self._jkt.head(n))
+
+    @handle_py4j
+    @typecheck_method(n=integral,
+                      shuffle=bool)
+    def repartition(self, n, shuffle=True):
+        """Change the number of distributed partitions.
+
+        Examples
+        --------
+        Repartition to 10 partitions:
+
+        >>> table_result = table1.repartition(10)
+
+        Warning
+        -------
+        When `shuffle` is ``False``, `repartition` can only decrease the number
+        of partitions and simply combines adjacent partitions to achieve the
+        desired number. It does not attempt to rebalance and so can produce a
+        heavily unbalanced dataset. An unbalanced dataset can be inefficient to
+        operate on because the work is not evenly distributed across partitions.
+
+        Parameters
+        ----------
+        n : int
+            Desired number of partitions.
+        shuffle : bool
+            If ``True``, shuffle data. Otherwise, naively coalesce.
+
+        Returns
+        -------
+        :class:`Table`
+            Repartitioned table.
+        """
+
+        return Table(self._hc, self._jkt.repartition(n, shuffle))
+
+    @handle_py4j
+    @typecheck_method(right=table_type,
+                      how=enumeration('inner', 'outer', 'left', 'right'))
+    def join(self, right, how='inner'):
+        """Join two tables together.
+
+        Examples
+        --------
+        Join `table1` to `table2` to produce `table_joined`:
+
+        >>> table_joined = table1.key_by('ID').join(table2.key_by('ID'))
+
+        Notes
+        -----
+        Hail supports four types of joins specified by `how`:
+
+         - **inner** -- Key must be present in both the left and right tables.
+         - **outer** -- Key present in either the left or the right. For keys
+            only in the left table, the right table's fields will be missing.
+            For keys only in the right table, the left table's fields will be
+            missing.
+         - **left** -- Key present in the left table. For keys not found on
+            the right, the right table's fields will be missing.
+         - **right** -- Key present in the right table. For keys not found on
+            the right, the right table's fields will be missing.
+
+        Both tables must have the same number of keys and the corresponding
+        types of each key must be the same (order matters), but the key names
+        can be different. For example, if `table1` is keyed by fields ``['a',
+        'b']``, both of type ``Int32``, and `table2` is keyed by fields ``['c',
+        'd']``, both of type ``Int32``, then the two tables can be joined (their
+        rows will be joined where ``table1.a == table2.c`` and ``table1.b ==
+        table2.d``.
+
+        The key field names and order from the left table are preserved, while
+        the key fields from the right table are not present in the result.
+
+        Parameters
+        ----------
+        right : :class:`Table`
+            Table with which to join.
+        how : :obj:`str`
+            Join type. One of "inner", "outer", "left", "right".
+
+        Returns
+        -------
+        :class:`Table`
+            Joined table.
+        """
+
+        return Table(self._hc, self._jkt.join(right._jkt, how))
+
+    @handle_py4j
+    @typecheck_method(expr=BooleanExpression)
+    def forall(self, expr):
+        """Evaluate whether a boolean expression is true for all rows.
+
+        Examples
+        --------
+        Test whether `C1` is greater than 5 in all rows of the table:
+
+        >>> if table1.forall(table1.C1 == 5):
+        ...     print("All rows have C1 equal 5.")
+
+        Parameters
+        ----------
+        expr : :class:`hail.expr.expression.BooleanExpression`
+            Expression to test.
+
+        Returns
+        -------
+        :obj:`bool`
+        """
+        expr = to_expr(expr)
+        analyze(expr, self._row_indices, set(), set(self.columns))
+        base, cleanup = self._process_joins(expr)
+        if not isinstance(expr._type, TBoolean):
+            raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
+                            .format(expr._type.__class__))
+
+        return base._jkt.forall(expr._ast.to_hql())
+
+    @handle_py4j
+    @typecheck_method(expr=BooleanExpression)
+    def exists(self, expr):
+        """Evaluate whether a boolean expression is true for at least one row.
+
+        Examples
+        --------
+
+        Test whether `C1` is equal to 5 any row in any row of the table:
+
+        >>> if table1.exists(table1.C1 == 5):
+        ...     print("At least one row has C1 equal 5.")
+
+        Parameters
+        ----------
+        expr : :class:`hail.expr.expression.BooleanExpression`
+            Boolean expression.
+
+        Returns
+        -------
+        :obj:`bool`
+            ``True`` if the predicate evaluated for ``True`` for any row, otherwise ``False``.
+        """
+        expr = to_expr(expr)
+        analyze(expr, self._row_indices, set(), set(self.columns))
+        base, cleanup = self._process_joins(expr)
+        if not isinstance(expr._type, TBoolean):
+            raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
+                            .format(expr._type.__class__))
+
+        return base._jkt.exists(expr._ast.to_hql())
+
+    @handle_py4j
+    @typecheck_method(mapping=dictof(strlike, strlike))
+    def rename(self, mapping):
+        """Rename fields of the table.
+
+        Examples
+        --------
+        Rename `C1` to `col1` and `C2` to `col2`:
+
+        >>> table_result = table1.rename({'C1' : 'col1', 'C2' : 'col2'})
+
+        Parameters
+        ----------
+        mapping : :obj:`dict` of :obj:`str`, :obj:`str`
+            Mapping from old column names to new column names.
+
+        Notes
+        -----
+        Any field that does not appear as a key in `mapping` will not be
+        renamed.
+
+        Returns
+        -------
+        :class:`Table`
+            Table with renamed fields.
+        """
+
+        return Table(self._hc, self._jkt.rename(mapping))
+
+    @handle_py4j
+    def expand_types(self):
+        """Expand complex types into structs and arrays.
+
+        Examples
+        --------
+
+        >>> table_result = table1.expand_types()
+
+        Notes
+        -----
+        Expands the following types: :class:`TLocus`, :class:`TInterval`,
+        :class:`TAltAllele`, :class:`TVariant`, :class:`TVariant`,
+        :class:`TSet`, :class:`TDict`.
+
+        The only types that will remain after this method are:
+        :class:`TBoolean`, :class:`TInt32`, :class:`TInt64`,
+        :class:`TFloat64`, :class:`TFloat32`, :class:`TArray`,
+        :class:`TStruct`.
+
+        Returns
+        -------
+        :class:`Table`
+            Expanded table.
+        """
+
+        return Table(self._hc, self._jkt.expandTypes())
+
+    @handle_py4j
+    def flatten(self):
+        """Flatten nested structs.
+
+        Examples
+        --------
+        Flatten table:
+
+        >>> table_result = table1.flatten()
+
+        Notes
+        -----
+        Consider a table with signature
+
+        .. code-block:: text
+
+            a: Struct {
+                p: Int32,
+                q: String
+            },
+            b: Int32,
+            c: Struct {
+                x: String,
+                y: Array[Struct {
+                    y: String,
+                    z: String
+                }]
+            }
+
+        and a single key column ``a``.  The result of flatten is
+
+        .. code-block:: text
+
+            a.p: Int32
+            a.q: String
+            b: Int32
+            c.x: String
+            c.y: Array[Struct {
+                y: String,
+                z: String
+            }]
+
+        with key fields ``a.p`` and ``a.q``.
+
+        Note, structures inside collections like arrays or sets will not be
+        flattened.
+
+        Warning
+        -------
+        Flattening a table will produces fields that cannot be referenced using
+        the ``table.<field>`` syntax, e.g. "a.b". Reference these fields using
+        square bracket lookups: ``table['a.b']``.
+
+        Returns
+        -------
+        :class:`Table`
+            Table with a flat schema (no struct fields).
+        """
+
+        return Table(self._hc, self._jkt.flatten())
+
+table_type.set(Table)
