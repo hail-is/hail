@@ -1,7 +1,7 @@
 package is.hail.annotations
 
 import is.hail.asm4s._
-import is.hail.expr.Type
+import is.hail.expr.typ.Type
 
 object UnsafeUtils {
   def arrayElementSize(t: Type): Long = roundUpAlignment(t.byteSize, t.alignment)

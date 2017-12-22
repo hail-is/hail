@@ -2,7 +2,7 @@ package is.hail.variant
 
 import java.io.FileNotFoundException
 
-import is.hail.expr.{TInterval, TLocus, TStruct, TVariant}
+import is.hail.expr.typ.{TInterval, TLocus, TStruct, TVariant}
 import is.hail.table.Table
 import is.hail.utils.Interval
 import is.hail.{SparkSuite, TestUtils}

@@ -1,7 +1,7 @@
 package is.hail.variant
 
 import is.hail.check.Gen
-import is.hail.expr.{TInt32, TString, TStruct, Type}
+import is.hail.expr.typ.TStruct
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
 import org.apache.spark.sql.Row

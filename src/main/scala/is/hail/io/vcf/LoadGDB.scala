@@ -4,15 +4,16 @@ import com.intel.genomicsdb.GenomicsDBFeatureReader
 import htsjdk.variant.vcf.{VCFCompoundHeaderLine, VCFHeader}
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{TStruct, _}
+import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, VSMLocalValue, VSMMetadata, Variant, MatrixTable}
+import is.hail.variant.{GenomeReference, MatrixTable, VSMLocalValue, VSMMetadata, Variant}
 import org.json4s._
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import java.io.{File, FileWriter}
 
+import is.hail.expr.typ._
 import is.hail.io.VCFAttributes
 import is.hail.io.vcf.LoadVCF.headerSignature
 

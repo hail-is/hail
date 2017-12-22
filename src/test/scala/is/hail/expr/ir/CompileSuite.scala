@@ -6,11 +6,12 @@ import is.hail.annotations._
 import ScalaToRegionValue._
 import is.hail.asm4s._
 import is.hail.check.{Gen, Parameters, Prop}
-import is.hail.expr.{TArray, TFloat64, TInt32, TStruct}
+import is.hail.expr.TArray
 import is.hail.expr.ir._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
+import is.hail.expr.typ.{TArray, TStruct}
 
 class CompileSuite {
   def doit(ir: IR, fb: FunctionBuilder[_]) {

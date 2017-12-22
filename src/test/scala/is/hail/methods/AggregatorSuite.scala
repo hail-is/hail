@@ -2,10 +2,11 @@ package is.hail.methods
 
 import is.hail.check.{Gen, Prop}
 import is.hail.expr._
+import is.hail.expr.typ.{TAggregable, TStruct}
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{VSMSubgen, Variant, MatrixTable}
+import is.hail.variant.{MatrixTable, VSMSubgen, Variant}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row

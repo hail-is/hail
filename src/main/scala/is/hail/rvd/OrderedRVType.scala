@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.{Region, UnsafeInserter, UnsafeOrdering}
-import is.hail.expr.{Parser, TStruct, Type}
+import is.hail.expr.Parser
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}

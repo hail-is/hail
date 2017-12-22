@@ -2,6 +2,7 @@ package is.hail.variant
 
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.typ.TArray
 import is.hail.utils._
 
 class ArrayView[V <: View](t: TArray, val elementView: V) {

@@ -1,7 +1,7 @@
 package is.hail.io
 
 import is.hail.SparkSuite
-import is.hail.expr.TStruct
+import is.hail.expr.typ.TStruct
 import is.hail.io.vcf.{HtsjdkRecordReader, LoadGDB, LoadVCF}
 import org.testng.annotations.Test
 

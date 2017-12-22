@@ -1,7 +1,8 @@
 package is.hail.methods
 
 import is.hail.annotations._
-import is.hail.expr.{TStruct, _}
+import is.hail.expr._
+import is.hail.expr.typ.TStruct
 import is.hail.stats.LeveneHaldane
 import is.hail.variant.{HTSGenotypeView, MatrixTable}
 import org.apache.spark.util.StatCounter

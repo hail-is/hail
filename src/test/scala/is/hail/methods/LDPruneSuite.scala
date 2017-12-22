@@ -5,7 +5,8 @@ import is.hail.SparkSuite
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.{TArray, TStruct}
+import is.hail.expr.typ.{TArray, TStruct}
+import is.hail.expr.TArray
 import is.hail.stats.RegressionUtils
 import is.hail.variant._
 import is.hail.utils._

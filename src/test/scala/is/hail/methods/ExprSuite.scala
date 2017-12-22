@@ -6,6 +6,7 @@ import is.hail.check.Gen
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
+import is.hail.expr.typ._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils.{Interval, _}
 import is.hail.variant.{Call, GenomeReference, Genotype, Locus, Variant}
@@ -978,7 +979,7 @@ class ExprSuite extends SparkSuite {
 
   @Test def testTypePretty() {
     // for arbType
-    import Type._
+    import is.hail.expr.typ.Type._
 
     val sb = new StringBuilder
     check(forAll { (t: Type) =>

@@ -5,11 +5,12 @@ import is.hail.annotations._
 import ScalaToRegionValue._
 import is.hail.annotations.aggregators._
 import is.hail.check._
-import is.hail.expr.{TAggregable, TArray, TFloat64, TInt32, TStruct, RegionValueAggregator, hailType, HailRep, TBoolean, TFloat32, TInt64, Type}
+import is.hail.expr.{HailRep, RegionValueAggregator, TFloat64, hailType}
 import is.hail.expr.ir._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
+import is.hail.expr.typ._
 
 class ExtractAggregatorsSuite {
 

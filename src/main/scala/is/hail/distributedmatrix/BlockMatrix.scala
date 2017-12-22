@@ -5,7 +5,7 @@ import java.io._
 import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail._
 import is.hail.annotations.{Annotation, Memory, UnsafeRow}
-import is.hail.expr.{EvalContext, TStruct}
+import is.hail.expr.EvalContext
 import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble

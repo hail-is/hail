@@ -1,6 +1,6 @@
 package is.hail.io.plink
 
-import is.hail.expr.{EvalContext, Parser, TBoolean, TFloat64, TString, Type}
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.variant.MatrixTable
 import is.hail.utils._
 

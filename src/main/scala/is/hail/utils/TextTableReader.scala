@@ -4,6 +4,7 @@ import java.util.regex.Pattern
 
 import is.hail.annotations.Annotation
 import is.hail.expr._
+import is.hail.expr.typ.{TLocus, TStruct, TVariant}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.variant.GenomeReference
 import org.apache.spark.SparkContext

@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.Type
+import is.hail.expr.typ.Type
 
 object RegionValue {
   def apply(): RegionValue = new RegionValue(null, 0)

@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.{TFloat64, TInt32, TString}
+import is.hail.expr.typ.TString
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils.AbsoluteFuzzyComparable._
 import is.hail.utils.{AbsoluteFuzzyComparable, TextTableReader, _}

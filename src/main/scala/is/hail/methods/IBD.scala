@@ -1,11 +1,12 @@
 package is.hail.methods
 
 import is.hail.HailContext
-import is.hail.expr.{EvalContext, Parser, TFloat64, TInt64, TString, TStruct, TVariant}
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.table.Table
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder, UnsafeRow}
 import is.hail.expr._
-import is.hail.variant.{GenomeReference, Genotype, HardCallView, Variant, MatrixTable}
+import is.hail.expr.typ.TStruct
+import is.hail.variant.{GenomeReference, Genotype, HardCallView, MatrixTable, Variant}
 import is.hail.methods.IBD.generateComputeMaf
 import is.hail.rvd.RVD
 import org.apache.spark.rdd.RDD

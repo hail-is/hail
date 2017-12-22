@@ -2,7 +2,7 @@ package is.hail.stats
 
 
 import is.hail.annotations.Annotation
-import is.hail.expr.{Field, TFloat64, TInt64, TStruct}
+import is.hail.expr.typ.TStruct
 import is.hail.utils._
 import is.hail.variant.{Call, Genotype}
 

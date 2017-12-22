@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.{RegionValue, WritableRegionValue}
-import is.hail.expr.Type
+import is.hail.expr.typ.Type
 
 case class OrderedRVPartitionInfo(
   partitionIndex: Int,

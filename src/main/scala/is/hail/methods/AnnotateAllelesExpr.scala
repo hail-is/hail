@@ -1,7 +1,8 @@
 package is.hail.methods
 
 import is.hail.annotations._
-import is.hail.expr.{EvalContext, Parser, TAggregable, TArray, TString}
+import is.hail.expr.typ.{TAggregable, TArray}
+import is.hail.expr.{EvalContext, Parser, TArray}
 import is.hail.rvd.OrderedRVD
 import is.hail.utils.ArrayBuilder
 import is.hail.variant.{MatrixTable, Variant}

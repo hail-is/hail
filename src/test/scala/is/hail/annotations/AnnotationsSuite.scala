@@ -2,6 +2,7 @@ package is.hail.annotations
 
 import is.hail.SparkSuite
 import is.hail.expr._
+import is.hail.expr.typ._
 import is.hail.methods.SplitMulti
 import is.hail.utils._
 import is.hail.testUtils._

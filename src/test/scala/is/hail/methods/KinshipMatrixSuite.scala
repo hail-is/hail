@@ -5,7 +5,7 @@ import is.hail.utils._
 import scala.io.Source
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
-import is.hail.expr.TString
+import is.hail.expr.typ.TString
 import is.hail.stats.ComputeRRM
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}

@@ -3,7 +3,7 @@ package is.hail.methods
 import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.distributedmatrix.BlockMatrix
-import is.hail.expr.{TFloat64, TString}
+import is.hail.expr.typ.TString
 import is.hail.io.plink.ExportPlink
 import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}

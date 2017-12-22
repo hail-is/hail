@@ -3,7 +3,8 @@ package is.hail.expr.ir
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr
-import is.hail.expr.{TArray, TBoolean, TContainer, TFloat32, TFloat64, TInt32, TInt64, TStruct}
+import is.hail.expr.typ.{TArray, TContainer}
+import is.hail.expr.TArray
 import is.hail.utils._
 import org.objectweb.asm.tree._
 

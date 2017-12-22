@@ -2,9 +2,10 @@ package is.hail
 
 import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
-import is.hail.expr.{TArray, TFloat64, TStruct, TVariant}
+import is.hail.expr.typ.{TArray, TStruct, TVariant}
+import is.hail.expr.TArray
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype, VSMFileMetadata, Variant, MatrixTable}
+import is.hail.variant.{GenomeReference, Genotype, MatrixTable, VSMFileMetadata, Variant}
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution

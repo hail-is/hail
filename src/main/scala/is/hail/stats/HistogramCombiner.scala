@@ -4,6 +4,7 @@ import java.util.Arrays.binarySearch
 
 import is.hail.annotations.Annotation
 import is.hail.expr._
+import is.hail.expr.typ.{TArray, TStruct}
 
 object HistogramCombiner {
   def schema: Type = TStruct(

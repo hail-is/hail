@@ -3,9 +3,9 @@ package is.hail.vds
 import is.hail.SparkSuite
 import is.hail.annotations._
 import is.hail.check.Prop
-import is.hail.expr.{TString, TStruct}
+import is.hail.expr.typ.TStruct
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Genotype, VSMFileMetadata, VSMSubgen, Variant, MatrixTable}
+import is.hail.variant.{AltAllele, Genotype, MatrixTable, VSMFileMetadata, VSMSubgen, Variant}
 import org.testng.annotations.Test
 
 class FilterAllelesSuite extends SparkSuite {

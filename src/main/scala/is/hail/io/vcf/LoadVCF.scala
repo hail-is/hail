@@ -3,7 +3,8 @@ package is.hail.io.vcf
 import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{TStruct, _}
+import is.hail.expr.typ._
+import is.hail.expr._
 import is.hail.io.{VCFAttributes, VCFMetadata}
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._

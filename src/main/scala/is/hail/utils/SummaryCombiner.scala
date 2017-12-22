@@ -1,8 +1,8 @@
 package is.hail.utils
 
 import is.hail.annotations.{Annotation, RegionValue}
-import is.hail.expr.{TStruct, TVariant, TArray, TString}
-import is.hail.variant.{AltAllele, AltAlleleType, Variant, IVariant, HardCallView}
+import is.hail.expr.typ.TStruct
+import is.hail.variant.{AltAllele, AltAlleleType, HardCallView, IVariant, Variant}
 
 import scala.collection.mutable
 

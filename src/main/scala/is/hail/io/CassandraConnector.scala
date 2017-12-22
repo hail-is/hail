@@ -5,6 +5,7 @@ import java.nio.ByteBuffer
 import com.datastax.driver.core.querybuilder.QueryBuilder
 import com.datastax.driver.core.{Cluster, DataType, Session, TableMetadata, Row => CassRow}
 import is.hail.expr._
+import is.hail.expr.typ._
 import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row

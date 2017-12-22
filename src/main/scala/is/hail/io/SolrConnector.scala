@@ -3,6 +3,7 @@ package is.hail.io
 import java.util
 
 import is.hail.expr._
+import is.hail.expr.typ._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.MatrixTable

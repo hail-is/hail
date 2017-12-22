@@ -2,7 +2,8 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{MatrixType, TArray, TCall, TFloat64, TString, TStruct, TVariant}
+import is.hail.expr.typ.{TArray, TStruct, TVariant}
+import is.hail.expr.{MatrixType, TArray}
 import is.hail.io.vcf.LoadVCF
 import is.hail.io.{HadoopFSDataBinaryReader, IndexBTree}
 import is.hail.rvd.OrderedRVD

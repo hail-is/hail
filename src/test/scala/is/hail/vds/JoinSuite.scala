@@ -2,7 +2,7 @@ package is.hail.vds
 
 import is.hail.SparkSuite
 import is.hail.annotations.UnsafeRow
-import is.hail.expr.{TStruct, TVariant}
+import is.hail.expr.typ.{TStruct, TVariant}
 import is.hail.table.Table
 import is.hail.variant.{GenomeReference, Variant, MatrixTable}
 import is.hail.utils._

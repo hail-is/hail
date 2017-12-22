@@ -5,7 +5,7 @@ import java.io.DataOutputStream
 import breeze.linalg.SparseVector
 import is.hail.HailContext
 import is.hail.annotations.Annotation
-import is.hail.expr.{TString, Type}
+import is.hail.expr.typ.TString
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}

@@ -5,6 +5,7 @@ import is.hail.expr._
 import is.hail.expr.ir.defaultValue
 import is.hail.annotations._
 import is.hail.expr.RegionValueAggregator
+import is.hail.expr.typ._
 
 import scala.reflect.ClassTag
 

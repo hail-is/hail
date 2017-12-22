@@ -1,14 +1,14 @@
 package is.hail.variant.vsm
 
 import is.hail.SparkSuite
-import is.hail.expr.{TArray, TCall, TFloat64, TInt32, TInt64, TStruct}
 import is.hail.io.annotators.IntervalList
 import org.testng.annotations.Test
 import is.hail.TestUtils._
 import is.hail.annotations.UnsafeRow
 import is.hail.check.Prop.forAll
+import is.hail.expr.typ.TStruct
 import is.hail.utils._
-import is.hail.variant.{VSMSubgen, MatrixTable}
+import is.hail.variant.{MatrixTable, VSMSubgen}
 
 
 class GroupBySuite extends SparkSuite {

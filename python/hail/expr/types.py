@@ -93,19 +93,19 @@ class Type(HistoryMixin):
         if class_name in _intern_classes:
             type, required = _intern_classes[class_name]
             return type(required)
-        elif class_name == 'is.hail.expr.TArray':
+        elif class_name == 'is.hail.expr.typ.TArray':
             return TArray._from_java(jtype)
-        elif class_name == 'is.hail.expr.TSet':
+        elif class_name == 'is.hail.expr.typ.TSet':
             return TSet._from_java(jtype)
-        elif class_name == 'is.hail.expr.TDict':
+        elif class_name == 'is.hail.expr.typ.TDict':
             return TDict._from_java(jtype)
-        elif class_name == 'is.hail.expr.TStruct':
+        elif class_name == 'is.hail.expr.typ.TStruct':
             return TStruct._from_java(jtype)
-        elif class_name == 'is.hail.expr.TVariant':
+        elif class_name == 'is.hail.expr.typ.TVariant':
             return TVariant._from_java(jtype)
-        elif class_name == 'is.hail.expr.TLocus':
+        elif class_name == 'is.hail.expr.typ.TLocus':
             return TLocus._from_java(jtype)
-        elif class_name == 'is.hail.expr.TInterval':
+        elif class_name == 'is.hail.expr.typ.TInterval':
             return TInterval._from_java(jtype)
         else:
             raise TypeError("unknown type class: '%s'" % class_name)
@@ -921,22 +921,22 @@ class TInterval(Type):
     def _repr(self):
         return "TInterval({})".format(repr(self.point_type))
 
-_intern_classes = {'is.hail.expr.TInt32Optional$': (TInt32, False),
-                   'is.hail.expr.TInt32Required$': (TInt32, True),
-                   'is.hail.expr.TInt64Optional$': (TInt64, False),
-                   'is.hail.expr.TInt64Required$': (TInt64, True),
-                   'is.hail.expr.TFloat32Optional$': (TFloat32, False),
-                   'is.hail.expr.TFloat32Required$': (TFloat32, True),
-                   'is.hail.expr.TFloat64Optional$': (TFloat64, False),
-                   'is.hail.expr.TFloat64Required$': (TFloat64, True),
-                   'is.hail.expr.TBooleanOptional$': (TBoolean, False),
-                   'is.hail.expr.TBooleanRequired$': (TBoolean, True),
-                   'is.hail.expr.TStringOptional$': (TString, False),
-                   'is.hail.expr.TStringRequired$': (TString, True),
-                   'is.hail.expr.TAltAlleleOptional$': (TAltAllele, False),
-                   'is.hail.expr.TAltAlleleRequired$': (TAltAllele, True),
-                   'is.hail.expr.TCallOptional$': (TCall, False),
-                   'is.hail.expr.TCallRequired$': (TCall, True)}
+_intern_classes = {'is.hail.expr.typ.TInt32Optional$': (TInt32, False),
+                   'is.hail.expr.typ.TInt32Required$': (TInt32, True),
+                   'is.hail.expr.typ.TInt64Optional$': (TInt64, False),
+                   'is.hail.expr.typ.TInt64Required$': (TInt64, True),
+                   'is.hail.expr.typ.TFloat32Optional$': (TFloat32, False),
+                   'is.hail.expr.typ.TFloat32Required$': (TFloat32, True),
+                   'is.hail.expr.typ.TFloat64Optional$': (TFloat64, False),
+                   'is.hail.expr.typ.TFloat64Required$': (TFloat64, True),
+                   'is.hail.expr.typ.TBooleanOptional$': (TBoolean, False),
+                   'is.hail.expr.typ.TBooleanRequired$': (TBoolean, True),
+                   'is.hail.expr.typ.TStringOptional$': (TString, False),
+                   'is.hail.expr.typ.TStringRequired$': (TString, True),
+                   'is.hail.expr.typ.TAltAlleleOptional$': (TAltAllele, False),
+                   'is.hail.expr.typ.TAltAlleleRequired$': (TAltAllele, True),
+                   'is.hail.expr.typ.TCallOptional$': (TCall, False),
+                   'is.hail.expr.typ.TCallRequired$': (TCall, True)}
 
 import pprint
 

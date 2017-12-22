@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.annotations.{Annotation, Querier}
-import is.hail.expr.{TBoolean, TFloat64}
+import is.hail.expr.typ.TFloat64
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.Variant

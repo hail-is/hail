@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.expr._
+import is.hail.expr.typ.{TArray, TStruct}
 
 object ScalaToRegionValue {
 

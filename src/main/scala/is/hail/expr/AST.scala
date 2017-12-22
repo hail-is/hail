@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.expr.ir.IR
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.typ._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils.{HailException, _}
 import is.hail.variant.GenomeReference

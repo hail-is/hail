@@ -3,6 +3,7 @@ package is.hail.methods
 import breeze.linalg.{*, DenseMatrix, DenseVector}
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.typ.{TArray, TStruct}
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.MatrixTable

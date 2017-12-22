@@ -1,6 +1,7 @@
 package is.hail.expr
 
 import is.hail.expr.ir._
+import is.hail.expr.typ.TArray
 import org.testng.annotations.Test
 
 class ASTToIRSuite {

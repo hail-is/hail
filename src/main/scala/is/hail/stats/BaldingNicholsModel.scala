@@ -4,10 +4,11 @@ import breeze.linalg.{DenseVector, sum, _}
 import breeze.stats.distributions._
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{MatrixType, TArray, TCall, TFloat64, TInt32, TLocus, TString, TStruct, TVariant}
+import is.hail.expr.typ.{TArray, TStruct, TVariant}
+import is.hail.expr.{MatrixType, TArray}
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype, VSMLocalValue, VSMMetadata, Variant, MatrixTable}
+import is.hail.variant.{GenomeReference, Genotype, MatrixTable, VSMLocalValue, VSMMetadata, Variant}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {

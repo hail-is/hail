@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.{Annotation, Inserter, Querier, UnsafeRow}
-import is.hail.expr.{EvalContext, Parser, Type}
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.variant.MatrixTable
 import org.apache.spark.rdd.RDD
 

@@ -4,7 +4,8 @@ import java.io.InputStream
 
 import is.hail.HailContext
 import is.hail.check.Gen
-import is.hail.expr.{JSONExtractGenomeReference, TInterval, TLocus, TVariant}
+import is.hail.expr.typ.{TInterval, TLocus, TVariant}
+import is.hail.expr.JSONExtractGenomeReference
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}

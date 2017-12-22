@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.{Annotation, RegionValue, RegionValueBuilder, UnsafeRow}
 import is.hail.expr._
 import is.hail.table.TableLocalValue
+import is.hail.expr.typ.TStruct
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._

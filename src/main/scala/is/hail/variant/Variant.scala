@@ -3,6 +3,7 @@ package is.hail.variant
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
+import is.hail.expr.typ.{TArray, TVariant}
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
 import org.apache.spark.SparkContext
