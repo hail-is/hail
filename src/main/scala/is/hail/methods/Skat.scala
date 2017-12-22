@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
+import is.hail.expr.typ._
 import is.hail.table.Table
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
 import is.hail.annotations.{Annotation, UnsafeRow}
