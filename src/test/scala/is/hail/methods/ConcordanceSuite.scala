@@ -169,7 +169,7 @@ class ConcordanceSuite extends SparkSuite {
         .collectAsMap
         .mapValues(_.toAnnotation)
 
-      val (globals, samples, variants) = vds1.concordance(vds2)
+      val (globals, samples, variants) = CalculateConcordance(vds1, vds2)
 
       samples.rdd.collect().foreach { r =>
         assert(r.getAs[IndexedSeq[IndexedSeq[Long]]](2).apply(0).sum == uniqueVds2Variants)

@@ -1,26 +1,25 @@
 package is.hail.methods
 
-import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Locus, MatrixTable}
+import is.hail.variant.{Locus, MatrixTable}
 
 object ImputeSexPlink {
   def apply(in: MatrixTable,
-    mafThreshold: Double,
-    includePar: Boolean,
-    fMaleThreshold: Double,
-    fFemaleThreshold: Double,
-    popFrequencyExpr: Option[String]): MatrixTable = {
+    mafThreshold: Double = 0.0,
+    includePar: Boolean = false,
+    fFemaleThreshold: Double = 0.2,
+    fMaleThreshold: Double = 0.8,
+    popFrequencyExpr: Option[String] = None): MatrixTable = {
     var vsm = in
 
     val gr = vsm.genomeReference
     implicit val locusOrd = gr.locusOrdering
 
     val xIntervals = IntervalTree(gr.xContigs.map(contig => Interval(Locus(contig, 0), Locus(contig, gr.contigLength(contig)))).toArray)
-    vsm = vsm.filterIntervals(xIntervals, keep = true)
+    vsm = FilterIntervals(vsm, xIntervals, keep = true)
 
     if (!includePar)
-      vsm = vsm.filterIntervals(IntervalTree(gr.par), keep = false)
+      vsm = FilterIntervals(vsm, IntervalTree(gr.par), keep = false)
 
     vsm = vsm.annotateVariantsExpr(
       s"va = ${ popFrequencyExpr.getOrElse("gs.map(g => g.GT.nNonRefAlleles).sum() / gs.filter(g => isDefined(g.GT)).count() / 2") }")

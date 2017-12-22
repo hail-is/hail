@@ -260,7 +260,7 @@ class AnnotateSuite extends SparkSuite {
 
     // tsv
     val importTSVFile = tmpDir.createTempFile("variantAnnotationsTSV", ".vds")
-    vds = VariantDataset.fromKeyTable(hc.importTable("src/test/resources/variantAnnotations.tsv",
+    vds = MatrixTable.fromKeyTable(hc.importTable("src/test/resources/variantAnnotations.tsv",
       impute = true, types = Map("Chromosome" -> TString()))
       .annotate("v = Variant(Chromosome, Position, Ref, Alt)")
       .keyBy("v"))
@@ -299,7 +299,7 @@ class AnnotateSuite extends SparkSuite {
       .annotate("""v = Variant(f0.contig, f0.start, f0.ref, f0.alt.split("/"))""")
       .keyBy("v")
 
-    vds = VariantDataset.fromKeyTable(kt2)
+    vds = MatrixTable.fromKeyTable(kt2)
       .annotateVariantsExpr("va = va.f0")
       .filterVariantsExpr("v.isBiallelic")
     vds.write(importJSONFile)

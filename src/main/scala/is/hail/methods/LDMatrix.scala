@@ -70,6 +70,9 @@ object LDMatrix {
     LDMatrix(vds.hc, scaledIRM, variantsKept, nSamples, vds.vSignature.asInstanceOf[TVariant])
   }
 
+  def apply(vds: MatrixTable, forceLocal: Boolean = false): LDMatrix =
+    apply(vds, Some(forceLocal))
+
   private val metadataRelativePath = "/metadata.json"
   private val matrixRelativePath = "/matrix"
   def read(hc: HailContext, uri: String): LDMatrix = {
