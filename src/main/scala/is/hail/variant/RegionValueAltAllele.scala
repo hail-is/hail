@@ -1,8 +1,7 @@
 package is.hail.variant
 
 import is.hail.annotations._
-import is.hail.expr._
-import is.hail.expr.typ.TAltAllele
+import is.hail.expr.typ._
 import is.hail.utils._
 
 class RegionValueAltAllele(taa: TAltAllele) extends View with IAltAllele {

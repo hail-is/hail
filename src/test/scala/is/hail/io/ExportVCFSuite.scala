@@ -4,8 +4,7 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.expr._
-import is.hail.expr.typ.{Field, TArray, TSet, TStruct}
+import is.hail.expr.typ._
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.testUtils._

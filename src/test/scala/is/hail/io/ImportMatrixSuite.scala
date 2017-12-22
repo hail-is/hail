@@ -5,7 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr._
-import is.hail.expr.typ.TStruct
+import is.hail.expr.typ._
 import is.hail.variant.{MatrixTable, VSMSubgen}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test

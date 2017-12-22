@@ -2,7 +2,7 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.check.Prop._
-import is.hail.expr.typ.TStruct
+import is.hail.expr.typ._
 import is.hail.variant.{MatrixTable, VSMSubgen, _}
 import org.testng.annotations.Test
 

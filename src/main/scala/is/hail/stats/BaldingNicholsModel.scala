@@ -4,8 +4,8 @@ import breeze.linalg.{DenseVector, sum, _}
 import breeze.stats.distributions._
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.typ.{TArray, TStruct, TVariant}
-import is.hail.expr.{MatrixType, TArray}
+import is.hail.expr.typ._
+import is.hail.expr.{MatrixType}
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, Genotype, MatrixTable, VSMLocalValue, VSMMetadata, Variant}

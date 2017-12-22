@@ -3,8 +3,7 @@ package is.hail.annotations
 import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.check.Arbitrary._
-import is.hail.expr._
-import is.hail.expr.typ.{TStruct, TVariant, Type}
+import is.hail.expr.typ._
 import is.hail.io._
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, Variant}

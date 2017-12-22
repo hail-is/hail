@@ -2,8 +2,7 @@ package is.hail
 
 import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
-import is.hail.expr.typ.{TArray, TStruct, TVariant}
-import is.hail.expr.TArray
+import is.hail.expr.typ._
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, Genotype, MatrixTable, VSMFileMetadata, Variant}
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}

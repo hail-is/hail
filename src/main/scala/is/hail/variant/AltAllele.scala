@@ -2,7 +2,7 @@ package is.hail.variant
 
 import is.hail.annotations._
 import is.hail.check._
-import is.hail.expr._
+import is.hail.expr.typ._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._

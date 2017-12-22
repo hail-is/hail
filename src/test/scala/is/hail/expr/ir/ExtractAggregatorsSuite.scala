@@ -5,7 +5,8 @@ import is.hail.annotations._
 import ScalaToRegionValue._
 import is.hail.annotations.aggregators._
 import is.hail.check._
-import is.hail.expr.{HailRep, RegionValueAggregator, TFloat64, hailType}
+import is.hail.expr.{HailRep, RegionValueAggregator, hailType}
+import is.hail.expr.typ._
 import is.hail.expr.ir._
 import org.testng.annotations.Test
 import org.scalatest._

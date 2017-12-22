@@ -1,7 +1,7 @@
 package is.hail.expr
 
 import is.hail.SparkSuite
-import is.hail.expr.typ.TStruct
+import is.hail.expr.typ._
 import is.hail.table.Table
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test

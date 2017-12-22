@@ -3,6 +3,7 @@ package is.hail.utils
 import java.util.regex.Pattern
 
 import is.hail.annotations.Annotation
+import is.hail.expr._
 import is.hail.expr.typ._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.variant.GenomeReference
