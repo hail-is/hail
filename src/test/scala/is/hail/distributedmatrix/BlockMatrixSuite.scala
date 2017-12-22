@@ -599,10 +599,24 @@ class BlockMatrixSuite extends SparkSuite {
   
   @Test
   def filterBlockMatrix() {
-    val bm = BlockMatrix.random(hc, 10, 10, 8)
-    
-    val keep = Array(2, 4, 7)
-    
-    bm.filterCols(keep)
+    val lm = new BDM[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
+
+    for { blockSize <- Seq(1, 2, 3, 10, 11)
+    } {
+      val bm = BlockMatrix.from(sc, lm, blockSize)      
+      for { keep <- Seq(
+        Array(0),
+        Array(1),
+        Array(9),
+        Array(0, 1, 4, 5),
+        Array(4, 5, 6, 7, 8),
+        Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
+      } {
+        val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toLocalMatrix()
+        val filteredViaBreeze = lm(::, keep.toIndexedSeq).copy
+  
+        assert(filteredViaBlock === filteredViaBreeze)
+      }
+    }
   }
 }

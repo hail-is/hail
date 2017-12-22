@@ -576,23 +576,99 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
   
   def filterCols(keep: Array[Long]): BlockMatrix = {
+    // should these checks go inside RDD class?
     if (keep.isEmpty) {
       fatal("error filtering columns: at least one column must remain")
     }
     
     scala.util.Sorting.quickSort(keep)
-    assert(keep.sortedAreDistinct() && keep.head >= 0 && keep.last < rows) // require distinct?
+    assert(keep.sortedAreDistinct() && keep.head >= 0 && keep.last < cols) // require distinct?
     
-    
-    
-    this
+    new BlockMatrix(new BlockMatrixFilterRDD(this, keep), blockSize, rows, keep.length)
   }
 }
 
-case class BlockMatrixFilterRDDPartition(index: Int) extends Partition // add fields
+case class BlockMatrixFilterRDDPartition(index: Int, keep: Array[Long]) extends Partition // add fields
 
-private class BlockMatrixFilterRDD(dm: BlockMatrix, keep: Array[Long]) extends RDD(dm.blocks.sparkContext, Nil) {
+private class BlockMatrixFilterRDD(dm: BlockMatrix, colsToKeep: Array[Long])
+  extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
   
+  private val gp = dm.partitioner
+  private val blockSize = gp.blockSize
+  private val newGP = GridPartitioner(blockSize, gp.nRows, colsToKeep.length.toLong)
+  
+//  println(gp)
+//  println(newGP)
+  
+  protected def getPartitions: Array[Partition] = {
+    val nBlockRows: Int = gp.nBlockRows
+    colsToKeep.grouped(blockSize).zipWithIndex.flatMap { case (cols, j) =>
+      (0 until nBlockRows).map(i => BlockMatrixFilterRDDPartition(j * nBlockRows + i, cols))
+    }.toArray
+  }
+  
+  override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
+    new NarrowDependency(dm.blocks) {
+      def getParents(partitionId: Int): Seq[Int] = {
+        val blockRow = newGP.blockBlockRow(partitionId)
+        partitions(partitionId).asInstanceOf[BlockMatrixFilterRDDPartition]
+          .keep
+          .map(c => (c / blockSize).toInt)
+          .distinct // FIXME: optimize using order
+          .map(blockCol => gp.coordinatesBlock(blockRow, blockCol)) // filterCols preserves blockRow
+      }
+    })
+  
+  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
+    val (blockRow, newBlockCol) = newGP.blockCoordinates(split.index)
+    val (blockNRows, blockNCols) = newGP.blockDims(split.index)
+    
+    val colsInBlock = split.asInstanceOf[BlockMatrixFilterRDDPartition].keep
+    assert(colsInBlock.length == blockNCols)
+    
+//    println(split.index, blockRow, newBlockCol, colsInBlock.toIndexedSeq)
+    
+    val newBlock = BDM.zeros[Double](blockNRows, blockNCols)
+    
+    // fix? this is being redone for every blockRow...
+    var j = 0
+    while (j < blockNCols) {
+      val startCol = colsInBlock(j)
+      val blockCol = (startCol / blockSize).toInt
+
+      val pi = gp.coordinatesBlock(blockRow, blockCol)      
+      val ((i0, j0), block) = dm.blocks.iterator(dm.blocks.partitions(pi), context).next()
+      assert(i0 == blockRow, j0 == blockCol)
+      
+      val lastColInBlockCol = blockCol + gp.blockColNCols(blockCol) // exclusive
+      var endCol = startCol + 1 // exclusive      
+      var k = j + 1
+      while (k < blockNCols && // column indexed k exists in newBlock
+        colsInBlock(k) == endCol && // column is consecutive
+        endCol < lastColInBlockCol) { // column endCol in dm remains in this blockCol 
+                
+        endCol += 1
+        k += 1
+      }
+      
+      val startColIndex = (startCol % blockSize).toInt
+      val endColIndex = ((endCol - 1) % blockSize).toInt + 1
+
+      //println(startCol, startColIndex, endCol, endColIndex, j, k)
+      
+      assert(endColIndex - startColIndex == k - j)
+      
+      newBlock(::, j until k) := block(::, startColIndex until endColIndex)
+      //newBlock(::, j until k) := block(::, 0 until 2)
+
+
+      j = k
+    }
+    
+    Iterator.single(((blockRow, newBlockCol), newBlock))
+  }
+  
+  @transient override val partitioner: Option[Partitioner] = Some(newGP)
 }
 
 case class BlockMatrixTransposeRDDPartition(index: Int, prevPartition: Partition) extends Partition
