@@ -1,6 +1,7 @@
 package is.hail.expr
 
-import is.hail.asm4s.{Code, _}
+import is.hail.asm4s._
+import is.hail.expr.typ._
 
 import scala.collection.mutable
 import scala.reflect.ClassTag

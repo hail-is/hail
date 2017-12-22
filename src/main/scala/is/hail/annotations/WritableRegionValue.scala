@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.typ.TStruct
+import is.hail.expr.typ._
 
 object WritableRegionValue {
   def apply(t: Type, initial: RegionValue): WritableRegionValue =

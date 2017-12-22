@@ -1,8 +1,14 @@
 package is.hail.expr.typ
 
-/**
-  * Created by dking on 12/21/17.
-  */
+import is.hail.annotations._
+import is.hail.check._
+import is.hail.sparkextras.OrderedKey
+import is.hail.utils._
+import is.hail.variant._
+
+import scala.reflect.ClassTag
+import scala.reflect.classTag
+
 object TVariant {
   def representation(required: Boolean = false): TStruct = {
   	val rep = TStruct(

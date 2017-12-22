@@ -1,8 +1,7 @@
 package is.hail.expr.typ
 
-/**
-  * Created by dking on 12/21/17.
-  */
+import is.hail.expr.NumericConversion
+
 object TNumeric {
   def promoteNumeric(types: Set[TNumeric]): Type = {
     assert(types.forall(!_.required))

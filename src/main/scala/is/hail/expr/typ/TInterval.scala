@@ -1,9 +1,5 @@
 package is.hail.expr.typ
 
-/**
-  * Created by dking on 12/21/17.
-  */
-
 case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
   override def children = Seq(pointType)
 

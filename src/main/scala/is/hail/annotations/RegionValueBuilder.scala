@@ -1,7 +1,6 @@
 package is.hail.annotations
 
 import is.hail.expr.typ._
-import is.hail.expr.TFloat64
 import is.hail.utils._
 import is.hail.variant.{AltAllele, Locus, Variant}
 import org.apache.spark.sql.Row

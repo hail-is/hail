@@ -1,5 +1,13 @@
 package is.hail.expr.typ
 
+import is.hail.annotations._
+import is.hail.check._
+import is.hail.utils._
+import is.hail.variant._
+
+import scala.reflect.ClassTag
+import scala.reflect.classTag
+
 /**
   * Created by dking on 12/21/17.
   */

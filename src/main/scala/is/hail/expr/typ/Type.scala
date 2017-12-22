@@ -2,12 +2,17 @@ package is.hail.expr.typ
 
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.Parser
+import is.hail.expr.{JSONAnnotationImpex, Parser, SparkAnnotationImpex}
+import is.hail.sparkextras.OrderedKey
+import is.hail.utils
+import is.hail.utils._
 import is.hail.variant.GenomeReference
+import org.apache.spark.sql.types.DataType
+import org.json4s.JValue
 
-/**
-  * Created by dking on 12/21/17.
-  */
+import scala.reflect.ClassTag
+import scala.reflect.classTag
+
 object Type {
   def genScalar(required: Boolean): Gen[Type] =
     Gen.oneOf(TBoolean(required), TInt32(required), TInt64(required), TFloat32(required),

@@ -1,6 +1,7 @@
 package is.hail
 
 import is.hail.annotations._
+import is.hail.expr.typ.Type
 import scala.language.implicitConversions
 import is.hail.asm4s.Code
 
