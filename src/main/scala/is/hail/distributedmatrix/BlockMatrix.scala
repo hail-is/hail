@@ -583,7 +583,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 }
 
 
-case class BlockMatrixFilterRDDPartition(index: Int, piRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
+case class BlockMatrixFilterRDDPartition(index: Int, blockColRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
 
 private class BlockMatrixFilterRDD(dm: BlockMatrix, colsToKeep: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
@@ -593,7 +593,9 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, colsToKeep: Array[Long])
   private val blockSize = gp.blockSize
   private val newGP = GridPartitioner(blockSize, gp.nRows, colsToKeep.length.toLong)
   
-  private val colRanges: Array[Array[(Int, Array[Int], Array[Int])]] = {
+  // allBlockColRanges(newBlockCol) has elements of the form (blockCol, startIndices, endIndices) with blockCol increasing
+  //   startIndices.zip(endIndices) gives all column-index ranges in blockCol to be copied to ranges in newBlockCol
+  private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] = {
     val ab = new ArrayBuilder[(Int, Array[Int], Array[Int])]()
     val startIndices = new ArrayBuilder[Int]()
     val endIndices = new ArrayBuilder[Int]()
@@ -602,55 +604,52 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, colsToKeep: Array[Long])
       .grouped(blockSize)
       .zipWithIndex
       .map { case (colsInNewBlock, newBlockCol) =>
-        ab.clear()
-        
         val newBlockNCols = newGP.blockColNCols(newBlockCol)
-        var j = 0
-        while (j < newBlockNCols) {          
-          val startCol = colsInNewBlock(j)
-          val startColIndex = (startCol % blockSize).toInt
-          startIndices += startColIndex
-          
+
+        ab.clear()
+        var j = 0 // start index in newBlockCol
+        var k = 0 // end index in newBlockCol
+        while (j < newBlockNCols) {
+          var startCol = colsInNewBlock(j)
           val blockCol = (startCol / blockSize).toInt
           val finalColInBlockCol = blockCol * blockSize + gp.blockColNCols(blockCol)
 
-          var endCol = startCol + 1
-          var k = j + 1
-          while (k < newBlockNCols && colsInNewBlock(k) == endCol && endCol < finalColInBlockCol) {
-            endCol += 1
-            k += 1
-          }
-          endIndices += ((endCol - 1) % blockSize + 1).toInt
-          
-          if (k == newBlockNCols || colsInNewBlock(k) >= finalColInBlockCol) {
-            ab += (blockCol, startIndices.result(), endIndices.result())
-            startIndices.clear()
-            endIndices.clear()
-          }
+          while (j < newBlockNCols && colsInNewBlock(j) < finalColInBlockCol) { // compute ranges for this blockCol
+            val startCol = colsInNewBlock(j)
+            val startColIndex = (startCol % blockSize).toInt // start index in blockCol
+            startIndices += startColIndex
 
-          j = k
+            var endCol = startCol + 1
+            var k = j + 1
+            while (k < newBlockNCols && colsInNewBlock(k) == endCol && endCol < finalColInBlockCol) { // extend range
+              endCol += 1
+              k += 1
+            }
+            endIndices += ((endCol - 1) % blockSize + 1).toInt  // end index in blockCol
+            j = k
+          }
+          ab += (blockCol, startIndices.result(), endIndices.result())
+          startIndices.clear()
+          endIndices.clear()
         }
         ab.result()
       }.toArray
   }
-  
-//  colRanges.foreach{_.foreach { case (pi, s, e) => println(pi, s.mkString("[",",","]"), e.mkString("[",",","]")); println()}}
-  
+
   protected def getPartitions: Array[Partition] = {
     val parts = new Array[Partition](newGP.numPartitions)
     val nBlockRows: Int = newGP.nBlockRows
     
-    var i = 0 // blockRow
-    var j = 0 // blockCol
-    var k = 0 // block
-    while (j < newGP.nBlockCols) {
-      var i = 0
-      while (i < nBlockRows) {
-        parts(k) = BlockMatrixFilterRDDPartition(k, colRanges(j))
-        i += 1
-        k += 1
+    var blockCol = 0
+    var pi = 0
+    while (blockCol < newGP.nBlockCols) {
+      var blockRow = 0
+      while (blockRow < nBlockRows) {
+        parts(pi) = BlockMatrixFilterRDDPartition(pi, allBlockColRanges(blockCol))
+        blockRow += 1
+        pi += 1
       }
-      j += 1
+      blockCol += 1
     }
     
     parts
@@ -660,7 +659,7 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, colsToKeep: Array[Long])
     new NarrowDependency(dm.blocks) {
       def getParents(partitionId: Int): Seq[Int] = {
         val (blockRow, newBlockCol) = newGP.blockCoordinates(partitionId)
-        colRanges(newBlockCol).map { case (blockCol, _, _) => 
+        allBlockColRanges(newBlockCol).map { case (blockCol, _, _) => 
           gp.coordinatesBlock(blockRow, blockCol)
         }
       }
@@ -674,10 +673,10 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, colsToKeep: Array[Long])
     var j = 0
     var k = 0
     split.asInstanceOf[BlockMatrixFilterRDDPartition]
-      .piRanges
+      .blockColRanges
       .foreach { case (blockCol, startIndices, endIndices) =>
-        val pi = gp.coordinatesBlock(blockRow, blockCol)
-        val (_, block) = dm.blocks.iterator(dm.blocks.partitions(pi), context).next()
+        val parentPI = gp.coordinatesBlock(blockRow, blockCol)
+        val (_, block) = dm.blocks.iterator(dm.blocks.partitions(parentPI), context).next()
         (startIndices, endIndices).zipped.foreach { case (si, ei) =>
           k = j + ei - si
           newBlock(::, j until k) := block(::, si until ei)
