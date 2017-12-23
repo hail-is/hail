@@ -575,81 +575,115 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       rows, cols)
   }
   
+  // keep is an array of distinct column indicies
   def filterCols(keep: Array[Long]): BlockMatrix = {
-    // should these checks go inside RDD class?
-    if (keep.isEmpty) {
-      fatal("error filtering columns: at least one column must remain")
-    }
-    
     scala.util.Sorting.quickSort(keep)
-    assert(keep.sortedAreDistinct() && keep.head >= 0 && keep.last < cols) // require distinct?
-    
     new BlockMatrix(new BlockMatrixFilterRDD(this, keep), blockSize, rows, keep.length)
   }
 }
 
-case class BlockMatrixFilterRDDPartition(index: Int, keep: Array[Long]) extends Partition // add fields
+
+case class BlockMatrixFilterRDDPartition(index: Int, piRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
 
 private class BlockMatrixFilterRDD(dm: BlockMatrix, colsToKeep: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
+  require(colsToKeep.nonEmpty && colsToKeep.isIncreasing && colsToKeep.head >= 0 && colsToKeep.last < dm.cols)
   
   private val gp = dm.partitioner
   private val blockSize = gp.blockSize
   private val newGP = GridPartitioner(blockSize, gp.nRows, colsToKeep.length.toLong)
-    
+  
+  private val colRanges: Array[Array[(Int, Array[Int], Array[Int])]] = {
+    val ab = new ArrayBuilder[(Int, Array[Int], Array[Int])]()
+    val startIndices = new ArrayBuilder[Int]()
+    val endIndices = new ArrayBuilder[Int]()
+
+    colsToKeep
+      .grouped(blockSize)
+      .zipWithIndex
+      .map { case (colsInNewBlock, newBlockCol) =>
+        ab.clear()
+        
+        val newBlockNCols = newGP.blockColNCols(newBlockCol)
+        var j = 0
+        while (j < newBlockNCols) {          
+          val startCol = colsInNewBlock(j)
+          val startColIndex = (startCol % blockSize).toInt
+          startIndices += startColIndex
+          
+          val blockCol = (startCol / blockSize).toInt
+          val finalColInBlockCol = blockCol * blockSize + gp.blockColNCols(blockCol)
+
+          var endCol = startCol + 1
+          var k = j + 1
+          while (k < newBlockNCols && colsInNewBlock(k) == endCol && endCol < finalColInBlockCol) {
+            endCol += 1
+            k += 1
+          }
+          endIndices += ((endCol - 1) % blockSize + 1).toInt
+          
+          if (k == newBlockNCols || colsInNewBlock(k) >= finalColInBlockCol) {
+            ab += (blockCol, startIndices.result(), endIndices.result())
+            startIndices.clear()
+            endIndices.clear()
+          }
+
+          j = k
+        }
+        ab.result()
+      }.toArray
+  }
+  
+//  colRanges.foreach{_.foreach { case (pi, s, e) => println(pi, s.mkString("[",",","]"), e.mkString("[",",","]")); println()}}
+  
   protected def getPartitions: Array[Partition] = {
-    val nBlockRows: Int = gp.nBlockRows
-    colsToKeep.grouped(blockSize).zipWithIndex.flatMap { case (cols, j) =>
-      (0 until nBlockRows).map(i => BlockMatrixFilterRDDPartition(j * nBlockRows + i, cols))
-    }.toArray
+    val parts = new Array[Partition](newGP.numPartitions)
+    val nBlockRows: Int = newGP.nBlockRows
+    
+    var i = 0 // blockRow
+    var j = 0 // blockCol
+    var k = 0 // block
+    while (j < newGP.nBlockCols) {
+      var i = 0
+      while (i < nBlockRows) {
+        parts(k) = BlockMatrixFilterRDDPartition(k, colRanges(j))
+        i += 1
+        k += 1
+      }
+      j += 1
+    }
+    
+    parts
   }
   
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
     new NarrowDependency(dm.blocks) {
       def getParents(partitionId: Int): Seq[Int] = {
-        val blockRow = newGP.blockBlockRow(partitionId)
-        partitions(partitionId).asInstanceOf[BlockMatrixFilterRDDPartition]
-          .keep
-          .map(c => (c / blockSize).toInt)
-          .distinct // FIXME: optimize using order
-          .map(blockCol => gp.coordinatesBlock(blockRow, blockCol)) // filterCols preserves blockRow
+        val (blockRow, newBlockCol) = newGP.blockCoordinates(partitionId)
+        colRanges(newBlockCol).map { case (blockCol, _, _) => 
+          gp.coordinatesBlock(blockRow, blockCol)
+        }
       }
     })
   
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val (blockRow, newBlockCol) = newGP.blockCoordinates(split.index)
     val (blockNRows, newBlockNCols) = newGP.blockDims(split.index)
-    
-    val colsInNewBlock = split.asInstanceOf[BlockMatrixFilterRDDPartition].keep
-    assert(colsInNewBlock.length == newBlockNCols)
-    
     val newBlock = BDM.zeros[Double](blockNRows, newBlockNCols)
     
-    // fix? this is being redone for every blockRow...
     var j = 0
-    while (j < newBlockNCols) {
-      val startCol = colsInNewBlock(j)
-      val startColIndex = (startCol % blockSize).toInt
-      val blockCol = (startCol / blockSize).toInt
-      val blockNCols = gp.blockColNCols(blockCol)
-      val pi = gp.coordinatesBlock(blockRow, blockCol)
-      val ((i0, j0), block) = dm.blocks.iterator(dm.blocks.partitions(pi), context).next()
-      assert(i0 == blockRow, j0 == blockCol)
-      
-      var k = j + 1
-      var endColIndex = startColIndex + 1
-      while (colsInNewBlock(k) == endColIndex && // contiguous slice
-        k < newBlockNCols &&
-        endColIndex < blockNCols) {
-        
-        endColIndex += 1
-        k += 1
+    var k = 0
+    split.asInstanceOf[BlockMatrixFilterRDDPartition]
+      .piRanges
+      .foreach { case (blockCol, startIndices, endIndices) =>
+        val pi = gp.coordinatesBlock(blockRow, blockCol)
+        val (_, block) = dm.blocks.iterator(dm.blocks.partitions(pi), context).next()
+        (startIndices, endIndices).zipped.foreach { case (si, ei) =>
+          k = j + ei - si
+          newBlock(::, j until k) := block(::, si until ei)
+          j = k
+        }
       }
-      
-      newBlock(::, j until k) := block(::, startColIndex until endColIndex)
-
-      j = k
-    }
     
     Iterator.single(((blockRow, newBlockCol), newBlock))
   }

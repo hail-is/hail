@@ -133,18 +133,6 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     true
   }
 
-  def sortedAreDistinct(): Boolean = {
-    if (i.nonEmpty) {
-      var last = i.head
-      for (x <- i.tail)
-        if (x == last)
-          return false
-        else
-          last = x
-    }
-    true
-  }
-  
   def duplicates(): Set[T] = {
     val dups = mutable.HashSet[T]()
     val seen = mutable.HashSet[T]()

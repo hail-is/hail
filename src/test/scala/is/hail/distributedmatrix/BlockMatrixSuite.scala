@@ -608,13 +608,14 @@ class BlockMatrixSuite extends SparkSuite {
         Array(0),
         Array(1),
         Array(9),
-        Array(0, 1, 4, 5),
-        Array(4, 5, 6, 7, 8),
+        Array(1, 4, 5, 7, 8, 9),
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
       } {
+        println()
+        println(blockSize, keep.toIndexedSeq)
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toLocalMatrix()
         val filteredViaBreeze = lm(::, keep.toIndexedSeq).copy
-  
+        
         assert(filteredViaBlock === filteredViaBreeze)
       }
     }
