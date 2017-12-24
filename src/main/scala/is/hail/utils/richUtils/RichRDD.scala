@@ -69,7 +69,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
       val headerExt = hConf.getCodec(filename)
-      hConf.writeTextFile(parallelOutputPath + "/header" + headerExt)(out => out.write(header.getOrElse("")))
+      hConf.writeTextFile(parallelOutputPath + "/header" + headerExt) { out =>
+        header.foreach { h =>
+          out.write(h)
+          out.write('\n')
+        }
+      }
     }
 
     if (!hConf.exists(parallelOutputPath + "/_SUCCESS"))
