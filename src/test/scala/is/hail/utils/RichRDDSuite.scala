@@ -85,5 +85,14 @@ class RichRDDSuite extends SparkSuite {
     assert(read(separateHeader + "/header.gz") sameElements Array(header))
     assert(read(separateHeader + "/part-00000.gz") sameElements Array(data(0)))
     assert(read(separateHeader + "/part-00001.gz") sameElements Array(data(1)))
+
+
+    val merged = tmpDir.createTempFile("merged", ".gz")
+    val mergeList = Array(separateHeader + "/header.gz",
+      separateHeader + "/part-00000.gz",
+      separateHeader + "/part-00001.gz").flatMap(hadoopConf.glob)
+    hadoopConf.copyMergeList(mergeList, merged, deleteSource = false)
+
+    assert(read(merged) sameElements read(concatenated))
   }
 }
