@@ -1,11 +1,39 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
-import hail.expr.functions as f
-
 from hail.expr.expression import *
 from hail.utils import wrap_to_list
 
 table_type = lazy()
+
+
+class Ascending(object):
+    def __init__(self, col):
+        self.col = col
+
+    def _j_obj(self):
+        return scala_package_object(Env.hail().table).asc(self.col)
+
+
+class Descending(object):
+    def __init__(self, col):
+        self.col = col
+
+    def _j_obj(self):
+        return scala_package_object(Env.hail().table).desc(self.col)
+
+
+@typecheck(col=oneof(Expression, strlike))
+def asc(col):
+    """Sort by `col` ascending."""
+
+    return Ascending(col)
+
+
+@typecheck(col=oneof(Expression, strlike))
+def desc(col):
+    """Sort by `col` descending."""
+
+    return Descending(col)
 
 
 class TableTemplate(HistoryMixin):
@@ -1706,5 +1734,70 @@ class Table(TableTemplate):
         """
 
         return Table(self._hc, self._jkt.flatten())
+
+    @handle_py4j
+    @typecheck_method(exprs=tupleof(oneof(strlike, Expression, Ascending, Descending)))
+    def order_by(self, *exprs):
+        """Sort by the specified columns.
+
+        Examples
+        --------
+        Four equivalent ways to order the table by field `HT`, ascending:
+
+        >>> sorted_table = table1.order_by(table1.HT)
+
+        >>> sorted_table = table1.order_by('HT')
+
+        >>> sorted_table = table1.order_by(asc(table1.HT))
+
+        >>> sorted_table = table1.order_by(asc('HT'))
+
+        Notes
+        -----
+        Missing values are sorted after non-missing values. When multiple
+        fields are passed, the table will be sorted first by the first
+        argument, then the second, etc.
+
+        Parameters
+        ----------
+        exprs : varargs of :class:`Ascending` or :class:`Descending` or :class:`hail.expr.expression.Expression` or :obj:`str`
+            Fields to sort by.
+
+        Returns
+        -------
+        :class:`Table`
+            Table sorted by the given fields.
+        """
+        sort_cols = []
+        fields_rev = {v: k for k, v in self._fields.items()}
+        for e in exprs:
+            if isinstance(e, str) or isinstance(e, unicode):
+                expr = self[e]
+                if not expr._indices == self._row_indices:
+                    raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
+                sort_cols.append(asc(e)._j_obj())
+            elif isinstance(e, Expression):
+                if not e in fields_rev:
+                    raise ValueError("Expect top-level field, found a complex expression")
+                if not e._indices == self._row_indices:
+                    raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
+                sort_cols.append(asc(fields_rev[e])._j_obj())
+            else:
+                assert isinstance(e, Ascending) or isinstance(e, Descending)
+                if isinstance(e.col, str) or isinstance(e.col, unicode):
+                    expr = self[e.col]
+                    if not expr._indices == self._row_indices:
+                        raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
+                    sort_cols.append(e._j_obj())
+                else:
+                    if not e.col in fields_rev:
+                        raise ValueError("Expect top-level field, found a complex expression")
+                    if not e.col._indices == self._row_indices:
+                        raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
+                    e.col = fields_rev[e.col]
+                    sort_cols.append(e._j_obj())
+        return Table(self._hc,
+                     self._jkt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
+
 
 table_type.set(Table)
