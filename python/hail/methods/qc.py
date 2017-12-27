@@ -1,9 +1,11 @@
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j
 from hail.api2 import MatrixTable
+from .misc import require_biallelic
 
 
 @handle_py4j
+@require_biallelic
 @typecheck(dataset=MatrixTable, name=strlike)
 def sample_qc(dataset, name='sample_qc'):
     """Compute per-sample metrics useful for quality control.
@@ -73,12 +75,97 @@ def sample_qc(dataset, name='sample_qc'):
     | ``gqStDev``            | Float64 | Genotype quality standard deviation across all calls     |
     +------------------------+---------+----------------------------------------------------------+
 
-    The empirical standard deviation is computed with zero degrees of freedom.
+    Missing values ``NA`` may result from division by zero. The empirical
+    standard deviation is computed with zero degrees of freedom.
 
-    :param str name: Field name for the computed struct.
+    Parameters
+    ----------
+    dataset : :class:`MatrixTable`
+        Dataset.
+    name : :obj:`str`
+        Name for resulting field.
 
-    :return: Annotated matrix table.
-    :rtype: :class:`.MatrixTable`
+    Returns
+    -------
+    :class:`MatrixTable`
+        Dataset with a new column-indexed field `name`.
     """
 
     return MatrixTable(Env.hail().methods.SampleQC.apply(dataset._jvds, 'sa.`{}`'.format(name)))
+
+@handle_py4j
+@require_biallelic
+@typecheck(dataset=MatrixTable, name=strlike)
+def variant_qc(dataset, name='variant_qc'):
+    """Compute common variant statistics (quality control metrics).
+
+    .. include:: ../_templates/req_biallelic.rst
+    .. include:: ../_templates/req_tvariant.rst
+
+    Examples
+    --------
+
+    >>> dataset_result = methods.variant_qc(dataset)
+
+    Notes
+    -----
+    This method computes 18 variant statistics from the genotype data,
+    returning a new struct field `name` with the following metrics:
+
+    +---------------------------+---------+--------------------------------------------------------+
+    | Name                      | Type    | Description                                            |
+    +===========================+=========+========================================================+
+    | ``callRate``              | Float64 | Fraction of samples with called genotypes              |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``AF``                    | Float64 | Calculated alternate allele frequency (q)              |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``AC``                    | Int32   | Count of alternate alleles                             |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``rHeterozygosity``       | Float64 | Proportion of heterozygotes                            |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``rHetHomVar``            | Float64 | Ratio of heterozygotes to homozygous alternates        |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``rExpectedHetFrequency`` | Float64 | Expected rHeterozygosity based on HWE                  |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``pHWE``                  | Float64 | p-value from Hardy Weinberg Equilibrium null model     |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``nHomRef``               | Int32   | Number of homozygous reference samples                 |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``nHet``                  | Int32   | Number of heterozygous samples                         |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``nHomVar``               | Int32   | Number of homozygous alternate samples                 |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``nCalled``               | Int32   | Sum of ``nHomRef``, ``nHet``, and ``nHomVar``          |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``nNotCalled``            | Int32   | Number of uncalled samples                             |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``nNonRef``               | Int32   | Sum of ``nHet`` and ``nHomVar``                        |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``rHetHomVar``            | Float64 | Het/HomVar ratio across all samples                    |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``dpMean``                | Float64 | Depth mean across all samples                          |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``dpStDev``               | Float64 | Depth standard deviation across all samples            |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``gqMean``                | Float64 | The average genotype quality across all samples        |
+    +---------------------------+---------+--------------------------------------------------------+
+    | ``gqStDev``               | Float64 | Genotype quality standard deviation across all samples |
+    +---------------------------+---------+--------------------------------------------------------+
+
+    Missing values ``NA`` may result from division by zero. The empirical
+    standard deviation is computed with zero degrees of freedom.
+
+    Parameters
+    ----------
+    dataset : :class:`MatrixTable`
+        Dataset.
+    name : :obj:`str`
+        Name for resulting field.
+
+    Returns
+    -------
+    :class:`MatrixTable`
+        Dataset with a new row-indexed field `name`.
+    """
+
+    return MatrixTable(Env.hail().methods.VariantQC.apply(dataset._jvds, name))
