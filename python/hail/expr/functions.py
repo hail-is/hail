@@ -123,8 +123,7 @@ def broadcast(x):
     return construct_expr(GlobalJoinReference(uid), expr._type, joins=(Join(joiner, [uid]),))
 
 
-@typecheck(predicate=expr_bool, then_case=anytype, else_case=anytype)
-@args_to_expr
+@typecheck(predicate=expr_bool, then_case=expr_any, else_case=expr_any)
 def cond(predicate, then_case, else_case):
     """Expression for an if/else statement; tests a predicate and returns one of two options based on the result.
 
@@ -233,7 +232,6 @@ def bind(expr, f):
     return construct_expr(ast, lambda_result._type, indices, aggregations, joins)
 
 
-@args_to_expr
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
 def chisq(c1, c2, c3, c4):
     """Calculates p-value (Chi-square approximation) and odds ratio for a 2x2 table.
@@ -270,7 +268,6 @@ def chisq(c1, c2, c3, c4):
     return _func("chisq", ret_type, c1, c2, c3, c4)
 
 
-@args_to_expr
 @typecheck(left=expr_variant, right=expr_variant)
 def combine_variants(left, right):
     """Combines the alleles of two variants at the same locus to form a new variant.
@@ -301,7 +298,6 @@ def combine_variants(left, right):
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32, min_cell_count=expr_int32)
-@args_to_expr
 def ctt(c1, c2, c3, c4, min_cell_count):
     """Calculates p-value and odds ratio for 2x2 table.
 
@@ -345,7 +341,6 @@ def ctt(c1, c2, c3, c4, min_cell_count):
 
 
 @typecheck(keys=expr_list, values=expr_list)
-@args_to_expr
 def Dict(keys, values):
     """Creates a dictionary from a list of keys and a list of values.
 
@@ -380,7 +375,6 @@ def Dict(keys, values):
 
 
 @typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
-@args_to_expr
 def dpois(x, lamb, log_p=False):
     """Compute the (log) probability density at x of a Poisson distribution with rate parameter `lamb`.
 
@@ -408,7 +402,7 @@ def dpois(x, lamb, log_p=False):
     return _func("dpois", TFloat64(), x, lamb, log_p)
 
 
-@typecheck(s=oneof(Struct, StructExpression), identifiers=tupleof(expr_str))
+@typecheck(s=oneof(Struct, StructExpression), identifiers=strlike)
 def drop(s, *identifiers):
     s = to_expr(s)
     ret_type = s._type._drop(*identifiers)
@@ -417,7 +411,6 @@ def drop(s, *identifiers):
 
 
 @typecheck(x=expr_numeric)
-@args_to_expr
 def exp(x):
     """Computes `e` raised to the power `x`.
 
@@ -440,7 +433,6 @@ def exp(x):
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-@args_to_expr
 def fisher_exact_test(c1, c2, c3, c4):
     """Calculates the p-value, odds ratio, and 95% confidence interval with Fisher's exact test for a 2x2 table.
 
@@ -485,7 +477,6 @@ def fisher_exact_test(c1, c2, c3, c4):
 
 
 @typecheck(j=expr_int32, k=expr_int32)
-@args_to_expr
 def gt_index(j, k):
     """Convert from `j`/`k` pair to call index (the triangular number).
 
@@ -519,7 +510,6 @@ def gt_index(j, k):
 
 
 @typecheck(num_hom_ref=expr_int32, num_het=expr_int32, num_hom_var=expr_int32)
-@args_to_expr
 def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
     """Compute Hardy-Weinberg Equilbrium p-value and heterozygosity ratio.
 
@@ -795,8 +785,7 @@ def parse_variant(s, reference_genome=None):
     return construct_expr(ApplyMethod('Variant({})'.format(reference_genome.name), s._ast),
                           TVariant(reference_genome), s._indices, s._aggregations, s._joins)
 
-
-@args_to_expr
+@typecheck(i=expr_int32)
 def call(i):
     """Construct a call expression from an integer or integer expression.
 
@@ -825,8 +814,7 @@ def call(i):
     return CallExpression(ApplyMethod('Call', i._ast), TCall(), i._indices, i._aggregations, i._joins)
 
 
-@args_to_expr
-@typecheck(expression=anytype)
+@typecheck(expression=expr_any)
 def is_defined(expression):
     """Returns ``True`` if the argument is not missing.
 
@@ -856,8 +844,7 @@ def is_defined(expression):
     return _func("isDefined", TBoolean(), expression)
 
 
-@args_to_expr
-@typecheck(expression=anytype)
+@typecheck(expression=expr_any)
 def is_missing(expression):
     """Returns ``True`` if the argument is missing.
 
@@ -887,7 +874,6 @@ def is_missing(expression):
     return _func("isMissing", TBoolean(), expression)
 
 
-@args_to_expr
 @typecheck(x=expr_numeric)
 def is_nan(x):
     """Returns ``True`` if the argument is ``NaN`` (not a number).
@@ -924,8 +910,7 @@ def is_nan(x):
     return _func("isnan", TBoolean(), x)
 
 
-@args_to_expr
-@typecheck(x=anytype)
+@typecheck(x=expr_any)
 def json(x):
     """Convert an expression to a JSON string expression.
 
@@ -989,7 +974,6 @@ def log(x, base=None):
         return _func("log", TFloat64(), x)
 
 
-@args_to_expr
 @typecheck(x=expr_numeric)
 def log10(x):
     """Take the logarithm of the `x` with base 10.
@@ -1015,7 +999,6 @@ def log10(x):
     return _func("log10", TFloat64(), x)
 
 
-@args_to_expr
 @typecheck(b=expr_bool)
 def logical_not(b):
     """Negates a boolean.
@@ -1049,15 +1032,13 @@ def logical_not(b):
     return _func("!", TBoolean(), b)
 
 
-@typecheck(s1=StructExpression, s2=StructExpression)
-@args_to_expr
+@typecheck(s1=expr_struct, s2=expr_struct)
 def merge(s1, s2):
     ret_type = s1._type._merge(s2._type)
     return _func("merge", ret_type, s1, s2)
 
 
-@typecheck(a=anytype, b=anytype)
-@args_to_expr
+@typecheck(a=expr_any, b=expr_any)
 def or_else(a, b):
     """If `a` is missing, return `b`.
 
@@ -1085,8 +1066,7 @@ def or_else(a, b):
     return _func("orElse", a._type, a, b)
 
 
-@args_to_expr
-@typecheck(predicate=expr_bool, value=anytype)
+@typecheck(predicate=expr_bool, value=expr_any)
 def or_missing(predicate, value):
     """Returns `value` if `predicate` is ``True``, otherwise returns missing.
 
@@ -1115,7 +1095,6 @@ def or_missing(predicate, value):
 
 @typecheck(x=expr_int32, n=expr_int32, p=expr_numeric,
            alternative=enumeration("two.sided", "greater", "less"))
-@args_to_expr
 def binom_test(x, n, p, alternative):
     """Performs a binomial test on `p` given `x` successes in `n` trials.
 
@@ -1155,7 +1134,6 @@ def binom_test(x, n, p, alternative):
     return _func("binomTest", TFloat64(), x, n, p, alternative)
 
 @typecheck(x=expr_numeric, df=expr_numeric)
-@args_to_expr
 def pchisqtail(x, df):
     """Returns the probability under the right-tail starting at x for a chi-squared
     distribution with df degrees of freedom.
@@ -1181,7 +1159,6 @@ def pchisqtail(x, df):
 
 
 @typecheck(x=expr_numeric)
-@args_to_expr
 def pnorm(x):
     """The cumulative probability function of a standard normal distribution.
 
@@ -1214,7 +1191,6 @@ def pnorm(x):
 
 
 @typecheck(x=expr_numeric, lamb=expr_numeric, lower_tail=expr_bool, log_p=expr_bool)
-@args_to_expr
 def ppois(x, lamb, lower_tail=True, log_p=False):
     """The cumulative probability function of a Poisson distribution.
 
@@ -1250,7 +1226,6 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
 
 
 @typecheck(p=expr_numeric, df=expr_numeric)
-@args_to_expr
 def qchisqtail(p, df):
     """Inverts :py:meth:`hail.expr.functions.pchisqtail`.
 
@@ -1281,7 +1256,6 @@ def qchisqtail(p, df):
 
 
 @typecheck(p=expr_numeric)
-@args_to_expr
 def qnorm(p):
     """Inverts :py:meth:`hail.expr.functions.pnorm`.
 
@@ -1310,7 +1284,6 @@ def qnorm(p):
 
 
 @typecheck(p=expr_numeric, lamb=expr_numeric, lower_tail=expr_bool, log_p=expr_bool)
-@args_to_expr
 def qpois(p, lamb, lower_tail=True, log_p=False):
     """Inverts :py:meth:`hail.expr.functions.ppois`.
 
@@ -1344,7 +1317,6 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
 
 
 @typecheck(start=expr_int32, stop=expr_int32, step=expr_int32)
-@args_to_expr
 def range(start, stop, step=1):
     """Returns an array of integers from `start` to `stop` by `step`.
 
@@ -1379,7 +1351,6 @@ def range(start, stop, step=1):
 
 
 @typecheck(p=expr_numeric)
-@args_to_expr
 def rand_bool(p):
     """Returns ``True`` with probability `p` (RNG).
 
@@ -1411,7 +1382,6 @@ def rand_bool(p):
 
 
 @typecheck(mean=expr_numeric, sd=expr_numeric)
-@args_to_expr
 def rand_norm(mean=0, sd=1):
     """Samples from a normal distribution with mean `mean` and standard deviation `sd` (RNG).
 
@@ -1445,7 +1415,6 @@ def rand_norm(mean=0, sd=1):
     return _func("rnorm", TFloat64(), mean, sd)
 
 
-@args_to_expr
 @typecheck(lamb=expr_numeric)
 def rand_pois(lamb):
     """Samples from a Poisson distribution with rate parameter `lamb` (RNG).
@@ -1478,7 +1447,6 @@ def rand_pois(lamb):
     return _func("rpois", TFloat64(), lamb)
 
 
-@args_to_expr
 @typecheck(min=expr_numeric, max=expr_numeric)
 def rand_unif(min, max):
     """Returns a random floating-point number uniformly drawn from the interval [`min`, `max`].
@@ -1513,7 +1481,7 @@ def rand_unif(min, max):
     return _func("runif", TFloat64(), min, max)
 
 
-@typecheck(s=oneof(Struct, StructExpression), identifiers=tupleof(expr_str))
+@typecheck(s=oneof(Struct, StructExpression), identifiers=strlike)
 def select(s, *identifiers):
     s = to_expr(s)
     ret_type = s._type._select(*identifiers)
@@ -1521,7 +1489,6 @@ def select(s, *identifiers):
 
 
 @typecheck(x=expr_numeric)
-@args_to_expr
 def sqrt(x):
     """Returns the square root of `x`.
 
@@ -1548,8 +1515,7 @@ def sqrt(x):
     return _func("sqrt", TFloat64(), x)
 
 
-@typecheck(x=anytype)
-@args_to_expr
+@typecheck(x=expr_any)
 def to_str(x):
     """Returns the string representation of `x`.
 

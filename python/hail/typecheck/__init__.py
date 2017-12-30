@@ -16,4 +16,6 @@ __all__ = ['typecheck',
            'numeric',
            'char',
            'lazy',
-           'enumeration']
+           'enumeration',
+           'identity',
+           'transformed']

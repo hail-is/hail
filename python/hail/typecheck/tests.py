@@ -34,7 +34,7 @@ class ContextTests(unittest.TestCase):
 
         f()
 
-        @typecheck(x=int, y=int, args=tupleof(int))
+        @typecheck(x=int, y=int, args=int)
         def good_signature_1(x, y, *args):
             pass
 
@@ -45,7 +45,7 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: good_signature_1(1, 2, 3, '4'))
         self.assertRaises(TypeError, lambda: good_signature_1(1, 2, '4'))
 
-        @typecheck(x=int, y=int, kwargs=dictof(strlike, int))
+        @typecheck(x=int, y=int, kwargs=int)
         def good_signature_2(x, y, **kwargs):
             pass
 
@@ -56,7 +56,7 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: good_signature_2(1, 2, a='2'))
         self.assertRaises(TypeError, lambda: good_signature_2(1, 2, a='2', b=5, c=10))
 
-        @typecheck(x=int, y=int, args=tupleof(int), kwargs=dictof(strlike, int))
+        @typecheck(x=int, y=int, args=int, kwargs=int)
         def good_signature_3(x, y, *args, **kwargs):
             pass
 
@@ -69,7 +69,7 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: good_signature_3(1, 2, '3', b=5, c=10))
         self.assertRaises(TypeError, lambda: good_signature_3(1, 2, '3', b='5', c=10))
 
-        @typecheck(x=int, y=int, args=tupleof(int), kwargs=dictof(strlike, oneof(listof(int), strlike)))
+        @typecheck(x=int, y=int, args=int, kwargs=oneof(listof(int), strlike))
         def good_signature_4(x, y, *args, **kwargs):
             pass
 
@@ -92,7 +92,7 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: good_signature_5(("1", 5, 10), ("2", 10, 20)))
 
         @typecheck(x=integral, y=strlike, z=listof(sized_tupleof(strlike, integral, int)),
-                   args=tupleof(int))
+                   args=int)
         def good_signature_6(x, y, z, *args):
             pass
 
@@ -180,7 +180,7 @@ class ContextTests(unittest.TestCase):
             def c(self, x, y):
                 pass
 
-            @typecheck_method(x=int, y=int, args=tupleof(str), kwargs=dictof(str, int))
+            @typecheck_method(x=int, y=int, args=str, kwargs=int)
             def d(self, x, y, *args, **kwargs):
                 pass
 
@@ -225,3 +225,24 @@ class ContextTests(unittest.TestCase):
         foo.bar(foo2)
 
         self.assertRaises(TypeError, lambda: foo.bar(2))
+
+    def test_coercion(self):
+
+        @typecheck(a=transformed({integral: lambda x: 'int', strlike: lambda x: 'str'}),
+                   b=listof(dictof(strlike, transformed({integral: lambda x: 'int', strlike: lambda x: 'str'}))))
+        def foo(a, b):
+            return a, b
+
+        self.assertRaises(TypeError, lambda: foo(5.5, [{'5': 5}]))
+        self.assertRaises(TypeError, lambda: foo(5, [{'5': 5.5}]))
+
+        a, b = foo(5, [])
+        self.assertEqual(a, 'int')
+
+        a, b = foo('5', [])
+        self.assertEqual(a, 'str')
+
+        a, b = foo(5, [{'5': 5, '6': '6'}, {'10': 10}])
+        self.assertEqual(a, 'int')
+        self.assertEqual(b, [{'5': 'int', '6': 'str'}, {'10': 'int'}])
+

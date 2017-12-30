@@ -4,7 +4,7 @@ asttype = lazy()
 
 
 class AST(object):
-    @typecheck_method(children=tupleof(asttype))
+    @typecheck_method(children=asttype)
     def __init__(self, *children):
         self.children = children
 
@@ -78,7 +78,7 @@ class Select(AST):
 
 
 class ApplyMethod(AST):
-    @typecheck_method(method=strlike, args=tupleof(AST))
+    @typecheck_method(method=strlike, args=AST)
     def __init__(self, method, *args):
         self.method = method
         self.args = args
@@ -89,7 +89,7 @@ class ApplyMethod(AST):
 
 
 class ClassMethod(AST):
-    @typecheck_method(method=strlike, callee=AST, args=tupleof(AST))
+    @typecheck_method(method=strlike, callee=AST, args=AST)
     def __init__(self, method, callee, *args):
         self.method = method
         self.callee = callee
@@ -101,7 +101,7 @@ class ClassMethod(AST):
 
 
 class LambdaClassMethod(AST):
-    @typecheck_method(method=strlike, lambda_var=strlike, callee=AST, rhs=AST, args=tupleof(AST))
+    @typecheck_method(method=strlike, lambda_var=strlike, callee=AST, rhs=AST, args=AST)
     def __init__(self, method, lambda_var, callee, rhs, *args):
         self.method = method
         self.lambda_var = lambda_var
@@ -161,7 +161,7 @@ class StructDeclaration(AST):
 
 
 class StructOp(AST):
-    @typecheck_method(operation=strlike, parent=AST, keys=tupleof(strlike))
+    @typecheck_method(operation=strlike, parent=AST, keys=strlike)
     def __init__(self, operation, parent, *keys):
         self.operation = operation
         self.parent = parent
