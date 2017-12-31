@@ -1329,7 +1329,7 @@ class StringExpression(AtomicExpression):
 
         .. doctest::
 
-            >>> eval_expr(string.matches(r'NA\\d+'))
+            >>> eval_expr(string.matches(r'NA\\\\d+'))
             True
 
         Notes
