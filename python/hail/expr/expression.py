@@ -1309,6 +1309,49 @@ class StringExpression(AtomicExpression):
         else:
             return self._method("split", TArray(TString()), delim, n)
 
+    @typecheck_method(regex=strlike)
+    def matches(self, regex):
+        """Returns ``True`` if the string contains any match for the given regex.
+
+        Examples
+        --------
+
+        >>> string = functions.capture('NA12878')
+
+        The `regex` parameter does not need to match the entire string:
+
+        .. doctest::
+
+            >>> eval_expr(string.matches('12'))
+            True
+
+        Regex motifs can be used to match sequences of characters:
+
+        .. doctest::
+
+            >>> eval_expr(string.matches(r'NA\\d+'))
+            True
+
+        Notes
+        -----
+        The `regex` argument is a
+        `regular expression <https://en.wikipedia.org/wiki/Regular_expression>__`,
+        and uses
+        `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__.
+
+        Parameters
+        ----------
+        regex: :obj:`str`
+            Pattern to match.
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if the string contains any match for the regex, otherwise ``False``.
+        """
+        return construct_expr(RegexMatch(self._ast, regex), TBoolean(),
+                              self._indices, self._aggregations, self._joins)
+
 
 class CallExpression(Expression):
     """Expression of type :class:`hail.expr.types.TCall`."""
