@@ -116,6 +116,13 @@ vds.split_multi_hts().ld_matrix().write("data/ld_matrix")
 from hail2 import *
 table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID').to_hail2()
 table1 = table1.annotate_globals(global_field_1 = 5, global_field_2 = 10)
+
+dataset = (vds.annotate_samples_expr('sa = merge(drop(sa, qc), {sample_qc: sa.qc})')
+              .annotate_variants_expr('va = merge(drop(va, qc), {variant_qc: va.qc})').to_hail2())
+
+dataset = dataset.annotate_rows(gene=['TTN'])
+dataset = dataset.annotate_cols(cohorts=['1kg'], pop='EAS')
+
 """
 
 doctest_global_cleanup = """import shutil, os

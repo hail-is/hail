@@ -978,6 +978,12 @@ class DictExpression(Expression):
 
 
 class Aggregable(object):
+    """Expression that can only be aggregated.
+
+    An :class:`Aggregable` is produced by the :meth:`explode` or :meth:`filter`
+    methods. These objects can be aggregated using aggregator functions, but
+    cannot otherwise be used in expressions.
+    """
     def __init__(self, ast, type, indices, aggregations, joins):
         self._ast = ast
         self._type = type
