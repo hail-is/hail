@@ -103,6 +103,8 @@ trait Py4jUtils {
   def joinGlobals(left: MatrixTable, right: MatrixTable, identifier: String): MatrixTable = {
     left.annotateGlobal(right.globalAnnotation, right.globalSignature, "global." + identifier)
   }
+
+  def escapeString(s: String): String = StringEscapeUtils.escapeString(s)
 }
 
 class HadoopPyReader(in: InputStream) {

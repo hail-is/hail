@@ -72,7 +72,7 @@ def to_expr(e):
     if isinstance(e, Expression):
         return e
     elif isinstance(e, str) or isinstance(e, unicode):
-        return construct_expr(Literal('"{}"'.format(e)), TString())
+        return construct_expr(Literal('"{}"'.format(Env.jutils().escapeString(e))), TString())
     elif isinstance(e, bool):
         return construct_expr(Literal("true" if e else "false"), TBoolean())
     elif isinstance(e, int):
