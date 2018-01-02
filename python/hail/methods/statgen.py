@@ -143,10 +143,6 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     Examples
     --------
 
-    .. testsetup::
-
-        import hail.methods as methods
-
     >>> eigenvalues, scores, loadings = methods.hwe_normalized_pca(dataset, k=15)
 
     Notes
@@ -205,14 +201,11 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
     Examples
     --------
-    .. testsetup::
 
-        import hail.methods as methods
-
-    Compute the top 3 principal component scores and eigenvalues of the call missingness matrix.
+    Compute the top 2 principal component scores and eigenvalues of the call missingness matrix.
 
     >>> eigenvalues, scores, _ = methods.pca(functions.is_defined(dataset.GT).to_int32(),
-    ...                                      k=3)
+    ...                                      k=2)
 
     Notes
     -----
