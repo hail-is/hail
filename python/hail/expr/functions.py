@@ -172,6 +172,66 @@ def cond(predicate, then_case, else_case):
     return construct_expr(Condition(predicate._ast, then_case._ast, else_case._ast),
                           then_case._type, indices, aggregations, joins)
 
+def bind(expr, f):
+    """Bind a temporary variable and use it in a function.
+
+    Examples
+    --------
+    Expressions are "inlined", leading to perhaps unexpected behavior
+    when randomness is involved. For example, let us define a variable
+    `x` from the :meth:`rand_unif` method:
+
+    >>> x = functions.rand_unif(0, 1)
+
+    Note that evaluating `x` multiple times returns different results.
+    The value of evaluating `x` is unknown when the expression is defined.
+
+    .. doctest::
+
+        >>> eval_expr(x)
+        0.3189309481038456
+
+        >>> eval_expr(x)
+        0.20842918568366375
+
+    What if we evaluate `x` multiple times in the same invocation of
+    :meth:`hail.expr.eval_expr`?
+
+    .. doctest::
+
+        >>> eval_expr([x, x, x])
+        [0.49582541026815163, 0.8549329234134524, 0.7016124997911775]
+
+    The random number generator is called separately for each inclusion
+    of `x`. This method, `bind`, is the solution to this problem!
+
+    .. doctest::
+
+        >>> eval_expr(functions.bind(x, lambda y: [y, y, y]))
+        [0.7897028763765286, 0.7897028763765286, 0.7897028763765286]
+
+    Parameters
+    ----------
+    expr : :class:`Expression`
+        Expression to bind.
+    f : callable
+        Function of `expr`.
+
+    Returns
+    -------
+    :class:`Expression`
+        Result of evaluating `f` with `expr` as an argument.
+    """
+    uid = Env._get_uid()
+    expr = to_expr(expr)
+
+    f_input = construct_expr(Reference(uid), expr._type, expr._indices, expr._aggregations, expr._joins)
+    lambda_result = to_expr(f(f_input))
+
+    indices, aggregations, joins = unify_all(expr, lambda_result)
+    ast = Bind(uid, expr._ast, lambda_result._ast)
+    return construct_expr(ast, lambda_result._type, indices, aggregations, joins)
+
 
 @args_to_expr
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)

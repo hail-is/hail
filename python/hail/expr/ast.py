@@ -199,6 +199,21 @@ class Slice(AST):
         return "{start}:{end}".format(start=self.start.to_hql() if self.start else '',
                                       end=self.stop.to_hql() if self.stop else '')
 
+class Bind(AST):
+    @typecheck_method(uid=strlike, definition=AST, expression=AST)
+    def __init__(self, uid, definition, expression):
+        self.uid = uid
+        self.definition = definition
+        self.expression = expression
+        super(Bind, self).__init__(definition, expression)
+
+    def to_hql(self):
+        return "let {uid} = {left_expr} in {right_expr}".format(
+            uid=self.uid,
+            left_expr=self.definition.to_hql(),
+            right_expr=self.expression.to_hql()
+        )
+
 class AggregableReference(AST):
     def __init__(self):
         self.is_set = False
