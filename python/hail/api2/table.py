@@ -1795,8 +1795,7 @@ class Table(TableTemplate):
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
                     e.col = fields_rev[e.col]
                     sort_cols.append(e._j_obj())
-        return Table(self._hc,
-                     self._jkt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
+        return Table(self._jt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
 
 
 table_type.set(Table)
