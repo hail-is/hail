@@ -241,7 +241,7 @@ def bind(expr, f):
     lambda_result = to_expr(f(f_input))
 
     indices, aggregations, joins = unify_all(expr, lambda_result)
-    ast = Let(uid, expr._ast, lambda_result._ast)
+    ast = Bind(uid, expr._ast, lambda_result._ast)
     return construct_expr(ast, lambda_result._type, indices, aggregations, joins)
 
 

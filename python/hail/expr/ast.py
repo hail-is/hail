@@ -199,13 +199,13 @@ class Slice(AST):
         return "{start}:{end}".format(start=self.start.to_hql() if self.start else '',
                                       end=self.stop.to_hql() if self.stop else '')
 
-class Let(AST):
+class Bind(AST):
     @typecheck_method(uid=strlike, definition=AST, expression=AST)
     def __init__(self, uid, definition, expression):
         self.uid = uid
         self.definition = definition
         self.expression = expression
-        super(Let, self).__init__(definition, expression)
+        super(Bind, self).__init__(definition, expression)
 
     def to_hql(self):
         return "let {uid} = {left_expr} in {right_expr}".format(
