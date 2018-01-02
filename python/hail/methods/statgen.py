@@ -187,8 +187,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
                                 (dataset.GT.num_alt_alleles() - mean_gt) /
                                 functions.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
                                 0)
-    result = pca(dataset,
-                 entry_expr,
+    result = pca(entry_expr,
                  k,
                  compute_loadings,
                  as_array)
@@ -311,12 +310,17 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     """
     source = entry_expr._indices.source
     if not isinstance(source, MatrixTable):
-        raise ValueError("Expect an expression with fields of 'MatrixTable', found {}".format(
-            "fields of '{}'".format(source.__class__) if source is not None else 'scalar fields'))
+        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
+            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
     dataset = source
     base, _ = dataset._process_joins(entry_expr)
     analyze(entry_expr, dataset._entry_indices, set(), set(dataset._fields.keys()))
 
-    r = base._jvds.pca(to_expr(entry_expr)._ast.to_hql(), k, compute_loadings, as_array)
-    jloadings = from_option(r._3())
-    return jiterable_to_list(r._1()), Table(Env.hc(), r._2()), None if not jloadings else Table(Env.hc(), jloadings)
+    r = Env.hail().methods.PCA.apply(dataset._jvds, to_expr(entry_expr)._ast.to_hql(), k, compute_loadings, as_array)
+    scores = Table(
+        Env.hc(),
+        Env.hail().methods.PCA.scoresTable(dataset._jvds, as_array, r._2()))
+    loadings = from_option(r._3())
+    if loadings:
+        loadings = Table(Env.hc(), loadings)
+    return (jiterable_to_list(r._1()), scores, loadings)
