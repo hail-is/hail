@@ -171,8 +171,8 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
         List of eigenvalues, table with column scores, table with row loadings.
     """
 
-    dataset = dataset.annotate_rows(AC = agg.sum(dataset.GT.num_alt_alleles()),
-                                    n_called = agg.count_where(functions.is_defined(dataset.GT)))
+    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
+                                    n_called=agg.count_where(functions.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
 
     n_variants = dataset.count_rows()
@@ -197,11 +197,11 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
 
 @handle_py4j
-@typecheck_method(entry_expr=Expression,
-                  k=integral,
-                  compute_loadings=bool,
-                  as_array=bool)
-def pca(dataset, entry_expr, k=10, compute_loadings=False, as_array=False):
+@typecheck(entry_expr=Expression,
+           k=integral,
+           compute_loadings=bool,
+           as_array=bool)
+def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     """Run principal Component Analysis (PCA) on a matrix table, using `entry_expr` as the numerical entry.
 
     Examples
@@ -212,8 +212,7 @@ def pca(dataset, entry_expr, k=10, compute_loadings=False, as_array=False):
 
     Compute the top 3 principal component scores and eigenvalues of the call missingness matrix.
 
-    >>> eigenvalues, scores, _ = methods.pca(dataset,
-    ...                                      functions.is_defined(dataset.GT).to_int32(),
+    >>> eigenvalues, scores, _ = methods.pca(functions.is_defined(dataset.GT).to_int32(),
     ...                                      k=3)
 
     Notes
@@ -310,7 +309,11 @@ def pca(dataset, entry_expr, k=10, compute_loadings=False, as_array=False):
     (:obj:`list` of :obj:`float`, :class:`Table`, :class:`Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    entry_expr = to_expr(entry_expr)
+    source = entry_expr._indices.source
+    if not isinstance(source, MatrixTable):
+        raise ValueError("Expect an expression with fields of 'MatrixTable', found {}".format(
+            "fields of '{}'".format(source.__class__) if source is not None else 'scalar fields'))
+    dataset = source
     base, _ = dataset._process_joins(entry_expr)
     analyze(entry_expr, dataset._entry_indices, set(), set(dataset._fields.keys()))
 
