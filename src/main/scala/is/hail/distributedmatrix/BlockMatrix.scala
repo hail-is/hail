@@ -575,7 +575,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       rows, cols)
   }
   
-  // keep is an array of distinct column indicies
+  // keep is an array of distinct column indices
   def filterCols(keep: Array[Long]): BlockMatrix =
     new BlockMatrix(new BlockMatrixFilterColsRDD(this, keep.sorted), blockSize, rows, keep.length)
   
@@ -591,7 +591,7 @@ private class BlockMatrixFilterColsRDD(dm: BlockMatrix, colsToKeep: Array[Long])
   
   private val gp = dm.partitioner
   private val blockSize = gp.blockSize
-  private val newGP = GridPartitioner(blockSize, gp.nRows, colsToKeep.length.toLong)
+  private val newGP = GridPartitioner(blockSize, gp.nRows, colsToKeep.length)
   
   // allBlockColRanges(newBlockCol) has elements of the form (blockCol, startIndices, endIndices) with blockCol increasing
   //   startIndices.zip(endIndices) gives all column-index ranges in blockCol to be copied to ranges in newBlockCol
@@ -665,12 +665,19 @@ private class BlockMatrixFilterColsRDD(dm: BlockMatrix, colsToKeep: Array[Long])
       .foreach { case (blockCol, startIndices, endIndices) =>
         val parentPI = gp.coordinatesBlock(blockRow, blockCol)
         val (_, block) = dm.blocks.iterator(dm.blocks.partitions(parentPI), context).next()
-        (startIndices, endIndices).zipped.foreach { case (si, ei) =>
+        var colRangeIndex = 0
+        while (colRangeIndex < startIndices.length) {
+          val si = startIndices(colRangeIndex)
+          val ei = endIndices(colRangeIndex)
           k = j + ei - si
+          
           newBlock(::, j until k) := block(::, si until ei)
+          
           j = k
+          colRangeIndex += 1
         }
       }
+    assert(j == newBlockNCols)
     
     Iterator.single(((blockRow, newBlockCol), newBlock))
   }

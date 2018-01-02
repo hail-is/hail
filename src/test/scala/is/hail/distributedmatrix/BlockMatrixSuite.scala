@@ -598,7 +598,7 @@ class BlockMatrixSuite extends SparkSuite {
   }
   
   @Test
-  def filterBlockMatrix() {
+  def filterBlockMatrixCols() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(1, 2, 3, 5, 10, 11)
@@ -621,7 +621,7 @@ class BlockMatrixSuite extends SparkSuite {
   }
   
   @Test
-  def filterBlockMatrixTranspose() {
+  def filterBlockMatrixColsTranspose() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
     val lmt = lm.t
 
