@@ -598,7 +598,7 @@ class BlockMatrixSuite extends SparkSuite {
   }
   
   @Test
-  def filterBlockMatrixCols() {
+  def filterCols() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(1, 2, 3, 5, 10, 11)
@@ -621,7 +621,7 @@ class BlockMatrixSuite extends SparkSuite {
   }
   
   @Test
-  def filterBlockMatrixColsTranspose() {
+  def filterColsTranspose() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
     val lmt = lm.t
 
@@ -642,7 +642,7 @@ class BlockMatrixSuite extends SparkSuite {
   }
   
   @Test
-  def filterBlockMatrixRows() {
+  def filterRows() {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
     
     for { blockSize <- Seq(2, 3)
@@ -655,6 +655,54 @@ class BlockMatrixSuite extends SparkSuite {
       } {
         val filteredViaBlock = bm.filterRows(keep.map(_.toLong)).toLocalMatrix()
         val filteredViaBreeze = lm(keep.toIndexedSeq, ::).copy
+        
+        assert(filteredViaBlock === filteredViaBreeze)
+      }
+    }
+  }
+  
+  @Test
+  def filterSymmetric() {
+    val lm = new BDM[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
+
+    for { blockSize <- Seq(1, 2, 3, 5, 10, 11)
+    } {
+      val bm = BlockMatrix.from(sc, lm, blockSize)      
+      for { keep <- Seq(
+        Array(0),
+        Array(1),
+        Array(9),
+        Array(0, 3, 4, 5, 7),
+        Array(1, 4, 5, 7, 8, 9),
+        Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
+      } {
+        val filteredViaBlock = bm.filter(keep.map(_.toLong), keep.map(_.toLong)).toLocalMatrix()
+        val filteredViaBreeze = lm(keep.toIndexedSeq, keep.toIndexedSeq).copy
+        
+        assert(filteredViaBlock === filteredViaBreeze)
+      }
+    }
+  }
+  
+  @Test
+  def filter() {
+    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+
+    for { blockSize <- Seq(1, 2, 3, 5, 10, 11)
+    } {
+      val bm = BlockMatrix.from(sc, lm, blockSize)      
+      for {
+        rowsToKeep <- Seq(
+          Array(1),
+          Array(0, 3, 4, 5, 7),
+          Array(0, 1, 2, 3, 4, 5, 6, 7, 8))  
+        colsToKeep <- Seq(
+          Array(2),
+          Array(1, 4, 5, 7, 8, 9),
+          Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))  
+      } {
+        val filteredViaBlock = bm.filter(rowsToKeep.map(_.toLong), colsToKeep.map(_.toLong)).toLocalMatrix()
+        val filteredViaBreeze = lm(rowsToKeep.toIndexedSeq, colsToKeep.toIndexedSeq).copy
         
         assert(filteredViaBlock === filteredViaBreeze)
       }
