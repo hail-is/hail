@@ -104,7 +104,7 @@ trait Py4jUtils {
     left.annotateGlobal(right.globalAnnotation, right.globalSignature, "global." + identifier)
   }
 
-  def escapeString(s: String): String = StringEscapeUtils.escapeString(s)
+  def escapePyString(s: String): String = StringEscapeUtils.escapeString(s)
 }
 
 class HadoopPyReader(in: InputStream) {
