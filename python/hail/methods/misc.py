@@ -4,5 +4,5 @@ from hail.utils.java import Env
 
 @decorator
 def require_biallelic(f, dataset, *args, **kwargs):
-    dataset = MatrixTable(Env.hc(), Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, f.__name__))
+    dataset = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, f.__name__))
     return f(dataset, *args, **kwargs)
