@@ -635,6 +635,13 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[List[String]], preds:
 
   val children: IndexedSeq[BaseIR] = Array(child) ++ preds
 
+  private def makeNestedStruct(path: List[String], ir: IR): IR = {
+    if (path.isEmpty)
+      ir
+    else
+      MakeStruct(Array((path.head, makeNestedStruct(path.tail, ir))))
+  }
+
   private def insertIR(path: List[String], old: IR, ir: IR): IR = {
     val ir2 = if (path.tail.isEmpty)
       ir
@@ -644,13 +651,10 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[List[String]], preds:
         case t: TStruct if t.selfField(path.head).isDefined =>
           insertIR(path.tail, GetField(old, path.head), ir)
         case _ =>
-          insertIR(path.tail, MakeStruct(Array()), ir)
+          makeNestedStruct(path.tail, ir)
       }
     }
-    old match {
-      case InsertFields(o, a, _) => InsertFields(o, a :+ (path.head, ir2))
-      case _ => InsertFields(old, Array((path.head, ir2)))
-    }
+    InsertFields(old, Array((path.head, ir2)))
   }
 
   private var newIR: IR = In(0, child.typ.rowType)
