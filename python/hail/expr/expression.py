@@ -3151,7 +3151,7 @@ class VariantExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(variant.alt_alleles())
+            >>> eval_expr(variant.alt_alleles)
             [AltAllele(ref='A', alt='C')]
 
         Returns
