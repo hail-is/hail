@@ -3,7 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
-from hail.genetics import Locus, Variant, Interval, Call
+from hail.genetics import Locus, Variant, Interval, Call, AltAllele
 
 
 class Indices(object):
@@ -87,6 +87,10 @@ def to_expr(e):
         return construct_expr(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), TLocus(e.reference_genome))
     elif isinstance(e, Interval):
         return construct_expr(ApplyMethod('Interval', Literal('"{}"'.format(str(e)))), TInterval(e.reference_genome))
+    elif isinstance(e, Call):
+        return construct_expr(ApplyMethod('Call', Literal(str(e.gt))), TCall())
+    elif isinstance(e, AltAllele):
+        return construct_expr(ApplyMethod('AltAllele', to_expr(e.ref)._ast, to_expr(e.alt)._ast), TAltAllele())
     elif isinstance(e, Struct):
         attrs = e._attrs.items()
         cols = [to_expr(x) for _, x in attrs]
@@ -305,32 +309,100 @@ class Expression(object):
         return construct_expr(ast, ret_typ_f(lambda_result._type), indices, aggregations, joins)
 
     def __eq__(self, other):
+        """Returns ``True`` if the two epressions are equal.
+
+        Examples
+        --------
+
+        .. doctest::
+
+            >>> x = functions.capture(5)
+            >>> y = functions.capture(5)
+            >>> z = functions.capture(1)
+
+            >>> eval_expr(x == y)
+            True
+
+            >>> eval_expr(x == z)
+            False
+
+        Notes
+        -----
+        This method will fail with an error if the two expressions are not
+        of comparable types.
+
+        Parameters
+        ----------
+        other : :class:`Expression`
+            Expression for equality comparison.
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if the two expressions are equal.
+        """
         return self._bin_op("==", other, TBoolean())
 
     def __ne__(self, other):
+        """Returns ``True`` if the two expressions are not equal.
+
+        Examples
+        --------
+
+        .. doctest::
+
+            >>> x = functions.capture(5)
+            >>> y = functions.capture(5)
+            >>> z = functions.capture(1)
+
+            >>> eval_expr(x != y)
+            False
+
+            >>> eval_expr(x != z)
+            True
+
+        Notes
+        -----
+        This method will fail with an error if the two expressions are not
+        of comparable types.
+
+        Parameters
+        ----------
+        other : :class:`Expression`
+            Expression for inequality comparison.
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if the two expressions are not equal.
+        """
         return self._bin_op("!=", other, TBoolean())
 
 
 class CollectionExpression(Expression):
-    """Expression of type :py:class:`hail.expr.types.TArray` or :py:class:`hail.expr.types.TSet`"""
+    """Expression of type :py:class:`hail.expr.types.TArray` or :py:class:`hail.expr.types.TSet`
 
-    def contains(self, item):
-        """Returns a boolean indicating whether `item` is found in the collection.
+    >>> a = functions.capture([1, 2, 3, 4, 5])
 
-        Parameters
-        ----------
-        item
-
-        Returns
-        -------
-        :py:class:`BooleanExpression`
-            `True` if the element is found in the collection, `False` otherwise.
-        """
-        item = to_expr(item)
-        return self.exists(lambda x: x == item)
+    >>> s = functions.capture({'Alice', 'Bob', 'Charlie'})
+    """
 
     def exists(self, f):
-        """Returns `True` if `f` returns `True` for any element.
+        """Returns ``True`` if `f` returns ``True`` for any element.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.exists(lambda x: x % 2 == 0))
+            True
+
+            >>> eval_expr(s.exists(lambda x: x[0] == 'D'))
+            False
+
+        Notes
+        -----
+        This method always returns ``False`` for empty collections.
 
         Parameters
         ----------
@@ -341,13 +413,25 @@ class CollectionExpression(Expression):
         Returns
         -------
         :py:class:`BooleanExpression`.
-            `True` if `f` returns `True` for any element, `False` otherwise.
+            ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         """
         return self._bin_lambda_method("exists", f, self._type.element_type, lambda t: TBoolean())
 
     def filter(self, f):
-        """Returns a new collection containing elements where `f` returns `True`.
+        """Returns a new collection containing elements where `f` returns ``True``.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.filter(lambda x: x % 2 == 0))
+            [2, 4]
+
+            >>> eval_expr(s.filter(lambda x: ~(x[-1] == 'e')))
+            {'Bob'}
+
+        Notes
+        -----
         Returns a same-type expression; evaluated on a :py:class`SetExpression`, returns a
         :py:class`SetExpression`. Evaluated on an :py:class`ArrayExpression`,
         returns an :py:class`ArrayExpression`.
@@ -366,7 +450,21 @@ class CollectionExpression(Expression):
         return self._bin_lambda_method("filter", f, self._type.element_type, lambda t: self._type)
 
     def find(self, f):
-        """Returns the first element where `f` returns `True`.
+        """Returns the first element where `f` returns ``True``.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.find(lambda x: x ** 2 > 20))
+            5
+
+            >>> eval_expr(s.find(lambda x: x[0] == 'D'))
+            None
+
+        Notes
+        -----
+        If `f` returns ``False`` for every element, then the result is missing.
 
         Parameters
         ----------
@@ -384,6 +482,16 @@ class CollectionExpression(Expression):
     def flatmap(self, f):
         """Map each element of the collection to a new collection, and flatten the results.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.flatmap(lambda x: functions.range(0, x)))
+            [0, 0, 1, 0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4]
+
+            >>> eval_expr(s.flatmap(lambda x: functions.range(0, x.length()).map(lambda i: x[i]).to_set()))
+            {'A', 'B', 'C', 'a', 'b', 'c', 'e', 'h', 'i', 'l', 'o', 'r'}
+
         Parameters
         ----------
         f : callable
@@ -398,7 +506,18 @@ class CollectionExpression(Expression):
         return self._bin_lambda_method("flatMap", f, self._type.element_type, lambda t: t)
 
     def forall(self, f):
-        """Returns `True` if `f` returns `True` for every element.
+        """Returns ``True`` if `f` returns ``True`` for every element.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.forall(lambda x: x < 10))
+            True
+
+        Notes
+        -----
+        This method returns ``True`` if the collection is empty.
 
         Parameters
         ----------
@@ -409,12 +528,22 @@ class CollectionExpression(Expression):
         Returns
         -------
         :py:class:`BooleanExpression`.
-            `True` if `f` returns `True` for every element, `False` otherwise.
+            ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
         """
         return self._bin_lambda_method("forall", f, self._type.element_type, lambda t: TBoolean())
 
     def group_by(self, f):
         """Group elements into a dict according to a lambda function.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.group_by(lambda x: x % 2 == 0))
+            {False: [1, 3, 5], True: [2, 4]}
+
+            >>> eval_expr(s.group_by(lambda x: x.length()))
+            {3: {'Bob'}, 5: {'Alice'}, 7: {'Charlie'}}
 
         Parameters
         ----------
@@ -425,11 +554,22 @@ class CollectionExpression(Expression):
         Returns
         -------
         :py:class:`DictExpression`.
+            Dictionary keyed by results of `f`.
         """
         return self._bin_lambda_method("groupBy", f, self._type.element_type, lambda t: TDict(t, self._type))
 
     def map(self, f):
         """Transform each element of a collection.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.map(lambda x: x ** 3))
+            [1.0, 8.0, 27.0, 64.0, 125.0]
+
+            >>> eval_expr(s.map(lambda x: x.length()))
+            {3, 5, 7}
 
         Parameters
         ----------
@@ -446,6 +586,16 @@ class CollectionExpression(Expression):
     def length(self):
         """Returns the size of a collection.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.length())
+            5
+
+            >>> eval_expr(s.length())
+            3
+
         Returns
         -------
         :py:class:`hail.expr.Int32Expression`
@@ -455,6 +605,16 @@ class CollectionExpression(Expression):
 
     def size(self):
         """Returns the size of a collection.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.size())
+            5
+
+            >>> eval_expr(s.size())
+            3
 
         Returns
         -------
@@ -466,9 +626,20 @@ class CollectionExpression(Expression):
 
 
 class CollectionNumericExpression(CollectionExpression):
-    """Expression of type :class:`hail.expr.types.TArray` or :class:`hail.expr.types.TSet` with numeric element type."""
+    """Expression of type :class:`hail.expr.types.TArray` or :class:`hail.expr.types.TSet` with numeric element type.
+
+    >>> a = functions.capture([1, 2, 3, 4, 5])
+    """
+
     def max(self):
         """Returns the maximum element.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.max())
+            5
 
         Returns
         -------
@@ -480,6 +651,13 @@ class CollectionNumericExpression(CollectionExpression):
     def min(self):
         """Returns the minimum element.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.min())
+            1
+
         Returns
         -------
         :py:class:`NumericExpression`
@@ -489,6 +667,13 @@ class CollectionNumericExpression(CollectionExpression):
 
     def mean(self):
         """Returns the mean of all values in the collection.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.mean())
+            3.0
 
         Note
         ----
@@ -504,6 +689,13 @@ class CollectionNumericExpression(CollectionExpression):
     def median(self):
         """Returns the median element.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.median())
+            3
+
         Note
         ----
         Missing elements are ignored.
@@ -517,6 +709,13 @@ class CollectionNumericExpression(CollectionExpression):
 
     def product(self):
         """Returns the product of all elements in the collection.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.product())
+            120
 
         Note
         ----
@@ -534,6 +733,13 @@ class CollectionNumericExpression(CollectionExpression):
     def sum(self):
         """Returns the sum of all elements in the collection.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.sum())
+            15
+
         Note
         ----
         Missing elements are ignored.
@@ -547,8 +753,44 @@ class CollectionNumericExpression(CollectionExpression):
 
 
 class ArrayExpression(CollectionExpression):
-    """Expression of type :class:`hail.expr.types.TArray`."""
+    """Expression of type :class:`hail.expr.types.TArray`.
+
+    >>> a = functions.capture(['Alice', 'Bob', 'Charlie'])
+    """
+
     def __getitem__(self, item):
+        """Index into or slice the array.
+
+        Examples
+        --------
+
+        Index with a single integer:
+
+        .. doctest::
+
+            >>> eval_expr(a[1])
+            'Bob'
+
+            >>> eval_expr(a[-1])
+            'Charlie'
+
+        Slicing is also supported:
+
+        .. doctest::
+
+            >>> eval_expr(a[1:])
+            ['Bob', 'Charlie']
+
+        Parameters
+        ----------
+        item : slice or :class:`Int32Expression`
+            Index or slice.
+
+        Returns
+        -------
+        :class:`Expression`
+            Element or array slice.
+        """
         if isinstance(item, slice):
             return self._slice(self._type, item.start, item.stop, item.step)
         elif isinstance(item, int) or isinstance(item, Int32Expression):
@@ -556,12 +798,54 @@ class ArrayExpression(CollectionExpression):
         else:
             raise NotImplementedError
 
-    def append(self, x):
-        """Append an element to the array and return the result.
+    def contains(self, item):
+        """Returns a boolean indicating whether `item` is found in the array.
+
+        Examples
+        --------
+
+        .. doctest::
+
+            >>> eval_expr(a.contains('Charlie'))
+            True
+
+            >>> eval_expr(a.contains('Helen'))
+            False
 
         Parameters
         ----------
-        x
+        item : :class:`Expression`
+            Item for inclusion test.
+
+        Warning
+        -------
+        This method takes time proportional to the length of the array. If a
+        pipeline uses this method on the same array several times, it may be
+        more efficient to convert the array to a set first
+        (:meth:`ArrayExpression.to_set`).
+
+        Returns
+        -------
+        :py:class:`BooleanExpression`
+            ``True`` if the element is found in the array, ``False`` otherwise.
+        """
+        item = to_expr(item)
+        return self.exists(lambda x: x == item)
+
+    def append(self, x):
+        """Append an element to the array and return the result.
+
+        Examples
+        --------
+
+        .. doctest::
+
+            >>> eval_expr(a.append('Dan'))
+            ['Alice', 'Bob', 'Charlie', 'Dan']
+
+        Parameters
+        ----------
+        x : :class:`Expression`
             Element to append, same type as the array element type.
 
         Returns
@@ -573,9 +857,17 @@ class ArrayExpression(CollectionExpression):
     def extend(self, a):
         """Concatenate two arrays and return the result.
 
+        Examples
+        --------
+
+        .. doctest::
+
+            >>> eval_expr(a.extend(['Dan', 'Edith']))
+            ['Alice', 'Bob', 'Charlie', 'Dan', 'Edith']
+
         Parameters
         ----------
-        a
+        a : :class:`ArrayExpression`
             Array to concatenate, same type as the callee.
 
         Returns
@@ -586,6 +878,14 @@ class ArrayExpression(CollectionExpression):
 
     def sort_by(self, f, ascending=True):
         """Sort the array according to a function.
+
+        Examples
+        --------
+
+        .. doctest::
+
+            >>> eval_expr(a.sort_by(lambda x: x, ascending=False))
+            ['Charlie', 'Bob', 'Alice']
 
         Parameters
         ----------
@@ -603,9 +903,17 @@ class ArrayExpression(CollectionExpression):
     def to_set(self):
         """Convert the array to a set.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.to_set())
+            {'Alice', 'Bob', 'Charlie'}
+
         Returns
         -------
         :py:class:`SetExpression`
+            Set of all unique elements.
         """
         return self._method("toSet", TSet(self._type.element_type))
 
@@ -613,11 +921,18 @@ class ArrayExpression(CollectionExpression):
 class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
     """Expression of type :class:`hail.expr.types.TArray` with a numeric type.
 
-    Numeric arrays support arithmetic both with scalar values and other arrays. Arithmetic
-    between two numeric arrays requires that the length of each array is identical, and will
-    apply the operation positionally (``a1 * a2`` will multiply the first element of ``a1`` by
-    the first element of ``a2``, the second element of ``a1`` by the second element of ``a2``,
-    and so on). Arithmetic with a scalar will apply the operation to each element of the array.
+    Numeric arrays support arithmetic both with scalar values and other arrays.
+    Arithmetic between two numeric arrays requires that the length of each array
+    is identical, and will apply the operation positionally (``a1 * a2`` will
+    multiply the first element of ``a1`` by the first element of ``a2``, the
+    second element of ``a1`` by the second element of ``a2``, and so on).
+    Arithmetic with a scalar will apply the operation to each element of the
+    array.
+
+    >>> a1 = functions.capture([0, 1, 2, 3, 4, 5])
+
+    >>> a2 = functions.capture([1, -1, 1, -1, 1, -1])
+
     """
     def _bin_op_ret_typ(self, other):
         if isinstance(self, ArrayNumericExpression) and isinstance(other, float):
@@ -679,31 +994,154 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         return self._bin_op_reverse(name, other, ret_typ)
 
     def __add__(self, other):
+        """Positionally add an array or a scalar.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a1 + 5)
+            [5, 6, 7, 8, 9, 10]
+
+            >>> eval_expr(a1 + a2)
+            [1, 0, 3, 2, 5, 4]
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression` or :class:`ArrayNumericExpression`
+            Value or array to add.
+
+        Returns
+        -------
+        :class:`ArrayNumericExpression`
+            Array of positional sums.
+        """
         return self._bin_op_numeric("+", other)
 
     def __radd__(self, other):
         return self._bin_op_numeric_reverse("+", other)
 
     def __sub__(self, other):
+        """Positionally subtract an array or a scalar.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a2 - 1)
+            [0, -2, 0, -2, 0, -2]
+
+            >>> eval_expr(a1 - a2)
+            [-1, 2, 1, 4, 3, 6]
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression` or :class:`ArrayNumericExpression`
+            Value or array to subtract.
+
+        Returns
+        -------
+        :class:`ArrayNumericExpression`
+            Array of positional differences.
+        """
         return self._bin_op_numeric("-", other)
 
     def __rsub__(self, other):
         return self._bin_op_numeric_reverse("-", other)
 
     def __mul__(self, other):
+        """Positionally multiply by an array or a scalar.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a2 * 5)
+            >>> eval_expr(a2 * 5)
+
+            >>> eval_expr(a1 * a2)
+            [0, -1, 2, -3, 4, -5]
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression` or :class:`ArrayNumericExpression`
+            Value or array to multiply by.
+
+        Returns
+        -------
+        :class:`ArrayNumericExpression`
+            Array of positional products.
+        """
         return self._bin_op_numeric("*", other)
 
     def __rmul__(self, other):
         return self._bin_op_numeric_reverse("*", other)
 
     def __div__(self, other):
+        """Positionally divide by an array or a scalar.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a1 / 10)
+            [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+
+            >>> eval_expr(a2 / a1)
+            [inf, -1.0, 0.5, -0.3333333333333333, 0.25, -0.2]
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression` or :class:`ArrayNumericExpression`
+            Value or array to divide by.
+
+        Returns
+        -------
+        :class:`ArrayNumericExpression`
+            Array of positional quotients.
+        """
         return self._bin_op("/", other, TArray(TFloat64()))
 
     def __rdiv__(self, other):
         return self._bin_op_reverse("/", other, TArray(TFloat64()))
 
+    def __pow__(self, other):
+        """Positionally raise to the power of an array or a scalar.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a1 ** 2)
+            [0.0, 1.0, 4.0, 9.0, 16.0, 25.0]
+
+            >>> eval_expr(a1 ** a2)
+            [0.0, 1.0, 2.0, 0.3333333333333333, 4.0, 0.2]
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression` or :class:`ArrayNumericExpression`
+            Value or array to exponentiate by.
+
+        Returns
+        -------
+        :class:`ArrayNumericExpression`
+            Array of positional exponentiations.
+        """
+        return self._bin_op('**', other, TArray(TFloat64()))
+
+    def __rpow__(self, other):
+        return self._bin_op_reverse('**', other, TArray(TFloat64()))
+
     def sort(self, ascending=True):
         """Returns a sorted array.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a1.sort())
+            [-1, -1, -1, 1, 1, 1]
 
         Parameters
         ----------
@@ -739,22 +1177,41 @@ class ArrayInt64Expression(ArrayNumericExpression):
 
 
 class ArrayStringExpression(ArrayExpression):
-    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TString`."""
+    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TString`.
+
+    >>> a = functions.capture(['Alice', 'Bob', 'Charles'])
+    """
     def mkstring(self, delimiter):
         """Joins the elements of the array into a single string delimited by `delimiter`.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.mkstring(','))
+            'Alice,Bob,Charles'
 
         Parameters
         ----------
         delimiter : str or :py:class:`StringExpression`
             Field delimiter.
+
         Returns
         -------
         :py:class:`StringExpression`
+            Joined string expression.
         """
         return self._method("mkString", TString(), delimiter)
 
     def sort(self, ascending=True):
         """Returns a sorted array.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.sort(ascending=False))
+            ['Charles', 'Bob', 'Alice']
 
         Parameters
         ----------
@@ -775,9 +1232,19 @@ class ArrayStructExpression(ArrayExpression):
 
 
 class ArrayArrayExpression(ArrayExpression):
-    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TArray`."""
+    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TArray`.
+
+    >>> a = functions.capture([[1, 2], [3, 4]])
+    """
     def flatten(self):
         """Flatten the nested array by concatenating subarrays.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a.flatten())
+            [1, 2, 3, 4]
 
         Returns
         -------
@@ -788,48 +1255,194 @@ class ArrayArrayExpression(ArrayExpression):
 
 
 class SetExpression(CollectionExpression):
-    """Expression of type :class:`hail.expr.types.TSet`."""
+    """Expression of type :class:`hail.expr.types.TSet`.
+
+    >>> s1 = functions.capture({1, 2, 3})
+    >>> s2 = functions.capture({1, 3, 5})
+    """
+
     def add(self, x):
-        return self._method("add", self._type, x)
-
-    def remove(self, x):
-        """Returns the result of removing the argument from this Set.
-
-        Parameters
-        ----------
-        x
-
-        Returns
-        -------
-        :py:class:`SetExpression`
-            This set with the element `x` removed.
+        """Returns a new set including `x`.
 
         Examples
         --------
         .. doctest::
 
-            >>> eval_expr(functions.capture({1,2,3}).remove(1))
+            >>> eval_expr(s1.add(10))
+            {1, 2, 3, 10}
+
+        Parameters
+        ----------
+        x : :class:`Expression`
+            Value to add.
+
+        Returns
+        -------
+        :class:`SetExpression`
+            Set with `x` added.
+        """
+        return self._method("add", self._type, x)
+
+    def remove(self, x):
+        """Returns a new set excluding `x`.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s1.remove(1))
             {2, 3}
 
+        Parameters
+        ----------
+        x : :class:`Expression`
+            Value to remove.
+
+        Returns
+        -------
+        :py:class:`SetExpression`
+            Set with `x` removed.
         """
         return self._method("remove", self._type, x)
 
     def contains(self, x):
+        """Returns ``True`` if `x` is in the set.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s1.contains(1))
+            True
+
+            >>> eval_expr(s1.contains(10))
+            False
+
+        Parameters
+        ----------
+        x : :class:`Expression`
+            Value for inclusion test..
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if `x` is in the set.
+        """
         return self._method("contains", TBoolean(), x)
 
     def difference(self, s):
+        """Return the set of elements in the set that are not present in set `s`.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s1.difference(s2))
+            {2}
+
+            >>> eval_expr(s2.difference(s1))
+            {5}
+
+        Parameters
+        ----------
+        s : :class:`SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`SetExpression`
+            Set of elements not in `s`.
+        """
         return self._method("difference", self._type, s)
 
     def intersection(self, s):
+        """Return the intersection of the set and set `s`.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s1.intersection(s2))
+            {1, 3}
+
+        Parameters
+        ----------
+        s : :class:`SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`SetExpression`
+            Set of elements present in `s`.
+        """
         return self._method("intersection", self._type, s)
 
     def is_subset(self, s):
+        """Returns ``True`` if every element is contained in set `s`.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s1.is_subset(s2))
+            False
+
+            >>> eval_expr(s1.remove(2).is_subset(s2))
+            True
+
+        Parameters
+        ----------
+        s : :class:`SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if every element is contained in set `s`.
+        """
         return self._method("isSubset", TBoolean(), s)
 
     def union(self, s):
+        """Return the union of the set and set `s`.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s1.union(s2))
+            {1, 2, 3, 5}
+
+        Parameters
+        ----------
+        s : :class:`SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`SetExpression`
+            Set of elements present in either set.
+        """
         return self._method("union", self._type, s)
 
     def to_array(self):
+        """Convert the set to an array.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s1.to_array())
+            [1, 2, 3]
+
+        Notes
+        -----
+        The order of elements in the array is not guaranteed.
+
+        Returns
+        -------
+        :class:`ArrayExpression`
+            Array of all elements in the set.
+        """
         return self._method("toArray", TArray(self._type.element_type))
 
 
@@ -854,25 +1467,51 @@ class SetInt64Expression(SetExpression, CollectionNumericExpression):
 
 
 class SetStringExpression(SetExpression):
-    """Expression of type :class:`hail.expr.types.TSet` with element type :class:`hail.expr.types.TString`."""
+    """Expression of type :class:`hail.expr.types.TSet` with element type :class:`hail.expr.types.TString`.
+
+    >>> s = functions.capture({'Alice', 'Bob', 'Charles'})
+    """
     def mkstring(self, delimiter):
         """Joins the elements of the set into a single string delimited by `delimiter`.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s.mkstring(','))
+            'Bob,Charles,Alice'
+
+        Notes
+        -----
+        The order of the elements in the string is not guaranteed.
 
         Parameters
         ----------
         delimiter : str or :py:class:`StringExpression`
             Field delimiter.
+
         Returns
         -------
         :py:class:`StringExpression`
+            Joined string expression.
         """
         return self._method("mkString", TString(), delimiter)
 
 
 class SetSetExpression(SetExpression):
-    """Expression of type :class:`hail.expr.types.TSet` with element type :class:`hail.expr.types.TSet`."""
+    """Expression of type :class:`hail.expr.types.TSet` with element type :class:`hail.expr.types.TSet`.
+
+    >>> s = functions.capture({1, 2, 3}).map(lambda s: {s, 2 * s})
+    """
     def flatten(self):
         """Flatten the nested set by concatenating subsets.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s.flatten())
+            {1, 2, 3, 4, 6}
 
         Returns
         -------
@@ -883,35 +1522,82 @@ class SetSetExpression(SetExpression):
 
 
 class DictExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TDict`."""
+    """Expression of type :class:`hail.expr.types.TDict`.
+
+    >>> d = functions.capture({'Alice': 43, 'Bob': 33, 'Charles': 44})
+    """
     def _init(self):
         self._key_typ = self._type.key_type
         self._value_typ = self._type.value_type
 
     def __getitem__(self, item):
+        """Get the value associated with key `item`.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(d['Alice'])
+            43
+
+        Notes
+        -----
+        Raises an error if `item` is not a key of the dictionary. Use
+        :meth:`DictExpression.get` to return missing instead of an error.
+
+        Parameters
+        ----------
+        item : :class:`Expression`
+            Key expression.
+
+        Returns
+        -------
+        :class:`Expression`
+            Value associated with key `item`.
+        """
         return self._index(self._value_typ, item)
 
     def contains(self, k):
         """Returns whether a given key is present in the dictionary.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(d.contains('Alice'))
+            True
+
+            >>> eval_expr(d.contains('Anne'))
+            False
+
         Parameters
         ----------
-        k
+        k : :class:`Expression`
             Key to test for inclusion.
 
         Returns
         -------
         :py:class:`BooleanExpression`
-            `True` if `k` is a key of the dictionary, `False` otherwise.
+            ``True`` if `k` is a key of the dictionary, ``False`` otherwise.
         """
         return self._method("contains", TBoolean(), k)
 
     def get(self, k):
-        """Returns the value corresponding to a given key, or missing if that key is not found.
+        """Returns the value associated with key `k`, or missing if that key is not present.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(d.get('Alice'))
+            43
+
+            >>> eval_expr(d.get('Anne'))
+            None
 
         Parameters
         ----------
-        k
+        k : :class:`Expression`
             Key.
 
         Returns
@@ -924,6 +1610,13 @@ class DictExpression(Expression):
     def key_set(self):
         """Returns the set of keys in the dictionary.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(d.key_set())
+            {'Alice', 'Bob', 'Charles'}
+
         Returns
         -------
         :py:class:`SetExpression`
@@ -934,15 +1627,29 @@ class DictExpression(Expression):
     def keys(self):
         """Returns an array with all keys in the dictionary.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(d.keys())
+            ['Bob', 'Charles', 'Alice']
+
         Returns
         -------
-        :py:class:`Expression`
+        :py:class:`ArrayExpression`
             Array of all keys.
         """
         return self._method("keys", TArray(self._key_typ))
 
     def map_values(self, f):
         """Transform values of the dictionary according to a function.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(d.map_values(lambda x: x * 10))
+            {'Alice': 430, 'Bob': 330, 'Charles': 440}
 
         Parameters
         ----------
@@ -959,6 +1666,13 @@ class DictExpression(Expression):
     def size(self):
         """Returns the size of the dictionary.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(d.size())
+            3
+
         Returns
         -------
         :py:class:`Int32Expression`
@@ -968,6 +1682,13 @@ class DictExpression(Expression):
 
     def values(self):
         """Returns an array with all values in the dictionary.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(d.values())
+            [33, 44, 43]
 
         Returns
         -------
@@ -996,7 +1717,21 @@ class Aggregable(object):
 
 
 class StructExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TStruct`."""
+    """Expression of type :class:`hail.expr.types.TStruct`.
+
+    >>> s = functions.capture(Struct(a=5, b='Foo'))
+
+    Struct fields are accessible as attributes and keys. It is therefore
+    possible to access field `a` of struct `s` with dot syntax:
+
+    .. doctest::
+
+        >>> eval_expr(s.a)
+        5
+
+    It is possible to have fields whose names violate Python identifier syntax.
+    For these, use the :meth:`StructExpression.__getitem__` syntax.
+    """
     def _init(self):
         self._fields = {}
 
@@ -1010,11 +1745,33 @@ class StructExpression(Expression):
         if key not in dir(self):
             self.__dict__[key] = value
 
+    @typecheck_method(item=strlike)
     def __getitem__(self, item):
-        if item in self.__dict__:
-            return self.__dict__[item]
+        """Access a field of the struct.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s['a'])
+            5
+
+        Parameters
+        ----------
+        item : :obj:`str`
+            Field name.
+
+        Returns
+        -------
+        :class:`Expression`
+            Struct field.
+        """
+
+        if item in self._fields:
+            return self._fields[item]
         else:
-            raise AttributeError("Could not find field `" + str(item) + "' in schema.")
+            raise AttributeError("No field '{}' in schema. Available fields: {}".format(
+                item, [f.name for f in self._type.fields]))
 
     def __iter__(self):
         return iter([self._fields[f.name] for f in self._type.fields])
@@ -1062,24 +1819,135 @@ class AtomicExpression(Expression):
 class BooleanExpression(AtomicExpression):
     """Expression of type :class:`hail.expr.types.TBoolean`.
 
-    Use the bitwise operators ``|`` and ``&`` for boolean comparisons.
+    >>> t = functions.capture(True)
+    >>> f = functions.capture(False)
+    >>> na = functions.null(TBoolean())
+
+    .. doctest::
+
+        >>> eval_expr(t)
+        True
+
+        >>> eval_expr(f)
+        False
+
+        >>> eval_expr(na)
+        None
+
     """
     def _bin_op_logical(self, name, other):
         other = to_expr(other)
         return self._bin_op(name, other, TBoolean())
 
     def __and__(self, other):
+        """Return ``True`` if the left and right arguments are ``True``.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(t & f)
+            False
+
+            >>> eval_expr(t & na)
+            None
+
+            >>> eval_expr(f & na)
+            False
+
+        The ``&`` and ``|`` operators have higher priority than comparison
+        operators like ``==``, ``<``, or ``>``. Parentheses are often
+        necessary:
+
+        .. doctest::
+
+            >>> x = functions.capture(5)
+
+            >>> eval_expr((x < 10) & (x > 2))
+            True
+
+        Parameters
+        ----------
+        other : :class:`BooleanExpression`
+            Right-side operation.
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if both left and right are ``True``.
+        """
         return self._bin_op_logical("&&", other)
 
     def __or__(self, other):
+        """Return ``True`` if at least one of the left and right arguments is ``True``.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(t | f)
+            True
+
+            >>> eval_expr(t | na)
+            True
+
+            >>> eval_expr(f | na)
+            None
+
+        The ``&`` and ``|`` operators have higher priority than comparison
+        operators like ``==``, ``<``, or ``>``. Parentheses are often
+        necessary:
+
+        .. doctest::
+
+            >>> x = functions.capture(5)
+
+            >>> eval_expr((x < 10) | (x > 20))
+            True
+
+        Parameters
+        ----------
+        other : :class:`BooleanExpression`
+            Right-side operation.
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if either left or right is ``True``.
+        """
         return self._bin_op_logical("||", other)
 
     def __invert__(self):
+        """Return the boolean inverse.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(~t)
+            False
+
+            >>> eval_expr(~f)
+            True
+
+            >>> eval_expr(~na)
+            None
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            Boolean inverse.
+        """
         return self._unary_op("!")
 
 
 class NumericExpression(AtomicExpression):
-    """Expression of numeric type."""
+    """Expression of numeric type.
+
+    >>> x = functions.capture(3)
+
+    >>> y = functions.capture(4.5)
+    """
     def _bin_op_ret_typ(self, other):
         if isinstance(self, NumericExpression) and isinstance(other, float):
             return TFloat64()
@@ -1114,54 +1982,281 @@ class NumericExpression(AtomicExpression):
         return self._bin_op_reverse(name, other, ret_typ)
 
     def __lt__(self, other):
+        """Less-than comparison.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(x < 5)
+            True
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression`
+            Right side for comparison.
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if the left side is smaller than the right side.
+        """
         return self._bin_op("<", other, TBoolean())
 
     def __le__(self, other):
+        """Less-than-or-equals comparison.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(x <= 3)
+            True
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression`
+            Right side for comparison.
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if the left side is smaller than or equal to the right side.
+        """
         return self._bin_op("<=", other, TBoolean())
 
     def __gt__(self, other):
+        """Greater-than comparison.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(y > 4)
+            True
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression`
+            Right side for comparison.
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if the left side is greater than the right side.
+        """
         return self._bin_op(">", other, TBoolean())
 
     def __ge__(self, other):
+        """Greater-than-or-equals comparison.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(y >= 4)
+            True
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression`
+            Right side for comparison.
+
+        Returns
+        -------
+        :class:`BooleanExpression`
+            ``True`` if the left side is greater than or equal to the right side.
+        """
         return self._bin_op(">=", other, TBoolean())
 
-    def __neg__(self):
-        return self._unary_op("-")
 
     def __pos__(self):
-        return self._unary_op("+")
+        return self
+
+    def __neg__(self):
+        """Negate the number (multiply by -1).
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(-x)
+            -3
+
+        Returns
+        -------
+        :class:`NumericExpression`
+            Negated number.
+        """
+        return self._unary_op("-")
 
     def __add__(self, other):
+        """Add two numbers.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(x + 2)
+            5
+
+            >>> eval_expr(x + y)
+            7.5
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression`
+            Number to add.
+
+        Returns
+        -------
+        :class:`NumericExpression`
+            Sum of the two numbers.
+        """
         return self._bin_op_numeric("+", other)
 
     def __radd__(self, other):
         return self._bin_op_numeric_reverse("+", other)
 
     def __sub__(self, other):
+        """Subtract the right number from the left.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(x - 2)
+            1
+
+            >>> eval_expr(x - y)
+            -1.5
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression`
+            Number to subtract.
+
+        Returns
+        -------
+        :class:`NumericExpression`
+            Difference of the two numbers.
+        """
         return self._bin_op_numeric("-", other)
 
     def __rsub__(self, other):
         return self._bin_op_numeric_reverse("-", other)
 
     def __mul__(self, other):
+        """Multiply two numbers.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(x * 2)
+            6
+
+            >>> eval_expr(x * y)
+            9.0
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression`
+            Number to multiply.
+
+        Returns
+        -------
+        :class:`NumericExpression`
+            Product of the two numbers.
+        """
         return self._bin_op_numeric("*", other)
 
     def __rmul__(self, other):
         return self._bin_op_numeric_reverse("*", other)
 
     def __div__(self, other):
+        """Divide two numbers.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(x / 2)
+            1.5
+
+            >>> eval_expr(y / 0.1)
+            45.0
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression`
+            Dividend.
+
+        Returns
+        -------
+        :class:`NumericExpression`
+            The left number divided by the left.
+        """
         return self._bin_op_numeric("/", other)
 
     def __rdiv__(self, other):
         return self._bin_op_numeric_reverse("/", other)
 
     def __mod__(self, other):
+        """Compute the left modulo the right number.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(32 % x)
+            2
+
+            >>> eval_expr(7 % y)
+            2.5
+
+        Parameters
+        ----------
+        other : :class:`NumericExpression`
+            Dividend.
+
+        Returns
+        -------
+        :class:`NumericExpression`
+            Remainder after dividing the left by the right.
+        """
         return self._bin_op_numeric('%', other)
 
     def __rmod__(self, other):
         return self._bin_op_numeric_reverse('%', other)
 
     def __pow__(self, power, modulo=None):
+        """Raise the left to the right power.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(x ** 2)
+            9.0
+
+            >>> eval_expr(x ** -2)
+            0.1111111111111111
+
+            >>> eval_expr(y ** 1.5)
+            9.545941546018392
+
+        Parameters
+        ----------
+        power : :class:`NumericExpression`
+        modulo
+            Unsupported argument.
+
+        Returns
+        -------
+        :class:`Float64Expression`
+            Result of raising left to the right power.
+        """
         return self._bin_op('**', power, TFloat64())
 
     def __rpow__(self, other):
@@ -1169,6 +2264,13 @@ class NumericExpression(AtomicExpression):
 
     def signum(self):
         """Returns the sign of the callee, ``1`` or ``-1``.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(y.signum())
+            1
 
         Returns
         -------
@@ -1180,9 +2282,17 @@ class NumericExpression(AtomicExpression):
     def abs(self):
         """Returns the absolute value of the callee.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(y.abs())
+            4.5
+
         Returns
         -------
         :py:class:`.NumericExpression`
+            Absolute value of the number.
         """
         return self._method("abs", self._type)
 
@@ -1240,19 +2350,63 @@ class Int64Expression(NumericExpression):
 
 
 class StringExpression(AtomicExpression):
-    """Expression of type :class:`hail.expr.types.TString`."""
+    """Expression of type :class:`hail.expr.types.TString`.
+
+    >>> s = functions.capture('The quick brown fox')
+    """
     def __getitem__(self, item):
+        """Slice or index into the string.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s[:15])
+            'The quick brown'
+
+            >>> eval_expr(s[0])
+            'T'
+
+        Parameters
+        ----------
+        item : slice or :class:`Int32Expression`
+            Slice or character index.
+
+        Returns
+        -------
+        :class:`StringExpression`
+            Substring or character at index `item`.
+        """
         if isinstance(item, slice):
             return self._slice(TString(), item.start, item.stop, item.step)
-        elif isinstance(item, int):
+        elif isinstance(item, int) or isinstance(item, Int32Expression):
             return self._index(TString(), item)
         else:
             raise NotImplementedError()
 
     def __add__(self, other):
-        if not isinstance(other, StringExpression) or isinstance(other, str):
-            raise TypeError("cannot concatenate 'TString' expression and '{}'".format(
-                other._type.__class__ if isinstance(other, Expression) else other.__class__))
+        """Concatenate strings.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s + ' jumped over the lazy dog')
+            'The quick brown fox jumped over the lazy dog'
+
+        Parameters
+        ----------
+        other : :class:`StringExpression`
+            String to concatenate.
+
+        Returns
+        -------
+        :class:`StringExpression`
+            Concatenated string.
+        """
+        other = to_expr(other)
+        if not isinstance(other, StringExpression):
+            raise TypeError("cannot concatenate 'TString' expression and '{}'".format(other._type.__class__))
         return self._bin_op("+", other, TString())
 
     def __radd__(self, other):
@@ -1261,6 +2415,13 @@ class StringExpression(AtomicExpression):
 
     def length(self):
         """Returns the length of the string.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s.length())
+            19
 
         Returns
         -------
@@ -1272,6 +2433,15 @@ class StringExpression(AtomicExpression):
     def replace(self, pattern1, pattern2):
         """Replace substrings matching `pattern1` with `pattern2` using regex.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s.replace(' ', '_'))
+            'The_quick_brown_fox'
+
+        Notes
+        -----
         The regex expressions used should follow
         `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_
 
@@ -1289,20 +2459,34 @@ class StringExpression(AtomicExpression):
     def split(self, delim, n=None):
         """Returns an array of strings generated by splitting the string at `delim`.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s.split('\\s+'))
+            ['The', 'quick', 'brown', 'fox']
+
+            >>> eval_expr(s.split('\\s+', 2))
+            ['The', 'quick brown fox']
+
+        Notes
+        -----
         The delimiter is a regex using the
-        `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_ delimiter.
-        To split on special characters, escape them with double backslash (``\\\\``).
+        `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_
+        delimiter. To split on special characters, escape them with double
+        backslash (``\\\\``).
 
         Parameters
         ----------
         delim : str or :class:`StringExpression`
             Delimiter regex.
-        n : int or :class:`Int32Expression`, optional
+        n : :class:`Int32Expression`, optional
             Maximum number of splits.
 
         Returns
         -------
-        :class:`ArrayStringExpression`
+        :class:`ArrayExpression`
+            Array of split strings.
         """
         if n is None:
             return self._method("split", TArray(TString()), delim)
@@ -1354,10 +2538,20 @@ class StringExpression(AtomicExpression):
 
 
 class CallExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TCall`."""
+    """Expression of type :class:`hail.expr.types.TCall`.
+
+    >>> call = functions.capture(Call(1))
+    """
     @property
     def gt(self):
         """Returns the triangle number of :py:meth:`Call.gtj` and :py:meth:`Call.gtk`.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.gt)
+            1
 
         Returns
         -------
@@ -1369,6 +2563,13 @@ class CallExpression(Expression):
     def gtj(self):
         """Returns the allele index of the first allele.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.gtj())
+            0
+
         Returns
         -------
         :class:`Int32Expression`
@@ -1378,6 +2579,13 @@ class CallExpression(Expression):
 
     def gtk(self):
         """Returns the allele index of the second allele.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.gtk())
+            1
 
         Returns
         -------
@@ -1389,65 +2597,114 @@ class CallExpression(Expression):
     def is_non_ref(self):
         """Evaluate whether the call includes one or more non-reference alleles.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.is_non_ref())
+            True
+
         Returns
         -------
         :class:`BooleanExpression`
-            `True` if at least one allele is non-reference, `False` otherwise.
+            ``True`` if at least one allele is non-reference, ``False`` otherwise.
         """
         return self._method("isNonRef", TBoolean())
 
     def is_het(self):
         """Evaluate whether the call includes two different alleles.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.is_het())
+            True
+
         Returns
         -------
         :class:`BooleanExpression`
-            `True` if the two alleles are different, `False` if they are the same.
+            ``True`` if the two alleles are different, ``False`` if they are the same.
         """
         return self._method("isHet", TBoolean())
 
     def is_het_nonref(self):
         """Evaluate whether the call includes two different alleles, neither of which is reference.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.is_het_nonref())
+            False
+
         Returns
         -------
         :class:`BooleanExpression`
-            `True` if the call includes two different alternate alleles, `False` otherwise.
+            ``True`` if the call includes two different alternate alleles, ``False`` otherwise.
         """
         return self._method("isHetNonRef", TBoolean())
 
     def is_het_ref(self):
         """Evaluate whether the call includes two different alleles, one of which is reference.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.is_het_ref())
+            True
+
         Returns
         -------
         :class:`BooleanExpression`
-            `True` if the call includes one reference and one alternate allele, `False` otherwise.
+            ``True`` if the call includes one reference and one alternate allele, ``False`` otherwise.
         """
         return self._method("isHetRef", TBoolean())
 
     def is_hom_ref(self):
         """Evaluate whether the call includes two reference alleles.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.is_hom_ref())
+            False
+
         Returns
         -------
         :class:`BooleanExpression`
-            `True` if the call includes two reference alleles, `False` otherwise.
+            ``True`` if the call includes two reference alleles, ``False`` otherwise.
         """
         return self._method("isHomRef", TBoolean())
 
     def is_hom_var(self):
         """Evaluate whether the call includes two identical alternate alleles.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.is_hom_var())
+            False
+
         Returns
         -------
         :class:`BooleanExpression`
-            `True` if the call includes two identical alternate alleles, `False` otherwise.
+            ``True`` if the call includes two identical alternate alleles, ``False`` otherwise.
         """
         return self._method("isHomVar", TBoolean())
 
     def num_alt_alleles(self):
         """Returns the number of non-reference alleles (0, 1, or 2).
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.num_alt_alleles())
+            1
 
         Returns
         -------
@@ -1459,13 +2716,19 @@ class CallExpression(Expression):
     def one_hot_alleles(self, v):
         """Returns an array containing the summed one-hot encoding of the two alleles.
 
-        This one-hot representation is the positional sum of the one-hot encoding for
-        each called allele.  For a biallelic variant, the one-hot encoding for a
-        reference allele is ``[1, 0]`` and the one-hot encoding for an alternate allele
-        is ``[0, 1]``. Diploid calls would produce the following arrays: ``[2, 0]`` for
-        homozygous reference, ``[1, 1]`` for heterozygous, and ``[0, 2]`` for homozygous
-        alternate.
+        Examples
+        --------
+        .. doctest::
 
+            >>> eval_expr(call.one_hot_alleles(Variant('1', 1, 'A', 'T')))
+            [1, 1]
+
+        This one-hot representation is the positional sum of the one-hot
+        encoding for each called allele. For a biallelic variant, the one-hot
+        encoding for a reference allele is ``[1, 0]`` and the one-hot encoding
+        for an alternate allele is ``[0, 1]``. Diploid calls would produce the
+        following arrays: ``[2, 0]`` for homozygous reference, ``[1, 1]`` for
+        heterozygous, and ``[0, 2]`` for homozygous alternate.
 
         Parameters
         ----------
@@ -1482,9 +2745,17 @@ class CallExpression(Expression):
     def one_hot_genotype(self, v):
         """Returns the triangle number of the genotype one-hot encoded into an integer array.
 
-        A one-hot encoding uses a vector to represent categorical data, like a genotype call,
-        by using an array with one ``1`` and many ``0`` s. In this case, the array will have a
-        ``1`` at the position of the triangle number of the genotype (:py:meth:`Call.gt`).
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(call.one_hot_genotype(Variant('1', 1, 'A', 'T')))
+            [0, 1, 0]
+
+        A one-hot encoding uses a vector to represent categorical data, like a
+        genotype call, by using an array with one ``1`` and many ``0`` s. In
+        this case, the array will have a ``1`` at the position of the triangle
+        number of the genotype (:py:meth:`Call.gt`).
 
         This is useful for manipulating counts of categorical variables.
 
@@ -1501,10 +2772,20 @@ class CallExpression(Expression):
 
 
 class LocusExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TLocus`."""
+    """Expression of type :class:`hail.expr.types.TLocus`.
+
+    >>> locus = functions.capture(Locus('1', 100))
+    """
     @property
     def contig(self):
         """Returns the chromosome.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(locus.contig)
+            '1'
 
         Returns
         -------
@@ -1517,6 +2798,13 @@ class LocusExpression(Expression):
     def position(self):
         """Returns the position along the chromosome.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(locus.position)
+            100
+
         Returns
         -------
         :class:`Int32Expression`
@@ -1526,10 +2814,23 @@ class LocusExpression(Expression):
 
 
 class IntervalExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TInterval`."""
+    """Expression of type :class:`hail.expr.types.TInterval`.
+
+    >>> interval = functions.capture(Interval.parse('X:1M-2M'))
+    """
     @typecheck_method(locus=oneof(LocusExpression, Locus))
     def contains(self, locus):
         """Tests whether a locus is contained in the interval.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(interval.contains(Locus('X', 3000000)))
+            False
+
+            >>> eval_expr(interval.contains(Locus('X', 1500000)))
+            True
 
         Parameters
         ----------
@@ -1538,7 +2839,7 @@ class IntervalExpression(Expression):
         Returns
         -------
         :class:`BooleanExpression`
-            `True` if `locus` is contained in the interval, `False` otherwise.
+            ``True`` if `locus` is contained in the interval, ``False`` otherwise.
         """
         locus = to_expr(locus)
         if not locus._type._rg == self._type._rg:
@@ -1548,6 +2849,13 @@ class IntervalExpression(Expression):
     @property
     def end(self):
         """Returns the end locus.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(interval.end)
+            Locus(contig=X, position=2000000, reference_genome=GRCh37)
 
         Returns
         -------
@@ -1560,6 +2868,13 @@ class IntervalExpression(Expression):
     def start(self):
         """Returns the start locus.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(interval.start)
+            Locus(contig=X, position=1000000, reference_genome=GRCh37)
+
         Returns
         -------
         :class:`LocusExpression`
@@ -1569,14 +2884,25 @@ class IntervalExpression(Expression):
 
 
 class AltAlleleExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TAltAllele`."""
+    """Expression of type :class:`hail.expr.types.TAltAllele`.
+
+    >>> altallele = functions.capture(AltAllele('A', 'AAA'))
+    """
     @property
     def alt(self):
         """Returns the alternate allele string.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.alt)
+            'AAA'
+
         Returns
         -------
         :class:`StringExpression`
+            Alternate base string.
         """
         return self._field("alt", TString())
 
@@ -1584,14 +2910,29 @@ class AltAlleleExpression(Expression):
     def ref(self):
         """Returns the reference allele string.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.ref)
+            'A'
+
         Returns
         -------
         :class:`StringExpression`
+            Reference base string.
         """
         return self._field("ref", TString())
 
     def category(self):
         """Returns the string representation of the alternate allele class.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.category())
+            'Insertion'
 
         Returns
         -------
@@ -1601,91 +2942,174 @@ class AltAlleleExpression(Expression):
         return self._method("category", TString())
 
     def is_complex(self):
-        """Returns true if the polymorphism is not a SNP, MNP, star, insertion, or deletion.
+        """Returns ``True`` if the polymorphism is not a SNP, MNP, star, insertion, or deletion.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.is_complex())
+            False
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the allele is a complex event.
         """
         return self._method("isComplex", TBoolean())
 
     def is_deletion(self):
-        """Returns true if the polymorphism is a deletion.
+        """Returns ``True`` if the polymorphism is a deletion.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.is_deletion())
+            False
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the event is a a deletion.
         """
         return self._method("isDeletion", TBoolean())
 
     def is_indel(self):
-        """Returns true if the polymorphism is an insertion or deletion.
+        """Returns ``True`` if the polymorphism is an insertion or deletion.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.is_insertion())
+            True
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the event is an insertion or deletion.
         """
         return self._method("isIndel", TBoolean())
 
     def is_insertion(self):
-        """Returns true if the polymorphism is an insertion.
+        """Returns ``True`` if the polymorphism is an insertion.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.is_insertion())
+            True
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the event is an insertion.
         """
         return self._method("isInsertion", TBoolean())
 
     def is_mnp(self):
-        """Returns true if the polymorphism is a MNP.
+        """Returns ``True`` if the polymorphism is a MNP.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.is_mnp())
+            False
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the event is a multiple nucleotide polymorphism.
         """
         return self._method("isMNP", TBoolean())
 
     def is_snp(self):
-        """Returns true if the polymorphism is a SNP.
+        """Returns ``True`` if the polymorphism is a SNP.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.is_snp())
+            False
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the event is a single nucleotide polymorphism.
         """
         return self._method("isSNP", TBoolean())
 
     def is_star(self):
-        """Returns true if the polymorphism is a star (upstream deletion) allele.
+        """Returns ``True`` if the polymorphism is a star (upstream deletion) allele.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.is_star())
+            False
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the event is a star (upstream deletion) allele.
         """
         return self._method("isStar", TBoolean())
 
     def is_transition(self):
-        """Returns true if the polymorphism is a transition SNP.
+        """Returns ``True`` if the polymorphism is a transition SNP.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.is_transition())
+            False
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the event is a SNP and a transition.
         """
         return self._method("isTransition", TBoolean())
 
     def is_transversion(self):
-        """Returns true if the polymorphism is a transversion SNP.
+        """Returns ``True`` if the polymorphism is a transversion SNP.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(altallele.is_transversion())
+            False
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the event is a SNP and a transversion.
         """
         return self._method("isTransversion", TBoolean())
 
 
 class VariantExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TVariant`."""
+    """Expression of type :class:`hail.expr.types.TVariant`.
+
+    >>> variant = functions.capture(Variant('16', 123055, 'A', 'C'))
+    """
+
     def alt(self):
         """Returns the alternate allele string.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.alt())
+            'C'
 
         Warning
         -------
@@ -1694,11 +3118,19 @@ class VariantExpression(Expression):
         Returns
         -------
         :class:`StringExpression`
+            Alternate allele base string.
         """
         return self._method("alt", TString())
 
     def alt_allele(self):
         """Returns the alternate allele.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.alt_allele())
+            AltAllele(ref='A', alt='C')
 
         Warning
         -------
@@ -1707,6 +3139,7 @@ class VariantExpression(Expression):
         Returns
         -------
         :class:`AltAlleleExpression`
+            Alternate allele.
         """
         return self._method("altAllele", TAltAllele())
 
@@ -1714,9 +3147,17 @@ class VariantExpression(Expression):
     def alt_alleles(self):
         """Returns the alternate alleles in the polymorphism.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.alt_allele())
+            [AltAllele(ref='A', alt='C')]
+
         Returns
         -------
         :class:`ArrayExpression` with element type :class:`AltAlleleExpression`
+            Alternate alleles.
         """
         return self._field("altAlleles", TArray(TAltAllele()))
 
@@ -1724,103 +3165,199 @@ class VariantExpression(Expression):
     def contig(self):
         """Returns the chromosome.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.contig)
+            '16'
+
         Returns
         -------
         :class:`StringExpression`
+            Contig.
         """
         return self._field("contig", TString())
 
     def in_x_nonpar(self):
-        """Returns true if the polymorphism is in a non-pseudoautosomal region of chromosome X.
+        """Returns ``True`` if the polymorphism is in a non-pseudoautosomal region of chromosome X.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.in_x_nonpar())
+            False
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the variant is found in a non-pseudoautosomal region of chromosome X.
         """
         return self._method("inXNonPar", TBoolean())
 
     def in_x_par(self):
-        """Returns true if the polymorphism is in the pseudoautosomal region of chromosome X.
+        """Returns ``True`` if the polymorphism is in the pseudoautosomal region of chromosome X.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.in_x_par())
+            False
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the variant is found in a pseudoautosomal region of chromosome X.
         """
         return self._method("inXPar", TBoolean())
 
     def in_y_nonpar(self):
-        """Returns true if the polymorphism is in a non-pseudoautosomal region of chromosome Y.
+        """Returns ``True`` if the polymorphism is in a non-pseudoautosomal region of chromosome Y.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.in_y_nonpar())
+            False
+
+        Note
+        ----
+        Many variant callers only generate variants on chromosome X for the
+        pseudoautosomal region. In this case, all variants mapped to chromosome
+        Y are non-pseudoautosomal.
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the variant is found in a non-pseudoautosomal region of chromosome Y.
         """
         return self._method("inYNonPar", TBoolean())
 
     def in_y_par(self):
-        """Returns true if the polymorphism is in a pseudoautosomal region of chromosome Y.
+        """Returns ``True`` if the polymorphism is in a pseudoautosomal region of chromosome Y.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.in_y_par())
+            False
 
         Note
         ----
-        Most variant callers only generate variants on chromosome X for the pseudoautosomal region.
+        Many variant callers only generate variants on chromosome X for the
+        pseudoautosomal region. In this case, all variants mapped to chromosome
+        Y are non-pseudoautosomal.
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the variant is found in a pseudoautosomal region of chromosome Y.
         """
         return self._method("inYPar", TBoolean())
 
     def is_autosomal(self):
-        """Returns true if the polymorphism is found on an autosome.
+        """Returns ``True`` if the polymorphism is found on an autosome.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.is_autosomal())
+            True
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the variant is found on an autosome.
         """
         return self._method("isAutosomal", TBoolean())
 
     def is_biallelic(self):
-        """Returns true if there is only one alternate allele.
+        """Returns ``True`` if there is only one alternate allele.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.is_biallelic())
+            True
 
         Returns
         -------
         :class:`BooleanExpression`
+            ``True`` if the variant has only one alternate allele.
         """
         return self._method("isBiallelic", TBoolean())
 
     def locus(self):
         """Returns the locus at which the polymorphism occurs.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.locus())
+            Locus(contig=16, position=123055, reference_genome=GRCh37)
+
         Returns
         -------
         :class:`LocusExpression`
+            Locus associated with this variant.
         """
         return self._method("locus", TLocus())
 
     def num_alleles(self):
         """Returns the number of alleles in the polymorphism, including the reference.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.num_alleles())
+            2
+
         Returns
         -------
         :class:`Int32Expression`
+            Total number of alleles, including the reference.
         """
         return self._method("nAlleles", TInt32())
 
     def num_alt_alleles(self):
         """Returns the number of alleles in the polymorphism, excluding the reference.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.num_alt_alleles())
+            1
+
         Returns
         -------
         :class:`Int32Expression`
+            Total number of non-reference alleles.
         """
         return self._method("nAltAlleles", TInt32())
 
     def num_genotypes(self):
         """Returns the number of possible genotypes given the number of total alleles.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.num_genotypes())
+            3
+
         Returns
         -------
         :class:`Int32Expression`
+            Total number of possible diploid genotype configurations.
         """
         return self._method("nGenotypes", TInt32())
 
@@ -1828,15 +3365,30 @@ class VariantExpression(Expression):
     def ref(self):
         """Returns the reference allele string.
 
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.ref)
+            'A'
+
         Returns
         -------
         :class:`StringExpression`
+            Reference base string.
         """
         return self._field("ref", TString())
 
     @property
     def start(self):
         """Returns the chromosomal position of the polymorphism.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.start)
+            123055
 
         Returns
         -------

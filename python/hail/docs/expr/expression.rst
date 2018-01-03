@@ -47,12 +47,14 @@ Expressions
 
 .. autoclass:: hail.expr.expression.Expression
     :show-inheritance:
+    :special-members: __eq__, __ne__
 
 .. autoclass:: hail.expr.expression.AltAlleleExpression
     :show-inheritance:
 
 .. autoclass:: hail.expr.expression.ArrayExpression
     :show-inheritance:
+    :special-members: __getitem__
 
 .. autoclass:: hail.expr.expression.ArrayFloat32Expression
     :show-inheritance:
@@ -68,6 +70,7 @@ Expressions
 
 .. autoclass:: hail.expr.expression.ArrayNumericExpression
     :show-inheritance:
+    :special-members: __add__, __sub__, __mul__, __div__, __pow__
 
 .. autoclass:: hail.expr.expression.ArrayStringExpression
     :show-inheritance:
@@ -83,6 +86,7 @@ Expressions
 
 .. autoclass:: hail.expr.expression.BooleanExpression
     :show-inheritance:
+    :special-members: __and__, __or__, __invert__
 
 .. autoclass:: hail.expr.expression.CallExpression
     :show-inheritance:
@@ -95,6 +99,7 @@ Expressions
 
 .. autoclass:: hail.expr.expression.DictExpression
     :show-inheritance:
+    :special-members: __getitem__
 
 .. autoclass:: hail.expr.expression.Float32Expression
     :show-inheritance:
@@ -116,6 +121,7 @@ Expressions
 
 .. autoclass:: hail.expr.expression.NumericExpression
     :show-inheritance:
+    :special-members: __lt__, __le__, __gt__, __ge__, __neg__, __add__, __sub__, __mul__, __div__, __mod__, __pow__
 
 .. autoclass:: hail.expr.expression.SetExpression
     :show-inheritance:
@@ -140,9 +146,12 @@ Expressions
 
 .. autoclass:: hail.expr.expression.StringExpression
     :show-inheritance:
+    :special-members: __getitem__, __add__
 
 .. autoclass:: hail.expr.expression.StructExpression
     :show-inheritance:
+    :special-members: __getitem__
+
 
 .. autoclass:: hail.expr.expression.VariantExpression
     :show-inheritance:

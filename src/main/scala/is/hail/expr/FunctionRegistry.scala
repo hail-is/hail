@@ -971,6 +971,9 @@ object FunctionRegistry {
         result: "7"
     """,
     "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")(stringHr, variantHr(GR))
+
+  register("AltAllele", { (ref: String, alt: String) => AltAllele(ref, alt)}, "")(stringHr, stringHr, altAlleleHr)
+
   register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) },
     """
     Construct a :ref:`variant(gr)` object.
