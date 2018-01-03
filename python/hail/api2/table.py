@@ -1814,7 +1814,7 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            table3 = hc.import_table('python/hail/docs/data/explode_example.tsv', delimiter='\\s+',
+            table3 = hc.import_table('data/explode_example.tsv', delimiter='\\s+',
                                      types={'Age': TInt32(), 'Children': TArray(TString())})
 
         .. doctest::
