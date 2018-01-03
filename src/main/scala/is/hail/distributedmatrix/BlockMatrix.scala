@@ -563,7 +563,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       }
       l
     }
-
+    
     new IndexedRowMatrix(this.blocks.flatMap { case ((i, j), lm) =>
       val iOffset = i * blockSize
       val jOffset = j * blockSize
@@ -574,7 +574,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       .map { case (i, a) => IndexedRow(i, new DenseVector(a)) },
       rows, cols)
   }
-  
+    
   // rowsToKeep is an array of distinct row indices
   def filterRows(rowsToKeep: Array[Long]): BlockMatrix = this.transpose().filterCols(rowsToKeep).transpose()
 
@@ -693,18 +693,24 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, rowsToKeep: Array[Long], col
     var jCol = 0
     var kCol = 0
     part.blockColRanges.foreach { case (blockCol, colStartIndices, colEndIndices) =>
-      var colRangeIndex = 0
-      while (colRangeIndex < colStartIndices.length) {
-        val siCol = colStartIndices(colRangeIndex)
-        val eiCol = colEndIndices(colRangeIndex)
-        kCol = jCol + eiCol - siCol
+      val jCol0 = jCol
 
-        var jRow = 0
-        var kRow = 0
-        part.blockRowRanges.foreach { case (blockRow, rowStartIndices, rowEndIndices) =>
-          val parentPI = gp.coordinatesBlock(blockRow, blockCol)
-          val (_, block) = dm.blocks.iterator(dm.blocks.partitions(parentPI), context).next()
+      var jRow = 0
+      var kRow = 0
+      part.blockRowRanges.foreach { case (blockRow, rowStartIndices, rowEndIndices) =>
+        val parentPI = gp.coordinatesBlock(blockRow, blockCol)
+        val (_, block) = dm.blocks.iterator(dm.blocks.partitions(parentPI), context).next()
+        
+        val jRow0 = jRow
+        
+        jCol = jCol0
+        var colRangeIndex = 0
+        while (colRangeIndex < colStartIndices.length) {
+          val siCol = colStartIndices(colRangeIndex)
+          val eiCol = colEndIndices(colRangeIndex)
+          kCol = jCol + eiCol - siCol
           
+          jRow = jRow0
           var rowRangeIndex = 0
           while (rowRangeIndex < rowStartIndices.length) {
             val siRow = rowStartIndices(rowRangeIndex)
@@ -715,13 +721,12 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, rowsToKeep: Array[Long], col
 
             jRow = kRow
             rowRangeIndex += 1
-          }
+          }  
+          jCol = kCol
+          colRangeIndex += 1
         }
-        assert(jRow == newBlockNRows)
-        
-        jCol = kCol
-        colRangeIndex += 1
       }
+      assert(jRow == newBlockNRows)
     }
     assert(jCol == newBlockNCols)
     

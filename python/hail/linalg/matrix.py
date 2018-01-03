@@ -1,4 +1,4 @@
-from hail.utils.java import Env, handle_py4j, scala_object
+from hail.utils.java import Env, handle_py4j, scala_object, jarray
 from hail.typecheck import *
 
 block_matrix_type = lazy()
@@ -49,5 +49,25 @@ class BlockMatrix(object):
     def __mul__(self, that):
         return BlockMatrix(self.hc,
             self._jbm.multiply(that._jbm))
+
+    @handle_py4j
+    @typecheck_method(cols_to_keep=listof(integral))
+    def filter_cols(self, cols_to_keep):
+        return BlockMatrix(self.hc,
+            self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
+
+    @handle_py4j
+    @typecheck_method(rows_to_keep=listof(integral))
+    def filter_rows(self, rows_to_keep):
+        return BlockMatrix(self.hc,
+            self._jbm.filterRows(jarray(Env.jvm().long, rows_to_keep)))
+    
+    @handle_py4j
+    @typecheck_method(rows_to_keep=listof(integral),
+                      cols_to_keep=listof(integral))
+    def filter(self, rows_to_keep, cols_to_keep):
+        return BlockMatrix(self.hc,
+            self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
+                             jarray(Env.jvm().long, cols_to_keep)))
 
 block_matrix_type.set(BlockMatrix)
