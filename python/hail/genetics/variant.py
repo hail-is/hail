@@ -307,7 +307,7 @@ class AltAllele(HistoryMixin):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'AltAllele(ref=%s, alt=%s)' % (self.ref, self.alt)
+        return "AltAllele(ref='{ref}', alt='{alt}')".format(ref=self.ref, alt=self.alt)
 
     def __eq__(self, other):
         return isinstance(other, AltAllele) and self._jrep.equals(other._jrep)
