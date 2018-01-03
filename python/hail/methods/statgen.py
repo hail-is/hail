@@ -310,10 +310,8 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     analyze(entry_expr, dataset._entry_indices, set(), set(dataset._fields.keys()))
 
     r = Env.hail().methods.PCA.apply(dataset._jvds, to_expr(entry_expr)._ast.to_hql(), k, compute_loadings, as_array)
-    scores = Table(
-        Env.hc(),
-        Env.hail().methods.PCA.scoresTable(dataset._jvds, as_array, r._2()))
+    scores = Table(Env.hail().methods.PCA.scoresTable(dataset._jvds, as_array, r._2()))
     loadings = from_option(r._3())
     if loadings:
-        loadings = Table(Env.hc(), loadings)
+        loadings = Table(loadings)
     return (jiterable_to_list(r._1()), scores, loadings)
