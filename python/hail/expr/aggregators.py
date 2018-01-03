@@ -180,7 +180,7 @@ def counter(expr):
 
     Warning
     -------
-    Using :meth:`counter` with a large number of items can cause
+    Using :meth:`counter` with a large number of unique items can cause
     out-of-memory exceptions.
 
     Parameters
@@ -416,12 +416,13 @@ def stats(expr):
     Notes
     -----
     Computes a struct with the following fields:
-     - `min` (:class:`hail.expr.types.TFloat64`) - Minimum value.
-     - `max` (:class:`hail.expr.types.TFloat64`) - Maximum value.
-     - `mean` (:class:`hail.expr.types.TFloat64`) - Mean value,
-     - `stdev` (:class:`hail.expr.types.TFloat64`) - Standard deviation.
-     - `nNotMissing` (:class:`hail.expr.types.TFloat64`) - Number of non-missing records.
-     - `sum` (:class:`hail.expr.types.TFloat64`) - Sum.
+
+    - `min` (:class:`hail.expr.types.TFloat64`) - Minimum value.
+    - `max` (:class:`hail.expr.types.TFloat64`) - Maximum value.
+    - `mean` (:class:`hail.expr.types.TFloat64`) - Mean value,
+    - `stdev` (:class:`hail.expr.types.TFloat64`) - Standard deviation.
+    - `nNotMissing` (:class:`hail.expr.types.TFloat64`) - Number of non-missing records.
+    - `sum` (:class:`hail.expr.types.TFloat64`) - Sum.
 
     Parameters
     ----------
@@ -500,7 +501,7 @@ def fraction(predicate):
     Returns
     -------
     :class:`hail.expr.expression.Float64Expression`
-        Fraction of records where `predicate is ``True``.
+        Fraction of records where `predicate` is ``True``.
     """
     agg = _to_agg(predicate)
     if not isinstance(agg._type, TBoolean):
@@ -537,9 +538,10 @@ def hardy_weinberg(expr):
     Notes
     -----
     This method returns a struct expression with the following fields:
-     - `rExpectedHetFrequency` (:class:`hail.expr.types.TFloat64`) - Ratio of observed to
-        expected heterozygote frequency.
-     - `pHWE` (:class:`hail.expr.types.TFloat64`) - Hardy-Weinberg p-value.
+
+    - `rExpectedHetFrequency` (:class:`hail.expr.types.TFloat64`) - Ratio of observed to
+      expected heterozygote frequency.
+    - `pHWE` (:class:`hail.expr.types.TFloat64`) - Hardy-Weinberg p-value.
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
     probability of a less-likely outcome plus one-half the probability of an
