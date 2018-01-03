@@ -628,7 +628,7 @@ class CollectionExpression(Expression):
 class CollectionNumericExpression(CollectionExpression):
     """Expression of type :class:`hail.expr.types.TArray` or :class:`hail.expr.types.TSet` with numeric element type.
 
-    >>> a = [1, 2, 3, 4, 5]
+    >>> a = functions.capture([1, 2, 3, 4, 5])
     """
 
     def max(self):
