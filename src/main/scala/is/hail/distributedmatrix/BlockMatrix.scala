@@ -684,33 +684,32 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, rowsToKeep: Array[Long], col
     })
   
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
+    val part = split.asInstanceOf[BlockMatrixFilterRDDPartition]
+
     val (newBlockRow, newBlockCol) = newGP.blockCoordinates(split.index)
     val (newBlockNRows, newBlockNCols) = newGP.blockDims(split.index)
     val newBlock = BDM.zeros[Double](newBlockNRows, newBlockNCols)
     
-    val part = split.asInstanceOf[BlockMatrixFilterRDDPartition]
-    
     var jCol = 0
     var kCol = 0
     part.blockColRanges.foreach { case (blockCol, colStartIndices, colEndIndices) =>
-      val jCol0 = jCol
-
+      val jCol0 = jCol // record first col index in newBlock corresponding to new blockCol
       var jRow = 0
       var kRow = 0
       part.blockRowRanges.foreach { case (blockRow, rowStartIndices, rowEndIndices) =>
+        val jRow0 = jRow // record first row index in newBlock corresponding to new blockRow
+        
         val parentPI = gp.coordinatesBlock(blockRow, blockCol)
         val (_, block) = dm.blocks.iterator(dm.blocks.partitions(parentPI), context).next()
-        
-        val jRow0 = jRow
-        
-        jCol = jCol0
+
+        jCol = jCol0 // reset col index for new blockRow in same blockCol        
         var colRangeIndex = 0
         while (colRangeIndex < colStartIndices.length) {
           val siCol = colStartIndices(colRangeIndex)
           val eiCol = colEndIndices(colRangeIndex)
           kCol = jCol + eiCol - siCol
           
-          jRow = jRow0
+          jRow = jRow0 // reset row index for new column range in same (blockRow, blockCol)
           var rowRangeIndex = 0
           while (rowRangeIndex < rowStartIndices.length) {
             val siRow = rowStartIndices(rowRangeIndex)
@@ -718,7 +717,7 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, rowsToKeep: Array[Long], col
             kRow = jRow + eiRow - siRow
             
             newBlock(jRow until kRow, jCol until kCol) := block(siRow until eiRow, siCol until eiCol)
-
+            
             jRow = kRow
             rowRangeIndex += 1
           }  
@@ -790,7 +789,7 @@ private class BlockMatrixFilterColsRDD(dm: BlockMatrix, colsToKeep: Array[Long])
         }
       }
     assert(j == newBlockNCols)
-        
+    
     Iterator.single(((blockRow, newBlockCol), newBlock))
   }
   
