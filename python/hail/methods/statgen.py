@@ -71,7 +71,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
         block_size
     )
 
-    return cleanup(MatrixTable(dataset._hc, jm))
+    return cleanup(MatrixTable(jm))
 
 
 @handle_py4j

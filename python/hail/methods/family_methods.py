@@ -53,5 +53,5 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
 
     :rtype: :class:`.VariantDataset`
     """
-    return MatrixTable(dataset._hc, dataset._jvds.trioMatrix(pedigree._jrep, complete_trios)
+    return MatrixTable(dataset._jvds.trioMatrix(pedigree._jrep, complete_trios)
                        .annotateGenotypesExpr('g = {proband_entry: g.proband, father_entry: g.father, mother_entry: g.mother}'))
