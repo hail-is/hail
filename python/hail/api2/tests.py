@@ -414,6 +414,23 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(not any(f.name == 'bar' for f in vds2.col_schema.fields))
         self.assertTrue(not any(f.name == 'GT' for f in vds2.entry_schema.fields))
 
+    def test_joins(self):
+        vds = self.get_vds().select_rows(x1=1, y1=1)
+        vds2 = vds.select_rows(x2=1, y2=2)
+        vds2 = vds2.select_cols(c1 = 1, c2 = 2)
+
+        vds = vds.annotate_rows(y2 = vds2[vds.v, :].y2)
+        vds = vds.annotate_cols(c2 = vds2[:, vds.s].c2)
+
+        vds = vds.annotate_rows(y2 = vds2[functions.parse_variant(functions.to_str(vds.v)), :].y2)
+        vds = vds.annotate_cols(c2 = vds2[:, functions.to_str(vds.s)].c2)
+
+        rt = vds.rows_table()
+        ct = vds.cols_table()
+
+        self.assertTrue(rt.forall(rt.y2 == 2))
+        self.assertTrue(ct.forall(ct.c2 == 2))
+
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
