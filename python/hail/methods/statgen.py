@@ -177,12 +177,12 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
             "Cannot run PCA: found 0 variants after filtering out monomorphic sites.")
     info("Running PCA using {} variants.".format(n_variants))
 
-    # FIXME: use bind
-    mean_gt = dataset.AC / dataset.n_called
-    entry_expr = functions.cond(functions.is_defined(dataset.GT),
-                                (dataset.GT.num_alt_alleles() - mean_gt) /
-                                functions.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
-                                0)
+    entry_expr = functions.bind(
+        dataset.AC / dataset.n_called,
+        lambda mean_gt: functions.cond(functions.is_defined(dataset.GT),
+                                       (dataset.GT.num_alt_alleles() - mean_gt) /
+                                       functions.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
+                                       0))
     result = pca(entry_expr,
                  k,
                  compute_loadings,
