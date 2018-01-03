@@ -432,15 +432,15 @@ class CollectionExpression(Expression):
 
         Notes
         -----
-        Returns a same-type expression; evaluated on a :py:class`SetExpression`, returns a
-        :py:class`SetExpression`. Evaluated on an :py:class`ArrayExpression`,
-        returns an :py:class`ArrayExpression`.
+        Returns a same-type expression; evaluated on a :py:class:`SetExpression`, returns a
+        :py:class:`SetExpression`. Evaluated on an :py:class:`ArrayExpression`,
+        returns an :py:class:`ArrayExpression`.
 
         Parameters
         ----------
         f : callable
             Function to evaluate for each element of the collection. Must return a
-            :py:class`BooleanExpression`.
+            :py:class:`BooleanExpression`.
 
         Returns
         -------
@@ -470,7 +470,7 @@ class CollectionExpression(Expression):
         ----------
         f : callable
             Function to evaluate for each element of the collection. Must return a
-            :py:class`BooleanExpression`.
+            :py:class:`BooleanExpression`.
 
         Returns
         -------
@@ -523,7 +523,7 @@ class CollectionExpression(Expression):
         ----------
         f : callable
             Function to evaluate for each element of the collection. Must return a
-            :py:class`BooleanExpression`.
+            :py:class:`BooleanExpression`.
 
         Returns
         -------
@@ -723,7 +723,7 @@ class CollectionNumericExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`Float64Expression`
+        :py:class:`NumericExpression`
             The product of the collection.
         """
         return self._method("product",
@@ -746,7 +746,7 @@ class CollectionNumericExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`Float64Expression`
+        :py:class:`NumericExpression`
             The sum of the collection.
         """
         return self._method("sum", self._type.element_type)
@@ -1057,7 +1057,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         .. doctest::
 
             >>> eval_expr(a2 * 5)
-            >>> eval_expr(a2 * 5)
+            [5, -5, 5, -5, 5, -5]
 
             >>> eval_expr(a1 * a2)
             [0, -1, 2, -3, 4, -5]
@@ -2519,7 +2519,7 @@ class StringExpression(AtomicExpression):
         Notes
         -----
         The `regex` argument is a
-        `regular expression <https://en.wikipedia.org/wiki/Regular_expression>__`,
+        `regular expression <https://en.wikipedia.org/wiki/Regular_expression>`__,
         and uses
         `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__.
 
@@ -3151,7 +3151,7 @@ class VariantExpression(Expression):
         --------
         .. doctest::
 
-            >>> eval_expr(variant.alt_allele())
+            >>> eval_expr(variant.alt_alleles())
             [AltAllele(ref='A', alt='C')]
 
         Returns
