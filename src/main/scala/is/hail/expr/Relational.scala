@@ -636,26 +636,20 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[List[String]], preds:
   val children: IndexedSeq[BaseIR] = Array(child) ++ preds
 
   private def insertIR(path: List[String], old: IR, ir: IR): IR = {
-    if (path.isEmpty)
+    val ir2 = if (path.tail.isEmpty)
       ir
     else {
       Infer(old)
       old.typ match {
-        case t: TStruct => t.selfField(path.head) match {
-          case Some(f) =>
-            InsertFields(old, Array((path.head, insertIR(path.tail, GetField(old, path.head), ir))))
-          case None =>
-            if (path.tail.isEmpty)
-              InsertFields(old, Array((path.head, ir)))
-            else
-              InsertFields(old, Array((path.head, insertIR(path.tail, MakeStruct(Array()), ir))))
-        }
+        case t: TStruct if t.selfField(path.head).isDefined =>
+          insertIR(path.tail, GetField(old, path.head), ir)
         case _ =>
-          if (path.tail.isEmpty)
-            InsertFields(old, Array((path.head, ir)))
-          else
-            InsertFields(old, Array((path.head, insertIR(path.tail, MakeStruct(Array()), ir))))
+          insertIR(path.tail, MakeStruct(Array()), ir)
       }
+    }
+    old match {
+      case InsertFields(o, a, _) => InsertFields(o, a :+ (path.head, ir2))
+      case _ => InsertFields(old, Array((path.head, ir2)))
     }
   }
 
