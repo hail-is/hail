@@ -429,7 +429,7 @@ class MatrixTests(unittest.TestCase):
         ct = vds.cols_table()
 
         self.assertTrue(rt.forall(rt.y2 == 2))
-        self.assertTrue(ct.forall(ct.c2 = 2))
+        self.assertTrue(ct.forall(ct.c2 == 2))
 
 
 class FunctionsTests(unittest.TestCase):
