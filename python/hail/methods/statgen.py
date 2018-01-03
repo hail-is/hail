@@ -143,7 +143,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     Examples
     --------
 
-    >>> eigenvalues, scores, loadings = methods.hwe_normalized_pca(dataset, k=15)
+    >>> eigenvalues, scores, loadings = methods.hwe_normalized_pca(dataset, k=5)
 
     Notes
     -----
