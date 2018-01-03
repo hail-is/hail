@@ -4,7 +4,7 @@ from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
 from hail.genetics import Locus, Variant, Interval, Call, AltAllele
-
+from hail.typecheck import *
 
 def to_expr(e):
     if isinstance(e, Expression):
@@ -125,33 +125,33 @@ _lazy_interval = lazy()
 _lazy_call = lazy()
 _lazy_expr = lazy()
 
-expr_int32 = transformed({_lazy_int32: identity,
-                          integral: to_expr})
-expr_numeric = transformed({_lazy_numeric: identity,
-                            integral: to_expr,
-                            float: to_expr})
-expr_list = transformed({list: to_expr,
-                         _lazy_array: identity})
-expr_set = transformed({set: to_expr,
-                        _lazy_set: identity})
-expr_bool = transformed({bool: to_expr,
-                         _lazy_bool: identity})
-expr_struct = transformed({Struct: to_expr,
-                           _lazy_struct: identity})
-expr_str = transformed({strlike: to_expr,
-                        _lazy_string: identity})
-expr_variant = transformed({Variant: to_expr,
-                            _lazy_variant: identity})
-expr_locus = transformed({Locus: to_expr,
-                          _lazy_locus: identity})
-expr_altallele = transformed({AltAllele: to_expr,
-                              _lazy_altallele: identity})
-expr_interval = transformed({Interval: to_expr,
-                             _lazy_interval: identity})
-expr_call = transformed({Call: to_expr,
-                         _lazy_call: identity})
-expr_any = transformed({_lazy_expr: identity,
-                        anytype: to_expr})
+expr_int32 = transformed((_lazy_int32, identity),
+                         (integral, to_expr))
+expr_numeric = transformed((_lazy_numeric, identity),
+                           (integral, to_expr),
+                           (float, to_expr))
+expr_list = transformed((list, to_expr),
+                        (_lazy_array, identity))
+expr_set = transformed((set, to_expr),
+                       (_lazy_set, identity))
+expr_bool = transformed((bool, to_expr),
+                        (_lazy_bool, identity))
+expr_struct = transformed((Struct, to_expr),
+                          (_lazy_struct, identity))
+expr_str = transformed((strlike, to_expr),
+                       (_lazy_string, identity))
+expr_variant = transformed((Variant, to_expr),
+                           (_lazy_variant, identity))
+expr_locus = transformed((Locus, to_expr),
+                         (_lazy_locus, identity))
+expr_altallele = transformed((AltAllele, to_expr),
+                             (_lazy_altallele, identity))
+expr_interval = transformed((Interval, to_expr),
+                            (_lazy_interval, identity))
+expr_call = transformed((Call, to_expr),
+                        (_lazy_call, identity))
+expr_any = transformed((_lazy_expr, identity),
+                       (anytype, to_expr))
 
 
 class Indices(object):

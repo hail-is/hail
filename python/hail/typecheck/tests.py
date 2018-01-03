@@ -228,8 +228,10 @@ class ContextTests(unittest.TestCase):
 
     def test_coercion(self):
 
-        @typecheck(a=transformed({integral: lambda x: 'int', strlike: lambda x: 'str'}),
-                   b=listof(dictof(strlike, transformed({integral: lambda x: 'int', strlike: lambda x: 'str'}))))
+        @typecheck(a=transformed((integral, lambda x: 'int'),
+                                 (strlike, lambda x: 'str')),
+                   b=listof(dictof(strlike, transformed((integral, lambda x: 'int'),
+                                                        (strlike, lambda x: 'str')))))
         def foo(a, b):
             return a, b
 

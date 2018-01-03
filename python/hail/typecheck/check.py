@@ -3,7 +3,7 @@ from types import ClassType, NoneType, InstanceType
 import re
 
 
-class FAIL(object):
+class TypecheckFailure(Exception):
     pass
 
 
@@ -43,10 +43,11 @@ class MultipleTypeChecker(TypeChecker):
 
     def check(self, x):
         for tc in self.checkers:
-            x_ = tc.check(x)
-            if x_ is not FAIL:
-                return x_
-        return FAIL
+            try:
+                return tc.check(x)
+            except TypecheckFailure:
+                pass
+        raise TypecheckFailure()
 
     def expects(self):
         return '(' + ' or '.join([c.expects() for c in self.checkers]) + ')'
@@ -59,13 +60,11 @@ class ListChecker(TypeChecker):
 
     def check(self, x):
         if not isinstance(x, list):
-            return FAIL
+            raise TypecheckFailure
         x_ = []
         tc = self.ec
         for elt in x:
             elt_ = tc.check(elt)
-            if elt_ is FAIL:
-                return FAIL
             x_.append(elt_)
         return x_
 
@@ -80,13 +79,11 @@ class SetChecker(TypeChecker):
 
     def check(self, x):
         if not isinstance(x, set):
-            return FAIL
+            raise TypecheckFailure
         x_ = set()
         tc = self.ec
         for elt in x:
             elt_ = tc.check(elt)
-            if elt_ is FAIL:
-                return FAIL
             x_.add(elt_)
         return x_
 
@@ -101,13 +98,11 @@ class TupleChecker(TypeChecker):
 
     def check(self, x):
         if not isinstance(x, tuple):
-            return FAIL
+            raise TypecheckFailure
         x_ = []
         tc = self.ec
         for elt in x:
             elt_ = tc.check(elt)
-            if elt_ is FAIL:
-                return FAIL
             x_.append(elt_)
         return tuple(x_)
 
@@ -123,15 +118,13 @@ class DictChecker(TypeChecker):
 
     def check(self, x):
         if not isinstance(x, dict):
-            return FAIL
+            raise TypecheckFailure
         x_ = {}
         kc = self.kc
         vc = self.vc
         for k, v in x.items():
             k_ = kc.check(k)
             v_ = vc.check(v)
-            if k_ is FAIL or v_ is FAIL:
-                return FAIL
             x_[k_] = v_
         return x_
 
@@ -152,12 +145,10 @@ class SizedTupleChecker(TypeChecker):
 
     def check(self, x):
         if not isinstance(x, tuple):
-            return FAIL
+            raise TypecheckFailure
         x_ = []
         for tc, elt in zip(self.ec, x):
             elt_ = tc.check(elt)
-            if elt_ is FAIL:
-                return FAIL
             x_.append(elt_)
         return tuple(x_)
 
@@ -184,7 +175,7 @@ class CharChecker(TypeChecker):
         if (isinstance(x, str) or isinstance(x, unicode)) and len(x) == 1:
             return x
         else:
-            return FAIL
+            raise TypecheckFailure
 
     def expects(self):
         return 'char'
@@ -199,7 +190,7 @@ class LiteralChecker(TypeChecker):
         if isinstance(x, self.t):
             return x
         else:
-            return FAIL
+            raise TypecheckFailure
 
     def expects(self):
         return extract(self.t)
@@ -219,7 +210,7 @@ class LazyChecker(TypeChecker):
         if isinstance(x, self.t):
             return x
         else:
-            return FAIL
+            raise TypecheckFailure
 
     def expects(self):
         if not self.t:
@@ -236,7 +227,7 @@ class ExactlyTypeChecker(TypeChecker):
         if x == self.v:
             return x
         else:
-            return FAIL
+            raise TypecheckFailure
 
     def expects(self):
         return str(self.v)
@@ -258,10 +249,11 @@ class CoercionChecker(MultipleTypeChecker):
 
     def check(self, x):
         for tc, f in self.fs:
-            x_ = tc.check(x)
-            if x_ is not FAIL:
-                return f(x_)
-        return FAIL
+            try:
+                return f(tc.check(x))
+            except TypecheckFailure:
+                pass
+        raise TypecheckFailure
 
 
 def only(t):
@@ -309,11 +301,11 @@ def dictof(k, v):
     return DictChecker(only(k), only(v))
 
 
-def transformed(d):
+def transformed(*tcs):
     fs = []
-    for k, v in d.items():
-        k = only(k)
-        fs.append((k, v))
+    for tc, f in tcs:
+        tc = only(tc)
+        fs.append((tc, f))
     return CoercionChecker(*fs)
 
 
@@ -375,8 +367,10 @@ def check_all(f, args, kwargs, checks, is_method):
         arg = pos_args[i]
         argname = named_args[i] if i < len(named_args) else spec.varargs
         tc = checks[argname]
-        arg_ = tc.check(arg)
-        if arg_ is FAIL:
+        try:
+            arg_ = tc.check(arg)
+            args_.append(arg_)
+        except TypecheckFailure:
             if i < len(named_args):
                 raise TypeError("{fname}: parameter '{argname}': "
                                 "expected {expected}, found {found}: '{arg}'".format(
@@ -397,14 +391,15 @@ def check_all(f, args, kwargs, checks, is_method):
                     found=extract(type(arg)),
                     arg=str(arg)
                 ))
-        args_.append(arg_)
 
     kwargs_ = {}
     if spec.varkw:
         tc = checks[spec.varkw]
         for argname, arg in kwargs.items():
-            arg_ = tc.check(arg)
-            if arg_ is FAIL:
+            try:
+                arg_ = tc.check(arg)
+                kwargs_[argname] = arg_
+            except TypecheckFailure:
                 raise TypeError("{fname}: keyword argument '{argname}': "
                                 "expected {expected}, found {found}: '{arg}'".format(
                     fname=name,
@@ -413,13 +408,13 @@ def check_all(f, args, kwargs, checks, is_method):
                     found=extract(type(arg)),
                     arg=str(arg)
                 ))
-            kwargs_[argname] = arg_
 
     return args_, kwargs_
 
 
 def typecheck_method(**checkers):
     checkers = {k: only(v) for k, v in checkers.items()}
+
     def _typecheck(f, *args, **kwargs):
         args_, kwargs_ = check_all(f, args, kwargs, checkers, is_method=True)
         return f(*args_, **kwargs_)
@@ -429,6 +424,7 @@ def typecheck_method(**checkers):
 
 def typecheck(**checkers):
     checkers = {k: only(v) for k, v in checkers.items()}
+
     def _typecheck(f, *args, **kwargs):
         args_, kwargs_ = check_all(f, args, kwargs, checkers, is_method=False)
         return f(*args_, **kwargs_)
