@@ -24,6 +24,7 @@ class GroupedMatrixTable(object):
         table2 = table2.annotate(pop='AMR', is_case=False, sex='F')
 
     """
+
     def __init__(self, parent, group, grouped_indices):
         self._parent = parent
         self._group = group
@@ -403,6 +404,53 @@ class MatrixTable(object):
         if self._genotype_schema is None:
             self._genotype_schema = Type._from_java(self._jvds.genotypeSignature())
         return self._genotype_schema
+    @property
+    @handle_py4j
+    def globals(self):
+        """Returns a struct expression including all global fields.
+
+        Returns
+        -------
+        :class:`StructExpression`
+            Struct of all global fields.
+        """
+        return construct_expr(Reference('global', False), self.global_schema, indices=self._global_indices)
+
+    @property
+    @handle_py4j
+    def row(self):
+        """Returns a struct expression including all row-indexed fields.
+
+        Returns
+        -------
+        :class:`StructExpression`
+            Struct of all row-indexed fields.
+        """
+        return construct_expr(Reference('va', False), self.row_schema, indices=self._row_indices)
+
+    @property
+    @handle_py4j
+    def col(self):
+        """Returns a struct expression including all column-indexed fields.
+
+        Returns
+        -------
+        :class:`StructExpression`
+            Struct of all column-indexed fields.
+        """
+        return construct_expr(Reference('sa', False), self.col_schema, indices=self._col_indices)
+
+    @property
+    @handle_py4j
+    def entry(self):
+        """Returns a struct expression including all row-and-column-indexed fields.
+
+        Returns
+        -------
+        :class:`StructExpression`
+            Struct of all row-and-column-indexed fields.
+        """
+        return construct_expr(Reference('g', False), self.entry_schema, indices=self._entry_indices)
 
     @handle_py4j
     def annotate_globals(self, **named_exprs):
@@ -1919,6 +1967,7 @@ class MatrixTable(object):
     @typecheck_method(truncate_at=integral)
     def describe(self, truncate_at=60):
         """Print information about the fields in the matrix."""
+
         def format_type(typ):
             typ_str = str(typ)
             if len(typ_str) > truncate_at - 3:
