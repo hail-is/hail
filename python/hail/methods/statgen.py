@@ -18,7 +18,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     Examples
     --------
 
-    >>> dataset_result = methods.linreg(dataset, [dataset.pheno.height],
+    >>> dataset_result = methods.linreg(dataset, [dataset.pheno.height], dataset.GT.num_alt_alleles(),
     ...                                 covariates=[dataset.pheno.age, dataset.pheno.isFemale])
 
     Warning
