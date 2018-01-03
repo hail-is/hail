@@ -408,7 +408,7 @@ class CollectionExpression(Expression):
         ----------
         f : callable
             Function to evaluate for each element of the collection. Must return a
-            :py:class`BooleanExpression`.
+            :py:class:`BooleanExpression`.
 
         Returns
         -------
