@@ -2069,6 +2069,10 @@ class NumericExpression(AtomicExpression):
         """
         return self._bin_op(">=", other, TBoolean())
 
+
+    def __pos__(self):
+        return self
+
     def __neg__(self):
         """Negate the number (multiply by -1).
 
