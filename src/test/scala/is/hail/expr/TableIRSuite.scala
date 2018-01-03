@@ -49,6 +49,7 @@ class TableIRSuite extends SparkSuite {
 
     val kt = Table(hc, rdd, signature, keyNames)
     val kt2 = kt.annotate("a = field1")
+    assert(kt2.ir.isInstanceOf[TableAnnotate])
     assert(kt2.select("Sample", "field1 = a", "field2").same(kt))
   }
 }
