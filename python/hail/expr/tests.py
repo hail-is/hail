@@ -106,3 +106,9 @@ class Tests(unittest.TestCase):
                     ti32, ti64, tf32, tf64, ts, tb,
                     tdict, tarray, tset, tstruct]:
             self.assertEqual(eval(repr(typ)), typ)
+
+    def test_matches(self):
+        self.assertEqual(eval_expr('\d+'), '\d+')
+        string = functions.capture('12345')
+        self.assertTrue(eval_expr(string.matches('\d+')))
+        self.assertFalse(eval_expr(string.matches(r'\\d+')))

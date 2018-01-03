@@ -1,5 +1,5 @@
 from hail.typecheck import *
-
+from hail.utils.java import Env
 asttype = lazy()
 
 
@@ -213,6 +213,18 @@ class Bind(AST):
             left_expr=self.definition.to_hql(),
             right_expr=self.expression.to_hql()
         )
+
+
+class RegexMatch(AST):
+    @typecheck_method(string=AST, regex=strlike)
+    def __init__(self, string, regex):
+        self.string = string
+        self.regex = regex
+        super(RegexMatch, self).__init__(string)
+
+    def to_hql(self):
+        return '("{regex}" ~ {string})'.format(regex=Env.jutils().escapePyString(self.regex), string=self.string.to_hql())
+
 
 class AggregableReference(AST):
     def __init__(self):
