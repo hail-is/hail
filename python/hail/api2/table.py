@@ -1814,12 +1814,12 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            table3 = hc.import_table('data/explode_example.tsv', delimiter='\\s+',
+            people_table = hc.import_table('data/explode_example.tsv', delimiter='\\s+',
                                      types={'Age': TInt32(), 'Children': TArray(TString())})
 
         .. doctest::
 
-            >>> table3.show()
+            >>> people_table.show()
             +----------+-------+--------------------------+
             | Name     |   Age | Children                 |
             +----------+-------+--------------------------+
@@ -1835,8 +1835,8 @@ class Table(TableTemplate):
 
         .. doctest::
 
-            >>> table3_exploded = table3.explode('Children')
-            >>> table3_exploded.show()
+            >>> exploded = people_table.explode('Children')
+            >>> exploded.show()
             +--------+-------+----------+
             | Name   |   Age | Children |
             +--------+-------+----------+
