@@ -41,8 +41,9 @@ def collect(expr):
     Notes
     -----
     The element order of the resulting array is not guaranteed, and in some
-    cases is non-deterministic. Use :meth:`collect_as_set` to collect unique
-    items. Ensure that the result can be stored in memory on a single machine.
+    cases is non-deterministic.
+
+    Use :meth:`collect_as_set` to collect unique items.
 
     Warning
     -------
