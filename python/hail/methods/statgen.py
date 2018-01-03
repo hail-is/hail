@@ -13,41 +13,51 @@ from hail.utils.java import handle_py4j
            root=strlike,
            block_size=integral)
 def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
-    """Test each variant for association with multiple phenotypes using linear regression.
+    """Test each row for association with response variables using linear regression.
 
-    .. warning::
+    Examples
+    --------
 
-        :py:meth:`.linreg` uses the same set of samples for each phenotype,
-        namely the set of samples for which **all** phenotypes and covariates are defined.
+    >>> dataset_result = methods.linreg(dataset, [dataset.pheno.height], dataset.GT.num_alt_alleles(),
+    ...                                 covariates=[dataset.pheno.age, dataset.pheno.isFemale])
 
-    **Annotations**
+    Warning
+    -------
+    :meth:`linreg` uses the same set of columns for each phenotype, the set of
+    columns for which **all** response variables and covariates are defined.
 
-    With the default root, the following four variant annotations are added.
-    The indexing of the array annotations corresponds to that of ``y``.
+    Notes
+    -----
 
-    - **va.linreg.nCompleteSamples** (*Int*) -- number of samples used
-    - **va.linreg.AC** (*Double*) -- sum of input values ``x``
-    - **va.linreg.ytx** (*Array[Double]*) -- array of dot products of each response vector ``y`` with the input vector ``x``
-    - **va.linreg.beta** (*Array[Double]*) -- array of fit effect coefficients, :math:`\hat\beta_1`
-    - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
-    - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-    - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
+    With the default root, the following row-indexed fields are added.
+    The indexing of the array annotations corresponds to that of ``ys``.
 
-    :param ys: list of one or more response expressions.
-    :type ys: list of str
+    - **linreg.nCompleteSamples** (*Int32*) -- number of columns used
+    - **linreg.AC** (*Float64*) -- sum of input values ``x``
+    - **linreg.ytx** (*Array[Float64]*) -- array of dot products of each response vector ``y`` with the input vector ``x``
+    - **linreg.beta** (*Array[Float64]*) -- array of fit effect coefficients, :math:`\hat\beta_1`
+    - **linreg.se** (*Array[Float64]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
+    - **linreg.tstat** (*Array[Float64]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+    - **linreg.pval** (*Array[Float64]*) -- array of :math:`p`-values
 
-    :param str x: expression for input variable
+    Parameters
+    ----------
+    ys : :obj:`list` of :class:`hail.expr.expression.Expression`
+        One or more response expressions.
+    x : :class:`hail.expr.expression.Expression`
+        Input variable.
+    covariates : :obj:`list` of :class:`hail.expr.expression.Expression`
+        Covariate expressions.
+    root : :obj:`str`
+        Name of resulting row-indexed field.
+    block_size : :obj:`int`
+        Number of row regressions to perform simultaneously. Larger blocks
+        require more memory.
 
-    :param covariates: list of covariate expressions.
-    :type covariates: list of str
-
-    :param str root: Variant annotation path to store result of linear regression.
-
-    :param int variant_block_size: Number of variant regressions to perform simultaneously.  Larger block size requires more memmory.
-
-    :return: Variant dataset with linear regression variant annotations.
-    :rtype: :py:class:`.VariantDataset`
-
+    Returns
+    -------
+    :class:`MatrixTable`
+        Dataset with regression results in a new row-indexed field.
     """
     all_exprs = [x]
 
