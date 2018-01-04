@@ -13,7 +13,7 @@ from hail.utils.java import handle_py4j
            root=strlike,
            block_size=integral)
 def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
-    """Test each row for association with response variables using linear regression.
+    """For each row, test a derived input variable for association with response variables using linear regression.
 
     Examples
     --------
@@ -23,22 +23,41 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     Warning
     -------
-    :meth:`linreg` uses the same set of columns for each phenotype, the set of
-    columns for which **all** response variables and covariates are defined.
+    :meth:`linreg` uses the same set of samples (columns) for every response variable and row, namely the set of
+    samples for which **all** response variables and covariates are defined. For each row, missing values of ``x``
+    are mean-imputed over these samples.
 
     Notes
     -----
-
+    
     With the default root, the following row-indexed fields are added.
     The indexing of the array annotations corresponds to that of ``ys``.
 
     - **linreg.nCompleteSamples** (*Int32*) -- number of columns used
     - **linreg.AC** (*Float64*) -- sum of input values ``x``
     - **linreg.ytx** (*Array[Float64]*) -- array of dot products of each response vector ``y`` with the input vector ``x``
-    - **linreg.beta** (*Array[Float64]*) -- array of fit effect coefficients, :math:`\hat\beta_1`
+    - **linreg.beta** (*Array[Float64]*) -- array of fit effect coefficients of ``x``, :math:`\hat\beta_1` below
     - **linreg.se** (*Array[Float64]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
     - **linreg.tstat** (*Array[Float64]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
     - **linreg.pval** (*Array[Float64]*) -- array of :math:`p`-values
+    
+    In the statistical genetics example above, the input variable ``x`` encodes genotype
+    as the number of alternate alleles (0, 1, or 2). For each variant (row), genotype is tested for association
+    with height controlling for age and sex, by fitting the linear regression model:
+
+    .. math::
+
+        \mathrm{height} = \beta_0 + \beta_1 \, \mathrm{genotype} + \beta_2 \, \mathrm{age} + \beta_3 \, \mathrm{isFemale} + \varepsilon, \quad \varepsilon \sim \mathrm{N}(0, \sigma^2)
+
+    The null model sets :math:`\beta_1 = 0`.
+        
+    The standard least-squares linear regression model is derived in Section
+    3.2 of `The Elements of Statistical Learning, 2nd Edition
+    <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__. See
+    equation 3.12 for the t-statistic which follows the t-distribution with
+    :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
+    effect, with :math:`n` samples and :math:`k` covariates in addition to
+    ``x`` and the intercept.
 
     Parameters
     ----------
@@ -51,8 +70,8 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     root : :obj:`str`
         Name of resulting row-indexed field.
     block_size : :obj:`int`
-        Number of row regressions to perform simultaneously. Larger blocks
-        require more memory.
+        Number of row regressions to perform simultaneously per core. Larger blocks
+        require more memory but may improve performance.
 
     Returns
     -------
