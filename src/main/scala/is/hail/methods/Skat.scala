@@ -5,13 +5,11 @@ import is.hail.variant._
 import is.hail.expr._
 import is.hail.table.Table
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
-import is.hail.annotations.Annotation
-
+import is.hail.annotations.{Annotation, UnsafeRow}
 import breeze.linalg._
 import breeze.numerics._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
 
@@ -220,18 +218,24 @@ object Skat {
     val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
     val sampleIdsBc = vsm.sampleIdsBc
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
+    val localRowType = vsm.rowType
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
 
-    (vsm.rdd.flatMap { case (v, (va, gs)) =>
+    (vsm.rdd2.rdd.flatMap { rv =>
+      val ur = new UnsafeRow(localRowType, rv)
+      val va = ur.get(2)
+
       (Option(keyQuerier(va)), typedWeightQuerier(va)) match {
         case (Some(key), Some(w)) =>
           if (w < 0)
             fatal(s"Variant weights must be non-negative, got $w")
 
+          val v = ur.get(1)
+          val gs = ur.getAs[IndexedSeq[Annotation]](3)
           val n = completeSampleIndexBc.value.length
           val x = new DenseVector[Double](n)
-
+          
           val missingSamples = new ArrayBuilder[Int]()
 
           RegressionUtils.inputVector(x,
