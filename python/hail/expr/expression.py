@@ -1018,7 +1018,6 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
             return TArray(TInt32())
 
         else:
-            print('HERE HERE HERE: %s %s' % (type(self), type(other)))
             raise NotImplementedError('''Error in return type for numeric conversion.
                 self = {}
                 other = {}'''.format(type(self), type(other)))
