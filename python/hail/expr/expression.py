@@ -834,6 +834,7 @@ class ArrayExpression(CollectionExpression):
         else:
             raise NotImplementedError
 
+    @typecheck_method(x=expr_any)
     def contains(self, item):
         """Returns a boolean indicating whether `item` is found in the array.
 
@@ -865,7 +866,6 @@ class ArrayExpression(CollectionExpression):
         :py:class:`BooleanExpression`
             ``True`` if the element is found in the array, ``False`` otherwise.
         """
-        item = to_expr(item)
         return self.exists(lambda x: x == item)
 
     @typecheck_method(x=expr_any)
@@ -1604,7 +1604,7 @@ class DictExpression(Expression):
         """
         return self._index(self._value_typ, item)
 
-    @typecheck_method(item=expr_any)
+    @typecheck_method(k=expr_any)
     def contains(self, k):
         """Returns whether a given key is present in the dictionary.
 
