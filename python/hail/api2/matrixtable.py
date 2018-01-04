@@ -971,7 +971,7 @@ class MatrixTable(object):
         return m
 
     @handle_py4j
-    def drop_rows():
+    def drop_rows(self):
         """Drop all rows of the matrix.  Is equivalent to:
 
         >>> dataset_result = dataset.filter_rows(False)
@@ -983,7 +983,7 @@ class MatrixTable(object):
         """
         return MatrixTable(self._jvds.dropVariants())
 
-    def drop_cols():
+    def drop_cols(self):
         """Drop all columns of the matrix.  Is equivalent to:
 
         >>> dataset_result = dataset.filter_cols(False)
