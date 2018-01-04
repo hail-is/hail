@@ -414,6 +414,16 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(not any(f.name == 'bar' for f in vds2.col_schema.fields))
         self.assertTrue(not any(f.name == 'GT' for f in vds2.entry_schema.fields))
 
+    def test_drop_rows(self):
+        vds = self.get_vds()
+        vds = vds.drop_rows()
+        self.assertEqual(vds.count_rows(), 0)
+
+    def test_drop_cols(self):
+        vds = self.get_vds()
+        vds = vds.drop_cols()
+        self.assertEqual(vds.count_cols(), 0)
+
     def test_joins(self):
         vds = self.get_vds().select_rows(x1=1, y1=1)
         vds2 = vds.select_rows(x2=1, y2=2)
