@@ -971,6 +971,31 @@ class MatrixTable(object):
         return m
 
     @handle_py4j
+    def drop_rows():
+        """Drop all rows of the matrix.  Is equivalent to:
+
+        >>> dataset_result = dataset.filter_rows(False)
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Matrix table with no rows.
+        """
+        return MatrixTable(self._jvds.dropVariants())
+
+    def drop_cols():
+        """Drop all columns of the matrix.  Is equivalent to:
+
+        >>> dataset_result = dataset.filter_cols(False)
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Matrix table with no columns.
+        """
+        return MatrixTable(self._jvds.dropSamples())
+
+    @handle_py4j
     @typecheck_method(expr=anytype, keep=bool)
     def filter_rows(self, expr, keep=True):
         """Filter rows of the matrix.
