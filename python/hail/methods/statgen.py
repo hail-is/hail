@@ -23,9 +23,9 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     Warning
     -------
-    :meth:`linreg` uses the same set of samples (columns) for every response variable and row, namely the set of
-    samples for which **all** response variables and covariates are defined. For each row, missing values of ``x``
-    are mean-imputed over these samples.
+    :meth:`linreg` considers the same set of columns (i.e., samples, points) for every response variable and row,
+    namely those columns for which **all** response variables and covariates are defined.
+    For each row, missing values of ``x`` are mean-imputed over these columns.
 
     Notes
     -----
@@ -36,9 +36,9 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     - **linreg.nCompleteSamples** (*Int32*) -- number of columns used
     - **linreg.AC** (*Float64*) -- sum of input values ``x``
     - **linreg.ytx** (*Array[Float64]*) -- array of dot products of each response vector ``y`` with the input vector ``x``
-    - **linreg.beta** (*Array[Float64]*) -- array of fit effect coefficients of ``x``, :math:`\hat\beta_1` below
-    - **linreg.se** (*Array[Float64]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
-    - **linreg.tstat** (*Array[Float64]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+    - **linreg.beta** (*Array[Float64]*) -- array of fit effect coefficients of ``x``, :math:`\hat\\beta_1` below
+    - **linreg.se** (*Array[Float64]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}_1`
+    - **linreg.tstat** (*Array[Float64]*) -- array of :math:`t`-statistics, equal to :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`
     - **linreg.pval** (*Array[Float64]*) -- array of :math:`p`-values
     
     In the statistical genetics example above, the input variable ``x`` encodes genotype
@@ -47,9 +47,10 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     .. math::
 
-        \mathrm{height} = \beta_0 + \beta_1 \, \mathrm{genotype} + \beta_2 \, \mathrm{age} + \beta_3 \, \mathrm{isFemale} + \varepsilon, \quad \varepsilon \sim \mathrm{N}(0, \sigma^2)
+        \mathrm{height} = \\beta_0 + \\beta_1 \, \mathrm{genotype} + \\beta_2 \, \mathrm{age} + \\beta_3 \, \mathrm{isFemale} + \\varepsilon, \quad \\varepsilon \sim \mathrm{N}(0, \sigma^2)
 
-    The null model sets :math:`\beta_1 = 0`.
+    Boolean covariates like :math:`\mathrm{isFemale}` are encoded as 1 for true and 0 for false.
+    The null model sets :math:`\\beta_1 = 0`.
         
     The standard least-squares linear regression model is derived in Section
     3.2 of `The Elements of Statistical Learning, 2nd Edition
@@ -78,6 +79,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     :class:`MatrixTable`
         Dataset with regression results in a new row-indexed field.
     """
+    
     all_exprs = [x]
 
     ys = wrap_to_list(ys)
