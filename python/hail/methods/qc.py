@@ -168,4 +168,4 @@ def variant_qc(dataset, name='variant_qc'):
         Dataset with a new row-indexed field `name`.
     """
 
-    return MatrixTable(Env.hail().methods.VariantQC.apply(dataset._jvds, name))
+    return MatrixTable(Env.hail().methods.VariantQC.apply(dataset._jvds, 'va.`{}`'.format(name)))
