@@ -1630,7 +1630,7 @@ class DictExpression(Expression):
         """
         return self._method("contains", TBoolean(), k)
 
-    @typecheck_method(item=expr_any)
+    @typecheck_method(k=expr_any)
     def get(self, k):
         """Returns the value associated with key `k`, or missing if that key is not present.
 
