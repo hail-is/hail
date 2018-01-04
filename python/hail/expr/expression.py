@@ -834,7 +834,7 @@ class ArrayExpression(CollectionExpression):
         else:
             raise NotImplementedError
 
-    @typecheck_method(x=expr_any)
+    @typecheck_method(item=expr_any)
     def contains(self, item):
         """Returns a boolean indicating whether `item` is found in the array.
 
