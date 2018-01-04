@@ -8,6 +8,7 @@ Methods
 
     hail.methods.linreg
     hail.methods.sample_qc
+    hail.methods.variant_qc
     hail.methods.ld_matrix
     hail.methods.trio_matrix
     hail.methods.pca
@@ -15,6 +16,7 @@ Methods
 
 .. autofunction:: hail.methods.linreg
 .. autofunction:: hail.methods.sample_qc
+.. autofunction:: hail.methods.variant_qc
 .. autofunction:: hail.methods.ld_matrix
 .. autofunction:: hail.methods.trio_matrix
 .. autofunction:: hail.methods.pca
