@@ -2092,6 +2092,33 @@ class MatrixTable(object):
         return MatrixTable(jvds)
 
     @handle_py4j
+    @typecheck_method(max_partitions=integral)
+    def naive_coalesce(self, max_partitions):
+        """Naively descrease the number of partitions.
+
+        Example
+        -------
+        Naively repartition to 10 partitions:
+
+        >>> dataset_result = dataset.naive_coalesce(10)
+
+        Warning
+        -------
+        :meth:`naive_coalesce` simply combines adjacent partitions to achieve the desired number.  It does not attempt to rebalance, unlike :meth:`repartition`, so it can produce a heavily unbalanced dataset.  An unbalanced dataset can be inefficient to operate on because the work is not evenly distributed across partitions.
+
+        Parameters
+        ----------
+        max_partitions : int
+            Desired number of partitions.  If the current number of partitions is less than or equal to ``max_partitions``, do nothing.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Matrix table with the number of partitions equal to at most ``max_partitions``
+        """
+        return MatrixTable(self._jvds.naiveCoalesce(max_partitions))
+
+    @handle_py4j
     def cache(self):
         """Persist the dataset in memory.
 
