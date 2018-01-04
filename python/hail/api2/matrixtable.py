@@ -2090,3 +2090,84 @@ class MatrixTable(object):
         """
         jvds = self._jvds.coalesce(num_partitions, shuffle)
         return MatrixTable(jvds)
+
+    @handle_py4j
+    def cache(self):
+        """Persist the dataset in memory.
+
+        Examples
+        --------
+        Persist the dataset in memory:
+
+        >>> dataset = dataset.cache() # doctest: +SKIP
+
+        Notes
+        -----
+
+        This method is an alias for :func:`persist("MEMORY_ONLY") <hail.api2.MatrixTable.persist>`.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Cached dataset.
+        """
+        return self.persist('MEMORY_ONLY')
+
+    @typecheck_method(storage_level=enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
+                                                'MEMORY_ONLY_2', 'MEMORY_ONLY_SER', 'MEMORY_ONLY_SER_2',
+                                                'MEMORY_AND_DISK', 'MEMORY_AND_DISK_2', 'MEMORY_AND_DISK_SER',
+                                                'MEMORY_AND_DISK_SER_2', 'OFF_HEAP'))
+    def persist(self, storage_level='MEMORY_AND_DISK'):
+        """Persist this table in memory or on disk.
+
+        Examples
+        --------
+        Persist the dataset to both memory and disk:
+
+        >>> dataset = dataset.persist() # doctest: +SKIP
+
+        Notes
+        -----
+
+        The :py:meth:`MatrixTable.persist` and :py:meth:`MatrixTable.cache`
+        methods store the current dataset on disk or in memory temporarily to
+        avoid redundant computation and improve the performance of Hail
+        pipelines. This method is not a substitution for :py:meth:`Table.write`,
+        which stores a permanent file.
+
+        Most users should use the "MEMORY_AND_DISK" storage level. See the `Spark
+        documentation
+        <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`__
+        for a more in-depth discussion of persisting data.
+
+        Parameters
+        ----------
+        storage_level : str
+            Storage level.  One of: NONE, DISK_ONLY,
+            DISK_ONLY_2, MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_ONLY_SER,
+            MEMORY_ONLY_SER_2, MEMORY_AND_DISK, MEMORY_AND_DISK_2,
+            MEMORY_AND_DISK_SER, MEMORY_AND_DISK_SER_2, OFF_HEAP
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Persisted dataset.
+        """
+        return MatrixTable(self._jvds.persist(storage_level))
+
+    @handle_py4j
+    def unpersist(self):
+        """
+        Unpersists this dataset from memory/disk.
+
+        Notes
+        -----
+        This function will have no effect on a dataset that was not previously
+        persisted.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Unpersisted dataset.
+        """
+        self._jvds.unpersist()

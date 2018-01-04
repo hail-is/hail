@@ -64,3 +64,16 @@ class Tests(unittest.TestCase):
     def test_sample_qc(self):
         dataset = self.get_dataset()
         dataset = methods.sample_qc(dataset)
+
+    def test_pca(self):
+        dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()
+        eigenvalues, scores, loadings = methods.pca(dataset.GT.num_alt_alleles(), k=2, compute_loadings=True)
+
+        self.assertEqual(len(eigenvalues), 2)
+        self.assertTrue(isinstance(scores, Table))
+        self.assertEqual(scores.count(), 100)
+        self.assertTrue(isinstance(loadings, Table))
+        self.assertEqual(loadings.count(), 100)
+
+        _, _, loadings = methods.pca(dataset.GT.num_alt_alleles(), k=2, compute_loadings=False)
+        self.assertEqual(loadings, None)
