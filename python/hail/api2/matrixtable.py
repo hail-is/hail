@@ -127,6 +127,7 @@ class GroupedMatrixTable(object):
             return cleanup(
                 MatrixTable(base._jvds.groupSamplesBy(self._group._ast.to_hql(), ',\n'.join(strs))))
 
+matrix_table_type = lazy()
 
 class MatrixTable(object):
     """Hail's distributed implementation of a structured matrix.
@@ -2203,3 +2204,11 @@ class MatrixTable(object):
             Unpersisted dataset.
         """
         self._jvds.unpersist()
+
+    @handle_py4j
+    @typecheck_method(other=matrix_table_type,
+                      tolerance=numeric)
+    def _same(self, other, tolerance=1e-6):
+        return self._jvds.same(other._jvds, tolerance)
+        
+matrix_table_type.set(MatrixTable)
