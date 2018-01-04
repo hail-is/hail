@@ -431,7 +431,7 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(rt.forall(rt.y2 == 2))
         self.assertTrue(ct.forall(ct.c2 == 2))
 
-    def test_naive_coalesce():
+    def test_naive_coalesce(self):
         vds = self.get_vds(min_partitions=8)
         self.assertEqual(vds.num_partitions(), 8)
         repart = vds.naive_coalesce(2)

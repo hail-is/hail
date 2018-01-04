@@ -2104,17 +2104,22 @@ class MatrixTable(object):
 
         Warning
         -------
-        :meth:`naive_coalesce` simply combines adjacent partitions to achieve the desired number.  It does not attempt to rebalance, unlike :meth:`repartition`, so it can produce a heavily unbalanced dataset.  An unbalanced dataset can be inefficient to operate on because the work is not evenly distributed across partitions.
+        :meth:`naive_coalesce` simply combines adjacent partitions to achieve
+        the desired number. It does not attempt to rebalance, unlike
+        :meth:`repartition`, so it can produce a heavily unbalanced dataset. An
+        unbalanced dataset can be inefficient to operate on because the work is
+        not evenly distributed across partitions.
 
         Parameters
         ----------
         max_partitions : int
-            Desired number of partitions.  If the current number of partitions is less than or equal to ``max_partitions``, do nothing.
+            Desired number of partitions. If the current number of partitions is
+            less than or equal to `max_partitions`, do nothing.
 
         Returns
         -------
         :class:`MatrixTable`
-            Matrix table with the number of partitions equal to at most ``max_partitions``
+            Matrix table with at most `max_partitions` partitions.
         """
         return MatrixTable(self._jvds.naiveCoalesce(max_partitions))
 
