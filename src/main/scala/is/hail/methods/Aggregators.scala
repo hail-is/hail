@@ -3,7 +3,7 @@ package is.hail.methods
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import is.hail.HailContext
-import is.hail.annotations.{Annotation, RegionValue, RegionValueBuilder, UnsafeRow}
+import is.hail.annotations._
 import is.hail.expr._
 import is.hail.table.TableLocalValue
 import is.hail.expr.types._
@@ -769,7 +769,7 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
 
   def makeOrd(): Ordering[(Any, Any)] =
     if (tord != null)
-      extendOrderingToNull(true)(tord)
+      ExtendedOrdering.extendToNull(tord).toOrdering
         .on { case (e, k) => k.asInstanceOf[T] }
     else
       null

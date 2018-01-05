@@ -35,9 +35,8 @@ class TFloat64(override val required: Boolean) extends TNumeric {
     }
   }
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Double]]))
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(implicitly[Ordering[Double]])
 
   override def byteSize: Long = 8
 }

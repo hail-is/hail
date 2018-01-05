@@ -49,9 +49,8 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
   override def genNonmissingValue: Gen[Annotation] =
     Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    annotationOrdering(extendOrderingToNull(missingGreatest)(
-      Ordering.Iterable(elementType.ordering(missingGreatest))))
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.iterableOrdering(elementType.ordering)
 
   override def desc: String =
     """

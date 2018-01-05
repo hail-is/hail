@@ -25,7 +25,7 @@ class OrderedRVPartitioner(
   val rangeBoundsType = TArray(pkType)
   assert(rangeBoundsType.typeCheck(rangeBounds))
 
-  val ordering: Ordering[Annotation] = pkType.ordering(missingGreatest = true)
+  val ordering: Ordering[Annotation] = pkType.ordering.toOrdering
   require(rangeBounds.isEmpty || rangeBounds.zip(rangeBounds.tail).forall { case (left, right) => ordering.compare(left, right) < 0 })
 
   def region: Region = rangeBounds.region

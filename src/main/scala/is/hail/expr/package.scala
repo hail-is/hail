@@ -7,6 +7,7 @@ import is.hail.asm4s.Code
 
 package object expr extends HailRepFunctions {
   type SymbolTable = Map[String, (Int, Type)]
+
   def emptySymTab = Map.empty[String, (Int, Type)]
 
   def hailType[T: HailRep]: Type = implicitly[HailRep[T]].typ

@@ -37,20 +37,8 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
     sb.append("]")
   }
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
-    val elementSortOrd = elementType.ordering(true)
-    val itOrd = Ordering.Iterable(elementType.ordering(missingGreatest))
-    val setOrdering = new Ordering[Set[Annotation]] {
-      def compare(x: Set[Annotation], y: Set[Annotation]): Int = {
-        val s1 = x.toArray.sorted(elementSortOrd)
-        val s2 = y.toArray.sorted(elementSortOrd)
-
-        itOrd.compare(s1, s2)
-      }
-    }
-
-    annotationOrdering(extendOrderingToNull(missingGreatest)(setOrdering))
-  }
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.setOrdering(elementType.ordering)
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 

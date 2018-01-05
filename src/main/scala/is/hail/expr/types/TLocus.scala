@@ -28,9 +28,8 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    annotationOrdering(
-      extendOrderingToNull(missingGreatest)(locusOrdering))
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(gr.locusOrdering)
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {

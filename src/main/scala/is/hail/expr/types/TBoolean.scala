@@ -27,9 +27,8 @@ class TBoolean(override val required: Boolean) extends Type {
     }
   }
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Boolean]]))
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]])
 
   override def byteSize: Long = 1
 }

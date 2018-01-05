@@ -33,6 +33,5 @@ final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TFunction is not realizable")
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    throw new RuntimeException("TFunction is not realizable")
+  val ordering: ExtendedOrdering = null
 }

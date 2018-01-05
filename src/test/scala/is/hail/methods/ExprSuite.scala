@@ -1104,7 +1104,7 @@ class ExprSuite extends SparkSuite {
   }
 
   @Test def testOrdering() {
-    val intOrd = TInt32().ordering(true)
+    val intOrd = TInt32().ordering
 
     assert(intOrd.compare(-2, -2) == 0)
     assert(intOrd.compare(null, null) == 0)
@@ -1117,7 +1117,7 @@ class ExprSuite extends SparkSuite {
       b <- t.genValue) yield (t, a, b)
 
     val p = forAll(g) { case (t, a, b) =>
-      val ord = t.ordering(missingGreatest = true)
+      val ord = t.ordering
       ord.compare(a, b) == -ord.compare(b, a)
     }
     p.check()
