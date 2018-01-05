@@ -88,12 +88,12 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     ys = wrap_to_list(ys)
 
     # x is entry-indexed
-    analyze(x, dataset._entry_indices, set(), set(dataset._fields.keys()))
+    analyze(x, dataset._entry_indices)
 
     # ys and covariates are col-indexed
     for e in (tuple(wrap_to_list(ys)) + tuple(covariates)):
         all_exprs.append(e)
-        analyze(e, dataset._col_indices, set(), set(dataset._fields.keys()))
+        analyze(e, dataset._col_indices)
 
     base, cleanup = dataset._process_joins(*all_exprs)
 
@@ -339,7 +339,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
             "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
     dataset = source
     base, _ = dataset._process_joins(entry_expr)
-    analyze(entry_expr, dataset._entry_indices, set(), set(dataset._fields.keys()))
+    analyze(entry_expr, dataset._entry_indices)
 
     r = Env.hail().methods.PCA.apply(dataset._jvds, to_expr(entry_expr)._ast.to_hql(), k, compute_loadings, as_array)
     scores = Table(Env.hail().methods.PCA.scoresTable(dataset._jvds, as_array, r._2()))

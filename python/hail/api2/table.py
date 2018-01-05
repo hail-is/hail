@@ -216,7 +216,7 @@ class GroupedTable(TableTemplate):
         strs = []
         base, cleanup = self._parent._process_joins(*(tuple(v for _, v in self._groups) + tuple(named_exprs.values())))
         for k, v in named_exprs.items():
-            analyze(v, self._parent._global_indices, {self._parent._row_axis}, set(self._parent.columns))
+            analyze(v, self._parent._global_indices, {self._parent._row_axis})
             replace_aggregables(v._ast, agg_base)
             strs.append('`{}` = {}'.format(k, v._ast.to_hql()))
 
@@ -314,11 +314,11 @@ class Table(TableTemplate):
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
         for fd in self.global_schema.fields:
-            column = construct_expr(Reference(fd.name), fd.typ, indices=self._global_indices, aggregations=(), joins=())
+            column = construct_expr(Reference(fd.name), fd.typ, indices=self._global_indices)
             self._set_field(fd.name, column)
 
         for fd in self.schema.fields:
-            column = construct_expr(Reference(fd.name), fd.typ, indices=self._row_indices, aggregations=(), joins=())
+            column = construct_expr(Reference(fd.name), fd.typ, indices=self._row_indices)
             self._set_field(fd.name, column)
 
     @typecheck_method(item=oneof(strlike, Expression, slice, tupleof(Expression)))
@@ -449,7 +449,7 @@ class Table(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
-            analyze(v, self._global_indices, set(), {f.name for f in self.global_schema.fields})
+            analyze(v, self._global_indices)
             exprs.append('`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
 
         m = Table(base._jt.annotateGlobalExpr(",\n".join(exprs)))
@@ -501,13 +501,13 @@ class Table(TableTemplate):
 
         for e in exprs:
             all_exprs.append(e)
-            analyze(e, self._global_indices, set(), set(f.name for f in self.global_schema.fields))
+            analyze(e, self._global_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
         for k, e in named_exprs.items():
             all_exprs.append(e)
-            analyze(e, self._global_indices, set(), set(f.name for f in self.global_schema.fields))
+            analyze(e, self._global_indices)
             strs.append('`{}` = {}'.format(k, to_expr(e)._ast.to_hql()))
 
         return cleanup(Table(base._jt.selectGlobal(strs)))
@@ -537,7 +537,7 @@ class Table(TableTemplate):
         exprs = []
         base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
-            analyze(v, self._row_indices, set(), set(self.columns))
+            analyze(v, self._row_indices)
             exprs.append('{k} = {v}'.format(k=k, v=v._ast.to_hql()))
 
         return cleanup(Table(base._jt.annotate(",\n".join(exprs))))
@@ -589,7 +589,7 @@ class Table(TableTemplate):
             Filtered table.
         """
         expr = to_expr(expr)
-        analyze(expr, self._row_indices, set(), set(self.columns))
+        analyze(expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
         if not isinstance(expr._type, TBoolean):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
@@ -688,13 +688,13 @@ class Table(TableTemplate):
 
         for e in exprs:
             all_exprs.append(e)
-            analyze(e, self._row_indices, set(), set(self.columns))
+            analyze(e, self._row_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
         for k, e in named_exprs.items():
             all_exprs.append(e)
-            analyze(e, self._row_indices, set(), set(self.columns))
+            analyze(e, self._row_indices)
             strs.append('`{}` = {}'.format(k, to_expr(e)._ast.to_hql()))
 
         return cleanup(Table(base._jt.select(strs, False)))
@@ -898,7 +898,7 @@ class Table(TableTemplate):
                 e = self[e]
             else:
                 e = to_expr(e)
-            analyze(e, self._row_indices, set(), set(self.columns))
+            analyze(e, self._row_indices)
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_by' expects keyword arguments for complex expressions")
@@ -906,7 +906,7 @@ class Table(TableTemplate):
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)
-            analyze(e, self._row_indices, set(), set(self.columns))
+            analyze(e, self._row_indices)
             groups.append((k, e))
 
         return GroupedTable(self, groups)
@@ -945,7 +945,7 @@ class Table(TableTemplate):
         strs = []
         base, _ = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
-            analyze(v, self._global_indices, {self._row_axis}, set(self.columns))
+            analyze(v, self._global_indices, {self._row_axis})
             replace_aggregables(v._ast, agg_base)
             strs.append(v._ast.to_hql())
 
@@ -1048,7 +1048,7 @@ class Table(TableTemplate):
             raise ExpressionException('found explicit join indexed by a scalar expression')
         elif isinstance(src, Table):
             for e in exprs:
-                analyze(e, src._row_indices, set(), set(src.columns))
+                analyze(e, src._row_indices)
 
             right = self
             right_keys = [right[k] for k in right.key]
@@ -1065,10 +1065,10 @@ class Table(TableTemplate):
             all_uids = uids[:]
             all_uids.append(uid)
             return construct_expr(Reference(uid), self.schema, indices, aggregations,
-                                  joins + (Join(joiner, all_uids),))
+                                  joins.push(Join(joiner, all_uids)))
         elif isinstance(src, MatrixTable):
             for e in exprs:
-                analyze(e, src._entry_indices, set(), set(src._fields.keys()))
+                analyze(e, src._entry_indices)
 
             right = self
             # match on indices to determine join type
@@ -1085,7 +1085,7 @@ class Table(TableTemplate):
                         right._jt, [e._ast.to_hql() for e in exprs], 'va.{}'.format(uid), None, False))
 
                 return construct_expr(Select(Reference('va'), uid), self.schema,
-                                      indices, aggregations, joins + (Join(joiner, [uid]),))
+                                      indices, aggregations, joins.push(Join(joiner, [uid])))
             elif indices == src._col_indices:
                 if len(exprs) == 1 and exprs[0] is src['s']:
                     # no vds_key (faster)
@@ -1096,7 +1096,7 @@ class Table(TableTemplate):
                     joiner = lambda left: MatrixTable(left._jvds.annotateSamplesTable(
                         right._jt, [e._ast.to_hql() for e in exprs], 'sa.{}'.format(uid), None, False))
                 return construct_expr(Select(Reference('sa'), uid), self.schema,
-                                      indices, aggregations, joins + (Join(joiner, [uid]),))
+                                      indices, aggregations, joins.push(Join(joiner, [uid])))
             else:
                 raise NotImplementedError()
         else:
@@ -1114,7 +1114,7 @@ class Table(TableTemplate):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
-        return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=(Join(joiner, [uid]),))
+        return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=Queue().push(Join(joiner, [uid])))
 
     @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):
@@ -1576,7 +1576,7 @@ class Table(TableTemplate):
         :obj:`bool`
         """
         expr = to_expr(expr)
-        analyze(expr, self._row_indices, set(), set(self.columns))
+        analyze(expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
         if not isinstance(expr._type, TBoolean):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
@@ -1608,7 +1608,7 @@ class Table(TableTemplate):
             ``True`` if the predicate evaluated for ``True`` for any row, otherwise ``False``.
         """
         expr = to_expr(expr)
-        analyze(expr, self._row_indices, set(), set(self.columns))
+        analyze(expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
         if not isinstance(expr._type, TBoolean):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"

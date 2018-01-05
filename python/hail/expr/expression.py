@@ -3,6 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
+from hail.utils.queue import Queue
 from hail.genetics import Locus, Variant, Interval, Call, AltAllele
 from hail.typecheck import *
 
@@ -219,12 +220,13 @@ def construct_expr(ast, type, indices=Indices(), aggregations=(), joins=()):
 def unify_all(*exprs):
     assert len(exprs) > 0
     new_indices = Indices.unify(*[e._indices for e in exprs])
-    agg = list(exprs[0]._aggregations)
-    joins = list(exprs[0]._joins)
-    for e in exprs[1:]:
-        agg.extend(e._aggregations)
-        joins.extend(e._joins)
-    return new_indices, tuple(agg), tuple(joins)
+    first, rest = exprs[0], exprs[1:]
+    agg = first._aggregations
+    joins = first._joins
+    for e in rest:
+        agg = agg.push(*e._aggregations)
+        joins = joins.push(*e._joins)
+    return new_indices, agg, joins
 
 
 __numeric_types = [TInt32, TInt64, TFloat32, TFloat64]
@@ -250,8 +252,8 @@ def convert_numeric_typ(*types):
 class Expression(object):
     """Base class for Hail expressions."""
 
-    @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=tupleof(Aggregation), joins=tupleof(Join))
-    def __init__(self, ast, type, indices=Indices(), aggregations=(), joins=()):
+    @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=Queue, joins=Queue)
+    def __init__(self, ast, type, indices=Indices(), aggregations=Queue(), joins=Queue()):
         self._ast = ast
         self._type = type
         self._indices = indices
@@ -3517,9 +3519,8 @@ class ExpressionWarning(Warning):
 
 @typecheck(expr=Expression,
            expected_indices=Indices,
-           aggregation_axes=setof(strlike),
-           scoped_variables=setof(strlike))
-def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
+           aggregation_axes=setof(strlike))
+def analyze(expr, expected_indices, aggregation_axes=set()):
     indices = expr._indices
     source = indices.source
     axes = indices.axes
@@ -3599,12 +3600,6 @@ def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
                 )
             ))
 
-    # this may already be checked by the above, but it seems like a good idea
-    references = [r.name for r in expr._ast.search(lambda ast: isinstance(ast, Reference) and ast.top_level)]
-    for r in references:
-        if not r in scoped_variables:
-            errors.append(ExpressionException("scope exception: referenced out-of-scope field '{}'".format(r)))
-
     for w in warnings:
         warn('Analysis warning: {}'.format(w.msg))
     if errors:
@@ -3676,7 +3671,7 @@ def eval_expr_typed(expression):
     (any, :class:`hail.expr.Type`)
         Result of evaluating `expression`, and its type.
     """
-    analyze(expression, Indices(), set(), set())
+    analyze(expression, Indices())
     if len(expression._joins) > 0:
         raise ExpressionException("'eval_expr' methods do not support joins or broadcasts")
     r, t = Env.hc().eval_expr_typed(expression._ast.to_hql())
