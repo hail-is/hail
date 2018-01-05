@@ -34,10 +34,12 @@ buildScan {
 }
 
 String hailVersion = "devel"
-String[] deployedSparkVersions = ["2.0.2", "2.1.0"]
+String[] deployedSparkVersions = ["2.0.2"]
 String gitHash = exec {commandLine 'git', 'rev-parse', '--short=12', 'HEAD'}
 
-String sparkVersion = System.getProperty("spark.version","2.0.2")
+String sparkVersion = System.getProperty("spark.version", "2.0.2")
+String breezeVersion = System.getProperty("breeze.version")
+String py4jVersion = System.getProperty("py4j.version")
 
 if (!(sparkVersion ==~ /^2\..*/))
     ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.0.2.')
@@ -45,17 +47,25 @@ if (!(sparkVersion ==~ /^2\..*/))
 String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'
 
-String py4jVersion
-String breezeVersion
-if (sparkVersion ==~ /^2\.1.*/) {
-    py4jVersion = '0.10.4'
-    breezeVersion = '0.12'
+if (sparkVersion == '2.2.0') {
+    if (py4jVersion == null)
+      py4jVersion = '0.10.4'
+    if (breezeVersion == null)
+      breezeVersion = '0.13.1'
+} else if (sparkVersion == '2.1.0') {
+    if (py4jVersion == null)
+      py4jVersion = '0.10.4'
+    if (breezeVersion == null)
+      breezeVersion = '0.12'
+} else if (sparkVersion == '2.0.2') {
+    if (py4jVersion == null)
+      py4jVersion = '0.10.3'
+    if (breezeVersion == null)
+      breezeVersion = '0.11.2'
 } else {
-    py4jVersion = '0.10.3'
-    breezeVersion = '0.11.2'
+  if (breezeVersion == null || py4jVersion == null)
+    ant.fail('Unknown Spark version ' + sparkVersion + '. Set breeze.version and py4j.version properties for Spark ' + sparkVersion + '.')
 }
-
-String mongoVersion = '2.0.0'
 
 String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
@@ -153,8 +163,6 @@ dependencies {
     //compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.3.0'
     //compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.3.0'
 
-    compile 'org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':' + mongoVersion
-
     compile 'org.apache.solr:solr-solrj:6.2.0'
     compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'
 
@@ -212,7 +220,7 @@ task testPython(type: Exec, dependsOn: shadowJar) {
      commandLine 'python', '-m', 'unittest', 'hail.api1.tests', 'hail.api2.tests', 'hail.typecheck.tests', 'hail.genetics.tests', 'hail.expr.tests', 'hail.utils.tests', 'hail.methods.tests'
      environment SPARK_HOME: sparkHome
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
+     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
 }
 
 task testAll(dependsOn: ['testPython', 'test'])
@@ -248,9 +256,6 @@ shadowJar {
         include(dependency('org.json4s:json4s-ast_' + scalaMajorVersion + ':.*'))
 
         include(dependency('org.http4s:http4s-core_' + scalaMajorVersion + ':.*'))
-
-        include(dependency('org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':.*'))
-        include(dependency('org.mongodb:mongo-java-driver:.*'))
 
         // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))
@@ -297,9 +302,6 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.scalaz:scalaz-core_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalaz:scalaz-concurrent_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalaz:scalaz-stream_' + scalaMajorVersion + ':.*'))
-
-        include(dependency('org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':.*'))
-        include(dependency('org.mongodb:mongo-java-driver:.*'))
 
         // solr dependencies
         include(dependency('org.apache.solr:solr-solrj:.*'))
@@ -408,14 +410,14 @@ task makeFunctionsRst(type: Exec, dependsOn: ['shadowJar', 'copyPythonDirToTmp']
     commandLine 'python', '-c', 'from hail import *; from hail.utils import *; hc = HailContext(); fd = FunctionDocumentation(); fd.types_rst("python/hail/docs/types.rst"); fd.functions_rst("python/hail/docs/functions.rst")'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment SPARK_HOME: sparkHome
-    environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
+    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
 }
 
 task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'generateDistLinks', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
-    environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
+    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment HAIL_VERSION: hailVersion
     environment HAIL_RELEASE: hailVersion + '-' + gitHash
@@ -425,7 +427,7 @@ task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst',
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'clean', 'html'
     environment SPARK_HOME: sparkHome
-    environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
+    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment HAIL_VERSION: hailVersion
     environment HAIL_RELEASE: hailVersion + '-' + gitHash

@@ -738,20 +738,6 @@ class KeyTable(HistoryMixin):
         return self.to_dataframe(expand, flatten).toPandas()
 
     @handle_py4j
-    @typecheck_method(mode=strlike)
-    def export_mongodb(self, mode='append'):
-        """Export to MongoDB
-
-        .. warning::
-
-          :py:meth:`~.export_mongodb` is EXPERIMENTAL.
-
-        """
-
-        (scala_package_object(self.hc._hail.driver)
-         .exportMongoDB(self.hc._jsql_context, self._jkt, mode))
-
-    @handle_py4j
     @typecheck_method(zk_host=strlike,
                       collection=strlike,
                       block_size=integral)
