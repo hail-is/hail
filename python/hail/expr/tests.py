@@ -112,3 +112,6 @@ class Tests(unittest.TestCase):
         string = functions.capture('12345')
         self.assertTrue(eval_expr(string.matches('\d+')))
         self.assertFalse(eval_expr(string.matches(r'\\d+')))
+
+    def test_cond(self):
+        self.assertEqual(eval_expr('A' + functions.cond(True, 'A', 'B')), 'AA')

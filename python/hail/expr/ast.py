@@ -183,7 +183,7 @@ class Condition(AST):
         super(Condition, self).__init__(predicate, branch1, branch2)
 
     def to_hql(self):
-        return 'if ({p}) {b1} else {b2}'.format(p=self.predicate.to_hql(),
+        return '(if ({p}) {b1} else {b2})'.format(p=self.predicate.to_hql(),
                                                 b1=self.branch1.to_hql(),
                                                 b2=self.branch2.to_hql())
 
