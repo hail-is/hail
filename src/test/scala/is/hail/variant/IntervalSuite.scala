@@ -10,7 +10,7 @@ import org.testng.annotations.Test
 
 class IntervalSuite extends SparkSuite {
   val gr = GenomeReference.GRCh37
-  implicit val locusOrd = gr.locusOrdering
+  implicit val locusOrd: Ordering[Locus] = gr.locusOrdering
 
   def genomicInterval(contig: String, start: Int, end: Int): Interval[Locus] =
     Interval(Locus(contig, start), Locus(contig, end))
@@ -40,7 +40,7 @@ class IntervalSuite extends SparkSuite {
     ex1.annotate("""interval = interval.start.contig + ":" + interval.start.position + "-" + interval.end.position""")
       .export(f)
 
-    val ex1wr = hc.importTable(f).annotate("interval = Interval(interval)").keyBy("interval")
+    val ex1wr = hc.importTable(f).annotate("interval = LocusInterval(interval)").keyBy("interval")
 
     assert(ex1wr.same(ex1))
 

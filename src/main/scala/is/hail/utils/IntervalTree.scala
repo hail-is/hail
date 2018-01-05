@@ -10,11 +10,10 @@ import scala.math.Ordering.Implicits._
 import scala.reflect.ClassTag
 
 // interval inclusive of start, exclusive of end: [start, end)
-case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Ordered[Interval[T]] {
-
+case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Serializable {
   import ev._
 
-  require(start < end, s"invalid interval: $this: start is not before end")
+  require(start <= end, s"invalid interval: $this: start is not before end")
 
   def contains(position: T): Boolean = position >= start && position < end
 
@@ -38,13 +37,21 @@ case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Order
 object Interval {
   def gen[T: Ordering](tgen: Gen[T]): Gen[Interval[T]] =
     Gen.zip(tgen, tgen)
-      .filter { case (x, y) => x != y }
       .map { case (x, y) =>
         if (x < y)
           Interval(x, y)
         else
           Interval(y, x)
       }
+
+  implicit def ordering[T]: Ordering[Interval[T]] =
+    new Ordering[Interval[T]] {
+      def compare(x: Interval[T], y: Interval[T]): Int = {
+        val c = x.compare(y)
+        assert(y.compare(x) == -c)
+        c
+      }
+    }
 }
 
 case class IntervalTree[T: Ordering, U: ClassTag](root: Option[IntervalTreeNode[T, U]]) extends

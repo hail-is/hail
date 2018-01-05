@@ -33,9 +33,9 @@ object IntervalList {
     }
 
     val schema = if (hasValue)
-      TStruct("interval" -> TInterval(gr), "target" -> TString())
+      TStruct("interval" -> TInterval(TLocus(gr)), "target" -> TString())
     else
-      TStruct("interval" -> TInterval(gr))
+      TStruct("interval" -> TInterval(TLocus(gr)))
 
     implicit val locusOrd = gr.locusOrdering
 

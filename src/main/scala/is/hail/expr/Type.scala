@@ -22,17 +22,17 @@ import scala.reflect.classTag
 abstract class BaseType
 
 object Type {
-  def genScalar(required: Boolean) =
+  def genScalar(required: Boolean): Gen[Type] =
     Gen.oneOf(TBoolean(required), TInt32(required), TInt64(required), TFloat32(required),
       TFloat64(required), TString(required), TAltAllele(required), TCall(required))
 
-  val genOptionalScalar = genScalar(false)
+  val genOptionalScalar: Gen[Type] = genScalar(false)
 
-  val genRequiredScalar = genScalar(true)
+  val genRequiredScalar: Gen[Type] = genScalar(true)
 
-  def genComplexType(required: Boolean) = {
+  def genComplexType(required: Boolean): Gen[ComplexType] = {
     val grDependents = GenomeReference.references.values.toArray.flatMap(gr =>
-      Array(TVariant(gr, required), TLocus(gr, required), TInterval(gr, required)))
+      Array(TVariant(gr, required), TLocus(gr, required)))
     val others = Array(
       TAltAllele(required), TCall(required))
     Gen.oneOfSeq(grDependents ++ others)
@@ -57,15 +57,15 @@ object Type {
 
   def genStruct: Gen[TStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(preGenStruct(_, genArb))
 
-  val genOptionalStruct = preGenStruct(false, genArb)
+  val genOptionalStruct: Gen[TStruct] = preGenStruct(required = false, genArb)
 
-  val genRequiredStruct = preGenStruct(true, genArb)
+  val genRequiredStruct: Gen[TStruct] = preGenStruct(required = true, genArb)
 
   val genInsertableStruct: Gen[TStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(required =>
     if (required)
-      preGenStruct(true, genArb)
+      preGenStruct(required = true, genArb)
     else
-      preGenStruct(false, genOptional))
+      preGenStruct(required = false, genOptional))
 
   def genSized(size: Int, required: Boolean, genTStruct: Gen[TStruct]): Gen[Type] =
     if (size < 1)
@@ -82,6 +82,9 @@ object Type {
         (1, genArb.map {
           TSet(_)
         }),
+        (1, genArb.map {
+          TInterval(_)
+        }),
         (1, Gen.zip(genRequired, genArb).map { case (k, v) => TDict(k, v) }),
         (1, genTStruct.resize(size)))
     }
@@ -91,9 +94,9 @@ object Type {
 
   def genArb: Gen[Type] = Gen.coin(0.2).flatMap(preGenArb(_))
 
-  val genOptional: Gen[Type] = preGenArb(false)
+  val genOptional: Gen[Type] = preGenArb(required = false)
 
-  val genRequired: Gen[Type] = preGenArb(true)
+  val genRequired: Gen[Type] = preGenArb(required = true)
 
   val genInsertable: Gen[Type] = Gen.coin(0.2).flatMap(preGenArb(_, genInsertableStruct))
 
@@ -1518,66 +1521,51 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
 }
 
 object TInterval {
-  def representation(required: Boolean = false): TStruct = {
+  def representation(pointType: Type, required: Boolean = false): TStruct = {
     val rep = TStruct(
-      "start" -> !TLocus.representation(),
-      "end" -> !TLocus.representation())
+      "start" -> pointType,
+      "end" -> pointType)
     if (required) (!rep).asInstanceOf[TStruct] else rep
   }
 }
 
-case class TInterval(gr: GRBase, override val required: Boolean = false) extends ComplexType {
-  def _toString = s"""Interval($gr)"""
+case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
+  override def children = Seq(pointType)
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
+  def _toString = s"""Interval[$pointType]"""
 
-  override def genNonmissingValue: Gen[Annotation] = {
-    implicit val locusOrdering = gr.locusOrdering
-    Interval.gen(Locus.gen)
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+    sb.append("Interval[")
+    pointType.pretty(sb, indent, compact)
+    sb.append("]")
   }
 
-  override def desc: String = "An ``Interval(GR)`` is a Hail data type representing a range of genomic locations in the dataset. It is parameterized by a genome reference (GR) such as GRCh37 or GRCh38."
+  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Interval[_]] && {
+    val i = a.asInstanceOf[Interval[_]]
+    pointType.typeCheck(i.start) && pointType.typeCheck(i.end)
+  }
 
-  override def scalaClassTag: ClassTag[Interval[Locus]] = classTag[Interval[Locus]]
+  override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.genValue)(pointType.ordering(true))
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+  override def desc: String = "An ``Interval[T]`` is a Hail data type representing a range over ordered values of type T."
+
+  override def scalaClassTag: ClassTag[Interval[Annotation]] = classTag[Interval[Annotation]]
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
     annotationOrdering(
-      extendOrderingToNull(missingGreatest)(intervalOrdering))
-
-  // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
-    val locusOrd = TLocus(gr).unsafeOrdering(missingGreatest)
-    new UnsafeOrdering {
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        val sOff1 = representation.loadField(r1, o1, 0)
-        val sOff2 = representation.loadField(r2, o2, 0)
-
-        val c1 = locusOrd.compare(r1, sOff1, r2, sOff2)
-        if (c1 != 0)
-          return c1
-
-        val eOff1 = representation.loadField(r1, o1, 1)
-        val eOff2 = representation.loadField(r2, o2, 1)
-
-        locusOrd.compare(r1, eOff1, r2, eOff2)
-      }
-    }
+      extendOrderingToNull(missingGreatest)(Interval.ordering[Annotation]))
   }
 
-  def locusOrdering: Ordering[Locus] = gr.locusOrdering
+  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = representation.unsafeOrdering(missingGreatest)
 
-  def intervalOrdering: Ordering[Interval[Locus]] = gr.intervalOrdering
-
-  val representation: TStruct = TInterval.representation(required)
+  val representation: TStruct = TInterval.representation(pointType, required)
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TInterval(cgr, _) => gr.unify(cgr)
+    case TInterval(cpointType, _) => pointType.unify(cpointType)
     case _ => false
   }
 
-  override def clear(): Unit = gr.clear()
-
-  override def subst() = gr.subst().interval
+  override def subst() = TInterval(pointType.subst())
 }
 
 final case class Field(name: String, typ: Type, index: Int) {

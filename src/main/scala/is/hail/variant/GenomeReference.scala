@@ -16,7 +16,9 @@ import scala.language.implicitConversions
 abstract class GRBase extends Serializable {
   val variant: TVariant = TVariant(this)
   val locus: TLocus = TLocus(this)
-  val interval: TInterval = TInterval(this)
+
+  // FIXME legacy
+  val interval: TInterval = TInterval(TLocus(this))
 
   def variantOrdering: Ordering[Variant]
 
@@ -176,8 +178,6 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   def compare(v1: IVariant, v2: IVariant): Int = GenomeReference.compare(contigsIndex, v1, v2)
 
   def compare(l1: Locus, l2: Locus): Int = GenomeReference.compare(contigsIndex, l1, l2)
-
-  def compare(i1: Interval[Locus], i2: Interval[Locus]): Int = GenomeReference.compare(contigsIndex, i1, i2)
 
   def toJSON: JValue = JObject(
     ("name", JString(name)),

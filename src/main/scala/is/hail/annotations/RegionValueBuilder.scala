@@ -491,10 +491,10 @@ class RegionValueBuilder(var region: Region) {
           endStruct()
 
         case t: TInterval =>
-          val i = a.asInstanceOf[Interval[Locus]]
+          val i = a.asInstanceOf[Interval[Annotation]]
           startStruct()
-          addAnnotation(TLocus(t.gr), i.start)
-          addAnnotation(TLocus(t.gr), i.end)
+          addAnnotation(t.pointType, i.start)
+          addAnnotation(t.pointType, i.end)
           endStruct()
       }
 

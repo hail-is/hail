@@ -213,6 +213,59 @@ class OrderedRVD private(
       OrderedRVD(typ, newPartitioner, new BlockedRDD(rdd, newPartEnd))
     }
   }
+
+  def filterIntervals(intervals: IntervalTree[Annotation, _]): OrderedRVD = {
+    assert(intervals.forall { case (, _) =>
+        typ.pkType.typeCheck(i)
+    })
+
+    val iListBc = rdd.sparkContext.broadcast(intervals)
+
+    if (partitions.length <= 1)
+      return filter { case (k, _) => iListBc.value.contains(project(k)) }.asOrderedRDD
+
+    val intervalArray = intervals.toArray
+
+    val partitionIndices = new ArrayBuilder[Int]()
+
+    // Array[pkType]
+    val rangeBounds = partitioner.rangeBounds
+
+    val nPartitions = partitions.length
+    var i = 0
+    while (i < nPartitions) {
+
+      val include = if (i == 0)
+        intervalArray.exists(_._1.start <= rangeBounds(0))
+      else if (i == nPartitions - 1)
+        intervalArray.reverseIterator.exists(_._1.end > rangeBounds.last)
+      else {
+        val lastMax = rangeBounds(i - 1)
+        val thisMax = rangeBounds(i)
+        // FIXME: loads a partition if the lastMax == interval.start.  Can therefore load unnecessary partitions
+        // the solution is to add a new Ordered trait Incrementable which lets us add epsilon to PK (add 1 to locus start)
+        intervals.overlaps(Interval(lastMax, thisMax)) || intervals.contains(thisMax)
+      }
+
+      if (include)
+        partitionIndices += i
+
+      i += 1
+    }
+
+    val newPartitionIndices = partitionIndices.result()
+    assert(newPartitionIndices.isEmpty ==> intervalArray.isEmpty)
+
+    info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
+
+    if (newPartitionIndices.isEmpty)
+      OrderedRDD.empty[PK, K, V](rdd.sparkContext)
+    else {
+      val f: Iterator[(K, V)] => Iterator[(K, V)] = _.filter { case (k, _) => iListBc.value.contains(project(k)) }
+      val newRDD = new AdjustedPartitionsRDD(this, newPartitionIndices.map(i => Array(Adjustment(i, f))))
+      new OrderedRDD(newRDD, OrderedPartitioner(newPartitionIndices.init.map(rangeBounds), newPartitionIndices.length))
+    }
+  }
 }
 
 object OrderedRVD {
