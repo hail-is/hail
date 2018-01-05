@@ -75,10 +75,6 @@ def collect_as_set(expr):
         >>> table1.aggregate(ht_over_68 = agg.collect_as_set(agg.filter(table1.ID, table1.HT > 68)))
         Struct(ht_over_68=set([2, 3])
 
-    Notes
-    -----
-    Ensure that the result can be stored in memory on a single machine.
-
     Warning
     -------
     Collecting a large number of items can cause out-of-memory exceptions.
@@ -221,7 +217,7 @@ def take(expr, n, ordering=None):
 
     Notes
     -----
-    The resulting array can include fewer than `n` elements of there are fewer
+    The resulting array can include fewer than `n` elements if there are fewer
     than `n` total records.
 
     The `ordering` argument may be an expression, a function, or ``None``.
