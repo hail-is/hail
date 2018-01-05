@@ -11,7 +11,7 @@ hc = None
 
 def setUpModule():
     global hc
-    hc = HailContext(master='local[2]')
+    hc = HailContext(master='local[2]', min_block_size=0)
 
 
 def tearDownModule():
@@ -308,13 +308,15 @@ class TableTests(unittest.TestCase):
 
 
 class MatrixTests(unittest.TestCase):
-    def get_vds(self):
+    def get_vds(self, min_partitions=None):
         test_resources = 'src/test/resources/'
-        return hc.import_vcf(test_resources + "sample.vcf")
+        return hc.import_vcf(test_resources + "sample.vcf", min_partitions=min_partitions)
 
     def testConversion(self):
-        vds_old = self.get_vds().to_hail1()
+        vds = self.get_vds()
+        vds_old = vds.to_hail1()
         vds_new = vds_old.to_hail2()
+        self.assertTrue(vds._same(vds_new))
         vds_old2 = vds_new.to_hail1()
         self.assertTrue(vds_old.same(vds_old2))
 
@@ -441,6 +443,11 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(rt.forall(rt.y2 == 2))
         self.assertTrue(ct.forall(ct.c2 == 2))
 
+    def test_naive_coalesce(self):
+        vds = self.get_vds(min_partitions=8)
+        self.assertEqual(vds.num_partitions(), 8)
+        repart = vds.naive_coalesce(2)
+        self.assertTrue(vds._same(repart))
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
