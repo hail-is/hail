@@ -25,7 +25,7 @@ def to_expr(e):
     elif isinstance(e, Locus):
         return construct_expr(ApplyMethod('Locus', Literal('"{}"'.format(str(e)))), TLocus(e.reference_genome))
     elif isinstance(e, Interval):
-        return construct_expr(ApplyMethod('Interval', Literal('"{}"'.format(str(e)))), TInterval(e.reference_genome))
+        return construct_expr(ApplyMethod('LocusInterval', Literal('"{}"'.format(str(e)))), TInterval(TLocus(e.reference_genome)))
     elif isinstance(e, Call):
         return construct_expr(ApplyMethod('Call', Literal(str(e.gt))), TCall())
     elif isinstance(e, AltAllele):
@@ -2913,8 +2913,8 @@ class IntervalExpression(Expression):
             ``True`` if `locus` is contained in the interval, ``False`` otherwise.
         """
         locus = to_expr(locus)
-        if not locus._type._rg == self._type._rg:
-            raise TypeError('Reference genome mismatch: {}, {}'.format(self._type._rg, locus._type._rg))
+        if self._type.point_type != locus._type:
+            raise TypeError('expected {}, found: {}'.format(self._type.point_type, locus._type))
         return self._method("contains", TBoolean(), locus)
 
     @property

@@ -1094,7 +1094,7 @@ object FunctionRegistry {
     (x: Annotation, y: Annotation) => Interval(x, y)(t.ordering(true))
   },
     """
-    Construct a :ref:`interval(gr)` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
+    Construct an Interval object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
     """,
     "startLocus" -> "Start position of interval",
     "endLocus" -> "End position of interval")(TTHr, TTHr, intervalHr(TTHr))
