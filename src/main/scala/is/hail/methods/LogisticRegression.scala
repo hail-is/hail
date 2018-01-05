@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import breeze.linalg._
-import is.hail.annotations.Annotation
+import is.hail.annotations._
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
@@ -61,27 +61,43 @@ object LogisticRegression {
     val logRegTestBc = sc.broadcast(logRegTest)
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vsm.insertVA(logRegTest.schema, pathVA)
 
-    val newRDD = vsm.rdd.mapPartitionsPreservingPartitioning { it =>
+    val (newRVDType, inserter) = vsm.rdd2.typ.insert(logRegTest.schema, "va" :: pathVA)
+    val newVAType = newRVDType.rowType.fieldType(2)
+
+    val localRowType = vsm.rowType
+    val newRVD = vsm.rdd2.mapPartitionsPreservesPartitioning(newRVDType) { it =>
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+
       val missingSamples = new ArrayBuilder[Int]()
 
       val X = XBc.value.copy
-      it.map { case row@(v, (va, gs)) =>
+      it.map { rv =>
+        val ur = new UnsafeRow(localRowType, rv)
+        val v = ur.get(1)
+        val va = ur.get(2)
+        val gs = ur.getAs[IndexedSeq[Annotation]](3)
+
         RegressionUtils.inputVector(X(::, -1),
-          localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, row,
+          localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
           ec, xf,
           completeSampleIndexBc.value, missingSamples)
 
         val logregAnnot = logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
-        val newAnnotation = inserter(va, logregAnnot)
-        assert(newVAS.typeCheck(newAnnotation))
-        (v, (newAnnotation, gs))
+
+        rvb.set(rv.region)
+        rvb.start(newRVDType.rowType)
+        inserter(rv.region, rv.offset, rvb, () =>
+          rvb.addAnnotation(logRegTest.schema, logregAnnot))
+
+        rv2.set(rv.region, rvb.end())
+        rv2
       }
     }
 
-    vsm.copy(vaSignature = newVAS,
-      rdd = newRDD)
+    vsm.copy2(vaSignature = newVAType,
+      rdd2 = newRVD)
   }
 }
 
