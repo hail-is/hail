@@ -1037,7 +1037,7 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(cols=tupleof(oneof(strlike, Ascending, Descending)))
+    @typecheck_method(cols=oneof(strlike, Ascending, Descending))
     def order_by(self, *cols):
         """Sort by the specified columns.  Missing values are sorted after non-missing values.  Sort by the first column, then the second, etc.
 
@@ -1312,7 +1312,7 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(kts=tupleof(kt_type))
+    @typecheck_method(kts=kt_type)
     def union(self, *kts):
         """Union the rows of multiple tables.
 
@@ -1628,7 +1628,7 @@ class KeyTable(HistoryMixin):
     @handle_py4j
     @record_method
     @typecheck_method(dest=strlike,
-                      columns=tupleof(strlike))
+                      columns=strlike)
     def group(self, dest, *columns):
         """Combines columns into a single struct column.
 

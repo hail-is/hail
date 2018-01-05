@@ -2635,7 +2635,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
     @handle_py4j
     @record_method
-    @typecheck(datasets=tupleof(vds_type))
+    @typecheck(datasets=vds_type)
     def union(*datasets):
         """Take the union of datasets vertically (include all variants).
 

@@ -873,7 +873,7 @@ class MatrixTable(object):
         return cleanup(m)
 
     @handle_py4j
-    @typecheck_method(exprs=tupleof(oneof(strlike, Expression)))
+    @typecheck_method(exprs=oneof(strlike, Expression))
     def drop(self, *exprs):
         """Drop fields.
 
@@ -1050,7 +1050,7 @@ class MatrixTable(object):
 
         Keep columns where `pheno.isCase` is ``True`` and `pheno.age` is larger than 50:
 
-        >>> dataset_result = dataset.filter_cols(dataset.pheno.isCase & dataset.pheno.age > 50, keep=True)
+        >>> dataset_result = dataset.filter_cols(dataset.pheno.isCase & (dataset.pheno.age > 50), keep=True)
 
         Remove rows where `sample_qc.gqMean` is less than 20:
 
@@ -1902,7 +1902,7 @@ class MatrixTable(object):
             error('Analysis exception: {}'.format(msg))
             raise ExpressionException(msg)
 
-    @typecheck_method(exprs=tupleof(Expression))
+    @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):
 
         all_uids = []

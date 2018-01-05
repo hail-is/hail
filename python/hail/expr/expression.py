@@ -4,69 +4,7 @@ from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
 from hail.genetics import Locus, Variant, Interval, Call, AltAllele
-
-
-class Indices(object):
-    @typecheck_method(source=anytype, axes=setof(strlike))
-    def __init__(self, source=None, axes=set()):
-        self.source = source
-        self.axes = axes
-
-    def __eq__(self, other):
-        return isinstance(other, Indices) and self.source is other.source and self.axes == other.axes
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    @staticmethod
-    def unify(*indices):
-        axes = set()
-        src = None
-        for ind in indices:
-            if src is None:
-                src = ind.source
-            else:
-                if ind.source is not None and ind.source is not src:
-                    raise ExpressionException('Cannot unify_all operations between {} and {}'.format(
-                        repr(src), repr(ind.source)))
-
-            intersection = axes.intersection(ind.axes)
-            left = axes - intersection
-            right = ind.axes - intersection
-            if right:
-                for i in left:
-                    info('broadcasting index {} along axes [{}]'.format(i, ', '.join(right)))
-            if left:
-                for i in right:
-                    info('broadcasting index {} along axes [{}]'.format(i, ', '.join(left)))
-
-            axes = axes.union(ind.axes)
-
-        return Indices(src, axes)
-
-
-class Aggregation(object):
-    def __init__(self, indices):
-        self.indices = indices
-
-
-class Join(object):
-    def __init__(self, join_function, temp_vars):
-        self.join_function = join_function
-        self.temp_vars = temp_vars
-
-
-@typecheck(ast=AST, type=Type, indices=Indices, aggregations=tupleof(Aggregation), joins=tupleof(Join))
-def construct_expr(ast, type, indices=Indices(), aggregations=(), joins=()):
-    if isinstance(type, TArray) and type.element_type.__class__ in elt_typ_to_array_expr:
-        return elt_typ_to_array_expr[type.element_type.__class__](ast, type, indices, aggregations, joins)
-    elif isinstance(type, TSet) and type.element_type.__class__ in elt_typ_to_set_expr:
-        return elt_typ_to_set_expr[type.element_type.__class__](ast, type, indices, aggregations, joins)
-    elif type.__class__ in typ_to_expr:
-        return typ_to_expr[type.__class__](ast, type, indices, aggregations, joins)
-    else:
-        raise NotImplementedError(type)
-
+from hail.typecheck import *
 
 def to_expr(e):
     if isinstance(e, Expression):
@@ -173,9 +111,109 @@ def to_expr(e):
         raise ValueError("Cannot implicitly capture value `{}' with type `{}'.".format(e, e.__class__))
 
 
-@decorator
-def args_to_expr(func, *args):
-    return func(*(to_expr(a) for a in args))
+_lazy_int32 = lazy()
+_lazy_numeric = lazy()
+_lazy_array = lazy()
+_lazy_set = lazy()
+_lazy_bool = lazy()
+_lazy_struct = lazy()
+_lazy_string = lazy()
+_lazy_variant = lazy()
+_lazy_locus = lazy()
+_lazy_altallele = lazy()
+_lazy_interval = lazy()
+_lazy_call = lazy()
+_lazy_expr = lazy()
+
+expr_int32 = transformed((_lazy_int32, identity),
+                         (integral, to_expr))
+expr_numeric = transformed((_lazy_numeric, identity),
+                           (integral, to_expr),
+                           (float, to_expr))
+expr_list = transformed((list, to_expr),
+                        (_lazy_array, identity))
+expr_set = transformed((set, to_expr),
+                       (_lazy_set, identity))
+expr_bool = transformed((bool, to_expr),
+                        (_lazy_bool, identity))
+expr_struct = transformed((Struct, to_expr),
+                          (_lazy_struct, identity))
+expr_str = transformed((strlike, to_expr),
+                       (_lazy_string, identity))
+expr_variant = transformed((Variant, to_expr),
+                           (_lazy_variant, identity))
+expr_locus = transformed((Locus, to_expr),
+                         (_lazy_locus, identity))
+expr_altallele = transformed((AltAllele, to_expr),
+                             (_lazy_altallele, identity))
+expr_interval = transformed((Interval, to_expr),
+                            (_lazy_interval, identity))
+expr_call = transformed((Call, to_expr),
+                        (_lazy_call, identity))
+expr_any = transformed((_lazy_expr, identity),
+                       (anytype, to_expr))
+
+
+class Indices(object):
+    @typecheck_method(source=anytype, axes=setof(strlike))
+    def __init__(self, source=None, axes=set()):
+        self.source = source
+        self.axes = axes
+
+    def __eq__(self, other):
+        return isinstance(other, Indices) and self.source is other.source and self.axes == other.axes
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    @staticmethod
+    def unify(*indices):
+        axes = set()
+        src = None
+        for ind in indices:
+            if src is None:
+                src = ind.source
+            else:
+                if ind.source is not None and ind.source is not src:
+                    raise ExpressionException('Cannot unify_all operations between {} and {}'.format(
+                        repr(src), repr(ind.source)))
+
+            intersection = axes.intersection(ind.axes)
+            left = axes - intersection
+            right = ind.axes - intersection
+            if right:
+                for i in left:
+                    info('broadcasting index {} along axes [{}]'.format(i, ', '.join(right)))
+            if left:
+                for i in right:
+                    info('broadcasting index {} along axes [{}]'.format(i, ', '.join(left)))
+
+            axes = axes.union(ind.axes)
+
+        return Indices(src, axes)
+
+
+class Aggregation(object):
+    def __init__(self, indices):
+        self.indices = indices
+
+
+class Join(object):
+    def __init__(self, join_function, temp_vars):
+        self.join_function = join_function
+        self.temp_vars = temp_vars
+
+
+@typecheck(ast=AST, type=Type, indices=Indices, aggregations=tupleof(Aggregation), joins=tupleof(Join))
+def construct_expr(ast, type, indices=Indices(), aggregations=(), joins=()):
+    if isinstance(type, TArray) and type.element_type.__class__ in elt_typ_to_array_expr:
+        return elt_typ_to_array_expr[type.element_type.__class__](ast, type, indices, aggregations, joins)
+    elif isinstance(type, TSet) and type.element_type.__class__ in elt_typ_to_set_expr:
+        return elt_typ_to_set_expr[type.element_type.__class__](ast, type, indices, aggregations, joins)
+    elif type.__class__ in typ_to_expr:
+        return typ_to_expr[type.__class__](ast, type, indices, aggregations, joins)
+    else:
+        raise NotImplementedError(type)
 
 
 def unify_all(*exprs):
@@ -197,7 +235,7 @@ def is_numeric(t):
     return t.__class__ in __numeric_types
 
 
-@typecheck(types=tupleof(Type))
+@typecheck(types=Type)
 def convert_numeric_typ(*types):
     priority_map = {t: p for t, p in zip(__numeric_types, range(len(__numeric_types)))}
     priority = 0
@@ -624,7 +662,6 @@ class CollectionExpression(Expression):
         return self._method("size", TInt32())
 
 
-
 class CollectionNumericExpression(CollectionExpression):
     """Expression of type :class:`hail.expr.types.TArray` or :class:`hail.expr.types.TSet` with numeric element type.
 
@@ -728,7 +765,7 @@ class CollectionNumericExpression(CollectionExpression):
         """
         return self._method("product",
                             TInt64() if isinstance(self._type.element_type, TInt32) or
-                                        isinstance(self._type.element_type, TInt64) else TFloat64)
+                                        isinstance(self._type.element_type, TInt64) else TFloat64())
 
     def sum(self):
         """Returns the sum of all elements in the collection.
@@ -757,7 +794,6 @@ class ArrayExpression(CollectionExpression):
 
     >>> a = functions.capture(['Alice', 'Bob', 'Charlie'])
     """
-
     def __getitem__(self, item):
         """Index into or slice the array.
 
@@ -798,6 +834,7 @@ class ArrayExpression(CollectionExpression):
         else:
             raise NotImplementedError
 
+    @typecheck_method(item=expr_any)
     def contains(self, item):
         """Returns a boolean indicating whether `item` is found in the array.
 
@@ -829,9 +866,9 @@ class ArrayExpression(CollectionExpression):
         :py:class:`BooleanExpression`
             ``True`` if the element is found in the array, ``False`` otherwise.
         """
-        item = to_expr(item)
         return self.exists(lambda x: x == item)
 
+    @typecheck_method(x=expr_any)
     def append(self, x):
         """Append an element to the array and return the result.
 
@@ -854,6 +891,7 @@ class ArrayExpression(CollectionExpression):
         """
         return self._method("append", self._type, x)
 
+    @typecheck_method(a=expr_list)
     def extend(self, a):
         """Concatenate two arrays and return the result.
 
@@ -934,6 +972,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
     >>> a2 = functions.capture([1, -1, 1, -1, 1, -1])
 
     """
+
     def _bin_op_ret_typ(self, other):
         if isinstance(self, ArrayNumericExpression) and isinstance(other, float):
             return TArray(TFloat64())
@@ -1260,7 +1299,7 @@ class SetExpression(CollectionExpression):
     >>> s1 = functions.capture({1, 2, 3})
     >>> s2 = functions.capture({1, 3, 5})
     """
-
+    @typecheck_method(x=expr_any)
     def add(self, x):
         """Returns a new set including `x`.
 
@@ -1283,6 +1322,7 @@ class SetExpression(CollectionExpression):
         """
         return self._method("add", self._type, x)
 
+    @typecheck_method(x=expr_any)
     def remove(self, x):
         """Returns a new set excluding `x`.
 
@@ -1305,6 +1345,7 @@ class SetExpression(CollectionExpression):
         """
         return self._method("remove", self._type, x)
 
+    @typecheck_method(x=expr_any)
     def contains(self, x):
         """Returns ``True`` if `x` is in the set.
 
@@ -1330,6 +1371,7 @@ class SetExpression(CollectionExpression):
         """
         return self._method("contains", TBoolean(), x)
 
+    @typecheck_method(s=expr_set)
     def difference(self, s):
         """Return the set of elements in the set that are not present in set `s`.
 
@@ -1355,6 +1397,7 @@ class SetExpression(CollectionExpression):
         """
         return self._method("difference", self._type, s)
 
+    @typecheck_method(s=expr_set)
     def intersection(self, s):
         """Return the intersection of the set and set `s`.
 
@@ -1377,6 +1420,7 @@ class SetExpression(CollectionExpression):
         """
         return self._method("intersection", self._type, s)
 
+    @typecheck_method(s=expr_set)
     def is_subset(self, s):
         """Returns ``True`` if every element is contained in set `s`.
 
@@ -1402,6 +1446,7 @@ class SetExpression(CollectionExpression):
         """
         return self._method("isSubset", TBoolean(), s)
 
+    @typecheck_method(s=expr_set)
     def union(self, s):
         """Return the union of the set and set `s`.
 
@@ -1471,6 +1516,7 @@ class SetStringExpression(SetExpression):
 
     >>> s = functions.capture({'Alice', 'Bob', 'Charles'})
     """
+    @typecheck_method(delimiter=expr_str)
     def mkstring(self, delimiter):
         """Joins the elements of the set into a single string delimited by `delimiter`.
 
@@ -1530,6 +1576,7 @@ class DictExpression(Expression):
         self._key_typ = self._type.key_type
         self._value_typ = self._type.value_type
 
+    @typecheck_method(item=expr_any)
     def __getitem__(self, item):
         """Get the value associated with key `item`.
 
@@ -1557,6 +1604,7 @@ class DictExpression(Expression):
         """
         return self._index(self._value_typ, item)
 
+    @typecheck_method(k=expr_any)
     def contains(self, k):
         """Returns whether a given key is present in the dictionary.
 
@@ -1582,6 +1630,7 @@ class DictExpression(Expression):
         """
         return self._method("contains", TBoolean(), k)
 
+    @typecheck_method(k=expr_any)
     def get(self, k):
         """Returns the value associated with key `k`, or missing if that key is not present.
 
@@ -1785,6 +1834,7 @@ class StructExpression(Expression):
 
 class AtomicExpression(Expression):
     """Abstract base class for numeric and logical types."""
+
     def to_float64(self):
         """Convert to a 64-bit floating point expression.
 
@@ -1841,10 +1891,12 @@ class BooleanExpression(AtomicExpression):
         None
 
     """
+
     def _bin_op_logical(self, name, other):
         other = to_expr(other)
         return self._bin_op(name, other, TBoolean())
 
+    @typecheck_method(other=expr_bool)
     def __and__(self, other):
         """Return ``True`` if the left and right arguments are ``True``.
 
@@ -1987,6 +2039,7 @@ class NumericExpression(AtomicExpression):
         ret_typ = self._bin_op_ret_typ(other)
         return self._bin_op_reverse(name, other, ret_typ)
 
+    @typecheck_method(other=expr_numeric)
     def __lt__(self, other):
         """Less-than comparison.
 
@@ -2009,6 +2062,7 @@ class NumericExpression(AtomicExpression):
         """
         return self._bin_op("<", other, TBoolean())
 
+    @typecheck_method(other=expr_numeric)
     def __le__(self, other):
         """Less-than-or-equals comparison.
 
@@ -2031,6 +2085,7 @@ class NumericExpression(AtomicExpression):
         """
         return self._bin_op("<=", other, TBoolean())
 
+    @typecheck_method(other=expr_numeric)
     def __gt__(self, other):
         """Greater-than comparison.
 
@@ -2053,6 +2108,7 @@ class NumericExpression(AtomicExpression):
         """
         return self._bin_op(">", other, TBoolean())
 
+    @typecheck_method(other=expr_numeric)
     def __ge__(self, other):
         """Greater-than-or-equals comparison.
 
@@ -2302,6 +2358,7 @@ class NumericExpression(AtomicExpression):
         """
         return self._method("abs", self._type)
 
+    @typecheck_method(other=expr_numeric)
     def max(self, other):
         """Returns the maximum value between the callee and `other`.
 
@@ -2318,6 +2375,7 @@ class NumericExpression(AtomicExpression):
         assert (isinstance(other, self.__class__))
         return self._method("max", self._type, other)
 
+    @typecheck_method(other=expr_numeric)
     def min(self, other):
         """Returns the minumum value between the callee and `other`.
 
@@ -2360,6 +2418,7 @@ class StringExpression(AtomicExpression):
 
     >>> s = functions.capture('The quick brown fox')
     """
+    @typecheck_method(item=oneof(slice, expr_int32))
     def __getitem__(self, item):
         """Slice or index into the string.
 
@@ -2436,6 +2495,7 @@ class StringExpression(AtomicExpression):
         """
         return self._method("length", TInt32())
 
+    @typecheck_method(pattern1=expr_str, pattern2=expr_str)
     def replace(self, pattern1, pattern2):
         """Replace substrings matching `pattern1` with `pattern2` using regex.
 
@@ -2462,6 +2522,7 @@ class StringExpression(AtomicExpression):
         """
         return self._method("replace", TString(), pattern1, pattern2)
 
+    @typecheck_method(delim=expr_str, n=nullable(expr_int32))
     def split(self, delim, n=None):
         """Returns an array of strings generated by splitting the string at `delim`.
 
@@ -2719,6 +2780,7 @@ class CallExpression(Expression):
         """
         return self._method("nNonRefAlleles", TInt32())
 
+    @typecheck_method(v=expr_variant)
     def one_hot_alleles(self, v):
         """Returns an array containing the summed one-hot encoding of the two alleles.
 
@@ -2748,6 +2810,7 @@ class CallExpression(Expression):
         """
         return self._method("oneHotAlleles", TArray(TInt32()), v)
 
+    @typecheck_method(v=expr_variant)
     def one_hot_genotype(self, v):
         """Returns the triangle number of the genotype one-hot encoded into an integer array.
 
@@ -2824,7 +2887,7 @@ class IntervalExpression(Expression):
 
     >>> interval = functions.capture(Interval.parse('X:1M-2M'))
     """
-    @typecheck_method(locus=oneof(LocusExpression, Locus))
+    @typecheck_method(locus=expr_locus)
     def contains(self, locus):
         """Tests whether a locus is contained in the interval.
 
@@ -3106,7 +3169,6 @@ class VariantExpression(Expression):
 
     >>> variant = functions.capture(Variant('16', 123055, 'A', 'C'))
     """
-
     def alt(self):
         """Returns the alternate allele string.
 
@@ -3551,7 +3613,7 @@ def analyze(expr, expected_indices, aggregation_axes, scoped_variables=None):
         raise errors[0]
 
 
-@args_to_expr
+@typecheck(expression=expr_any)
 def eval_expr(expression):
     """Evaluate a Hail expression, returning the result.
 
@@ -3584,7 +3646,7 @@ def eval_expr(expression):
     return eval_expr_typed(expression)[0]
 
 
-@args_to_expr
+@typecheck(expression=expr_any)
 def eval_expr_typed(expression):
     """Evaluate a Hail expression, returning the result and the type of the result.
 
@@ -3620,13 +3682,17 @@ def eval_expr_typed(expression):
     r, t = Env.hc().eval_expr_typed(expression._ast.to_hql())
     return r, t
 
-expr_int32 = oneof(Int32Expression, int)
-expr_numeric = oneof(Float32Expression, Float64Expression, Int64Expression, float, expr_int32)
-expr_list = oneof(list, ArrayExpression)
-expr_set = oneof(set, SetExpression)
-expr_bool = oneof(bool, BooleanExpression)
-expr_struct = oneof(Struct, StructExpression)
-expr_str = oneof(strlike, StringExpression)
-expr_variant = oneof(Variant, VariantExpression)
-expr_locus = oneof(Locus, LocusExpression)
-expr_call = oneof(Call, CallExpression)
+
+_lazy_int32.set(Int32Expression)
+_lazy_numeric.set(NumericExpression)
+_lazy_array.set(ArrayExpression)
+_lazy_set.set(SetExpression)
+_lazy_bool.set(BooleanExpression)
+_lazy_struct.set(StructExpression)
+_lazy_string.set(StringExpression)
+_lazy_variant.set(VariantExpression)
+_lazy_locus.set(LocusExpression)
+_lazy_altallele.set(AltAlleleExpression)
+_lazy_interval.set(IntervalExpression)
+_lazy_call.set(CallExpression)
+_lazy_expr.set(Expression)

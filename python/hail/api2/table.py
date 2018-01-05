@@ -184,7 +184,6 @@ class GroupedTable(TableTemplate):
         return self
 
     @handle_py4j
-    @typecheck_method(named_exprs=dictof(strlike, anytype))
     def aggregate(self, **named_exprs):
         """Aggregate by group, used after :meth:`Table.group_by`.
 
@@ -392,7 +391,7 @@ class Table(TableTemplate):
                 schema._jtype, wrap_to_list(key), joption(num_partitions)))
 
     @handle_py4j
-    @typecheck_method(keys=tupleof(strlike))
+    @typecheck_method(keys=strlike)
     def key_by(self, *keys):
         """Change which columns are keys.
 
@@ -514,7 +513,6 @@ class Table(TableTemplate):
         return cleanup(Table(base._jt.selectGlobal(strs)))
 
     @handle_py4j
-    @typecheck_method(named_exprs=dictof(strlike, anytype))
     def annotate(self, **named_exprs):
         """Add new columns.
 
@@ -600,8 +598,8 @@ class Table(TableTemplate):
         return cleanup(Table(base._jt.filter(expr._ast.to_hql(), keep)))
 
     @handle_py4j
-    @typecheck_method(exprs=tupleof(oneof(Expression, strlike)),
-                      named_exprs=dictof(strlike, anytype))
+    @typecheck_method(exprs=oneof(Expression, strlike),
+                      named_exprs=anytype)
     def select(self, *exprs, **named_exprs):
         """Select existing fields or create new fields by name, dropping the rest.
 
@@ -702,7 +700,7 @@ class Table(TableTemplate):
         return cleanup(Table(base._jt.select(strs, False)))
 
     @handle_py4j
-    @typecheck_method(exprs=tupleof(oneof(strlike, Expression)))
+    @typecheck_method(exprs=oneof(strlike, Expression))
     def drop(self, *exprs):
         """Drop fields from the table.
 
@@ -804,8 +802,6 @@ class Table(TableTemplate):
 
         self._jt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
 
-    @typecheck_method(exprs=tupleof(anytype),
-                      named_exprs=dictof(strlike, anytype))
     def group_by(self, *exprs, **named_exprs):
         """Group by a new set of keys for use with :meth:`GroupedTable.aggregate`.
 
@@ -1120,7 +1116,7 @@ class Table(TableTemplate):
 
         return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=(Join(joiner, [uid]),))
 
-    @typecheck_method(exprs=tupleof(Expression))
+    @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):
         # ordered to support nested joins
         original_key = self.key
@@ -1363,7 +1359,7 @@ class Table(TableTemplate):
         return Table(self._jt.indexed(name))
 
     @handle_py4j
-    @typecheck_method(tables=tupleof(table_type))
+    @typecheck_method(tables=table_type)
     def union(self, *tables):
         """Union the rows of multiple tables.
 
@@ -1739,7 +1735,7 @@ class Table(TableTemplate):
         return Table(self._jt.flatten())
 
     @handle_py4j
-    @typecheck_method(exprs=tupleof(oneof(strlike, Expression, Ascending, Descending)))
+    @typecheck_method(exprs=oneof(strlike, Expression, Ascending, Descending))
     def order_by(self, *exprs):
         """Sort by the specified columns.
 

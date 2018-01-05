@@ -15,7 +15,7 @@ def _to_agg(x):
         return Aggregable(ast, x._type, x._indices, x._aggregations, x._joins)
 
 
-@typecheck(name=strlike, aggregable=Aggregable, ret_type=Type, args=tupleof(anytype))
+@typecheck(name=strlike, aggregable=Aggregable, ret_type=Type, args=anytype)
 def _agg_func(name, aggregable, ret_type, *args):
     args = [to_expr(a) for a in args]
     indices, aggregations, joins = unify_all(aggregable, *args)
