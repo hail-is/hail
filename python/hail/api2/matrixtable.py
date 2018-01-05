@@ -13,11 +13,6 @@ class GroupedMatrixTable(object):
 
     .. testsetup::
 
-        from hail2 import *
-        dataset = (vds.annotate_samples_expr('sa = merge(drop(sa, qc), {sample_qc: sa.qc})')
-                      .annotate_variants_expr('va = merge(drop(va, qc), {variant_qc: va.qc})').to_hail2())
-
-        dataset = dataset.annotate_rows(gene=['TTN'])
         dataset2 = dataset.annotate_globals(global_field=5)
         table1 = dataset.rows_table()
         table1 = table1.annotate_globals(global_field=5)
@@ -135,14 +130,6 @@ class MatrixTable(object):
     **Examples**
 
     .. testsetup::
-
-        from hail2 import *
-        dataset = (vds.annotate_samples_expr('sa = merge(drop(sa, qc), {sample_qc: sa.qc})')
-                      .annotate_variants_expr('va = merge(drop(va, qc), {variant_qc: va.qc})').to_hail2())
-
-
-        dataset = dataset.annotate_rows(gene=['TTN'])
-        dataset = dataset.annotate_cols(cohorts=['1kg'])
 
         dataset2 = dataset.annotate_globals(global_field=5)
         table1 = dataset.rows_table()
