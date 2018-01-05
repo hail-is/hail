@@ -664,7 +664,7 @@ def interval(start, end):
     if not start._type._rg == end._type._rg:
         raise TypeError('Reference genome mismatch: {}, {}'.format(start._type._rg, end._type._rg))
     return construct_expr(
-        ApplyMethod('Interval({})'.format(start._type._rg.name), start._ast, end._ast), TInterval(start._type._rg),
+        ApplyMethod('Interval', start._ast, end._ast), TInterval(TLocus(start._type._rg)),
         indices, aggregations, joins)
 
 
@@ -704,7 +704,7 @@ def parse_interval(s, reference_genome=None):
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
     return construct_expr(
-        ApplyMethod('Interval({})'.format(reference_genome.name), s._ast), TInterval(reference_genome),
+        ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), TInterval(TLocus(reference_genome)),
         s._indices, s._aggregations, s._joins)
 
 

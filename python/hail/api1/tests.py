@@ -699,7 +699,7 @@ class ContextTests(unittest.TestCase):
 
         interval1 = Interval.parse('1:1-100')
         interval2 = None
-        intervaltype = TInterval()
+        intervaltype = TInterval(TLocus())
         self.assertEqual(vds.annotate_global(path, interval1, intervaltype).globals.annotation, interval1)
         self.assertEqual(vds.annotate_global(path, interval2, intervaltype).globals.annotation, interval2)
 
