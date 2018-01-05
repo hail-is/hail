@@ -144,7 +144,7 @@ class SizedTupleChecker(TypeChecker):
         super(SizedTupleChecker, self).__init__()
 
     def check(self, x):
-        if not isinstance(x, tuple):
+        if not (isinstance(x, tuple) and len(x) == len(self.ec)):
             raise TypecheckFailure
         x_ = []
         for tc, elt in zip(self.ec, x):
@@ -236,7 +236,7 @@ class ExactlyTypeChecker(TypeChecker):
 class CoercionChecker(MultipleTypeChecker):
     """Type checker that performs argument transformations.
 
-    The `fs` argument should be a varargs of 2-tuples which contain a
+    The `fs` argument should be a varargs of 2-tuples that each contain a
     TypeChecker and a lambda function, e.g.:
 
     ((only(int), lambda x: x * 2),
@@ -362,7 +362,6 @@ def check_all(f, args, kwargs, checks, is_method):
                 msg += 'function parameters with no defined type: %s' % unmatched_sig
             raise RuntimeError('%s: invalid typecheck signature: %s' % (name, msg))
 
-    # if f has varargs, tuple any unnamed args and pass that as a regular argument to the checker
     for i in range(len(pos_args)):
         arg = pos_args[i]
         argname = named_args[i] if i < len(named_args) else spec.varargs
