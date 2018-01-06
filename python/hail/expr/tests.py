@@ -4,6 +4,7 @@ import unittest
 
 from hail import HailContext
 from hail.expr import *
+from hail2 import *
 
 hc = None
 
@@ -115,3 +116,13 @@ class Tests(unittest.TestCase):
 
     def test_cond(self):
         self.assertEqual(eval_expr('A' + functions.cond(True, 'A', 'B')), 'AA')
+
+    def test_aggregators(self):
+        table = Table.range(10)
+        r = table.aggregate(x=agg.count(),
+                            y=agg.count_where(table.index % 2 == 0),
+                            z=agg.count(agg.filter(table.index, lambda x: x % 2 == 0)))
+
+        self.assertEqual(r.x, 10)
+        self.assertEqual(r.y, 5)
+        self.assertEqual(r.z, 5)
