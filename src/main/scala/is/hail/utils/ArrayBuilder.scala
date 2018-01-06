@@ -16,6 +16,8 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
 
   def length: Int = size_
 
+  def isEmpty: Boolean = size_ == 0
+
   def apply(i: Int): T = {
     require(i >= 0 && i < size)
     b(i)

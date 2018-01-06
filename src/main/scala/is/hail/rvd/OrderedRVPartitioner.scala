@@ -67,6 +67,12 @@ class OrderedRVPartitioner(
       "partitionKey" -> JArray(partitionKey.map(n => JString(n)).toList),
       "kType" -> JString(kType.toPrettyString(compact = true)),
       "rangeBounds" -> JSONAnnotationImpex.exportAnnotation(rangeBounds, rangeBoundsType)))
+
+  def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVPartitioner = {
+    val newPart = new OrderedRVPartitioner(numPartitions, newPartitionKey, newKType, rangeBounds)
+    assert(newPart.pkType == pkType)
+    newPart
+  }
 }
 
 object OrderedRVPartitioner {

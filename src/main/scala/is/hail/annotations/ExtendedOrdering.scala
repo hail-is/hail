@@ -24,6 +24,26 @@ object ExtendedOrdering {
     }
   }
 
+  def extendToNull(ord: ExtendedOrdering): ExtendedOrdering = {
+    new ExtendedOrdering {
+      def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int = ord.compare(x, y, missingGreatest)
+
+      override def ltNonnull(x: T, y: T, missingGreatest: Boolean): Boolean = ord.lt(x, y, missingGreatest)
+
+      override def lteqNonnull(x: T, y: T, missingGreatest: Boolean): Boolean = ord.lteq(x, y, missingGreatest)
+
+      override def gtNonnull(x: T, y: T, missingGreatest: Boolean): Boolean = ord.gt(x, y, missingGreatest)
+
+      override def gteqNonnull(x: T, y: T, missingGreatest: Boolean): Boolean = ord.gteq(x, y, missingGreatest)
+
+      override def equivNonnull(x: T, y: T, missingGreatest: Boolean): Boolean = ord.equiv(x, y, missingGreatest)
+
+      override def minNonnull(x: T, y: T, missingGreatest: Boolean): T = ord.min(x, y, missingGreatest)
+
+      override def maxNonnull(x: T, y: T, missingGreatest: Boolean): T = ord.max(x, y, missingGreatest)
+    }
+  }
+
   def iterableOrdering[T](ord: ExtendedOrdering): ExtendedOrdering =
     new ExtendedOrdering {
       def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int = {
@@ -47,8 +67,7 @@ object ExtendedOrdering {
       def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int = {
         val ax = x.asInstanceOf[Array[T]]
         val ay = y.asInstanceOf[Array[T]]
-
-        val scalaOrd = ord.toOrdering(missingGreatest)
+        val scalaOrd = ord.toOrdering
         itOrd.compareNonnull(ax.sorted(scalaOrd).toFastIndexedSeq, ay.sorted(scalaOrd).toFastIndexedSeq, missingGreatest)
       }
     }
@@ -60,9 +79,7 @@ object ExtendedOrdering {
       def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int = {
         val ix = x.asInstanceOf[Iterable[T]]
         val iy = y.asInstanceOf[Iterable[T]]
-        
-        val scalaOrd = ord.toOrdering(missingGreatest)
-        saOrd.compareNonnull(ix.toArray.sorted(scalaOrd), iy.toArray.sorted(scalaOrd), missingGreatest)
+        saOrd.compareNonnull(ix.toArray, iy.toArray, missingGreatest)
       }
     }
 
@@ -71,8 +88,8 @@ object ExtendedOrdering {
       private val saOrd = sortArrayOrdering(ord)
 
       def compareNonnull(x: T, y: T, missingGreatest: Boolean): Int = {
-        val mx = x.asInstanceOf[Map[_,  _]]
-        val my = y.asInstanceOf[Map[_,  _]]
+        val mx = x.asInstanceOf[Map[T, T]]
+        val my = y.asInstanceOf[Map[T, T]]
         
         saOrd.compareNonnull(
           mx.toArray.map { case (k, v) => Row(k, v): T },
