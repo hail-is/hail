@@ -163,7 +163,7 @@ class TableTests(unittest.TestCase):
 
         kt = Table.parallelize(rows, schema)
         results = kt.aggregate(q1=agg.sum(kt.b),
-                               q2=agg.count(kt.b),
+                               q2=agg.count(),
                                q3=agg.collect(kt.e),
                                q4=agg.collect(agg.filter(kt.e, (kt.d >= 5) | (kt.a == 0))))
 
@@ -220,8 +220,8 @@ class TableTests(unittest.TestCase):
                            x4=agg.max(kt.qPheno),
                            x5=agg.sum(kt.qPheno),
                            x6=agg.product(kt.qPheno.to_int64()),
-                           x7=agg.count(kt.qPheno),
-                           x8=agg.count(agg.filter(kt.qPheno, lambda x: x == 3)),
+                           x7=agg.count(),
+                           x8=agg.count_where(kt.qPheno == 3),
                            x9=agg.fraction(kt.qPheno == 1),
                            x10=agg.stats(kt.qPheno.to_float64()),
                            x11=agg.hardy_weinberg(kt.GT),
@@ -333,7 +333,7 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(new_global_schema, TStruct(['foo'], [TInt32()]))
 
         orig_variant_schema = vds.row_schema
-        vds = vds.annotate_rows(x1=agg.count(vds.GT),
+        vds = vds.annotate_rows(x1=agg.count(),
                                 x2=agg.fraction(False),
                                 x3=agg.count_where(True),
                                 x4=vds.info.AC + vds.foo)
@@ -347,7 +347,7 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(orig_variant_schema, TStruct(*[list(x) for x in zip(*expected_fields)]))
 
         vds = vds.annotate_cols(apple=6)
-        vds = vds.annotate_cols(y1=agg.count(vds.GT),
+        vds = vds.annotate_cols(y1=agg.count(),
                                 y2=agg.fraction(False),
                                 y3=agg.count_where(True),
                                 y4=vds.foo + vds.apple)
@@ -365,12 +365,12 @@ class MatrixTests(unittest.TestCase):
     def test_filter(self):
         vds = self.get_vds()
         vds = vds.annotate_globals(foo=5)
-        vds = vds.annotate_rows(x1=agg.count(1))
-        vds = vds.annotate_cols(y1=agg.count(1))
+        vds = vds.annotate_rows(x1=agg.count())
+        vds = vds.annotate_cols(y1=agg.count())
         vds = vds.annotate_entries(z1=vds.DP)
 
-        vds = vds.filter_rows((vds.x1 == 5) & (agg.count(vds.GT) == 3) & (vds.foo == 2))
-        vds = vds.filter_cols((vds.y1 == 5) & (agg.count(vds.GT) == 3) & (vds.foo == 2))
+        vds = vds.filter_rows((vds.x1 == 5) & (agg.count() == 3) & (vds.foo == 2))
+        vds = vds.filter_cols((vds.y1 == 5) & (agg.count() == 3) & (vds.foo == 2))
         vds = vds.filter_entries((vds.z1 < 5) & (vds.y1 == 3) & (vds.x1 == 5) & (vds.foo == 2))
         vds.count_rows()
 
@@ -378,13 +378,13 @@ class MatrixTests(unittest.TestCase):
         vds = self.get_vds()
 
         vds = vds.annotate_globals(foo=5)
-        vds = vds.annotate_rows(x1=agg.count(1))
-        vds = vds.annotate_cols(y1=agg.count(1))
+        vds = vds.annotate_rows(x1=agg.count())
+        vds = vds.annotate_cols(y1=agg.count())
         vds = vds.annotate_entries(z1=vds.DP)
 
-        qv = vds.aggregate_rows(x=agg.count(vds.v)).x
-        qs = vds.aggregate_cols(x=agg.count(vds.s)).x
-        qg = vds.aggregate_entries(x=agg.count(vds.GT)).x
+        qv = vds.aggregate_rows(x=agg.count()).x
+        qs = vds.aggregate_cols(x=agg.count()).x
+        qg = vds.aggregate_entries(x=agg.count()).x
 
         self.assertEqual(qv, 346)
         self.assertEqual(qs, 100)

@@ -94,7 +94,7 @@ def collect_as_set(expr):
     return _agg_func('collectAsSet', agg, TArray(agg._type))
 
 
-def count(expr):
+def count():
     """Count the number of records.
 
     Examples
@@ -104,7 +104,7 @@ def count(expr):
     .. doctest::
 
         >>> (table1.group_by(table1.SEX)
-        ...        .aggregate(n=agg.count(table1.ID))
+        ...        .aggregate(n=agg.count())
         ...        .show())
         +--------+-------+
         | SEX    |     n |
@@ -115,17 +115,12 @@ def count(expr):
         | F      |     2 |
         +--------+-------+
 
-    Parameters
-    ----------
-    expr : :class:`hail.expr.expression.Expression`
-        Expression to count.
-
     Returns
     -------
     :class:`hail.expr.expression.Int64Expression`
         Total number of records.
     """
-    return _agg_func('count', _to_agg(expr), TInt64())
+    return _agg_func('count', _to_agg(0), TInt64())
 
 
 def count_where(condition):
@@ -151,7 +146,7 @@ def count_where(condition):
     :class:`hail.expr.expression.Int64Expression`
         Total number of records where `condition` is ``True``.
     """
-    return count(filter(1, condition))
+    return _agg_func('count', filter(1, condition), TInt64())
 
 
 def counter(expr):
