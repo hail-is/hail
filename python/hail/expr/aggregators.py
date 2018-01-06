@@ -94,7 +94,7 @@ def collect_as_set(expr):
     return _agg_func('collectAsSet', agg, TArray(agg._type))
 
 
-def count():
+def count(expr=None):
     """Count the number of records.
 
     Examples
@@ -115,12 +115,28 @@ def count():
         | F      |     2 |
         +--------+-------+
 
+    Notes
+    -----
+    If `expr` is not provided, then this method will count the number of
+    records aggregated. If `expr` is provided, then the result should
+    make use of :meth:`filter` or :meth:`explode` so that the number of
+    records aggregated changes.
+
+    Parameters
+    ----------
+    expr : :class:`Expression`, or :obj:`None`
+        Expression to count.
+
     Returns
     -------
     :class:`hail.expr.expression.Int64Expression`
         Total number of records.
     """
-    return _agg_func('count', _to_agg(0), TInt64())
+    if expr is not None:
+        expr = to_expr(expr)
+        return _agg_func('count', _to_agg(expr), TInt64())
+    else:
+        return _agg_func('count', _to_agg(0), TInt64())
 
 
 def count_where(condition):
