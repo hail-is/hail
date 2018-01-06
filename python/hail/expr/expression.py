@@ -7,6 +7,77 @@ from hail.utils.linkedlist import LinkedList
 from hail.genetics import Locus, Variant, Interval, Call, AltAllele
 from hail.typecheck import *
 
+
+class Indices(object):
+    @typecheck_method(source=anytype, axes=setof(strlike))
+    def __init__(self, source=None, axes=set()):
+        self.source = source
+        self.axes = axes
+
+    def __eq__(self, other):
+        return isinstance(other, Indices) and self.source is other.source and self.axes == other.axes
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    @staticmethod
+    def unify(*indices):
+        axes = set()
+        src = None
+        for ind in indices:
+            if src is None:
+                src = ind.source
+            else:
+                if ind.source is not None and ind.source is not src:
+                    raise ExpressionException()
+
+            intersection = axes.intersection(ind.axes)
+            left = axes - intersection
+            right = ind.axes - intersection
+            if right:
+                for i in left:
+                    info('broadcasting index {} along axes [{}]'.format(i, ', '.join(right)))
+            if left:
+                for i in right:
+                    info('broadcasting index {} along axes [{}]'.format(i, ', '.join(left)))
+
+            axes = axes.union(ind.axes)
+
+        return Indices(src, axes)
+
+
+class Aggregation(object):
+    def __init__(self, indices, refs):
+        self.indices = indices
+        self.refs = refs
+
+
+class Join(object):
+    def __init__(self, join_function, temp_vars):
+        self.join_function = join_function
+        self.temp_vars = temp_vars
+
+
+@typecheck(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
+def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join),
+                   refs=LinkedList(tuple)):
+    if isinstance(type, TArray) and type.element_type.__class__ in elt_typ_to_array_expr:
+        return elt_typ_to_array_expr[type.element_type.__class__](ast, type, indices, aggregations, joins, refs)
+    elif isinstance(type, TSet) and type.element_type.__class__ in elt_typ_to_set_expr:
+        return elt_typ_to_set_expr[type.element_type.__class__](ast, type, indices, aggregations, joins, refs)
+    elif type.__class__ in typ_to_expr:
+        return typ_to_expr[type.__class__](ast, type, indices, aggregations, joins, refs)
+    else:
+        raise NotImplementedError(type)
+
+@typecheck(name=strlike, type=Type, indices=Indices, prefix=nullable(strlike))
+def construct_reference(name, type, indices, prefix=None):
+    if prefix is not None:
+        ast = Select(Reference(prefix, True), name)
+    else:
+        ast = Reference(name, True)
+    return construct_expr(ast, type, indices, refs=LinkedList(tuple).push((name, indices)))
+
 def to_expr(e):
     if isinstance(e, Expression):
         return e
@@ -34,39 +105,40 @@ def to_expr(e):
         attrs = e._attrs.items()
         cols = [to_expr(x) for _, x in attrs]
         names = [k for k, _ in attrs]
-        indices, aggregations, joins = unify_all(*cols)
+        indices, aggregations, joins, refs = unify_all(*cols)
         t = TStruct(names, [col._type for col in cols])
         return construct_expr(StructDeclaration(names, [c._ast for c in cols]),
-                              t, indices, aggregations, joins)
+                              t, indices, aggregations, joins, refs)
     elif isinstance(e, list):
         cols = [to_expr(x) for x in e]
         types = list({col._type for col in cols})
         if len(cols) == 0:
-            raise ValueError("Don't support empty lists.")
+            raise ExpressionException('Cannot convert empty list to expression.')
         elif len(types) == 1:
             t = TArray(types[0])
         elif all([is_numeric(t) for t in types]):
             t = TArray(convert_numeric_typ(*types))
         else:
-            raise ValueError("Don't support lists with multiple element types.")
-        indices, aggregations, joins = unify_all(*cols)
+            raise ExpressionException('Cannot convert list with heterogeneous key types to expression.'
+                                      '\n    Found types: {}.'.format(types))
+        indices, aggregations, joins, refs = unify_all(*cols)
         return construct_expr(ArrayDeclaration([col._ast for col in cols]),
-                              t, indices, aggregations, joins)
+                              t, indices, aggregations, joins, refs)
     elif isinstance(e, set):
         cols = [to_expr(x) for x in e]
         types = list({col._type for col in cols})
         if len(cols) == 0:
-            raise ValueError("Don't support empty sets.")
+            raise ExpressionException('Cannot convert empty set to expression.')
         elif len(types) == 1:
             t = TSet(types[0])
         elif all([is_numeric(t) for t in types]):
             t = TSet(convert_numeric_typ(*types))
         else:
-            raise ValueError("Don't support sets with multiple element types.")
-        indices, aggregations, joins = unify_all(*cols)
+            raise ExpressionException('Cannot convert set with heterogeneous key types to expression.'
+                                      '\n    Found types: {}.'.format(types))
+        indices, aggregations, joins, refs = unify_all(*cols)
         return construct_expr(ClassMethod('toSet', ArrayDeclaration([col._ast for col in cols])), t, indices,
-                              aggregations,
-                              joins)
+                              aggregations, joins, refs)
     elif isinstance(e, dict):
         key_cols = []
         value_cols = []
@@ -81,25 +153,27 @@ def to_expr(e):
         value_types = list({col._type for col in value_cols})
 
         if len(key_types) == 0:
-            raise ValueError("Don't support empty dictionaries.")
+            raise ExpressionException('Cannot convert empty dictionary to expression.')
         elif len(key_types) == 1:
             key_type = key_types[0]
         elif all([is_numeric(t) for t in key_types]):
             key_type = convert_numeric_typ(*key_types)
         else:
-            raise ValueError("Don't support dictionaries with multiple key types.")
+            raise ExpressionException('Cannot convert dictionary with heterogeneous key types to expression.'
+                                      '\n    Found types: {}.'.format(key_types))
 
         if len(value_types) == 1:
             value_type = value_types[0]
         elif all([is_numeric(t) for t in value_types]):
             value_type = convert_numeric_typ(*value_types)
         else:
-            raise ValueError("Don't support dictionaries with multiple value types.")
+            raise ExpressionException('Cannot convert dictionary with heterogeneous value types to expression.'
+                             '\n    Found types: {}.'.format(value_types))
 
         kc = to_expr(keys)
         vc = to_expr(values)
 
-        indices, aggregations, joins = unify_all(kc, vc)
+        indices, aggregations, joins, refs = unify_all(kc, vc)
 
         assert key_type == kc._type.element_type
         assert value_type == vc._type.element_type
@@ -107,9 +181,10 @@ def to_expr(e):
         ast = ApplyMethod('Dict',
                           ArrayDeclaration([k._ast for k in key_cols]),
                           ArrayDeclaration([v._ast for v in value_cols]))
-        return construct_expr(ast, TDict(key_type, value_type), indices, aggregations, joins)
+        return construct_expr(ast, TDict(key_type, value_type), indices, aggregations, joins, refs)
     else:
-        raise ValueError("Cannot implicitly capture value `{}' with type `{}'.".format(e, e.__class__))
+        raise ExpressionException("Cannot implicitly convert value '{}' of type '{}' to expression.".format(
+            e, e.__class__))
 
 
 _lazy_int32 = lazy()
@@ -154,79 +229,31 @@ expr_call = transformed((Call, to_expr),
 expr_any = transformed((_lazy_expr, identity),
                        (anytype, to_expr))
 
-
-class Indices(object):
-    @typecheck_method(source=anytype, axes=setof(strlike))
-    def __init__(self, source=None, axes=set()):
-        self.source = source
-        self.axes = axes
-
-    def __eq__(self, other):
-        return isinstance(other, Indices) and self.source is other.source and self.axes == other.axes
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    @staticmethod
-    def unify(*indices):
-        axes = set()
-        src = None
-        for ind in indices:
-            if src is None:
-                src = ind.source
-            else:
-                if ind.source is not None and ind.source is not src:
-                    raise ExpressionException('Cannot unify_all operations between {} and {}'.format(
-                        repr(src), repr(ind.source)))
-
-            intersection = axes.intersection(ind.axes)
-            left = axes - intersection
-            right = ind.axes - intersection
-            if right:
-                for i in left:
-                    info('broadcasting index {} along axes [{}]'.format(i, ', '.join(right)))
-            if left:
-                for i in right:
-                    info('broadcasting index {} along axes [{}]'.format(i, ', '.join(left)))
-
-            axes = axes.union(ind.axes)
-
-        return Indices(src, axes)
-
-
-class Aggregation(object):
-    def __init__(self, indices):
-        self.indices = indices
-
-
-class Join(object):
-    def __init__(self, join_function, temp_vars):
-        self.join_function = join_function
-        self.temp_vars = temp_vars
-
-
-@typecheck(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList)
-def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join)):
-    if isinstance(type, TArray) and type.element_type.__class__ in elt_typ_to_array_expr:
-        return elt_typ_to_array_expr[type.element_type.__class__](ast, type, indices, aggregations, joins)
-    elif isinstance(type, TSet) and type.element_type.__class__ in elt_typ_to_set_expr:
-        return elt_typ_to_set_expr[type.element_type.__class__](ast, type, indices, aggregations, joins)
-    elif type.__class__ in typ_to_expr:
-        return typ_to_expr[type.__class__](ast, type, indices, aggregations, joins)
-    else:
-        raise NotImplementedError(type)
-
-
 def unify_all(*exprs):
     assert len(exprs) > 0
-    new_indices = Indices.unify(*[e._indices for e in exprs])
+    try:
+        new_indices = Indices.unify(*[e._indices for e in exprs])
+    except ExpressionException:
+        # source mismatch
+        from collections import defaultdict
+        sources = defaultdict(lambda: [])
+        for e in exprs:
+            for name, inds in e._refs:
+                sources[inds.source].append(str(name))
+        raise ExpressionException("Cannot combine expressions from different source objects."
+                                  "\n    Found fields from {n} objects:{fields}".format(
+            n=len(sources),
+            fields=''.join("\n        {}: {}".format(src, fds) for src, fds in sources.items())
+        ))
     first, rest = exprs[0], exprs[1:]
     agg = first._aggregations
     joins = first._joins
+    refs = first._refs
     for e in rest:
         agg = agg.push(*e._aggregations)
         joins = joins.push(*e._joins)
-    return new_indices, agg, joins
+        refs = refs.push(*e._refs)
+    return new_indices, agg, joins, refs
 
 
 __numeric_types = [TInt32, TInt64, TFloat32, TFloat64]
@@ -252,13 +279,14 @@ def convert_numeric_typ(*types):
 class Expression(object):
     """Base class for Hail expressions."""
 
-    @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList)
-    def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join)):
+    @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList, refs=LinkedList)
+    def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join), refs=LinkedList(tuple)):
         self._ast = ast
         self._type = type
         self._indices = indices
         self._aggregations = aggregations
         self._joins = joins
+        self._refs = refs
 
         self._init()
 
@@ -305,32 +333,33 @@ class Expression(object):
 
     def _unary_op(self, name):
         return construct_expr(UnaryOperation(self._ast, name),
-                              self._type, self._indices, self._aggregations, self._joins)
+                              self._type, self._indices, self._aggregations, self._joins, self._refs)
 
     def _bin_op(self, name, other, ret_typ):
         other = to_expr(other)
-        indices, aggregations, joins = unify_all(self, other)
-        return construct_expr(BinaryOperation(self._ast, other._ast, name), ret_typ, indices, aggregations, joins)
+        indices, aggregations, joins, refs = unify_all(self, other)
+        return construct_expr(BinaryOperation(self._ast, other._ast, name), ret_typ, indices, aggregations, joins, refs)
 
     def _bin_op_reverse(self, name, other, ret_typ):
         other = to_expr(other)
-        indices, aggregations, joins = unify_all(self, other)
-        return construct_expr(BinaryOperation(other._ast, self._ast, name), ret_typ, indices, aggregations, joins)
+        indices, aggregations, joins, refs = unify_all(self, other)
+        return construct_expr(BinaryOperation(other._ast, self._ast, name), ret_typ, indices, aggregations, joins, refs)
 
     def _field(self, name, ret_typ):
-        return construct_expr(Select(self._ast, name), ret_typ, self._indices, self._aggregations, self._joins)
+        return construct_expr(Select(self._ast, name), ret_typ, self._indices,
+                              self._aggregations, self._joins, self._refs)
 
     def _method(self, name, ret_typ, *args):
         args = tuple(to_expr(arg) for arg in args)
-        indices, aggregations, joins = unify_all(self, *args)
+        indices, aggregations, joins, refs = unify_all(self, *args)
         return construct_expr(ClassMethod(name, self._ast, *(a._ast for a in args)),
-                              ret_typ, indices, aggregations, joins)
+                              ret_typ, indices, aggregations, joins, refs)
 
     def _index(self, ret_typ, key):
         key = to_expr(key)
-        indices, aggregations, joins = unify_all(self, key)
+        indices, aggregations, joins, refs = unify_all(self, key)
         return construct_expr(Index(self._ast, key._ast),
-                              ret_typ, indices, aggregations, joins)
+                              ret_typ, indices, aggregations, joins, refs)
 
     def _slice(self, ret_typ, start=None, stop=None, step=None):
         if start is not None:
@@ -347,18 +376,18 @@ class Expression(object):
             raise NotImplementedError('Variable slice step size is not currently supported')
 
         non_null = [x for x in [start, stop] if x is not None]
-        indices, aggregations, joins = unify_all(self, *non_null)
+        indices, aggregations, joins, refs = unify_all(self, *non_null)
         return construct_expr(Index(self._ast, Slice(start_ast, stop_ast)),
-                              ret_typ, indices, aggregations, joins)
+                              ret_typ, indices, aggregations, joins, refs)
 
     def _bin_lambda_method(self, name, f, inp_typ, ret_typ_f, *args):
         args = (to_expr(arg) for arg in args)
         new_id = Env._get_uid()
         lambda_result = to_expr(
-            f(construct_expr(Reference(new_id), inp_typ, self._indices, self._aggregations, self._joins)))
-        indices, aggregations, joins = unify_all(self, lambda_result)
+            f(construct_expr(Reference(new_id), inp_typ, self._indices, self._aggregations, self._joins, self._refs)))
+        indices, aggregations, joins, refs = unify_all(self, lambda_result)
         ast = LambdaClassMethod(name, new_id, self._ast, lambda_result._ast, *(a._ast for a in args))
-        return construct_expr(ast, ret_typ_f(lambda_result._type), indices, aggregations, joins)
+        return construct_expr(ast, ret_typ_f(lambda_result._type), indices, aggregations, joins, refs)
 
     def __eq__(self, other):
         """Returns ``True`` if the two epressions are equal.
@@ -1768,12 +1797,13 @@ class Aggregable(object):
     methods. These objects can be aggregated using aggregator functions, but
     cannot otherwise be used in expressions.
     """
-    def __init__(self, ast, type, indices, aggregations, joins):
+    def __init__(self, ast, type, indices, aggregations, joins, refs):
         self._ast = ast
         self._type = type
         self._indices = indices
         self._aggregations = aggregations
         self._joins = joins
+        self._refs = refs
 
     def __nonzero__(self):
         raise NotImplementedError('Truth value of an aggregable collection is undefined')
@@ -1806,7 +1836,7 @@ class StructExpression(Expression):
 
         for fd in self._type.fields:
             expr = typ_to_expr[fd.typ.__class__](Select(self._ast, fd.name), fd.typ,
-                                                 self._indices, self._aggregations, self._joins)
+                                                 self._indices, self._aggregations, self._joins, self._refs)
             self._set_field(fd.name, expr)
 
     def _set_field(self, key, value):
@@ -2615,7 +2645,7 @@ class StringExpression(AtomicExpression):
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
         return construct_expr(RegexMatch(self._ast, regex), TBoolean(),
-                              self._indices, self._aggregations, self._joins)
+                              self._indices, self._aggregations, self._joins, self._refs)
 
 
 class CallExpression(Expression):
@@ -3529,14 +3559,15 @@ class ExpressionWarning(Warning):
         super(ExpressionWarning, self).__init__(msg)
 
 
-@typecheck(expr=Expression,
+@typecheck(caller=strlike, expr=Expression,
            expected_indices=Indices,
            aggregation_axes=setof(strlike))
-def analyze(expr, expected_indices, aggregation_axes=set()):
+def analyze(caller, expr, expected_indices, aggregation_axes=set()):
     indices = expr._indices
     source = indices.source
     axes = indices.axes
     aggregations = expr._aggregations
+    refs = expr._refs
 
     warnings = []
     errors = []
@@ -3546,77 +3577,82 @@ def analyze(expr, expected_indices, aggregation_axes=set()):
 
     if source is not None and source is not expected_source:
         errors.append(
-            ExpressionException('Expected an expression from source {}, found expression derived from {}'.format(
-                expected_source, source
+            ExpressionException('{} expects an expression from source {}, found expression derived from {}'.format(
+                caller, expected_source, source
             )))
 
-    # TODO: use ast.search to find the references to bad-indexed exprs
-
-    # check for stray indices
+    # check for stray indices by subtracting expected axes from observed
     unexpected_axes = axes - expected_axes
+
     if unexpected_axes:
+        # one or more out-of-scope fields
+        assert len(refs) > 0
+        bad_refs = []
+        for name, inds in refs:
+            bad_axes = inds.axes.intersection(unexpected_axes)
+            if bad_axes:
+                bad_refs.append((name, inds))
+
+        assert len(bad_refs) > 0
         errors.append(ExpressionException(
-            'out-of-scope expression: expected an expression indexed by {}, found indices {}'.format(
-                list(expected_axes),
-                list(indices.axes)
+            "scope violation: '{caller}' expects an expression indexed by {expected}"
+            "\n    Found indices {axes}, with unexpected indices {stray}. Invalid fields:{fields}{agg}".format(
+                caller=caller,
+                expected=list(expected_axes),
+                axes=list(indices.axes),
+                stray=list(unexpected_axes),
+                fields=''.join("\n        '{}' (indices {})".format(name, list(inds.axes)) for name, inds in bad_refs),
+                agg='' if (unexpected_axes - aggregation_axes) else
+                "\n    '{}' supports aggregation over axes {}, "
+                "so these fields may appear inside an aggregator function.".format(caller, list(aggregation_axes))
             )))
 
     if aggregations:
         if aggregation_axes:
+
+            # the expected axes of aggregated expressions are the expected axes + axes aggregated over
             expected_agg_axes = expected_axes.union(aggregation_axes)
+
             for agg in aggregations:
                 agg_indices = agg.indices
                 agg_axes = agg_indices.axes
                 if agg_indices.source is not None and agg_indices.source is not expected_source:
                     errors.append(
                         ExpressionException(
-                            'Expected an expression from source {}, found expression derived from {}'.format(
-                                expected_source, source
+                            'Expected an expression from source {}, found expression derived from {}'
+                            '\n    Invalid fields: [{}]'.format(
+                                expected_source, source, ', '.join("'{}'".format(name) for name, _ in agg.refs)
                             )))
 
                 # check for stray indices
                 unexpected_agg_axes = agg_axes - expected_agg_axes
                 if unexpected_agg_axes:
+                    # one or more out-of-scope fields
+                    bad_refs = []
+                    for name, inds in agg.refs:
+                        bad_axes = inds.axes.intersection(unexpected_agg_axes)
+                        if bad_axes:
+                            bad_refs.append((name, inds))
+
                     errors.append(ExpressionException(
-                        'out-of-scope expression: expected an expression indexed by {}, found indices {}'.format(
-                            list(expected_agg_axes),
-                            list(agg_axes)
+                        "scope violation: '{caller}' supports aggregation over indices {expected}"
+                        "\n    Found indices {axes}, with unexpected indices {stray}. Invalid fields:{fields}".format(
+                            caller=caller,
+                            expected=list(aggregation_axes),
+                            axes=list(agg_axes),
+                            stray=list(unexpected_agg_axes),
+                            fields=''.join("\n        '{}' (indices {})".format(
+                                name, list(inds.axes)) for name, inds in bad_refs)
                         )
                     ))
-
-                # check for low-complexity aggregations
-                missing_agg_axes = expected_agg_axes - agg_axes
-                if missing_agg_axes:
-                    pass
-                    # warnings.append(ExpressionWarning(
-                    #     'low complexity: expected aggregation expressions indexed by {} (aggregating along {}), '
-                    #     'but found indices {}. The aggregated expression will be identical for all results along axis {}'.format(
-                    #         list(expected_agg_axes),
-                    #         list(expected_agg_axes - agg_axes),
-                    #         list(agg_axes),
-                    #         list(missing_agg_axes)
-                    #     )
-                    # ))
         else:
-            errors.append(ExpressionException('invalid aggregation: no aggregations supported in this method'))
-    else:
-        # check for low-complexity operations
-        missing_axes = expected_axes - axes
-        if missing_axes:
-            pass
-            warnings.append(ExpressionWarning(
-                'low complexity: expected an expression indexed by {}, found indices {}. Results will be broadcast along {}.'.format(
-                    list(expected_axes),
-                    list(axes),
-                    list(missing_axes)
-                )
-            ))
+            errors.append(ExpressionException("'{}' does not support aggregation".format(caller)))
 
     for w in warnings:
-        warn('Analysis warning: {}'.format(w.msg))
+        warn('{}'.format(w.msg))
     if errors:
         for e in errors:
-            error('Analysis exception: {}'.format(e.msg))
+            error('{}'.format(e.msg))
         raise errors[0]
 
 
@@ -3683,7 +3719,7 @@ def eval_expr_typed(expression):
     (any, :class:`hail.expr.Type`)
         Result of evaluating `expression`, and its type.
     """
-    analyze(expression, Indices())
+    analyze('eval_expr_typed', expression, Indices())
     if not expression._joins.empty():
         raise ExpressionException("'eval_expr' methods do not support joins or broadcasts")
     r, t = Env.hc().eval_expr_typed(expression._ast.to_hql())

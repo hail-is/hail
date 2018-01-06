@@ -216,7 +216,7 @@ class GroupedTable(TableTemplate):
         strs = []
         base, cleanup = self._parent._process_joins(*(tuple(v for _, v in self._groups) + tuple(named_exprs.values())))
         for k, v in named_exprs.items():
-            analyze(v, self._parent._global_indices, {self._parent._row_axis})
+            analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             replace_aggregables(v._ast, agg_base)
             strs.append('`{}` = {}'.format(k, v._ast.to_hql()))
 
@@ -314,12 +314,10 @@ class Table(TableTemplate):
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
         for fd in self.global_schema.fields:
-            column = construct_expr(Reference(fd.name), fd.typ, indices=self._global_indices)
-            self._set_field(fd.name, column)
+            self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._global_indices))
 
         for fd in self.schema.fields:
-            column = construct_expr(Reference(fd.name), fd.typ, indices=self._row_indices)
-            self._set_field(fd.name, column)
+            self._set_field(fd.name, construct_reference(fd.name, fd.typ, self._row_indices))
 
     @typecheck_method(item=oneof(strlike, Expression, slice, tupleof(Expression)))
     def __getitem__(self, item):
@@ -449,7 +447,7 @@ class Table(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
-            analyze(v, self._global_indices)
+            analyze('Table.annotate_globals', v, self._global_indices)
             exprs.append('`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
 
         m = Table(base._jt.annotateGlobalExpr(",\n".join(exprs)))
@@ -501,13 +499,13 @@ class Table(TableTemplate):
 
         for e in exprs:
             all_exprs.append(e)
-            analyze(e, self._global_indices)
+            analyze('Table.select_globals', e, self._global_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
         for k, e in named_exprs.items():
             all_exprs.append(e)
-            analyze(e, self._global_indices)
+            analyze('Table.select_globals', e, self._global_indices)
             strs.append('`{}` = {}'.format(k, to_expr(e)._ast.to_hql()))
 
         return cleanup(Table(base._jt.selectGlobal(strs)))
@@ -542,7 +540,7 @@ class Table(TableTemplate):
         exprs = []
         base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
-            analyze(v, self._row_indices)
+            analyze('Table.annotate', v, self._row_indices)
             exprs.append('{k} = {v}'.format(k=k, v=v._ast.to_hql()))
 
         return cleanup(Table(base._jt.annotate(",\n".join(exprs))))
@@ -594,7 +592,7 @@ class Table(TableTemplate):
             Filtered table.
         """
         expr = to_expr(expr)
-        analyze(expr, self._row_indices)
+        analyze('Table.filter', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
         if not isinstance(expr._type, TBoolean):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
@@ -693,13 +691,13 @@ class Table(TableTemplate):
 
         for e in exprs:
             all_exprs.append(e)
-            analyze(e, self._row_indices)
+            analyze('Table.select', e, self._row_indices)
             if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
                 raise ExpressionException("method 'select' expects keyword arguments for complex expressions")
             strs.append(e._ast.to_hql())
         for k, e in named_exprs.items():
             all_exprs.append(e)
-            analyze(e, self._row_indices)
+            analyze('Table.select', e, self._row_indices)
             strs.append('`{}` = {}'.format(k, to_expr(e)._ast.to_hql()))
 
         return cleanup(Table(base._jt.select(strs, False)))
@@ -903,7 +901,7 @@ class Table(TableTemplate):
                 e = self[e]
             else:
                 e = to_expr(e)
-            analyze(e, self._row_indices)
+            analyze('Table.group_by', e, self._row_indices)
             ast = e._ast.expand()
             if any(not isinstance(a, Reference) and not isinstance(a, Select) for a in ast):
                 raise ExpressionException("method 'group_by' expects keyword arguments for complex expressions")
@@ -911,7 +909,7 @@ class Table(TableTemplate):
             groups.append((key, e))
         for k, e in named_exprs.items():
             e = to_expr(e)
-            analyze(e, self._row_indices)
+            analyze('Table.group_by', e, self._row_indices)
             groups.append((k, e))
 
         return GroupedTable(self, groups)
@@ -950,7 +948,7 @@ class Table(TableTemplate):
         strs = []
         base, _ = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
-            analyze(v, self._global_indices, {self._row_axis})
+            analyze('Table.aggregate', v, self._global_indices, {self._row_axis})
             replace_aggregables(v._ast, agg_base)
             strs.append(v._ast.to_hql())
 
@@ -1042,7 +1040,7 @@ class Table(TableTemplate):
                         i, str(self[k]._type), str(e._type)))
             i += 1
 
-        indices, aggregations, joins = unify_all(*exprs)
+        indices, aggregations, joins, refs = unify_all(*exprs)
 
         from hail.api2.matrixtable import MatrixTable
         uid = Env._get_uid()
@@ -1053,7 +1051,7 @@ class Table(TableTemplate):
             raise ExpressionException('found explicit join indexed by a scalar expression')
         elif isinstance(src, Table):
             for e in exprs:
-                analyze(e, src._row_indices)
+                analyze('Table.index_rows', e, src._row_indices)
 
             right = self
             right_keys = [right[k] for k in right.key]
@@ -1070,10 +1068,10 @@ class Table(TableTemplate):
             all_uids = uids[:]
             all_uids.append(uid)
             return construct_expr(Reference(uid), self.schema, indices, aggregations,
-                                  joins.push(Join(joiner, all_uids)))
+                                  joins.push(Join(joiner, all_uids)), refs)
         elif isinstance(src, MatrixTable):
             for e in exprs:
-                analyze(e, src._entry_indices)
+                analyze('Table.index_rows', e, src._entry_indices)
 
             right = self
             # match on indices to determine join type
@@ -1581,7 +1579,7 @@ class Table(TableTemplate):
         :obj:`bool`
         """
         expr = to_expr(expr)
-        analyze(expr, self._row_indices)
+        analyze('Table.forall', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
         if not isinstance(expr._type, TBoolean):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"
@@ -1613,7 +1611,7 @@ class Table(TableTemplate):
             ``True`` if the predicate evaluated for ``True`` for any row, otherwise ``False``.
         """
         expr = to_expr(expr)
-        analyze(expr, self._row_indices)
+        analyze('Table.exists', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
         if not isinstance(expr._type, TBoolean):
             raise TypeError("method 'filter' expects an expression of type 'TBoolean', found {}"

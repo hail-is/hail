@@ -5,8 +5,8 @@ from hail.expr.ast import *
 from hail.genetics import Variant, Locus, Call, GenomeReference
 
 def _func(name, ret_type, *args):
-    indices, aggregations, joins = unify_all(*args)
-    return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins)
+    indices, aggregations, joins, refs = unify_all(*args)
+    return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins, refs)
 
 @typecheck(t=Type)
 def null(t):
@@ -39,6 +39,7 @@ def null(t):
 
 def capture(x):
     """Captures a Python variable or object as an expression.
+
 
     Examples
     --------
@@ -166,10 +167,10 @@ def cond(condition, consequent, alternate):
     :py:class:`hail.expr.expression.Expression`
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
-    indices, aggregations, joins = unify_all(condition, consequent, alternate)
+    indices, aggregations, joins, refs = unify_all(condition, consequent, alternate)
     # TODO: promote types
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
-                          consequent._type, indices, aggregations, joins)
+                          consequent._type, indices, aggregations, joins, refs)
 
 def bind(expr, f):
     """Bind a temporary variable and use it in a function.
@@ -224,12 +225,12 @@ def bind(expr, f):
     uid = Env._get_uid()
     expr = to_expr(expr)
 
-    f_input = construct_expr(Reference(uid), expr._type, expr._indices, expr._aggregations, expr._joins)
+    f_input = construct_expr(Reference(uid), expr._type, expr._indices, expr._aggregations, expr._joins, expr._refs)
     lambda_result = to_expr(f(f_input))
 
-    indices, aggregations, joins = unify_all(expr, lambda_result)
+    indices, aggregations, joins, refs = unify_all(expr, lambda_result)
     ast = Bind(uid, expr._ast, lambda_result._ast)
-    return construct_expr(ast, lambda_result._type, indices, aggregations, joins)
+    return construct_expr(ast, lambda_result._type, indices, aggregations, joins, refs)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
@@ -407,7 +408,7 @@ def drop(s, *identifiers):
     s = to_expr(s)
     ret_type = s._type._drop(*identifiers)
     return construct_expr(StructOp('drop', s._ast, *identifiers),
-                          ret_type, s._indices, s._aggregations, s._joins)
+                          ret_type, s._indices, s._aggregations, s._joins, s._refs)
 
 
 @typecheck(x=expr_numeric)
@@ -562,7 +563,7 @@ def index(structs, identifier):
 
     ast = StructOp('index', structs._ast, identifier)
     return construct_expr(ast, TDict(key_type, value_type),
-                          structs._indices, structs._aggregations, structs._joins)
+                          structs._indices, structs._aggregations, structs._joins, structs._refs)
 
 
 @typecheck(contig=expr_str, pos=expr_int32, reference_genome=nullable(GenomeReference))
@@ -593,9 +594,9 @@ def locus(contig, pos, reference_genome=None):
     pos = to_expr(pos)
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
-    indices, aggregations, joins = unify_all(contig, pos)
+    indices, aggregations, joins, refs = unify_all(contig, pos)
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), contig._ast, pos._ast),
-                          TLocus(reference_genome), indices, aggregations, joins)
+                          TLocus(reference_genome), indices, aggregations, joins, refs)
 
 
 @typecheck(s=expr_str, reference_genome=nullable(GenomeReference))
@@ -629,7 +630,7 @@ def parse_locus(s, reference_genome=None):
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), TLocus(reference_genome),
-                          s._indices, s._aggregations, s._joins)
+                          s._indices, s._aggregations, s._joins, s._refs)
 
 
 @typecheck(start=expr_locus, end=expr_locus)
@@ -660,12 +661,12 @@ def interval(start, end):
     start = to_expr(start)
     end = to_expr(end)
 
-    indices, aggregations, joins = unify_all(start, end)
+    indices, aggregations, joins, refs = unify_all(start, end)
     if not start._type._rg == end._type._rg:
         raise TypeError('Reference genome mismatch: {}, {}'.format(start._type._rg, end._type._rg))
     return construct_expr(
-        ApplyMethod('Interval', start._ast, end._ast), TInterval(TLocus(start._type._rg)),
-        indices, aggregations, joins)
+    ApplyMethod('Interval', start._ast, end._ast), TInterval(TLocus(start._type._rg)),
+        indices, aggregations, joins, refs)
 
 
 @typecheck(s=expr_str, reference_genome=nullable(GenomeReference))
@@ -704,8 +705,8 @@ def parse_interval(s, reference_genome=None):
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
     return construct_expr(
-        ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), TInterval(TLocus(reference_genome)),
-        s._indices, s._aggregations, s._joins)
+    ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), TInterval(TLocus(reference_genome)),
+        s._indices, s._aggregations, s._joins, s._refs)
 
 
 @typecheck(contig=expr_str, pos=expr_int32, ref=expr_str, alts=oneof(listof(expr_str), expr_list),
@@ -744,11 +745,11 @@ def variant(contig, pos, ref, alts, reference_genome=None):
     alts = to_expr(alts)
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
-    indices, aggregations, joins = unify_all(contig, pos, ref, alts)
+    indices, aggregations, joins, refs = unify_all(contig, pos, ref, alts)
     return VariantExpression(
         ApplyMethod('Variant({})'.format(reference_genome.name),
                     contig._ast, pos._ast, ref._ast, alts._ast),
-        TVariant(reference_genome), indices, aggregations, joins)
+        TVariant(reference_genome), indices, aggregations, joins, refs)
 
 
 @typecheck(s=expr_str, reference_genome=nullable(GenomeReference))
@@ -783,7 +784,7 @@ def parse_variant(s, reference_genome=None):
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
     return construct_expr(ApplyMethod('Variant({})'.format(reference_genome.name), s._ast),
-                          TVariant(reference_genome), s._indices, s._aggregations, s._joins)
+                          TVariant(reference_genome), s._indices, s._aggregations, s._joins, s._refs)
 
 @typecheck(i=expr_int32)
 def call(i):
@@ -811,7 +812,7 @@ def call(i):
     -------
     :py:class:`hail.expr.expressions.CallExpression`
     """
-    return CallExpression(ApplyMethod('Call', i._ast), TCall(), i._indices, i._aggregations, i._joins)
+    return construct_expr(ApplyMethod('Call', i._ast), TCall(), i._indices, i._aggregations, i._joins, i._refs)
 
 
 @typecheck(expression=expr_any)
@@ -1485,7 +1486,8 @@ def rand_unif(min, max):
 def select(s, *identifiers):
     s = to_expr(s)
     ret_type = s._type._select(*identifiers)
-    return construct_expr(StructOp('select', s._ast, *identifiers), ret_type, s._indices, s._aggregations, s._joins)
+    return construct_expr(StructOp('select', s._ast, *identifiers), ret_type,
+                          s._indices, s._aggregations, s._joins, s._refs)
 
 
 @typecheck(x=expr_numeric)
