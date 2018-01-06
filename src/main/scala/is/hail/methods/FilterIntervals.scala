@@ -1,33 +1,30 @@
 package is.hail.methods
 
-import is.hail.annotations.Annotation
-import is.hail.utils.{ArrayBuilder, Interval, IntervalTree}
-import is.hail.variant.{Locus, MatrixTable, Variant}
+import is.hail.utils.{Interval, IntervalTree}
+import is.hail.variant.MatrixTable
+import org.apache.spark.sql.Row
 
 import scala.collection.JavaConverters._
 
 object FilterIntervals {
   def apply(vsm: MatrixTable, intervals: java.util.ArrayList[Interval], keep: Boolean): MatrixTable = {
-    val pord = vsm.genomeReference.locusType.ordering
-    val iList = IntervalTree(vsm.genomeReference.locusType.ordering, intervals.asScala.toArray)
+    val iList = IntervalTree(vsm.locusType.ordering, intervals.asScala.toArray)
     apply(vsm, iList, keep)
   }
 
-  def apply[U](vsm: MatrixTable, iList: IntervalTree[U], keep: Boolean): MatrixTable = {
-    val pord = vsm.genomeReference.locusType.ordering
-
-    val ab = new ArrayBuilder[(Interval, Annotation)]()
-    iList.foreach { case (i, v) =>
-      ab += (Interval(i.start, i.end), v)
-    }
-
-    val iList2 = IntervalTree.annotationTree(pord, ab.result())
-
-    if (keep)
-      vsm.copy(rdd = vsm.rdd.filterIntervals(pord, iList2))
-    else {
-      val iListBc = vsm.sparkContext.broadcast(iList)
-      vsm.filterVariants { (v, va, gs) => !iListBc.value.contains(pord, v.asInstanceOf[Variant].locus) }
+  def apply[U](vsm: MatrixTable, intervals: IntervalTree[U], keep: Boolean): MatrixTable = {
+    if (keep) {
+      val pkIntervals = IntervalTree(
+        vsm.matrixType.pkType.ordering,
+        intervals.map { case (i, _) =>
+          Interval(Row(i.start), Row(i.end))
+        }.toArray)
+      vsm.copy2(rdd2 = vsm.rdd2.filterIntervals(pkIntervals))
+    } else {
+      val intervalsBc = vsm.sparkContext.broadcast(intervals)
+      val p = vsm.locusProjection
+      val localLocusOrdering = vsm.locusType.ordering
+      vsm.filterVariants { (v, va, gs) => !intervalsBc.value.contains(localLocusOrdering, p(v)) }
     }
   }
 }

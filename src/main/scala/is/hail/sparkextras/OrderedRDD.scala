@@ -450,59 +450,6 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     }
   }
 
-  def filterIntervals(locusOrdering: ExtendedOrdering, intervals: IntervalTree[_]): OrderedRDD[PK, K, V] = {
-
-    import kOk.pkOrd
-    import kOk._
-    import Ordering.Implicits._
-
-    val iListBc = rdd.sparkContext.broadcast(intervals)
-
-    if (partitions.length <= 1)
-      return filter { case (k, _) => iListBc.value.contains(locusOrdering, project(k)) }.asOrderedRDD
-
-    val intervalArray = intervals.toArray
-
-    val partitionIndices = new ArrayBuilder[Int]()
-
-    val rangeBounds = orderedPartitioner.rangeBounds
-
-    val nPartitions = partitions.length
-    var i = 0
-    while (i < nPartitions) {
-
-      val include = if (i == 0)
-        intervalArray.exists(i => locusOrdering.lteq(i._1.start, rangeBounds(0)))
-      else if (i == nPartitions - 1)
-        intervalArray.reverseIterator.exists(i => locusOrdering.gt(i._1.end, rangeBounds.last))
-      else {
-        val lastMax = rangeBounds(i - 1)
-        val thisMax = rangeBounds(i)
-        // FIXME: loads a partition if the lastMax == interval.start.  Can therefore load unnecessary partitions
-        // the solution is to add a new Ordered trait Incrementable which lets us add epsilon to PK (add 1 to locus start)
-        intervals.overlaps(locusOrdering, Interval(lastMax, thisMax)) || intervals.contains(locusOrdering, thisMax)
-      }
-
-      if (include)
-        partitionIndices += i
-
-      i += 1
-    }
-
-    val newPartitionIndices = partitionIndices.result()
-    assert(newPartitionIndices.isEmpty ==> intervalArray.isEmpty)
-
-    info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
-
-    if (newPartitionIndices.isEmpty)
-      OrderedRDD.empty[PK, K, V](rdd.sparkContext)
-    else {
-      val f: Iterator[(K, V)] => Iterator[(K, V)] = _.filter { case (k, _) => iListBc.value.contains(locusOrdering, project(k)) }
-      val newRDD = new AdjustedPartitionsRDD(this, newPartitionIndices.map(i => Array(Adjustment(i, f))))
-      new OrderedRDD(newRDD, OrderedPartitioner(newPartitionIndices.init.map(rangeBounds), newPartitionIndices.length))
-    }
-  }
-
   def subsetPartitions(keep: Array[Int]): OrderedRDD[PK, K, V] = {
     require(keep.length <= rdd.partitions.length, "tried to subset to more partitions than exist")
     require(keep.isSorted && keep.forall { i => i >= 0 && i < rdd.partitions.length },

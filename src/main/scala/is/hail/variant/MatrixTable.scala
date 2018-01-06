@@ -406,12 +406,25 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
   val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature) = metadata
 
+  val matrixType: MatrixType = ast.typ
+
+  val locusType: Type = matrixType.locusType
+
+  val locusProjection: (Annotation) => Annotation = {
+    vSignature match {
+      case t: TVariant =>
+        (v: Annotation) =>   v.asInstanceOf[Variant].locus
+      case _ =>
+        (a: Annotation) => a
+    }
+  }
+
   lazy val value: MatrixValue = {
     val opt = MatrixIR.optimize(ast)
     opt.execute(hc)
   }
 
-  lazy val MatrixValue(matrixType, VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd2) = value
+  lazy val MatrixValue(_, VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd2) = value
 
   lazy val rdd: OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])] = value.rdd
 

@@ -9,6 +9,7 @@ import is.hail.utils._
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 
@@ -211,6 +212,64 @@ class OrderedRVD private(
       val newRangeBounds = newPartEnd.init.map(partitioner.rangeBounds).asInstanceOf[UnsafeIndexedSeq]
       val newPartitioner = new OrderedRVPartitioner(newRangeBounds.length + 1, typ.partitionKey, typ.kType, newRangeBounds)
       OrderedRVD(typ, newPartitioner, new BlockedRDD(rdd, newPartEnd))
+    }
+  }
+
+  def filterIntervals(intervals: IntervalTree[_]): OrderedRVD = {
+    val pkOrdering = typ.pkType.ordering
+    val intervalsBc = rdd.sparkContext.broadcast(intervals)
+    val rowType = typ.rowType
+    val pkRowFieldIdx = typ.pkRowFieldIdx
+    val pred: (RegionValue) => Boolean = (rv: RegionValue) => {
+      val ur = new UnsafeRow(rowType, rv)
+      val pk = Row.fromSeq(
+        pkRowFieldIdx.map(i => ur.get(i)))
+      intervalsBc.value.contains(pkOrdering, pk)
+    }
+
+    val nPartitions = partitions.length
+    if (nPartitions <= 1)
+      return filter(pred)
+
+    val intervalArray = intervals.toArray
+    val rangeBounds = partitioner.rangeBounds
+    val partitionIndices = new ArrayBuilder[Int]()
+    var i = 0
+    while (i < nPartitions) {
+      val include = if (i == 0)
+        intervalArray.exists(i => pkOrdering.lteq(i._1.start, rangeBounds(0)))
+      else if (i == nPartitions - 1)
+        intervalArray.reverseIterator.exists(i => pkOrdering.gt(i._1.end, rangeBounds.last))
+      else {
+        val lastMax = rangeBounds(i - 1)
+        val thisMax = rangeBounds(i)
+        // FIXME: loads a partition if the lastMax == interval.start.  Can therefore load unnecessary partitions
+        // the solution is to add a new Ordered trait Incrementable which lets us add epsilon to PK (add 1 to locus start)
+        intervals.overlaps(pkOrdering, Interval(lastMax, thisMax)) || intervals.contains(pkOrdering, thisMax)
+      }
+
+      if (include)
+        partitionIndices += i
+
+      i += 1
+    }
+
+    val newPartitionIndices = partitionIndices.result()
+    assert(newPartitionIndices.isEmpty ==> intervalArray.isEmpty)
+
+    info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
+
+    if (newPartitionIndices.isEmpty)
+      OrderedRVD.empty(sparkContext, typ)
+    else {
+      val newRDD = new AdjustedPartitionsRDD(rdd, newPartitionIndices.map(i => Array(Adjustment(i, (it: Iterator[RegionValue]) => it.filter(pred)))))
+      OrderedRVD(typ,
+        new OrderedRVPartitioner(
+          newPartitionIndices.length,
+          partitioner.partitionKey,
+          partitioner.kType,
+          UnsafeIndexedSeq(TArray(typ.pkType), newPartitionIndices.init.map(rangeBounds))),
+        newRDD)
     }
   }
 }
