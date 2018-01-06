@@ -1,11 +1,77 @@
 package is.hail.distributedmatrix
   
+import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.utils._
 import org.testng.annotations.Test
 
 
 class RowMatrixSuite extends SparkSuite {
+  private def rowArrayToRowMatrix(a: Array[Array[Double]]): RowMatrix = {
+    require(a.length > 0)
+    val nRows = a.length
+    val nCols = a(0).length
+    
+    RowMatrix(hc, sc.parallelize(a.zipWithIndex.map { case (row, i) => (i.toLong, row) }), nCols, nRows)
+  }
+  
+  private def rowArrayToLocalMatrix(a: Array[Array[Double]]): DenseMatrix[Double] = {
+    require(a.length > 0)
+    val nRows = a.length
+    val nCols = a(0).length
+    
+    new DenseMatrix[Double](nRows, nCols, a.flatten, 0, nCols, isTranspose = true)
+  }
+  
+  @Test
+  def local() {
+    val fname = tmpDir.createTempFile("test")
+    
+    val rowArrays = Array(
+      Array(1.0, 2.0, 3.0),
+      Array(4.0, 5.0, 6.0))
+
+    val rowMatrix = rowArrayToRowMatrix(rowArrays)
+    val localMatrix = rowArrayToLocalMatrix(rowArrays)
+    
+    BlockMatrix.from(hc.sc, localMatrix).write(fname)
+    
+    assert(rowMatrix.toLocalMatrix() === localMatrix)
+  }
+
+  @Test
+  def readBlockSmall() {
+    val fname = tmpDir.createTempFile("test")
+    
+    val localMatrix = DenseMatrix(
+      Array(1.0, 2.0, 3.0),
+      Array(4.0, 5.0, 6.0))
+    
+    BlockMatrix.from(hc.sc, localMatrix).write(fname, forceRowMajor = true)
+    
+    val rowMatrixFromBlock = RowMatrix.readBlockMatrix(hc, fname, 1)
+    
+    assert(rowMatrixFromBlock.toLocalMatrix() == localMatrix)
+  }
+  
+  @Test def readBlock() {
+    val fname = tmpDir.createTempFile("test")
+    val r = scala.util.Random
+    r.setSeed(0)
+    
+    val lm = DenseMatrix.fill[Double](9, 10)(r.nextDouble())
+    
+    for {
+      blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
+      partSize <- Seq(1, 2, 4, 9, 11)
+    } {
+      BlockMatrix.from(sc, lm, blockSize).write(fname, forceRowMajor = true)
+      val rowMatrix = RowMatrix.readBlockMatrix(hc, fname, partSize)
+      
+      assert(rowMatrix.toLocalMatrix() === lm)
+    }
+  }
+  
   private def readCSV(fname: String): Array[Array[Double]] =
     hc.hadoopConf.readLines(fname)( it =>
       it.map(_.value)
@@ -17,12 +83,6 @@ class RowMatrixSuite extends SparkSuite {
     val fname = tmpDir.createTempFile("test")
     export(fname)
     assert(readCSV(fname) === expected.toArray[Array[Double]])
-  }
-
-  private def rowArrayToRowMatrix(a: Array[Array[Double]]): RowMatrix = {
-    val nRows = a.length
-    val nCols = if (nRows == 0) 0 else a(0).length
-    RowMatrix(hc, sc.parallelize(a.zipWithIndex.map { case (a, i) => (i.toLong, a) }), nCols, nRows)
   }
 
   @Test
@@ -110,7 +170,7 @@ class RowMatrixSuite extends SparkSuite {
   }  
 
   @Test
-  def exportBigish() {
+  def exportBig() {
     val rowArrays: Array[Array[Double]] = Array.tabulate(20)( r => Array.tabulate(30)(c => 30 * c + r))
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
     

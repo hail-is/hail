@@ -122,4 +122,10 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     
     RichDenseMatrixDouble.writeDoubles(dos, m.data, m.data.length)
   }
+  
+  def forceRowMajor(): DenseMatrix[Double] =
+    if (m.isTranspose)
+      m
+    else
+      new DenseMatrix(m.rows, m.cols, m.t.toArray, 0, m.cols, isTranspose = true)
 }
