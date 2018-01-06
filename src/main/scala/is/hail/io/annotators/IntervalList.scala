@@ -37,7 +37,7 @@ object IntervalList {
     else
       TStruct("interval" -> TInterval(TLocus(gr)))
 
-    implicit val locusOrd = gr.locusOrdering
+    implicit val ord = gr.locus.ordering
 
     val rdd = hc.sc.textFileLines(filename)
       .filter(l => !l.value.isEmpty && l.value(0) != '@')

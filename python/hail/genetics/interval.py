@@ -31,8 +31,11 @@ class Interval(HistoryMixin):
         if start._rg != end._rg:
             raise TypeError("expect `start' and `end' to have the same reference genome but found ({}, {})".format(start._rg.name, end._rg.name))
         self._rg = start._rg
-        jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep, self._rg._jrep)
-        self._init_from_java(jrep)
+        self._jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep, self._rg._jrep)
+        
+        # FIXME
+        from hail.expr.types import TLocus
+        self._typ = TLocus(self._rg)
 
     def __str__(self):
         return self._jrep.toString()
@@ -46,14 +49,15 @@ class Interval(HistoryMixin):
     def __hash__(self):
         return self._jrep.hashCode()
 
-    def _init_from_java(self, jrep):
-        self._jrep = jrep
-
     @classmethod
     def _from_java(cls, jrep, reference_genome):
         interval = Interval.__new__(cls)
-        interval._init_from_java(jrep)
+        interval._jrep = jrep
         interval._rg = reference_genome
+
+        # FIXME
+        from hail.expr.types import TLocus
+        interval._typ = TLocus(reference_genome)
         super(Interval, interval).__init__()
         return interval
 
@@ -149,7 +153,7 @@ class Interval(HistoryMixin):
 
         if self._rg != locus._rg:
             raise TypeError("expect `locus' has reference genome `{}' but found `{}'".format(self._rg.name, locus._rg.name))
-        return self._jrep.contains(locus._jrep)
+        return self._jrep.contains(self._typ._jtype.ordering(), locus._jrep)
 
     @handle_py4j
     @typecheck_method(interval=interval_type)
@@ -169,6 +173,6 @@ class Interval(HistoryMixin):
 
         if self._rg != interval._rg:
             raise TypeError("expect `interval' has reference genome `{}' but found `{}'".format(self._rg.name, interval._rg.name))
-        return self._jrep.overlaps(interval._jrep)
+        return self._jrep.overlaps(self._typ._jtype.ordering(), interval._jrep)
 
 interval_type.set(Interval)

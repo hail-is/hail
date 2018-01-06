@@ -91,7 +91,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Locus(r.getAs[String](0), r.getAs[Int](1))
         case x: TInterval =>
           val r = a.asInstanceOf[Row]
-          Interval(importAnnotation(r.get(0), x.pointType), importAnnotation(r.get(1), x.pointType))(x.pointType.ordering.toOrdering)
+          Interval(importAnnotation(r.get(0), x.pointType), importAnnotation(r.get(1), x.pointType))
         case TStruct(fields, _) =>
           if (fields.isEmpty)
             if (a.asInstanceOf[Boolean]) Annotation.empty else null
@@ -170,7 +170,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           val l = a.asInstanceOf[Locus]
           Row(l.contig, l.position)
         case TInterval(pointType, _) =>
-          val i = a.asInstanceOf[Interval[_]]
+          val i = a.asInstanceOf[Interval]
           Row(exportAnnotation(i.start, pointType), exportAnnotation(i.end, pointType))
         case TStruct(fields, _) =>
           if (fields.isEmpty)
@@ -195,8 +195,6 @@ case class JSONExtractVariant(contig: String,
 }
 
 case class JSONExtractIntervalLocus(start: Locus, end: Locus) {
-  def toInterval(ord: Ordering[Locus]) = Interval(start, end)(ord)
-
   def toLocusTuple: (Locus, Locus) = (start, end)
 }
 
@@ -289,7 +287,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         case _: TAltAllele => a.asInstanceOf[AltAllele].toJSON
         case TVariant(_, _) => a.asInstanceOf[Variant].toJSON
         case TLocus(_, _) => a.asInstanceOf[Locus].toJSON
-        case TInterval(pointType, _) => a.asInstanceOf[Interval[Annotation]].toJSON(pointType.toJSON)
+        case TInterval(pointType, _) => a.asInstanceOf[Interval].toJSON(pointType.toJSON)
         case TStruct(fields, _) =>
           val row = a.asInstanceOf[Row]
           JObject(fields
@@ -381,8 +379,8 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
       case (_, TInterval(pointType, _)) =>
         jv match {
           case JObject(List(("start", sjv), ("end", ejv))) =>
-            Interval[Annotation](importAnnotation(sjv, pointType, parent + ".start"),
-              importAnnotation(ejv, pointType, parent + ".end"))(pointType.ordering.toOrdering)
+            Interval(importAnnotation(sjv, pointType, parent + ".start"),
+              importAnnotation(ejv, pointType, parent + ".end"))
           case _ =>
             warn(s"Can't convert JSON value $jv to type $t at $parent.")
             null
@@ -420,9 +418,9 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
         case it: TIterable => JsonMethods.compact(it.toJSON(a))
         case t: TStruct => JsonMethods.compact(t.toJSON(a))
         case TInterval(TLocus(gr, _), _) =>
-          val i = a.asInstanceOf[Interval[Locus]]
-          if (i.start.contig == i.end.contig)
-            s"${ i.start }-${ i.end.position }"
+          val i = a.asInstanceOf[Interval]
+          if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
+            s"${ i.start }-${ i.end.asInstanceOf[Locus].position }"
           else
             s"${ i.start }-${ i.end }"
         case _: TInterval =>

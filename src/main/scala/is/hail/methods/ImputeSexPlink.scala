@@ -13,13 +13,13 @@ object ImputeSexPlink {
     var vsm = in
 
     val gr = vsm.genomeReference
-    implicit val locusOrd = gr.locusOrdering
 
-    val xIntervals = IntervalTree(gr.xContigs.map(contig => Interval(Locus(contig, 0), Locus(contig, gr.contigLength(contig)))).toArray)
+    val xIntervals = IntervalTree(gr.locus.ordering,
+      gr.xContigs.map(contig => Interval(Locus(contig, 0), Locus(contig, gr.contigLength(contig)))).toArray)
     vsm = FilterIntervals(vsm, xIntervals, keep = true)
 
     if (!includePar)
-      vsm = FilterIntervals(vsm, IntervalTree(gr.par), keep = false)
+      vsm = FilterIntervals(vsm, IntervalTree(gr.locus.ordering, gr.par), keep = false)
 
     vsm = vsm.annotateVariantsExpr(
       s"va = ${ popFrequencyExpr.getOrElse("gs.map(g => g.GT.nNonRefAlleles).sum().toFloat64() / gs.filter(g => isDefined(g.GT)).count() / 2") }")

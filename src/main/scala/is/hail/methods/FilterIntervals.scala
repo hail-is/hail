@@ -7,27 +7,27 @@ import is.hail.variant.{Locus, MatrixTable, Variant}
 import scala.collection.JavaConverters._
 
 object FilterIntervals {
-  def apply(vsm: MatrixTable, intervals: java.util.ArrayList[Interval[Locus]], keep: Boolean): MatrixTable = {
-    implicit val locusOrd = vsm.genomeReference.locusOrdering
-    val iList = IntervalTree[Locus](intervals.asScala.toArray)
+  def apply(vsm: MatrixTable, intervals: java.util.ArrayList[Interval], keep: Boolean): MatrixTable = {
+    val pord = vsm.genomeReference.locus.ordering
+    val iList = IntervalTree(vsm.genomeReference.locus.ordering, intervals.asScala.toArray)
     apply(vsm, iList, keep)
   }
 
-  def apply[T, U](vsm: MatrixTable, iList: IntervalTree[Locus, U], keep: Boolean): MatrixTable = {
-    implicit val locusOrd = vsm.matrixType.locusType.ordering.toOrdering
+  def apply[U](vsm: MatrixTable, iList: IntervalTree[U], keep: Boolean): MatrixTable = {
+    val pord = vsm.genomeReference.locus.ordering
 
-    val ab = new ArrayBuilder[(Interval[Annotation], Annotation)]()
+    val ab = new ArrayBuilder[(Interval, Annotation)]()
     iList.foreach { case (i, v) =>
-      ab += (Interval[Annotation](i.start, i.end), v)
+      ab += (Interval(i.start, i.end), v)
     }
 
-    val iList2 = IntervalTree.annotationTree(ab.result())
+    val iList2 = IntervalTree.annotationTree(pord, ab.result())
 
     if (keep)
-      vsm.copy(rdd = vsm.rdd.filterIntervals(iList2))
+      vsm.copy(rdd = vsm.rdd.filterIntervals(pord, iList2))
     else {
       val iListBc = vsm.sparkContext.broadcast(iList)
-      vsm.filterVariants { (v, va, gs) => !iListBc.value.contains(v.asInstanceOf[Variant].locus) }
+      vsm.filterVariants { (v, va, gs) => !iListBc.value.contains(pord, v.asInstanceOf[Variant].locus) }
     }
   }
 }
