@@ -21,7 +21,7 @@ class JoinSuite extends SparkSuite {
     val right = hc.importVCF("src/test/resources/joinright.vcf")
 
     // make sure joined VDS writes
-    left.join(right).write(joinedPath)
+    left.union_cols(right).write(joinedPath)
 
     assert(joined.same(hc.readVDS(joinedPath)))
   }

@@ -2631,7 +2631,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.join(right._jvds))
+        return VariantDataset(self.hc, self._jvds.union_cols(right._jvds))
 
     @handle_py4j
     @record_method
@@ -2684,7 +2684,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         elif len(datasets) == 1:
             return datasets[0]
         else:
-            return VariantDataset(Env.hc(), Env.hail().variant.MatrixTable.union([d._jvds for d in datasets]))
+            return VariantDataset(Env.hc(), Env.hail().variant.MatrixTable.union_rows([d._jvds for d in datasets]))
 
 
     @handle_py4j

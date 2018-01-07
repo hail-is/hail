@@ -2216,4 +2216,117 @@ class MatrixTable(object):
     def _same(self, other, tolerance=1e-6):
         return self._jvds.same(other._jvds, tolerance)
 
+    @handle_py4j
+    @typecheck(datasets=matrix_table_type)
+    def union_rows(*datasets):
+        """Take the union of dataset rows.
+
+        Examples
+        --------
+
+        .. testsetup::
+
+            dataset2 = dataset
+            dataset3 = dataset
+
+        Union the rows of two datasets:
+
+        >>> dataset_result = dataset.union_rows(dataset2)
+
+        Given a list of datasets, take the union of all rows:
+
+        >>> all_datasets = [dataset, dataset2, dataset3]
+
+        The following three syntaxes are equivalent:
+
+        >>> dataset_result = dataset.union_rows(dataset2, dataset3)
+        >>> dataset_result = all_datasets[0].union_rows(*all_datasets[1:])
+        >>> dataset_result = MatrixTable.union_rows(*all_datsets)
+
+        Notes
+        -----
+
+        In order to combine two datasets, four requirements must be met:
+
+         - The column keys must be identical (in both type and equality, field
+           order within structs matters).
+         - The row key schema and row field schemas must match.
+         - The entry schemas must match.
+
+        The column fields in the resulting dataset are simply the column
+        annotations from the first dataset; the column field schemas do not
+        need to match.
+
+        This method does not deduplicate; if a row exists identically in two
+        datasets, then it will be duplicated in the result.
+
+        Warning
+        -------
+        This method can trigger a shuffle, if partitions from two datasets
+        overlap.
+
+        Parameters
+        ----------
+        datasets : varargs of :class:`MatrixTable`
+            Datasets to combine..
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Dataset with rows from each member of `datasets`.
+        """
+        if len(datasets) == 0:
+            raise ValueError('Expected at least one argument')
+        elif len(datasets) == 1:
+            return datasets[0]
+        else:
+            return MatrixTable(Env.hail().variant.MatrixTable.union_rows([d._jvds for d in datasets]))
+
+    @handle_py4j
+    @typecheck_method(other=matrix_table_type)
+    def union_cols(self, other):
+        """Take the union of dataset columns.
+
+        Examples
+        --------
+
+        .. testsetup::
+
+            dataset2 = dataset
+
+        Union the columns of two datasets:
+
+        >>> dataset_result = dataset.union_cols(dataset2)
+
+        Notes
+        -----
+
+        In order to combine two datasets, four requirements must be met:
+
+         - The column key schemas must match.
+         - The column field schemas must match.
+         - The row key schemas must match.
+         - The entry schemas must match.
+
+        The row fields in the resulting dataset are the row fields from the
+        first dataset; the row field schemas do not need to match.
+
+        This method performs an inner join on rows and concatenates entries
+        from the two datasets for each row.
+
+        This method does not deduplicate; if a column key exists identically in
+        two datasets, then it will be duplicated in the result.
+
+        Parameters
+        ----------
+        other : :class:`MatrixTable`
+            Dataset to concatenate.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+            Dataset with columns from both datasets.
+        """
+        return MatrixTable(self._jvds.unionCols(other._jvds))
+
 matrix_table_type.set(MatrixTable)

@@ -249,10 +249,10 @@ object MatrixTable {
     }
   }
 
-  def union(datasets: java.util.ArrayList[MatrixTable]): MatrixTable =
-    union(datasets.asScala.toArray)
+  def union_rows(datasets: java.util.ArrayList[MatrixTable]): MatrixTable =
+    union_rows(datasets.asScala.toArray)
 
-  def union(datasets: Array[MatrixTable]): MatrixTable = {
+  def union_rows(datasets: Array[MatrixTable]): MatrixTable = {
     require(datasets.length >= 2)
 
     checkDatasetSchemasCompatible(datasets)
@@ -1471,38 +1471,42 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     *
     * @param right right-hand dataset with which to join
     */
-  def join(right: MatrixTable): MatrixTable = {
+  def unionCols(right: MatrixTable): MatrixTable = {
     if (genotypeSignature != right.genotypeSignature) {
       fatal(
-        s"""cannot join datasets with different genotype schemata
-           |  left genotype schema: @1
-           |  right genotype schema: @2""".stripMargin,
+        s"""union_cols: cannot combine datasets with different entry schema
+           |  left entry schema: @1
+           |  right entry schema: @2""".stripMargin,
         genotypeSignature.toPrettyString(compact = true),
         right.genotypeSignature.toPrettyString(compact = true))
     }
 
+    if (sSignature != right.sSignature) {
+      fatal(
+        s"""union_cols: cannot combine datasets with different column key schema
+           |  left column schema: @1
+           |  right column schema: @2""".stripMargin,
+        sSignature.toPrettyString(compact = true),
+        right.sSignature.toPrettyString(compact = true))
+    }
+
     if (saSignature != right.saSignature) {
       fatal(
-        s"""cannot join datasets with different sample schemata
-           |  left sample schema: @1
-           |  right sample schema: @2""".stripMargin,
+        s"""union_cols: cannot combine datasets with different column schema
+           |  left column schema: @1
+           |  right column schema: @2""".stripMargin,
         saSignature.toPrettyString(compact = true),
         right.saSignature.toPrettyString(compact = true))
     }
 
     if (vSignature != right.vSignature) {
       fatal(
-        s"""cannot join datasets with different variant schemata
-           |  left variant schema: @1
-           |  right variant schema: @2""".stripMargin,
+        s"""union_cols: cannot combine datasets with different row key schema
+           |  left row key schema: @1
+           |  right row key schema: @2""".stripMargin,
         vSignature.toPrettyString(compact = true),
         right.vSignature.toPrettyString(compact = true))
     }
-
-    val newSampleIds = sampleIds ++ right.sampleIds
-    val duplicates = newSampleIds.duplicates()
-    if (duplicates.nonEmpty)
-      fatal("duplicate sample IDs: @1", duplicates)
 
     val localRowType = rowType
     val localLeftSamples = nSamples
@@ -1552,7 +1556,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       }
     }, preservesPartitioning = true)
 
-    copy2(sampleIds = newSampleIds,
+    copy2(sampleIds = sampleIds ++ right.sampleIds,
       sampleAnnotations = sampleAnnotations ++ right.sampleAnnotations,
       rdd2 = OrderedRVD(rdd2.typ, rdd2.partitioner, joined))
   }
