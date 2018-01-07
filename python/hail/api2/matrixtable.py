@@ -1306,7 +1306,7 @@ class MatrixTable(object):
         .. doctest::
 
             >>> dataset.aggregate_cols(fraction_female=agg.fraction(dataset.pheno.isFemale),
-            ...                        case_ratio = agg.count_where(dataset.isCase) / agg.count(dataset.s))
+            ...                        case_ratio = agg.count_where(dataset.isCase) / agg.count())
             Struct(fraction_female=0.5102222, case_ratio=0.35156)
 
         Notes
@@ -1319,7 +1319,7 @@ class MatrixTable(object):
 
         >>> cols_table = dataset.cols_table()
         >>> cols_table.aggregate(fraction_female=agg.fraction(cols_table.pheno.isFemale),
-        ...                      case_ratio = agg.count_where(cols_table.isCase) / agg.count(cols_table.s))
+        ...                      case_ratio = agg.count_where(cols_table.isCase) / agg.count())
 
         Note
         ----
