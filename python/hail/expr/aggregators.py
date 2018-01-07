@@ -133,7 +133,6 @@ def count(expr=None):
         Total number of records.
     """
     if expr is not None:
-        expr = to_expr(expr)
         return _agg_func('count', _to_agg(expr), TInt64())
     else:
         return _agg_func('count', _to_agg(0), TInt64())
