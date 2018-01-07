@@ -2226,7 +2226,6 @@ class MatrixTable(object):
 
         .. testsetup::
 
-            dataset2 = dataset
             dataset3 = dataset
 
         Union the rows of two datasets:
@@ -2289,10 +2288,6 @@ class MatrixTable(object):
 
         Examples
         --------
-
-        .. testsetup::
-
-            dataset2 = dataset
 
         Union the columns of two datasets:
 
