@@ -1,5 +1,6 @@
 package is.hail.expr
 
+import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr
 
@@ -35,4 +36,12 @@ package object ir {
           ir.GetField(s, f.name))
     }.toArray)
   }
+
+  def coerce[T](c: Code[_]): Code[T] = asm4s.coerce(c)
+
+  def coerce[T](lr: LocalRef[_]): LocalRef[T] = lr.asInstanceOf[LocalRef[T]]
+
+  def coerce[T <: Type](x: Type): T = x.asInstanceOf[T]
+
+  def coerce[T](ti: TypeInfo[_]): TypeInfo[T] = ti.asInstanceOf[TypeInfo[T]]
 }
