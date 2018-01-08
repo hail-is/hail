@@ -63,12 +63,15 @@ class TableIRSuite extends SparkSuite {
     val kt5 = kt4.annotate("field2.b.c.d.e.f = field2")
     assert(kt5.ir.isInstanceOf[TableAnnotate])
 
+    val kt6 = kt2.annotate("d = a.*")
+    assert(kt6.ir.isInstanceOf[TableAnnotate])
+
     assert(kt2.select("Sample", "field1 = a.b", "field2 = a.a").same(kt))
     assert(kt3.select("Sample", "field1 = a.b", "field2 = a.a").same(kt))
     assert(kt4.select("Sample", "field1 = a.b", "field2 = a.a").same(kt))
     assert(kt4.select("Sample", "field1 = field1.b", "field2 = field1.a").same(kt))
     assert(kt5.select("Sample", "field1 = field1.b", "field2 = field2.b.c.d.e.f").same(kt))
-
+    assert(kt6.select("Sample", "field1 = d.b", "field2 = d.a").same(kt))
 
   }
 }
