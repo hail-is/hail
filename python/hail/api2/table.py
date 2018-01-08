@@ -514,24 +514,29 @@ class Table(TableTemplate):
 
     @handle_py4j
     def annotate(self, **named_exprs):
-        """Add new columns.
+        """Add new fields.
 
-        **Examples**
+        Examples
+        --------
 
-        Add new column ``Y`` which is equal to 5 times ``X``:
+        Add field `Y` by computing the square of `X`:
 
-        >>> table_result = table1.annotate(Y = 5 * table1.X)
+        >>> table_result = table1.annotate(Y = table1.X ** 2)
 
-        Add multiple columns simultaneously:
+        Add multiple fields simultaneously:
 
         >>> table_result = table1.annotate(A = table1.X / 2,
-        ...                          B = table1.X + 21)
+        ...                                B = table1.X + 21)
 
-        :param kwargs: Annotation expression with the left hand side equal to the new column name and the right hand side is any type.
-        :type kwargs: dict of str to anytype
+        Parameters
+        ----------
+        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+            Expressions for new fields.
 
-        :return: Key table with new columns specified by ``named_exprs``.
-        :rtype: :class:`.Table`
+        Returns
+        -------
+        :class:`Table`
+            Table with new fields.
         """
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         exprs = []
