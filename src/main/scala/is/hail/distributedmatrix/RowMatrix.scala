@@ -47,13 +47,13 @@ object RowMatrix {
     val gp = readGridPartitioner(hc, uri)
     val partitionCounts = computePartitionCounts(partSize, gp.nRows)
         
-    RowMatrix(new ReadBlocksAsRowsRDD(uri, hc.sc, partitionCounts, gp), gp.nCols.toInt, gp.nRows, partitionCounts)    
+    RowMatrix(hc, new ReadBlocksAsRowsRDD(uri, hc.sc, partitionCounts, gp), gp.nCols.toInt, gp.nRows, partitionCounts)    
   }
   
   def readBlockMatrix(hc: HailContext, uri: String, partitionCounts: Array[Long]): RowMatrix = {
     val gp = readGridPartitioner(hc, uri)
     
-    RowMatrix(new ReadBlocksAsRowsRDD(uri, hc.sc, partitionCounts, gp), gp.nCols.toInt, gp.nRows, partitionCounts)
+    RowMatrix(hc, new ReadBlocksAsRowsRDD(uri, hc.sc, partitionCounts, gp), gp.nCols.toInt, gp.nRows, partitionCounts)
   }
 }
 

@@ -5,7 +5,6 @@ import is.hail.SparkSuite
 import is.hail.utils._
 import org.testng.annotations.Test
 
-
 class RowMatrixSuite extends SparkSuite {
   private def rowArrayToRowMatrix(a: Array[Array[Double]]): RowMatrix = {
     require(a.length > 0)
