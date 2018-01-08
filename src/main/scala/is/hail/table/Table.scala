@@ -465,40 +465,33 @@ class Table(val hc: HailContext,
 
       copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = key)
     } else {
-      def flatten(old: IR, paths: IndexedSeq[List[String]], irs: IndexedSeq[IR]): (IndexedSeq[String], IndexedSeq[IR]) = {
-        if (paths.exists(_.isEmpty)) {
-          val i = paths.lastIndexWhere(_.isEmpty)
-          return flatten(old, paths.slice(i, paths.length), irs.slice(i, irs.length))
+      def flatten(old: IR, fields: IndexedSeq[(List[String], IR)]): IndexedSeq[(String, IR)] = {
+        if (fields.exists(_._1.isEmpty)) {
+          val i = fields.lastIndexWhere(_._1.isEmpty)
+          return flatten(old, fields.slice(i, fields.length))
         }
-        val fields: mutable.Map[String, (mutable.ArrayBuffer[List[String]], mutable.ArrayBuffer[IR])] = mutable.Map()
-        var i = 0
-        while (i < paths.length) {
-          val top = paths(i).head
-          if (!fields.contains(top))
-            fields += ((top, (new mutable.ArrayBuffer[List[String]](), new mutable.ArrayBuffer[IR]())))
-          fields(top)._1 += paths(i).tail
-          fields(top)._2 += irs(i)
-          i += 1
+        val flatFields: mutable.Map[String, (mutable.ArrayBuffer[(List[String], IR)])] = mutable.Map()
+        for ((path, fIR) <- fields) {
+          val name = path.head
+          if (!flatFields.contains(name))
+            flatFields += ((name, new mutable.ArrayBuffer[(List[String], IR)]()))
+          flatFields(name) += ((path.tail, fIR))
         }
 
         Infer(old)
-        val newFields: IndexedSeq[(String, IR)] = fields.map { case (f, (newPaths, newIRs)) =>
-          if (newPaths.last.length == 0) {
-            (f, newIRs.last)
+        flatFields.map { case (f, newF) =>
+          if (newF.last._1.isEmpty) {
+            (f, newF.last._2)
           } else {
-            val newOld = if (old.typ.isInstanceOf[TStruct])
-              coerce[TStruct](old.typ).selfField(f) match {
-                case Some(field) => GetField(old, f)
-                case None => MakeStruct(Array())
-              } else MakeStruct(Array())
-            val (newFieldNames, newFieldIRs) = flatten(newOld, newPaths, newIRs)
-            (f, InsertFields(newOld, newFieldNames.zip(newFieldIRs).toArray))
+            if (old.typ.isInstanceOf[TStruct] && coerce[TStruct](old.typ).selfField(f).isDefined)
+               (f, InsertFields(GetField(old, f), flatten(GetField(old, f), newF).toArray))
+            else
+              (f, MakeStruct(flatten(I32(0), newF).toArray))
           }
         }.toIndexedSeq
-        newFields.unzip
       }
 
-      val (fieldNames, fieldIRs) = flatten(In(0, signature), paths, irs)
+      val (fieldNames, fieldIRs) = flatten(In(0, signature), paths.zip(irs)).unzip
       new Table(hc, TableAnnotate(ir, fieldNames, fieldIRs))
     }
 
