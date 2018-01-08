@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.hail.expr.typ.{TArray, TStruct}
+import is.hail.expr.typ._
 import is.hail.utils._
 import is.hail.testUtils._
 import org.apache.spark.util.StatCounter
