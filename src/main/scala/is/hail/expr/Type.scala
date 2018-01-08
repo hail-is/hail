@@ -1520,15 +1520,6 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
   override def subst() = gr.subst().locus
 }
 
-object TInterval {
-  def representation(pointType: Type, required: Boolean = false): TStruct = {
-    val rep = TStruct(
-      "start" -> pointType,
-      "end" -> pointType)
-    if (required) (!rep).asInstanceOf[TStruct] else rep
-  }
-}
-
 case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
   override def children = Seq(pointType)
 
@@ -1558,7 +1549,12 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = representation.unsafeOrdering(missingGreatest)
 
-  val representation: TStruct = TInterval.representation(pointType, required)
+  val representation: TStruct = {
+    val rep = TStruct(
+      "start" -> pointType,
+      "end" -> pointType)
+    if (required) (!rep).asInstanceOf[TStruct] else rep
+  }
 
   override def unify(concrete: Type): Boolean = concrete match {
     case TInterval(cpointType, _) => pointType.unify(cpointType)
