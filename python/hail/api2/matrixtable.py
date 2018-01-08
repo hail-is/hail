@@ -2246,16 +2246,14 @@ class MatrixTable(object):
         Notes
         -----
 
-        In order to combine two datasets, four requirements must be met:
+        In order to combine two datasets, three requirements must be met:
 
-         - The column keys must be identical (in both type and equality, field
-           order within structs matters).
-         - The row key schema and row field schemas must match.
+         - The column keys must be identical, both in type, value, and ordering.
+         - The row key schemas and row schemas must match.
          - The entry schemas must match.
 
-        The column fields in the resulting dataset are simply the column
-        annotations from the first dataset; the column field schemas do not
-        need to match.
+        The column fields in the resulting dataset are the column fields from
+        the first dataset; the column schemas do not need to match.
 
         This method does not deduplicate; if a row exists identically in two
         datasets, then it will be duplicated in the result.
@@ -2268,7 +2266,7 @@ class MatrixTable(object):
         Parameters
         ----------
         datasets : varargs of :class:`MatrixTable`
-            Datasets to combine..
+            Datasets to combine.
 
         Returns
         -------
@@ -2280,7 +2278,7 @@ class MatrixTable(object):
         elif len(datasets) == 1:
             return datasets[0]
         else:
-            return MatrixTable(Env.hail().variant.MatrixTable.union_rows([d._jvds for d in datasets]))
+            return MatrixTable(Env.hail().variant.MatrixTable.unionRows([d._jvds for d in datasets]))
 
     @handle_py4j
     @typecheck_method(other=matrix_table_type)
@@ -2303,13 +2301,12 @@ class MatrixTable(object):
 
         In order to combine two datasets, four requirements must be met:
 
-         - The column key schemas must match.
-         - The column field schemas must match.
-         - The row key schemas must match.
+         - The row keys must match.
+         - The column key schemas and column schemas must match.
          - The entry schemas must match.
 
         The row fields in the resulting dataset are the row fields from the
-        first dataset; the row field schemas do not need to match.
+        first dataset; the row schemas do not need to match.
 
         This method performs an inner join on rows and concatenates entries
         from the two datasets for each row.

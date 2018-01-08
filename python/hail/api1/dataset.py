@@ -2684,7 +2684,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         elif len(datasets) == 1:
             return datasets[0]
         else:
-            return VariantDataset(Env.hc(), Env.hail().variant.MatrixTable.union_rows([d._jvds for d in datasets]))
+            return VariantDataset(Env.hc(), Env.hail().variant.MatrixTable.unionRows([d._jvds for d in datasets]))
 
 
     @handle_py4j

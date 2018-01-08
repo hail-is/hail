@@ -249,10 +249,10 @@ object MatrixTable {
     }
   }
 
-  def union_rows(datasets: java.util.ArrayList[MatrixTable]): MatrixTable =
-    union_rows(datasets.asScala.toArray)
+  def unionRows(datasets: java.util.ArrayList[MatrixTable]): MatrixTable =
+    unionRows(datasets.asScala.toArray)
 
-  def union_rows(datasets: Array[MatrixTable]): MatrixTable = {
+  def unionRows(datasets: Array[MatrixTable]): MatrixTable = {
     require(datasets.length >= 2)
 
     checkDatasetSchemasCompatible(datasets)
