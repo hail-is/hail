@@ -80,7 +80,8 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     else
       startOffset.store(pOffset)
     assert(staticIdx == 0)
-    c = Code(c, elementsOffset.store(startOffset + t.byteOffsets(0)))
+    if (t.size > 0)
+      c = Code(c, elementsOffset.store(startOffset + t.byteOffsets(0)))
     if (init)
       c = Code(c, t.clearMissingBits(region, startOffset))
     c

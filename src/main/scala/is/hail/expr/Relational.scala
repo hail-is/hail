@@ -631,41 +631,13 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   }
 }
 
-case class TableAnnotate(child: TableIR, paths: IndexedSeq[List[String]], preds: IndexedSeq[IR]) extends TableIR {
+case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: IndexedSeq[IR]) extends TableIR {
 
   val children: IndexedSeq[BaseIR] = Array(child) ++ preds
 
-  private def makeNestedStruct(path: List[String], ir: IR): IR = {
-    if (path.isEmpty)
-      ir
-    else
-      MakeStruct(Array((path.head, makeNestedStruct(path.tail, ir))))
-  }
-
-  private def insertIR(path: List[String], old: IR, ir: IR): IR = {
-    val ir2 = if (path.tail.isEmpty)
-      ir
-    else {
-      Infer(old)
-      old.typ match {
-        case t: TStruct if t.selfField(path.head).isDefined =>
-          insertIR(path.tail, GetField(old, path.head), ir)
-        case _ =>
-          makeNestedStruct(path.tail, ir)
-      }
-    }
-    InsertFields(old, Array((path.head, ir2)))
-  }
-
-  private var newIR: IR = In(0, child.typ.rowType)
+  private val newIR: IR = InsertFields(In(0, child.typ.rowType), paths.zip(preds.map(child.typ.remapIR(_))).toArray)
 
   val typ: TableType = {
-    var i = 0
-    paths.zip(preds).foreach { case (path, pred) =>
-      val mappedPred = child.typ.remapIR(pred)
-      Infer(mappedPred)
-      newIR = insertIR(path, newIR, mappedPred)
-    }
     Infer(newIR)
     child.typ.copy(rowType = newIR.typ.asInstanceOf[TStruct])
   }

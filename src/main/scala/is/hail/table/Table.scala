@@ -3,8 +3,8 @@ package is.hail.table
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.ir.{ApplyUnaryPrimOp, Bang, IR, UnaryOp}
 import is.hail.expr.types._
+import is.hail.expr.ir._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
@@ -22,6 +22,7 @@ import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
@@ -434,6 +435,9 @@ class Table(val hc: HailContext,
     val ec = rowEvalContext()
 
     val (paths, asts) = Parser.parseAnnotationExprsToAST(cond, ec, None)
+    if (paths.length == 0)
+      return this
+
     val irs = asts.flatMap(_.toIR())
 
     if (irs.length != asts.length) {
@@ -461,7 +465,41 @@ class Table(val hc: HailContext,
 
       copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = key)
     } else {
-      new Table(hc, TableAnnotate(ir, paths, irs))
+      def flatten(old: IR, paths: IndexedSeq[List[String]], irs: IndexedSeq[IR]): (IndexedSeq[String], IndexedSeq[IR]) = {
+        if (paths.exists(_.isEmpty)) {
+          val i = paths.lastIndexWhere(_.isEmpty)
+          return flatten(old, paths.slice(i, paths.length), irs.slice(i, irs.length))
+        }
+        val fields: mutable.Map[String, (mutable.ArrayBuffer[List[String]], mutable.ArrayBuffer[IR])] = mutable.Map()
+        var i = 0
+        while (i < paths.length) {
+          val top = paths(i).head
+          if (!fields.contains(top))
+            fields += ((top, (new mutable.ArrayBuffer[List[String]](), new mutable.ArrayBuffer[IR]())))
+          fields(top)._1 += paths(i).tail
+          fields(top)._2 += irs(i)
+          i += 1
+        }
+
+        Infer(old)
+        val newFields: IndexedSeq[(String, IR)] = fields.map { case (f, (newPaths, newIRs)) =>
+          if (newPaths.last.length == 0) {
+            (f, newIRs.last)
+          } else {
+            val newOld = if (old.typ.isInstanceOf[TStruct])
+              coerce[TStruct](old.typ).selfField(f) match {
+                case Some(field) => GetField(old, f)
+                case None => MakeStruct(Array())
+              } else MakeStruct(Array())
+            val (newFieldNames, newFieldIRs) = flatten(newOld, newPaths, newIRs)
+            (f, InsertFields(newOld, newFieldNames.zip(newFieldIRs).toArray))
+          }
+        }.toIndexedSeq
+        newFields.unzip
+      }
+
+      val (fieldNames, fieldIRs) = flatten(In(0, signature), paths, irs)
+      new Table(hc, TableAnnotate(ir, fieldNames, fieldIRs))
     }
 
 

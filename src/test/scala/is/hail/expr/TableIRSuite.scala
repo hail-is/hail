@@ -37,7 +37,9 @@ class TableIRSuite extends SparkSuite {
     val keyNames = Array("Sample")
 
     val kt = Table(hc, rdd, signature, keyNames)
-    val kt2 = new Table(hc, TableAnnotate(kt.ir, IndexedSeq(List("a"), List("field1", "b")), IndexedSeq(ir.I32(0), ir.Ref("field1"))))
+    val kt2 = new Table(hc, TableAnnotate(kt.ir,
+      IndexedSeq("a", "field1"),
+      IndexedSeq(ir.I32(0), ir.InsertFields(ir.GetField(ir.In(0, kt.signature), "field1"), Array(("b", ir.GetField(ir.In(0, kt.signature), "field1")))))))
     assert(kt2.select("Sample", "field1 = field1.b", "field2").same(kt))
   }
 
