@@ -17,7 +17,7 @@ case class RowPartitioner(partitionStarts: Array[Long]) extends Partitioner {
     assert(elem >= a(0) && elem < a(high))
     
     while (low <= high) {
-      var mid = (low + high) >>> 1
+      val mid = (low + high) >>> 1
       val midVal = a(mid)
       
       if (midVal < elem)
@@ -25,9 +25,10 @@ case class RowPartitioner(partitionStarts: Array[Long]) extends Partitioner {
       else if (midVal > elem)
         high = mid - 1
       else {
-        while (mid < a.length - 2 && a(mid) == a(mid + 1))
-          mid += 1
-        return mid
+        var mid0 = mid
+        while (mid0 < a.length - 2 && a(mid0) == a(mid0 + 1))
+          mid0 += 1
+        return mid0
       }
     }
     low - 1
