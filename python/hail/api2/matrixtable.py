@@ -2226,20 +2226,20 @@ class MatrixTable(object):
 
         .. testsetup::
 
-            dataset_to_union = dataset
+            dataset_to_union_1 = dataset
             dataset_to_union_2 = dataset
 
         Union the rows of two datasets:
 
-        >>> dataset_result = dataset.union_rows(dataset_to_union)
+        >>> dataset_result = dataset_to_union_1.union_rows(dataset_to_union_2)
 
         Given a list of datasets, take the union of all rows:
 
-        >>> all_datasets = [dataset, dataset_to_union, dataset_to_union_2]
+        >>> all_datasets = [dataset_to_union_1, dataset_to_union_2]
 
         The following three syntaxes are equivalent:
 
-        >>> dataset_result = dataset.union_rows(dataset_to_union, dataset_to_union_2)
+        >>> dataset_result = dataset_to_union_1.union_rows(dataset_to_union_2)
         >>> dataset_result = all_datasets[0].union_rows(*all_datasets[1:])
         >>> dataset_result = MatrixTable.union_rows(*all_datsets)
 
@@ -2290,11 +2290,12 @@ class MatrixTable(object):
 
         .. testsetup::
 
-            dataset_to_union = dataset
+            dataset_to_union_1 = dataset
+            dataset_to_union_2 = dataset
 
         Union the columns of two datasets:
 
-        >>> dataset_result = dataset.union_cols(dataset_to_union)
+        >>> dataset_result = dataset_to_union_1.union_cols(dataset_to_union_2)
 
         Notes
         -----
