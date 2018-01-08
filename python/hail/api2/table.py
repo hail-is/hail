@@ -1802,5 +1802,91 @@ class Table(TableTemplate):
                     sort_cols.append(e._j_obj())
         return Table(self._jt.orderBy(jarray(Env.hail().table.SortColumn, sort_cols)))
 
+    @handle_py4j
+    @typecheck_method(field=oneof(strlike, Expression))
+    def explode(self, field):
+        """Explode rows along a top-level field of the table.
+
+        Each row is copied for each element of `field`.
+        The explode operation unpacks the elements in a column of type
+        ``Array`` or ``Set`` into its own row. If an empty ``Array`` or ``Set``
+        is exploded, the entire row is removed from the table.
+
+        Examples
+        --------
+
+        `table3` is a :class:`Table` with three columns: `Name`, `Age` and `Children`.
+
+        .. testsetup::
+
+            people_table = hc.import_table('data/explode_example.tsv', delimiter='\\s+',
+                                     types={'Age': TInt32(), 'Children': TArray(TString())})
+
+        .. doctest::
+
+            >>> people_table.show()
+            +----------+-------+--------------------------+
+            | Name     |   Age | Children                 |
+            +----------+-------+--------------------------+
+            | String   | Int32 | Array[String]            |
+            +----------+-------+--------------------------+
+            | Alice    |    34 | ["Dave","Ernie","Frank"] |
+            | Bob      |    51 | ["Gaby","Helen"]         |
+            | Caroline |    10 | []                       |
+            +----------+-------+--------------------------+
+
+        :meth:`Table.explode` can be used to produce a distinct row for each
+        element in the `Children` field:
+
+        .. doctest::
+
+            >>> exploded = people_table.explode('Children')
+            >>> exploded.show()
+            +--------+-------+----------+
+            | Name   |   Age | Children |
+            +--------+-------+----------+
+            | String | Int32 | String   |
+            +--------+-------+----------+
+            | Alice  |    34 | Dave     |
+            | Alice  |    34 | Ernie    |
+            | Alice  |    34 | Frank    |
+            | Bob    |    51 | Gaby     |
+            | Bob    |    51 | Helen    |
+            +--------+-------+----------+
+
+        Notes
+        -----
+        Empty arrays or sets produce no rows in the resulting table. In the
+        example above, notice that the name "Caroline" is not found in the
+        exploded table.
+
+        Missing arrays or sets are treated as empty.
+
+        Parameters
+        ----------
+        field : :obj:`str` or :class:`hail.expr.expression.Expression`
+            Top-level field name or expression.
+
+        Returns
+        -------
+        :class:`Table`
+            Table with exploded field.
+        """
+
+        if not isinstance(field, Expression):
+            # field is a str
+            field = self[field]
+
+        fields_rev = {expr: k for k, expr in self._fields.items()}
+        if not field in fields_rev:
+            # nested or complex expression
+            raise ValueError("method 'explode' expects a top-level field name or expression")
+        if not field._indices == self._row_indices:
+            # global field
+            assert field._indices == self._global_indices
+            raise ValueError("method 'explode' expects a field indexed by ['row'], found global field")
+
+        return Table(self._jt.explode(fields_rev[field]))
+
 
 table_type.set(Table)
