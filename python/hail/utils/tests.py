@@ -4,7 +4,7 @@ import unittest
 
 from hail import HailContext
 from hail.utils import *
-from .queue import *
+from .linkedlist import LinkedList
 
 hc = None
 
@@ -59,27 +59,26 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(b, b2)
 
-    def test_queue(self):
-        q = Queue()
-        self.assertEqual(list(q), [])
-        if q:
-            self.fail('empty queue had an implicit boolean value of True')
+    def test_linked_list(self):
+        ll = LinkedList(int)
+        self.assertEqual(list(ll), [])
+        if ll:
+            self.fail('empty linked list had an implicit boolean value of True')
 
-        q = q.push(5).push(2)
+        ll2 = ll.push(5).push(2)
 
-        self.assertEqual(list(q), [5, 2])
-        self.assertEqual(len(q), 2)
+        self.assertEqual(list(ll2), [2, 5])
 
-        if not q:
-            self.fail('queue had an implicit boolean value of False')
+        if not ll2:
+            self.fail('populated linked list had an implicit boolean value of False')
 
-        q2 = Queue().push(5, 2)
-        self.assertEqual(list(q), list(q2))
+        ll3 = ll.push(5, 2)
+        self.assertEqual(list(ll2), list(ll3))
+        self.assertEqual(ll2, ll3)
 
+        ll4 = ll.push(1)
+        ll5 = ll4.push(2, 3)
+        ll6 = ll4.push(4, 5)
 
-        q3 = Queue().push(1)
-        q4 = q3.push(2, 3)
-        q5 = q3.push(4, 5)
-
-        self.assertEqual(list(q4), [1, 2, 3])
-        self.assertEqual(list(q5), [1, 4, 5])
+        self.assertEqual(list(ll5), [3, 2, 1])
+        self.assertEqual(list(ll6), [5, 4, 1])

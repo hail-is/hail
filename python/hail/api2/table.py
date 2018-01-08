@@ -1114,7 +1114,7 @@ class Table(TableTemplate):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
-        return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=Queue().push(Join(joiner, [uid])))
+        return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=LinkedList(Join).push(Join(joiner, [uid])))
 
     @typecheck_method(exprs=Expression)
     def _process_joins(self, *exprs):
@@ -1126,7 +1126,7 @@ class Table(TableTemplate):
 
         for e in exprs:
             rewrite_global_refs(e._ast, self)
-            for j in e._joins:
+            for j in list(e._joins)[::-1]:
                 left = j.join_function(left)
                 all_uids.extend(j.temp_vars)
 

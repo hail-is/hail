@@ -3,7 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
-from hail.utils.queue import Queue
+from hail.utils.linkedlist import LinkedList
 from hail.genetics import Locus, Variant, Interval, Call, AltAllele
 from hail.typecheck import *
 
@@ -205,8 +205,8 @@ class Join(object):
         self.temp_vars = temp_vars
 
 
-@typecheck(ast=AST, type=Type, indices=Indices, aggregations=tupleof(Aggregation), joins=tupleof(Join))
-def construct_expr(ast, type, indices=Indices(), aggregations=(), joins=()):
+@typecheck(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList)
+def construct_expr(ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join)):
     if isinstance(type, TArray) and type.element_type.__class__ in elt_typ_to_array_expr:
         return elt_typ_to_array_expr[type.element_type.__class__](ast, type, indices, aggregations, joins)
     elif isinstance(type, TSet) and type.element_type.__class__ in elt_typ_to_set_expr:
@@ -252,8 +252,8 @@ def convert_numeric_typ(*types):
 class Expression(object):
     """Base class for Hail expressions."""
 
-    @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=Queue, joins=Queue)
-    def __init__(self, ast, type, indices=Indices(), aggregations=Queue(), joins=Queue()):
+    @typecheck_method(ast=AST, type=Type, indices=Indices, aggregations=LinkedList, joins=LinkedList)
+    def __init__(self, ast, type, indices=Indices(), aggregations=LinkedList(Aggregation), joins=LinkedList(Join)):
         self._ast = ast
         self._type = type
         self._indices = indices
@@ -3672,7 +3672,7 @@ def eval_expr_typed(expression):
         Result of evaluating `expression`, and its type.
     """
     analyze(expression, Indices())
-    if len(expression._joins) > 0:
+    if not expression._joins.empty():
         raise ExpressionException("'eval_expr' methods do not support joins or broadcasts")
     r, t = Env.hc().eval_expr_typed(expression._ast.to_hql())
     return r, t
