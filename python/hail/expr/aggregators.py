@@ -521,7 +521,7 @@ def fraction(predicate):
 
     uid = Env._get_uid()
     ast = LambdaClassMethod('fraction', uid, agg._ast, Reference(uid))
-    return construct_expr(ast, TBoolean(), Indices(source=agg._indices.source),
+    return construct_expr(ast, TFloat64(), Indices(source=agg._indices.source),
                           agg._aggregations.push(Aggregation(agg._indices)), agg._joins)
 
 
