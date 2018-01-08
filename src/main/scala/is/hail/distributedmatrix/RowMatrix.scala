@@ -252,5 +252,5 @@ class ReadBlocksAsRowsRDD(path: String,
     }
   }
   
-  @transient override val partitioner: Option[Partitioner] = Some(RowPartitioner.fromPartitionStarts(partitionStarts))
+  @transient override val partitioner: Option[Partitioner] = Some(RowPartitioner(partitionStarts))
 }

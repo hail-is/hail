@@ -23,7 +23,7 @@ class RowMatrixSuite extends SparkSuite {
   }
   
   @Test
-  def local() {
+  def localizeRowMatrix() {
     val fname = tmpDir.createTempFile("test")
     
     val rowArrays = Array(

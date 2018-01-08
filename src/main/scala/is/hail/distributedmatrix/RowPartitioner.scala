@@ -1,46 +1,35 @@
 package is.hail.distributedmatrix
 
-import java.util
-
 import org.apache.spark.Partitioner
 
-object RowPartitioner {
-  def rangeBoundsFromStarts(partitionStarts: Array[Long]): Array[Long] = {
-    val rangeBounds = new Array[Long](partitionStarts.length - 2)
-    var pi = 0
-    while (pi < partitionStarts.length - 2) {
-      rangeBounds(pi) = partitionStarts(pi + 1) - 1
-      pi += 1
-    }
-    rangeBounds
-  }
-
-  def fromPartitionStarts(partitionStarts: Array[Long]): RowPartitioner = {
-    RowPartitioner(rangeBoundsFromStarts(partitionStarts))
-  }
-}
-
-case class RowPartitioner(rangeBounds: Array[Long]) extends Partitioner {
-  override val numPartitions: Int = rangeBounds.length + 1
+case class RowPartitioner(partitionStarts: Array[Long]) extends Partitioner {
+  override val numPartitions: Int = partitionStarts.length - 1
 
   override def getPartition(key: Any): Int = key match {
-    case i: Long =>
-      var pi = 0
-      if (rangeBounds.length < 128) {
-        while (pi < rangeBounds.length && i > rangeBounds(pi)) {
-          pi += 1
-        }
-      } else {
-        pi = util.Arrays.binarySearch(rangeBounds, i)
-        if (pi < 0) {
-          // found no match, returned -[insertion point] - 1
-          pi = -(pi + 1)
-        } else if (pi < rangeBounds.length) {
-          // found a match, decrement to first match to precede empty partitions
-          while (pi > 0 && rangeBounds(pi) == rangeBounds(pi - 1))
-            pi -= 1
-        }
+    case i: Long => binarySearchBefore(partitionStarts, i)
+  }
+  
+  // a is increasing and may contain duplicate values
+  //   returns j - 1 where j is the first index with a(j) < elem
+  def binarySearchBefore(a: Array[Long], elem: Long): Int = {
+    var low = 1
+    var high = a.length - 1
+    assert(elem >= a(0) && elem < a(high))
+    
+    while (low <= high) {
+      var mid = (low + high) >>> 1
+      val midVal = a(mid)
+      
+      if (midVal < elem)
+        low = mid + 1
+      else if (midVal > elem)
+        high = mid - 1
+      else {
+        while (mid < a.length - 2 && a(mid) == a(mid + 1))
+          mid += 1
+        return mid
       }
-      pi
+    }
+    low - 1
   }
 }

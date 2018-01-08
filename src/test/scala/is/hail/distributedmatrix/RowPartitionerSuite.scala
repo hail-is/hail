@@ -8,13 +8,22 @@ class RowPartitionerSuite extends TestNGSuite {
   @Test
   def testSmall() {
     val partitionStarts = Array[Long](0, 4, 5, 10)
-    val rangeBounds = Array[Long](3, 4)
-    assert(RowPartitioner.rangeBoundsFromStarts(partitionStarts).sameElements(rangeBounds))
-
     val partitionCounts = Array(4, 1, 5)
     val keyPart = partitionCounts.zipWithIndex.flatMap{ case (count, pi) => Array.fill(count)(pi) }
-    val rp = new RowPartitioner(rangeBounds)
-    assert(rp.numPartitions == 3)    
+  
+    val rp = RowPartitioner(partitionStarts)
+    assert(rp.numPartitions == 3)
+    assert((0 until 10).forall(i => keyPart(i) == rp.getPartition(i.toLong)))
+  }
+  
+  @Test
+  def testSmallWithEmptyPartitions() {
+    val partitionStarts = Array[Long](0, 0, 0, 4, 5, 5, 10, 10)
+    val partitionCounts = Array(0, 0, 4, 1, 0, 5, 0)
+    val keyPart = partitionCounts.zipWithIndex.flatMap{ case (count, pi) => Array.fill(count)(pi) }
+  
+    val rp = RowPartitioner(partitionStarts)
+    assert(rp.numPartitions == 7)
     assert((0 until 10).forall(i => keyPart(i) == rp.getPartition(i.toLong)))
   }
   
@@ -26,20 +35,12 @@ class RowPartitionerSuite extends TestNGSuite {
     partitionStarts(30) += 1
     partitionStarts(40) += 2
     
-    val rangeBounds = Array.tabulate(149)(i => 2 * i.toLong + 1)
-    rangeBounds(9) -= 2
-    rangeBounds(19) -= 1
-    rangeBounds(29) += 1
-    rangeBounds(39) += 2
-    
-    assert(RowPartitioner.rangeBoundsFromStarts(partitionStarts).sameElements(rangeBounds))
-    
     val nParts = partitionStarts.length - 1
     val partitionCounts = Array.tabulate(nParts)(pi => (partitionStarts(pi + 1) - partitionStarts(pi)).toInt)
     val keyPart = partitionCounts.zipWithIndex.flatMap{ case (count, pi) => Array.fill(count)(pi) }    
 
-    val rp = RowPartitioner.fromPartitionStarts(partitionStarts)
-    assert(rp.numPartitions == nParts)
+    val rp = RowPartitioner(partitionStarts)
+    assert(rp.numPartitions == nParts)    
     assert((0 until 300).forall(i => keyPart(i) == rp.getPartition(i.toLong)))
   }
 }
