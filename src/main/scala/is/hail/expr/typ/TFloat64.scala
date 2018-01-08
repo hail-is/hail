@@ -8,9 +8,6 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
-/**
-  * Created by dking on 12/21/17.
-  */
 class TFloat64(override val required: Boolean) extends TNumeric {
   override def _toString = "Float64"
 

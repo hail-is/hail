@@ -4,9 +4,6 @@ import is.hail.annotations._
 
 import scala.reflect.ClassTag
 
-/**
-  * Created by dking on 12/21/17.
-  */
 final case class TVariable(name: String, var t: Type = null) extends Type {
   override val required = true
 

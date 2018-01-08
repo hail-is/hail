@@ -8,9 +8,6 @@ import is.hail.variant._
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
-/**
-  * Created by dking on 12/21/17.
-  */
 object TLocus {
   def representation(required: Boolean = false): TStruct = {
     val rep = TStruct(

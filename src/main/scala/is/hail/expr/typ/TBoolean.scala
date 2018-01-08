@@ -7,9 +7,6 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
-/**
-  * Created by dking on 12/21/17.
-  */
 class TBoolean(override val required: Boolean) extends Type {
   def _toString = "Boolean"
 

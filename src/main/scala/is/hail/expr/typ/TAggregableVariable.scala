@@ -5,9 +5,6 @@ import is.hail.expr._
 
 import scala.reflect.ClassTag
 
-/**
-  * Created by dking on 12/21/17.
-  */
 final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends Type {
   override val required = true
 

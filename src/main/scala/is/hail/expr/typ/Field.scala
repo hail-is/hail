@@ -2,9 +2,6 @@ package is.hail.expr.typ
 
 import is.hail.utils._
 
-/**
-  * Created by dking on 12/21/17.
-  */
 final case class Field(name: String, typ: Type, index: Int) {
 
   def unify(cf: Field): Boolean =

@@ -7,9 +7,6 @@ import is.hail.variant.AltAllele
 
 import scala.reflect.{ClassTag, _}
 
-/**
-  * Created by dking on 12/21/17.
-  */
 class TAltAllele(override val required: Boolean) extends ComplexType {
   def _toString = "AltAllele"
 

@@ -4,9 +4,6 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.utils._
 
-/**
-  * Created by dking on 12/21/17.
-  */
 object TContainer {
   def loadLength(region: Region, aoff: Long): Int =
     region.loadInt(aoff)

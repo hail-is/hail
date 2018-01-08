@@ -7,9 +7,6 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, _}
 
-/**
-  * Created by dking on 12/21/17.
-  */
 final case class TSet(elementType: Type, override val required: Boolean = false) extends TIterable {
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 

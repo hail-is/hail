@@ -2,9 +2,6 @@ package is.hail.expr.typ
 
 import is.hail.annotations._
 
-/**
-  * Created by dking on 12/21/17.
-  */
 abstract class TIterable extends TContainer {
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null

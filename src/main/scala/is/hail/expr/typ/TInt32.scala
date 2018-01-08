@@ -8,9 +8,6 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
-/**
-  * Created by dking on 12/21/17.
-  */
 class TInt32(override val required: Boolean) extends TIntegral {
   def _toString = "Int32"
 

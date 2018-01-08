@@ -2,9 +2,6 @@ package is.hail.expr.typ
 
 import is.hail.annotations.UnsafeOrdering
 
-/**
-  * Created by dking on 12/21/17.
-  */
 abstract class ComplexType extends Type {
   val representation: Type
 
