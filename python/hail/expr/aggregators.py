@@ -23,7 +23,7 @@ def _agg_func(name, aggregable, ret_type, *args):
         raise ValueError('cannot aggregate an already-aggregated expression')
 
     ast = ClassMethod(name, aggregable._ast, *[a._ast for a in args])
-    return construct_expr(ast, ret_type, Indices(source=indices.source), (Aggregation(indices),), joins)
+    return construct_expr(ast, ret_type, Indices(source=indices.source), aggregations.push(Aggregation(indices)), joins)
 
 
 def collect(expr):
@@ -278,7 +278,8 @@ def take(expr, n, ordering=None):
         if aggregations:
             raise ValueError('cannot aggregate an already-aggregated expression')
 
-        return construct_expr(ast, TArray(agg._type), Indices(source=indices.source), (Aggregation(indices),), joins)
+        return construct_expr(ast, TArray(agg._type), Indices(source=indices.source),
+                              aggregations.push(Aggregation(indices)), joins)
 
 
 def min(expr):
@@ -520,8 +521,8 @@ def fraction(predicate):
 
     uid = Env._get_uid()
     ast = LambdaClassMethod('fraction', uid, agg._ast, Reference(uid))
-    return construct_expr(ast, TBoolean(), Indices(source=agg._indices.source), (Aggregation(agg._indices),),
-                          agg._joins)
+    return construct_expr(ast, TBoolean(), Indices(source=agg._indices.source),
+                          agg._aggregations.push(Aggregation(agg._indices)), agg._joins)
 
 
 def hardy_weinberg(expr):
@@ -756,7 +757,7 @@ def inbreeding(expr, prior):
 
     t = TStruct(['Fstat', 'nTotal', 'nCalled', 'expectedHoms', 'observedHoms'],
                 [TFloat64(), TInt64(), TInt64(), TFloat64(), TInt64()])
-    return construct_expr(ast, t, Indices(source=indices.source), (Aggregation(indices),), joins)
+    return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices)), joins)
 
 
 @typecheck(expr=oneof(Aggregable, expr_call), variant=expr_variant)
@@ -833,7 +834,7 @@ def call_stats(expr, variant):
         raise ValueError('cannot aggregate an already-aggregated expression')
 
     t = TStruct(['AC', 'AF', 'AN', 'GC'], [TArray(TInt32()), TArray(TFloat64()), TInt32(), TArray(TInt32())])
-    return construct_expr(ast, t, Indices(source=indices.source), (Aggregation(indices),), joins)
+    return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices)), joins)
 
 
 def hist(expr, start, end, bins):

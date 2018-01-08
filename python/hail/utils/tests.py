@@ -4,6 +4,7 @@ import unittest
 
 from hail import HailContext
 from hail.utils import *
+from .linkedlist import LinkedList
 
 hc = None
 
@@ -58,3 +59,26 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(b, b2)
 
+    def test_linked_list(self):
+        ll = LinkedList(int)
+        self.assertEqual(list(ll), [])
+        if ll:
+            self.fail('empty linked list had an implicit boolean value of True')
+
+        ll2 = ll.push(5).push(2)
+
+        self.assertEqual(list(ll2), [2, 5])
+
+        if not ll2:
+            self.fail('populated linked list had an implicit boolean value of False')
+
+        ll3 = ll.push(5, 2)
+        self.assertEqual(list(ll2), list(ll3))
+        self.assertEqual(ll2, ll3)
+
+        ll4 = ll.push(1)
+        ll5 = ll4.push(2, 3)
+        ll6 = ll4.push(4, 5)
+
+        self.assertEqual(list(ll5), [3, 2, 1])
+        self.assertEqual(list(ll6), [5, 4, 1])
