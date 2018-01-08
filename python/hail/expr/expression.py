@@ -284,6 +284,18 @@ class Expression(object):
                                                  plural('broadcast/join', len(self._joins), 'broadcasts/joins'))
         return s
 
+    def __lt__(self, other):
+        raise NotImplementedError("'<' comparison with expression of type {}".format(str(self._type)))
+
+    def __le__(self, other):
+        raise NotImplementedError("'<=' comparison with expression of type {}".format(str(self._type)))
+
+    def __gt__(self, other):
+        raise NotImplementedError("'>' comparison with expression of type {}".format(str(self._type)))
+
+    def __ge__(self, other):
+        raise NotImplementedError("'>=' comparison with expression of type {}".format(str(self._type)))
+
     def _init(self):
         pass
 
