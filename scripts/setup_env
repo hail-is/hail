@@ -15,4 +15,5 @@ fi
 
 export HAIL_HOME="$(dirname "$(cd "$(dirname $0)" && pwd)")"
 export PYTHONPATH="$HAIL_HOME/python:$SPARK_HOME/python:$(echo ${SPARK_HOME}/python/lib/py4j-*-src.zip | tr '\n' ':')$PYTHONPATH"
-export SPARK_CLASSPATH=$HAIL_HOME/jars/hail-all-spark.jar
+JAR_PATH="$HAIL_HOME/jars/hail-all-spark.jar"
+export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=$JAR_PATH --conf spark.executor.extraClassPath=$JAR_PATH pyspark-shell"
