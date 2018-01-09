@@ -123,9 +123,9 @@ def broadcast(x):
     return construct_expr(GlobalJoinReference(uid), expr._type, joins=LinkedList(Join).push(Join(joiner, [uid])))
 
 
-@typecheck(predicate=expr_bool, then_case=expr_any, else_case=expr_any)
-def cond(predicate, then_case, else_case):
-    """Expression for an if/else statement; tests a predicate and returns one of two options based on the result.
+@typecheck(condition=expr_bool, consequent=expr_any, alternate=expr_any)
+def cond(condition, consequent, alternate):
+    """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
 
     Examples
     --------
@@ -144,32 +144,32 @@ def cond(predicate, then_case, else_case):
     Notes
     -----
 
-    If `predicate` evaluates to ``True``, returns `then_case`. If `predicate`
-    evaluates to ``False``, returns `else_case`. If `predicate` is missing, returns
+    If `condition` evaluates to ``True``, returns `consequent`. If `condition`
+    evaluates to ``False``, returns `alternate`. If `predicate` is missing, returns
     missing.
 
     Note
     ----
-    The type of `then_case` and `else_case` must be the same.
+    The type of `consequent` and `alternate` must be the same.
 
     Parameters
     ----------
-    predicate : bool or :py:class:`.hail.expr.expression.BooleanExpression`
-        Predicate to test.
-    then_case
-        Branch to return if the predicate is true.
-    else_case
-        Branch to return if the predicate is false.
+    condition : :py:class:`hail.expr.expression.BooleanExpression`
+        Condition to test.
+    consequent : :class:`hail.expr.expression.Expression`
+        Branch to return if the condition is ``True``.
+    alternate : :class:`hail.expr.expression.Expression`
+        Branch to return if the condition is ``False``.
 
     Returns
     -------
     :py:class:`hail.expr.expression.Expression`
-        `then_case`, `else_case`, or missing.
+        One of `consequent`, `alternate`, or missing, based on `condition`.
     """
-    indices, aggregations, joins = unify_all(predicate, then_case, else_case)
+    indices, aggregations, joins = unify_all(condition, consequent, alternate)
     # TODO: promote types
-    return construct_expr(Condition(predicate._ast, then_case._ast, else_case._ast),
-                          then_case._type, indices, aggregations, joins)
+    return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
+                          consequent._type, indices, aggregations, joins)
 
 def bind(expr, f):
     """Bind a temporary variable and use it in a function.
