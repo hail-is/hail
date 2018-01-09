@@ -1,0 +1,1 @@
+Requires the column key schema to be :py:class:`~hail.expr.types.TString`.
