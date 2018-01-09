@@ -8,6 +8,9 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
+case object TInt32Optional extends TInt32(false)
+case object TInt32Required extends TInt32(true)
+
 class TInt32(override val required: Boolean) extends TIntegral {
   def _toString = "Int32"
 

@@ -7,6 +7,9 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
+case object TStringOptional extends TString(false)
+case object TStringRequired extends TString(true)
+
 class TString(override val required: Boolean) extends Type {
   def _toString = "String"
 

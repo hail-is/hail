@@ -7,6 +7,9 @@ import is.hail.variant.Call
 
 import scala.reflect.{ClassTag, _}
 
+case object TCallOptional extends TCall(false)
+case object TCallRequired extends TCall(true)
+
 class TCall(override val required: Boolean) extends ComplexType {
   def _toString = "Call"
 

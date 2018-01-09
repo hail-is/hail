@@ -7,6 +7,9 @@ import is.hail.variant.AltAllele
 
 import scala.reflect.{ClassTag, _}
 
+case object TAltAlleleOptional extends TAltAllele(false)
+case object TAltAlleleRequired extends TAltAllele(true)
+
 class TAltAllele(override val required: Boolean) extends ComplexType {
   def _toString = "AltAllele"
 

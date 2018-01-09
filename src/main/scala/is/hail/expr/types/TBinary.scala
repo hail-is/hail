@@ -7,6 +7,9 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
+case object TBinaryOptional extends TBinary(false)
+case object TBinaryRequired extends TBinary(true)
+
 class TBinary(override val required: Boolean) extends Type {
   def _toString = "Binary"
 

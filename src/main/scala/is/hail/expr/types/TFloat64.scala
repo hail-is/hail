@@ -8,6 +8,9 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
+case object TFloat64Optional extends TFloat64(false)
+case object TFloat64Required extends TFloat64(true)
+
 class TFloat64(override val required: Boolean) extends TNumeric {
   override def _toString = "Float64"
 

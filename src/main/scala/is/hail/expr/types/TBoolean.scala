@@ -7,6 +7,9 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
+case object TBooleanOptional extends TBoolean(false)
+case object TBooleanRequired extends TBoolean(true)
+
 class TBoolean(override val required: Boolean) extends Type {
   def _toString = "Boolean"
 

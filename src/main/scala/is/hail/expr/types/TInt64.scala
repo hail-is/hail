@@ -8,6 +8,9 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
+case object TInt64Optional extends TInt64(false)
+case object TInt64Required extends TInt64(true)
+
 class TInt64(override val required: Boolean) extends TIntegral {
   def _toString = "Int64"
 
