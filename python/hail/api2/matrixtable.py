@@ -460,7 +460,7 @@ class MatrixTable(object):
         --------
         Compute call statistics for high quality samples per variant:
 
-        >>> high_quality_calls = agg.filter(dataset.GT, dataset.sample_qc.gqMean > 20)
+        >>> high_quality_calls = agg.filter(dataset.sample_qc.gqMean > 20, dataset.GT)
         >>> dataset_result = dataset.annotate_rows(call_stats = agg.call_stats(high_quality_calls, dataset.v))
 
         Add functional annotations from a :class:`Table` keyed by :class:`hail.expr.TVariant`:, and another

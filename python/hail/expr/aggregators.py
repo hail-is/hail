@@ -35,7 +35,7 @@ def collect(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(ht_over_68 = agg.collect(agg.filter(table1.ID, table1.HT > 68)))
+        >>> table1.aggregate(ht_over_68 = agg.collect(agg.filter(table1.HT > 68, table1.ID)))
         Struct(ht_over_68=[2, 3])
 
     Notes
@@ -72,7 +72,7 @@ def collect_as_set(expr):
 
     .. doctest::
 
-        >>> table1.aggregate(ht_over_68 = agg.collect_as_set(agg.filter(table1.ID, table1.HT > 68)))
+        >>> table1.aggregate(ht_over_68 = agg.collect_as_set(agg.filter(table1.HT > 68, table1.ID)))
         Struct(ht_over_68=set([2, 3])
 
     Warning
@@ -161,7 +161,7 @@ def count_where(condition):
     :class:`hail.expr.expression.Int64Expression`
         Total number of records where `condition` is ``True``.
     """
-    return _agg_func('count', filter(1, condition), TInt64())
+    return _agg_func('count', filter(condition, 0), TInt64())
 
 
 def counter(expr):
@@ -541,7 +541,7 @@ def hardy_weinberg(expr):
     .. doctest::
 
         >>> dataset_result = dataset.annotate_rows(
-        ...     hwe_eas = agg.hardy_weinberg(agg.filter(dataset.GT, dataset.pop == 'EAS')))
+        ...     hwe_eas = agg.hardy_weinberg(agg.filter(dataset.pop == 'EAS', dataset.GT)))
 
     Notes
     -----
@@ -627,7 +627,7 @@ def explode(expr):
                       agg._type, agg._indices, agg._aggregations, agg._joins)
 
 
-def filter(expr, condition):
+def filter(condition, expr):
     """Filter records according to a predicate.
 
     Examples
@@ -636,7 +636,7 @@ def filter(expr, condition):
 
     .. doctest::
 
-        >>> table1.aggregate(high_ht = agg.collect(agg.filter(table1.ID, table1.HT >= 70)))
+        >>> table1.aggregate(high_ht = agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
         Struct(high_ht=[2, 3])
 
     Notes
@@ -650,10 +650,10 @@ def filter(expr, condition):
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.Expression`
-        Expression to filter.
     condition : :class:`hail.expr.expression.BooleanExpression` or function
         Filter expression, or a function to evaluate for each record.
+    expr : :class:`hail.expr.expression.Expression`
+        Expression to filter.
 
     Returns
     -------
