@@ -25,7 +25,7 @@ object Recur {
     case ArrayMap(a, name, body, elementTyp) => ArrayMap(f(a), name, f(body), elementTyp)
     case ArrayFold(a, zero, accumName, valueName, body, typ) => ArrayFold(f(a), f(zero), accumName, valueName, f(body), typ)
     case MakeStruct(fields, _) => MakeStruct(fields map { case (n,a) => (n,f(a)) })
-    case InsertFields(old, fields, _) => InsertFields(old, fields map { case (n,a) => (n,f(a)) } )
+    case InsertFields(old, fields, _) => InsertFields(f(old), fields map { case (n,a) => (n,f(a)) } )
     case GetField(o, name, typ) => GetField(f(o), name, typ)
     case GetFieldMissingness(o, name) => GetFieldMissingness(f(o), name)
     case AggIn(typ) => ir

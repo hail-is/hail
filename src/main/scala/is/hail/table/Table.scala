@@ -477,7 +477,6 @@ class Table(val hc: HailContext,
             flatFields += ((name, new mutable.ArrayBuffer[(List[String], IR)]()))
           flatFields(name) += ((path.tail, fIR))
         }
-
         Infer(old)
         flatFields.map { case (f, newF) =>
           if (newF.last._1.isEmpty) {

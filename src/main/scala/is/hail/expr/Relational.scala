@@ -1,8 +1,7 @@
 package is.hail.expr
 
 import is.hail.HailContext
-import is.hail.annotations.{RegionValueBuilder, _}
-import is.hail.asm4s.FunctionBuilder
+import is.hail.annotations._
 import is.hail.expr.ir._
 import is.hail.table.TableLocalValue
 import is.hail.expr.types._
@@ -544,9 +543,14 @@ case class TableType(rowType: TStruct, key: Array[String], globalType: TStruct) 
       globalType.fields.map { f => f.name -> f.typ }: _*)
   def fields: Map[String, Type] = Map(rowType.fields.map { f => f.name -> f.typ } ++ globalType.fields.map { f => f.name -> f.typ }: _*)
 
+  def env: Env[Type] = {
+    new Env[Type]()
+      .bind(rowType.fields.map {f => (f.name, f.typ) }:_*)
+      .bind(globalType.fields.map {f => (f.name, f.typ) }:_*)
+  }
   def remapIR(ir: IR): IR = ir match {
-    case Ref(y, _) if rowType.selfField(y).isDefined => GetField(In(0, rowType), y, rowType.field(y).typ)
-    case Ref(y, _) if globalType.selfField(y).isDefined => GetField(In(1, globalType), y, globalType.field(y).typ)
+    case Ref(y, _) if rowType.selfField(y).isDefined => GetField(In(0, rowType), y)
+    case Ref(y, _) if globalType.selfField(y).isDefined => GetField(In(1, globalType), y)
     case ir2 => Recur(remapIR)(ir2)
   }
 }
@@ -567,6 +571,12 @@ abstract sealed class TableIR extends BaseIR {
   def typ: TableType
 
   def partitionCounts: Option[Array[Long]] = None
+
+  def env: Env[IR] = {
+    new Env[IR]()
+      .bind(typ.rowType.fieldNames.map {f => (f, GetField(In(0, typ.rowType), f)) }:_*)
+      .bind(typ.globalType.fieldNames.map {f => (f, GetField(In(1, typ.globalType), f)) }:_*)
+  }
 
   def execute(hc: HailContext): TableValue
 }
@@ -622,11 +632,10 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 
   def execute(hc: HailContext): TableValue = {
     val ktv = child.execute(hc)
-    val mappedPred = typ.remapIR(pred)
-    Infer(mappedPred)
-    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Boolean]
-    Emit(mappedPred, fb)
-    val f = fb.result()
+    val f = ir.Compile(child.env, ir.RegionValueRep[Long](child.typ.rowType),
+      ir.RegionValueRep[Long](child.typ.globalType),
+      ir.RegionValueRep[Boolean](TBoolean()),
+      pred)
     ktv.filter((rv, globalRV) => f()(rv.region, rv.offset, false, globalRV.offset, false))
   }
 }
@@ -638,7 +647,7 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
   private val newIR: IR = InsertFields(In(0, child.typ.rowType), paths.zip(preds.map(child.typ.remapIR(_))).toArray)
 
   val typ: TableType = {
-    Infer(newIR)
+    Infer(newIR, None, child.typ.env)
     child.typ.copy(rowType = newIR.typ.asInstanceOf[TStruct])
   }
 
@@ -649,10 +658,10 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
 
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    Infer(newIR)
-    val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Long, Boolean, Long]
-    Emit(newIR, fb)
-    val f = fb.result()
+    val f = ir.Compile(child.env, ir.RegionValueRep[Long](child.typ.rowType),
+      ir.RegionValueRep[Long](child.typ.globalType),
+      ir.RegionValueRep[Long](typ.rowType),
+      newIR)
     val globals = tv.localValue.globals
     val gType = typ.globalType
     TableValue(typ,
