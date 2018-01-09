@@ -22,7 +22,7 @@ def rename_duplicates(dataset):
     Examples
     --------
 
-    >>> renamed = (methods.rename_duplicates(dataset)).cols_table()
+    >>> renamed = methods.rename_duplicates(dataset).cols_table()
     >>> renamed = renamed.filter(renamed.s != renamed.originalID)
     >>> duplicate_samples = renamed.select(renamed.originalID).collect()
 
@@ -33,7 +33,7 @@ def rename_duplicates(dataset):
     suffix ``_N`` to duplicate keys. For example, if the column key "NA12878"
     appears three times in the dataset, the first will be left as "NA12878", the
     second will be renamed "NA12878_1", and the third will be "NA12878_2". The
-    original column key is stored in the column field ``originalID``.
+    original column key is stored in the column field `originalID`.
 
     Parameters
     ----------
