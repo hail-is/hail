@@ -430,9 +430,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
       A   C   0/1:8,8:16:45:45,0,99
       A   T   0/1:10,6:16:50:50,0,99
 
-
-    VCF Info Fields
-    ---------------
+    **VCF Info Fields**
 
     Hail does not split fields in the info field. This means that if a
     multiallelic site with ``info.AC`` value ``[10, 2]`` is split, each split
