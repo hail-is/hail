@@ -32,9 +32,9 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     Notes
     -----
-    
+
     With the default root, the following row-indexed fields are added.
-    The indexing of the array annotations corresponds to that of ``ys``.
+    The indexing of the array fields corresponds to that of ``ys``.
 
     - **linreg.nCompleteSamples** (*Int32*) -- number of columns used
     - **linreg.AC** (*Float64*) -- sum of input values ``x``
@@ -43,7 +43,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     - **linreg.se** (*Array[Float64]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}_1`
     - **linreg.tstat** (*Array[Float64]*) -- array of :math:`t`-statistics, equal to :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`
     - **linreg.pval** (*Array[Float64]*) -- array of :math:`p`-values
-    
+
     In the statistical genetics example above, the input variable ``x`` encodes genotype
     as the number of alternate alleles (0, 1, or 2). For each variant (row), genotype is tested for association
     with height controlling for age and sex, by fitting the linear regression model:
@@ -54,7 +54,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     Boolean covariates like :math:`\mathrm{isFemale}` are encoded as 1 for true and 0 for false.
     The null model sets :math:`\\beta_1 = 0`.
-        
+
     The standard least-squares linear regression model is derived in Section
     3.2 of `The Elements of Statistical Learning, 2nd Edition
     <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__. See
@@ -82,7 +82,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
     :class:`MatrixTable`
         Dataset with regression results in a new row-indexed field.
     """
-    
+
     all_exprs = [x]
 
     ys = wrap_to_list(ys)
@@ -347,3 +347,164 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     if loadings:
         loadings = Table(loadings)
     return (jiterable_to_list(r._1()), scores, loadings)
+
+@handle_py4j
+@typecheck_method(ds=MatrixTable,
+                  keep_star=bool,
+                  left_aligned=bool)
+def split_multi_hts(ds, keep_star=False, left_aligned=False):
+    """Split multiallelic variants for HTS :meth:`MatrixTable.entry_schema`:
+
+    .. code-block:: text
+
+      Struct {
+        GT: Call,
+        AD: Array[!Int32],
+        DP: Int32,
+        GQ: Int32,
+        PL: Array[!Int32].
+      }
+
+    For generic genotype schema, use :meth:`methods.split_multi`.
+
+    Examples
+    --------
+
+    >>> split_multi_hts(ds).write('output/split.vds')
+
+    Notes
+    -----
+
+    We will explain by example. Consider a hypothetical 3-allelic
+    variant:
+
+    .. code-block:: text
+
+      A   C,T 0/2:7,2,6:15:45:99,50,99,0,45,99
+
+    split_multi will create two biallelic variants (one for each
+    alternate allele) at the same position
+
+    .. code-block:: text
+
+      A   C   0/0:13,2:15:45:0,45,99
+      A   T   0/1:9,6:15:50:50,0,99
+
+    Each multiallelic GT field is downcoded once for each
+    alternate allele. A call for an alternate allele maps to 1 in
+    the biallelic variant corresponding to itself and 0
+    otherwise. For example, in the example above, 0/2 maps to 0/0
+    and 0/1. The genotype 1/2 maps to 0/1 and 0/1.
+
+    The biallelic alt AD entry is just the multiallelic AD entry
+    corresponding to the alternate allele. The ref AD entry is the
+    sum of the other multiallelic entries.
+
+    The biallelic DP is the same as the multiallelic DP.
+
+    The biallelic PL entry for for a genotype g is the minimum
+    over PL entries for multiallelic genotypes that downcode to
+    g. For example, the PL for (A, T) at 0/1 is the minimum of the
+    PLs for 0/1 (50) and 1/2 (45), and thus 45.
+
+    Fixing an alternate allele and biallelic variant, downcoding
+    gives a map from multiallelic to biallelic alleles and
+    genotypes. The biallelic AD entry for an allele is just the
+    sum of the multiallelic AD entries for alleles that map to
+    that allele. Similarly, the biallelic PL entry for a genotype
+    is the minimum over multiallelic PL entries for genotypes that
+    map to that genotype.
+
+    GQ is recomputed from PL.
+
+    Here is a second example for a het non-ref
+
+    .. code-block:: text
+
+      A   C,T 1/2:2,8,6:16:45:99,50,99,45,0,99
+
+    splits as
+
+    .. code-block:: text
+
+      A   C   0/1:8,8:16:45:45,0,99
+      A   T   0/1:10,6:16:50:50,0,99
+
+    VCF Info Fields
+    ---------------
+
+    Hail does not split fields in the info field. This means that if a
+    multiallelic site with ``info.AC`` value ``[10, 2]`` is split, each split
+    site will contain the same array ``[10, 2]``. The provided allele index
+    field ``aIndex`` can be used to select the value corresponding to the split
+    allele's position:
+
+    >>> ds = split_multi_hts(ds)
+    >>> ds = vds.filter_rows(ds.info.AC[ds.aIndex - 1] < 10, keep = False)
+
+    VCFs split by Hail and exported to new VCFs may be
+    incompatible with other tools, if action is not taken
+    first. Since the "Number" of the arrays in split multiallelic
+    sites no longer matches the structure on import ("A" for 1 per
+    allele, for example), Hail will export these fields with
+    number ".".
+
+    If the desired output is one value per site, then it is
+    possible to use annotate_variants_expr to remap these
+    values. Here is an example:
+
+    >>> ds = methods.split_multi_hts(ds)
+    >>> ds = ds.annotate_rows(info = Struct(AC=ds.info.AC[ds.aIndex - 1], **ds.info))
+    >>> methods.export_vcf(ds, 'output/export.vcf')
+
+    The info field AC in *data/export.vcf* will have ``Number=1``.
+
+    New Fields
+    ----------
+
+    :meth:`hail.methods.split_multi_hts` adds the following fields:
+
+     - **wasSplit** (*Boolean*) -- true if this variant was originally
+       multiallelic, otherwise false.
+
+     - **aIndex** (*Int*) -- The original index of this alternate allele in the
+       multiallelic representation (NB: 1 is the first alternate allele or the
+       only alternate allele in a biallelic variant). For example, 1:100:A:T,C
+       splits into two variants: 1:100:A:T with ``aIndex = 1`` and 1:100:A:C
+       with ``aIndex = 2``.
+
+    Parameters
+    ----------
+
+    keep-star : :obj:`bool`
+        Do not filter out * alleles.
+
+    left_aligned : :obj:`bool`
+        If ``True``, variants are assumed to be left
+        aligned and have unique loci. This avoids a shuffle. If the assumption
+        is violated, an error is generated.
+
+    Returns
+    -------
+    :class:`MatrixTable`
+        A biallelic variant dataset
+    """
+
+    variant_expr = 'va.aIndex = aIndex, va.wasSplit = wasSplit'
+    genotype_expr = '''
+g = let
+  newgt = downcode(g.GT, aIndex) and
+  newad = if (isDefined(g.AD))
+      let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
+    else
+      NA: Array[Int] and
+  newpl = if (isDefined(g.PL))
+      range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
+    else
+      NA: Array[Int] and
+  newgq = gqFromPL(newpl)
+in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
+'''
+    jds = scala_object(Env.hail().methods, 'SplitMulti').apply(
+        ds._jvds, variant_expr, genotype_expr, keep_star, left_aligned)
+    return MatrixTable(jds)
