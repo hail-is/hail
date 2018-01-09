@@ -17,6 +17,10 @@ final class RegionValue(var region: Region,
     offset = newOffset
   }
 
+  def set(newRV: RegionValue) {
+    set(newRV.region, newRV.offset)
+  }
+
   def setRegion(newRegion: Region) {
     region = newRegion
   }
