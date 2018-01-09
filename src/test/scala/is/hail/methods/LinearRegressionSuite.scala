@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.TestUtils._
 import is.hail.annotations.Annotation
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.Variant

@@ -2,7 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.expr.Parser
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}

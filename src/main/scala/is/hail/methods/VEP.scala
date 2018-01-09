@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, Variant}
 import org.apache.spark.sql.Row

@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.RegionValue
-import is.hail.expr.typ.Type
+import is.hail.expr.types.Type
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 

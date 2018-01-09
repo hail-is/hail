@@ -6,12 +6,12 @@ import ScalaToRegionValue._
 import is.hail.annotations.aggregators._
 import is.hail.check._
 import is.hail.expr.{HailRep, RegionValueAggregator, hailType}
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.expr.ir._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 
 class ExtractAggregatorsSuite {
 

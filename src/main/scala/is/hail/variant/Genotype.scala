@@ -4,7 +4,7 @@ import java.util
 
 import is.hail.annotations.Annotation
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.spark.sql.Row

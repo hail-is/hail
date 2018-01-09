@@ -4,7 +4,7 @@ import java.io.InputStream
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.io.{Decoder, LZ4InputBuffer}
 import is.hail.io.LoadMatrix

@@ -1,7 +1,7 @@
 package is.hail.annotations
 
 import is.hail.expr.{HailRep, hailType}
-import is.hail.expr.typ._
+import is.hail.expr.types._
 
 object ScalaToRegionValue {
 

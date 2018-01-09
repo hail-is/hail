@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.typ._
+import is.hail.expr.types._
 
 object Infer {
   def apply(ir: IR, tAgg: Option[TAggregable] = None) { apply(ir, tAgg, new Env[Type]()) }

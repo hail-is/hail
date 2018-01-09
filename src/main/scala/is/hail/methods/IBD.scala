@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.table.Table
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder, UnsafeRow}
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.variant.{GenomeReference, Genotype, HardCallView, MatrixTable, Variant}
 import is.hail.methods.IBD.generateComputeMaf
 import is.hail.rvd.RVD

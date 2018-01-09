@@ -1,7 +1,7 @@
 package is.hail.expr
 
 import is.hail.asm4s.Code
-import is.hail.expr.typ._
+import is.hail.expr.types._
 
 sealed trait Fun {
   def captureType(): Fun = this

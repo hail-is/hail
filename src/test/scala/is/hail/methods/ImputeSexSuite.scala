@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.typ.Type
+import is.hail.expr.types.Type
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.testUtils._

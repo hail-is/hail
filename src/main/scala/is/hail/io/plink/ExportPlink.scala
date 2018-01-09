@@ -1,7 +1,7 @@
 package is.hail.io.plink
 
 import is.hail.expr.{EvalContext, Parser}
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.variant.MatrixTable
 import is.hail.utils._
 

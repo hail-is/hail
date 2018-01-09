@@ -1,7 +1,7 @@
 package is.hail.io.gen
 
 import is.hail.annotations._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.io.bgen.BgenLoader
 import is.hail.io.vcf.LoadVCF
 import is.hail.utils._

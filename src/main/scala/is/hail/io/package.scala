@@ -1,6 +1,6 @@
 package is.hail
 
-import is.hail.expr.typ.Type
+import is.hail.expr.types.Type
 import is.hail.utils._
 import org.apache.hadoop.conf.Configuration
 

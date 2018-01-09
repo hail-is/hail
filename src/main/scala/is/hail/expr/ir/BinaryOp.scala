@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.utils._
 
 object BinaryOp {

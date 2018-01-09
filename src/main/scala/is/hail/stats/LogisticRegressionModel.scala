@@ -4,7 +4,7 @@ import breeze.linalg._
 import breeze.numerics._
 import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 
 object LogisticRegressionTest {
   val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)

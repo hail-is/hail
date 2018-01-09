@@ -1,7 +1,7 @@
 package is.hail.expr
 
 import is.hail.annotations.Annotation
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.utils.{Interval, _}
 import is.hail.variant.{AltAllele, GenomeReference, Locus, Variant}
 import org.apache.spark.sql.Row

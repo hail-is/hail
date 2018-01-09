@@ -1,7 +1,7 @@
 package is.hail.expr
 
 import is.hail.asm4s._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree.{AbstractInsnNode, InsnNode}
 

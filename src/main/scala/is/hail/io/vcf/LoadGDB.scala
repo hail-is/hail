@@ -13,7 +13,7 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import java.io.{File, FileWriter}
 
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.io.VCFAttributes
 import is.hail.io.vcf.LoadVCF.headerSignature
 

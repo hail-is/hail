@@ -2,7 +2,7 @@ package is.hail.variant
 
 import is.hail.SparkSuite
 import is.hail.check.Prop._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.io.vcf.ExportVCF

@@ -6,7 +6,7 @@ import org.testng.annotations.Test
 import is.hail.TestUtils._
 import is.hail.annotations.UnsafeRow
 import is.hail.check.Prop.forAll
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.{MatrixTable, VSMSubgen}
 

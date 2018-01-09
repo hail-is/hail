@@ -6,7 +6,7 @@ import htsjdk.variant.variantcontext.VariantContext
 import htsjdk.variant.vcf.VCFConstants
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant._
 

@@ -4,7 +4,7 @@ import breeze.linalg._
 import breeze.numerics.{abs, exp, sigmoid}
 import breeze.stats.mean
 import is.hail.annotations._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant.{MatrixTable, Variant}

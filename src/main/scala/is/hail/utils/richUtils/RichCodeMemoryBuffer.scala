@@ -3,7 +3,7 @@ package is.hail.utils.richUtils
 import is.hail.expr._
 import is.hail.annotations.Region
 import is.hail.asm4s.Code
-import is.hail.expr.typ._
+import is.hail.expr.types._
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def size: Code[Long] = region.invoke[Long]("size")

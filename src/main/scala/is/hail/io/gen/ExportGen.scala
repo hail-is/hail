@@ -1,7 +1,7 @@
 package is.hail.io.gen
 
 import is.hail.annotations.{Querier, UnsafeRow}
-import is.hail.expr.typ.TString
+import is.hail.expr.types.TString
 import is.hail.variant.{ArrayGenotypeView, MatrixTable, Variant}
 import is.hail.utils._
 

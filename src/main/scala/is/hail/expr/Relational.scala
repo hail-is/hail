@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.asm4s.FunctionBuilder
 import is.hail.expr.ir._
 import is.hail.table.TableLocalValue
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
 import is.hail.rvd._

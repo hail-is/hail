@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.check.Prop
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.table.Table

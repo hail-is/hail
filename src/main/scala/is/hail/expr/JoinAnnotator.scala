@@ -1,7 +1,7 @@
 package is.hail.expr
 
 import is.hail.annotations._
-import is.hail.expr.typ._
+import is.hail.expr.types._
 import is.hail.utils._
 
 trait JoinAnnotator {
