@@ -1,6 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
+import random
 
 from hail2 import *
 from subprocess import call as syscall
@@ -432,3 +433,10 @@ class Tests(unittest.TestCase):
         # FIXME still resolving: these should throw an error due to unexpected row / entry indicies, still looking into why a more cryptic error is being thrown
         # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.v.contig))
         # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.GT))
+
+    def test_reorder_columns(self):
+        dataset = self.get_dataset()
+        new_sample_order = [x.column for x in dataset.cols_table().select("column").collect()]
+        random.shuffle(new_sample_order)
+        self.assertEqual([x.column for x in methods.reorder_columns(dataset, new_sample_order).cols_table().select("column").collect()], new_sample_order)
+

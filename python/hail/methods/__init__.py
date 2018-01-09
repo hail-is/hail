@@ -2,7 +2,7 @@ from .family_methods import trio_matrix, mendel_errors
 from .impex import export_cassandra, export_gen, export_plink, export_solr, export_vcf, import_interval_list, import_bed, import_fam
 from .statgen import linreg, sample_rows, ibd, ld_matrix, grm, rrm, pca, hwe_normalized_pca, pc_relate, split_multi_hts
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana
-from .misc import rename_duplicates
+from .misc import rename_duplicates, reorder_columns
 
 __all__ = ['trio_matrix',
            'linreg',
@@ -17,6 +17,7 @@ __all__ = ['trio_matrix',
            'hwe_normalized_pca',
            'pc_relate',
            'rename_duplicates',
+           'reorder_columns',
            'split_multi_hts',
            'mendel_errors',
            'export_cassandra',
