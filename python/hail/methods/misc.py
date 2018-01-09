@@ -37,12 +37,12 @@ def rename_duplicates(dataset):
 
     Parameters
     ----------
-    dataset : :class:`MatrixTable`
+    dataset : :class:`.MatrixTable`
         Dataset.
 
     Returns
     -------
-    :class:`MatrixTable`
+    :class:`.MatrixTable`
         Dataset with duplicate column keys renamed.
     """
 
