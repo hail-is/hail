@@ -85,3 +85,11 @@ class Tests(unittest.TestCase):
         renamed_ids = renamed_samples.select(renamed_samples.s).collect()
         self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
 
+    def test_split_multi_hts(self):
+        ds1 = hc.import_vcf('src/test/resources/split_test.vcf')
+        ds1 = methods.split_multi_hts(ds1)
+        ds2 = hc.import_vcf('src/test/resources/split_test_b.vcf')
+        self.assertEqual(ds1.aggregate_entries(foo = agg.product((ds1.wasSplit == (ds1.v.start != 1180)).to_int32())).foo, 1)
+        ds1 = ds1.drop('wasSplit','aIndex')
+        # required python3
+        # self.assertTrue(ds1._same(ds2))

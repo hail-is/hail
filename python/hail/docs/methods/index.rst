@@ -23,3 +23,4 @@ Methods
 .. autofunction:: hail.methods.pca
 .. autofunction:: hail.methods.hwe_normalized_pca
 .. autofunction:: hail.methods.rename_duplicates
+.. autofunction:: hail.methods.split_multi_hts

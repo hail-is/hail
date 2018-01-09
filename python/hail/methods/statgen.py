@@ -349,9 +349,9 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     return (jiterable_to_list(r._1()), scores, loadings)
 
 @handle_py4j
-@typecheck_method(ds=MatrixTable,
-                  keep_star=bool,
-                  left_aligned=bool)
+@typecheck(ds=MatrixTable,
+           keep_star=bool,
+           left_aligned=bool)
 def split_multi_hts(ds, keep_star=False, left_aligned=False):
     """Split multiallelic variants for HTS :meth:`MatrixTable.entry_schema`:
 
