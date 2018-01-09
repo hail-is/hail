@@ -390,32 +390,29 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
       A   C   0/0:13,2:15:45:0,45,99
       A   T   0/1:9,6:15:50:50,0,99
 
-    Each multiallelic GT field is downcoded once for each
-    alternate allele. A call for an alternate allele maps to 1 in
-    the biallelic variant corresponding to itself and 0
-    otherwise. For example, in the example above, 0/2 maps to 0/0
-    and 0/1. The genotype 1/2 maps to 0/1 and 0/1.
+    Each multiallelic `GT` field is downcoded once for each alternate allele. A
+    call for an alternate allele maps to 1 in the biallelic variant
+    corresponding to itself and 0 otherwise. For example, in the example above,
+    0/2 maps to 0/0 and 0/1. The genotype 1/2 maps to 0/1 and 0/1.
 
-    The biallelic alt AD entry is just the multiallelic AD entry
-    corresponding to the alternate allele. The ref AD entry is the
-    sum of the other multiallelic entries.
+    The biallelic alt `AD` entry is just the multiallelic `AD` entry
+    corresponding to the alternate allele. The ref AD entry is the sum of the
+    other multiallelic entries.
 
-    The biallelic DP is the same as the multiallelic DP.
+    The biallelic `DP` is the same as the multiallelic `DP`.
 
-    The biallelic PL entry for for a genotype g is the minimum
-    over PL entries for multiallelic genotypes that downcode to
-    g. For example, the PL for (A, T) at 0/1 is the minimum of the
-    PLs for 0/1 (50) and 1/2 (45), and thus 45.
+    The biallelic `PL` entry for a genotype g is the minimum over `PL` entries
+    for multiallelic genotypes that downcode to g. For example, the `PL` for (A,
+    T) at 0/1 is the minimum of the PLs for 0/1 (50) and 1/2 (45), and thus 45.
 
-    Fixing an alternate allele and biallelic variant, downcoding
-    gives a map from multiallelic to biallelic alleles and
-    genotypes. The biallelic AD entry for an allele is just the
-    sum of the multiallelic AD entries for alleles that map to
-    that allele. Similarly, the biallelic PL entry for a genotype
-    is the minimum over multiallelic PL entries for genotypes that
-    map to that genotype.
+    Fixing an alternate allele and biallelic variant, downcoding gives a map
+    from multiallelic to biallelic alleles and genotypes. The biallelic `AD` entry
+    for an allele is just the sum of the multiallelic `AD` entries for alleles
+    that map to that allele. Similarly, the biallelic `PL` entry for a genotype is
+    the minimum over multiallelic `PL` entries for genotypes that map to that
+    genotype.
 
-    GQ is recomputed from PL.
+    `GQ` is recomputed from `PL`.
 
     Here is a second example for a het non-ref
 
@@ -433,12 +430,12 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     **VCF Info Fields**
 
     Hail does not split fields in the info field. This means that if a
-    multiallelic site with ``info.AC`` value ``[10, 2]`` is split, each split
+    multiallelic site with `info.AC` value ``[10, 2]`` is split, each split
     site will contain the same array ``[10, 2]``. The provided allele index
-    field ``aIndex`` can be used to select the value corresponding to the split
+    field `aIndex` can be used to select the value corresponding to the split
     allele's position:
 
-    >>> ds = split_multi_hts(ds)
+    >>> ds = methods.split_multi_hts(ds)
     >>> ds = vds.filter_rows(ds.info.AC[ds.aIndex - 1] < 10, keep = False)
 
     VCFs split by Hail and exported to new VCFs may be
@@ -458,15 +455,14 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     The info field AC in *data/export.vcf* will have ``Number=1``.
 
-    New Fields
-    ----------
+    **New Fields**
 
     :meth:`hail.methods.split_multi_hts` adds the following fields:
 
-     - **wasSplit** (*Boolean*) -- true if this variant was originally
-       multiallelic, otherwise false.
+     - `wasSplit` (*Boolean*) -- ``True`` if this variant was originally
+       multiallelic, otherwise ``False``.
 
-     - **aIndex** (*Int*) -- The original index of this alternate allele in the
+     - `aIndex` (*Int*) -- The original index of this alternate allele in the
        multiallelic representation (NB: 1 is the first alternate allele or the
        only alternate allele in a biallelic variant). For example, 1:100:A:T,C
        splits into two variants: 1:100:A:T with ``aIndex = 1`` and 1:100:A:C
@@ -474,10 +470,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     Parameters
     ----------
-
-    keep-star : :obj:`bool`
+    keep_star : :obj:`bool`
         Do not filter out * alleles.
-
     left_aligned : :obj:`bool`
         If ``True``, variants are assumed to be left
         aligned and have unique loci. This avoids a shuffle. If the assumption
@@ -486,7 +480,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     Returns
     -------
     :class:`MatrixTable`
-        A biallelic variant dataset
+        A biallelic variant dataset.
+
     """
 
     variant_expr = 'va.aIndex = aIndex, va.wasSplit = wasSplit'
