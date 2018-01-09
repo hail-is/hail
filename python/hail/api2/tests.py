@@ -165,7 +165,7 @@ class TableTests(unittest.TestCase):
         results = kt.aggregate(q1=agg.sum(kt.b),
                                q2=agg.count(),
                                q3=agg.collect(kt.e),
-                               q4=agg.collect(agg.filter(kt.e, (kt.d >= 5) | (kt.a == 0))))
+                               q4=agg.collect(agg.filter((kt.d >= 5) | (kt.a == 0), kt.e)))
 
         self.assertEqual(results.q1, 8)
         self.assertEqual(results.q2, 3)
@@ -396,8 +396,8 @@ class MatrixTests(unittest.TestCase):
         qss = vds.aggregate_cols(x=agg.collect(vds.s),
                                  y=agg.collect(vds.y1))
 
-        qgs = vds.aggregate_entries(x=agg.collect(agg.filter(vds.y1, False)),
-                                    y=agg.collect(agg.filter(vds.GT, functions.rand_bool(0.1))))
+        qgs = vds.aggregate_entries(x=agg.collect(agg.filter(False, vds.y1)),
+                                    y=agg.collect(agg.filter(functions.rand_bool(0.1), vds.GT)))
 
     def test_drop(self):
         vds = self.get_vds()

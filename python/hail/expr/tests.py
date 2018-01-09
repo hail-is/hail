@@ -121,7 +121,7 @@ class Tests(unittest.TestCase):
         table = Table.range(10)
         r = table.aggregate(x=agg.count(),
                             y=agg.count_where(table.index % 2 == 0),
-                            z=agg.count(agg.filter(table.index, lambda x: x % 2 == 0)))
+                            z=agg.count(agg.filter(lambda x: x % 2 == 0, table.index)))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)
