@@ -385,7 +385,7 @@ class Expression(object):
 
         Parameters
         ----------
-        other : :class:`Expression`
+        other : :class:`.Expression`
             Expression for equality comparison.
 
         Returns
@@ -420,7 +420,7 @@ class Expression(object):
 
         Parameters
         ----------
-        other : :class:`Expression`
+        other : :class:`.Expression`
             Expression for inequality comparison.
 
         Returns
@@ -526,7 +526,7 @@ class CollectionExpression(Expression):
 
         Returns
         -------
-        :py:class:`Expression`
+        :py:class:`.Expression`
             Expression whose type is the element type of the collection.
         """
         return self._bin_lambda_method("find", f, self._type.element_type, lambda t: self._type.element_type)
@@ -838,7 +838,7 @@ class ArrayExpression(CollectionExpression):
 
         Returns
         -------
-        :class:`Expression`
+        :class:`.Expression`
             Element or array slice.
         """
         if isinstance(item, slice):
@@ -865,7 +865,7 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        item : :class:`Expression`
+        item : :class:`.Expression`
             Item for inclusion test.
 
         Warning
@@ -896,7 +896,7 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        x : :class:`Expression`
+        x : :class:`.Expression`
             Element to append, same type as the array element type.
 
         Returns
@@ -1326,7 +1326,7 @@ class SetExpression(CollectionExpression):
 
         Parameters
         ----------
-        x : :class:`Expression`
+        x : :class:`.Expression`
             Value to add.
 
         Returns
@@ -1349,7 +1349,7 @@ class SetExpression(CollectionExpression):
 
         Parameters
         ----------
-        x : :class:`Expression`
+        x : :class:`.Expression`
             Value to remove.
 
         Returns
@@ -1375,7 +1375,7 @@ class SetExpression(CollectionExpression):
 
         Parameters
         ----------
-        x : :class:`Expression`
+        x : :class:`.Expression`
             Value for inclusion test..
 
         Returns
@@ -1608,12 +1608,12 @@ class DictExpression(Expression):
 
         Parameters
         ----------
-        item : :class:`Expression`
+        item : :class:`.Expression`
             Key expression.
 
         Returns
         -------
-        :class:`Expression`
+        :class:`.Expression`
             Value associated with key `item`.
         """
         return self._index(self._value_typ, item)
@@ -1634,7 +1634,7 @@ class DictExpression(Expression):
 
         Parameters
         ----------
-        k : :class:`Expression`
+        k : :class:`.Expression`
             Key to test for inclusion.
 
         Returns
@@ -1660,12 +1660,12 @@ class DictExpression(Expression):
 
         Parameters
         ----------
-        k : :class:`Expression`
+        k : :class:`.Expression`
             Key.
 
         Returns
         -------
-        :py:class:`Expression`
+        :py:class:`.Expression`
             The value associated with `k`, or missing.
         """
         return self._method("get", self._value_typ, k)
@@ -1832,7 +1832,7 @@ class StructExpression(Expression):
 
         Returns
         -------
-        :class:`Expression`
+        :class:`.Expression`
             Struct field.
         """
 

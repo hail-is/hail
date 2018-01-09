@@ -80,14 +80,14 @@ def sample_qc(dataset, name='sample_qc'):
 
     Parameters
     ----------
-    dataset : :class:`MatrixTable`
+    dataset : :class:`.MatrixTable`
         Dataset.
     name : :obj:`str`
         Name for resulting field.
 
     Returns
     -------
-    :class:`MatrixTable`
+    :class:`.MatrixTable`
         Dataset with a new column-indexed field `name`.
     """
 
@@ -157,14 +157,14 @@ def variant_qc(dataset, name='variant_qc'):
 
     Parameters
     ----------
-    dataset : :class:`MatrixTable`
+    dataset : :class:`.MatrixTable`
         Dataset.
     name : :obj:`str`
         Name for resulting field.
 
     Returns
     -------
-    :class:`MatrixTable`
+    :class:`.MatrixTable`
         Dataset with a new row-indexed field `name`.
     """
 

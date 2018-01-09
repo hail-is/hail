@@ -79,7 +79,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     Returns
     -------
-    :class:`MatrixTable`
+    :class:`.MatrixTable`
         Dataset with regression results in a new row-indexed field.
     """
     
@@ -183,7 +183,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
     Parameters
     ----------
-    dataset : :class:`MatrixTable`
+    dataset : :class:`.MatrixTable`
         Dataset.
     k : :obj:`int`
         Number of principal components.
@@ -195,7 +195,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
     Returns
     -------
-    (:obj:`list` of :obj:`float`, :class:`Table`, :class:`Table`)
+    (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
 
@@ -296,7 +296,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     PC bi-plots this amounts to a change in aspect ratio; for use of PCs as
     covariates in regression it is immaterial.)
 
-    Scores are stored in a :class:`Table` with the following fields:
+    Scores are stored in a :class:`.Table` with the following fields:
 
      - **s**: Column key of the dataset.
 
@@ -307,7 +307,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     fields `PC1`, `PC2`, etc. If `as_array` is ``True``, then `pcaScores` is a
     field of type ``Array[Float64]`` containing the principal component scores.
 
-    Loadings are stored in a :class:`Table` with a structure similar to the scores
+    Loadings are stored in a :class:`.Table` with a structure similar to the scores
     table:
 
      - **v**: Row key of the dataset.
@@ -316,9 +316,9 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
     Parameters
     ----------
-    dataset : :class:`MatrixTable`
+    dataset : :class:`.MatrixTable`
         Dataset.
-    entry_expr : :class:`Expression`
+    entry_expr : :class:`.Expression`
         Numeric expression for matrix entries.
     k : :obj:`int`
         Number of principal components.
@@ -330,7 +330,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
 
     Returns
     -------
-    (:obj:`list` of :obj:`float`, :class:`Table`, :class:`Table`)
+    (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
     source = entry_expr._indices.source

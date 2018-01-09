@@ -206,7 +206,7 @@ class GroupedTable(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Aggregated table.
         """
         agg_base = self._parent.columns[0]  # FIXME hack
@@ -397,7 +397,7 @@ class Table(TableTemplate):
 
         Examples
         --------
-        Assume `table1` is a :py:class:`Table` with three columns: `C1`, `C2`
+        Assume `table1` is a :py:class:`.Table` with three columns: `C1`, `C2`
         and `C3`.
 
         Change key columns:
@@ -417,7 +417,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with new set of keys.
         """
 
@@ -441,7 +441,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with new global field(s).
         """
 
@@ -489,7 +489,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with specified global fields.
         """
 
@@ -535,7 +535,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with new fields.
         """
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
@@ -590,7 +590,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Filtered table.
         """
         expr = to_expr(expr)
@@ -682,7 +682,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with specified fields.
         """
         exprs = tuple(self[e] if not isinstance(e, Expression) else e for e in exprs)
@@ -739,7 +739,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table without specified fields.
         """
         all_field_exprs = {e: k for k, e in self._fields.items()}
@@ -1175,7 +1175,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with one field, `index`.
         """
         return Table(Env.hail().table.Table.range(Env.hc()._jhc, n, joption(num_partitions)))
@@ -1197,7 +1197,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Cached table.
         """
         return self.persist('MEMORY_ONLY')
@@ -1238,7 +1238,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Persisted table.
         """
         return Table(self._jt.persist(storage_level))
@@ -1255,7 +1255,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Unpersisted table.
         """
         self._jt.unpersist()
@@ -1357,7 +1357,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with a new index field.
         """
 
@@ -1388,12 +1388,12 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        tables : varargs of :class:`Table`
+        tables : varargs of :class:`.Table`
             Tables to union.
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with all rows from each component table.
         """
 
@@ -1466,7 +1466,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table including the first `n` rows.
         """
 
@@ -1501,7 +1501,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Repartitioned table.
         """
 
@@ -1546,14 +1546,14 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        right : :class:`Table`
+        right : :class:`.Table`
             Table with which to join.
         how : :obj:`str`
             Join type. One of "inner", "outer", "left", "right".
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Joined table.
         """
 
@@ -1644,7 +1644,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with renamed fields.
         """
 
@@ -1672,7 +1672,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Expanded table.
         """
 
@@ -1733,7 +1733,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with a flat schema (no struct fields).
         """
 
@@ -1769,7 +1769,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table sorted by the given fields.
         """
         sort_cols = []
@@ -1815,7 +1815,7 @@ class Table(TableTemplate):
         Examples
         --------
 
-        `table3` is a :class:`Table` with three columns: `Name`, `Age` and `Children`.
+        `table3` is a :class:`.Table` with three columns: `Name`, `Age` and `Children`.
 
         .. testsetup::
 
@@ -1869,7 +1869,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with exploded field.
         """
 

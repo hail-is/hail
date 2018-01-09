@@ -211,14 +211,14 @@ def bind(expr, f):
 
     Parameters
     ----------
-    expr : :class:`Expression`
+    expr : :class:`.Expression`
         Expression to bind.
     f : callable
         Function of `expr`.
 
     Returns
     -------
-    :class:`Expression`
+    :class:`.Expression`
         Result of evaluating `f` with `expr` as an argument.
     """
     uid = Env._get_uid()
