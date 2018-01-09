@@ -20,7 +20,7 @@ def _agg_func(name, aggregable, ret_type, *args):
     args = [to_expr(a) for a in args]
     indices, aggregations, joins, refs = unify_all(aggregable, *args)
     if aggregations:
-        raise ExpressionException('cannot aggregate an already-aggregated expression')
+        raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
     ast = ClassMethod(name, aggregable._ast, *[a._ast for a in args])
     return construct_expr(ast, ret_type, Indices(source=indices.source),
@@ -277,7 +277,7 @@ def take(expr, n, ordering=None):
         ast = LambdaClassMethod('takeBy', uid, agg._ast, lambda_result._ast, n._ast)
 
         if aggregations:
-            raise ExpressionException('cannot aggregate an already-aggregated expression')
+            raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
         return construct_expr(ast, TArray(agg._type), Indices(source=indices.source),
                               aggregations.push(Aggregation(indices, refs)), joins)
@@ -518,7 +518,7 @@ def fraction(predicate):
             "'fraction' aggregator expects an expression of type 'TBoolean', found '{}'".format(agg._type.__class__))
 
     if agg._aggregations:
-        raise ExpressionException('cannot aggregate an already-aggregated expression')
+        raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
     uid = Env._get_uid()
     ast = LambdaClassMethod('fraction', uid, agg._ast, Reference(uid))
@@ -754,7 +754,7 @@ def inbreeding(expr, prior):
 
     indices, aggregations, joins, refs = unify_all(agg, prior)
     if aggregations:
-        raise ExpressionException('cannot aggregate an already-aggregated expression')
+        raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
     t = TStruct(['Fstat', 'nTotal', 'nCalled', 'expectedHoms', 'observedHoms'],
                 [TFloat64(), TInt64(), TInt64(), TFloat64(), TInt64()])
@@ -832,7 +832,7 @@ def call_stats(expr, variant):
     indices, aggregations, joins, refs = unify_all(agg, variant)
 
     if aggregations:
-        raise ExpressionException('cannot aggregate an already-aggregated expression')
+        raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
     t = TStruct(['AC', 'AF', 'AN', 'GC'], [TArray(TInt32()), TArray(TFloat64()), TInt32(), TArray(TInt32())])
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)

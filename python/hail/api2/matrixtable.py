@@ -443,7 +443,7 @@ class MatrixTable(object):
         base, cleanup = self._process_joins(*named_exprs.values())
 
         for k, v in named_exprs.items():
-            analyze('MatrixTable.anntoate_globals', v, self._global_indices)
+            analyze('MatrixTable.annotate_globals', v, self._global_indices)
             exprs.append('global.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             self._check_field_name(k, self._global_indices)
         m = MatrixTable(base._jvds.annotateGlobalExpr(",\n".join(exprs)))
@@ -681,6 +681,70 @@ class MatrixTable(object):
         return cleanup(m)
 
     @handle_py4j
+    def select_rows(self, *exprs, **named_exprs):
+        """Select existing row fields or create new fields by name, dropping the rest.
+
+        Examples
+        --------
+        Select existing fields and compute a new one:
+
+        >>> dataset_result = dataset.select_rows(dataset.variant_qc.gqMean,
+        ...                                      highQualityCases = agg.count_where((dataset.GQ > 20) & (dataset.isCase)))
+
+        Notes
+        -----
+        This method creates new row fields. If a created field shares its name
+        with a differently-indexed field of the table, the method will fail.
+
+        Note
+        ----
+
+        See :py:meth:`Table.select` for more information about using ``select`` methods.
+
+        Note
+        ----
+        This method supports aggregation over columns. For instance, the usage:
+
+        >>> dataset_result = dataset.select_rows(mean_GQ = agg.mean(dataset.GQ))
+
+        will compute the mean per row.
+
+        Parameters
+        ----------
+        exprs : variable-length args of :obj:`str` or :class:`hail.expr.expression.Expression`
+            Arguments that specify field names or nested field reference expressions.
+        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+            Field names and the expressions to compute them.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            MatrixTable with specified row fields.
+        """
+        exprs = tuple(to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs)
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        strs = []
+        all_exprs = []
+        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+
+        for e in exprs:
+            all_exprs.append(e)
+            analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
+            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
+                raise ExpressionException("method 'select_rows' expects keyword arguments for complex expressions")
+            replace_aggregables(e._ast, 'gs')
+            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name,
+                                          e._ast.to_hql()))
+        for k, e in named_exprs.items():
+            all_exprs.append(e)
+            analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
+            self._check_field_name(k, self._row_indices)
+            replace_aggregables(e._ast, 'gs')
+            strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
+        m = MatrixTable(base._jvds.annotateVariantsExpr('va = {' + ',\n'.join(strs) + '}'))
+        return cleanup(m)
+
+    @handle_py4j
     def select_cols(self, *exprs, **named_exprs):
         """Select existing column fields or create new fields by name, dropping the rest.
 
@@ -745,70 +809,6 @@ class MatrixTable(object):
             strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
 
         m = MatrixTable(base._jvds.annotateSamplesExpr('sa = {' + ',\n'.join(strs) + '}'))
-        return cleanup(m)
-
-    @handle_py4j
-    def select_rows(self, *exprs, **named_exprs):
-        """Select existing row fields or create new fields by name, dropping the rest.
-
-        Examples
-        --------
-        Select existing fields and compute a new one:
-
-        >>> dataset_result = dataset.select_rows(dataset.variant_qc.gqMean,
-        ...                                      highQualityCases = agg.count_where((dataset.GQ > 20) & (dataset.isCase)))
-
-        Notes
-        -----
-        This method creates new row fields. If a created field shares its name
-        with a differently-indexed field of the table, the method will fail.
-
-        Note
-        ----
-
-        See :py:meth:`Table.select` for more information about using ``select`` methods.
-
-        Note
-        ----
-        This method supports aggregation over columns. For instance, the usage:
-
-        >>> dataset_result = dataset.select_rows(mean_GQ = agg.mean(dataset.GQ))
-
-        will compute the mean per row.
-
-        Parameters
-        ----------
-        exprs : variable-length args of :obj:`str` or :class:`hail.expr.expression.Expression`
-            Arguments that specify field names or nested field reference expressions.
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
-            Field names and the expressions to compute them.
-
-        Returns
-        -------
-        :class:`.MatrixTable`
-            MatrixTable with specified row fields.
-        """
-        exprs = tuple(to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs)
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        strs = []
-        all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
-
-        for e in exprs:
-            all_exprs.append(e)
-            analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
-            if e._ast.search(lambda ast: not isinstance(ast, Reference) and not isinstance(ast, Select)):
-                raise ExpressionException("method 'select_rows' expects keyword arguments for complex expressions")
-            replace_aggregables(e._ast, 'gs')
-            strs.append('`{}`: {}'.format(e._ast.selection if isinstance(e._ast, Select) else e._ast.name,
-                                          e._ast.to_hql()))
-        for k, e in named_exprs.items():
-            all_exprs.append(e)
-            analyze('MatrixTable.select_rows', e, self._row_indices, {self._col_axis})
-            self._check_field_name(k, self._row_indices)
-            replace_aggregables(e._ast, 'gs')
-            strs.append('`{}`: {}'.format(k, e._ast.to_hql()))
-        m = MatrixTable(base._jvds.annotateVariantsExpr('va = {' + ',\n'.join(strs) + '}'))
         return cleanup(m)
 
     @handle_py4j
@@ -2215,5 +2215,5 @@ class MatrixTable(object):
                       tolerance=numeric)
     def _same(self, other, tolerance=1e-6):
         return self._jvds.same(other._jvds, tolerance)
-        
+
 matrix_table_type.set(MatrixTable)

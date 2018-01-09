@@ -31,15 +31,9 @@ class Indices(object):
                 if ind.source is not None and ind.source is not src:
                     raise ExpressionException()
 
-            intersection = axes.intersection(ind.axes)
-            left = axes - intersection
-            right = ind.axes - intersection
-            if right:
-                for i in left:
-                    info('broadcasting index {} along axes [{}]'.format(i, ', '.join(right)))
-            if left:
-                for i in right:
-                    info('broadcasting index {} along axes [{}]'.format(i, ', '.join(left)))
+            both = axes.intersection(ind.axes)
+            left_only = axes - both
+            right_only = ind.axes - both
 
             axes = axes.union(ind.axes)
 
