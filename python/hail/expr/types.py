@@ -879,35 +879,39 @@ class TInterval(Type):
     """
 
     @record_init
-    @typecheck_method(reference_genome=nullable(genetics.GenomeReference),
+    @typecheck_method(point_type=Type,
                       required=bool)
-    def __init__(self, reference_genome=None, required=False):
-        self._rg = reference_genome if reference_genome else Env.hc().default_reference
-        jtype = scala_object(Env.hail().expr, 'TInterval').apply(self._rg._jrep, required)
+    def __init__(self, point_type, required=False):
+        jtype = scala_object(Env.hail().expr, 'TInterval').apply(point_type._jtype, required)
+        self.point_type = point_type
         super(TInterval, self).__init__(jtype)
 
     @classmethod
     def _from_java(cls, jtype):
         i = TInterval.__new__(cls)
+        i.point_type = Type._from_java(jtype.pointType())
         i._jtype = jtype
-        i._rg = genetics.GenomeReference._from_java(jtype.gr())
         i.required = jtype.required()
         super(Type, i).__init__()
         return i
 
     def _convert_to_py(self, annotation):
+        assert(isinstance(self.point_type, TLocus))
         if annotation is not None:
-            return genetics.Interval._from_java(annotation, self._rg)
+            return genetics.Interval._from_java(annotation, self.point_type.reference_genome)
         else:
             return None
 
+    @typecheck_method(annotation=nullable(genetics.Interval))
     def _convert_to_j(self, annotation):
+        assert(isinstance(self.point_type, TLocus))
         if annotation is not None:
             return annotation._jrep
         else:
             return None
 
     def _typecheck(self, annotation):
+        assert(isinstance(self.point_type, TLocus))
         if not annotation and self.required:
             raise TypeCheckError('!TInterval is a required field')
         if annotation and not isinstance(annotation, genetics.Interval):
@@ -915,16 +919,7 @@ class TInterval(Type):
                                  type(annotation))
 
     def _repr(self):
-        return "TInterval()"
-
-    @property
-    @record_property
-    def reference_genome(self):
-        """Reference genome.
-
-        :return: :class:`.GenomeReference`
-        """
-        return self._rg
+        return "TInterval({})".format(repr(self.point_type))
 
 _intern_classes = {'is.hail.expr.TInt32Optional$': (TInt32, False),
                    'is.hail.expr.TInt32Required$': (TInt32, True),

@@ -439,7 +439,7 @@ case class GenomeReferenceDependentConstructor(posn: Position, fName: String, gr
   val rTyp = fName match {
     case "Variant" => gr.variant
     case "Locus" => gr.locus
-    case "Interval" => gr.interval
+    case "LocusInterval" => gr.interval
     case _ => throw new UnsupportedOperationException
   }
 
@@ -463,6 +463,8 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
 }
 
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
+  assert(fn != "LocusInterval")
+
   override def typecheckThis(): Type = {
     (fn, args) match {
       case ("merge", rhs) =>

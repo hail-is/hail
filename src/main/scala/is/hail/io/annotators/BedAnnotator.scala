@@ -38,9 +38,9 @@ object BedAnnotator {
     val expectedLength = if (hasTarget) 4 else 3
 
     val schema = if (hasTarget)
-      TStruct("interval" -> TInterval(gr), "target" -> TString())
+      TStruct("interval" -> TInterval(TLocus(gr)), "target" -> TString())
     else
-      TStruct("interval" -> TInterval(gr))
+      TStruct("interval" -> TInterval(TLocus(gr)))
 
     implicit val locusOrd = gr.locusOrdering
 

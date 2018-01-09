@@ -789,8 +789,8 @@ object FunctionRegistry {
   }, "True if chromosome is not X, not Y, and not MT.")(variantHr(GR), boolHr)
   registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")(locusHr(GR), stringHr)
   registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")(locusHr(GR), int32Hr)
-  registerField("start", { (x: Interval[Locus]) => x.start }, ":ref:`locus(gr)` at the start of the interval (inclusive).")(locusIntervalHr(GR), locusHr(GR))
-  registerField("end", { (x: Interval[Locus]) => x.end }, ":ref:`locus(gr)` at the end of the interval (exclusive).")(locusIntervalHr(GR), locusHr(GR))
+  registerField("start", { (x: Interval[Annotation]) => x.start }, "Start of the interval (inclusive).")(intervalHr(TTHr), TTHr)
+  registerField("end", { (x: Interval[Annotation]) => x.end }, "End of the interval (exclusive).")(intervalHr(TTHr), TTHr)
   registerField("ref", { (x: AltAllele) => x.ref }, "Reference allele base sequence.")
   registerField("alt", { (x: AltAllele) => x.alt }, "Alternate allele base sequence.")
   registerMethod("isSNP", { (x: AltAllele) => x.isSNP }, "True if ``v.ref`` and ``v.alt`` are the same length and differ in one position.")
@@ -1090,14 +1090,14 @@ object FunctionRegistry {
     "contig" -> "String representation of contig.",
     "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GR))
   registerDependent("Interval", () => {
-    val gr = GR.gr
-    (x: Locus, y: Locus) => Interval(x, y)(gr.locusOrdering)
+    val t = TT.t
+    (x: Annotation, y: Annotation) => Interval(x, y)(t.ordering(true))
   },
     """
-    Construct a :ref:`interval(gr)` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
+    Construct an Interval object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
     """,
     "startLocus" -> "Start position of interval",
-    "endLocus" -> "End position of interval")(locusHr(GR), locusHr(GR), locusIntervalHr(GR))
+    "endLocus" -> "End position of interval")(TTHr, TTHr, intervalHr(TTHr))
 
   val hweStruct = TStruct("rExpectedHetFrequency" -> TFloat64(), "pHWE" -> TFloat64())
 
@@ -1268,7 +1268,7 @@ object FunctionRegistry {
     """,
     "x" -> "the input to gamma.")
 
-  registerDependent("Interval", () => {
+  registerDependent("LocusInterval", () => {
     val gr = GR.gr
    (s: String) => Locus.parseInterval(s, gr)
   },
@@ -1282,9 +1282,9 @@ object FunctionRegistry {
         result: 10040532
     """,
     "s" -> "The string to parse."
-  )(stringHr, locusIntervalHr(GR))
+  )(stringHr, intervalHr(locusHr(GR)))
 
-  registerDependent("Interval", () => {
+  registerDependent("LocusInterval", () => {
     val gr = GR.gr
     (chr: String, start: Int, end: Int) => {
       implicit val locusOrdering = gr.locusOrdering
@@ -1302,7 +1302,7 @@ object FunctionRegistry {
     """,
     "chr" -> "Chromosome.",
     "start" -> "Starting position.",
-    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, locusIntervalHr(GR))
+    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, intervalHr(locusHr(GR)))
 
   register("pcoin", { (p: Double) => math.random < p },
     """
@@ -1558,9 +1558,9 @@ object FunctionRegistry {
     character frequency distribution.
     """)
 
-  registerMethod("contains", (interval: Interval[Locus], locus: Locus) => interval.contains(locus),
+  registerMethod("contains", (interval: Interval[Annotation], point: Annotation) => interval.contains(point),
     """
-    Returns true if the ``locus`` is in the interval.
+    Returns true if the ``point`` is contained in the interval.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -1568,7 +1568,7 @@ object FunctionRegistry {
         let i = Interval(Locus("1", 1000), Locus("1", 2000)) in i.contains(Locus("1", 1500))
         result: true
     """,
-    "locus" -> ":ref:`locus(gr)`")(locusIntervalHr(GR), locusHr(GR), boolHr)
+    "point" -> "T")(intervalHr(TTHr), TTHr, boolHr)
 
   val sizeDocstring = "Number of elements in the collection."
   registerMethod("length", (a: IndexedSeq[Any]) => a.length, sizeDocstring)(arrayHr(TTHr), int32Hr)

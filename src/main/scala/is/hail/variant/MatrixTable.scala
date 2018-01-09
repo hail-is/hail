@@ -313,7 +313,7 @@ case class VSMSubgen(
         .map(ids => ids.distinct);
       nSamples = sampleIds.length;
       saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
-      rows <- Gen.distinctBuildableOfN[Array](l,
+      rows <- Gen.buildableOfN[Array](l,
         for (
           v <- vGen(vSig).resize(3);
           va <- vaGen(vaSig).resize(5);
@@ -2581,20 +2581,20 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     }
 
     val irm = new IndexedRowMatrix(indexedRows, partStarts.last, nSamples)
-    
-    val optionVariants = 
+
+    val optionVariants =
       someIf(getVariants,
-      rdd2.mapPartitions { it =>
-        val ur = new UnsafeRow(localRowType)
-        it.map { rv =>
-          ur.set(rv)
-          ur.get(1)
-        }
-      }.collect())
-    
+        rdd2.mapPartitions { it =>
+          val ur = new UnsafeRow(localRowType)
+          it.map { rv =>
+            ur.set(rv)
+            ur.get(1)
+          }
+        }.collect())
+
     (irm, optionVariants)
   }
-  
+
   def writeBlockMatrix(dirname: String, expr: String, blockSize: Int): Unit = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rdd2.getNumPartitions + 1)
@@ -2608,30 +2608,30 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       "g" -> (5, genotypeSignature)))
     val f = RegressionUtils.parseExprAsDouble(expr, ec)
     ec.set(0, globalAnnotation)
-    
+
     val nRows = partStarts.last
     val nCols = nSamples
-    
+
     val hadoop = sparkContext.hadoopConfiguration
     hadoop.mkDir(dirname)
-    
+
     // write metadata
     hadoop.writeDataFile(dirname + BlockMatrix.metadataRelativePath) { os =>
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, nRows, nCols),
         os)
     }
-    
+
     // write blocks
     hadoop.mkDir(dirname + "/parts")
     val gp = GridPartitioner(blockSize, nRows, nCols)
     val blockCount =
       new WriteBlocksRDD(dirname, rdd2, sparkContext, rowType, sampleIdsBc, sampleAnnotationsBc, partStarts, f, ec, gp)
         .reduce(_ + _)
-    
+
     assert(blockCount == gp.numPartitions)
     info(s"Wrote all $blockCount blocks of $nRows x $nCols matrix with block size $blockSize.")
-    
+
     hadoop.writeTextFile(dirname + "/_SUCCESS")(out => ())
   }
 

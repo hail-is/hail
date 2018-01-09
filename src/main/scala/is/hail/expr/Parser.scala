@@ -437,15 +437,15 @@ object Parser extends JavaTokenParsers {
       withPos(structDeclaration) ^^ (r => StructConstructor(r.pos, r.x.map(_._1), r.x.map(_._2))) |
       withPos("true") ^^ (r => Const(r.pos, true, TBoolean())) |
       withPos("false") ^^ (r => Const(r.pos, false, TBoolean())) |
-      (guard(not("if" | "else")) ~> (genomeReferenceDependentTypes <~ "(") ~ (identifier <~ ")") ~ withPos("(") ~ (args <~ ")") ^^ {
+      genomeReferenceDependentTypes ~ ("(" ~> identifier <~ ")") ~ withPos("(") ~ (args <~ ")") ^^ {
         case fn ~ gr ~ lparen ~ args => GenomeReferenceDependentConstructor(lparen.pos, fn, gr, args)
-      }) |
-      (guard(not("if" | "else")) ~> genomeReferenceDependentTypes ~ withPos("(") ~ (args <~ ")") ^^ {
+      } |
+      genomeReferenceDependentTypes ~ withPos("(") ~ (args <~ ")") ^^ {
         case fn ~ lparen ~ args => GenomeReferenceDependentConstructor(lparen.pos, fn, GenomeReference.defaultReference.name, args)
-      }) |
-      (guard(not("if" | "else")) ~> withPos(identifier)) ~ withPos("(") ~ (args <~ ")") ^^ {
+      } |
+      (guard(not("if" | "else")) ~> identifier) ~ withPos("(") ~ (args <~ ")") ^^ {
         case id ~ lparen ~ args =>
-          Apply(lparen.pos, id.x, args)
+          Apply(lparen.pos, id, args)
       } |
       guard(not("if" | "else")) ~> withPos(identifier) ^^ (r => SymRef(r.pos, r.x)) |
       "{" ~> expr <~ "}" |
@@ -543,7 +543,9 @@ object Parser extends JavaTokenParsers {
 
   def _type_expr: Parser[Type] =
     "Empty" ^^ { _ => TStruct.empty() } |
-      ("Interval" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).interval } |
+  // FIXME for backward compatability
+      "Interval" ~> ("(" ~> identifier <~ ")" ^^ { id => TInterval(GenomeReference.getReference(id).locus) } |
+        "[" ~> type_expr <~ "]" ^^ { pointType => TInterval(pointType) }) |
       "Boolean" ^^ { _ => TBoolean() } |
       "Int32" ^^ { _ => TInt32() } |
       "Int64" ^^ { _ => TInt64() } |
@@ -595,5 +597,5 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def genomeReferenceDependentTypes = "Variant" | "Locus" | "Interval"
+  def genomeReferenceDependentTypes: Parser[String] = "Variant" | "LocusInterval" | "Locus"
 }

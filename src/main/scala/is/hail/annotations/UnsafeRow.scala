@@ -200,7 +200,6 @@ object UnsafeRow {
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
       case t: TStruct =>
         readStruct(t, region, offset)
-
       case x: TVariant =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]
         Variant(
@@ -212,9 +211,17 @@ object UnsafeRow {
       case _: TAltAllele => readAltAllele(region, offset)
       case x: TInterval =>
         val ft = x.fundamentalType.asInstanceOf[TStruct]
-        Interval[Locus](
-          readLocus(region, ft.loadField(region, offset, 0), x.gr),
-          readLocus(region, ft.loadField(region, offset, 1), x.gr))(x.locusOrdering)
+        val start: Annotation =
+          if (ft.isFieldDefined(region, offset, 0))
+            read(x.pointType, region, ft.loadField(region, offset, 0))
+          else
+            null
+        val end =
+          if (ft.isFieldDefined(region, offset, 1))
+            read(x.pointType, region, ft.loadField(region, offset, 1))
+          else
+            null
+        Interval[Annotation](start, end)(x.pointType.ordering(true))
     }
   }
 }
@@ -223,7 +230,9 @@ class UnsafeRow(var t: TStruct,
   var region: Region, var offset: Long) extends Row with KryoSerializable {
 
   def this(t: TStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
+
   def this(t: TStruct) = this(t, null, 0)
+
   def this() = this(null, null, 0)
 
   def set(newRegion: Region, newOffset: Long) {

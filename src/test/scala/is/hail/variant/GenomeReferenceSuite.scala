@@ -87,13 +87,13 @@ class GenomeReferenceSuite extends SparkSuite {
     GenomeReference.addReference(gr)
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateVariantsExpr("va.v = NA: Variant(foo), va.l = NA: Locus(foo), va.i = NA: Interval(foo)")
+      .annotateVariantsExpr("va.v = NA: Variant(foo), va.l = NA: Locus(foo), va.i = NA: Interval[Locus(foo)]")
 
     val vas = vds.vaSignature.asInstanceOf[TStruct]
 
     assert(vas.field("v").typ == TVariant(gr))
     assert(vas.field("l").typ == TLocus(gr))
-    assert(vas.field("i").typ == TInterval(gr))
+    assert(vas.field("i").typ == TInterval(TLocus(gr)))
 
     GenomeReference.removeReference("foo")
   }
@@ -149,7 +149,7 @@ class GenomeReferenceSuite extends SparkSuite {
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv")
     val ktann = kt.annotate("""v1 = Variant(GRCh38)("chrX:156030895:A:T"), v2 = Variant(GRCh37)("X:154931044:A:T"),
     |v3 = Variant(GRCh37)("1", 3, "A", "T"), l1 = Locus(GRCh38)("1", 100), l2 = Locus(GRCh37)("1:100"),
-    |i1 = Interval(GRCh37)("1:5-10"), i2 = Interval(GRCh38)("chrX", 156030890, 156030895)""".stripMargin)
+    |i1 = LocusInterval(GRCh37)("1:5-10"), i2 = LocusInterval(GRCh38)("chrX", 156030890, 156030895)""".stripMargin)
 
     assert(ktann.signature.field("v1").typ == GenomeReference.GRCh38.variant &&
     ktann.signature.field("v2").typ == GenomeReference.GRCh37.variant &&
@@ -223,13 +223,6 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(gr.compare(l1, l1) == 0)
     assert(gr.compare(l3, l1) > 0)
     assert(gr.compare(l2, l1) > 0)
-
-    // Test intervals
-    implicit val locusOrd = gr.locusOrdering
-    val i1 = Interval(l1, l2)
-    val i2 = Interval(l2, Locus("1", 27000))
-
-    assert(gr.compare(i1, i2) < 0)
   }
 
   @Test def testWriteToFile() {

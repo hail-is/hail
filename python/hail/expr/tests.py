@@ -40,8 +40,8 @@ class Tests(unittest.TestCase):
             TLocus(),
             TCall(),
             TAltAllele(),
-            TInterval(),
-            TSet(TInterval()),
+            TInterval(TLocus()),
+            TSet(TInterval(TLocus())),
             TStruct(['a', 'b', 'c'], [TInt32(), TInt32(), TArray(TString())]),
             TStruct(['a', 'bb', 'c'], [TFloat64(), TInt32(), TBoolean()]),
             TStruct(['a', 'b'], [TInt32(), TInt32()])]
@@ -60,8 +60,8 @@ class Tests(unittest.TestCase):
             TLocus(),
             TCall(),
             TAltAllele(),
-            TInterval(),
-            TSet(TInterval()),
+            TInterval(TLocus()),
+            TSet(TInterval(TLocus())),
             TStruct(['a', 'b', 'c'], [TInt32(), TInt32(), TArray(TString())]),
             TStruct(['a', 'bb', 'c'], [TFloat64(), TInt32(), TBoolean()]),
             TStruct(['a', 'b'], [TInt32(), TInt32()])]
@@ -87,7 +87,7 @@ class Tests(unittest.TestCase):
     def test_repr(self):
         tv = TVariant()
         tl = TLocus()
-        ti = TInterval()
+        ti = TInterval(TLocus())
         tc = TCall()
         taa = TAltAllele()
 
@@ -98,7 +98,7 @@ class Tests(unittest.TestCase):
         ts = TString()
         tb = TBoolean()
 
-        tdict = TDict(TInterval(), TFloat32())
+        tdict = TDict(TInterval(TLocus()), TFloat32())
         tarray = TArray(TString())
         tset = TSet(TVariant())
         tstruct = TStruct(['a', 'b'], [TBoolean(), TArray(TString())])

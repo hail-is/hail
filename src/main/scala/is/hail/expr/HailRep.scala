@@ -69,8 +69,8 @@ trait HailRepFunctions {
     def typ = TAltAllele()
   }
 
-  implicit class locusIntervalHr(gr: GRBase) extends HailRep[Interval[Locus]] {
-    def typ = TInterval(gr)
+  implicit def intervalHr[T](implicit hrt: HailRep[T]) = new HailRep[Interval[T]] {
+    def typ = TInterval(hrt.typ)
   }
 
   implicit def arrayHr[T](implicit hrt: HailRep[T]) = new HailRep[IndexedSeq[T]] {
