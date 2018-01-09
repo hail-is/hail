@@ -16,6 +16,7 @@ Methods
     hail.methods.hwe_normalized_pca
     hail.methods.rename_duplicates
     hail.methods.split_multi_hts
+    hail.methods.mendel_errors
 
 .. autofunction:: hail.methods.linreg
 .. autofunction:: hail.methods.sample_rows
@@ -27,3 +28,4 @@ Methods
 .. autofunction:: hail.methods.hwe_normalized_pca
 .. autofunction:: hail.methods.rename_duplicates
 .. autofunction:: hail.methods.split_multi_hts
+.. autofunction:: hail.methods.mendel_errors

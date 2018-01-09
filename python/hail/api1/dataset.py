@@ -3307,8 +3307,8 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
             - **s** (*String*) -- Sample ID (key column).
             - **fid** (*String*) -- Family ID.
-            - **nErrors** (*Int*) -- Number of Mendel errors found involving this individual.
-            - **nSNP** (*Int*) -- Number of Mendel errors found involving this individual at SNPs.
+            - **nErrors** (*Int64*) -- Number of Mendel errors found involving this individual.
+            - **nSNP** (*Int64*) -- Number of Mendel errors found involving this individual at SNPs.
             - **error** (*String*) -- Readable representation of Mendel error.
 
         **Fourth table:** errors per variant. This table contains one row per variant in the dataset.

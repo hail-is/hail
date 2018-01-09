@@ -91,3 +91,12 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('wasSplit','aIndex')
         # required python3
         # self.assertTrue(ds1._same(ds2))
+
+    def test_mendel_errors(self):
+        dataset = self.get_dataset()
+        men, fam, ind, var = methods.mendel_errors(dataset, Pedigree.read('src/test/resources/sample.fam'))
+        men.select('fid', 's', 'code')
+        fam.select('father', 'nChildren')
+        self.assertEqual(ind.key, ['s'])
+        self.assertEqual(var.key, ['v'])
+        dataset.annotate_rows(mendel=var[dataset.v]).count_rows()

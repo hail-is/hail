@@ -1,7 +1,6 @@
 package is.hail.methods
 
 import is.hail.HailContext
-import is.hail.annotations.Annotation
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
@@ -24,13 +23,13 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
     else
       "./."
 
-  def implicatedSamplesWithCounts: Iterator[(String, (Int, Int))] = {
+  def implicatedSamplesWithCounts: Iterator[(String, (Long, Long))] = {
     if (code == 2 || code == 1) Iterator(trio.kid, trio.knownDad, trio.knownMom)
     else if (code == 6 || code == 3 || code == 11 || code == 12) Iterator(trio.kid, trio.knownDad)
     else if (code == 4 || code == 7 || code == 9 || code == 10) Iterator(trio.kid, trio.knownMom)
     else Iterator(trio.kid)
   }
-    .map((_, (1, if (variant.altAllele.isSNP) 1 else 0)))
+    .map((_, (1L, if (variant.altAllele.isSNP) 1L else 0L)))
 
   def toLineMendel(sampleIds: IndexedSeq[String]): String = {
     val v = variant
@@ -128,11 +127,11 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
       .reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2))
   }
 
-  def nErrorPerIndiv: RDD[(String, (Int, Int))] = {
+  def nErrorPerIndiv: RDD[(String, (Long, Long))] = {
     val indivRDD = sc.parallelize(trios.flatMap(t => Iterator(t.kid, t.knownDad, t.knownMom)).distinct)
     mendelErrors
       .flatMap(_.implicatedSamplesWithCounts)
-      .union(indivRDD.map((_, (0, 0))))
+      .union(indivRDD.map((_, (0L, 0L))))
       .reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2))
   }
 
@@ -176,8 +175,8 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
     val signature = TStruct(
       "fid" -> TString(),
       "s" -> TString(),
-      "nError" -> TInt32(),
-      "nSNP" -> TInt32()
+      "nError" -> TInt64(),
+      "nSNP" -> TInt64()
     )
 
     val trioFamBc = sc.broadcast(trios.iterator.flatMap { t =>
