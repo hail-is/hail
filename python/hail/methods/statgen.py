@@ -156,7 +156,7 @@ def ld_matrix(dataset, force_local=False):
         exceeds :math:`5000^2` and locally otherwise.
 
     :return: Matrix of r values between pairs of variants.
-    :rtype: :py:class:`LDMatrix`
+    :rtype: :py:class:`.LDMatrix`
     """
 
     jldm = Env.hail().methods.LDMatrix.apply(dataset._jvds, force_local)
