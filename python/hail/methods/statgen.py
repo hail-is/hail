@@ -353,7 +353,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
            keep_star=bool,
            left_aligned=bool)
 def split_multi_hts(ds, keep_star=False, left_aligned=False):
-    """Split multiallelic variants for HTS :meth:`MatrixTable.entry_schema`:
+    """Split multiallelic variants for HTS :meth:`.MatrixTable.entry_schema`:
 
     .. code-block:: text
 
@@ -479,7 +479,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     Returns
     -------
-    :class:`MatrixTable`
+    :class:`.MatrixTable`
         A biallelic variant dataset.
 
     """
