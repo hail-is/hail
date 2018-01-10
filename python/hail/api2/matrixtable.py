@@ -2209,6 +2209,7 @@ class MatrixTable(object):
             Unpersisted dataset.
         """
         self._jvds.unpersist()
+        return self
 
     @handle_py4j
     @typecheck_method(other=matrix_table_type,
