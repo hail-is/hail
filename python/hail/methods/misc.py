@@ -1,7 +1,7 @@
 from decorator import decorator
 from hail.api2 import MatrixTable
-from hail.utils.java import *
-from hail.typecheck.check import *
+from hail.utils.java import Env, handle_py4j
+from hail.typecheck.check import typecheck, strlike
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, method=strlike)
@@ -49,35 +49,3 @@ def rename_duplicates(dataset):
     """
 
     return MatrixTable(dataset._jvds.renameDuplicates())
-
-@handle_py4j
-@typecheck(dataset=MatrixTable, mapping=listof(strlike))
-def reorder_columns(dataset, mapping):
-    """Reorder samples.
-
-    **Examples**
-
-    Randomly shuffle order of samples:
-
-    >>> import random
-    >>> new_sample_order = vds.sample_ids[:]
-    >>> random.shuffle(new_sample_order)
-    >>> vds_reordered = vds.reorder_samples(new_sample_order)
-
-
-    **Notes**
-
-    This method requires unique sample ids. ``mapping`` must contain the same ids
-    as :py:meth:`~hail.VariantDataset.sample_ids`. The order of the ids in ``mapping``
-    determines the sample id order in the output dataset.
-
-
-    :param mapping: New ordering of sample ids.
-    :type mapping: list of str
-
-    :return: Dataset with samples reordered.
-    :rtype: :class:`.VariantDataset`
-    """
-
-    jvds = dataset._jvds.reorderSamples(mapping)
-    return MatrixTable(jvds)

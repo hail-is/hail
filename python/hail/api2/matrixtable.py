@@ -2032,6 +2032,42 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.filterSamplesList(jkeys, keep))
 
     @handle_py4j
+    @typecheck_method(mapping=listof(strlike))
+    def reorder_columns(self, mapping):
+        """Reorder columns.
+
+        Examples
+        --------
+
+        Randomly shuffle order of samples:
+
+        >>> import random
+        >>> new_sample_order = vds.sample_ids[:]
+        >>> random.shuffle(new_sample_order)
+        >>> vds_reordered = vds.reorder_samples(new_sample_order)
+
+        Notes
+        -----
+
+        This method requires unique sample ids. `mapping` must contain the
+        same ids as :meth:`~hail.VariantDataset.sample_ids`. The order of the
+        ids in `mapping` determines the sample id order in the output dataset.
+
+        Parameters
+        ----------
+        mapping : list of str
+            New ordering of sample ids.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix table with samples reordered.
+        """
+
+        jvds = self._jvds.reorderSamples(mapping)
+        return MatrixTable(jvds)
+
+    @handle_py4j
     def num_partitions(self):
         """Number of partitions.
 
