@@ -132,9 +132,6 @@ class HailContext(HistoryMixin):
         assert not self._history_was_set, "Cannot set history for HailContext more than once."
         self._history = history.set_varid("hc")
         self._history_was_set = True
-
-    def _get_temp_file(self, n_char=10, prefix=None, suffix=None):
-        self._hc.getTemporaryFile(n_char, joption(prefix), joption(suffix))
         
     @staticmethod
     def get_running():
