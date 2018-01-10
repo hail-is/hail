@@ -13,6 +13,7 @@ Methods
     hail.methods.trio_matrix
     hail.methods.pca
     hail.methods.hwe_normalized_pca
+    hail.methods.rename_duplicates
 
 .. autofunction:: hail.methods.linreg
 .. autofunction:: hail.methods.sample_qc
@@ -21,3 +22,4 @@ Methods
 .. autofunction:: hail.methods.trio_matrix
 .. autofunction:: hail.methods.pca
 .. autofunction:: hail.methods.hwe_normalized_pca
+.. autofunction:: hail.methods.rename_duplicates

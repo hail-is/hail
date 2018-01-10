@@ -77,3 +77,11 @@ class Tests(unittest.TestCase):
 
         _, _, loadings = methods.pca(dataset.GT.num_alt_alleles(), k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
+
+    def test_rename_duplicates(self):
+        dataset = self.get_dataset() # FIXME - want to rename samples with same id
+        dataset = methods.rename_duplicates(dataset)
+        renamed_samples = dataset.cols_table()
+        renamed_ids = renamed_samples.select(renamed_samples.s).collect()
+        self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
+
