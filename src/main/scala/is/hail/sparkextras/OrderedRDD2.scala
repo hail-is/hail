@@ -6,39 +6,6 @@ import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 
-object BinarySearch {
-  // return smallest elem such that key <= elem
-  def binarySearch(length: Int,
-    // key.compare(elem)
-    compare: (Int) => Int): Int = {
-    assert(length > 0)
-
-    var low = 0
-    var high = length - 1
-    while (low < high) {
-      val mid = (low + high) / 2
-      assert(mid >= low && mid < high)
-
-      // key <= elem
-      if (compare(mid) <= 0) {
-        high = mid
-      } else {
-        low = mid + 1
-      }
-    }
-    assert(low == high)
-    assert(low >= 0 && low < length)
-
-    // key <= low
-    assert(compare(low) <= 0 || low == length - 1)
-    // low == 0 || (low - 1) > key
-    assert(low == 0
-      || compare(low - 1) > 0)
-
-    low
-  }
-}
-
 class OrderedDependency2(left: OrderedRVD, right: OrderedRVD) extends NarrowDependency[RegionValue](right.rdd) {
   override def getParents(partitionId: Int): Seq[Int] =
     OrderedDependency2.getDependencies(left.partitioner, right.partitioner)(partitionId)

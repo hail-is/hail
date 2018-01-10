@@ -2,6 +2,7 @@ package is.hail.distributedmatrix
   
 import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
+import is.hail.check.{Gen, Prop}
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -53,13 +54,11 @@ class RowMatrixSuite extends SparkSuite {
     assert(rowMatrixFromBlock.toLocalMatrix() == localMatrix)
   }
   
-  @Test def readBlock() {
-    val fname = tmpDir.createTempFile("test")
-    val r = scala.util.Random
-    r.setSeed(0)
-    
-    val lm = DenseMatrix.fill[Double](9, 10)(r.nextDouble())
-    
+  @Test
+  def readBlock() {
+    val fname = tmpDir.createTempFile("test")    
+    val lm = Gen.denseMatrix[Double](9, 10).sample()
+
     for {
       blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
       partSize <- Seq(1, 2, 4, 9, 11)

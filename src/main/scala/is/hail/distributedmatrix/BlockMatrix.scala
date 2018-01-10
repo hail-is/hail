@@ -279,7 +279,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   /**
-    * Writes the matrix {@code m} to a Hadoop sequence file at location {@code uri}.
+    * Write {@code this} to a Hadoop sequence file at location {@code uri}.
     **/
   def write(uri: String, forceRowMajor: Boolean = false) {
     val hadoop = blocks.sparkContext.hadoopConfiguration

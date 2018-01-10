@@ -45,16 +45,14 @@ object RowMatrix {
   
   def readBlockMatrix(hc: HailContext, uri: String, partSize: Int): RowMatrix = {
     val gp = readGridPartitioner(hc, uri)
-    val partitionCounts = computePartitionCounts(partSize, gp.nRows)
-        
-    RowMatrix(hc, new ReadBlocksAsRowsRDD(uri, hc.sc, partitionCounts, gp), gp.nCols.toInt, gp.nRows, partitionCounts)    
+    readBlockMatrix(hc, uri, gp, computePartitionCounts(partSize, gp.nRows))
   }
   
-  def readBlockMatrix(hc: HailContext, uri: String, partitionCounts: Array[Long]): RowMatrix = {
-    val gp = readGridPartitioner(hc, uri)
-    
+  def readBlockMatrix(hc: HailContext, uri: String, partitionCounts: Array[Long]): RowMatrix =
+    readBlockMatrix(hc, uri, readGridPartitioner(hc, uri), partitionCounts)
+  
+  def readBlockMatrix(hc: HailContext, uri: String, gp: GridPartitioner, partitionCounts: Array[Long]): RowMatrix =
     RowMatrix(hc, new ReadBlocksAsRowsRDD(uri, hc.sc, partitionCounts, gp), gp.nCols.toInt, gp.nRows, partitionCounts)
-  }
 }
 
 class RowMatrix(val hc: HailContext,
@@ -83,11 +81,10 @@ class RowMatrix(val hc: HailContext,
   def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)
     
   def toLocalMatrix(): DenseMatrix[Double] = {
-    // if _nRows is defined, check that it's a valid Int
     require(_nRows.forall(_ <= Int.MaxValue), "The number of rows of this matrix should be less than or equal to " +
         s"Int.MaxValue. Currently numRows: ${ _nRows.get }")
     
-    val a = rows.map(_._2).collect() // fails if nRows > Int.MaxValue
+    val a = rows.map(_._2).collect()
     val nRowsInt = a.length
     
     require(nRowsInt * nCols.toLong <= Int.MaxValue, "The length of the values array must be " +
