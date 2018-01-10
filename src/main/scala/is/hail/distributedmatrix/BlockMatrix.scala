@@ -1031,7 +1031,7 @@ class WriteBlocksRDD(path: String,
     val firstRowInBlock = blockRow.toLong * blockSize
     val nRowsInBlock = gp.blockRowNRows(blockRow)
 
-    val dosArray = Array.tabulate(gp.nBlockCols) { blockCol =>
+    val dosPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
       val nColsInBlock = gp.blockColNCols(blockCol)
 
       val is = gp.coordinatesBlock(blockRow, blockCol).toString
@@ -1087,7 +1087,7 @@ class WriteBlocksRDD(path: String,
             sampleIndex += 1
             j += 1
           }
-          dosArray(blockCol).write(bytes, 0, n << 3)
+          dosPerBlockCol(blockCol).write(bytes, 0, n << 3)
 
           blockCol += 1
         }
@@ -1095,7 +1095,7 @@ class WriteBlocksRDD(path: String,
       }
     }
 
-    dosArray.foreach(_.close())
+    dosPerBlockCol.foreach(_.close())
 
     Iterator.single(gp.nBlockCols) // number of blocks written
   }

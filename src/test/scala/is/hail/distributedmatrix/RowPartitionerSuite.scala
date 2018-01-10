@@ -51,11 +51,9 @@ class RowPartitionerSuite extends TestNGSuite {
   @Test
   def testRelationshipToBinarySearch() {
     val a = Array[Long](0, 0, 0, 4, 5, 5, 8, 10, 10)
-    val len0 = a.length - 1
     
-    assert((0 until len0).forall(key =>
+    assert((0 until a.length - 1).forall(key =>
       RowPartitioner.findInterval(a, key) == 
-        BinarySearch.binarySearch(len0, j => math.signum(key + 1 - a(j + 1)).toInt)))
+        BinarySearch.binarySearch(a.length - 1, j => math.signum(key + 1 - a(j + 1)).toInt)))
   }
-
 }
