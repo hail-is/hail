@@ -603,7 +603,7 @@ case class TableRead(path: String,
       if (dropRows)
         RVD.empty(hc.sc, typ.rowType)
       else
-        RVD(typ.rowType,hc.readRows(path, typ.rowType, nPartitions)))
+        RVD(typ.rowType, hc.readRows(path, typ.rowType, nPartitions)))
   }
 }
 
