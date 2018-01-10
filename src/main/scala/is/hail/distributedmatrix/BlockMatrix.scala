@@ -321,6 +321,21 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     this
   }
 
+  def persist(storageLevel: String): this.type = {
+    val level = try {
+      StorageLevel.fromString(storageLevel)
+    } catch {
+      case e: IllegalArgumentException =>
+        fatal(s"unknown StorageLevel `$storageLevel'")
+    }
+    persist(level)
+  }
+
+  def unpersist(): this.type = {
+    blocks.unpersist()
+    this
+  }
+
   def toLocalMatrix(): BDM[Double] = {
     require(this.nRows <= Int.MaxValue, "The number of rows of this matrix should be less than or equal to " +
       s"Int.MaxValue. Currently numRows: ${ this.nRows }")
