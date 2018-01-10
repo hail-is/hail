@@ -2631,7 +2631,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.union_cols(right._jvds))
+        return VariantDataset(self.hc, self._jvds.unionCols(right._jvds))
 
     @handle_py4j
     @record_method

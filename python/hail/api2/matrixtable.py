@@ -2265,12 +2265,12 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        datasets : varargs of :class:`MatrixTable`
+        datasets : varargs of :class:`.MatrixTable`
             Datasets to combine.
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Dataset with rows from each member of `datasets`.
         """
         if len(datasets) == 0:
@@ -2317,12 +2317,12 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        other : :class:`MatrixTable`
+        other : :class:`.MatrixTable`
             Dataset to concatenate.
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Dataset with columns from both datasets.
         """
         return MatrixTable(self._jvds.unionCols(other._jvds))
