@@ -6,15 +6,23 @@ import breeze.linalg.SparseVector
 import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
+import is.hail.distributedmatrix.BlockMatrix
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 
 import scala.collection.Searching._
+import scala.collection.JavaConverters._
 
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
   */
+object KinshipMatrix {
+  def apply(hc: HailContext, sampleSignature: Type, matrix: BlockMatrix, sampleIds: java.util.ArrayList[Annotation], numVariantsUsed: java.lang.Long): KinshipMatrix = {
+    KinshipMatrix(hc, sampleSignature, matrix.toIndexedRowMatrix(), sampleIds.asScala.toArray, numVariantsUsed.longValue())
+  }
+}
+
 case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) extends ExportableMatrix {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
