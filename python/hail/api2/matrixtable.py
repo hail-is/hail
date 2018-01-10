@@ -2300,7 +2300,7 @@ class MatrixTable(object):
         Notes
         -----
 
-        In order to combine two datasets, four requirements must be met:
+        In order to combine two datasets, three requirements must be met:
 
          - The row keys must match.
          - The column key schemas and column schemas must match.
