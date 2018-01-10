@@ -2208,7 +2208,7 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             Unpersisted dataset.
         """
-        self._jvds.unpersist()
+        return MatrixTable(self._jvds.unpersist())
 
     @handle_py4j
     @typecheck_method(other=matrix_table_type,
