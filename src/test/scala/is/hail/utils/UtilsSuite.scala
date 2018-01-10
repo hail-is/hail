@@ -321,45 +321,4 @@ class UtilsSuite extends SparkSuite {
     }
     Prop.forAll(g).check()
   }
-  
-  
-  @Test
-  def testBinarySearchIntervalSmall() {
-    val a = Array[Long](0, 0, 0, 4, 5, 5, 10, 10)
-    val counts = Array(0, 0, 4, 1, 0, 5, 0)
-    val keyIndex = counts.zipWithIndex.flatMap{ case (count, j) => Array.fill(count)(j) }
-    
-    assert(BinarySearch.binarySearchInterval(a, -1) == -1)
-    assert((0 until 10).forall(i => BinarySearch.binarySearchInterval(a, i) == keyIndex(i)))
-    assert(BinarySearch.binarySearchInterval(a, 10) == a.length - 1)
-  }
-  
-  @Test def testBinarySearchInterval() {
-    def naiveBinarySearchInterval(a: Array[Long], key: Long): Int = {  
-      if (a.length == 0 || key < a(0))
-        -1
-      else if (key >= a(a.length - 1))
-        a.length - 1
-      else {
-        var j = 0
-        while (!(a(j) <= key && key < a(j + 1)))
-          j += 1
-        j
-      }
-    }
-
-    val moreKeys = Array(Long.MinValue, -1000L, -1L, 0L, 1L, 1000L, Long.MaxValue)
-        
-    val g = for {
-      a0 <- Gen.buildableOf[Array](arbitrary[Long])
-      a = a0.sorted
-    } yield {
-      val len = a.length
-      for {key <- a ++ moreKeys} {
-        assert(BinarySearch.binarySearchInterval(a, key) == naiveBinarySearchInterval(a, key))
-      }
-      true
-    }
-    Prop.forAll(g).check()
-  }
 }

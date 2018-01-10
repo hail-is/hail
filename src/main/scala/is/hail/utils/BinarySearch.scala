@@ -31,21 +31,4 @@ object BinarySearch {
 
     low
   }
-  
-  // a is increasing and may contain duplicate values. Returns:
-  //      -1 iff a is empty or key < a(0)
-  //       j iff a(j) <= key < a(j + 1)
-  //   len-1 iff a(len - 1) < key
-  def binarySearchInterval(a: Array[Long], key: Long): Int = {
-    var low = 0
-    var high = a.length - 1
-    while (low <= high) {
-      val mid = (low + high) >>> 1
-      if (key < a(mid))
-        high = mid - 1
-      else
-        low = mid + 1
-    }
-    low - 1
-  }
 }
