@@ -832,7 +832,7 @@ class Table(TableTemplate):
         **Using group_by**
 
         **group_by** and its sibling methods (:meth:`MatrixTable.group_rows_by` and
-        :meth:`MatrixTable.group_cols_by` accept both variable-length (``f(x, y, z)``)
+        :meth:`MatrixTable.group_cols_by`) accept both variable-length (``f(x, y, z)``)
         and keyword (``f(a=x, b=y, c=z)``) arguments.
 
         Variable-length arguments can be either strings or expressions that reference a
@@ -1343,7 +1343,7 @@ class Table(TableTemplate):
         This method returns a table with a new column whose name is given by
         the `name` parameter, with type ``Int64``. The value of this column is
         the numerical index of each row, starting from 0. Methods that respect
-        ordering (like :py:meth:`Table.take` or :py:meth:`Table.export` will
+        ordering (like :py:meth:`Table.take` or :py:meth:`Table.export`) will
         return rows in order.
 
         This method is also helpful for creating a unique integer index for
@@ -1523,15 +1523,15 @@ class Table(TableTemplate):
         -----
         Hail supports four types of joins specified by `how`:
 
-         - **inner** -- Key must be present in both the left and right tables.
-         - **outer** -- Key present in either the left or the right. For keys
-            only in the left table, the right table's fields will be missing.
-            For keys only in the right table, the left table's fields will be
-            missing.
-         - **left** -- Key present in the left table. For keys not found on
-            the right, the right table's fields will be missing.
-         - **right** -- Key present in the right table. For keys not found on
-            the right, the right table's fields will be missing.
+        - **inner** -- Key must be present in both the left and right tables.
+        - **outer** -- Key present in either the left or the right. For keys
+          only in the left table, the right table's fields will be missing.
+          For keys only in the right table, the left table's fields will be
+          missing.
+        - **left** -- Key present in the left table. For keys not found on
+          the right, the right table's fields will be missing.
+        - **right** -- Key present in the right table. For keys not found on
+          the right, the right table's fields will be missing.
 
         Both tables must have the same number of keys and the corresponding
         types of each key must be the same (order matters), but the key names
@@ -1539,7 +1539,7 @@ class Table(TableTemplate):
         'b']``, both of type ``Int32``, and `table2` is keyed by fields ``['c',
         'd']``, both of type ``Int32``, then the two tables can be joined (their
         rows will be joined where ``table1.a == table2.c`` and ``table1.b ==
-        table2.d``.
+        table2.d``).
 
         The key field names and order from the left table are preserved, while
         the key fields from the right table are not present in the result.
@@ -1815,7 +1815,7 @@ class Table(TableTemplate):
         Examples
         --------
 
-        `table3` is a :class:`.Table` with three columns: `Name`, `Age` and `Children`.
+        `people_table` is a :class:`.Table` with three columns: `Name`, `Age` and `Children`.
 
         .. testsetup::
 
