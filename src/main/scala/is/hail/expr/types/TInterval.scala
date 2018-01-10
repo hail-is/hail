@@ -1,5 +1,12 @@
 package is.hail.expr.types
 
+import is.hail.annotations.{Annotation, UnsafeOrdering}
+import is.hail.check.Gen
+import is.hail.utils._
+
+import scala.reflect.{classTag, ClassTag}
+
+
 case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
   override def children = Seq(pointType)
 
