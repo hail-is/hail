@@ -370,7 +370,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     Examples
     --------
 
-    >>> methods.split_multi_hts(ds).write('output/split.vds')
+    >>> methods.split_multi_hts(dataset).write('output/split.vds')
 
     Notes
     -----
@@ -435,7 +435,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     field `aIndex` can be used to select the value corresponding to the split
     allele's position:
 
-    >>> ds = methods.split_multi_hts(ds)
+    >>> ds = methods.split_multi_hts(dataset)
     >>> ds = vds.filter_rows(ds.info.AC[ds.aIndex - 1] < 10, keep = False)
 
     VCFs split by Hail and exported to new VCFs may be
@@ -449,7 +449,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     possible to use annotate_variants_expr to remap these
     values. Here is an example:
 
-    >>> ds = methods.split_multi_hts(ds)
+    >>> ds = methods.split_multi_hts(dataset)
     >>> ds = ds.annotate_rows(info = Struct(AC=ds.info.AC[ds.aIndex - 1], **ds.info))
     >>> methods.export_vcf(ds, 'output/export.vcf')
 
