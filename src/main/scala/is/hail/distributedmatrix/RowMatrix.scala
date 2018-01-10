@@ -189,7 +189,7 @@ class ReadBlocksAsRowsRDD(path: String,
   def compute(split: Partition, context: TaskContext): Iterator[(Long, Array[Double])] = {
     val ReadBlocksAsRowsRDDPartition(_, start, end) = split.asInstanceOf[ReadBlocksAsRowsRDDPartition]
 
-    var disArray = new Array[DataInputStream](nBlockCols)
+    var disPerBlockCol = new Array[DataInputStream](nBlockCols)
     val buf = new Array[Byte](blockSize << 3)
 
     var i = start
@@ -202,7 +202,7 @@ class ReadBlocksAsRowsRDD(path: String,
           val blockRow = (i / blockSize).toInt
           val nRowsInBlock = gp.blockRowNRows(blockRow)
           
-          disArray = Array.tabulate(gp.nBlockCols) { blockCol =>
+          disPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
             val is = gp.coordinatesBlock(blockRow, blockCol).toString
             assert(is.length <= d)
             val pis = StringUtils.leftPad(is, d, "0")
@@ -219,7 +219,7 @@ class ReadBlocksAsRowsRDD(path: String,
 
             if (i == start) {
               val skip = (start % blockSize).toInt * (nColsInBlock << 3)
-              assert(skip == dis.skipBytes(skip)) // FIXME: can we seek?
+              assert(skip == dis.skipBytes(skip))
             }
 
             dis
@@ -232,7 +232,7 @@ class ReadBlocksAsRowsRDD(path: String,
         while (blockCol < nBlockCols) {
           val n = gp.blockColNCols(blockCol)
           
-          disArray(blockCol).readFully(buf, 0, n << 3)
+          disPerBlockCol(blockCol).readFully(buf, 0, n << 3)
           Memory.memcpy(row, offset, buf, 0, n)
           
           offset += n
@@ -242,7 +242,7 @@ class ReadBlocksAsRowsRDD(path: String,
         i += 1
         
         if (i % blockSize == 0 || i == end)
-          disArray.foreach(_.close())
+          disPerBlockCol.foreach(_.close())
         
         iRow
       }
