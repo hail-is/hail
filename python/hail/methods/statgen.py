@@ -370,7 +370,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     Examples
     --------
 
-    >>> split_multi_hts(ds).write('output/split.vds')
+    >>> methods.split_multi_hts(ds).write('output/split.vds')
 
     Notes
     -----
