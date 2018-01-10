@@ -3,10 +3,11 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 import warnings
 
 from hail.api1.keytable import KeyTable
+from hail.linalg import BlockMatrix
 from hail.expr.types import *
 from hail.genetics import LDMatrix, KinshipMatrix, Pedigree, Interval, Variant
 from hail.typecheck import *
-from hail.utils import Summary, wrap_to_list, hadoop_read
+from hail.utils import Summary, wrap_to_list, hadoop_read, new_temp_file
 from hail.utils.java import *
 
 vds_type = lazy()
@@ -2363,7 +2364,33 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: :py:class:`KinshipMatrix`
         """
 
-        return KinshipMatrix(Env.hail().methods.GRM.apply(self._jvds))
+        print("Computing GRM...")
+
+        vds = (self.annotate_variants_expr(
+            'va.AC = gs.map(g => g.GT.gt).sum(), va.nCalled = gs.filter(g => isDefined(g.GT)).count()')
+               .filter_variants_expr('va.AC > 0 && va.AC < 2 * va.nCalled').persist())
+        n_variants = vds.count_variants()
+        if n_variants == 0:
+            raise FatalError("Cannot run GRM: found 0 variants after filtering out variants that are all homozygous reference or all homozygous variant.")
+        normalized_genotype_expr = '''let mean = va.AC / va.nCalled in
+            if (isDefined(g.GT)) (g.GT.gt - mean) / sqrt(mean * (2 - mean) * {} / 2)
+            else 0'''.format(n_variants)
+
+        f = new_temp_file(suffix="bm")
+
+        vds._jvds.writeBlockMatrix(f, normalized_genotype_expr, BlockMatrix.default_block_size())
+        vds.unpersist()
+
+        bm = BlockMatrix.read(f).cache()
+        grm = bm.transpose() * bm
+
+        jkm = Env.hail().methods.KinshipMatrix.apply(
+            self.hc._jhc,
+            self.sample_schema._jtype,
+            grm._jbm,
+            self.sample_ids, n_variants)
+
+        return KinshipMatrix(jkm)
 
     @handle_py4j
     @record_method
