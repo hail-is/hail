@@ -148,7 +148,7 @@ class TInt32(Type):
 
     @record_init
     def __init__(self, required=False):
-        super(TInt32, self).__init__(scala_object(Env.hail().expr, 'TInt32').apply(required))
+        super(TInt32, self).__init__(scala_object(Env.hail().expr.types, 'TInt32').apply(required))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -182,7 +182,7 @@ class TInt64(Type):
 
     @record_init
     def __init__(self, required=False):
-        super(TInt64, self).__init__(scala_object(Env.hail().expr, 'TInt64').apply(required))
+        super(TInt64, self).__init__(scala_object(Env.hail().expr.types, 'TInt64').apply(required))
         self.required = required
 
     def _convert_to_py(self, annotation):
@@ -218,7 +218,7 @@ class TFloat32(Type):
 
     @record_init
     def __init__(self, required=False):
-        super(TFloat32, self).__init__(scala_object(Env.hail().expr, 'TFloat32').apply(required))
+        super(TFloat32, self).__init__(scala_object(Env.hail().expr.types, 'TFloat32').apply(required))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -256,7 +256,7 @@ class TFloat64(Type):
 
     @record_init
     def __init__(self, required=False):
-        super(TFloat64, self).__init__(scala_object(Env.hail().expr, 'TFloat64').apply(required))
+        super(TFloat64, self).__init__(scala_object(Env.hail().expr.types, 'TFloat64').apply(required))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -291,7 +291,7 @@ class TString(Type):
 
     @record_init
     def __init__(self, required=False):
-        super(TString, self).__init__(scala_object(Env.hail().expr, 'TString').apply(required))
+        super(TString, self).__init__(scala_object(Env.hail().expr.types, 'TString').apply(required))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -323,7 +323,7 @@ class TBoolean(Type):
 
     @record_init
     def __init__(self, required=False):
-        super(TBoolean, self).__init__(scala_object(Env.hail().expr, 'TBoolean').apply(required))
+        super(TBoolean, self).__init__(scala_object(Env.hail().expr.types, 'TBoolean').apply(required))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -362,7 +362,7 @@ class TArray(Type):
         """
         :param :class:`.Type` element_type: Hail type of array element
         """
-        jtype = scala_object(Env.hail().expr, 'TArray').apply(element_type._jtype, required)
+        jtype = scala_object(Env.hail().expr.types, 'TArray').apply(element_type._jtype, required)
         self.element_type = element_type
         super(TArray, self).__init__(jtype)
 
@@ -424,7 +424,7 @@ class TSet(Type):
         """
         :param :class:`.Type` element_type: Hail type of set element
         """
-        jtype = scala_object(Env.hail().expr, 'TSet').apply(element_type._jtype, required)
+        jtype = scala_object(Env.hail().expr.types, 'TSet').apply(element_type._jtype, required)
         self.element_type = element_type
         super(TSet, self).__init__(jtype)
 
@@ -488,7 +488,7 @@ class TDict(Type):
 
     @record_init
     def __init__(self, key_type, value_type, required=False):
-        jtype = scala_object(Env.hail().expr, 'TDict').apply(key_type._jtype, value_type._jtype, required)
+        jtype = scala_object(Env.hail().expr.types, 'TDict').apply(key_type._jtype, value_type._jtype, required)
         self.key_type = key_type
         self.value_type = value_type
         super(TDict, self).__init__(jtype)
@@ -576,7 +576,7 @@ class TStruct(Type):
 
         if len(names) != len(types):
             raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
-        jtype = scala_object(Env.hail().expr, 'TStruct').apply(names, map(lambda t: t._jtype, types), required)
+        jtype = scala_object(Env.hail().expr.types, 'TStruct').apply(names, map(lambda t: t._jtype, types), required)
         self.fields = [Field(names[i], types[i]) for i in range(len(names))]
 
         super(TStruct, self).__init__(jtype)
@@ -596,8 +596,8 @@ class TStruct(Type):
 
         struct = TStruct.__new__(cls)
         struct.fields = fields
-        jfields = [scala_object(Env.hail().expr, 'Field').apply(f.name, f.typ._jtype, i) for i, f in enumerate(fields)]
-        jtype = scala_object(Env.hail().expr, 'TStruct').apply(jindexed_seq(jfields), required)
+        jfields = [scala_object(Env.hail().expr.types, 'Field').apply(f.name, f.typ._jtype, i) for i, f in enumerate(fields)]
+        jtype = scala_object(Env.hail().expr.types, 'TStruct').apply(jindexed_seq(jfields), required)
         return TStruct._from_java(jtype)
 
     @classmethod
@@ -680,7 +680,7 @@ class TVariant(Type):
                       required=bool)
     def __init__(self, reference_genome=None, required=False):
         self._rg = reference_genome if reference_genome else Env.hc().default_reference
-        jtype = scala_object(Env.hail().expr, 'TVariant').apply(self._rg._jrep, required)
+        jtype = scala_object(Env.hail().expr.types, 'TVariant').apply(self._rg._jrep, required)
         super(TVariant, self).__init__(jtype)
 
     @classmethod
@@ -736,7 +736,7 @@ class TAltAllele(Type):
 
     @record_init
     def __init__(self, required=False):
-        super(TAltAllele, self).__init__(scala_object(Env.hail().expr, 'TAltAllele').apply(required))
+        super(TAltAllele, self).__init__(scala_object(Env.hail().expr.types, 'TAltAllele').apply(required))
 
     def _convert_to_py(self, annotation):
         if annotation is not None:
@@ -775,7 +775,7 @@ class TCall(Type):
 
     @record_init
     def __init__(self, required=False):
-        super(TCall, self).__init__(scala_object(Env.hail().expr, 'TCall').apply(required))
+        super(TCall, self).__init__(scala_object(Env.hail().expr.types, 'TCall').apply(required))
 
     @typecheck_method(annotation=nullable(integral))
     def _convert_to_py(self, annotation):
@@ -821,7 +821,7 @@ class TLocus(Type):
                       required=bool)
     def __init__(self, reference_genome=None, required=False):
         self._rg = reference_genome if reference_genome else Env.hc().default_reference
-        jtype = scala_object(Env.hail().expr, 'TLocus').apply(self._rg._jrep, required)
+        jtype = scala_object(Env.hail().expr.types, 'TLocus').apply(self._rg._jrep, required)
         super(TLocus, self).__init__(jtype)
 
     @classmethod
@@ -882,7 +882,7 @@ class TInterval(Type):
     @typecheck_method(point_type=Type,
                       required=bool)
     def __init__(self, point_type, required=False):
-        jtype = scala_object(Env.hail().expr, 'TInterval').apply(point_type._jtype, required)
+        jtype = scala_object(Env.hail().expr.types, 'TInterval').apply(point_type._jtype, required)
         self.point_type = point_type
         super(TInterval, self).__init__(jtype)
 
