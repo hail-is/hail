@@ -938,6 +938,12 @@ _intern_classes = {'is.hail.expr.types.TInt32Optional$': (TInt32, False),
                    'is.hail.expr.types.TCallOptional$': (TCall, False),
                    'is.hail.expr.types.TCallRequired$': (TCall, True)}
 
+
+@typecheck(t=Type)
+def is_numeric(t):
+    return isinstance(t, TInt32) or isinstance(t, TInt64) or isinstance(t, TFloat32) or isinstance(t, TFloat64)
+
+
 import pprint
 
 _old_printer = pprint.PrettyPrinter

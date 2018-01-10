@@ -75,6 +75,11 @@ def construct_reference(name, type, indices, prefix=None):
 def to_expr(e):
     if isinstance(e, Expression):
         return e
+    elif isinstance(e, Aggregable):
+        raise ExpressionException("Cannot use the result of 'agg.explode' or 'agg.filter' in expressions\n"
+                                  "    These methods produce 'Aggregable' objects can only be aggregated\n"
+                                  "    with aggregator functions or used with further calls to 'agg.explode'\n"
+                                  "    and 'agg.filter'. They support no other operations.")
     elif isinstance(e, str) or isinstance(e, unicode):
         return construct_expr(Literal('"{}"'.format(Env.jutils().escapePyString(e))), TString())
     elif isinstance(e, bool):
@@ -250,6 +255,32 @@ def unify_all(*exprs):
     return new_indices, agg, joins, refs
 
 
+def unify_types(t1, t2):
+    c1 = t1.__class__
+    c2 = t2.__class__
+    if c1 is c2:
+        return t1
+    elif c1 in __numeric_types and c2 in __numeric_types:
+        s = {c1, c2}
+
+        # assert the two classes are different
+        assert len(s) == 2
+        if TFloat64 in s:
+            return TFloat64()
+        elif TFloat32 in s:
+            return TFloat32()
+        else:
+            assert s == {TInt32, TInt64}
+            return TInt64()
+    elif c1 == TArray and c2 == TArray:
+        et = unify_types(t1.element_type, t2.element_type)
+        if et:
+            return TArray(et)
+        else:
+            return None
+    else:
+        return None
+
 __numeric_types = [TInt32, TInt64, TFloat32, TFloat64]
 
 
@@ -384,7 +415,7 @@ class Expression(object):
         return construct_expr(ast, ret_typ_f(lambda_result._type), indices, aggregations, joins, refs)
 
     def __eq__(self, other):
-        """Returns ``True`` if the two epressions are equal.
+        """Returns ``True`` if the two expressions are equal.
 
         Examples
         --------
@@ -416,6 +447,12 @@ class Expression(object):
         :class:`BooleanExpression`
             ``True`` if the two expressions are equal.
         """
+        other = to_expr(other)
+        t = unify_types(self._type, other._type)
+        if t is None:
+            raise TypeError("Invalid '==' comparison, cannot compare expressions of type '{}' and '{}'".format(
+                self._type, other._type
+            ))
         return self._bin_op("==", other, TBoolean())
 
     def __ne__(self, other):
@@ -451,6 +488,12 @@ class Expression(object):
         :class:`BooleanExpression`
             ``True`` if the two expressions are not equal.
         """
+        other = to_expr(other)
+        t = unify_types(self._type, other._type)
+        if t is None:
+            raise TypeError("Invalid '!=' comparison, cannot compare expressions of type '{}' and '{}'".format(
+                self._type, other._type
+            ))
         return self._bin_op("!=", other, TBoolean())
 
 
@@ -490,7 +533,11 @@ class CollectionExpression(Expression):
         :py:class:`BooleanExpression`.
             ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         """
-        return self._bin_lambda_method("exists", f, self._type.element_type, lambda t: TBoolean())
+        def unify_ret(t):
+            if not isinstance(t, TBoolean):
+                raise TypeError("'exists' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
+            return t
+        return self._bin_lambda_method("exists", f, self._type.element_type, unify_ret)
 
     def filter(self, f):
         """Returns a new collection containing elements where `f` returns ``True``.
@@ -522,7 +569,12 @@ class CollectionExpression(Expression):
         :py:class:`CollectionExpression`
             Expression of the same type as the callee.
         """
-        return self._bin_lambda_method("filter", f, self._type.element_type, lambda t: self._type)
+        def unify_ret(t):
+            if not isinstance(t, TBoolean):
+                raise TypeError("'filter' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
+            return self._type
+
+        return self._bin_lambda_method("filter", f, self._type.element_type, unify_ret)
 
     def find(self, f):
         """Returns the first element where `f` returns ``True``.
@@ -552,7 +604,12 @@ class CollectionExpression(Expression):
         :py:class:`.Expression`
             Expression whose type is the element type of the collection.
         """
-        return self._bin_lambda_method("find", f, self._type.element_type, lambda t: self._type.element_type)
+        def unify_ret(t):
+            if not isinstance(t, TBoolean):
+                raise TypeError("'find' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
+            return self._type.element_type
+
+        return self._bin_lambda_method("find", f, self._type.element_type, unify_ret)
 
     def flatmap(self, f):
         """Map each element of the collection to a new collection, and flatten the results.
@@ -578,7 +635,12 @@ class CollectionExpression(Expression):
         -------
         :py:class:`CollectionExpression`
         """
-        return self._bin_lambda_method("flatMap", f, self._type.element_type, lambda t: t)
+        expected_type, s = (TArray, 'Array') if isinstance(self._type, TArray) else (TSet, 'Set')
+        def unify_ret(t):
+            if not isinstance(t, expected_type):
+                raise TypeError("'flatmap' expects 'f' to return an expression of type '{}', found '{}'".format(s, t))
+            return t
+        return self._bin_lambda_method("flatMap", f, self._type.element_type, unify_ret)
 
     def forall(self, f):
         """Returns ``True`` if `f` returns ``True`` for every element.
@@ -605,7 +667,12 @@ class CollectionExpression(Expression):
         :py:class:`BooleanExpression`.
             ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
         """
-        return self._bin_lambda_method("forall", f, self._type.element_type, lambda t: TBoolean())
+        def unify_ret(t):
+            if not isinstance(t, TBoolean):
+                raise TypeError("'forall' expects 'f' to return an expression of type 'Boolean', found '{}'".format(t))
+            return t
+
+        return self._bin_lambda_method("forall", f, self._type.element_type, unify_ret)
 
     def group_by(self, f):
         """Group elements into a dict according to a lambda function.
@@ -866,10 +933,12 @@ class ArrayExpression(CollectionExpression):
         """
         if isinstance(item, slice):
             return self._slice(self._type, item.start, item.stop, item.step)
-        elif isinstance(item, int) or isinstance(item, Int32Expression):
-            return self._index(self._type.element_type, item)
         else:
-            raise NotImplementedError
+            item = to_expr(item)
+            if not isinstance(item._type, TInt32):
+                raise TypeError("Array expects key to be type 'slice' or expression of type 'Int32', "
+                                "found expression of type '{}'".format(item._type))
+            return self._index(self._type.element_type, item)
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -905,8 +974,8 @@ class ArrayExpression(CollectionExpression):
         """
         return self.exists(lambda x: x == item)
 
-    @typecheck_method(x=expr_any)
-    def append(self, x):
+    @typecheck_method(item=expr_any)
+    def append(self, item):
         """Append an element to the array and return the result.
 
         Examples
@@ -919,14 +988,18 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        x : :class:`.Expression`
+        item : :class:`.Expression`
             Element to append, same type as the array element type.
 
         Returns
         -------
         :py:class:`ArrayExpression`
         """
-        return self._method("append", self._type, x)
+        if not item._type == self._type.element_type:
+            raise TypeError("'ArrayExpression.append' expects 'item' to be the same type as its elements\n"
+                            "    array element type: '{}'\n"
+                            "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
+        return self._method("append", self._type, item)
 
     @typecheck_method(a=expr_list)
     def extend(self, a):
@@ -949,6 +1022,10 @@ class ArrayExpression(CollectionExpression):
         -------
         :py:class:`ArrayExpression`
         """
+        if not a._type == self._type:
+            raise TypeError("'ArrayExpression.extend' expects 'a' to be the same type as the caller\n"
+                            "    caller type: '{}'\n"
+                            "    type of 'a': '{}'".format(self._type, a._type))
         return self._method("extend", self._type, a)
 
     def sort_by(self, f, ascending=True):
@@ -973,7 +1050,12 @@ class ArrayExpression(CollectionExpression):
         -------
         :py:class:`ArrayExpression`
         """
-        return self._bin_lambda_method("sortBy", f, self._type.element_type, lambda t: self._type, ascending)
+        def check_f(t):
+            if not is_numeric(t) or isinstance(t, TString):
+                raise TypeError("'sort_by' expects 'f' to return an ordered type, found type '{}'\n"
+                                "    Ordered types are 'Int32', 'Int64', 'Float32', 'Float64', 'String'".format(t))
+            return self._type
+        return self._bin_lambda_method("sortBy", f, self._type.element_type, check_f, ascending)
 
     def to_set(self):
         """Convert the array to a set.
@@ -1011,62 +1093,34 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
     """
 
     def _bin_op_ret_typ(self, other):
-        if isinstance(self, ArrayNumericExpression) and isinstance(other, float):
-            return TArray(TFloat64())
-
-        elif isinstance(self, ArrayNumericExpression) and isinstance(other, Float64Expression):
-            return TArray(TFloat64())
-        elif isinstance(self, Float64Expression) and isinstance(other, ArrayNumericExpression):
-            return TArray(TFloat64())
-        elif isinstance(self, ArrayFloat64Expression) and isinstance(other, ArrayNumericExpression):
-            return TArray(TFloat64())
-        elif isinstance(self, ArrayNumericExpression) and isinstance(other, ArrayFloat64Expression):
-            return TArray(TFloat64())
-
-        elif isinstance(self, Float32Expression) and isinstance(other, ArrayNumericExpression):
-            return TArray(TFloat32())
-        elif isinstance(self, ArrayNumericExpression) and isinstance(other, Float32Expression):
-            return TArray(TFloat32())
-        elif isinstance(self, ArrayFloat32Expression) and isinstance(other, ArrayNumericExpression):
-            return TArray(TFloat32())
-        elif isinstance(self, ArrayNumericExpression) and isinstance(other, ArrayFloat32Expression):
-            return TArray(TFloat32())
-
-        elif isinstance(self, ArrayInt64Expression) and isinstance(other, int):
-            return TArray(TInt64())
-        elif isinstance(self, Int64Expression) and isinstance(other, ArrayNumericExpression):
-            return TArray(TInt64())
-        elif isinstance(self, ArrayNumericExpression) and isinstance(other, Int64Expression):
-            return TArray(TInt64())
-        elif isinstance(self, ArrayInt64Expression) and isinstance(other, ArrayNumericExpression):
-            return TArray(TInt64())
-        elif isinstance(self, ArrayNumericExpression) and isinstance(other, ArrayInt64Expression):
-            return TArray(TInt64())
-
-        elif isinstance(self, ArrayInt32Expression) and isinstance(other, int):
-            return TArray(TInt32())
-        elif isinstance(self, Int32Expression) and isinstance(other, ArrayNumericExpression):
-            return TArray(TInt32())
-        elif isinstance(self, ArrayNumericExpression) and isinstance(other, Int32Expression):
-            return TArray(TInt32())
-        elif isinstance(self, ArrayInt32Expression) and isinstance(other, ArrayNumericExpression):
-            return TArray(TInt32())
-        elif isinstance(self, ArrayNumericExpression) and isinstance(other, ArrayInt32Expression):
-            return TArray(TInt32())
-
+        if isinstance(other._type, TArray):
+            t = other._type.element_type
         else:
-            raise NotImplementedError('''Error in return type for numeric conversion.
-                self = {}
-                other = {}'''.format(type(self), type(other)))
+            t = other._type
+        t = unify_types(self._type.element_type, t)
+        if not t:
+            return None
+        else:
+            return TArray(t)
 
-    def _bin_op_numeric(self, name, other):
+    def _bin_op_numeric(self, name, other, f_override=None):
         other = to_expr(other)
         ret_typ = self._bin_op_ret_typ(other)
+        if not ret_typ:
+            raise NotImplementedError("'{}' {} '{}'".format(
+                self._type, name, other._type))
+        if f_override:
+            ret_type = f_override(ret_typ)
         return self._bin_op(name, other, ret_typ)
 
-    def _bin_op_numeric_reverse(self, name, other):
+    def _bin_op_numeric_reverse(self, name, other, f_override=None):
         other = to_expr(other)
         ret_typ = self._bin_op_ret_typ(other)
+        if not ret_typ:
+            raise NotImplementedError("'{}' {} '{}'".format(
+                other._type, name, self._type))
+        if f_override:
+            ret_type = f_override(ret_typ)
         return self._bin_op_reverse(name, other, ret_typ)
 
     def __add__(self, other):
@@ -1176,10 +1230,26 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         :class:`ArrayNumericExpression`
             Array of positional quotients.
         """
-        return self._bin_op("/", other, TArray(TFloat64()))
+        def ret_type_f(t):
+            assert isinstance(t, TArray)
+            assert is_numeric(t.element_type)
+            if isinstance(t.element_type, TInt32) or isinstance(t.element_type, TInt64):
+                return TArray(TFloat32())
+            else:
+                # Float64 or Float32
+                return t
+        return self._bin_op_numeric("/", other, ret_type_f)
 
     def __rdiv__(self, other):
-        return self._bin_op_reverse("/", other, TArray(TFloat64()))
+        def ret_type_f(t):
+            assert isinstance(t, TArray)
+            assert is_numeric(t.element_type)
+            if isinstance(t.element_type, TInt32) or isinstance(t.element_type, TInt64):
+                return TArray(TFloat32())
+            else:
+                # Float64 or Float32
+                return t
+        return self._bin_op_numeric_reverse("/", other, ret_type_f)
 
     def __pow__(self, other):
         """Positionally raise to the power of an array or a scalar.
@@ -1204,11 +1274,12 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         :class:`ArrayNumericExpression`
             Array of positional exponentiations.
         """
-        return self._bin_op('**', other, TArray(TFloat64()))
+        return self._bin_op_numeric('**', other, lambda _: TArray(TFloat64()))
 
     def __rpow__(self, other):
-        return self._bin_op_reverse('**', other, TArray(TFloat64()))
+        return self._bin_op_numeric_reverse('**', other, lambda _: TArray(TFloat64))
 
+    @typecheck_method(ascending=expr_bool)
     def sort(self, ascending=True):
         """Returns a sorted array.
 
@@ -1221,7 +1292,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         Parameters
         ----------
-        ascending : bool or :py:class:`BooleanExpression`
+        ascending : :py:class:`BooleanExpression`
             Sort in ascending order.
 
         Returns
@@ -1257,6 +1328,7 @@ class ArrayStringExpression(ArrayExpression):
 
     >>> a = functions.capture(['Alice', 'Bob', 'Charles'])
     """
+    @typecheck_method(delimiter=expr_str)
     def mkstring(self, delimiter):
         """Joins the elements of the array into a single string delimited by `delimiter`.
 
@@ -1269,7 +1341,7 @@ class ArrayStringExpression(ArrayExpression):
 
         Parameters
         ----------
-        delimiter : str or :py:class:`StringExpression`
+        delimiter : :py:class:`StringExpression`
             Field delimiter.
 
         Returns
@@ -1279,6 +1351,7 @@ class ArrayStringExpression(ArrayExpression):
         """
         return self._method("mkString", TString(), delimiter)
 
+    @typecheck_method(ascending=expr_bool)
     def sort(self, ascending=True):
         """Returns a sorted array.
 
@@ -1336,9 +1409,9 @@ class SetExpression(CollectionExpression):
     >>> s1 = functions.capture({1, 2, 3})
     >>> s2 = functions.capture({1, 3, 5})
     """
-    @typecheck_method(x=expr_any)
-    def add(self, x):
-        """Returns a new set including `x`.
+    @typecheck_method(item=expr_any)
+    def add(self, item):
+        """Returns a new set including `item`.
 
         Examples
         --------
@@ -1349,19 +1422,23 @@ class SetExpression(CollectionExpression):
 
         Parameters
         ----------
-        x : :class:`.Expression`
+        item : :class:`.Expression`
             Value to add.
 
         Returns
         -------
         :class:`SetExpression`
-            Set with `x` added.
+            Set with `item` added.
         """
-        return self._method("add", self._type, x)
+        if not item._type == self._type.element_type:
+            raise TypeError("'SetExpression.add' expects 'item' to be the same type as its elements\n"
+                            "    set element type:   '{}'\n"
+                            "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
+        return self._method("add", self._type, item)
 
-    @typecheck_method(x=expr_any)
-    def remove(self, x):
-        """Returns a new set excluding `x`.
+    @typecheck_method(item=expr_any)
+    def remove(self, item):
+        """Returns a new set excluding `item
 
         Examples
         --------
@@ -1372,19 +1449,23 @@ class SetExpression(CollectionExpression):
 
         Parameters
         ----------
-        x : :class:`.Expression`
+        item : :class:`.Expression`
             Value to remove.
 
         Returns
         -------
         :py:class:`SetExpression`
-            Set with `x` removed.
+            Set with `item` removed.
         """
-        return self._method("remove", self._type, x)
+        if not item._type == self._type.element_type:
+            raise TypeError("'SetExpression.remove' expects 'item' to be the same type as its elements\n"
+                            "    set element type:   '{}'\n"
+                            "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
+        return self._method("remove", self._type, item)
 
-    @typecheck_method(x=expr_any)
-    def contains(self, x):
-        """Returns ``True`` if `x` is in the set.
+    @typecheck_method(item=expr_any)
+    def contains(self, item):
+        """Returns ``True`` if `item` is in the set.
 
         Examples
         --------
@@ -1398,15 +1479,19 @@ class SetExpression(CollectionExpression):
 
         Parameters
         ----------
-        x : :class:`.Expression`
+        item : :class:`.Expression`
             Value for inclusion test..
 
         Returns
         -------
         :class:`BooleanExpression`
-            ``True`` if `x` is in the set.
+            ``True`` if `item` is in the set.
         """
-        return self._method("contains", TBoolean(), x)
+        if not item._type == self._type.element_type:
+            raise TypeError("'SetExpression.contains' expects 'item' to be the same type as its elements\n"
+                            "    set element type:   '{}'\n"
+                            "    type of arg 'item': '{}'".format(self._type._element_type, item._type))
+        return self._method("contains", TBoolean(), item)
 
     @typecheck_method(s=expr_set)
     def difference(self, s):
@@ -1432,6 +1517,10 @@ class SetExpression(CollectionExpression):
         :class:`SetExpression`
             Set of elements not in `s`.
         """
+        if not s._type.element_type == self._type.element_type:
+            raise TypeError("'SetExpression.difference' expects 's' to be the same type\n"
+                            "    set type:    '{}'\n"
+                            "    type of 's': '{}'".format(self._type, s._type))
         return self._method("difference", self._type, s)
 
     @typecheck_method(s=expr_set)
@@ -1455,6 +1544,10 @@ class SetExpression(CollectionExpression):
         :class:`SetExpression`
             Set of elements present in `s`.
         """
+        if not s._type.element_type == self._type.element_type:
+            raise TypeError("'SetExpression.intersection' expects 's' to be the same type\n"
+                            "    set type:    '{}'\n"
+                            "    type of 's': '{}'".format(self._type, s._type))
         return self._method("intersection", self._type, s)
 
     @typecheck_method(s=expr_set)
@@ -1481,6 +1574,10 @@ class SetExpression(CollectionExpression):
         :class:`BooleanExpression`
             ``True`` if every element is contained in set `s`.
         """
+        if not s._type.element_type == self._type.element_type:
+            raise TypeError("'SetExpression.is_subset' expects 's' to be the same type\n"
+                            "    set type:    '{}'\n"
+                            "    type of 's': '{}'".format(self._type, s._type))
         return self._method("isSubset", TBoolean(), s)
 
     @typecheck_method(s=expr_set)
@@ -1504,6 +1601,10 @@ class SetExpression(CollectionExpression):
         :class:`SetExpression`
             Set of elements present in either set.
         """
+        if not s._type.element_type == self._type.element_type:
+            raise TypeError("'SetExpression.union' expects 's' to be the same type\n"
+                            "    set type:    '{}'\n"
+                            "    type of 's': '{}'".format(self._type, s._type))
         return self._method("union", self._type, s)
 
     def to_array(self):
@@ -1639,10 +1740,14 @@ class DictExpression(Expression):
         :class:`.Expression`
             Value associated with key `item`.
         """
+        if not item._type == self._type.key_type:
+            raise TypeError("dict encountered an invalid key type\n"
+                            "    dict key type:  '{}'\n"
+                            "    type of 'item': '{}'".format(self._type.key_type, item._type))
         return self._index(self._value_typ, item)
 
-    @typecheck_method(k=expr_any)
-    def contains(self, k):
+    @typecheck_method(item=expr_any)
+    def contains(self, item):
         """Returns whether a given key is present in the dictionary.
 
         Examples
@@ -1657,18 +1762,22 @@ class DictExpression(Expression):
 
         Parameters
         ----------
-        k : :class:`.Expression`
+        item : :class:`.Expression`
             Key to test for inclusion.
 
         Returns
         -------
         :py:class:`BooleanExpression`
-            ``True`` if `k` is a key of the dictionary, ``False`` otherwise.
+            ``True`` if `item` is a key of the dictionary, ``False`` otherwise.
         """
-        return self._method("contains", TBoolean(), k)
+        if not item._type == self._type.key_type:
+            raise TypeError("'DictExpression.contains' encountered an invalid key type\n"
+                            "    dict key type:  '{}'\n"
+                            "    type of 'item': '{}'".format(self._type.key_type, item._type))
+        return self._method("contains", TBoolean(), item)
 
-    @typecheck_method(k=expr_any)
-    def get(self, k):
+    @typecheck_method(item=expr_any)
+    def get(self, item):
         """Returns the value associated with key `k`, or missing if that key is not present.
 
         Examples
@@ -1683,15 +1792,19 @@ class DictExpression(Expression):
 
         Parameters
         ----------
-        k : :class:`.Expression`
+        item : :class:`.Expression`
             Key.
 
         Returns
         -------
         :py:class:`.Expression`
-            The value associated with `k`, or missing.
+            The value associated with `item`, or missing.
         """
-        return self._method("get", self._value_typ, k)
+        if not item._type == self._type.key_type:
+            raise TypeError("'DictExpression.get' encountered an invalid key type\n"
+                            "    dict key type:  '{}'\n"
+                            "    type of 'item': '{}'".format(self._type.key_type, item._type))
+        return self._method("get", self._value_typ, item)
 
     def key_set(self):
         """Returns the set of keys in the dictionary.
@@ -1974,6 +2087,7 @@ class BooleanExpression(AtomicExpression):
         """
         return self._bin_op_logical("&&", other)
 
+    @typecheck_method(other=expr_bool)
     def __or__(self, other):
         """Return ``True`` if at least one of the left and right arguments is ``True``.
 
@@ -2045,37 +2159,37 @@ class NumericExpression(AtomicExpression):
     >>> y = functions.capture(4.5)
     """
     def _bin_op_ret_typ(self, other):
-        if isinstance(self, NumericExpression) and isinstance(other, float):
-            return TFloat64()
-        elif isinstance(self, Float64Expression) and isinstance(other, NumericExpression):
-            return TFloat64()
-        elif isinstance(self, NumericExpression) and isinstance(other, Float64Expression):
-            return TFloat64()
-        elif isinstance(self, Float32Expression) and isinstance(other, NumericExpression):
-            return TFloat32()
-        elif isinstance(self, NumericExpression) and isinstance(other, Float32Expression):
-            return TFloat32()
-        elif isinstance(self, Int64Expression) and (
-                        isinstance(other, NumericExpression) or isinstance(other, int) or isinstance(other, long)):
-            return TInt64()
-        elif isinstance(self, NumericExpression) and isinstance(other, Int64Expression):
-            return TInt64()
-        elif isinstance(self, Int32Expression) and (isinstance(other, NumericExpression) or isinstance(other, int)):
-            return TInt32()
-        elif isinstance(self, NumericExpression) or isinstance(other, Int32Expression):
-            return TInt32()
+        if isinstance(other._type, TArray):
+            t = other._type.element_type
+            wrapper = lambda t: TArray(t)
         else:
-            raise NotImplementedError("Error in return type for numeric conversion.",
-                                      "\nself =", type(self),
-                                      "\nother =", type(other))
+            t = other._type
+            wrapper = lambda t: t
+        t = unify_types(self._type, t)
+        if not t:
+            return None
+        else:
+            return t, wrapper
 
-    def _bin_op_numeric(self, name, other):
-        ret_typ = self._bin_op_ret_typ(other)
-        return self._bin_op(name, other, ret_typ)
+    def _bin_op_numeric(self, name, other, f_override=None):
+        other = to_expr(other)
+        ret_typ, wrapper = self._bin_op_ret_typ(other)
+        if not ret_typ:
+            raise NotImplementedError("'{}' {} '{}'".format(
+                self._type, name, other._type))
+        if f_override:
+            ret_type = f_override(ret_typ)
+        return self._bin_op(name, other, wrapper(ret_typ))
 
-    def _bin_op_numeric_reverse(self, name, other):
-        ret_typ = self._bin_op_ret_typ(other)
-        return self._bin_op_reverse(name, other, ret_typ)
+    def _bin_op_numeric_reverse(self, name, other, f_override=None):
+        other = to_expr(other)
+        ret_typ, wrapper = self._bin_op_ret_typ(other)
+        if not ret_typ:
+            raise NotImplementedError("'{}' {} '{}'".format(
+                self._type, name, other._type))
+        if f_override:
+            ret_type = f_override(ret_typ)
+        return self._bin_op_reverse(name, other, wrapper(ret_typ))
 
     @typecheck_method(other=expr_numeric)
     def __lt__(self, other):
@@ -2297,10 +2411,24 @@ class NumericExpression(AtomicExpression):
         :class:`NumericExpression`
             The left number divided by the left.
         """
-        return self._bin_op_numeric("/", other)
+        def ret_type_f(t):
+            assert is_numeric(t)
+            if isinstance(t, TInt32) or isinstance(t, TInt64):
+                return TFloat32()
+            else:
+                # Float64 or Float32
+                return t
+        return self._bin_op_numeric("/", other, ret_type_f)
 
     def __rdiv__(self, other):
-        return self._bin_op_numeric_reverse("/", other)
+        def ret_type_f(t):
+            assert is_numeric(t)
+            if isinstance(t, TInt32) or isinstance(t, TInt64):
+                return TFloat32()
+            else:
+                # Float64 or Float32
+                return t
+        return self._bin_op_numeric_reverse("/", other, ret_type_f)
 
     def __mod__(self, other):
         """Compute the left modulo the right number.
@@ -2357,10 +2485,10 @@ class NumericExpression(AtomicExpression):
         :class:`Float64Expression`
             Result of raising left to the right power.
         """
-        return self._bin_op('**', power, TFloat64())
+        return self._bin_op_numeric('**', power, lambda _: TFloat64())
 
     def __rpow__(self, other):
-        return self._bin_op_reverse('**', other, TFloat64())
+        return self._bin_op_numeric_reverse('**', other, lambda _: TFloat64())
 
     def signum(self):
         """Returns the sign of the callee, ``1`` or ``-1``.
@@ -2410,8 +2538,9 @@ class NumericExpression(AtomicExpression):
         :py:class:`.NumericExpression`
             Maximum value.
         """
-        assert (isinstance(other, self.__class__))
-        return self._method("max", self._type, other)
+        t = unify_types(self._type, other._type)
+        assert(t is not None)
+        return self._method("max", t, other)
 
     @typecheck_method(other=expr_numeric)
     def min(self, other):
@@ -2427,8 +2556,9 @@ class NumericExpression(AtomicExpression):
         :py:class:`.NumericExpression`
             Minimum value.
         """
-        assert (isinstance(other, self.__class__))
-        return self._method("min", self._type, other)
+        t = unify_types(self._type, other._type)
+        assert(t is not None)
+        return self._method("min", t, other)
 
 
 class Float64Expression(NumericExpression):
@@ -2456,7 +2586,6 @@ class StringExpression(AtomicExpression):
 
     >>> s = functions.capture('The quick brown fox')
     """
-    @typecheck_method(item=oneof(slice, expr_int32))
     def __getitem__(self, item):
         """Slice or index into the string.
 
@@ -2482,10 +2611,11 @@ class StringExpression(AtomicExpression):
         """
         if isinstance(item, slice):
             return self._slice(TString(), item.start, item.stop, item.step)
-        elif isinstance(item, int) or isinstance(item, Int32Expression):
-            return self._index(TString(), item)
         else:
-            raise NotImplementedError()
+            item = to_expr(item)
+            if not isinstance(item._type, TInt32):
+                raise TypeError("String expects index to be type 'slice' or expression of type 'Int32', "
+                                "found expression of type '{}'".format(item._type))
 
     def __add__(self, other):
         """Concatenate strings.
@@ -2508,13 +2638,15 @@ class StringExpression(AtomicExpression):
             Concatenated string.
         """
         other = to_expr(other)
-        if not isinstance(other, StringExpression):
-            raise TypeError("cannot concatenate 'TString' expression and '{}'".format(other._type.__class__))
-        return self._bin_op("+", other, TString())
+        if not isinstance(other._type, TString):
+            raise NotImplementedError("'{}' + '{}'".format(self._type, other._type))
+        return self._bin_op("+", other, self._type)
 
     def __radd__(self, other):
-        assert (isinstance(other, StringExpression) or isinstance(other, str))
-        return self._bin_op_reverse("+", other, TString())
+        other = to_expr(other)
+        if not isinstance(other._type, TString):
+            raise NotImplementedError("'{}' + '{}'".format(other._type, self._type))
+        return self._bin_op_reverse("+", other, self._type)
 
     def length(self):
         """Returns the length of the string.
