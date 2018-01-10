@@ -718,7 +718,7 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[IndexedSeq[_]]("""[1,2,3] + [2,3,4] """).contains(IndexedSeq(3, 5, 7)))
     assert(eval[IndexedSeq[_]]("""[1,2,3] - [2,3,4] """).contains(IndexedSeq(-1, -1, -1)))
-    assert(eval[IndexedSeq[_]]("""[1,2,3] / [2,3,4] """).contains(IndexedSeq(.5, 2f / 3f722, .75)))
+    assert(eval[IndexedSeq[_]]("""[1,2,3] / [2,3,4] """).contains(IndexedSeq(.5, 2f / 3f, .75)))
     assert(eval[IndexedSeq[_]]("""1 / [2,3,4] """).contains(IndexedSeq(1f / 2f, 1f / 3f, 1.0 / 4.0)))
     assert(eval[IndexedSeq[_]]("""[2,3,4] / 2""").contains(IndexedSeq(1.0, 1.5, 2.0)))
     assert(eval[IndexedSeq[_]]("""[2,3,4] * 2.0""").contains(IndexedSeq(4.0, 6.0, 8.0)))
