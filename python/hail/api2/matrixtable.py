@@ -98,7 +98,7 @@ class GroupedMatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Aggregated matrix table.
         """
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
@@ -438,7 +438,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Matrix table with new global field(s).
         """
         exprs = []
@@ -463,8 +463,8 @@ class MatrixTable(object):
         >>> high_quality_calls = agg.filter(dataset.sample_qc.gqMean > 20, dataset.GT)
         >>> dataset_result = dataset.annotate_rows(call_stats = agg.call_stats(high_quality_calls, dataset.v))
 
-        Add functional annotations from a :class:`Table` keyed by :class:`hail.expr.TVariant`:, and another
-        :class:`MatrixTable`.
+        Add functional annotations from a :class:`.Table` keyed by :class:`hail.expr.TVariant`:, and another
+        :class:`.MatrixTable`.
 
         >>> dataset_result = dataset.annotate_rows(consequence = table1[dataset.v].consequence,
         ...                                        dataset2_AF = dataset2[dataset.v, :].info.AF)
@@ -495,7 +495,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Matrix table with new row-indexed field(s).
         """
         exprs = []
@@ -550,7 +550,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Matrix table with new column-indexed field(s).
         """
         exprs = []
@@ -608,7 +608,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Matrix table with new row-and-column-indexed field(s).
         """
         exprs = []
@@ -660,7 +660,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             MatrixTable with specified global fields.
         """
         exprs = tuple(to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs)
@@ -722,7 +722,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             MatrixTable with specified column fields.
         """
 
@@ -788,7 +788,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             MatrixTable with specified row fields.
         """
         exprs = tuple(to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs)
@@ -847,7 +847,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             MatrixTable with specified entry fields.
         """
         exprs = tuple(to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs)
@@ -913,7 +913,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Matrix table without specified fields.
         """
 
@@ -965,7 +965,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Matrix table with no rows.
         """
         return MatrixTable(self._jvds.dropVariants())
@@ -977,7 +977,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Matrix table with no columns.
         """
         return MatrixTable(self._jvds.dropSamples())
@@ -1029,7 +1029,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Filtered matrix table.
         """
         expr = to_expr(expr)
@@ -1088,7 +1088,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Filtered matrix table.
         """
         expr = to_expr(expr)
@@ -1124,7 +1124,7 @@ class MatrixTable(object):
         ----
         "Removal" of an entry constitutes setting all its fields to missing. There
         is some debate about what removing an entry of a matrix means semantically,
-        given the representation of a :class:`MatrixTable` as a whole workspace in
+        given the representation of a :class:`.MatrixTable` as a whole workspace in
         Hail.
 
         Warning
@@ -1145,7 +1145,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Filtered matrix table.
         """
         expr = to_expr(expr)
@@ -1169,7 +1169,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Annotated matrix table.
         """
         raise NotImplementedError()
@@ -1188,7 +1188,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Annotated matrix table.
         """
 
@@ -1209,7 +1209,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Annotated matrix table.
         """
         raise NotImplementedError()
@@ -1229,7 +1229,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Annotated matrix table.
         """
         raise NotImplementedError()
@@ -1250,7 +1250,7 @@ class MatrixTable(object):
 
         Notes
         -----
-        Unlike most :class:`MatrixTable` methods, this method does not support
+        Unlike most :class:`.MatrixTable` methods, this method does not support
         meaningful references to fields that are not global or indexed by row.
 
         This method should be thought of as a more convenient alternative to
@@ -1307,7 +1307,7 @@ class MatrixTable(object):
 
         Notes
         -----
-        Unlike most :class:`MatrixTable` methods, this method does not support
+        Unlike most :class:`.MatrixTable` methods, this method does not support
         meaningful references to fields that are not global or indexed by column.
 
         This method should be thought of as a more convenient alternative to
@@ -1646,7 +1646,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with all row fields from the matrix, with one row per row of the matrix.
         """
         kt = Table(self._jvds.variantsKT())
@@ -1666,7 +1666,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with all column fields from the matrix, with one row per column of the matrix.
         """
         kt = Table(self._jvds.samplesKT())
@@ -1694,7 +1694,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`Table`
+        :class:`.Table`
             Table with all non-global fields from the matrix, with **one row per entry of the matrix**.
         """
         kt = Table(self._jvds.genotypeKT())
@@ -1975,7 +1975,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Matrix table with rows removed.
         """
         rk_type = self.rowkey_schema
@@ -2009,7 +2009,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Matrix table with columns removed.
         """
 
@@ -2091,7 +2091,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Repartitioned dataset.
         """
         jvds = self._jvds.coalesce(num_partitions, shuffle)
@@ -2124,7 +2124,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Matrix table with at most `max_partitions` partitions.
         """
         return MatrixTable(self._jvds.naiveCoalesce(max_partitions))
@@ -2146,7 +2146,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Cached dataset.
         """
         return self.persist('MEMORY_ONLY')
@@ -2188,7 +2188,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Persisted dataset.
         """
         return MatrixTable(self._jvds.persist(storage_level))
@@ -2205,7 +2205,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`MatrixTable`
+        :class:`.MatrixTable`
             Unpersisted dataset.
         """
         self._jvds.unpersist()

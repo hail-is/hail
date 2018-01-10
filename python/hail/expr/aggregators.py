@@ -124,7 +124,7 @@ def count(expr=None):
 
     Parameters
     ----------
-    expr : :class:`Expression`, or :obj:`None`
+    expr : :class:`.Expression`, or :obj:`None`
         Expression to count.
 
     Returns

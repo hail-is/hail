@@ -2801,7 +2801,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param bool force_local: If true, the LD matrix is computed using local matrix multiplication on the Spark driver. This may improve performance when the genotype matrix is small enough to easily fit in local memory. If false, the LD matrix is computed using distributed matrix multiplication if the number of genotypes exceeds :math:`5000^2` and locally otherwise.
 
         :return: Matrix of r values between pairs of variants.
-        :rtype: :py:class:`LDMatrix`
+        :rtype: :py:class:`.LDMatrix`
         """
 
         jldm = Env.hail().methods.LDMatrix.apply(self._jvds, force_local)
