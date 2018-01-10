@@ -2241,7 +2241,7 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset_to_union_1.union_rows(dataset_to_union_2)
         >>> dataset_result = all_datasets[0].union_rows(*all_datasets[1:])
-        >>> dataset_result = MatrixTable.union_rows(*all_datsets)
+        >>> dataset_result = MatrixTable.union_rows(*all_datasets)
 
         Notes
         -----
