@@ -121,8 +121,9 @@ object BaldingNicholsModel {
     val rdd = sc.parallelize((0 until M).view.map(m => (m, Rand.randInt.draw())), nPartitions)
       .mapPartitions { it =>
 
-        val rv = RegionValue(Region())
-        val rvb = new RegionValueBuilder(rv.region)
+        val region = Region()
+        val rv = RegionValue(region)
+        val rvb = new RegionValueBuilder(region)
 
         it.map { case (m, perVariantSeed) =>
           val perVariantRandomGenerator = new JDKRandomGenerator
@@ -135,7 +136,7 @@ object BaldingNicholsModel {
             new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k))(perVariantRandomBasis).draw()
           }
 
-          rvb.clear()
+          region.clear()
           rvb.start(rowType)
           rvb.startStruct()
 

@@ -498,6 +498,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       it.map { rv =>
         ur.set(rv)
         val aggArr = aggregate(rv)
+        region2.clear()
         rv2b.start(newRowType)
         rv2b.startStruct()
         rv2b.addAnnotation(mt.locusType, ur.get(0))
@@ -2484,8 +2485,11 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val oldGsType = rowType.fieldType(3).asInstanceOf[TArray]
 
     val newRDD = rdd2.mapPartitionsPreservesPartitioning(new OrderedRVType(rdd2.typ.partitionKey, rdd2.typ.key, newRowType)) { it =>
+      val region = Region()
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
       it.map { r =>
-        val rvb = new RegionValueBuilder(Region())
+        region.clear()
         rvb.start(newRowType)
         rvb.startStruct()
 
@@ -2522,8 +2526,8 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
         }
         rvb.endArray()
         rvb.endStruct()
-        rvb.end()
-        rvb.result()
+        rv.setOffset(rvb.end())
+        rv
       }
     }
 
