@@ -1,10 +1,10 @@
 package is.hail.expr.types
 
-import is.hail.annotations.{Annotation, UnsafeOrdering}
+import is.hail.annotations.{Annotation, ExtendedOrdering, UnsafeOrdering}
 import is.hail.check.Gen
 import is.hail.utils._
 
-import scala.reflect.{classTag, ClassTag}
+import scala.reflect.{ClassTag, classTag}
 
 
 case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
@@ -23,16 +23,14 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
     pointType.typeCheck(i.start) && pointType.typeCheck(i.end)
   }
 
-  override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.genValue)(pointType.ordering(true))
+  override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.genValue)(pointType.ordering.toOrdering)
 
   override def desc: String = "An ``Interval[T]`` is a Hail data type representing a range over ordered values of type T."
 
   override def scalaClassTag: ClassTag[Interval[Annotation]] = classTag[Interval[Annotation]]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
-    annotationOrdering(
-      extendOrderingToNull(missingGreatest)(Interval.ordering[Annotation]))
-  }
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(Interval.ordering[Annotation])
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = representation.unsafeOrdering(missingGreatest)
 

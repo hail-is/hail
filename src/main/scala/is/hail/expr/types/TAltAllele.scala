@@ -21,9 +21,8 @@ class TAltAllele(override val required: Boolean) extends ComplexType {
 
   override def scalaClassTag: ClassTag[AltAllele] = classTag[AltAllele]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(implicitly[Ordering[AltAllele]])
 
   val representation: TStruct = TAltAllele.representation(required)
 }
