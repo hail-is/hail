@@ -12,18 +12,19 @@ def _to_agg(x):
         x = to_expr(x)
         uid = Env._get_uid()
         ast = LambdaClassMethod('map', uid, AggregableReference(), x._ast)
-        return Aggregable(ast, x._type, x._indices, x._aggregations, x._joins)
+        return Aggregable(ast, x._type, x._indices, x._aggregations, x._joins, x._refs)
 
 
 @typecheck(name=strlike, aggregable=Aggregable, ret_type=Type, args=anytype)
 def _agg_func(name, aggregable, ret_type, *args):
     args = [to_expr(a) for a in args]
-    indices, aggregations, joins = unify_all(aggregable, *args)
+    indices, aggregations, joins, refs = unify_all(aggregable, *args)
     if aggregations:
-        raise ValueError('cannot aggregate an already-aggregated expression')
+        raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
     ast = ClassMethod(name, aggregable._ast, *[a._ast for a in args])
-    return construct_expr(ast, ret_type, Indices(source=indices.source), aggregations.push(Aggregation(indices)), joins)
+    return construct_expr(ast, ret_type, Indices(source=indices.source),
+                          aggregations.push(Aggregation(indices, refs)), joins)
 
 
 def collect(expr):
@@ -269,17 +270,17 @@ def take(expr, n, ordering=None):
         if callable(ordering):
             lambda_result = to_expr(
                 ordering(construct_expr(Reference(uid), agg._type, agg._indices,
-                                        agg._aggregations, agg._joins)))
+                                        agg._aggregations, agg._joins, agg._refs)))
         else:
             lambda_result = to_expr(ordering)
-        indices, aggregations, joins = unify_all(agg, lambda_result)
+        indices, aggregations, joins, refs = unify_all(agg, lambda_result)
         ast = LambdaClassMethod('takeBy', uid, agg._ast, lambda_result._ast, n._ast)
 
         if aggregations:
-            raise ValueError('cannot aggregate an already-aggregated expression')
+            raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
         return construct_expr(ast, TArray(agg._type), Indices(source=indices.source),
-                              aggregations.push(Aggregation(indices)), joins)
+                              aggregations.push(Aggregation(indices, refs)), joins)
 
 
 def min(expr):
@@ -517,12 +518,12 @@ def fraction(predicate):
             "'fraction' aggregator expects an expression of type 'TBoolean', found '{}'".format(agg._type.__class__))
 
     if agg._aggregations:
-        raise ValueError('cannot aggregate an already-aggregated expression')
+        raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
     uid = Env._get_uid()
     ast = LambdaClassMethod('fraction', uid, agg._ast, Reference(uid))
     return construct_expr(ast, TFloat64(), Indices(source=agg._indices.source),
-                          agg._aggregations.push(Aggregation(agg._indices)), agg._joins)
+                          agg._aggregations.push(Aggregation(agg._indices, agg._refs)), agg._joins)
 
 
 def hardy_weinberg(expr):
@@ -624,7 +625,7 @@ def explode(expr):
     agg = _to_agg(expr)
     uid = Env._get_uid()
     return Aggregable(LambdaClassMethod('flatMap', uid, agg._ast, Reference(uid)),
-                      agg._type, agg._indices, agg._aggregations, agg._joins)
+                      agg._type, agg._indices, agg._aggregations, agg._joins, agg._refs)
 
 
 def filter(condition, expr):
@@ -667,7 +668,7 @@ def filter(condition, expr):
     if callable(condition):
         lambda_result = to_expr(
             condition(
-                construct_expr(Reference(uid), agg._type, agg._indices, agg._aggregations, agg._joins)))
+                construct_expr(Reference(uid), agg._type, agg._indices, agg._aggregations, agg._joins, agg._refs)))
     else:
         lambda_result = to_expr(condition)
 
@@ -675,9 +676,9 @@ def filter(condition, expr):
         raise TypeError(
             "'filter' expects the 'condition' argument to be or produce an expression of type 'TBoolean', found '{}'".format(
                 lambda_result._type.__class__))
-    indices, aggregations, joins = unify_all(agg, lambda_result)
+    indices, aggregations, joins, refs = unify_all(agg, lambda_result)
     ast = LambdaClassMethod('filter', uid, agg._ast, lambda_result._ast)
-    return Aggregable(ast, agg._type, indices, aggregations, joins)
+    return Aggregable(ast, agg._type, indices, aggregations, joins, refs)
 
 
 @typecheck(expr=oneof(Aggregable, expr_call), prior=expr_numeric)
@@ -751,13 +752,13 @@ def inbreeding(expr, prior):
     uid = Env._get_uid()
     ast = LambdaClassMethod('inbreeding', uid, agg._ast, prior._ast)
 
-    indices, aggregations, joins = unify_all(agg, prior)
+    indices, aggregations, joins, refs = unify_all(agg, prior)
     if aggregations:
-        raise ValueError('cannot aggregate an already-aggregated expression')
+        raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
     t = TStruct(['Fstat', 'nTotal', 'nCalled', 'expectedHoms', 'observedHoms'],
                 [TFloat64(), TInt64(), TInt64(), TFloat64(), TInt64()])
-    return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices)), joins)
+    return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 
 @typecheck(expr=oneof(Aggregable, expr_call), variant=expr_variant)
@@ -828,13 +829,13 @@ def call_stats(expr, variant):
             agg._type.__class__))
 
     ast = LambdaClassMethod('callStats', uid, agg._ast, variant._ast)
-    indices, aggregations, joins = unify_all(agg, variant)
+    indices, aggregations, joins, refs = unify_all(agg, variant)
 
     if aggregations:
-        raise ValueError('cannot aggregate an already-aggregated expression')
+        raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
     t = TStruct(['AC', 'AF', 'AN', 'GC'], [TArray(TInt32()), TArray(TFloat64()), TInt32(), TArray(TInt32())])
-    return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices)), joins)
+    return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 
 def hist(expr, start, end, bins):
