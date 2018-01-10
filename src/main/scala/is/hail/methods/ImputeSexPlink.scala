@@ -22,7 +22,7 @@ object ImputeSexPlink {
       vsm = FilterIntervals(vsm, IntervalTree(gr.par), keep = false)
 
     vsm = vsm.annotateVariantsExpr(
-      s"va = ${ popFrequencyExpr.getOrElse("gs.map(g => g.GT.nNonRefAlleles).sum() / gs.filter(g => isDefined(g.GT)).count() / 2") }")
+      s"va = ${ popFrequencyExpr.getOrElse("gs.map(g => g.GT.nNonRefAlleles).sum().toFloat64() / gs.filter(g => isDefined(g.GT)).count() / 2") }")
 
     val resultSA = vsm
       .filterVariantsExpr(s"va > $mafThreshold")

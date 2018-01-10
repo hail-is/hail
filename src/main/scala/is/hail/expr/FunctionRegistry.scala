@@ -1413,8 +1413,14 @@ object FunctionRegistry {
   def iToD(x: Code[java.lang.Integer]): Code[java.lang.Double] =
     Code.boxDouble(Code.intValue(x).toD)
 
+  def iToF(x: Code[java.lang.Integer]): Code[java.lang.Float] =
+    Code.boxFloat(Code.floatValue(x).toF)
+
   def lToD(x: Code[java.lang.Long]): Code[java.lang.Double] =
     Code.boxDouble(Code.longValue(x).toD)
+
+  def lToF(x: Code[java.lang.Long]): Code[java.lang.Float] =
+    Code.boxFloat(Code.longValue(x).toF)
 
   def iToL(x: Code[java.lang.Integer]): Code[java.lang.Long] =
     Code.boxLong(Code.intValue(x).toL)
@@ -1422,28 +1428,12 @@ object FunctionRegistry {
   def fToD(x: Code[java.lang.Float]): Code[java.lang.Double] =
     Code.boxDouble(Code.floatValue(x).toD)
 
-  registerConversion((x: java.lang.Integer) => x.toDouble: java.lang.Double, (iToD _).andThen(CM.ret _), priority = 2)
-  registerConversion((x: java.lang.Long) => x.toDouble: java.lang.Double, (lToD _).andThen(CM.ret _))
+  registerConversion((x: java.lang.Integer) => x.toFloat: java.lang.Float, (iToF _).andThen(CM.ret _), priority = 2)
+  registerConversion((x: java.lang.Integer) => x.toDouble: java.lang.Double, (iToD _).andThen(CM.ret _), priority = 3)
+  registerConversion((x: java.lang.Long) => x.toFloat: java.lang.Float, (lToF _).andThen(CM.ret _))
+  registerConversion((x: java.lang.Long) => x.toDouble: java.lang.Double, (lToD _).andThen(CM.ret _), priority = 2)
   registerConversion((x: java.lang.Integer) => x.toLong: java.lang.Long, (iToL _).andThen(CM.ret _))
   registerConversion((x: java.lang.Float) => x.toDouble: java.lang.Double, (fToD _).andThen(CM.ret _))
-
-  registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
-    if (xi == null)
-      null
-    else
-      box(xi.toDouble)
-  }, { (x: Code[IndexedSeq[java.lang.Integer]]) =>
-    CM.mapIS(x, (xi: Code[java.lang.Integer]) => xi.mapNull(iToD _))
-  }, priority = 2)(arrayHr(boxedInt32Hr), arrayHr(boxedFloat64Hr))
-
-  registerConversion((x: IndexedSeq[java.lang.Long]) => x.map { xi =>
-    if (xi == null)
-      null
-    else
-      box(xi.toDouble)
-  }, { (x: Code[IndexedSeq[java.lang.Long]]) =>
-    CM.mapIS(x, (xi: Code[java.lang.Long]) => xi.mapNull(lToD _))
-  })(arrayHr(boxedInt64Hr), arrayHr(boxedFloat64Hr))
 
   registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
     if (xi == null)
@@ -1453,6 +1443,42 @@ object FunctionRegistry {
   }, { (x: Code[IndexedSeq[java.lang.Integer]]) =>
     CM.mapIS(x, (xi: Code[java.lang.Integer]) => xi.mapNull(iToL _))
   })(arrayHr(boxedInt32Hr), arrayHr(boxedInt64Hr))
+
+  registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
+    if (xi == null)
+      null
+    else
+      box(xi.toFloat)
+  }, { (x: Code[IndexedSeq[java.lang.Integer]]) =>
+    CM.mapIS(x, (xi: Code[java.lang.Integer]) => xi.mapNull(iToF _))
+  }, priority = 2)(arrayHr(boxedInt32Hr), arrayHr(boxedFloat32Hr))
+
+  registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
+    if (xi == null)
+      null
+    else
+      box(xi.toDouble)
+  }, { (x: Code[IndexedSeq[java.lang.Integer]]) =>
+    CM.mapIS(x, (xi: Code[java.lang.Integer]) => xi.mapNull(iToD _))
+  }, priority = 3)(arrayHr(boxedInt32Hr), arrayHr(boxedFloat64Hr))
+
+  registerConversion((x: IndexedSeq[java.lang.Long]) => x.map { xi =>
+    if (xi == null)
+      null
+    else
+      box(xi.toFloat)
+  }, { (x: Code[IndexedSeq[java.lang.Long]]) =>
+    CM.mapIS(x, (xi: Code[java.lang.Long]) => xi.mapNull(lToF _))
+  })(arrayHr(boxedInt64Hr), arrayHr(boxedFloat32Hr))
+
+  registerConversion((x: IndexedSeq[java.lang.Long]) => x.map { xi =>
+    if (xi == null)
+      null
+    else
+      box(xi.toDouble)
+  }, { (x: Code[IndexedSeq[java.lang.Long]]) =>
+    CM.mapIS(x, (xi: Code[java.lang.Long]) => xi.mapNull(lToD _))
+  }, priority = 2)(arrayHr(boxedInt64Hr), arrayHr(boxedFloat64Hr))
 
   registerConversion((x: IndexedSeq[java.lang.Float]) => x.map { xi =>
     if (xi == null)
@@ -2647,9 +2673,9 @@ object FunctionRegistry {
 
   registerNumeric("**", (x: Double, y: Double) => math.pow(x, y))
 
-  registerNumericCode("/", (x: Code[java.lang.Integer], y: Code[java.lang.Integer]) => Code.boxDouble(Code.intValue(x).toD / Code.intValue(y).toD))
-  registerNumericCode("/", (x: Code[java.lang.Long], y: Code[java.lang.Long]) => Code.boxDouble(Code.longValue(x).toD / Code.longValue(y).toD))
-  registerNumericCode("/", (x: Code[java.lang.Float], y: Code[java.lang.Float]) => Code.boxDouble(Code.floatValue(x).toD / Code.floatValue(y).toD))
+  registerNumericCode("/", (x: Code[java.lang.Integer], y: Code[java.lang.Integer]) => Code.boxFloat(Code.intValue(x).toF / Code.intValue(y).toF))
+  registerNumericCode("/", (x: Code[java.lang.Long], y: Code[java.lang.Long]) => Code.boxFloat(Code.longValue(x).toF / Code.longValue(y).toF))
+  registerNumericCode("/", (x: Code[java.lang.Float], y: Code[java.lang.Float]) => Code.boxFloat(Code.floatValue(x) / Code.floatValue(y)))
   registerNumericCode("/", (x: Code[java.lang.Double], y: Code[java.lang.Double]) => Code.boxDouble(Code.doubleValue(x).toD / Code.doubleValue(y).toD))
 
   registerNumericCode("+", (x: Code[java.lang.Integer], y: Code[java.lang.Integer]) => Code.boxInt(Code.intValue(x) + Code.intValue(y)))

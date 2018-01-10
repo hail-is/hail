@@ -93,7 +93,7 @@ class ImputeSexSuite extends SparkSuite {
         }
 
         val countAnnotated = mappedVDS.annotateVariantsExpr(
-          "va.maf = let a = gs.map(g => g.GT.oneHotAlleles(v)).sum() in a[1] / a.sum()")
+          "va.maf = let a = gs.map(g => g.GT.oneHotAlleles(v)).sum() in a[1].toFloat64() / a.sum()")
         val sexcheck2 = ImputeSexPlink(countAnnotated, popFrequencyExpr = Some("va.maf"), includePar = true)
 
         result &&

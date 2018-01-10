@@ -215,20 +215,20 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("1.0 // -2.0 == -1.0").contains(true))
     assert(eval[Boolean]("-1.0 // -2.0 == 0.0").contains(true))
 
-    assert(eval[Double]("0 / 0").forall(_.isNaN))
+    assert(eval[Float]("0 / 0").forall(_.isNaN))
     assert(eval[Double]("0.0 / 0.0").forall(_.isNaN))
-    assert(eval[Double]("0 / 0 + 1").forall(_.isNaN))
+    assert(eval[Float]("0 / 0 + 1").forall(_.isNaN))
     assert(eval[Double]("0.0 / 0.0 + 1").forall(_.isNaN))
-    assert(eval[Double]("0 / 0 * 1").forall(_.isNaN))
+    assert(eval[Float]("0 / 0 * 1").forall(_.isNaN))
     assert(eval[Double]("0.0 / 0.0 * 1").forall(_.isNaN))
-    assert(eval[Double]("1 / 0").contains(Double.PositiveInfinity))
+    assert(eval[Float]("1 / 0").contains(Float.PositiveInfinity))
     assert(eval[Double]("1.0 / 0.0").contains(Double.PositiveInfinity))
-    assert(eval[Double]("-1 / 0").contains(Double.NegativeInfinity))
+    assert(eval[Float]("-1 / 0").contains(Float.NegativeInfinity))
     assert(eval[Double]("-1.0 / 0.0").contains(Double.NegativeInfinity))
     // NB: the -0 is parsed as the zero integer, which is converted to +0.0
-    assert(eval[Double]("1 / -0").contains(Double.PositiveInfinity))
+    assert(eval[Float]("1 / -0").contains(Float.PositiveInfinity))
     assert(eval[Double]("1.0 / -0.0").contains(Double.NegativeInfinity))
-    assert(eval[Double]("0/0 * 1/0").forall(_.isNaN))
+    assert(eval[Float]("0/0 * 1/0").forall(_.isNaN))
     assert(eval[Double]("0.0/0.0 * 1.0/0.0").forall(_.isNaN))
     for {x <- Array("-1.0/0.0", "-1.0", "0.0", "1.0", "1.0/0.0")} {
       assert(eval[Boolean](s"0.0/0.0 < $x").contains(false))
@@ -718,8 +718,8 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[IndexedSeq[Int]]("""[1,2,3] + [2,3,4] """).contains(IndexedSeq(3, 5, 7)))
     assert(eval[IndexedSeq[Int]]("""[1,2,3] - [2,3,4] """).contains(IndexedSeq(-1, -1, -1)))
-    assert(eval[IndexedSeq[Double]]("""[1,2,3] / [2,3,4] """).contains(IndexedSeq(.5, 2.toDouble / 3, .75)))
-    assert(eval[IndexedSeq[Double]]("""1 / [2,3,4] """).contains(IndexedSeq(1.0 / 2.0, 1.0 / 3.0, 1.0 / 4.0)))
+    assert(eval[IndexedSeq[Double]]("""[1,2,3] / [2,3,4] """).contains(IndexedSeq(.5, 2f / 3f, .75)))
+    assert(eval[IndexedSeq[Double]]("""1 / [2,3,4] """).contains(IndexedSeq(1f / 2f, 1f / 3f, 1.0 / 4.0)))
     assert(eval[IndexedSeq[Double]]("""[2,3,4] / 2""").contains(IndexedSeq(1.0, 1.5, 2.0)))
     assert(eval[IndexedSeq[Double]]("""[2,3,4] * 2.0""").contains(IndexedSeq(4.0, 6.0, 8.0)))
     assert(eval[IndexedSeq[_]]("""[2,NA: Int,4] * 2.0""").contains(IndexedSeq(4.0, null, 8.0)))
@@ -964,6 +964,30 @@ class ExprSuite extends SparkSuite {
     assert(eval("isnan(0/0)").contains(true))
     assert(eval("isnan(0)").contains(false))
     assert(eval("isnan(NA: Int)").isEmpty)
+
+    // Test numeric promotion rules
+    assert(evalWithType[Any]("1.toFloat32() + 1.toInt32()") == TFloat32Optional -> Some(2.0f))
+    assert(evalWithType[Any]("1.toFloat32() * 1.toInt32()") == TFloat32Optional -> Some(1.0f))
+    assert(evalWithType[Any]("1.toFloat32() - 1.toInt32()") == TFloat32Optional -> Some(0.0f))
+    assert(evalWithType[Any]("1.toFloat32() / 1.toInt32()") == TFloat32Optional -> Some(1.0f))
+
+    assert(evalWithType[Any]("1.toFloat32() + 1.toInt64()") == TFloat32Optional -> Some(2.0f))
+    assert(evalWithType[Any]("1.toFloat32() * 1.toInt64()") == TFloat32Optional -> Some(1.0f))
+    assert(evalWithType[Any]("1.toFloat32() - 1.toInt64()") == TFloat32Optional -> Some(0.0f))
+    assert(evalWithType[Any]("1.toFloat32() / 1.toInt64()") == TFloat32Optional -> Some(1.0f))
+
+    assert(evalWithType[Any]("[1.toFloat32()] + [1.toInt32()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(2.0f)))
+    assert(evalWithType[Any]("[1.toFloat32()] * [1.toInt32()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
+    assert(evalWithType[Any]("[1.toFloat32()] - [1.toInt32()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(0.0f)))
+    assert(evalWithType[Any]("[1.toFloat32()] / [1.toInt32()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
+
+    assert(evalWithType[Any]("[1.toFloat32()] + [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(2.0f)))
+    assert(evalWithType[Any]("[1.toFloat32()] * [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
+    assert(evalWithType[Any]("[1.toFloat32()] - [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(0.0f)))
+    assert(evalWithType[Any]("[1.toFloat32()] / [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
+
+    assert(evalWithType[Any]("1.toInt64() / 1.toInt64()") == TFloat32Optional -> Some(1.0f))
+    assert(evalWithType[Any]("[1.toInt64()] / [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
   }
 
   @Test def testParseTypes() {
