@@ -436,7 +436,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     allele's position:
 
     >>> ds = methods.split_multi_hts(dataset)
-    >>> ds = vds.filter_rows(ds.info.AC[ds.aIndex - 1] < 10, keep = False)
+    >>> ds = ds.filter_rows(ds.info.AC[ds.aIndex - 1] < 10, keep = False)
 
     VCFs split by Hail and exported to new VCFs may be
     incompatible with other tools, if action is not taken
