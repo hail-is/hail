@@ -236,7 +236,7 @@ va.hist.nGreater == va.nGreater
           |va.AC = gs.map(g => g.GT.oneHotAlleles(v)).sum(),
           |va.GC = gs.map(g => g.GT.oneHotGenotype(v)).sum(),
           |va.AN = gs.filter(g => isDefined(g.GT)).count() * 2""".stripMargin)
-      .annotateVariantsExpr("va.AF = va.AC.map(x => x.toFloat64()) / va.AN")
+      .annotateVariantsExpr("va.AF = va.AC / va.AN.toFloat64()")
     val (_, csAC) = vds.queryVA("va.callStats.AC")
     val (_, csAF) = vds.queryVA("va.callStats.AF")
     val (_, csAN) = vds.queryVA("va.callStats.AN")
