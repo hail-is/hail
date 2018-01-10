@@ -4,9 +4,10 @@ import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
 import is.hail.annotations.{Annotation, Querier}
-import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TBoolean, TFloat64, TInt32, TSet, TString, TStruct, Type}
+import is.hail.expr.types._
+import is.hail.expr.{JSONAnnotationImpex, Parser}
 import is.hail.utils._
-import is.hail.variant.{Locus, Variant, MatrixTable}
+import is.hail.variant.{Locus, MatrixTable, Variant}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 

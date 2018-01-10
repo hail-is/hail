@@ -3,7 +3,8 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
-import is.hail.expr.{RegionValueAggregator, TAggregable, TArray, TStruct, Type}
+import is.hail.expr.types._
+import is.hail.expr.RegionValueAggregator
 import is.hail.utils._
 
 import scala.language.{existentials, postfixOps}

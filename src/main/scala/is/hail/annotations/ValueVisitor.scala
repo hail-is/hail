@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr._
+import is.hail.expr.types._
 
 trait ValueVisitor {
   def visitMissing(t: Type): Unit

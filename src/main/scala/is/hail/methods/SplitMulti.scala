@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
 import is.hail.variant.{Genotype, Locus, MatrixTable, Variant}

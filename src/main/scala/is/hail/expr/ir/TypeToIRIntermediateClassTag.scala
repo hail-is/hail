@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.{TArray, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, Type}
+import is.hail.expr.types._
 
 import scala.reflect.{ClassTag, classTag}
 

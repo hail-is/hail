@@ -4,7 +4,7 @@ import breeze.linalg.{*, DenseMatrix}
 import is.hail.annotations.{Annotation, UnsafeRow}
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
-import is.hail.expr.{TFloat64, TString, TStruct}
+import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{HardCallView, MatrixTable, Variant}

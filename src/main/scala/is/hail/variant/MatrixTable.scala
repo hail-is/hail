@@ -14,6 +14,7 @@ import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import breeze.linalg.DenseMatrix
+import is.hail.expr.types._
 import org.apache.hadoop
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}

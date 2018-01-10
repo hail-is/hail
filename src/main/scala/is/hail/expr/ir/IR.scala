@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.expr.{BaseIR, TAggregable, TArray, TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStruct, TVoid, Type}
+import is.hail.expr.types._
+import is.hail.expr.BaseIR
 import is.hail.utils._
 
 sealed trait IR extends BaseIR {

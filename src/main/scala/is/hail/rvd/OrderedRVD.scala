@@ -3,7 +3,7 @@ package is.hail.rvd
 import java.util
 
 import is.hail.annotations._
-import is.hail.expr.{TArray, Type}
+import is.hail.expr.types._
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.spark.rdd.{RDD, ShuffledRDD}

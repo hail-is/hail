@@ -3,7 +3,7 @@ package is.hail.variant
 import java.util.zip.DataFormatException
 
 import is.hail.annotations.{Region, RegionValue, UnsafeRow, UnsafeUtils}
-import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.utils._
 
 object HTSGenotypeView {

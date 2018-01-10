@@ -3,7 +3,7 @@ package is.hail.methods
 import java.util
 
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.{TArray, TFloat64Required, TInt32Required, TInt64Required, TStruct, TVariant, Type}
+import is.hail.expr.types._
 import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.storage.StorageLevel
 import is.hail.sparkextras._

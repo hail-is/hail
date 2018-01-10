@@ -3,9 +3,10 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.annotations.Region
 import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, MatrixTable}
+import is.hail.variant.{Genotype, MatrixTable, Variant}
 
 import scala.io.Source
 

@@ -3,7 +3,7 @@ package is.hail.stats
 import is.hail.distributedmatrix.BlockMatrix.ops._
 import breeze.linalg.DenseMatrix
 import is.hail.annotations.UnsafeRow
-import is.hail.expr.TVariant
+import is.hail.expr.types.TVariant
 import is.hail.methods.KinshipMatrix
 import is.hail.utils._
 import is.hail.variant.{HardCallView, Locus, MatrixTable, Variant}

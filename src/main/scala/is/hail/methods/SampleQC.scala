@@ -1,9 +1,10 @@
 package is.hail.methods
 
 import is.hail.annotations.Annotation
-import is.hail.expr.{TStruct, _}
+import is.hail.expr.Parser
+import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{AltAlleleType, Genotype, HTSGenotypeView, Variant, MatrixTable}
+import is.hail.variant.{AltAlleleType, Genotype, HTSGenotypeView, MatrixTable, Variant}
 import org.apache.spark.util.StatCounter
 
 object SampleQCCombiner {

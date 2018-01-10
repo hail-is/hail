@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
 import is.hail.annotations.{Annotation, UnsafeRow}
@@ -12,6 +13,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
+import is.hail.expr.types.TStruct
 
 /*
 Skat implements the burden test described in:

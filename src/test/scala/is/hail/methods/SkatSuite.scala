@@ -9,9 +9,9 @@ import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
 import is.hail.stats.vdsFromGtMatrix
-
 import breeze.linalg._
 import breeze.numerics.sigmoid
+import is.hail.expr.types._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test

@@ -3,9 +3,9 @@ package is.hail.methods
 import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
-import is.hail.expr.{TArray, TFloat64, TStruct}
+import is.hail.expr.types._
 import is.hail.table.Table
-import is.hail.variant.{Variant, MatrixTable}
+import is.hail.variant.{MatrixTable, Variant}
 import org.testng.annotations.Test
 
 object PCASuite {

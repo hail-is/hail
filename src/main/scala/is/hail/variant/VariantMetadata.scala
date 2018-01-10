@@ -1,7 +1,7 @@
 package is.hail.variant
 
 import is.hail.annotations.Annotation
-import is.hail.expr._
+import is.hail.expr.types._
 
 object VSMLocalValue {
   def apply(sampleIds: IndexedSeq[Annotation]): VSMLocalValue =

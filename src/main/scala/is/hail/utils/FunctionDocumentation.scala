@@ -1,7 +1,9 @@
 package is.hail.utils
 
 import java.io.{BufferedWriter, File, FileWriter}
+
 import is.hail.expr._
+import is.hail.expr.types._
 
 object RstUtils {
   def sectionReference(title: String) = s".. _${ title.toLowerCase }:\n\n"

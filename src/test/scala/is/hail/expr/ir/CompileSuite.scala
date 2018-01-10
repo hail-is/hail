@@ -6,8 +6,8 @@ import is.hail.annotations._
 import ScalaToRegionValue._
 import is.hail.asm4s._
 import is.hail.check.{Gen, Parameters, Prop}
-import is.hail.expr.{TArray, TFloat64, TInt32, TStruct}
 import is.hail.expr.ir._
+import is.hail.expr.types._
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._

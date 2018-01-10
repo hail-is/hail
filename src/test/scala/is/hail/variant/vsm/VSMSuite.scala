@@ -6,6 +6,7 @@ import is.hail.check.Prop._
 import is.hail.check.{Gen, Parameters}
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._

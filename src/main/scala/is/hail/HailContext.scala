@@ -4,7 +4,8 @@ import java.io.InputStream
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.expr.{EvalContext, Parser, TStruct, Type, _}
+import is.hail.expr.types._
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.io.{Decoder, LZ4InputBuffer}
 import is.hail.io.LoadMatrix
 import is.hail.io.bgen.BgenLoader
@@ -15,7 +16,7 @@ import is.hail.table.Table
 import is.hail.rvd.OrderedRVD
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenomeReference, Genotype, HTSGenotypeView, Locus, VSMFileMetadata, VSMSubgen, Variant, MatrixTable}
+import is.hail.variant.{GenomeReference, Genotype, HTSGenotypeView, Locus, MatrixTable, VSMFileMetadata, VSMSubgen, Variant}
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}

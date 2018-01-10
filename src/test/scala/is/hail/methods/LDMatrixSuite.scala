@@ -2,7 +2,7 @@ package is.hail.methods
 
 import breeze.linalg.{DenseMatrix, convert, norm}
 import breeze.stats.mean
-import is.hail.expr.TVariant
+import is.hail.expr.types.TVariant
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils, stats}

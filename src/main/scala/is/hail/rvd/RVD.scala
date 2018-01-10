@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.Type
+import is.hail.expr.types.Type
 import is.hail.utils._
 import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.rdd.{AggregateWithContext, RDD}

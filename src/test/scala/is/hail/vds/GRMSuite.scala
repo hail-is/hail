@@ -7,7 +7,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.Type
+import is.hail.expr.types.Type
 import is.hail.methods.GRM
 import is.hail.io.plink.ExportPlink
 import is.hail.methods.SplitMulti

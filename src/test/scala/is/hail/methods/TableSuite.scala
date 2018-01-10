@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row

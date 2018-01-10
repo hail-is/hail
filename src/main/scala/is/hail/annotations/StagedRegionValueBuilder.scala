@@ -4,6 +4,7 @@ import is.hail.asm4s.{AsmFunction2, Code, FunctionBuilder}
 import is.hail.asm4s.Code._
 import is.hail.asm4s._
 import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.utils._
 import org.objectweb.asm.tree.{AbstractInsnNode, IincInsnNode}
 

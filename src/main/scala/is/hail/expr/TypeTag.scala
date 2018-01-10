@@ -1,5 +1,7 @@
 package is.hail.expr
 
+import is.hail.expr.types._
+
 object TypeTag
 
 sealed trait TypeTag {

@@ -2,8 +2,8 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.check.Prop._
-import is.hail.expr.{TCall, TStruct}
-import is.hail.variant.{VSMSubgen, MatrixTable, _}
+import is.hail.expr.types._
+import is.hail.variant.{MatrixTable, VSMSubgen, _}
 import org.testng.annotations.Test
 
 class HardCallsSuite extends SparkSuite {

@@ -1,9 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr
-import is.hail.expr.{TArray, TBoolean, TContainer, TFloat32, TFloat64, TInt32, TInt64, TStruct}
+import is.hail.expr.types._
 import is.hail.utils._
 import org.objectweb.asm.tree._
 
@@ -91,7 +90,7 @@ object Emit {
 
         (setup, mout, out)
 
-      case expr.ir.If(cond, cnsq, altr, typ) =>
+      case If(cond, cnsq, altr, typ) =>
         val (docond, mcond, vcond) = emit(cond)
         val xvcond = mb.newBit()
         val out = coerce[Any](fb.newLocal()(typeToTypeInfo(typ)))
@@ -110,7 +109,7 @@ object Emit {
 
         (setup, mout, out)
 
-      case expr.ir.Let(name, value, body, typ) =>
+      case Let(name, value, body, typ) =>
         val vti = typeToTypeInfo(value.typ)
         val mx = mb.newBit()
         val x = coerce[Any](fb.newLocal(name)(vti))

@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.{TAltAllele, TArray, TBinary, TBoolean, TCall, TDict, TFloat32, TFloat64, TInt32, TInt64, TInterval, TLocus, TSet, TString, TStruct, TVariant, Type}
+import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.{AltAllele, Locus, Variant}
 import org.apache.spark.sql.Row

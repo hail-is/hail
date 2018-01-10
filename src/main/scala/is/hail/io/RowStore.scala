@@ -4,6 +4,7 @@ import java.io.{InputStream, OutputStream}
 
 import is.hail.annotations.{Memory, Region, RegionValue}
 import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.LZ4Utils
 import org.apache.spark.rdd.RDD

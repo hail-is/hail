@@ -1,10 +1,11 @@
 package is.hail.methods
 
 import is.hail.annotations._
-import is.hail.expr.{EvalContext, Parser, TArray, TInt32, TVariant}
+import is.hail.expr.types._
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.rvd.{OrderedRVD, RVD}
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Locus, Variant, MatrixTable}
+import is.hail.variant.{GenomeReference, Locus, MatrixTable, Variant}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 

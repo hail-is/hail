@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.utils.{ArrayBuilder, Interval}
 import is.hail.variant._
 import org.apache.spark.sql.Row

@@ -5,7 +5,8 @@ import is.hail.HailContext
 import is.hail.annotations.UnsafeRow
 import is.hail.distributedmatrix.BlockMatrix
 import is.hail.distributedmatrix.BlockMatrix.ops._
-import is.hail.expr.{Parser, TVariant}
+import is.hail.expr.Parser
+import is.hail.expr.types._
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.variant.{HardCallView, Variant, MatrixTable}

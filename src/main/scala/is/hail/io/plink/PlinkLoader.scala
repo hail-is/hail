@@ -3,6 +3,7 @@ package is.hail.io.plink
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.OrderedRVD
 import is.hail.utils.StringEscapeUtils._
