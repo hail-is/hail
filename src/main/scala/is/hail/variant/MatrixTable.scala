@@ -566,6 +566,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         it.map { case (key, agg) =>
+          region.clear()
           rvb.start(signature)
           rvb.startStruct()
           rvb.addAnnotation(pkType, pkF(key))
