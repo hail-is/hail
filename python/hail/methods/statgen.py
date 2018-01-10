@@ -1,8 +1,10 @@
 from hail.api2.matrixtable import MatrixTable, Table
 from hail.expr.expression import *
+from hail.genetics import KinshipMatrix
 from hail.genetics.ldMatrix import LDMatrix
+from hail.linalg import BlockMatrix, block_matrix_from_expr
 from hail.typecheck import *
-from hail.utils import wrap_to_list
+from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j
 from .misc import require_biallelic
 from hail.expr import functions
@@ -228,7 +230,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
 
 @handle_py4j
-@typecheck(entry_expr=Expression,
+@typecheck(entry_expr=expr_numeric,
            k=integral,
            compute_loadings=bool,
            as_array=bool)
@@ -541,3 +543,76 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
     jds = scala_object(Env.hail().methods, 'SplitMulti').apply(
         ds._jvds, variant_expr, genotype_expr, keep_star, left_aligned)
     return MatrixTable(jds)
+
+@require_biallelic
+@typecheck(dataset=MatrixTable)
+def grm(dataset):
+    """Compute the Genetic Relatedness Matrix (GRM).
+
+    .. include:: ../_templates/req_tvariant.rst
+    .. include:: ../_templates/req_biallelic.rst
+
+    **Examples**
+
+    >>> km = vds.grm()
+
+    **Notes**
+
+    The genetic relationship matrix (GRM) :math:`G` encodes genetic correlation between each pair of samples. It is
+    defined by :math:`G = MM^T` where :math:`M` is a standardized version of the genotype matrix, computed as follows.
+    Let :math:`C` be the :math:`n \\times m` matrix of raw genotypes in the variant dataset, with rows indexed by
+    :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of
+    alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each
+    variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing
+     entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+
+    .. math::
+
+        M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
+
+    with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes genotype
+    variances to a common value :math:`1/m` for variants in Hardy-Weinberg equilibrium and is further motivated in the
+    paper `Patterson, Price and Reich, 2006
+    <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`__.
+    (The resulting amplification of signal from the low end of the allele frequency spectrum will also introduce noise
+    for rare variants; common practice is to filter out variants with minor allele frequency below some cutoff.)
+    The factor :math:`1/m` gives each sample row approximately unit total variance (assuming linkage equilibrium) so
+    that the diagonal entries of the GRM are approximately 1. Equivalently,
+
+    .. math::
+
+        G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
+
+    :return: Genetic Relatedness Matrix for all samples.
+    :rtype: :py:class:`KinshipMatrix`
+    """
+
+    dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
+                                    n_called=agg.count_where(functions.is_defined(dataset.GT)))
+    dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
+
+    n_samples, n_variants = dataset.count()
+    if n_variants == 0:
+        raise FatalError(
+            "Cannot run GRM: found 0 variants after filtering out monomorphic sites.")
+    info("Computing GRM using {} variants.".format(n_variants))
+
+    normalized_genotype_expr = functions.bind(
+        dataset.AC / dataset.n_called,
+        lambda mean_gt: functions.cond(functions.is_defined(dataset.GT),
+                                       (dataset.GT.num_alt_alleles() - mean_gt) /
+                                       functions.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
+                                       0))
+    f = new_temp_file(suffix="bm")
+
+    bm = block_matrix_from_expr(normalized_genotype_expr, f).cache()
+    dataset.unpersist()
+    grm = bm.transpose() * bm
+
+    km = KinshipMatrix(Env.hail().methods.KinshipMatrix.apply(
+        dataset.hc._jhc,
+        dataset.sample_schema._jtype,
+        grm._jbm,
+        dataset.sample_ids, n_variants))
+
+    return km

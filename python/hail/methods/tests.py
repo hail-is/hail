@@ -65,6 +65,9 @@ class Tests(unittest.TestCase):
         dataset = self.get_dataset()
         dataset = methods.sample_qc(dataset)
 
+    def test_grm(self):
+        dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()
+
     def test_pca(self):
         dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()
         eigenvalues, scores, loadings = methods.pca(dataset.GT.num_alt_alleles(), k=2, compute_loadings=True)
