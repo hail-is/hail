@@ -367,7 +367,7 @@ def sample_rows(dataset, fraction, seed=1):
     Notes
     -----
 
-    This method may not sample exactly ``(fraction * n_variants)`` rows from
+    This method may not sample exactly ``(fraction * n_rows)`` rows from
     the dataset.
 
     Parameters
