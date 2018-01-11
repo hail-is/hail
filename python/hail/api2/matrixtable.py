@@ -2224,6 +2224,9 @@ class MatrixTable(object):
         -----
         The field added is type :class:`.TInt64`.
 
+        The row number is 0-indexed; the values are found in the range
+        ``[0, nRows)``.
+
         Parameters
         ----------
         name : :obj:`str`
@@ -2249,6 +2252,9 @@ class MatrixTable(object):
         Notes
         -----
         The field added is type :class:`.TInt32`.
+
+        The column number is 0-indexed; the values are found in the range
+        ``[0, nCols)``.
 
         Parameters
         ----------
