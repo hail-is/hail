@@ -1438,7 +1438,7 @@ class SetExpression(CollectionExpression):
 
     @typecheck_method(item=expr_any)
     def remove(self, item):
-        """Returns a new set excluding `item
+        """Returns a new set excluding `item`.
 
         Examples
         --------
