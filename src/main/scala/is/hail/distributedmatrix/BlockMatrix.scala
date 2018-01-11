@@ -594,16 +594,15 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       nRows, nCols)
   }
     
-  // rowsToKeep is an array of distinct row indices
-  def filterRows(rowsToKeep: Array[Long]): BlockMatrix = this.transpose().filterCols(rowsToKeep).transpose()
+  // keep is an array of distinct indices
+  def filterRows(keep: Array[Long]): BlockMatrix = this.transpose().filterCols(keep).transpose()
 
-  // colsToKeep is an array of distinct col indices  
-  def filterCols(colsToKeep: Array[Long]): BlockMatrix =
-    new BlockMatrix(new BlockMatrixFilterColsRDD(this, colsToKeep.sorted), blockSize, nRows, colsToKeep.length)
+  def filterCols(keep: Array[Long]): BlockMatrix =
+    new BlockMatrix(new BlockMatrixFilterColsRDD(this, keep.sorted), blockSize, nRows, keep.length)
   
-  def filter(rowsToKeep: Array[Long], colsToKeep: Array[Long]): BlockMatrix =
-    new BlockMatrix(new BlockMatrixFilterRDD(this, rowsToKeep.sorted, colsToKeep.sorted),
-      blockSize, rowsToKeep.length, colsToKeep.length)
+  def filter(keepRows: Array[Long], keepCols: Array[Long]): BlockMatrix =
+    new BlockMatrix(new BlockMatrixFilterRDD(this, keepRows.sorted, keepCols.sorted),
+      blockSize, keepRows.length, keepCols.length)
 }
 
 case class BlockMatrixFilterRDDPartition(index: Int,
@@ -613,7 +612,7 @@ case class BlockMatrixFilterRDDPartition(index: Int,
 object BlockMatrixFilterRDD {
   // allBlockColRanges(newBlockCol) has elements of the form (blockCol, startIndices, endIndices) with blockCol increasing
   //   startIndices.zip(endIndices) gives all column-index ranges in blockCol to be copied to ranges in newBlockCol
-  def computeAllBlockColRanges(colsToKeep: Array[Long],
+  def computeAllBlockColRanges(keep: Array[Long],
     gp: GridPartitioner,
     newGP: GridPartitioner): Array[Array[(Int, Array[Int], Array[Int])]] = {
     
@@ -622,7 +621,7 @@ object BlockMatrixFilterRDD {
     val startIndices = new ArrayBuilder[Int]()
     val endIndices = new ArrayBuilder[Int]()
 
-    colsToKeep
+    keep
       .grouped(blockSize)
       .zipWithIndex
       .map { case (colsInNewBlock, newBlockCol) =>
@@ -660,28 +659,28 @@ object BlockMatrixFilterRDD {
       }.toArray
   }
   
-  def computeAllBlockRowRanges(rowsToKeep: Array[Long],
+  def computeAllBlockRowRanges(keep: Array[Long],
     gp: GridPartitioner,
     newGP: GridPartitioner): Array[Array[(Int, Array[Int], Array[Int])]] = {
 
-    computeAllBlockColRanges(rowsToKeep, gp.transpose, newGP.transpose)
+    computeAllBlockColRanges(keep, gp.transpose, newGP.transpose)
   }
 }
 
-private class BlockMatrixFilterRDD(dm: BlockMatrix, rowsToKeep: Array[Long], colsToKeep: Array[Long])
+private class BlockMatrixFilterRDD(dm: BlockMatrix, keepRows: Array[Long], keepCols: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
-  require(rowsToKeep.nonEmpty && rowsToKeep.isIncreasing && rowsToKeep.head >= 0 && rowsToKeep.last < dm.nRows)
-  require(colsToKeep.nonEmpty && colsToKeep.isIncreasing && colsToKeep.head >= 0 && colsToKeep.last < dm.nCols)
+  require(keepRows.nonEmpty && keepRows.isIncreasing && keepRows.head >= 0 && keepRows.last < dm.nRows)
+  require(keepCols.nonEmpty && keepCols.isIncreasing && keepCols.head >= 0 && keepCols.last < dm.nCols)
   
   private val gp = dm.partitioner
   private val blockSize = gp.blockSize
-  private val newGP = GridPartitioner(blockSize, rowsToKeep.length, colsToKeep.length)
+  private val newGP = GridPartitioner(blockSize, keepRows.length, keepCols.length)
       
   private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
-    BlockMatrixFilterRDD.computeAllBlockRowRanges(rowsToKeep, gp, newGP)  
+    BlockMatrixFilterRDD.computeAllBlockRowRanges(keepRows, gp, newGP)  
   
   private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
-    BlockMatrixFilterRDD.computeAllBlockColRanges(colsToKeep, gp, newGP)
+    BlockMatrixFilterRDD.computeAllBlockColRanges(keepCols, gp, newGP)
 
   protected def getPartitions: Array[Partition] =
     Array.tabulate(newGP.numPartitions) { pi => 
@@ -756,16 +755,16 @@ private class BlockMatrixFilterRDD(dm: BlockMatrix, rowsToKeep: Array[Long], col
 
 case class BlockMatrixFilterColsRDDPartition(index: Int, blockColRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
 
-private class BlockMatrixFilterColsRDD(dm: BlockMatrix, colsToKeep: Array[Long])
+private class BlockMatrixFilterColsRDD(dm: BlockMatrix, keep: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
-  require(colsToKeep.nonEmpty && colsToKeep.isIncreasing && colsToKeep.head >= 0 && colsToKeep.last < dm.nCols)
+  require(keep.nonEmpty && keep.isIncreasing && keep.head >= 0 && keep.last < dm.nCols)
   
   private val gp = dm.partitioner
   private val blockSize = gp.blockSize
-  private val newGP = GridPartitioner(blockSize, gp.nRows, colsToKeep.length)
+  private val newGP = GridPartitioner(blockSize, gp.nRows, keep.length)
   
   private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
-    BlockMatrixFilterRDD.computeAllBlockColRanges(colsToKeep, gp, newGP)
+    BlockMatrixFilterRDD.computeAllBlockColRanges(keep, gp, newGP)
 
   protected def getPartitions: Array[Partition] =
     Array.tabulate(newGP.numPartitions) { pi => 
