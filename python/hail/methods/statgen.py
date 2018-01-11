@@ -617,7 +617,7 @@ def grm(dataset):
     dataset.unpersist()
     grm = bm.transpose() * bm
 
-    return KinshipMatrix._from_python(dataset.colkey_schema,
+    return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
                                       grm,
                                       [row.s for row in dataset.cols_table().select('s').collect()],
                                       n_variants)
