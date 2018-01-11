@@ -215,9 +215,13 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
       with the `--dir` option. Required.
     - **hail.vep.fasta** -- Location of the FASTA file to use to look up the
       reference sequence, passed to VEP with the `--fasta` option. Required.
+    - **hail.vep.assembly** -- Genome assembly version to use. Optional,
+      default: GRCh37
     - **hail.vep.plugin** -- VEP plugin, passed to VEP with the `--plugin`
       option. Optional. Overrides `hail.vep.lof.human_ancestor` and
       `hail.vep.lof.conservation_file`.
+    - **hail.vep.lof.human_ancestor** -- Location of the human ancestor file for
+      the LOFTEE plugin. Ignored if `hail.vep.plugin` is set. Required otherwise.
     - **hail.vep.lof.conservation_file** -- Location of the conservation file
       for the LOFTEE plugin. Ignored if `hail.vep.plugin` is set. Required
       otherwise.
@@ -400,9 +404,9 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
     config : :obj:`str`
         Path to VEP configuration file.
     block_size: :obj:`int`
-        Number of variants to process per VEP invocation.
+        Number of rows to process per VEP invocation.
     name : :obj:`str`
-        Name for resulting field.
+        Name for resulting row field.
     csq : :obj:`bool`
         If ``True``, annotates VCF CSQ field as a String.
         If ``False``, annotates with the full nested struct schema
