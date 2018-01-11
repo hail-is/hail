@@ -362,7 +362,7 @@ def sample_rows(dataset, fraction, seed=1):
     Examples
     --------
 
-    >>> small_dataset = sample_rows(dataset, 0.01)
+    >>> small_dataset = methods.sample_rows(dataset, 0.01)
 
     Notes
     -----
@@ -385,7 +385,7 @@ def sample_rows(dataset, fraction, seed=1):
         Downsampled matrix table.
     """
 
-    return MatrixTable(dataset.hc, dataset._jvds.sampleVariants(fraction, seed))
+    return MatrixTable(dataset._jvds.sampleVariants(fraction, seed))
 
 @handle_py4j
 @typecheck(ds=MatrixTable,
