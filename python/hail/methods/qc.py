@@ -530,15 +530,9 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
     config : :obj:`str`
         Path to VEP configuration file.
     block_size: :obj:`int`
-<<<<<<< HEAD
         Number of rows to process per VEP invocation.
     name : :obj:`str`
         Name for resulting row field.
-=======
-        Number of variants to process per VEP invocation.
-    name : :obj:`str`
-        Name for resulting field.
->>>>>>> Ported VEP to 0.2
     csq : :obj:`bool`
         If ``True``, annotates VCF CSQ field as a String.
         If ``False``, annotates with the full nested struct schema
