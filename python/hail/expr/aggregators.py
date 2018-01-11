@@ -644,7 +644,7 @@ def explode(expr):
         raise  TypeError("'explode' expects a 'Set' or 'Array' argument, found '{}'".format(agg._type))
     uid = Env._get_uid()
     return Aggregable(LambdaClassMethod('flatMap', uid, agg._ast, Reference(uid)),
-                      agg._type, agg._indices, agg._aggregations, agg._joins, agg._refs)
+                      agg._type.element_type, agg._indices, agg._aggregations, agg._joins, agg._refs)
 
 @typecheck(condition=anytype, expr=oneof(Aggregable, expr_any))
 def filter(condition, expr):
