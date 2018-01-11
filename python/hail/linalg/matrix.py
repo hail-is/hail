@@ -107,7 +107,7 @@ def block_matrix_from_expr(entry_expr,
             "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
     mt = source
     base, _ = mt._process_joins(entry_expr)
-    analyze(entry_expr, mt._entry_indices)
+    analyze('block_matrix_from_expr', entry_expr, mt._entry_indices)
 
     mt._jvds.writeBlockMatrix(path, to_expr(entry_expr)._ast.to_hql(), block_size)
     return BlockMatrix.read(path)

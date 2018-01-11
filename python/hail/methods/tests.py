@@ -121,10 +121,12 @@ class Tests(unittest.TestCase):
         grm_nbin_file = utils.new_temp_file(prefix="test", suffix=".grm.N.bin")
 
         dataset = self.get_dataset()
+        n_samples = dataset.count_cols()
+        dataset = dataset.filter_rows((agg.count(agg.filter(functions.is_defined(dataset.GT), dataset.GT)) == n_samples) &
+                                      (agg.count(agg.filter(dataset.GT.gt == 1, dataset.GT)) != n_samples))
         dataset.to_hail1().export_plink(b_file)
 
         sample_ids = [row.s for row in dataset.cols_table().select('s').collect()]
-        n_samples = dataset.count_cols()
         n_variants = dataset.count_rows()
         assert(n_variants > 0)
 
