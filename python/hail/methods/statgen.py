@@ -592,8 +592,15 @@ def grm(dataset):
 
         G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
 
+    Parameters
+    ----------
+    dataset : :class:`.MatrixTable`
+        Dataset to sample from.
+
+    Returns
+    ------
     :return: Genetic Relatedness Matrix for all samples.
-    :rtype: :py:class:`KinshipMatrix`
+    :rtype: :py:class:`genetics.KinshipMatrix`
     """
 
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
