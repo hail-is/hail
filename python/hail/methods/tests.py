@@ -98,32 +98,39 @@ class Tests(unittest.TestCase):
                 for l in f:
                     row = l.strip().split('\t')
                     assert(int(row[2]) == nv)
-                    m[int(row[0])-1, int(row[2])-1] = float(row[3])
+                    m[int(row[0])-1, int(row[1])-1] = float(row[3])
                     i += 1
 
-                assert(i == ns * (ns + 1) / 2 - 1)
+                assert(i == ns * (ns + 1) / 2)
             return m
 
         def load_bin(ns, path):
             m = np.zeros((ns, ns))
             with utils.hadoop_read_binary(path) as f:
                 for i in range(ns):
-                    for j in range(i):
-                        m[i, j] = unpack('<f', bytearray(f.read(4)))
-                assert(len(f.read()) == 0)
+                    for j in range(i + 1):
+                        b = f.read(4)
+                        assert(len(b) == 4)
+                        m[i, j] = unpack('<f', bytearray(b))[0]
+                left = f.read()
+                print(left)
+                assert(len(left) == 0)
             return m
 
         b_file = utils.new_temp_file(prefix="plink")
-        rel_file = utils.new_temp_file(prefix="test", suffix=".rel")
-        rel_id_file = utils.new_temp_file(prefix="test", suffix=".rel.id")
-        grm_file = utils.new_temp_file(prefix="test", suffix=".grm")
-        grm_bin_file = utils.new_temp_file(prefix="test", suffix=".grm.bin")
-        grm_nbin_file = utils.new_temp_file(prefix="test", suffix=".grm.N.bin")
+        rel_file = utils.new_temp_file(prefix="test", suffix="rel")
+        rel_id_file = utils.new_temp_file(prefix="test", suffix="rel.id")
+        grm_file = utils.new_temp_file(prefix="test", suffix="grm")
+        grm_bin_file = utils.new_temp_file(prefix="test", suffix="grm.bin")
+        grm_nbin_file = utils.new_temp_file(prefix="test", suffix="grm.N.bin")
 
         dataset = self.get_dataset()
         n_samples = dataset.count_cols()
-        dataset = dataset.filter_rows((agg.count(agg.filter(functions.is_defined(dataset.GT), dataset.GT)) == n_samples) &
-                                      (agg.count(agg.filter(dataset.GT.gt == 1, dataset.GT)) != n_samples))
+        dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
+                              n_called=agg.count_where(functions.is_defined(dataset.GT)))
+        dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
+        dataset = dataset.filter_rows(dataset.n_called == n_samples).persist()
+
         dataset.to_hail1().export_plink(b_file)
 
         sample_ids = [row.s for row in dataset.cols_table().select('s').collect()]

@@ -593,8 +593,7 @@ def grm(dataset):
 
     n_variants = dataset.count_rows()
     if n_variants == 0:
-        raise FatalError(
-            "Cannot run GRM: found 0 variants after filtering out monomorphic sites.")
+        raise FatalError("Cannot run GRM: found 0 variants after filtering out monomorphic sites.")
     info("Computing GRM using {} variants.".format(n_variants))
 
     normalized_genotype_expr = functions.bind(
