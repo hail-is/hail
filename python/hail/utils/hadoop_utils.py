@@ -42,6 +42,48 @@ def hadoop_read(path, buffer_size=8192):
         raise TypeError("expected parameter 'buffer_size' to be type int, but found %s" % type(buffer_size))
     return io.BufferedReader(HadoopReader(path), buffer_size=buffer_size)
 
+@handle_py4j
+@typecheck(path=strlike,
+           buffer_size=integral)
+def hadoop_read_binary(path, buffer_size=8192):
+    """Open a readable binary file through the Hadoop filesystem API.
+    Supports distributed file systems like hdfs, gs, and s3.
+
+    calling :py:meth:`f.read(n_bytes)` on the resulting file handle reads `n_bytes` bytes as a
+    Python bytearray. If no argument is provided, the entire file will be read.
+
+    **Examples**
+
+    .. doctest::
+        :options: +SKIP
+
+        >>> with hadoop_read('gs://my-bucket/notes.txt') as f:
+        ...     print int(f.read())
+
+    **Notes**
+
+    The provided source file path must be a URI (uniform resource identifier).
+
+    .. caution::
+
+        These file handles are slower than standard Python file handles.
+        If you are reading a file larger than ~50M, it will be faster to
+        use :py:meth:`~hail.hadoop_copy` to copy the file locally, then read it
+        with standard Python I/O tools.
+
+    :param str path: Source file URI.
+
+    :param int buffer_size: Size of internal buffer.
+
+    :return: Iterable file reader.
+    :rtype: `io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
+    """
+    if not isinstance(path, str) and not isinstance(path, unicode):
+        raise TypeError("expected parameter 'path' to be type str, but found %s" % type(path))
+    if not isinstance(buffer_size, int):
+        raise TypeError("expected parameter 'buffer_size' to be type int, but found %s" % type(buffer_size))
+    return io.BufferedReader(HadoopBinaryReader(path), buffer_size=buffer_size)
+
 
 @handle_py4j
 @typecheck(path=strlike,
@@ -117,6 +159,23 @@ class HadoopReader(io.RawIOBase):
 
     def readinto(self, b):
         b_from_java = self._jfile.read(len(b)).encode('iso-8859-1')
+        n_read = len(b_from_java)
+        b[:n_read] = b_from_java
+        return n_read
+
+class HadoopBinaryReader(io.RawIOBase):
+    def __init__(self, path):
+        self._jfile = Env.jutils().readBinaryFile(path, Env.hc()._jhc)
+        super(HadoopBinaryReader, self).__init__()
+
+    def close(self):
+        self._jfile.close()
+
+    def readable(self):
+        return True
+
+    def readinto(self, b):
+        b_from_java = self._jfile.read(len(b))
         n_read = len(b_from_java)
         b[:n_read] = b_from_java
         return n_read
