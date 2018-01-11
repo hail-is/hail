@@ -105,7 +105,7 @@ object Locus {
   def parseIntervals(arr: java.util.ArrayList[String], gr: GRBase): Array[Interval] = parseIntervals(arr.asScala.toArray, gr)
 
   def makeInterval(start: Locus, end: Locus, gr: GRBase): Interval = {
-    implicit val ord = TInterval(gr.locus).ordering
+    implicit val ord = TInterval(gr.locusType).ordering
     Interval(start, end)
   }
 }

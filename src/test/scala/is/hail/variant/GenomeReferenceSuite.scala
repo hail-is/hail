@@ -151,13 +151,13 @@ class GenomeReferenceSuite extends SparkSuite {
     |v3 = Variant(GRCh37)("1", 3, "A", "T"), l1 = Locus(GRCh38)("1", 100), l2 = Locus(GRCh37)("1:100"),
     |i1 = LocusInterval(GRCh37)("1:5-10"), i2 = LocusInterval(GRCh38)("chrX", 156030890, 156030895)""".stripMargin)
 
-    assert(ktann.signature.field("v1").typ == GenomeReference.GRCh38.variant &&
-    ktann.signature.field("v2").typ == GenomeReference.GRCh37.variant &&
-    ktann.signature.field("v3").typ == GenomeReference.GRCh37.variant &&
-    ktann.signature.field("l1").typ == GenomeReference.GRCh38.locus &&
-    ktann.signature.field("l2").typ == GenomeReference.GRCh37.locus &&
-    ktann.signature.field("i1").typ == TInterval(GenomeReference.GRCh37.locus) &&
-    ktann.signature.field("i2").typ == TInterval(GenomeReference.GRCh38.locus))
+    assert(ktann.signature.field("v1").typ == GenomeReference.GRCh38.variantType &&
+    ktann.signature.field("v2").typ == GenomeReference.GRCh37.variantType &&
+    ktann.signature.field("v3").typ == GenomeReference.GRCh37.variantType &&
+    ktann.signature.field("l1").typ == GenomeReference.GRCh38.locusType &&
+    ktann.signature.field("l2").typ == GenomeReference.GRCh37.locusType &&
+    ktann.signature.field("i1").typ == TInterval(GenomeReference.GRCh37.locusType) &&
+    ktann.signature.field("i2").typ == TInterval(GenomeReference.GRCh38.locusType))
 
     assert(ktann.forall("v1.inXPar() && v2.inXPar() && v3.isAutosomal() &&" +
       "l1.position == 100 && l2.position == 100 &&" +
@@ -166,8 +166,8 @@ class GenomeReferenceSuite extends SparkSuite {
     val gr = GenomeReference("foo2", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
     GenomeReference.addReference(gr)
     GenomeReference.setDefaultReference(gr)
-    assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == gr.variant)
-    assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"))""").signature.field("i1").typ == TInterval(gr.locus))
+    assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == gr.variantType)
+    assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"))""").signature.field("i1").typ == TInterval(gr.locusType))
 
     GenomeReference.setDefaultReference(GenomeReference.GRCh37)
     GenomeReference.removeReference("foo2")

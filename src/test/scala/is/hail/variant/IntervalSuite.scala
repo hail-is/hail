@@ -10,7 +10,7 @@ import org.testng.annotations.Test
 
 class IntervalSuite extends SparkSuite {
   val gr = GenomeReference.GRCh37
-  val pord = gr.locus.ordering
+  val pord = gr.locusType.ordering
 
   def genomicInterval(contig: String, start: Int, end: Int): Interval =
     Interval(Locus(contig, start), Locus(contig, end))

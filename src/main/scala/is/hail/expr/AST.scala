@@ -438,9 +438,9 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
 case class GenomeReferenceDependentConstructor(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
   val gr = GenomeReference.getReference(grName)
   val rTyp = fName match {
-    case "Variant" => gr.variant
-    case "Locus" => gr.locus
-    case "LocusInterval" => TInterval(gr.locus)
+    case "Variant" => gr.variantType
+    case "Locus" => gr.locusType
+    case "LocusInterval" => gr.intervalType
     case _ => throw new UnsupportedOperationException
   }
 

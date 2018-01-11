@@ -15,8 +15,8 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 
 abstract class GRBase extends Serializable {
-  val variant: TVariant
-  val locus: TLocus
+  val variantType: TVariant
+  val locusType: TLocus
   val intervalType: TInterval
 
   def variantOrdering: Ordering[Variant]
@@ -127,9 +127,9 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   }
 
   // must be constructed after orderings
-  val variant: TVariant = TVariant(this)
-  val locus: TLocus = TLocus(this)
-  val intervalType: TInterval = TInterval(locus)
+  val variantType: TVariant = TVariant(this)
+  val locusType: TLocus = TLocus(this)
+  val intervalType: TInterval = TInterval(locusType)
 
   val par = parInput.map { case (start, end) =>
     if (start.contig != end.contig)
@@ -167,9 +167,9 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 
   def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
 
-  def inXPar(l: Locus): Boolean = inX(l.contig) && par.exists(_.contains(locus.ordering, l))
+  def inXPar(l: Locus): Boolean = inX(l.contig) && par.exists(_.contains(locusType.ordering, l))
 
-  def inYPar(l: Locus): Boolean = inY(l.contig) && par.exists(_.contains(locus.ordering, l))
+  def inYPar(l: Locus): Boolean = inY(l.contig) && par.exists(_.contains(locusType.ordering, l))
 
   def compare(contig1: String, contig2: String): Int = GenomeReference.compare(contigsIndex, contig1, contig2)
 
@@ -363,9 +363,9 @@ object GenomeReference {
 }
 
 case class GRVariable(var gr: GRBase = null) extends GRBase {
-  val variant: TVariant = TVariant(this)
-  val locus: TLocus = TLocus(this)
-  val intervalType: TInterval = TInterval(locus)
+  val variantType: TVariant = TVariant(this)
+  val locusType: TLocus = TLocus(this)
+  val intervalType: TInterval = TInterval(locusType)
 
   override def toString = "?GR"
 

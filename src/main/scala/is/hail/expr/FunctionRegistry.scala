@@ -1293,7 +1293,7 @@ object FunctionRegistry {
   registerDependent("LocusInterval", () => {
     val gr = GR.gr
     (chr: String, start: Int, end: Int) => {
-      implicit val ord = TInterval(gr.locus).ordering
+      implicit val ord = gr.intervalType.ordering
       Interval(Locus(chr, start), Locus(chr, end))
     }
   },
