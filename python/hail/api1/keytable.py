@@ -1402,7 +1402,7 @@ class KeyTable(HistoryMixin):
 
         **Examples**
 
-        >>> ind_kt = kt1.indexed()
+        >>> ind_kt = kt1.index()
 
         **Notes**
 
@@ -1422,7 +1422,7 @@ class KeyTable(HistoryMixin):
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jkt.indexed(name))
+        return KeyTable(self.hc, self._jkt.index(name))
 
     @handle_py4j
     @typecheck_method(n=integral,

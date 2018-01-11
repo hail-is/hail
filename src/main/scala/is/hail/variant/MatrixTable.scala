@@ -2692,7 +2692,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
       keep = keep, leftAligned = leftAligned, keepStar = keepStar)
   }
 
-  def numberRows(name: String): MatrixTable = {
+  def indexRows(name: String): MatrixTable = {
     val path = List("va", name)
 
     val (newRowType, inserter) = rowType.unsafeInsert(TInt64(), path)
@@ -2721,7 +2721,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     copy2(vaSignature = newVAType, rdd2 = numberedRDD)
   }
 
-  def numberCols(name: String): MatrixTable = {
+  def indexCols(name: String): MatrixTable = {
     val path = List(name)
     val (newColType, inserter) = saSignature.insert(TInt32(), path)
     val newSampleAnnotations = Array.tabulate(nSamples) { i =>

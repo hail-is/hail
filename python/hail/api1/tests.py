@@ -582,8 +582,8 @@ class ContextTests(unittest.TestCase):
 
         self.assertTrue(kt.head(3).count(), 3)
 
-        self.assertEqual(range(10), [x.index for x in KeyTable.range(10).collect()])
-        self.assertTrue(KeyTable.range(200).indexed('foo').forall('index == foo'))
+        self.assertEqual(range(10), [x.idx for x in KeyTable.range(10).collect()])
+        self.assertTrue(KeyTable.range(200).idx('foo').forall('idx == foo'))
 
         kt3 = KeyTable.parallelize([{'A': Struct(c1=5, c2=21)}],
                                    TStruct(['A'], [TStruct(['c1', 'c2'], [TInt32(), TInt32()])]))
@@ -850,7 +850,7 @@ class ContextTests(unittest.TestCase):
         kt = KeyTable.range(10)
         kt = kt.annotate_global_expr('foo = [1,2,3]')
         kt = kt.annotate_global('bar', [4, 5, 6], TArray(TInt32()))
-        self.assertEqual(kt.filter('foo.exists(x => x == index) || bar.exists(x => x == index)').count(), 6)
+        self.assertEqual(kt.filter('foo.exists(x => x == idx) || bar.exists(x => x == idx)').count(), 6)
 
     def test_annotate_alleles_expr(self):
         paths = ['src/test/resources/sample.vcf',

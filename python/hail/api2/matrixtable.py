@@ -310,13 +310,13 @@ class MatrixTable(object):
                             str(self.colkey_schema), str(col_key._type)))
 
             if row_key is not None and col_key is not None:
-                return self.index_entries(row_key, col_key)
+                return self.view_join_entries(row_key, col_key)
             elif row_key is not None and col_key is None:
-                return self.index_rows(row_key)
+                return self.view_join_rows(row_key)
             elif row_key is None and col_key is not None:
-                return self.index_cols(col_key)
+                return self.view_join_cols(col_key)
             else:
-                return self.index_globals()
+                return self.view_join_globals()
 
     @property
     def global_schema(self):
@@ -1702,7 +1702,7 @@ class MatrixTable(object):
         return kt.select(kt.v, kt.s, *cols_to_select)
 
     @handle_py4j
-    def index_globals(self):
+    def view_join_globals(self):
         uid = Env._get_uid()
 
         def joiner(obj):
@@ -1715,7 +1715,7 @@ class MatrixTable(object):
         return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=LinkedList(Join).push(Join(joiner, [uid])))
 
     @handle_py4j
-    def index_rows(self, expr):
+    def view_join_rows(self, expr):
         expr = to_expr(expr)
         indices, aggregations, joins, refs = expr._indices, expr._aggregations, expr._joins, expr._refs
         src = indices.source
@@ -1771,14 +1771,14 @@ class MatrixTable(object):
                                                                 '{}.{}'.format(prefix, uid), None, False)))
             else:
                 # FIXME: implement entry-based join in the expression language
-                raise NotImplementedError('vds join with indices {}'.format(indices))
+                raise NotImplementedError('MatrixTable.view_join_cols with indices {}'.format(indices))
 
             return construct_expr(Select(Reference(prefix), uid),
                                   self.row_schema, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete)), refs)
 
     @handle_py4j
-    def index_cols(self, expr):
+    def view_join_cols(self, expr):
         expr = to_expr(expr)
         indices, aggregations, joins, refs = expr._indices, expr._aggregations, expr._joins, expr._refs
         src = indices.source
@@ -1828,13 +1828,13 @@ class MatrixTable(object):
                                                                  '{}.{}'.format(prefix, uid), None, False)))
             else:
                 # FIXME: implement entry-based join in the expression language
-                raise NotImplementedError('vds join with indices {}'.format(indices))
+                raise NotImplementedError('MatrixTable.view_join_cols join with indices {}'.format(indices))
             return construct_expr(Select(Reference(prefix), uid),
                                   self.col_schema, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete)), refs)
 
     @handle_py4j
-    def index_entries(self, row_expr, col_expr):
+    def view_join_entries(self, row_expr, col_expr):
         row_expr = to_expr(row_expr)
         col_expr = to_expr(col_expr)
 
@@ -1870,7 +1870,7 @@ class MatrixTable(object):
                                   self.entry_schema, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete)), refs)
         else:
-            raise NotImplementedError('matrix.index_entries with {}'.format(src.__class__))
+            raise NotImplementedError('matrix.view_join_entries with {}'.format(src.__class__))
 
     def to_hail1(self):
         """Convert to a hail1 variant dataset.
@@ -2212,20 +2212,20 @@ class MatrixTable(object):
 
     @handle_py4j
     @typecheck_method(name=strlike)
-    def number_rows(self, name='row_idx'):
+    def index_rows(self, name='row_idx'):
         """Add the row integer index as a new field.
 
         Examples
         --------
 
-        >>> dataset_result = ds.number_rows()
+        >>> dataset_result = ds.index_rows()
 
         Notes
         -----
         The field added is type :class:`.TInt64`.
 
-        The row number is 0-indexed; the values are found in the range
-        ``[0, nRows)``.
+        The row index is 0-indexed; the values are found in the range
+        ``[0, N)``.
 
         Parameters
         ----------
@@ -2237,24 +2237,24 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             Dataset with new field.
         """
-        return MatrixTable(self._jvds.numberRows(name))
+        return MatrixTable(self._jvds.indexRows(name))
 
     @handle_py4j
     @typecheck_method(name=strlike)
-    def number_cols(self, name='col_idx'):
+    def index_cols(self, name='col_idx'):
         """Add the column integer index as a new field.
 
         Examples
         --------
 
-        >>> dataset_result = ds.number_cols()
+        >>> dataset_result = ds.index_cols()
 
         Notes
         -----
         The field added is type :class:`.TInt32`.
 
-        The column number is 0-indexed; the values are found in the range
-        ``[0, nCols)``.
+        The column index is 0-indexed; the values are found in the range
+        ``[0, N)``.
 
         Parameters
         ----------
@@ -2266,7 +2266,7 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             Dataset with new field.
         """
-        return MatrixTable(self._jvds.numberCols(name))
+        return MatrixTable(self._jvds.indexCols(name))
 
     @handle_py4j
     @typecheck_method(other=matrix_table_type,
