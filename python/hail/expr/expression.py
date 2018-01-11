@@ -2616,6 +2616,7 @@ class StringExpression(AtomicExpression):
             if not isinstance(item._type, TInt32):
                 raise TypeError("String expects index to be type 'slice' or expression of type 'Int32', "
                                 "found expression of type '{}'".format(item._type))
+            return self._index(TString(), item)
 
     def __add__(self, other):
         """Concatenate strings.
