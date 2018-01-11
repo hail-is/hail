@@ -165,7 +165,8 @@ object HailContext {
     ProgressBarBuilder.build(sparkContext)
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
-    val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
+    val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
+    val hc = new HailContext(sparkContext, sqlContext, hailTempDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     info(s"Running Hail version ${ hc.version }")
@@ -223,6 +224,9 @@ class HailContext private(val sc: SparkContext,
         }
       }
   }
+
+  def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
+    sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
   def importBgen(file: String,
     sampleFile: Option[String] = None,

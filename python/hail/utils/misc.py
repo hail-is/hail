@@ -1,4 +1,4 @@
-from hail.utils.java import handle_py4j, Env
+from hail.utils.java import handle_py4j, Env, joption
 
 class FunctionDocumentation(object):
     @handle_py4j
@@ -20,3 +20,7 @@ def get_env_or_default(maybe, envvar, default):
     import os
 
     return maybe or os.environ.get(envvar) or default
+
+@handle_py4j
+def new_temp_file(n_char = 10, prefix=None, suffix=None):
+    return Env.hc()._jhc.getTemporaryFile(n_char, joption(prefix), joption(suffix))
