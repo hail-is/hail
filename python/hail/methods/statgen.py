@@ -592,6 +592,12 @@ def grm(dataset):
 
         G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
 
+    Warning
+    -------
+    Since Hardy-Weinberg normalization cannot be applied to variants that
+    contain only reference alleles or only alternate alleles, all such variants
+    are removed prior to calcularing the GRM.
+
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
