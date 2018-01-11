@@ -454,8 +454,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
     values. Here is an example:
 
     >>> ds = methods.split_multi_hts(dataset)
-    >>> ds = ds.annotate_rows(info = Struct(AC=ds.info.AC[ds.aIndex - 1], **ds.info))
-    >>> methods.export_vcf(ds, 'output/export.vcf')
+    >>> ds = ds.annotate_rows(info = Struct(AC=ds.info.AC[ds.aIndex - 1], **ds.info)) # doctest: +SKIP
+    >>> methods.export_vcf(ds, 'output/export.vcf') # doctest: +SKIP
 
     The info field AC in *data/export.vcf* will have ``Number=1``.
 
