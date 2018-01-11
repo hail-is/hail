@@ -71,8 +71,9 @@ def mendel_errors(dataset, pedigree):
     Examples
     --------
 
-    Find all violations of Mendelian inheritance in each (dad, mom, kid) trio
-    in a pedigree and return four tables:
+    Find all violations of Mendelian inheritance in each (dad, mom, kid) trio in
+    a pedigree and return four tables (all errors, errors by family, errors by
+    individual, errors by variant):
 
     >>> ped = Pedigree.read('data/trios.fam')
     >>> all, per_fam, per_sample, per_variant = methods.mendel_errors(dataset, ped)
@@ -162,8 +163,6 @@ def mendel_errors(dataset, pedigree):
     the `Plink classification
     <https://www.cog-genomics.org/plink2/basic_stats#mendel>`__.
 
-    Those individuals implicated by each code are in bold.
-
     The copy state of a locus with respect to a trio is defined as follows,
     where PAR is the `pseudoautosomal region
     <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__ (PAR) defined by
@@ -171,10 +170,10 @@ def mendel_errors(dataset, pedigree):
 
     - HemiX -- in non-PAR of X, male child
     - HemiY -- in non-PAR of Y, male child
-    - Auto -- otherwise (in autosome or PAR, or female child)
+    - Auto -- otherwise (in autosome or PAR, female child)
 
-    Any refers to :math:`\{ HomRef, Het, HomVar, NoCall \}` and ! denotes
-    complement in this set.
+    :math:`Any` refers to :math:`\{ HomRef, Het, HomVar, NoCall \}` and :math:`~`
+    denotes complement in this set.
 
     +--------+------------+------------+----------+------------------+
     |Code    | Dad        | Mom        |     Kid  |   Copy State     |
@@ -183,15 +182,15 @@ def mendel_errors(dataset, pedigree):
     +--------+------------+------------+----------+------------------+
     |    2   | HomRef     | HomRef     | Het      | Auto             |
     +--------+------------+------------+----------+------------------+
-    |    3   | HomRef     |  ! HomRef  |  HomVar  | Auto             |
+    |    3   | HomRef     |  ~ HomRef  |  HomVar  | Auto             |
     +--------+------------+------------+----------+------------------+
-    |    4   |  ! HomRef  | HomRef     |  HomVar  | Auto             |
+    |    4   |  ~ HomRef  | HomRef     |  HomVar  | Auto             |
     +--------+------------+------------+----------+------------------+
     |    5   | HomRef     | HomRef     |  HomVar  | Auto             |
     +--------+------------+------------+----------+------------------+
-    |    6   | HomVar     |  ! HomVar  |  HomRef  | Auto             |
+    |    6   | HomVar     |  ~ HomVar  |  HomRef  | Auto             |
     +--------+------------+------------+----------+------------------+
-    |    7   |  ! HomVar  | HomVar     |  HomRef  | Auto             |
+    |    7   |  ~ HomVar  | HomVar     |  HomRef  | Auto             |
     +--------+------------+------------+----------+------------------+
     |    8   | HomVar     | HomVar     |  HomRef  | Auto             |
     +--------+------------+------------+----------+------------------+
@@ -206,8 +205,11 @@ def mendel_errors(dataset, pedigree):
 
     This method only considers children with two parents and a defined sex.
 
-    This method assumes all contigs apart from X and Y are fully autosomal;
-    mitochondria, decoys, etc. are not given special treatment.
+    This method assumes all contigs apart from those defined as
+    :py:meth:`~hail.representation.GenomeReference.x_contigs` or
+    :py:meth:`~hail.representation.GenomeReference.y_contigs` by the reference
+    genome are fully autosomal. Mitochondria, decoys, etc. are not given special
+    treatment.
 
     Parameters
     ----------
@@ -219,7 +221,7 @@ def mendel_errors(dataset, pedigree):
     Returns
     -------
     (:class:`.Table`, :class:`.Table`, :class:`.Table`, :class:`.Table`)
-        Four tables with Mendel error statistics.
+        Four tables as detailed in notes with Mendel error statistics.
     """
 
     kts = dataset._jvds.mendelErrors(pedigree._jrep)
