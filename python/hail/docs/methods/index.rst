@@ -24,6 +24,7 @@ Methods
     hail.methods.import_interval_list
     hail.methods.import_bed
     hail.methods.import_fam
+    hail.methods.nirvana
 
 .. autofunction:: hail.methods.linreg
 .. autofunction:: hail.methods.sample_rows
@@ -43,3 +44,4 @@ Methods
 .. autofunction:: hail.methods.import_interval_list
 .. autofunction:: hail.methods.import_bed
 .. autofunction:: hail.methods.import_fam
+.. autofunction:: hail.methods.nirvana
