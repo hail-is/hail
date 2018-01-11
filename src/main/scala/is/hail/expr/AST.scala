@@ -440,7 +440,7 @@ case class GenomeReferenceDependentConstructor(posn: Position, fName: String, gr
   val rTyp = fName match {
     case "Variant" => gr.variant
     case "Locus" => gr.locus
-    case "LocusInterval" => gr.interval
+    case "LocusInterval" => TInterval(gr.locus)
     case _ => throw new UnsupportedOperationException
   }
 

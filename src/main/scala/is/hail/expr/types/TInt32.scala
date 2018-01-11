@@ -28,9 +28,8 @@ class TInt32(override val required: Boolean) extends TIntegral {
     }
   }
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
 
   override def byteSize: Long = 4
 }

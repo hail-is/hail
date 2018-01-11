@@ -8,6 +8,7 @@ import is.hail.utils._
 import scala.reflect.{ClassTag, _}
 
 case object TBinaryOptional extends TBinary(false)
+
 case object TBinaryRequired extends TBinary(true)
 
 class TBinary(override val required: Boolean) extends Type {
@@ -42,14 +43,8 @@ class TBinary(override val required: Boolean) extends Type {
     }
   }
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
-    val ord = Ordering.Iterable[Byte]
-
-    annotationOrdering(extendOrderingToNull(missingGreatest)(
-      new Ordering[Array[Byte]] {
-        def compare(a: Array[Byte], b: Array[Byte]): Int = ord.compare(a, b)
-      }))
-  }
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(Ordering.Iterable[Byte])
 
   override def byteSize: Long = 8
 }

@@ -232,16 +232,16 @@ abstract class Type extends BaseType with Serializable {
 
   def canCompare(other: Type): Boolean = this == other
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation]
+  val ordering: ExtendedOrdering
 
   val partitionKey: Type = this
 
   def typedOrderedKey[PK, K] = new OrderedKey[PK, K] {
     def project(key: K): PK = key.asInstanceOf[PK]
 
-    val kOrd: Ordering[K] = ordering(missingGreatest = true).asInstanceOf[Ordering[K]]
+    val kOrd: Ordering[K] = ordering.toOrdering.asInstanceOf[Ordering[K]]
 
-    val pkOrd: Ordering[PK] = ordering(missingGreatest = true).asInstanceOf[Ordering[PK]]
+    val pkOrd: Ordering[PK] = ordering.toOrdering.asInstanceOf[Ordering[PK]]
 
     val kct: ClassTag[K] = scalaClassTag.asInstanceOf[ClassTag[K]]
 
@@ -251,9 +251,9 @@ abstract class Type extends BaseType with Serializable {
   def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
     def project(key: Annotation): Annotation = key
 
-    val kOrd: Ordering[Annotation] = ordering(missingGreatest = true)
+    val kOrd: Ordering[Annotation] = ordering.toOrdering
 
-    val pkOrd: Ordering[Annotation] = ordering(missingGreatest = true)
+    val pkOrd: Ordering[Annotation] = ordering.toOrdering
 
     val kct: ClassTag[Annotation] = classTag[Annotation]
 

@@ -23,9 +23,8 @@ class TCall(override val required: Boolean) extends ComplexType {
 
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
 }
 
 object TCall {

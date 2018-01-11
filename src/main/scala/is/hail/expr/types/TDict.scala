@@ -68,18 +68,6 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
-    val elementSortOrd = elementType.ordering(true)
-    val itOrd = Ordering.Iterable(elementType.ordering(missingGreatest))
-    val dict = new Ordering[Map[Annotation, Annotation]] {
-      def compare(x: Map[Annotation, Annotation], y: Map[Annotation, Annotation]): Int = {
-        val s1 = x.toArray.map { case (k, v) => Row(k, v) }.sorted(elementSortOrd)
-        val s2 = y.toArray.map { case (k, v) => Row(k, v) }.sorted(elementSortOrd)
-
-        itOrd.compare(s1, s2)
-      }
-    }
-
-    annotationOrdering(extendOrderingToNull(missingGreatest)(dict))
-  }
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.mapOrdering(elementType.ordering)
 }

@@ -50,6 +50,5 @@ final case class TAggregable(elementType: Type, override val required: Boolean =
 
   override def scalaClassTag: ClassTag[_ <: AnyRef] = elementType.scalaClassTag
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    throw new RuntimeException("TAggregable is not realizable")
+  val ordering: ExtendedOrdering = null
 }
