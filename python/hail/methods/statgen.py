@@ -591,7 +591,7 @@ def grm(dataset):
                                     n_called=agg.count_where(functions.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
 
-    n_samples, n_variants = dataset.count()
+    n_variants = dataset.count_rows()
     if n_variants == 0:
         raise FatalError(
             "Cannot run GRM: found 0 variants after filtering out monomorphic sites.")
@@ -609,10 +609,7 @@ def grm(dataset):
     dataset.unpersist()
     grm = bm.transpose() * bm
 
-    km = KinshipMatrix(Env.hail().methods.KinshipMatrix.apply(
-        dataset.hc._jhc,
-        dataset.sample_schema._jtype,
-        grm._jbm,
-        dataset.sample_ids, n_variants))
-
-    return km
+    return KinshipMatrix._from_python(dataset.colkey_schema,
+                                      grm,
+                                      [row.s for row in dataset.cols_table().select('s').collect()],
+                                      n_variants)

@@ -2384,13 +2384,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         bm = BlockMatrix.read(f).cache()
         grm = bm.transpose() * bm
 
-        jkm = Env.hail().methods.KinshipMatrix.apply(
-            self.hc._jhc,
-            self.sample_schema._jtype,
-            grm._jbm,
-            self.sample_ids, n_variants)
-
-        return KinshipMatrix(jkm)
+        return KinshipMatrix._from_python(self.sample_schema, grm, self.sample_ids, n_variants)
 
     @handle_py4j
     @record_method

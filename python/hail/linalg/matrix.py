@@ -92,7 +92,6 @@ class BlockMatrix(object):
 block_matrix_type.set(BlockMatrix)
 
 
-@staticmethod
 @handle_py4j
 @typecheck(entry_expr=expr_numeric,
            path=strlike,
@@ -111,4 +110,4 @@ def block_matrix_from_expr(entry_expr,
     analyze(entry_expr, mt._entry_indices)
 
     mt._jvds.writeBlockMatrix(path, to_expr(entry_expr)._ast.to_hql(), block_size)
-    return BlockMatrix(BlockMatrix.read(path))
+    return BlockMatrix.read(path)

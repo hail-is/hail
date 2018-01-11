@@ -140,6 +140,8 @@ class Tests(unittest.TestCase):
 
         grm.export_rel(rel_file)
         assert(load_id_file(rel_id_file) == sample_ids)
+        print(load_rel(n_samples, p_file + ".rel"))
+        print(load_rel(n_samples, rel_file))
         assert(np.allclose(load_rel(n_samples, p_file + ".rel"),
                            load_rel(n_samples, rel_file)))
 
