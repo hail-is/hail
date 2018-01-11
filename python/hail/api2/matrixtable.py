@@ -2218,7 +2218,7 @@ class MatrixTable(object):
         Examples
         --------
 
-        >>> dataset_result = ds.index_rows()
+        >>> dataset_result = dataset.index_rows()
 
         Notes
         -----
@@ -2247,7 +2247,7 @@ class MatrixTable(object):
         Examples
         --------
 
-        >>> dataset_result = ds.index_cols()
+        >>> dataset_result = dataset.index_cols()
 
         Notes
         -----
