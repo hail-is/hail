@@ -302,8 +302,8 @@ object Parser extends JavaTokenParsers {
     parseAnnotationRoot(a, root)
   }
 
-  def parseInterval(input: String, gr: GRBase): Interval = {
-    parseAll[Interval](interval(gr), input) match {
+  def parseLocusInterval(input: String, gr: GRBase): Interval = {
+    parseAll[Interval](locusInterval(gr), input) match {
       case Success(r, _) => r
       case NoSuccess(msg, next) => fatal(s"invalid interval expression: `$input': $msg")
     }
@@ -642,7 +642,7 @@ object Parser extends JavaTokenParsers {
 
   def genomeReferenceDependentTypes: Parser[String] = "Variant" | "LocusInterval" | "Locus"
 
-  def interval(gr: GRBase): Parser[Interval] = {
+  def locusInterval(gr: GRBase): Parser[Interval] = {
     val contig = gr.contigParser
     locus(gr) ~ "-" ~ locus(gr) ^^ { case l1 ~ _ ~ l2 => Interval(l1, l2) } |
       locus(gr) ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => Interval(l1, l1.copyChecked(gr, position = p2.getOrElse(gr.contigLength(l1.contig)))) } |

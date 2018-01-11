@@ -5,7 +5,7 @@ import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.io.plink.{ExportPlink, PlinkLoader}
 import is.hail.methods.{SplitMulti, VariantQC}
-import is.hail.expr.Type
+import is.hail.expr.types.Type
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}

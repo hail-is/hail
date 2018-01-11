@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.TVariant
+import is.hail.expr.types.TVariant
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant.{GenomeReference, Genotype, VSMSubgen, Variant, MatrixTable}

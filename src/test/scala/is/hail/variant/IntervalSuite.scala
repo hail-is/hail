@@ -242,14 +242,14 @@ class IntervalSuite extends SparkSuite {
 
     val x = "GL000197.1:3739-GL000202.1:7538"
     assert(Locus.parseInterval(x, gr37) ==
-      Interval(Locus("GL000197.1", 3739), Locus("GL000202.1", 7538))(gr37.locusOrdering))
+      Interval(Locus("GL000197.1", 3739), Locus("GL000202.1", 7538)))
 
     val y = "HLA-DRB1*13:02:01:5-HLA-DRB1*14:05:01:100"
     assert(Locus.parseInterval(y, gr38) ==
-      Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*14:05:01", 100))(gr38.locusOrdering))
+      Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*14:05:01", 100)))
 
     val z = "HLA-DRB1*13:02:01:5-100"
     assert(Locus.parseInterval(z, gr38) ==
-      Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*13:02:01", 100))(gr38.locusOrdering))
+      Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*13:02:01", 100)))
   }
 }

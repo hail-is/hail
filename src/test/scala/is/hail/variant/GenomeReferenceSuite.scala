@@ -4,7 +4,7 @@ import java.io.FileNotFoundException
 
 import is.hail.expr.types.{TInterval, TLocus, TStruct, TVariant}
 import is.hail.table.Table
-import is.hail.utils.Interval
+import is.hail.utils.HailException
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
@@ -180,10 +180,12 @@ class GenomeReferenceSuite extends SparkSuite {
     intercept[SparkException](kt.annotate("""l1bad = Locus("foo:17000") """).collect())
     intercept[SparkException](kt.annotate("""l1bad = Locus("foo", 17000) """).collect())
 
-    intercept[SparkException](kt.annotate("""i1bad = Interval("MT:4789-17000") """).collect())
-    intercept[SparkException](kt.annotate("""i1bad = Interval("foo:4789-17000") """).collect())
-    intercept[SparkException](kt.annotate("""i1bad = Interval("foo", 1, 10) """).collect())
-    intercept[SparkException](kt.annotate("""i1bad = Interval("MT", 5, 17000) """).collect())
+    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("MT:4789-17000") """).collect())
+    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("foo:4789-17000") """).collect())
+    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("foo", 1, 10) """).collect())
+    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("MT", 5, 17000) """).collect())
+
+    intercept[HailException](kt.annotate("""i1bad = Interval(Locus(foo2)("1:100"), Locus(GRCh37)("1:104"))""").collect())
 
     GenomeReference.setDefaultReference(GenomeReference.GRCh37)
     GenomeReference.removeReference("foo2")

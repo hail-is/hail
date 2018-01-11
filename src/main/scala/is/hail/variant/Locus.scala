@@ -54,21 +54,19 @@ object Locus {
     val contig = elts.take(size - 1).mkString(":")
     Locus(contig, elts(size - 1).toInt, gr)
   }
-  
-  def parseInterval(str: String, gr: GRBase): Interval = Parser.parseInterval(str, gr)
+
+  def parseInterval(str: String, gr: GRBase): Interval = Parser.parseLocusInterval(str, gr)
 
   def parseIntervals(arr: Array[String], gr: GRBase): Array[Interval] = arr.map(parseInterval(_, gr))
 
   def parseIntervals(arr: java.util.ArrayList[String], gr: GRBase): Array[Interval] = parseIntervals(arr.asScala.toArray, gr)
 
   def makeInterval(start: Locus, end: Locus, gr: GRBase): Interval = {
-    implicit val ord = TInterval(gr.locusType).ordering
     gr.checkInterval(start, end)
     Interval(start, end)
   }
 
   def makeInterval(contig: String, start: Int, end: Int, gr: GRBase): Interval = {
-    implicit val locusOrd = gr.locusOrdering
     gr.checkInterval(contig, start, end)
     Interval(Locus(contig, start), Locus(contig, end))
   }
