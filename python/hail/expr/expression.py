@@ -6,7 +6,7 @@ from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from hail.genetics import Locus, Variant, Interval, Call, AltAllele
 from hail.typecheck import *
-
+from collections import Mapping
 
 class Indices(object):
     @typecheck_method(source=anytype, axes=setof(strlike))
@@ -96,7 +96,7 @@ def to_expr(e):
     elif isinstance(e, AltAllele):
         return construct_expr(ApplyMethod('AltAllele', to_expr(e.ref)._ast, to_expr(e.alt)._ast), TAltAllele())
     elif isinstance(e, Struct):
-        attrs = e._attrs.items()
+        attrs = e._fields.items()
         cols = [to_expr(x) for _, x in attrs]
         names = [k for k, _ in attrs]
         indices, aggregations, joins, refs = unify_all(*cols)
@@ -1809,7 +1809,7 @@ class Aggregable(object):
         raise NotImplementedError('Comparison of aggregable collections is undefined')
 
 
-class StructExpression(Expression):
+class StructExpression(Mapping, Expression):
     """Expression of type :class:`hail.expr.types.TStruct`.
 
     >>> s = functions.capture(Struct(a=5, b='Foo'))
@@ -1826,17 +1826,20 @@ class StructExpression(Expression):
     For these, use the :meth:`StructExpression.__getitem__` syntax.
     """
     def _init(self):
-        self._fields = {}
+        self._fields = OrderedDict()
 
         for fd in self._type.fields:
-            expr = typ_to_expr[fd.typ.__class__](Select(self._ast, fd.name), fd.typ,
-                                                 self._indices, self._aggregations, self._joins, self._refs)
+            expr = construct_expr(Select(self._ast, fd.name), fd.typ, self._indices,
+                                  self._aggregations, self._joins, self._refs)
             self._set_field(fd.name, expr)
 
     def _set_field(self, key, value):
         self._fields[key] = value
-        if key not in dir(self):
+        if key not in self.__dict__:
             self.__dict__[key] = value
+
+    def __len__(self):
+        return len(self._fields)
 
     @typecheck_method(item=strlike)
     def __getitem__(self, item):
@@ -1859,16 +1862,25 @@ class StructExpression(Expression):
         :class:`.Expression`
             Struct field.
         """
-
-        if item in self._fields:
-            return self._fields[item]
-        else:
-            raise AttributeError("No field '{}' in schema. Available fields: {}".format(
-                item, [f.name for f in self._type.fields]))
+        if not item in self._fields:
+            raise KeyError("Struct has no field '{}'\n"
+                           "    Fields: [ {} ]".format(item, ', '.join("'{}'".format(x) for x in self._fields)))
+        return self._fields[item]
 
     def __iter__(self):
-        return iter([self._fields[f.name] for f in self._type.fields])
+        return iter(self._fields)
 
+    def __hash__(self):
+        return object.__hash__(self)
+
+    def __eq__(self, other):
+        return Expression.__eq__(self, other)
+
+    def __ne__(self, other):
+        return Expression.__ne__(self, other)
+
+    def __nonzero__(self):
+        return Expression.__nonzero__(self)
 
 class AtomicExpression(Expression):
     """Abstract base class for numeric and logical types."""

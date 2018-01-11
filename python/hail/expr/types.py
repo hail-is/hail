@@ -641,7 +641,7 @@ class TStruct(Type):
             for f in self.fields:
                 if not (f.name in annotation):
                     raise TypeCheckError("TStruct expected fields '%s', but found fields '%s'" %
-                                         ([f.name for f in self.fields], annotation._attrs))
+                                         ([f.name for f in self.fields], annotation._fields))
                 f.typ._typecheck((annotation[f.name]))
         elif self.required:
             raise TypeCheckError("!TStruct cannot be missing")

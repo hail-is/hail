@@ -28,7 +28,7 @@ def schema_eq(x, y):
 
 def convert_struct_to_dict(x):
     if isinstance(x, Struct):
-        return {k: convert_struct_to_dict(v) for k, v in x._attrs.iteritems()}
+        return {k: convert_struct_to_dict(v) for k, v in x._fields.iteritems()}
     elif isinstance(x, list):
         return [convert_struct_to_dict(elt) for elt in x]
     elif isinstance(x, tuple):
