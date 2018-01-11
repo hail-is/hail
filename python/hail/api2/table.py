@@ -518,32 +518,33 @@ class Table(TableTemplate):
 
         Create a single field from an expression of `C1`, `C2`, and `C3`.
 
+        .. testsetup::
+
+            table4 = hc.import_table('data/kt_example4.tsv', impute=True,
+                                  types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
+                                 'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
+                                 'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
+
         .. doctest::
 
-            >>> table1.show()
-            +-------+-------+--------+-------+-------+-------+-------+-------+
-            |    ID |    HT | SEX    |     X |     Z |    C1 |    C2 |    C3 |
-            +-------+-------+--------+-------+-------+-------+-------+-------+
-            | Int32 | Int32 | String | Int32 | Int32 | Int32 | Int32 | Int32 |
-            +-------+-------+--------+-------+-------+-------+-------+-------+
-            |     1 |    65 | M      |     5 |     4 |     2 |    50 |     5 |
-            |     2 |    72 | M      |     6 |     3 |     2 |    61 |     1 |
-            |     3 |    70 | F      |     7 |     3 |    10 |    81 |    -5 |
-            |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
-            +-------+-------+--------+-------+-------+-------+-------+-------+
+            >>> table4.show()
+            +-------+---------+--------+---------+-------+-------+-------+-------+
+            |     A | B.B0    | B.B1   | C       | D.cat | D.dog |   E.A |   E.B |
+            +-------+---------+--------+---------+-------+-------+-------+-------+
+            | Int32 | Boolean | String | Boolean | Int32 | Int32 | Int32 | Int32 |
+            +-------+---------+--------+---------+-------+-------+-------+-------+
+            |    32 | true    | hello  | false   |     5 |     7 |     5 |     7 |
+            +-------+---------+--------+---------+-------+-------+-------+-------+\
 
-            >>> table_result = table1.transmute(C=table1.C1 + 2 * table1.C2 + 3 * table1.C3)
+            >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
             >>> table_result.show()
-            +-------+-------+--------+-------+-------+-------+
-            |    ID |    HT | SEX    |     X |     Z |     C |
-            +-------+-------+--------+-------+-------+-------+
-            | Int32 | Int32 | String | Int32 | Int32 | Int32 |
-            +-------+-------+--------+-------+-------+-------+
-            |     1 |    65 | M      |     5 |     4 |   117 |
-            |     2 |    72 | M      |     6 |     3 |   127 |
-            |     3 |    70 | F      |     7 |     3 |   157 |
-            |     4 |    60 | F      |     8 |     2 |   161 |
-            +-------+-------+--------+-------+-------+-------+
+            +---------+--------+---------+-------+-------+-------+
+            | B.B0    | B.B1   | C       | D.cat | D.dog |     F |
+            +---------+--------+---------+-------+-------+-------+
+            | Boolean | String | Boolean | Int32 | Int32 | Int32 |
+            +---------+--------+---------+-------+-------+-------+
+            | true    | hello  | false   |     5 |     7 |    46 |
+            +---------+--------+---------+-------+-------+-------+
 
         Notes
         -----
@@ -556,7 +557,8 @@ class Table(TableTemplate):
         Warning
         -------
         References to fields inside a top-level struct will remove the entire
-        struct.
+        struct, as field `E` was removed in the example above since `E.B` was
+        referenced.
 
         Parameters
         ----------
