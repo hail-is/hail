@@ -1051,7 +1051,7 @@ class Table(TableTemplate):
             raise ExpressionException('found explicit join indexed by a scalar expression')
         elif isinstance(src, Table):
             for e in exprs:
-                analyze('Table.index_rows', e, src._row_indices)
+                analyze('Table.view_join_rows', e, src._row_indices)
 
             right = self
             right_keys = [right[k] for k in right.key]

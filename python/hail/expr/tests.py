@@ -120,18 +120,18 @@ class Tests(unittest.TestCase):
     def test_aggregators(self):
         table = Table.range(10)
         r = table.aggregate(x=agg.count(),
-                            y=agg.count_where(table.index % 2 == 0),
-                            z=agg.count(agg.filter(lambda x: x % 2 == 0, table.index)))
+                            y=agg.count_where(table.idx % 2 == 0),
+                            z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)
         self.assertEqual(r.z, 5)
 
-        r = table.aggregate(fraction_odd = agg.fraction(table.index % 2 == 0),
-                            lessthan6 = agg.fraction(table.index < 6),
-                            gt6 = agg.fraction(table.index > 6),
-                            assert1 = agg.fraction(table.index > 6) < 0.50,
-                            assert2 = agg.fraction(table.index < 6) >= 0.50)
+        r = table.aggregate(fraction_odd = agg.fraction(table.idx % 2 == 0),
+                            lessthan6 = agg.fraction(table.idx < 6),
+                            gt6 = agg.fraction(table.idx > 6),
+                            assert1 = agg.fraction(table.idx > 6) < 0.50,
+                            assert2 = agg.fraction(table.idx < 6) >= 0.50)
         self.assertEqual(r.fraction_odd, 0.50)
         self.assertEqual(r.lessthan6, 0.60)
         self.assertEqual(r.gt6, 0.30)

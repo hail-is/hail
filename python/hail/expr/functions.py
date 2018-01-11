@@ -77,7 +77,7 @@ def broadcast(x):
 
         >>> table = Table.range(8)
         >>> greetings = functions.broadcast({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
-        >>> table.annotate(greeting = greetings.get(table.index)).show()
+        >>> table.annotate(greeting = greetings.get(table.idx)).show()
         +-------+----------------+
         | index | greeting       |
         +-------+----------------+
