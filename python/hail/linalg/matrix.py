@@ -1,3 +1,4 @@
+from hail.utils import new_temp_file
 from hail.utils.java import Env, handle_py4j, scala_object, jarray
 from hail.typecheck import *
 from hail.api2 import MatrixTable
@@ -12,13 +13,33 @@ class BlockMatrix(object):
     def default_block_size():
         return scala_object(Env.hail().distributedmatrix, "BlockMatrix").defaultBlockSize()
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    def read(path):
+    def read(cls, path):
         hc = Env.hc()
-        return BlockMatrix(Env.hail().distributedmatrix.BlockMatrix.read(
+        return cls(Env.hail().distributedmatrix.BlockMatrix.read(
             hc._jhc, path))
 
+    @classmethod
+    @handle_py4j
+    @typecheck_method(entry_expr=expr_numeric,
+                      path=nullable(strlike),
+                      block_size=nullable(integral))
+    def from_matrix_table(cls, entry_expr, path=None, block_size=None):
+        if not path:
+            path = new_temp_file(suffix="bm")
+        if not block_size:
+            block_size = scala_object(Env.hail().distributedmatrix, "BlockMatrix").defaultBlockSize()
+        source = entry_expr._indices.source
+        if not isinstance(source, MatrixTable):
+            raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
+                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+        mt = source
+        base, _ = mt._process_joins(entry_expr)
+        analyze('block_matrix_from_expr', entry_expr, mt._entry_indices)
+
+        mt._jvds.writeBlockMatrix(path, to_expr(entry_expr)._ast.to_hql(), block_size)
+        return cls.read(path)
 
     @staticmethod
     @handle_py4j
@@ -52,7 +73,7 @@ class BlockMatrix(object):
 
     @handle_py4j
     @typecheck_method(that=block_matrix_type)
-    def __mul__(self, that):
+    def dot(self, that):
         return BlockMatrix(self._jbm.multiply(that._jbm))
 
     @handle_py4j
@@ -79,10 +100,7 @@ class BlockMatrix(object):
     def cache(self):
         return BlockMatrix(self._jbm.cache())
 
-    @typecheck_method(storage_level=enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
-                                                'MEMORY_ONLY_2', 'MEMORY_ONLY_SER', 'MEMORY_ONLY_SER_2',
-                                                'MEMORY_AND_DISK', 'MEMORY_AND_DISK_2', 'MEMORY_AND_DISK_SER',
-                                                'MEMORY_AND_DISK_SER_2', 'OFF_HEAP'))
+    @typecheck_method(storage_level=storage_level)
     def persist(self, storage_level='MEMORY_AND_DISK'):
         return BlockMatrix(self._jbm.persist(storage_level))
 
@@ -91,23 +109,3 @@ class BlockMatrix(object):
 
 block_matrix_type.set(BlockMatrix)
 
-
-@handle_py4j
-@typecheck(entry_expr=expr_numeric,
-           path=strlike,
-           block_size=nullable(integral))
-def block_matrix_from_expr(entry_expr,
-                           path,
-                           block_size=None):
-    if not block_size:
-        block_size = BlockMatrix.default_block_size()
-    source = entry_expr._indices.source
-    if not isinstance(source, MatrixTable):
-        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
-            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
-    mt = source
-    base, _ = mt._process_joins(entry_expr)
-    analyze('block_matrix_from_expr', entry_expr, mt._entry_indices)
-
-    mt._jvds.writeBlockMatrix(path, to_expr(entry_expr)._ast.to_hql(), block_size)
-    return BlockMatrix.read(path)

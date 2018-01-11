@@ -2,7 +2,7 @@ from hail.api2.matrixtable import MatrixTable, Table
 from hail.expr.expression import *
 from hail.genetics import KinshipMatrix
 from hail.genetics.ldMatrix import LDMatrix
-from hail.linalg import BlockMatrix, block_matrix_from_expr
+from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j
@@ -624,11 +624,10 @@ def grm(dataset):
                                        (dataset.GT.num_alt_alleles() - mean_gt) /
                                        functions.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
                                        0))
-    f = new_temp_file(suffix="bm")
 
-    bm = block_matrix_from_expr(normalized_genotype_expr, f).cache()
+    bm = BlockMatrix.from_matrix_table(normalized_genotype_expr)
     dataset.unpersist()
-    grm = bm.transpose() * bm
+    grm = bm.transpose().dot(bm)
 
     return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
                                       grm,

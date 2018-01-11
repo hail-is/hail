@@ -2381,8 +2381,8 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         vds._jvds.writeBlockMatrix(f, normalized_genotype_expr, BlockMatrix.default_block_size())
         vds.unpersist()
 
-        bm = BlockMatrix.read(f).cache()
-        grm = bm.transpose() * bm
+        bm = BlockMatrix.read(f)
+        grm = bm.transpose().dot(bm)
 
         return KinshipMatrix._from_block_matrix(self.sample_schema, grm, self.sample_ids, n_variants)
 
