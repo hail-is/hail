@@ -960,7 +960,7 @@ class Table(val hc: HailContext,
 
   def take(n: Int): Array[Row] = rdd.take(n)
 
-  def indexed(name: String = "index"): Table = {
+  def index(name: String = "idx"): Table = {
     if (columns.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
 
