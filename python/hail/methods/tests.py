@@ -70,6 +70,7 @@ class Tests(unittest.TestCase):
         dataset = methods.sample_qc(dataset)
 
     def test_grm(self):
+        tolerance = 0.001
 
         def load_id_file(path):
             ids = []
@@ -140,10 +141,9 @@ class Tests(unittest.TestCase):
 
         grm.export_rel(rel_file)
         assert(load_id_file(rel_id_file) == sample_ids)
-        print(load_rel(n_samples, p_file + ".rel"))
-        print(load_rel(n_samples, rel_file))
         assert(np.allclose(load_rel(n_samples, p_file + ".rel"),
-                           load_rel(n_samples, rel_file)))
+                           load_rel(n_samples, rel_file),
+                           atol=tolerance))
 
         ############
         ### gcta-grm
@@ -155,7 +155,8 @@ class Tests(unittest.TestCase):
 
         grm.export_gcta_grm(grm_file)
         assert(np.allclose(load_grm(n_samples, n_variants, p_file + ".grm.gz"),
-                           load_grm(n_samples, n_variants, grm_file)))
+                           load_grm(n_samples, n_variants, grm_file),
+                           atol=tolerance))
 
         ############
         ### gcta-grm-bin
@@ -169,9 +170,11 @@ class Tests(unittest.TestCase):
         grm.export_gcta_grm_bin(grm_bin_file, grm_nbin_file)
 
         assert(np.allclose(load_bin(n_samples, p_file + ".grm.bin"),
-                           load_bin(n_samples, grm_bin_file)) and
+                           load_bin(n_samples, grm_bin_file),
+                           atol=tolerance) and
                np.allclose(load_bin(n_samples, p_file + ".grm.N.bin"),
-                           load_bin(n_samples, grm_nbin_file)))
+                           load_bin(n_samples, grm_nbin_file),
+                           atol=tolerance))
 
     def test_pca(self):
         dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()
