@@ -220,7 +220,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(ind.key, ['s'])
         self.assertEqual(var.key, ['v'])
         dataset.annotate_rows(mendel=var[dataset.v]).count_rows()
-        
+
     def test_export_vcf(self):
         dataset = hc.import_vcf('src/test/resources/sample.vcf.bgz')
         vcf_metadata = hc.get_vcf_metadata('src/test/resources/sample.vcf.bgz')
@@ -230,3 +230,12 @@ class Tests(unittest.TestCase):
 
         metadata_imported = hc.get_vcf_metadata('/tmp/sample.vcf')
         self.assertDictEqual(vcf_metadata, metadata_imported)
+
+    def test_concordance(self):
+        dataset = self.get_dataset()
+        glob_conc, cols_conc, rows_conc = methods.concordance(dataset, dataset)
+        print(glob_conc[1][4])
+        print(glob_conc[4][0])
+        print(glob_conc[:][3])
+        cols_conc.write('/tmp/foo.kt', overwrite=True)
+        rows_conc.write('/tmp/foo.kt', overwrite=True)
