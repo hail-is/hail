@@ -17,7 +17,7 @@ class KinshipMatrix(HistoryMixin):
 
     @classmethod
     @record_classmethod
-    def _from_python(cls, sample_schema, bm, sample_ids, n_variants):
+    def _from_block_matrix(cls, sample_schema, bm, sample_ids, n_variants):
         return cls(Env.hail().methods.KinshipMatrix.apply(
             Env.hc()._jhc,
             sample_schema._jtype,

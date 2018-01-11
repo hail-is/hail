@@ -36,10 +36,6 @@ def hadoop_read(path, buffer_size=8192):
     :return: Iterable file reader.
     :rtype: `io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
     """
-    if not isinstance(path, str) and not isinstance(path, unicode):
-        raise TypeError("expected parameter 'path' to be type str, but found %s" % type(path))
-    if not isinstance(buffer_size, int):
-        raise TypeError("expected parameter 'buffer_size' to be type int, but found %s" % type(buffer_size))
     return io.BufferedReader(HadoopReader(path), buffer_size=buffer_size)
 
 @handle_py4j
@@ -52,15 +48,18 @@ def hadoop_read_binary(path, buffer_size=8192):
     calling :py:meth:`f.read(n_bytes)` on the resulting file handle reads `n_bytes` bytes as a
     Python bytearray. If no argument is provided, the entire file will be read.
 
-    **Examples**
+    Examples
+    --------
 
     .. doctest::
         :options: +SKIP
 
+        >>> from struct import unpack
         >>> with hadoop_read('gs://my-bucket/notes.txt') as f:
-        ...     print int(f.read())
+        ...     print(unpack('<f', bytearray(f.read())))
 
-    **Notes**
+    Notes
+    -----
 
     The provided source file path must be a URI (uniform resource identifier).
 
@@ -75,13 +74,9 @@ def hadoop_read_binary(path, buffer_size=8192):
 
     :param int buffer_size: Size of internal buffer.
 
-    :return: Iterable file reader.
+    :return: Binary file reader.
     :rtype: `io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
     """
-    if not isinstance(path, str) and not isinstance(path, unicode):
-        raise TypeError("expected parameter 'path' to be type str, but found %s" % type(path))
-    if not isinstance(buffer_size, int):
-        raise TypeError("expected parameter 'buffer_size' to be type int, but found %s" % type(buffer_size))
     return io.BufferedReader(HadoopBinaryReader(path), buffer_size=buffer_size)
 
 
@@ -117,10 +112,6 @@ def hadoop_write(path, buffer_size=8192):
     :return: File writer object.
     :rtype: `io.BufferedWriter <https://docs.python.org/2/library/io.html#io.BufferedWriter>`_
     """
-    if not isinstance(path, str) and not isinstance(path, unicode):
-        raise TypeError("expected parameter 'path' to be type str, but found %s" % type(path))
-    if not isinstance(buffer_size, int):
-        raise TypeError("expected parameter 'buffer_size' to be type int, but found %s" % type(buffer_size))
     return io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size)
 
 
