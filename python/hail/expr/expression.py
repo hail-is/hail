@@ -1051,7 +1051,7 @@ class ArrayExpression(CollectionExpression):
         :py:class:`ArrayExpression`
         """
         def check_f(t):
-            if not is_numeric(t) or isinstance(t, TString):
+            if not (is_numeric(t) or isinstance(t, TString)):
                 raise TypeError("'sort_by' expects 'f' to return an ordered type, found type '{}'\n"
                                 "    Ordered types are 'Int32', 'Int64', 'Float32', 'Float64', 'String'".format(t))
             return self._type
