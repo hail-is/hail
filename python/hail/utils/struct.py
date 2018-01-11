@@ -2,6 +2,7 @@ from hail.typecheck import *
 from hail.history import HistoryMixin, record_init, record_method
 from collections import Mapping
 
+
 class Struct(Mapping, HistoryMixin):
     """
     Nested annotation structure.
@@ -66,15 +67,10 @@ class Struct(Mapping, HistoryMixin):
     def __iter__(self):
         return iter(self._fields)
 
+
 @typecheck(struct=Struct)
 def to_dict(struct):
-    d = {}
-    for k, v in struct._attrs.items():
-        if isinstance(v, Struct):
-            d[k] = to_dict(v)
-        else:
-            d[k] = v
-    return d
+    return dict(struct.items())
 
 
 import pprint
