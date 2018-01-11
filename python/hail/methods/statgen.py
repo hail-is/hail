@@ -205,6 +205,226 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     return cleanup(MatrixTable(jm))
 
+@handle_py4j
+@require_biallelic
+@typecheck(dataset=MatrixTable,
+           test=strlike,
+           y=strlike,
+           x=strlike,
+           covariates=listof(strlike),
+           root=strlike)
+def logreg(dataset, test, y, x, covariates=[], root='va.logreg'):
+    r"""Test each variant for association using logistic regression.
+
+    Examples
+    --------
+
+    Run the logistic regression Wald test per variant using a Boolean
+    phenotype and two covariates stored in sample annotations:
+
+    >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', 'g.GT.nNonRefAlleles()', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
+
+    Notes
+    -----
+
+    The :meth:`logreg` method performs, for each variant, a significance test
+    of the genotype in predicting a binary (case-control) phenotype based on
+    the logistic regression model. The phenotype type must either be numeric
+    (with all present values 0 or 1) or Boolean, in which case true and false
+    are coded as 1 and 0, respectively.
+
+    Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'),
+    Rao score test ('score'), and Firth test ('firth'). Hail only includes
+    samples for which the phenotype and all covariates are defined. For each
+    variant, Hail imputes missing input values as the mean of the non-missing
+    values.
+
+    The example above considers a model of the form
+
+    .. math::
+
+        \mathrm{Prob}(\mathrm{isCase}) =
+            \mathrm{sigmoid}(\beta_0 + \beta_1 \, \mathrm{gt}
+                            + \beta_2 \, \mathrm{age}
+                            + \beta_3 \, \mathrm{isFemale} + \varepsilon),
+        \quad
+        \varepsilon \sim \mathrm{N}(0, \sigma^2)
+
+    where :math:`\mathrm{sigmoid}` is the
+    `sigmoid function <https://en.wikipedia.org/wiki/Sigmoid_function>`__,
+    the genotype :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for Het, and 2
+    for HomVar, and the Boolean covariate :math:`\mathrm{isFemale}` is coded as
+    for true (female) and 0 for false (male). The null model sets
+    :math:`\beta_1 = 0`.
+
+    The resulting variant annotations depend on the test statistic as shown
+    in the tables below.
+
+    ========== =================== ====== =====
+    Test       Annotation          Type   Value
+    ========== =================== ====== =====
+    Wald       ``va.logreg.beta``  Double fit genotype coefficient, :math:`\hat\beta_1`
+    Wald       ``va.logreg.se``    Double estimated standard error, :math:`\widehat{\mathrm{se}}`
+    Wald       ``va.logreg.zstat`` Double Wald :math:`z`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+    Wald       ``va.logreg.pval``  Double Wald p-value testing :math:`\beta_1 = 0`
+    LRT, Firth ``va.logreg.beta``  Double fit genotype coefficient, :math:`\hat\beta_1`
+    LRT, Firth ``va.logreg.chi2``  Double deviance statistic
+    LRT, Firth ``va.logreg.pval``  Double LRT / Firth p-value testing :math:`\beta_1 = 0`
+    Score      ``va.logreg.chi2``  Double score statistic
+    Score      ``va.logreg.pval``  Double score p-value testing :math:`\beta_1 = 0`
+    ========== =================== ====== =====
+
+    For the Wald and likelihood ratio tests, Hail fits the logistic model for
+    each variant using Newton iteration and only emits the above annotations
+    when the maximum likelihood estimate of the coefficients converges. The
+    Firth test uses a modified form of Newton iteration. To help diagnose
+    convergence issues, Hail also emits three variant annotations which
+    summarize the iterative fitting process:
+
+    ================ =========================== ======= =====
+    Test             Annotation                  Type    Value
+    ================ =========================== ======= =====
+    Wald, LRT, Firth ``va.logreg.fit.nIter``     Int     number of iterations until convergence, explosion, or reaching the max (25 for Wald, LRT; 100 for Firth)
+    Wald, LRT, Firth ``va.logreg.fit.converged`` Boolean true if iteration converged
+    Wald, LRT, Firth ``va.logreg.fit.exploded``  Boolean true if iteration exploded
+    ================ =========================== ======= =====
+
+    We consider iteration to have converged when every coordinate of
+    :math:`\beta` changes by less than :math:`10^{-6}`. For Wald and LRT,
+    up to 25 iterations are attempted; in testing we find 4 or 5 iterations
+    nearly always suffice. Convergence may also fail due to explosion,
+    which refers to low-level numerical linear algebra exceptions caused by
+    manipulating ill-conditioned matrices. Explosion may result from (nearly)
+    linearly dependent covariates or complete
+    `separation <https://en.wikipedia.org/wiki/Separation_(statistics)>`__.
+
+    A more common situation in genetics is quasi-complete seperation, e.g.
+    variants that are observed only in cases (or controls). Such variants
+    inevitably arise when testing millions of variants with very low minor
+    allele count. The maximum likelihood estimate of :math:`\beta` under
+    logistic regression is then undefined but convergence may still occur after
+    a large number of iterations due to a very flat likelihood surface. In
+    testing, we find that such variants produce a secondary bump from 10 to 15
+    iterations in the histogram of number of iterations per variant. We also
+    find that this faux convergence produces large standard errors and large
+    (insignificant) p-values. To not miss such variants, consider using Firth
+    logistic regression, linear regression, or group-based tests.
+
+    Here's a concrete illustration of quasi-complete seperation in R. Suppose
+    we have 2010 samples distributed as follows for a particular variant:
+
+    ======= ====== === ======
+    Status  HomRef Het HomVar
+    ======= ====== === ======
+    Case    1000   10  0
+    Control 1000   0   0
+    ======= ====== === ======
+
+    The following R code fits the (standard) logistic, Firth logistic,
+    and linear regression models to this data, where ``x`` is genotype,
+    ``y`` is phenotype, and ``logistf`` is from the logistf package:
+
+    .. code-block:: R
+
+        x <- c(rep(0,1000), rep(1,1000), rep(1,10)
+        y <- c(rep(0,1000), rep(0,1000), rep(1,10))
+        logfit <- glm(y ~ x, family=binomial())
+        firthfit <- logistf(y ~ x)
+        linfit <- lm(y ~ x)
+
+    The resulting p-values for the genotype coefficient are 0.991, 0.00085,
+    and 0.0016, respectively. The erroneous value 0.991 is due to
+    quasi-complete separation. Moving one of the 10 hets from case to control
+    eliminates this quasi-complete separation; the p-values from R are then
+    0.0373, 0.0111, and 0.0116, respectively, as expected for a less
+    significant association.
+
+    The Firth test reduces bias from small counts and resolves the issue of
+    separation by penalizing maximum likelihood estimation by the
+    `Jeffrey's invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__.
+    This test is slower, as both the null and full model must be fit per
+    variant, and convergence of the modified Newton method is linear rather than
+    quadratic. For Firth, 100 iterations are attempted for the null model and,
+    if that is successful, for the full model as well. In testing we find 20
+    iterations nearly always suffices. If the null model fails to converge, then
+    the ``sa.lmmreg.fit`` annotations reflect the null model; otherwise, they
+    reflect the full model.
+
+    See `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`__
+    for an empirical comparison of the logistic Wald, LRT, score, and Firth
+    tests. The theoretical foundations of the Wald, likelihood ratio, and score
+    tests may be found in Chapter 3 of Gesine Reinert's notes
+    `Statistical Theory <http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf>`__.
+    Firth introduced his approach in
+    `Bias reduction of maximum likelihood estimates, 1993 <http://www2.stat.duke.edu/~scs/Courses/Stat376/Papers/GibbsFieldEst/BiasReductionMLE.pdf>`__.
+    Heinze and Schemper further analyze Firth's approach in
+    `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`__.
+
+    Those variants that don't vary across the included samples (e.g., all
+    genotypes are HomRef) will have missing annotations.
+
+    Phenotype and covariate sample annotations may also be specified using
+    `programmatic expressions <exprlang.html>`__ without identifiers, such as:
+
+    .. code-block:: text
+
+        if (sa.isFemale) sa.cov.age else (2 * sa.cov.age + 10)
+
+    For Boolean covariate types, true is coded as 1 and false as 0. In
+    particular, for the sample annotation ``sa.fam.isCase`` added by
+    importing a FAM file with case-control phenotype, case is 1 and control
+    is 0.
+
+    Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``,
+    and ``b.score`` tests in
+    `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`__.
+    For each variant, Hail imputes missing input values as the mean of
+    non-missing input values, whereas EPACTS subsets to those samples with
+    called genotypes. Hence, Hail and EPACTS results will currently only agree
+    for variants with no missing genotypes.
+
+    Parameters
+    ----------
+    test : :obj:`str`
+        Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
+    y : :class:`hail.expr.expression.Expression`
+        Response expression. Must evaluate to Boolean or numeric with all values
+        0 or 1.
+    x : :class:`hail.expr.expression.Expression`
+        Expression for input variable.
+    covariates : :obj:`list` of :class:`hail.expr.expression.Expression`
+        Covariate expressions.
+    root : :obj:`str`
+        Name of resulting row-indexed field.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Dataset with regression results in a new row-indexed field.
+    """
+
+    all_exprs = [x, y]
+
+    # x is entry-indexed
+    analyze('logreg/x', x, dataset._entry_indices)
+
+    # y and covariates are col-indexed
+    analyze('logreg/y', y, dataset._col_indices)
+    for e in covariates:
+        all_exprs.append(e)
+        analyze('logreg/covariates', e, dataset._col_indices)
+
+    base, cleanup = dataset._process_joins(*all_exprs)
+
+    jm = base._jvds.logreg(
+        test,
+        y._ast.to_hql(),
+        x._ast.to_hql(),
+        jarray(Env.jvm().java.lang.String,
+               [cov._ast.to_hql() for cov in covariates]),
+        'va.`{}`'.format(root))
+
+    return cleanup(MatrixTable(jm))
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, force_local=bool)
