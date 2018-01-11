@@ -77,7 +77,7 @@ class Tests(unittest.TestCase):
             with hadoop_read(path) as f:
                 for l in f:
                     r = l.strip().split('\t')
-                    assert(len(r) == 2)
+                    self.assertEqual(len(r), 2)
                     ids.append(r[1])
             return ids
 
@@ -87,8 +87,8 @@ class Tests(unittest.TestCase):
                 for i,l in enumerate(f):
                     for j,n in enumerate(map(float, l.strip().split('\t'))):
                         rel[i,j] = n
-                    assert(j == i)
-                assert(i == ns - 1)
+                    self.assertEqual(j, i)
+                self.assertEqual(i, ns - 1)
             return rel
 
         def load_grm(ns, nv, path):
@@ -97,11 +97,11 @@ class Tests(unittest.TestCase):
                 i = 0
                 for l in f:
                     row = l.strip().split('\t')
-                    assert(int(row[2]) == nv)
+                    self.assertEqual(int(row[2]), nv)
                     m[int(row[0])-1, int(row[1])-1] = float(row[3])
                     i += 1
 
-                assert(i == ns * (ns + 1) / 2)
+                self.assertEqual(i, ns * (ns + 1) / 2)
             return m
 
         def load_bin(ns, path):
@@ -110,11 +110,11 @@ class Tests(unittest.TestCase):
                 for i in range(ns):
                     for j in range(i + 1):
                         b = f.read(4)
-                        assert(len(b) == 4)
+                        self.assertEqual(len(b), 4)
                         m[i, j] = unpack('<f', bytearray(b))[0]
                 left = f.read()
                 print(left)
-                assert(len(left) == 0)
+                self.assertEqual(len(left), 0)
             return m
 
         b_file = utils.new_temp_file(prefix="plink")
@@ -135,7 +135,7 @@ class Tests(unittest.TestCase):
 
         sample_ids = [row.s for row in dataset.cols_table().select('s').collect()]
         n_variants = dataset.count_rows()
-        assert(n_variants > 0)
+        self.assertGreater(n_variants, 0)
 
         grm = methods.grm(dataset)
         grm.export_id_file(rel_id_file)
@@ -146,11 +146,11 @@ class Tests(unittest.TestCase):
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-rel --out {}'''
                 .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
-        assert(load_id_file(p_file + ".rel.id") == sample_ids)
+        self.assertEqual(load_id_file(p_file + ".rel.id"), sample_ids)
 
         grm.export_rel(rel_file)
-        assert(load_id_file(rel_id_file) == sample_ids)
-        assert(np.allclose(load_rel(n_samples, p_file + ".rel"),
+        self.assertEqual(load_id_file(rel_id_file), sample_ids)
+        self.assertTrue(np.allclose(load_rel(n_samples, p_file + ".rel"),
                            load_rel(n_samples, rel_file),
                            atol=tolerance))
 
@@ -160,10 +160,10 @@ class Tests(unittest.TestCase):
         p_file = utils.new_temp_file(prefix="plink")
         syscall('''plink --bfile {} --make-grm-gz --out {}'''
                 .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
-        assert(load_id_file(p_file + ".grm.id") == sample_ids)
+        self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
 
         grm.export_gcta_grm(grm_file)
-        assert(np.allclose(load_grm(n_samples, n_variants, p_file + ".grm.gz"),
+        self.assertTrue(np.allclose(load_grm(n_samples, n_variants, p_file + ".grm.gz"),
                            load_grm(n_samples, n_variants, grm_file),
                            atol=tolerance))
 
@@ -174,14 +174,14 @@ class Tests(unittest.TestCase):
         syscall('''plink --bfile {} --make-grm-bin --out {}'''
                 .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
 
-        assert(load_id_file(p_file + ".grm.id") == sample_ids)
+        self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
 
         grm.export_gcta_grm_bin(grm_bin_file, grm_nbin_file)
 
-        assert(np.allclose(load_bin(n_samples, p_file + ".grm.bin"),
+        self.assertTrue(np.allclose(load_bin(n_samples, p_file + ".grm.bin"),
                            load_bin(n_samples, grm_bin_file),
-                           atol=tolerance) and
-               np.allclose(load_bin(n_samples, p_file + ".grm.N.bin"),
+                           atol=tolerance))
+        self.assertTrue(np.allclose(load_bin(n_samples, p_file + ".grm.N.bin"),
                            load_bin(n_samples, grm_nbin_file),
                            atol=tolerance))
 

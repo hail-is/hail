@@ -1,6 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.expr.expression import *
+from hail.utils import storage_level
 from hail.utils.java import handle_py4j
 from hail.api2 import Table
 

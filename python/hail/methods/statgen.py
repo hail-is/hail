@@ -604,9 +604,10 @@ def grm(dataset):
         Dataset to sample from.
 
     Returns
-    ------
-    :return: Genetic Relatedness Matrix for all samples.
-    :rtype: :py:class:`genetics.KinshipMatrix`
+    -------
+    :class:`genetics.KinshipMatrix`
+        Genetic Relatedness Matrix for all samples.
+    :rtype:
     """
 
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
@@ -627,7 +628,7 @@ def grm(dataset):
 
     bm = BlockMatrix.from_matrix_table(normalized_genotype_expr)
     dataset.unpersist()
-    grm = bm.transpose().dot(bm)
+    grm = bm.T.dot(bm)
 
     return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
                                       grm,

@@ -70,12 +70,17 @@ def hadoop_read_binary(path, buffer_size=8192):
         use :py:meth:`~hail.hadoop_copy` to copy the file locally, then read it
         with standard Python I/O tools.
 
-    :param str path: Source file URI.
+    Parameters
+    ----------
+    path : :obj:`str`
+        Source file URI.
+    buffer_size : :obj:`int`
+        Size of internal buffer.
 
-    :param int buffer_size: Size of internal buffer.
-
-    :return: Binary file reader.
-    :rtype: `io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
+    Returns
+    -------
+    :class:`io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
+        Binary file reader.
     """
     return io.BufferedReader(HadoopBinaryReader(path), buffer_size=buffer_size)
 

@@ -1,4 +1,4 @@
-from hail.utils import new_temp_file
+from hail.utils import new_temp_file, storage_level
 from hail.utils.java import Env, handle_py4j, scala_object, jarray
 from hail.typecheck import *
 from hail.api2 import MatrixTable
@@ -8,9 +8,9 @@ block_matrix_type = lazy()
 
 class BlockMatrix(object):
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    def default_block_size():
+    def default_block_size(cls):
         return scala_object(Env.hail().distributedmatrix, "BlockMatrix").defaultBlockSize()
 
     @classmethod
@@ -29,7 +29,7 @@ class BlockMatrix(object):
         if not path:
             path = new_temp_file(suffix="bm")
         if not block_size:
-            block_size = scala_object(Env.hail().distributedmatrix, "BlockMatrix").defaultBlockSize()
+            block_size = cls.default_block_size()
         source = entry_expr._indices.source
         if not isinstance(source, MatrixTable):
             raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
@@ -93,8 +93,9 @@ class BlockMatrix(object):
         return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
                              jarray(Env.jvm().long, cols_to_keep)))
 
+    @property
     @handle_py4j
-    def transpose(self):
+    def T(self):
         return BlockMatrix(self._jbm.transpose())
 
     def cache(self):

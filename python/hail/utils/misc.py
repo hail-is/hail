@@ -1,4 +1,5 @@
 from hail.utils.java import handle_py4j, Env, joption
+from hail.typecheck import enumeration
 
 class FunctionDocumentation(object):
     @handle_py4j
@@ -27,3 +28,8 @@ def get_URI(path):
 @handle_py4j
 def new_temp_file(n_char = 10, prefix=None, suffix=None):
     return Env.hc()._jhc.getTemporaryFile(n_char, joption(prefix), joption(suffix))
+
+storage_level = enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
+                            'MEMORY_ONLY_2', 'MEMORY_ONLY_SER', 'MEMORY_ONLY_SER_2',
+                            'MEMORY_AND_DISK', 'MEMORY_AND_DISK_2', 'MEMORY_AND_DISK_SER',
+                            'MEMORY_AND_DISK_SER_2', 'OFF_HEAP')

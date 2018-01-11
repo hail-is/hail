@@ -2382,7 +2382,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         vds.unpersist()
 
         bm = BlockMatrix.read(f)
-        grm = bm.transpose().dot(bm)
+        grm = bm.T.dot(bm)
 
         return KinshipMatrix._from_block_matrix(self.sample_schema, grm, self.sample_ids, n_variants)
 

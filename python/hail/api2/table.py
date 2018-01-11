@@ -1,7 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.expr.expression import *
-from hail.utils import wrap_to_list
+from hail.utils import wrap_to_list, storage_level
 
 table_type = lazy()
 
