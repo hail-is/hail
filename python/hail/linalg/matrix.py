@@ -14,11 +14,11 @@ class BlockMatrix(object):
 
     @staticmethod
     @handle_py4j
-    def random(rows, cols, block_size):
+    def random(num_rows, num_cols, block_size):
         hc = Env.hc()
         return BlockMatrix(hc,
             scala_object(Env.hail().distributedmatrix, 'BlockMatrix').random(
-                hc._jhc, rows, cols, block_size))
+                hc._jhc, num_rows, num_cols, block_size))
 
     def __init__(self, hc, jbm):
         self.hc = hc
@@ -28,10 +28,10 @@ class BlockMatrix(object):
     @handle_py4j
     def num_rows(self):
         return self._jbm.rows()
-        
+
     @property
     @handle_py4j
-    def num_columns(self):
+    def num_cols(self):
         return self._jbm.cols()
 
     @property

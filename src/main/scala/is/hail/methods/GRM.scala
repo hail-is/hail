@@ -18,7 +18,7 @@ object GRM {
     val bm = irm.toHailBlockMatrix().cache()
     val grm = bm.t * bm
 
-    assert(grm.cols == nSamples && grm.rows == nSamples)
+    assert(grm.nCols == nSamples && grm.nRows == nSamples)
 
     KinshipMatrix(vds.hc, vds.sSignature, grm.toIndexedRowMatrix, vds.sampleIds.toArray, vds.countVariants())
   }
