@@ -1,4 +1,4 @@
-from hail.utils.java import handle_py4j, Env
+from hail.utils.java import handle_py4j, Env, joption
 
 class FunctionDocumentation(object):
     @handle_py4j
