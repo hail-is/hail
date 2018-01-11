@@ -23,8 +23,9 @@ def rename_duplicates(dataset):
     --------
 
     >>> renamed = methods.rename_duplicates(dataset).cols_table()
-    >>> renamed = renamed.filter(renamed.s != renamed.originalID)
-    >>> duplicate_samples = renamed.select(renamed.originalID).collect()
+    >>> duplicate_samples = (renamed.filter(renamed.s != renamed.originalID)
+    ...                             .select('originalID')
+    ...                             .collect())
 
     Notes
     -----

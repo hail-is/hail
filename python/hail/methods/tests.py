@@ -80,9 +80,7 @@ class Tests(unittest.TestCase):
 
     def test_rename_duplicates(self):
         dataset = self.get_dataset() # FIXME - want to rename samples with same id
-        dataset = methods.rename_duplicates(dataset)
-        renamed_samples = dataset.cols_table()
-        renamed_ids = renamed_samples.select(renamed_samples.s).collect()
+        renamed_ids = methods.rename_duplicates(dataset).cols_table().select('s').collect()
         self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
 
     def test_split_multi_hts(self):
