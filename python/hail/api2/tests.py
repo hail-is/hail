@@ -467,6 +467,16 @@ class MatrixTests(unittest.TestCase):
         for s, count in ds.aggregate_cols(counts=agg.counter(ds.s)).counts.items():
             self.assertEqual(count, 3)
 
+    def test_number(self):
+        ds = self.get_vds(min_partitions=8)
+        self.assertEqual(ds.num_partitions(), 8)
+        ds = ds.number_rows('rowidx').number_cols('colidx')
+
+        for i, struct in enumerate(ds.cols_table().select('colidx').collect()):
+            self.assertEqual(i, struct.colidx)
+        for i, struct in enumerate(ds.rows_table().select('rowidx').collect()):
+            self.assertEqual(i, struct.rowidx)
+
 class FunctionsTests(unittest.TestCase):
     def test(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],

@@ -2691,4 +2691,42 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     FilterAlleles(this, filterExpr, variantExpr, genotypeExpr,
       keep = keep, leftAligned = leftAligned, keepStar = keepStar)
   }
+
+  def numberRows(name: String): MatrixTable = {
+    val path = List("va", name)
+
+    val (newRowType, inserter) = rowType.unsafeInsert(TInt64(), path)
+    val newVAType = newRowType.asInstanceOf[TStruct].fieldType(2)
+    val localRowType = rowType
+
+    val partitionStarts = partitionCounts().scanLeft(0L)(_ + _)
+    val newMatrixType = matrixType.copy(vaType = newVAType)
+
+    val numberedRDD = rdd2.mapIndexedPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { case (i, it) =>
+      val region2 = Region()
+      val rv2 = RegionValue(region2)
+      val rv2b = new RegionValueBuilder(region2)
+
+      var idx = partitionStarts(i)
+
+      it.map { rv =>
+        region2.clear()
+        rv2b.start(newRowType)
+        inserter(rv.region, rv.offset, rv2b, () => rv2b.addLong(idx))
+        idx += 1
+        rv2.setOffset(rv2b.end())
+        rv2
+        }
+      }
+    copy2(vaSignature = newVAType, rdd2 = numberedRDD)
+  }
+
+  def numberCols(name: String): MatrixTable = {
+    val path = List(name)
+    val (newColType, inserter) = saSignature.insert(TInt32(), path)
+    val newSampleAnnotations = Array.tabulate(nSamples) { i =>
+      inserter(sampleAnnotations(i), i)
+    }
+    copy2(saSignature = newColType, sampleAnnotations = newSampleAnnotations)
+  }
 }

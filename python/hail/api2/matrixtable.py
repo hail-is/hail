@@ -2211,6 +2211,58 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.unpersist())
 
     @handle_py4j
+    @typecheck_method(name=strlike)
+    def number_rows(self, name='row_idx'):
+        """Add the row integer index as a new field.
+
+        Examples
+        --------
+
+        >>> dataset_result = ds.number_rows()
+
+        Notes
+        -----
+        The field added is type :class:`.TInt64`.
+
+        Parameters
+        ----------
+        name : :obj:`str`
+            Name for row number field.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Dataset with new field.
+        """
+        return MatrixTable(self._jvds.numberRows(name))
+
+    @handle_py4j
+    @typecheck_method(name=strlike)
+    def number_cols(self, name='col_idx'):
+        """Add the column integer index as a new field.
+
+        Examples
+        --------
+
+        >>> dataset_result = ds.number_cols()
+
+        Notes
+        -----
+        The field added is type :class:`.TInt32`.
+
+        Parameters
+        ----------
+        name: :obj:`str`
+            Name for column number field.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Dataset with new field.
+        """
+        return MatrixTable(self._jvds.numberCols(name))
+
+    @handle_py4j
     @typecheck_method(other=matrix_table_type,
                       tolerance=numeric)
     def _same(self, other, tolerance=1e-6):
