@@ -5,11 +5,99 @@ from hail.genetics.ldMatrix import LDMatrix
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
-from hail.utils.java import handle_py4j
+from hail.utils.java import handle_py4j, joption
 from .misc import require_biallelic
 from hail.expr import functions
 import hail.expr.aggregators as agg
 
+
+@handle_py4j
+@require_biallelic
+@record_method
+@typecheck(dataset=MatrixTable,
+           maf=nullable(Expression),
+           bounded=bool,
+           min=nullable(numeric),
+           max=nullable(numeric))
+def ibd(dataset, maf=None, bounded=True, min=None, max=None):
+    """Compute matrix of identity-by-descent estimations.
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    .. include:: ../_templates/req_biallelic.rst
+
+    Examples
+    --------
+
+    To calculate a full IBD matrix, using minor allele frequencies computed
+    from the variant dataset itself:
+
+    >>> methods.ibd(dataset)
+
+    To calculate an IBD matrix containing only pairs of samples with
+    ``PI_HAT`` in :math:`[0.2, 0.9]`, using minor allele frequencies stored in
+    ``va.panel_maf``:
+
+    >>> methods.ibd(dataset, maf=dataset['panel_maf'], min=0.2, max=0.9)
+
+    Notes
+    -----
+
+    The implementation is based on the IBD algorithm described in the `PLINK
+    paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`__.
+
+    :meth:`ibd` requires the dataset to be biallelic and does not perform LD
+    pruning. Linkage disequilibrium may bias the result so consider filtering
+    variants first.
+
+    The resulting :class:`.Table` entries have the type: *{ i: String,
+    j: String, ibd: { Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double },
+    ibs0: Long, ibs1: Long, ibs2: Long }*. The key list is: `*i: String, j:
+    String*`.
+
+    Conceptually, the output is a symmetric, sample-by-sample matrix. The
+    output key table has the following form
+
+    .. code-block:: text
+
+        i		j	ibd.Z0	ibd.Z1	ibd.Z2	ibd.PI_HAT ibs0	ibs1	ibs2
+        sample1	sample2	1.0000	0.0000	0.0000	0.0000 ...
+        sample1	sample3	1.0000	0.0000	0.0000	0.0000 ...
+        sample1	sample4	0.6807	0.0000	0.3193	0.3193 ...
+        sample1	sample5	0.1966	0.0000	0.8034	0.8034 ...
+
+    Parameters
+    ----------
+    dataset : :class:`.MatrixTable`
+        A variant-keyed :class:`.MatrixTable` containing genotype information.
+
+    maf : :class:`hail.expr.expression.Expression` or :obj:`None`
+        (optional) expression on `dataset` for the minor allele frequency.
+
+    bounded : :obj:`bool`
+        Forces the estimations for `Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take on
+        biologically meaningful values (in the range [0,1]).
+
+    min : :obj:`float` or :obj:`None`
+        Sample pairs with a ``PI_HAT`` below this value will
+        not be included in the output. Must be in :math:`[0,1]`.
+
+    max : :obj:`float` or :obj:`None`
+        Sample pairs with a ``PI_HAT`` above this value will
+        not be included in the output. Must be in :math:`[0,1]`.
+
+    Return
+    ------
+    :class:`.TableTable`
+        A table which maps pairs of samples to their IBD
+        statistics
+    """
+
+    if maf:
+        analyze('ibd/maf', maf, dataset._row_indices)
+        maf = maf._ast.to_hql()
+
+    return Table(dataset._jvds.ibd(joption(maf), bounded, joption(min), joption(max)))
 
 @typecheck(dataset=MatrixTable,
            ys=oneof(Expression, listof(Expression)),
