@@ -7,6 +7,7 @@ Methods
 .. autosummary::
 
     hail.methods.linreg
+    hail.methods.sample_rows
     hail.methods.sample_qc
     hail.methods.variant_qc
     hail.methods.ld_matrix
@@ -17,6 +18,7 @@ Methods
     hail.methods.split_multi_hts
 
 .. autofunction:: hail.methods.linreg
+.. autofunction:: hail.methods.sample_rows
 .. autofunction:: hail.methods.sample_qc
 .. autofunction:: hail.methods.variant_qc
 .. autofunction:: hail.methods.ld_matrix
