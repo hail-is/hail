@@ -383,6 +383,17 @@ class Expression(object):
         ast = LambdaClassMethod(name, new_id, self._ast, lambda_result._ast, *(a._ast for a in args))
         return construct_expr(ast, ret_typ_f(lambda_result._type), indices, aggregations, joins, refs)
 
+    @property
+    def dtype(self):
+        """The data type of the expression.
+
+        Returns
+        -------
+        :class:`.Type`
+            Data type.
+        """
+        return self._type
+
     def __eq__(self, other):
         """Returns ``True`` if the two epressions are equal.
 

@@ -137,3 +137,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.gt6, 0.30)
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
+
+    def test_dtype(self):
+        i32 = functions.capture(5)
+        self.assertEqual(i32.dtype, TInt32())
+
+        str_exp = functions.capture('5')
+        self.assertEqual(str_exp.dtype, TString())
