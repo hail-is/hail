@@ -555,9 +555,9 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
     val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions(this, aggExpr)
 
-    val (pkType, pkF: (Annotation => Annotation)) = keyType match {
-      case TVariant(gr, _) => (TLocus(gr), { key: Variant => key.locus })
-      case t => (t, { key: Annotation => key })
+    val (pkType, pkF): (Type, Annotation => Annotation) = keyType match {
+      case TVariant(gr, _) => (TLocus(gr), { key => key.asInstanceOf[Variant].locus })
+      case t => (t, { key => key })
     }
 
     val signature = TStruct("pk" -> pkType, "v" -> keyType, Annotation.VARIANT_HEAD -> TStruct.empty(), Annotation.GENOTYPE_HEAD -> TArray(resultType))
