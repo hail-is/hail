@@ -593,15 +593,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       .map { case (i, a) => IndexedRow(i, new DenseVector(a)) },
       nRows, nCols)
   }
-    
-  // keep is an array of distinct indices
+  
   def filterRows(keep: Array[Long]): BlockMatrix = this.transpose().filterCols(keep).transpose()
 
   def filterCols(keep: Array[Long]): BlockMatrix =
-    new BlockMatrix(new BlockMatrixFilterColsRDD(this, keep.sorted), blockSize, nRows, keep.length)
+    new BlockMatrix(new BlockMatrixFilterColsRDD(this, keep), blockSize, nRows, keep.length)
   
   def filter(keepRows: Array[Long], keepCols: Array[Long]): BlockMatrix =
-    new BlockMatrix(new BlockMatrixFilterRDD(this, keepRows.sorted, keepCols.sorted),
+    new BlockMatrix(new BlockMatrixFilterRDD(this, keepRows, keepCols),
       blockSize, keepRows.length, keepCols.length)
 }
 
@@ -1042,7 +1041,6 @@ class WriteBlocksRDD(path: String,
 
   def compute(split: Partition, context: TaskContext): Iterator[Int] = {
     val blockRow = split.index
-    val firstRowInBlock = blockRow.toLong * blockSize
     val nRowsInBlock = gp.blockRowNRows(blockRow)
 
     val dosPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>

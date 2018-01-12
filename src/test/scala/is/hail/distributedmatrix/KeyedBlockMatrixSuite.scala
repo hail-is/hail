@@ -1,47 +1,29 @@
 package is.hail.distributedmatrix
 
-import is.hail.SparkSuite
-import is.hail.annotations.Annotation
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.check.Gen
-import is.hail.check.Prop._
 import is.hail.expr.types._
 import breeze.linalg.{DenseMatrix => BDM}
+import is.hail.annotations.Annotation
 import org.testng.annotations.Test
 
 class KeyedBlockMatrixSuite extends SparkSuite {
   def assertSame(left: KeyedBlockMatrix, right: KeyedBlockMatrix) {
     (left.rowKeys, right.rowKeys) match {
-      case (Some(lrk), Some(rrk)) => lrk.assertSame(rrk)
+      case (Some(l), Some(r)) => l.assertSame(r)
       case (None, None) =>
       case _ => assert(false)
     }
 
     (left.colKeys, right.colKeys) match {
-      case (Some(lck), Some(rck)) => lck.assertSame(rck)
+      case (Some(l), Some(r)) => l.assertSame(r)
       case (None, None) =>
       case _ => assert(false)
     }
     
     assert(left.bm.toLocalMatrix() === right.bm.toLocalMatrix())
   }
-  
-  val genKeys: Gen[Keys] = for {
-      t <- Type.genArb
-      v <- TArray(t).genNonmissingValue
-    } yield new Keys(t, v.asInstanceOf[IndexedSeq[Annotation]].toArray)
-  
-  @Test
-  def writeReadKeys() {
-    val p = forAll(genKeys) { keys =>
-      val f = tmpDir.createTempFile()
-      keys.write(sc, f)
-      keys.assertSame(Keys.read(sc, f))
-      true
-    }
-    
-    p.check()
-  }
-  
+
   @Test
   def writeReadKBM() {
     val nRows = 9
@@ -82,11 +64,19 @@ class KeyedBlockMatrixSuite extends SparkSuite {
     val keepCols = (0 until nCols).toArray
     val file = tmpDir.createTempFile("test")
     kbm.write(file)
-    
+
     for {
       kbm0 <- Seq(
         KeyedBlockMatrix.read(hc, file),
         kbm.add(zeros),
+        kbm.add(zeros.dropRowKeys()),
+        kbm.add(zeros.dropColKeys()),
+        kbm.add(zeros.dropKeys()),
+        kbm.dropRowKeys().add(zeros),
+        kbm.dropColKeys().add(zeros),
+        kbm.dropKeys().add(zeros),
+        kbm.dropRowKeys().add(zeros.dropColKeys()),
+        kbm.dropColKeys().add(zeros.dropRowKeys()),
         kbm.subtract(zeros),
         kbm.multiply(idRight.dropRowKeys()).setColKeys(kbm.colKeys.get),
         idLeft.setRowKeys(kbm.rowKeys.get).dropColKeys().multiply(kbm),
@@ -113,6 +103,65 @@ class KeyedBlockMatrixSuite extends SparkSuite {
       )
     } {
       assertSame(kbm, kbm0)
+    }
+  }
+  
+  @Test
+  def testFatals() {
+    val nRows = 9
+    val nCols = 10
+    val kbm = fromLocal(Gen.denseMatrix[Double](nRows, nCols).sample())
+    
+    val strRowKeys = new Keys(TString(), (0 until nRows).map(_.toString).toArray)
+    val intColKeys = new Keys(TInt32(), (0 until nCols).toArray)
+    
+    TestUtils.interceptFatal("Inconsistent row keys. Keys have different types") {
+      kbm.add(kbm.setRowKeys(strRowKeys))
+    }
+
+    TestUtils.interceptFatal("Inconsistent col keys. Keys have different types") {
+      kbm.add(kbm.setColKeys(intColKeys))
+    }
+
+    TestUtils.interceptFatal("Differing number of keys and rows") {
+      kbm.add(kbm.setRowKeys(intColKeys))
+    }
+    
+    TestUtils.interceptFatal("Differing number of keys and cols") {
+      kbm.add(kbm.setColKeys(strRowKeys))
+    }
+    
+    val rowKeys2 = new Keys(TInt32(), (1 until nRows + 1).toArray)
+    val colKeys2 = new Keys(TString(), (1 until nCols + 1).map(_.toString).toArray)
+
+    TestUtils.interceptFatal("Inconsistent row keys. Key mismatch at index 0: 0, 1") {
+      kbm.add(kbm.setRowKeys(rowKeys2))
+    }
+    
+    TestUtils.interceptFatal("Inconsistent col keys. Key mismatch at index 0: 0, 1") {
+      kbm.add(kbm.setColKeys(colKeys2))
+    }
+    
+    val p: Annotation => Boolean = _ => true
+    
+    TestUtils.interceptFatal("Cannot filter rows using predicate: no row keys") {
+      kbm.dropRowKeys().filterRows(p)
+    }
+
+    TestUtils.interceptFatal("Cannot filter using predicate: no row keys") {
+      kbm.dropRowKeys().filter(p, p)
+    }    
+    
+    TestUtils.interceptFatal("Cannot filter cols using predicate: no col keys") {
+      kbm.dropColKeys().filterCols(p)
+    }
+    
+    TestUtils.interceptFatal("Cannot filter using predicate: no col keys") {
+      kbm.dropColKeys().filter(p, p)
+    }      
+    
+    TestUtils.interceptFatal("Cannot filter using predicates: no row keys, no col keys") {
+      kbm.dropKeys().filter(p, p)
     }
   }
 }

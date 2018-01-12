@@ -2,83 +2,8 @@ package is.hail.distributedmatrix
 
 import is.hail.HailContext
 import is.hail.annotations.Annotation
-import is.hail.expr.{JSONAnnotationImpex, Parser}
-import is.hail.expr.types.Type
 import is.hail.utils._
-import org.apache.spark.SparkContext
 import org.apache.spark.storage.StorageLevel
-import org.json4s.jackson.Serialization
-import org.json4s.{JArray, JValue}
-import org.json4s.jackson.JsonMethods.parse
-
-case class KeysImpex(typeStr: String, valuesJ: JValue)
-
-object Keys {
-  def unify(left: Option[Keys], right: Option[Keys], msg: String): Option[Keys] = {
-    (left, right) match {
-      case (Some(l), Some(r)) =>
-        l.assertSame(r, msg)
-        left
-      case (Some(_), _) => left
-      case _ => right
-    }
-  }
-  
-  def read(sc: SparkContext, uri: String): Keys = {
-    val KeysImpex(typeStr, JArray(arr)) =  sc.hadoopConfiguration.readTextFile(uri)(in =>
-      try {
-        val json = parse(in)
-        json.extract[KeysImpex]
-      } catch {
-        case e: Exception => fatal(
-          s"""corrupt or outdated matrix key data.
-             |  Recreate with current version of Hail.
-             |  Detailed exception:
-             |  ${ e.getMessage }""".stripMargin)
-      })
-    
-    val typ = Parser.parseType(typeStr)
-    val values = arr.map(JSONAnnotationImpex.importAnnotation(_, typ)).toArray
-    
-    new Keys(typ, values)
-  }
-}
-
-class Keys(val typ: Type, val values: Array[Annotation]) {
-  def length: Int = values.length
-  
-  def assertSame(that: Keys, msg: String = "") {
-    if (typ != that.typ)
-      fatal(msg + s"Keys have different types: $typ, ${ that.typ }")
-
-    if (length != that.length)
-      fatal(msg + s"Differing number of keys: $length, ${ that.length }")
-
-    var i = 0
-    while (i < length) {
-      if (values(i) != that.values(i))
-        fatal(msg + s"Key mismatch at index $i: ${typ.str(values(i))}, ${typ.str(that.values(i))}")
-      i += 1
-    }
-  }
-  
-  def filter(pred: Annotation => Boolean): Keys = new Keys(typ, values.filter(pred))
-  
-  // keep must be sorted, strictly increasing, in [0, length)
-  def filter(keep: Array[Int]): Keys = new Keys(typ, keep.map(values))
-  
-  def filterAndIndex(pred: Annotation => Boolean): (Keys, Array[Int]) = {
-    val (newValues, indices) = values.zipWithIndex.filter(pred).unzip
-    (new Keys(typ, newValues), indices)
-  }
-  
-  def write(sc: SparkContext, uri: String) {
-    val typeStr = typ.toPrettyString(compact = true)
-    val valuesJ = JArray(values.map(typ.toJSON).toList)
-
-    sc.hadoopConfiguration.writeTextFile(uri)(out => Serialization.write(KeysImpex(typeStr, valuesJ), out))
-  }
-}
 
 object KeyedBlockMatrix {
   def from(bm: BlockMatrix): KeyedBlockMatrix =
@@ -128,7 +53,7 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
   
   def setColKeys(keys: Keys): KeyedBlockMatrix = {
     if (keys.length != bm.nCols)
-      fatal(s"Differing number of keys and cows: $keys.length, ${bm.nCols}")    
+      fatal(s"Differing number of keys and cols: ${keys.length}, ${bm.nCols}")    
 
     copy(colKeys = Some(keys))
   }
@@ -136,6 +61,8 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
   def dropRowKeys(): KeyedBlockMatrix = copy(rowKeys = None)
 
   def dropColKeys(): KeyedBlockMatrix = copy(colKeys = None)
+
+  def dropKeys(): KeyedBlockMatrix = copy(rowKeys = None, colKeys = None)
   
   def unifyRowKeys(that: KeyedBlockMatrix): Option[Keys] = Keys.unify(rowKeys, that.rowKeys, "Inconsistent row keys. ")
   
@@ -191,7 +118,7 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
   def filterRows(keep: Array[Int]): KeyedBlockMatrix =
     new KeyedBlockMatrix(
       bm.filterRows(keep.map(_.toLong)),
-      rowKeys.map(_.filter(keep)),
+      rowKeys.map(_.filter(keep, check = false)),
       colKeys)
 
   def filterCols(pred: Annotation => Boolean): KeyedBlockMatrix =
@@ -200,14 +127,14 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
         val (newCK, keep) = ck.filterAndIndex(pred)
         new KeyedBlockMatrix(bm.filterCols(keep.map(_.toLong)), rowKeys, Some(newCK))
       case None =>
-        fatal("Cannot filter rows using predicate: no col keys")
+        fatal("Cannot filter cols using predicate: no col keys")
     }
   
   def filterCols(keep: Array[Int]): KeyedBlockMatrix =
       new KeyedBlockMatrix(
         bm.filterCols(keep.map(_.toLong)),
         rowKeys,
-        colKeys.map(_.filter(keep)))
+        colKeys.map(_.filter(keep, check = false)))
 
   def filter(rowPred: Annotation => Boolean, colPred: Annotation => Boolean): KeyedBlockMatrix =
     (rowKeys, colKeys) match {
@@ -218,7 +145,7 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
           bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)),
           Some(newRK),
           Some(newCK))
-      case (None, Some(_)) => fatal("Cannot filter predicate: no row keys")
+      case (None, Some(_)) => fatal("Cannot filter using predicate: no row keys")
       case (Some(_), None) => fatal("Cannot filter using predicate: no col keys")
       case _ => fatal("Cannot filter using predicates: no row keys, no col keys")
     }
@@ -226,8 +153,8 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
   def filter(keepRows: Array[Int], keepCols: Array[Int]): KeyedBlockMatrix =
         new KeyedBlockMatrix(
           bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)),
-          rowKeys.map(_.filter(keepRows)),
-          colKeys.map(_.filter(keepCols)))
+          rowKeys.map(_.filter(keepRows, check = false)),
+          colKeys.map(_.filter(keepCols, check = false)))
   
   def write(uri: String, forceRowMajor: Boolean = false) {
     val sc = bm.blocks.sparkContext
