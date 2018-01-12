@@ -58,7 +58,7 @@ object Table {
       case Some(parts) => hc.sc.parallelize(range, numSlices = parts)
       case None => hc.sc.parallelize(range)
     }
-    Table(hc, rdd, TStruct(name -> TInt32()), Array("idx"))
+    Table(hc, rdd, TStruct(name -> TInt32()), Array(name))
   }
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {

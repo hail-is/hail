@@ -583,7 +583,7 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(kt.head(3).count(), 3)
 
         self.assertEqual(range(10), [x.idx for x in KeyTable.range(10).collect()])
-        self.assertTrue(KeyTable.range(200).idx('foo').forall('idx == foo'))
+        self.assertTrue(KeyTable.range(200).indexed('foo').forall('idx == foo'))
 
         kt3 = KeyTable.parallelize([{'A': Struct(c1=5, c2=21)}],
                                    TStruct(['A'], [TStruct(['c1', 'c2'], [TInt32(), TInt32()])]))
