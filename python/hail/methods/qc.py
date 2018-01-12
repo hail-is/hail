@@ -308,7 +308,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
 
     .. include:: ../_templates/req_tvariant.rst
 
-    :py:meth:`~hail.methods.vep` runs `Variant Effect Predictor
+    :py:meth:`.vep` runs `Variant Effect Predictor
     <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with the `LOFTEE
     plugin <https://github.com/konradjk/loftee>`__ on the current dataset and
     adds the result as a row field.
@@ -325,10 +325,10 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
 
     **Configuration**
 
-    :py:meth:`~hail.VariantDataset.vep` needs a configuration file to tell it
+    :meth:`.vep` needs a configuration file to tell it
     how to run VEP. The format is a `.properties file
     <https://en.wikipedia.org/wiki/.properties>`__. Roughly, each line defines a
-    property as a key-value pair of the form `key = value`. `vep` supports the
+    property as a key-value pair of the form `key = value`. :meth:`.vep` supports the
     following properties:
 
     - **hail.vep.perl** -- Location of Perl. Optional, default: perl.
@@ -338,7 +338,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
       VEP.  Optional, by default PATH is not set.
     - **hail.vep.location** -- Location of the VEP Perl script.  Required.
     - **hail.vep.cache_dir** -- Location of the VEP cache dir, passed to VEP
-      with the `--dir` option. Required.
+      with the ``--dir`` option. Required.
     - **hail.vep.fasta** -- Location of the FASTA file to use to look up the
       reference sequence, passed to VEP with the `--fasta` option. Required.
     - **hail.vep.assembly** -- Genome assembly version to use. Optional,
@@ -352,7 +352,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
       for the LOFTEE plugin. Ignored if `hail.vep.plugin` is set. Required
       otherwise.
 
-    Here is an example `vep.properties` configuration file
+    Here is an example ``vep.properties`` configuration file
 
     .. code-block:: text
 
@@ -361,7 +361,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
         hail.vep.location = /path/to/vep/ensembl-tools-release-81/scripts/variant_effect_predictor/variant_effect_predictor.pl
         hail.vep.cache_dir = /path/to/vep
         hail.vep.lof.human_ancestor = /path/to/loftee_data/human_ancestor.fa.gz
-        hail.vep.lof.conservation_file = /path/to/loftee_data//phylocsf.sql
+        hail.vep.lof.conservation_file = /path/to/loftee_data/phylocsf.sql
 
     **VEP Invocation**
 
@@ -379,7 +379,11 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
         --fasta <hail.vep.fasta>
         --minimal
         --assembly <hail.vep.assembly>
-        --plugin LoF,human_ancestor_fa:$<hail.vep.lof.human_ancestor>,filter_position:0.05,min_intron_size:15,conservation_file:<hail.vep.lof.conservation_file>
+        --plugin LoF,\
+        human_ancestor_fa:$<hail.vep.lof.human_ancestor>,\
+        filter_position:0.05,\
+        min_intron_size:15,\
+        conservation_file:<hail.vep.lof.conservation_file>
         -o STDOUT
 
     **Annotations**
@@ -535,7 +539,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
         Name for resulting row field.
     csq : :obj:`bool`
         If ``True``, annotates VCF CSQ field as a String.
-        If ``False``, annotates with the full nested struct schema
+        If ``False``, annotates with the full nested struct schema.
 
     Returns
     -------
@@ -558,7 +562,7 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
 
     .. include:: ../_templates/req_tvariant.rst
 
-    :py:meth:`~hail.methods.nirvana` runs `Nirvana
+    :meth:`.nirvana` runs `Nirvana
     <https://github.com/Illumina/Nirvana>`_ on the current dataset and adds a
     new row field in the location specified by `name`.
 
@@ -574,22 +578,21 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
 
     ***Configuration***
 
-    :py:meth:`~hail.VariantDataset.nirvana` requires a configuration file. The
-    format is a `.properties file
-    <https://en.wikipedia.org/wiki/.properties>`__, where each line defines a
-    property as a key-value pair of the form `key = value`. ``nirvana`` supports
-    the following properties:
+    :meth:`.nirvana` requires a configuration file. The format is a
+    `.properties file <https://en.wikipedia.org/wiki/.properties>`__, where each
+    line defines a property as a key-value pair of the form ``key = value``.
+    :meth:`.nirvana` supports the following properties:
 
     - **hail.nirvana.dotnet** -- Location of dotnet. Optional, default: dotnet.
     - **hail.nirvana.path** -- Value of the PATH environment variable when
       invoking Nirvana. Optional, by default PATH is not set.
     - **hail.nirvana.location** -- Location of Nirvana.dll. Required.
-    - **hail.nirvana.reference** --Location of reference genome. Required.
-    - **hail.nirvana.cache** --Location of cache. Required.
+    - **hail.nirvana.reference** -- Location of reference genome. Required.
+    - **hail.nirvana.cache** -- Location of cache. Required.
     - **hail.nirvana.supplementaryAnnotationDirectory** -- Location of
-    Supplementary Database. Optional, no supplementary database by default.
+      Supplementary Database. Optional, no supplementary database by default.
 
-    Here is an example `nirvana.properties` configuration file:
+    Here is an example ``nirvana.properties`` configuration file:
 
     .. code-block:: text
 
@@ -793,7 +796,7 @@ def nirvana(dataset, config, block_size=500000, name='nirvana'):
     config : :obj:`str`
         Path to Nirvana configuration file.
     block_size : :obj:`int`
-        Number of rows to process per VEP invocation.
+        Number of rows to process per Nirvana invocation.
     name : :obj:`str`
         Name for resulting row field.
 
