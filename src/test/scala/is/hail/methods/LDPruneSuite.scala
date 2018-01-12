@@ -9,6 +9,7 @@ import is.hail.expr.types._
 import is.hail.stats.RegressionUtils
 import is.hail.variant._
 import is.hail.utils._
+import is.hail.testUtils._
 import org.testng.annotations.Test
 
 case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevRec: Double) {

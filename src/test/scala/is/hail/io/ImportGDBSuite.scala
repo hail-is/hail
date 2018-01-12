@@ -3,6 +3,7 @@ package is.hail.io
 import is.hail.SparkSuite
 import is.hail.expr.types.TStruct
 import is.hail.io.vcf.{HtsjdkRecordReader, LoadGDB, LoadVCF}
+import is.hail.testUtils._
 import org.testng.annotations.Test
 
 class ImportGDBSuite extends SparkSuite {

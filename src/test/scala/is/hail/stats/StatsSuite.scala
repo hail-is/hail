@@ -3,6 +3,7 @@ package is.hail.stats
 import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant.{Genotype, Locus, Variant}
 import org.apache.commons.math3.distribution.{ChiSquaredDistribution, NormalDistribution}
 import org.testng.annotations.Test

@@ -1,6 +1,7 @@
 package is.hail.variant.vsm
 
 import is.hail.SparkSuite
+import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 

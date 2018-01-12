@@ -6,6 +6,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
+import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.testng.annotations.Test

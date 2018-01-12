@@ -2,10 +2,10 @@ package is.hail.vds
 
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
+import is.hail.testUtils._
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Prop}
-import is.hail.variant.Variant
 import org.testng.annotations.Test
 
 class FilterVariantsSuite extends SparkSuite {

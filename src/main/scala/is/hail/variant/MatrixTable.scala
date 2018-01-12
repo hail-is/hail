@@ -1089,8 +1089,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
   def countVariants(): Long = partitionCounts().sum
 
-  def variants: RDD[Annotation] = rdd.keys
-
   def deduplicate(): MatrixTable =
     copy2(rdd2 = rdd2.mapPartitionsPreservesPartitioning(rdd2.typ)(
       SortedDistinctRowIterator.transformer(rdd2.typ)))
