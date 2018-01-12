@@ -187,6 +187,23 @@ class TableTests(unittest.TestCase):
         self.assertEqual(kt.filter((kt.c != 20) & (kt.a == 4)).count(), 1)
         self.assertEqual(kt.filter(True).count(), 3)
 
+    def test_transmute(self):
+        schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+                         [TInt32(), TInt32(), TInt32(), TInt32(), TString(), TArray(TInt32()),
+                          TStruct(['x', 'y'], [TBoolean(), TInt32()])])
+
+        rows = [{'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'g': {'x': True, 'y': 2}},
+                {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': [], 'g': {'x': True, 'y': 2}},
+                {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7], 'g': None}]
+        df = Table.parallelize(rows, schema)
+
+        df = df.transmute(h = df.a + df.b + df.c + df.g.y)
+        r = df.select('h').collect()
+
+        self.assertEqual(df.columns, ['d', 'e', 'f', 'h'])
+        self.assertEqual(r, [Struct(h=x) for x in [10, 20, None]])
+
+
     def test_select(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f', 'g'],
                          [TInt32(), TInt32(), TInt32(), TInt32(), TString(), TArray(TInt32()),
