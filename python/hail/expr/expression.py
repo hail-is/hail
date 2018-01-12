@@ -119,7 +119,7 @@ def to_expr(e):
                                       '\n    Found types: {}.'.format(types))
         indices, aggregations, joins, refs = unify_all(*cols)
         return construct_expr(ArrayDeclaration([col._ast for col in cols]),
-                              t, indices, aggregations, joins, refs)
+                              TArray(t), indices, aggregations, joins, refs)
     elif isinstance(e, set):
         if len(e) == 0:
             raise ExpressionException('Cannot convert empty set to expression.')
@@ -130,7 +130,7 @@ def to_expr(e):
             raise ExpressionException('Cannot convert set with heterogeneous types to expression.'
                                       '\n    Found types: {}.'.format(types))
         indices, aggregations, joins, refs = unify_all(*cols)
-        return construct_expr(ClassMethod('toSet', ArrayDeclaration([col._ast for col in cols])), t, indices,
+        return construct_expr(ClassMethod('toSet', ArrayDeclaration([col._ast for col in cols])), TSet(t), indices,
                               aggregations, joins, refs)
     elif isinstance(e, dict):
         if len(e) == 0:
