@@ -510,6 +510,81 @@ class Table(TableTemplate):
 
         return cleanup(Table(base._jt.selectGlobal(strs)))
 
+    def transmute(self, **named_exprs):
+        """Add new fields and drop fields referenced.
+
+        Examples
+        --------
+
+        Create a single field from an expression of `C1`, `C2`, and `C3`.
+
+        .. testsetup::
+
+            table4 = hc.import_table('data/kt_example4.tsv', impute=True,
+                                  types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
+                                 'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
+                                 'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
+
+        .. doctest::
+
+            >>> table4.show()
+            +-------+---------+--------+---------+-------+-------+-------+-------+
+            |     A | B.B0    | B.B1   | C       | D.cat | D.dog |   E.A |   E.B |
+            +-------+---------+--------+---------+-------+-------+-------+-------+
+            | Int32 | Boolean | String | Boolean | Int32 | Int32 | Int32 | Int32 |
+            +-------+---------+--------+---------+-------+-------+-------+-------+
+            |    32 | true    | hello  | false   |     5 |     7 |     5 |     7 |
+            +-------+---------+--------+---------+-------+-------+-------+-------+\
+
+            >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
+            >>> table_result.show()
+            +---------+--------+---------+-------+-------+-------+
+            | B.B0    | B.B1   | C       | D.cat | D.dog |     F |
+            +---------+--------+---------+-------+-------+-------+
+            | Boolean | String | Boolean | Int32 | Int32 | Int32 |
+            +---------+--------+---------+-------+-------+-------+
+            | true    | hello  | false   |     5 |     7 |    46 |
+            +---------+--------+---------+-------+-------+-------+
+
+        Notes
+        -----
+        This method functions to create new row-indexed fields and consume
+        fields found in the expressions in `named_exprs`.
+
+        All row-indexed top-level fields found in an expression are dropped
+        after the new fields are created.
+
+        Warning
+        -------
+        References to fields inside a top-level struct will remove the entire
+        struct, as field `E` was removed in the example above since `E.B` was
+        referenced.
+
+        Parameters
+        ----------
+        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+            New field expressions.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table with transmuted fields.
+        """
+        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        exprs = []
+        base, cleanup = self._process_joins(*named_exprs.values())
+        fields_referenced = set()
+        for k, v in named_exprs.items():
+            analyze('Table.transmute', v, self._row_indices)
+            exprs.append('{k} = {v}'.format(k=k, v=v._ast.to_hql()))
+            for name, inds in v._refs:
+                if inds == self._row_indices:
+                    fields_referenced.add(name)
+
+        fields_referenced = fields_referenced - set(named_exprs.keys())
+
+        return cleanup(Table(base._jt.annotate(",\n".join(exprs)).drop(list(fields_referenced))))
+
     @handle_py4j
     def annotate(self, **named_exprs):
         """Add new fields.
