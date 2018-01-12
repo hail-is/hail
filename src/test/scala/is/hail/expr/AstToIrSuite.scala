@@ -105,11 +105,24 @@ class ASTToIRSuite {
 
   @Test
   def aggs() { for { (in, out) <- Array(
-    "aggregable.sum()" -> AggSum(AggIn()),
-    "aggregable.map(x => x * 5).sum()" -> AggSum(AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), I32(5), TInt32()))),
-    "aggregable.map(x => x * something).sum()" -> AggSum(AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), Ref("something", TInt32()), TInt32()))),
-    "aggregable.filter(x => x > 2).sum()" -> AggSum(AggFilter(AggIn(), "x", ApplyBinaryPrimOp(GT(), Ref("x", TInt32()), I32(2), TBoolean()))),
-    "aggregable.flatMap(x => [x * 5]).sum()" -> AggSum(AggFlatMap(AggIn(), "x", MakeArray(Array(ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()) ,I32(5), TInt32())), TArray(TInt32()))))
+    "aggregable.sum()" ->
+      ApplyAggNullaryOp(AggIn(), ir.Sum(), TInt32()),
+    "aggregable.map(x => x * 5).sum()" ->
+      ApplyAggNullaryOp(
+        AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), I32(5), TInt32())),
+        ir.Sum(), TInt32()),
+    "aggregable.map(x => x * something).sum()" ->
+      ApplyAggNullaryOp(
+        AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), Ref("something", TInt32()), TInt32())),
+        ir.Sum(), TInt32()),
+    "aggregable.filter(x => x > 2).sum()" ->
+      ApplyAggNullaryOp(
+        AggFilter(AggIn(), "x", ApplyBinaryPrimOp(GT(), Ref("x", TInt32()), I32(2), TBoolean())),
+        ir.Sum(), TBoolean()),
+    "aggregable.flatMap(x => [x * 5]).sum()" ->
+      ApplyAggNullaryOp(
+        AggFlatMap(AggIn(), "x", MakeArray(Array(ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()) ,I32(5), TInt32())), TArray(TInt32()))),
+        ir.Sum(), TInt32())
   )
   } {
     assert(toIR(in).contains(out),
