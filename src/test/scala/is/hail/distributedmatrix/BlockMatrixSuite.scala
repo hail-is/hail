@@ -374,6 +374,10 @@ class BlockMatrixSuite extends SparkSuite {
     val fname = tmpDir.createTempFile("test")
     m.write(fname)
     assert(m.toLocalMatrix() == BlockMatrix.read(hc, fname).toLocalMatrix())
+    
+    val fname2 = tmpDir.createTempFile("test2")
+    m.write(fname2, forceRowMajor = true)
+    assert(m.toLocalMatrix() == BlockMatrix.read(hc, fname2).toLocalMatrix())
   }
 
   @Test
@@ -387,6 +391,10 @@ class BlockMatrixSuite extends SparkSuite {
     val fname = tmpDir.createTempFile("test")
     m.t.write(fname)
     assert(m.t.toLocalMatrix() == BlockMatrix.read(hc, fname).toLocalMatrix())
+    
+    val fname2 = tmpDir.createTempFile("test2")
+    m.t.write(fname2, forceRowMajor = true)
+    assert(m.t.toLocalMatrix() == BlockMatrix.read(hc, fname2).toLocalMatrix())    
   }
 
   @Test

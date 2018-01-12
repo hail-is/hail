@@ -279,17 +279,20 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   /**
-    * Writes the matrix {@code m} to a Hadoop sequence file at location {@code uri}.
+    * Write {@code this} to a Hadoop sequence file at location {@code uri}.
     **/
-  def write(uri: String) {
+  def write(uri: String, forceRowMajor: Boolean = false) {
     val hadoop = blocks.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)
 
     def writeBlock(i: Int, it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
       assert(it.hasNext)
-      val (_, bdm) = it.next()
+      var bdm = it.next()._2
       assert(!it.hasNext)
-
+ 
+      if (forceRowMajor)
+        bdm = bdm.forceRowMajor()
+      
       val dos = new DataOutputStream(os)
       bdm.write(dos)
       dos.close()
@@ -1028,7 +1031,7 @@ class WriteBlocksRDD(path: String,
     val firstRowInBlock = blockRow.toLong * blockSize
     val nRowsInBlock = gp.blockRowNRows(blockRow)
 
-    val dosArray = Array.tabulate(gp.nBlockCols) { blockCol =>
+    val dosPerBlockCol = Array.tabulate(gp.nBlockCols) { blockCol =>
       val nColsInBlock = gp.blockColNCols(blockCol)
 
       val is = gp.coordinatesBlock(blockRow, blockCol).toString
@@ -1084,7 +1087,7 @@ class WriteBlocksRDD(path: String,
             sampleIndex += 1
             j += 1
           }
-          dosArray(blockCol).write(bytes, 0, n << 3)
+          dosPerBlockCol(blockCol).write(bytes, 0, n << 3)
 
           blockCol += 1
         }
@@ -1092,7 +1095,7 @@ class WriteBlocksRDD(path: String,
       }
     }
 
-    dosArray.foreach(_.close())
+    dosPerBlockCol.foreach(_.close())
 
     Iterator.single(gp.nBlockCols) // number of blocks written
   }

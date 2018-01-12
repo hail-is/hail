@@ -3,7 +3,7 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, Prop}
-import is.hail.sparkextras.{BinarySearch, OrderedRDD}
+import is.hail.sparkextras.OrderedRDD
 import is.hail.utils.richUtils.RichHadoopConfiguration
 import is.hail.variant._
 import org.apache.spark.storage.StorageLevel

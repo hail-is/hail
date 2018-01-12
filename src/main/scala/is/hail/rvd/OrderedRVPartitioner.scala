@@ -4,7 +4,6 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
 import is.hail.utils._
-import is.hail.sparkextras.BinarySearch
 import org.apache.spark.{Partitioner, SparkContext}
 import org.json4s.JsonAST._
 
