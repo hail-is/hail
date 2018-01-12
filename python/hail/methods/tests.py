@@ -34,6 +34,56 @@ class Tests(unittest.TestCase):
     def test_resources(self):
         return "src/test/resources"
 
+    def test_ibd(self):
+        dataset = self.get_dataset()
+
+        def plinkify(ds, min=None, max=None):
+            vcf = utils.new_temp_file(prefix="plink", suffix="vcf")
+            plinkpath = utils.new_temp_file(prefix="plink")
+            ds.to_hail1().export_vcf(vcf)
+            threshold_string = "{} {}".format("--min {}".format(min) if min else "",
+                                              "--max {}".format(max) if max else "")
+
+            plink_command = "plink --double-id --allow-extra-chr --vcf {} --genome full --out {} {}"\
+                .format(utils.get_URI(vcf),
+                                                 utils.get_URI(plinkpath),
+                                                 threshold_string)
+            result_file = utils.get_URI(plinkpath + ".genome")
+
+            syscall(plink_command, shell=True)
+
+            ### format of .genome file is:
+            # _, fid1, iid1, fid2, iid2, rt, ez, z0, z1, z2, pihat, phe,
+            # dst, ppc, ratio, ibs0, ibs1, ibs2, homhom, hethet (+ separated)
+
+            ### format of ibd is:
+            # i (iid1), j (iid2), ibd: {Z0, Z1, Z2, PI_HAT}, ibs0, ibs1, ibs2
+            results = {}
+            with open(result_file) as f:
+                f.readline()
+                for line in f:
+                    row = line.strip().split()
+                    results[(row[1], row[3])] = (map(float, row[6:10]),
+                                                 map(int, row[14:17]))
+            return results
+
+        def compare(ds, min = None, max = None):
+            plink_results = plinkify(dataset, min, max)
+            hail_results = methods.ibd(dataset, min=min, max=max).collect()
+
+            for row in hail_results:
+                key = (row.i, row.j)
+                self.assertAlmostEqual(plink_results[key][0][0], row.ibd.Z0, places=4)
+                self.assertAlmostEqual(plink_results[key][0][1], row.ibd.Z1, places=4)
+                self.assertAlmostEqual(plink_results[key][0][2], row.ibd.Z2, places=4)
+                self.assertAlmostEqual(plink_results[key][0][3], row.ibd.PI_HAT, places=4)
+                self.assertEqual(plink_results[key][1][0], row.ibs0)
+                self.assertEqual(plink_results[key][1][1], row.ibs1)
+                self.assertEqual(plink_results[key][1][2], row.ibs2)
+
+        compare(dataset)
+        compare(dataset, 0.0, 1.0)
+
     def test_ld_matrix(self):
         dataset = self.get_dataset()
 

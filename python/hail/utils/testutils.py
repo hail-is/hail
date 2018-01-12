@@ -1,0 +1,4 @@
+
+class PlinkCompare():
+
+    def

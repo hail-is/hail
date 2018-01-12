@@ -13,7 +13,6 @@ import hail.expr.aggregators as agg
 
 @handle_py4j
 @require_biallelic
-@record_method
 @typecheck(dataset=MatrixTable,
            maf=nullable(Expression),
            bounded=bool,
@@ -75,8 +74,8 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
         (optional) expression on `dataset` for the minor allele frequency.
 
     bounded : :obj:`bool`
-        Forces the estimations for `Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take on
-        biologically meaningful values (in the range [0,1]).
+        Forces the estimations for `Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take
+        on biologically meaningful values (in the range [0,1]).
 
     min : :obj:`float` or :obj:`None`
         Sample pairs with a ``PI_HAT`` below this value will
@@ -95,9 +94,14 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
 
     if maf:
         analyze('ibd/maf', maf, dataset._row_indices)
+        dataset, _ = dataset._process_joins(maf)
         maf = maf._ast.to_hql()
 
-    return Table(dataset._jvds.ibd(joption(maf), bounded, joption(min), joption(max)))
+    return Table(Env.hail().methods.IBD.apply(dataset._jvds,
+                                              joption(maf),
+                                              bounded,
+                                              joption(min),
+                                              joption(max)))
 
 @typecheck(dataset=MatrixTable,
            ys=oneof(Expression, listof(Expression)),

@@ -2560,7 +2560,12 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         """
 
-        return KeyTable(self.hc, self._jvds.ibd(joption(maf), bounded, joption(min), joption(max)))
+        return KeyTable(self.hc,
+                        Env.hail().methods.IBD.apply(self._jvds,
+                                                     joption(maf),
+                                                     bounded,
+                                                     joption(min),
+                                                     joption(max)))
 
     @handle_py4j
     @require_biallelic
