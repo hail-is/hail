@@ -1650,7 +1650,7 @@ class MatrixTable(object):
         kt = Table(self._jvds.variantsKT())
 
         # explode the 'va' struct to the top level
-        return kt.select(kt.v, *kt.va)
+        return kt.select(kt.v, *[f for f in kt.va.values()])
 
     @handle_py4j
     def cols_table(self):
@@ -1670,7 +1670,7 @@ class MatrixTable(object):
         kt = Table(self._jvds.samplesKT())
 
         # explode the 'sa' struct to the top level
-        return kt.select(kt.s, *kt.sa)
+        return kt.select(kt.s, *[f for f in kt.sa.values()])
 
     @handle_py4j
     def entries_table(self):
@@ -1699,8 +1699,11 @@ class MatrixTable(object):
 
         # explode the 'va', 'sa', 'g' structs to the top level
         # FIXME: this part should really be in Scala
-        cols_to_select = tuple(x for x in kt.va) + tuple(x for x in kt.sa) + tuple(x for x in kt.g)
-        return kt.select(kt.v, kt.s, *cols_to_select)
+        all_cols = []
+        all_cols.extend(kt.g.values())
+        all_cols.extend(kt.sa.values())
+        all_cols.extend(kt.va.values())
+        return kt.select(kt.v, kt.s, *all_cols)
 
     @handle_py4j
     def index_globals(self):

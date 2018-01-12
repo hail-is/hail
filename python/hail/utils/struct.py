@@ -1,8 +1,9 @@
 from hail.typecheck import *
 from hail.history import HistoryMixin, record_init, record_method
+from collections import Mapping
 
 
-class Struct(HistoryMixin):
+class Struct(Mapping, HistoryMixin):
     """
     Nested annotation structure.
 
@@ -34,59 +35,42 @@ class Struct(HistoryMixin):
 
     @record_init
     def __init__(self, **kwargs):
-        self._attrs = kwargs
-
-    def __getattr__(self, item):
-        assert self._attrs is not None
-        if item not in self._attrs:
-            raise AttributeError("Struct instance has no attribute '{}'\n  Fields: {}".format(item, repr(self._attrs.keys())))
-        return self._attrs[item]
+        self._fields = kwargs
+        for k, v in kwargs.items():
+            if not k in self.__dict__:
+                self.__dict__[k] = v
 
     def __contains__(self, item):
-        return item in self._attrs
+        return item in self._fields
 
     def __getitem__(self, item):
-        return self.__getattr__(item)
+        if not item in self._fields:
+            raise KeyError("Struct has no field '{}'\n"
+                           "    Fields: [ {} ]".format(item, ', '.join("'{}'".format(x) for x in self._fields)))
+        return self._fields[item]
 
     def __len__(self):
-        return len(self._attrs)
+        return len(self._fields)
 
     def __repr__(self):
         return str(self)
 
     def __str__(self):
-        return 'Struct({})'.format(', '.join('{}={}'.format(k, v) for k, v in self._attrs.items()))
+        return 'Struct({})'.format(', '.join('{}={}'.format(k, v) for k, v in self._fields.items()))
 
     def __eq__(self, other):
-        return isinstance(other, Struct) and self._attrs == other._attrs
+        return isinstance(other, Struct) and self._fields == other._fields
 
     def __hash__(self):
-        return 37 + hash(tuple(sorted(self._attrs.items())))
+        return 37 + hash(tuple(sorted(self._fields.items())))
 
-    @record_method
-    @typecheck_method(item=strlike,
-                      default=anytype)
-    def get(self, item, default=None):
-        """Get an item, or return a default value if the item is not found.
-        
-        :param str item: Name of attribute.
-        
-        :param default: Default value.
-        
-        :returns: Value of item if found, or default value if not.
-        """
-        return self._attrs.get(item, default)
+    def __iter__(self):
+        return iter(self._fields)
 
 
 @typecheck(struct=Struct)
 def to_dict(struct):
-    d = {}
-    for k, v in struct._attrs.items():
-        if isinstance(v, Struct):
-            d[k] = to_dict(v)
-        else:
-            d[k] = v
-    return d
+    return dict(struct.items())
 
 
 import pprint

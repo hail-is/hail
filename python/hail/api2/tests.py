@@ -28,7 +28,7 @@ def schema_eq(x, y):
 
 def convert_struct_to_dict(x):
     if isinstance(x, Struct):
-        return {k: convert_struct_to_dict(v) for k, v in x._attrs.iteritems()}
+        return {k: convert_struct_to_dict(v) for k, v in x._fields.iteritems()}
     elif isinstance(x, list):
         return [convert_struct_to_dict(elt) for elt in x]
     elif isinstance(x, tuple):
@@ -201,7 +201,7 @@ class TableTests(unittest.TestCase):
         self.assertEqual(kt.select(kt.a, kt.e).columns, ['a', 'e'])
         self.assertEqual(kt.select(*[kt.a, kt.e]).columns, ['a', 'e'])
         self.assertEqual(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d).columns, ['a', 'foo'])
-        self.assertEqual(kt.select(kt.a, *kt.g, foo=kt.a + kt.b - kt.c - kt.d).columns, ['a', 'x', 'y', 'foo'])
+        self.assertEqual(set(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d, **kt.g).columns), {'a', 'foo', 'x', 'y'})
 
     def test_aggregate(self):
         schema = TStruct(['status', 'GT', 'qPheno'],
