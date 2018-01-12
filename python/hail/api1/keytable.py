@@ -1402,7 +1402,7 @@ class KeyTable(HistoryMixin):
 
         **Examples**
 
-        >>> ind_kt = kt1.index()
+        >>> ind_kt = kt1.indexed()
 
         **Notes**
 
