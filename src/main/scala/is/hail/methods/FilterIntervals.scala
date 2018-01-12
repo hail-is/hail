@@ -8,6 +8,7 @@ import scala.collection.JavaConverters._
 
 object FilterIntervals {
   def apply(vsm: MatrixTable, intervals: java.util.ArrayList[Interval], keep: Boolean): MatrixTable = {
+    vsm.requireRowKeyVariant("filter_intervals")
     val iList = IntervalTree(vsm.locusType.ordering, intervals.asScala.toArray)
     apply(vsm, iList, keep)
   }
