@@ -654,7 +654,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       t.typeCheck(newAnnotations(i))
     }
 
-    copy(sampleAnnotations = newAnnotations, saSignature = t)
+    copy2(sampleAnnotations = newAnnotations, saSignature = t)
   }
 
   def annotateSamplesExpr(expr: String): MatrixTable = {
