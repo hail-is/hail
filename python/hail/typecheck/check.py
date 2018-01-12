@@ -325,7 +325,6 @@ numeric = oneof(int, long, float)
 
 char = CharChecker()
 
-
 def check_all(f, args, kwargs, checks, is_method):
     spec = getargspec(f)
     name = f.__name__

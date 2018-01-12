@@ -3,6 +3,10 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 import unittest
 
 from hail2 import *
+from subprocess import call as syscall
+import numpy as np
+from struct import unpack
+import hail.utils as utils
 
 hc = None
 
@@ -64,6 +68,122 @@ class Tests(unittest.TestCase):
     def test_sample_qc(self):
         dataset = self.get_dataset()
         dataset = methods.sample_qc(dataset)
+
+    def test_grm(self):
+        tolerance = 0.001
+
+        def load_id_file(path):
+            ids = []
+            with hadoop_read(path) as f:
+                for l in f:
+                    r = l.strip().split('\t')
+                    self.assertEqual(len(r), 2)
+                    ids.append(r[1])
+            return ids
+
+        def load_rel(ns, path):
+            rel = np.zeros((ns, ns))
+            with hadoop_read(path) as f:
+                for i,l in enumerate(f):
+                    for j,n in enumerate(map(float, l.strip().split('\t'))):
+                        rel[i,j] = n
+                    self.assertEqual(j, i)
+                self.assertEqual(i, ns - 1)
+            return rel
+
+        def load_grm(ns, nv, path):
+            m = np.zeros((ns, ns))
+            with utils.hadoop_read(path) as f:
+                i = 0
+                for l in f:
+                    row = l.strip().split('\t')
+                    self.assertEqual(int(row[2]), nv)
+                    m[int(row[0])-1, int(row[1])-1] = float(row[3])
+                    i += 1
+
+                self.assertEqual(i, ns * (ns + 1) / 2)
+            return m
+
+        def load_bin(ns, path):
+            m = np.zeros((ns, ns))
+            with utils.hadoop_read_binary(path) as f:
+                for i in range(ns):
+                    for j in range(i + 1):
+                        b = f.read(4)
+                        self.assertEqual(len(b), 4)
+                        m[i, j] = unpack('<f', bytearray(b))[0]
+                left = f.read()
+                print(left)
+                self.assertEqual(len(left), 0)
+            return m
+
+        b_file = utils.new_temp_file(prefix="plink")
+        rel_file = utils.new_temp_file(prefix="test", suffix="rel")
+        rel_id_file = utils.new_temp_file(prefix="test", suffix="rel.id")
+        grm_file = utils.new_temp_file(prefix="test", suffix="grm")
+        grm_bin_file = utils.new_temp_file(prefix="test", suffix="grm.bin")
+        grm_nbin_file = utils.new_temp_file(prefix="test", suffix="grm.N.bin")
+
+        dataset = self.get_dataset()
+        n_samples = dataset.count_cols()
+        dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
+                              n_called=agg.count_where(functions.is_defined(dataset.GT)))
+        dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
+        dataset = dataset.filter_rows(dataset.n_called == n_samples).persist()
+
+        dataset.to_hail1().export_plink(b_file)
+
+        sample_ids = [row.s for row in dataset.cols_table().select('s').collect()]
+        n_variants = dataset.count_rows()
+        self.assertGreater(n_variants, 0)
+
+        grm = methods.grm(dataset)
+        grm.export_id_file(rel_id_file)
+
+        ############
+        ### rel
+
+        p_file = utils.new_temp_file(prefix="plink")
+        syscall('''plink --bfile {} --make-rel --out {}'''
+                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
+        self.assertEqual(load_id_file(p_file + ".rel.id"), sample_ids)
+
+        grm.export_rel(rel_file)
+        self.assertEqual(load_id_file(rel_id_file), sample_ids)
+        self.assertTrue(np.allclose(load_rel(n_samples, p_file + ".rel"),
+                           load_rel(n_samples, rel_file),
+                           atol=tolerance))
+
+        ############
+        ### gcta-grm
+
+        p_file = utils.new_temp_file(prefix="plink")
+        syscall('''plink --bfile {} --make-grm-gz --out {}'''
+                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
+        self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
+
+        grm.export_gcta_grm(grm_file)
+        self.assertTrue(np.allclose(load_grm(n_samples, n_variants, p_file + ".grm.gz"),
+                           load_grm(n_samples, n_variants, grm_file),
+                           atol=tolerance))
+
+        ############
+        ### gcta-grm-bin
+
+        p_file = utils.new_temp_file(prefix="plink")
+        syscall('''plink --bfile {} --make-grm-bin --out {}'''
+                .format(utils.get_URI(b_file), utils.get_URI(p_file)), shell=True)
+
+        self.assertEqual(load_id_file(p_file + ".grm.id"), sample_ids)
+
+        grm.export_gcta_grm_bin(grm_bin_file, grm_nbin_file)
+
+        self.assertTrue(np.allclose(load_bin(n_samples, p_file + ".grm.bin"),
+                           load_bin(n_samples, grm_bin_file),
+                           atol=tolerance))
+        self.assertTrue(np.allclose(load_bin(n_samples, p_file + ".grm.N.bin"),
+                           load_bin(n_samples, grm_nbin_file),
+                           atol=tolerance))
 
     def test_pca(self):
         dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()

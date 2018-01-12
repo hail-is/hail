@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import java.io.{InputStream, OutputStream}
+import java.net.URI
 
 import is.hail.HailContext
 import is.hail.table.Table
@@ -32,6 +33,8 @@ trait Py4jUtils {
     IntervalTree(gr.locusType.ordering, intervals.asScala.toArray)
   }
 
+  def getURI(uri: String): String = new URI(uri).getPath
+
   // we cannot construct an array because we don't have the class tag
   def arrayListToISeq[T](al: java.util.ArrayList[T]): IndexedSeq[T] = al.asScala.toIndexedSeq
 
@@ -59,6 +62,10 @@ trait Py4jUtils {
 
   def readFile(path: String, hc: HailContext): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
     new HadoopPyReader(hc.hadoopConf.unsafeReader(path))
+  }
+
+  def readBinaryFile(path: String, hc: HailContext): HadoopPyBinaryReader = hc.hadoopConf.readFile(path) { in =>
+    new HadoopPyBinaryReader(hc.hadoopConf.unsafeReader(path))
   }
 
   def writeFile(path: String, hc: HailContext): HadoopPyWriter = {
@@ -117,6 +124,25 @@ class HadoopPyReader(in: InputStream) {
       new String(b, "ISO-8859-1")
     else
       new String(b.slice(0, bytesRead), "ISO-8859-1")
+  }
+
+  def close() {
+    in.close()
+  }
+}
+
+class HadoopPyBinaryReader(in: InputStream) {
+  var eof = false
+
+  def read(n: Int): Array[Byte] = {
+    val b = new Array[Byte](n)
+    val bytesRead = in.read(b, 0, n)
+    if (bytesRead < 0)
+      new Array[Byte](0)
+    else if (bytesRead == n)
+      b
+    else
+      b.slice(0, bytesRead)
   }
 
   def close() {
