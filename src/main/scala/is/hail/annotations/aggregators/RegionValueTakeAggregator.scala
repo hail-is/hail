@@ -6,10 +6,12 @@ import is.hail.expr._
 import is.hail.utils._
 
 object RegionValueTakeBooleanAggregator {
-  def stagedNew(n: Code[Int], mn: Code[Boolean]): Code[RegionValueTakeBooleanAggregator] =
-    (mn).mux(
-      Code._throw(Code.newInstance[RuntimeException, String]("Take-aggregator cannot take NA for length")),
-      Code.newInstance[RegionValueTakeBooleanAggregator, Int](n))
+  def stagedNew(v: Array[Code[_]], m: Array[Code[Boolean]]): Code[RegionValueTakeBooleanAggregator] = (v, m) match {
+    case (Array(n), Array(mn)) =>
+      mn.mux(
+        Code._throw(Code.newInstance[RuntimeException, String]("Take-aggregator cannot take NA for length")),
+        Code.newInstance[RegionValueTakeBooleanAggregator, Int](n.asInstanceOf[Code[Int]]))
+  }
 }
 
 class RegionValueTakeBooleanAggregator(n: Int) extends RegionValueAggregator {
@@ -46,10 +48,12 @@ class RegionValueTakeBooleanAggregator(n: Int) extends RegionValueAggregator {
 }
 
 object RegionValueTakeIntAggregator {
-  def stagedNew(n: Code[Int], mn: Code[Boolean]): Code[RegionValueTakeIntAggregator] =
-    (mn).mux(
-      Code._throw(Code.newInstance[RuntimeException, String]("Take-aggregator cannot take NA for length")),
-      Code.newInstance[RegionValueTakeIntAggregator, Int](n))
+  def stagedNew(v: Array[Code[_]], m: Array[Code[Boolean]]): Code[RegionValueTakeIntAggregator] = (v, m) match {
+    case (Array(n), Array(mn)) =>
+      mn.mux(
+        Code._throw(Code.newInstance[RuntimeException, String]("Take-aggregator cannot take NA for length")),
+        Code.newInstance[RegionValueTakeIntAggregator, Int](n.asInstanceOf[Code[Int]]))
+  }
 }
 
 class RegionValueTakeIntAggregator(n: Int) extends RegionValueAggregator {
@@ -86,10 +90,12 @@ class RegionValueTakeIntAggregator(n: Int) extends RegionValueAggregator {
 }
 
 object RegionValueTakeLongAggregator {
-  def stagedNew(n: Code[Int], mn: Code[Boolean]): Code[RegionValueTakeLongAggregator] =
-    (mn).mux(
-      Code._throw(Code.newInstance[RuntimeException, String]("Take-aggregator cannot take NA for length")),
-      Code.newInstance[RegionValueTakeLongAggregator, Int](n))
+  def stagedNew(v: Array[Code[_]], m: Array[Code[Boolean]]): Code[RegionValueTakeLongAggregator] = (v, m) match {
+    case (Array(n), Array(mn)) =>
+      mn.mux(
+        Code._throw(Code.newInstance[RuntimeException, String]("Take-aggregator cannot take NA for length")),
+        Code.newInstance[RegionValueTakeLongAggregator, Int](n.asInstanceOf[Code[Int]]))
+  }
 }
 
 class RegionValueTakeLongAggregator(n: Int) extends RegionValueAggregator {
@@ -126,10 +132,12 @@ class RegionValueTakeLongAggregator(n: Int) extends RegionValueAggregator {
 }
 
 object RegionValueTakeFloatAggregator {
-  def stagedNew(n: Code[Int], mn: Code[Boolean]): Code[RegionValueTakeFloatAggregator] =
-    (mn).mux(
-      Code._throw(Code.newInstance[RuntimeException, String]("Take-aggregator cannot take NA for length")),
-      Code.newInstance[RegionValueTakeFloatAggregator, Int](n))
+  def stagedNew(v: Array[Code[_]], m: Array[Code[Boolean]]): Code[RegionValueTakeFloatAggregator] = (v, m) match {
+    case (Array(n), Array(mn)) =>
+      mn.mux(
+        Code._throw(Code.newInstance[RuntimeException, String]("Take-aggregator cannot take NA for length")),
+        Code.newInstance[RegionValueTakeFloatAggregator, Int](n.asInstanceOf[Code[Int]]))
+  }
 }
 
 class RegionValueTakeFloatAggregator(n: Int) extends RegionValueAggregator {
@@ -166,10 +174,12 @@ class RegionValueTakeFloatAggregator(n: Int) extends RegionValueAggregator {
 }
 
 object RegionValueTakeDoubleAggregator {
-  def stagedNew(n: Code[Int], mn: Code[Boolean]): Code[RegionValueTakeDoubleAggregator] =
-    (mn).mux(
-      Code._throw(Code.newInstance[RuntimeException, String]("Take-aggregator cannot take NA for length")),
-      Code.newInstance[RegionValueTakeDoubleAggregator, Int](n))
+  def stagedNew(v: Array[Code[_]], m: Array[Code[Boolean]]): Code[RegionValueTakeDoubleAggregator] = (v, m) match {
+    case (Array(n), Array(mn)) =>
+      mn.mux(
+        Code._throw(Code.newInstance[RuntimeException, String]("Take-aggregator cannot take NA for length")),
+        Code.newInstance[RegionValueTakeDoubleAggregator, Int](n.asInstanceOf[Code[Int]]))
+  }
 }
 
 class RegionValueTakeDoubleAggregator(n: Int) extends RegionValueAggregator {

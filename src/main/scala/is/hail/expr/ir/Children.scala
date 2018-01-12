@@ -54,12 +54,8 @@ object Children {
       Array(a, body)
     case AggFlatMap(a, name, body, typ) =>
       Array(a, body)
-    case ApplyAggNullaryOp(a, op, _) =>
-      Array(a)
-    case ApplyAggUnaryOp(a, op, arg1, _) =>
-      Array(a, arg1)
-    case ApplyAggTernaryOp(a, op, arg1, arg2, arg3, _) =>
-      Array(a, arg1, arg2, arg3)
+    case ApplyAggOp(a, op, args, _) =>
+      a +: args
     case GetField(o, name, typ) =>
       Array(o)
     case GetFieldMissingness(o, name) =>

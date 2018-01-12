@@ -81,15 +81,9 @@ object Copy {
       case AggFlatMap(_, name, _, typ) =>
         val IndexedSeq(a, body) = children
         AggFlatMap(a, name, body, typ)
-      case ApplyAggNullaryOp(_, op, typ) =>
-        val IndexedSeq(a) = children
-        ApplyAggNullaryOp(a, op, typ)
-      case ApplyAggUnaryOp(_, op, _, typ) =>
-        val IndexedSeq(a, arg1) = children
-        ApplyAggUnaryOp(a, op, arg1, typ)
-      case ApplyAggTernaryOp(_, op, _, _, _, typ) =>
-        val IndexedSeq(a, arg1, arg2, arg3) = children
-        ApplyAggTernaryOp(a, op, arg1, arg2, arg3, typ)
+      case ApplyAggOp(_, op, args, typ) =>
+        val a +: args = children
+        ApplyAggOp(a, op, args.toArray, typ)
       case In(_, _) =>
         same
       case InMissingness(_) =>

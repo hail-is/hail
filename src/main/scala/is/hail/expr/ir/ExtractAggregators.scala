@@ -50,26 +50,13 @@ object ExtractAggregators {
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggNullaryOp(a, op, typ) =>
-      AggOp.getNullary(op, x.inputType).aggregator
-    case x@ApplyAggUnaryOp(a, op, arg1, typ) =>
+    case x@ApplyAggOp(a, op, args, typ) =>
       val constfb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator]
-      val (doarg1, marg1, varg1) = Emit.toCode(arg1, constfb, 1)
+      val (doargs, margs, vargs) = args.map(Emit.toCode(_, constfb, 1)).unzip3
       constfb.emit(Code(
-        doarg1,
-        AggOp.getUnary(op, arg1.typ, x.inputType).stagedNew(varg1, coerce[Boolean](marg1))))
-      constfb.result()()(Region())
-    case x@ApplyAggTernaryOp(a, op, arg1, arg2, arg3, typ) =>
-      val constfb = FunctionBuilder.functionBuilder[Region, RegionValueAggregator]
-      val (doarg1, marg1, varg1) = Emit.toCode(arg1, constfb, 1)
-      val (doarg2, marg2, varg2) = Emit.toCode(arg2, constfb, 1)
-      val (doarg3, marg3, varg3) = Emit.toCode(arg3, constfb, 1)
-      constfb.emit(Code(
-        doarg1,
-        doarg2,
-        doarg3,
-        AggOp.getTernary(op, arg1.typ, arg2.typ, arg3.typ, x.inputType)
-          .stagedNew(varg1, marg1, varg2, marg2, varg3, marg3)))
+        Code(doargs:_*),
+        AggOp.get(op, args.map(_.typ) :+ x.inputType)
+          .stagedNew(vargs, margs)))
       constfb.result()()(Region())
   }
 }

@@ -9,10 +9,12 @@ import is.hail.utils._
 object RegionValueHistogramAggregator {
   val typ: TStruct = HistogramCombiner.schema
 
-  def stagedNew(start: Code[Double], mstart: Code[Boolean], end: Code[Double], mend: Code[Boolean], bins: Code[Int], mbins: Code[Boolean]): Code[RegionValueHistogramAggregator] =
+  def stagedNew(v: Array[Code[_]], m: Array[Code[Boolean]]): Code[RegionValueHistogramAggregator] = (v, m) match {
+    case (Array(start, end, bins), Array(mstart, mend, mbins)) =>
     (mbins | mstart | mend).mux(
       Code._throw(Code.newInstance[RuntimeException, String]("Histogram aggregator cannot take NA arguments")),
-      Code.newInstance[RegionValueHistogramAggregator, Double, Double, Int](start, end, bins))
+      Code.newInstance[RegionValueHistogramAggregator, Double, Double, Int](start.asInstanceOf[Code[Double]], end.asInstanceOf[Code[Double]], bins.asInstanceOf[Code[Int]]))
+  }
 }
 
 class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) extends RegionValueAggregator {

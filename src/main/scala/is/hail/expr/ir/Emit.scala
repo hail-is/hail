@@ -333,14 +333,8 @@ private class Emit(
                 i := i + 1))))
         (setup, xmout, xvout)
 
-      case x@ApplyAggNullaryOp(a, op, _) =>
-        val agg = AggOp.getNullary(op, x.inputType)
-        present(emitAgg(a)(agg.seqOp(aggregator, _, _)))
-      case x@ApplyAggUnaryOp(a, op, arg1, _) =>
-        val agg = AggOp.getUnary(op, arg1.typ, x.inputType)
-        present(emitAgg(a)(agg.seqOp(aggregator, _, _)))
-      case x@ApplyAggTernaryOp(a, op, arg1, arg2, arg3, _) =>
-        val agg = AggOp.getTernary(op, arg1.typ, arg2.typ, arg3.typ, x.inputType)
+      case x@ApplyAggOp(a, op, args, _) =>
+        val agg = AggOp.get(op, args.map(_.typ) :+ x.inputType)
         present(emitAgg(a)(agg.seqOp(aggregator, _, _)))
 
       case x@MakeStruct(fields, _) =>
@@ -504,7 +498,7 @@ private class Emit(
                     region.loadIRIntermediate(tArray.elementType)(tArray.loadElement(region, arr, i)),
                     tArray.isElementMissing(region, arr, i)),
                   i ++)))) }
-      case _: ApplyAggNullaryOp | _: ApplyAggUnaryOp | _: ApplyAggTernaryOp =>
+      case _: ApplyAggOp =>
         throw new RuntimeException(s"No nested aggregations allowed: $ir")
       case In(_, _) | InMissingness(_) =>
         throw new RuntimeException(s"No inputs may be referenced inside an aggregator: $ir")

@@ -114,22 +114,11 @@ object Infer {
         val tagg2 = tagg.copy(elementType = tout.elementType)
         tagg2.symTab = tagg.symTab
         x.typ = tagg2
-      case x@ApplyAggNullaryOp(a, op, _) =>
+      case x@ApplyAggOp(a, op, args, _) =>
         infer(a)
+        args.foreach(infer(_))
         val tAgg = coerce[TAggregable](a.typ)
-        x.typ = AggOp.getNullaryType(op, tAgg.elementType)
-      case x@ApplyAggUnaryOp(a, op, arg1, _) =>
-        infer(a)
-        infer(arg1)
-        val tAgg = coerce[TAggregable](a.typ)
-        x.typ = AggOp.getUnaryType(op, arg1.typ, tAgg.elementType)
-      case x@ApplyAggTernaryOp(a, op, arg1, arg2, arg3, _) =>
-        infer(a)
-        infer(arg1)
-        infer(arg2)
-        infer(arg3)
-        val tAgg = coerce[TAggregable](a.typ)
-        x.typ = AggOp.getTernaryType(op, arg1.typ, arg2.typ, arg3.typ, tAgg.elementType)
+        x.typ = AggOp.getType(op, args.map(_.typ) :+ tAgg.elementType)
       case x@MakeStruct(fields, _) =>
         fields.foreach { case (name, a) => infer(a) }
         x.typ = TStruct(fields.map { case (name, a) =>
