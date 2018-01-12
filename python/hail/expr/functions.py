@@ -179,7 +179,7 @@ def cond(condition, consequent, alternate):
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
                           t, indices, aggregations, joins, refs)
 
-@typecheck(expr=expr_any, f=func_spec(1))
+@typecheck(expr=expr_any, f=func_spec(1, expr_any))
 def bind(expr, f):
     """Bind a temporary variable and use it in a function.
 
@@ -222,7 +222,7 @@ def bind(expr, f):
     ----------
     expr : :class:`.Expression`
         Expression to bind.
-    f : 1-argument function
+    f : function ( (arg) -> :class:`.Expression`)
         Function of `expr`.
 
     Returns

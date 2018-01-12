@@ -205,7 +205,7 @@ def counter(expr):
     agg = _to_agg(expr)
     return _agg_func('counter', agg, TDict(agg._type, TInt64()))
 
-@typecheck(expr=oneof(Aggregable, expr_any), n=integral, ordering=nullable(oneof(expr_any, func_spec(1))))
+@typecheck(expr=oneof(Aggregable, expr_any), n=integral, ordering=nullable(oneof(expr_any, func_spec(1, expr_any))))
 def take(expr, n, ordering=None):
     """Take `n` records of `expr`, optionally ordered by `ordering`.
 
@@ -253,7 +253,7 @@ def take(expr, n, ordering=None):
         Expression to store.
     n : :class:`hail.expr.expression.Int32Expression`
         Number of records to take.
-    ordering : :class:`hail.expr.expression.Expression` or 1-argument function or None
+    ordering : :class:`hail.expr.expression.Expression` or function ( (arg) -> :class:`.Expression`)or None
         Optional ordering on records.
 
     Returns
@@ -646,7 +646,7 @@ def explode(expr):
     return Aggregable(LambdaClassMethod('flatMap', uid, agg._ast, Reference(uid)),
                       agg._type.element_type, agg._indices, agg._aggregations, agg._joins, agg._refs)
 
-@typecheck(condition=oneof(expr_bool, func_spec(1)), expr=oneof(Aggregable, expr_any))
+@typecheck(condition=oneof(expr_bool, func_spec(1, expr_bool)), expr=oneof(Aggregable, expr_any))
 def filter(condition, expr):
     """Filter records according to a predicate.
 
@@ -670,7 +670,7 @@ def filter(condition, expr):
 
     Parameters
     ----------
-    condition : :class:`hail.expr.expression.BooleanExpression` or 1-argument function
+    condition : :class:`.BooleanExpression` or function ( (arg) -> :class:`.BooleanExpression`)
         Filter expression, or a function to evaluate for each record.
     expr : :class:`hail.expr.expression.Expression`
         Expression to filter.

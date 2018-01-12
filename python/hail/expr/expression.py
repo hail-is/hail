@@ -160,7 +160,7 @@ def to_expr(e):
         indices, aggregations, joins, refs = unify_all(kc, vc)
 
         assert kt == kc._type.element_type
-        assert vt== vc._type.element_type
+        assert vt == vc._type.element_type
 
         ast = ApplyMethod('Dict',
                           ArrayDeclaration([k._ast for k in key_cols]),
@@ -469,7 +469,7 @@ class CollectionExpression(Expression):
     >>> s = functions.capture({'Alice', 'Bob', 'Charlie'})
     """
 
-    @typecheck_method(f=func_spec(1))
+    @typecheck_method(f=func_spec(1, expr_bool))
     def exists(self, f):
         """Returns ``True`` if `f` returns ``True`` for any element.
 
@@ -489,7 +489,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : 1-argument function
+        f : function ( (arg) -> :class:`.BooleanExpression`)
             Function to evaluate for each element of the collection. Must return a
             :py:class:`BooleanExpression`.
 
@@ -504,7 +504,7 @@ class CollectionExpression(Expression):
             return t
         return self._bin_lambda_method("exists", f, self._type.element_type, unify_ret)
 
-    @typecheck_method(f=func_spec(1))
+    @typecheck_method(f=func_spec(1, expr_bool))
     def filter(self, f):
         """Returns a new collection containing elements where `f` returns ``True``.
 
@@ -526,7 +526,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : 1-argument function
+        f : function ( (arg) -> :class:`.BooleanExpression`)
             Function to evaluate for each element of the collection. Must return a
             :py:class:`BooleanExpression`.
 
@@ -542,7 +542,7 @@ class CollectionExpression(Expression):
 
         return self._bin_lambda_method("filter", f, self._type.element_type, unify_ret)
 
-    @typecheck_method(f=func_spec(1))
+    @typecheck_method(f=func_spec(1, expr_bool))
     def find(self, f):
         """Returns the first element where `f` returns ``True``.
 
@@ -562,7 +562,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : 1-argument function
+        f : function ( (arg) -> :class:`.BooleanExpression`)
             Function to evaluate for each element of the collection. Must return a
             :py:class:`BooleanExpression`.
 
@@ -578,7 +578,7 @@ class CollectionExpression(Expression):
 
         return self._bin_lambda_method("find", f, self._type.element_type, unify_ret)
 
-    @typecheck_method(f=func_spec(1))
+    @typecheck_method(f=func_spec(1, expr_any))
     def flatmap(self, f):
         """Map each element of the collection to a new collection, and flatten the results.
 
@@ -594,7 +594,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : 1-argument function
+        f : function ( (arg) -> :class:`.CollectionExpression`)
             Function from the element type of the collection to the type of the
             collection. For instance, `flatmap` on a ``Set[String]`` should take
             a ``String`` and return a ``Set``.
@@ -610,7 +610,7 @@ class CollectionExpression(Expression):
             return t
         return self._bin_lambda_method("flatMap", f, self._type.element_type, unify_ret)
 
-    @typecheck_method(f=func_spec(1))
+    @typecheck_method(f=func_spec(1, expr_bool))
     def forall(self, f):
         """Returns ``True`` if `f` returns ``True`` for every element.
 
@@ -627,7 +627,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : 1-argument function
+        f : function ( (arg) -> :class:`.BooleanExpression`)
             Function to evaluate for each element of the collection. Must return a
             :py:class:`BooleanExpression`.
 
@@ -643,7 +643,7 @@ class CollectionExpression(Expression):
 
         return self._bin_lambda_method("forall", f, self._type.element_type, unify_ret)
 
-    @typecheck_method(f=func_spec(1))
+    @typecheck_method(f=func_spec(1, expr_any))
     def group_by(self, f):
         """Group elements into a dict according to a lambda function.
 
@@ -659,7 +659,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : 1-argument function
+        f : function ( (arg) -> :class:`.Expression`)
             Function to evaluate for each element of the collection to produce a key for the
             resulting dictionary.
 
@@ -670,7 +670,7 @@ class CollectionExpression(Expression):
         """
         return self._bin_lambda_method("groupBy", f, self._type.element_type, lambda t: TDict(t, self._type))
 
-    @typecheck_method(f=func_spec(1))
+    @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
         """Transform each element of a collection.
 
@@ -686,7 +686,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : 1-argument function
+        f : function ( (arg) -> :class:`.Expression`)
             Function to transform each element of the collection.
 
         Returns
@@ -999,7 +999,7 @@ class ArrayExpression(CollectionExpression):
                             "    type of 'a': '{}'".format(self._type, a._type))
         return self._method("extend", self._type, a)
 
-    @typecheck_method(f=func_spec(1), ascending=expr_bool)
+    @typecheck_method(f=func_spec(1, expr_any), ascending=expr_bool)
     def sort_by(self, f, ascending=True):
         """Sort the array according to a function.
 
@@ -1013,7 +1013,7 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        f : 1-argument function
+        f : function ( (arg) -> :class:`.BooleanExpression`)
             Function to evaluate per element to obtain the sort key.
         ascending : bool or :py:class:`BooleanExpression`
             Sort in ascending order.
@@ -1812,7 +1812,7 @@ class DictExpression(Expression):
         """
         return self._method("keys", TArray(self._key_typ))
 
-    @typecheck_method(f=func_spec(1))
+    @typecheck_method(f=func_spec(1, expr_any))
     def map_values(self, f):
         """Transform values of the dictionary according to a function.
 
@@ -1825,7 +1825,7 @@ class DictExpression(Expression):
 
         Parameters
         ----------
-        f : 1-argument function
+        f : function ( (arg) -> :class:`.Expression`)
             Function to apply to each value.
 
         Returns

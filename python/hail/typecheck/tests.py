@@ -251,7 +251,7 @@ class ContextTests(unittest.TestCase):
 
     def test_function_checker(self):
 
-        @typecheck(f=func_spec(3))
+        @typecheck(f=func_spec(3, int))
         def foo(f):
             return f(1, 2, 3)
 
