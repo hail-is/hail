@@ -18,4 +18,5 @@ __all__ = ['typecheck',
            'lazy',
            'enumeration',
            'identity',
-           'transformed']
+           'transformed',
+           'func_spec']

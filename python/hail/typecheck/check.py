@@ -1,6 +1,7 @@
 from decorator import decorator, getargspec
 from types import ClassType, NoneType, InstanceType
 import re
+import inspect
 
 
 class TypecheckFailure(Exception):
@@ -27,6 +28,9 @@ class TypeChecker(object):
 
     def expects(self):
         raise NotImplementedError
+
+    def format(self, arg):
+        return extract(type(arg))
 
 
 class MultipleTypeChecker(TypeChecker):
@@ -255,6 +259,28 @@ class CoercionChecker(MultipleTypeChecker):
                 pass
         raise TypecheckFailure
 
+class FunctionChecker(TypeChecker):
+    def __init__(self, nargs):
+        self.nargs = nargs
+        super(FunctionChecker, self).__init__()
+        
+    def check(self, x):
+        if not callable(x):
+            raise TypecheckFailure
+        spec = inspect.getargspec(x)
+        if not len(spec.args) == self.nargs:
+            raise TypecheckFailure
+        return x
+
+    def expects(self):
+        return '{}-argument function'.format(self.nargs)
+
+    def format(self, arg):
+        if not callable(arg):
+            return super(FunctionChecker, self).format(arg)
+        spec = inspect.getargspec(arg)
+        return '{}-argument function'.format(len(spec.args))
+
 
 def only(t):
     if isinstance(t, type) or type(t) is ClassType:
@@ -300,6 +326,8 @@ def setof(t):
 def dictof(k, v):
     return DictChecker(only(k), only(v))
 
+def func_spec(n):
+    return FunctionChecker(n)
 
 def transformed(*tcs):
     fs = []
@@ -376,7 +404,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     fname=name,
                     argname=argname,
                     expected=tc.expects(),
-                    found=extract(type(arg)),
+                    found=tc.format(arg),
                     arg=str(arg)
                 ))
             else:
@@ -387,7 +415,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     idx=i - len(named_args),
                     tot=len(pos_args) - len(named_args),
                     expected=tc.expects(),
-                    found=extract(type(arg)),
+                    found=tc.format(arg),
                     arg=str(arg)
                 ))
 
@@ -404,7 +432,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     fname=name,
                     argname=argname,
                     expected=tc.expects(),
-                    found=extract(type(arg)),
+                    found=tc.format(arg),
                     arg=str(arg)
                 ))
 

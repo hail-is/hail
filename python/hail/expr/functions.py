@@ -168,14 +168,18 @@ def cond(condition, consequent, alternate):
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     indices, aggregations, joins, refs = unify_all(condition, consequent, alternate)
-    t = unify_types(consequent._type, alternate._type)
-    if t is None:
-        raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
-                        "    consequent: type {}\n"
-                        "    alternate:  type {}".format(consequent._type, alternate._type))
+    if is_numeric(consequent._type) and is_numeric(alternate._type):
+        t = unify_types(consequent._type, alternate._type)
+    else:
+        if not consequent._type == alternate._type:
+            raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
+                            "    consequent: type {}\n"
+                            "    alternate:  type {}".format(consequent._type, alternate._type))
+        t = consequent._type
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
                           t, indices, aggregations, joins, refs)
 
+@typecheck(expr=expr_any, f=func_spec(1))
 def bind(expr, f):
     """Bind a temporary variable and use it in a function.
 
@@ -218,7 +222,7 @@ def bind(expr, f):
     ----------
     expr : :class:`.Expression`
         Expression to bind.
-    f : callable
+    f : 1-argument function
         Function of `expr`.
 
     Returns

@@ -77,7 +77,7 @@ def to_expr(e):
         return e
     elif isinstance(e, Aggregable):
         raise ExpressionException("Cannot use the result of 'agg.explode' or 'agg.filter' in expressions\n"
-                                  "    These methods produce 'Aggregable' objects can only be aggregated\n"
+                                  "    These methods produce 'Aggregable' objects that can only be aggregated\n"
                                   "    with aggregator functions or used with further calls to 'agg.explode'\n"
                                   "    and 'agg.filter'. They support no other operations.")
     elif isinstance(e, str) or isinstance(e, unicode):
@@ -109,36 +109,32 @@ def to_expr(e):
         return construct_expr(StructDeclaration(names, [c._ast for c in cols]),
                               t, indices, aggregations, joins, refs)
     elif isinstance(e, list):
+        if len(e) == 0:
+            raise ExpressionException('Cannot convert empty list to expression.')
         cols = [to_expr(x) for x in e]
         types = list({col._type for col in cols})
-        if len(cols) == 0:
-            raise ExpressionException('Cannot convert empty list to expression.')
-        elif len(types) == 1:
-            t = TArray(types[0])
-        elif all([is_numeric(t) for t in types]):
-            t = TArray(convert_numeric_typ(*types))
-        else:
+        t = unify_types(*types)
+        if not t:
             raise ExpressionException('Cannot convert list with heterogeneous key types to expression.'
                                       '\n    Found types: {}.'.format(types))
         indices, aggregations, joins, refs = unify_all(*cols)
         return construct_expr(ArrayDeclaration([col._ast for col in cols]),
                               t, indices, aggregations, joins, refs)
     elif isinstance(e, set):
+        if len(e) == 0:
+            raise ExpressionException('Cannot convert empty set to expression.')
         cols = [to_expr(x) for x in e]
         types = list({col._type for col in cols})
-        if len(cols) == 0:
-            raise ExpressionException('Cannot convert empty set to expression.')
-        elif len(types) == 1:
-            t = TSet(types[0])
-        elif all([is_numeric(t) for t in types]):
-            t = TSet(convert_numeric_typ(*types))
-        else:
-            raise ExpressionException('Cannot convert set with heterogeneous key types to expression.'
+        t = unify_types(*types)
+        if not t:
+            raise ExpressionException('Cannot convert set with heterogeneous types to expression.'
                                       '\n    Found types: {}.'.format(types))
         indices, aggregations, joins, refs = unify_all(*cols)
         return construct_expr(ClassMethod('toSet', ArrayDeclaration([col._ast for col in cols])), t, indices,
                               aggregations, joins, refs)
     elif isinstance(e, dict):
+        if len(e) == 0:
+            raise ExpressionException('Cannot convert empty dictionary to expression.')
         key_cols = []
         value_cols = []
         keys = []
@@ -150,37 +146,26 @@ def to_expr(e):
             values.append(v)
         key_types = list({col._type for col in key_cols})
         value_types = list({col._type for col in value_cols})
-
-        if len(key_types) == 0:
-            raise ExpressionException('Cannot convert empty dictionary to expression.')
-        elif len(key_types) == 1:
-            key_type = key_types[0]
-        elif all([is_numeric(t) for t in key_types]):
-            key_type = convert_numeric_typ(*key_types)
-        else:
+        kt = unify_types(*key_types)
+        if not kt:
             raise ExpressionException('Cannot convert dictionary with heterogeneous key types to expression.'
                                       '\n    Found types: {}.'.format(key_types))
-
-        if len(value_types) == 1:
-            value_type = value_types[0]
-        elif all([is_numeric(t) for t in value_types]):
-            value_type = convert_numeric_typ(*value_types)
-        else:
+        vt = unify_types(*value_types)
+        if not vt:
             raise ExpressionException('Cannot convert dictionary with heterogeneous value types to expression.'
                              '\n    Found types: {}.'.format(value_types))
-
         kc = to_expr(keys)
         vc = to_expr(values)
 
         indices, aggregations, joins, refs = unify_all(kc, vc)
 
-        assert key_type == kc._type.element_type
-        assert value_type == vc._type.element_type
+        assert kt == kc._type.element_type
+        assert vt== vc._type.element_type
 
         ast = ApplyMethod('Dict',
                           ArrayDeclaration([k._ast for k in key_cols]),
                           ArrayDeclaration([v._ast for v in value_cols]))
-        return construct_expr(ast, TDict(key_type, value_type), indices, aggregations, joins, refs)
+        return construct_expr(ast, TDict(kt, vt), indices, aggregations, joins, refs)
     else:
         raise ExpressionException("Cannot implicitly convert value '{}' of type '{}' to expression.".format(
             e, e.__class__))
@@ -255,50 +240,29 @@ def unify_all(*exprs):
     return new_indices, agg, joins, refs
 
 
-def unify_types(t1, t2):
-    c1 = t1.__class__
-    c2 = t2.__class__
-    if c1 is c2:
-        return t1
-    elif c1 in __numeric_types and c2 in __numeric_types:
-        s = {c1, c2}
-
-        # assert the two classes are different
-        assert len(s) == 2
-        if TFloat64 in s:
+def unify_types(*ts):
+    classes = {t.__class__ for t in ts}
+    if len(classes) == 1:
+        # only one distinct class
+        return ts[0]
+    elif all(is_numeric(t) for t in ts):
+        # assert there are at least 2 numeric types
+        assert len(classes) > 1
+        if TFloat64 in classes:
             return TFloat64()
-        elif TFloat32 in s:
+        elif TFloat32 in classes:
             return TFloat32()
         else:
-            assert s == {TInt32, TInt64}
+            assert classes == {TInt32, TInt64}
             return TInt64()
-    elif c1 == TArray and c2 == TArray:
-        et = unify_types(t1.element_type, t2.element_type)
+    elif all(isinstance(TArray, t) for t in ts):
+        et = unify_types(*(t.element_type for t in ts))
         if et:
             return TArray(et)
         else:
             return None
     else:
         return None
-
-__numeric_types = [TInt32, TInt64, TFloat32, TFloat64]
-
-
-@typecheck(t=Type)
-def is_numeric(t):
-    return t.__class__ in __numeric_types
-
-
-@typecheck(types=Type)
-def convert_numeric_typ(*types):
-    priority_map = {t: p for t, p in zip(__numeric_types, range(len(__numeric_types)))}
-    priority = 0
-    for t in types:
-        assert (is_numeric(t)), t
-        t_priority = priority_map[t.__class__]
-        if t_priority > priority:
-            priority = t_priority
-    return __numeric_types[priority]()
 
 
 class Expression(object):
@@ -360,33 +324,33 @@ class Expression(object):
         return construct_expr(UnaryOperation(self._ast, name),
                               self._type, self._indices, self._aggregations, self._joins, self._refs)
 
-    def _bin_op(self, name, other, ret_typ):
+    def _bin_op(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations, joins, refs = unify_all(self, other)
-        return construct_expr(BinaryOperation(self._ast, other._ast, name), ret_typ, indices, aggregations, joins, refs)
+        return construct_expr(BinaryOperation(self._ast, other._ast, name), ret_type, indices, aggregations, joins, refs)
 
-    def _bin_op_reverse(self, name, other, ret_typ):
+    def _bin_op_reverse(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations, joins, refs = unify_all(self, other)
-        return construct_expr(BinaryOperation(other._ast, self._ast, name), ret_typ, indices, aggregations, joins, refs)
+        return construct_expr(BinaryOperation(other._ast, self._ast, name), ret_type, indices, aggregations, joins, refs)
 
-    def _field(self, name, ret_typ):
-        return construct_expr(Select(self._ast, name), ret_typ, self._indices,
+    def _field(self, name, ret_type):
+        return construct_expr(Select(self._ast, name), ret_type, self._indices,
                               self._aggregations, self._joins, self._refs)
 
-    def _method(self, name, ret_typ, *args):
+    def _method(self, name, ret_type, *args):
         args = tuple(to_expr(arg) for arg in args)
         indices, aggregations, joins, refs = unify_all(self, *args)
         return construct_expr(ClassMethod(name, self._ast, *(a._ast for a in args)),
-                              ret_typ, indices, aggregations, joins, refs)
+                              ret_type, indices, aggregations, joins, refs)
 
-    def _index(self, ret_typ, key):
+    def _index(self, ret_type, key):
         key = to_expr(key)
         indices, aggregations, joins, refs = unify_all(self, key)
         return construct_expr(Index(self._ast, key._ast),
-                              ret_typ, indices, aggregations, joins, refs)
+                              ret_type, indices, aggregations, joins, refs)
 
-    def _slice(self, ret_typ, start=None, stop=None, step=None):
+    def _slice(self, ret_type, start=None, stop=None, step=None):
         if start is not None:
             start = to_expr(start)
             start_ast = start._ast
@@ -403,16 +367,16 @@ class Expression(object):
         non_null = [x for x in [start, stop] if x is not None]
         indices, aggregations, joins, refs = unify_all(self, *non_null)
         return construct_expr(Index(self._ast, Slice(start_ast, stop_ast)),
-                              ret_typ, indices, aggregations, joins, refs)
+                              ret_type, indices, aggregations, joins, refs)
 
-    def _bin_lambda_method(self, name, f, inp_typ, ret_typ_f, *args):
+    def _bin_lambda_method(self, name, f, input_type, ret_type_f, *args):
         args = (to_expr(arg) for arg in args)
         new_id = Env._get_uid()
         lambda_result = to_expr(
-            f(construct_expr(Reference(new_id), inp_typ, self._indices, self._aggregations, self._joins, self._refs)))
+            f(construct_expr(Reference(new_id), input_type, self._indices, self._aggregations, self._joins, self._refs)))
         indices, aggregations, joins, refs = unify_all(self, lambda_result)
         ast = LambdaClassMethod(name, new_id, self._ast, lambda_result._ast, *(a._ast for a in args))
-        return construct_expr(ast, ret_typ_f(lambda_result._type), indices, aggregations, joins, refs)
+        return construct_expr(ast, ret_type_f(lambda_result._type), indices, aggregations, joins, refs)
 
     def __eq__(self, other):
         """Returns ``True`` if the two expressions are equal.
@@ -505,6 +469,7 @@ class CollectionExpression(Expression):
     >>> s = functions.capture({'Alice', 'Bob', 'Charlie'})
     """
 
+    @typecheck_method(f=func_spec(1))
     def exists(self, f):
         """Returns ``True`` if `f` returns ``True`` for any element.
 
@@ -524,7 +489,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : callable
+        f : 1-argument function
             Function to evaluate for each element of the collection. Must return a
             :py:class:`BooleanExpression`.
 
@@ -539,6 +504,7 @@ class CollectionExpression(Expression):
             return t
         return self._bin_lambda_method("exists", f, self._type.element_type, unify_ret)
 
+    @typecheck_method(f=func_spec(1))
     def filter(self, f):
         """Returns a new collection containing elements where `f` returns ``True``.
 
@@ -560,7 +526,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : callable
+        f : 1-argument function
             Function to evaluate for each element of the collection. Must return a
             :py:class:`BooleanExpression`.
 
@@ -576,6 +542,7 @@ class CollectionExpression(Expression):
 
         return self._bin_lambda_method("filter", f, self._type.element_type, unify_ret)
 
+    @typecheck_method(f=func_spec(1))
     def find(self, f):
         """Returns the first element where `f` returns ``True``.
 
@@ -595,7 +562,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : callable
+        f : 1-argument function
             Function to evaluate for each element of the collection. Must return a
             :py:class:`BooleanExpression`.
 
@@ -611,6 +578,7 @@ class CollectionExpression(Expression):
 
         return self._bin_lambda_method("find", f, self._type.element_type, unify_ret)
 
+    @typecheck_method(f=func_spec(1))
     def flatmap(self, f):
         """Map each element of the collection to a new collection, and flatten the results.
 
@@ -626,7 +594,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : callable
+        f : 1-argument function
             Function from the element type of the collection to the type of the
             collection. For instance, `flatmap` on a ``Set[String]`` should take
             a ``String`` and return a ``Set``.
@@ -642,6 +610,7 @@ class CollectionExpression(Expression):
             return t
         return self._bin_lambda_method("flatMap", f, self._type.element_type, unify_ret)
 
+    @typecheck_method(f=func_spec(1))
     def forall(self, f):
         """Returns ``True`` if `f` returns ``True`` for every element.
 
@@ -658,7 +627,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : callable
+        f : 1-argument function
             Function to evaluate for each element of the collection. Must return a
             :py:class:`BooleanExpression`.
 
@@ -674,6 +643,7 @@ class CollectionExpression(Expression):
 
         return self._bin_lambda_method("forall", f, self._type.element_type, unify_ret)
 
+    @typecheck_method(f=func_spec(1))
     def group_by(self, f):
         """Group elements into a dict according to a lambda function.
 
@@ -689,7 +659,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : callable
+        f : 1-argument function
             Function to evaluate for each element of the collection to produce a key for the
             resulting dictionary.
 
@@ -700,6 +670,7 @@ class CollectionExpression(Expression):
         """
         return self._bin_lambda_method("groupBy", f, self._type.element_type, lambda t: TDict(t, self._type))
 
+    @typecheck_method(f=func_spec(1))
     def map(self, f):
         """Transform each element of a collection.
 
@@ -715,7 +686,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : callable
+        f : 1-argument function
             Function to transform each element of the collection.
 
         Returns
@@ -1028,6 +999,7 @@ class ArrayExpression(CollectionExpression):
                             "    type of 'a': '{}'".format(self._type, a._type))
         return self._method("extend", self._type, a)
 
+    @typecheck_method(f=func_spec(1), ascending=expr_bool)
     def sort_by(self, f, ascending=True):
         """Sort the array according to a function.
 
@@ -1041,7 +1013,7 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        f : callable
+        f : 1-argument function
             Function to evaluate per element to obtain the sort key.
         ascending : bool or :py:class:`BooleanExpression`
             Sort in ascending order.
@@ -1103,25 +1075,25 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         else:
             return TArray(t)
 
-    def _bin_op_numeric(self, name, other, f_override=None):
+    def _bin_op_numeric(self, name, other, ret_type_f=None):
         other = to_expr(other)
-        ret_typ = self._bin_op_ret_typ(other)
-        if not ret_typ:
+        ret_type = self._bin_op_ret_typ(other)
+        if not ret_type:
             raise NotImplementedError("'{}' {} '{}'".format(
                 self._type, name, other._type))
-        if f_override:
-            ret_type = f_override(ret_typ)
-        return self._bin_op(name, other, ret_typ)
+        if ret_type_f:
+            ret_type = ret_type_f(ret_type)
+        return self._bin_op(name, other, ret_type)
 
-    def _bin_op_numeric_reverse(self, name, other, f_override=None):
+    def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
         other = to_expr(other)
-        ret_typ = self._bin_op_ret_typ(other)
-        if not ret_typ:
+        ret_type = self._bin_op_ret_typ(other)
+        if not ret_type:
             raise NotImplementedError("'{}' {} '{}'".format(
                 other._type, name, self._type))
-        if f_override:
-            ret_type = f_override(ret_typ)
-        return self._bin_op_reverse(name, other, ret_typ)
+        if ret_type_f:
+            ret_type = ret_type_f(ret_type)
+        return self._bin_op_reverse(name, other, ret_type)
 
     def __add__(self, other):
         """Positionally add an array or a scalar.
@@ -1840,6 +1812,7 @@ class DictExpression(Expression):
         """
         return self._method("keys", TArray(self._key_typ))
 
+    @typecheck_method(f=func_spec(1))
     def map_values(self, f):
         """Transform values of the dictionary according to a function.
 
@@ -1852,7 +1825,7 @@ class DictExpression(Expression):
 
         Parameters
         ----------
-        f : callable
+        f : 1-argument function
             Function to apply to each value.
 
         Returns
@@ -2171,25 +2144,25 @@ class NumericExpression(AtomicExpression):
         else:
             return t, wrapper
 
-    def _bin_op_numeric(self, name, other, f_override=None):
+    def _bin_op_numeric(self, name, other, ret_type_f=None):
         other = to_expr(other)
-        ret_typ, wrapper = self._bin_op_ret_typ(other)
-        if not ret_typ:
+        ret_type, wrapper = self._bin_op_ret_typ(other)
+        if not ret_type:
             raise NotImplementedError("'{}' {} '{}'".format(
                 self._type, name, other._type))
-        if f_override:
-            ret_type = f_override(ret_typ)
-        return self._bin_op(name, other, wrapper(ret_typ))
+        if ret_type_f:
+            ret_type = ret_type_f(ret_type)
+        return self._bin_op(name, other, wrapper(ret_type))
 
-    def _bin_op_numeric_reverse(self, name, other, f_override=None):
+    def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
         other = to_expr(other)
-        ret_typ, wrapper = self._bin_op_ret_typ(other)
-        if not ret_typ:
+        ret_type, wrapper = self._bin_op_ret_typ(other)
+        if not ret_type:
             raise NotImplementedError("'{}' {} '{}'".format(
                 self._type, name, other._type))
-        if f_override:
-            ret_type = f_override(ret_typ)
-        return self._bin_op_reverse(name, other, wrapper(ret_typ))
+        if ret_type_f:
+            ret_type = ret_type_f(ret_type)
+        return self._bin_op_reverse(name, other, wrapper(ret_type))
 
     @typecheck_method(other=expr_numeric)
     def __lt__(self, other):
