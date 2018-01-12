@@ -77,10 +77,11 @@ object Annotation {
 
         case _: TAltAllele => a.asInstanceOf[AltAllele].toRow
 
-        case _: TInterval =>
-          val i = a.asInstanceOf[Interval[Locus]]
-          Annotation(i.start.toRow,
-            i.end.toRow)
+        case TInterval(pointType, _) =>
+          val i = a.asInstanceOf[Interval]
+          Annotation(
+            expandAnnotation(i.start, pointType),
+            expandAnnotation(i.end, pointType))
 
         // including TChar, TSample
         case _ => a

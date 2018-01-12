@@ -42,7 +42,7 @@ object BedAnnotator {
     else
       TStruct("interval" -> TInterval(TLocus(gr)))
 
-    implicit val locusOrd = gr.locusOrdering
+    implicit val ord = TInterval(gr.locusType).ordering
 
     val rdd = hc.sc.textFileLines(filename)
       .filter(line =>

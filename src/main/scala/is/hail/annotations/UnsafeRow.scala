@@ -139,7 +139,7 @@ object UnsafeRow {
     new String(readBinary(region, boff))
 
   def readLocus(region: Region, offset: Long, gr: GRBase): Locus = {
-    val ft = gr.locus.fundamentalType.asInstanceOf[TStruct]
+    val ft = gr.locusType.fundamentalType.asInstanceOf[TStruct]
     Locus(
       readString(region, ft.loadField(region, offset, 0)),
       region.loadInt(ft.loadField(region, offset, 1)))
@@ -222,7 +222,7 @@ object UnsafeRow {
             read(x.pointType, region, ft.loadField(region, offset, 1))
           else
             null
-        Interval[Annotation](start, end)(x.pointType.ordering.toOrdering)
+        Interval(start, end)
     }
   }
 }

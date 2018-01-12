@@ -915,17 +915,17 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
           annotateLoci(ord, finalType, inserter, product = product)
 
         case Array(TInterval(_, _)) if vSignature.isInstanceOf[TVariant] =>
-          implicit val locusOrd = genomeReference.locusOrdering
+          val locusOrdering = genomeReference.locusType.ordering
           val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
           val partitionKeyedIntervals = keyedRDD
             .flatMap { case (k, v) =>
-              val interval = k.getAs[Interval[Locus]](0)
+              val interval = k.getAs[Interval](0)
               val start = partBc.value.getPartitionT(interval.start.asInstanceOf[Annotation])
               val end = partBc.value.getPartitionT(interval.end.asInstanceOf[Annotation])
               (start to end).view.map(i => (i, (interval, v)))
             }
 
-          type IntervalT = (Interval[Locus], Annotation)
+          type IntervalT = (Interval, Annotation)
           val nParts = rdd.partitions.length
           val zipRDD = partitionKeyedIntervals.partitionBy(new Partitioner {
             def getPartition(key: Any): Int = key.asInstanceOf[Int]
@@ -934,10 +934,10 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
           }).values
 
           val res = rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
-            val iTree = IntervalTree.annotationTree[Locus, Annotation](intervals.toArray)
+            val iTree = IntervalTree.annotationTree(locusOrdering, intervals.toArray)
 
             it.map { case (v, (va, gs)) =>
-              val queries = iTree.queryValues(v.asInstanceOf[Variant].locus)
+              val queries = iTree.queryValues(locusOrdering, v.asInstanceOf[Variant].locus)
               val annot = if (product)
                 queries: IndexedSeq[Annotation]
               else
@@ -1371,10 +1371,10 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
           rdd.orderedPartitioner)
 
       case Array(TInterval(_, _)) if vSignature.isInstanceOf[TVariant] =>
-        implicit val locusOrd = genomeReference.locusOrdering
+        val locusOrdering = genomeReference.locusType.ordering
         val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
         val intRDD = kt.keyedRDD()
-          .map { case (k, _) => k.getAs[Interval[Locus]](0) }
+          .map { case (k, _) => k.getAs[Interval](0) }
           .filter(_ != null)
           .flatMap { interval =>
             val start = partBc.value.getPartitionT(interval.start.asInstanceOf[Annotation])
@@ -1399,8 +1399,8 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
           rdd.subsetPartitions(overlapPartitions)
             .zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
-              val itree = IntervalTree.apply[Locus](intervals.toArray)
-              it.filter { case (v, _) => itree.contains(v.asInstanceOf[Variant].locus) }
+              val itree = IntervalTree.apply(locusOrdering, intervals.toArray)
+              it.filter { case (v, _) => itree.contains(locusOrdering, v.asInstanceOf[Variant].locus) }
             }
         } else {
           val zipRDD = intRDD.partitionBy(new Partitioner {
@@ -1410,8 +1410,8 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
           }).values
 
           rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
-            val itree = IntervalTree.apply[Locus](intervals.toArray)
-            it.filter { case (v, _) => !itree.contains(v.asInstanceOf[Variant].locus) }
+            val itree = IntervalTree.apply(locusOrdering, intervals.toArray)
+            it.filter { case (v, _) => !itree.contains(locusOrdering, v.asInstanceOf[Variant].locus) }
           }
         }
 

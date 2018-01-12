@@ -70,7 +70,7 @@ trait HailRepFunctions {
     def typ = TAltAllele()
   }
 
-  implicit def intervalHr[T](implicit hrt: HailRep[T]) = new HailRep[Interval[T]] {
+  implicit def intervalHr[T](implicit hrt: HailRep[T]) = new HailRep[Interval] {
     def typ = TInterval(hrt.typ)
   }
 

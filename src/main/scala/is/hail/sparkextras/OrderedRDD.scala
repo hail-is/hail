@@ -2,6 +2,7 @@ package is.hail.sparkextras
 
 import java.util
 
+import is.hail.annotations.ExtendedOrdering
 import org.apache.spark.rdd.{PartitionPruningRDD, RDD, ShuffledRDD}
 import is.hail.utils._
 import org.apache.spark.{SparkContext, _}
@@ -449,7 +450,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     }
   }
 
-  def filterIntervals(intervals: IntervalTree[PK, _]): OrderedRDD[PK, K, V] = {
+  def filterIntervals(locusOrdering: ExtendedOrdering, intervals: IntervalTree[_]): OrderedRDD[PK, K, V] = {
 
     import kOk.pkOrd
     import kOk._
@@ -458,7 +459,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     val iListBc = rdd.sparkContext.broadcast(intervals)
 
     if (partitions.length <= 1)
-      return filter { case (k, _) => iListBc.value.contains(project(k)) }.asOrderedRDD
+      return filter { case (k, _) => iListBc.value.contains(locusOrdering, project(k)) }.asOrderedRDD
 
     val intervalArray = intervals.toArray
 
@@ -471,15 +472,15 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     while (i < nPartitions) {
 
       val include = if (i == 0)
-        intervalArray.exists(_._1.start <= rangeBounds(0))
+        intervalArray.exists(i => locusOrdering.lteq(i._1.start, rangeBounds(0)))
       else if (i == nPartitions - 1)
-        intervalArray.reverseIterator.exists(_._1.end > rangeBounds.last)
+        intervalArray.reverseIterator.exists(i => locusOrdering.gt(i._1.end, rangeBounds.last))
       else {
         val lastMax = rangeBounds(i - 1)
         val thisMax = rangeBounds(i)
         // FIXME: loads a partition if the lastMax == interval.start.  Can therefore load unnecessary partitions
         // the solution is to add a new Ordered trait Incrementable which lets us add epsilon to PK (add 1 to locus start)
-        intervals.overlaps(Interval(lastMax, thisMax)) || intervals.contains(thisMax)
+        intervals.overlaps(locusOrdering, Interval(lastMax, thisMax)) || intervals.contains(locusOrdering, thisMax)
       }
 
       if (include)
@@ -496,7 +497,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     if (newPartitionIndices.isEmpty)
       OrderedRDD.empty[PK, K, V](rdd.sparkContext)
     else {
-      val f: Iterator[(K, V)] => Iterator[(K, V)] = _.filter { case (k, _) => iListBc.value.contains(project(k)) }
+      val f: Iterator[(K, V)] => Iterator[(K, V)] = _.filter { case (k, _) => iListBc.value.contains(locusOrdering, project(k)) }
       val newRDD = new AdjustedPartitionsRDD(this, newPartitionIndices.map(i => Array(Adjustment(i, f))))
       new OrderedRDD(newRDD, OrderedPartitioner(newPartitionIndices.init.map(rangeBounds), newPartitionIndices.length))
     }

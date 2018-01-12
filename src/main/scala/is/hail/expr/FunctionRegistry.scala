@@ -464,6 +464,11 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
   }
 
+  def registerMethodDependent[T, U, V](name: String, impl: () => (T, U) => V, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
+    bind(name, MethodType(hrt.typ, hru.typ), BinaryDependentFun[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
   def registerMethodCode[T, U, V](name: String, impl: (Code[T], Code[U]) => CM[Code[V]], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     bind(name, MethodType(hrt.typ, hru.typ), BinaryFunCode[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
@@ -790,8 +795,8 @@ object FunctionRegistry {
   }, "True if chromosome is not X, not Y, and not MT.")(variantHr(GR), boolHr)
   registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")(locusHr(GR), stringHr)
   registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")(locusHr(GR), int32Hr)
-  registerField("start", { (x: Interval[Annotation]) => x.start }, "Start of the interval (inclusive).")(intervalHr(TTHr), TTHr)
-  registerField("end", { (x: Interval[Annotation]) => x.end }, "End of the interval (exclusive).")(intervalHr(TTHr), TTHr)
+  registerField("start", { (x: Interval) => x.start }, "Start of the interval (inclusive).")(intervalHr(TTHr), TTHr)
+  registerField("end", { (x: Interval) => x.end }, "End of the interval (exclusive).")(intervalHr(TTHr), TTHr)
   registerField("ref", { (x: AltAllele) => x.ref }, "Reference allele base sequence.")
   registerField("alt", { (x: AltAllele) => x.alt }, "Alternate allele base sequence.")
   registerMethod("isSNP", { (x: AltAllele) => x.isSNP }, "True if ``v.ref`` and ``v.alt`` are the same length and differ in one position.")
@@ -1092,7 +1097,7 @@ object FunctionRegistry {
     "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GR))
   registerDependent("Interval", () => {
     val t = TT.t
-    (x: Annotation, y: Annotation) => Interval(x, y)(t.ordering.toOrdering)
+    (x: Annotation, y: Annotation) => Interval(x, y)
   },
     """
     Construct an Interval object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
@@ -1288,7 +1293,7 @@ object FunctionRegistry {
   registerDependent("LocusInterval", () => {
     val gr = GR.gr
     (chr: String, start: Int, end: Int) => {
-      implicit val locusOrdering = gr.locusOrdering
+      implicit val ord = gr.intervalType.ordering
       Interval(Locus(chr, start), Locus(chr, end))
     }
   },
@@ -1585,7 +1590,10 @@ object FunctionRegistry {
     character frequency distribution.
     """)
 
-  registerMethod("contains", (interval: Interval[Annotation], point: Annotation) => interval.contains(point),
+  registerMethodDependent("contains", () => {
+    val pord = TT.t.ordering
+    (interval: Interval, point: Annotation) => interval.contains(pord, point)
+  },
     """
     Returns true if the ``point`` is contained in the interval.
 

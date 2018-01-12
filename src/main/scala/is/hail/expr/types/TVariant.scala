@@ -113,5 +113,5 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
 
   override def clear(): Unit = gr.clear()
 
-  override def subst() = gr.subst().variant
+  override def subst() = gr.subst().variantType
 }

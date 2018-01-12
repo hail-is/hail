@@ -1,99 +1,90 @@
 package is.hail.utils
 
+import is.hail.annotations.ExtendedOrdering
 import is.hail.check._
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
 import scala.collection.mutable
 import scala.language.implicitConversions
-import scala.math.Ordering.Implicits._
 import scala.reflect.ClassTag
 
 // interval inclusive of start, exclusive of end: [start, end)
-case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Serializable {
-  import ev._
+case class Interval(start: Any, end: Any) extends Serializable {
+  def contains(pord: ExtendedOrdering, position: Any): Boolean = pord.gteq(position, start) && pord.lt(position, end)
 
-  require(start <= end, s"invalid interval: $this: start is not before end")
+  def overlaps(pord: ExtendedOrdering, other: Interval): Boolean = this.contains(pord, other.start) || other.contains(pord, this.start)
 
-  def contains(position: T): Boolean = position >= start && position < end
+  def isEmpty(pord: ExtendedOrdering): Boolean = pord.gteq(start, end)
 
-  def overlaps(other: Interval[T]): Boolean = this.contains(other.start) || other.contains(this.start)
-
-  def isEmpty: Boolean = start == end
-
-  def compare(that: Interval[T]): Int = {
-    val c = ev.compare(start, that.start)
-    if (c != 0)
-      return c
-
-    ev.compare(end, that.end)
-  }
-
-  def toJSON(f: (T) => JValue): JValue = JObject("start" -> f(start), "end" -> f(end))
+  def toJSON(f: (Any) => JValue): JValue = JObject("start" -> f(start), "end" -> f(end))
 
   override def toString: String = start + "-" + end
 }
 
 object Interval {
-  def gen[T: Ordering](tgen: Gen[T]): Gen[Interval[T]] =
-    Gen.zip(tgen, tgen)
+  def gen[P](pord: ExtendedOrdering, pgen: Gen[P]): Gen[Interval] =
+    Gen.zip(pgen, pgen)
       .map { case (x, y) =>
-        if (x < y)
+        if (pord.lt(x, y))
           Interval(x, y)
         else
           Interval(y, x)
       }
 
-  implicit def ordering[T]: Ordering[Interval[T]] =
-    new Ordering[Interval[T]] {
-      def compare(x: Interval[T], y: Interval[T]): Int = {
-        val c = x.compare(y)
-        assert(y.compare(x) == -c)
-        c
-      }
+  def ordering(pord: ExtendedOrdering): Ordering[Interval] = new Ordering[Interval] {
+    def compare(x: Interval, y: Interval): Int = {
+      val c = pord.compare(x.start, y.start)
+      if (c != 0)
+        return c
+
+      pord.compare(x.end, y.end)
     }
+  }
 }
 
-case class IntervalTree[T: Ordering, U: ClassTag](root: Option[IntervalTreeNode[T, U]]) extends
-  Traversable[(Interval[T], U)] with Serializable {
-  def contains(position: T): Boolean = root.exists(_.contains(position))
+case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends
+  Traversable[(Interval, U)] with Serializable {
+  def contains(pord: ExtendedOrdering, position: Any): Boolean = root.exists(_.contains(pord, position))
 
-  def overlaps(interval: Interval[T]): Boolean = root.exists(_.overlaps(interval))
+  def overlaps(pord: ExtendedOrdering, interval: Interval): Boolean = root.exists(_.overlaps(pord, interval))
 
-  def queryIntervals(position: T): Array[Interval[T]] = {
-    val b = Array.newBuilder[Interval[T]]
-    root.foreach(_.query(b, position))
+  def queryIntervals(pord: ExtendedOrdering, position: Any): Array[Interval] = {
+    val b = Array.newBuilder[Interval]
+    root.foreach(_.query(pord, b, position))
     b.result()
   }
 
-  def queryValues(position: T): Array[U] = {
+  def queryValues(pord: ExtendedOrdering, position: Any): Array[U] = {
     val b = Array.newBuilder[U]
-    root.foreach(_.queryValues(b, position))
+    root.foreach(_.queryValues(pord, b, position))
     b.result()
   }
 
-  def foreach[V](f: ((Interval[T], U)) => V) {
+  def foreach[V](f: ((Interval, U)) => V) {
     root.foreach(_.foreach(f))
   }
 }
 
 object IntervalTree {
-  def annotationTree[T: Ordering, U: ClassTag](values: Array[(Interval[T], U)]): IntervalTree[T, U] = {
-    val sorted = values.sortBy(_._1)
-    new IntervalTree[T, U](fromSorted(sorted, 0, sorted.length))
+  def annotationTree[U: ClassTag](pord: ExtendedOrdering, values: Array[(Interval, U)]): IntervalTree[U] = {
+    val iord = Interval.ordering(pord)
+    val sorted = values.sortBy(_._1)(iord)
+    new IntervalTree[U](fromSorted(pord, sorted, 0, sorted.length))
   }
 
-  def apply[T: Ordering](intervals: Array[Interval[T]]): IntervalTree[T, Unit] = {
+  def apply[T](pord: ExtendedOrdering, intervals: Array[Interval]): IntervalTree[Unit] = {
+    val iord = Interval.ordering(pord)
     val sorted = if (intervals.nonEmpty) {
-      val unpruned = intervals.sorted
-      val ab = new ArrayBuilder[Interval[T]](intervals.length)
+      val unpruned = intervals.sorted(iord)
+      val ab = new ArrayBuilder[Interval](intervals.length)
       var tmp = unpruned.head
       var i = 1
       var pruned = 0
       while (i < unpruned.length) {
         val interval = unpruned(i)
-        if (interval.start <= tmp.end) {
-          val max = if (interval.end > tmp.end)
+        if (pord.lteq(interval.start, tmp.end)) {
+          val max = if (pord.gt(interval.end, tmp.end))
             interval.end
           else
             tmp.end
@@ -111,70 +102,70 @@ object IntervalTree {
       ab.result()
     } else intervals
 
-    new IntervalTree[T, Unit](fromSorted(sorted.map(i => (i, ())), 0, sorted.length))
+    new IntervalTree[Unit](fromSorted(pord, sorted.map(i => (i, ())), 0, sorted.length))
   }
 
-  def fromSorted[T: Ordering, U](intervals: Array[(Interval[T], U)], start: Int, end: Int): Option[IntervalTreeNode[T, U]] = {
+  def fromSorted[U](pord: ExtendedOrdering, intervals: Array[(Interval, U)], start: Int, end: Int): Option[IntervalTreeNode[U]] = {
     if (start >= end)
       None
     else {
       val mid = (start + end) / 2
       val (i, v) = intervals(mid)
-      val lft = fromSorted(intervals, start, mid)
-      val rt = fromSorted(intervals, mid + 1, end)
+      val lft = fromSorted(pord, intervals, start, mid)
+      val rt = fromSorted(pord, intervals, mid + 1, end)
       Some(IntervalTreeNode(i, lft, rt, {
-        val max1 = lft.map(_.maximum.max(i.end)).getOrElse(i.end)
-        rt.map(_.maximum.max(max1)).getOrElse(max1)
+        val max1 = lft.map(x => pord.max(x.maximum, i.end)).getOrElse(i.end)
+        rt.map(x => pord.max(x.maximum, max1)).getOrElse(max1)
       }, v))
     }
   }
 
-  def gen[T: Ordering](tgen: Gen[T]): Gen[IntervalTree[T, Unit]] = {
-    Gen.buildableOf[Array](Interval.gen(tgen)).map(IntervalTree.apply(_))
+  def gen[T](pord: ExtendedOrdering, pgen: Gen[T]): Gen[IntervalTree[Unit]] = {
+    Gen.buildableOf[Array](Interval.gen(pord, pgen)).map(a => IntervalTree.apply(pord, a))
   }
 }
 
-case class IntervalTreeNode[T: Ordering, U](i: Interval[T],
-  left: Option[IntervalTreeNode[T, U]],
-  right: Option[IntervalTreeNode[T, U]],
-  maximum: T, value: U) extends Traversable[(Interval[T], U)] {
+case class IntervalTreeNode[U](i: Interval,
+  left: Option[IntervalTreeNode[U]],
+  right: Option[IntervalTreeNode[U]],
+  maximum: Any, value: U) extends Traversable[(Interval, U)] {
 
-  def contains(position: T): Boolean = {
-    position <= maximum &&
-      (left.exists(_.contains(position)) ||
-        (position >= i.start &&
-          (i.contains(position) ||
-            right.exists(_.contains(position)))))
+  def contains(pord: ExtendedOrdering, position: Any): Boolean = {
+    pord.lteq(position, maximum) &&
+      (left.exists(_.contains(pord, position)) ||
+        (pord.gteq(position, i.start) &&
+          (i.contains(pord, position) ||
+            right.exists(_.contains(pord, position)))))
   }
 
-  def overlaps(interval: Interval[T]): Boolean = {
-    interval.start <= maximum && (left.exists(_.overlaps(interval))) ||
-      i.overlaps(interval) || (right.exists(_.overlaps(interval)))
+  def overlaps(pord: ExtendedOrdering, interval: Interval): Boolean = {
+    pord.lteq(interval.start, maximum) && (left.exists(_.overlaps(pord, interval))) ||
+      i.overlaps(pord, interval) || (right.exists(_.overlaps(pord, interval)))
   }
 
-  def query(b: mutable.Builder[Interval[T], _], position: T) {
-    if (position <= maximum) {
-      left.foreach(_.query(b, position))
-      if (position >= i.start) {
-        right.foreach(_.query(b, position))
-        if (i.contains(position))
+  def query(pord: ExtendedOrdering, b: mutable.Builder[Interval, _], position: Any) {
+    if (pord.lteq(position, maximum)) {
+      left.foreach(_.query(pord, b, position))
+      if (pord.gteq(position, i.start)) {
+        right.foreach(_.query(pord, b, position))
+        if (i.contains(pord, position))
           b += i
       }
     }
   }
 
-  def queryValues(b: mutable.Builder[U, _], position: T) {
-    if (position <= maximum) {
-      left.foreach(_.queryValues(b, position))
-      if (position >= i.start) {
-        right.foreach(_.queryValues(b, position))
-        if (i.contains(position))
+  def queryValues(pord: ExtendedOrdering, b: mutable.Builder[U, _], position: Any) {
+    if (pord.lteq(position, maximum)) {
+      left.foreach(_.queryValues(pord, b, position))
+      if (pord.gteq(position, i.start)) {
+        right.foreach(_.queryValues(pord, b, position))
+        if (i.contains(pord, position))
           b += value
       }
     }
   }
 
-  def foreach[V](f: ((Interval[T], U)) => V) {
+  def foreach[V](f: ((Interval, U)) => V) {
     left.foreach(_.foreach(f))
     f((i, value))
     right.foreach(_.foreach(f))

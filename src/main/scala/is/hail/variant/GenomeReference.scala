@@ -4,8 +4,8 @@ import java.io.InputStream
 
 import is.hail.HailContext
 import is.hail.check.Gen
-import is.hail.expr.types.{TLocus, TVariant}
-import is.hail.expr.JSONExtractGenomeReference
+import is.hail.expr.types.{TInterval, TLocus, TVariant}
+import is.hail.expr.{JSONAnnotationImpex, JSONExtractGenomeReference}
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -15,8 +15,9 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 
 abstract class GRBase extends Serializable {
-  val variant: TVariant
-  val locus: TLocus
+  val variantType: TVariant
+  val locusType: TLocus
+  val intervalType: TInterval
 
   def variantOrdering: Ordering[Variant]
 
@@ -126,8 +127,9 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   }
 
   // must be constructed after orderings
-  val variant: TVariant = TVariant(this)
-  val locus: TLocus = TLocus(this)
+  val variantType: TVariant = TVariant(this)
+  val locusType: TLocus = TLocus(this)
+  val intervalType: TInterval = TInterval(locusType)
 
   val par = parInput.map { case (start, end) =>
     if (start.contig != end.contig)
@@ -165,9 +167,9 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
 
   def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
 
-  def inXPar(locus: Locus): Boolean = inX(locus.contig) && par.exists(_.contains(locus))
+  def inXPar(l: Locus): Boolean = inX(l.contig) && par.exists(_.contains(locusType.ordering, l))
 
-  def inYPar(locus: Locus): Boolean = inY(locus.contig) && par.exists(_.contains(locus))
+  def inYPar(l: Locus): Boolean = inY(l.contig) && par.exists(_.contains(locusType.ordering, l))
 
   def compare(contig1: String, contig2: String): Int = GenomeReference.compare(contigsIndex, contig1, contig2)
 
@@ -181,7 +183,7 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     ("xContigs", JArray(xContigs.map(JString(_)).toList)),
     ("yContigs", JArray(yContigs.map(JString(_)).toList)),
     ("mtContigs", JArray(mtContigs.map(JString(_)).toList)),
-    ("par", JArray(par.map(_.toJSON(_.toJSON)).toList))
+    ("par", JArray(par.map(i => JSONAnnotationImpex.exportAnnotation(i, intervalType)).toList))
   )
 
   def validateContigRemap(contigMapping: Map[String, String]) {
@@ -323,36 +325,25 @@ object GenomeReference {
     Integer.compare(l1.position, l2.position)
   }
 
-  def compare(contigsIndex: Map[String, Int], i1: Interval[Locus], i2: Interval[Locus]): Int = {
-    val c = compare(contigsIndex, i1.start, i2.start)
-    if (c != 0)
-      return c
-
-    compare(contigsIndex, i1.end, i2.end)
-  }
-
   def gen: Gen[GenomeReference] = for {
     name <- Gen.identifier
     nContigs <- Gen.choose(3, 50)
     contigs <- Gen.distinctBuildableOfN[Array](nContigs, Gen.identifier)
-    lengths <- Gen.distinctBuildableOfN[Array](nContigs, Gen.choose(1000000, 500000000))
+    lengths <- Gen.buildableOfN[Array](nContigs, Gen.choose(1000000, 500000000))
     contigsIndex = contigs.zip(lengths).toMap
     xContig <- Gen.oneOfSeq(contigs)
-    yContig <- Gen.oneOfSeq((contigs.toSet - xContig).toSeq)
-    mtContig <- Gen.oneOfSeq((contigs.toSet - xContig - yContig).toSeq)
-    locusOrd = new Ordering[Locus] {
-      def compare(x: Locus, y: Locus): Int = {
-        val c = Integer.compare(contigsIndex(x.contig), contigsIndex(y.contig))
-        if (c != 0)
-          return c
-
-        Integer.compare(x.position, y.position)
-      }
-    }
-    parX <- Gen.distinctBuildableOfN[Array](2, Interval.gen(Locus.gen(xContig, contigsIndex(xContig)))(locusOrd))
-    parY <- Gen.distinctBuildableOfN[Array](2, Interval.gen(Locus.gen(yContig, contigsIndex(yContig)))(locusOrd))
+    parXA <- Gen.choose(0, contigsIndex(xContig))
+    parXB <- Gen.choose(0, contigsIndex(xContig))
+    yContig <- Gen.oneOfSeq(contigs) if yContig != xContig
+    parYA <- Gen.choose(0, contigsIndex(yContig))
+    parYB <- Gen.choose(0, contigsIndex(yContig))
+    mtContig <- Gen.oneOfSeq(contigs) if mtContig != xContig && mtContig != yContig
   } yield GenomeReference(name, contigs, contigs.zip(lengths).toMap, Set(xContig), Set(yContig), Set(mtContig),
-    (parX ++ parY).map(i => (i.start, i.end)))
+    Array(
+      (Locus(xContig, math.min(parXA, parXB)),
+        Locus(xContig, math.max(parXA, parXB))),
+      (Locus(yContig, math.min(parYA, parYB)),
+        Locus(yContig, math.max(parYA, parYB)))))
 
   def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
     xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
@@ -372,8 +363,9 @@ object GenomeReference {
 }
 
 case class GRVariable(var gr: GRBase = null) extends GRBase {
-  val variant: TVariant = TVariant(this)
-  val locus: TLocus = TLocus(this)
+  val variantType: TVariant = TVariant(this)
+  val locusType: TLocus = TLocus(this)
+  val intervalType: TInterval = TInterval(locusType)
 
   override def toString = "?GR"
 

@@ -23,15 +23,13 @@ trait Py4jUtils {
     list
   }
 
-  def parseIntervalList(strs: java.util.ArrayList[String], gr: GenomeReference): IntervalTree[Locus, Unit] = {
-    implicit val locusOrd = gr.locusOrdering
-    IntervalTree(Locus.parseIntervals(strs.asScala.toArray, gr))
+  def parseIntervalList(strs: java.util.ArrayList[String], gr: GenomeReference): IntervalTree[Unit] = {
+    IntervalTree(gr.locusType.ordering, Locus.parseIntervals(strs.asScala.toArray, gr))
   }
 
 
-  def makeIntervalList(intervals: java.util.ArrayList[Interval[Locus]], gr: GenomeReference): IntervalTree[Locus, Unit] = {
-    implicit val locusOrd = gr.locusOrdering
-    IntervalTree(intervals.asScala.toArray)
+  def makeIntervalList(intervals: java.util.ArrayList[Interval], gr: GenomeReference): IntervalTree[Unit] = {
+    IntervalTree(gr.locusType.ordering, intervals.asScala.toArray)
   }
 
   // we cannot construct an array because we don't have the class tag

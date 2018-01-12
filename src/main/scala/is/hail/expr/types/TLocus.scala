@@ -65,5 +65,5 @@ case class TLocus(gr: GRBase, override val required: Boolean = false) extends Co
 
   override def clear(): Unit = gr.clear()
 
-  override def subst() = gr.subst().locus
+  override def subst() = gr.subst().locusType
 }

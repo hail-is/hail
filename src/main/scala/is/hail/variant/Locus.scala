@@ -1,7 +1,7 @@
 package is.hail.variant
 
 import is.hail.check.Gen
-import is.hail.expr.types.TStruct
+import is.hail.expr.types.{TInterval, TStruct}
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -25,9 +25,6 @@ object Locus {
     Locus(r.getAs[String](0), r.getInt(1))
   }
   
-  def intervalToRow(i: Interval[Locus]): Row =
-    Row(i.start.toRow, i.end.toRow)
-
   def gen(contigs: Seq[String]): Gen[Locus] =
     Gen.zip(Gen.oneOfSeq(contigs), Gen.posInt)
       .map { case (contig, pos) => Locus(contig, pos) }
@@ -53,26 +50,26 @@ object Locus {
   }
 
   object LocusIntervalParser extends JavaTokenParsers {
-    def parseInterval(input: String, gr: GRBase): Interval[Locus] = {
-      parseAll[Interval[Locus]](interval(gr), input) match {
+    // FIXME test against gr
+    def parseInterval(input: String, gr: GRBase): Interval = {
+      parseAll[Interval](locus_interval, input) match {
         case Success(r, _) => r
         case NoSuccess(msg, next) => fatal(s"invalid interval expression: `$input': $msg")
       }
     }
 
-    def interval(gr: GRBase): Parser[Interval[Locus]] = {
-      implicit val locusOrd = gr.locusOrdering
+    // FIXME make end correct
+    def locus_interval: Parser[Interval] = {
       locus ~ "-" ~ locus ^^ { case l1 ~ _ ~ l2 => Interval(l1, l2) } |
         locus ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => Interval(l1, l1.copy(position = p2)) } |
         contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => Interval(Locus(c1, 0), Locus(c2, Int.MaxValue)) } |
         contig ^^ { c => Interval(Locus(c, 0), Locus(c, Int.MaxValue)) }
     }
 
-    def locus: Parser[Locus] = {
-      contig ~ ":" ~ pos ^^ { case c ~ _ ~ p => Locus(c, p) }
-    }
+    def locus: Parser[Locus] =
+      (contig <~ ":") ~ pos ^^ { case c ~ p => Locus(c, p) }
 
-    def contig: Parser[String] = "\\w+".r
+    def contig: Parser[String] = "[^-:\\s]+".r
 
     def coerceInt(s: String): Int = try {
       s.toInt
@@ -101,14 +98,14 @@ object Locus {
     }
   }
 
-  def parseInterval(str: String, gr: GRBase): Interval[Locus] = LocusIntervalParser.parseInterval(str, gr)
+  def parseInterval(str: String, gr: GRBase): Interval = LocusIntervalParser.parseInterval(str, gr)
 
-  def parseIntervals(arr: Array[String], gr: GRBase): Array[Interval[Locus]] = arr.map(parseInterval(_, gr))
+  def parseIntervals(arr: Array[String], gr: GRBase): Array[Interval] = arr.map(parseInterval(_, gr))
 
-  def parseIntervals(arr: java.util.ArrayList[String], gr: GRBase): Array[Interval[Locus]] = parseIntervals(arr.asScala.toArray, gr)
+  def parseIntervals(arr: java.util.ArrayList[String], gr: GRBase): Array[Interval] = parseIntervals(arr.asScala.toArray, gr)
 
-  def makeInterval(start: Locus, end: Locus, gr: GRBase): Interval[Locus] = {
-    implicit val locusOrd = gr.locusOrdering
+  def makeInterval(start: Locus, end: Locus, gr: GRBase): Interval = {
+    implicit val ord = TInterval(gr.locusType).ordering
     Interval(start, end)
   }
 }
