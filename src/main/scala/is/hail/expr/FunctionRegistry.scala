@@ -1092,7 +1092,7 @@ object FunctionRegistry {
     "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GR))
   registerDependent("Interval", () => {
     val t = TT.t
-    (x: Annotation, y: Annotation) => Interval(x, y)(t.ordering(true))
+    (x: Annotation, y: Annotation) => Interval(x, y)(t.ordering.toOrdering)
   },
     """
     Construct an Interval object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
@@ -2692,38 +2692,40 @@ object FunctionRegistry {
   register("==", (a: Any, b: Any) => a == b, null)(TTHr, TUHr, boolHr)
   register("!=", (a: Any, b: Any) => a != b, null)(TTHr, TUHr, boolHr)
 
-  def registerOrderedType[T]()(implicit ord: Ordering[T], hrt: HailRep[T]) {
-    val hrboxedt = new HailRep[Any] {
+  def registerOrderedType[T]()(implicit hrt: HailRep[T]) {
+    val ord = hrt.typ.ordering
+
+    implicit val hrboxedt = new HailRep[Any] {
       def typ: Type = hrt.typ
     }
 
-    def extOrd(ascending: Boolean): Ordering[Any] = {
-      val dirOrd = if (ascending) ord else ord.reverse
-      extendOrderingToNull(missingGreatest = true)(
-        new Ordering[Any] {
-          def compare(a: Any, b: Any): Int = dirOrd.compare(a.asInstanceOf[T], b.asInstanceOf[T])
-        })
-    }
-
     // register("<", ord.lt _, null)
-    register("<=", ord.lteq _, null)
+    register("<=", (x: Any, y: Any) => ord.lteq(x, y), null)
     // register(">", ord.gt _, null)
-    register(">=", ord.gteq _, null)
+    register(">=", (x: Any, y: Any) => ord.gteq(x, y), null)
 
-    registerMethod("min", ord.min _, "Returns the minimum value.")
-    registerMethod("max", ord.max _, "Returns the maximum value.")
+    registerMethod("min", (x: Any, y: Any) => ord.min(x, y), "Returns the minimum value.")
+    registerMethod("max", (x: Any, y: Any) => ord.max(x, y), "Returns the maximum value.")
 
-    registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(extOrd(ascending = true)), "Sort the collection in ascending order.")(arrayHr(hrboxedt), arrayHr(hrboxedt))
+    registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(ord.toOrdering), "Sort the collection in ascending order.")(arrayHr(hrboxedt), arrayHr(hrboxedt))
     registerMethod("sort", (a: IndexedSeq[Any], ascending: Boolean) =>
-      a.sorted(extOrd(ascending)), "Sort the collection with the ordering specified by ``ascending``.", "ascending" -> "If true, sort the collection in ascending order. Otherwise, sort in descending order."
+      a.sorted(
+        (if (ascending)
+           ord
+         else
+           ord.reverse).toOrdering), "Sort the collection with the ordering specified by ``ascending``.", "ascending" -> "If true, sort the collection in ascending order. Otherwise, sort in descending order."
     )(arrayHr(hrboxedt), boolHr, arrayHr(hrboxedt))
 
     registerLambdaMethod("sortBy", (a: IndexedSeq[Any], f: (Any) => Any) =>
-      a.sortBy(f)(extOrd(ascending = true)), "Sort the collection in ascending order after evaluating ``f`` for each element.", "f" -> "Lambda expression."
+      a.sortBy(f)(ord.toOrdering), "Sort the collection in ascending order after evaluating ``f`` for each element.", "f" -> "Lambda expression."
     )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), arrayHr(TTHr))
 
     registerLambdaMethod("sortBy", (a: IndexedSeq[Any], f: (Any) => Any, ascending: Boolean) =>
-      a.sortBy(f)(extOrd(ascending)), "Sort the collection with the ordering specified by ``ascending`` after evaluating ``f`` for each element.",
+      a.sortBy(f)(
+        (if (ascending)
+           ord
+         else
+           ord.reverse).toOrdering), "Sort the collection with the ordering specified by ``ascending`` after evaluating ``f`` for each element.",
       "f" -> "Lambda expression.", "ascending" -> "If true, sort the collection in ascending order. Otherwise, sort in descending order."
     )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), boolHr, arrayHr(TTHr))
   }

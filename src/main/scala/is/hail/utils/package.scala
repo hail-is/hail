@@ -214,32 +214,6 @@ package object utils extends Logging
 
   def uriPath(uri: String): String = new URI(uri).getPath
 
-  def annotationOrdering[T](ord: Ordering[T]): Ordering[Annotation] = {
-    new Ordering[Annotation] {
-      def compare(a: Annotation, b: Annotation): Int = ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
-    }
-  }
-
-  def extendOrderingToNull[T](missingGreatest: Boolean)(implicit ord: Ordering[T]): Ordering[T] = {
-    new Ordering[T] {
-      def compare(a: T, b: T): Int =
-        if (a == null) {
-          if (b == null)
-            0 // null, null
-          else {
-            // null, _
-            if (missingGreatest) 1 else -1
-          }
-        } else {
-          if (b == null) {
-            // _, null
-            if (missingGreatest) -1 else 1
-          } else
-            ord.compare(a, b)
-        }
-    }
-  }
-
   sealed trait FlattenOrNull[C[_] >: Null] {
     def apply[T >: Null](b: mutable.Builder[T, C[T]], it: Iterable[Iterable[T]]): C[T] = {
       for (elt <- it) {

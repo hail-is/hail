@@ -2631,7 +2631,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.join(right._jvds))
+        return VariantDataset(self.hc, self._jvds.unionCols(right._jvds))
 
     @handle_py4j
     @record_method
@@ -2684,7 +2684,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         elif len(datasets) == 1:
             return datasets[0]
         else:
-            return VariantDataset(Env.hc(), Env.hail().variant.MatrixTable.union([d._jvds for d in datasets]))
+            return VariantDataset(Env.hc(), Env.hail().variant.MatrixTable.unionRows([d._jvds for d in datasets]))
 
 
     @handle_py4j
@@ -3307,8 +3307,8 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
             - **s** (*String*) -- Sample ID (key column).
             - **fid** (*String*) -- Family ID.
-            - **nErrors** (*Int*) -- Number of Mendel errors found involving this individual.
-            - **nSNP** (*Int*) -- Number of Mendel errors found involving this individual at SNPs.
+            - **nErrors** (*Int64*) -- Number of Mendel errors found involving this individual.
+            - **nSNP** (*Int64*) -- Number of Mendel errors found involving this individual at SNPs.
             - **error** (*String*) -- Readable representation of Mendel error.
 
         **Fourth table:** errors per variant. This table contains one row per variant in the dataset.

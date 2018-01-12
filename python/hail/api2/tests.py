@@ -449,6 +449,24 @@ class MatrixTests(unittest.TestCase):
         repart = vds.naive_coalesce(2)
         self.assertTrue(vds._same(repart))
 
+    def tests_unions(self):
+        dataset = hc.import_vcf('src/test/resources/sample2.vcf')
+
+        # test union_rows
+        ds1 = dataset.filter_rows(dataset.v.start % 2 == 1)
+        ds2 = dataset.filter_rows(dataset.v.start % 2 == 0)
+
+        datasets = [ds1, ds2]
+        r1 = ds1.union_rows(ds2)
+        r2 = MatrixTable.union_rows(*datasets)
+
+        self.assertTrue(r1._same(r2))
+
+        # test union_cols
+        ds = dataset.union_cols(dataset).union_cols(dataset)
+        for s, count in ds.aggregate_cols(counts=agg.counter(ds.s)).counts.items():
+            self.assertEqual(count, 3)
+
 class FunctionsTests(unittest.TestCase):
     def test(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],

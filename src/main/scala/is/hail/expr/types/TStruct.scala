@@ -27,7 +27,7 @@ object TStruct {
       required)
 
   def apply(args: (String, Type)*): TStruct =
-    apply(false, args:_*)
+    apply(false, args: _*)
 
   def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type], required: Boolean): TStruct = {
     val sNames = names.asScala.toArray
@@ -553,26 +553,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
-    val fieldOrderings = fields.map(f => f.typ.ordering(missingGreatest))
-
-    annotationOrdering(
-      extendOrderingToNull(missingGreatest)(new Ordering[Row] {
-        def compare(a: Row, b: Row): Int = {
-          var i = 0
-          while (i < a.size) {
-            val c = fieldOrderings(i).compare(a.get(i), b.get(i))
-            if (c != 0)
-              return c
-
-            i += 1
-          }
-
-          // equal
-          0
-        }
-      }))
-  }
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.rowOrdering(fields.map(_.typ.ordering).toArray)
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
     val fieldOrderings = fields.map(_.typ.unsafeOrdering(missingGreatest)).toArray

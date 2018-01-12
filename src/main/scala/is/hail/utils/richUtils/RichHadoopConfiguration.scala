@@ -86,8 +86,8 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     prefix: Option[String] = None, suffix: Option[String] = None): String = {
 
     val destFS = fileSystem(tmpdir)
-    val prefixString = if (prefix.isDefined) prefix + "-" else ""
-    val suffixString = if (suffix.isDefined) "." + suffix else ""
+    val prefixString = if (prefix.isDefined) prefix.get + "-" else ""
+    val suffixString = if (suffix.isDefined) "." + suffix.get else ""
 
     def getRandomName: String = {
       val randomName = tmpdir + "/" + prefixString + scala.util.Random.alphanumeric.take(nChar).mkString + suffixString

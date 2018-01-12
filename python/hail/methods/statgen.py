@@ -353,6 +353,41 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     return (jiterable_to_list(r._1()), scores, loadings)
 
 @handle_py4j
+@typecheck(dataset=MatrixTable,
+           fraction=numeric,
+           seed=integral)
+def sample_rows(dataset, fraction, seed=1):
+    """Downsample rows to a given fraction of the dataset.
+
+    Examples
+    --------
+
+    >>> small_dataset = methods.sample_rows(dataset, 0.01)
+
+    Notes
+    -----
+
+    This method may not sample exactly ``(fraction * n_rows)`` rows from
+    the dataset.
+
+    Parameters
+    ----------
+    dataset : :class:`.MatrixTable`
+        Dataset to sample from.
+    fraction : :obj:`float`
+        (Expected) fraction of rows to keep.
+    seed : :obj:`int`
+        Random seed.
+
+    Returns
+    ------
+    :class:`.MatrixTable`
+        Downsampled matrix table.
+    """
+
+    return MatrixTable(dataset._jvds.sampleVariants(fraction, seed))
+
+@handle_py4j
 @typecheck(ds=MatrixTable,
            keep_star=bool,
            left_aligned=bool)

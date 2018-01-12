@@ -14,7 +14,7 @@ object FilterIntervals {
   }
 
   def apply[T, U](vsm: MatrixTable, iList: IntervalTree[Locus, U], keep: Boolean): MatrixTable = {
-    implicit val locusOrd = vsm.matrixType.locusType.ordering(missingGreatest = true)
+    implicit val locusOrd = vsm.matrixType.locusType.ordering.toOrdering
 
     val ab = new ArrayBuilder[(Interval[Annotation], Annotation)]()
     iList.foreach { case (i, v) =>

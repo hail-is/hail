@@ -439,7 +439,7 @@ class RegionValueBuilder(var region: Region) {
         case TSet(elementType, _) =>
           val s = a.asInstanceOf[Set[Annotation]]
             .toArray
-            .sorted(elementType.ordering(true))
+            .sorted(elementType.ordering.toOrdering)
           startArray(s.length)
           s.foreach { x => addAnnotation(elementType, x) }
           endArray()
@@ -448,7 +448,7 @@ class RegionValueBuilder(var region: Region) {
           val m = a.asInstanceOf[Map[Annotation, Annotation]]
             .map { case (k, v) => Row(k, v) }
             .toArray
-            .sorted(td.elementType.ordering(true))
+            .sorted(td.elementType.ordering.toOrdering)
           startArray(m.length)
           m.foreach { case Row(k, v) =>
             startStruct()

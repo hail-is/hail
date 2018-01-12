@@ -224,7 +224,7 @@ class UnsafeSuite extends SparkSuite {
     rvb2.addAnnotation(t, v2)
     val rv2 = RegionValue(region2, rvb2.end())
 
-    assert(math.signum(t.ordering(missingGreatest = true).compare(v1, v2)) ==
+    assert(math.signum(t.ordering.compare(v1, v2, missingGreatest = true)) ==
       math.signum(t.unsafeOrdering(missingGreatest = true).compare(rv, rv2)))
   }
 
@@ -259,11 +259,11 @@ class UnsafeSuite extends SparkSuite {
       val ur2 = new UnsafeRow(t, region2, offset2)
       assert(t.valuesSimilar(a2, ur2))
 
-      val ord = t.ordering(b)
+      val ord = t.ordering
       val uord = t.unsafeOrdering(b)
 
-      val c1 = ord.compare(a1, a2)
-      val c2 = ord.compare(ur1, ur2)
+      val c1 = ord.compare(a1, a2, b)
+      val c2 = ord.compare(ur1, ur2, b)
       val c3 = uord.compare(ur1.region, ur1.offset, ur2.region, ur2.offset)
 
       val p1 = math.signum(c1) == math.signum(c2)

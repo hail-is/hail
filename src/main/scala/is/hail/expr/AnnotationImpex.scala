@@ -91,7 +91,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Locus(r.getAs[String](0), r.getAs[Int](1))
         case x: TInterval =>
           val r = a.asInstanceOf[Row]
-          Interval(importAnnotation(r.get(0), x.pointType), importAnnotation(r.get(1), x.pointType))(x.pointType.ordering(true))
+          Interval(importAnnotation(r.get(0), x.pointType), importAnnotation(r.get(1), x.pointType))(x.pointType.ordering.toOrdering)
         case TStruct(fields, _) =>
           if (fields.isEmpty)
             if (a.asInstanceOf[Boolean]) Annotation.empty else null
@@ -382,7 +382,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         jv match {
           case JObject(List(("start", sjv), ("end", ejv))) =>
             Interval[Annotation](importAnnotation(sjv, pointType, parent + ".start"),
-              importAnnotation(ejv, pointType, parent + ".end"))(pointType.ordering(true))
+              importAnnotation(ejv, pointType, parent + ".end"))(pointType.ordering.toOrdering)
           case _ =>
             warn(s"Can't convert JSON value $jv to type $t at $parent.")
             null

@@ -21,9 +21,8 @@ class TString(override val required: Boolean) extends Type {
 
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = TBinary(required).unsafeOrdering(missingGreatest)
 
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    annotationOrdering(
-      extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]]))
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(implicitly[Ordering[String]])
 
   override def byteSize: Long = 8
 

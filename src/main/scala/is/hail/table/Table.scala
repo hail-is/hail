@@ -910,9 +910,7 @@ class Table(val hc: HailContext,
     val sortColIndexOrd = sortCols.map { case SortColumn(n, so) =>
       val i = signature.fieldIdx(n)
       val f = signature.fields(i)
-
-      val fo = f.typ.ordering(so == Ascending)
-
+      val fo = f.typ.ordering
       (i, if (so == Ascending) fo else fo.reverse)
     }
 

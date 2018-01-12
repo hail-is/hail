@@ -4,7 +4,7 @@ import java.io.InputStream
 
 import is.hail.HailContext
 import is.hail.check.Gen
-import is.hail.expr.types.{TInterval, TLocus, TVariant}
+import is.hail.expr.types.{TLocus, TVariant}
 import is.hail.expr.JSONExtractGenomeReference
 import is.hail.utils._
 import org.json4s._
@@ -15,17 +15,12 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 
 abstract class GRBase extends Serializable {
-  val variant: TVariant = TVariant(this)
-  val locus: TLocus = TLocus(this)
-
-  // FIXME legacy
-  val interval: TInterval = TInterval(TLocus(this))
+  val variant: TVariant
+  val locus: TLocus
 
   def variantOrdering: Ordering[Variant]
 
   def locusOrdering: Ordering[Locus]
-
-  def intervalOrdering: Ordering[Interval[Locus]]
 
   def isValidContig(contig: String): Boolean
 
@@ -82,10 +77,10 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   val extraLengths = lengths.keySet.diff(contigs.toSet)
 
   if (missingLengths.nonEmpty)
-    fatal(s"No lengths given for the following contigs: ${ missingLengths.mkString(", ")}")
+    fatal(s"No lengths given for the following contigs: ${ missingLengths.mkString(", ") }")
 
   if (extraLengths.nonEmpty)
-    fatal(s"Contigs found in `lengths' that are not present in `contigs': ${ extraLengths.mkString(", ")}")
+    fatal(s"Contigs found in `lengths' that are not present in `contigs': ${ extraLengths.mkString(", ") }")
 
   if (xContigs.intersect(yContigs).nonEmpty)
     fatal(s"Found the contigs `${ xContigs.intersect(yContigs).mkString(", ") }' in both X and Y contigs.")
@@ -130,9 +125,9 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
     def compare(x: Locus, y: Locus): Int = GenomeReference.compare(contigsIndex, x, y)
   }
 
-  val intervalOrdering = new Ordering[Interval[Locus]] {
-    def compare(x: Interval[Locus], y: Interval[Locus]): Int = GenomeReference.compare(contigsIndex, x, y)
-  }
+  // must be constructed after orderings
+  val variant: TVariant = TVariant(this)
+  val locus: TLocus = TLocus(this)
 
   val par = parInput.map { case (start, end) =>
     if (start.contig != end.contig)
@@ -365,8 +360,8 @@ object GenomeReference {
     val parRegex = """(\w+):(\d+)-(\d+)""".r
 
     val par = parInput.asScala.toArray.map {
-        case parRegex(contig, start, end) => (Locus(contig.toString, start.toInt), Locus(contig.toString, end.toInt))
-        case _ => fatal("expected PAR input of form contig:start-end")
+      case parRegex(contig, start, end) => (Locus(contig.toString, start.toInt), Locus(contig.toString, end.toInt))
+      case _ => fatal("expected PAR input of form contig:start-end")
     }
 
     val gr = GenomeReference(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet,
@@ -377,6 +372,8 @@ object GenomeReference {
 }
 
 case class GRVariable(var gr: GRBase = null) extends GRBase {
+  val variant: TVariant = TVariant(this)
+  val locus: TLocus = TLocus(this)
 
   override def toString = "?GR"
 
@@ -399,11 +396,15 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
     gr
   }
 
-  def variantOrdering: Ordering[Variant] = ???
+  def variantOrdering: Ordering[Variant] =
+    new Ordering[Variant] {
+      def compare(x: Variant, y: Variant): Int = throw new UnsupportedOperationException("GRVariable.variantOrdering unimplemented")
+    }
 
-  def locusOrdering: Ordering[Locus] = ???
-
-  def intervalOrdering: Ordering[Interval[Locus]] = ???
+  def locusOrdering: Ordering[Locus] =
+    new Ordering[Locus] {
+      def compare(x: Locus, y: Locus): Int = throw new UnsupportedOperationException("GRVariable.locusOrdering unimplemented")
+    }
 
   def isValidContig(contig: String): Boolean = ???
 

@@ -40,6 +40,5 @@ final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) ex
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TAggregableVariable is not realizable")
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    throw new RuntimeException("TAggregableVariable is not realizable")
+  val ordering: ExtendedOrdering = null
 }

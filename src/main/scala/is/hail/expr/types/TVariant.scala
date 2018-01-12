@@ -41,18 +41,17 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
 
   override def scalaClassTag: ClassTag[Variant] = classTag[Variant]
 
-  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    annotationOrdering(
-      extendOrderingToNull(missingGreatest)(variantOrdering))
+  val ordering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(gr.variantOrdering)
 
   override val partitionKey: Type = TLocus(gr)
 
   override def typedOrderedKey[PK, K]: OrderedKey[PK, K] = new OrderedKey[PK, K] {
     def project(key: K): PK = key.asInstanceOf[Variant].locus.asInstanceOf[PK]
 
-    val kOrd: Ordering[K] = ordering(missingGreatest = true).asInstanceOf[Ordering[K]]
+    val kOrd: Ordering[K] = ordering.toOrdering.asInstanceOf[Ordering[K]]
 
-    val pkOrd: Ordering[PK] = TLocus(gr).ordering(missingGreatest = true).asInstanceOf[Ordering[PK]]
+    val pkOrd: Ordering[PK] = TLocus(gr).ordering.toOrdering.asInstanceOf[Ordering[PK]]
 
     val kct: ClassTag[K] = classTag[Variant].asInstanceOf[ClassTag[K]]
 
@@ -62,9 +61,9 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
   override def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
     def project(key: Annotation): Annotation = key.asInstanceOf[Variant].locus
 
-    val kOrd: Ordering[Annotation] = ordering(missingGreatest = true)
+    val kOrd: Ordering[Annotation] = ordering.toOrdering
 
-    val pkOrd: Ordering[Annotation] = TLocus(gr).ordering(missingGreatest = true)
+    val pkOrd: Ordering[Annotation] = TLocus(gr).ordering.toOrdering
 
     val kct: ClassTag[Annotation] = classTag[Annotation]
 
