@@ -20,8 +20,8 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
   }
 
   @Test def testToBlockMatrixDense() {
-    val rows = 9L
-    val cols = 6L
+    val nRows = 9L
+    val nCols = 6L
     val data = Seq(
       (0L, Vectors.dense(0.0, 1.0, 2.0, 1.0, 3.0, 4.0)),
       (1L, Vectors.dense(3.0, 4.0, 5.0, 1.0, 1.0, 1.0)),
@@ -40,8 +40,8 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
       blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
     } {
       val blockMat = irm.toHailBlockMatrix(blockSize)
-      assert(blockMat.rows === rows)
-      assert(blockMat.cols === cols)
+      assert(blockMat.nRows === nRows)
+      assert(blockMat.nCols === nCols)
       assert(blockMat.toLocalMatrix() === convertDistributedMatrixToBreeze(irm))
     }
 
@@ -54,8 +54,8 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
   }
 
   @Test def emptyBlocks() {
-    val rows = 9
-    val cols = 2
+    val nRows = 9
+    val nCols = 2
     val data = Seq(
       (3L, Vectors.dense(1.0, 2.0)),
       (4L, Vectors.dense(1.0, 2.0)),
@@ -66,15 +66,15 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
     val irm = new IndexedRowMatrix(sc.parallelize(data))
 
     val m = irm.toHailBlockMatrix(2)
-    assert(m.rows == rows)
-    assert(m.cols == cols)
+    assert(m.nRows == nRows)
+    assert(m.nCols == nCols)
     assert(m.toLocalMatrix() == convertDistributedMatrixToBreeze(irm))
     assert(m.blocks.count() == 5)
 
     (m * m.t).toLocalMatrix() // assert no exception
 
     assert(m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toLocalMatrix() ===
-      new BDM[Double](rows, cols, Array[Double](
+      new BDM[Double](nRows, nCols, Array[Double](
         0.0, 1.0, 2.0, 4.0, 5.0, 6.0, 6.0, 7.0, 9.0,
         10.0, 11.0, 12.0, 15.0, 16.0, 17.0, 16.0, 17.0, 20.0
       )))

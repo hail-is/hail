@@ -55,8 +55,8 @@ object BlockMatrix {
   def from(irm: IndexedRowMatrix, blockSize: Int): M =
     irm.toHailBlockMatrix(blockSize)
 
-  def random(hc: HailContext, rows: Int, cols: Int, blockSize: Int = defaultBlockSize): M = {
-    val part = GridPartitioner(blockSize, rows, cols)
+  def random(hc: HailContext, nRows: Int, nCols: Int, blockSize: Int = defaultBlockSize): M = {
+    val part = GridPartitioner(blockSize, nRows, nCols)
     new BlockMatrix(
       new RDD[((Int, Int), BDM[Double])](hc.sc, Nil) {
         override val partitioner = Some(part)
@@ -72,7 +72,7 @@ object BlockMatrix {
           Iterator(((i, j), BDM.rand[Double](part.blockRowNRows(i), part.blockColNCols(j))))
         }
       },
-      blockSize, rows, cols)
+      blockSize, nRows, nCols)
   }
 
   def map4(f: (Double, Double, Double, Double) => Double)(a: M, b: M, c: M, d: M): M =
@@ -92,12 +92,12 @@ object BlockMatrix {
     if (!hadoop.exists(uri + "/_SUCCESS"))
       fatal("Write failed: no success indicator found")
     
-    val BlockMatrixMetadata(blockSize, rows, cols) =
+    val BlockMatrixMetadata(blockSize, nRows, nCols) =
       hadoop.readTextFile(uri + metadataRelativePath) { isr  =>
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
     
-    val gp = GridPartitioner(blockSize, rows, cols)    
+    val gp = GridPartitioner(blockSize, nRows, nCols)    
     
     def readBlock(i: Int, is: InputStream): Iterator[((Int, Int), BDM[Double])] = {
       val dis = new DataInputStream(is)
@@ -109,7 +109,7 @@ object BlockMatrix {
 
     val blocks = hc.readPartitions(uri, gp.numPartitions, readBlock, Some(gp))
 
-    new BlockMatrix(blocks, blockSize, rows, cols)
+    new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
   private[distributedmatrix] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
@@ -199,12 +199,12 @@ object BlockMatrix {
 }
 
 // must be top-level for Jackson to serialize correctly
-case class BlockMatrixMetadata(blockSize: Int, rows: Long, cols: Long)
+case class BlockMatrixMetadata(blockSize: Int, nRows: Long, nCols: Long)
 
 class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val blockSize: Int,
-  val rows: Long,
-  val cols: Long) extends Serializable {
+  val nRows: Long,
+  val nCols: Long) extends Serializable {
 
   import BlockMatrix._
 
@@ -216,7 +216,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val partitioner: GridPartitioner = blocks.partitioner.get.asInstanceOf[GridPartitioner]
 
   def transpose(): M =
-    new BlockMatrix(new BlockMatrixTransposeRDD(this), blockSize, cols, rows)
+    new BlockMatrix(new BlockMatrixTransposeRDD(this), blockSize, nCols, nRows)
 
   def diagonal(): Array[Double] =
     new BlockMatrixDiagonalRDD(this).toArray
@@ -234,11 +234,11 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     blockMap2(that, _ :/ _)
 
   def multiply(that: M): M =
-    new BlockMatrix(new BlockMatrixMultiplyRDD(this, that), blockSize, rows, that.cols)
+    new BlockMatrix(new BlockMatrixMultiplyRDD(this, that), blockSize, nRows, that.nCols)
 
   def multiply(lm: BDM[Double]): M = {
-    require(cols == lm.rows,
-      s"incompatible matrix dimensions: ${ rows } x ${ cols } and ${ lm.rows } x ${ lm.cols }")
+    require(nCols == lm.rows,
+      s"incompatible matrix dimensions: ${ nRows } x ${ nCols } and ${ lm.rows } x ${ lm.cols }")
     multiply(BlockMatrix.from(blocks.sparkContext, lm, blockSize))
   }
 
@@ -255,25 +255,25 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     blockMap(_ / i)
 
   def vectorAddToEveryColumn(v: Array[Double]): M = {
-    require(v.length == rows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ rows }; v: ${ v: IndexedSeq[Double] }, m: $this")
+    require(v.length == nRows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ nRows }; v: ${ v: IndexedSeq[Double] }, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
     mapWithIndex((i, _, x) => x + vBc.value(i.toInt))
   }
 
   def vectorPointwiseMultiplyEveryColumn(v: Array[Double]): M = {
-    require(v.length == rows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ rows }; v: ${ v: IndexedSeq[Double] }, m: $this")
+    require(v.length == nRows, s"vector length, ${ v.length }, must equal number of matrix rows, ${ nRows }; v: ${ v: IndexedSeq[Double] }, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
     mapWithIndex((i, _, x) => x * vBc.value(i.toInt))
   }
 
   def vectorAddToEveryRow(v: Array[Double]): M = {
-    require(v.length == cols, s"vector length, ${ v.length }, must equal number of matrix columns, ${ cols }; v: ${ v: IndexedSeq[Double] }, m: $this")
+    require(v.length == nCols, s"vector length, ${ v.length }, must equal number of matrix columns, ${ nCols }; v: ${ v: IndexedSeq[Double] }, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
     mapWithIndex((_, j, x) => x + vBc.value(j.toInt))
   }
 
   def vectorPointwiseMultiplyEveryRow(v: Array[Double]): M = {
-    require(v.length == cols, s"vector length, ${ v.length }, must equal number of matrix columns, ${ cols }; v: ${ v: IndexedSeq[Double] }, m: $this")
+    require(v.length == nCols, s"vector length, ${ v.length }, must equal number of matrix columns, ${ nCols }; v: ${ v: IndexedSeq[Double] }, m: $this")
     val vBc = blocks.sparkContext.broadcast(v)
     mapWithIndex((_, j, x) => x * vBc.value(j.toInt))
   }
@@ -302,7 +302,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, rows, cols),
+        BlockMatrixMetadata(blockSize, nRows, nCols),
         os)
     }
 
@@ -322,44 +322,44 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def toLocalMatrix(): BDM[Double] = {
-    require(this.rows <= Int.MaxValue, "The number of rows of this matrix should be less than or equal to " +
-      s"Int.MaxValue. Currently numRows: ${ this.rows }")
-    require(this.cols <= Int.MaxValue, "The number of columns of this matrix should be less than or equal to " +
-      s"Int.MaxValue. Currently numCols: ${ this.cols }")
-    require(this.rows * this.cols <= Int.MaxValue, "The length of the values array must be " +
-      s"less than or equal to Int.MaxValue. Currently rows * cols: ${ this.rows * this.cols }")
-    val rows = this.rows.toInt
-    val cols = this.cols.toInt
+    require(this.nRows <= Int.MaxValue, "The number of rows of this matrix should be less than or equal to " +
+      s"Int.MaxValue. Currently numRows: ${ this.nRows }")
+    require(this.nCols <= Int.MaxValue, "The number of columns of this matrix should be less than or equal to " +
+      s"Int.MaxValue. Currently numCols: ${ this.nCols }")
+    require(this.nRows * this.nCols <= Int.MaxValue, "The length of the values array must be " +
+      s"less than or equal to Int.MaxValue. Currently rows * cols: ${ this.nRows * this.nCols }")
+    val nRows = this.nRows.toInt
+    val nCols = this.nCols.toInt
     val localBlocks = blocks.collect()
-    val values = new Array[Double](rows * cols)
+    val values = new Array[Double](nRows * nCols)
     var bi = 0
     while (bi < localBlocks.length) {
       val ((i, j), lm) = localBlocks(bi)
       val iOffset = i * blockSize
       val jOffset = j * blockSize
       lm.foreachPair { case ((ii, jj), v) =>
-        values((jOffset + jj) * rows + iOffset + ii) = v
+        values((jOffset + jj) * nRows + iOffset + ii) = v
       }
       bi += 1
     }
-    new BDM(rows, cols, values)
+    new BDM(nRows, nCols, values)
   }
 
   private def requireZippable(that: M) {
-    require(rows == that.rows,
-      s"must have same number of rows, but actually: ${ rows }x${ cols }, ${ that.rows }x${ that.cols }")
-    require(cols == that.cols,
-      s"must have same number of cols, but actually: ${ rows }x${ cols }, ${ that.rows }x${ that.cols }")
+    require(nRows == that.nRows,
+      s"must have same number of rows, but actually: ${ nRows }x${ nCols }, ${ that.nRows }x${ that.nCols }")
+    require(nCols == that.nCols,
+      s"must have same number of cols, but actually: ${ nRows }x${ nCols }, ${ that.nRows }x${ that.nCols }")
     require(blockSize == that.blockSize,
       s"blocks must be same size, but actually were ${ blockSize }x${ blockSize } and ${ that.blockSize }x${ that.blockSize }")
   }
 
   def blockMap(op: BDM[Double] => BDM[Double]): M =
-    new BlockMatrix(blocks.mapValues(op), blockSize, rows, cols)
+    new BlockMatrix(blocks.mapValues(op), blockSize, nRows, nCols)
 
   def blockMap2(that: M, op: (BDM[Double], BDM[Double]) => BDM[Double]): M = {
     requireZippable(that)
-    new BlockMatrix(blocks.join(that.blocks).mapValues(op.tupled), blockSize, rows, cols)
+    new BlockMatrix(blocks.join(that.blocks).mapValues(op.tupled), blockSize, nRows, nCols)
   }
 
   def map(op: Double => Double): M = {
@@ -374,7 +374,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       }
       new BDM(lm.rows, lm.cols, dst, 0, lm.majorStride, lm.isTranspose)
     }
-    new BlockMatrix(blocks, blockSize, rows, cols)
+    new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
   def map2(that: M, op: (Double, Double) => Double): M = {
@@ -393,8 +393,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           assertCompatibleLocalMatrix(lm2)
           assert(i1 == i2, s"$i1 $i2")
           assert(j1 == j2, s"$j1 $j2")
-          val rows = lm1.rows
-          val cols = lm1.cols
+          val nRows = lm1.rows
+          val nCols = lm1.cols
           val src1 = lm1.data
           val src2 = lm2.data
           val dst = new Array[Double](src1.length)
@@ -417,11 +417,11 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
               k2 += 1 - length
             }
           }
-          ((i1, j1), new BDM(rows, cols, dst, 0, lm1.majorStride, lm1.isTranspose))
+          ((i1, j1), new BDM(nRows, nCols, dst, 0, lm1.majorStride, lm1.isTranspose))
         }
       }
     }
-    new BlockMatrix(blocks, blockSize, rows, cols)
+    new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
   def map4(dm2: M, dm3: M, dm4: M, op: (Double, Double, Double, Double) => Double): M = {
@@ -452,8 +452,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           assert(j1 == j3, s"$j1 $j3")
           assert(i1 == i4, s"$i1 $i4")
           assert(j1 == j4, s"$j1 $j4")
-          val rows = lm1.rows
-          val cols = lm1.cols
+          val nRows = lm1.rows
+          val nCols = lm1.cols
           val src1 = lm1.data
           val src2 = lm2.data
           val src3 = lm3.data
@@ -485,11 +485,11 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
               kt += 1 - length
             }
           }
-          ((i1, j1), new BDM(rows, cols, dst, 0, lm1.majorStride, lm1.isTranspose))
+          ((i1, j1), new BDM(nRows, nCols, dst, 0, lm1.majorStride, lm1.isTranspose))
         }
       }
     }
-    new BlockMatrix(blocks, blockSize, rows, cols)
+    new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
   def mapWithIndex(op: (Long, Long, Double) => Double): M = {
@@ -510,7 +510,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       }
       new BDM(lm.rows, lm.cols, result)
     }
-    new BlockMatrix(blocks, blockSize, rows, cols)
+    new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
   def map2WithIndex(that: M, op: (Long, Long, Double, Double) => Double): M = {
@@ -545,12 +545,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
       }
     }
-    new BlockMatrix(blocks, blockSize, rows, cols)
+    new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
   def toIndexedRowMatrix(): IndexedRowMatrix = {
-    require(this.cols <= Integer.MAX_VALUE)
-    val cols = this.cols.toInt
+    require(this.nCols <= Integer.MAX_VALUE)
+    val nCols = this.nCols.toInt
 
     def seqOp(a: Array[Double], p: (Int, Array[Double])): Array[Double] = p match {
       case (offset, v) =>
@@ -574,9 +574,9 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
       for (k <- 0 until lm.rows)
         yield (k + iOffset, (jOffset, lm(k, ::).inner.toArray))
-    }.aggregateByKey(new Array[Double](cols))(seqOp, combOp)
+    }.aggregateByKey(new Array[Double](nCols))(seqOp, combOp)
       .map { case (i, a) => IndexedRow(i, new DenseVector(a)) },
-      rows, cols)
+      nRows, nCols)
   }
     
   // rowsToKeep is an array of distinct row indices
@@ -584,7 +584,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
   // colsToKeep is an array of distinct col indices  
   def filterCols(colsToKeep: Array[Long]): BlockMatrix =
-    new BlockMatrix(new BlockMatrixFilterColsRDD(this, colsToKeep.sorted), blockSize, rows, colsToKeep.length)
+    new BlockMatrix(new BlockMatrixFilterColsRDD(this, colsToKeep.sorted), blockSize, nRows, colsToKeep.length)
   
   def filter(rowsToKeep: Array[Long], colsToKeep: Array[Long]): BlockMatrix =
     new BlockMatrix(new BlockMatrixFilterRDD(this, rowsToKeep.sorted, colsToKeep.sorted),
@@ -655,8 +655,8 @@ object BlockMatrixFilterRDD {
 
 private class BlockMatrixFilterRDD(dm: BlockMatrix, rowsToKeep: Array[Long], colsToKeep: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
-  require(rowsToKeep.nonEmpty && rowsToKeep.isIncreasing && rowsToKeep.head >= 0 && rowsToKeep.last < dm.rows)
-  require(colsToKeep.nonEmpty && colsToKeep.isIncreasing && colsToKeep.head >= 0 && colsToKeep.last < dm.cols)
+  require(rowsToKeep.nonEmpty && rowsToKeep.isIncreasing && rowsToKeep.head >= 0 && rowsToKeep.last < dm.nRows)
+  require(colsToKeep.nonEmpty && colsToKeep.isIncreasing && colsToKeep.head >= 0 && colsToKeep.last < dm.nCols)
   
   private val gp = dm.partitioner
   private val blockSize = gp.blockSize
@@ -743,7 +743,7 @@ case class BlockMatrixFilterColsRDDPartition(index: Int, blockColRanges: Array[(
 
 private class BlockMatrixFilterColsRDD(dm: BlockMatrix, colsToKeep: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](dm.blocks.sparkContext, Nil) {
-  require(colsToKeep.nonEmpty && colsToKeep.isIncreasing && colsToKeep.head >= 0 && colsToKeep.last < dm.cols)
+  require(colsToKeep.nonEmpty && colsToKeep.isIncreasing && colsToKeep.head >= 0 && colsToKeep.last < dm.nCols)
   
   private val gp = dm.partitioner
   private val blockSize = gp.blockSize
@@ -835,7 +835,7 @@ private class BlockMatrixDiagonalRDD(m: BlockMatrix)
   import BlockMatrix.block
 
   private val length = {
-    val x = math.min(m.rows, m.cols)
+    val x = math.min(m.nRows, m.nCols)
     assert(x <= Integer.MAX_VALUE, s"diagonal is too big for local array: $x; ${ m.st }")
     x.toInt
   }
@@ -890,8 +890,8 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
 
   import BlockMatrix.block
 
-  require(l.cols == r.rows,
-    s"inner dimensions must match, but given: ${ l.rows }x${ l.cols }, ${ r.rows }x${ r.cols }")
+  require(l.nCols == r.nRows,
+    s"inner dimensions must match, but given: ${ l.nRows }x${ l.nCols }, ${ r.nRows }x${ r.nCols }")
   require(l.blockSize == r.blockSize,
     s"blocks must be same size, but actually were ${ l.blockSize }x${ l.blockSize } and ${ r.blockSize }x${ r.blockSize }")
 
@@ -900,7 +900,7 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
   private val rPartitioner = r.partitioner
   private val rPartitions = r.blocks.partitions
   private val nProducts = lPartitioner.nBlockCols
-  private val gp = GridPartitioner(l.blockSize, l.rows, r.cols)
+  private val gp = GridPartitioner(l.blockSize, l.nRows, r.nCols)
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
@@ -993,8 +993,8 @@ class WriteBlocksRDD(path: String,
     )
 
   protected def getPartitions: Array[Partition] = {
-    val rows = parentPartStarts.last
-    assert(rows == gp.nRows)
+    val nRows = parentPartStarts.last
+    assert(nRows == gp.nRows)
     val nBlockRows = gp.nBlockRows
 
     val parts = new Array[Partition](nBlockRows)
@@ -1006,7 +1006,7 @@ class WriteBlocksRDD(path: String,
     while (blockRow < nBlockRows) {
       val skip = (firstRowInBlock - parentPartStarts(pi)).toInt
 
-      firstRowInNextBlock = if (blockRow < nBlockRows - 1) firstRowInBlock + gp.blockSize else rows
+      firstRowInNextBlock = if (blockRow < nBlockRows - 1) firstRowInBlock + gp.blockSize else nRows
 
       val start = pi
       while (parentPartStarts(pi) < firstRowInNextBlock)

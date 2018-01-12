@@ -16,11 +16,11 @@ import org.testng.annotations.Test
 class BlockMatrixSuite extends SparkSuite {
 
   // row major
-  def toLM(rows: Int, cols: Int, data: Array[Double]): BDM[Double] =
-    new BDM(rows, cols, data, 0, cols, isTranspose = true)
+  def toLM(nRows: Int, nCols: Int, data: Array[Double]): BDM[Double] =
+    new BDM(nRows, nCols, data, 0, nCols, isTranspose = true)
 
-  def toBM(rows: Int, cols: Int, data: Array[Double]): BlockMatrix =
-    toBM(new BDM(rows, cols, data, 0, rows, true))
+  def toBM(nRows: Int, nCols: Int, data: Array[Double]): BlockMatrix =
+    toBM(new BDM(nRows, nCols, data, 0, nRows, true))
 
   def toBM(rows: Seq[Array[Double]]): BlockMatrix =
     toBM(rows, BlockMatrix.defaultBlockSize)
@@ -48,8 +48,8 @@ class BlockMatrixSuite extends SparkSuite {
     element: Gen[Double] = defaultElement
   ): Gen[BlockMatrix] = for {
     blockSize <- blockSize
-    (rows, columns) <- dims
-    arrays <- buildableOfN[Seq](rows, buildableOfN[Array](columns, element))
+    (nRows, nCols) <- dims
+    arrays <- buildableOfN[Seq](nRows, buildableOfN[Array](nCols, element))
     m = toBM(arrays, blockSize)
   } yield m
 
@@ -66,10 +66,10 @@ class BlockMatrixSuite extends SparkSuite {
   )
 
   def twoMultipliableBlockMatrices(element: Gen[Double] = defaultElement): Gen[(BlockMatrix, BlockMatrix)] = for {
-    Array(rows, inner, cols) <- nonEmptyNCubeOfVolumeAtMostSize(3)
+    Array(nRows, innerDim, nCols) <- nonEmptyNCubeOfVolumeAtMostSize(3)
     blockSize <- interestingPosInt.map(math.pow(_, 1.0 / 3.0).toInt)
-    l <- blockMatrixGen(const(blockSize), const(rows -> inner), element)
-    r <- blockMatrixGen(const(blockSize), const(inner -> cols), element)
+    l <- blockMatrixGen(const(blockSize), const(nRows -> innerDim), element)
+    r <- blockMatrixGen(const(blockSize), const(innerDim -> nCols), element)
   } yield (l, r)
 
   implicit val arbitraryBlockMatrix =
@@ -141,7 +141,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def randomMultiplyByLocalMatrix() {
-    forAll(twoMultipliableDenseMatrices[Double]) { case (ll, lr) =>
+    forAll(twoMultipliableDenseMatrices[Double]()) { case (ll, lr) =>
       val l = toBM(ll)
       sameDoubleMatrixNaNEqualsNaN(ll * lr, (l * lr).toLocalMatrix())
     }.check()
@@ -230,13 +230,13 @@ class BlockMatrixSuite extends SparkSuite {
   def rowwiseMultiplicationRandom() {
     val g = for {
       l <- blockMatrixGen()
-      v <- buildableOfN[Array](l.cols.toInt, arbitrary[Double])
+      v <- buildableOfN[Array](l.nCols.toInt, arbitrary[Double])
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
       val actual = (l --* v).toLocalMatrix()
-      val repeatedR = (0 until l.rows.toInt).flatMap(_ => v).toArray
-      val repeatedRMatrix = new BDM(v.length, l.rows.toInt, repeatedR).t
+      val repeatedR = (0 until l.nRows.toInt).flatMap(_ => v).toArray
+      val repeatedRMatrix = new BDM(v.length, l.nRows.toInt, repeatedR).t
       val expected = l.toLocalMatrix() :* repeatedRMatrix
 
       sameDoubleMatrixNaNEqualsNaN(actual, expected)
@@ -266,13 +266,13 @@ class BlockMatrixSuite extends SparkSuite {
   def colwiseMultiplicationRandom() {
     val g = for {
       l <- blockMatrixGen()
-      v <- buildableOfN[Array](l.rows.toInt, arbitrary[Double])
+      v <- buildableOfN[Array](l.nRows.toInt, arbitrary[Double])
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
       val actual = (l :* v).toLocalMatrix()
-      val repeatedR = (0 until l.cols.toInt).flatMap(_ => v).toArray
-      val repeatedRMatrix = new BDM(v.length, l.cols.toInt, repeatedR)
+      val repeatedR = (0 until l.nCols.toInt).flatMap(_ => v).toArray
+      val repeatedRMatrix = new BDM(v.length, l.nCols.toInt, repeatedR)
       val expected = l.toLocalMatrix() :* repeatedRMatrix
 
       if (sameDoubleMatrixNaNEqualsNaN(actual, expected))
@@ -352,7 +352,7 @@ class BlockMatrixSuite extends SparkSuite {
 
   @Test
   def fromLocalTest() {
-    forAll(denseMatrix[Double]) { lm =>
+    forAll(denseMatrix[Double]()) { lm =>
       assert(lm === BlockMatrix.from(sc, lm, lm.rows + 1).toLocalMatrix())
       assert(lm === BlockMatrix.from(sc, lm, lm.rows).toLocalMatrix())
       if (lm.rows > 1) {
@@ -411,8 +411,8 @@ class BlockMatrixSuite extends SparkSuite {
   def transpose() {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val transposed = m.toLocalMatrix().t
-      assert(transposed.rows == m.cols)
-      assert(transposed.cols == m.rows)
+      assert(transposed.rows == m.nCols)
+      assert(transposed.cols == m.nRows)
       assert(transposed === m.t.toLocalMatrix())
       true
     }.check()
@@ -423,8 +423,8 @@ class BlockMatrixSuite extends SparkSuite {
     forAll(blockMatrixGen(element = nonExtremeDouble)) { (m: BlockMatrix) =>
       val mt = m.t.cache()
       val mtt = m.t.t.cache()
-      assert(mtt.rows == m.rows)
-      assert(mtt.cols == m.cols)
+      assert(mtt.nRows == m.nRows)
+      assert(mtt.nCols == m.nCols)
       assert(sameDoubleMatrixNaNEqualsNaN(mtt.toLocalMatrix(), m.toLocalMatrix()))
       assert(sameDoubleMatrixNaNEqualsNaN((mt * mtt).toLocalMatrix(), (mt * m).toLocalMatrix()))
       true
