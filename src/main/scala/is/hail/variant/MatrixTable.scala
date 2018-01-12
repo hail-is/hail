@@ -1446,7 +1446,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   def head(n: Long): MatrixTable = {
     if (n < 0)
       fatal(s"n must be non-negative! Found `$n'.")
-    copy(rdd = rdd.head(n))
+    copy2(rdd2 = rdd2.head(n))
   }
 
   /**
