@@ -44,7 +44,7 @@ object ExtractAggregators {
 
         ab += IRAgg(in, x)
 
-        GetField(in, (ab.length - 1).toString(), x.typ)
+        GetField(in, (ab.length - 1).toString, x.typ)
       case _ => Recur(extract)(ir)
     }
   }
