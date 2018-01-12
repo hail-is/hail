@@ -1176,7 +1176,7 @@ class Table(TableTemplate):
         :class:`.Table`
             Table with one field, `index`.
         """
-        return Table(Env.hail().table.Table.range(Env.hc()._jhc, n, joption(num_partitions)))
+        return Table(Env.hail().table.Table.range(Env.hc()._jhc, n, 'idx', joption(num_partitions)))
 
     @handle_py4j
     def cache(self):

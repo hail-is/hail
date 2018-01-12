@@ -1489,7 +1489,7 @@ class KeyTable(HistoryMixin):
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(Env.hc(), Env.hail().table.Table.range(Env.hc()._jhc, n, joption(num_partitions)))
+        return KeyTable(Env.hc(), Env.hail().table.Table.range(Env.hc()._jhc, n, 'idx', joption(num_partitions)))
 
     @handle_py4j
     @record_method
