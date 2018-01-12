@@ -1,6 +1,7 @@
 package is.hail.annotations
 
-import is.hail.expr._
+import is.hail.expr.types._
+import is.hail.expr.{HailRep, hailType}
 
 import scala.reflect.ClassTag
 import scala.reflect.classTag

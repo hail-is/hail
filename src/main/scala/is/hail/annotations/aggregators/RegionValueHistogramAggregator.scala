@@ -2,7 +2,7 @@ package is.hail.annotations.aggregators
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.stats.HistogramCombiner
 import is.hail.utils._
 

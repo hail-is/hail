@@ -2,7 +2,7 @@ package is.hail.annotations.aggregators
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr._
+import is.hail.expr.types._
 import org.apache.spark.util.StatCounter
 
 object RegionValueStatisticsAggregator {

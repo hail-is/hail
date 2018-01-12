@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import is.hail.expr._
+import is.hail.expr.types._
 import is.hail.annotations._
 import scala.collection.mutable.BitSet
 

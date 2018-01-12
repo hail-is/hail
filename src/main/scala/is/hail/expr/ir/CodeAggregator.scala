@@ -3,7 +3,8 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
-import is.hail.expr._
+import is.hail.expr.types._
+import is.hail.expr.{HailRep, hailType}
 
 import scala.reflect.ClassTag
 
