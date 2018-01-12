@@ -1162,7 +1162,7 @@ class Table(TableTemplate):
         -----
         The resulting table has one column:
 
-         - `idx` (**Int32**) - Unique row index from 0 to `n`.
+         - `idx` (**Int32**) - Unique row index from 0 to `n` - 1.
 
         Parameters
         ----------
@@ -1340,7 +1340,7 @@ class Table(TableTemplate):
 
         This method returns a table with a new column whose name is given by
         the `name` parameter, with type ``Int64``. The value of this column is
-        the numerical index of each row, starting from 0. Methods that respect
+        the integer index of each row, starting from 0. Methods that respect
         ordering (like :py:meth:`Table.take` or :py:meth:`Table.export`) will
         return rows in order.
 

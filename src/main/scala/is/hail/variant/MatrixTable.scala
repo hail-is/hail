@@ -2699,7 +2699,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     val newVAType = newRowType.asInstanceOf[TStruct].fieldType(2)
     val localRowType = rowType
 
-    val starts = partitionStarts()
+    val partStarts = partitionStarts()
     val newMatrixType = matrixType.copy(vaType = newVAType)
 
     val indexedRDD = rdd2.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orderedRVType) { case (i, it) =>
@@ -2707,7 +2707,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
 
-      var idx = starts(i)
+      var idx = partStarts(i)
 
       it.map { rv =>
         region2.clear()
