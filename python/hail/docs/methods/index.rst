@@ -17,6 +17,7 @@ Methods
     hail.methods.rename_duplicates
     hail.methods.split_multi_hts
     hail.methods.mendel_errors
+    hail.methods.vep
 
 .. autofunction:: hail.methods.linreg
 .. autofunction:: hail.methods.sample_rows
@@ -29,3 +30,4 @@ Methods
 .. autofunction:: hail.methods.rename_duplicates
 .. autofunction:: hail.methods.split_multi_hts
 .. autofunction:: hail.methods.mendel_errors
+.. autofunction:: hail.methods.vep
