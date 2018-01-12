@@ -467,7 +467,7 @@ class MatrixTests(unittest.TestCase):
         for s, count in ds.aggregate_cols(counts=agg.counter(ds.s)).counts.items():
             self.assertEqual(count, 3)
 
-    def test_number(self):
+    def test_index(self):
         ds = self.get_vds(min_partitions=8)
         self.assertEqual(ds.num_partitions(), 8)
         ds = ds.index_rows('rowidx').index_cols('colidx')

@@ -1771,7 +1771,7 @@ class MatrixTable(object):
                                                                 '{}.{}'.format(prefix, uid), None, False)))
             else:
                 # FIXME: implement entry-based join in the expression language
-                raise NotImplementedError('MatrixTable.view_join_cols with indices {}'.format(indices))
+                raise NotImplementedError('MatrixTable.view_join_rows with indices {}'.format(indices))
 
             return construct_expr(Select(Reference(prefix), uid),
                                   self.row_schema, indices, aggregations,
@@ -2213,7 +2213,7 @@ class MatrixTable(object):
     @handle_py4j
     @typecheck_method(name=strlike)
     def index_rows(self, name='row_idx'):
-        """Add the row integer index as a new field.
+        """Add the integer index of each row as a new row field.
 
         Examples
         --------
@@ -2225,12 +2225,12 @@ class MatrixTable(object):
         The field added is type :class:`.TInt64`.
 
         The row index is 0-indexed; the values are found in the range
-        ``[0, N)``.
+        ``[0, N)``, where ``N`` is the total number of rows.
 
         Parameters
         ----------
         name : :obj:`str`
-            Name for row number field.
+            Name for row index field.
 
         Returns
         -------
@@ -2242,7 +2242,7 @@ class MatrixTable(object):
     @handle_py4j
     @typecheck_method(name=strlike)
     def index_cols(self, name='col_idx'):
-        """Add the column integer index as a new field.
+        """Add the integer index of each column as a new column field.
 
         Examples
         --------
@@ -2254,12 +2254,12 @@ class MatrixTable(object):
         The field added is type :class:`.TInt32`.
 
         The column index is 0-indexed; the values are found in the range
-        ``[0, N)``.
+        ``[0, N)``, where ``N`` is the total number of columns.
 
         Parameters
         ----------
         name: :obj:`str`
-            Name for column number field.
+            Name for column index field.
 
         Returns
         -------

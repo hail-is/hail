@@ -48,7 +48,7 @@ class OrderedRVD private(
       partitioner,
       rdd.map(f))
 
-  def mapIndexedPartitionsPreservesPartitioning(newTyp: OrderedRVType)(f: (Int, Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
+  def mapPartitionsWithIndexPreservesPartitioning(newTyp: OrderedRVType)(f: (Int, Iterator[RegionValue]) => Iterator[RegionValue]): OrderedRVD =
     OrderedRVD(newTyp,
       partitioner,
       rdd.mapPartitionsWithIndex(f))

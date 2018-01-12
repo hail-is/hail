@@ -1162,7 +1162,7 @@ class Table(TableTemplate):
         -----
         The resulting table has one column:
 
-         - `idx` (**Int32**) - Unique row index from 0 to ``N - 1``
+         - `idx` (**Int32**) - Unique row index from 0 to `n`.
 
         Parameters
         ----------
@@ -1315,7 +1315,7 @@ class Table(TableTemplate):
     @handle_py4j
     @typecheck_method(name=strlike)
     def index(self, name='idx'):
-        """Add the numerical index of each row as a new field.
+        """Add the integer index of each row as a new row field.
 
         Examples
         --------
