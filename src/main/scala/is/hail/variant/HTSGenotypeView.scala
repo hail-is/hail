@@ -236,6 +236,7 @@ final class HardCallView(rowType: TStruct, callField: String) {
   def hasGT: Boolean = gtExists && gIsDefined && tg.isFieldDefined(m, gOffset, gtIndex)
 
   def getGT: Int = {
+    assert(gtExists && gIsDefined)
     val callOffset = tg.loadField(m, gOffset, gtIndex)
     val gt = m.loadInt(callOffset)
     if (gt < 0)

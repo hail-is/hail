@@ -459,7 +459,9 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
   lazy val value: MatrixValue = {
     val opt = MatrixIR.optimize(ast)
-    opt.execute(hc)
+    val v = opt.execute(hc)
+    assert(v.rdd2.typ == matrixType.orderedRVType)
+    v
   }
 
   lazy val MatrixValue(_, VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd2) = value
@@ -1272,20 +1274,64 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.GENOTYPE_HEAD))
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
-    val finalType = (paths, types).zipped.foldLeft(genotypeSignature) { case (gsig, (ids, signature)) =>
+    val newGType = (paths, types).zipped.foldLeft(genotypeSignature) { case (gsig, (ids, signature)) =>
       val (s, i) = gsig.insert(signature, ids)
       inserterBuilder += i
       s
     }
     val inserters = inserterBuilder.result()
 
-    mapValuesWithAll(finalType, { (v: Annotation, va: Annotation, s: Annotation, sa: Annotation, g: Annotation) =>
-      ec.setAll(v, va, s, sa, g)
-      f().zip(inserters)
-        .foldLeft(g: Annotation) { case (ga, (a, inserter)) =>
-          inserter(ga, a)
+    val localNSamples = nSamples
+    val localRowType = rowType
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+
+    val newMatrixType = matrixType.copy(genotypeType = newGType)
+    val newRowType = newMatrixType.rowType
+
+    copy2(
+      genotypeSignature = newGType,
+      rdd2 = rdd2.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
+        val rvb = new RegionValueBuilder()
+        val rv2 = RegionValue()
+
+        it.map { rv =>
+          val ur = new UnsafeRow(localRowType, rv)
+
+          rvb.set(rv.region)
+          rvb.start(newRowType)
+          rvb.startStruct()
+          rvb.addField(localRowType, rv, 0)
+          rvb.addField(localRowType, rv, 1)
+          rvb.addField(localRowType, rv, 2)
+
+          val v = ur.get(1)
+          val va = ur.get(2)
+          val gs = ur.getAs[IndexedSeq[Any]](3)
+
+          rvb.startArray(localNSamples)
+          var i = 0
+          while (i < localNSamples) {
+            val s = localSampleIdsBc.value(i)
+            val sa = localSampleAnnotationsBc.value(i)
+            val g = gs(i)
+
+            ec.setAll(v, va, s, sa, g)
+            val newG = f().zip(inserters)
+              .foldLeft(g) { case (ga, (a, inserter)) =>
+                inserter(ga, a)
+              }
+            rvb.addAnnotation(newGType, newG)
+
+            i += 1
+          }
+          rvb.endArray()
+          rvb.endStruct()
+
+          rv2.set(rv.region, rvb.end())
+          rv2
         }
-    })
+      })
   }
 
   def filterVariants(p: (Annotation, Annotation, Iterable[Annotation]) => Boolean): MatrixTable = {
@@ -1678,17 +1724,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       },
       sig,
       keyNames)
-  }
-
-  def mapValuesWithAll[U >: Null](newGSignature: Type, f: (Annotation, Annotation, Annotation, Annotation, Annotation) => U)
-    (implicit uct: ClassTag[U]): MatrixTable = {
-    val localSampleIdsBc = sampleIdsBc
-    val localSampleAnnotationsBc = sampleAnnotationsBc
-    copy(genotypeSignature = newGSignature,
-      rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
-        (va, localSampleIdsBc.value.lazyMapWith2[Annotation, Annotation, U](
-          localSampleAnnotationsBc.value, gs, { case (s, sa, g) => f(v, va, s, sa, g) }))
-      })
   }
 
   def mendelErrors(ped: Pedigree): (Table, Table, Table, Table) = {
@@ -2319,7 +2354,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     * @param keep       keep genotypes where filterExpr evaluates to true
     */
   def filterGenotypes(filterExpr: String, keep: Boolean = true): MatrixTable = {
-
     val symTab = Map(
       "v" -> (0, vSignature),
       "va" -> (1, vaSignature),
@@ -2328,19 +2362,56 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       "g" -> (4, genotypeSignature),
       "global" -> (5, globalSignature))
 
-
     val ec = EvalContext(symTab)
     ec.set(5, globalAnnotation)
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 
     val localKeep = keep
-    mapValuesWithAll(genotypeSignature, { (v: Annotation, va: Annotation, s: Annotation, sa: Annotation, g: Annotation) =>
-      ec.setAll(v, va, s, sa, g)
-      if (Filter.boxedKeepThis(f(), localKeep))
-        g
-      else
-        null
-    })
+    val localRowType = rowType
+    val localNSamples = nSamples
+    val localGType = genotypeSignature
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+
+    copy2(
+      rdd2 = rdd2.mapPartitionsPreservesPartitioning(rdd2.typ) { it =>
+        val rvb = new RegionValueBuilder()
+        val rv2 = RegionValue()
+
+        it.map { rv =>
+          val ur = new UnsafeRow(localRowType, rv)
+
+          rvb.set(rv.region)
+          rvb.start(localRowType)
+          rvb.startStruct()
+          rvb.addField(localRowType, rv, 0)
+          rvb.addField(localRowType, rv, 1)
+          rvb.addField(localRowType, rv, 2)
+
+          val v = ur.get(1)
+          val va = ur.get(2)
+          val gs = ur.getAs[IndexedSeq[Any]](3)
+
+          rvb.startArray(localNSamples)
+          var i = 0
+          while (i < localNSamples) {
+            val s = localSampleIdsBc.value(i)
+            val sa = localSampleAnnotationsBc.value(i)
+            val g = gs(i)
+            ec.setAll(v, va, s, sa, g)
+            if (Filter.boxedKeepThis(f(), localKeep))
+              rvb.addAnnotation(localGType, g)
+            else
+              rvb.setMissing()
+
+            i += 1
+          }
+          rvb.endArray()
+          rvb.endStruct()
+          rv2.set(rv.region, rvb.end())
+          rv2
+        }
+      })
   }
 
   def rowType: TStruct = matrixType.rowType
