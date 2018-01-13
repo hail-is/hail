@@ -260,17 +260,15 @@ object MatrixTable {
     first.copyLegacy(rdd = first.sparkContext.union(datasets.map(_.rdd)))
   }
 
-  def fromKeyTable(kt: Table): MatrixTable = {
-    val vType: Type = kt.keyFields.map(_.typ) match {
-      case Array(t@TVariant(_, _)) => t
-      case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
-        s"but found [ ${ arr.mkString(", ") } ]")
-    }
+  def fromTable(kt: Table): MatrixTable = {
+    if (kt.key.length != 1)
+      fatal("from_table: key must have a single field")
+    val vType = kt.keyFields(0).typ
 
-    val rdd = kt.keyedRDD()
-      .map { case (k, v) => (k.asInstanceOf[Row].get(0), v) }
-      .filter(_._1 != null)
-      .mapValues(a => (a: Annotation, Iterable.empty[Annotation]))
+    val ktRowType = kt.signature
+    // FIXME
+    val kIndex = kt.keyFields(0).index
+    val ktValueFieldIdx = kt.valueSignature.fields.map(f => kt.signature.fieldIdx(f.name))
 
     val metadata = VSMMetadata(
       saSignature = TStruct.empty(),
@@ -278,8 +276,48 @@ object MatrixTable {
       vaSignature = kt.valueSignature,
       globalSignature = TStruct.empty())
 
-    MatrixTable.fromLegacy(kt.hc, metadata,
-      VSMLocalValue(Annotation.empty, Array.empty[Annotation], Array.empty[Annotation]), rdd)
+    val matrixType = MatrixType(metadata)
+    val locusType = matrixType.locusType
+    // FIXME
+    val projection =
+      matrixType.vType match {
+        case t: TVariant =>
+          (v: Annotation) => v.asInstanceOf[Variant].locus
+        case _ =>
+          (a: Annotation) => a
+      }
+
+    val rdd = kt.rvd.mapPartitions { it =>
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+
+      it.map { rv =>
+        val ur = new UnsafeRow(ktRowType, rv)
+
+        rvb.set(rv.region)
+        rvb.start(matrixType.rowType)
+        rvb.startStruct()
+        rvb.addAnnotation(locusType, projection(ur.get(kIndex))) // pk
+        rvb.addField(ktRowType, rv, kIndex) // v
+        rvb.startStruct() // va
+        var i = 0
+        while (i < ktValueFieldIdx.length) {
+          rvb.addField(ktRowType, rv, ktValueFieldIdx(i))
+          i += 1
+        }
+        rvb.endStruct()
+        rvb.startArray(0) // gs
+        rvb.endArray()
+        rvb.endStruct()
+        rv2.set(rv.region, rvb.end())
+        rv2
+      }
+    }
+
+    val localValue = VSMLocalValue(Annotation.empty, Array.empty[Annotation], Array.empty[Annotation])
+    val rdd2 = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
+
+    new MatrixTable(kt.hc, metadata, localValue, rdd2)
   }
 }
 
@@ -413,7 +451,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   val locusProjection: (Annotation) => Annotation = {
     vSignature match {
       case t: TVariant =>
-        (v: Annotation) =>   v.asInstanceOf[Variant].locus
+        (v: Annotation) => v.asInstanceOf[Variant].locus
       case _ =>
         (a: Annotation) => a
     }

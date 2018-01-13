@@ -78,7 +78,7 @@ class VariantDataset(HistoryMixin):
         :return: Sites-only variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
-        jvds = scala_object(Env.hail().variant, 'MatrixTable').fromKeyTable(table._jkt)
+        jvds = scala_object(Env.hail().variant, 'MatrixTable').fromTable(table._jkt)
         return VariantDataset(table.hc, jvds)
 
     @property
