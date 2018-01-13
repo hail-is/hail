@@ -1811,52 +1811,58 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   def reorderSamples(newIds: Array[Annotation]): MatrixTable = {
     requireUniqueSamples("reorder_samples")
 
-    val oldOrder = sampleIds.zipWithIndex.toMap
-    val newOrder = newIds.zipWithIndex.toMap
+    val sampleSet = sampleIds.toSet
+    val newSampleSet = newIds.toSet
 
-    val newIndices = new Array[Int](nSamples)
-    val missingSamples = mutable.Set[Annotation]()
-    val notInDataset = mutable.Set[Annotation]()
-
-    oldOrder.outerJoin(newOrder).foreach { case (s, (oldIdx, newIdx)) =>
-      ((oldIdx, newIdx): @unchecked) match {
-        case (Some(i), Some(j)) => newIndices(i) = j
-        case (Some(i), None) => missingSamples += s
-        case (None, Some(j)) => notInDataset += s
-      }
-    }
-
+    val missingSamples = sampleSet -- newSampleSet
     if (missingSamples.nonEmpty)
       fatal(s"Found ${ missingSamples.size } ${ plural(missingSamples.size, "sample ID") } in dataset that are not in new ordering:\n  " +
         s"@1", missingSamples.truncatable("\n  "))
 
+    val notInDataset = newSampleSet -- sampleSet
     if (notInDataset.nonEmpty)
       fatal(s"Found ${ notInDataset.size } ${ plural(notInDataset.size, "sample ID") } in new ordering that are not in dataset:\n  " +
         s"@1", notInDataset.truncatable("\n  "))
 
-    val newAnnotations = new Array[Annotation](nSamples)
-    sampleAnnotations.zipWithIndex.foreach { case (sa, idx) =>
-      newAnnotations(newIndices(idx)) = sa
+    val oldIndex = sampleIds.zipWithIndex.toMap
+    val newToOld = newIds.map(oldIndex)
+
+    val newAnnotations = Array.tabulate(nSamples) { i =>
+      sampleAnnotations(newToOld(i))
     }
 
-    val nSamplesLocal = nSamples
+    val localNSamples = nSamples
+    val localRowType = rowType
+    val localGType = genotypeSignature
 
-    val reorderedRdd = rdd.mapPartitions({ it =>
-      it.map { case (v, (va, gs)) =>
-        val reorderedGs = new Array[Annotation](nSamplesLocal)
-        val gsIt = gs.iterator
+    val reorderedRDD2 = rdd2.mapPartitionsPreservesPartitioning(rdd2.typ) { it =>
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
 
+      it.map { rv =>
+        rvb.set(rv.region)
+        rvb.start(localRowType)
+        rvb.startStruct()
+        rvb.addField(localRowType, rv, 0) // pk
+        rvb.addField(localRowType, rv, 1) // v
+        rvb.addField(localRowType, rv, 2) // va
+        rvb.startArray(localNSamples) // gs
+        val ur = new UnsafeRow(localRowType, rv)
+        val gs = ur.getAs[IndexedSeq[Any]](3)
         var i = 0
-        while (gsIt.hasNext) {
-          reorderedGs(newIndices(i)) = gsIt.next
+        while (i < localNSamples) {
+          rvb.addAnnotation(localGType, gs(newToOld(i)))
           i += 1
         }
+        rvb.endArray() // gs
+        rvb.endStruct()
+        rv2.set(rv.region, rvb.end())
 
-        (v, (va, reorderedGs.toIterable))
+        rv2
       }
-    }, preservesPartitioning = true).asOrderedRDD
+    }
 
-    copy(rdd = reorderedRdd, sampleIds = newIds, sampleAnnotations = newAnnotations)
+    copy2(rdd2 = reorderedRDD2, sampleIds = newIds, sampleAnnotations = newAnnotations)
   }
 
   def renameSamples(newIds: java.util.ArrayList[Annotation]): MatrixTable =
