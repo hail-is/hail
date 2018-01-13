@@ -1291,10 +1291,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
           rvb.endStruct()
 
           rv2.set(rv.region, rvb.end())
-
-          val ur2 = new UnsafeRow(newRowType, rv2)
-          assert(newRowType.typeCheck(ur2))
-
           rv2
         }
       })
