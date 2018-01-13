@@ -112,6 +112,77 @@ class OrderedRVD private(
     }
   }
 
+  def orderedZipJoin(right: OrderedRVD): RDD[JoinedRegionValue] = {
+    val leftTyp = typ
+    val rightTyp = right.typ
+
+    rdd.zipPartitions(right.rdd) { case (lit, rit) =>
+      new Iterator[JoinedRegionValue] {
+        private val lrKOrd = OrderedRVType.selectUnsafeOrdering(leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx)
+
+        val jrv = JoinedRegionValue()
+        var present: Boolean = false
+
+        var lrv: RegionValue = _
+        var rrv: RegionValue = _
+
+        def nextLeft() {
+          if (lrv == null && lit.hasNext)
+            lrv = lit.next()
+        }
+
+        def nextRight() {
+          if (rrv == null && rit.hasNext)
+            rrv = rit.next()
+        }
+
+        def hasNext: Boolean = {
+          if (!present) {
+            nextLeft()
+            nextRight()
+
+            var c = 0
+            if (lrv != null) {
+              if (rrv != null)
+                c = lrKOrd.compare(lrv, rrv)
+              else
+                -1
+            } else if (rrv != null)
+              1
+            else
+              return false
+
+            if (c == 0) {
+              jrv.rvLeft = lrv
+              jrv.rvRight = rrv
+              lrv = null
+              rrv = null
+            } else if (c < 0) {
+              jrv.rvLeft = lrv
+              lrv = null
+              jrv.rvRight = null
+            } else {
+              // c > 0
+              jrv.rvLeft = null
+              jrv.rvRight = rrv
+              rrv = null
+            }
+            present = true
+          }
+
+          present
+        }
+
+        def next(): JoinedRegionValue = {
+          if (!hasNext)
+            throw new NoSuchElementException("next on empty iterator")
+          present = false
+          jrv
+        }
+      }
+    }
+  }
+
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)
     assert(partitioner == rdd2.partitioner)
@@ -278,7 +349,7 @@ class OrderedRVD private(
         newRDD)
     }
   }
-  
+
   def head(n: Long): OrderedRVD = {
     require(n >= 0)
 
