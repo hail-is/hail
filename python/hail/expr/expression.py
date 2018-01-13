@@ -39,6 +39,11 @@ class Indices(object):
 
         return Indices(src, axes)
 
+    def __str__(self):
+        return 'Indices(axes={}, source={})'.format(self.axes, self.source)
+
+    def __repr__(self):
+        return 'Indices(axes={}, source={})'.format(repr(self.axes), repr(self.source))
 
 class Aggregation(object):
     def __init__(self, indices, refs):

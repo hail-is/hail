@@ -493,7 +493,7 @@ va.hist.nGreater == va.nGreater
   }
 
   @Test def testCollectAsSet() {
-    val kt = Table.range(hc, 100, Some(10))
+    val kt = Table.range(hc, 100, partitions = Some(10))
 
     assert(kt.query(Array("index.collectAsSet()"))(0)._1 == (0 until 100).toSet)
     assert(kt.union(kt, kt).query(Array("index.collectAsSet()"))(0)._1 == (0 until 100).toSet)

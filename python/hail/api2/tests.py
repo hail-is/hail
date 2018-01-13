@@ -276,19 +276,19 @@ class TableTests(unittest.TestCase):
         self.assertRaises(NotImplementedError, f)
 
     def test_joins(self):
-        kt = Table.range(1).drop('index')
+        kt = Table.range(1).drop('idx')
         kt = kt.annotate(a='foo')
 
-        kt1 = Table.range(1).drop('index')
+        kt1 = Table.range(1).drop('idx')
         kt1 = kt1.annotate(a='foo', b='bar').key_by('a')
 
-        kt2 = Table.range(1).drop('index')
+        kt2 = Table.range(1).drop('idx')
         kt2 = kt2.annotate(b='bar', c='baz').key_by('b')
 
-        kt3 = Table.range(1).drop('index')
+        kt3 = Table.range(1).drop('idx')
         kt3 = kt3.annotate(c='baz', d='qux').key_by('c')
 
-        kt4 = Table.range(1).drop('index')
+        kt4 = Table.range(1).drop('idx')
         kt4 = kt4.annotate(d='qux', e='quam').key_by('d')
 
         ktr = kt.annotate(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
@@ -318,10 +318,10 @@ class TableTests(unittest.TestCase):
 
     def test_drop(self):
         kt = Table.range(10)
-        kt = kt.annotate(sq=kt.index ** 2, foo='foo', bar='bar')
+        kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar')
 
-        self.assertEqual(kt.drop('index', 'foo').columns, ['sq', 'bar'])
-        self.assertEqual(kt.drop(kt['index'], kt['foo']).columns, ['sq', 'bar'])
+        self.assertEqual(kt.drop('idx', 'foo').columns, ['sq', 'bar'])
+        self.assertEqual(kt.drop(kt['idx'], kt['foo']).columns, ['sq', 'bar'])
 
 
 class MatrixTests(unittest.TestCase):
@@ -483,6 +483,16 @@ class MatrixTests(unittest.TestCase):
         ds = dataset.union_cols(dataset).union_cols(dataset)
         for s, count in ds.aggregate_cols(counts=agg.counter(ds.s)).counts.items():
             self.assertEqual(count, 3)
+
+    def test_index(self):
+        ds = self.get_vds(min_partitions=8)
+        self.assertEqual(ds.num_partitions(), 8)
+        ds = ds.index_rows('rowidx').index_cols('colidx')
+
+        for i, struct in enumerate(ds.cols_table().select('colidx').collect()):
+            self.assertEqual(i, struct.colidx)
+        for i, struct in enumerate(ds.rows_table().select('rowidx').collect()):
+            self.assertEqual(i, struct.rowidx)
 
 class FunctionsTests(unittest.TestCase):
     def test(self):

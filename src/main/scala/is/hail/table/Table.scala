@@ -52,13 +52,13 @@ case class TableLocalValue(globals: Row)
 object Table {
   final val fileVersion: Int = 0x101
 
-  def range(hc: HailContext, n: Int, partitions: Option[Int] = None): Table = {
+  def range(hc: HailContext, n: Int, name: String = "index", partitions: Option[Int] = None): Table = {
     val range = Range(0, n).view.map(Row(_))
     val rdd = partitions match {
       case Some(parts) => hc.sc.parallelize(range, numSlices = parts)
       case None => hc.sc.parallelize(range)
     }
-    Table(hc, rdd, TStruct("index" -> TInt32()), Array("index"))
+    Table(hc, rdd, TStruct(name -> TInt32()), Array(name))
   }
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
@@ -960,7 +960,7 @@ class Table(val hc: HailContext,
 
   def take(n: Int): Array[Row] = rdd.take(n)
 
-  def indexed(name: String = "index"): Table = {
+  def index(name: String = "index"): Table = {
     if (columns.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
 

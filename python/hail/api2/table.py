@@ -337,7 +337,7 @@ class Table(TableTemplate):
             return self.index_globals()
         else:
             exprs = item if isinstance(item, tuple) else (item,)
-            return self.index_rows(*exprs)
+            return self.view_join_rows(*exprs)
 
     @property
     @handle_py4j
@@ -1098,7 +1098,7 @@ class Table(TableTemplate):
         return kt
 
     @handle_py4j
-    def index_rows(self, *exprs):
+    def view_join_rows(self, *exprs):
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index a table')
 
@@ -1126,7 +1126,7 @@ class Table(TableTemplate):
             raise ExpressionException('found explicit join indexed by a scalar expression')
         elif isinstance(src, Table):
             for e in exprs:
-                analyze('Table.index_rows', e, src._row_indices)
+                analyze('Table.view_join_rows', e, src._row_indices)
 
             right = self
             right_keys = [right[k] for k in right.key]
@@ -1146,7 +1146,7 @@ class Table(TableTemplate):
                                   joins.push(Join(joiner, all_uids)), refs)
         elif isinstance(src, MatrixTable):
             for e in exprs:
-                analyze('Table.index_rows', e, src._entry_indices)
+                analyze('Table.view_join_rows', e, src._entry_indices)
 
             right = self
             # match on indices to determine join type
@@ -1237,21 +1237,21 @@ class Table(TableTemplate):
         -----
         The resulting table has one column:
 
-         - **index** (`Int`) - Unique row index from 0 to ``n - 1``
+         - `idx` (**Int32**) - Unique row index from 0 to `n` - 1.
 
         Parameters
         ----------
-        n : int
+        n : :obj:`int`
             Number of rows.
-        num_partitions : int
-            Number of partitions
+        num_partitions : :obj:`int`
+            Number of partitions.
 
         Returns
         -------
         :class:`.Table`
             Table with one field, `index`.
         """
-        return Table(Env.hail().table.Table.range(Env.hc()._jhc, n, joption(num_partitions)))
+        return Table(Env.hail().table.Table.range(Env.hc()._jhc, n, 'idx', joption(num_partitions)))
 
     @handle_py4j
     def cache(self):
@@ -1386,15 +1386,15 @@ class Table(TableTemplate):
 
     @handle_py4j
     @typecheck_method(name=strlike)
-    def indexed(self, name='idx'):
-        """Add the numerical index of each row as a new field.
+    def index(self, name='idx'):
+        """Add the integer index of each row as a new row field.
 
         Examples
         --------
 
         .. doctest::
 
-            >>> table_result = table1.indexed()
+            >>> table_result = table1.index()
             >>> table_result.show()
             +-------+-------+--------+-------+-------+-------+-------+-------+-------+
             |    ID |    HT | SEX    |     X |     Z |    C1 |    C2 |    C3 |   idx |
@@ -1412,7 +1412,7 @@ class Table(TableTemplate):
 
         This method returns a table with a new column whose name is given by
         the `name` parameter, with type ``Int64``. The value of this column is
-        the numerical index of each row, starting from 0. Methods that respect
+        the integer index of each row, starting from 0. Methods that respect
         ordering (like :py:meth:`Table.take` or :py:meth:`Table.export`) will
         return rows in order.
 
@@ -1431,7 +1431,7 @@ class Table(TableTemplate):
             Table with a new index field.
         """
 
-        return Table(self._jt.indexed(name))
+        return Table(self._jt.index(name))
 
     @handle_py4j
     @typecheck_method(tables=table_type)
