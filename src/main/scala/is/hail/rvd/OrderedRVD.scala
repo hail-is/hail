@@ -272,6 +272,25 @@ class OrderedRVD private(
         newRDD)
     }
   }
+  
+  def head(n: Long): OrderedRVD = {
+    require(n >= 0)
+
+    if (n == 0)
+      return OrderedRVD.empty(sparkContext, typ)
+
+    val newRDD = rdd.head(n)
+    val newNParts = newRDD.getNumPartitions
+    assert(newNParts > 0)
+
+    val newRangeBounds = (0 until (newNParts - 1)).map(partitioner.rangeBounds)
+    val newPartitioner = new OrderedRVPartitioner(newNParts,
+      partitioner.partitionKey,
+      partitioner.kType,
+      UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
+
+    OrderedRVD(typ, newPartitioner, newRDD)
+  }
 }
 
 object OrderedRVD {
