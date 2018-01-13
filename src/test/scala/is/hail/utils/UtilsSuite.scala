@@ -3,7 +3,6 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, Prop}
-import is.hail.sparkextras.OrderedRDD
 import is.hail.utils.richUtils.RichHadoopConfiguration
 import is.hail.variant._
 import org.apache.spark.storage.StorageLevel
@@ -119,26 +118,6 @@ class UtilsSuite extends SparkSuite {
       val check2 = join.forall { case (k, (_, v2)) => v2 == m2.get(k) }
 
       check1 && check2
-    }
-
-    p.check()
-  }
-
-  @Test def testKeySortIterator() {
-    val g = for {
-      gr <- GenomeReference.gen
-      seq <- Gen.distinctBuildableOf[IndexedSeq](Gen.zip(VariantSubgen.fromGenomeRef(gr).gen, arbitrary[Int]))
-    } yield (gr, seq)
-
-    val p = Prop.forAll(g) { case (gr, indSeq) =>
-      implicit val variantOrd = gr.variantOrdering
-      implicit val locusOrd = gr.locusOrdering
-      implicit val ordKey = Variant.orderedKey(gr)
-
-      val kSorted = indSeq.sortBy(_._1)
-      val localKeySorted = OrderedRDD.localKeySort(indSeq.sortBy(_._1.locus).iterator).toIndexedSeq
-
-      kSorted == localKeySorted
     }
 
     p.check()

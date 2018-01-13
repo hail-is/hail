@@ -421,10 +421,6 @@ object VSMSubgen {
 class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   val ast: MatrixIR) extends JoinAnnotator {
 
-  implicit val kOk: OrderedKey[Annotation, Annotation] = ast.typ.vType.orderedKey
-
-  implicit val kOrd: Ordering[Annotation] = kOk.kOrd
-
   def this(hc: HailContext,
     metadata: VSMMetadata,
     localValue: VSMLocalValue,
@@ -466,16 +462,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   lazy val MatrixValue(_, VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd2) = value
-
-  lazy val rdd: OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])] = value.rdd
-
-  def typedRDD[RPK, RK](implicit rkct: ClassTag[RK]): OrderedRDD[RPK, RK, (Annotation, Iterable[Annotation])] = {
-    implicit val kOk = vSignature.typedOrderedKey[RPK, RK]
-    rdd.map { case (v, (va, gs)) =>
-      (v.asInstanceOf[RK], (va, gs))
-    }
-      .toOrderedRDD
-  }
 
   def partitionCounts(): Array[Long] = {
     ast.partitionCounts match {
@@ -2152,20 +2138,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     require(fraction > 0 && fraction < 1, s"the 'fraction' parameter must fall between 0 and 1, found $fraction")
     copy2(rdd2 = rdd2.sample(withReplacement = false, fraction, seed))
   }
-
-  def copy(rdd: OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])] = rdd,
-    sampleIds: IndexedSeq[Annotation] = sampleIds,
-    sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
-    globalAnnotation: Annotation = globalAnnotation,
-    sSignature: Type = sSignature,
-    saSignature: TStruct = saSignature,
-    vSignature: Type = vSignature,
-    vaSignature: TStruct = vaSignature,
-    globalSignature: TStruct = globalSignature,
-    genotypeSignature: TStruct = genotypeSignature): MatrixTable =
-    MatrixTable(hc,
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
-      VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
 
   def copyLegacy[RK, T](rdd: RDD[(RK, (Annotation, Iterable[T]))],
     sampleIds: IndexedSeq[Annotation] = sampleIds,

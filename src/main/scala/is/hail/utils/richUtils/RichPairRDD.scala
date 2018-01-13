@@ -1,12 +1,9 @@
 package is.hail.utils.richUtils
 
-import is.hail.sparkextras.{OrderedKey, OrderedPartitioner, OrderedRDD}
-import is.hail.utils._
 import org.apache.spark.Partitioner
 import org.apache.spark.Partitioner._
 import org.apache.spark.rdd.RDD
 
-import scala.collection.TraversableOnce
 import scala.reflect.ClassTag
 
 class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
@@ -28,18 +25,4 @@ class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
       pair._1.map((_, w))
     }
   }
-
-  def asOrderedRDD[PK](implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
-    OrderedRDD.cast[PK, K, V](rdd)
-
-  def orderedRepartitionBy[PK](partitioner: OrderedPartitioner[PK, K])(implicit vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
-    OrderedRDD.shuffle(rdd, partitioner)(partitioner.kOk, vct)
-  }
-
-  def toOrderedRDD[PK](hintPartitioner: OrderedPartitioner[PK, K])
-    (implicit vct: ClassTag[V]): OrderedRDD[PK, K, V] =
-    OrderedRDD[PK, K, V](rdd, None, Some(hintPartitioner))(hintPartitioner.kOk, vct)
-
-  def toOrderedRDD[PK](implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
-    OrderedRDD[PK, K, V](rdd, None, None)
 }

@@ -525,7 +525,7 @@ object OrderedRVD {
     }
 
     val sortedness = pkis.map(_.sortedness).min
-    if (partitionsSorted && sortedness >= PartitionKeyInfo.TSORTED) {
+    if (partitionsSorted && sortedness >= OrderedRVPartitionInfo.TSORTED) {
       val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments(typ, pkis, sortedness)
 
       val unsafeRangeBounds = UnsafeIndexedSeq(TArray(typ.pkType), rangeBounds)
@@ -537,13 +537,13 @@ object OrderedRVD {
       val reorderedPartitionsRDD = rdd.reorderPartitions(pkis.map(_.partitionIndex))
       val adjustedRDD = new AdjustedPartitionsRDD(reorderedPartitionsRDD, adjustedPartitions)
       (adjSortedness: @unchecked) match {
-        case PartitionKeyInfo.KSORTED =>
+        case OrderedRVPartitionInfo.KSORTED =>
           info("Coerced sorted dataset")
           (AS_IS, OrderedRVD(typ,
             partitioner,
             adjustedRDD))
 
-        case PartitionKeyInfo.TSORTED =>
+        case OrderedRVPartitionInfo.TSORTED =>
           info("Coerced almost-sorted dataset")
           (LOCAL_SORT, OrderedRVD(typ,
             partitioner,
@@ -640,7 +640,7 @@ object OrderedRVD {
       }
 
       val adjustments = indicesBuilder.result().zipWithIndex.map { case (partitionIndex, index) =>
-        assert(sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED)
+        assert(sortedKeyInfo(partitionIndex).sortedness >= OrderedRVPartitionInfo.TSORTED)
         val f: (Iterator[RegionValue]) => Iterator[RegionValue] =
         // In the first partition, drop elements that should go in the last if necessary
           if (index == 0)
@@ -661,7 +661,7 @@ object OrderedRVD {
     }
 
     val adjSortedness = if (anyOverlaps)
-      sortedness.min(PartitionKeyInfo.TSORTED)
+      sortedness.min(OrderedRVPartitionInfo.TSORTED)
     else
       sortedness
 

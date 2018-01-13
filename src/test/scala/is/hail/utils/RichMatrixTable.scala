@@ -76,8 +76,16 @@ class RichMatrixTable(vsm: MatrixTable) {
 
   def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.sampleAnnotations)
 
+  def rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))] = ???
+
+  def typedRDD[RK](implicit rkct: ClassTag[RK]): RDD[(RK, (Annotation, Iterable[Annotation]))] = {
+    rdd.map { case (v, (va, gs)) =>
+      (v.asInstanceOf[RK], (va, gs))
+    }
+  }
+
   def variants: RDD[Annotation] = vsm.rdd.keys
 
   def variantsAndAnnotations: OrderedRDD[Annotation, Annotation, Annotation] =
-    vsm.rdd.mapValuesWithKey { case (v, (va, gs)) => va }
+    rdd.mapValuesWithKey { case (v, (va, gs)) => va }
 }

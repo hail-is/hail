@@ -3,7 +3,6 @@ package is.hail.expr.types
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.{JSONAnnotationImpex, Parser, SparkAnnotationImpex}
-import is.hail.sparkextras.OrderedKey
 import is.hail.utils
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, Variant}
@@ -244,30 +243,6 @@ abstract class Type extends BaseType with Serializable {
   val ordering: ExtendedOrdering
 
   val partitionKey: Type = this
-
-  def typedOrderedKey[PK, K] = new OrderedKey[PK, K] {
-    def project(key: K): PK = key.asInstanceOf[PK]
-
-    val kOrd: Ordering[K] = ordering.toOrdering.asInstanceOf[Ordering[K]]
-
-    val pkOrd: Ordering[PK] = ordering.toOrdering.asInstanceOf[Ordering[PK]]
-
-    val kct: ClassTag[K] = scalaClassTag.asInstanceOf[ClassTag[K]]
-
-    val pkct: ClassTag[PK] = scalaClassTag.asInstanceOf[ClassTag[PK]]
-  }
-
-  def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
-    def project(key: Annotation): Annotation = key
-
-    val kOrd: Ordering[Annotation] = ordering.toOrdering
-
-    val pkOrd: Ordering[Annotation] = ordering.toOrdering
-
-    val kct: ClassTag[Annotation] = classTag[Annotation]
-
-    val pkct: ClassTag[Annotation] = classTag[Annotation]
-  }
 
   def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
     def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)
