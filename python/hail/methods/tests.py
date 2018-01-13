@@ -30,6 +30,10 @@ class Tests(unittest.TestCase):
             Tests._dataset = hc.import_vcf('src/test/resources/sample.vcf').to_hail1().split_multi_hts().to_hail2()
         return Tests._dataset
 
+    @property
+    def test_resources(self):
+        return "src/test/resources"
+
     def test_ld_matrix(self):
         dataset = self.get_dataset()
 
@@ -254,3 +258,37 @@ class Tests(unittest.TestCase):
 
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
+
+    def test_import_interval_list(self):
+        interval_file = self.test_resources + '/annotinterall.interval_list'
+        nint = methods.import_interval_list(interval_file).count()
+        i = 0
+        with open(interval_file) as f:
+            for line in f:
+                if len(line.strip()) != 0:
+                    i += 1
+        self.assertEqual(nint, i)
+
+    def test_bed(self):
+        bed_file = self.test_resources + '/example1.bed'
+        nbed = methods.import_bed(bed_file).count()
+        i = 0
+        with open(bed_file) as f:
+            for line in f:
+                if len(line.strip()) != 0:
+                    try:
+                        int(line.split()[0])
+                        i += 1
+                    except:
+                        pass
+        self.assertEqual(nbed, i)
+
+    def test_fam(self):
+        fam_file = self.test_resources + '/sample.fam'
+        nfam = methods.import_fam(fam_file).count()
+        i = 0
+        with open(fam_file) as f:
+            for line in f:
+                if len(line.strip()) != 0:
+                    i += 1
+        self.assertEqual(nfam, i)

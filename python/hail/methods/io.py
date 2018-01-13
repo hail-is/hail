@@ -118,8 +118,8 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
                                       joption(typ._convert_to_j(metadata)))
 
 @handle_py4j
-@typecheck_method(path=strlike,
-                  reference_genome=nullable(GenomeReference))
+@typecheck(path=strlike,
+           reference_genome=nullable(GenomeReference))
 def import_interval_list(path, reference_genome=None):
     """Import an interval list file in the GATK standard format.
 
@@ -185,8 +185,8 @@ def import_interval_list(path, reference_genome=None):
     return Table(t)
 
 @handle_py4j
-@typecheck_method(path=strlike,
-                  reference_genome=nullable(GenomeReference))
+@typecheck(path=strlike,
+           reference_genome=nullable(GenomeReference))
 def import_bed(path, reference_genome=None):
     """Import a UCSC .bed file as a key table.
 
@@ -266,10 +266,10 @@ def import_bed(path, reference_genome=None):
     return Table(jt)
 
 @handle_py4j
-@typecheck_method(path=strlike,
-                  quantitative=bool,
-                  delimiter=strlike,
-                  missing=strlike)
+@typecheck(path=strlike,
+           quantitative=bool,
+           delimiter=strlike,
+           missing=strlike)
 def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA'):
     """Import PLINK .fam file into a key table.
 
