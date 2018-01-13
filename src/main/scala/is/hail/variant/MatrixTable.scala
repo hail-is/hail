@@ -1838,6 +1838,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val reorderedRDD2 = rdd2.mapPartitionsPreservesPartitioning(rdd2.typ) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
+      val ur = new UnsafeRow(localRowType)
 
       it.map { rv =>
         rvb.set(rv.region)
@@ -1847,7 +1848,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
         rvb.addField(localRowType, rv, 1) // v
         rvb.addField(localRowType, rv, 2) // va
         rvb.startArray(localNSamples) // gs
-        val ur = new UnsafeRow(localRowType, rv)
+        ur.set(rv)
         val gs = ur.getAs[IndexedSeq[Any]](3)
         var i = 0
         while (i < localNSamples) {
