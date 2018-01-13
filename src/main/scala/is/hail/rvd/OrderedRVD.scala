@@ -271,7 +271,8 @@ class OrderedRVD private(
           UnsafeIndexedSeq(TArray(typ.pkType), newPartitionIndices.init.map(rangeBounds))),
         newRDD)
     }
-
+  }
+  
   def head(n: Long): OrderedRVD = {
     require(n >= 0)
 
