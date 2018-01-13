@@ -4,10 +4,9 @@ import is.hail.expr.ir.IR
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.types._
 import is.hail.utils.EitherIsAMonad._
-import is.hail.utils.{HailException, _}
+import is.hail.utils._
 import is.hail.variant.GenomeReference
 import org.apache.spark.sql.{Row, RowFactory}
-import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer

@@ -6,6 +6,7 @@ import is.hail.check.{Gen, Prop}
 import is.hail.expr.types._
 import is.hail.io.annotators.IntervalList
 import is.hail.utils._
+import is.hail.testUtils._
 import org.testng.annotations.Test
 
 class IntervalSuite extends SparkSuite {

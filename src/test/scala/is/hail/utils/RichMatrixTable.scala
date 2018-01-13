@@ -3,6 +3,7 @@ package is.hail.utils
 import is.hail.annotations.{Annotation, Inserter, Querier, UnsafeRow}
 import is.hail.expr.{EvalContext, Parser}
 import is.hail.expr.types._
+import is.hail.sparkextras.OrderedRDD
 import is.hail.variant.MatrixTable
 import org.apache.spark.rdd.RDD
 
@@ -76,4 +77,7 @@ class RichMatrixTable(vsm: MatrixTable) {
   def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.sampleAnnotations)
 
   def variants: RDD[Annotation] = vsm.rdd.keys
+
+  def variantsAndAnnotations: OrderedRDD[Annotation, Annotation, Annotation] =
+    vsm.rdd.mapValuesWithKey { case (v, (va, gs)) => va }
 }
