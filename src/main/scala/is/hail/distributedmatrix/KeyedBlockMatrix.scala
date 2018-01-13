@@ -2,6 +2,7 @@ package is.hail.distributedmatrix
 
 import is.hail.HailContext
 import is.hail.annotations.Annotation
+import is.hail.expr.types.TInt32Required
 import is.hail.utils._
 import org.apache.spark.storage.StorageLevel
 
@@ -54,7 +55,7 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
   }
   
   def setColKeys(keys: Keys): KeyedBlockMatrix = {
-    if (bm.nRows > Int.MaxValue)
+    if (bm.nCols > Int.MaxValue)
       fatal(s"Cannot set col keys on a matrix with more than ${Int.MaxValue} cols. Found ${bm.nCols} cols")
     else if (keys.length != bm.nCols)
       fatal(s"Differing number of col keys and cols: ${keys.length}, ${bm.nCols}")    
@@ -67,6 +68,20 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
   def dropColKeys(): KeyedBlockMatrix = copy(colKeys = None)
 
   def dropKeys(): KeyedBlockMatrix = copy(rowKeys = None, colKeys = None)
+  
+  def indexRows(): KeyedBlockMatrix = {
+    if (bm.nRows > Int.MaxValue)
+      fatal(s"Cannot index rows of a matrix with more than ${Int.MaxValue} rows. Found ${bm.nRows} rows")
+
+    copy(rowKeys = Some(new Keys(TInt32Required, (0 until bm.nRows.toInt).toArray)))
+  }
+  
+  def indexCols(): KeyedBlockMatrix = {
+    if (bm.nCols > Int.MaxValue)
+      fatal(s"Cannot index cols of a matrix with more than ${Int.MaxValue} cols. Found ${bm.nCols} cols")    
+
+    copy(colKeys = Some(new Keys(TInt32Required, (0 until bm.nCols.toInt).toArray)))
+  }
   
   def unifyRowKeys(that: KeyedBlockMatrix): Option[Keys] = Keys.unify(rowKeys, that.rowKeys, "Inconsistent row keys. ")
   

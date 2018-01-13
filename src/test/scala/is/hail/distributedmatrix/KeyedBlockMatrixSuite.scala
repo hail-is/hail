@@ -46,7 +46,7 @@ class KeyedBlockMatrixSuite extends SparkSuite {
 
   def fromLocal(lm: BDM[Double], blockSize: Int = 3): KeyedBlockMatrix = {
     val bm = BlockMatrix.from(sc, lm, blockSize)
-    val rowKeys = Some(new Keys(TInt32(), (0 until lm.rows).toArray))
+    val rowKeys = Some(new Keys(TInt32Required, (0 until lm.rows).toArray))
     val colKeys = Some(new Keys(TString(), (0 until lm.cols).map(_.toString).toArray))
     new KeyedBlockMatrix(bm, rowKeys, colKeys)
   }  
@@ -65,42 +65,41 @@ class KeyedBlockMatrixSuite extends SparkSuite {
     val file = tmpDir.createTempFile("test")
     kbm.write(file)
 
-    for {
-      kbm0 <- Seq(
-        KeyedBlockMatrix.read(hc, file),
-        kbm.add(zeros),
-        kbm.add(zeros.dropRowKeys()),
-        kbm.add(zeros.dropColKeys()),
-        kbm.add(zeros.dropKeys()),
-        kbm.dropRowKeys().add(zeros),
-        kbm.dropColKeys().add(zeros),
-        kbm.dropKeys().add(zeros),
-        kbm.dropRowKeys().add(zeros.dropColKeys()),
-        kbm.dropColKeys().add(zeros.dropRowKeys()),
-        kbm.subtract(zeros),
-        kbm.multiply(idRight.dropRowKeys()).setColKeys(kbm.colKeys.get),
-        idLeft.setRowKeys(kbm.rowKeys.get).dropColKeys().multiply(kbm),
-        kbm.scalarAdd(0),
-        kbm.scalarSubtract(0),
-        kbm.scalarMultiply(1),
-        kbm.scalarDivide(1),
-        kbm.pointwiseMultiply(ones),
-        kbm.pointwiseDivide(ones),
-        kbm.vectorAddToEveryRow(Array.fill[Double](nCols)(0)),
-        kbm.vectorAddToEveryColumn(Array.fill[Double](nRows)(0)),
-        kbm.vectorPointwiseMultiplyEveryRow(Array.fill[Double](nCols)(1)),
-        kbm.vectorPointwiseMultiplyEveryColumn(Array.fill[Double](nRows)(1)),
-        kbm.transpose().transpose(),
-        kbm.filterRows(_ => true),
-        kbm.filterRows(keepRows),
-        kbm.filterCols(_ => true),
-        kbm.filterCols(keepCols),
-        kbm.filter(_ => true, _ => true),
-        kbm.filter(keepRows, keepCols),
-        kbm.cache(),
-        kbm.dropRowKeys().setRowKeys(kbm.rowKeys.get),
-        kbm.dropColKeys().setColKeys(kbm.colKeys.get)
-      )
+    for { kbm0 <- Seq(
+      KeyedBlockMatrix.read(hc, file),
+      kbm.add(zeros),
+      kbm.add(zeros.dropRowKeys()),
+      kbm.add(zeros.dropColKeys()),
+      kbm.add(zeros.dropKeys()),
+      kbm.dropRowKeys().add(zeros),
+      kbm.dropColKeys().add(zeros),
+      kbm.dropKeys().add(zeros),
+      kbm.dropRowKeys().add(zeros.dropColKeys()),
+      kbm.dropColKeys().add(zeros.dropRowKeys()),
+      kbm.subtract(zeros),
+      kbm.multiply(idRight.dropRowKeys()).setColKeys(kbm.colKeys.get),
+      idLeft.setRowKeys(kbm.rowKeys.get).dropColKeys().multiply(kbm),
+      kbm.scalarAdd(0),
+      kbm.scalarSubtract(0),
+      kbm.scalarMultiply(1),
+      kbm.scalarDivide(1),
+      kbm.pointwiseMultiply(ones),
+      kbm.pointwiseDivide(ones),
+      kbm.vectorAddToEveryRow(Array.fill[Double](nCols)(0)),
+      kbm.vectorAddToEveryColumn(Array.fill[Double](nRows)(0)),
+      kbm.vectorPointwiseMultiplyEveryRow(Array.fill[Double](nCols)(1)),
+      kbm.vectorPointwiseMultiplyEveryColumn(Array.fill[Double](nRows)(1)),
+      kbm.transpose().transpose(),
+      kbm.filterRows(_ => true),
+      kbm.filterRows(keepRows),
+      kbm.filterCols(_ => true),
+      kbm.filterCols(keepCols),
+      kbm.filter(_ => true, _ => true),
+      kbm.filter(keepRows, keepCols),
+      kbm.cache(),
+      kbm.dropRowKeys().setRowKeys(kbm.rowKeys.get),
+      kbm.dropColKeys().setColKeys(kbm.colKeys.get),
+      kbm.indexRows())
     } {
       assertSame(kbm, kbm0)
     }
@@ -113,7 +112,7 @@ class KeyedBlockMatrixSuite extends SparkSuite {
     val kbm = fromLocal(Gen.denseMatrix[Double](nRows, nCols).sample())
     
     val strRowKeys = new Keys(TString(), (0 until nRows).map(_.toString).toArray)
-    val intColKeys = new Keys(TInt32(), (0 until nCols).toArray)
+    val intColKeys = new Keys(TInt32Required, (0 until nCols).toArray)
     
     TestUtils.interceptFatal("Inconsistent row keys. Keys have different types") {
       kbm.add(kbm.setRowKeys(strRowKeys))
@@ -123,15 +122,15 @@ class KeyedBlockMatrixSuite extends SparkSuite {
       kbm.add(kbm.setColKeys(intColKeys))
     }
 
-    TestUtils.interceptFatal("Differing number of keys and rows") {
+    TestUtils.interceptFatal("Differing number of row keys and rows") {
       kbm.add(kbm.setRowKeys(intColKeys))
     }
     
-    TestUtils.interceptFatal("Differing number of keys and cols") {
+    TestUtils.interceptFatal("Differing number of col keys and cols") {
       kbm.add(kbm.setColKeys(strRowKeys))
     }
     
-    val rowKeys2 = new Keys(TInt32(), (1 until nRows + 1).toArray)
+    val rowKeys2 = new Keys(TInt32Required, (1 until nRows + 1).toArray)
     val colKeys2 = new Keys(TString(), (1 until nCols + 1).map(_.toString).toArray)
 
     TestUtils.interceptFatal("Inconsistent row keys. Key mismatch at index 0: 0, 1") {
