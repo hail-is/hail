@@ -33,8 +33,8 @@ object KeyedBlockMatrix {
 }
 
 class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKeys: Option[Keys]) extends Serializable {
-  require(rowKeys.forall(_.length == bm.nRows))
-  require(colKeys.forall(_.length == bm.nCols))
+  require(rowKeys.forall(_.length == bm.nRows), "Differing number of row keys and rows.")
+  require(colKeys.forall(_.length == bm.nCols), "Differing number of col keys and cols.")
   
   def copy(bm: BlockMatrix = bm,
     rowKeys: Option[Keys] = rowKeys,
@@ -45,15 +45,19 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
   def persist(storageLevel: StorageLevel): KeyedBlockMatrix = copy(bm.persist(storageLevel))
   
   def setRowKeys(keys: Keys): KeyedBlockMatrix = {
-    if (keys.length != bm.nRows)
-      fatal(s"Differing number of keys and rows: $keys.length, ${bm.nRows}")    
+    if (bm.nRows > Int.MaxValue)
+      fatal(s"Cannot set row keys on a matrix with more than ${Int.MaxValue} rows. Found ${bm.nRows} rows")
+    else if (keys.length != bm.nRows)
+      fatal(s"Differing number of row keys and rows: $keys.length, ${bm.nRows}")    
 
     copy(rowKeys = Some(keys))
   }
   
   def setColKeys(keys: Keys): KeyedBlockMatrix = {
-    if (keys.length != bm.nCols)
-      fatal(s"Differing number of keys and cols: ${keys.length}, ${bm.nCols}")    
+    if (bm.nRows > Int.MaxValue)
+      fatal(s"Cannot set col keys on a matrix with more than ${Int.MaxValue} cols. Found ${bm.nCols} cols")
+    else if (keys.length != bm.nCols)
+      fatal(s"Differing number of col keys and cols: ${keys.length}, ${bm.nCols}")    
 
     copy(colKeys = Some(keys))
   }
