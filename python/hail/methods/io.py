@@ -1,9 +1,9 @@
+from hail.api2 import MatrixTable, Table
+from hail.expr.types import *
+from hail.genetics import GenomeReference
+from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j, joption
-from hail.api2 import MatrixTable
-from hail.history import *
-from hail.expr.types import *
-from .misc import require_biallelic
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -116,3 +116,218 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     Env.hail().io.vcf.ExportVCF.apply(dataset._jvds, output, joption(append_to_header),
                                       Env.hail().utils.ExportType.getExportType(parallel),
                                       joption(typ._convert_to_j(metadata)))
+
+@handle_py4j
+@typecheck_method(path=strlike,
+                  reference_genome=nullable(GenomeReference))
+def import_interval_list(path, reference_genome=None):
+    """Import an interval list file in the GATK standard format.
+
+    >>> intervals = KeyTable.import_interval_list('data/capture_intervals.txt')
+
+    The File Format
+    ---------------
+
+    Hail expects an interval file to contain either three or five fields per
+    line in the following formats:
+
+    - ``contig:start-end``
+    - ``contig  start  end`` (tab-separated)
+    - ``contig  start  end  direction  target`` (tab-separated)
+
+    A file in either of the first two formats produces a key table with one
+    column:
+
+     - **interval** (*Interval*), key column
+
+    A file in the third format (with a "target" column) produces a key with two
+    columns:
+
+     - **interval** (*Interval*), key column
+     - **target** (*String*)
+
+    Note
+    ----
+    ``start`` and ``end`` match positions inclusively, e.g.
+    ``start <= position <= end``. :meth:`representation.Interval.parse`
+    is exclusive of the end position.
+
+    Note
+    ----
+    Hail uses the following ordering for contigs: 1-22 sorted numerically, then
+    X, Y, MT, then alphabetically for any contig not matching the standard human
+    chromosomes.
+
+    Warning
+    -------
+    The interval parser for these files does not support the full range of
+    formats supported by the python parser
+    :meth:`representation.Interval.parse`. 'k', 'm', 'start', and 'end' are all
+    invalid motifs in the ``contig:start-end`` format here.
+
+    Parameters
+    ----------
+    filename : :obj:`str`
+        Path to file.
+
+    reference_genome : :class:`.GenomeReference`
+        Reference genome to use. Default is
+        :class:`.HailContext.default_reference`.
+
+    Returns
+    -------
+    :class:`.Table`
+        Interval-keyed table.
+    """
+
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+    t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, rg._jrep)
+    return Table(t)
+
+@handle_py4j
+@typecheck_method(path=strlike,
+                  reference_genome=nullable(GenomeReference))
+def import_bed(path, reference_genome=None):
+    """Import a UCSC .bed file as a key table.
+
+    Examples
+    --------
+
+    Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in
+    at least one interval of the three-column BED file `file1.bed`:
+
+    >>> bed = methods.import_bed('data/file1.bed')
+    >>> vds_result = vds.annotate_rows(cnvRegion = bed[vds.v])
+
+    Add a variant annotation **va.cnvRegion** (*String*) with value given by the
+    fourth column of ``file2.bed``:
+
+    >>> bed = methods.import_bed('data/file2.bed')
+    >>> vds_result = vds.annotate_rows(cnvID = bed[vds.v])
+
+    The file formats are
+
+    .. code-block:: text
+
+        $ cat data/file1.bed
+        track name="BedTest"
+        20    1          14000000
+        20    17000000   18000000
+        ...
+
+        $ cat file2.bed
+        track name="BedTest"
+        20    1          14000000  cnv1
+        20    17000000   18000000  cnv2
+        ...
+
+
+    Notes
+    -----
+
+    The key table produced by this method has one of two possible structures. If
+    the .bed file has only three fields (``chrom``, ``chromStart``, and
+    ``chromEnd``), then the produced key table has only one column:
+
+        - **interval** (*Interval*) - Genomic interval.
+
+    If the .bed file has four or more columns, then Hail will store the fourth
+    column in the table:
+
+        - **interval** (*Interval*) - Genomic interval.
+        - **target** (*String*) - Fourth column of .bed file.
+
+    `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`__ can
+    have up to 12 fields, but Hail will only ever look at the first four. Hail
+    ignores header lines in BED files.
+
+    Warning
+    -------
+        UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105"
+        will contain locus ``5:105`` but not ``5:100``. Details
+        `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
+
+    Parameters
+    ----------
+    path : :obj:`str`
+        Path to .bed file.
+
+    reference_genome : :class:`.GenomeReference`
+        Reference genome to use. Default is
+        :meth:`.HailContext.default_reference`.
+
+    Returns
+    -------
+        :class:`.Table`
+        """
+
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+    jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, rg._jrep)
+    return Table(jt)
+
+@handle_py4j
+@typecheck_method(path=strlike,
+                  quantitative=bool,
+                  delimiter=strlike,
+                  missing=strlike)
+def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA'):
+    """Import PLINK .fam file into a key table.
+
+    Examples
+    --------
+
+    Import case-control phenotype data from a tab-separated `PLINK .fam
+    <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
+    annotations:
+
+    >>> fam_kt = KeyTable.import_fam('data/myStudy.fam')
+
+    In Hail, unlike PLINK, the user must *explicitly* distinguish between
+    case-control and quantitative phenotypes. Importing a quantitative
+    phenotype without ``quantitative=True`` will return an error
+    (unless all values happen to be ``0``, ``1``, ``2``, and ``-9``):
+
+    >>> fam_kt = KeyTable.import_fam('data/myStudy.fam', quantitative=True)
+
+    Columns
+    -------
+
+    The column, types, and missing values are shown below.
+
+        - **ID** (*String*) -- Sample ID (key column)
+        - **famID** (*String*) -- Family ID (missing = "0")
+        - **patID** (*String*) -- Paternal ID (missing = "0")
+        - **matID** (*String*) -- Maternal ID (missing = "0")
+        - **isFemale** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
+
+    One of:
+
+        - **isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9",
+        non-numeric or the ``missing`` argument, if given.
+        - **qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the
+        ``missing`` argument, if given.
+
+    Parameters
+    ----------
+    path : :obj:`str`
+        Path to .fam file.
+
+    quantitative : :obj:`bool`
+        If True, .fam phenotype is interpreted as quantitative.
+
+    delimiter : :obj:`str`
+        .fam file field delimiter regex.
+
+    missing : :obj:`str`
+        The string used to denote missing values. For case-control, 0, -9, and
+        non-numeric are also treated as missing.
+
+    Returns
+    -------
+    :class:`.Table`
+        Table with information from .fam file.
+    """
+
+    jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
+                                           quantitative, delimiter, missing)
+    return Table(jkt)
