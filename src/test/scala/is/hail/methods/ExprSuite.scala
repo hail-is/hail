@@ -644,24 +644,6 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Annotation](""" select({a:1,b:2}, a) """).contains(Annotation(1)))
     assert(eval[Boolean](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,`\tweird\t`) == drop(x, c) """).contains(true))
-    TestUtils.interceptFatal("too few arguments for method `select'")(
-      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x) """))
-    TestUtils.interceptFatal("invalid arguments for method `select'")(
-      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, 5,6,7) """))
-    TestUtils.interceptFatal("invalid arguments for method `select'\\s+Duplicate identifiers found")(
-      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,a,b,c,c) """))
-    TestUtils.interceptFatal("invalid arguments for method `select'\\s+is.hail.utils.HailException: invalid struct filter operation: fields \\[ ., . \\] not found")(
-      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,c,d,e) """))
-
-    assert(eval[Annotation](""" drop({a:1,b:2}, a) """).contains(Annotation(2)))
-    TestUtils.interceptFatal("too few arguments for method `drop'")(
-      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x) """))
-    TestUtils.interceptFatal("invalid arguments for method `drop'")(
-      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, 5,6,7) """))
-    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+Duplicate identifiers found")(
-      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,a,b,c,c) """))
-    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+is.hail.utils.HailException: invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
-      eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,b,c,d,e) """))
 
     assert(eval[Variant]("""Variant("1", 1, "A", "T")""").contains(Variant("1", 1, "A", "T")))
     assert(eval[Variant]("""Variant("1", 1, "A", ["T", "G"])""").contains(Variant("1", 1, "A", Array("T", "G"))))
