@@ -1,6 +1,6 @@
 from hail.typecheck import *
 from hail.history import HistoryMixin, record_init, record_method
-from collections import Mapping
+from collections import Mapping, OrderedDict
 
 
 class Struct(Mapping, HistoryMixin):
@@ -66,6 +66,80 @@ class Struct(Mapping, HistoryMixin):
 
     def __iter__(self):
         return iter(self._fields)
+
+    def annotate(self, **kwargs):
+        """Add new fields or recompute existing fields.
+
+        Notes
+        -----
+        If an expression in `kwargs` shares a name with a field of the
+        struct, then that field will be replaced but keep its position in
+        the struct. New fields will be appended to the end of the struct.
+
+        Parameters
+        ----------
+        kwargs : keyword args
+            Fields to add.
+
+        Returns
+        -------
+        :class:`.Struct`
+            Struct with new or updated fields.
+        """
+        d = OrderedDict(self.items())
+        for k, v in kwargs.items():
+            d[k] = v
+        return Struct(**d)
+
+    @typecheck_method(fields=strlike, kwargs=anytype)
+    def select(self, *fields, **kwargs):
+        """Select existing fields and compute new ones.
+
+        Notes
+        -----
+        The `fields` argument is a list of field names to keep. These fields
+        will appear in the resulting struct in the order they appear in
+        `fields`.
+
+        The `kwargs` arguments are new fields to add.
+
+        Parameters
+        ----------
+        fields : varargs of :obj:`str`
+            Field names to keep.
+        named_exprs : keyword args
+            New field.
+
+        Returns
+        -------
+        :class:`.Struct`
+            Struct containing specified existing fields and computed fields.
+        """
+        d = OrderedDict()
+        for a in fields:
+            d[a] = self[a]
+        for k, v in kwargs.items():
+            if k in d:
+                raise ValueError("Cannot select and assign field '{}' in the same statement".format(k))
+            d[k] = v
+        return Struct(**d)
+
+    @typecheck_method(args=strlike)
+    def drop(self, *args):
+        """Drop fields from the struct.
+
+        Parameters
+        ----------
+        fields: varargs of :obj:`str`
+            Fields to drop.
+
+        Returns
+        -------
+        :class:`.Struct`
+            Struct without certain fields.
+        """
+        d = OrderedDict((k, v) for k, v in self.items() if not k in args)
+        return Struct(**d)
 
 
 @typecheck(struct=Struct)

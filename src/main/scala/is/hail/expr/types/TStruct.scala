@@ -309,6 +309,59 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     (newStruct, merger)
   }
 
+  def annotate(other: TStruct): (TStruct, Merger) = {
+    val newFieldsBuilder = new ArrayBuilder[(String, Type)]()
+    val fieldIdxBuilder = new ArrayBuilder[Int]()
+    // In fieldIdxBuilder, positive integers are field indices from the left.
+    // Negative integers are the complement of field indices from the right.
+
+    val rightFieldIdx = other.fields.map { f => f.name -> (f.index, f.typ) }.toMap
+    val leftFields = fieldNames.toSet
+
+    fields.foreach { f =>
+      rightFieldIdx.get(f.name) match {
+        case Some((rightIdx, typ)) =>
+          fieldIdxBuilder += ~rightIdx
+          newFieldsBuilder += f.name -> typ
+        case None =>
+          fieldIdxBuilder += f.index
+          newFieldsBuilder += f.name -> f.typ
+      }
+    }
+    other.fields.foreach { f =>
+      if (!leftFields.contains(f.name)) {
+        fieldIdxBuilder += ~f.index
+        newFieldsBuilder += f.name -> f.typ
+      }
+    }
+
+    val newStruct = TStruct(newFieldsBuilder.result(): _*)
+    val fieldIdx = fieldIdxBuilder.result()
+    val leftNulls = Row.fromSeq(Array.fill[Any](size)(null))
+    val rightNulls = Row.fromSeq(Array.fill[Any](other.size)(null))
+
+    val annotator = (a1: Annotation, a2: Annotation) => {
+      if (a1 == null && a2 == null)
+        null
+      else {
+        val leftValues = if (a1 == null) leftNulls else a1.asInstanceOf[Row]
+        val rightValues = if (a2 == null) rightNulls else a2.asInstanceOf[Row]
+        val resultValues = new Array[Any](fieldIdx.length)
+        var i = 0
+        while (i < resultValues.length) {
+          val idx = fieldIdx(i)
+          if (idx < 0)
+            resultValues(i) = rightValues(~idx)
+          else
+            resultValues(i) = leftValues(idx)
+          i += 1
+        }
+        Row.fromSeq(resultValues)
+      }
+    }
+    newStruct -> annotator
+  }
+
   def filter(set: Set[String], include: Boolean = true): (TStruct, Deleter) = {
     val notFound = set.filter(name => selfField(name).isEmpty).map(prettyIdentifier)
     if (notFound.nonEmpty)

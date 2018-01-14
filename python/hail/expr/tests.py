@@ -144,3 +144,48 @@ class Tests(unittest.TestCase):
 
         str_exp = functions.capture('5')
         self.assertEqual(str_exp.dtype, TString())
+
+    def test_struct_ops(self):
+        s = functions.capture(Struct(f1=1, f2=2, f3=3))
+
+        def assert_typed(expr, result, dtype):
+            self.assertEqual(expr.dtype, dtype)
+            r, t = eval_expr_typed(expr)
+            self.assertEqual(t, dtype)
+            self.assertEqual(result, r)
+
+        assert_typed(s.drop('f3'),
+                     Struct(f1=1, f2=2),
+                     TStruct(['f1', 'f2'], [TInt32(), TInt32()]))
+
+        assert_typed(s.drop('f1'),
+                     Struct(f2=2, f3=3),
+                     TStruct(['f2', 'f3'], [TInt32(), TInt32()]))
+
+        assert_typed(s.drop(),
+                     Struct(f1=1, f2=2, f3=3),
+                     TStruct(['f1', 'f2', 'f3'], [TInt32(),TInt32(),TInt32()]))
+
+        assert_typed(s.select('f1', 'f2'),
+                     Struct(f1=1, f2=2),
+                     TStruct(['f1', 'f2'], [TInt32(), TInt32()]))
+
+        assert_typed(s.select('f2', 'f1', f4=5, f5=6),
+                     Struct(f2=2, f1=1, f4=5, f5=6),
+                     TStruct(['f2', 'f1', 'f4', 'f5'], [TInt32(), TInt32(), TInt32(), TInt32()]))
+
+        assert_typed(s.select(),
+                     Struct(),
+                     TStruct([], []))
+
+        assert_typed(s.annotate(f1=5, f2=10, f4=15),
+                     Struct(f1=5, f2=10, f3=3, f4=15),
+                     TStruct(['f1', 'f2', 'f3', 'f4'], [TInt32(), TInt32(), TInt32(), TInt32()]))
+
+        assert_typed(s.annotate(f1=5),
+                     Struct(f1=5, f2=2, f3=3),
+                     TStruct(['f1', 'f2', 'f3'], [TInt32(), TInt32(), TInt32()]))
+
+        assert_typed(s.annotate(),
+                     Struct(f1=1, f2=2, f3=3),
+                     TStruct(['f1', 'f2', 'f3'], [TInt32(),TInt32(),TInt32()]))

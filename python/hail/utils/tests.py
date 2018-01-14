@@ -82,3 +82,16 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(list(ll5), [3, 2, 1])
         self.assertEqual(list(ll6), [5, 4, 1])
+
+    def test_struct_ops(self):
+        s = Struct(a=1, b=2, c=3)
+
+        self.assertEqual(s.drop('c'), Struct(b=2, a=1))
+        self.assertEqual(s.drop('b', 'c'), Struct(a=1))
+
+        self.assertEqual(s.select('b', 'a'), Struct(b=2, a=1))
+        self.assertEqual(s.select('a', b=5), Struct(a=1, b=5))
+
+        self.assertEqual(s.annotate(), s)
+        self.assertEqual(s.annotate(x=5), Struct(a=1, b=2, c=3, x=5))
+        self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}), Struct(a=5, b=2, c=3, x=10, y=15))
