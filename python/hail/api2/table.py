@@ -130,8 +130,7 @@ class GroupedTable(TableTemplate):
 
     .. testsetup ::
 
-        table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID').to_hail2()
-        from hail2 import *
+        table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
 
     """
 

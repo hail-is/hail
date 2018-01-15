@@ -63,6 +63,7 @@ templates_path = ['_templates', '_templates/_autosummary']
 
 doctest_global_setup = """import os, shutil
 from hail import *
+from hail2 import *
 from hail.stats import *
 
 if not os.path.isdir("output/"):
@@ -75,7 +76,9 @@ for f in files:
 
 hc = HailContext(log="output/hail.log", quiet=True)
 
-(hc.import_vcf('data/sample.vcf.bgz')
+hc1 = hc._hc1
+
+(hc1.import_vcf('data/sample.vcf.bgz')
  .sample_variants(0.03)
  .annotate_variants_expr('va.useInKinship = pcoin(0.9), va.panel_maf = 0.1, va.anno1 = 5, va.anno2 = 0, va.consequence = "LOF", va.gene = "A", va.score = 5.0')
  .annotate_variants_expr('va.aIndex = 1') # as if split_multi was called
@@ -84,37 +87,36 @@ hc = HailContext(log="output/hail.log", quiet=True)
  .annotate_samples_expr('sa.isCase = true, sa.pheno.isCase = pcoin(0.5), sa.pheno.isFemale = pcoin(0.5), sa.pheno.age=rnorm(65, 10), sa.cov.PC1 = rnorm(0,1), sa.pheno.height = rnorm(70, 10), sa.cov1 = rnorm(0, 1), sa.cov2 = rnorm(0,1), sa.pheno.bloodPressure = rnorm(120,20), sa.pheno.cohortName = "cohort1"')
  .write('data/example.vds', overwrite=True))
 
-(hc.import_vcf("data/sample.vcf.bgz")
+(hc1.import_vcf("data/sample.vcf.bgz")
  .sample_variants(0.015).annotate_variants_expr('va.anno1 = 5, va.toKeep1 = true, va.toKeep2 = false, va.toKeep3 = true')
  .split_multi_hts()
  .write("data/example2.vds", overwrite=True))
 
-(hc.import_vcf("data/sample.vcf.bgz")
+(hc1.import_vcf("data/sample.vcf.bgz")
  .write("data/example2.multi.generic.vds", overwrite=True))
 
-(hc.import_vcf('data/sample.vcf.bgz')
+(hc1.import_vcf('data/sample.vcf.bgz')
  .split_multi_hts()
  .variant_qc()
- .annotate_samples_table(hc.import_table('data/example_lmmreg.tsv', 'Sample', impute=True), root='sa')
+ .annotate_samples_table(hc1.import_table('data/example_lmmreg.tsv', 'Sample', impute=True), root='sa')
  .annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
  .write("data/example_lmmreg.vds", overwrite=True))
 
-(hc.import_vcf('data/example_burden.vcf')
- .annotate_samples_table(hc.import_table('data/example_burden.tsv', 'Sample', impute=True), root='sa.burden')
+(hc1.import_vcf('data/example_burden.vcf')
+ .annotate_samples_table(hc1.import_table('data/example_burden.tsv', 'Sample', impute=True), root='sa.burden')
  .annotate_variants_expr('va.weight = v.start.toFloat64()')
  .variant_qc()
  .annotate_variants_table(KeyTable.import_interval_list('data/genes.interval_list'), root='va.genes', product=True)
  .annotate_variants_table(KeyTable.import_interval_list('data/gene.interval_list'), root='va.gene', product=False)
  .write('data/example_burden.vds', overwrite=True))
 
-vds = hc.read('data/example.vds')
+vds = hc1.read('data/example.vds')
 
-multiallelic_generic_vds = hc.read('data/example2.multi.generic.vds')
+multiallelic_generic_vds = hc1.read('data/example2.multi.generic.vds')
 
 vds.split_multi_hts().ld_matrix().write("data/ld_matrix")
 
-from hail2 import *
-table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID').to_hail2()
+table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
 table1 = table1.annotate_globals(global_field_1 = 5, global_field_2 = 10)
 
 dataset = (vds.annotate_samples_expr('sa = merge(drop(sa, qc), {sample_qc: sa.qc})')

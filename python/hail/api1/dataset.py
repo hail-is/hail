@@ -27,7 +27,7 @@ class VariantDataset(HistoryMixin):
     Once a variant dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`,
     use :py:meth:`~hail.api1.HailContext.read` to load the variant dataset into the environment.
 
-    >>> vds = hc.read("data/example.vds")
+    >>> vds = hc1.read("data/example.vds")
 
     :ivar hc: Hail Context.
     :vartype hc: :class:`hail.api1.context.HailContext`
@@ -60,7 +60,7 @@ class VariantDataset(HistoryMixin):
 
         Import a text table and construct a sites-only VDS:
 
-        >>> table = hc.import_table('data/variant-lof.tsv', types={'v': TVariant()}).key_by('v')
+        >>> table = hc1.import_table('data/variant-lof.tsv', types={'v': TVariant()}).key_by('v')
         >>> sites_vds = VariantDataset.from_table(table)
 
         **Notes**
@@ -397,7 +397,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         Compute the list of genes with a singleton LOF per sample:
 
-        >>> variant_annotations_table = hc.import_table('data/consequence.tsv', impute=True).key_by('Variant')
+        >>> variant_annotations_table = hc1.import_table('data/consequence.tsv', impute=True).key_by('Variant')
         >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, root='va.consequence')
         ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.GT.nNonRefAlleles()).sum() == 1')
         ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.GT.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
@@ -446,7 +446,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         To annotates samples using `samples1.tsv` with type imputation::
 
-        >>> table = hc.import_table('data/samples1.tsv', impute=True).key_by('Sample')
+        >>> table = hc1.import_table('data/samples1.tsv', impute=True).key_by('Sample')
         >>> vds_result = vds.annotate_samples_table(table, root='sa.pheno')
 
         Given this file
@@ -464,7 +464,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         To annotate without type imputation, resulting in all String types:
 
-        >>> annotations = hc.import_table('data/samples1.tsv').key_by('Sample')
+        >>> annotations = hc1.import_table('data/samples1.tsv').key_by('Sample')
         >>> vds_result = vds.annotate_samples_table(annotations, root='sa.phenotypes')
 
         **Detailed examples**
@@ -490,7 +490,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         - Pass the non-default missing value ``.``
 
-        >>> annotations = hc.import_table('data/samples2.tsv', delimiter=',', missing='.').key_by('PT-ID')
+        >>> annotations = hc1.import_table('data/samples2.tsv', delimiter=',', missing='.').key_by('PT-ID')
         >>> vds_result = vds.annotate_samples_table(annotations, root='sa.batch')
 
         Let's import annotations from a file with no header and sample IDs that need to be transformed.
@@ -508,7 +508,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         To import it:
 
-        >>> annotations = (hc.import_table('data/samples3.tsv', no_header=True)
+        >>> annotations = (hc1.import_table('data/samples3.tsv', no_header=True)
         ...                  .annotate('sample = f0.split("_")[1]')
         ...                  .key_by('sample'))
         >>> vds_result = vds.annotate_samples_table(annotations,
@@ -673,17 +673,17 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         Add annotations from a variant-keyed tab separated file:
 
-        >>> table = hc.import_table('data/variant-lof.tsv', impute=True).key_by('v')
+        >>> table = hc1.import_table('data/variant-lof.tsv', impute=True).key_by('v')
         >>> vds_result = vds.annotate_variants_table(table, root='va.lof')
 
         Add annotations from a locus-keyed TSV:
 
-        >>> kt = hc.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
+        >>> kt = hc1.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
         >>> vds_result = vds.annotate_variants_table(table, root='va.scores')
 
         Add annotations from a gene-and-type-keyed TSV:
 
-        >>> table = hc.import_table('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
+        >>> table = hc1.import_table('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
         >>> vds_result = (vds.annotate_variants_table(table,
         ...       root='va.foo',
         ...       vds_key=['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
@@ -833,7 +833,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         Import a second variant dataset with annotations to merge into ``vds``:
 
         >>> vds1 = vds.annotate_variants_expr('va = drop(va, anno1)')
-        >>> vds2 = (hc.read("data/example2.vds")
+        >>> vds2 = (hc1.read("data/example2.vds")
         ...           .annotate_variants_expr('va = select(va, anno1, toKeep1, toKeep2, toKeep3)'))
 
         Copy the ``anno1`` annotation from ``other`` to ``va.annot``:
@@ -1109,7 +1109,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
             if db_file.endswith('.vds'):
 
                 # annotate analysis VDS with database VDS
-                self = self.annotate_variants_vds(self.hc.read(db_file), expr=expr)
+                self = self.annotate_variants_vds(self.hc1.read(db_file), expr=expr)
 
             # if database file is a keytable
             elif db_file.endswith('.kt'):
@@ -1124,7 +1124,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                     vds_key = None
 
                 # annotate analysis VDS with database keytable
-                self = self.annotate_variants_table(self.hc.read_table(db_file), expr=expr, vds_key=vds_key)
+                self = self.annotate_variants_table(self.hc1.read_table(db_file), expr=expr, vds_key=vds_key)
 
             else:
                 continue
@@ -1156,7 +1156,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         **Example**
 
-        >>> comparison_vds = hc.read('data/example2.vds')
+        >>> comparison_vds = hc1.read('data/example2.vds')
         >>> summary, samples, variants = vds.concordance(comparison_vds)
 
         **Notes**
@@ -1183,7 +1183,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         index is the state in the right dataset (the argument to the concordance method call). Typical uses of
         the summary list are shown below.
 
-        >>> summary, samples, variants = vds.concordance(hc.read('data/example2.vds'))
+        >>> summary, samples, variants = vds.concordance(hc1.read('data/example2.vds'))
         >>> left_homref_right_homvar = summary[2][4]
         >>> left_het_right_missing = summary[3][1]
         >>> left_het_right_something_else = sum(summary[3][:]) - summary[3][3]
@@ -1365,7 +1365,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         Import genotype probability data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
 
-        >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+        >>> vds3 = hc1.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
 
         >>> (vds3.filter_variants_expr('gs.map(g => g.GP).infoScore().score >= 0.9')
         ...      .export_gen('output/infoscore_filtered'))
@@ -2066,12 +2066,12 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         Keep samples in a text file:
 
-        >>> table = hc.import_table('data/samples1.tsv').key_by('Sample')
+        >>> table = hc1.import_table('data/samples1.tsv').key_by('Sample')
         >>> vds_filtered = vds.filter_samples_table(table, keep=True)
 
         Remove samples in a text file with 1 field, and no header:
 
-        >>> to_remove = hc.import_table('data/exclude_samples.txt', no_header=True).key_by('f0')
+        >>> to_remove = hc1.import_table('data/exclude_samples.txt', no_header=True).key_by('f0')
         >>> vds_filtered = vds.filter_samples_table(to_remove, keep=False)
 
         **Notes**
@@ -2274,13 +2274,13 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         Filter variants of a VDS to those appearing in a text file:
 
-        >>> kt = hc.import_table('data/sample_variants.txt', key='Variant', impute=True)
+        >>> kt = hc1.import_table('data/sample_variants.txt', key='Variant', impute=True)
         >>> filtered_vds = vds.filter_variants_table(kt, keep=True)
 
         Keep all variants whose chromosome and position (locus) appear in a file with
         a chromosome:position column:
 
-        >>> kt = hc.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
+        >>> kt = hc1.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
         >>> filtered_vds = vds.filter_variants_table(kt, keep=True)
 
         Remove all variants which overlap an interval in a UCSC BED file:
@@ -2901,7 +2901,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         Suppose the variant dataset saved at *data/example_lmmreg.vds* has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
 
-        >>> assoc_vds = hc.read("data/example_lmmreg.vds")
+        >>> assoc_vds = hc1.read("data/example_lmmreg.vds")
         >>> kinship_matrix = assoc_vds.filter_variants_expr('va.useInKinship').rrm()
         >>> lmm_vds = assoc_vds.lmmreg(kinship_matrix, 'sa.pheno', 'g.GT.nNonRefAlleles()', ['sa.cov1', 'sa.cov2'])
 
@@ -4249,7 +4249,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         Use a file with an "old_id" and "new_id" column to rename samples:
 
-        >>> mapping_table = hc.import_table('data/sample_mapping.txt')
+        >>> mapping_table = hc1.import_table('data/sample_mapping.txt')
         >>> mapping_dict = {row.old_id: row.new_id for row in mapping_table.collect()}
         >>> vds_result = vds.rename_samples(mapping_dict)
 
@@ -4663,7 +4663,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         Test each gene for association using the linear sequence kernel association test:
 
-        >>> skat_kt = (hc.read('data/example_burden.vds')
+        >>> skat_kt = (hc1.read('data/example_burden.vds')
         ...              .skat(key_expr='va.gene',
         ...                    weight_expr='va.weight',
         ...                    y='sa.burden.pheno',
