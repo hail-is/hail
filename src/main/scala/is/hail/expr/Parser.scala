@@ -428,10 +428,10 @@ object Parser extends JavaTokenParsers {
     }
 
   def primary_expr: Parser[AST] =
-    withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
-      withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
+    withPos("""-?\d*\.\d+([eE][+-]?\d+)?[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
       withPos(wholeNumber <~ "[Ll]".r) ^^ (r => Const(r.pos, r.x.toLong, TInt64())) |
       withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt32())) |
+      withPos(floatingPointNumber) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
       withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString()) } |
       withPos("NA" ~> ":" ~> type_expr) ^^ (r => Const(r.pos, null, r.x)) |
       withPos(arrayDeclaration) ^^ (r => ArrayConstructor(r.pos, r.x)) |

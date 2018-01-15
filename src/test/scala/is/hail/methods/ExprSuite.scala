@@ -989,6 +989,8 @@ class ExprSuite extends SparkSuite {
 
     assert(evalWithType[Any]("1.toInt64() / 1.toInt64()") == TFloat32Optional -> Some(1.0f))
     assert(evalWithType[Any]("[1.toInt64()] / [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
+
+    assert(eval[Double]("1.1e-15").contains(1.1e-15))
   }
 
   @Test def testParseTypes() {
