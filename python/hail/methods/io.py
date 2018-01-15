@@ -4,6 +4,106 @@ from hail.genetics import GenomeReference
 from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j, joption
+from hail.history import *
+from .misc import require_biallelic
+
+@handle_py4j
+@typecheck_method(table=Table,
+                  address=strlike,
+                  keyspace=strlike,
+                  table_name=strlike,
+                  block_size=integral,
+                  rate=integral)
+def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=1000):
+    """Export to Cassandra.
+
+    Warning
+    -------
+      :meth:`export_cassandra` is EXPERIMENTAL.
+    """
+
+    table._jkt.exportCassandra(address, keyspace, table_name, block_size, rate)
+
+@handle_py4j
+@require_biallelic
+### @write_history('output')
+@typecheck_method(dataset=MatrixTable,
+                  output=strlike,
+                  precision=integral)
+def export_gen(dataset, output, precision=4):
+    """Export variant dataset as GEN and SAMPLE file.
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    .. include:: ../_templates/req_biallelic.rst
+
+    Examples
+    --------
+    Import genotype probability data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
+
+    >>> dataset = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample") # doctest: +SKIP
+    >>> dataset = dataset.filter_rows(agg.infoScore(dataset.GP).score >= 0.9) # doctest: +SKIP
+    >>> methods.export_gen(dataset, 'output/infoscore_filtered') # doctest: +SKIP
+
+    Notes
+    -----
+    Writes out the internal dataset to a GEN and SAMPLE fileset in the
+    `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`__.
+
+    The first 6 columns of the resulting GEN file are the following:
+
+    - Chromosome (``v.contig``)
+    - Variant ID (``va.varid`` if defined, else Chromosome:Position:Ref:Alt)
+    - rsID (``va.rsid`` if defined, else ".")
+    - position (``v.start``)
+    - reference allele (``v.ref``)
+    - alternate allele (``v.alt``)
+
+    Genotype probabilities:
+
+    - 3 probabilities per sample ``(pHomRef, pHet, pHomVar)``.
+    - Any filtered genotypes will be output as ``(0.0, 0.0, 0.0)``.
+    - If the input data contained Phred-scaled likelihoods, the probabilities
+      in the GEN file will be the normalized genotype probabilities assuming
+      a uniform prior.
+    - If the input data did not have genotype probabilities such as data
+      imported using :py:meth:`~hail.api2.HailContext.import_plink`, all
+      genotype probabilities will be ``(0.0, 0.0, 0.0)``.
+
+    The sample file has 3 columns:
+
+    - ID_1 and ID_2 are identical and set to the sample ID (``s``).
+    - The third column ("missing") is set to 0 for all samples.
+
+    ### A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
+    Parameters
+    ----------
+    dataset : :class:`.MatrixTable`
+        Dataset.
+    output : :obj:`str`
+        Output file root for GEN and SAMPLE files.
+    precision : int
+        Number of digits after the decimal point at which each probability is
+        truncated.
+    """
+
+    Env.hail().io.gen.ExportGen.apply(dataset._jvds, output, precision)
+
+@handle_py4j
+@typecheck_method(table=Table,
+                  zk_host=strlike,
+                  collection=strlike,
+                  block_size=integral)
+def export_solr(table, zk_host, collection, block_size=100):
+    """Export to Solr.
+    
+    Warning
+    -------
+      :meth:`export_solr` is EXPERIMENTAL.
+    """
+
+    table._jkt.exportSolr(zk_host, collection, block_size)
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
