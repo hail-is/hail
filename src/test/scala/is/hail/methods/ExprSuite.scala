@@ -989,8 +989,6 @@ class ExprSuite extends SparkSuite {
 
     assert(evalWithType[Any]("1.toInt64() / 1.toInt64()") == TFloat32Optional -> Some(1.0f))
     assert(evalWithType[Any]("[1.toInt64()] / [1.toInt64()]") == TArray(TFloat32Optional) -> Some(IndexedSeq(1.0f)))
-
-    assert(eval[Double]("1.1e-15").contains(1.1e-15))
   }
 
   @Test def testParseTypes() {
@@ -1130,5 +1128,17 @@ class ExprSuite extends SparkSuite {
       val (a, t) = hc.eval(sym)
       assert(t.typeCheck(a), s"problematic symbol: '$sym'")
     }
+  }
+
+  @Test def testFloatingPoint() {
+    def evalWithType[T](s: String): (Type, Option[T]) = {
+      val (t, f) = Parser.parseExpr(s, EvalContext())
+      (t, Option(f()).map(_.asInstanceOf[T]))
+    }
+
+    assert(evalWithType("1.1e-15") == TFloat64Optional -> Some(1.1e-15))
+    assert(evalWithType("1e-8") == TFloat64Optional -> Some(1e-8))
+    assert(evalWithType("1.1") == TFloat64Optional -> Some(1.1))
+    assert(evalWithType("1") == TInt32Optional -> Some(1))
   }
 }

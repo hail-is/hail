@@ -428,10 +428,10 @@ object Parser extends JavaTokenParsers {
     }
 
   def primary_expr: Parser[AST] =
-    withPos("""-?\d*\.\d+([eE][+-]?\d+)?[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
+    withPos("""-?\d+(\.\d+)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
+      withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
       withPos(wholeNumber <~ "[Ll]".r) ^^ (r => Const(r.pos, r.x.toLong, TInt64())) |
       withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt32())) |
-      withPos(floatingPointNumber) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64())) |
       withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString()) } |
       withPos("NA" ~> ":" ~> type_expr) ^^ (r => Const(r.pos, null, r.x)) |
       withPos(arrayDeclaration) ^^ (r => ArrayConstructor(r.pos, r.x)) |
@@ -538,13 +538,13 @@ object Parser extends JavaTokenParsers {
       .toArray
   }
 
-  def type_expr: Parser[Type] = _required_type ~ _type_expr ^^ {case req ~ t => if (req) !t else t }
+  def type_expr: Parser[Type] = _required_type ~ _type_expr ^^ { case req ~ t => if (req) !t else t }
 
-  def _required_type: Parser[Boolean] = "!" ^^ {_ => true} | success(false)
+  def _required_type: Parser[Boolean] = "!" ^^ { _ => true } | success(false)
 
   def _type_expr: Parser[Type] =
     "Empty" ^^ { _ => TStruct.empty() } |
-  // FIXME for backward compatability
+      // FIXME for backward compatability
       "Interval" ~> ("(" ~> identifier <~ ")" ^^ { id => TInterval(GenomeReference.getReference(id).locusType) } |
         "[" ~> type_expr <~ "]" ^^ { pointType => TInterval(pointType) }) |
       "Boolean" ^^ { _ => TBoolean() } |
