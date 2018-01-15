@@ -36,9 +36,9 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         We strongly recommended compressed (``.bgz`` extension) and parallel
         output (``parallel=True``) when exporting large VCFs.
 
-    Hail exports the fields of Struct ``info`` as INFO fields,
-    the elements of Set[String] ``filters`` as FILTERS, and the
-    value of Float64 ``qual`` as QUAL. No other row fields are exported.
+    Hail exports the fields of Struct `info` as INFO fields,
+    the elements of Set[String] `filters` as FILTERS, and the
+    value of Float64 `qual` as QUAL. No other row fields are exported.
 
     The FORMAT field is generated from the genotype schema, which
     must be a :py:class:`~hail.expr.TStruct`.  There is a FORMAT
@@ -49,7 +49,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     must be a valid Int32. Arrays and Sets containing these types are also
     allowed but cannot be nested; for example, Array[Array[Int32]] is invalid.
     Sets and Arrays are output with the same comma-separated format. Boolean
-    fields are also permitted in ``info`` and will generate INFO fields of
+    fields are also permitted in `info` and will generate INFO fields of
     VCF type Flag. 
 
     Hail also exports the name, length, and assembly of each contig as a VCF
@@ -59,7 +59,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     Consider the workflow of importing a VCF and immediately exporting the
     dataset back to VCF. The output VCF header will contain FORMAT lines for
     each genotype field, CONTIG lines for the reference genome of the dataset,
-    and INFO lines for all fields in ``info``, but they will have empty
+    and INFO lines for all fields in `info`, but they will have empty
     Description fields and the Number and Type fields will be determined from
     their corresponding Hail types. To add a desired Description, Number, and/or
     Type to a FORMAT or INFO field or to specify FILTER lines, use the
@@ -74,13 +74,13 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     Warning
     -------
         If samples or genotypes are filtered after import, the value stored in
-        ``info.AC`` value may no longer reflect the number of called
+        `info.AC` value may no longer reflect the number of called
         alternate alleles in the filtered VDS. If the filtered dataset is then
         exported to VCF, downstream tools may produce erroneous results. The
-        solution is to create new annotations in ``info`` or overwrite
+        solution is to create new annotations in `info` or overwrite
         existing annotations. For example, in order to produce an accurate
-        ``AC`` field, one can run :meth:`variant_qc` and copy the
-        ``variant_qc.AC`` field to ``info.AC`` as shown below.
+        `AC` field, one can run :meth:`variant_qc` and copy the
+        `variant_qc.AC` field to `info.AC` as shown below.
 
     >>> dataset = dataset.filter_entries(dataset.GQ >= 20)
     >>> dataset = methods.variant_qc(dataset)
