@@ -226,7 +226,7 @@ class Tests(unittest.TestCase):
         vcf_metadata = hc.get_vcf_metadata('src/test/resources/sample.vcf.bgz')
         methods.export_vcf(dataset, '/tmp/sample.vcf', metadata=vcf_metadata)
         dataset_imported = hc.import_vcf('/tmp/sample.vcf')
-        self.assertTrue(dataset.same(dataset_imported))
+        self.assertTrue(dataset._same(dataset_imported))
 
         metadata_imported = hc.get_vcf_metadata('/tmp/sample.vcf')
         self.assertDictEqual(vcf_metadata, metadata_imported)
