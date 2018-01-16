@@ -49,7 +49,7 @@ object LogisticRegression {
         nullFit = LogisticRegressionFit(nullModel.bInterceptOnly(),
           None, None, 0, nullFit.nIter, exploded = nullFit.exploded, converged = false)
       else
-        fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
+        fatal("Failed to fit logistic regression null model (standard MLE with covariates only): " + (
           if (nullFit.exploded)
             s"exploded at Newton iteration ${ nullFit.nIter }"
           else

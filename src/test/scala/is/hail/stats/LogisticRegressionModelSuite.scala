@@ -239,4 +239,17 @@ class LogisticRegressionModelSuite extends SparkSuite {
     assert(D_==(firthFit.logLkhd, firthLogLkhdR, tol))
     assert(D_==(firthStats.p, firthPValR, tol))
   }
+  
+  @Test def firthSeparationTest() {
+    val y = DenseVector(0d, 0d, 0d, 1d, 1d, 1d)
+    val X = y.asDenseMatrix.t
+
+    val nullModel = new LogisticRegressionModel(X, y) // separation => MLE does not exist
+    var nullFit = nullModel.fit()
+    assert(!nullFit.converged)
+        
+    nullFit = LogisticRegressionFit(nullModel.bInterceptOnly(),
+          None, None, 0, nullFit.nIter, exploded = nullFit.exploded, converged = false)
+    assert(FirthTest.test(X, y, nullFit).stats.isDefined) // firth penalized MLE still exists
+  }
 }
