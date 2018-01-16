@@ -126,7 +126,7 @@ def import_interval_list(path, reference_genome=None):
     Examples
     --------
 
-    >>> intervals = KeyTable.import_interval_list('data/capture_intervals.txt')
+    >>> intervals = methods.import_interval_list('data/capture_intervals.txt')
 
     Notes
     -----
@@ -192,17 +192,9 @@ def import_bed(path, reference_genome=None):
     Examples
     --------
 
-    Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in
-    at least one interval of the three-column BED file `file1.bed`:
-
     >>> bed = methods.import_bed('data/file1.bed')
-    >>> vds_result = vds.annotate_rows(cnvRegion = bed.exists(bed['interval'].contains(vds.v)))
-
-    Add a variant annotation **va.cnvRegion** (*String*) with value given by the
-    fourth column of ``file2.bed``:
 
     >>> bed = methods.import_bed('data/file2.bed')
-    >>> vds_result = vds.annotate_rows(cnvID = bed[vds.v])
 
     The file formats are
 
@@ -258,8 +250,20 @@ def import_bed(path, reference_genome=None):
     Returns
     -------
     :class:`.Table`
-        Inteval-indexed table containing information from file.
-        """
+        Interval-indexed table containing information from file.
+    """
+    # FIXME: once interval join support is added, add the following examples:
+    # Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in
+    # at least one interval of the three-column BED file `file1.bed`:
+
+    # >>> bed = methods.import_bed('data/file1.bed')
+    # >>> vds_result = vds.annotate_rows(cnvRegion = bed[vds.v])
+
+    # Add a variant annotation **va.cnvRegion** (*String*) with value given by the
+    # fourth column of ``file2.bed``:
+
+    # >>> bed = methods.import_bed('data/file2.bed')
+    # >>> vds_result = vds.annotate_rows(cnvID = bed[vds.v])
 
     rg = reference_genome if reference_genome else Env.hc().default_reference
     jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, rg._jrep)
