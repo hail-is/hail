@@ -254,10 +254,16 @@ object MatrixTable {
 
   def unionRows(datasets: Array[MatrixTable]): MatrixTable = {
     require(datasets.length >= 2)
+    val first = datasets(0)
+    val sc = first.sparkContext
 
     checkDatasetSchemasCompatible(datasets)
-    val (first, others) = (datasets.head, datasets.tail)
-    first.copyLegacy(rdd = first.sparkContext.union(datasets.map(_.rdd)))
+
+    first.copy2(
+      rdd2 = OrderedRVD(
+        first.rdd2.typ,
+        sc.union(datasets.map(_.rdd2.rdd)),
+        None, None))
   }
 
   def fromTable(kt: Table): MatrixTable = {
