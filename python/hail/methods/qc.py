@@ -1,7 +1,16 @@
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j
-from hail.api2 import MatrixTable
+from hail.api2 import MatrixTable, Table
 from .misc import require_biallelic
+
+
+@handle_py4j
+@typecheck(dataset=MatrixTable, method=strlike)
+def _verify_biallelic(dataset, method):
+    dataset_verified = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, method))
+    # FIXME: incorporate when history working on MatrixTable
+    # dataset_verified._history = dataset._history
+    return dataset_verified
 
 
 @handle_py4j
@@ -169,6 +178,123 @@ def variant_qc(dataset, name='variant_qc'):
     """
 
     return MatrixTable(Env.hail().methods.VariantQC.apply(dataset._jvds, 'va.`{}`'.format(name)))
+
+
+@handle_py4j
+@require_biallelic
+@typecheck(left=MatrixTable,
+           right=MatrixTable)
+def concordance(left, right):
+    """Calculate call concordance with another dataset.
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    .. include:: ../_templates/req_biallelic.rst
+
+    .. testsetup::
+
+        dataset2 = dataset
+
+    Examples
+    --------
+
+    Compute concordance between two datasets and output the global concordance
+    statistics and two tables with concordance computed per column key and per
+    row key:
+
+    >>> global_conc, cols_conc, rows_conc = methods.concordance(dataset, dataset2)
+
+    Notes
+    -----
+
+    This method computes the genotype call concordance (from the entry field
+    **GT**) between two biallelic datasets. It performs an inner join on column
+    keys (only column keys in both datasets will be considered), and an outer
+    join on row keys. If a column key is duplicated in the right dataset, the
+    column joined with the left dataset will be randomly chosen. If a row key is
+    only in one dataset, then each genotype is treated as "no data" in the
+    other. This method returns a tuple of three objects: a nested list of list
+    of int with global concordance summary statistics, a table with concordance
+    statistics per column key, and a table with concordance statistics per row
+    key.
+
+    **Using the global summary result**
+
+    The global summary is a list of list of int (conceptually a 5 by 5 matrix),
+    where the indices have special meaning:
+
+    0. No Data (missing variant)
+    1. No Call (missing genotype call)
+    2. Hom Ref
+    3. Heterozygous
+    4. Hom Var
+
+    The first index is the state in the left dataset and the second index is
+    the state in the right dataset. Typical uses of the summary list are shown
+    below.
+
+    >>> summary, samples, variants = methods.concordance(dataset, dataset2)
+    >>> left_homref_right_homvar = summary[2][4]
+    >>> left_het_right_missing = summary[3][1]
+    >>> left_het_right_something_else = sum(summary[3][:]) - summary[3][3]
+    >>> total_concordant = summary[2][2] + summary[3][3] + summary[4][4]
+    >>> total_discordant = sum([sum(s[2:]) for s in summary[2:]]) - total_concordant
+
+    **Using the table results**
+
+    Table 1: Concordance statistics per column key
+
+        - **s** -- column key.
+        - **nDiscordant** (*Long*) -- Count of discordant calls (see below for
+          full definition).
+        - **concordance** (*Array[Array[Long]]*) -- Array of concordance per
+          state on left and right, matching the structure of the global summary
+          defined above.
+
+    Table 2: Concordance statistics per row key
+
+        - **v** -- row key.
+        - **nDiscordant** (*Long*) -- Count of discordant calls (see below for
+          full definition).
+        - **concordance** (*Array[Array[Long]]*) -- Array of concordance per
+          state on left and right, matching the structure of the global summary
+          defined above.
+
+    In these tables, the column **nDiscordant** is provided as a convenience,
+    because this is often one of the most useful concordance statistics. This
+    value is the number of genotypes which were called (homozygous reference,
+    heterozygous, or homozygous variant) in both datasets, but where the call
+    did not match between the two.
+
+    The column **concordance** matches the structure of the global summmary,
+    which is detailed above. Once again, the first index into this array is the
+    state on the left, and the second index is the state on the right. For
+    example, ``concordance[1][4]`` is the number of "no call" genotypes on the
+    left that were called homozygous variant on the right.
+
+    Parameters
+    ----------
+    left : :class:`.MatrixTable`
+        First dataset to compare.
+    right : :class:`.MatrixTable`
+        Second dataset to compare.
+
+    Returns
+    -------
+    (list of list of int, :class:`.Table`, :class:`.Table`)
+        The global concordance statistics, a table with concordance statistics
+        per column key, and a table with concordance statistics per row key.
+    """
+
+    right = _verify_biallelic(right, "concordance, right")
+
+    r = Env.hail().methods.CalculateConcordance.apply(left._jvds, right._jvds)
+    j_global_conc = r._1()
+    col_conc = Table(r._2())
+    row_conc = Table(r._3())
+    global_conc = [[j_global_conc.apply(j).apply(i) for i in xrange(5)] for j in xrange(5)]
+
+    return global_conc, col_conc, row_conc
 
 
 @handle_py4j

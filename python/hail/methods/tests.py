@@ -220,7 +220,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(ind.key, ['s'])
         self.assertEqual(var.key, ['v'])
         dataset.annotate_rows(mendel=var[dataset.v]).count_rows()
-        
+
     def test_export_vcf(self):
         dataset = hc.import_vcf('src/test/resources/sample.vcf.bgz')
         vcf_metadata = hc.get_vcf_metadata('src/test/resources/sample.vcf.bgz')
@@ -230,3 +230,27 @@ class Tests(unittest.TestCase):
 
         metadata_imported = hc.get_vcf_metadata('/tmp/sample.vcf')
         self.assertDictEqual(vcf_metadata, metadata_imported)
+
+    def test_concordance(self):
+        dataset = self.get_dataset()
+        glob_conc, cols_conc, rows_conc = methods.concordance(dataset, dataset)
+
+        self.assertEqual(sum([sum(glob_conc[i]) for i in range(5)]), dataset.count_rows() * dataset.count_cols())
+
+        counts = dataset.aggregate_entries(nHet=agg.count(agg.filter(dataset.GT.is_het(), dataset.GT)),
+                                           nHomRef=agg.count(agg.filter(dataset.GT.is_hom_ref(), dataset.GT)),
+                                           nHomVar=agg.count(agg.filter(dataset.GT.is_hom_var(), dataset.GT)),
+                                           nNoCall=agg.count(agg.filter(functions.is_missing(dataset.GT), dataset.GT)))
+
+        self.assertEqual(glob_conc[0][0], 0)
+        self.assertEqual(glob_conc[1][1], counts.nNoCall)
+        self.assertEqual(glob_conc[2][2], counts.nHomRef)
+        self.assertEqual(glob_conc[3][3], counts.nHet)
+        self.assertEqual(glob_conc[4][4], counts.nHomVar)
+        [self.assertEqual(glob_conc[i][j], 0) for i in range(5) for j in range(5) if i != j]
+
+        self.assertTrue(cols_conc.forall(cols_conc.concordance.flatten().sum() == dataset.count_rows()))
+        self.assertTrue(rows_conc.forall(rows_conc.concordance.flatten().sum() == dataset.count_cols()))
+
+        cols_conc.write('/tmp/foo.kt', overwrite=True)
+        rows_conc.write('/tmp/foo.kt', overwrite=True)
