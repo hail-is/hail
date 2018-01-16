@@ -16,6 +16,7 @@ Methods
     hail.methods.ibd
     hail.methods.pca
     hail.methods.hwe_normalized_pca
+    hail.methods.pca_relate
     hail.methods.rename_duplicates
     hail.methods.split_multi_hts
     hail.methods.mendel_errors
@@ -40,6 +41,7 @@ Methods
 .. autofunction:: hail.methods.ibd
 .. autofunction:: hail.methods.pca
 .. autofunction:: hail.methods.hwe_normalized_pca
+.. autofunction:: hail.methods.pc_relate
 .. autofunction:: hail.methods.rename_duplicates
 .. autofunction:: hail.methods.split_multi_hts
 .. autofunction:: hail.methods.mendel_errors
