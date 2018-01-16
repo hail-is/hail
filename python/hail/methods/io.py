@@ -78,13 +78,11 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     Warning
     -------
-    Hail makes no assumptions about the meaning of `info` fields. In
-    particular, the values stored at import do `not` automatically reflect
-    modifications to the dataset. For example, if samples or genotypes are
-    filtered, then `info.AC` value may no longer equal the number of called
-    alternate alleles in the filtered dataset. If the filtered dataset is then
-    exported to VCF, downstream tools which make use of `AC` (or `AF`, `AC`,
-    `AN`, ...) may produce erroneous results. The solution is to create new
+    INFO fields stored at VCF import are `not` automatically modified to
+    reflect filtering of samples or genotypes, which can affect the value of
+    AC (allele count), AF (allele frequency), AN (allele number), etc. If a
+    filtered dataset is exported to VCF without updating `info`, downstream
+    tools which may produce erroneous results. The solution is to create new
     annotations in `info` or overwrite existing annotations. For example, in
     order to produce an accurate `AC` field, one can run :meth:`variant_qc` and
     copy the `variant_qc.AC` field to `info.AC` as shown below.
