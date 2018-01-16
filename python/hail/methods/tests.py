@@ -106,6 +106,25 @@ class Tests(unittest.TestCase):
 
         dataset.count_rows()
 
+    def test_logreg(self):
+        dataset = hc.import_vcf('src/test/resources/regressionLinear.vcf')
+        phenos = hc.import_table('src/test/resources/regressionLogisticBoolean.pheno',
+                                 missing='0',
+                                 types={'isCase': TBoolean()},
+                                 key='Sample')
+        covs = hc.import_table('src/test/resources/regressionLinear.cov',
+                               types={'Cov1': TFloat64(), 'Cov2': TFloat64()},
+                               key='Sample')
+
+        dataset = dataset.annotate_cols(isCase=phenos[dataset.s], cov = covs[dataset.s])
+        print (dataset.__repr__)
+        dataset = methods.logreg(dataset,
+                                 'wald',
+                                 y=dataset.isCase,
+                                 x=dataset.GT.num_alt_alleles(),
+                                 covariates=[dataset.cov.Cov1, dataset.cov.Cov2 + 1 - 1])
+        dataset.count_rows()
+
     def test_trio_matrix(self):
         ped = Pedigree.read(test_file('triomatrix.fam'))
         fam_table = methods.import_fam(test_file('triomatrix.fam'))
