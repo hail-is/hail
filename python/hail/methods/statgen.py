@@ -14,7 +14,7 @@ import hail.expr.aggregators as agg
 @handle_py4j
 @require_biallelic
 @typecheck(dataset=MatrixTable,
-           maf=nullable(Expression),
+           maf=nullable(expr_numeric),
            bounded=bool,
            min=nullable(numeric),
            max=nullable(numeric))
@@ -29,13 +29,13 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     --------
 
     To calculate a full IBD matrix, using minor allele frequencies computed
-    from the variant dataset itself:
+    from the dataset itself:
 
     >>> methods.ibd(dataset)
 
     To calculate an IBD matrix containing only pairs of samples with
     ``PI_HAT`` in :math:`[0.2, 0.9]`, using minor allele frequencies stored in
-    ``va.panel_maf``:
+    the row field ``panel_maf``:
 
     >>> methods.ibd(dataset, maf=dataset['panel_maf'], min=0.2, max=0.9)
 
@@ -55,7 +55,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     String*`.
 
     Conceptually, the output is a symmetric, sample-by-sample matrix. The
-    output key table has the following form
+    output table has the following form
 
     .. code-block:: text
 
@@ -70,7 +70,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     dataset : :class:`.MatrixTable`
         A variant-keyed :class:`.MatrixTable` containing genotype information.
 
-    maf : :class:`hail.expr.expression.Expression` or :obj:`None`
+    maf : numeric :class:`hail.expr.expression.Expression` or :obj:`None`
         (optional) expression on `dataset` for the minor allele frequency.
 
     bounded : :obj:`bool`
@@ -87,9 +87,8 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
 
     Return
     ------
-    :class:`.TableTable`
-        A table which maps pairs of samples to their IBD
-        statistics
+    :class:`.Table`
+        A table which maps pairs of samples to their IBD statistics
     """
 
     if maf:

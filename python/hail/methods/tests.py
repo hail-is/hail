@@ -10,7 +10,6 @@ import hail.utils as utils
 
 hc = None
 
-
 def setUpModule():
     global hc
     hc = HailContext()  # master = 'local[2]')
@@ -46,8 +45,8 @@ class Tests(unittest.TestCase):
 
             plink_command = "plink --double-id --allow-extra-chr --vcf {} --genome full --out {} {}"\
                 .format(utils.get_URI(vcf),
-                                                 utils.get_URI(plinkpath),
-                                                 threshold_string)
+                        utils.get_URI(plinkpath),
+                        threshold_string)
             result_file = utils.get_URI(plinkpath + ".genome")
 
             syscall(plink_command, shell=True)
@@ -67,9 +66,9 @@ class Tests(unittest.TestCase):
                                                  map(int, row[14:17]))
             return results
 
-        def compare(ds, min = None, max = None):
-            plink_results = plinkify(dataset, min, max)
-            hail_results = methods.ibd(dataset, min=min, max=max).collect()
+        def compare(ds, maf=None, min=None, max=None):
+            plink_results = plinkify(ds, min, max)
+            hail_results = methods.ibd(ds, maf, min=min, max=max).collect()
 
             for row in hail_results:
                 key = (row.i, row.j)
@@ -82,7 +81,9 @@ class Tests(unittest.TestCase):
                 self.assertEqual(plink_results[key][1][2], row.ibs2)
 
         compare(dataset)
-        compare(dataset, 0.0, 1.0)
+        compare(dataset, min=0.0, min=1.0)
+        dataset = dataset.annotate_rows(dummy_maf=0.1)
+        compare(dataset, dataset['dummy_maf'], 0.0, 1.0)
 
     def test_ld_matrix(self):
         dataset = self.get_dataset()
