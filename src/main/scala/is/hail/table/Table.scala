@@ -856,7 +856,7 @@ class Table(val hc: HailContext,
 
   def explode(columnNames: java.util.ArrayList[String]): Table = explode(columnNames.asScala.toArray)
 
-  def collect(): Array[Row] = rdd.collect()
+  def collect(): IndexedSeq[Row] = rdd.collect()
 
   def write(path: String, overwrite: Boolean = false) {
     if (!path.endsWith(".kt") && !path.endsWith(".kt/"))
@@ -1017,7 +1017,7 @@ class Table(val hc: HailContext,
     else {
       val takeResult = take(n + 1)
       val hasMoreData = takeResult.length > n
-      takeResult.take(n) -> hasMoreData
+      (takeResult.take(n): IndexedSeq[Row]) -> hasMoreData
     }
 
     def convertType(t: Type, name: String, ab: ArrayBuilder[(String, String, Boolean)]) {
