@@ -285,7 +285,7 @@ object VEP {
         "--fasta", s"$fasta",
         "--minimal",
         "-i", 
-        "/home/production/dpiscia/annotated.vc"
+        "/home/production/dpiscia/annotated.vc",
         "--assembly", s"$assembly",
         if (plugin == "True") plugin_cmd else "",
         "-o", "STDOUT")
