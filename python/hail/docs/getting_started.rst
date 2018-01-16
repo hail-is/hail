@@ -44,6 +44,16 @@ to start a Jupyter Notebook server in the tutorials directory.
 
 You can now click on the "hail-overview" notebook to get started!
 
+In the future, if you want to run:
+
+ - Hail in Python use `hail`
+ 
+ - Hail in IPython use `ihail`
+ 
+ - Hail in a Jupyter Notebook use `jhail`
+ 
+Hail will not import correctly from a normal Python interpreter, a normal IPython interpreter, nor a normal Jupyter Notebook.
+
 Running on a Spark cluster
 ==========================
 
