@@ -2099,12 +2099,12 @@ object FunctionRegistry {
 
     Calculate the info score per variant:
 
-    >>> (hc.import_gen("data/example.gen", "data/example.sample")
+    >>> (hc1.import_gen("data/example.gen", "data/example.sample")
     ...    .annotate_variants_expr('va.infoScore = gs.map(g => g.GP).infoScore()'))
 
     Calculate group-specific info scores per variant:
 
-    >>> vds_result = (hc.import_gen("data/example.gen", "data/example.sample")
+    >>> vds_result = (hc1.import_gen("data/example.gen", "data/example.sample")
     ...    .annotate_samples_expr("sa.isCase = pcoin(0.5)")
     ...    .annotate_variants_expr(["va.infoScore.case = gs.filter(g => sa.isCase).map(g => g.GP).infoScore()",
     ...                             "va.infoScore.control = gs.filter(g => !sa.isCase).map(g => g.GP).infoScore()"]))

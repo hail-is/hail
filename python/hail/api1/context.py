@@ -184,11 +184,11 @@ class HailContext(HistoryMixin):
 
         Print all lines containing the string ``hello`` in *file.txt*:
 
-        >>> hc.grep('hello','data/file.txt')
+        >>> hc1.grep('hello','data/file.txt')
 
         Print all lines containing digits in *file1.txt* and *file2.txt*:
 
-        >>> hc.grep('\d', ['data/file1.txt','data/file2.txt'])
+        >>> hc1.grep('\d', ['data/file1.txt','data/file2.txt'])
 
         **Background**
 
@@ -223,7 +223,7 @@ class HailContext(HistoryMixin):
 
         Importing a BGEN file as a VDS.
 
-        >>> vds = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+        >>> vds = hc1.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
 
         **Notes**
 
@@ -307,12 +307,12 @@ class HailContext(HistoryMixin):
 
         Read a .gen file and a .sample file and write to a .vds file:
 
-        >>> (hc.import_gen('data/example.gen', sample_file='data/example.sample')
+        >>> (hc1.import_gen('data/example.gen', sample_file='data/example.sample')
         ...    .write('output/gen_example1.vds'))
 
         Load multiple files at the same time with :ref:`Hadoop glob patterns <sec-hadoop-glob>`:
 
-        >>> (hc.import_gen('data/example.chr*.gen', sample_file='data/example.sample')
+        >>> (hc1.import_gen('data/example.chr*.gen', sample_file='data/example.sample')
         ...    .write('output/gen_example2.vds'))
 
         **Notes**
@@ -408,14 +408,14 @@ class HailContext(HistoryMixin):
         
         Pass the types ourselves:
         
-        >>> table = hc.import_table('data/samples1.tsv', types={'Height': TFloat64(), 'Age': TInt32()})
+        >>> table = hc1.import_table('data/samples1.tsv', types={'Height': TFloat64(), 'Age': TInt32()})
         
         Note that string columns like ``Sample`` and ``Status`` do not need to be typed, because ``String``
         is the default type.
         
         Use type imputation (a bit easier, but requires reading the file twice):
         
-        >>> table = hc.import_table('data/samples1.tsv', impute=True)
+        >>> table = hc1.import_table('data/samples1.tsv', impute=True)
 
         **Detailed examples**
 
@@ -440,7 +440,7 @@ class HailContext(HistoryMixin):
 
         - Pass the non-default missing value ``.``
 
-        >>> table = hc.import_table('data/samples2.tsv', delimiter=',', missing='.')
+        >>> table = hc1.import_table('data/samples2.tsv', delimiter=',', missing='.')
 
         Let's import annotations from a file with no header and sample IDs that need to be transformed. 
         Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the 
@@ -457,7 +457,7 @@ class HailContext(HistoryMixin):
 
         To import:
 
-        >>> annotations = (hc.import_table('data/samples3.tsv', no_header=True)
+        >>> annotations = (hc1.import_table('data/samples3.tsv', no_header=True)
         ...                   .annotate('sample = f0.split("_")[1]')
         ...                   .key_by('sample'))
         
@@ -561,7 +561,7 @@ class HailContext(HistoryMixin):
 
         Import data from a PLINK binary file:
 
-        >>> vds = hc.import_plink(bed="data/test.bed",
+        >>> vds = hc1.import_plink(bed="data/test.bed",
         ...                       bim="data/test.bim",
         ...                       fam="data/test.fam")
 
@@ -664,7 +664,7 @@ class HailContext(HistoryMixin):
 
         **Examples**
 
-        >>> metadata = hc.get_vcf_metadata('data/example2.vcf.bgz')
+        >>> metadata = hc1.get_vcf_metadata('data/example2.vcf.bgz')
 
         **Notes**
 
@@ -714,7 +714,7 @@ class HailContext(HistoryMixin):
 
         **Examples**
 
-        >>> vds = hc.import_vcf('data/example2.vcf.bgz')
+        >>> vds = hc1.import_vcf('data/example2.vcf.bgz')
 
         **Notes**
 
@@ -904,7 +904,7 @@ class HailContext(HistoryMixin):
 
         **Example**
 
-        >>> hc.index_bgen("data/example3.bgen")
+        >>> hc1.index_bgen("data/example3.bgen")
 
         .. warning::
 
