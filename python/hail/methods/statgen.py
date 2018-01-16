@@ -91,7 +91,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
         A table which maps pairs of samples to their IBD statistics
     """
 
-    if maf:
+    if maf != None:
         analyze('ibd/maf', maf, dataset._row_indices)
         dataset, _ = dataset._process_joins(maf)
         maf = maf._ast.to_hql()
