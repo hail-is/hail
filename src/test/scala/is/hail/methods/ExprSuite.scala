@@ -1129,4 +1129,16 @@ class ExprSuite extends SparkSuite {
       assert(t.typeCheck(a), s"problematic symbol: '$sym'")
     }
   }
+
+  @Test def testFloatingPoint() {
+    def evalWithType[T](s: String): (Type, Option[T]) = {
+      val (t, f) = Parser.parseExpr(s, EvalContext())
+      (t, Option(f()).map(_.asInstanceOf[T]))
+    }
+
+    assert(evalWithType("1.1e-15") == TFloat64Optional -> Some(1.1e-15))
+    assert(evalWithType("1e-8") == TFloat64Optional -> Some(1e-8))
+    assert(evalWithType("1.1") == TFloat64Optional -> Some(1.1))
+    assert(evalWithType("1") == TInt32Optional -> Some(1))
+  }
 }

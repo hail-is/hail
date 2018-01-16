@@ -84,6 +84,9 @@ class Tests(unittest.TestCase):
         reqint2 = TInt32(required=True)
         self.assertEqual(id(reqint), id(reqint2))
 
+    def test_floating_point(self):
+        self.assertEqual(eval_expr(1.1e-15), 1.1e-15)
+
     def test_repr(self):
         tv = TVariant()
         tl = TLocus()
