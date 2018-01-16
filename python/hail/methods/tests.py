@@ -220,3 +220,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(ind.key, ['s'])
         self.assertEqual(var.key, ['v'])
         dataset.annotate_rows(mendel=var[dataset.v]).count_rows()
+        
+    def test_export_vcf(self):
+        dataset = hc.import_vcf('src/test/resources/sample.vcf.bgz')
+        vcf_metadata = hc.get_vcf_metadata('src/test/resources/sample.vcf.bgz')
+        methods.export_vcf(dataset, '/tmp/sample.vcf', metadata=vcf_metadata)
+        dataset_imported = hc.import_vcf('/tmp/sample.vcf')
+        self.assertTrue(dataset._same(dataset_imported))
+
+        metadata_imported = hc.get_vcf_metadata('/tmp/sample.vcf')
+        self.assertDictEqual(vcf_metadata, metadata_imported)

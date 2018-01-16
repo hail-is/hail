@@ -109,6 +109,11 @@ class HailContext(HistoryMixin):
         return self._hc1.read(path, drop_samples, drop_variants).to_hail2()
 
     @handle_py4j
+    @typecheck_method(path=oneof(strlike, listof(strlike)))
+    def get_vcf_metadata(self, path):
+        return self._hc1.get_vcf_metadata(path)
+
+    @handle_py4j
     @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       force=bool,

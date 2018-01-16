@@ -19,6 +19,7 @@ Methods
     hail.methods.split_multi_hts
     hail.methods.mendel_errors
     hail.methods.vep
+    hail.methods.export_vcf
 
 .. autofunction:: hail.methods.linreg
 .. autofunction:: hail.methods.sample_rows
@@ -33,3 +34,4 @@ Methods
 .. autofunction:: hail.methods.split_multi_hts
 .. autofunction:: hail.methods.mendel_errors
 .. autofunction:: hail.methods.vep
+.. autofunction:: hail.methods.export_vcf
