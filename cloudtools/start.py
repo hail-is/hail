@@ -32,7 +32,7 @@ def init_parser(parser):
     # arguments with default parameters
     parser.add_argument('--hash', default='latest', type=str,
                         help='Hail build to use for notebook initialization (default: %(default)s).')
-    parser.add_argument('--spark', default='2.0.2', type=str, choices=['2.0.2', '2.1.0'],
+    parser.add_argument('--spark', default='2.0.2', type=str, choices=['2.0.2', '2.2.0'],
                         help='Spark version used to build Hail (default: %(default)s)')
     parser.add_argument('--version', default='0.1', type=str, choices=['0.1', 'devel'],
                         help='Hail version to use (default: %(default)s).')
@@ -78,8 +78,8 @@ def main(args):
     # Google dataproc image version to use
     if args.spark == '2.0.2':
         image_version = '1.1'
-    elif args.spark == '2.1.0':
-        image_version = 'preview'
+    elif args.spark == '2.2.0':
+        image_version = '1.2'
 
     # default to highmem machines if using VEP
     if not args.worker_machine_type:
