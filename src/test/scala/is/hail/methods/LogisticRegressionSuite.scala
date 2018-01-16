@@ -340,7 +340,7 @@ class LogisticRegressionSuite extends SparkSuite {
     assert(qChi2(a(v10)) == null)
   }
 
-  @Test def waldEpactsTest() {
+  @Test def epactsTest() {
 
     val covariates = hc.importTable("src/test/resources/regressionLogisticEpacts.cov",
       types = Map("PC1" -> TDouble, "PC2" -> TDouble), missing = "0").keyBy("IND_ID")
@@ -375,7 +375,7 @@ class LogisticRegressionSuite extends SparkSuite {
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
-    // Comparing to output of b.wald, b.lrt, and b.score in EPACTS
+    // Comparing to output of b.wald, b.lrt, b.firth, and b.score in EPACTS
     // for five 1KG project variants with no missing genotypes
     // http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests
 
