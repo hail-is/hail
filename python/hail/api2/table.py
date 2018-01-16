@@ -1065,7 +1065,7 @@ class Table(TableTemplate):
 
     @handle_py4j
     @typecheck_method(n=integral, width=integral, truncate=nullable(integral), types=bool)
-    def show(self, n=10, width=100, truncate=None, types=True):
+    def show(self, n=10, width=90, truncate=None, types=True):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1092,8 +1092,8 @@ class Table(TableTemplate):
             Maximum number of rows to show.
         width : :obj:`int`
             Horizontal width at which to break columns.
-        truncate : :obj:`bool`, optional
-            Truncate each field to the given number of characters. I
+        truncate : :obj:`int`, optional
+            Truncate each field to the given number of characters. If
             ``None``, truncate fields to the given `width`.
         types : :obj:`bool`
             Print an extra header line with the type of each field.
