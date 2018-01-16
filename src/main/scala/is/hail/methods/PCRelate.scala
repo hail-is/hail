@@ -116,13 +116,14 @@ object PCRelate {
 
   def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
     val nSamples = vds.nSamples
-    val variants = vds.variants.collect()
-    val variantIdxBc = vds.sparkContext.broadcast(variants.index)
     val localRowType = vds.rowType
-    val rdd = vds.rdd2.mapPartitions { it =>
+    val partStarts = vds.partitionStarts()
+    val partStartsBc = vds.sparkContext.broadcast(partStarts)
+    val rdd = vds.rdd2.mapPartitionsWithIndex { case (partIdx, it) =>
       val view = HardCallView(localRowType)
       val missingIndices = new ArrayBuilder[Int]()
 
+      var rowIdx = partStartsBc.value(partIdx)
       it.map { rv =>
         val v = Variant.fromRegionValue(rv.region,
           localRowType.loadField(rv, 1))
@@ -153,10 +154,12 @@ object PCRelate {
           i += 1
         }
 
-        IndexedRow(variantIdxBc.value(v), Vectors.dense(a))
+        rowIdx += 1
+        IndexedRow(rowIdx - 1, Vectors.dense(a))
       }
     }
-    new IndexedRowMatrix(rdd.cache(), variants.length, nSamples)
+
+    new IndexedRowMatrix(rdd.cache(), partStarts.last, nSamples)
   }
 
   /**

@@ -74,4 +74,6 @@ class RichMatrixTable(vsm: MatrixTable) {
   }
 
   def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.sampleAnnotations)
+
+  def variants: RDD[Annotation] = vsm.rdd.keys
 }

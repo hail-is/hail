@@ -8,8 +8,8 @@ import is.hail.annotations.UnsafeRow
 import is.hail.check.Prop.forAll
 import is.hail.expr.types._
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant.{MatrixTable, VSMSubgen}
-
 
 class GroupBySuite extends SparkSuite {
 
