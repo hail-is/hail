@@ -6,14 +6,13 @@ from hail.expr.types import *
 from .misc import require_biallelic
 
 @handle_py4j
-### @write_history('output', parallel='parallel')
 @typecheck(dataset=MatrixTable,
            output=strlike,
            append_to_header=nullable(strlike),
            parallel=nullable(enumeration('separate_header', 'header_per_shard')),
            metadata=nullable(dictof(strlike, dictof(strlike, dictof(strlike, strlike)))))
 def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None):
-    """Export variant dataset as a .vcf or .vcf.bgz file.
+    """Export variant dataset as a ``.vcf`` or ``.vcf.bgz`` file.
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -25,7 +24,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     Notes
     -----
-    :meth:`export_vcf` writes the VDS to disk in VCF format as described in the
+    :meth:`export_vcf` writes the dataset to disk in VCF format as described in the
     `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
 
     Use the ``.vcf.bgz`` extension rather than ``.vcf`` in the output file name
@@ -33,14 +32,15 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     Note
     ----
-        We strongly recommended compressed (``.bgz`` extension) and parallel
-        output (``parallel=True``) when exporting large VCFs.
+    We strongly recommended compressed (``.bgz`` extension) and parallel
+    output (`parallel` set to ``'separate_header'`` or
+    ``'header_per_shard'``) when exporting large VCFs.
 
     Hail exports the fields of Struct `info` as INFO fields,
     the elements of Set[String] `filters` as FILTERS, and the
     value of Float64 `qual` as QUAL. No other row fields are exported.
 
-    The FORMAT field is generated from the genotype schema, which
+    The FORMAT field is generated from the entry schema, which
     must be a :py:class:`~hail.expr.TStruct`.  There is a FORMAT
     field for each field of the Struct.
 
@@ -48,9 +48,9 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     Int32, Float32, Float64, or String. If a field has type Int64, every value
     must be a valid Int32. Arrays and Sets containing these types are also
     allowed but cannot be nested; for example, Array[Array[Int32]] is invalid.
-    Sets and Arrays are output with the same comma-separated format. Boolean
+    Sets and Arrays are written with the same comma-separated format. Boolean
     fields are also permitted in `info` and will generate INFO fields of
-    VCF type Flag. 
+    VCF type Flag.
 
     Hail also exports the name, length, and assembly of each contig as a VCF
     header line, where the assembly is set to the :class:`.GenomeReference`
@@ -58,37 +58,41 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     Consider the workflow of importing a VCF and immediately exporting the
     dataset back to VCF. The output VCF header will contain FORMAT lines for
-    each genotype field, CONTIG lines for the reference genome of the dataset,
-    and INFO lines for all fields in `info`, but they will have empty
-    Description fields and the Number and Type fields will be determined from
-    their corresponding Hail types. To add a desired Description, Number, and/or
-    Type to a FORMAT or INFO field or to specify FILTER lines, use the
-    ``metadata`` parameter to supply a dictionary with the relevant information.
-    See :py:class:`~hail.api2.HailContext.get_vcf_metadata` for how this
+    each entry field and INFO lines for all fields in `info`, but these lines
+    will have empty Description fields and the Number and Type fields will be
+    determined from their corresponding Hail types. To output a desired
+    Description, Number, and/or Type value in a FORMAT or INFO field or to
+    specify FILTER lines, use the `metadata` parameter to supply a dictionary
+    with the relevant information. See
+    :py:class:`~hail.api2.HailContext.get_vcf_metadata` for how to obtain the
+    dictionary corresponding to the original VCF, and for info on how this
     dictionary should be structured. 
-
-    The output VCF header will *not* contain lines added by external tools
+    
+    The output VCF header will also contain CONTIG lines
+    with ID, length, and assembly fields derived from the reference genome of
+    the dataset.
+    
+    The output VCF header will `not` contain lines added by external tools
     (such as bcftools and GATK) unless they are explicitly inserted using the
-    ``append_to_header`` option.
+    `append_to_header` parameter.
 
     Warning
     -------
-        If samples or genotypes are filtered after import, the value stored in
-        `info.AC` value may no longer reflect the number of called
-        alternate alleles in the filtered VDS. If the filtered dataset is then
-        exported to VCF, downstream tools may produce erroneous results. The
-        solution is to create new annotations in `info` or overwrite
-        existing annotations. For example, in order to produce an accurate
-        `AC` field, one can run :meth:`variant_qc` and copy the
-        `variant_qc.AC` field to `info.AC` as shown below.
+    Hail makes no assumptions about the meaning of `info` fields. In
+    particular, the values stored at import do `not` automatically reflect
+    modifications to the dataset. For example, if samples or genotypes are
+    filtered, then `info.AC` value may no longer equal the number of called
+    alternate alleles in the filtered dataset. If the filtered dataset is then
+    exported to VCF, downstream tools which make use of `AC` (or `AF`, `AC`,
+    `AN`, ...) may produce erroneous results. The solution is to create new
+    annotations in `info` or overwrite existing annotations. For example, in
+    order to produce an accurate `AC` field, one can run :meth:`variant_qc` and
+    copy the `variant_qc.AC` field to `info.AC` as shown below.
 
     >>> dataset = dataset.filter_entries(dataset.GQ >= 20)
     >>> dataset = methods.variant_qc(dataset)
-    ### >>> dataset = dataset.annotate_rows(info = dataset.info.annotate(AC=dataset.variant_qc.AC))
+    >>> dataset = dataset.annotate_rows(info = dataset.info.annotate(AC=dataset.variant_qc.AC)) # doctest: +SKIP
     >>> methods.export_vcf(dataset, 'output/example.vcf.bgz')
-
-    A text file containing the Python code to generate this output file is
-    available at ``<output>.history.txt``.
     
     Parameters
     ----------
@@ -99,11 +103,11 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     append_to_header : :obj:`str`, optional
         Path of file to append to VCF header.
     parallel : :obj:`str`, optional
-        If 'header_per_shard', return a set of VCF files (one per partition)
-        rather than serially concatenating these files. If 'separate_header',
-        return a separate VCF header file and a set of VCF files (one per
-        partition) without the header. If None, concatenate the header and all
-        partitions into one VCF file.
+        If ``'header_per_shard'``, return a set of VCF files (one per
+        partition) rather than serially concatenating these files. If
+        ``'separate_header'``, return a separate VCF header file and a set of
+        VCF files (one per partition) without the header. If ``None``,
+        concatenate the header and all partitions into one VCF file.
     metadata : :obj:`dict[str]` or :obj:`dict[str, dict[str, str]`, optional
         Dictionary with information to fill in the VCF header. See
         :py:class:`~hail.api2.HailContext.get_vcf_metadata` for how this
