@@ -188,6 +188,7 @@ def concordance(left, right):
     """Calculate call concordance with another dataset.
 
     .. include:: ../_templates/req_tvariant.rst
+
     .. include:: ../_templates/req_biallelic.rst
 
     .. testsetup::
@@ -206,9 +207,11 @@ def concordance(left, right):
     Notes
     -----
 
-    This method computes the genotype call concordance between two biallelic
-    datasets. It performs an inner join on column keys (only column keys in both
-    datasets will be considered), and an outer join on row keys. If a row key is
+    This method computes the genotype call concordance (from the entry field
+    **GT**) between two biallelic datasets. It performs an inner join on column
+    keys (only column keys in both datasets will be considered), and an outer
+    join on row keys. If a column key is duplicated in the right dataset, the
+    column joined with the left dataset will be randomly chosen. If a row key is
     only in one dataset, then each genotype is treated as "no data" in the
     other. This method returns a tuple of three objects: a nested list of list
     of int with global concordance summary statistics, a table with concordance
@@ -279,8 +282,8 @@ def concordance(left, right):
     Returns
     -------
     (list of list of int, :class:`.Table`, :class:`.Table`)
-        The global concordance statistics, a table with concordance
-        statistics per column key, and a table with concordance statistics per row key.
+        The global concordance statistics, a table with concordance statistics
+        per column key, and a table with concordance statistics per row key.
     """
 
     right = _verify_biallelic(right, "concordance, right")
