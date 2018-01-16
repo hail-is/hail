@@ -284,6 +284,8 @@ object VEP {
         "--dir", s"$cacheDir",
         "--fasta", s"$fasta",
         "--minimal",
+        "-i", 
+        "/home/production/dpiscia/annotated.vc"
         "--assembly", s"$assembly",
         if (plugin == "True") plugin_cmd else "",
         "-o", "STDOUT")
@@ -381,9 +383,6 @@ object VEP {
             val rc = proc.waitFor()
             if (rc != 0)
               fatal(s"vep command '${cmd.mkString(" ")}' failed with non-zero exit status $rc")
-              fatal(s"vep command '${printElement.mkString(" ")}' printElement failed with non-zero exit status $rc")
-              fatal(s"vep command '${printContext.mkString(" ")}' printContext failed with non-zero exit status $rc")
-               fatal(s"vep command '${pb.mkString(" ")}' pb failed with non-zero exit status $rc")
 
             r
           }
