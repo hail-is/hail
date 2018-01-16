@@ -856,7 +856,7 @@ class Table(val hc: HailContext,
 
   def explode(columnNames: java.util.ArrayList[String]): Table = explode(columnNames.asScala.toArray)
 
-  def collect(): IndexedSeq[Annotation] = rdd.collect()
+  def collect(): IndexedSeq[Row] = rdd.collect()
 
   def write(path: String, overwrite: Boolean = false) {
     if (!path.endsWith(".kt") && !path.endsWith(".kt/"))
@@ -1002,19 +1002,23 @@ class Table(val hc: HailContext,
     Graph.maximalIndependentSet(edgeRdd.collect(), maybeTieBreaker)
   }
 
-  def showString(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true): String = {
+  def showString(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): String = {
     /**
       * Parts of this method are lifted from:
       *   org.apache.spark.sql.Dataset.showString
       * Spark version 2.0.2
       */
 
-    require(n >= 0, s"number of rows to show must be non-negative, found $n")
     truncate.foreach { tr => require(tr > 3, s"truncation length too small: $tr") }
+    require(maxWidth >= 10, s"max width too small: $maxWidth")
 
-    val takeResult = take(n + 1)
-    val hasMoreData = takeResult.length > n
-    val data = takeResult.take(n)
+    val (data, hasMoreData) = if (n < 0)
+      collect() -> false
+    else {
+      val takeResult = take(n + 1)
+      val hasMoreData = takeResult.length > n
+      (takeResult.take(n): IndexedSeq[Row]) -> hasMoreData
+    }
 
     def convertType(t: Type, name: String, ab: ArrayBuilder[(String, String, Boolean)]) {
       t match {
@@ -1047,64 +1051,91 @@ class Table(val hc: HailContext,
       valueBuilder.result()
     }
 
+    val fixedWidth = 4 // "| " + " |"
+    val delimWidth = 3 // " | "
+
+    val tr = truncate.getOrElse(maxWidth - 4)
+
     val allStrings = (Iterator(names, types) ++ dataStrings.iterator).map { arr =>
-      arr.map { str =>
-        truncate match {
-          case Some(tr) if str.length > tr => str.substring(0, tr - 3) + "..."
-          case _ => str
-        }
-      }
+      arr.map { str => if (str.length > tr) str.substring(0, tr - 3) + "..." else str }
     }.toArray
 
-    // Initialize the width of each column to a minimum value of '3'
     val nCols = names.length
-    val colWidths = Array.fill(nCols)(3)
+    val colWidths = Array.fill(nCols)(0)
 
     // Compute the width of each column
     for (i <- allStrings.indices)
       for (j <- 0 until nCols)
         colWidths(j) = math.max(colWidths(j), allStrings(i)(j).length)
 
-    // create separator
-    val sep: String = colWidths.map("-" * _).addString(new StringBuilder(), "+-", "-+-", "-+\n").toString()
+    val normedStrings = allStrings.map { line =>
+      line.zipWithIndex.map { case (cell, i) =>
+        if (rightAlign(i))
+          StringUtils.leftPad(cell, colWidths(i))
+        else
+          StringUtils.rightPad(cell, colWidths(i))
+      }
+    }
 
     val sb = new StringBuilder()
     sb.clear()
-    sb.append(sep)
 
-    // column names
-    allStrings(0).zipWithIndex.map { case (cell, i) =>
-      if (rightAlign(i))
-        StringUtils.leftPad(cell, colWidths(i))
-      else
-        StringUtils.rightPad(cell, colWidths(i))
-    }.addString(sb, "| ", " | ", " |\n")
+    // writes cols [startIndex, endIndex)
+    def writeCols(startIndex: Int, endIndex: Int) {
 
-    sb.append(sep)
+      val toWrite = (startIndex until endIndex).toArray
 
-    if (printTypes) {
-      // column types
-      allStrings(1).zipWithIndex.map { case (cell, i) =>
-        if (rightAlign(i))
-          StringUtils.leftPad(cell, colWidths(i))
-        else
-          StringUtils.rightPad(cell, colWidths(i))
-      }.addString(sb, "| ", " | ", " |\n")
+      val sep = toWrite.map(i => "-" * colWidths(i)).addString(new StringBuilder, "+-", "-+-", "-+\n").result()
+      // add separator line
+      sb.append(sep)
 
+      // add column names
+      toWrite.map(normedStrings(0)(_)).addString(sb, "| ", " | ", " |\n")
+
+      // add separator line
+      sb.append(sep)
+
+      if (printTypes) {
+        // add types
+        toWrite.map(normedStrings(1)(_)).addString(sb, "| ", " | ", " |\n")
+
+        // add separator line
+        sb.append(sep)
+      }
+
+      // data
+      normedStrings.drop(2).foreach {
+        toWrite.map(_).addString(sb, "| ", " | ", " |\n")
+      }
+
+      // add separator line
       sb.append(sep)
     }
 
-    // data
-    allStrings.drop(2).foreach {
-      _.zipWithIndex.map { case (cell, i) =>
-        if (rightAlign(i))
-          StringUtils.leftPad(cell, colWidths(i))
-        else
-          StringUtils.rightPad(cell, colWidths(i))
-      }.addString(sb, "| ", " | ", " |\n")
-    }
+    if (nCols == 0)
+      writeCols(0, 0)
 
-    sb.append(sep)
+    var colIdx = 0
+    var first = true
+
+    while (colIdx < nCols) {
+      val startIdx = colIdx
+      var colWidth = fixedWidth
+
+      // consume at least one column, and take until the next column would put the width over maxWidth
+      do {
+        colWidth += 3 + colWidths(colIdx)
+        colIdx += 1
+      } while (colIdx < nCols && colWidth + delimWidth + colWidths(colIdx) <= maxWidth)
+
+      if (!first) {
+        sb.append('\n')
+      }
+
+      writeCols(startIdx, colIdx)
+
+      first = false
+    }
 
     if (hasMoreData)
       sb.append(s"showing top $n ${ plural(n, "row") }\n")

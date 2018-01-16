@@ -1063,26 +1063,42 @@ class Table(TableTemplate):
         self._jt.write(output, overwrite)
 
     @handle_py4j
-    @typecheck_method(n=integral, truncate_to=nullable(integral), print_types=bool)
-    def show(self, n=10, truncate_to=None, print_types=True):
+    @typecheck_method(n=integral, width=integral, truncate=nullable(integral), types=bool)
+    def show(self, n=10, width=90, truncate=None, types=True):
         """Print the first few rows of the table to the console.
 
         Examples
         --------
-        Show the first 20 lines:
+        Show the first lines of the table:
 
-        >>> table1.show(20)
+        .. doctest::
+
+            >>> table1.show()
+            +-------+-------+--------+-------+-------+-------+-------+-------+
+            |    ID |    HT | SEX    |     X |     Z |    C1 |    C2 |    C3 |
+            +-------+-------+--------+-------+-------+-------+-------+-------+
+            | Int32 | Int32 | String | Int32 | Int32 | Int32 | Int32 | Int32 |
+            +-------+-------+--------+-------+-------+-------+-------+-------+
+            |     1 |    65 | M      |     5 |     4 |     2 |    50 |     5 |
+            |     2 |    72 | M      |     6 |     3 |     2 |    61 |     1 |
+            |     3 |    70 | F      |     7 |     3 |    10 |    81 |    -5 |
+            |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
+            +-------+-------+--------+-------+-------+-------+-------+-------+
 
         Parameters
         ----------
-        n : int
+        n : :obj:`int`
             Maximum number of rows to show.
-        truncate_to : bool
-            Truncate each column to the given number of characters
-        print_types : bool
+        width : :obj:`int`
+            Horizontal width at which to break columns.
+        truncate : :obj:`int`, optional
+            Truncate each field to the given number of characters. If
+            ``None``, truncate fields to the given `width`.
+        types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
-        return self.to_hail1().show(n, truncate_to, print_types)
+        to_print = self._jt.showString(n, joption(truncate), types, width)
+        print(to_print)
 
     def to_hail1(self):
         """Convert table to :class:`hail.api1.KeyTable`.

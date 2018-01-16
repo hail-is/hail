@@ -1454,7 +1454,7 @@ class KeyTable(HistoryMixin):
 
         :param bool print_types: Print a line with column types.
         """
-        to_print = self._jkt.showString(n, joption(truncate_to), print_types)
+        to_print = self._jkt.showString(n, joption(truncate_to), print_types, 100)
         print(to_print)
 
     @classmethod
