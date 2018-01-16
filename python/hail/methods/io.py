@@ -123,10 +123,13 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 def import_interval_list(path, reference_genome=None):
     """Import an interval list file in the GATK standard format.
 
+    Examples
+    --------
+
     >>> intervals = KeyTable.import_interval_list('data/capture_intervals.txt')
 
-    The File Format
-    ---------------
+    Notes
+    -----
 
     Hail expects an interval file to contain either three or five fields per
     line in the following formats:
@@ -135,15 +138,15 @@ def import_interval_list(path, reference_genome=None):
     - ``contig  start  end`` (tab-separated)
     - ``contig  start  end  direction  target`` (tab-separated)
 
-    A file in either of the first two formats produces a key table with one
-    column:
+    A file in either of the first two formats produces a table with one
+    field:
 
-     - **interval** (*Interval*), key column
+     - **interval** (*Interval*), key field
 
-    A file in the third format (with a "target" column) produces a key with two
-    columns:
+    A file in the third format (with a "target" column) produces a table with two
+    fields:
 
-     - **interval** (*Interval*), key column
+     - **interval** (*Interval*), key field
      - **target** (*String*)
 
     Note
@@ -152,11 +155,7 @@ def import_interval_list(path, reference_genome=None):
     ``start <= position <= end``. :meth:`representation.Interval.parse`
     is exclusive of the end position.
 
-    Note
-    ----
-    Hail uses the following ordering for contigs: 1-22 sorted numerically, then
-    X, Y, MT, then alphabetically for any contig not matching the standard human
-    chromosomes.
+    Refer to :class:`.GenomeReference` for contig ordering and behavior.
 
     Warning
     -------
@@ -167,12 +166,12 @@ def import_interval_list(path, reference_genome=None):
 
     Parameters
     ----------
-    filename : :obj:`str`
+    path : :obj:`str`
         Path to file.
 
     reference_genome : :class:`.GenomeReference`
         Reference genome to use. Default is
-        :class:`.HailContext.default_reference`.
+        :meth:`.HailContext.default_reference`.
 
     Returns
     -------
@@ -197,7 +196,7 @@ def import_bed(path, reference_genome=None):
     at least one interval of the three-column BED file `file1.bed`:
 
     >>> bed = methods.import_bed('data/file1.bed')
-    >>> vds_result = vds.annotate_rows(cnvRegion = bed[vds.v])
+    >>> vds_result = vds.annotate_rows(cnvRegion = bed.exists(bed['interval'].contains(vds.v)))
 
     Add a variant annotation **va.cnvRegion** (*String*) with value given by the
     fourth column of ``file2.bed``:
@@ -225,14 +224,14 @@ def import_bed(path, reference_genome=None):
     Notes
     -----
 
-    The key table produced by this method has one of two possible structures. If
-    the .bed file has only three fields (``chrom``, ``chromStart``, and
-    ``chromEnd``), then the produced key table has only one column:
+    The table produced by this method has one of two possible structures. If
+    the .bed file has only three fields (`chrom`, `chromStart`, and
+    `chromEnd`), then the produced table has only one column:
 
         - **interval** (*Interval*) - Genomic interval.
 
     If the .bed file has four or more columns, then Hail will store the fourth
-    column in the table:
+    column as a field in the table:
 
         - **interval** (*Interval*) - Genomic interval.
         - **target** (*String*) - Fourth column of .bed file.
@@ -258,7 +257,8 @@ def import_bed(path, reference_genome=None):
 
     Returns
     -------
-        :class:`.Table`
+    :class:`.Table`
+        Inteval-indexed table containing information from file.
         """
 
     rg = reference_genome if reference_genome else Env.hc().default_reference
@@ -270,7 +270,7 @@ def import_bed(path, reference_genome=None):
            quantitative=bool,
            delimiter=strlike,
            missing=strlike)
-def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA'):
+def import_fam(path, quantitative=False, delimiter=r'\\s+', missing='NA'):
     """Import PLINK .fam file into a key table.
 
     Examples
@@ -280,19 +280,19 @@ def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA'):
     <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
     annotations:
 
-    >>> fam_kt = KeyTable.import_fam('data/myStudy.fam')
+    >>> fam_kt = methods.import_fam('data/myStudy.fam')
 
     In Hail, unlike PLINK, the user must *explicitly* distinguish between
     case-control and quantitative phenotypes. Importing a quantitative
     phenotype without ``quantitative=True`` will return an error
-    (unless all values happen to be ``0``, ``1``, ``2``, and ``-9``):
+    (unless all values happen to be `0`, `1`, `2`, and `-9`):
 
-    >>> fam_kt = KeyTable.import_fam('data/myStudy.fam', quantitative=True)
+    >>> fam_kt = methods.import_fam('data/myStudy.fam', quantitative=True)
 
-    Columns
-    -------
+    Notes
+    -----
 
-    The column, types, and missing values are shown below.
+    The fields, types, and missing values are shown below.
 
         - **ID** (*String*) -- Sample ID (key column)
         - **famID** (*String*) -- Family ID (missing = "0")
@@ -311,13 +311,10 @@ def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA'):
     ----------
     path : :obj:`str`
         Path to .fam file.
-
     quantitative : :obj:`bool`
-        If True, .fam phenotype is interpreted as quantitative.
-
+        If ``True``, .fam phenotype is interpreted as quantitative.
     delimiter : :obj:`str`
-        .fam file field delimiter regex.
-
+        Field delimiter regex.
     missing : :obj:`str`
         The string used to denote missing values. For case-control, 0, -9, and
         non-numeric are also treated as missing.
