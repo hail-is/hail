@@ -41,7 +41,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       else
         filename
 
-    val rWithHeader = header.map { h =>
+    val rWithHeader: RDD[_] = header.map { h =>
       if (r.getNumPartitions == 0 && exportType != ExportType.PARALLEL_SEPARATE_HEADER)
         r.sparkContext.parallelize(List(h), numSlices = 1)
       else {
