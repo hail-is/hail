@@ -1,16 +1,17 @@
 from decorator import decorator
 from hail.api2 import MatrixTable
 from hail.utils.java import Env, handle_py4j
-from hail.typecheck.check import typecheck
+from hail.typecheck.check import typecheck, strlike
 
-@decorator
-def require_biallelic(f, dataset, *args, **kwargs):
+@handle_py4j
+@typecheck(dataset=MatrixTable, method=strlike)
+def require_biallelic(dataset, method):
     from hail.expr.types import TVariant
     if not isinstance(dataset.rowkey_schema, TVariant):
         raise TypeError("Method '{}' requires the row key to be of type 'TVariant', found '{}'".format(
-            f.__name__, dataset.rowkey_schema))
-    dataset = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, f.__name__))
-    return f(dataset, *args, **kwargs)
+            method, dataset.rowkey_schema))
+    dataset = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, method))
+    return dataset
 
 @handle_py4j
 @typecheck(dataset=MatrixTable)

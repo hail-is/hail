@@ -58,7 +58,6 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
                        .annotateGenotypesExpr('g = {proband_entry: g.proband, father_entry: g.father, mother_entry: g.mother}'))
 
 @handle_py4j
-@require_biallelic
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)
 def mendel_errors(dataset, pedigree):
@@ -224,6 +223,6 @@ def mendel_errors(dataset, pedigree):
         Four tables as detailed in notes with Mendel error statistics.
     """
 
-    kts = dataset._jvds.mendelErrors(pedigree._jrep)
+    kts = require_biallelic(dataset, 'mendel_errors')._jvds.mendelErrors(pedigree._jrep)
     return Table(kts._1()), Table(kts._2()), \
            Table(kts._3()), Table(kts._4())

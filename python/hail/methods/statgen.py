@@ -12,7 +12,6 @@ import hail.expr.aggregators as agg
 
 
 @handle_py4j
-@require_biallelic
 @typecheck(dataset=MatrixTable,
            maf=nullable(expr_numeric),
            bounded=bool,
@@ -91,12 +90,12 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
         A table which maps pairs of samples to their IBD statistics
     """
 
-    if maf != None:
+    if maf is not None:
         analyze('ibd/maf', maf, dataset._row_indices)
         dataset, _ = dataset._process_joins(maf)
         maf = maf._ast.to_hql()
 
-    return Table(Env.hail().methods.IBD.apply(dataset._jvds,
+    return Table(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jvds,
                                               joption(maf),
                                               bounded,
                                               joption(min),
@@ -206,7 +205,6 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
 
 @handle_py4j
-@require_biallelic
 @typecheck(dataset=MatrixTable, force_local=bool)
 def ld_matrix(dataset, force_local=False):
     """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
@@ -256,12 +254,11 @@ def ld_matrix(dataset, force_local=False):
     :rtype: :py:class:`.LDMatrix`
     """
 
-    jldm = Env.hail().methods.LDMatrix.apply(dataset._jvds, force_local)
+    jldm = Env.hail().methods.LDMatrix.apply(require_biallelic(dataset, 'ld_matrix')._jvds, force_local)
     return LDMatrix(jldm)
 
 
 @handle_py4j
-@require_biallelic
 @typecheck(dataset=MatrixTable,
            k=integral,
            compute_loadings=bool,
@@ -295,7 +292,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-
+    dataset = require_biallelic(dataset, 'hwe_normalized_pca')
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
                                     n_called=agg.count_where(functions.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
@@ -635,7 +632,6 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         ds._jvds, variant_expr, genotype_expr, keep_star, left_aligned)
     return MatrixTable(jds)
 
-@require_biallelic
 @typecheck(dataset=MatrixTable)
 def grm(dataset):
     """Compute the Genetic Relatedness Matrix (GRM).
@@ -700,6 +696,7 @@ def grm(dataset):
         Genetic Relatedness Matrix for all samples.
     """
 
+    dataset = require_biallelic(dataset, "grm")
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
                                     n_called=agg.count_where(functions.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()

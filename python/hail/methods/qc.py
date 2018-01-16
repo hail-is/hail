@@ -3,18 +3,7 @@ from hail.utils.java import Env, handle_py4j
 from hail.api2 import MatrixTable, Table
 from .misc import require_biallelic
 
-
 @handle_py4j
-@typecheck(dataset=MatrixTable, method=strlike)
-def _verify_biallelic(dataset, method):
-    dataset_verified = MatrixTable(Env.hail().methods.VerifyBiallelic.apply(dataset._jvds, method))
-    # FIXME: incorporate when history working on MatrixTable
-    # dataset_verified._history = dataset._history
-    return dataset_verified
-
-
-@handle_py4j
-@require_biallelic
 @typecheck(dataset=MatrixTable, name=strlike)
 def sample_qc(dataset, name='sample_qc'):
     """Compute per-sample metrics useful for quality control.
@@ -100,10 +89,9 @@ def sample_qc(dataset, name='sample_qc'):
         Dataset with a new column-indexed field `name`.
     """
 
-    return MatrixTable(Env.hail().methods.SampleQC.apply(dataset._jvds, 'sa.`{}`'.format(name)))
+    return MatrixTable(Env.hail().methods.SampleQC.apply(require_biallelic(dataset, 'sample_qc')._jvds, 'sa.`{}`'.format(name)))
 
 @handle_py4j
-@require_biallelic
 @typecheck(dataset=MatrixTable, name=strlike)
 def variant_qc(dataset, name='variant_qc'):
     """Compute common variant statistics (quality control metrics).
@@ -177,11 +165,10 @@ def variant_qc(dataset, name='variant_qc'):
         Dataset with a new row-indexed field `name`.
     """
 
-    return MatrixTable(Env.hail().methods.VariantQC.apply(dataset._jvds, 'va.`{}`'.format(name)))
+    return MatrixTable(Env.hail().methods.VariantQC.apply(require_biallelic(dataset, 'variant_qc')._jvds, 'va.`{}`'.format(name)))
 
 
 @handle_py4j
-@require_biallelic
 @typecheck(left=MatrixTable,
            right=MatrixTable)
 def concordance(left, right):
@@ -286,7 +273,8 @@ def concordance(left, right):
         per column key, and a table with concordance statistics per row key.
     """
 
-    right = _verify_biallelic(right, "concordance, right")
+    left = require_biallelic(right, "concordance, left")
+    right = require_biallelic(right, "concordance, right")
 
     r = Env.hail().methods.CalculateConcordance.apply(left._jvds, right._jvds)
     j_global_conc = r._1()

@@ -66,9 +66,9 @@ class Tests(unittest.TestCase):
                                                  map(int, row[14:17]))
             return results
 
-        def compare(ds, maf=None, min=None, max=None):
+        def compare(ds, min=None, max=None):
             plink_results = plinkify(ds, min, max)
-            hail_results = methods.ibd(ds, maf, min=min, max=max).collect()
+            hail_results = methods.ibd(ds, min=min, max=max).collect()
 
             for row in hail_results:
                 key = (row.i, row.j)
@@ -81,9 +81,9 @@ class Tests(unittest.TestCase):
                 self.assertEqual(plink_results[key][1][2], row.ibs2)
 
         compare(dataset)
-        compare(dataset, min=0.0, min=1.0)
-        dataset = dataset.annotate_rows(dummy_maf=0.1)
-        compare(dataset, dataset['dummy_maf'], 0.0, 1.0)
+        compare(dataset, min=0.0, max=1.0)
+        dataset = dataset.annotate_rows(dummy_maf=0.01)
+        methods.ibd(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
 
     def test_ld_matrix(self):
         dataset = self.get_dataset()
