@@ -404,6 +404,7 @@ class MatrixTable(object):
         if self._genotype_schema is None:
             self._genotype_schema = Type._from_java(self._jvds.genotypeSignature())
         return self._genotype_schema
+    
     @property
     @handle_py4j
     def globals(self):
@@ -411,10 +412,12 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`StructExpression`
+        :class:`.StructExpression`
             Struct of all global fields.
         """
-        return construct_expr(Reference('global', False), self.global_schema, indices=self._global_indices)
+        return construct_expr(Reference('global', False), self.global_schema,
+                              indices=self._global_indices,
+                              refs=LinkedList(tuple).push(*[(f.name, self._global_indices) for f in self.global_schema.fields]))
 
     @property
     @handle_py4j
@@ -423,10 +426,12 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`StructExpression`
-            Struct of all row-indexed fields.
+        :class:`.StructExpression`
+            Struct of all row fields.
         """
-        return construct_expr(Reference('va', False), self.row_schema, indices=self._row_indices)
+        return construct_expr(Reference('va', False), self.row_schema,
+                              indices=self._row_indices,
+                              refs=LinkedList(tuple).push(*[(f.name, self._row_indices) for f in self.row_schema.fields]))
 
     @property
     @handle_py4j
@@ -435,10 +440,12 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`StructExpression`
-            Struct of all column-indexed fields.
+        :class:`.StructExpression`
+            Struct of all column fields.
         """
-        return construct_expr(Reference('sa', False), self.col_schema, indices=self._col_indices)
+        return construct_expr(Reference('sa', False), self.col_schema,
+                              indices=self._col_indices,
+                              refs=LinkedList(tuple).push(*[(f.name, self._col_indices) for f in self.col_schema.fields]))
 
     @property
     @handle_py4j
@@ -447,10 +454,12 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`StructExpression`
-            Struct of all row-and-column-indexed fields.
+        :class:`.StructExpression`
+            Struct of all entry fields.
         """
-        return construct_expr(Reference('g', False), self.entry_schema, indices=self._entry_indices)
+        return construct_expr(Reference('g', False), self.entry_schema,
+                              indices=self._entry_indices,
+                              refs=LinkedList(tuple).push(*[(f.name, self._entry_indices) for f in self.entry_schema.fields]))
 
     @handle_py4j
     def annotate_globals(self, **named_exprs):

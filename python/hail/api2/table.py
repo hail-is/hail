@@ -2033,5 +2033,28 @@ class Table(TableTemplate):
                                                   ",\n".join(exprs),
                                                   joption(None)))
 
+    @property
+    @handle_py4j
+    def globals(self):
+        """Returns a struct expression including all global fields.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct of all global fields.
+        """
+        return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.global_schema.fields}))
+
+    @property
+    @handle_py4j
+    def row(self):
+        """Returns a struct expression including all row-indexed fields.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct of all row fields.
+        """
+        return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.schema.fields}))
 
 table_type.set(Table)

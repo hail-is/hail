@@ -565,6 +565,23 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(
             ds.filter_rows(ds.v.num_alleles() == 2).count_rows(), 0)
 
+    def test_field_groups(self):
+        ds = self.get_vds()
+
+        df = ds.annotate_rows(row_struct=ds.row).rows_table()
+        self.assertTrue(df.forall((df.info == df.row_struct.info) & (df.qual == df.row_struct.qual)))
+
+        ds2 = ds.index_cols()
+        df = ds2.annotate_cols(col_struct=ds2.col).cols_table()
+        self.assertTrue(df.forall((df.col_idx == df.col_struct.col_idx)))
+
+        df = ds.annotate_entries(entry_struct = ds.entry).entries_table()
+        self.assertTrue(df.forall(
+            ((functions.is_missing(df.GT) |
+             (df.GT == df.entry_struct.GT)) &
+             (df.AD == df.entry_struct.AD))))
+
+
 class FunctionsTests(unittest.TestCase):
     def test(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
