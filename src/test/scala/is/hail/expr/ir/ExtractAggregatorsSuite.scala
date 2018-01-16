@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
 import ScalaToRegionValue._
+import RegionValueToScala._
 import is.hail.check._
 import is.hail.expr.{HailRep, hailType}
 import is.hail.expr.types._
@@ -84,7 +85,8 @@ class ExtractAggregatorsSuite {
     fb.result()()
   }
 
-  private def run[IN : HailRep : TypeInfo, SCOPE0 : HailRep : TypeInfo, R : TypeInfo](region: Region, ir: IR, aOff: Long, scope0: Int => SCOPE0): R = {
+  private def run[IN : HailRep : TypeInfo, SCOPE0 : HailRep : TypeInfo, R : TypeInfo]
+    (region: Region, ir: IR, aOff: Long, scope0: Int => SCOPE0): R = {
     val (post, ret) = runStage1[IN, SCOPE0](region, ir, aOff, scope0)
     val f = compileStage0[R](post)
     f(region, ret, false)
@@ -316,7 +318,7 @@ class ExtractAggregatorsSuite {
       addBoxedArray(region, expected: _*),
       _ => 10.0)
 
-    val actual = RegionValueToScala.loadArray[java.lang.Boolean](region, aOff)
+    val actual = loadArray[java.lang.Boolean](region, aOff)
     assert(actual === expected)
   }
 
@@ -331,7 +333,7 @@ class ExtractAggregatorsSuite {
       addBoxedArray(region, expected: _*),
       _ => 10.0)
 
-    val actual = RegionValueToScala.loadArray[java.lang.Integer](region, aOff)
+    val actual = loadArray[java.lang.Integer](region, aOff)
     assert(actual === expected)
   }
 
@@ -346,7 +348,7 @@ class ExtractAggregatorsSuite {
       addBoxedArray(region, expected: _*),
       _ => 10.0)
 
-    val actual = RegionValueToScala.loadArray[Int](region, aOff)
+    val actual = loadArray[Int](region, aOff)
     assert(actual === expected)
   }
 
@@ -370,7 +372,7 @@ class ExtractAggregatorsSuite {
       addBoxedArray(region, input: _*),
       _ => 10.0)
 
-    val actual = RegionValueToScala.loadArray[Int](region, aOff)
+    val actual = loadArray[Int](region, aOff)
     assert(actual === expected)
   }
 
@@ -470,7 +472,7 @@ class ExtractAggregatorsSuite {
       addBoxedArray(region, input: _*),
       _ => 10.0)
 
-    assert(RegionValueToScala.loadArray[Int](region, aOff) === expected)
+    assert(loadArray[Int](region, aOff) === expected)
   }
 
   @Test
@@ -485,7 +487,7 @@ class ExtractAggregatorsSuite {
       addBoxedArray(region, input: _*),
       _ => 10.0)
 
-    assert(RegionValueToScala.loadArray[Double](region, aOff) === expected)
+    assert(loadArray[Double](region, aOff) === expected)
   }
 
   @Test
@@ -500,7 +502,7 @@ class ExtractAggregatorsSuite {
       addBoxedArray(region, input: _*),
       _ => 10.0)
 
-    assert(RegionValueToScala.loadArray[java.lang.Double](region, aOff) === expected)
+    assert(loadArray[java.lang.Double](region, aOff) === expected)
   }
 
   @Test
@@ -524,10 +526,10 @@ class ExtractAggregatorsSuite {
     assert(t.isFieldDefined(region, hOff, binFrequencies))
     assert(t.isFieldDefined(region, hOff, nLess))
     assert(t.isFieldDefined(region, hOff, nGreater))
-    val binEdgeArray = RegionValueToScala.loadArray[Double](
+    val binEdgeArray = loadArray[Double](
       region, t.loadField(region, hOff, binEdges))
     assert(binEdgeArray === Array(0.0, 2.0, 4.0, 6.0, 8.0, 10.0))
-    val binFrequenciesArray = RegionValueToScala.loadArray[Long](
+    val binFrequenciesArray = loadArray[Long](
       region, t.loadField(region, hOff, binFrequencies))
     assert(binFrequenciesArray === Array[Long](3L, 0L, 1L, 0L, 0L))
     assert(region.loadLong(t.loadField(region, hOff, nLess)) === 1L)
