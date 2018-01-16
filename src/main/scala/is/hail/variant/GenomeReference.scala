@@ -5,7 +5,7 @@ import java.io.InputStream
 import is.hail.HailContext
 import is.hail.check.Gen
 import is.hail.expr.types.{TInterval, TLocus, TVariant}
-import is.hail.expr.{JSONAnnotationImpex, JSONExtractGenomeReference}
+import is.hail.expr.{JSONAnnotationImpex, JSONExtractGenomeReference, Parser}
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -13,17 +13,40 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
+import is.hail.expr.Parser._
 
 abstract class GRBase extends Serializable {
   val variantType: TVariant
   val locusType: TLocus
   val intervalType: TInterval
 
+  def name: String
+
   def variantOrdering: Ordering[Variant]
 
   def locusOrdering: Ordering[Locus]
 
+  def contigParser: Parser[String]
+
   def isValidContig(contig: String): Boolean
+
+  def checkVariant(v: Variant): Unit
+
+  def checkVariant(contig: String, pos: Int, ref: String, alts: Array[String]): Unit
+
+  def checkVariant(contig: String, start: Int, ref: String, alts: java.util.ArrayList[String]): Unit
+
+  def checkVariant(contig: String, pos: Int, ref: String, alt: String): Unit
+
+  def checkLocus(l: Locus): Unit
+
+  def checkLocus(contig: String, pos: Int): Unit
+
+  def checkInterval(i: Interval): Unit
+
+  def checkInterval(l1: Locus, l2: Locus): Unit
+
+  def checkInterval(contig: String, start: Int, end: Int): Unit
 
   def contigLength(contig: String): Int
 
@@ -139,9 +162,10 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
       (!xContigs.contains(end.contig) && !yContigs.contains(end.contig)))
       fatal(s"The contig name for PAR interval `$start-$end' was not found in xContigs `${ xContigs.mkString(",") }' or in yContigs `${ yContigs.mkString(",") }'.")
 
-    implicit val locusOrd = locusOrdering
     Interval(start, end)
   }
+
+  def contigParser = Parser.oneOfLiteral(contigs)
 
   def contigLength(contig: String): Int = lengths.get(contig) match {
     case Some(l) => l
@@ -154,6 +178,67 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Map[St
   }
 
   def isValidContig(contig: String): Boolean = contigsSet.contains(contig)
+
+  private def isValidPosition(contig: String, pos: Int): Boolean = pos > 0 && pos <= contigLength(contig)
+
+  def checkLocus(l: Locus): Unit = checkLocus(l.contig, l.position)
+
+  def checkLocus(contig: String, pos: Int): Unit = {
+    if (!isValidContig(contig))
+      fatal(s"Invalid locus `$contig:$pos' found. Contig `$contig' is not in the reference genome `$name'.")
+    if (!isValidPosition(contig, pos))
+      fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+  }
+
+  def checkVariant(v: Variant): Unit = {
+    if (!isValidContig(v.contig))
+      fatal(s"Invalid variant `$v' found. Contig `${ v.contig }' is not in the reference genome `$name'.")
+    if (!isValidPosition(v.contig, v.start))
+      fatal(s"Invalid variant `$v' found. Start `${ v.start }' is not within the range [1-${ contigLength(v.contig) }] for reference genome `$name'.")
+  }
+
+  def checkVariant(contig: String, start: Int, ref: String, alt: String): Unit = {
+    val v = s"$contig:$start:$ref:$alt"
+    if (!isValidContig(contig))
+      fatal(s"Invalid variant `$v' found. Contig `$contig' is not in the reference genome `$name'.")
+    if (!isValidPosition(contig, start))
+      fatal(s"Invalid variant `$v' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+  }
+
+  def checkVariant(contig: String, start: Int, ref: String, alts: Array[String]): Unit = checkVariant(contig, start, ref, alts.mkString(","))
+
+  def checkVariant(contig: String, start: Int, ref: String, alts: java.util.ArrayList[String]): Unit = checkVariant(contig, start, ref, alts.asScala.toArray)
+
+  def checkInterval(i: Interval): Unit = {
+    val start = i.start.asInstanceOf[Locus]
+    val end = i.end.asInstanceOf[Locus]
+    if (!isValidContig(start.contig))
+      fatal(s"Invalid interval `$i' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
+    if (!isValidContig(end.contig))
+      fatal(s"Invalid interval `$i' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
+    if (!isValidPosition(start.contig, start.position))
+      fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
+    if (!isValidPosition(end.contig, end.position))
+      fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome `$name'.")
+  }
+
+  def checkInterval(l1: Locus, l2: Locus): Unit = {
+    val i = s"$l1-$l2"
+    if (!isValidPosition(l1.contig, l1.position))
+      fatal(s"Invalid interval `$i' found. Locus `$l1' is not in the reference genome `$name'.")
+    if (!isValidPosition(l2.contig, l2.position))
+      fatal(s"Invalid interval `$i' found. Locus `$l2' is not in the reference genome `$name'.")
+  }
+
+  def checkInterval(contig: String, start: Int, end: Int): Unit = {
+    val i = s"$contig:$start-$end"
+    if (!isValidContig(contig))
+      fatal(s"Invalid interval `$i' found. Contig `$contig' is not in the reference genome `$name'.")
+    if (!isValidPosition(contig, start))
+      fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+    if (!isValidPosition(contig, end))
+      fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+  }
 
   def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
 
@@ -254,12 +339,14 @@ object GenomeReference {
 
   def removeReference(name: String): Unit = {
     val nonBuiltInReferences = references.keySet -- hailReferences
+
     if (hailReferences.contains(name))
       fatal(s"Cannot remove reference genome. `$name' is a built-in Hail reference. Choose a reference name from the following list:\n  " +
         s"@1", nonBuiltInReferences.truncatable("\n  "))
     if (!hasReference(name))
       fatal(s"Cannot remove reference genome. `$name' does not exist. Choose a reference name from the following list:\n  " +
         s"@1", nonBuiltInReferences.truncatable("\n  "))
+
     references -= name
   }
 
@@ -326,8 +413,8 @@ object GenomeReference {
   }
 
   def gen: Gen[GenomeReference] = for {
-    name <- Gen.identifier
-    nContigs <- Gen.choose(3, 50)
+    name <- Gen.identifier.filter(!GenomeReference.hasReference(_))
+    nContigs <- Gen.choose(3, 10)
     contigs <- Gen.distinctBuildableOfN[Array](nContigs, Gen.identifier)
     lengths <- Gen.buildableOfN[Array](nContigs, Gen.choose(1000000, 500000000))
     contigsIndex = contigs.zip(lengths).toMap
@@ -388,6 +475,8 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
     gr
   }
 
+  def name: String = ???
+
   def variantOrdering: Ordering[Variant] =
     new Ordering[Variant] {
       def compare(x: Variant, y: Variant): Int = throw new UnsupportedOperationException("GRVariable.variantOrdering unimplemented")
@@ -398,8 +487,28 @@ case class GRVariable(var gr: GRBase = null) extends GRBase {
       def compare(x: Locus, y: Locus): Int = throw new UnsupportedOperationException("GRVariable.locusOrdering unimplemented")
     }
 
+  def contigParser: Parser[String] = ???
+
   def isValidContig(contig: String): Boolean = ???
 
+  def checkVariant(v: Variant): Unit = ???
+
+  def checkVariant(contig: String, pos: Int, ref: String, alts: Array[String]): Unit = ???
+
+  def checkVariant(contig: String, pos: Int, ref: String, alt: String): Unit = ???
+
+  def checkVariant(contig: String, start: Int, ref: String, alts: java.util.ArrayList[String]): Unit = ???
+
+  def checkLocus(l: Locus): Unit = ???
+
+  def checkLocus(contig: String, pos: Int): Unit = ???
+
+  def checkInterval(i: Interval): Unit = ???
+
+  def checkInterval(l1: Locus, l2: Locus): Unit = ???
+
+  def checkInterval(contig: String, start: Int, end: Int): Unit = ???
+  
   def contigLength(contig: String): Int = ???
 
   def contigLength(contigIdx: Int): Int = ???

@@ -2,9 +2,10 @@ package is.hail.io
 
 import is.hail.check.Gen._
 import is.hail.check.Prop._
-import is.hail.check.Properties
+import is.hail.check.{Gen, Properties}
 import is.hail.io.plink.{ExportPlink, PlinkLoader}
 import is.hail.methods.{SplitMulti, VariantQC}
+import is.hail.expr.types.Type
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
@@ -31,7 +32,7 @@ class ImportPlinkSuite extends SparkSuite {
 
         if (vds.nSamples == 0) {
           TestUtils.interceptFatal("Empty .fam file") {
-            hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
+            hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = vds.genomeReference)
           }
           true
         } else if (vds.countVariants() == 0) {
@@ -40,7 +41,7 @@ class ImportPlinkSuite extends SparkSuite {
           }
           true
         } else {
-          ExportPlink(hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions)),
+          ExportPlink(hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions), gr = vds.genomeReference),
             testRoot)
 
           val localTruthRoot = tmpDir.createLocalTempFile("truth")
@@ -95,5 +96,13 @@ class ImportPlinkSuite extends SparkSuite {
 
     assert(joined.forall("vA1.ref == vA2.alt && vA1.alt == vA2.ref && nNotCalledA1 == nNotCalledA2 && " +
       "nHetA1 == nHetA2 && nHomRefA1 == nHomVarA2 && nHomVarA1 == nHomRefA2"))
+  }
+
+  @Test def testDropChr0() {
+    val vds = VSMSubgen.plinkSafeBiallelic.copy(vGen = (t: Type) =>
+      VariantSubgen.biallelic.copy(contigGen = Contig.gen(Gen.const("0"))).gen).gen(hc).sample()
+    val outFile = tmpDir.createTempFile("plink_drop_chr0")
+    ExportPlink(vds, outFile)
+    assert(hc.importPlinkBFile(outFile, dropChr0 = true).countVariants() == 0)
   }
 }

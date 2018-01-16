@@ -178,6 +178,8 @@ object LoadGDB {
         val ur = new UnsafeRow(localRowType, region.copy(), rvb.end())
 
         val v = ur.getAs[Variant](0)
+        gr.checkVariant(v)
+
         val va = ur.get(1)
         val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
 

@@ -89,6 +89,7 @@ object BgenLoader {
       it.map { case (_, record) =>
         val v = record.getKey
         val vRecoded = v.copy(contig = contigRecoding.getOrElse(v.contig, v.contig))
+        gr.checkVariant(vRecoded)
 
         region.clear()
         rvb.start(kType)
@@ -112,6 +113,7 @@ object BgenLoader {
         val va = record.getAnnotation
 
         val vRecoded = v.copy(contig = contigRecoding.getOrElse(v.contig, v.contig))
+        gr.checkVariant(vRecoded)
 
         region.clear()
         rvb.start(rowType)

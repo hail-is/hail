@@ -23,16 +23,7 @@ trait Py4jUtils {
       list.add(elem)
     list
   }
-
-  def parseIntervalList(strs: java.util.ArrayList[String], gr: GenomeReference): IntervalTree[Unit] = {
-    IntervalTree(gr.locusType.ordering, Locus.parseIntervals(strs.asScala.toArray, gr))
-  }
-
-
-  def makeIntervalList(intervals: java.util.ArrayList[Interval], gr: GenomeReference): IntervalTree[Unit] = {
-    IntervalTree(gr.locusType.ordering, intervals.asScala.toArray)
-  }
-
+  
   def getURI(uri: String): String = new URI(uri).getPath
 
   // we cannot construct an array because we don't have the class tag

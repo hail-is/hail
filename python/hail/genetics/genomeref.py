@@ -287,3 +287,15 @@ class GenomeReference(HistoryMixin):
         gr._par_tuple = None
         super(GenomeReference, gr).__init__()
         return gr
+
+    @handle_py4j
+    def _check_variant(self, v_jrep):
+        self._jrep.checkVariant(v_jrep)
+
+    @handle_py4j
+    def _check_locus(self, l_jrep):
+        self._jrep.checkLocus(l_jrep)
+
+    @handle_py4j
+    def _check_interval(self, interval_jrep):
+        self._jrep.checkInterval(interval_jrep)

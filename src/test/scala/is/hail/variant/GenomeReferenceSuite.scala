@@ -4,8 +4,9 @@ import java.io.FileNotFoundException
 
 import is.hail.expr.types.{TInterval, TLocus, TStruct, TVariant}
 import is.hail.table.Table
-import is.hail.utils.Interval
+import is.hail.utils.HailException
 import is.hail.{SparkSuite, TestUtils}
+import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -148,7 +149,7 @@ class GenomeReferenceSuite extends SparkSuite {
   @Test def testConstructors() {
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv")
     val ktann = kt.annotate("""v1 = Variant(GRCh38)("chrX:156030895:A:T"), v2 = Variant(GRCh37)("X:154931044:A:T"),
-    |v3 = Variant(GRCh37)("1", 3, "A", "T"), l1 = Locus(GRCh38)("1", 100), l2 = Locus(GRCh37)("1:100"),
+    |v3 = Variant(GRCh37)("1", 3, "A", "T"), l1 = Locus(GRCh38)("chr1", 100), l2 = Locus(GRCh37)("1:100"),
     |i1 = LocusInterval(GRCh37)("1:5-10"), i2 = LocusInterval(GRCh38)("chrX", 156030890, 156030895)""".stripMargin)
 
     assert(ktann.signature.field("v1").typ == GenomeReference.GRCh38.variantType &&
@@ -168,6 +169,23 @@ class GenomeReferenceSuite extends SparkSuite {
     GenomeReference.setDefaultReference(gr)
     assert(kt.annotate("""v1 = Variant("chrX:156030895:A:T")""").signature.field("v1").typ == gr.variantType)
     assert(kt.annotate("""i1 = Interval(Locus(foo2)("1:100"), Locus(foo2)("1:104"))""").signature.field("i1").typ == TInterval(gr.locusType))
+
+    // check for invalid contig names or positions
+    intercept[SparkException](kt.annotate("""v1bad = Variant("foo:1555:A:T") """).collect())
+    intercept[SparkException](kt.annotate("""v1bad = Variant("foo", 1555, "A", "T") """).collect())
+    intercept[SparkException](kt.annotate("""v1bad = Variant("foo", 1555, "A", ["T", "G"]) """).collect())
+    intercept[SparkException](kt.annotate("""v1bad = Variant("MT:17000:A:T") """).collect())
+
+    intercept[SparkException](kt.annotate("""l1bad = Locus("MT:17000") """).collect())
+    intercept[SparkException](kt.annotate("""l1bad = Locus("foo:17000") """).collect())
+    intercept[SparkException](kt.annotate("""l1bad = Locus("foo", 17000) """).collect())
+
+    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("MT:4789-17000") """).collect())
+    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("foo:4789-17000") """).collect())
+    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("foo", 1, 10) """).collect())
+    intercept[SparkException](kt.annotate("""i1bad = LocusInterval("MT", 5, 17000) """).collect())
+
+    intercept[HailException](kt.annotate("""i1bad = Interval(Locus(foo2)("1:100"), Locus(GRCh37)("1:104"))""").collect())
 
     GenomeReference.setDefaultReference(GenomeReference.GRCh37)
     GenomeReference.removeReference("foo2")

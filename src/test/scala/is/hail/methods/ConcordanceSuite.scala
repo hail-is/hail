@@ -2,18 +2,21 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
+import is.hail.expr.types.TVariant
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{Genotype, VSMSubgen, Variant, MatrixTable}
+import is.hail.variant.{GenomeReference, Genotype, VSMSubgen, Variant, MatrixTable}
 import org.apache.spark.SparkContext
 import org.testng.annotations.Test
 
 import scala.language._
 
 class ConcordanceSuite extends SparkSuite {
-  def gen(sc: SparkContext) = for (vds1 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic);
-    vds2 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic);
-    scrambledIds1 <- Gen.shuffle(vds1.sampleIds).map(_.iterator);
+  def gen(sc: SparkContext) = for {
+    gr <- GenomeReference.gen
+    vds1 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(gr))))
+    vds2 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(gr))))
+    scrambledIds1 <- Gen.shuffle(vds1.sampleIds).map(_.iterator)
     newIds2 <- Gen.parameterized { p =>
       Gen.const(vds2.sampleIds.map { id =>
         if (scrambledIds1.hasNext && p.rng.nextUniform(0, 1) < .5) {
@@ -23,14 +26,14 @@ class ConcordanceSuite extends SparkSuite {
         else
           id
       })
-    };
-    scrambledVariants1 <- Gen.shuffle(vds1.variants.collect()).map(_.iterator);
+    }
+    scrambledVariants1 <- Gen.shuffle(vds1.variants.collect()).map(_.iterator)
     newVariantMapping <- Gen.parameterized { p =>
       Gen.const(vds2.variants.collect().map { v =>
         if (scrambledVariants1.hasNext && p.rng.nextUniform(0, 1) < .5) (v, scrambledVariants1.next()) else (v, v)
       }.toMap)
     }
-  ) yield (vds1, vds2.copyLegacy(sampleIds = newIds2,
+  } yield (vds1, vds2.copyLegacy(sampleIds = newIds2,
     rdd = vds2.rdd.map { case (v, (vaGS)) => (newVariantMapping(v), vaGS) }))
 
   //FIXME use SnpSift when it's fixed
@@ -179,7 +182,7 @@ class ConcordanceSuite extends SparkSuite {
 
       variants.rdd.collect()
         .foreach { r =>
-          innerJoinVariants.get(r.getAs[Variant](0)).forall(r.get(2) == _)
+          assert(innerJoinVariants.get(r.getAs[Variant](0)).forall(r.get(2) == _))
         }
       true
     }.check()

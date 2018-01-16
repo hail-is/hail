@@ -297,7 +297,7 @@ class HailContext private(val sc: SparkContext,
     val nSamples = samples.length
 
     //FIXME: can't specify multiple chromosomes
-    val results = inputs.map(f => GenLoader(f, sampleFile, sc, nPartitions,
+    val results = inputs.map(f => GenLoader(f, sampleFile, sc, gr, nPartitions,
       tolerance, chromosome, contigRecoding.getOrElse(Map.empty[String, String])))
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
@@ -388,14 +388,15 @@ class HailContext private(val sc: SparkContext,
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
     gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
+    contigRecoding: Option[Map[String, String]] = None,
+    dropChr0: Boolean = false): MatrixTable = {
 
     contigRecoding.foreach(gr.validateContigRemap)
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
     PlinkLoader(this, bed, bim, fam,
-      ffConfig, nPartitions, a2Reference, gr, contigRecoding.getOrElse(Map.empty[String, String]))
+      ffConfig, nPartitions, a2Reference, gr, contigRecoding.getOrElse(Map.empty[String, String]), dropChr0)
   }
 
   def importPlinkBFile(bfileRoot: String,
@@ -405,9 +406,10 @@ class HailContext private(val sc: SparkContext,
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
     gr: GenomeReference = GenomeReference.defaultReference,
-    contigRecoding: Option[Map[String, String]] = None): MatrixTable = {
+    contigRecoding: Option[Map[String, String]] = None,
+    dropChr0: Boolean = false): MatrixTable = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno, a2Reference, gr, contigRecoding)
+      nPartitions, delimiter, missing, quantPheno, a2Reference, gr, contigRecoding, dropChr0)
   }
 
   def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable = {

@@ -94,11 +94,13 @@ class HailContext(HistoryMixin):
                       missing=strlike,
                       quant_pheno=bool,
                       a2_reference=bool,
-                      reference_genome=nullable(GenomeReference))
+                      reference_genome=nullable(GenomeReference),
+                      drop_chr0=bool)
     def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
                      missing='NA', quant_pheno=False, a2_reference=True, reference_genome=None):
         return self._hc1.import_plink(bed, bim, fam, min_partitions, delimiter,
-                                      missing, quant_pheno, a2_reference, reference_genome).to_hail2()
+                                      missing, quant_pheno, a2_reference, reference_genome,
+                                      drop_chr0).to_hail2()
 
     @handle_py4j
     @record_method

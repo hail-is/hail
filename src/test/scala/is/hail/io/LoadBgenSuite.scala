@@ -38,6 +38,7 @@ class BgenProbabilityIterator(input: ByteArrayReader, nBitsPerProb: Int) extends
 }
 
 class LoadBgenSuite extends SparkSuite {
+  val contigRecoding = Some(Map("01" -> "1"))
 
   def getNumberOfLinesInFile(file: String): Long = {
     hadoopConf.readFile(file) { s =>
@@ -62,10 +63,10 @@ class LoadBgenSuite extends SparkSuite {
       val nVariants = getNumberOfLinesInFile(gen)
 
       hc.indexBgen(bgen)
-      val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10))
+      val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10), contigRecoding = contigRecoding)
       assert(bgenVDS.nSamples == nSamples && bgenVDS.countVariants() == nVariants)
 
-      val genVDS = hc.importGen(gen, sampleFile)
+      val genVDS = hc.importGen(gen, sampleFile, contigRecoding = contigRecoding)
 
       val varidBgenQuery = bgenVDS.vaSignature.query("varid")
       val varidGenQuery = genVDS.vaSignature.query("varid")
@@ -111,7 +112,7 @@ class LoadBgenSuite extends SparkSuite {
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds <- MatrixTable.gen(hc,
       VSMSubgen.dosage.copy(
-        vGen = _ => VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
+        vGen = _ => VariantSubgen.biallelic.copy(contigGen = Contig.gen(GenomeReference.defaultReference, "1")).gen,
         sGen = _ => Gen.identifier.filter(_ != "NA")))
       .filter(_.countVariants > 0);
       nPartitions <- choose(1, 10))
@@ -158,7 +159,7 @@ class LoadBgenSuite extends SparkSuite {
         assert(rc == 0)
 
         hc.indexBgen(bgenFile)
-        val importedVds = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), nPartitions = Some(nPartitions))
+        val importedVds = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), nPartitions = Some(nPartitions), contigRecoding = contigRecoding)
 
         assert(importedVds.nSamples == vds.nSamples)
         assert(importedVds.countVariants() == vds.countVariants())
@@ -263,7 +264,7 @@ class LoadBgenSuite extends SparkSuite {
 
   @Test def testReIterate() {
     hc.indexBgen("src/test/resources/example.v11.bgen")
-    val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"))
+    val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"), contigRecoding = contigRecoding)
 
     assert(vds.annotateVariantsExpr("va.cr1 = gs.fraction(g => isDefined(g.GT))")
       .annotateVariantsExpr("va.cr2 = gs.fraction(g => isDefined(g.GT))")
