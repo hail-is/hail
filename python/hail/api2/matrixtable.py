@@ -3,6 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.expr.expression import *
 from hail.utils import storage_level
 from hail.utils.java import handle_py4j
+from hail.utils.misc import get_nice_attr_error, get_nice_field_error
 from hail.api2 import Table
 
 
@@ -32,6 +33,23 @@ class GroupedMatrixTable(object):
 
         for f in parent._fields:
             self._set_field(f, parent._fields[f])
+
+    @typecheck_method(item=strlike)
+    def _get_field(self, item):
+        if item in self._fields:
+            return self._fields[item]
+        else:
+            raise KeyError(get_nice_field_error(self, item))
+
+    @typecheck_method(item=strlike)
+    def __getitem__(self, item):
+        return self._get_field(item)
+
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        else:
+            raise AttributeError(get_nice_attr_error(self, item))
 
     def partition_hint(self, n):
         """Set the target number of partitions for aggregation.
@@ -239,18 +257,7 @@ class MatrixTable(object):
         if item in self._fields:
             return self._fields[item]
         else:
-            # no field detected
-            raise KeyError("No field '{name}' found. "
-                           "Global fields: [{global_fields}], "
-                           "Row-indexed fields: [{row_fields}], "
-                           "Column-indexed fields: [{col_fields}], "
-                           "Row/Column-indexed fields: [{entry_fields}]".format(
-                name=item,
-                global_fields=', '.join(repr(f.name) for f in self.global_schema.fields),
-                row_fields=', '.join(repr(f.name) for f in self.row_schema.fields),
-                col_fields=', '.join(repr(f.name) for f in self.col_schema.fields),
-                entry_fields=', '.join(repr(f.name) for f in self.entry_schema.fields),
-            ))
+            raise LookupError(get_nice_field_error(self, item))
 
     def __delattr__(self, item):
         if not item[0] == '_':
@@ -265,7 +272,7 @@ class MatrixTable(object):
         if item in self.__dict__:
             return self.__dict__[item]
         else:
-            return self[item]
+            raise AttributeError(get_nice_attr_error(self, item))
 
     @typecheck_method(item=oneof(strlike, sized_tupleof(oneof(slice, Expression), oneof(slice, Expression))))
     def __getitem__(self, item):

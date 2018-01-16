@@ -2,6 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
+from hail.utils.misc import get_nice_field_error, get_nice_attr_error
 
 table_type = lazy()
 
@@ -62,14 +63,7 @@ class TableTemplate(HistoryMixin):
         if item in self._fields:
             return self._fields[item]
         else:
-            # no field detected
-            raise KeyError("No field '{name}' found. "
-                           "Global fields: [{global_fields}], "
-                           "Row-indexed fields: [{row_fields}]".format(
-                name=item,
-                global_fields=', '.join(repr(f.name) for f in self.global_schema.fields),
-                row_fields=', '.join(repr(f.name) for f in self.schema.fields),
-            ))
+            raise LookupError(get_nice_field_error(self, item))
 
     def __getitem__(self, item):
         return self._get_field(item)
@@ -87,7 +81,7 @@ class TableTemplate(HistoryMixin):
         if item in self.__dict__:
             return self.__dict__[item]
         else:
-            return self[item]
+            raise AttributeError(get_nice_attr_error(self, item))
 
     def __repr__(self):
         return self._jt.toString()
