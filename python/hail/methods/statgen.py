@@ -513,39 +513,39 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     component coordinates. As such, the efficacy of this method rests on two
     assumptions:
 
-        - an individual's first ``k`` principal component coordinates fully
+     - an individual's first ``k`` principal component coordinates fully
         describe their allele-frequency-relevant ancestry, and
 
-        - the relationship between ancestry (as described by principal
+     - the relationship between ancestry (as described by principal
         component coordinates) and population allele frequency is linear
 
     The estimators for kinship, and identity-by-descent zero, one, and two
     follow. Let:
 
-        - :math:`S_{ij}` be the set of genetic loci at which both individuals
+     - :math:`S_{ij}` be the set of genetic loci at which both individuals
         :math:`i` and :math:`j` have a defined genotype
 
-        - :math:`g_{is} \\in {0, 1, 2}` be the number of alternate alleles that
+     - :math:`g_{is} \\in {0, 1, 2}` be the number of alternate alleles that
         individual :math:`i` has at gentic locus :math:`s`
 
-        - :math:`\\widehat{\\mu_{is}} \\in [0, 1]` be the individual-specific allele
+     - :math:`\\widehat{\\mu_{is}} \\in [0, 1]` be the individual-specific allele
         frequency for individual :math:`i` at genetic locus :math:`s`
 
-        - :math:`{\\widehat{\\sigma^2_{is}}} := \\widehat{\\mu_{is}} (1 -
+     - :math:`{\\widehat{\\sigma^2_{is}}} := \\widehat{\\mu_{is}} (1 -
         \\widehat{\\mu_{is}})`, the binomial variance of
         :math:`\\widehat{\\mu_{is}}`
 
-        - :math:`\\widehat{\\sigma_{is}} := \\sqrt{\\widehat{\\sigma^2_{is}}}`,
+     - :math:`\\widehat{\\sigma_{is}} := \\sqrt{\\widehat{\\sigma^2_{is}}}`,
         the binomial standard deviation of :math:`\\widehat{\\mu_{is}}`
 
-        - :math:`\\text{IBS}^{(0)}_{ij} := \\sum_{s \\in S_{ij}} \\mathbb{1}_{||g_{is} -
+     - :math:`\\text{IBS}^{(0)}_{ij} := \\sum_{s \\in S_{ij}} \\mathbb{1}_{||g_{is} -
         g_{js} = 2||}`, the number of genetic loci at which individuals
         :math:`i` and :math:`j` share no alleles
 
-        - :math:`\\widehat{f_i} := 2 \\widehat{\\phi_{ii}} - 1`, the inbreeding
+     - :math:`\\widehat{f_i} := 2 \\widehat{\\phi_{ii}} - 1`, the inbreeding
         coefficient for individual :math:`i`
 
-        - :math:`g^D_{is}` be a dominance encoding of the genotype matrix, and
+     - :math:`g^D_{is}` be a dominance encoding of the genotype matrix, and
         :math:`X_{is}` be a normalized dominance-coded genotype matrix
 
     .. math::
