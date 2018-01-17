@@ -260,19 +260,24 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     The resulting variant annotations depend on the test statistic as shown
     in the tables below.
 
-    ========== =============== ====== =====
-    Test       Field           Type   Value
-    ========== =============== ====== =====
-    Wald       `logreg.beta`   Double fit genotype coefficient, :math:`\hat\beta_1`
-    Wald       `logreg.se`     Double estimated standard error, :math:`\widehat{\mathrm{se}}`
-    Wald       `logreg.zstat`  Double Wald :math:`z`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-    Wald       `logreg.pval`   Double Wald p-value testing :math:`\beta_1 = 0`
-    LRT, Firth `logreg.beta`   Double fit genotype coefficient, :math:`\hat\beta_1`
-    LRT, Firth `logreg.chi2`   Double deviance statistic
-    LRT, Firth `logreg.pval`   Double LRT / Firth p-value testing :math:`\beta_1 = 0`
-    Score      `logreg.chi2`   Double score statistic
-    Score      `logreg.pval`   Double score p-value testing :math:`\beta_1 = 0`
-    ========== =============== ====== =====
+    ========== =============== ======  ============================================
+    Test       Field           Type    Value
+    ========== =============== ======  ============================================
+    Wald       `logreg.beta`   Double  fit genotype coefficient,
+                                       :math:`\hat\beta_1`
+    Wald       `logreg.se`     Double  estimated standard error,
+                                       :math:`\widehat{\mathrm{se}}`
+    Wald       `logreg.zstat`  Double  Wald :math:`z`-statistic, equal to
+                                       :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+    Wald       `logreg.pval`   Double  Wald p-value testing :math:`\beta_1 = 0`
+    LRT, Firth `logreg.beta`   Double  fit genotype coefficient,
+                                       :math:`\hat\beta_1`
+    LRT, Firth `logreg.chi2`   Double  deviance statistic
+    LRT, Firth `logreg.pval`   Double  LRT / Firth p-value testing
+                                       :math:`\beta_1 = 0`
+    Score      `logreg.chi2`   Double  score statistic
+    Score      `logreg.pval`   Double  score p-value testing :math:`\beta_1 = 0`
+    ========== =============== ======  ============================================
 
     For the Wald and likelihood ratio tests, Hail fits the logistic model for
     each variant using Newton iteration and only emits the above annotations
@@ -281,13 +286,16 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     convergence issues, Hail also emits three variant annotations which
     summarize the iterative fitting process:
 
-    ================ ======================= ======= =====
+    ================ ======================= ======= ===========================
     Test             Field                   Type    Value
-    ================ ======================= ======= =====
-    Wald, LRT, Firth `logreg.fit.nIter`      Int     number of iterations until convergence, explosion, or reaching the max (25 for Wald, LRT; 100 for Firth)
+    ================ ======================= ======= ===========================
+    Wald, LRT, Firth `logreg.fit.nIter`      Int     number of iterations until
+                                                     convergence, explosion, or
+                                                     reaching the max (25 for
+                                                     Wald, LRT; 100 for Firth)
     Wald, LRT, Firth `logreg.fit.converged`  Boolean true if iteration converged
     Wald, LRT, Firth `logreg.fit.exploded`   Boolean true if iteration exploded
-    ================ ======================= ======= =====
+    ================ ======================= ======= ===========================
 
     We consider iteration to have converged when every coordinate of
     :math:`\beta` changes by less than :math:`10^{-6}`. For Wald and LRT,
@@ -492,37 +500,61 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     :func:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on
     whether :math:`\delta` is set or fit.
 
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | Field                                        | Type                 | Value                                                                                                                                              |
-    +==============================================+======================+====================================================================================================================================================+
-    | `lmmreg_global.useML`                        | Boolean              | true if fit by ML, false if fit by REML                                                                                                            |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.beta`                         | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\beta` coefficients                                  |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.sigmaG2`                      | Double               | fit coefficient of genetic variance, :math:`\hat{\sigma}_g^2`                                                                                      |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.sigmaE2`                      | Double               | fit coefficient of environmental variance :math:`\hat{\sigma}_e^2`                                                                                 |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.delta`                        | Double               | fit ratio of variance component coefficients, :math:`\hat{\delta}`                                                                                 |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.h2`                           | Double               | fit narrow-sense heritability, :math:`\hat{h}^2`                                                                                                   |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.nEigs`                        | Int                  | number of eigenvectors of kinship matrix used to fit model                                                                                         |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.dropped_variance_fraction`    | Double               | specified value of `dropped_variance_fraction`                                                                                                     |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.evals`                        | Array[Double]        | all eigenvalues of the kinship matrix in descending order                                                                                          |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.fit.seH2`                     | Double               | standard error of :math:`\hat{h}^2` under asymptotic normal approximation                                                                          |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.fit.normLkhdH2`               | Array[Double]        | likelihood function of :math:`h^2` normalized on the discrete grid ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for percentage ``i``.  |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.fit.maxLogLkhd`               | Double               | (restricted) maximum log likelihood corresponding to :math:`\hat{\delta}`                                                                          |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.fit.logDeltaGrid`             | Array[Double]        | values of :math:`\mathrm{ln}(\delta)` used in the grid search                                                                                      |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
-    | `lmmreg_global.fit.logLkhdVals`              | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\beta` and :math:`\sigma_g^2` |
-    +----------------------------------------------+----------------------+----------------------------------------------------------------------------------------------------------------------------------------------------+
+    .. list-table::
+       :header-rows: 1
+
+       * - Field
+         - Type
+         - Value
+       * - `lmmreg_global.useML`
+         - Boolean
+         - true if fit by ML, false if fit by REML
+       * - `lmmreg_global.beta`
+         - Dict[String, Double]
+         - map from *intercept* and the given ``covariates`` expressions to the
+           corresponding fit :math:`\beta` coefficients
+       * - `lmmreg_global.sigmaG2`
+         - Double
+         - fit coefficient of genetic variance, :math:`\hat{\sigma}_g^2`
+       * - `lmmreg_global.sigmaE2`
+         - Double
+         - fit coefficient of environmental variance :math:`\hat{\sigma}_e^2`
+       * - `lmmreg_global.delta`
+         - Double
+         - fit ratio of variance component coefficients, :math:`\hat{\delta}`
+       * - `lmmreg_global.h2`
+         - Double
+         - fit narrow-sense heritability, :math:`\hat{h}^2`
+       * - `lmmreg_global.nEigs`
+         - Int
+         - number of eigenvectors of kinship matrix used to fit model
+       * - `lmmreg_global.dropped_variance_fraction`
+         - Double
+         - specified value of `dropped_variance_fraction`
+       * - `lmmreg_global.evals`
+         - Array[Double]
+         - all eigenvalues of the kinship matrix in descending order
+       * - `lmmreg_global.fit.seH2`
+         - Double
+         - standard error of :math:`\hat{h}^2` under asymptotic normal
+           approximation
+       * - `lmmreg_global.fit.normLkhdH2`
+         - Array[Double]
+         - likelihood function of :math:`h^2` normalized on the discrete grid
+           ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for
+           percentage ``i``.
+       * - `lmmreg_global.fit.maxLogLkhd`
+         - Double
+         - (restricted) maximum log likelihood corresponding to
+           :math:`\hat{\delta}`
+       * - `lmmreg_global.fit.logDeltaGrid`
+         - Array[Double]
+         - values of :math:`\mathrm{ln}(\delta)` used in the grid search
+       * - `lmmreg_global.fit.logLkhdVals`
+         - Array[Double]
+         - (restricted) log likelihood of :math:`y` given :math:`X` and
+           :math:`\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\beta` and
+           :math:`\sigma_g^2`
 
     These global annotations are also added to ``hail.log``, with the ranked
     evals and :math:`\delta` grid with values in .tsv tabular form.  Use
@@ -531,17 +563,19 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     If Step 5 is performed, :func:`.lmmreg` also adds four linear regression
     variant annotations.
 
-    +-----------------------+--------+-------------------------------------------------------------------------+
-    | Annotation            | Type   | Value                                                                   |
-    +=======================+========+=========================================================================+
-    | `lmmreg.beta`         | Double | fit genotype coefficient, :math:`\hat\beta_0`                           |
-    +-----------------------+--------+-------------------------------------------------------------------------+
-    | `lmmreg.sigmaG2`      | Double | fit coefficient of genetic variance component, :math:`\hat{\sigma}_g^2` |
-    +-----------------------+--------+-------------------------------------------------------------------------+
-    | `lmmreg.chi2`         | Double | :math:`\chi^2` statistic of the likelihood ratio test                   |
-    +-----------------------+--------+-------------------------------------------------------------------------+
-    | `lmmreg.pval`         | Double | :math:`p`-value                                                         |
-    +-----------------------+--------+-------------------------------------------------------------------------+
+    +------------------+--------+------------------------------------------------+
+    | Field            | Type   | Value                                          |
+    +==================+========+================================================+
+    | `lmmreg.beta`    | Double | fit genotype coefficient, :math:`\hat\beta_0`  |
+    +------------------+--------+------------------------------------------------+
+    | `lmmreg.sigmaG2` | Double | fit coefficient of genetic variance component, |
+    |                  |        | :math:`\hat{\sigma}_g^2`                       |
+    +------------------+--------+------------------------------------------------+
+    | `lmmreg.chi2`    | Double | :math:`\chi^2` statistic of the likelihood     |
+    |                  |        | ratio test                                     |
+    +------------------+--------+------------------------------------------------+
+    | `lmmreg.pval`    | Double | :math:`p`-value                                |
+    +------------------+--------+------------------------------------------------+
 
     Those variants that don't vary across the included samples (e.g., all
     genotypes are HomRef) will have missing annotations.
