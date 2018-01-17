@@ -101,6 +101,8 @@ def to_expr(e):
     elif isinstance(e, AltAllele):
         return construct_expr(ApplyMethod('AltAllele', to_expr(e.ref)._ast, to_expr(e.alt)._ast), TAltAllele())
     elif isinstance(e, Struct):
+        if len(e) == 0:
+            return construct_expr(StructDeclaration([], []), TStruct([], []))
         attrs = e._fields.items()
         cols = [to_expr(x) for _, x in attrs]
         names = [k for k, _ in attrs]
@@ -1838,8 +1840,19 @@ class StructExpression(Mapping, Expression):
         >>> eval_expr(s.a)
         5
 
-    It is possible to have fields whose names violate Python identifier syntax.
-    For these, use the :meth:`StructExpression.__getitem__` syntax.
+    However, it is recommended to use square brackets to select fields:
+
+    .. doctest::
+
+        >>> eval_expr(s['a'])
+        5
+
+    The latter syntax is safer, because fields that share their name with
+    an existing attribute of :class:`.StructExpression` (`keys`, `values`,
+    `annotate`, `drop`, etc.) will only be accessible using the
+    :meth:`StructExpression.__getitem__` syntax. This is also the only way
+    to access fields that are not valid Python identifiers, like fields with
+    spaces or symbols.
     """
     def _init(self):
         self._fields = OrderedDict()
@@ -1897,6 +1910,152 @@ class StructExpression(Mapping, Expression):
 
     def __nonzero__(self):
         return Expression.__nonzero__(self)
+
+    @typecheck_method(named_exprs=expr_any)
+    def annotate(self, **named_exprs):
+        """Add new fields or recompute existing fields.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s.annotate(a=10, c=2*2*2))
+            Struct(a=10, b='Foo', c=8)
+
+        Notes
+        -----
+        If an expression in `named_exprs` shares a name with a field of the
+        struct, then that field will be replaced but keep its position in
+        the struct. New fields will be appended to the end of the struct.
+
+        Parameters
+        ----------
+        named_exprs : keyword args of :class:`.Expression`
+            Fields to add.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct with new or updated fields.
+        """
+        names = []
+        types = []
+        for fd in self.dtype.fields:
+            names.append(fd.name)
+            types.append(fd.typ)
+        kwargs_struct = to_expr(Struct(**named_exprs))
+
+        for fd in kwargs_struct.dtype.fields:
+            if not fd.name in self._fields:
+                names.append(fd.name)
+                types.append(fd.typ)
+
+        result_type = TStruct(names, types)
+        indices, aggregations, joins, refs = unify_all(self, kwargs_struct)
+
+        return construct_expr(ApplyMethod('annotate', self._ast, kwargs_struct._ast), result_type,
+                              indices, aggregations, joins, refs)
+
+    @typecheck_method(fields=strlike, named_exprs=expr_any)
+    def select(self, *fields, **named_exprs):
+        """Select existing fields and compute new ones.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s.select('a', c=['bar', 'baz']))
+            Struct(a=5, c=[u'bar', u'baz'])
+
+        Notes
+        -----
+        The `fields` argument is a list of field names to keep. These fields
+        will appear in the resulting struct in the order they appear in
+        `fields`.
+
+        The `named_exprs` arguments are new field expressions.
+
+        Parameters
+        ----------
+        fields : varargs of :obj:`str`
+            Field names to keep.
+        named_exprs : keyword args of :class:`.Expression`
+            New field expressions.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct containing specified existing fields and computed fields.
+        """
+        names = []
+        name_set = set()
+        types = []
+        for a in fields:
+            if not a in self._fields:
+                raise KeyError("Struct has no field '{}'\n"
+                               "    Fields: [ {} ]".format(a, ', '.join("'{}'".format(x) for x in self._fields)))
+            if a in name_set:
+                raise ExpressionException("'StructExpression.select' does not support duplicate identifiers.\n"
+                                          "    Identifier '{}' appeared more than once".format(a))
+            names.append(a)
+            name_set.add(a)
+            types.append(self[a].dtype)
+        select_names = names[:]
+        select_name_set = set(select_names)
+
+        kwargs_struct = to_expr(Struct(**named_exprs))
+        for fd in kwargs_struct.dtype.fields:
+            if fd.name in select_name_set:
+                raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(fd.name))
+            names.append(fd.name)
+            types.append(fd.typ)
+        result_type = TStruct(names, types)
+
+        indices, joins, aggregations, refs = unify_all(self, kwargs_struct)
+
+        return construct_expr(ApplyMethod('merge', StructOp('select', self._ast, *select_names), kwargs_struct._ast),
+                              result_type, indices, joins, aggregations, refs)
+
+    @typecheck_method(fields=strlike)
+    def drop(self, *fields):
+        """Drop fields from the struct.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(s.drop('b'))
+            Struct(a=5)
+
+        Parameters
+        ----------
+        fields: varargs of :obj:`str`
+            Fields to drop.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct without certain fields.
+        """
+        to_drop = set()
+        for a in fields:
+            if not a in self._fields:
+                raise KeyError("Struct has no field '{}'\n"
+                               "    Fields: [ {} ]".format(a, ', '.join("'{}'".format(x) for x in self._fields)))
+            if a in to_drop:
+                warn("Found duplicate field name in 'StructExpression.drop': '{}'".format(a))
+            to_drop.add(a)
+
+        names = []
+        types = []
+        for fd in self.dtype.fields:
+            if not fd.name in to_drop:
+                names.append(fd.name)
+                types.append(fd.typ)
+        result_type = TStruct(names, types)
+        return construct_expr(StructOp('drop', self._ast, *to_drop), result_type,
+                              self._indices, self._joins, self._aggregations, self._refs)
+
 
 class AtomicExpression(Expression):
     """Abstract base class for numeric and logical types."""
