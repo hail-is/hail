@@ -308,7 +308,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
 
     .. include:: ../_templates/req_tvariant.rst
 
-    :py:meth:`~hail.methods.vep` runs `Variant Effect Predictor
+    :py:meth:`.vep` runs `Variant Effect Predictor
     <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with the `LOFTEE
     plugin <https://github.com/konradjk/loftee>`__ on the current dataset and
     adds the result as a row field.
@@ -325,10 +325,10 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
 
     **Configuration**
 
-    :py:meth:`~hail.VariantDataset.vep` needs a configuration file to tell it
+    :meth:`.vep` needs a configuration file to tell it
     how to run VEP. The format is a `.properties file
     <https://en.wikipedia.org/wiki/.properties>`__. Roughly, each line defines a
-    property as a key-value pair of the form `key = value`. `vep` supports the
+    property as a key-value pair of the form `key = value`. :meth:`.vep` supports the
     following properties:
 
     - **hail.vep.perl** -- Location of Perl. Optional, default: perl.
@@ -338,7 +338,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
       VEP.  Optional, by default PATH is not set.
     - **hail.vep.location** -- Location of the VEP Perl script.  Required.
     - **hail.vep.cache_dir** -- Location of the VEP cache dir, passed to VEP
-      with the `--dir` option. Required.
+      with the ``--dir`` option. Required.
     - **hail.vep.fasta** -- Location of the FASTA file to use to look up the
       reference sequence, passed to VEP with the `--fasta` option. Required.
     - **hail.vep.assembly** -- Genome assembly version to use. Optional,
@@ -352,7 +352,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
       for the LOFTEE plugin. Ignored if `hail.vep.plugin` is set. Required
       otherwise.
 
-    Here is an example `vep.properties` configuration file
+    Here is an example ``vep.properties`` configuration file
 
     .. code-block:: text
 
@@ -361,7 +361,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
         hail.vep.location = /path/to/vep/ensembl-tools-release-81/scripts/variant_effect_predictor/variant_effect_predictor.pl
         hail.vep.cache_dir = /path/to/vep
         hail.vep.lof.human_ancestor = /path/to/loftee_data/human_ancestor.fa.gz
-        hail.vep.lof.conservation_file = /path/to/loftee_data//phylocsf.sql
+        hail.vep.lof.conservation_file = /path/to/loftee_data/phylocsf.sql
 
     **VEP Invocation**
 
@@ -379,7 +379,11 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
         --fasta <hail.vep.fasta>
         --minimal
         --assembly <hail.vep.assembly>
-        --plugin LoF,human_ancestor_fa:$<hail.vep.lof.human_ancestor>,filter_position:0.05,min_intron_size:15,conservation_file:<hail.vep.lof.conservation_file>
+        --plugin LoF,\
+        human_ancestor_fa:$<hail.vep.lof.human_ancestor>,\
+        filter_position:0.05,\
+        min_intron_size:15,\
+        conservation_file:<hail.vep.lof.conservation_file>
         -o STDOUT
 
     **Annotations**
@@ -529,13 +533,13 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
         Dataset.
     config : :obj:`str`
         Path to VEP configuration file.
-    block_size: :obj:`int`
+    block_size : :obj:`int`
         Number of rows to process per VEP invocation.
     name : :obj:`str`
         Name for resulting row field.
     csq : :obj:`bool`
         If ``True``, annotates VCF CSQ field as a String.
-        If ``False``, annotates with the full nested struct schema
+        If ``False``, annotates with the full nested struct schema.
 
     Returns
     -------
@@ -544,3 +548,262 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
     """
 
     return MatrixTable(Env.hail().methods.VEP.apply(dataset._jvds, config, 'va.`{}`'.format(name), csq, block_size))
+
+
+@handle_py4j
+@typecheck_method(dataset=MatrixTable,
+                  config=strlike,
+                  block_size=integral,
+                  name=strlike)
+def nirvana(dataset, config, block_size=500000, name='nirvana'):
+    """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
+
+    .. include:: ../_templates/experimental.rst
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    :meth:`.nirvana` runs `Nirvana
+    <https://github.com/Illumina/Nirvana>`_ on the current dataset and adds a
+    new row field in the location specified by `name`.
+
+    Examples
+    --------
+
+    Add Nirvana annotations to the dataset:
+
+    >>> result = methods.nirvana(dataset, "data/nirvana.properties") # doctest: +SKIP
+
+    Notes
+    -----
+
+    ***Configuration***
+
+    :meth:`.nirvana` requires a configuration file. The format is a
+    `.properties file <https://en.wikipedia.org/wiki/.properties>`__, where each
+    line defines a property as a key-value pair of the form ``key = value``.
+    :meth:`.nirvana` supports the following properties:
+
+    - **hail.nirvana.dotnet** -- Location of dotnet. Optional, default: dotnet.
+    - **hail.nirvana.path** -- Value of the PATH environment variable when
+      invoking Nirvana. Optional, by default PATH is not set.
+    - **hail.nirvana.location** -- Location of Nirvana.dll. Required.
+    - **hail.nirvana.reference** -- Location of reference genome. Required.
+    - **hail.nirvana.cache** -- Location of cache. Required.
+    - **hail.nirvana.supplementaryAnnotationDirectory** -- Location of
+      Supplementary Database. Optional, no supplementary database by default.
+
+    Here is an example ``nirvana.properties`` configuration file:
+
+    .. code-block:: text
+
+        hail.nirvana.location = /path/to/dotnet/netcoreapp1.1/Nirvana.dll
+        hail.nirvana.reference = /path/to/nirvana/References/Homo_sapiens.GRCh37.Nirvana.dat
+        hail.nirvana.cache = /path/to/nirvana/Cache/GRCh37/Ensembl84
+        hail.nirvana.supplementaryAnnotationDirectory = /path/to/nirvana/SupplementaryDatabase/GRCh37
+
+    **Annotations**
+
+    A new row field is added in the location specified by `name` with the
+    following schema:
+
+    .. code-block:: text
+
+        Struct{
+          chromosome: String,
+          refAllele: String,
+          position: Int,
+          altAlleles: Array[String],
+          cytogeneticBand: String,
+          quality: Double,
+          filters: Array[String],
+          jointSomaticNormalQuality: Int,
+          copyNumber: Int,
+          strandBias: Double,
+          recalibratedQuality: Double,
+          variants: Array[Struct{
+            altAllele: String,
+            refAllele: String,
+            chromosome: String,
+            begin: Int,
+            end: Int,
+            phylopScore: Double,
+            isReferenceMinor: Boolean,
+            variantType: String,
+            vid: String,
+            isRecomposed: Boolean,
+            regulatoryRegions: Array[Struct{
+              id: String,
+              consequence: Set[String],
+              type: String
+            }],
+            clinvar: Array[Struct{
+              id: String,
+              reviewStatus: String,
+              isAlleleSpecific: Boolean,
+              alleleOrigins: Array[String],
+              refAllele: String,
+              altAllele: String,
+              phenotypes: Array[String],
+              medGenIds: Array[String],
+              omimIds: Array[String],
+              orphanetIds: Array[String],
+              geneReviewsId: String,
+              significance: String,
+              lastUpdatedDate: String,
+              pubMedIds: Array[String]
+            }],
+            cosmic: Array[Struct{
+              id: String,
+              isAlleleSpecific: Boolean,
+              refAllele: String,
+              altAllele: String,
+              gene: String,
+              sampleCount: Int,
+              studies: Array[Struct{
+                id: Int,
+                histology: String,
+                primarySite: String
+              }]
+            }],
+            dbsnp: Struct{"ids: Array(String)},
+            evs: Struct{
+              coverage: Int,
+              sampleCount: Int,
+              allAf: Double,
+              afrAf: Double,
+              eurAf: Double
+            },
+            exac: Struct{
+              coverage: Int,
+              allAf: Double,
+              allAc: Int,
+              allAn: Int,
+              afrAf: Double,
+              afrAc: Int,
+              afrAn: Int,
+              amrAf: Double,
+              amrAc: Int,
+              amrAn: Int,
+              easAf: Double,
+              easAc: Int,
+              easAn: Int,
+              finAf: Double,
+              finAc: Int,
+              finAn: Int,
+              nfeAf: Double,
+              nfeAc: Int,
+              nfeAn: Int,
+              othAf: Double,
+              othAc: Int,
+              othAn: Int,
+              sasAf: Double,
+              sasAc: Int,
+              sasAn: Int
+            },
+            globalAllele: Struct{
+              globalMinorAllele: String,
+              globalMinorAlleleFrequency: Double
+            },
+            oneKg: Struct{
+              ancestralAllele: String,
+              allAf: Double,
+              allAc: Int,
+              allAn: Int,
+              afrAf: Double,
+              afrAc: Int,
+              afrAn: Int,
+              amrAf: Double,
+              amrAc: Int,
+              amrAn: Int,
+              easAf: Double,
+              easAc: Int,
+              easAn: Int,
+              eurAf: Double,
+              eurAc: Int,
+              eurAn: Int,
+              sasAf: Double,
+              sasAc: Int,
+              sasAn: Int
+            },
+            transcripts: Struct{
+              refSeq: Array[Struct{
+                transcript: String,
+                bioType: String,
+                aminoAcids: String,
+                cDnaPos: String,
+                codons: String,
+                cdsPos: String,
+                exons: String,
+                introns: String,
+                geneId: String,
+                hgnc: String,
+                consequence: Array[String],
+                hgvsc: String,
+                hgvsp: String,
+                isCanonical: Boolean,
+                polyPhenScore: Double,
+                polyPhenPrediction: String,
+                proteinId: String,
+                proteinPos: String,
+                siftScore: Double,
+                siftPrediction: String
+              }],
+              ensembl: Array[Struct{
+                transcript: String,
+                bioType: String,
+                aminoAcids: String,
+                cDnaPos: String,
+                codons: String,
+                cdsPos: String,
+                exons: String,
+                introns: String,
+                geneId: String,
+                hgnc: String,
+                consequence: Array[String],
+                hgvsc: String,
+                hgvsp: String,
+                isCanonical: Boolean,
+                polyPhenScore: Double,
+                polyPhenPrediction: String,
+                proteinId: String,
+                proteinPos: String,
+                siftScore: Double,
+                siftPrediction: String
+              }]
+            },
+            genes: Array[Struct{
+              name: String,
+              omim: Array[Struct{
+                mimNumber: Int,
+                hgnc: String,
+                description: String,
+                phenotypes: Array[Struct{
+                  mimNumber: Int,
+                  phenotype: String,
+                  mapping: String,
+                  inheritance: Array[String],
+                  comments: String
+                }]
+              }]
+            }]
+          }]
+        }
+
+    Parameters
+    ----------
+    dataset : :class:`.MatrixTable`
+        Dataset.
+    config : :obj:`str`
+        Path to Nirvana configuration file.
+    block_size : :obj:`int`
+        Number of rows to process per Nirvana invocation.
+    name : :obj:`str`
+        Name for resulting row field.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Dataset with new row-indexed field `name` containing Nirvana annotations.
+    """
+
+    return MatrixTable(Env.hail().methods.Nirvana.apply(dataset._jvds, config, block_size, 'va.`{}`'.format(name)))
