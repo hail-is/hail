@@ -1,7 +1,6 @@
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j, joption
 from hail.api2 import Table, MatrixTable
-from hail.history import *
 from hail.expr.types import *
 from hail.genetics import GenomeReference
 from .misc import require_biallelic
