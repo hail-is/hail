@@ -84,6 +84,7 @@ class Tests(unittest.TestCase):
         compare(dataset, min=0.0, max=1.0)
         dataset = dataset.annotate_rows(dummy_maf=0.01)
         methods.ibd(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
+        methods.ibd(dataset, dataset['dummy_maf'].to_float32(), min=0.0, max=1.0)
 
     def test_ld_matrix(self):
         dataset = self.get_dataset()
