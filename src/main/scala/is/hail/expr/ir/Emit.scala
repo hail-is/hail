@@ -281,6 +281,52 @@ object Emit {
               mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
               srvb.advance()) }: _*),
           srvb.offset))
+      case x@InsertFields(old, fields, _) =>
+        old.typ match {
+          case oldtype: TStruct =>
+            val (doold, mold, vold) = emit(old)
+            val xo = fb.newLocal[Long]
+            val xmo = mb.newBit()
+            val updateInit = Map(fields.filter { case (name, _) => oldtype.hasField(name) }
+              .map { case (name, v) => name -> (v.typ, emit(v)) }: _*)
+            val appendInit = fields.filter { case (name, _) => !oldtype.hasField(name) }
+              .map { case (_, v) => (v.typ, emit(v)) }
+            val initializers = fields.map { case (_, v) => (v.typ, emit(v)) }
+            val srvb = new StagedRegionValueBuilder(fb, x.typ)
+            present(Code(
+              srvb.start(init = true),
+              Code(
+                doold,
+                xo := coerce[Long](vold),
+                xmo := mold,
+                Code(oldtype.fields.map { f =>
+                  updateInit.get(f.name) match {
+                    case Some((t, (dov, mv, vv))) =>
+                      Code(
+                        dov,
+                        mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
+                        srvb.advance())
+                    case None =>
+                      Code(
+                        (xmo || oldtype.isFieldMissing(region, xo, f.index)).mux(
+                          srvb.setMissing(),
+                          srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(f.typ)(oldtype.fieldOffset(xo, f.index)))
+                        ),
+                        srvb.advance())
+                  }
+                }: _*)),
+              Code(appendInit.map { case (t, (dov, mv, vv)) =>
+                Code(
+                  dov,
+                  mv.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(vv)),
+                  srvb.advance()) }: _*),
+              srvb.offset))
+          case _ =>
+            val newIR = MakeStruct(fields)
+            Infer(newIR)
+            emit(newIR)
+        }
+
       case GetField(o, name, _) =>
         val t = coerce[TStruct](o.typ)
         val fieldIdx = t.fieldIdx(name)

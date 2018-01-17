@@ -70,6 +70,20 @@ final case class MakeStruct(fields: Array[(String, IR)], var typ: TStruct = null
     case _ => false
   }
 }
+
+final case class InsertFields(old: IR, fields: Array[(String, IR)], var typ: TStruct = null) extends IR {
+  override def toString: String = s"InsertFields($old, ${ fields.toFastIndexedSeq })"
+  override def hashCode(): Int =
+    old.hashCode() * 41 + scala.util.hashing.MurmurHash3.arrayHash(fields)
+  override def equals(that: Any): Boolean = that match {
+    case InsertFields(old2, fields2, _) =>
+      old.equals(old2) &&
+      fields.length == fields2.length &&
+        fields.sameElements(fields2)
+    case _ => false
+  }
+}
+
 final case class GetField(o: IR, name: String, var typ: Type = null) extends IR
 final case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean() }
 

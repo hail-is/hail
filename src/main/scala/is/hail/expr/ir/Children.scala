@@ -44,6 +44,8 @@ object Children {
       Array(a, zero, body)
     case MakeStruct(fields, _) =>
       fields.map(_._2)
+    case InsertFields(old, fields, _) =>
+      old +: fields.map(_._2)
     case AggIn(_) =>
       none
     case AggMap(a, _, body, _) =>

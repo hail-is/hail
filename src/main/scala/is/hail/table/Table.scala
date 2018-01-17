@@ -3,8 +3,8 @@ package is.hail.table
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.ir.{ApplyUnaryPrimOp, Bang, IR, UnaryOp}
 import is.hail.expr.types._
+import is.hail.expr.ir._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
@@ -22,6 +22,7 @@ import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
@@ -430,30 +431,70 @@ class Table(val hc: HailContext,
   }
 
   def annotate(cond: String): Table = {
+
     val ec = rowEvalContext()
 
-    val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, None)
+    val (paths, asts) = Parser.parseAnnotationExprsToAST(cond, ec, None)
+    if (paths.length == 0)
+      return this
 
-    val inserterBuilder = new ArrayBuilder[Inserter]()
+    val irs = asts.flatMap(_.toIR())
 
-    val finalSignature = (paths, types).zipped.foldLeft(signature) { case (vs, (ids, sig)) =>
-      val (s: TStruct, i) = vs.insert(sig, ids)
-      inserterBuilder += i
-      s
-    }
+    if (irs.length != asts.length) {
+      info("Some ASTs could not be converted to IR. Falling back to AST predicate for Table.annotate.")
+      val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, None)
 
-    val inserters = inserterBuilder.result()
+      val inserterBuilder = new ArrayBuilder[Inserter]()
 
-    val annotF: Row => Row = { r =>
-      ec.setAllFromRow(r)
+      val finalSignature = (paths, types).zipped.foldLeft(signature) { case (vs, (ids, sig)) =>
+        val (s: TStruct, i) = vs.insert(sig, ids)
+        inserterBuilder += i
+        s
+      }
 
-      f().zip(inserters)
-        .foldLeft(r) { case (a1, (v, inserter)) =>
-          inserter(a1, v).asInstanceOf[Row]
+      val inserters = inserterBuilder.result()
+
+      val annotF: Row => Row = { r =>
+        ec.setAllFromRow(r)
+
+        f().zip(inserters)
+          .foldLeft(r) { case (a1, (v, inserter)) =>
+            inserter(a1, v).asInstanceOf[Row]
+          }
+      }
+
+      copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = key)
+    } else {
+      def flatten(old: IR, fields: IndexedSeq[(List[String], IR)]): IndexedSeq[(String, IR)] = {
+        if (fields.exists(_._1.isEmpty)) {
+          val i = fields.lastIndexWhere(_._1.isEmpty)
+          return flatten(old, fields.slice(i, fields.length))
         }
+        val flatFields: mutable.Map[String, (mutable.ArrayBuffer[(List[String], IR)])] = mutable.Map()
+        for ((path, fIR) <- fields) {
+          val name = path.head
+          if (!flatFields.contains(name))
+            flatFields += ((name, new mutable.ArrayBuffer[(List[String], IR)]()))
+          flatFields(name) += ((path.tail, fIR))
+        }
+        Infer(old)
+        flatFields.map { case (f, newF) =>
+          if (newF.last._1.isEmpty) {
+            (f, newF.last._2)
+          } else {
+            if (old.typ.isInstanceOf[TStruct] && coerce[TStruct](old.typ).selfField(f).isDefined)
+               (f, InsertFields(GetField(old, f), flatten(GetField(old, f), newF).toArray))
+            else
+              (f, MakeStruct(flatten(I32(0), newF).toArray))
+          }
+        }.toIndexedSeq
+      }
+
+      val (fieldNames, fieldIRs) = flatten(In(0, signature), paths.zip(irs)).unzip
+      new Table(hc, TableAnnotate(ir, fieldNames, fieldIRs))
     }
 
-    copy(rdd = mapAnnotations(annotF), signature = finalSignature, key = key)
+
   }
 
   def filter(cond: String, keep: Boolean): Table = {
@@ -463,7 +504,7 @@ class Table(val hc: HailContext,
       case Some(irPred) =>
         new Table(hc, TableFilter(ir, if (keep) irPred else ApplyUnaryPrimOp(Bang(), irPred)))
       case None =>
-        info("No AST to IR conversion found. Falling back to AST predicate for FilterKT.")
+        info("No AST to IR conversion found. Falling back to AST predicate for Table.filter.")
         if (!keep)
           filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
         val ec = ktType.rowEC

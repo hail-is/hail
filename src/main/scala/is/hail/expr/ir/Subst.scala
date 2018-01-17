@@ -5,7 +5,8 @@ object Subst {
   def apply(e: IR, env: Env[IR]): IR = {
     def subst(e: IR, env: Env[IR] = env): IR = apply(e, env)
     e match {
-      case x@Ref(name, _) => env.lookupOption(name).getOrElse(x)
+      case x@Ref(name, _) =>
+        env.lookupOption(name).getOrElse(x)
       case Let(name, v, body, _) =>
         Let(name, subst(v), subst(body, env.delete(name)))
       case MapNA(name, v, body, _) =>

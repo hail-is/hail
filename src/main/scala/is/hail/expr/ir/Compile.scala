@@ -11,6 +11,16 @@ case class RegionValueRep[RVT: ClassTag](typ: Type) {
 }
 
 object Compile {
+  def apply[T0: TypeInfo, T1: TypeInfo, R: TypeInfo](env: Env[IR], rep0: RegionValueRep[T0], rep1: RegionValueRep[T1], rRep: RegionValueRep[R], body: IR): () => AsmFunction5[Region, T0, Boolean, T1, Boolean, R] = {
+    val fb = FunctionBuilder.functionBuilder[Region, T0, Boolean, T1, Boolean, R]
+    var e = body
+    e = Subst(e, env)
+    Infer(e)
+    assert(e.typ == rRep.typ)
+    Emit(e, fb)
+    fb.result()
+  }
+
   def apply[T0: TypeInfo, T1: TypeInfo, R: TypeInfo](name0: String, rep0: RegionValueRep[T0], name1: String, rep1: RegionValueRep[T1], rRep: RegionValueRep[R], body: IR): () => AsmFunction5[Region, T0, Boolean, T1, Boolean, R] = {
     val fb = FunctionBuilder.functionBuilder[Region, T0, Boolean, T1, Boolean, R]
     var e = body
