@@ -51,9 +51,10 @@ class HailContext(HistoryMixin):
                       tolerance=numeric,
                       sample_file=nullable(strlike),
                       min_partitions=nullable(integral),
-                      reference_genome=nullable(GenomeReference))
-    def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None):
-        return self._hc1.import_bgen(path, tolerance, sample_file, min_partitions, reference_genome).to_hail2()
+                      reference_genome=nullable(GenomeReference),
+                      contig_recoding=nullable(dictof(strlike, strlike)))
+    def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None, contig_recoding=None):
+        return self._hc1.import_bgen(path, tolerance, sample_file, min_partitions, reference_genome, contig_recoding).to_hail2()
 
     @handle_py4j
     @record_method
@@ -62,9 +63,10 @@ class HailContext(HistoryMixin):
                       tolerance=numeric,
                       min_partitions=nullable(integral),
                       chromosome=nullable(strlike),
-                      reference_genome=nullable(GenomeReference))
-    def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None, reference_genome=None):
-        return self._hc1.import_gen(path, sample_file, tolerance, min_partitions, chromosome, reference_genome).to_hail2()
+                      reference_genome=nullable(GenomeReference),
+                      contig_recoding=nullable(dictof(strlike, strlike)))
+    def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None, reference_genome=None, contig_recoding=None):
+        return self._hc1.import_gen(path, sample_file, tolerance, min_partitions, chromosome, reference_genome, contig_recoding).to_hail2()
 
     @handle_py4j
     @record_method
@@ -95,11 +97,13 @@ class HailContext(HistoryMixin):
                       quant_pheno=bool,
                       a2_reference=bool,
                       reference_genome=nullable(GenomeReference),
+                      contig_recoding=nullable(dictof(strlike, strlike)),
                       drop_chr0=bool)
     def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
-                     missing='NA', quant_pheno=False, a2_reference=True, reference_genome=None):
+                     missing='NA', quant_pheno=False, a2_reference=True, reference_genome=None,
+                     contig_recoding={'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}, drop_chr0=False):
         return self._hc1.import_plink(bed, bim, fam, min_partitions, delimiter,
-                                      missing, quant_pheno, a2_reference, reference_genome,
+                                      missing, quant_pheno, a2_reference, reference_genome, contig_recoding,
                                       drop_chr0).to_hail2()
 
     @handle_py4j
@@ -124,11 +128,12 @@ class HailContext(HistoryMixin):
                       min_partitions=nullable(integral),
                       drop_samples=bool,
                       call_fields=oneof(strlike, listof(strlike)),
-                      reference_genome=nullable(GenomeReference))
+                      reference_genome=nullable(GenomeReference),
+                      contig_recoding=nullable(dictof(strlike, strlike)))
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-                   drop_samples=False, call_fields=[], reference_genome=None):
+                   drop_samples=False, call_fields=[], reference_genome=None, contig_recoding=None):
         return self._hc1.import_vcf(path, force, force_bgz, header_file, min_partitions,
-                                   drop_samples, call_fields, reference_genome).to_hail2()
+                                   drop_samples, call_fields, reference_genome, contig_recoding).to_hail2()
 
 
     @handle_py4j
