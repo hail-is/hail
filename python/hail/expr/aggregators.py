@@ -277,7 +277,7 @@ def take(expr, n, ordering=None):
         indices, aggregations, joins, refs = unify_all(agg, lambda_result)
 
         if not (is_numeric(ordering._type) or isinstance(ordering._type, TString)):
-            raise TypeError("'take' expects 'ordering' to be or return an ordered expresion\n"
+            raise TypeError("'take' expects 'ordering' to be or return an ordered expression\n"
                             "    Ordered expressions are 'Int32', 'Int64', 'Float32', 'Float64', 'String'\n"
                             "    Found '{}'".format(ordering._type))
         ast = LambdaClassMethod('takeBy', uid, agg._ast, lambda_result._ast, n._ast)
