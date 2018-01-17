@@ -45,113 +45,112 @@ Expressions
     VariantExpression
 
 
-.. autoclass:: hail.expr.expression.Expression
+.. autoclass:: Expression
     :show-inheritance:
     :special-members: __eq__, __ne__
 
-.. autoclass:: hail.expr.expression.AltAlleleExpression
+.. autoclass:: AltAlleleExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.ArrayExpression
+.. autoclass:: ArrayExpression
     :show-inheritance:
     :special-members: __getitem__
 
-.. autoclass:: hail.expr.expression.ArrayFloat32Expression
+.. autoclass:: ArrayFloat32Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.ArrayFloat64Expression
+.. autoclass:: ArrayFloat64Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.ArrayInt32Expression
+.. autoclass:: ArrayInt32Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.ArrayInt64Expression
+.. autoclass:: ArrayInt64Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.ArrayNumericExpression
+.. autoclass:: ArrayNumericExpression
     :show-inheritance:
     :special-members: __add__, __sub__, __mul__, __div__, __pow__
 
-.. autoclass:: hail.expr.expression.ArrayStringExpression
+.. autoclass:: ArrayStringExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.ArrayStructExpression
+.. autoclass:: ArrayStructExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.ArrayArrayExpression
+.. autoclass:: ArrayArrayExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.AtomicExpression
+.. autoclass:: AtomicExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.BooleanExpression
+.. autoclass:: BooleanExpression
     :show-inheritance:
     :special-members: __and__, __or__, __invert__
 
-.. autoclass:: hail.expr.expression.CallExpression
+.. autoclass:: CallExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.CollectionExpression
+.. autoclass:: CollectionExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.CollectionNumericExpression
+.. autoclass:: CollectionNumericExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.DictExpression
+.. autoclass:: DictExpression
     :show-inheritance:
     :special-members: __getitem__
 
-.. autoclass:: hail.expr.expression.Float32Expression
+.. autoclass:: Float32Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.Float64Expression
+.. autoclass:: Float64Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.Int32Expression
+.. autoclass:: Int32Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.Int64Expression
+.. autoclass:: Int64Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.IntervalExpression
+.. autoclass:: IntervalExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.LocusExpression
+.. autoclass:: LocusExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.NumericExpression
+.. autoclass:: NumericExpression
     :show-inheritance:
     :special-members: __lt__, __le__, __gt__, __ge__, __neg__, __add__, __sub__, __mul__, __div__, __mod__, __pow__
 
-.. autoclass:: hail.expr.expression.SetExpression
+.. autoclass:: SetExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.SetFloat32Expression
+.. autoclass:: SetFloat32Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.SetFloat64Expression
+.. autoclass:: SetFloat64Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.SetInt32Expression
+.. autoclass:: SetInt32Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.SetInt64Expression
+.. autoclass:: SetInt64Expression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.SetStringExpression
+.. autoclass:: SetStringExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.SetSetExpression
+.. autoclass:: SetSetExpression
     :show-inheritance:
 
-.. autoclass:: hail.expr.expression.StringExpression
+.. autoclass:: StringExpression
     :show-inheritance:
     :special-members: __getitem__, __add__
 
-.. autoclass:: hail.expr.expression.StructExpression
+.. autoclass:: StructExpression
     :show-inheritance:
     :special-members: __getitem__
 
-
-.. autoclass:: hail.expr.expression.VariantExpression
+.. autoclass:: VariantExpression
     :show-inheritance:
