@@ -51,33 +51,30 @@ def plural(orig, n, alternate=None):
         return orig + 's'
 
 
-def get_nice_attr_error(obj, item):
+def get_obj_metadata(obj):
     from hail.api2 import MatrixTable, GroupedMatrixTable, Table, GroupedTable
     if isinstance(obj, MatrixTable):
-        class_name = 'MatrixTable'
-        cls = MatrixTable
-        index_obj = obj
+        return 'MatrixTable', obj, MatrixTable
     elif isinstance(obj, GroupedMatrixTable):
-        class_name = 'GroupedMatrixTable'
-        cls = GroupedMatrixTable
-        index_obj = obj._parent
+        return 'GroupedMatrixTable', obj._parent, GroupedMatrixTable
     elif isinstance(obj, Table):
-        class_name = 'Table'
-        cls = Table
-        index_obj = obj
+        return 'Table', obj, Table
     elif isinstance(obj, GroupedTable):
-        class_name = 'GroupedTable'
-        cls = GroupedTable
-        index_obj = obj._parent
+        return 'GroupedTable', obj._parent, GroupedTable
     else:
         raise NotImplementedError(obj)
 
+
+def get_nice_attr_error(obj, item):
+    class_name, index_obj, cls = get_obj_metadata(obj)
+
     if item.startswith('_'):
+        # don't handle 'private' attribute access
         return "{} instance has no attribute '{}'".format(class_name, item)
     else:
-        fields = obj._fields.keys()
+        field_names = obj._fields.keys()
         dd = defaultdict(lambda: [])
-        for f in fields:
+        for f in field_names:
             dd[f.lower()].append(f)
 
         obj_namespace = {x for x in dir(cls) if not x.startswith('_')}
@@ -126,26 +123,11 @@ def get_nice_attr_error(obj, item):
 
 
 def get_nice_field_error(obj, item):
-    from hail.api2 import MatrixTable, GroupedMatrixTable, Table, GroupedTable
-    from hail.expr import TStruct
-    if isinstance(obj, MatrixTable):
-        class_name = 'MatrixTable'
-        index_obj = obj
-    elif isinstance(obj, GroupedMatrixTable):
-        class_name = 'GroupedMatrixTable'
-        index_obj = obj._parent
-    elif isinstance(obj, Table):
-        class_name = 'Table'
-        index_obj = obj
-    elif isinstance(obj, GroupedTable):
-        class_name = 'GroupedTable'
-        index_obj = obj._parent
-    else:
-        raise NotImplementedError(obj)
+    class_name, index_obj, _ = get_obj_metadata(obj)
 
-    fields = obj._fields.keys()
+    field_names = obj._fields.keys()
     dd = defaultdict(lambda: [])
-    for f in fields:
+    for f in field_names:
         dd[f.lower()].append(f)
 
     def fmt_field(field):
