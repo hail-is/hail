@@ -23,7 +23,6 @@ def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=
     table._jkt.exportCassandra(address, keyspace, table_name, block_size, rate)
 
 @handle_py4j
-@require_biallelic
 @typecheck(dataset=MatrixTable,
            output=strlike,
            precision=integral)
@@ -76,7 +75,8 @@ def export_gen(dataset, output, precision=4):
     precision : :obj:`int`
         Number of digits to write after the decimal point.
     """
-    
+
+    dataset = require_biallelic(dataset, 'export_gen')
     try:
         gp = dataset['GP']
         if gp.dtype != TArray(TFloat64()) or gp._indices != dataset._entry_indices:
