@@ -1,9 +1,105 @@
-from hail.api2 import MatrixTable, Table
-from hail.expr.types import *
-from hail.genetics import GenomeReference
-from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j, joption
+from hail.api2 import Table, MatrixTable
+from hail.expr.types import *
+from hail.genetics import GenomeReference
+from .misc import require_biallelic
+
+@handle_py4j
+@typecheck(table=Table,
+           address=strlike,
+           keyspace=strlike,
+           table_name=strlike,
+           block_size=integral,
+           rate=integral)
+def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=1000):
+    """Export to Cassandra.
+
+    Warning
+    -------
+    :func:`export_cassandra` is EXPERIMENTAL.
+    """
+
+    table._jkt.exportCassandra(address, keyspace, table_name, block_size, rate)
+
+@handle_py4j
+@require_biallelic
+@typecheck(dataset=MatrixTable,
+           output=strlike,
+           precision=integral)
+def export_gen(dataset, output, precision=4):
+    """Export variant dataset as GEN and SAMPLE files.
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    .. include:: ../_templates/req_biallelic.rst
+
+    Examples
+    --------
+    Import genotype probability data, filter variants based on INFO score, and
+    export data to a GEN and SAMPLE file:
+    
+    >>> ds = hc.import_gen('data/example.gen', sample_file='data/example.sample')
+    >>> ds = ds.filter_rows(agg.infoScore(ds.GP).score >= 0.9) # doctest: +SKIP
+    >>> methods.export_gen(ds, 'output/infoscore_filtered')
+
+    Notes
+    -----
+    Writes out the dataset to a GEN and SAMPLE fileset in the
+    `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`__.
+
+    This method requires a `GP` (genotype probabilities) entry field of type
+    ``Array[Float64]``. The values at indices 0, 1, and 2 are exported as the
+    probabilities of homozygous reference, heterozygous, and homozygous variant,
+    respectively. Missing `GP` values are exported as ``0 0 0``.
+
+    The first six columns of the GEN file are as follows:
+
+    - chromosome (`v.contig`)
+    - variant ID (`varid` if defined, else Contig:Position:Ref:Alt)
+    - rsID (`rsid` if defined, else ``.``)
+    - position (`v.start`)
+    - reference allele (`v.ref`)
+    - alternate allele (`v.alt`)
+
+    The SAMPLE file has three columns:
+
+    - ID_1 and ID_2 are identical and set to the sample ID (`s`).
+    - The third column (``missing``) is set to 0 for all samples.
+
+    Parameters
+    ----------
+    dataset : :class:`.MatrixTable`
+        Dataset with entry field `GP` of type Array[TFloat64].
+    output : :obj:`str`
+        Output file root for GEN and SAMPLE files.
+    precision : :obj:`int`
+        Number of digits to write after the decimal point.
+    """
+    
+    try:
+        gp = dataset['GP']
+        if gp.dtype != TArray(TFloat64()) or gp._indices != dataset._entry_indices:
+            raise KeyError
+    except KeyError:
+        raise FatalError("export_gen: no entry field 'GP' of type Array[Float64]")
+        
+    Env.hail().io.gen.ExportGen.apply(dataset._jvds, output, precision)
+
+@handle_py4j
+@typecheck(table=Table,
+           zk_host=strlike,
+           collection=strlike,
+           block_size=integral)
+def export_solr(table, zk_host, collection, block_size=100):
+    """Export to Solr.
+    
+    Warning
+    -------
+    :func:`export_solr` is EXPERIMENTAL.
+    """
+
+    table._jkt.exportSolr(zk_host, collection, block_size)
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -12,7 +108,7 @@ from hail.utils.java import Env, handle_py4j, joption
            parallel=nullable(enumeration('separate_header', 'header_per_shard')),
            metadata=nullable(dictof(strlike, dictof(strlike, dictof(strlike, strlike)))))
 def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None):
-    """Export variant dataset as a ``.vcf`` or ``.vcf.bgz`` file.
+    """Export variant dataset as a VCF file in ``.vcf`` or ``.vcf.bgz`` format.
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -24,7 +120,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     Notes
     -----
-    :meth:`export_vcf` writes the dataset to disk in VCF format as described in the
+    :func:`export_vcf` writes the dataset to disk in VCF format as described in the
     `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
 
     Use the ``.vcf.bgz`` extension rather than ``.vcf`` in the output file name
@@ -32,9 +128,9 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     Note
     ----
-    We strongly recommended compressed (``.bgz`` extension) and parallel
-    output (`parallel` set to ``'separate_header'`` or
-    ``'header_per_shard'``) when exporting large VCFs.
+        We strongly recommended compressed (``.bgz`` extension) and parallel
+        output (`parallel` set to ``'separate_header'`` or
+        ``'header_per_shard'``) when exporting large VCFs.
 
     Hail exports the fields of Struct `info` as INFO fields,
     the elements of Set[String] `filters` as FILTERS, and the
@@ -78,19 +174,19 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     Warning
     -------
-    INFO fields stored at VCF import are `not` automatically modified to
-    reflect filtering of samples or genotypes, which can affect the value of
-    AC (allele count), AF (allele frequency), AN (allele number), etc. If a
-    filtered dataset is exported to VCF without updating `info`, downstream
-    tools which may produce erroneous results. The solution is to create new
-    annotations in `info` or overwrite existing annotations. For example, in
-    order to produce an accurate `AC` field, one can run :meth:`variant_qc` and
-    copy the `variant_qc.AC` field to `info.AC` as shown below.
-
-    >>> dataset = dataset.filter_entries(dataset.GQ >= 20)
-    >>> dataset = methods.variant_qc(dataset)
-    >>> dataset = dataset.annotate_rows(info = dataset.info.annotate(AC=dataset.variant_qc.AC)) # doctest: +SKIP
-    >>> methods.export_vcf(dataset, 'output/example.vcf.bgz')
+        INFO fields stored at VCF import are `not` automatically modified to
+        reflect filtering of samples or genotypes, which can affect the value of
+        AC (allele count), AF (allele frequency), AN (allele number), etc. If a
+        filtered dataset is exported to VCF without updating `info`, downstream
+        tools which may produce erroneous results. The solution is to create new
+        annotations in `info` or overwrite existing annotations. For example, in
+        order to produce an accurate `AC` field, one can run :func:`variant_qc` and
+        copy the `variant_qc.AC` field to `info.AC` as shown below.
+    
+        >>> ds = dataset.filter_entries(dataset.GQ >= 20)
+        >>> ds = methods.variant_qc(ds)
+        >>> ds = ds.annotate_rows(info = ds.info.annotate(AC=ds.variant_qc.AC)) # doctest: +SKIP
+        >>> methods.export_vcf(ds, 'output/example.vcf.bgz')
     
     Parameters
     ----------
@@ -116,6 +212,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     Env.hail().io.vcf.ExportVCF.apply(dataset._jvds, output, joption(append_to_header),
                                       Env.hail().utils.ExportType.getExportType(parallel),
                                       joption(typ._convert_to_j(metadata)))
+
 
 @handle_py4j
 @typecheck(path=strlike,
@@ -178,7 +275,6 @@ def import_interval_list(path, reference_genome=None):
     :class:`.Table`
         Interval-keyed table.
     """
-
     rg = reference_genome if reference_genome else Env.hc().default_reference
     t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, rg._jrep)
     return Table(t)

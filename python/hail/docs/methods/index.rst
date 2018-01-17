@@ -19,6 +19,9 @@ Methods
     hail.methods.split_multi_hts
     hail.methods.mendel_errors
     hail.methods.vep
+    hail.methods.export_cassandra
+    hail.methods.export_gen
+    hail.methods.export_solr
     hail.methods.export_vcf
     hail.methods.concordance
     hail.methods.import_interval_list
@@ -39,6 +42,9 @@ Methods
 .. autofunction:: hail.methods.split_multi_hts
 .. autofunction:: hail.methods.mendel_errors
 .. autofunction:: hail.methods.vep
+.. autofunction:: hail.methods.export_cassandra
+.. autofunction:: hail.methods.export_gen
+.. autofunction:: hail.methods.export_solr
 .. autofunction:: hail.methods.export_vcf
 .. autofunction:: hail.methods.concordance
 .. autofunction:: hail.methods.import_interval_list
