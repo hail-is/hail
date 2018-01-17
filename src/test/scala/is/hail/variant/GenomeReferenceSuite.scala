@@ -259,4 +259,29 @@ class GenomeReferenceSuite extends SparkSuite {
 
     GenomeReference.removeReference("GRCh37_2")
   }
+
+  @Test def testWriteGR() {
+    val outKT = tmpDir.createTempFile("grWrite", ".kt")
+    val outKT2 = tmpDir.createTempFile("grWrite", ".kt")
+    val outVDS = tmpDir.createTempFile("grWrite", ".vds")
+
+    val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv")
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+
+    val gr = GenomeReference("foo", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5))
+    GenomeReference.addReference(gr)
+    kt.annotate("""v1 = Variant(foo)("1:3:A:T")""").write(outKT)
+    vds.annotateVariantsExpr("""va.v2 = Variant(foo)("1:3:A:T")""").write(outVDS)
+    GenomeReference.removeReference("foo")
+
+    val gr2 = GenomeReference("foo", Array("1"), Map("1" -> 5))
+    GenomeReference.addReference(gr2)
+    kt.annotate("""v1 = Variant(foo)("1:3:A:T")""").write(outKT2)
+    GenomeReference.removeReference("foo")
+
+    assert(hc.readTable(outKT).signature.field("v1").typ == TVariant(gr))
+    assert(hc.read(outVDS).vaSignature.fieldOption("v2").get.typ == TVariant(gr))
+    TestUtils.interceptFatal("`foo' already exists and is not identical to the imported reference from")(hc.readTable(outKT2))
+    GenomeReference.removeReference("foo")
+  }
 }

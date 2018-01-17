@@ -140,6 +140,8 @@ object MatrixTable {
            |  Recreate VDS with current version of Hail.
          """.stripMargin)
 
+    GenomeReference.importReferences(hConf, dirname + "/references/")
+
     val sSignature = Parser.parseType(metadata.sample_schema)
     val saSignature = Parser.parseType(metadata.sample_annotation_schema)
     val vSignature = Parser.parseType(metadata.variant_schema)
@@ -2404,6 +2406,12 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
     hConf.writeTextFile(dirname + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))
+
+    val refPath = dirname + "/references/"
+    hc.hadoopConf.mkDir(refPath)
+    Array(sSignature, vSignature, saSignature, vaSignature, genotypeSignature, globalSignature).foreach { t =>
+      GenomeReference.exportReferences(hc, refPath, t)
+    }
   }
 
   def coalesce(k: Int, shuffle: Boolean = true): MatrixTable = copy2(rdd2 = rdd2.coalesce(k, shuffle))
