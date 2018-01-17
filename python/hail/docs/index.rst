@@ -14,6 +14,7 @@ Contents
     Getting Started <getting_started>
     Overview <overview>
     Tutorials <tutorials-landing>
+    Hail2 Tutorials <tutorials2-landing>
     Expression Language <exprlang>
     Python API <api>
     Annotation Database <annotationdb>
