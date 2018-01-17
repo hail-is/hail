@@ -923,7 +923,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
                 }
               v
             } else {
-              // FIXME just leave null here?
               if (product)
                 IndexedSeq[Any]()
               else
