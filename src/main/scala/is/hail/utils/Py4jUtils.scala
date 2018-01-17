@@ -3,7 +3,10 @@ package is.hail.utils
 import java.io.{InputStream, OutputStream}
 import java.net.URI
 
+import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.HailContext
+import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.variant.{GenomeReference, Locus, MatrixTable}
 
@@ -23,7 +26,35 @@ trait Py4jUtils {
       list.add(elem)
     list
   }
-  
+
+  // FIXME: Currently this can only send much less than the limit of
+  // BlockMatrix.toLocalMatrix. That's probably fine.
+  def doubleBDMToBytes(mat: BDM[Double]): Array[Byte] = {
+    val region = Region()
+    val types = TStruct("rows" -> TInt32Required,
+      "cols" -> TInt32Required,
+      "vals" -> TArray(TFloat64Required, required=true))
+
+    val rvb = new RegionValueBuilder(region)
+    rvb.start(types)
+    rvb.startStruct()
+    rvb.addInt(mat.rows)
+    rvb.addInt(mat.cols)
+    rvb.startArray(mat.rows*mat.cols)
+    var i = 0
+    while (i < mat.rows) {
+      var j = 0
+      while (j < mat.cols) {
+        rvb.addDouble(mat(i,j))
+        j += 1
+      }
+      i += 1
+    }
+    rvb.endArray()
+    rvb.endStruct()
+    region.loadBytes(rvb.end(), region.size.toInt)
+  }
+
   def getURI(uri: String): String = new URI(uri).getPath
 
   // we cannot construct an array because we don't have the class tag

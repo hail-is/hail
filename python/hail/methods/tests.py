@@ -9,6 +9,10 @@ from struct import unpack
 import hail.utils as utils
 from hail.expr.expression import ExpressionException
 from hail.utils.misc import test_file
+from hail.stats import UniformDist
+from hail.linalg import BlockMatrix
+from math import sqrt
+>>>>>>> first pass at rrm
 
 hc = None
 
@@ -238,6 +242,81 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(load_bin(n_samples, p_file + ".grm.N.bin"),
                            load_bin(n_samples, grm_nbin_file),
                            atol=tolerance))
+
+    def test_rrm(self):
+        seed = 0
+        n1 = 100
+        m1 = 200
+        k = 3
+        fst = .9
+
+        dataset = hc._hc1.balding_nichols_model(k,
+                                                n1,
+                                                m1,
+                                                fst=(k * [fst]),
+                                                seed=seed,
+                                                num_partitions=4,
+                                                af_dist=UniformDist(0.1, 0.9)).to_hail2()
+
+        def to_int_python(ds):
+            return BlockMatrix.from_matrix_table(ds['GT'].num_alt_alleles()).to_local_matrix()
+
+        def manual_calculation(ds):
+            ds = to_int_python(ds)
+
+            # filter out constant rows
+            isconst = lambda r: any([all([gt == c for gt in r]) for c in range(3)])
+            ds = ds[[not isconst(row) for row in ds]]
+
+            nvariants, nsamples = ds.shape
+            sumgt = lambda r: sum([i for i in r if i >= 0])
+            sumsq = lambda r: sum([i**2 for i in r if i >= 0])
+            print(np.array([[sumgt(r), sumsq(r)] for r in ds]))
+
+            mean = [sumgt(row) / nsamples for row in ds]
+            stddev = [sqrt(sumsq(row) / nsamples - mean[i] ** 2)
+                      for i, row in enumerate(ds)]
+
+            mat = np.array([[(g-mean[i])/stddev[i] for g in row] for i, row in enumerate(ds)])
+
+            rrm = mat.T.dot(mat) / nvariants
+            return rrm
+
+        def hail_calculation(ds):
+            rrm = methods.rrm(ds['GT'])
+            fn = utils.new_temp_file(suffix='.tsv')
+            rrm.export_tsv(fn)
+            data = []
+            with open(utils.get_URI(fn)) as f:
+                f.readline()
+                for line in f:
+                    row = line.strip().split()
+                    data.append(map(float, row))
+
+            return np.array(data)
+
+        def from_api1(ds):
+            ds = ds.to_hail1()
+            rrm = ds.rrm()
+            fn = utils.new_temp_file(suffix='.tsv')
+            rrm.export_tsv(fn)
+            data = []
+            with open(utils.get_URI(fn)) as f:
+                f.readline()
+                for line in f:
+                    row = line.strip().split()
+                    data.append(map(float, row))
+
+            return np.array(data)
+
+        manual = manual_calculation(dataset)
+        rrm = hail_calculation(dataset)
+        rrm1 = from_api1(dataset)
+
+        self.assertTrue(np.allclose(manual, rrm1))
+        self.assertTrue(np.allclose(rrm1, rrm))
+        self.assertTrue(np.allclose(manual, rrm))
+
 
     def test_pca(self):
         dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()

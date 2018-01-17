@@ -3,6 +3,8 @@ from hail.utils.java import Env, handle_py4j, scala_object, jarray
 from hail.typecheck import *
 from hail.api2 import MatrixTable
 from hail.expr.expression import expr_numeric, to_expr, analyze
+from struct import unpack
+import numpy as np
 
 block_matrix_type = lazy()
 
@@ -107,6 +109,23 @@ class BlockMatrix(object):
 
     def unpersist(self):
         return BlockMatrix(self._jbm.unpersist())
+
+    @handle_py4j
+    def to_local_matrix(self):
+        b = Env.jutils().doubleBDMToBytes(self._jbm.toLocalMatrix())
+        rows, cols = unpack('<II', b[:8])
+        data = [[unpack('<d', b[24+8*(i*cols+j):32+8*(i*cols+j)])[0] for j in range(cols)] for i in range(rows)]
+        return np.array(data)
+
+    @handle_py4j
+    @typecheck_method(i=numeric)
+    def __mul__(self, i):
+        return BlockMatrix(self._jbm.scalarMultiply(float(i)))
+
+    @handle_py4j
+    @typecheck_method(i=numeric)
+    def __div__(self, i):
+        return self * (1./i)
 
 block_matrix_type.set(BlockMatrix)
 
