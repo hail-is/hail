@@ -7,6 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.stats._
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant.{MatrixTable, Variant}
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test

@@ -3,6 +3,7 @@ package is.hail.variant.vsm
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
 import is.hail.variant.{GenomeReference, VSMSubgen, MatrixTable}
+import is.hail.testUtils._
 import org.testng.annotations.Test
 
 class PartitioningSuite extends SparkSuite {

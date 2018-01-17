@@ -5,6 +5,7 @@ import is.hail.annotations.{Annotation, Querier}
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 

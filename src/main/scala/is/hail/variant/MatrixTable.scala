@@ -1860,7 +1860,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   def queryVariants(exprs: Array[String]): Array[(Annotation, Type)] = {
-
     val aggregationST = Map(
       "global" -> (0, globalSignature),
       "v" -> (1, vSignature),
@@ -1868,20 +1867,26 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature),
       "variants" -> (1, TAggregable(vSignature, aggregationST))))
+    ec.setAll(globalAnnotation)
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
-    val localGlobalAnnotation = globalAnnotation
-    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[(Annotation, Annotation)](ec, { case (ec, (v, va)) =>
-      ec.setAll(localGlobalAnnotation, v, va)
+    val localRowType = rowType
+    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[RegionValue](ec, { case (ec, rv) =>
+      val ur = new UnsafeRow(localRowType, rv)
+      val v = ur.get(1)
+      val va = ur.get(2)
+      ec.set(1, v)
+      ec.set(2, va)
     })
 
-    val result = variantsAndAnnotations
+    val result = rdd2
       .treeAggregate(zVal)(seqOp, combOp, depth = treeAggDepth(hc, nPartitions))
     resOp(result)
 
-    ec.setAll(localGlobalAnnotation)
-    ts.map { case (t, f) => (f(), t) }
+    ts.map { case (t, f) =>
+      (f(), t)
+    }
   }
 
   def reorderSamples(newIds: java.util.ArrayList[Annotation]): MatrixTable =
@@ -2204,15 +2209,18 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
              |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
       }
 
-    val localVaSignature = vaSignature
+    val localRowType = rowType
+    rdd2.map { rv =>
+      new UnsafeRow(localRowType, rv)
+    }.find(ur => !localRowType.typeCheck(ur))
+      .foreach { ur =>
+        val v = ur.get(1)
 
-    variantsAndAnnotations.find { case (_, va) => !localVaSignature.typeCheck(va) }
-      .foreach { case (v, va) =>
         foundError = true
         warn(
-          s"""found violation in variant annotations for variant $v
-             |Schema: ${ localVaSignature.toPrettyString() }
-             |Annotation: ${ Annotation.printAnnotation(va) }""".stripMargin)
+          s"""found violation in row with row key $v
+             |Schema: ${ localRowType.toPrettyString() }
+             |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
       }
 
     if (foundError)
@@ -2220,9 +2228,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   def sampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = sampleIds.zip(sampleAnnotations)
-
-  def variantsAndAnnotations: OrderedRDD[Annotation, Annotation, Annotation] =
-    rdd.mapValuesWithKey { case (v, (va, gs)) => va }
 
   def variantEC: EvalContext = {
     val aggregationST = Map(
