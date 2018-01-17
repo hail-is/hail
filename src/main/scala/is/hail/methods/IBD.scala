@@ -8,6 +8,7 @@ import is.hail.expr.types._
 import is.hail.variant.{GenomeReference, Genotype, HardCallView, MatrixTable, Variant}
 import is.hail.methods.IBD.generateComputeMaf
 import is.hail.rvd.RVD
+import is.hail.stats.RegressionUtils
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -346,7 +347,7 @@ object IBD {
 
     val mafSymbolTable = Map("v" -> (0, vds.vSignature), "va" -> (1, vds.vaSignature))
     val mafEc = EvalContext(mafSymbolTable)
-    val computeMafThunk = Parser.parseTypedExpr[java.lang.Double](computeMafExpr, mafEc)
+    val computeMafThunk = RegressionUtils.parseExprAsDouble(computeMafExpr, mafEc)
     val rowType = vds.rowType
 
     { (rv: RegionValue) =>
