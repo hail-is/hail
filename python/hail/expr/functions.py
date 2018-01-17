@@ -168,10 +168,18 @@ def cond(condition, consequent, alternate):
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     indices, aggregations, joins, refs = unify_all(condition, consequent, alternate)
-    # TODO: promote types
+    if is_numeric(consequent._type) and is_numeric(alternate._type):
+        t = unify_types(consequent._type, alternate._type)
+    else:
+        if not consequent._type == alternate._type:
+            raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
+                            "    consequent: type {}\n"
+                            "    alternate:  type {}".format(consequent._type, alternate._type))
+        t = consequent._type
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
-                          consequent._type, indices, aggregations, joins, refs)
+                          t, indices, aggregations, joins, refs)
 
+@typecheck(expr=expr_any, f=func_spec(1, expr_any))
 def bind(expr, f):
     """Bind a temporary variable and use it in a function.
 
@@ -214,7 +222,7 @@ def bind(expr, f):
     ----------
     expr : :class:`.Expression`
         Expression to bind.
-    f : callable
+    f : function ( (arg) -> :class:`.Expression`)
         Function of `expr`.
 
     Returns
@@ -1062,9 +1070,12 @@ def or_else(a, b):
     -------
     :py:class:`hail.expr.expression.Expression`
     """
-    a = to_expr(a)
-    # FIXME: type promotion
-    return _func("orElse", a._type, a, b)
+    t = unify_types(a._type, b._type)
+    if t is None:
+        raise TypeError("'or_else' requires the 'a' and 'b' arguments to have the same type\n"
+                        "    a: type {}\n"
+                        "    b:  type {}".format(a._type, b._type))
+    return _func("orElse", t, a, b)
 
 
 @typecheck(predicate=expr_bool, value=expr_any)

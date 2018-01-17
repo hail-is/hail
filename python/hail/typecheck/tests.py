@@ -248,3 +248,17 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(a, 'int')
         self.assertEqual(b, [{'5': 'int', '6': 'str'}, {'10': 'int'}])
 
+
+    def test_function_checker(self):
+
+        @typecheck(f=func_spec(3, int))
+        def foo(f):
+            return f(1, 2, 3)
+
+        l1 = lambda: 5
+        l2 = 5
+        l3 = lambda x, y, z: x + y + z
+
+        self.assertRaises(TypeError, lambda: foo(l1))
+        self.assertRaises(TypeError, lambda: foo(l2))
+        foo(l3)

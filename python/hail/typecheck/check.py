@@ -1,6 +1,7 @@
 from decorator import decorator, getargspec
 from types import ClassType, NoneType, InstanceType
 import re
+import inspect
 
 
 class TypecheckFailure(Exception):
@@ -22,11 +23,14 @@ class TypeChecker(object):
     def __init__(self):
         pass
 
-    def check(self, x):
+    def check(self, x, caller, param):
         raise NotImplementedError
 
     def expects(self):
         raise NotImplementedError
+
+    def format(self, arg):
+        return extract(type(arg))
 
 
 class MultipleTypeChecker(TypeChecker):
@@ -41,10 +45,10 @@ class MultipleTypeChecker(TypeChecker):
         self.checkers = flat_checkers
         super(MultipleTypeChecker, self).__init__()
 
-    def check(self, x):
+    def check(self, x, caller, param):
         for tc in self.checkers:
             try:
-                return tc.check(x)
+                return tc.check(x, caller, param)
             except TypecheckFailure:
                 pass
         raise TypecheckFailure()
@@ -58,13 +62,13 @@ class ListChecker(TypeChecker):
         self.ec = element_checker
         super(ListChecker, self).__init__()
 
-    def check(self, x):
+    def check(self, x, caller, param):
         if not isinstance(x, list):
             raise TypecheckFailure
         x_ = []
         tc = self.ec
         for elt in x:
-            elt_ = tc.check(elt)
+            elt_ = tc.check(elt, caller, param)
             x_.append(elt_)
         return x_
 
@@ -77,13 +81,13 @@ class SetChecker(TypeChecker):
         self.ec = element_checker
         super(SetChecker, self).__init__()
 
-    def check(self, x):
+    def check(self, x, caller, param):
         if not isinstance(x, set):
             raise TypecheckFailure
         x_ = set()
         tc = self.ec
         for elt in x:
-            elt_ = tc.check(elt)
+            elt_ = tc.check(elt, caller, param)
             x_.add(elt_)
         return x_
 
@@ -96,13 +100,13 @@ class TupleChecker(TypeChecker):
         self.ec = element_checker
         super(TupleChecker, self).__init__()
 
-    def check(self, x):
+    def check(self, x, caller, param):
         if not isinstance(x, tuple):
             raise TypecheckFailure
         x_ = []
         tc = self.ec
         for elt in x:
-            elt_ = tc.check(elt)
+            elt_ = tc.check(elt, caller, param)
             x_.append(elt_)
         return tuple(x_)
 
@@ -116,15 +120,15 @@ class DictChecker(TypeChecker):
         self.vc = value_checker
         super(DictChecker, self).__init__()
 
-    def check(self, x):
+    def check(self, x, caller, param):
         if not isinstance(x, dict):
             raise TypecheckFailure
         x_ = {}
         kc = self.kc
         vc = self.vc
         for k, v in x.items():
-            k_ = kc.check(k)
-            v_ = vc.check(v)
+            k_ = kc.check(k, caller, param)
+            v_ = vc.check(v, caller, param)
             x_[k_] = v_
         return x_
 
@@ -143,12 +147,12 @@ class SizedTupleChecker(TypeChecker):
         self.n = len(elt_checkers)
         super(SizedTupleChecker, self).__init__()
 
-    def check(self, x):
+    def check(self, x, caller, param):
         if not (isinstance(x, tuple) and len(x) == len(self.ec)):
             raise TypecheckFailure
         x_ = []
         for tc, elt in zip(self.ec, x):
-            elt_ = tc.check(elt)
+            elt_ = tc.check(elt, caller, param)
             x_.append(elt_)
         return tuple(x_)
 
@@ -160,7 +164,7 @@ class AnyChecker(TypeChecker):
     def __init__(self):
         super(AnyChecker, self).__init__()
 
-    def check(self, x):
+    def check(self, x, caller, param):
         return x
 
     def expects(self):
@@ -171,7 +175,7 @@ class CharChecker(TypeChecker):
     def __init__(self):
         super(CharChecker, self).__init__()
 
-    def check(self, x):
+    def check(self, x, caller, param):
         if (isinstance(x, str) or isinstance(x, unicode)) and len(x) == 1:
             return x
         else:
@@ -186,7 +190,7 @@ class LiteralChecker(TypeChecker):
         self.t = t
         super(LiteralChecker, self).__init__()
 
-    def check(self, x):
+    def check(self, x, caller, param):
         if isinstance(x, self.t):
             return x
         else:
@@ -204,7 +208,7 @@ class LazyChecker(TypeChecker):
     def set(self, t):
         self.t = t
 
-    def check(self, x):
+    def check(self, x, caller, param):
         if not self.t:
             raise RuntimeError("LazyChecker not initialized. Use 'set' to provide the expected type")
         if isinstance(x, self.t):
@@ -223,7 +227,7 @@ class ExactlyTypeChecker(TypeChecker):
         self.v = v
         super(ExactlyTypeChecker, self).__init__()
 
-    def check(self, x):
+    def check(self, x, caller, param):
         if x == self.v:
             return x
         else:
@@ -247,13 +251,49 @@ class CoercionChecker(MultipleTypeChecker):
         self.fs = fs
         super(CoercionChecker, self).__init__([c for c, _ in fs])
 
-    def check(self, x):
+    def check(self, x, caller, param):
         for tc, f in self.fs:
             try:
-                return f(tc.check(x))
+                return f(tc.check(x, caller, param))
             except TypecheckFailure:
                 pass
         raise TypecheckFailure
+
+class FunctionChecker(TypeChecker):
+    def __init__(self, nargs, ret_checker):
+        self.nargs = nargs
+        self.ret_checker = ret_checker
+        super(FunctionChecker, self).__init__()
+        
+    def check(self, x, caller, param):
+        if not callable(x):
+            raise TypecheckFailure
+        spec = inspect.getargspec(x)
+        if not len(spec.args) == self.nargs:
+            raise TypecheckFailure
+
+        def f(*args):
+            ret = x(*args)
+            try:
+                return self.ret_checker.check(ret, caller, param)
+            except TypecheckFailure:
+                raise TypeError("'{caller}': '{param}': expected return type {expected}, found {found}".format(
+                    caller=caller,
+                    param=param,
+                    expected=self.ret_checker.expects(),
+                    found=self.ret_checker.format(ret)
+                ))
+
+        return f
+
+    def expects(self):
+        return '{}-argument function'.format(self.nargs)
+
+    def format(self, arg):
+        if not callable(arg):
+            return super(FunctionChecker, self).format(arg)
+        spec = inspect.getargspec(arg)
+        return '{}-argument function'.format(len(spec.args))
 
 
 def only(t):
@@ -300,6 +340,8 @@ def setof(t):
 def dictof(k, v):
     return DictChecker(only(k), only(v))
 
+def func_spec(n, tc):
+    return FunctionChecker(n, only(tc))
 
 def transformed(*tcs):
     fs = []
@@ -366,7 +408,7 @@ def check_all(f, args, kwargs, checks, is_method):
         argname = named_args[i] if i < len(named_args) else spec.varargs
         tc = checks[argname]
         try:
-            arg_ = tc.check(arg)
+            arg_ = tc.check(arg, name, argname)
             args_.append(arg_)
         except TypecheckFailure:
             if i < len(named_args):
@@ -375,7 +417,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     fname=name,
                     argname=argname,
                     expected=tc.expects(),
-                    found=extract(type(arg)),
+                    found=tc.format(arg),
                     arg=str(arg)
                 ))
             else:
@@ -386,7 +428,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     idx=i - len(named_args),
                     tot=len(pos_args) - len(named_args),
                     expected=tc.expects(),
-                    found=extract(type(arg)),
+                    found=tc.format(arg),
                     arg=str(arg)
                 ))
 
@@ -395,7 +437,7 @@ def check_all(f, args, kwargs, checks, is_method):
         tc = checks[spec.varkw]
         for argname, arg in kwargs.items():
             try:
-                arg_ = tc.check(arg)
+                arg_ = tc.check(arg, name, argname)
                 kwargs_[argname] = arg_
             except TypecheckFailure:
                 raise TypeError("{fname}: keyword argument '{argname}': "
@@ -403,7 +445,7 @@ def check_all(f, args, kwargs, checks, is_method):
                     fname=name,
                     argname=argname,
                     expected=tc.expects(),
-                    found=extract(type(arg)),
+                    found=tc.format(arg),
                     arg=str(arg)
                 ))
 
