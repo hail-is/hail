@@ -12,7 +12,7 @@ object VerifyBiallelic {
         val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
         val v = ur.getAs[Variant](1)
         if (!v.isBiallelic)
-          fatal("in $method: found non-biallelic variant: $v")
+          fatal(s"in $method: found non-biallelic variant: $v")
         rv
       })
   }
