@@ -430,7 +430,7 @@ object VEP {
 
     val newMatrixType = vsm.matrixType.copy(vaType = newVAType)
     val newRDD2 = vsm.orderedRVDLeftJoinDistinctAndInsert(vsm.rdd2, vepRVD,
-      newMatrixType.orderedRVType, product = false, 3, newVAType, inserter)
+      newMatrixType.orderedRVType, product = false, 2, newVAType, inserter)
 
     vsm.copy2(rdd2 = newRDD2, vaSignature = newVAType)
   }

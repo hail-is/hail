@@ -363,7 +363,7 @@ object Nirvana {
 
     val newMatrixType = vds.matrixType.copy(vaType = newVAType)
     val newRDD2 = vds.orderedRVDLeftJoinDistinctAndInsert(vds.rdd2, vepRVD,
-      newMatrixType.orderedRVType, product = false, 3, newVAType, inserter)
+      newMatrixType.orderedRVType, product = false, 2, newVAType, inserter)
 
     vds.copy2(rdd2 = newRDD2, vaSignature = newVAType)
   }
