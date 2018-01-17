@@ -278,7 +278,7 @@ class Pedigree(HistoryMixin):
 
             Phenotype information is not preserved in the Pedigree data structure in Hail.
             Reading and writing a PLINK .fam file will result in loss of this information.
-            Use the key table method :py:meth:`~hail.KeyTable.import_fam` to manipulate this
+            Use the key table method :meth:`~hail.KeyTable.import_fam` to manipulate this
             information.
 
         A text file containing the python code to generate this output file is available at ``<output>.history.txt``.

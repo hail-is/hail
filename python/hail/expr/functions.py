@@ -26,12 +26,12 @@ def null(t):
 
     Parameters
     ----------
-    t : :py:class:`hail.expr.Type`
+    t : :class:`.hail.expr.Type`
         Type of the missing expression.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Expression`
+    :class:`.Expression`
         A missing expression of type `t`.
     """
     return construct_expr(Literal('NA: {}'.format(t)), t)
@@ -53,7 +53,7 @@ def capture(x):
 
     Warning
     -------
-    For large objects, use :py:meth:`hail.expr.functions.broadcast`.
+    For large objects, use :meth:`.broadcast`.
 
     Parameters
     ----------
@@ -62,7 +62,7 @@ def capture(x):
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Expression`
+    :class:`.Expression`
         An expression representing `x`.
     """
     return to_expr(x)
@@ -106,7 +106,7 @@ def broadcast(x):
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Expression`
+    :class:`.Expression`
         An expression representing `x`.
     """
     expr = to_expr(x)
@@ -155,16 +155,16 @@ def cond(condition, consequent, alternate):
 
     Parameters
     ----------
-    condition : :py:class:`hail.expr.expression.BooleanExpression`
+    condition : :class:`.BooleanExpression`
         Condition to test.
-    consequent : :class:`hail.expr.expression.Expression`
+    consequent : :class:`.Expression`
         Branch to return if the condition is ``True``.
-    alternate : :class:`hail.expr.expression.Expression`
+    alternate : :class:`.Expression`
         Branch to return if the condition is ``False``.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Expression`
+    :class:`.Expression`
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     indices, aggregations, joins, refs = unify_all(condition, consequent, alternate)
@@ -187,7 +187,7 @@ def bind(expr, f):
     --------
     Expressions are "inlined", leading to perhaps unexpected behavior
     when randomness is involved. For example, let us define a variable
-    `x` from the :meth:`rand_unif` method:
+    `x` from the :meth:`.rand_unif` method:
 
     >>> x = functions.rand_unif(0, 1)
 
@@ -203,7 +203,7 @@ def bind(expr, f):
         0.20842918568366375
 
     What if we evaluate `x` multiple times in the same invocation of
-    :meth:`hail.expr.eval_expr`?
+    :meth:`~hail.expr.eval_expr`?
 
     .. doctest::
 
@@ -259,18 +259,18 @@ def chisq(c1, c2, c3, c4):
 
     Parameters
     ----------
-    c1 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c1 : int or :class:`.Int32Expression`
         Value for cell 1.
-    c2 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c2 : int or :class:`.Int32Expression`
         Value for cell 2.
-    c3 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c3 : int or :class:`.Int32Expression`
         Value for cell 3.
-    c4 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c4 : int or :class:`.Int32Expression`
         Value for cell 4.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.StructExpression`
+    :class:`.StructExpression`
         A struct expression with two fields, `pValue` (``Float64``) and `oddsRatio` (``Float64``).
     """
     ret_type = TStruct(['pValue', 'oddsRatio'], [TFloat64(), TFloat64()])
@@ -288,14 +288,14 @@ def combine_variants(left, right):
 
     Parameters
     ----------
-    left : :py:class:`hail.genetics.Variant` or :py:class:`hail.expr.expression.VariantExpression`
+    left : :class:`.Variant` or :class:`.VariantExpression`
         First variant.
-    right : :py:class:`hail.genetics.Variant` or :py:class:`hail.expr.expression.VariantExpression`
+    right : :class:`.Variant` or :class:`.VariantExpression`
         Second variant.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.StructExpression`
+    :class:`.StructExpression`
         A struct expression with three fields, `variant` (``Variant``), `laIndices` (``Dict[Int32, Int32]``),
         and `raIndices` (``Dict[Int32, Int32]``)
     """
@@ -329,20 +329,20 @@ def ctt(c1, c2, c3, c4, min_cell_count):
 
     Parameters
     ----------
-    c1 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c1 : int or :class:`.Int32Expression`
         Value for cell 1.
-    c2 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c2 : int or :class:`.Int32Expression`
         Value for cell 2.
-    c3 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c3 : int or :class:`.Int32Expression`
         Value for cell 3.
-    c4 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c4 : int or :class:`.Int32Expression`
         Value for cell 4.
-    min_cell_count : int or :py:class:`hail.expr.expression.Int32Expression`
+    min_cell_count : int or :class:`.Int32Expression`
         Minimum cell count for chi-squared approximation.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.StructExpression`
+    :class:`.StructExpression`
         A struct expression with two fields, `pValue` (``Float64``) and `oddsRatio` (``Float64``).
     """
     ret_type = TStruct(['pValue', 'oddsRatio'], [TFloat64(), TFloat64()])
@@ -366,14 +366,14 @@ def Dict(keys, values):
 
     Parameters
     ----------
-    keys : list or :py:class:`hail.expr.expression.ArrayExpression`
+    keys : list or :class:`.ArrayExpression`
         The keys of the resulting dictionary.
-    values : list or :py:class:`hail.expr.expression.Int32Expression`
+    values : list or :class:`.Int32Expression`
         The values of the resulting dictionary.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.DictExpression`
+    :class:`.DictExpression`
         A dictionary expression constructed from `keys` and `values`.
 
     """
@@ -396,16 +396,16 @@ def dpois(x, lamb, log_p=False):
 
     Parameters
     ----------
-    x : float or :py:class:`hail.expr.expression.Float64Expression`
+    x : float or :class:`.Float64Expression`
         Non-negative number at which to compute the probability density.
-    lamb : float or :py:class:`hail.expr.expression.Float64Expression`
+    lamb : float or :class:`.Float64Expression`
         Poisson rate parameter. Must be non-negative.
-    log_p : bool or :py:class:`hail.expr.expression.BooleanExpression`
+    log_p : bool or :class:`.BooleanExpression`
         If true, the natural logarithm of the probability density is returned.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
         The (log) probability density.
     """
     return _func("dpois", TFloat64(), x, lamb, log_p)
@@ -432,11 +432,11 @@ def exp(x):
 
     Parameters
     ----------
-    x : float or :py:class:`hail.expr.expression.Float64Expression`
+    x : float or :class:`.Float64Expression`
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("exp", TFloat64(), x)
 
@@ -465,18 +465,18 @@ def fisher_exact_test(c1, c2, c3, c4):
 
     Parameters
     ----------
-    c1 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c1 : int or :class:`.Int32Expression`
         Value for cell 1.
-    c2 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c2 : int or :class:`.Int32Expression`
         Value for cell 2.
-    c3 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c3 : int or :class:`.Int32Expression`
         Value for cell 3.
-    c4 : int or :py:class:`hail.expr.expression.Int32Expression`
+    c4 : int or :class:`.Int32Expression`
         Value for cell 4.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.StructExpression`
+    :class:`.StructExpression`
         A struct expression with four fields, `pValue` (``Float64``), `oddsRatio` (``Float64``),
         ci95Lower (``Float64``), and ci95Upper(``Float64``).
     """
@@ -506,14 +506,14 @@ def gt_index(j, k):
 
     Parameters
     ----------
-    j : int or :py:class:`hail.expr.expression.Int32Expression`
+    j : int or :class:`.Int32Expression`
         First diploid allele index.
-    k : int or :py:class:`hail.expr.expression.Int32Expression`
+    k : int or :class:`.Int32Expression`
         Second diploid allele index.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Int32Expression`
+    :class:`.Int32Expression`
     """
     return _func("gtIndex", TInt32(), j, k)
 
@@ -539,16 +539,16 @@ def hardy_weinberg_p(num_hom_ref, num_het, num_hom_var):
 
     Parameters
     ----------
-    num_hom_ref : int or :py:class:`hail.expr.expression.Int32Expression`
+    num_hom_ref : int or :class:`.Int32Expression`
         Homozygous reference count.
-    num_het : int or :py:class:`hail.expr.expression.Int32Expression`
+    num_het : int or :class:`.Int32Expression`
         Heterozygote count.
-    num_hom_var : int or :py:class:`hail.expr.expression.Int32Expression`
+    num_hom_var : int or :class:`.Int32Expression`
         Homozygous alternate count.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.StructExpression`
+    :class:`.StructExpression`
         A struct expression with two fields, `rExpectedHetFrequency` (``Float64``) and`pValue` (``Float64``).
     """
     ret_type = TStruct(['rExpectedHetFrequency', 'pHWE'], [TFloat64(), TFloat64()])
@@ -587,16 +587,16 @@ def locus(contig, pos, reference_genome=None):
 
     Parameters
     ----------
-    contig : str or :py:class:`hail.expr.expression.StringExpression`
+    contig : str or :class:`.StringExpression`
         Chromosome.
-    pos : int or :py:class:`hail.expr.expression.Int32Expression`
+    pos : int or :class:`.Int32Expression`
         Base position along the chromosome.
-    reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
+    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
         Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
-    :py:class:`.hail.expr.expression.LocusExpression`
+    :class:`.hail.expr.expression.LocusExpression`
     """
     contig = to_expr(contig)
     pos = to_expr(pos)
@@ -625,14 +625,14 @@ def parse_locus(s, reference_genome=None):
 
     Parameters
     ----------
-    s : str or :py:class:`hail.expr.expression.StringExpression`
+    s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
+    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
         Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
-    :py:class:`.hail.expr.expression.LocusExpression`
+    :class:`.hail.expr.expression.LocusExpression`
     """
     s = to_expr(s)
     if reference_genome is None:
@@ -655,16 +655,16 @@ def interval(start, end):
                  end=Locus(contig=1, position=1000, reference_genome=GRCh37))
     Parameters
     ----------
-    start : :py:class:`.hail.genetics.Locus` or :py:class:`hail.expr.expression.LocusExpression`
+    start : :class:`.hail.genetics.Locus` or :class:`.LocusExpression`
         Starting locus (inclusive).
-    end : :py:class:`.hail.genetics.Locus` or :py:class:`hail.expr.expression.LocusExpression`
+    end : :class:`.hail.genetics.Locus` or :class:`.LocusExpression`
         End locus (exclusive).
-    reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
+    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
         Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
-    :py:class:`.hail.expr.expression.IntervalExpression`
+    :class:`.hail.expr.expression.IntervalExpression`
     """
     start = to_expr(start)
     end = to_expr(end)
@@ -700,14 +700,14 @@ def parse_interval(s, reference_genome=None):
 
     Parameters
     ----------
-    s : str or :py:class:`hail.expr.expression.StringExpression`
+    s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
+    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
         Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
-    :py:class:`.hail.expr.expression.IntervalExpression`
+    :class:`.hail.expr.expression.IntervalExpression`
     """
     s = to_expr(s)
     if reference_genome is None:
@@ -732,20 +732,20 @@ def variant(contig, pos, ref, alts, reference_genome=None):
 
     Parameters
     ----------
-    contig : str or :py:class:`hail.expr.expression.StringExpression`
+    contig : str or :class:`.StringExpression`
         Chromosome.
-    pos : int or :py:class:`hail.expr.expression.Int32Expression`
+    pos : int or :class:`.Int32Expression`
         Base position along the chromosome.
-    ref : str or :py:class:`hail.expr.expression.StringExpression`
+    ref : str or :class:`.StringExpression`
         Reference allele.
-    alts : :py:class:`hail.expr.expression.ArrayExpression` or list of str or :py:class:`hail.expr.expression.StringExpression`
+    alts : :class:`.ArrayExpression` or list of str or :class:`.StringExpression`
         List of alternate alleles.
-    reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
+    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
         Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
-    :py:class:`.hail.expr.expression.VariantExpression`
+    :class:`.hail.expr.expression.VariantExpression`
     """
     contig = to_expr(contig)
     pos = to_expr(pos)
@@ -779,14 +779,14 @@ def parse_variant(s, reference_genome=None):
 
     Parameters
     ----------
-    s : str or :py:class:`hail.expr.expression.StringExpression`
+    s : str or :class:`.StringExpression`
         String to parse.
-    reference_genome : :py:class:`.hail.genetics.GenomeReference` (optional)
+    reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
         Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
 
     Returns
     -------
-    :py:class:`.hail.expr.expression.VariantExpression`
+    :class:`.hail.expr.expression.VariantExpression`
     """
     s = to_expr(s)
     if reference_genome is None:
@@ -809,16 +809,16 @@ def call(i):
     -----
     This method expects one argument, the triangular number of the two allele
     indices. In order to construct a call expression from two allele indices, first
-    use :py:meth:`hail.expr.functions.gt_index`.
+    use :meth:`.gt_index`.
 
     Parameters
     ----------
-    i : int or :py:class:`hail.expr.expressions.Int32Expression`
+    i : int or :class:`.Int32Expression`
         Triangular number of new call.
 
     Returns
     -------
-    :py:class:`hail.expr.expressions.CallExpression`
+    :class:`.CallExpression`
     """
     return construct_expr(ApplyMethod('Call', i._ast), TCall(), i._indices, i._aggregations, i._joins, i._refs)
 
@@ -847,7 +847,7 @@ def is_defined(expression):
 
     Returns
     -------
-    :py:class:`hail.expr.expressions.BooleanExpression`
+    :class:`.BooleanExpression`
         ``True`` if `expression` is not missing, ``False`` otherwise.
     """
     return _func("isDefined", TBoolean(), expression)
@@ -877,7 +877,7 @@ def is_missing(expression):
 
     Returns
     -------
-    :py:class:`hail.expr.expressions.BooleanExpression`
+    :class:`.BooleanExpression`
         ``True`` if `expression` is missing, ``False`` otherwise.
     """
     return _func("isMissing", TBoolean(), expression)
@@ -902,18 +902,18 @@ def is_nan(x):
 
     Notes
     -----
-    Note that :py:meth:`is_missing` will return ``False`` on ``NaN`` since ``NaN``
+    Note that :meth:`.is_missing` will return ``False`` on ``NaN`` since ``NaN``
     is a defined value. Additionally, this method will return missing if `x` is
     missing.
 
     Parameters
     ----------
-    x : float or :py:class:`hail.expr.expressions.Float64Expression`
+    x : float or :class:`.Float64Expression`
         Expression to test.
 
     Returns
     -------
-    :py:class:`hail.expr.expressions.BooleanExpression`
+    :class:`.BooleanExpression`
         ``True`` if `x` is ``NaN``, ``False`` otherwise.
     """
     return _func("isnan", TBoolean(), x)
@@ -940,7 +940,7 @@ def json(x):
 
     Returns
     -------
-    :py:class:`hail.expr.expressions.StringExpression`
+    :class:`.StringExpression`
         String expression with JSON representation of `x`.
     """
     return _func("json", TString(), x)
@@ -969,12 +969,12 @@ def log(x, base=None):
 
     Parameters
     ----------
-    x : float or :py:class:`hail.expr.expressions.Float64Expression`
-    base : float or :py:class:`hail.expr.expressions.Float64Expression`
+    x : float or :class:`.Float64Expression`
+    base : float or :class:`.Float64Expression`
 
     Returns
     -------
-    :py:class:`hail.expr.expressions.Float64Expression`
+    :class:`.Float64Expression`
     """
     x = to_expr(x)
     if base is not None:
@@ -999,11 +999,11 @@ def log10(x):
 
     Parameters
     ----------
-    x : float or :py:class:`hail.expr.expressions.Float64Expression`
+    x : float or :class:`.Float64Expression`
 
     Returns
     -------
-    :py:class:`hail.expr.expressions.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("log10", TFloat64(), x)
 
@@ -1032,11 +1032,11 @@ def logical_not(b):
 
     Parameters
     ----------
-    b : bool or :py:class:`.hail.expr.expressions.BooleanExpression`
+    b : bool or :class:`.hail.expr.expressions.BooleanExpression`
 
     Returns
     -------
-    :py:class:`.hail.expr.expressions.BooleanExpression`
+    :class:`.hail.expr.expressions.BooleanExpression`
     """
     return _func("!", TBoolean(), b)
 
@@ -1068,7 +1068,7 @@ def or_else(a, b):
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Expression`
+    :class:`.Expression`
     """
     t = unify_types(a._type, b._type)
     if t is None:
@@ -1094,12 +1094,12 @@ def or_missing(predicate, value):
 
     Parameters
     ----------
-    predicate : bool or :py:class:`hail.expr.expression.BooleanExpression`
+    predicate : bool or :class:`.BooleanExpression`
     value : Value to return if `predicate` is true.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Expression`
+    :class:`.Expression`
         This expression has the same type as `b`.
     """
     predicate = to_expr(predicate)
@@ -1129,18 +1129,18 @@ def binom_test(x, n, p, alternative):
 
     Parameters
     ----------
-    x : int or :class:`Int32Expression`
+    x : int or :class:`.Int32Expression`
         Number of successes.
-    n : int or :class:`Int32Expression`
+    n : int or :class:`.Int32Expression`
         Number of trials.
-    p : float or :class:`Float64Expression`
+    p : float or :class:`.Float64Expression`
         Probability of success, between 0 and 1.
     alternative
         : One of, "two.sided", "greater", "less".
 
     Returns
     -------
-    :class:`Float64Expression`
+    :class:`.Float64Expression`
         p-value.
     """
     return _func("binomTest", TFloat64(), x, n, p, alternative)
@@ -1159,13 +1159,13 @@ def pchisqtail(x, df):
 
     Parameters
     ----------
-    x : float or :py:class:`hail.expr.expressions.Float64Expression`
-    df : float or :py:class:`hail.expr.expressions.Float64Expression`
+    x : float or :class:`.Float64Expression`
+    df : float or :class:`.Float64Expression`
         Degrees of freedom.
 
     Returns
     -------
-    :py:class:`hail.expr.expressions.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("pchisqtail", TFloat64(), x, df)
 
@@ -1193,11 +1193,11 @@ def pnorm(x):
 
     Parameters
     ----------
-    x : float or :py:class:`hail.expr.expression.Float64Expression`
+    x : float or :class:`.Float64Expression`
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("pnorm", TFloat64(), x)
 
@@ -1221,25 +1221,25 @@ def ppois(x, lamb, lower_tail=True, log_p=False):
 
     Parameters
     ----------
-    x : float or :py:class:`hail.expr.expression.Float64Expression`
-    lamb : float or :py:class:`hail.expr.expression.Float64Expression`
+    x : float or :class:`.Float64Expression`
+    lamb : float or :class:`.Float64Expression`
         Rate parameter of Poisson distribution.
-    lower_tail : bool or :py:class:`hail.expr.expression.BooleanExpression`
+    lower_tail : bool or :class:`.BooleanExpression`
         If ``True``, compute the probability of an outcome at or below `x`,
         otherwise greater than `x`.
-    log_p : bool or :py:class:`hail.expr.expression.BooleanExpression`
+    log_p : bool or :class:`.BooleanExpression`
         Return the natural logarithm of the probability.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("ppois", TFloat64(), x, lamb, lower_tail, log_p)
 
 
 @typecheck(p=expr_numeric, df=expr_numeric)
 def qchisqtail(p, df):
-    """Inverts :py:meth:`hail.expr.functions.pchisqtail`.
+    """Inverts :meth:`.pchisqtail`.
 
     Examples
     --------
@@ -1255,21 +1255,21 @@ def qchisqtail(p, df):
 
     Parameters
     ----------
-    p : float or :py:class:`hail.expr.expression.Float64Expression`
+    p : float or :class:`.Float64Expression`
         Probability.
-    df : float or :py:class:`hail.expr.expression.Float64Expression`
+    df : float or :class:`.Float64Expression`
         Degrees of freedom.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("qchisqtail", TFloat64(), p, df)
 
 
 @typecheck(p=expr_numeric)
 def qnorm(p):
-    """Inverts :py:meth:`hail.expr.functions.pnorm`.
+    """Inverts :meth:`.pnorm`.
 
     Examples
     --------
@@ -1285,19 +1285,19 @@ def qnorm(p):
 
     Parameters
     ----------
-    p : float or :py:class:`hail.expr.expression.Float64Expression`
+    p : float or :class:`.Float64Expression`
         Probability.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("qnorm", TFloat64(), p)
 
 
 @typecheck(p=expr_numeric, lamb=expr_numeric, lower_tail=expr_bool, log_p=expr_bool)
 def qpois(p, lamb, lower_tail=True, log_p=False):
-    """Inverts :py:meth:`hail.expr.functions.ppois`.
+    """Inverts :meth:`.ppois`.
 
     Examples
     --------
@@ -1313,17 +1313,17 @@ def qpois(p, lamb, lower_tail=True, log_p=False):
 
     Parameters
     ----------
-    p : float or :py:class:`hail.expr.expression.Float64Expression`
-    lamb : float or :py:class:`hail.expr.expression.Float64Expression`
+    p : float or :class:`.Float64Expression`
+    lamb : float or :class:`.Float64Expression`
         Rate parameter of Poisson distribution.
-    lower_tail : bool or :py:class:`hail.expr.expression.BooleanExpression`
-        Corresponds to `lower_tail` parameter in inverse :py:meth:`ppois`.
-    log_p : bool or :py:class:`hail.expr.expression.BooleanExpression`
+    lower_tail : bool or :class:`.BooleanExpression`
+        Corresponds to `lower_tail` parameter in inverse :meth:`.ppois`.
+    log_p : bool or :class:`.BooleanExpression`
         Exponentiate `p` before testing.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("qpois", TInt32(), p, lamb, lower_tail, log_p)
 
@@ -1348,16 +1348,16 @@ def range(start, stop, step=1):
 
     Parameters
     ----------
-    start : int or :py:class:`hail.expr.expression.Int32Expression`
+    start : int or :class:`.Int32Expression`
         Start of range.
-    stop : int or :py:class:`hail.expr.expression.Int32Expression`
+    stop : int or :class:`.Int32Expression`
         End of range.
-    step : int or :py:class:`hail.expr.expression.Int32Expression`
+    step : int or :class:`.Int32Expression`
         Step of range.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.ArrayInt32Expression`
+    :class:`.ArrayInt32Expression`
     """
     return _func("range", TArray(TInt32()), start, stop, step)
 
@@ -1383,12 +1383,12 @@ def rand_bool(p):
 
     Parameters
     ----------
-    p : float or :py:class:`hail.expr.expression.Float64Expression`
+    p : float or :class:`.Float64Expression`
         Probability between 0 and 1.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.BooleanExpression`
+    :class:`.BooleanExpression`
     """
     return _func("pcoin", TBoolean(), p)
 
@@ -1415,14 +1415,14 @@ def rand_norm(mean=0, sd=1):
 
     Parameters
     ----------
-    mean : float or :py:class:`hail.expr.expression.Float64Expression`
+    mean : float or :class:`.Float64Expression`
         Mean of normal distribution.
-    sd : float or :py:class:`hail.expr.expression.Float64Expression`
+    sd : float or :class:`.Float64Expression`
         Standard deviation of normal distribution.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("rnorm", TFloat64(), mean, sd)
 
@@ -1449,12 +1449,12 @@ def rand_pois(lamb):
 
     Parameters
     ----------
-    lamb : float or :py:class:`hail.expr.expression.Float64Expression`
+    lamb : float or :class:`.Float64Expression`
         Rate parameter for Poisson distribution.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("rpois", TFloat64(), lamb)
 
@@ -1481,14 +1481,14 @@ def rand_unif(min, max):
 
     Parameters
     ----------
-    min : float or :py:class:`hail.expr.expression.Float64Expression`
+    min : float or :class:`.Float64Expression`
         Left boundary of range.
-    max : float or :py:class:`hail.expr.expression.Float64Expression`
+    max : float or :class:`.Float64Expression`
         Right boundary of range.
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("runif", TFloat64(), min, max)
 
@@ -1519,11 +1519,11 @@ def sqrt(x):
 
     Parameters
     ----------
-    x : float or :py:class:`hail.expr.expression.Float64Expression`
+    x : float or :class:`.Float64Expression`
 
     Returns
     -------
-    :py:class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
     """
     return _func("sqrt", TFloat64(), x)
 
@@ -1545,6 +1545,6 @@ def to_str(x):
 
     Returns
     -------
-    :py:class:`hail.expr.expression.StringExpression`
+    :class:`.StringExpression`
     """
     return _func("str", TString(), x)

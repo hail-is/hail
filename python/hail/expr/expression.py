@@ -426,7 +426,7 @@ class Expression(object):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the two expressions are equal.
         """
         other = to_expr(other)
@@ -467,7 +467,7 @@ class Expression(object):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the two expressions are not equal.
         """
         other = to_expr(other)
@@ -480,7 +480,7 @@ class Expression(object):
 
 
 class CollectionExpression(Expression):
-    """Expression of type :py:class:`hail.expr.types.TArray` or :py:class:`hail.expr.types.TSet`
+    """Expression of type :class:`.TArray` or :class:`.TSet`
 
     >>> a = functions.capture([1, 2, 3, 4, 5])
 
@@ -509,11 +509,11 @@ class CollectionExpression(Expression):
         ----------
         f : function ( (arg) -> :class:`.BooleanExpression`)
             Function to evaluate for each element of the collection. Must return a
-            :py:class:`BooleanExpression`.
+            :class:`.BooleanExpression`.
 
         Returns
         -------
-        :py:class:`BooleanExpression`.
+        :class:`.BooleanExpression`.
             ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
         """
         def unify_ret(t):
@@ -538,19 +538,19 @@ class CollectionExpression(Expression):
 
         Notes
         -----
-        Returns a same-type expression; evaluated on a :py:class:`SetExpression`, returns a
-        :py:class:`SetExpression`. Evaluated on an :py:class:`ArrayExpression`,
-        returns an :py:class:`ArrayExpression`.
+        Returns a same-type expression; evaluated on a :class:`.SetExpression`, returns a
+        :class:`.SetExpression`. Evaluated on an :class:`.ArrayExpression`,
+        returns an :class:`.ArrayExpression`.
 
         Parameters
         ----------
         f : function ( (arg) -> :class:`.BooleanExpression`)
             Function to evaluate for each element of the collection. Must return a
-            :py:class:`BooleanExpression`.
+            :class:`.BooleanExpression`.
 
         Returns
         -------
-        :py:class:`CollectionExpression`
+        :class:`.CollectionExpression`
             Expression of the same type as the callee.
         """
         def unify_ret(t):
@@ -582,11 +582,11 @@ class CollectionExpression(Expression):
         ----------
         f : function ( (arg) -> :class:`.BooleanExpression`)
             Function to evaluate for each element of the collection. Must return a
-            :py:class:`BooleanExpression`.
+            :class:`.BooleanExpression`.
 
         Returns
         -------
-        :py:class:`.Expression`
+        :class:`.Expression`
             Expression whose type is the element type of the collection.
         """
         def unify_ret(t):
@@ -619,7 +619,7 @@ class CollectionExpression(Expression):
 
         Returns
         -------
-        :py:class:`CollectionExpression`
+        :class:`.CollectionExpression`
         """
         expected_type, s = (TArray, 'Array') if isinstance(self._type, TArray) else (TSet, 'Set')
         def unify_ret(t):
@@ -647,11 +647,11 @@ class CollectionExpression(Expression):
         ----------
         f : function ( (arg) -> :class:`.BooleanExpression`)
             Function to evaluate for each element of the collection. Must return a
-            :py:class:`BooleanExpression`.
+            :class:`.BooleanExpression`.
 
         Returns
         -------
-        :py:class:`BooleanExpression`.
+        :class:`.BooleanExpression`.
             ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
         """
         def unify_ret(t):
@@ -683,7 +683,7 @@ class CollectionExpression(Expression):
 
         Returns
         -------
-        :py:class:`DictExpression`.
+        :class:`.DictExpression`.
             Dictionary keyed by results of `f`.
         """
         return self._bin_lambda_method("groupBy", f, self._type.element_type, lambda t: TDict(t, self._type))
@@ -709,7 +709,7 @@ class CollectionExpression(Expression):
 
         Returns
         -------
-        :py:class:`CollectionExpression`.
+        :class:`.CollectionExpression`.
             Collection where each element has been transformed according to `f`.
         """
         return self._bin_lambda_method("map", f, self._type.element_type, lambda t: self._type.__class__(t))
@@ -729,7 +729,7 @@ class CollectionExpression(Expression):
 
         Returns
         -------
-        :py:class:`hail.expr.Int32Expression`
+        :class:`.Int32Expression`
             The number of elements in the collection.
         """
         return self._method("size", TInt32())
@@ -749,14 +749,14 @@ class CollectionExpression(Expression):
 
         Returns
         -------
-        :py:class:`hail.expr.Int32Expression`
+        :class:`.Int32Expression`
             The number of elements in the collection.
         """
         return self._method("size", TInt32())
 
 
 class CollectionNumericExpression(CollectionExpression):
-    """Expression of type :class:`hail.expr.types.TArray` or :class:`hail.expr.types.TSet` with numeric element type.
+    """Expression of type :class:`.TArray` or :class:`.TSet` with numeric element type.
 
     >>> a = functions.capture([1, 2, 3, 4, 5])
     """
@@ -773,7 +773,7 @@ class CollectionNumericExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`NumericExpression`
+        :class:`.NumericExpression`
             The maximum value in the collection.
         """
         return self._method("max", self._type.element_type)
@@ -790,7 +790,7 @@ class CollectionNumericExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`NumericExpression`
+        :class:`.NumericExpression`
             The miniumum value in the collection.
         """
         return self._method("min", self._type.element_type)
@@ -811,7 +811,7 @@ class CollectionNumericExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`Float64Expression`
+        :class:`.Float64Expression`
             The mean value of the collection.
         """
         return self._method("mean", TFloat64())
@@ -832,7 +832,7 @@ class CollectionNumericExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`NumericExpression`
+        :class:`.NumericExpression`
             The median value in the collection.
         """
         return self._method("median", self._type.element_type)
@@ -853,7 +853,7 @@ class CollectionNumericExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`NumericExpression`
+        :class:`.NumericExpression`
             The product of the collection.
         """
         return self._method("product",
@@ -876,14 +876,14 @@ class CollectionNumericExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`NumericExpression`
+        :class:`.NumericExpression`
             The sum of the collection.
         """
         return self._method("sum", self._type.element_type)
 
 
 class ArrayExpression(CollectionExpression):
-    """Expression of type :class:`hail.expr.types.TArray`.
+    """Expression of type :class:`.TArray`.
 
     >>> a = functions.capture(['Alice', 'Bob', 'Charlie'])
     """
@@ -912,7 +912,7 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        item : slice or :class:`Int32Expression`
+        item : slice or :class:`.Int32Expression`
             Index or slice.
 
         Returns
@@ -954,11 +954,11 @@ class ArrayExpression(CollectionExpression):
         This method takes time proportional to the length of the array. If a
         pipeline uses this method on the same array several times, it may be
         more efficient to convert the array to a set first
-        (:meth:`ArrayExpression.to_set`).
+        (:meth:`.ArrayExpression.to_set`).
 
         Returns
         -------
-        :py:class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the element is found in the array, ``False`` otherwise.
         """
         return self.exists(lambda x: x == item)
@@ -982,7 +982,7 @@ class ArrayExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`ArrayExpression`
+        :class:`.ArrayExpression`
         """
         if not item._type == self._type.element_type:
             raise TypeError("'ArrayExpression.append' expects 'item' to be the same type as its elements\n"
@@ -1004,12 +1004,12 @@ class ArrayExpression(CollectionExpression):
 
         Parameters
         ----------
-        a : :class:`ArrayExpression`
+        a : :class:`.ArrayExpression`
             Array to concatenate, same type as the callee.
 
         Returns
         -------
-        :py:class:`ArrayExpression`
+        :class:`.ArrayExpression`
         """
         if not a._type == self._type:
             raise TypeError("'ArrayExpression.extend' expects 'a' to be the same type as the caller\n"
@@ -1033,12 +1033,12 @@ class ArrayExpression(CollectionExpression):
         ----------
         f : function ( (arg) -> :class:`.BooleanExpression`)
             Function to evaluate per element to obtain the sort key.
-        ascending : bool or :py:class:`BooleanExpression`
+        ascending : bool or :class:`.BooleanExpression`
             Sort in ascending order.
 
         Returns
         -------
-        :py:class:`ArrayExpression`
+        :class:`.ArrayExpression`
         """
         def check_f(t):
             if not (is_numeric(t) or isinstance(t, TString)):
@@ -1059,14 +1059,14 @@ class ArrayExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`SetExpression`
+        :class:`.SetExpression`
             Set of all unique elements.
         """
         return self._method("toSet", TSet(self._type.element_type))
 
 
 class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
-    """Expression of type :class:`hail.expr.types.TArray` with a numeric type.
+    """Expression of type :class:`.TArray` with a numeric type.
 
     Numeric arrays support arithmetic both with scalar values and other arrays.
     Arithmetic between two numeric arrays requires that the length of each array
@@ -1128,12 +1128,12 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression` or :class:`ArrayNumericExpression`
+        other : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
             Value or array to add.
 
         Returns
         -------
-        :class:`ArrayNumericExpression`
+        :class:`.ArrayNumericExpression`
             Array of positional sums.
         """
         return self._bin_op_numeric("+", other)
@@ -1156,12 +1156,12 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression` or :class:`ArrayNumericExpression`
+        other : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
             Value or array to subtract.
 
         Returns
         -------
-        :class:`ArrayNumericExpression`
+        :class:`.ArrayNumericExpression`
             Array of positional differences.
         """
         return self._bin_op_numeric("-", other)
@@ -1184,12 +1184,12 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression` or :class:`ArrayNumericExpression`
+        other : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
             Value or array to multiply by.
 
         Returns
         -------
-        :class:`ArrayNumericExpression`
+        :class:`.ArrayNumericExpression`
             Array of positional products.
         """
         return self._bin_op_numeric("*", other)
@@ -1212,12 +1212,12 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression` or :class:`ArrayNumericExpression`
+        other : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
             Value or array to divide by.
 
         Returns
         -------
-        :class:`ArrayNumericExpression`
+        :class:`.ArrayNumericExpression`
             Array of positional quotients.
         """
         def ret_type_f(t):
@@ -1256,12 +1256,12 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression` or :class:`ArrayNumericExpression`
+        other : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
             Value or array to exponentiate by.
 
         Returns
         -------
-        :class:`ArrayNumericExpression`
+        :class:`.ArrayNumericExpression`
             Array of positional exponentiations.
         """
         return self._bin_op_numeric('**', other, lambda _: TArray(TFloat64()))
@@ -1282,39 +1282,39 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         Parameters
         ----------
-        ascending : :py:class:`BooleanExpression`
+        ascending : :class:`.BooleanExpression`
             Sort in ascending order.
 
         Returns
         -------
-        :py:class:`ArrayNumericExpression`
+        :class:`.ArrayNumericExpression`
             Sorted array.
         """
         return self._method("sort", self._type, ascending)
 
 
 class ArrayFloat64Expression(ArrayNumericExpression):
-    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TFloat64`."""
+    """Expression of type :class:`.TArray` with element type :class:`.TFloat64`."""
     pass
 
 
 class ArrayFloat32Expression(ArrayNumericExpression):
-    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TFloat32`."""
+    """Expression of type :class:`.TArray` with element type :class:`.TFloat32`."""
     pass
 
 
 class ArrayInt32Expression(ArrayNumericExpression):
-    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TInt32`"""
+    """Expression of type :class:`.TArray` with element type :class:`.TInt32`"""
     pass
 
 
 class ArrayInt64Expression(ArrayNumericExpression):
-    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TInt64`."""
+    """Expression of type :class:`.TArray` with element type :class:`.TInt64`."""
     pass
 
 
 class ArrayStringExpression(ArrayExpression):
-    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TString`.
+    """Expression of type :class:`.TArray` with element type :class:`.TString`.
 
     >>> a = functions.capture(['Alice', 'Bob', 'Charles'])
     """
@@ -1331,12 +1331,12 @@ class ArrayStringExpression(ArrayExpression):
 
         Parameters
         ----------
-        delimiter : :py:class:`StringExpression`
+        delimiter : :class:`.StringExpression`
             Field delimiter.
 
         Returns
         -------
-        :py:class:`StringExpression`
+        :class:`.StringExpression`
             Joined string expression.
         """
         return self._method("mkString", TString(), delimiter)
@@ -1354,24 +1354,24 @@ class ArrayStringExpression(ArrayExpression):
 
         Parameters
         ----------
-        ascending : bool or :py:class:`BooleanExpression`
+        ascending : bool or :class:`.BooleanExpression`
             Sort in ascending order.
 
         Returns
         -------
-        :py:class:`ArrayStringExpression`
+        :class:`.ArrayStringExpression`
             Sorted array.
         """
         return self._method("sort", self._type, ascending)
 
 
 class ArrayStructExpression(ArrayExpression):
-    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TStruct`."""
+    """Expression of type :class:`.TArray` with element type :class:`.TStruct`."""
     pass
 
 
 class ArrayArrayExpression(ArrayExpression):
-    """Expression of type :class:`hail.expr.types.TArray` with element type :class:`hail.expr.types.TArray`.
+    """Expression of type :class:`.TArray` with element type :class:`.TArray`.
 
     >>> a = functions.capture([[1, 2], [3, 4]])
     """
@@ -1387,14 +1387,14 @@ class ArrayArrayExpression(ArrayExpression):
 
         Returns
         -------
-        :py:class:`ArrayExpression`
+        :class:`.ArrayExpression`
             Array generated by concatenating all subarrays.
         """
         return self._method("flatten", self._type.element_type)
 
 
 class SetExpression(CollectionExpression):
-    """Expression of type :class:`hail.expr.types.TSet`.
+    """Expression of type :class:`.TSet`.
 
     >>> s1 = functions.capture({1, 2, 3})
     >>> s2 = functions.capture({1, 3, 5})
@@ -1417,7 +1417,7 @@ class SetExpression(CollectionExpression):
 
         Returns
         -------
-        :class:`SetExpression`
+        :class:`.SetExpression`
             Set with `item` added.
         """
         if not item._type == self._type.element_type:
@@ -1444,7 +1444,7 @@ class SetExpression(CollectionExpression):
 
         Returns
         -------
-        :py:class:`SetExpression`
+        :class:`.SetExpression`
             Set with `item` removed.
         """
         if not item._type == self._type.element_type:
@@ -1474,7 +1474,7 @@ class SetExpression(CollectionExpression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if `item` is in the set.
         """
         if not item._type == self._type.element_type:
@@ -1499,12 +1499,12 @@ class SetExpression(CollectionExpression):
 
         Parameters
         ----------
-        s : :class:`SetExpression`
+        s : :class:`.SetExpression`
             Set expression of the same type.
 
         Returns
         -------
-        :class:`SetExpression`
+        :class:`.SetExpression`
             Set of elements not in `s`.
         """
         if not s._type.element_type == self._type.element_type:
@@ -1526,12 +1526,12 @@ class SetExpression(CollectionExpression):
 
         Parameters
         ----------
-        s : :class:`SetExpression`
+        s : :class:`.SetExpression`
             Set expression of the same type.
 
         Returns
         -------
-        :class:`SetExpression`
+        :class:`.SetExpression`
             Set of elements present in `s`.
         """
         if not s._type.element_type == self._type.element_type:
@@ -1556,12 +1556,12 @@ class SetExpression(CollectionExpression):
 
         Parameters
         ----------
-        s : :class:`SetExpression`
+        s : :class:`.SetExpression`
             Set expression of the same type.
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if every element is contained in set `s`.
         """
         if not s._type.element_type == self._type.element_type:
@@ -1583,12 +1583,12 @@ class SetExpression(CollectionExpression):
 
         Parameters
         ----------
-        s : :class:`SetExpression`
+        s : :class:`.SetExpression`
             Set expression of the same type.
 
         Returns
         -------
-        :class:`SetExpression`
+        :class:`.SetExpression`
             Set of elements present in either set.
         """
         if not s._type.element_type == self._type.element_type:
@@ -1613,34 +1613,34 @@ class SetExpression(CollectionExpression):
 
         Returns
         -------
-        :class:`ArrayExpression`
+        :class:`.ArrayExpression`
             Array of all elements in the set.
         """
         return self._method("toArray", TArray(self._type.element_type))
 
 
 class SetFloat64Expression(SetExpression, CollectionNumericExpression):
-    """Expression of type :class:`hail.expr.types.TSet` with element type :class:`hail.expr.types.TFloat64`."""
+    """Expression of type :class:`.TSet` with element type :class:`.TFloat64`."""
     pass
 
 
 class SetFloat32Expression(SetExpression, CollectionNumericExpression):
-    """Expression of type :class:`hail.expr.types.TSet` with element type :class:`hail.expr.types.TFloat32`."""
+    """Expression of type :class:`.TSet` with element type :class:`.TFloat32`."""
     pass
 
 
 class SetInt32Expression(SetExpression, CollectionNumericExpression):
-    """Expression of type :class:`hail.expr.types.TSet` with element type :class:`hail.expr.types.TInt32`."""
+    """Expression of type :class:`.TSet` with element type :class:`.TInt32`."""
     pass
 
 
 class SetInt64Expression(SetExpression, CollectionNumericExpression):
-    """Expression of type :class:`hail.expr.types.TSet` with element type :class:`hail.expr.types.TInt64`."""
+    """Expression of type :class:`.TSet` with element type :class:`.TInt64`."""
     pass
 
 
 class SetStringExpression(SetExpression):
-    """Expression of type :class:`hail.expr.types.TSet` with element type :class:`hail.expr.types.TString`.
+    """Expression of type :class:`.TSet` with element type :class:`.TString`.
 
     >>> s = functions.capture({'Alice', 'Bob', 'Charles'})
     """
@@ -1661,19 +1661,19 @@ class SetStringExpression(SetExpression):
 
         Parameters
         ----------
-        delimiter : str or :py:class:`StringExpression`
+        delimiter : str or :class:`.StringExpression`
             Field delimiter.
 
         Returns
         -------
-        :py:class:`StringExpression`
+        :class:`.StringExpression`
             Joined string expression.
         """
         return self._method("mkString", TString(), delimiter)
 
 
 class SetSetExpression(SetExpression):
-    """Expression of type :class:`hail.expr.types.TSet` with element type :class:`hail.expr.types.TSet`.
+    """Expression of type :class:`.TSet` with element type :class:`.TSet`.
 
     >>> s = functions.capture({1, 2, 3}).map(lambda s: {s, 2 * s})
     """
@@ -1689,14 +1689,14 @@ class SetSetExpression(SetExpression):
 
         Returns
         -------
-        :py:class:`SetExpression`
+        :class:`.SetExpression`
             Set generated by concatenating all subsets.
         """
         return self._method("flatten", self._type.element_type)
 
 
 class DictExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TDict`.
+    """Expression of type :class:`.TDict`.
 
     >>> d = functions.capture({'Alice': 43, 'Bob': 33, 'Charles': 44})
     """
@@ -1718,7 +1718,7 @@ class DictExpression(Expression):
         Notes
         -----
         Raises an error if `item` is not a key of the dictionary. Use
-        :meth:`DictExpression.get` to return missing instead of an error.
+        :meth:`.DictExpression.get` to return missing instead of an error.
 
         Parameters
         ----------
@@ -1757,7 +1757,7 @@ class DictExpression(Expression):
 
         Returns
         -------
-        :py:class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if `item` is a key of the dictionary, ``False`` otherwise.
         """
         if not item._type == self._type.key_type:
@@ -1787,7 +1787,7 @@ class DictExpression(Expression):
 
         Returns
         -------
-        :py:class:`.Expression`
+        :class:`.Expression`
             The value associated with `item`, or missing.
         """
         if not item._type == self._type.key_type:
@@ -1808,7 +1808,7 @@ class DictExpression(Expression):
 
         Returns
         -------
-        :py:class:`SetExpression`
+        :class:`.SetExpression`
             Set of all keys.
         """
         return self._method("keySet", TSet(self._key_typ))
@@ -1825,7 +1825,7 @@ class DictExpression(Expression):
 
         Returns
         -------
-        :py:class:`ArrayExpression`
+        :class:`.ArrayExpression`
             Array of all keys.
         """
         return self._method("keys", TArray(self._key_typ))
@@ -1848,7 +1848,7 @@ class DictExpression(Expression):
 
         Returns
         -------
-        :py:class:`DictExpression`
+        :class:`.DictExpression`
             Dictionary with transformed values.
         """
         return self._bin_lambda_method("mapValues", f, self._value_typ, lambda t: TDict(self._key_typ, t))
@@ -1865,7 +1865,7 @@ class DictExpression(Expression):
 
         Returns
         -------
-        :py:class:`Int32Expression`
+        :class:`.Int32Expression`
             Size of the dictionary.
         """
         return self._method("size", TInt32())
@@ -1882,7 +1882,7 @@ class DictExpression(Expression):
 
         Returns
         -------
-        :py:class:`ArrayExpression`
+        :class:`.ArrayExpression`
             All values in the dictionary.
         """
         return self._method("values", TArray(self._value_typ))
@@ -1891,7 +1891,7 @@ class DictExpression(Expression):
 class Aggregable(object):
     """Expression that can only be aggregated.
 
-    An :class:`Aggregable` is produced by the :meth:`explode` or :meth:`filter`
+    An :class:`.Aggregable` is produced by the :meth:`.explode` or :meth:`.filter`
     methods. These objects can be aggregated using aggregator functions, but
     cannot otherwise be used in expressions.
     """
@@ -1914,7 +1914,7 @@ class Aggregable(object):
 
 
 class StructExpression(Mapping, Expression):
-    """Expression of type :class:`hail.expr.types.TStruct`.
+    """Expression of type :class:`.TStruct`.
 
     >>> s = functions.capture(Struct(a=5, b='Foo'))
 
@@ -1936,7 +1936,7 @@ class StructExpression(Mapping, Expression):
     The latter syntax is safer, because fields that share their name with
     an existing attribute of :class:`.StructExpression` (`keys`, `values`,
     `annotate`, `drop`, etc.) will only be accessible using the
-    :meth:`StructExpression.__getitem__` syntax. This is also the only way
+    :meth:`.StructExpression.__getitem__` syntax. This is also the only way
     to access fields that are not valid Python identifiers, like fields with
     spaces or symbols.
     """
@@ -2151,7 +2151,7 @@ class AtomicExpression(Expression):
 
         Returns
         -------
-        :py:class:`Float64Expression`
+        :class:`.Float64Expression`
         """
         return self._method("toFloat64", TFloat64())
 
@@ -2160,7 +2160,7 @@ class AtomicExpression(Expression):
 
         Returns
         -------
-        :py:class:`Float32Expression`
+        :class:`.Float32Expression`
         """
         return self._method("toFloat32", TFloat32())
 
@@ -2169,7 +2169,7 @@ class AtomicExpression(Expression):
 
         Returns
         -------
-        :py:class:`Int64Expression`
+        :class:`.Int64Expression`
         """
         return self._method("toInt64", TInt64())
 
@@ -2178,13 +2178,13 @@ class AtomicExpression(Expression):
 
         Returns
         -------
-        :py:class:`Int32Expression`
+        :class:`.Int32Expression`
         """
         return self._method("toInt32", TInt32())
 
 
 class BooleanExpression(AtomicExpression):
-    """Expression of type :class:`hail.expr.types.TBoolean`.
+    """Expression of type :class:`.TBoolean`.
 
     >>> t = functions.capture(True)
     >>> f = functions.capture(False)
@@ -2237,12 +2237,12 @@ class BooleanExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`BooleanExpression`
+        other : :class:`.BooleanExpression`
             Right-side operation.
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if both left and right are ``True``.
         """
         return self._bin_op_logical("&&", other)
@@ -2277,12 +2277,12 @@ class BooleanExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`BooleanExpression`
+        other : :class:`.BooleanExpression`
             Right-side operation.
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if either left or right is ``True``.
         """
         return self._bin_op_logical("||", other)
@@ -2305,7 +2305,7 @@ class BooleanExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             Boolean inverse.
         """
         return self._unary_op("!")
@@ -2364,12 +2364,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Right side for comparison.
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the left side is smaller than the right side.
         """
         return self._bin_op("<", other, TBoolean())
@@ -2387,12 +2387,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Right side for comparison.
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the left side is smaller than or equal to the right side.
         """
         return self._bin_op("<=", other, TBoolean())
@@ -2410,12 +2410,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Right side for comparison.
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the left side is greater than the right side.
         """
         return self._bin_op(">", other, TBoolean())
@@ -2433,12 +2433,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Right side for comparison.
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the left side is greater than or equal to the right side.
         """
         return self._bin_op(">=", other, TBoolean())
@@ -2459,7 +2459,7 @@ class NumericExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`NumericExpression`
+        :class:`.NumericExpression`
             Negated number.
         """
         return self._unary_op("-")
@@ -2479,12 +2479,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Number to add.
 
         Returns
         -------
-        :class:`NumericExpression`
+        :class:`.NumericExpression`
             Sum of the two numbers.
         """
         return self._bin_op_numeric("+", other)
@@ -2507,12 +2507,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Number to subtract.
 
         Returns
         -------
-        :class:`NumericExpression`
+        :class:`.NumericExpression`
             Difference of the two numbers.
         """
         return self._bin_op_numeric("-", other)
@@ -2535,12 +2535,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Number to multiply.
 
         Returns
         -------
-        :class:`NumericExpression`
+        :class:`.NumericExpression`
             Product of the two numbers.
         """
         return self._bin_op_numeric("*", other)
@@ -2563,12 +2563,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Dividend.
 
         Returns
         -------
-        :class:`NumericExpression`
+        :class:`.NumericExpression`
             The left number divided by the left.
         """
         def ret_type_f(t):
@@ -2605,12 +2605,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Dividend.
 
         Returns
         -------
-        :class:`NumericExpression`
+        :class:`.NumericExpression`
             Remainder after dividing the left by the right.
         """
         return self._bin_op_numeric('%', other)
@@ -2636,13 +2636,13 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        power : :class:`NumericExpression`
+        power : :class:`.NumericExpression`
         modulo
             Unsupported argument.
 
         Returns
         -------
-        :class:`Float64Expression`
+        :class:`.Float64Expression`
             Result of raising left to the right power.
         """
         return self._bin_op_numeric('**', power, lambda _: TFloat64())
@@ -2662,7 +2662,7 @@ class NumericExpression(AtomicExpression):
 
         Returns
         -------
-        :py:class:`Int32Expression`
+        :class:`.Int32Expression`
             ``1`` or ``-1``.
         """
         return self._method("signum", TInt32())
@@ -2679,7 +2679,7 @@ class NumericExpression(AtomicExpression):
 
         Returns
         -------
-        :py:class:`.NumericExpression`
+        :class:`.NumericExpression`
             Absolute value of the number.
         """
         return self._method("abs", self._type)
@@ -2690,12 +2690,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :py:class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Value to compare against.
 
         Returns
         -------
-        :py:class:`.NumericExpression`
+        :class:`.NumericExpression`
             Maximum value.
         """
         t = unify_types(self._type, other._type)
@@ -2708,12 +2708,12 @@ class NumericExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :py:class:`NumericExpression`
+        other : :class:`.NumericExpression`
             Value to compare against.
 
         Returns
         -------
-        :py:class:`.NumericExpression`
+        :class:`.NumericExpression`
             Minimum value.
         """
         t = unify_types(self._type, other._type)
@@ -2722,27 +2722,27 @@ class NumericExpression(AtomicExpression):
 
 
 class Float64Expression(NumericExpression):
-    """Expression of type :class:`hail.expr.types.TFloat64`."""
+    """Expression of type :class:`.TFloat64`."""
     pass
 
 
 class Float32Expression(NumericExpression):
-    """Expression of type :class:`hail.expr.types.TFloat32`."""
+    """Expression of type :class:`.TFloat32`."""
     pass
 
 
 class Int32Expression(NumericExpression):
-    """Expression of type :class:`hail.expr.types.TInt32`."""
+    """Expression of type :class:`.TInt32`."""
     pass
 
 
 class Int64Expression(NumericExpression):
-    """Expression of type :class:`hail.expr.types.TInt64`."""
+    """Expression of type :class:`.TInt64`."""
     pass
 
 
 class StringExpression(AtomicExpression):
-    """Expression of type :class:`hail.expr.types.TString`.
+    """Expression of type :class:`.TString`.
 
     >>> s = functions.capture('The quick brown fox')
     """
@@ -2761,12 +2761,12 @@ class StringExpression(AtomicExpression):
 
         Parameters
         ----------
-        item : slice or :class:`Int32Expression`
+        item : slice or :class:`.Int32Expression`
             Slice or character index.
 
         Returns
         -------
-        :class:`StringExpression`
+        :class:`.StringExpression`
             Substring or character at index `item`.
         """
         if isinstance(item, slice):
@@ -2790,12 +2790,12 @@ class StringExpression(AtomicExpression):
 
         Parameters
         ----------
-        other : :class:`StringExpression`
+        other : :class:`.StringExpression`
             String to concatenate.
 
         Returns
         -------
-        :class:`StringExpression`
+        :class:`.StringExpression`
             Concatenated string.
         """
         other = to_expr(other)
@@ -2821,7 +2821,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`Int32Expression`
+        :class:`.Int32Expression`
             Length of the string.
         """
         return self._method("length", TInt32())
@@ -2844,8 +2844,8 @@ class StringExpression(AtomicExpression):
 
         Parameters
         ----------
-        pattern1 : str or :class:`StringExpression`
-        pattern2 : str or :class:`StringExpression`
+        pattern1 : str or :class:`.StringExpression`
+        pattern2 : str or :class:`.StringExpression`
 
         Returns
         -------
@@ -2876,14 +2876,14 @@ class StringExpression(AtomicExpression):
 
         Parameters
         ----------
-        delim : str or :class:`StringExpression`
+        delim : str or :class:`.StringExpression`
             Delimiter regex.
-        n : :class:`Int32Expression`, optional
+        n : :class:`.Int32Expression`, optional
             Maximum number of splits.
 
         Returns
         -------
-        :class:`ArrayExpression`
+        :class:`.ArrayExpression`
             Array of split strings.
         """
         if n is None:
@@ -2928,7 +2928,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
         return construct_expr(RegexMatch(self._ast, regex), TBoolean(),
@@ -2936,13 +2936,13 @@ class StringExpression(AtomicExpression):
 
 
 class CallExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TCall`.
+    """Expression of type :class:`.TCall`.
 
     >>> call = functions.capture(Call(1))
     """
     @property
     def gt(self):
-        """Returns the triangle number of :py:meth:`Call.gtj` and :py:meth:`Call.gtk`.
+        """Returns the triangle number of :meth:`.Call.gtj` and :meth:`.Call.gtk`.
 
         Examples
         --------
@@ -2953,7 +2953,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`Int32Expression`
+        :class:`.Int32Expression`
             Triangle number of the two alleles.
         """
         return self._field("gt", TInt32())
@@ -2970,7 +2970,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`Int32Expression`
+        :class:`.Int32Expression`
             First allele index.
         """
         return self._method("gtj", TInt32())
@@ -2987,7 +2987,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`Int32Expression`
+        :class:`.Int32Expression`
             Second allele index.
         """
         return self._method("gtk", TInt32())
@@ -3004,7 +3004,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if at least one allele is non-reference, ``False`` otherwise.
         """
         return self._method("isNonRef", TBoolean())
@@ -3021,7 +3021,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the two alleles are different, ``False`` if they are the same.
         """
         return self._method("isHet", TBoolean())
@@ -3038,7 +3038,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the call includes two different alternate alleles, ``False`` otherwise.
         """
         return self._method("isHetNonRef", TBoolean())
@@ -3055,7 +3055,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the call includes one reference and one alternate allele, ``False`` otherwise.
         """
         return self._method("isHetRef", TBoolean())
@@ -3072,7 +3072,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the call includes two reference alleles, ``False`` otherwise.
         """
         return self._method("isHomRef", TBoolean())
@@ -3089,7 +3089,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the call includes two identical alternate alleles, ``False`` otherwise.
         """
         return self._method("isHomVar", TBoolean())
@@ -3106,7 +3106,7 @@ class CallExpression(Expression):
 
         Returns
         -------
-        :class:`Int32Expression`
+        :class:`.Int32Expression`
             The number of non-reference alleles (0, 1, or 2).
         """
         return self._method("nNonRefAlleles", TInt32())
@@ -3131,12 +3131,12 @@ class CallExpression(Expression):
 
         Parameters
         ----------
-        v : :class:`hail.genetics.Variant` or :class:`VariantExpression`
+        v : :class:`.Variant` or :class:`.VariantExpression`
             Variant, used to determine the number of possible alleles.
 
         Returns
         -------
-        :class:`ArrayInt32Expression`
+        :class:`.ArrayInt32Expression`
             An array of summed one-hot encodings of allele indices.
         """
         return self._method("oneHotAlleles", TArray(TInt32()), v)
@@ -3155,24 +3155,24 @@ class CallExpression(Expression):
         A one-hot encoding uses a vector to represent categorical data, like a
         genotype call, by using an array with one ``1`` and many ``0`` s. In
         this case, the array will have a ``1`` at the position of the triangle
-        number of the genotype (:py:meth:`Call.gt`).
+        number of the genotype (:meth:`.Call.gt`).
 
         This is useful for manipulating counts of categorical variables.
 
         Parameters
         ----------
-        v : :class:`hail.genetics.Variant` or :class:`VariantExpression`
+        v : :class:`.Variant` or :class:`.VariantExpression`
             Variant, used to determine the number of possible alleles.
         Returns
         -------
-        :class:`ArrayInt32Expression`
+        :class:`.ArrayInt32Expression`
             An array with a one-hot encoding of the call.
         """
         return self._method("oneHotGenotype", TArray(TInt32()), v)
 
 
 class LocusExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TLocus`.
+    """Expression of type :class:`.TLocus`.
 
     >>> locus = functions.capture(Locus('1', 100))
     """
@@ -3189,7 +3189,7 @@ class LocusExpression(Expression):
 
         Returns
         -------
-        :class:`StringExpression`
+        :class:`.StringExpression`
             The chromosome for this locus.
         """
         return self._field("contig", TString())
@@ -3207,14 +3207,14 @@ class LocusExpression(Expression):
 
         Returns
         -------
-        :class:`Int32Expression`
+        :class:`.Int32Expression`
             This locus's position along its chromosome.
         """
         return self._field("position", TInt32())
 
 
 class IntervalExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TInterval`.
+    """Expression of type :class:`.TInterval`.
 
     >>> interval = functions.capture(Interval.parse('X:1M-2M'))
     """
@@ -3234,11 +3234,11 @@ class IntervalExpression(Expression):
 
         Parameters
         ----------
-        locus : :class:`hail.genetics.Locus` or :class:`LocusExpression`
+        locus : :class:`.Locus` or :class:`.LocusExpression`
             Locus to test for interval membership.
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if `locus` is contained in the interval, ``False`` otherwise.
         """
         locus = to_expr(locus)
@@ -3259,7 +3259,7 @@ class IntervalExpression(Expression):
 
         Returns
         -------
-        :class:`LocusExpression`
+        :class:`.LocusExpression`
             End locus.
         """
         return self._field("end", TLocus())
@@ -3277,14 +3277,14 @@ class IntervalExpression(Expression):
 
         Returns
         -------
-        :class:`LocusExpression`
+        :class:`.LocusExpression`
             Start locus.
         """
         return self._field("start", TLocus())
 
 
 class AltAlleleExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TAltAllele`.
+    """Expression of type :class:`.TAltAllele`.
 
     >>> altallele = functions.capture(AltAllele('A', 'AAA'))
     """
@@ -3301,7 +3301,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`StringExpression`
+        :class:`.StringExpression`
             Alternate base string.
         """
         return self._field("alt", TString())
@@ -3319,7 +3319,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`StringExpression`
+        :class:`.StringExpression`
             Reference base string.
         """
         return self._field("ref", TString())
@@ -3336,7 +3336,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`StringExpression`
+        :class:`.StringExpression`
             One of ``"SNP"``, ``"MNP"``, ``"Insertion"``, ``"Deletion"``, ``"Star"``, ``"Complex"``.
         """
         return self._method("category", TString())
@@ -3353,7 +3353,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the allele is a complex event.
         """
         return self._method("isComplex", TBoolean())
@@ -3370,7 +3370,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the event is a a deletion.
         """
         return self._method("isDeletion", TBoolean())
@@ -3387,7 +3387,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the event is an insertion or deletion.
         """
         return self._method("isIndel", TBoolean())
@@ -3404,7 +3404,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the event is an insertion.
         """
         return self._method("isInsertion", TBoolean())
@@ -3421,7 +3421,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the event is a multiple nucleotide polymorphism.
         """
         return self._method("isMNP", TBoolean())
@@ -3438,7 +3438,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the event is a single nucleotide polymorphism.
         """
         return self._method("isSNP", TBoolean())
@@ -3455,7 +3455,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the event is a star (upstream deletion) allele.
         """
         return self._method("isStar", TBoolean())
@@ -3472,7 +3472,7 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the event is a SNP and a transition.
         """
         return self._method("isTransition", TBoolean())
@@ -3489,14 +3489,14 @@ class AltAlleleExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the event is a SNP and a transversion.
         """
         return self._method("isTransversion", TBoolean())
 
 
 class VariantExpression(Expression):
-    """Expression of type :class:`hail.expr.types.TVariant`.
+    """Expression of type :class:`.TVariant`.
 
     >>> variant = functions.capture(Variant('16', 123055, 'A', 'C'))
     """
@@ -3516,7 +3516,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`StringExpression`
+        :class:`.StringExpression`
             Alternate allele base string.
         """
         return self._method("alt", TString())
@@ -3537,7 +3537,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`AltAlleleExpression`
+        :class:`.AltAlleleExpression`
             Alternate allele.
         """
         return self._method("altAllele", TAltAllele())
@@ -3555,7 +3555,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`ArrayExpression` with element type :class:`AltAlleleExpression`
+        :class:`.ArrayExpression` with element type :class:`.AltAlleleExpression`
             Alternate alleles.
         """
         return self._field("altAlleles", TArray(TAltAllele()))
@@ -3573,7 +3573,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`StringExpression`
+        :class:`.StringExpression`
             Contig.
         """
         return self._field("contig", TString())
@@ -3590,7 +3590,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the variant is found in a non-pseudoautosomal region of chromosome X.
         """
         return self._method("inXNonPar", TBoolean())
@@ -3607,7 +3607,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the variant is found in a pseudoautosomal region of chromosome X.
         """
         return self._method("inXPar", TBoolean())
@@ -3630,7 +3630,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the variant is found in a non-pseudoautosomal region of chromosome Y.
         """
         return self._method("inYNonPar", TBoolean())
@@ -3653,7 +3653,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the variant is found in a pseudoautosomal region of chromosome Y.
         """
         return self._method("inYPar", TBoolean())
@@ -3670,7 +3670,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the variant is found on an autosome.
         """
         return self._method("isAutosomal", TBoolean())
@@ -3687,7 +3687,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`BooleanExpression`
+        :class:`.BooleanExpression`
             ``True`` if the variant has only one alternate allele.
         """
         return self._method("isBiallelic", TBoolean())
@@ -3704,7 +3704,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`LocusExpression`
+        :class:`.LocusExpression`
             Locus associated with this variant.
         """
         return self._method("locus", TLocus())
@@ -3721,7 +3721,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`Int32Expression`
+        :class:`.Int32Expression`
             Total number of alleles, including the reference.
         """
         return self._method("nAlleles", TInt32())
@@ -3738,7 +3738,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`Int32Expression`
+        :class:`.Int32Expression`
             Total number of non-reference alleles.
         """
         return self._method("nAltAlleles", TInt32())
@@ -3755,7 +3755,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`Int32Expression`
+        :class:`.Int32Expression`
             Total number of possible diploid genotype configurations.
         """
         return self._method("nGenotypes", TInt32())
@@ -3773,7 +3773,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`StringExpression`
+        :class:`.StringExpression`
             Reference base string.
         """
         return self._field("ref", TString())
@@ -3791,7 +3791,7 @@ class VariantExpression(Expression):
 
         Returns
         -------
-        :class:`Int32Expression`
+        :class:`.Int32Expression`
         """
         return self._field("start", TInt32())
 
@@ -3950,7 +3950,7 @@ def eval_expr(expression):
     This method is extremely useful for learning about Hail expressions and understanding
     how to compose them.
 
-    Expressions that refer to fields of :class:`hail.api2.Table` or :class:`hail.api.MatrixTable`
+    Expressions that refer to fields of :class:`.hail.api2.Table` or :class:`.hail.api.MatrixTable`
     objects cannot be evaluated.
 
     Examples
@@ -3965,7 +3965,7 @@ def eval_expr(expression):
 
     Parameters
     ----------
-    expression : :class:`hail.expr.expression.Expression`
+    expression : :class:`.Expression`
         Any expression, or a Python value that can be implicitly interpreted as an expression.
 
     Returns
@@ -3983,7 +3983,7 @@ def eval_expr_typed(expression):
     This method is extremely useful for learning about Hail expressions and understanding
     how to compose them.
 
-    Expressions that refer to fields of :class:`hail.api2.Table` or :class:`hail.api.MatrixTable`
+    Expressions that refer to fields of :class:`.hail.api2.Table` or :class:`.hail.api.MatrixTable`
     objects cannot be evaluated.
 
     Examples
@@ -3998,12 +3998,12 @@ def eval_expr_typed(expression):
 
     Parameters
     ----------
-    expression : :class:`hail.expr.expression.Expression`
+    expression : :class:`.Expression`
         Any expression, or a Python value that can be implicitly interpreted as an expression.
 
     Returns
     -------
-    (any, :class:`hail.expr.Type`)
+    (any, :class:`.hail.expr.Type`)
         Result of evaluating `expression`, and its type.
     """
     analyze('eval_expr_typed', expression, Indices())

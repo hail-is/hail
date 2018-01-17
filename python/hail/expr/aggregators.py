@@ -52,12 +52,12 @@ def collect(expr):
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.Expression`
+    expr : :class:`.Expression`
         Expression to collect.
 
     Returns
     -------
-    :class:`hail.expr.expression.ArrayExpression`
+    :class:`.ArrayExpression`
         Array of all `expr` records.
     """
     agg = _to_agg(expr)
@@ -82,12 +82,12 @@ def collect_as_set(expr):
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.Expression`
+    expr : :class:`.Expression`
         Expression to collect.
 
     Returns
     -------
-    :class:`hail.expr.expression.SetExpression`
+    :class:`.SetExpression`
         Set of unique `expr` records.
     """
 
@@ -130,7 +130,7 @@ def count(expr=None):
 
     Returns
     -------
-    :class:`hail.expr.expression.Int64Expression`
+    :class:`.Int64Expression`
         Total number of records.
     """
     if expr is not None:
@@ -154,12 +154,12 @@ def count_where(condition):
 
     Parameters
     ----------
-    condition : :class:`hail.expr.expression.BooleanExpression`
+    condition : :class:`.BooleanExpression`
         Criteria for inclusion.
 
     Returns
     -------
-    :class:`hail.expr.expression.Int64Expression`
+    :class:`.Int64Expression`
         Total number of records where `condition` is ``True``.
     """
 
@@ -181,7 +181,7 @@ def counter(expr):
     Notes
     -----
     This aggregator method returns a dict expression whose key type is the
-    same type as `expr` and whose value type is :class:`Int64Expression`.
+    same type as `expr` and whose value type is :class:`.Int64Expression`.
     This dict contains a key for each unique value of `expr`, and the value
     is the number of times that key was observed.
 
@@ -194,12 +194,12 @@ def counter(expr):
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.Expression`
+    expr : :class:`.Expression`
         Expression to count by key.
 
     Returns
     -------
-    :class:`hail.expr.expression.DictExpression`
+    :class:`.DictExpression`
         Dictionary with the number of occurrences of each unique record.
     """
     agg = _to_agg(expr)
@@ -249,16 +249,16 @@ def take(expr, n, ordering=None):
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.Expression`
+    expr : :class:`.Expression`
         Expression to store.
-    n : :class:`hail.expr.expression.Int32Expression`
+    n : :class:`.Int32Expression`
         Number of records to take.
-    ordering : :class:`hail.expr.expression.Expression` or function ((arg) -> :class:`.Expression`) or None
+    ordering : :class:`.Expression` or function ((arg) -> :class:`.Expression`) or None
         Optional ordering on records.
 
     Returns
     -------
-    :class:`hail.expr.expression.ArrayExpression`
+    :class:`.ArrayExpression`
         Array of up to `n` records of `expr`.
 
     """
@@ -308,12 +308,12 @@ def min(expr):
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.NumericExpression`
+    expr : :class:`.NumericExpression`
         Numeric expression.
 
     Returns
     -------
-    :class:`hail.expr.expression.NumericExpression`
+    :class:`.NumericExpression`
         Minimum value of all `expr` records, same type as `expr`.
     """
     agg = _to_agg(expr)
@@ -341,12 +341,12 @@ def max(expr):
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.NumericExpression`
+    expr : :class:`.NumericExpression`
         Numeric expression.
 
     Returns
     -------
-    :class:`hail.expr.expression.NumericExpression`
+    :class:`.NumericExpression`
         Maximum value of all `expr` records, same type as `expr`.
     """
     agg = _to_agg(expr)
@@ -371,19 +371,19 @@ def sum(expr):
     -----
     Missing values are ignored (treated as zero).
 
-    If `expr` is an expression of type :class:`hail.expr.types.TInt32` or :class:`hail.expr.types.TInt64`, then
-    the result is an expression of type :class:`hail.expr.types.TInt64`. If `expr` is an
-    expression of type :class:`hail.expr.types.TFloat32` or :class:`hail.expr.types.TFloat64`, then the result
-    is an expression of type :class:`hail.expr.types.TFloat64`.
+    If `expr` is an expression of type :class:`.TInt32` or :class:`.TInt64`, then
+    the result is an expression of type :class:`.TInt64`. If `expr` is an
+    expression of type :class:`.TFloat32` or :class:`.TFloat64`, then the result
+    is an expression of type :class:`.TFloat64`.
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.NumericExpression`
+    expr : :class:`.NumericExpression`
         Numeric expression.
 
     Returns
     -------
-    :class:`hail.expr.expression.Int64Expression` or :class:`hail.expr.expression.Float64Expression`
+    :class:`.Int64Expression` or :class:`.Float64Expression`
         Sum of records of `expr`.
     """
     agg = _to_agg(expr)
@@ -410,12 +410,12 @@ def mean(expr):
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.NumericExpression`
+    expr : :class:`.NumericExpression`
         Numeric expression.
 
     Returns
     -------
-    :class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
         Mean value of records of `expr`.
     """
     agg = _to_agg(expr)
@@ -440,21 +440,21 @@ def stats(expr):
     -----
     Computes a struct with the following fields:
 
-    - `min` (:class:`hail.expr.types.TFloat64`) - Minimum value.
-    - `max` (:class:`hail.expr.types.TFloat64`) - Maximum value.
-    - `mean` (:class:`hail.expr.types.TFloat64`) - Mean value,
-    - `stdev` (:class:`hail.expr.types.TFloat64`) - Standard deviation.
-    - `nNotMissing` (:class:`hail.expr.types.TFloat64`) - Number of non-missing records.
-    - `sum` (:class:`hail.expr.types.TFloat64`) - Sum.
+    - `min` (:class:`.TFloat64`) - Minimum value.
+    - `max` (:class:`.TFloat64`) - Maximum value.
+    - `mean` (:class:`.TFloat64`) - Mean value,
+    - `stdev` (:class:`.TFloat64`) - Standard deviation.
+    - `nNotMissing` (:class:`.TFloat64`) - Number of non-missing records.
+    - `sum` (:class:`.TFloat64`) - Sum.
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.NumericExpression`
+    expr : :class:`.NumericExpression`
         Numeric expression.
 
     Returns
     -------
-    :class:`hail.expr.expression.StructExpression`
+    :class:`.StructExpression`
         Struct expression with fields `mean`, `stdev`, `min`, `max`,
         `nNotMissing`, and `sum`.
     """
@@ -481,19 +481,19 @@ def product(expr):
     -----
     Missing values are ignored (treated as one).
 
-    If `expr` is an expression of type :class:`hail.expr.types.TInt32` or :class:`hail.expr.types.TInt64`, then
-    the result is an expression of type :class:`hail.expr.types.TInt64`. If `expr` is an
-    expression of type :class:`hail.expr.types.TFloat32` or :class:`hail.expr.types.TFloat64`, then the result
-    is an expression of type :class:`hail.expr.types.TFloat64`.
+    If `expr` is an expression of type :class:`.TInt32` or :class:`.TInt64`, then
+    the result is an expression of type :class:`.TInt64`. If `expr` is an
+    expression of type :class:`.TFloat32` or :class:`.TFloat64`, then the result
+    is an expression of type :class:`.TFloat64`.
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.NumericExpression`
+    expr : :class:`.NumericExpression`
         Numeric expression.
 
     Returns
     -------
-    :class:`hail.expr.expression.Int64Expression` or :class:`hail.expr.expression.Float64Expression`
+    :class:`.Int64Expression` or :class:`.Float64Expression`
         Product of records of `expr`.
     """
 
@@ -521,12 +521,12 @@ def fraction(predicate):
 
     Parameters
     ----------
-    predicate : :class:`hail.expr.expression.BooleanExpression`
+    predicate : :class:`.BooleanExpression`
         Boolean predicate.
 
     Returns
     -------
-    :class:`hail.expr.expression.Float64Expression`
+    :class:`.Float64Expression`
         Fraction of records where `predicate` is ``True``.
     """
     agg = _to_agg(predicate)
@@ -565,9 +565,9 @@ def hardy_weinberg(expr):
     -----
     This method returns a struct expression with the following fields:
 
-    - `rExpectedHetFrequency` (:class:`hail.expr.types.TFloat64`) - Ratio of observed to
+    - `rExpectedHetFrequency` (:class:`.TFloat64`) - Ratio of observed to
       expected heterozygote frequency.
-    - `pHWE` (:class:`hail.expr.types.TFloat64`) - Hardy-Weinberg p-value.
+    - `pHWE` (:class:`.TFloat64`) - Hardy-Weinberg p-value.
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
     probability of a less-likely outcome plus one-half the probability of an
@@ -576,12 +576,12 @@ def hardy_weinberg(expr):
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.CallExpression`
+    expr : :class:`.CallExpression`
         Call for which to compute Hardy-Weinberg statistics.
 
     Returns
     -------
-    :class:`hail.expr.expression.StructExpression`
+    :class:`.StructExpression`
         Struct expression with fields `rExpectedHetFrequency` and `pHWE`.
     """
     t = TStruct(['rExpectedHetFrequency', 'pHWE'], [TFloat64(), TFloat64()])
@@ -623,20 +623,20 @@ def explode(expr):
     Notes
     -----
     This method can be used with aggregator functions to aggregate the elements
-    of collection types (:class:`hail.expr.types.TArray` and :class:`hail.expr.types.TSet`).
+    of collection types (:class:`.TArray` and :class:`.TSet`).
 
     The result of the :meth:`explode` and :meth:`filter` methods is an
-    :class:`Aggregable` expression which can be used only in aggregator
+    :class:`.Aggregable` expression which can be used only in aggregator
     methods.
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.CollectionExpression`
-        Expression of type :class:`hail.expr.types.TArray` or :class:`hail.expr.types.TSet`.
+    expr : :class:`.CollectionExpression`
+        Expression of type :class:`.TArray` or :class:`.TSet`.
 
     Returns
     -------
-    :class:`Aggregable`
+    :class:`.Aggregable`
         Aggregable expression.
     """
     agg = _to_agg(expr)
@@ -665,19 +665,19 @@ def filter(condition, expr):
     aggregation.
 
     The result of the :meth:`explode` and :meth:`filter` methods is an
-    :class:`Aggregable` expression which can be used only in aggregator
+    :class:`.Aggregable` expression which can be used only in aggregator
     methods.
 
     Parameters
     ----------
     condition : :class:`.BooleanExpression` or function ( (arg) -> :class:`.BooleanExpression`)
         Filter expression, or a function to evaluate for each record.
-    expr : :class:`hail.expr.expression.Expression`
+    expr : :class:`.Expression`
         Expression to filter.
 
     Returns
     -------
-    :class:`Aggregable`
+    :class:`.Aggregable`
         Aggregable expression.
     """
 
@@ -743,22 +743,22 @@ def inbreeding(expr, prior):
 
     This method returns a struct expression with five fields:
 
-     - `Fstat` (:class:`hail.expr.types.TFloat64`): ``F``, the inbreeding coefficient.
-     - `nTotal` (:class:`hail.expr.types.TInt64`): Total number of calls.
-     - `nCalled` (:class:`hail.expr.types.TInt64`): ``N``, the number of non-missing calls.
-     - `expectedHoms` (:class:`hail.expr.types.TFloat64`): ``E``, the expected number of homozygotes.
-     - `observedHoms` (:class:`hail.expr.types.TInt64`): ``O``, the number of observed homozygotes.
+     - `Fstat` (:class:`.TFloat64`): ``F``, the inbreeding coefficient.
+     - `nTotal` (:class:`.TInt64`): Total number of calls.
+     - `nCalled` (:class:`.TInt64`): ``N``, the number of non-missing calls.
+     - `expectedHoms` (:class:`.TFloat64`): ``E``, the expected number of homozygotes.
+     - `observedHoms` (:class:`.TInt64`): ``O``, the number of observed homozygotes.
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.CallExpression`
+    expr : :class:`.CallExpression`
         Call expression.
-    prior : :class:`hail.expr.expression.Float64Expression`
+    prior : :class:`.Float64Expression`
         Alternate allele frequency prior.
 
     Returns
     -------
-    :class:`hail.expr.expression.StructExpression`
+    :class:`.StructExpression`
         Struct expression with fields `Fstat`, `nTotal`, `nCalled`, `expectedHoms`, `observedHoms`.
     """
     agg = _to_agg(expr)
@@ -820,26 +820,26 @@ def call_stats(expr, variant):
 
     This method returns a struct expression with four fields:
 
-     - `AC` (:class:`hail.expr.types.TArray` of :class:`hail.expr.types.TInt32`) - Allele counts. One element
+     - `AC` (:class:`.TArray` of :class:`.TInt32`) - Allele counts. One element
        for each allele, including the reference.
-     - `AF` (:class:`hail.expr.types.TArray` of :class:`hail.expr.types.TFloat64`) - Allele frequencies. One
+     - `AF` (:class:`.TArray` of :class:`.TFloat64`) - Allele frequencies. One
        element for each allele, including the reference.
-     - `AN` (:class:`hail.expr.types.TInt32`) - Allele number. The total number of called
+     - `AN` (:class:`.TInt32`) - Allele number. The total number of called
        alleles, or the number of non-missing calls * 2.
-     - `GC` (:class:`hail.expr.types.TArray` of :class:`hail.expr.types.TInt32`) - Genotype counts. One element
+     - `GC` (:class:`.TArray` of :class:`.TInt32`) - Genotype counts. One element
        for each possible biallelic configuration (see
-       :meth:`hail.expr.expression.VariantExpression.num_genotypes`).
+       :meth:`.VariantExpression.num_genotypes`).
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.CallExpression`
+    expr : :class:`.CallExpression`
         Call.
-    variant : :class:`hail.expr.expression.VariantExpression`
+    variant : :class:`.VariantExpression`
         Variant.
 
     Returns
     -------
-    :class:`hail.expr.expression.StructExpression`
+    :class:`.StructExpression`
         Struct expression with fields `AC`, `AF`, `AN`, and `GC`.
     """
     agg = _to_agg(expr)
@@ -880,19 +880,19 @@ def hist(expr, start, end, bins):
     -----
     This method returns a struct expression with four fields:
 
-     - `binEdges` (:class:`hail.expr.types.TArray` of :class:`hail.expr.types.TFloat64`): Bin edges. Bin `i`
+     - `binEdges` (:class:`.TArray` of :class:`.TFloat64`): Bin edges. Bin `i`
        contains values in the left-inclusive, right-exclusive range
        ``[ binEdges[i], binEdges[i+1] )``.
-     - `binFrequencies` (:class:`hail.expr.types.TArray` of :class:`hail.expr.types.TInt64`): Bin
+     - `binFrequencies` (:class:`.TArray` of :class:`.TInt64`): Bin
        frequencies. The number of records found in each bin.
-     - `nLess` (:class:`hail.expr.types.TInt64`): The number of records smaller than the start
+     - `nLess` (:class:`.TInt64`): The number of records smaller than the start
        of the first bin.
-     - `nGreater` (:class:`hail.expr.types.TInt64`): The number of records larger than the end
+     - `nGreater` (:class:`.TInt64`): The number of records larger than the end
        of the last bin.
 
     Parameters
     ----------
-    expr : :class:`hail.expr.expression.NumericExpression`
+    expr : :class:`.NumericExpression`
         Target numeric expression.
     start : :obj:`int` or :obj:`float`
         Start of histogram range.
@@ -903,7 +903,7 @@ def hist(expr, start, end, bins):
 
     Returns
     -------
-    :class:`hail.expr.expression.StructExpression`
+    :class:`.StructExpression`
         Struct expression with fields `binEdges`, `binFrequencies`, `nLess`, and `nGreater`.
     """
     agg = _to_agg(expr)

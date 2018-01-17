@@ -555,12 +555,12 @@ class Field(object):
 
 class TStruct(Type):
     """
-    Hail type corresponding to :class:`hail.utils.Struct`.
+    Hail type corresponding to :class:`.hail.utils.Struct`.
 
     .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#struct>`__
-    - in Python, values are instances of :class:`hail.utils.Struct`
+    - in Python, values are instances of :class:`.hail.utils.Struct`
 
     :param names: names of fields
     :type names: list of str
@@ -663,14 +663,14 @@ class TStruct(Type):
 
 class TVariant(Type):
     """
-    Hail type corresponding to :class:`hail.genetics.Variant`.
+    Hail type corresponding to :class:`.Variant`.
 
     .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#variant>`__
-    - in Python, values are instances of :class:`hail.genetics.Variant`
+    - in Python, values are instances of :class:`.Variant`
 
-    :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
+    :param reference_genome: Reference genome to use. Default is :meth:`hail.api1.HailContext.default_reference`.
     :type reference_genome: :class:`.GenomeReference`
 
     """
@@ -724,12 +724,12 @@ class TVariant(Type):
 
 class TAltAllele(Type):
     """
-    Hail type corresponding to :class:`hail.genetics.AltAllele`.
+    Hail type corresponding to :class:`.AltAllele`.
 
     .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#altallele>`__
-    - in Python, values are instances of :class:`hail.genetics.AltAllele`
+    - in Python, values are instances of :class:`.AltAllele`
 
     """
     __metaclass__ = InternType
@@ -763,12 +763,12 @@ class TAltAllele(Type):
 
 class TCall(Type):
     """
-    Hail type corresponding to :class:`hail.genetics.Call`.
+    Hail type corresponding to :class:`.Call`.
 
     .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#call>`__
-    - in Python, values are instances of :class:`hail.genetics.Call`
+    - in Python, values are instances of :class:`.Call`
 
     """
     __metaclass__ = InternType
@@ -804,14 +804,14 @@ class TCall(Type):
 
 class TLocus(Type):
     """
-    Hail type corresponding to :class:`hail.genetics.Locus`.
+    Hail type corresponding to :class:`.Locus`.
 
     .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#locus>`__
-    - in Python, values are instances of :class:`hail.genetics.Locus`
+    - in Python, values are instances of :class:`.Locus`
 
-    :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
+    :param reference_genome: Reference genome to use. Default is :meth:`hail.api1.HailContext.default_reference`.
     :type reference_genome: :class:`.GenomeReference`
 
     """
@@ -867,14 +867,14 @@ class TLocus(Type):
 
 class TInterval(Type):
     """
-    Hail type corresponding to :class:`hail.genetics.Interval`.
+    Hail type corresponding to :class:`.Interval`.
 
     .. include:: ../_templates/hailType.rst
 
     - `expression language documentation <types.html#interval>`__
-    - in Python, values are instances of :class:`hail.genetics.Interval`
+    - in Python, values are instances of :class:`.Interval`
 
-    :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
+    :param reference_genome: Reference genome to use. Default is :meth:`hail.api1.HailContext.default_reference`.
     :type reference_genome: :class:`.GenomeReference`
     """
 

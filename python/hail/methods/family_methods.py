@@ -27,7 +27,7 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
     **Notes**
 
     This method builds a new matrix table with one column per trio. If ``complete_trios`` is true,
-    then only trios that satisfy :py:meth:`~hail.representation.Trio.is_complete`
+    then only trios that satisfy :meth:`~hail.representation.Trio.is_complete`
     are included. In this new dataset, the column identifiers
     are the sample IDs of the trio probands. The column annotations and
     entries of the matrix are changed in the following ways:
@@ -206,8 +206,8 @@ def mendel_errors(dataset, pedigree):
     This method only considers children with two parents and a defined sex.
 
     This method assumes all contigs apart from those defined as
-    :py:meth:`~hail.representation.GenomeReference.x_contigs` or
-    :py:meth:`~hail.representation.GenomeReference.y_contigs` by the reference
+    :meth:`~hail.representation.GenomeReference.x_contigs` or
+    :meth:`~hail.representation.GenomeReference.y_contigs` by the reference
     genome are fully autosomal. Mitochondria, decoys, etc. are not given special
     treatment.
 

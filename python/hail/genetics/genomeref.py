@@ -261,7 +261,7 @@ class GenomeReference(HistoryMixin):
 
         **Notes**
 
-        Use :py:class:`~hail.GenomeReference.read` to reimport the exported reference genome
+        Use :class:`.~hail.GenomeReference.read` to reimport the exported reference genome
         in a new HailContext session.
 
         :param str output: Path of JSON file to write.

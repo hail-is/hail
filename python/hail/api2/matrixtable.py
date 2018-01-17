@@ -9,8 +9,8 @@ from hail.api2 import Table
 class GroupedMatrixTable(object):
     """Matrix table grouped by row or column that can be aggregated to produce a new matrix table.
 
-    There are only two operations on a grouped matrix table, :meth:`GroupedMatrixTable.partition_hint`
-    and :meth:`GroupedMatrixTable.aggregate`.
+    There are only two operations on a grouped matrix table, :meth:`.GroupedMatrixTable.partition_hint`
+    and :meth:`.GroupedMatrixTable.aggregate`.
 
     .. testsetup::
 
@@ -39,8 +39,8 @@ class GroupedMatrixTable(object):
         Examples
         --------
 
-        Use `partition_hint` in a :meth:`MatrixTable.group_rows_by` /
-        :meth:`GroupedMatrixTable.aggregate` pipeline:
+        Use `partition_hint` in a :meth:`.MatrixTable.group_rows_by` /
+        :meth:`.GroupedMatrixTable.aggregate` pipeline:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
         ...                          .partition_hint(5)
@@ -52,7 +52,7 @@ class GroupedMatrixTable(object):
         stages of a pipeline, it can be necessary in some places to provide some
         explicit hints.
 
-        The default number of partitions for :meth:`GroupedMatrixTable.aggregate` is
+        The default number of partitions for :meth:`.GroupedMatrixTable.aggregate` is
         the number of partitions in the upstream dataset. If the aggregation greatly
         reduces the size of the dataset, providing a hint for the target number of
         partitions can accelerate downstream operations.
@@ -64,7 +64,7 @@ class GroupedMatrixTable(object):
 
         Returns
         -------
-        :class:`GroupedMatrixTable`
+        :class:`.GroupedMatrixTable`
             Same grouped matrix table with a partition hint.
         """
 
@@ -82,7 +82,7 @@ class GroupedMatrixTable(object):
 
     @handle_py4j
     def aggregate(self, **named_exprs):
-        """Aggregate by group, used after :meth:`MatrixTable.group_rows_by` or :meth:`MatrixTable.group_cols_by`.
+        """Aggregate by group, used after :meth:`.MatrixTable.group_rows_by` or :meth:`.MatrixTable.group_cols_by`.
 
         Examples
         --------
@@ -94,7 +94,7 @@ class GroupedMatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : varargs of :class:`hail.expr.expression.Expression`
+        named_exprs : varargs of :class:`.Expression`
             Aggregation expressions.
 
         Returns
@@ -325,7 +325,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`hail.expr.TStruct`
+        :class:`.hail.expr.TStruct`
             Global schema.
         """
         if self._global_schema is None:
@@ -338,7 +338,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`hail.expr.Type`
+        :class:`.hail.expr.Type`
              Column key schema.
         """
         if self._colkey_schema is None:
@@ -351,7 +351,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`hail.expr.TStruct`
+        :class:`.hail.expr.TStruct`
              Column schema.
         """
         if self._sa_schema is None:
@@ -364,7 +364,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`hail.expr.Type`
+        :class:`.hail.expr.Type`
              Row key schema.
         """
         if self._rowkey_schema is None:
@@ -377,7 +377,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`hail.expr.TStruct`
+        :class:`.hail.expr.TStruct`
              Row schema.
         """
         if self._va_schema is None:
@@ -390,7 +390,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`hail.expr.TStruct`
+        :class:`.hail.expr.TStruct`
              Entry schema.
         """
         if self._genotype_schema is None:
@@ -426,12 +426,12 @@ class MatrixTable(object):
         to create an global field `foo` and later create another global field `foo`, overwriting
         the first.
 
-        The arguments to the method should either be :class:`hail.expr.expression.Expression`
+        The arguments to the method should either be :class:`.Expression`
         objects, or should be implicitly interpretable as expressions.
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
 
         Returns
@@ -461,7 +461,7 @@ class MatrixTable(object):
         >>> high_quality_calls = agg.filter(dataset.sample_qc.gqMean > 20, dataset.GT)
         >>> dataset_result = dataset.annotate_rows(call_stats = agg.call_stats(high_quality_calls, dataset.v))
 
-        Add functional annotations from a :class:`.Table` keyed by :class:`hail.expr.TVariant`:, and another
+        Add functional annotations from a :class:`.Table` keyed by :class:`.hail.expr.TVariant`:, and another
         :class:`.MatrixTable`.
 
         >>> dataset_result = dataset.annotate_rows(consequence = table1[dataset.v].consequence,
@@ -483,12 +483,12 @@ class MatrixTable(object):
         to create an row field `foo` and later create another row field `foo`, overwriting
         the first.
 
-        The arguments to the method should either be :class:`hail.expr.expression.Expression`
+        The arguments to the method should either be :class:`.Expression`
         objects, or should be implicitly interpretable as expressions.
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
 
         Returns
@@ -518,7 +518,7 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset.annotate_cols(sample_gq_stats = agg.stats(dataset.GQ))
 
-        Add sample metadata from a :class:`hail.api2.Table`.
+        Add sample metadata from a :class:`.hail.api2.Table`.
 
         >>> dataset_result = dataset.annotate_cols(population = table2[dataset.s].pop)
 
@@ -538,12 +538,12 @@ class MatrixTable(object):
         to create an column field `foo` and later create another column field `foo`, overwriting
         the first.
 
-        The arguments to the method should either be :class:`hail.expr.expression.Expression`
+        The arguments to the method should either be :class:`.Expression`
         objects, or should be implicitly interpretable as expressions.
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
 
         Returns
@@ -596,12 +596,12 @@ class MatrixTable(object):
         to create an entry field `foo` and later create another entry field `foo`, overwriting
         the first.
 
-        The arguments to the method should either be :class:`hail.expr.expression.Expression`
+        The arguments to the method should either be :class:`.Expression`
         objects, or should be implicitly interpretable as expressions.
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
 
         Returns
@@ -643,7 +643,7 @@ class MatrixTable(object):
         Note
         ----
 
-        See :py:meth:`Table.select` for more information about using ``select`` methods.
+        See :meth:`.Table.select` for more information about using ``select`` methods.
 
         Note
         ----
@@ -651,9 +651,9 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`hail.expr.expression.Expression`
+        exprs : variable-length args of :obj:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
 
         Returns
@@ -700,7 +700,7 @@ class MatrixTable(object):
         Note
         ----
 
-        See :py:meth:`Table.select` for more information about using ``select`` methods.
+        See :meth:`.Table.select` for more information about using ``select`` methods.
 
         Note
         ----
@@ -712,9 +712,9 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`hail.expr.expression.Expression`
+        exprs : variable-length args of :obj:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
 
         Returns
@@ -765,7 +765,7 @@ class MatrixTable(object):
         Note
         ----
 
-        See :py:meth:`Table.select` for more information about using ``select`` methods.
+        See :meth:`.Table.select` for more information about using ``select`` methods.
 
         Note
         ----
@@ -777,9 +777,9 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`hail.expr.expression.Expression`
+        exprs : variable-length args of :obj:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
 
         Returns
@@ -830,7 +830,7 @@ class MatrixTable(object):
         Note
         ----
 
-        See :py:meth:`Table.select` for more information about using ``select`` methods.
+        See :meth:`.Table.select` for more information about using ``select`` methods.
 
         Note
         ----
@@ -838,9 +838,9 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`hail.expr.expression.Expression`
+        exprs : variable-length args of :obj:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
 
         Returns
@@ -906,7 +906,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        exprs : varargs of :obj:`str` or :class:`hail.expr.expression.Expression`
+        exprs : varargs of :obj:`str` or :class:`.Expression`
             Names of fields to drop or field reference expressions.
 
         Returns
@@ -1020,7 +1020,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        expr : bool or :class:`hail.expr.expression.BooleanExpression`
+        expr : bool or :class:`.BooleanExpression`
             Filter expression.
         keep : bool
             Keep rows where `expr` is true.
@@ -1079,7 +1079,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        expr : bool or :class:`hail.expr.expression.BooleanExpression`
+        expr : bool or :class:`.BooleanExpression`
             Filter expression.
         keep : bool
             Keep columns where `expr` is true.
@@ -1136,7 +1136,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        expr : bool or :class:`hail.expr.expression.BooleanExpression`
+        expr : bool or :class:`.BooleanExpression`
             Filter expression.
         keep : bool
             Keep entries where `expr` is true.
@@ -1154,7 +1154,7 @@ class MatrixTable(object):
         return cleanup(m)
 
     def transmute_globals(self, **named_exprs):
-        """Similar to :meth:`MatrixTable.annotate_globals`, but drops referenced fields.
+        """Similar to :meth:`.MatrixTable.annotate_globals`, but drops referenced fields.
 
         Note
         ----
@@ -1162,7 +1162,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Annotation expressions.
 
         Returns
@@ -1173,7 +1173,7 @@ class MatrixTable(object):
         raise NotImplementedError()
 
     def transmute_rows(self, **named_exprs):
-        """Similar to :meth:`MatrixTable.annotate_rows`, but drops referenced fields.
+        """Similar to :meth:`.MatrixTable.annotate_rows`, but drops referenced fields.
 
         Note
         ----
@@ -1181,7 +1181,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Annotation expressions.
 
         Returns
@@ -1194,7 +1194,7 @@ class MatrixTable(object):
 
     @handle_py4j
     def transmute_cols(self, **named_exprs):
-        """Similar to :meth:`MatrixTable.annotate_cols`, but drops referenced fields.
+        """Similar to :meth:`.MatrixTable.annotate_cols`, but drops referenced fields.
 
         Note
         ----
@@ -1202,7 +1202,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Annotation expressions.
 
         Returns
@@ -1214,7 +1214,7 @@ class MatrixTable(object):
 
     @handle_py4j
     def transmute_entries(self, **named_exprs):
-        """Similar to :meth:`MatrixTable.annotate_entries`, but drops referenced fields.
+        """Similar to :meth:`.MatrixTable.annotate_entries`, but drops referenced fields.
 
         Note
         ----
@@ -1222,7 +1222,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Annotation expressions.
 
         Returns
@@ -1264,12 +1264,12 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Aggregation expressions.
 
         Returns
         -------
-        :class:`Struct`
+        :class:`.Struct`
             Struct containing all results.
         """
 
@@ -1321,12 +1321,12 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Aggregation expressions.
 
         Returns
         -------
-        :class:`Struct`
+        :class:`.Struct`
             Struct containing all results.
         """
 
@@ -1375,12 +1375,12 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Aggregation expressions.
 
         Returns
         -------
-        :class:`Struct`
+        :class:`.Struct`
             Struct containing all results.
         """
 
@@ -1425,7 +1425,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        field_expr : str or :class:`hail.expr.expression.Expression`
+        field_expr : str or :class:`.Expression`
             Field name or (possibly nested) field reference expression.
 
         Returns
@@ -1472,7 +1472,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        field_expr : str or :class:`hail.expr.expression.Expression`
+        field_expr : str or :class:`.Expression`
             Field name or (possibly nested) field reference expression.
 
         Returns
@@ -1499,7 +1499,7 @@ class MatrixTable(object):
 
     @handle_py4j
     def group_rows_by(self, key_expr):
-        """Group rows, used with :meth:`GroupedMatrixTable.aggregate`
+        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`
 
         Examples
         --------
@@ -1516,13 +1516,13 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        key_expr : str or :class:`hail.expr.expression.Expression`
+        key_expr : str or :class:`.Expression`
             Field name or expression to use as new row key.
 
         Returns
         -------
-        :class:`GroupedMatrixTable`
-            Grouped matrix, can be used to call :meth:`GroupedMatrixTable.aggregate`.
+        :class:`.GroupedMatrixTable`
+            Grouped matrix, can be used to call :meth:`.GroupedMatrixTable.aggregate`.
         """
         if isinstance(key_expr, str) or isinstance(key_expr, unicode):
             key_expr = self[key_expr]
@@ -1532,7 +1532,7 @@ class MatrixTable(object):
 
     @handle_py4j
     def group_cols_by(self, key_expr):
-        """Group rows, used with :meth:`GroupedMatrixTable.aggregate`
+        """Group rows, used with :meth:`.GroupedMatrixTable.aggregate`
 
         Examples
         --------
@@ -1553,13 +1553,13 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        key_expr : str or :class:`hail.expr.expression.Expression`
+        key_expr : str or :class:`.Expression`
             Field name or expression to use as new column key.
 
         Returns
         -------
-        :class:`GroupedMatrixTable`
-            Grouped matrix, can be used to call :meth:`GroupedMatrixTable.aggregate`.
+        :class:`.GroupedMatrixTable`
+            Grouped matrix, can be used to call :meth:`.GroupedMatrixTable.aggregate`.
         """
         if isinstance(key_expr, str) or isinstance(key_expr, unicode):
             key_expr = self[key_expr]
@@ -1881,7 +1881,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`hail.api1.VariantDataset`
+        :class:`.hail.api1.VariantDataset`
         """
         import hail
         h1vds = hail.VariantDataset(Env.hc(), self._jvds)
@@ -2061,7 +2061,7 @@ class MatrixTable(object):
         Notes
         -----
 
-        Check the current number of partitions with :meth:`num_partitions`.
+        Check the current number of partitions with :meth:`.num_partitions`.
 
         The data in a dataset is divided into chunks called partitions, which
         may be stored together or across a network, so that each partition may
@@ -2114,9 +2114,9 @@ class MatrixTable(object):
 
         Warning
         -------
-        :meth:`naive_coalesce` simply combines adjacent partitions to achieve
+        :meth:`.naive_coalesce` simply combines adjacent partitions to achieve
         the desired number. It does not attempt to rebalance, unlike
-        :meth:`repartition`, so it can produce a heavily unbalanced dataset. An
+        :meth:`.repartition`, so it can produce a heavily unbalanced dataset. An
         unbalanced dataset can be inefficient to operate on because the work is
         not evenly distributed across partitions.
 
@@ -2168,10 +2168,10 @@ class MatrixTable(object):
         Notes
         -----
 
-        The :py:meth:`MatrixTable.persist` and :py:meth:`MatrixTable.cache`
+        The :meth:`.MatrixTable.persist` and :meth:`.MatrixTable.cache`
         methods store the current dataset on disk or in memory temporarily to
         avoid redundant computation and improve the performance of Hail
-        pipelines. This method is not a substitution for :py:meth:`Table.write`,
+        pipelines. This method is not a substitution for :meth:`.Table.write`,
         which stores a permanent file.
 
         Most users should use the "MEMORY_AND_DISK" storage level. See the `Spark
