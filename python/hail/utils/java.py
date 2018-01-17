@@ -116,15 +116,6 @@ def jarray_to_list(a):
     return list(a) if a else None
 
 
-def plural(orig, n, alternate=None):
-    if n == 1:
-        return orig
-    elif alternate:
-        return alternate
-    else:
-        return orig + 's'
-
-
 class Log4jLogger:
     log_pkg = None
 

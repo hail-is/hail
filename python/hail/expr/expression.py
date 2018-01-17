@@ -3,6 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.expr.ast import *
 from hail.expr.types import *
 from hail.utils.java import *
+from hail.utils.misc import plural
 from hail.utils.linkedlist import LinkedList
 from hail.genetics import Locus, Variant, Interval, Call, AltAllele
 from hail.typecheck import *
