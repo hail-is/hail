@@ -607,7 +607,6 @@ def grm(dataset):
     -------
     :class:`genetics.KinshipMatrix`
         Genetic Relatedness Matrix for all samples.
-    :rtype:
     """
 
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
