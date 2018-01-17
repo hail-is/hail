@@ -298,17 +298,17 @@ def import_fam(path, quantitative=False, delimiter=r'\\s+', missing='NA'):
 
     The fields, types, and missing values are shown below.
 
-        - **ID** (*String*) -- Sample ID (key column)
-        - **famID** (*String*) -- Family ID (missing = "0")
-        - **patID** (*String*) -- Paternal ID (missing = "0")
-        - **matID** (*String*) -- Maternal ID (missing = "0")
-        - **isFemale** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
+     - **ID** (*String*) -- Sample ID (key column)
+     - **famID** (*String*) -- Family ID (missing = "0")
+     - **patID** (*String*) -- Paternal ID (missing = "0")
+     - **matID** (*String*) -- Maternal ID (missing = "0")
+     - **isFemale** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
 
     One of:
 
-        - **isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9",
+     - **isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9",
         non-numeric or the ``missing`` argument, if given.
-        - **qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the
+     - **qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the
         ``missing`` argument, if given.
 
     Parameters
