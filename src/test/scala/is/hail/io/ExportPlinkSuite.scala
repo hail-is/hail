@@ -81,4 +81,33 @@ class ExportPlinkSuite extends SparkSuite {
 
     assert(hc.importPlinkBFile(plink).same(vds))
   }
+
+  @Test def testParallelExport() {
+    val fParallel = tmpDir.createTempFile("exportPlinkParallel")
+
+    val vds = hc.importVCF("src/test/resources/sample.vcf", nPartitions = Some(2)).splitMulti()
+    vds.exportPlink(fParallel, parallel = true)
+    hc.importPlink(fParallel + ".bed/part-00000", fParallel + ".bim/part-00000", fParallel + ".fam").count()
+    hc.importPlink(fParallel + ".bed/part-00001", fParallel + ".bim/part-00001", fParallel + ".fam").count()
+
+    val localHailFile = tmpDir.createLocalTempFile("hail")
+
+    val Array(bed0, bim0, fam0) = Array(".bed/part-00000", ".bim/part-00000", ".fam").map { s =>
+      hadoopConf.copy(fParallel + s, localHailFile + s)
+      uriPath(localHailFile + s)
+    }
+
+    val Array(bed1, bim1, fam1) = Array(".bed/part-00001", ".bim/part-00001", ".fam").map { s =>
+      hadoopConf.copy(fParallel + s, localHailFile + s)
+      uriPath(localHailFile + s)
+    }
+
+    val localMergeBFile = tmpDir.createLocalTempFile("plink")
+    s"plink --bed $bed0 --bim $bim0 --fam $fam0 --bmerge $bed1 $bim1 $fam1 --make-bed --indiv-sort 0 --const-fid --keep-allele-order --out ${ uriPath(localMergeBFile) }" !
+
+    val notParallel = tmpDir.createTempFile("exportPlinkNotParallel")
+    vds.exportPlink(notParallel, parallel = false)
+
+    assert(hc.importPlinkBFile(notParallel).same(hc.importPlinkBFile(localMergeBFile)))
+  }
 }

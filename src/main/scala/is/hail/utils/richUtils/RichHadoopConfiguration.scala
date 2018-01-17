@@ -154,7 +154,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     }
   }
 
-  private def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
+  def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
     val destPath = new hadoop.fs.Path(destFilename)
     val destFS = fileSystem(destFilename)
 
@@ -208,6 +208,18 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
         assert(s.endsWith(ext))
         s.dropRight(ext.length)
       }.getOrElse(s)
+  }
+
+  def getCodec(s: String): String = {
+    val path = new org.apache.hadoop.fs.Path(s)
+
+    Option(new CompressionCodecFactory(hConf)
+      .getCodec(path))
+      .map { codec =>
+        val ext = codec.getDefaultExtension
+        assert(s.endsWith(ext))
+        s.takeRight(ext.length)
+      }.getOrElse("")
   }
 
   def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T = {
