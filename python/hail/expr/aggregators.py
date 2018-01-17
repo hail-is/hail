@@ -253,7 +253,7 @@ def take(expr, n, ordering=None):
         Expression to store.
     n : :class:`hail.expr.expression.Int32Expression`
         Number of records to take.
-    ordering : :class:`hail.expr.expression.Expression` or function ( (arg) -> :class:`.Expression`)or None
+    ordering : :class:`hail.expr.expression.Expression` or function ((arg) -> :class:`.Expression`) or None
         Optional ordering on records.
 
     Returns
