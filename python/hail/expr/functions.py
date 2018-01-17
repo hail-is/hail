@@ -26,7 +26,7 @@ def null(t):
 
     Parameters
     ----------
-    t : :class:`.hail.expr.Type`
+    t : :class:`.Type`
         Type of the missing expression.
 
     Returns
@@ -596,7 +596,7 @@ def locus(contig, pos, reference_genome=None):
 
     Returns
     -------
-    :class:`.hail.expr.expression.LocusExpression`
+    :class:`.LocusExpression`
     """
     contig = to_expr(contig)
     pos = to_expr(pos)
@@ -632,7 +632,7 @@ def parse_locus(s, reference_genome=None):
 
     Returns
     -------
-    :class:`.hail.expr.expression.LocusExpression`
+    :class:`.LocusExpression`
     """
     s = to_expr(s)
     if reference_genome is None:
@@ -664,7 +664,7 @@ def interval(start, end):
 
     Returns
     -------
-    :class:`.hail.expr.expression.IntervalExpression`
+    :class:`.IntervalExpression`
     """
     start = to_expr(start)
     end = to_expr(end)
@@ -707,7 +707,7 @@ def parse_interval(s, reference_genome=None):
 
     Returns
     -------
-    :class:`.hail.expr.expression.IntervalExpression`
+    :class:`.IntervalExpression`
     """
     s = to_expr(s)
     if reference_genome is None:
@@ -745,7 +745,7 @@ def variant(contig, pos, ref, alts, reference_genome=None):
 
     Returns
     -------
-    :class:`.hail.expr.expression.VariantExpression`
+    :class:`.VariantExpression`
     """
     contig = to_expr(contig)
     pos = to_expr(pos)
@@ -786,7 +786,7 @@ def parse_variant(s, reference_genome=None):
 
     Returns
     -------
-    :class:`.hail.expr.expression.VariantExpression`
+    :class:`.VariantExpression`
     """
     s = to_expr(s)
     if reference_genome is None:
@@ -1032,11 +1032,11 @@ def logical_not(b):
 
     Parameters
     ----------
-    b : bool or :class:`.hail.expr.expressions.BooleanExpression`
+    b : bool or :class:`.BooleanExpression`
 
     Returns
     -------
-    :class:`.hail.expr.expressions.BooleanExpression`
+    :class:`.BooleanExpression`
     """
     return _func("!", TBoolean(), b)
 

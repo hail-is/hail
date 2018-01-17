@@ -325,7 +325,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.hail.expr.TStruct`
+        :class:`.TStruct`
             Global schema.
         """
         if self._global_schema is None:
@@ -338,7 +338,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.hail.expr.Type`
+        :class:`.Type`
              Column key schema.
         """
         if self._colkey_schema is None:
@@ -351,7 +351,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.hail.expr.TStruct`
+        :class:`.TStruct`
              Column schema.
         """
         if self._sa_schema is None:
@@ -364,7 +364,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.hail.expr.Type`
+        :class:`.Type`
              Row key schema.
         """
         if self._rowkey_schema is None:
@@ -377,7 +377,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.hail.expr.TStruct`
+        :class:`.TStruct`
              Row schema.
         """
         if self._va_schema is None:
@@ -390,7 +390,7 @@ class MatrixTable(object):
 
         Returns
         -------
-        :class:`.hail.expr.TStruct`
+        :class:`.TStruct`
              Entry schema.
         """
         if self._genotype_schema is None:
@@ -461,7 +461,7 @@ class MatrixTable(object):
         >>> high_quality_calls = agg.filter(dataset.sample_qc.gqMean > 20, dataset.GT)
         >>> dataset_result = dataset.annotate_rows(call_stats = agg.call_stats(high_quality_calls, dataset.v))
 
-        Add functional annotations from a :class:`.Table` keyed by :class:`.hail.expr.TVariant`:, and another
+        Add functional annotations from a :class:`.Table` keyed by :class:`.TVariant`:, and another
         :class:`.MatrixTable`.
 
         >>> dataset_result = dataset.annotate_rows(consequence = table1[dataset.v].consequence,

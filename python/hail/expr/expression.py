@@ -4003,7 +4003,7 @@ def eval_expr_typed(expression):
 
     Returns
     -------
-    (any, :class:`.hail.expr.Type`)
+    (any, :class:`.Type`)
         Result of evaluating `expression`, and its type.
     """
     analyze('eval_expr_typed', expression, Indices())

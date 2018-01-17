@@ -127,7 +127,7 @@ class KeyTable(HistoryMixin):
         :type rows: list of :class:`.hail.representation.Struct` or dict
 
         :param schema: Struct schema of table.
-        :type schema: :class:`.hail.expr.TStruct`
+        :type schema: :class:`.TStruct`
 
         :param key: Key field(s).
         :type key: str or list of str
