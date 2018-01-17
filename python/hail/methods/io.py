@@ -2,6 +2,7 @@ from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j, joption
 from hail.api2 import Table, MatrixTable
 from hail.expr.types import *
+from hail.expr.expression import analyze, expr_any
 from hail.genetics import GenomeReference
 from .misc import require_biallelic
 
@@ -71,7 +72,7 @@ def export_gen(dataset, output, precision=4):
     dataset : :class:`.MatrixTable`
         Dataset with entry field `GP` of type Array[TFloat64].
     output : :obj:`str`
-        Output file root for GEN and SAMPLE files.
+        Filename root for output GEN and SAMPLE files.
     precision : :obj:`int`
         Number of digits to write after the decimal point.
     """
@@ -85,6 +86,94 @@ def export_gen(dataset, output, precision=4):
         raise FatalError("export_gen: no entry field 'GP' of type Array[Float64]")
         
     Env.hail().io.gen.ExportGen.apply(dataset._jvds, output, precision)
+
+@handle_py4j
+# @require_biallelic
+@typecheck(dataset=MatrixTable,
+           output=strlike,
+           fam_args=expr_any)
+def export_plink(dataset, output, **fam_args):
+    """Export variant dataset as
+    `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__
+    BED, BIM and FAM files.
+
+    .. include:: ../_templates/req_tvariant.rst
+    
+    .. include:: ../_templates/req_tstring.rst
+
+    .. include:: ../_templates/req_biallelic.rst
+
+    Examples
+    --------
+    Import data from a VCF file, split multi-allelic variants, and export to
+    PLINK files with the FAM file individual ID set to the sample ID:
+
+    >>> ds = methods.split_multi_hts(dataset)
+    >>> methods.export_plink(ds, 'output/example', id = ds.s)
+
+    Notes
+    -----
+    `fam_args` may be used to set the fields in the output
+    `FAM file <https://www.cog-genomics.org/plink2/formats#fam>`__
+    via expressions with column and global fields in scope:
+
+    - ``fam_id``: :class:`.TString` for the family ID
+    - ``id``: :class:`.TString` for the individual (proband) ID
+    - ``mat_id``: :class:`.TString` for the maternal ID
+    - ``pat_id``: :class:`.TString` for the paternal ID
+    - ``is_female``: :class:`.TBoolean` for the proband sex
+    - ``is_case``: :class:`.TBoolean` or `quant_pheno`: :class:`.TFloat64` for the
+       phenotype
+
+    If no assignment is given, the corresponding PLINK missing value is written:
+    ``0`` for IDs and sex, ``NA`` for phenotype. Only one of ``is_case`` or
+    ``quant_pheno`` can be assigned. For Boolean expressions, true and false are
+    output as ``2`` and ``1``, respectively (i.e., female and case are ``2``).
+
+    The BIM file ID field has the form ``chr:pos:ref:alt`` with values given by
+    `v.contig`, `v.start`, `v.ref`, and `v.alt`.
+
+    On an imported VCF, the example above will behave similarly to the PLINK
+    conversion command
+
+    .. code-block:: text
+
+        plink --vcf /path/to/file.vcf --make-bed --out sample --const-fid --keep-allele-order
+
+    except that:
+
+    - Variants that result from splitting a multi-allelic variant may be
+      re-ordered relative to the BIM and BED files.
+    - PLINK uses the rsID for the BIM file ID.
+
+    Parameters
+    ----------
+    dataset : :class:`.MatrixTable`
+        Dataset.
+    output : :obj:`str`
+        Filename root for output BED, BIM, and FAM files.
+    fam_args : varargs of :class:`hail.expr.expression.Expression`
+        Named expressions defining FAM field values.
+    """
+    
+    fam_dict = {'fam_id': TString(), 'id': TString(), 'mat_id': TString(), 'pat_id': TString(),
+                'is_female': TBoolean(), 'is_case': TBoolean(), 'quant_pheno': TFloat64()}
+        
+    exprs = []
+    named_exprs = {k: v for k, v in fam_args.items()}
+    if ('is_case' in named_exprs) and ('quant_pheno' in named_exprs):
+        raise ValueError("At most one of 'is_case' and 'quant_pheno' may be given as fam_args. Found both.")
+    for k, v in named_exprs.items():
+        if k not in fam_dict:
+            raise ValueError("fam_arg '{}' not recognized. Valid names: {}".format(k, ', '.join(fam_dict)))
+        elif (v.dtype != fam_dict[k]):
+            raise TypeError("fam_arg '{}' expression has type {}, expected type {}".format(k, v.dtype, fam_dict[k]))
+        
+        analyze('export_plink/{}'.format(k), v, dataset._col_indices)
+        exprs.append('`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
+    base, _ = dataset._process_joins(*named_exprs.values())
+    
+    Env.hail().io.plink.ExportPlink.apply(base._jvds, output, ','.join(exprs))
 
 @handle_py4j
 @typecheck(table=Table,
@@ -283,7 +372,7 @@ def import_interval_list(path, reference_genome=None):
 @typecheck(path=strlike,
            reference_genome=nullable(GenomeReference))
 def import_bed(path, reference_genome=None):
-    """Import a UCSC .bed file as a key table.
+    """Import a UCSC .bed file as a :class:`.Table`.
 
     Examples
     --------
@@ -367,52 +456,54 @@ def import_bed(path, reference_genome=None):
 
 @handle_py4j
 @typecheck(path=strlike,
-           quantitative=bool,
+           quant_pheno=bool,
            delimiter=strlike,
            missing=strlike)
-def import_fam(path, quantitative=False, delimiter=r'\\s+', missing='NA'):
+def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
     """Import PLINK .fam file into a key table.
 
     Examples
     --------
 
-    Import case-control phenotype data from a tab-separated `PLINK .fam
-    <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
-    annotations:
+    Import a tab-separated
+    `FAM file <https://www.cog-genomics.org/plink2/formats#fam>`__
+    with a case-control phenotype:
 
-    >>> fam_kt = methods.import_fam('data/myStudy.fam')
+    >>> fam_kt = methods.import_fam('data/case_control_study.fam')
 
-    In Hail, unlike PLINK, the user must *explicitly* distinguish between
-    case-control and quantitative phenotypes. Importing a quantitative
-    phenotype without ``quantitative=True`` will return an error
-    (unless all values happen to be `0`, `1`, `2`, and `-9`):
+    Import a FAM file with a quantitative phenotype:
 
-    >>> fam_kt = methods.import_fam('data/myStudy.fam', quantitative=True)
+    >>> fam_kt = methods.import_fam('data/quant_pheno_study.fam', quant_pheno=True)
 
     Notes
     -----
 
-    The fields, types, and missing values are shown below.
+    In Hail, unlike PLINK, the user must *explicitly* distinguish between
+    case-control and quantitative phenotypes. Importing a quantitative
+    phenotype without ``quant_pheno=True`` will return an error
+    (unless all values happen to be `0`, `1`, `2`, or `-9`):
 
-     - **ID** (*String*) -- Sample ID (key column)
-     - **famID** (*String*) -- Family ID (missing = "0")
-     - **patID** (*String*) -- Paternal ID (missing = "0")
-     - **matID** (*String*) -- Maternal ID (missing = "0")
-     - **isFemale** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
+    The resulting :class:`.Table` will have fields, types, and values that are interpreted as missing.
+
+     - **fam_id** (*String*) -- Family ID (missing = "0")
+     - **id** (*String*) -- Sample ID (key column)
+     - **pat_id** (*String*) -- Paternal ID (missing = "0")
+     - **mat_id** (*String*) -- Maternal ID (missing = "0")
+     - **is_female** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
 
     One of:
 
-     - **isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9",
+     - **is_case** (*Boolean*) -- Case-control phenotype (missing = "0", "-9",
         non-numeric or the ``missing`` argument, if given.
-     - **qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the
+     - **quant_pheno** (*Float64*) -- Quantitative phenotype (missing = "NA" or the
         ``missing`` argument, if given.
 
     Parameters
     ----------
     path : :obj:`str`
-        Path to .fam file.
-    quantitative : :obj:`bool`
-        If ``True``, .fam phenotype is interpreted as quantitative.
+        Path to FAM file.
+    quant_pheno : :obj:`bool`
+        If ``True``, phenotype is interpreted as quantitative.
     delimiter : :obj:`str`
         Field delimiter regex.
     missing : :obj:`str`
@@ -422,9 +513,9 @@ def import_fam(path, quantitative=False, delimiter=r'\\s+', missing='NA'):
     Returns
     -------
     :class:`.Table`
-        Table with information from .fam file.
+        Table representing the data of a FAM file.
     """
 
     jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
-                                           quantitative, delimiter, missing)
+                                           quant_pheno, delimiter, missing)
     return Table(jkt)

@@ -87,7 +87,7 @@ class AnnotateSuite extends SparkSuite {
     }
 
     vds = vds.annotateSamplesTable(
-      Table.importFam(hc, "src/test/resources/importFamQPheno.fam", isQuantitative = true), expr = "sa.fam=table")
+      Table.importFam(hc, "src/test/resources/importFamQPheno.fam", isQuantPheno = true), expr = "sa.fam=table")
     val m1 = qMap("sa.fam", vds)
 
     assert(m1("A").contains(Annotation("Newton", "C", "D", false, 1.0)))
@@ -99,7 +99,7 @@ class AnnotateSuite extends SparkSuite {
 
 
     vds = vds.annotateSamplesTable(
-      Table.importFam(hc, "src/test/resources/importFamQPheno.space.m9.fam", isQuantitative = true,
+      Table.importFam(hc, "src/test/resources/importFamQPheno.space.m9.fam", isQuantPheno = true,
         delimiter = "\\\\s+", missingValue = "-9"), expr = "sa.ped = table")
 
     val m2 = qMap("sa.ped", vds)

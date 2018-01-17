@@ -348,10 +348,10 @@ class LogisticRegressionSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/regressionLogisticEpacts.vcf")
       .annotateSamplesTable(Table.importFam(hc, "src/test/resources/regressionLogisticEpacts.fam"), root = "sa.fam")
       .annotateSamplesTable(covariates, root = "sa.pc")
-      .logreg("wald", "sa.fam.isCase", "g.GT.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")
-      .logreg("lrt", "sa.fam.isCase", "g.GT.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.lrt")
-      .logreg("score", "sa.fam.isCase", "g.GT.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.score")
-      .logreg("firth", "sa.fam.isCase", "g.GT.nNonRefAlleles()", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.firth")
+      .logreg("wald", "sa.fam.is_case", "g.GT.nNonRefAlleles()", Array("sa.fam.is_female", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")
+      .logreg("lrt", "sa.fam.is_case", "g.GT.nNonRefAlleles()", Array("sa.fam.is_female", "sa.pc.PC1", "sa.pc.PC2"), "va.lrt")
+      .logreg("score", "sa.fam.is_case", "g.GT.nNonRefAlleles()", Array("sa.fam.is_female", "sa.pc.PC1", "sa.pc.PC2"), "va.score")
+      .logreg("firth", "sa.fam.is_case", "g.GT.nNonRefAlleles()", Array("sa.fam.is_female", "sa.pc.PC1", "sa.pc.PC2"), "va.firth")
 
     // 2535 samples from 1K Genomes Project
     val v1 = Variant("22", 16060511, "T", "TTC")

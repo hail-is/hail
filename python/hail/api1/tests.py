@@ -767,31 +767,31 @@ class ContextTests(unittest.TestCase):
         vds = hc.import_vcf('src/test/resources/triomatrix.vcf')\
                 .annotate_samples_table(famkt, root='sa.fam')
 
-        dads = famkt.filter('isDefined(patID)')\
-                    .annotate('isDad = true')\
-                    .select(['patID', 'isDad'])\
-                    .key_by('patID')
+        dads = famkt.filter('isDefined(pat_id)')\
+                    .annotate('is_dad = true')\
+                    .select(['pat_id', 'is_dad'])\
+                    .key_by('pat_id')
 
-        moms = famkt.filter('isDefined(matID)') \
-            .annotate('isMom = true') \
-            .select(['matID', 'isMom']) \
-            .key_by('matID')
+        moms = famkt.filter('isDefined(mat_id)') \
+            .annotate('is_mom = true') \
+            .select(['mat_id', 'is_mom']) \
+            .key_by('mat_id')
 
         # test genotypes
         gkt = (vds.genotypes_table()
                   .key_by('s')
                   .join(dads, how='left')
                   .join(moms, how='left')
-                  .annotate('isDad = isDefined(isDad), isMom = isDefined(isMom)')
-                  .aggregate_by_key('v = v, fam = sa.fam.famID',
-                                    'data = g.map(g => {role: if (isDad) 1 else if (isMom) 2 else 0, g: g}).collect()')
+                  .annotate('is_dad = isDefined(is_dad), is_mom = isDefined(is_mom)')
+                  .aggregate_by_key('v = v, fam = sa.fam.fam_id',
+                                    'data = g.map(g => {role: if (is_dad) 1 else if (is_mom) 2 else 0, g: g}).collect()')
                   .filter('data.length() == 3')
                   .explode('data')
                   .select(['v', 'fam', 'data']))
 
         tkt = (vds.trio_matrix(ped, complete_trios=True)
                   .genotypes_table()
-                  .annotate('fam = sa.proband.annotations.fam.famID, data = [{role: 0, g: g.proband}, {role: 1, g: g.father}, {role: 2, g: g.mother}]')
+                  .annotate('fam = sa.proband.annotations.fam.fam_id, data = [{role: 0, g: g.proband}, {role: 1, g: g.father}, {role: 2, g: g.mother}]')
                   .select(['v', 'fam', 'data'])
                   .explode('data')
                   .filter('isDefined(data.g)')
@@ -803,16 +803,16 @@ class ContextTests(unittest.TestCase):
         g_sa = (vds.samples_table()
                    .join(dads, how='left')
                    .join(moms, how='left')
-                   .annotate('isDad = isDefined(isDad), isMom = isDefined(isMom)')
-                   .aggregate_by_key('fam = sa.fam.famID',
-                                     'data = sa.map(sa => {role: if (isDad) 1 else if (isMom) 2 else 0, sa: sa}).collect()')
+                   .annotate('is_dad = isDefined(is_dad), is_mom = isDefined(is_mom)')
+                   .aggregate_by_key('fam = sa.fam.fam_id',
+                                     'data = sa.map(sa => {role: if (is_dad) 1 else if (is_mom) 2 else 0, sa: sa}).collect()')
                    .filter('data.length() == 3')
                    .explode('data')
                    .select(['fam', 'data']))
 
         t_sa = (vds.trio_matrix(ped, complete_trios=True)
                 .samples_table()
-                .annotate('fam = sa.proband.annotations.fam.famID, data = [{role: 0, sa: sa.proband.annotations}, '
+                .annotate('fam = sa.proband.annotations.fam.fam_id, data = [{role: 0, sa: sa.proband.annotations}, '
                           '{role: 1, sa: sa.father.annotations}, '
                           '{role: 2, sa: sa.mother.annotations}]')
                 .select(['fam', 'data'])

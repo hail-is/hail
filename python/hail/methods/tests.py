@@ -7,6 +7,7 @@ from subprocess import call as syscall
 import numpy as np
 from struct import unpack
 import hail.utils as utils
+from hail.expr.expression import ExpressionException
 
 hc = None
 
@@ -328,7 +329,7 @@ class Tests(unittest.TestCase):
                     i += 1
         self.assertEqual(nint, i)
 
-    def test_bed(self):
+    def test_import_bed(self):
         bed_file = self.test_resources + '/example1.bed'
         nbed = methods.import_bed(bed_file).count()
         i = 0
@@ -342,7 +343,7 @@ class Tests(unittest.TestCase):
                         pass
         self.assertEqual(nbed, i)
 
-    def test_fam(self):
+    def test_import_fam(self):
         fam_file = self.test_resources + '/sample.fam'
         nfam = methods.import_fam(fam_file).count()
         i = 0
@@ -351,3 +352,24 @@ class Tests(unittest.TestCase):
                 if len(line.strip()) != 0:
                     i += 1
         self.assertEqual(nfam, i)
+
+    def test_export_plink(self):
+        ds = self.get_dataset()
+        
+        methods.export_plink(ds, '/tmp/plink_example', id = ds.s)
+        
+        methods.export_plink(ds, '/tmp/plink_example2', id = ds.s, fam_id = ds.s, pat_id = "nope",
+                             mat_id = "nada", is_female = True, is_case = False)
+        
+        methods.export_plink(ds, '/tmp/plink_example3', id = ds.s, fam_id = ds.s, pat_id = "nope",
+                             mat_id = "nada", is_female = True, quant_pheno = ds.s.length().to_float64())
+        
+        self.assertRaises(ValueError, lambda: methods.export_plink(ds, '/tmp/plink_example', is_case = True, quant_pheno = 0.0))
+        
+        self.assertRaises(ValueError, lambda: methods.export_plink(ds, '/tmp/plink_example', foo = 0.0))
+        
+        self.assertRaises(TypeError, lambda: methods.export_plink(ds, '/tmp/plink_example', is_case = 0.0))
+        
+        # FIXME still resolving: these should throw an error due to unexpected row / entry indicies, still looking into why a more cryptic error is being thrown
+        # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.v.contig))
+        # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.GT))
