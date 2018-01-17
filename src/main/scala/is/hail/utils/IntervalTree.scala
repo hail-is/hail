@@ -32,13 +32,16 @@ object Interval {
           Interval(y, x)
       }
 
-  def ordering(pord: ExtendedOrdering): Ordering[Interval] = new Ordering[Interval] {
-    def compare(x: Interval, y: Interval): Int = {
-      val c = pord.compare(x.start, y.start)
+  def ordering(pord: ExtendedOrdering): ExtendedOrdering = new ExtendedOrdering {
+    def compareNonnull(x: Any, y: Any, missingGreatest: Boolean): Int = {
+      val xi = x.asInstanceOf[Interval]
+      val yi = y.asInstanceOf[Interval]
+
+      val c = pord.compare(xi.start, yi.start, missingGreatest)
       if (c != 0)
         return c
 
-      pord.compare(x.end, y.end)
+      pord.compare(xi.end, yi.end, missingGreatest)
     }
   }
 }
@@ -69,14 +72,14 @@ case class IntervalTree[U: ClassTag](root: Option[IntervalTreeNode[U]]) extends
 object IntervalTree {
   def annotationTree[U: ClassTag](pord: ExtendedOrdering, values: Array[(Interval, U)]): IntervalTree[U] = {
     val iord = Interval.ordering(pord)
-    val sorted = values.sortBy(_._1)(iord)
+    val sorted = values.sortBy(_._1)(iord.toOrdering.asInstanceOf[Ordering[Interval]])
     new IntervalTree[U](fromSorted(pord, sorted, 0, sorted.length))
   }
 
   def apply[T](pord: ExtendedOrdering, intervals: Array[Interval]): IntervalTree[Unit] = {
     val iord = Interval.ordering(pord)
     val sorted = if (intervals.nonEmpty) {
-      val unpruned = intervals.sorted(iord)
+      val unpruned = intervals.sorted(iord.toOrdering.asInstanceOf[Ordering[Interval]])
       val ab = new ArrayBuilder[Interval](intervals.length)
       var tmp = unpruned.head
       var i = 1

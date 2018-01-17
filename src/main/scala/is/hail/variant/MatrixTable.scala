@@ -456,15 +456,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
   val locusType: Type = matrixType.locusType
 
-  val locusProjection: (Annotation) => Annotation = {
-    vSignature match {
-      case t: TVariant =>
-        (v: Annotation) => v.asInstanceOf[Variant].locus
-      case _ =>
-        (a: Annotation) => a
-    }
-  }
-
   lazy val value: MatrixValue = {
     val opt = MatrixIR.optimize(ast)
     val v = opt.execute(hc)
@@ -899,21 +890,215 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     root: String, expr: String, product: Boolean): MatrixTable =
     annotateVariantsTable(kt, if (vdsKey != null) vdsKey.asScala else null, root, expr, product)
 
-  def annotateVariantsTable(kt: Table, vdsKey: Seq[String] = null,
-    root: String = null, expr: String = null, product: Boolean = false): MatrixTable = {
+  private def orderedRVDLeftJoinDistinctAndInsert(
+    lrvd: OrderedRVD,
+    rrvd: OrderedRVD,
+    newOrderedRVType: OrderedRVType, product: Boolean, valueIdx: Int, newVAType: Type, inserter: Inserter): OrderedRVD = {
+    val leftRowType = lrvd.rowType
+    val rightRowType = rrvd.rowType
+    val newRowType = newOrderedRVType.rowType
+    OrderedRVD(
+      newOrderedRVType,
+      lrvd.partitioner,
+      lrvd.orderedJoinDistinct(rrvd, "left")
+        .mapPartitions { it =>
+          val rvb = new RegionValueBuilder()
+          val rv = RegionValue()
 
-    if (root == null && expr == null || root != null && expr != null)
+          it.map { jrv =>
+            val lrv = jrv.rvLeft
+            val lur = new UnsafeRow(leftRowType, lrv)
+            val rur =
+              if (jrv.rvRight != null)
+                new UnsafeRow(rightRowType, jrv.rvRight)
+              else
+                null
+
+            val va = lur.get(2)
+            val value = if (rur != null) {
+              var v = rur.get(valueIdx)
+              if (product)
+                v = v.asInstanceOf[IndexedSeq[Any]].map { x =>
+                  x.asInstanceOf[Row].get(0)
+                }
+              v
+            } else {
+              if (product)
+                IndexedSeq[Any]()
+              else
+                null
+            }
+
+            val newVA = inserter(va, value)
+            assert(newVAType.typeCheck(newVA))
+
+            rvb.set(lrv.region)
+            rvb.start(newRowType)
+            rvb.startStruct()
+            rvb.addField(leftRowType, lrv, 0)
+            rvb.addField(leftRowType, lrv, 1)
+            rvb.addAnnotation(newVAType, newVA)
+            rvb.addField(leftRowType, lrv, 3)
+            rvb.endStruct()
+            rv.set(lrv.region, rvb.end())
+
+            rv
+          }
+        })
+  }
+
+  private def annotateVariantsVariantTable(kt: Table, product: Boolean, newVAType: Type, inserter: Inserter): MatrixTable = {
+    var orderedKT = kt.toSingletonKeyOrderedRVD(Some(rdd2.partitioner))
+    if (product)
+      orderedKT = orderedKT.groupByKey()
+
+    val newMatrixType = matrixType.copy(vaType = newVAType)
+
+    val newRDD2 = orderedRVDLeftJoinDistinctAndInsert(rdd2, orderedKT, newMatrixType.orderedRVType, product, 2, newVAType, inserter)
+
+    copy2(rdd2 = newRDD2, vaSignature = newVAType)
+  }
+
+  private def annotateVariantsLocusTable(kt: Table, product: Boolean, newVAType: Type, inserter: Inserter): MatrixTable = {
+    val pkPart = rdd2.partitioner.withKType(Array("pk"), rdd2.partitioner.pkType)
+
+    val pkRowType = new OrderedRVType(Array("pk"), Array("pk"), rdd2.rowType)
+    val pkRDD2 = OrderedRVD(
+      pkRowType,
+      pkPart,
+      rdd2.rdd)
+
+    var ktRVD = kt.toSingletonKeyOrderedRVD(Some(pkPart), partitionKeyed = true)
+    if (product)
+      ktRVD = ktRVD.groupByKey()
+
+    val newMatrixType = matrixType.copy(vaType = newVAType)
+    val newPKRowType = new OrderedRVType(Array("pk"), Array("pk"), newMatrixType.rowType)
+    val pkNewRDD2 = orderedRVDLeftJoinDistinctAndInsert(pkRDD2, ktRVD, newMatrixType.orderedRVType, product, 1, newVAType, inserter)
+
+    val newRDD2 = OrderedRVD(
+      newMatrixType.orderedRVType,
+      rdd2.partitioner,
+      pkNewRDD2.rdd)
+
+    copy2(rdd2 = newRDD2, vaSignature = newVAType)
+  }
+
+  private def annotateVariantsIntervalTable(kt: Table, product: Boolean, newVAType: Type, inserter: Inserter): MatrixTable = {
+    val newMatrixType = matrixType.copy(vaType = newVAType)
+    val newRowType = newMatrixType.rowType
+
+    val locusOrdering = locusType.ordering
+
+    val partBc = sparkContext.broadcast(rdd2.partitioner)
+    val ktSignature = kt.signature
+    val ktKeyFieldIdx = kt.keyFieldIdx
+    val ktValueFieldIdx = kt.valueFieldIdx
+    val partitionKeyedIntervals = kt.rvd.rdd
+      .flatMap { rv =>
+        val ur = new UnsafeRow(ktSignature, rv)
+        val interval = ur.getAs[Interval](ktKeyFieldIdx(0))
+        if (interval != null) {
+          val start = partBc.value.getPartitionPK(Row(interval.start))
+          val end = partBc.value.getPartitionPK(Row(interval.end))
+          (start to end).view.map(i => (i, rv))
+        } else
+          Iterator()
+      }
+
+    val nParts = rdd2.partitions.length
+    val zipRDD = partitionKeyedIntervals.partitionBy(new Partitioner {
+      def getPartition(key: Any): Int = key.asInstanceOf[Int]
+
+      def numPartitions: Int = nParts
+    }).values
+
+    val localRowType = rowType
+    val newRDD = rdd2.rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
+      val intervalAnnotations =
+        intervals.map { rv =>
+          val ur = new UnsafeRow(ktSignature, rv)
+          val interval = ur.getAs[Interval](ktKeyFieldIdx(0))
+          (interval, Row.fromSeq(ktValueFieldIdx.map(ur.get)))
+        }
+          .toArray
+
+      val iTree = IntervalTree.annotationTree(locusOrdering, intervalAnnotations)
+
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+
+      it.map { rv =>
+        val ur = new UnsafeRow(localRowType, rv)
+        val pk = ur.get(0)
+        val va = ur.get(2)
+        val queries = iTree.queryValues(locusOrdering, pk)
+        val value: Annotation = if (product)
+          queries: IndexedSeq[Annotation]
+        else {
+          if (queries.isEmpty)
+            null
+          else
+            queries(0)
+        }
+
+        rvb.set(rv.region)
+        rvb.start(newRowType)
+        rvb.startStruct()
+        rvb.addField(localRowType, rv, 0) // pk
+        rvb.addField(localRowType, rv, 1) // v
+      val newVA = inserter(va, value)
+        assert(newVAType.typeCheck(newVA))
+        rvb.addAnnotation(newVAType, newVA)
+        rvb.addField(localRowType, rv, 3) // gs
+        rvb.endStruct()
+        rv2.set(rv.region, rvb.end())
+
+        rv2
+      }
+    }
+
+    val newRVD = OrderedRVD(
+      newMatrixType.orderedRVType,
+      rdd2.partitioner,
+      newRDD)
+
+    copy2(rdd2 = newRVD, vaSignature = newVAType)
+  }
+
+  def annotateVariantsTable(kt: Table, vdsKey: Seq[String] = null, root: String = null, expr: String = null,
+    product: Boolean = false): MatrixTable = {
+    if (!((root != null) ^ (expr != null)))
       fatal("method `annotateVariantsTable' requires one of `root' or 'expr', but not both")
 
-    var (joinSignature, f): (Type, Annotation => Annotation) = kt.valueSignature.size match {
+    // FIXME move to Python
+    if (vdsKey != null) {
+      val vdsKeyFields = vdsKey.indices.map("_" + _.toString)
+
+      val vName = kt.signature.uniqueFieldName("v")
+
+      val selectExpr = (Seq(s"$vName = v") ++ (vdsKeyFields, vdsKey).zipped.map { (f, e) =>
+        s"`$f` = $e"
+      }).toArray
+      val newKT = kt.join(variantsKT()
+        .select(selectExpr)
+        .keyBy(vdsKeyFields), "inner")
+        .drop(kt.keyFields.map(_.name)) // join takes the left key names
+        .keyBy(vName)
+      return annotateVariantsTable(newKT, root = root, expr = expr, product = product)
+    }
+
+    val ktValueType = kt.valueSignature
+
+    var (valueType, f): (Type, Annotation => Annotation) = ktValueType.size match {
       case 0 => (TBoolean(), _ != null)
-      case 1 => (kt.valueSignature.fields.head.typ, x => if (x != null) x.asInstanceOf[Row].get(0) else null)
-      case _ => (kt.valueSignature, identity[Annotation])
+      case 1 => (ktValueType.fields.head.typ, x => if (x != null) x.asInstanceOf[Row].get(0) else null)
+      case _ => (ktValueType, identity[Annotation])
     }
 
     if (product) {
-      joinSignature = if (joinSignature.isInstanceOf[TBoolean]) TInt32(joinSignature.required) else TArray(joinSignature)
-      f = if (kt.valueSignature.size == 0)
+      valueType = if (valueType.isInstanceOf[TBoolean]) TInt32(valueType.required) else TArray(valueType)
+      f = if (ktValueType.size == 0)
         _.asInstanceOf[IndexedSeq[_]].length
       else {
         val g = f
@@ -921,128 +1106,33 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       }
     }
 
-    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) = {
+    val (newVAType, inserter) = {
       val (t, ins) = if (expr != null) {
         val ec = EvalContext(Map(
           "va" -> (0, vaSignature),
-          "table" -> (1, joinSignature)))
+          "table" -> (1, valueType)))
         Annotation.buildInserter(expr, vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else insertVA(joinSignature, Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
+      } else insertVA(valueType, Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
 
       (t, (a: Annotation, toIns: Annotation) => ins(a, f(toIns)))
     }
 
     val keyTypes = kt.keyFields.map(_.typ)
-
-    val keyedRDD = kt.keyedRDD()
-      .filter { case (k, v) => k.toSeq.forall(_ != null) }
-
-    if (vdsKey != null) {
-      val keyEC = EvalContext(Map("v" -> (0, vSignature), "va" -> (1, vaSignature)))
-      val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, keyEC)).unzip
-
-      if (!keyTypes.sameElements(vdsKeyType))
+    keyTypes match {
+      case Array(`vSignature`) =>
+        annotateVariantsVariantTable(kt, product, newVAType, inserter)
+      case Array(`locusType`) =>
+        annotateVariantsLocusTable(kt, product, newVAType, inserter)
+      case Array(TInterval(`locusType`, _)) =>
+        annotateVariantsIntervalTable(kt, product, newVAType, inserter)
+      case _ =>
         fatal(
-          s"""method `annotateVariantsTable' encountered a mismatch between table keys and computed keys.
-             |  Computed keys:  [ ${ vdsKeyType.mkString(", ") } ]
-             |  Key table keys: [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
-
-      val thisRdd = rdd.map { case (v, (va, gs)) =>
-        keyEC.setAll(v, va)
-        (Row.fromSeq(vdsKeyFs.map(_ ())), v)
-      }
-
-      val joinedRDD = keyedRDD
-        .join(thisRdd)
-        .map { case (_, (table, v)) => (v, table: Annotation) }
-        .orderedRepartitionBy(rdd.orderedPartitioner)
-
-      annotateVariants(joinedRDD, finalType, inserter, product = product)
-
-    } else {
-      keyTypes match {
-        case Array(`vSignature`) =>
-          val ord = keyedRDD
-            .map { case (k, v) => (k.getAs[Annotation](0), v: Annotation) }
-            .toOrderedRDD(rdd.orderedPartitioner)
-
-          annotateVariants(ord, finalType, inserter, product = product)
-
-        case Array(vSignature.partitionKey) =>
-          val ord = keyedRDD
-            .map { case (k, v) => (k.asInstanceOf[Row].getAs[Annotation](0), v: Annotation) }
-            .toOrderedRDD(rdd.orderedPartitioner.projectToPartitionKey())
-
-          annotateLoci(ord, finalType, inserter, product = product)
-
-        case Array(TInterval(_, _)) if vSignature.isInstanceOf[TVariant] =>
-          val locusOrdering = genomeReference.locusType.ordering
-          val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
-          val partitionKeyedIntervals = keyedRDD
-            .flatMap { case (k, v) =>
-              val interval = k.getAs[Interval](0)
-              val start = partBc.value.getPartitionT(interval.start.asInstanceOf[Annotation])
-              val end = partBc.value.getPartitionT(interval.end.asInstanceOf[Annotation])
-              (start to end).view.map(i => (i, (interval, v)))
-            }
-
-          type IntervalT = (Interval, Annotation)
-          val nParts = rdd.partitions.length
-          val zipRDD = partitionKeyedIntervals.partitionBy(new Partitioner {
-            def getPartition(key: Any): Int = key.asInstanceOf[Int]
-
-            def numPartitions: Int = nParts
-          }).values
-
-          val res = rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
-            val iTree = IntervalTree.annotationTree(locusOrdering, intervals.toArray)
-
-            it.map { case (v, (va, gs)) =>
-              val queries = iTree.queryValues(locusOrdering, v.asInstanceOf[Variant].locus)
-              val annot = if (product)
-                queries: IndexedSeq[Annotation]
-              else
-                queries.headOption.orNull
-
-              (v, (inserter(va, annot), gs))
-            }
-          }.asOrderedRDD
-
-          copy(rdd = res, vaSignature = finalType)
-
-        case other =>
-          fatal(
-            s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
+          s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
                |  [ $vSignature ]
                |  [ Locus ]
-               |  [ Interval ]
+               |  [ Interval[$locusType ]
                |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
-      }
     }
-  }
-
-  def annotateLoci(lociRDD: OrderedRDD[Annotation, Annotation, Annotation], newSignature: Type,
-    inserter: Inserter, product: Boolean): MatrixTable = {
-
-    def annotate[S](joinedRDD: RDD[(Annotation, ((Annotation, (Annotation, Iterable[Annotation])), S))],
-      ins: (Annotation, S) => Annotation): OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])] = {
-      OrderedRDD(joinedRDD.mapPartitions({ it =>
-        it.map { case (l, ((v, (va, gs)), annotation)) => (v, (ins(va, annotation), gs)) }
-      }),
-        rdd.orderedPartitioner)
-    }
-
-    val locusKeyedRDD = rdd.mapMonotonic(kOk.orderedProject, { case (v, vags) => (v, vags) })
-
-    val newRDD =
-      if (product)
-        annotate[Array[Annotation]](locusKeyedRDD.orderedLeftJoin(lociRDD),
-          (va, a) => inserter(va, a: IndexedSeq[_]))
-      else
-        annotate[Option[Annotation]](locusKeyedRDD.orderedLeftJoinDistinct(lociRDD),
-          (va, a) => inserter(va, a.orNull))
-
-    copy(rdd = newRDD, vaSignature = newSignature)
   }
 
   def nPartitions: Int = rdd2.partitions.length
@@ -1095,22 +1185,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
               rv2
             }
           }))
-  }
-
-  def annotateVariants(otherRDD: OrderedRDD[Annotation, Annotation, Annotation], newSignature: Type,
-    inserter: Inserter, product: Boolean): MatrixTable = {
-    val newRDD = if (product)
-      rdd.orderedLeftJoin(otherRDD)
-        .mapValues { case ((va, gs), annotation) =>
-          (inserter(va, annotation: IndexedSeq[_]), gs)
-        }
-    else
-      rdd.orderedLeftJoinDistinct(otherRDD)
-        .mapValues { case ((va, gs), annotation) =>
-          (inserter(va, annotation.orNull), gs)
-        }
-
-    copy(rdd = newRDD, vaSignature = newSignature)
   }
 
   def annotateVariantsVDS(right: MatrixTable,

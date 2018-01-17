@@ -736,4 +736,18 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       case _ => fieldOffset
     }
   }
+
+  def uniqueFieldName(base: String): String = {
+    val fieldNames = fields.map(_.name).toSet
+    if (fieldNames.contains(base)) {
+      var i = 0
+      var candidate = base + i.toString
+      while (fieldNames.contains(candidate)) {
+        i += 1
+        candidate = base + i.toString
+      }
+      candidate
+    } else
+      base
+  }
 }

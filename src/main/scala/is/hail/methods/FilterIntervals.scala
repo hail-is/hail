@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.expr.types.Type
 import is.hail.utils.{Interval, IntervalTree}
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
@@ -23,7 +24,8 @@ object FilterIntervals {
       vsm.copy2(rdd2 = vsm.rdd2.filterIntervals(pkIntervals))
     } else {
       val intervalsBc = vsm.sparkContext.broadcast(intervals)
-      val p = vsm.locusProjection
+      val (t, p) = Type.partitionKeyProjection(vsm.vSignature)
+      assert(t == vsm.locusType)
       val localLocusOrdering = vsm.locusType.ordering
       vsm.filterVariants { (v, va, gs) => !intervalsBc.value.contains(localLocusOrdering, p(v)) }
     }

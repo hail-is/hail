@@ -259,7 +259,7 @@ class AnnotateSuite extends SparkSuite {
     val sSample = SplitMulti(vds)
 
     // tsv
-    val importTSVFile = tmpDir.createTempFile("variantAnnotationsTSV", ".vds")
+    val importTSVFile = tmpDir.createTempFile("variantAnnotationsTSV", "vds")
     vds = MatrixTable.fromTable(hc.importTable("src/test/resources/variantAnnotations.tsv",
       impute = true, types = Map("Chromosome" -> TString()))
       .annotate("v = Variant(Chromosome, Position, Ref, Alt)")

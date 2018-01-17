@@ -6,7 +6,7 @@ import is.hail.expr.{JSONAnnotationImpex, Parser, SparkAnnotationImpex}
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils
 import is.hail.utils._
-import is.hail.variant.GenomeReference
+import is.hail.variant.{GenomeReference, Variant}
 import org.apache.spark.sql.types.DataType
 import org.json4s.JValue
 
@@ -105,6 +105,15 @@ object Type {
   implicit def arbType = Arbitrary(genArb)
 
   def parseMap(s: String): Map[String, Type] = Parser.parseAnnotationTypes(s)
+
+  def partitionKeyProjection(vType: Type): (Type, (Annotation) => Annotation) = {
+    vType match {
+      case t: TVariant =>
+        (t.gr.locusType, (v: Annotation) => v.asInstanceOf[Variant].locus)
+      case _ =>
+        (vType, (a: Annotation) => a)
+    }
+  }
 }
 
 abstract class Type extends BaseType with Serializable {

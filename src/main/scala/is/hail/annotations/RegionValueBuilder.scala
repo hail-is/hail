@@ -324,6 +324,18 @@ class RegionValueBuilder(var region: Region) {
     addField(t, rv.region, rv.offset, i)
   }
 
+  def addFields(t: TStruct, fromRegion: Region, fromOff: Long, fieldIdx: Array[Int]) {
+    var i = 0
+    while (i < fieldIdx.length) {
+      addField(t, fromRegion, fromOff, fieldIdx(i))
+      i += 1
+    }
+  }
+
+  def addFields(t: TStruct, fromRV: RegionValue, fieldIdx: Array[Int]) {
+    addFields(t, fromRV.region, fromRV.offset, fieldIdx)
+  }
+
   def addElement(t: TArray, fromRegion: Region, fromAOff: Long, i: Int) {
     if (t.isElementDefined(fromRegion, fromAOff, i))
       addRegionValue(t.elementType, fromRegion,

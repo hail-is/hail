@@ -16,8 +16,9 @@ import scala.collection.mutable
 class OrderedRVD private(
   val typ: OrderedRVType,
   val partitioner: OrderedRVPartitioner,
-  val rdd: RDD[RegionValue]) extends RVD with Serializable { self =>
-  def rowType: Type = typ.rowType
+  val rdd: RDD[RegionValue]) extends RVD with Serializable {
+  self =>
+  def rowType: TStruct = typ.rowType
 
   def insert[PC](newContext: () => PC)(typeToInsert: Type,
     path: List[String],
@@ -296,6 +297,85 @@ class OrderedRVD private(
 
     OrderedRVD(typ, newPartitioner, newRDD)
   }
+
+  def groupByKey(valuesField: String = "values"): OrderedRVD = {
+    val newTyp = new OrderedRVType(
+      typ.partitionKey,
+      typ.key,
+      typ.kType ++ TStruct(valuesField -> TArray(typ.valueType)))
+    val newRowType = newTyp.rowType
+
+    val newRDD: RDD[RegionValue] = rdd.mapPartitions { it =>
+      new Iterator[RegionValue] {
+        val wrv = WritableRegionValue(typ.kType)
+
+        var peekRV: RegionValue =
+          if (it.hasNext)
+            it.next()
+          else
+            null
+
+        val region = Region()
+        val rvb = new RegionValueBuilder(region)
+        val rv2 = RegionValue(region)
+
+        val ab = new ArrayBuilder[Long]()
+
+        var present: Boolean = false
+
+        def advance() {
+          region.clear()
+          assert(ab.isEmpty)
+
+          wrv.setSelect(typ.rowType, typ.kRowFieldIdx, peekRV)
+          do {
+            rvb.start(typ.valueType)
+            rvb.startStruct()
+            rvb.addFields(typ.rowType, peekRV, typ.valueFieldIdx)
+            rvb.endStruct()
+            ab += rvb.end()
+            peekRV = if (it.hasNext) it.next() else null
+          } while (peekRV != null
+            && typ.kRowOrd.compare(wrv.region, wrv.offset, peekRV) == 0)
+
+          rvb.start(newRowType)
+          rvb.startStruct()
+          var i = 0
+          while (i < typ.kType.size) {
+            rvb.addField(typ.kType, wrv.value, i)
+            i += 1
+          }
+          rvb.startArray(ab.length)
+          i = 0
+          while (i < ab.length) {
+            rvb.addRegionValue(typ.valueType, region, ab(i))
+            i += 1
+          }
+          ab.clear()
+          rvb.endArray()
+          rvb.endStruct()
+          rv2.setOffset(rvb.end())
+
+          present = true
+        }
+
+        def hasNext: Boolean = {
+          if (!present && peekRV != null)
+            advance()
+          present
+        }
+
+        def next(): RegionValue = {
+          if (!hasNext)
+            throw new NoSuchElementException("next on empty iterator")
+          present = false
+          rv2
+        }
+      }
+    }
+
+    OrderedRVD(newTyp, partitioner, newRDD)
+  }
 }
 
 object OrderedRVD {
@@ -569,7 +649,8 @@ object OrderedRVD {
     val sc = rdd.sparkContext
 
     new OrderedRVD(typ, partitioner, rdd.mapPartitionsWithIndex { case (i, it) =>
-      val prev = WritableRegionValue(typ.pkType)
+      val prevK = WritableRegionValue(typ.kType)
+      val prevPK = WritableRegionValue(typ.pkType)
 
       new Iterator[RegionValue] {
         var first = true
@@ -590,12 +671,15 @@ object OrderedRVD {
 
           if (first)
             first = false
-          else
-            assert(typ.pkRowOrd.compare(prev.value, rv) <= 0)
+          else {
+            assert(typ.kRowOrd.compare(prevK.value, rv) <= 0)
+            assert(typ.pkRowOrd.compare(prevPK.value, rv) <= 0)
+          }
 
-          prev.setSelect(typ.rowType, typ.pkRowFieldIdx, rv)
+          prevK.setSelect(typ.rowType, typ.kRowFieldIdx, rv)
+          prevPK.setSelect(typ.rowType, typ.pkRowFieldIdx, rv)
 
-          assert(typ.pkRowOrd.compare(prev.value, rv) == 0)
+          assert(typ.pkRowOrd.compare(prevPK.value, rv) == 0)
 
           rv
         }

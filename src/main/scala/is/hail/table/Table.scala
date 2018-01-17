@@ -9,7 +9,7 @@ import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
-import is.hail.rvd.RVD
+import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType, RVD}
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, VSMLocalValue}
 import org.apache.commons.lang3.StringUtils
@@ -203,7 +203,11 @@ class Table(val hc: HailContext,
 
   def fields: Array[Field] = signature.fields.toArray
 
+  val keyFieldIdx: Array[Int] = key.map(signature.fieldIdx)
+
   def keyFields: Array[Field] = key.map(signature.fieldIdx).map(i => fields(i))
+
+  val valueFieldIdx: Array[Int] = signature.fields.filter(f => !key.contains(f.name)).map(_.index).toArray
 
   def columns: Array[String] = fields.map(_.name)
 
@@ -1159,5 +1163,54 @@ class Table(val hc: HailContext,
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature), TableLocalValue(globals), rvd)
     ))
+  }
+
+  def toSingletonKeyOrderedRVD(hintPartitioner: Some[OrderedRVPartitioner], partitionKeyed: Boolean = false): OrderedRVD = {
+    assert(nKeys == 1)
+    val localSignature = signature
+    val kIndex = keyFieldIdx(0)
+    val vType = signature.fieldType(kIndex)
+    val (pkType, pkProjection) = Type.partitionKeyProjection(vType)
+    val orderedKTType =
+      if (partitionKeyed)
+        new OrderedRVType(Array("pk"), Array("pk"),
+          TStruct(
+            "pk" -> pkType,
+            "value" -> valueSignature))
+      else
+        new OrderedRVType(Array("pk"), Array("pk", "v"),
+          TStruct(
+            "pk" -> pkType,
+            "v" -> vType,
+            "value" -> valueSignature))
+    assert(hintPartitioner.forall(p =>
+      p.kType == orderedKTType.kType &&
+        p.partitionKey.toFastIndexedSeq == orderedKTType.partitionKey.toFastIndexedSeq &&
+        p.pkType == orderedKTType.pkType))
+    val localValueFieldIdx = valueFieldIdx
+    OrderedRVD(
+      orderedKTType,
+      rvd.rdd.mapPartitions { it =>
+        val rvb = new RegionValueBuilder()
+        val rv2 = RegionValue()
+        it.map { rv =>
+          val ur = new UnsafeRow(localSignature, rv)
+          val k = ur.get(kIndex)
+          val pk = pkProjection(k)
+
+          rvb.set(rv.region)
+          rvb.start(orderedKTType.rowType)
+          rvb.startStruct()
+          rvb.addAnnotation(pkType, pk)
+          if (!partitionKeyed)
+            rvb.addAnnotation(vType, k)
+          rvb.startStruct()
+          rvb.addFields(localSignature, rv, localValueFieldIdx)
+          rvb.endStruct()
+          rvb.endStruct()
+          rv2.set(rv.region, rvb.end())
+          rv2
+        }
+      }, None, hintPartitioner)
   }
 }
