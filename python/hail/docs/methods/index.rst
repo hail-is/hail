@@ -16,7 +16,7 @@ Methods
     hail.methods.ibd
     hail.methods.pca
     hail.methods.hwe_normalized_pca
-    hail.methods.pca_relate
+    hail.methods.pc_relate
     hail.methods.rename_duplicates
     hail.methods.split_multi_hts
     hail.methods.mendel_errors
