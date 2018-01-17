@@ -488,7 +488,11 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
 
     .. math::
 
-      \\widehat{\\phi_{ij}} := \\frac{1}{|S_{ij}|}\\sum_{s \\in S_{ij}}\\frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}{4 * \\sum_{s \\in S_{ij} p_s (1 - p_s)}}
+      \\widehat{\\phi_{ij}} :=
+        \\frac{1}{|S_{ij}|}
+        \\sum_{s \\in S_{ij}}
+          \\frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}
+                {4 * \\sum_{s \\in S_{ij} p_s (1 - p_s)}}
 
     This estimator is true under the model that the sharing of common
     (relative to the population) alleles is not very informative to
@@ -605,7 +609,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     implementation is available in the `GENESIS Bioconductor package
     <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`_ .
 
-    :meth:`methods.pc_relate` differs from the reference
+    :func:`methods.pc_relate` differs from the reference
     implementation in a couple key ways:
 
      - the principal components analysis does not use an unrelated set of
