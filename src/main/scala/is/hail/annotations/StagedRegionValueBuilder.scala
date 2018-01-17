@@ -27,7 +27,7 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
   private var elementsOffset: LocalRef[Long] = _
   private val startOffset: LocalRef[Long] = fb.newLocal[Long]
 
-  typ match {
+  typ.fundamentalType match {
     case t: TStruct => elementsOffset = fb.newLocal[Long]
     case t: TArray =>
       elementsOffset = fb.newLocal[Long]
@@ -80,7 +80,8 @@ class StagedRegionValueBuilder private(val fb: FunctionBuilder[_], val typ: Type
     else
       startOffset.store(pOffset)
     assert(staticIdx == 0)
-    c = Code(c, elementsOffset.store(startOffset + t.byteOffsets(0)))
+    if (t.size != 0)
+      c = Code(c, elementsOffset.store(startOffset + t.byteOffsets(0)))
     if (init)
       c = Code(c, t.clearMissingBits(region, startOffset))
     c

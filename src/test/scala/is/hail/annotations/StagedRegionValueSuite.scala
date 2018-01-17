@@ -7,6 +7,7 @@ import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.utils._
 import org.testng.annotations.Test
+import is.hail.TestUtils._
 
 class StagedRegionValueSuite extends SparkSuite {
 
@@ -332,25 +333,6 @@ class StagedRegionValueSuite extends SparkSuite {
     assert(rv.pretty(rt) == rv2.pretty(rt))
     assert(rv.offset == rv2.offset)
 
-  }
-
-  def printRegion(region: Region, string: String) {
-    println(string)
-    val size = region.size
-    println("Region size: " + size.toString)
-    val bytes = region.loadBytes(0, size.toInt)
-    println("Array: ")
-    var j = 0
-    for (i <- bytes) {
-      j += 1
-      printf("%02X", i)
-      if (j % 32 == 0) {
-        print('\n')
-      } else {
-        print(' ')
-      }
-    }
-    print('\n')
   }
 
   @Test

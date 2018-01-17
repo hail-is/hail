@@ -173,10 +173,14 @@ object HailContext {
     hc
   }
 
-  def readRowsPartition(t: TStruct)(i: Int, in: InputStream): Iterator[RegionValue] = {
-    new Iterator[RegionValue] {
+  def readRowsPartition(t: TStruct): (Int, InputStream) => Iterator[RegionValue] = {
+
+    val makeF = StagedDecoder.getRVReader(t)
+
+    (i: Int, in: InputStream) => new Iterator[RegionValue] {
       val region = Region()
       val rv = RegionValue(region)
+      val f = makeF()
 
       val dec = new Decoder(new LZ4InputBuffer(in))
 
@@ -189,7 +193,7 @@ object HailContext {
           throw new NoSuchElementException("next on empty iterator")
 
         region.clear()
-        rv.setOffset(dec.readRegionValue(t, region))
+        rv.setOffset(f(region, dec))
 
         cont = dec.readByte()
         if (cont == 0)

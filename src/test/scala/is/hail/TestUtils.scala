@@ -1,6 +1,7 @@
 package is.hail
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
+import is.hail.annotations.Region
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Genotype, Locus, Variant, MatrixTable}
@@ -113,5 +114,24 @@ object TestUtils {
       sb += '\n'
     }
     sb.result()
+  }
+
+  def printRegion(region: Region, string: String) {
+    println(string)
+    val size = region.size
+    println("Region size: " + size.toString)
+    val bytes = region.loadBytes(0, size.toInt)
+    println("Array: ")
+    var j = 0
+    for (i <- bytes) {
+      j += 1
+      printf("%02X", i)
+      if (j % 32 == 0) {
+        print('\n')
+      } else {
+        print(' ')
+      }
+    }
+    print('\n')
   }
 }
