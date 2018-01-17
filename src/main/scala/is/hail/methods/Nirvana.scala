@@ -333,13 +333,13 @@ object Nirvana {
       TStruct(
         "pk" -> vds.locusType,
         "v" -> vds.vSignature,
-        "vep" -> nirvanaSignature))
+        "nirvana" -> nirvanaSignature))
 
     val nirvanaRowType = nirvanaOrderedRVType.rowType
     val (t, pkProjection) = Type.partitionKeyProjection(vds.vSignature)
     assert(t == vds.locusType)
 
-    val vepRVD: OrderedRVD = OrderedRVD(
+    val nirvanaRVD: OrderedRVD = OrderedRVD(
       nirvanaOrderedRVType,
       vds.rdd2.partitioner,
       annotations.mapPartitions { it =>
@@ -347,12 +347,12 @@ object Nirvana {
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 
-        it.map { case (v, vep) =>
+        it.map { case (v, nirvana) =>
           rvb.start(nirvanaRowType)
           rvb.startStruct()
           rvb.addAnnotation(nirvanaRowType.fieldType(0), pkProjection(v))
           rvb.addAnnotation(nirvanaRowType.fieldType(1), v)
-          rvb.addAnnotation(nirvanaRowType.fieldType(2), vep)
+          rvb.addAnnotation(nirvanaRowType.fieldType(2), nirvana)
           rvb.endStruct()
           rv.setOffset(rvb.end())
 
@@ -362,7 +362,7 @@ object Nirvana {
     val (newVAType, inserter) = vds.vaSignature.insert(nirvanaSignature, parsedRoot)
 
     val newMatrixType = vds.matrixType.copy(vaType = newVAType)
-    val newRDD2 = vds.orderedRVDLeftJoinDistinctAndInsert(vds.rdd2, vepRVD,
+    val newRDD2 = vds.orderedRVDLeftJoinDistinctAndInsert(vds.rdd2, nirvanaRVD,
       newMatrixType.orderedRVType, product = false, 2, newVAType, inserter)
 
     vds.copy2(rdd2 = newRDD2, vaSignature = newVAType)
