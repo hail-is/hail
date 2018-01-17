@@ -13,7 +13,7 @@ import hail.expr.aggregators as agg
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           maf=nullable(expr_numeric),
+           maf=nullable(oneof(Float32Expression, Float64Expression)),
            bounded=bool,
            min=nullable(numeric),
            max=nullable(numeric))
@@ -34,7 +34,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
 
     To calculate an IBD matrix containing only pairs of samples with
     ``PI_HAT`` in :math:`[0.2, 0.9]`, using minor allele frequencies stored in
-    the row field ``panel_maf``:
+    the row field `panel_maf`:
 
     >>> methods.ibd(dataset, maf=dataset['panel_maf'], min=0.2, max=0.9)
 
@@ -69,7 +69,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
     dataset : :class:`.MatrixTable`
         A variant-keyed :class:`.MatrixTable` containing genotype information.
 
-    maf : numeric :class:`hail.expr.expression.Expression` or :obj:`None`
+    maf : :class:`.Float32Expression`, :class:`.Float64Expression` or :obj:`None`
         (optional) expression on `dataset` for the minor allele frequency.
 
     bounded : :obj:`bool`

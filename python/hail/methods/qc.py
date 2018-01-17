@@ -273,7 +273,7 @@ def concordance(left, right):
         per column key, and a table with concordance statistics per row key.
     """
 
-    left = require_biallelic(right, "concordance, left")
+    left = require_biallelic(left, "concordance, left")
     right = require_biallelic(right, "concordance, right")
 
     r = Env.hail().methods.CalculateConcordance.apply(left._jvds, right._jvds)
