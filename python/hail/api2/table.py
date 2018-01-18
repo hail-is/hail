@@ -119,8 +119,8 @@ class TableTemplate(HistoryMixin):
 class GroupedTable(TableTemplate):
     """Table that has been grouped.
 
-    There are only two operations on a grouped table, :meth:`GroupedTable.partition_hint`
-    and :meth:`GroupedTable.aggregate`.
+    There are only two operations on a grouped table, :meth:`.GroupedTable.partition_hint`
+    and :meth:`.GroupedTable.aggregate`.
 
     .. testsetup ::
 
@@ -145,7 +145,7 @@ class GroupedTable(TableTemplate):
         Examples
         --------
 
-        Use `partition_hint` in a :meth:`Table.group_by` / :meth:`GroupedTable.aggregate`
+        Use `partition_hint` in a :meth:`.Table.group_by` / :meth:`.GroupedTable.aggregate`
         pipeline:
 
         >>> table_result = (table1.group_by(table1.ID)
@@ -158,7 +158,7 @@ class GroupedTable(TableTemplate):
         stages of a pipeline, it can be necessary in some places to provide some
         explicit hints.
 
-        The default number of partitions for :meth:`GroupedTable.aggregate` is the
+        The default number of partitions for :meth:`.GroupedTable.aggregate` is the
         number of partitions in the upstream table. If the aggregation greatly
         reduces the size of the table, providing a hint for the target number of
         partitions can accelerate downstream operations.
@@ -170,7 +170,7 @@ class GroupedTable(TableTemplate):
 
         Returns
         -------
-        :class:`GroupedTable`
+        :class:`.GroupedTable`
             Same grouped table with a partition hint.
         """
         self._npartitions = n
@@ -178,7 +178,7 @@ class GroupedTable(TableTemplate):
 
     @handle_py4j
     def aggregate(self, **named_exprs):
-        """Aggregate by group, used after :meth:`Table.group_by`.
+        """Aggregate by group, used after :meth:`.Table.group_by`.
 
         Examples
         --------
@@ -194,7 +194,7 @@ class GroupedTable(TableTemplate):
 
         Parameters
         ----------
-        named_exprs : varargs of :class:`hail.expr.expression.Expression`
+        named_exprs : varargs of :class:`.Expression`
             Aggregation expressions.
 
         Returns
@@ -388,7 +388,7 @@ class Table(TableTemplate):
 
         Examples
         --------
-        Assume `table1` is a :py:class:`.Table` with three columns: `C1`, `C2`
+        Assume `table1` is a :class:`.Table` with three columns: `C1`, `C2`
         and `C3`.
 
         Change key columns:
@@ -427,7 +427,7 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        named_exprs : varargs of :class:`hail.expr.expression.Expression`
+        named_exprs : varargs of :class:`.Expression`
             Annotation expressions.
 
         Returns
@@ -465,7 +465,7 @@ class Table(TableTemplate):
         Note
         ----
 
-        See :py:meth:`Table.select` for more information about using ``select`` methods.
+        See :meth:`.Table.select` for more information about using ``select`` methods.
 
         Note
         ----
@@ -473,9 +473,9 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`hail.expr.expression.Expression`
+        exprs : variable-length args of :obj:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
 
         Returns
@@ -555,7 +555,7 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             New field expressions.
 
         Returns
@@ -596,7 +596,7 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Expressions for new fields.
 
         Returns
@@ -649,7 +649,7 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        expr : bool or :class:`hail.expr.expression.BooleanExpression`
+        expr : bool or :class:`.BooleanExpression`
             Filter expression.
         keep : bool
             Keep rows where `expr` is true.
@@ -690,9 +690,9 @@ class Table(TableTemplate):
 
         **Using select**
 
-        Select and its sibling methods (:meth:`Table.select_globals`,
-        :meth:`MatrixTable.select_globals`, :meth:`MatrixTable.select_rows`,
-        :meth:`MatrixTable.select_cols`, and :meth:`MatrixTable.select_entries`) accept
+        Select and its sibling methods (:meth:`.Table.select_globals`,
+        :meth:`.MatrixTable.select_globals`, :meth:`.MatrixTable.select_rows`,
+        :meth:`.MatrixTable.select_cols`, and :meth:`.MatrixTable.select_entries`) accept
         both variable-length (``f(x, y, z)``) and keyword (``f(a=x, b=y, c=z)``)
         arguments.
 
@@ -741,9 +741,9 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        exprs : variable-length args of :obj:`str` or :class:`hail.expr.expression.Expression`
+        exprs : variable-length args of :obj:`str` or :class:`.Expression`
             Arguments that specify field names or nested field reference expressions.
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Field names and the expressions to compute them.
 
         Returns
@@ -800,7 +800,7 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        exprs : varargs of :obj:`str` or :class:`hail.expr.expression.Expression`
+        exprs : varargs of :obj:`str` or :class:`.Expression`
             Names of fields to drop or field reference expressions.
 
         Returns
@@ -874,7 +874,7 @@ class Table(TableTemplate):
         self._jt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
 
     def group_by(self, *exprs, **named_exprs):
-        """Group by a new set of keys for use with :meth:`GroupedTable.aggregate`.
+        """Group by a new set of keys for use with :meth:`.GroupedTable.aggregate`.
 
         Examples
         --------
@@ -890,15 +890,15 @@ class Table(TableTemplate):
 
         Notes
         -----
-        This function is always followed by :meth:`GroupedTable.aggregate`. Follow the
+        This function is always followed by :meth:`.GroupedTable.aggregate`. Follow the
         link for documentation on the aggregation step.
 
         Note
         ----
         **Using group_by**
 
-        **group_by** and its sibling methods (:meth:`MatrixTable.group_rows_by` and
-        :meth:`MatrixTable.group_cols_by`) accept both variable-length (``f(x, y, z)``)
+        **group_by** and its sibling methods (:meth:`.MatrixTable.group_rows_by` and
+        :meth:`.MatrixTable.group_cols_by`) accept both variable-length (``f(x, y, z)``)
         and keyword (``f(a=x, b=y, c=z)``) arguments.
 
         Variable-length arguments can be either strings or expressions that reference a
@@ -906,7 +906,7 @@ class Table(TableTemplate):
         expressions.
 
         **The following three usages are all equivalent**, producing a
-        :class:`GroupedTable` grouped by columns `C1` and `C2` of `table1`.
+        :class:`.GroupedTable` grouped by columns `C1` and `C2` of `table1`.
 
         First, variable-length string arguments:
 
@@ -953,15 +953,15 @@ class Table(TableTemplate):
 
         Arguments
         ---------
-        exprs : varargs of type str or :class:`hail.expr.expression.Expression`
+        exprs : varargs of type str or :class:`.Expression`
             Field names or field reference expressions.
-        named_exprs : keyword args of type :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of type :class:`.Expression`
             Field names and expressions to compute them.
 
         Returns
         -------
-        :class:`GroupedTable`
-            Grouped table; use :meth:`GroupedTable.aggregate` to complete the aggregation.
+        :class:`.GroupedTable`
+            Grouped table; use :meth:`.GroupedTable.aggregate` to complete the aggregation.
         """
         groups = []
         for e in exprs:
@@ -1002,12 +1002,12 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        named_exprs : keyword args of :class:`hail.expr.expression.Expression`
+        named_exprs : keyword args of :class:`.Expression`
             Aggregation expressions.
 
         Returns
         -------
-        :class:`Struct`
+        :class:`.Struct`
             Struct containing all results.
         """
         agg_base = self.columns[0]  # FIXME hack
@@ -1095,11 +1095,11 @@ class Table(TableTemplate):
         print(to_print)
 
     def to_hail1(self):
-        """Convert table to :class:`hail.api1.KeyTable`.
+        """Convert table to :class:`.hail.api1.KeyTable`.
 
         Returns
         -------
-        :class:`hail.api1.KeyTable`
+        :class:`.hail.api1.KeyTable`
         """
         import hail
         kt = hail.KeyTable(Env.hc(), self._jt)
@@ -1297,10 +1297,10 @@ class Table(TableTemplate):
         Notes
         -----
 
-        The :py:meth:`Table.persist` and :py:meth:`Table.cache` methods store the
+        The :meth:`.Table.persist` and :meth:`.Table.cache` methods store the
         current table on disk or in memory temporarily to avoid redundant computation
         and improve the performance of Hail pipelines. This method is not a substitution
-        for :py:meth:`Table.write`, which stores a permanent file.
+        for :meth:`.Table.write`, which stores a permanent file.
 
         Most users should use the "MEMORY_AND_DISK" storage level. See the `Spark
         documentation
@@ -1351,7 +1351,7 @@ class Table(TableTemplate):
 
         Notes
         -----
-        This method returns a list whose elements are of type :class:`Struct`. Fields
+        This method returns a list whose elements are of type :class:`.Struct`. Fields
         of these structs can be accessed similarly to fields on a table, using dot
         methods (``struct.foo``) or string indexing (``struct['foo']``).
 
@@ -1361,7 +1361,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :obj:`list` of :class:`Struct`
+        :obj:`list` of :class:`.Struct`
             List of rows.
         """
         return TArray(self.schema)._convert_to_py(self._jt.collect())
@@ -1422,7 +1422,7 @@ class Table(TableTemplate):
         This method returns a table with a new column whose name is given by
         the `name` parameter, with type ``Int64``. The value of this column is
         the integer index of each row, starting from 0. Methods that respect
-        ordering (like :py:meth:`Table.take` or :py:meth:`Table.export`) will
+        ordering (like :meth:`.Table.take` or :meth:`.Table.export`) will
         return rows in order.
 
         This method is also helpful for creating a unique integer index for
@@ -1501,8 +1501,8 @@ class Table(TableTemplate):
         This method does not need to look at all the data in the table, and
         allows for fast queries of the start of the table.
 
-        This method is equivalent to :py:meth:`Table.head` followed by
-        :py:meth:`Table.collect`.
+        This method is equivalent to :meth:`.Table.head` followed by
+        :meth:`.Table.collect`.
 
         Parameters
         ----------
@@ -1511,7 +1511,7 @@ class Table(TableTemplate):
 
         Returns
         -------
-        :obj:`list` of :class:`Struct`
+        :obj:`list` of :class:`.Struct`
             List of row structs.
         """
 
@@ -1652,7 +1652,7 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        expr : :class:`hail.expr.expression.BooleanExpression`
+        expr : :class:`.BooleanExpression`
             Expression to test.
 
         Returns
@@ -1683,7 +1683,7 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        expr : :class:`hail.expr.expression.BooleanExpression`
+        expr : :class:`.BooleanExpression`
             Boolean expression.
 
         Returns
@@ -1740,14 +1740,14 @@ class Table(TableTemplate):
 
         Notes
         -----
-        Expands the following types: :class:`TLocus`, :class:`TInterval`,
-        :class:`TAltAllele`, :class:`TVariant`, :class:`TVariant`,
-        :class:`TSet`, :class:`TDict`.
+        Expands the following types: :class:`.TLocus`, :class:`.TInterval`,
+        :class:`.TAltAllele`, :class:`.TVariant`, :class:`.TVariant`,
+        :class:`.TSet`, :class:`.TDict`.
 
         The only types that will remain after this method are:
-        :class:`TBoolean`, :class:`TInt32`, :class:`TInt64`,
-        :class:`TFloat64`, :class:`TFloat32`, :class:`TArray`,
-        :class:`TStruct`.
+        :class:`.TBoolean`, :class:`.TInt32`, :class:`.TInt64`,
+        :class:`.TFloat64`, :class:`.TFloat32`, :class:`.TArray`,
+        :class:`.TStruct`.
 
         Returns
         -------
@@ -1843,7 +1843,7 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        exprs : varargs of :class:`Ascending` or :class:`Descending` or :class:`hail.expr.expression.Expression` or :obj:`str`
+        exprs : varargs of :class:`.Ascending` or :class:`.Descending` or :class:`.Expression` or :obj:`str`
             Fields to sort by.
 
         Returns
@@ -1914,7 +1914,7 @@ class Table(TableTemplate):
             | Caroline |    10 | []                       |
             +----------+-------+--------------------------+
 
-        :meth:`Table.explode` can be used to produce a distinct row for each
+        :meth:`.Table.explode` can be used to produce a distinct row for each
         element in the `Children` field:
 
         .. doctest::
@@ -1943,7 +1943,7 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        field : :obj:`str` or :class:`hail.expr.expression.Expression`
+        field : :obj:`str` or :class:`.Expression`
             Top-level field name or expression.
 
         Returns

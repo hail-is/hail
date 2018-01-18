@@ -118,7 +118,7 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     Warning
     -------
-    :meth:`linreg` considers the same set of columns (i.e., samples, points) for every response variable and row,
+    :meth:`.linreg` considers the same set of columns (i.e., samples, points) for every response variable and row,
     namely those columns for which **all** response variables and covariates are defined.
     For each row, missing values of ``x`` are mean-imputed over these columns.
 
@@ -157,11 +157,11 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     Parameters
     ----------
-    ys : :obj:`list` of :class:`hail.expr.expression.Expression`
+    ys : :obj:`list` of :class:`.Expression`
         One or more response expressions.
-    x : :class:`hail.expr.expression.Expression`
+    x : :class:`.Expression`
         Input variable.
-    covariates : :obj:`list` of :class:`hail.expr.expression.Expression`
+    covariates : :obj:`list` of :class:`.Expression`
         Covariate expressions.
     root : :obj:`str`
         Name of resulting row-indexed field.
@@ -239,11 +239,11 @@ def ld_matrix(dataset, force_local=False):
         The matrix returned by this function can easily be very large with most entries near zero
         (for example, entries between variants on different chromosomes in a homogenous population).
         Most likely you'll want to reduce the number of variants with methods like
-        :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, or :py:meth:`.ld_prune` before
+        :meth:`.sample_variants`, :meth:`.filter_variants_expr`, or :meth:`.ld_prune` before
         calling this unless your dataset is very small.
 
     :param dataset: Variant-keyed dataset.
-    :type dataset: :py:class:`.MatrixTable`
+    :type dataset: :class:`.MatrixTable`
 
     :param bool force_local: If true, the LD matrix is computed using local matrix multiplication on the Spark driver.
         This may improve performance when the genotype matrix is small enough to easily fit in local memory.
@@ -251,7 +251,7 @@ def ld_matrix(dataset, force_local=False):
         exceeds :math:`5000^2` and locally otherwise.
 
     :return: Matrix of r values between pairs of variants.
-    :rtype: :py:class:`.LDMatrix`
+    :rtype: :class:`.LDMatrix`
     """
 
     jldm = Env.hail().methods.LDMatrix.apply(require_biallelic(dataset, 'ld_matrix')._jvds, force_local)
@@ -761,7 +761,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
         PL: Array[!Int32].
       }
 
-    For generic genotype schema, use :meth:`methods.split_multi`.
+    For generic genotype schema, use :meth:`.split_multi`.
 
     Examples
     --------
@@ -853,7 +853,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     **New Fields**
 
-    :meth:`hail.methods.split_multi_hts` adds the following fields:
+    :meth:`.split_multi_hts` adds the following fields:
 
      - `wasSplit` (*Boolean*) -- ``True`` if this variant was originally
        multiallelic, otherwise ``False``.
@@ -959,7 +959,7 @@ def grm(dataset):
 
     Returns
     -------
-    :class:`genetics.KinshipMatrix`
+    :class:`.genetics.KinshipMatrix`
         Genetic Relatedness Matrix for all samples.
     """
 

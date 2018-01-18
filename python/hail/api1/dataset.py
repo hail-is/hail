@@ -20,17 +20,17 @@ def require_biallelic(func, vds, *args, **kwargs):
 class VariantDataset(HistoryMixin):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
-    Variant datasets may be generated from other formats using the :py:class:`hail.api1.context.HailContext` import methods,
-    constructed from a variant-keyed :py:class:`~hail.KeyTable` using :py:meth:`.VariantDataset.from_table`,
-    and simulated using :py:meth:`~hail.api1.HailContext.balding_nichols_model`.
+    Variant datasets may be generated from other formats using the :class:`.hail.api1.context.HailContext` import methods,
+    constructed from a variant-keyed :class:`~hail.KeyTable` using :meth:`.VariantDataset.from_table`,
+    and simulated using :meth:`~hail.api1.HailContext.balding_nichols_model`.
 
-    Once a variant dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`,
-    use :py:meth:`~hail.api1.HailContext.read` to load the variant dataset into the environment.
+    Once a variant dataset has been written to disk with :meth:`~hail.VariantDataset.write`,
+    use :meth:`~hail.api1.HailContext.read` to load the variant dataset into the environment.
 
     >>> vds = hc1.read("data/example.vds")
 
     :ivar hc: Hail Context.
-    :vartype hc: :class:`hail.api1.context.HailContext`
+    :vartype hc: :class:`.hail.api1.context.HailContext`
     """
 
     def __init__(self, hc, jvds):
@@ -65,7 +65,7 @@ class VariantDataset(HistoryMixin):
 
         **Notes**
 
-        The key table must be keyed by one column of type :py:class:`.TVariant`.
+        The key table must be keyed by one column of type :class:`.TVariant`.
 
         All columns in the key table become variant annotations in the result.
         For example, a key table with key column ``v`` (*Variant*) and column
@@ -73,10 +73,10 @@ class VariantDataset(HistoryMixin):
         ``va.gene`` variant annotation.
 
         :param table: Variant-keyed table.
-        :type table: :py:class:`.KeyTable`
+        :type table: :class:`.KeyTable`
 
         :return: Sites-only variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
         jvds = scala_object(Env.hail().variant, 'MatrixTable').fromTable(table._jkt)
         return VariantDataset(table.hc, jvds)
@@ -226,16 +226,16 @@ class VariantDataset(HistoryMixin):
 
         **Notes**
 
-        This method is similar to :py:meth:`.annotate_variants_expr`. :py:meth:`.annotate_alleles_expr_hts` dynamically splits multi-allelic sites,
+        This method is similar to :meth:`.annotate_variants_expr`. :meth:`.annotate_alleles_expr_hts` dynamically splits multi-allelic sites,
         evaluates each expression on each split allele separately, and for each expression annotates with an array with one element per alternate allele. In the splitting, genotypes are downcoded and each alternate allele is represented
-        using its minimal representation (see :py:meth:`split_multi` for more details).
+        using its minimal representation (see :meth:`split_multi` for more details).
 
 
         :param expr: Annotation expression.
         :type expr: str or list of str
 
         :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         if self.genotype_schema != Type.hts_schema():
@@ -270,16 +270,16 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         **Examples**
 
-        Convert the genotype schema to a :py:class:`~hail.expr.TStruct` with two fields ``GT`` and ``CASE_HET``:
+        Convert the genotype schema to a :class:`~hail.expr.TStruct` with two fields ``GT`` and ``CASE_HET``:
 
         >>> vds_result = vds.annotate_genotypes_expr('g = {GT: g.GT, CASE_HET: sa.pheno.isCase && g.GT.isHet()}')
 
         **Notes**
 
-        :py:meth:`~hail.VariantDataset.annotate_genotypes_expr` evaluates the expression given by ``expr`` and assigns
+        :meth:`~hail.VariantDataset.annotate_genotypes_expr` evaluates the expression given by ``expr`` and assigns
         the result of the right hand side to the annotation path specified by the left-hand side (must
-        begin with ``g``). This is analogous to :py:meth:`~hail.VariantDataset.annotate_variants_expr` and
-        :py:meth:`~hail.VariantDataset.annotate_samples_expr` where the annotation paths are ``va`` and ``sa`` respectively.
+        begin with ``g``). This is analogous to :meth:`~hail.VariantDataset.annotate_variants_expr` and
+        :meth:`~hail.VariantDataset.annotate_samples_expr` where the annotation paths are ``va`` and ``sa`` respectively.
 
         ``expr`` is in genotype context so the following symbols are in scope:
 
@@ -297,7 +297,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :type expr: str or list of str
 
         :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         if isinstance(expr, list):
@@ -331,7 +331,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :type expr: str or list of str
 
         :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         if isinstance(expr, list):
@@ -368,10 +368,10 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param annotation: annotation to add to global
 
         :param annotation_type: Hail type of annotation
-        :type annotation_type: :py:class:`.Type`
+        :type annotation_type: :class:`.Type`
 
         :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         annotation_type._typecheck(annotation)
@@ -590,10 +590,10 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                 sa.annotations.toKeep3 = table.toKeep3'''
 
         Finally, for more information about importing key tables from text,
-        see the documentation for :py:meth:`hail.api1.HailContext.import_table`.
+        see the documentation for :meth:`hail.api1.HailContext.import_table`.
 
         :param table: Key table.
-        :type table: :py:class:`.KeyTable`
+        :type table: :class:`.KeyTable`
 
         :param root: Sample annotation path to store text table. (This or ``expr`` required).
         :type root: str or None
@@ -607,7 +607,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param bool product: Join with all matching keys (see note).
 
         :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
         if vds_key:
             vds_key = wrap_to_list(vds_key)
@@ -795,10 +795,10 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                 va.annotations.toKeep3 = table.toKeep3'''
 
         Finally, for more information about importing key tables from text,
-        see the documentation for :py:meth:`hail.api1.HailContext.import_table`.
+        see the documentation for :meth:`hail.api1.HailContext.import_table`.
 
         :param table: Key table.
-        :type table: :py:class:`.KeyTable`
+        :type table: :class:`.KeyTable`
 
         :param root: Variant annotation path to store text table. (This or ``expr`` required).
         :type root: str or None
@@ -812,7 +812,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param bool product: Join with all matching keys (see note).
 
         :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
         if vds_key:
             vds_key = wrap_to_list(vds_key)
@@ -880,16 +880,16 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         It is possible that an unsplit variant dataset contains no multiallelic
         variants, so ignore any warnings Hail prints if you know that to be the
-        case.  Otherwise, run :py:meth:`~hail.VariantDataset.split_multi` before :py:meth:`~hail.VariantDataset.annotate_variants_vds`.
+        case.  Otherwise, run :meth:`~hail.VariantDataset.split_multi` before :meth:`~hail.VariantDataset.annotate_variants_vds`.
 
-        :param :py:class:`~hail.VariantDataset` other: Variant dataset to annotate with.
+        :param :class:`~hail.VariantDataset` other: Variant dataset to annotate with.
 
         :param str root: Sample annotation path to add variant annotations.
 
         :param str expr: Annotation expression.
 
         :return: Annotated variant dataset.
-        :rtype: :py:class:`~hail.VariantDataset`
+        :rtype: :class:`~hail.VariantDataset`
         '''
 
         jvds = self._jvds.annotateVariantsVDS(other._jvds, joption(root), joption(expr))
@@ -928,13 +928,13 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         **Notes**
 
         Annotations in the database are bi-allelic, so splitting multi-allelic variants in the VDS before using this
-        method is recommended to capture all appropriate annotations from the database. To do this, run :py:meth:`split_multi`
+        method is recommended to capture all appropriate annotations from the database. To do this, run :meth:`split_multi`
         prior to annotating variants with this method:
 
         >>> vds = vds.split_multi_hts().annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
 
         To add VEP annotations, or to add gene-level annotations without a predefined gene symbol for each variant, the
-        :py:meth:`~.VariantDataset.annotate_variants_db` method runs Hail's :py:meth:`~.VariantDataset.vep` method on the
+        :meth:`~.VariantDataset.annotate_variants_db` method runs Hail's :meth:`~.VariantDataset.vep` method on the
         VDS. This means that your cluster must be properly initialized to run VEP.
 
         .. warning::
@@ -951,7 +951,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :type gene_key: str
 
         :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         # import modules needed by this function
@@ -1136,7 +1136,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
     def cache(self):
         """Mark this variant dataset to be cached in memory.
 
-        :py:meth:`~hail.VariantDataset.cache` is the same as :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.
+        :meth:`~hail.VariantDataset.cache` is the same as :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.
 
         :rtype: :class:`.VariantDataset`
         """
@@ -1206,9 +1206,9 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
            - **concordance** (*Array[Array[Long]]*) -- Array of concordance per state on left and right,
              matches the structure of the global summary defined above.
 
-        The two key tables produced by the concordance method can be queried with :py:meth:`.KeyTable.query`,
-        exported to text with :py:meth:`.KeyTable.export`, and used to annotate a variant dataset with
-        :py:meth:`.VariantDataset.annotate_variants_table`, among other things.
+        The two key tables produced by the concordance method can be queried with :meth:`.KeyTable.query`,
+        exported to text with :meth:`.KeyTable.export`, and used to annotate a variant dataset with
+        :meth:`.VariantDataset.annotate_variants_table`, among other things.
 
         In these tables, the column **nDiscordant** is provided as a convenience, because this is often one
         of the most useful concordance statistics. This value is the number of genotypes
@@ -1225,7 +1225,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         :return: The global concordance statistics, a key table with sample concordance
             statistics, and a key table with variant concordance statistics.
-        :rtype: (list of list of int, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
+        :rtype: (list of list of int, :class:`.KeyTable`, :class:`.KeyTable`)
         """
 
         right = right._verify_biallelic("concordance, right")
@@ -1264,7 +1264,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         """Remove duplicate variants.
 
         :return: Deduplicated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.deduplicate())
@@ -1290,7 +1290,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param int seed: Random seed.
 
         :return: Downsampled variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
@@ -1317,7 +1317,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param str key: A path to a sample annotation. Must be prefixed by 'sa'.
 
         :return: Variant dataset exploded along samples by the given sample annotation.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.explodeSamples(key))
@@ -1344,7 +1344,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param str key: A path to a sample annotation. Must be prefixed by 'va'.
 
         :return: Variant dataset exploded along variants by the given variant annotation.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.explodeVariants(key))
@@ -1388,7 +1388,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         - 3 probabilities per sample ``(pHomRef, pHet, pHomVar)``.
         - Any filtered genotypes will be output as ``(0.0, 0.0, 0.0)``.
         - If the input data contained Phred-scaled likelihoods, the probabilities in the GEN file will be the normalized genotype probabilities assuming a uniform prior.
-        - If the input data did not have genotype probabilities such as data imported using :py:meth:`~hail.api1.HailContext.import_plink`, all genotype probabilities will be ``(0.0, 0.0, 0.0)``.
+        - If the input data did not have genotype probabilities such as data imported using :meth:`~hail.api1.HailContext.import_plink`, all genotype probabilities will be ``(0.0, 0.0, 0.0)``.
 
         The sample file has 3 columns:
 
@@ -1491,7 +1491,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         **Notes**
 
-        :py:meth:`~hail.VariantDataset.export_vcf` writes the VDS to disk in VCF format as described in the `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
+        :meth:`~hail.VariantDataset.export_vcf` writes the VDS to disk in VCF format as described in the `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
 
         Use the ``.vcf.bgz`` extension rather than ``.vcf`` in the output file name for `blocked GZIP <http://www.htslib.org/doc/tabix.html>`__ compression.
 
@@ -1505,7 +1505,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         annotations are exported.
 
         The FORMAT field is generated from the genotype schema, which
-        must be a :py:class:`~hail.expr.TStruct`.  There is a FORMAT
+        must be a :class:`~hail.expr.TStruct`.  There is a FORMAT
         field for each field of the struct.
 
         INFO and FORMAT fields may be generated from Struct fields of type Call, Int32, Float32, Float64, or String.
@@ -1527,14 +1527,14 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         will have empty Description fields and the Number and Type fields will be determined from their corresponding Hail types.
         To add a desired Description, Number, and/or Type to a FORMAT or INFO field or to specify FILTER lines, use the
         ``metadata`` option to supply a dictionary with the relevant information.
-        See :py:class:`~hail.api1.HailContext.get_vcf_metadata` for how this dictionary should be structured.
+        See :class:`~hail.api1.HailContext.get_vcf_metadata` for how this dictionary should be structured.
 
 
         The *example_out.vcf* header will *not* contain lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
 
         .. caution::
 
-            If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run :py:meth:`~hail.VariantDataset.variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
+            If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run :meth:`~hail.VariantDataset.variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
 
             >>> (vds.filter_genotypes('g.GQ >= 20')
             ...     .variant_qc()
@@ -1552,7 +1552,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
             a set of VCF files (one per partition) without the header. If None, concatenate the header and all partitions into one VCF file.
         :type parallel: str or None
 
-        :param metadata: Dictionary with information to fill in the VCF header. See :py:class:`~hail.api1.HailContext.get_vcf_metadata` for an example.
+        :param metadata: Dictionary with information to fill in the VCF header. See :class:`~hail.api1.HailContext.get_vcf_metadata` for an example.
         :type metadata: (dict of str to (dict of str to (dict of str to str))) or None
         """
 
@@ -1603,7 +1603,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         **Example**
 
-        :py:meth:`~hail.VariantDataset.filter_alleles_hts`, which filters
+        :meth:`~hail.VariantDataset.filter_alleles_hts`, which filters
         alleles with zero allele count for the HTS schema, supports
         two modes: downcode and subset.  Subset is implemented as:
 
@@ -1703,7 +1703,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param bool keep_star: If True, keep variants where the only unfiltered alternate alleles are ``*`` alleles.
 
         :return: Filtered variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
 
         """
 
@@ -1722,8 +1722,8 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
     def filter_alleles_hts(self, expr, variant_expr='', subset=True,
                            keep=True, left_aligned=False, keep_star=False):
         """Filter a user-defined set of alternate alleles for each variant for
-        :py:meth:`.VariantDataset.genotype_schema`
-        :py:class:`~hail.expr.TGenotype` or the HTS schema:
+        :meth:`.VariantDataset.genotype_schema`
+        :class:`~hail.expr.TGenotype` or the HTS schema:
 
         .. code-block:: text
 
@@ -1736,7 +1736,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
           }
 
         For generic genotype schema, use
-        :py:meth:`~hail.VariantDataset.filter_alleles`.
+        :meth:`~hail.VariantDataset.filter_alleles`.
 
         If all alternate alleles of a variant are filtered, the
         variant itself is filtered.  ``expr`` is evaluated for each
@@ -1761,7 +1761,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         **Notes**
 
-        :py:meth:`~hail.VariantDataset.filter_alleles_hts` implements two algorithms for filtering alleles: subset and downcode. We will illustrate their
+        :meth:`~hail.VariantDataset.filter_alleles_hts` implements two algorithms for filtering alleles: subset and downcode. We will illustrate their
         behavior on the example genotype below when filtering the first alternate allele (allele 1) at a site with 1 reference
         allele and 2 alternate alleles.
 
@@ -1815,7 +1815,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         to occurances of the reference allele (e.g. 1 -> 0 in our example). So the depths of filtered alleles in the AD field
         are added to the depth of the reference allele. Where downcodeing filtered alleles merges distinct genotypes, the minimum PL is used (since PL is on a log scale, this roughly corresponds to adding probabilities). The PLs
         are then re-normalized (shifted) so that the most likely genotype has a PL of 0, and GT is set to this genotype.
-        If an allele is filtered, this algorithm acts similarly to :py:meth:`~hail.VariantDataset.split_multi`.
+        If an allele is filtered, this algorithm acts similarly to :meth:`~hail.VariantDataset.split_multi`.
 
         The downcoding algorithm would produce the following:
 
@@ -1872,7 +1872,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param bool keepStar: If true, keep variants where the only allele left is a ``*`` allele.
 
         :return: Filtered variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
 
         """
 
@@ -1972,7 +1972,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         producing a sites-only variant dataset.
 
         :return: Sites-only variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.dropSamples())
@@ -2021,7 +2021,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param bool keep: Keep samples where ``expr`` evaluates to true.
 
         :return: Filtered variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         jvds = self._jvds.filterSamplesExpr(expr, keep)
@@ -2050,7 +2050,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param bool keep: If true, keep samples in ``samples``, otherwise remove them.
 
         :return: Filtered variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.filterSamplesList(samples, keep))
@@ -2103,7 +2103,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         >>> vds_result = vds.drop_variants()
 
         :return: Samples-only variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.dropVariants())
@@ -2149,7 +2149,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param bool keep: Keep variants where ``expr`` evaluates to true.
 
         :return: Filtered variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         jvds = self._jvds.filterVariantsExpr(expr, keep)
@@ -2198,7 +2198,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         that don't overlap any supplied interval will not be loaded at all.  This property
         enables ``filter_intervals`` to be used for reasonably low-latency queries of small ranges
         of the genome, even on large datasets. Suppose we are interested in variants on
-        chromosome 15 between 100000 and 200000. This implementation with :py:meth:`.filter_variants_expr`
+        chromosome 15 between 100000 and 200000. This implementation with :meth:`.filter_variants_expr`
         may come to mind first:
 
         >>> vds_filtered = vds.filter_variants_expr('v.contig == "15" && v.start >= 100000 && v.start < 200000')
@@ -2209,8 +2209,8 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         .. note::
 
-            A :py:class:`.KeyTable` keyed by interval can be used to filter a dataset efficiently as well.
-            See the documentation for :py:meth:`.filter_variants_table` for an example. This is useful for
+            A :class:`.KeyTable` keyed by interval can be used to filter a dataset efficiently as well.
+            See the documentation for :meth:`.filter_variants_table` for an example. This is useful for
             using interval files to filter a dataset.
 
         :param intervals: Interval(s) to keep or remove.
@@ -2220,7 +2220,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
                           an interval if ``False``.
 
         :return: Filtered variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         intervals = wrap_to_list(intervals)
@@ -2251,12 +2251,12 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         or more variants, even on large datasets.
 
         :param variants: List of variants to keep or remove.
-        :type variants: list of :py:class:`~hail.representation.Variant`
+        :type variants: list of :class:`~hail.representation.Variant`
 
         :param bool keep: If true, keep variants in ``variants``, otherwise remove them.
 
         :return: Filtered variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(
@@ -2307,12 +2307,12 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         on finding an interval in the table that contains the variant's chromosome and position.
 
         :param table: Key table object.
-        :type table: :py:class:`.KeyTable`
+        :type table: :class:`.KeyTable`
 
         :param bool keep: If true, keep only matches in ``table``, otherwise remove them.
 
         :return: Filtered variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
 
         """
 
@@ -2326,7 +2326,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         """Return global annotations as a Python object.
 
         :return: Dataset global annotations.
-        :rtype: :py:class:`~hail.representation.Struct`
+        :rtype: :class:`~hail.representation.Struct`
         """
         if self._globals is None:
             self._globals = self.global_schema._convert_to_py(self._jvds.globalAnnotation())
@@ -2361,7 +2361,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
           G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
 
         :return: Genetic Relatedness Matrix for all samples.
-        :rtype: :py:class:`KinshipMatrix`
+        :rtype: :class:`.KinshipMatrix`
         """
 
         print("Computing GRM...")
@@ -2409,7 +2409,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param str agg_expr: Expression for aggregating over samples.
 
         :return: Variant dataset keyed by key_expr instead of sample.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.groupSamplesBy(key_expr, agg_expr))
@@ -2438,7 +2438,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param str agg_expr: Expression for aggregating over variants.
 
         :return: Variant dataset keyed by key_expr instead of variant.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.groupVariantsBy(key_expr, agg_expr))
@@ -2457,7 +2457,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         requires the GT field.
 
         :return: Variant dataset with no genotype metadata.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return self.annotate_genotypes_expr('g = {GT: g.GT}')
@@ -2480,7 +2480,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param int n: Number of variants to include.
 
         :return: Variant dataset subsetted to the first n variants.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.head(n))
@@ -2517,12 +2517,12 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         The implementation is based on the IBD algorithm described in the `PLINK
         paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`__.
 
-        :py:meth:`~hail.VariantDataset.ibd` requires the dataset to be
+        :meth:`~hail.VariantDataset.ibd` requires the dataset to be
         bi-allelic and does not perform LD pruning. Linkage
         disequilibrium may bias the result so consider filtering
         variants first.
 
-        The resulting :py:class:`.KeyTable` entries have the type: *{ i: String,
+        The resulting :class:`.KeyTable` entries have the type: *{ i: String,
         j: String, ibd: { Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double },
         ibs0: Long, ibs1: Long, ibs2: Long }*. The key list is: `*i: String, j:
         String*`.
@@ -2553,10 +2553,10 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
             not be included in the output. Must be in [0,1].
         :type max: float or None
 
-        :return: A :py:class:`.KeyTable` mapping pairs of samples to their IBD
+        :return: A :class:`.KeyTable` mapping pairs of samples to their IBD
             statistics
 
-        :rtype: :py:class:`.KeyTable`
+        :rtype: :class:`.KeyTable`
 
         """
 
@@ -2630,7 +2630,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
             If None, MAF will be computed.
 
         :return: Annotated dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         jvds = Env.hail().methods.ImputeSexPlink.apply(self._jvds, maf_threshold, include_par, female_threshold, male_threshold, joption(pop_freq))
@@ -2651,10 +2651,10 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         The datasets must have distinct samples, the same sample schema, and the same split status (both split or both multi-allelic).
 
         :param right: right-hand variant dataset
-        :type right: :py:class:`.VariantDataset`
+        :type right: :class:`.VariantDataset`
 
         :return: Joined variant dataset
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, self._jvds.unionCols(right._jvds))
@@ -2763,16 +2763,16 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
             {\\rho}_{x,y} = \\frac{\\mathrm{Cov}(X,Y)}{\\sigma_X \\sigma_Y}
 
 
-        :py:meth:`.ld_prune` with default arguments is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``.
+        :meth:`.ld_prune` with default arguments is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``.
         The list of pruned variants returned by Hail and PLINK will differ because Hail mean-imputes missing values and tests pairs of variants in a different order than PLINK.
 
-        Be sure to provide enough disk space per worker because :py:meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`__ up to 3 copies of the data to both memory and disk.
+        Be sure to provide enough disk space per worker because :meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`__ up to 3 copies of the data to both memory and disk.
         The amount of disk space required will depend on the size and minor allele frequency of the input data and the prune parameters ``r2`` and ``window``. The number of bytes stored in memory per variant is about ``nSamples / 4 + 50``.
 
         .. warning::
 
-            The variants in the pruned set are not guaranteed to be identical each time :py:meth:`.ld_prune` is run. We recommend running :py:meth:`.ld_prune` once and exporting the list of LD pruned variants using
-            :py:meth:`.variants_table` and :py:meth:`.KeyTable.export` for future use.
+            The variants in the pruned set are not guaranteed to be identical each time :meth:`.ld_prune` is run. We recommend running :meth:`.ld_prune` once and exporting the list of LD pruned variants using
+            :meth:`.variants_table` and :meth:`.KeyTable.export` for future use.
 
         :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
 
@@ -2783,7 +2783,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param int memory_per_core: Total amount of memory available for each core in MB. If unsure, use the default value.
 
         :return: Variant dataset filtered to those variants which remain after LD pruning.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         jvds = Env.hail().methods.LDPrune.apply(self._jvds, num_cores, r2, window, memory_per_core)
@@ -2821,13 +2821,13 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
             The matrix returned by this function can easily be very large with most entries near zero
             (for example, entries between variants on different chromosomes in a homogenous population).
             Most likely you'll want to reduce the number of variants with methods like
-            :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, or :py:meth:`.ld_prune` before
+            :meth:`.sample_variants`, :meth:`.filter_variants_expr`, or :meth:`.ld_prune` before
             calling this unless your dataset is very small.
 
         :param bool force_local: If true, the LD matrix is computed using local matrix multiplication on the Spark driver. This may improve performance when the genotype matrix is small enough to easily fit in local memory. If false, the LD matrix is computed using distributed matrix multiplication if the number of genotypes exceeds :math:`5000^2` and locally otherwise.
 
         :return: Matrix of r values between pairs of variants.
-        :rtype: :py:class:`.LDMatrix`
+        :rtype: :class:`.LDMatrix`
         """
 
         jldm = Env.hail().methods.LDMatrix.apply(self._jvds, force_local)
@@ -2846,7 +2846,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         .. warning::
 
-            :py:meth:`.linreg` uses the same set of samples for each phenotype,
+            :meth:`.linreg` uses the same set of samples for each phenotype,
             namely the set of samples for which **all** phenotypes and covariates are defined.
 
         **Annotations**
@@ -2875,7 +2875,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param int variant_block_size: Number of variant regressions to perform simultaneously.  Larger block size requires more memmory.
 
         :return: Variant dataset with linear regression variant annotations.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
 
         """
 
@@ -2904,7 +2904,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Examples**
 
-        Suppose the variant dataset saved at *data/example_lmmreg.vds* has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
+        Suppose the variant dataset saved at *data/example_lmmreg.vds* has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :meth:`.lmmreg` function in
 
         >>> assoc_vds = hc1.read("data/example_lmmreg.vds")
         >>> kinship_matrix = assoc_vds.filter_variants_expr('va.useInKinship').rrm()
@@ -2925,7 +2925,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         - Set the ``global_root`` argument to change the global annotation root in Step 4.
         - Set the ``va_root`` argument to change the variant annotation root in Step 5.
 
-        :py:meth:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on whether :math:`\delta` is set or fit.
+        :meth:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on whether :math:`\delta` is set or fit.
 
         +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | Annotation                                   | Type                 | Value                                                                                                                                                |
@@ -2961,7 +2961,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         These global annotations are also added to ``hail.log``, with the ranked evals and :math:`\delta` grid with values in .tsv tabular form.  Use ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
 
-        If Step 5 is performed, :py:meth:`.lmmreg` also adds four linear regression variant annotations.
+        If Step 5 is performed, :meth:`.lmmreg` also adds four linear regression variant annotations.
 
         +------------------------+--------+-------------------------------------------------------------------------+
         | Annotation             | Type   | Value                                                                   |
@@ -2987,15 +2987,15 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Performance**
 
-        Hail's initial version of :py:meth:`.lmmreg` scales beyond 15k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. Analysts have used :py:meth:`.lmmreg` in research to compute kinship from 100k common variants and test 32 million non-rare variants on 8k whole genomes in about 10 minutes on `Google cloud <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__.
+        Hail's initial version of :meth:`.lmmreg` scales beyond 15k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. Analysts have used :meth:`.lmmreg` in research to compute kinship from 100k common variants and test 32 million non-rare variants on 8k whole genomes in about 10 minutes on `Google cloud <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__.
 
-        While :py:meth:`.lmmreg` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix>`__ (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`__, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`__. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
+        While :meth:`.lmmreg` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix>`__ (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`__, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`__. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
 
         Given the eigendecomposition, fitting the global model (Step 4) takes on the order of a few seconds on master. Association testing (Step 5) is fully distributed by variant with per-variant time complexity that is completely independent of the number of sample covariates and dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below, which we accelerate with a sparse representation of :math:`v`.  The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor. For example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of memory on a 16-core worker node with two 8-core executors. So for large :math:`n`, we recommend using a high-memory configuration such as ``highmem`` workers.
 
         **Linear mixed model**
 
-        :py:meth:`.lmmreg` estimates the genetic proportion of residual phenotypic variance (narrow-sense heritability) under a kinship-based linear mixed model, and then optionally tests each variant for association using the likelihood ratio test. Inference is exact.
+        :meth:`.lmmreg` estimates the genetic proportion of residual phenotypic variance (narrow-sense heritability) under a kinship-based linear mixed model, and then optionally tests each variant for association using the likelihood ratio test. Inference is exact.
 
         We first describe the sample-covariates-only model used to estimate heritability, which we simply refer to as the *global model*. With :math:`n` samples and :math:`c` sample covariates, we define:
 
@@ -3085,18 +3085,18 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Kinship Matrix**
 
-        FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order.
+        FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :meth:`~hail.VariantDataset.rrm`. However, any instance of :class:`.KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order.
 
         **Low-rank approximation of kinship for improved performance**
 
-        :py:meth:`.lmmreg` can implicitly use a low-rank approximation of the kinship matrix to more rapidly fit delta and the statistics for each variant. The computational complexity per variant is proportional to the number of eigenvectors used. This number can be specified in two ways. Specify the parameter ``n_eigs`` to use only the top ``n_eigs`` eigenvectors. Alternatively, specify ``dropped_variance_fraction`` to use as many eigenvectors as necessary to capture all but at most this fraction of the sample variance (also known as the trace, or the sum of the eigenvalues). For example, ``dropped_variance_fraction=0.01`` will use the minimal number of eigenvectors to account for 99% of the sample variance. Specifying both parameters will apply the more stringent (fewest eigenvectors) of the two.
+        :meth:`.lmmreg` can implicitly use a low-rank approximation of the kinship matrix to more rapidly fit delta and the statistics for each variant. The computational complexity per variant is proportional to the number of eigenvectors used. This number can be specified in two ways. Specify the parameter ``n_eigs`` to use only the top ``n_eigs`` eigenvectors. Alternatively, specify ``dropped_variance_fraction`` to use as many eigenvectors as necessary to capture all but at most this fraction of the sample variance (also known as the trace, or the sum of the eigenvalues). For example, ``dropped_variance_fraction=0.01`` will use the minimal number of eigenvectors to account for 99% of the sample variance. Specifying both parameters will apply the more stringent (fewest eigenvectors) of the two.
 
         **Further background**
 
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
 
         :param kinshipMatrix: Kinship matrix to be used.
-        :type kinshipMatrix: :class:`KinshipMatrix`
+        :type kinshipMatrix: :class:`.KinshipMatrix`
 
         :param str y: Response sample annotation.
 
@@ -3123,7 +3123,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param float dropped_variance_fraction: Upper bound on fraction of sample variance lost by dropping eigenvectors with small eigenvalues.
 
         :return: Variant dataset with linear mixed regression annotations.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         jvds = self._jvds.lmmreg(kinshipMatrix._jkm, y, x, jarray(Env.jvm().java.lang.String, covariates),
@@ -3151,7 +3151,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Notes**
 
-        The :py:meth:`~hail.VariantDataset.logreg` method performs,
+        The :meth:`~hail.VariantDataset.logreg` method performs,
         for each variant, a significance test of the genotype in
         predicting a binary (case-control) phenotype based on the
         logistic regression model. The phenotype type must either be numeric (with all
@@ -3256,7 +3256,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param str root: Variant annotation path to store result of logistic regression.
 
         :return: Variant dataset with logistic regression variant annotations.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         jvds = self._jvds.logreg(test, y, x, jarray(Env.jvm().java.lang.String, covariates), root)
@@ -3467,7 +3467,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param bool as_array: If true, stores KeyTable rows as type Array rather than Struct
 
         :return: Tuple of: list of eigenvalues, KeyTable of scores, KeyTable of loadings
-        :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
+        :rtype: (list of float, :class:`.KeyTable`, :class:`.KeyTable`)
         """
 
         vds = (self.annotate_variants_expr(
@@ -3548,7 +3548,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param bool as_array: If true, stores KeyTable rows as type Array rather than Struct
 
         :return: Tuple of: list of eigenvalues, KeyTable of scores, KeyTable of loadings
-        :rtype: (list of float, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
+        :rtype: (list of float, :class:`.KeyTable`, :class:`.KeyTable`)
         """
 
         r = Env.hail().methods.PCA.apply(self._jvds, entry_expr, k, compute_loadings, as_array)
@@ -3594,7 +3594,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         Calculate values as above, excluding sample-pairs with kinship less
         than 0.1. This is more efficient than producing the full key table and
-        filtering using :py:meth:`~hail.KeyTable.filter`.
+        filtering using :meth:`~hail.KeyTable.filter`.
 
         >>> rel = vds.pc_relate(5, 0.01, min_kinship=0.1)
 
@@ -3717,7 +3717,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         implementation is available in the `GENESIS Bioconductor package
         <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`_ .
 
-        :py:meth:`~hail.VariantDataset.pc_relate` differs from the reference
+        :meth:`~hail.VariantDataset.pc_relate` differs from the reference
         implementation in a couple key ways:
 
          - the principal components analysis does not use an unrelated set of
@@ -3767,7 +3767,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
            PCRelate are often too noisy to reliably distinguish these pairs from
            higher-degree-relative-pairs or unrelated pairs.
 
-        The resulting :py:class:`.KeyTable` entries have the type: *{ i: String,
+        The resulting :class:`.KeyTable` entries have the type: *{ i: String,
         j: String, kin: Double, k2: Double, k1: Double, k0: Double }*. The key
         list is: `*i: String, j: String*`.
 
@@ -3794,9 +3794,9 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
                                zero, 'all' computes the kinship statistic and
                                all three identity-by-descent statistics.
 
-        :return: A :py:class:`.KeyTable` mapping pairs of samples to estimations
+        :return: A :class:`.KeyTable` mapping pairs of samples to estimations
                  of their kinship and identity-by-descent zero, one, and two.
-        :rtype: :py:class:`.KeyTable`
+        :rtype: :class:`.KeyTable`
 
         """
 
@@ -3818,11 +3818,11 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Notes**
 
-        The :py:meth:`~hail.VariantDataset.persist` and :py:meth:`~hail.VariantDataset.cache` methods 
+        The :meth:`~hail.VariantDataset.persist` and :meth:`~hail.VariantDataset.cache` methods
         allow you to store the current dataset on disk or in memory to avoid redundant computation and 
         improve the performance of Hail pipelines.
 
-        :py:meth:`~hail.VariantDataset.cache` is an alias for 
+        :meth:`~hail.VariantDataset.cache` is an alias for
         :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.  Most users will want "MEMORY_AND_DISK".
         See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`__ 
         for a more in-depth discussion of persisting data.
@@ -4007,7 +4007,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         >>> low_callrate_samples, t = vds.query_samples_typed(
         ...    'samples.filter(s => sa.qc.callRate < 0.95).collect()')
 
-        See :py:meth:`.query_samples` for more information.
+        See :meth:`.query_samples` for more information.
 
         :param exprs: query expressions
         :type exprs: str or list of str
@@ -4077,7 +4077,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         ...     'variants.filter(v => va.consequence == "LOF").count()',
         ...     'variants.filter(v => va.consequence == "Missense").count()'])
 
-        See :py:meth:`.query_variants` for more information.
+        See :meth:`.query_variants` for more information.
 
         :param exprs: query expressions
         :type exprs: str or list of str
@@ -4161,7 +4161,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         >>> [gq_hist, dp_hist], [t1, t2] = vds.query_genotypes_typed(['gs.map(g => g.GQ).hist(0, 100, 100)',
         ...                                                           'gs.map(g => g.DP).hist(0, 60, 60)'])
 
-        See :py:meth:`.query_genotypes` for more information.
+        See :meth:`.query_genotypes` for more information.
 
         This method evaluates Hail expressions over genotypes, along with
         all variant and sample metadata for that genotype. The ``exprs``
@@ -4302,7 +4302,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         **Notes**
 
         This method requires unique sample ids. ``mapping`` must contain the same ids
-        as :py:meth:`~hail.VariantDataset.sample_ids`. The order of the ids in ``mapping``
+        as :meth:`~hail.VariantDataset.sample_ids`. The order of the ids in ``mapping``
         determines the sample id order in the output dataset.
 
 
@@ -4337,7 +4337,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Annotations**
 
-        :py:meth:`~hail.VariantDataset.rename_duplicates` adds one sample annotation:
+        :meth:`~hail.VariantDataset.rename_duplicates` adds one sample annotation:
 
          - **sa.originalID** (*String*) -- Original sample ID.
         """
@@ -4360,7 +4360,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Notes**
 
-        Check the current number of partitions with :py:meth:`.num_partitions`.
+        Check the current number of partitions with :meth:`.num_partitions`.
 
         The data in a variant dataset is divided into chunks called partitions, which may be stored together or across a network, so that each partition may be read and processed in parallel by available cores. When a variant dataset with :math:`M` variants is first imported, each of the :math:`k` partition will contain about :math:`M/k` of the variants. Since each partition has some computational overhead, decreasing the number of partitions can improve performance after significant filtering. Since it's recommended to have at least 2 - 4 partitions per core, increasing the number of partitions can allow one to take advantage of more cores.
 
@@ -4385,7 +4385,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         .. warning ::
 
-          :py:meth:`~hail.VariantDataset.naive_coalesce` simply combines adjacent partitions to achieve the desired number.  It does not attempt to rebalance, unlike :py:meth:`~hail.VariantDataset.repartition`, so it can produce a heavily unbalanced dataset.  An unbalanced dataset can be inefficient to operate on because the work is not evenly distributed across partitions.
+          :meth:`~hail.VariantDataset.naive_coalesce` simply combines adjacent partitions to achieve the desired number.  It does not attempt to rebalance, unlike :meth:`~hail.VariantDataset.repartition`, so it can produce a heavily unbalanced dataset.  An unbalanced dataset can be inefficient to operate on because the work is not evenly distributed across partitions.
 
         :param int max_partitions: Desired number of partitions.  If the current number of partitions is less than or equal to ``max_partitions``, do nothing.
 
@@ -4429,14 +4429,14 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
           K = MM^T
 
-        Note that the only difference between the Realized Relationship Matrix and the Genetic Relationship Matrix (GRM) used in :py:meth:`~hail.VariantDataset.grm` is the variant (column) normalization: where RRM uses empirical variance, GRM uses expected variance under Hardy-Weinberg Equilibrium.
+        Note that the only difference between the Realized Relationship Matrix and the Genetic Relationship Matrix (GRM) used in :meth:`~hail.VariantDataset.grm` is the variant (column) normalization: where RRM uses empirical variance, GRM uses expected variance under Hardy-Weinberg Equilibrium.
 
         :param bool force_block: Force using Spark's BlockMatrix to compute kinship (advanced).
 
         :param bool force_gramian: Force using Spark's RowMatrix.computeGramian to compute kinship (advanced).
 
         :return: Realized Relationship Matrix for all samples.
-        :rtype: :py:class:`KinshipMatrix`
+        :rtype: :class:`.KinshipMatrix`
         """
         return KinshipMatrix(Env.hail().stats.ComputeRRM.apply(self._jvds, force_block, force_gramian))
 
@@ -4480,7 +4480,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Annotations**
 
-        :py:meth:`~hail.VariantDataset.sample_qc` computes sample statistics from the
+        :meth:`~hail.VariantDataset.sample_qc` computes sample statistics from the
         genotype data and stores the results as sample annotations that can be accessed with
         ``sa.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
 
@@ -4572,11 +4572,11 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         The schema of the returned structs is:
 
-         - **v**: :py:meth:`.VariantDataset.rowkey_schema`
-         - **va**: :py:meth:`.VariantDataset.variant_schema`
-         - **gs**: *list of* :py:meth:`.VariantDataset.genotype_schema`
+         - **v**: :meth:`.VariantDataset.rowkey_schema`
+         - **va**: :meth:`.VariantDataset.variant_schema`
+         - **gs**: *list of* :meth:`.VariantDataset.genotype_schema`
 
-        :rtype: list of :py:class:`.hail.representation.Struct`
+        :rtype: list of :class:`.hail.representation.Struct`
         """
 
         schema = Type._from_java(self._jvds.rowType())
@@ -4601,13 +4601,13 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         The schema of the returned structs is:
 
-         - **v**: :py:meth:`.VariantDataset.rowkey_schema`
-         - **va**: :py:meth:`.VariantDataset.variant_schema`
-         - **gs**: *list of* :py:meth:`.VariantDataset.genotype_schema`
+         - **v**: :meth:`.VariantDataset.rowkey_schema`
+         - **va**: :meth:`.VariantDataset.variant_schema`
+         - **gs**: *list of* :meth:`.VariantDataset.genotype_schema`
 
         :param int n: Number of rows to take.
 
-        :rtype: list of :py:class:`.hail.representation.Struct`
+        :rtype: list of :class:`.hail.representation.Struct`
         """
 
         schema = Type._from_java(self._jvds.rowType())
@@ -4770,7 +4770,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :param int iterations: Maximum number of iterations attempted by the Davies algorithm.
 
         :return: Key table of SKAT results.
-        :rtype: :py:class:`.KeyTable`
+        :rtype: :class:`.KeyTable`
         """
 
         return KeyTable(self.hc, self._jvds.skat(key_expr, weight_expr, y, x,
@@ -4788,7 +4788,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Example**
 
-        :py:meth:`~hail.VariantDataset.split_multi_hts`, which splits
+        :meth:`~hail.VariantDataset.split_multi_hts`, which splits
         multiallelic variants for the HTS genotype schema and updates
         the genotype annotations by downcoding the genotype, is
         implemented as:
@@ -4861,7 +4861,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     @typecheck_method(keep_star=bool,
                       left_aligned=bool)
     def split_multi_hts(self, keep_star=False, left_aligned=False):
-        """Split multiallelic variants for :py:meth:`.VariantDataset.genotype_schema` :py:class:`~hail.expr.TGenotype` or the HTS schema:
+        """Split multiallelic variants for :meth:`.VariantDataset.genotype_schema` :class:`~hail.expr.TGenotype` or the HTS schema:
 
         .. code-block:: text
 
@@ -4873,7 +4873,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
             PL: Array[!Int32].
           }
         
-        For generic genotype schema, use :py:meth:`~hail.VariantDataset.split_multi`.
+        For generic genotype schema, use :meth:`~hail.VariantDataset.split_multi`.
 
         **Examples**
 
@@ -4967,7 +4967,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Annotations**
 
-        :py:meth:`~hail.VariantDataset.split_multi_hts` adds the
+        :meth:`~hail.VariantDataset.split_multi_hts` adds the
         following annotations:
 
          - **va.wasSplit** (*Boolean*) -- true if this variant was
@@ -4985,7 +4985,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
           If the assumption is violated, an error is generated.
 
         :return: A biallelic variant dataset.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         variant_expr = 'va.aIndex = aIndex, va.wasSplit = wasSplit'
@@ -5087,7 +5087,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         +--------+--------+--------+------------+---+---+
 
 
-        :py:meth:`~hail.VariantDataset.tdt` only considers complete trios (two parents and a proband) with defined sex.
+        :meth:`~hail.VariantDataset.tdt` only considers complete trios (two parents and a proband) with defined sex.
 
         PAR is currently defined with respect to reference
         `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`__:
@@ -5097,7 +5097,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         - Y: 10001-2649520
         - Y: 59034050-59363566
 
-        :py:meth:`~hail.VariantDataset.tdt` produces a key table with the following columns:
+        :meth:`~hail.VariantDataset.tdt` produces a key table with the following columns:
 
          - **v** (*Variant*) -- Variant tested.
 
@@ -5113,7 +5113,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :type pedigree: :class:`~hail.representation.Pedigree`
 
         :return: Key table with TDT association results.
-        :rtype: :py:class:`.KeyTable`
+        :rtype: :class:`.KeyTable`
         """
 
         trio_matrix = self.trio_matrix(pedigree, complete_trios=True)
@@ -5206,7 +5206,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         **Annotations**
 
-        :py:meth:`~hail.VariantDataset.variant_qc` computes 18 variant statistics from the 
+        :meth:`~hail.VariantDataset.variant_qc` computes 18 variant statistics from the
         genotype data and stores the results as variant annotations that can be accessed 
         with ``va.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
 
@@ -5257,7 +5257,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param str root: Variant annotation root for computed struct.
 
         :return: Annotated variant dataset with new variant QC annotations.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         return VariantDataset(self.hc, Env.hail().methods.VariantQC.apply(self._jvds, root))
@@ -5273,7 +5273,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         .. include:: ../_templates/req_tvariant.rst
 
-        :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with
+        :meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with
         the `LOFTEE plugin <https://github.com/konradjk/loftee>`__
         on the current variant dataset and adds the result as a variant annotation.
 
@@ -5285,7 +5285,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         **Configuration**
 
-        :py:meth:`~hail.VariantDataset.vep` needs a configuration file to tell it how to run
+        :meth:`~hail.VariantDataset.vep` needs a configuration file to tell it how to run
         VEP. The format is a `.properties file <https://en.wikipedia.org/wiki/.properties>`__.
         Roughly, each line defines a property as a key-value pair of the form `key = value`. `vep` supports the following properties:
 
@@ -5483,7 +5483,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
             If ``False``, annotates with the full nested struct schema
 
         :return: Dataset with variant annotations from VEP.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
         """
 
         jvds = Env.hail().methods.VEP.apply(self._jvds, config, root, csq, block_size)
@@ -5501,7 +5501,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         
         .. include:: ../_templates/req_tvariant.rst
 
-        :py:meth:`~hail.VariantDataset.nirvana` runs `Nirvana <https://github.com/Illumina/Nirvana>`_ on the current
+        :meth:`~hail.VariantDataset.nirvana` runs `Nirvana <https://github.com/Illumina/Nirvana>`_ on the current
         variant dataset and adds the result as a variant annotation.
 
         **Examples**        
@@ -5512,7 +5512,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         ***Configuration***
         
-        :py:meth:`~hail.VariantDataset.nirvana` requires a configuration file. The format is a
+        :meth:`~hail.VariantDataset.nirvana` requires a configuration file. The format is a
         `.properties file <https://en.wikipedia.org/wiki/.properties>`__, where each line defines
         a property as a key-value pair of the form `key = value`. ``nirvana`` supports the following properties:
 
@@ -5726,7 +5726,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param str root: Variant annotation path to store Nirvana output.
 
         :return: Dataset with variant annotations from Nirvana.
-        :rtype: :py:class:`.VariantDataset`
+        :rtype: :class:`.VariantDataset`
 
         """
         jvds = Env.hail().methods.Nirvana.apply(self._jvds, config, block_size, root)
@@ -5820,7 +5820,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         **Examples**
 
-        Consider a :py:class:`VariantDataset` ``vds`` with 2 variants and 3 samples:
+        Consider a :class:`.VariantDataset` ``vds`` with 2 variants and 3 samples:
 
         .. code-block:: text
 
@@ -5832,7 +5832,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         >>> kt = vds.make_table('v = v', ['GT = g.GT', 'GQ = g.GQ'])
 
-        returns a :py:class:`KeyTable` with schema
+        returns a :class:`.KeyTable` with schema
 
         .. code-block:: text
 
@@ -5852,7 +5852,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
             1:1:A:T	1	99	NA	NA	0	99
             1:2:G:C	1	89	1	99	2	93
 
-        The above table can be generated and exported as a TSV using :class:`.KeyTable` :py:meth:`~hail.KeyTable.export`.
+        The above table can be generated and exported as a TSV using :class:`.KeyTable` :meth:`~hail.KeyTable.export`.
 
         **Notes**
 
@@ -5875,7 +5875,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         :param str separator: Separator to use between sample IDs and genotype expression left-hand side identifiers.
 
-        :rtype: :py:class:`.KeyTable`
+        :rtype: :class:`.KeyTable`
 
         """
 
@@ -5910,7 +5910,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         **Notes**
 
         This method builds a new dataset with one column per trio. If ``complete_trios``,
-        then only trios that satisfy :py:meth:`~hail.representation.Trio.is_complete`
+        then only trios that satisfy :meth:`~hail.representation.Trio.is_complete`
         are included. In this new dataset, the column identifiers
         are the sample IDs of the trio probands. The column annotations and
         entries of the matrix are changed in the following ways:

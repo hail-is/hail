@@ -26,7 +26,7 @@ def hadoop_read(path, buffer_size=8192):
 
         These file handles are slower than standard Python file handles.
         If you are reading a file larger than ~50M, it will be faster to
-        use :py:meth:`~hail.hadoop_copy` to copy the file locally, then read it
+        use :meth:`~hail.hadoop_copy` to copy the file locally, then read it
         with standard Python I/O tools.
 
     :param str path: Source file URI.
@@ -45,7 +45,7 @@ def hadoop_read_binary(path, buffer_size=8192):
     """Open a readable binary file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
 
-    calling :py:meth:`f.read(n_bytes)` on the resulting file handle reads `n_bytes` bytes as a
+    calling :meth:`f.read(n_bytes)` on the resulting file handle reads `n_bytes` bytes as a
     Python bytearray. If no argument is provided, the entire file will be read.
 
     Examples
@@ -67,7 +67,7 @@ def hadoop_read_binary(path, buffer_size=8192):
 
         These file handles are slower than standard Python file handles.
         If you are reading a file larger than ~50M, it will be faster to
-        use :py:meth:`~hail.hadoop_copy` to copy the file locally, then read it
+        use :meth:`~hail.hadoop_copy` to copy the file locally, then read it
         with standard Python I/O tools.
 
     Parameters
@@ -79,7 +79,7 @@ def hadoop_read_binary(path, buffer_size=8192):
 
     Returns
     -------
-    :class:`io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
+    :class:`.io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
         Binary file reader.
     """
     return io.BufferedReader(HadoopBinaryReader(path), buffer_size=buffer_size)
@@ -109,7 +109,7 @@ def hadoop_write(path, buffer_size=8192):
 
         These file handles are slower than standard Python file handles. If you
         are writing a large file (larger than ~50M), it will be faster to write
-        to a local file using standard Python I/O and use :py:meth:`~hail.hadoop_copy`
+        to a local file using standard Python I/O and use :meth:`~hail.hadoop_copy`
         to move your file to a distributed file system.
 
     :param str path: Destination file URI.

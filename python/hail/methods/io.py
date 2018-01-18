@@ -137,7 +137,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     value of Float64 `qual` as QUAL. No other row fields are exported.
 
     The FORMAT field is generated from the entry schema, which
-    must be a :py:class:`~hail.expr.TStruct`.  There is a FORMAT
+    must be a :class:`~hail.expr.TStruct`.  There is a FORMAT
     field for each field of the Struct.
 
     INFO and FORMAT fields may be generated from Struct fields of type Call,
@@ -160,7 +160,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     Description, Number, and/or Type value in a FORMAT or INFO field or to
     specify FILTER lines, use the `metadata` parameter to supply a dictionary
     with the relevant information. See
-    :py:class:`~hail.api2.HailContext.get_vcf_metadata` for how to obtain the
+    :class:`~hail.api2.HailContext.get_vcf_metadata` for how to obtain the
     dictionary corresponding to the original VCF, and for info on how this
     dictionary should be structured. 
     
@@ -204,7 +204,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         concatenate the header and all partitions into one VCF file.
     metadata : :obj:`dict[str]` or :obj:`dict[str, dict[str, str]`, optional
         Dictionary with information to fill in the VCF header. See
-        :py:class:`~hail.api2.HailContext.get_vcf_metadata` for how this
+        :class:`~hail.api2.HailContext.get_vcf_metadata` for how this
         dictionary should be structured.
     """
 
@@ -249,7 +249,7 @@ def import_interval_list(path, reference_genome=None):
     Note
     ----
     ``start`` and ``end`` match positions inclusively, e.g.
-    ``start <= position <= end``. :meth:`representation.Interval.parse`
+    ``start <= position <= end``. :meth:`.Interval.parse`
     is exclusive of the end position.
 
     Refer to :class:`.GenomeReference` for contig ordering and behavior.

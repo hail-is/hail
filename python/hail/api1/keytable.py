@@ -40,10 +40,10 @@ kt_type = lazy()
 class KeyTable(HistoryMixin):
     """Hail's version of a SQL table where columns can be designated as keys.
 
-    Key tables may be imported from a text file or Spark DataFrame with :py:meth:`hail.api1.HailContext.import_table`
-    or :py:meth:`~hail.KeyTable.from_dataframe`, generated from a variant dataset
-    with :py:meth:`~hail.VariantDataset.make_table`, :py:meth:`~hail.VariantDataset.genotypes_table`,
-    :py:meth:`~hail.VariantDataset.samples_table`, or :py:meth:`~hail.VariantDataset.variants_table`.
+    Key tables may be imported from a text file or Spark DataFrame with :meth:`hail.api1.HailContext.import_table`
+    or :meth:`~hail.KeyTable.from_dataframe`, generated from a variant dataset
+    with :meth:`~hail.VariantDataset.make_table`, :meth:`~hail.VariantDataset.genotypes_table`,
+    :meth:`~hail.VariantDataset.samples_table`, or :meth:`~hail.VariantDataset.variants_table`.
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
 
@@ -76,7 +76,7 @@ class KeyTable(HistoryMixin):
     +---+---+------+
 
     :ivar hc: Hail Context
-    :vartype hc: :class:`hail.api1.HailContext`
+    :vartype hc: :class:`.hail.api1.HailContext`
     """
 
     def __init__(self, hc, jkt):
@@ -127,7 +127,7 @@ class KeyTable(HistoryMixin):
         :type rows: list of :class:`.hail.representation.Struct` or dict
 
         :param schema: Struct schema of table.
-        :type schema: :class:`.hail.expr.TStruct`
+        :type schema: :class:`.TStruct`
 
         :param key: Key field(s).
         :type key: str or list of str
@@ -295,7 +295,7 @@ class KeyTable(HistoryMixin):
 
         **Notes**
 
-        The scope for ``expr`` is all column names in the input :class:`KeyTable`.
+        The scope for ``expr`` is all column names in the input :class:`.KeyTable`.
 
         For more information, see the documentation on writing `expressions <../overview.html#expressions>`__
         and using the `Hail Expression Language <exprlang.html>`__.
@@ -328,7 +328,7 @@ class KeyTable(HistoryMixin):
 
         **Notes**
 
-        The scope for ``expr`` is all column names in the input :class:`KeyTable`.
+        The scope for ``expr`` is all column names in the input :class:`.KeyTable`.
 
         For more information, see the documentation on writing `expressions <../overview.html#expressions>`__
         and using the `Hail Expression Language <exprlang.html>`__.
@@ -397,7 +397,7 @@ class KeyTable(HistoryMixin):
 
         >>> kt_ht_by_sex = kt1.aggregate_by_key("SEX = SEX", "MEAN_HT = HT.stats().mean")
 
-        The result of :py:meth:`.aggregate_by_key` is a key table ``kt_ht_by_sex`` with the following data:
+        The result of :meth:`.aggregate_by_key` is a key table ``kt_ht_by_sex`` with the following data:
 
         +--------+----------+
         |   SEX  |MEAN_HT   |
@@ -409,7 +409,7 @@ class KeyTable(HistoryMixin):
 
         **Notes**
 
-        The scope for both ``key_expr`` and ``agg_expr`` is all column names in the input :class:`KeyTable`.
+        The scope for both ``key_expr`` and ``agg_expr`` is all column names in the input :class:`.KeyTable`.
 
         For more information, see the documentation on writing :ref:`expressions <overview-expressions>`
         and using the `Hail Expression Language <https://hail.is/expr_lang.html>`__
@@ -481,7 +481,7 @@ class KeyTable(HistoryMixin):
 
         ``column_names`` can be either a list of new names or a dict
         mapping old names to new names.  If ``column_names`` is a list,
-        its length must be the number of columns in this :py:class:`.KeyTable`.
+        its length must be the number of columns in this :class:`.KeyTable`.
 
         **Examples**
 
@@ -531,7 +531,7 @@ class KeyTable(HistoryMixin):
 
         **Examples**
 
-        Assume ``kt`` is a :py:class:`.KeyTable` with three columns: c1, c2 and
+        Assume ``kt`` is a :class:`.KeyTable` with three columns: c1, c2 and
         c3 and key c1.
 
         Change key columns:
@@ -613,7 +613,7 @@ class KeyTable(HistoryMixin):
 
         **Examples**
 
-        Assume ``kt1`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
+        Assume ``kt1`` is a :class:`.KeyTable` with three columns: C1, C2 and
         C3.
 
         Select/drop columns:
@@ -641,7 +641,7 @@ class KeyTable(HistoryMixin):
 
         **Notes**
 
-        :py:meth:`~hail.KeyTable.select` creates a new schema as specified by `exprs`.
+        :meth:`~hail.KeyTable.select` creates a new schema as specified by `exprs`.
 
         Each argument can either be an annotation path `A.B.C` for an existing column in the table, a splatted annotation
         path `A.*`, or an :ref:`annotation expression <overview-expr-add>` `Z = X + 2 * Y`.
@@ -677,7 +677,7 @@ class KeyTable(HistoryMixin):
 
         **Examples**
 
-        Assume ``kt1`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
+        Assume ``kt1`` is a :class:`.KeyTable` with three columns: C1, C2 and
         C3.
 
         Drop columns:
@@ -708,7 +708,7 @@ class KeyTable(HistoryMixin):
           DataFrame.  If both are true, flatten is run after expand so
           that expanded types are flattened.
 
-        :rtype: :class:`pyspark.sql.DataFrame`
+        :rtype: :class:`.pyspark.sql.DataFrame`
         """
 
         jkt = self._jkt
@@ -732,7 +732,7 @@ class KeyTable(HistoryMixin):
           that expanded types are flattened.
 
         :returns: Pandas DataFrame constructed from the key table.
-        :rtype: :py:class:`pandas.DataFrame`
+        :rtype: :class:`.pandas.DataFrame`
         """
 
         return self.to_dataframe(expand, flatten).toPandas()
@@ -746,7 +746,7 @@ class KeyTable(HistoryMixin):
         
         .. warning::
 
-          :py:meth:`~.export_solr` is EXPERIMENTAL.
+          :meth:`~.export_solr` is EXPERIMENTAL.
 
         """
 
@@ -763,7 +763,7 @@ class KeyTable(HistoryMixin):
 
         .. warning::
 
-          :py:meth:`~.export_cassandra` is EXPERIMENTAL.
+          :meth:`~.export_cassandra` is EXPERIMENTAL.
 
         """
 
@@ -776,11 +776,11 @@ class KeyTable(HistoryMixin):
         """Explode columns of this key table.
 
         The explode operation unpacks the elements in a column of type ``Array`` or ``Set`` into its own row.
-        If an empty ``Array`` or ``Set`` is exploded, the entire row is removed from the :py:class:`.KeyTable`.
+        If an empty ``Array`` or ``Set`` is exploded, the entire row is removed from the :class:`.KeyTable`.
 
         **Examples**
 
-        Assume ``kt3`` is a :py:class:`.KeyTable` with three columns: c1, c2 and
+        Assume ``kt3`` is a :class:`.KeyTable` with three columns: c1, c2 and
         c3.
 
         >>> kt3 = hc1.import_table('data/kt_example3.tsv', impute=True,
@@ -844,7 +844,7 @@ class KeyTable(HistoryMixin):
 
         >>> [hist, counter], [t1, t2] = kt1.query_typed(['HT.hist(50, 80, 10)', 'SEX.counter()'])
 
-        See :py:meth:`.Keytable.query` for more information.
+        See :meth:`.Keytable.query` for more information.
 
         :param exprs:
         :type exprs: str or list of str
@@ -939,7 +939,7 @@ class KeyTable(HistoryMixin):
         (especially serially), and the resulting list may be too large
         to fit in memory on one machine.
 
-        :rtype: list of :py:class:`.hail.representation.Struct`
+        :rtype: list of :class:`.hail.representation.Struct`
         """
 
         return TArray(self.schema)._convert_to_py(self._jkt.collect())
@@ -981,7 +981,7 @@ class KeyTable(HistoryMixin):
     def cache(self):
         """Mark this key table to be cached in memory.
 
-        :py:meth:`~hail.KeyTable.cache` is the same as :func:`persist("MEMORY_ONLY") <hail.KeyTable.persist>`.
+        :meth:`~hail.KeyTable.cache` is the same as :func:`persist("MEMORY_ONLY") <hail.KeyTable.persist>`.
 
         :rtype: :class:`.KeyTable`
 
@@ -1002,11 +1002,11 @@ class KeyTable(HistoryMixin):
 
         **Notes**
 
-        The :py:meth:`~hail.KeyTable.persist` and :py:meth:`~hail.KeyTable.cache` methods 
+        The :meth:`~hail.KeyTable.persist` and :meth:`~hail.KeyTable.cache` methods
         allow you to store the current table on disk or in memory to avoid redundant computation and 
         improve the performance of Hail pipelines.
 
-        :py:meth:`~hail.KeyTable.cache` is an alias for 
+        :meth:`~hail.KeyTable.cache` is an alias for
         :func:`persist("MEMORY_ONLY") <hail.KeyTable.persist>`.  Most users will want "MEMORY_AND_DISK".
         See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`__ 
         for a more in-depth discussion of persisting data.
@@ -1091,7 +1091,7 @@ class KeyTable(HistoryMixin):
         .. note::
 
             ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``.
-            :py:meth:`~hail.representation.Interval.parse` is exclusive of the end position.
+            :meth:`~hail.representation.Interval.parse` is exclusive of the end position.
 
         .. note::
 
@@ -1101,13 +1101,13 @@ class KeyTable(HistoryMixin):
         .. caution::
 
             The interval parser for these files does not support the full range of formats supported
-            by the python parser :py:meth:`~hail.representation.Interval.parse`.  'k', 'm', 'start', and 'end' are all
+            by the python parser :meth:`~hail.representation.Interval.parse`.  'k', 'm', 'start', and 'end' are all
             invalid motifs in the ``contig:start-end`` format here.
 
         
         :param str filename: Path to file.
 
-        :param reference_genome: Reference genome to use. Default is :class:`hail.api1.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :class:`.hail.api1.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
         
         :return: Interval-keyed table.
@@ -1180,7 +1180,7 @@ class KeyTable(HistoryMixin):
 
         :param str path: Path to .bed file.
 
-        :param reference_genome: Reference genome to use. Default is :py:meth:`hail.api1.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :meth:`hail.api1.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
         :rtype: :class:`.KeyTable`
@@ -1354,13 +1354,13 @@ class KeyTable(HistoryMixin):
         This method does not need to look at all the data, and
         allows for fast queries of the start of the table.
 
-        This method is equivalent to :py:meth:`.KeyTable.head` followed by
-        :py:meth:`.KeyTable.collect`.
+        This method is equivalent to :meth:`.KeyTable.head` followed by
+        :meth:`.KeyTable.collect`.
 
         :param int n: Number of rows to take.
 
         :return: Rows from the start of the table.
-        :rtype: list of :class:`.~hail.representation.Struct`
+        :rtype: list of :class:`~hail.representation.Struct`
         """
 
         return [self.schema._convert_to_py(r) for r in self._jkt.take(n)]
@@ -1377,7 +1377,7 @@ class KeyTable(HistoryMixin):
 
         >>> first10_c1_mean = kt1.head(10).query('C1.stats().mean')
 
-        Return a list with the first 50 rows (equivalent to :py:meth:`.KeyTable.take`):
+        Return a list with the first 50 rows (equivalent to :meth:`.KeyTable.take`):
 
         >>> first50_rows = kt1.head(50).collect()
 
@@ -1409,8 +1409,8 @@ class KeyTable(HistoryMixin):
         This method returns a table with a new column whose name is
         given by the ``name`` parameter, with type ``Long``. The value
         of this column is the numerical index of each row, starting
-        from 0. Methods that respect ordering (like :py:meth:`.KeyTable.take`
-        or :py:meth:`.KeyTable.export` will return rows in order.
+        from 0. Methods that respect ordering (like :meth:`.KeyTable.take`
+        or :meth:`.KeyTable.export` will return rows in order.
 
         This method is helpful for creating a unique integer index for rows
         of a table, so that more complex types can be encoded as a simple
@@ -1574,7 +1574,7 @@ class KeyTable(HistoryMixin):
 
         **Examples**
 
-        ``kt4`` is a :py:class:`.KeyTable` with five columns: A, B, C, D and E.
+        ``kt4`` is a :class:`.KeyTable` with five columns: A, B, C, D and E.
 
         >>> kt4 = hc1.import_table('data/kt_example4.tsv', impute=True,
         ...                       types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
@@ -1634,7 +1634,7 @@ class KeyTable(HistoryMixin):
 
         **Examples**
 
-        ``kt5`` is a :py:class:`.KeyTable` with three columns: A, B, and C.
+        ``kt5`` is a :class:`.KeyTable` with three columns: A, B, and C.
 
         >>> kt5 = hc1.import_table('data/kt_example5.tsv', impute=True)
 
@@ -1686,7 +1686,7 @@ class KeyTable(HistoryMixin):
         :param expr: Annotation expression
         :type expr: str or list of str
 
-        :rtype: :py:class:`.Keytable`
+        :rtype: :class:`.Keytable`
         """
 
         if isinstance(expr, list):
@@ -1716,9 +1716,9 @@ class KeyTable(HistoryMixin):
         :param annotation: annotation to add to global
 
         :param annotation_type: Hail type of annotation
-        :type annotation_type: :py:class:`.Type`
+        :type annotation_type: :class:`.Type`
 
-        :rtype: :py:class:`.KeyTable`
+        :rtype: :class:`.KeyTable`
         """
 
         annotation_type._typecheck(annotation)

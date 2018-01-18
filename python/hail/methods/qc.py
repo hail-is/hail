@@ -296,7 +296,7 @@ def vep(dataset, config, block_size=1000, name='vep', csq=False):
 
     .. include:: ../_templates/req_tvariant.rst
 
-    :py:meth:`.vep` runs `Variant Effect Predictor
+    :meth:`.vep` runs `Variant Effect Predictor
     <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with the `LOFTEE
     plugin <https://github.com/konradjk/loftee>`__ on the current dataset and
     adds the result as a row field.
