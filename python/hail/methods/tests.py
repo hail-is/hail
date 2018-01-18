@@ -338,9 +338,9 @@ class Tests(unittest.TestCase):
     def test_mendel_errors(self):
         dataset = self.get_dataset()
         men, fam, ind, var = methods.mendel_errors(dataset, Pedigree.read('src/test/resources/sample.fam'))
-        men.select('fid', 's', 'code')
-        fam.select('father', 'nChildren')
-        self.assertEqual(ind.key, ['s'])
+        men.select('fam_id', 'id', 'code')
+        fam.select('pat_id', 'children')
+        self.assertEqual(ind.key, ['id'])
         self.assertEqual(var.key, ['v'])
         dataset.annotate_rows(mendel=var[dataset.v]).count_rows()
 

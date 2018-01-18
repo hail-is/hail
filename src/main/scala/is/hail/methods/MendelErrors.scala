@@ -137,25 +137,25 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
 
   def mendelKT(): Table = {
     val signature = TStruct(
-      "fid" -> TString(),
-      "s" -> TString(),
+      "fam_id" -> TString(),
+      "id" -> TString(),
       "v" -> vSig,
       "code" -> TInt32(),
       "error" -> TString())
 
     val rdd = mendelErrors.map { e => Row(e.trio.fam.orNull, e.trio.kid, e.variant, e.code, e.errorString) }
 
-    Table(hc, rdd, signature, Array("s", "v"))
+    Table(hc, rdd, signature, Array("id", "v"))
   }
 
   def fMendelKT(): Table = {
     val signature = TStruct(
-      "fid" -> TString(),
-      "father" -> TString(),
-      "mother" -> TString(),
-      "nChildren" -> TInt32(),
-      "nErrors" -> TInt32(),
-      "nSNP" -> TInt32()
+      "fam_id" -> TString(),
+      "pat_id" -> TString(),
+      "mat_id" -> TString(),
+      "children" -> TInt32(),
+      "errors" -> TInt32(),
+      "snp_errors" -> TInt32()
     )
 
     val trioFamBc = sc.broadcast(trioFam)
@@ -167,16 +167,16 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
       Row(kids.flatMap(x => trioFamBc.value.get(x.head)).orNull, dad, mom, kids.map(_.length).getOrElse(0), n, nSNP)
     }
 
-    Table(hc, rdd, signature, Array("fid"))
+    Table(hc, rdd, signature, Array("pat_id", "mat_id"))
   }
 
   def iMendelKT(): Table = {
 
     val signature = TStruct(
-      "fid" -> TString(),
-      "s" -> TString(),
-      "nError" -> TInt64(),
-      "nSNP" -> TInt64()
+      "fam_id" -> TString(),
+      "id" -> TString(),
+      "errors" -> TInt64(),
+      "snp_errors" -> TInt64()
     )
 
     val trioFamBc = sc.broadcast(trios.iterator.flatMap { t =>
@@ -187,13 +187,13 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
 
     val rdd = nErrorPerIndiv.map { case (s, (n, nSNP)) => Row(trioFamBc.value.getOrElse(s, null), s, n, nSNP) }
 
-    Table(hc, rdd, signature, Array("s"))
+    Table(hc, rdd, signature, Array("id"))
   }
 
   def lMendelKT(): Table = {
     val signature = TStruct(
       "v" -> vSig,
-      "nError" -> TInt32()
+      "errors" -> TInt32()
     )
 
     val rdd = nErrorPerVariant.map { case (v, l) => Row(v, l.toInt) }
