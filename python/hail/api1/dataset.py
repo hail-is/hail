@@ -4450,7 +4450,32 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :return: Realized Relationship Matrix for all samples.
         :rtype: :class:`.KinshipMatrix`
         """
-        return KinshipMatrix(Env.hail().stats.ComputeRRM.apply(self._jvds, force_block, force_gramian))
+
+        vannotations = ['va.AC = gs.map(g => g.GT.gt).sum()',
+                       'va.ACsq = gs.map(g => g.GT.gt * g.GT.gt).sum()',
+                       'va.nCalled = gs.filter(g => isDefined(g.GT)).count()']
+        vds = (self.annotate_variants_expr(vannotations)
+               .filter_variants_expr('''va.AC > 0 && 
+               va.AC < 2 * va.nCalled && 
+               ((va.AC != va.nCalled) || va.ACsq != va.nCalled)''').persist())
+
+        nsamples, nvariants = vds.count()
+        if nvariants == 0:
+            raise FatalError("Cannot run RRM: found 0 variants after filtering out variants that are all homozygous reference or all homozygous variant.")
+        print("Running RRM using {} variants.".format(nvariants))
+        normalized_genotype_expr = '''let mean = va.AC / va.nCalled and 
+            stddev = sqrt((va.ACsq + ({} - va.nCalled) * (mean * mean)) / {} - mean * mean) in
+            if (isDefined(g.GT)) (g.GT.gt - mean) / stddev else 0'''.format(nsamples, nsamples)
+
+        f = new_temp_file(suffix="bm")
+
+        vds._jvds.writeBlockMatrix(f, normalized_genotype_expr, BlockMatrix.default_block_size())
+        vds.unpersist()
+
+        bm = BlockMatrix.read(f)
+        rrm = bm.T.dot(bm) / nvariants
+
+        return KinshipMatrix._from_block_matrix(self.sample_schema, rrm, self.sample_ids, nvariants)
 
     @handle_py4j
     @typecheck_method(other=vds_type,
