@@ -270,7 +270,7 @@ class HailContext(HistoryMixin):
         :param min_partitions: Number of partitions.
         :type min_partitions: int or None
 
-        :param reference_genome: Reference genome to use. Default is :class:`.~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
         :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
@@ -350,7 +350,7 @@ class HailContext(HistoryMixin):
         :param chromosome: Chromosome if not listed in the .gen file.
         :type chromosome: str or None
 
-        :param reference_genome: Reference genome to use. Default is :class:`.~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
         :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
@@ -488,7 +488,7 @@ class HailContext(HistoryMixin):
         then the column names will be ``f0``, ``f1``, ... ``fN`` (0-indexed). 
         
         The ``types`` option allows the user to pass the types of columns in the table. This is a 
-        dict keyed by ``str``, with :class:`.~hail.expr.Type` values. See the examples above for
+        dict keyed by ``str``, with :class:`~hail.expr.Type` values. See the examples above for
         a standard usage. Additionally, this option can be used to override type imputation. For example,
         if a column in a file refers to chromosome and does not contain any sex chromosomes, it will be
         imputed as an integer, while most Hail methods expect chromosome to be passed as a string. Using
@@ -524,7 +524,7 @@ class HailContext(HistoryMixin):
         :param quote: Quote character
         :type quote: str or None
 
-        :param reference_genome: Reference genome to use when imputing Variant or Locus columns. Default is :class:`.~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use when imputing Variant or Locus columns. Default is :class:`~.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
         :return: Key table constructed from text table.
@@ -612,7 +612,7 @@ class HailContext(HistoryMixin):
 
         :param bool a2_reference: If True, A2 is treated as the reference allele. If False, A1 is treated as the reference allele.
         
-        :param reference_genome: Reference genome to use. Default is :class:`.~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
         
         :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
@@ -690,7 +690,7 @@ class HailContext(HistoryMixin):
                         'filter': {'LowQual': {'Description': 'Low quality'}},
                         'info': {'MQ': {'Number': '1', 'Type': 'Float', 'Description': 'RMS Mapping Quality'}}}
 
-        which can be used with :class:`.~hail.VariantDataset.export_vcf` to fill in the relevant fields in the header.
+        which can be used with :class:`~hail.VariantDataset.export_vcf` to fill in the relevant fields in the header.
 
         :param path: VCF file(s) to read. If more than one file is given, the first file is used.
         :type path: str or list of str
@@ -737,9 +737,9 @@ class HailContext(HistoryMixin):
         (sets to no-call) any genotype that violates these assumptions. Hail interprets the format fields: GT, AD, OD, DP, GQ, PL; all others are
         silently dropped.
 
-        If ``generic`` equals True, the genotype schema is a :class:`.~hail.type.TStruct` with field names equal to the IDs of the FORMAT fields.
-        The ``GT`` field is automatically read in as a :class:`.~hail.type.TCall` type. To specify additional fields to import as a
-        :class:`.~hail.type.TCall` type, use the ``call_fields`` parameter. All other fields are imported as the type specified in the FORMAT header field.
+        If ``generic`` equals True, the genotype schema is a :class:`~hail.type.TStruct` with field names equal to the IDs of the FORMAT fields.
+        The ``GT`` field is automatically read in as a :class:`~hail.type.TCall` type. To specify additional fields to import as a
+        :class:`~hail.type.TCall` type, use the ``call_fields`` parameter. All other fields are imported as the type specified in the FORMAT header field.
 
         An example genotype schema after importing a VCF with ``generic=True`` is
 
@@ -818,12 +818,12 @@ class HailContext(HistoryMixin):
             dataset.  Don't load sample ids, sample annotations or
             genotypes.
 
-        :param call_fields: FORMAT fields in VCF to treat as a :class:`.~hail.type.TCall`. Only applies if ``generic=True``.
+        :param call_fields: FORMAT fields in VCF to treat as a :class:`~hail.type.TCall`. Only applies if ``generic=True``.
         :type call_fields: str or list of str
 
         :param bool generic: If True, read the genotype with a generic schema.
         
-        :param reference_genome: Reference genome to use. Default is :class:`.~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
         :param contig_recoding: Dict of old contig name to new contig name. The new contig name must be in the reference genome given by ``reference_genome``.
@@ -1020,7 +1020,7 @@ class HailContext(HistoryMixin):
 
         :param int seed: Random seed.
 
-        :param reference_genome: Reference genome to use. Default is :class:`.~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
         :return: Variant dataset simulated using the Balding-Nichols model.

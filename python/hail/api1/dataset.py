@@ -21,7 +21,7 @@ class VariantDataset(HistoryMixin):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
     Variant datasets may be generated from other formats using the :class:`.hail.api1.context.HailContext` import methods,
-    constructed from a variant-keyed :class:`.~hail.KeyTable` using :meth:`.VariantDataset.from_table`,
+    constructed from a variant-keyed :class:`~hail.KeyTable` using :meth:`.VariantDataset.from_table`,
     and simulated using :meth:`~hail.api1.HailContext.balding_nichols_model`.
 
     Once a variant dataset has been written to disk with :meth:`~hail.VariantDataset.write`,
@@ -270,7 +270,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         **Examples**
 
-        Convert the genotype schema to a :class:`.~hail.expr.TStruct` with two fields ``GT`` and ``CASE_HET``:
+        Convert the genotype schema to a :class:`~hail.expr.TStruct` with two fields ``GT`` and ``CASE_HET``:
 
         >>> vds_result = vds.annotate_genotypes_expr('g = {GT: g.GT, CASE_HET: sa.pheno.isCase && g.GT.isHet()}')
 
@@ -882,14 +882,14 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         variants, so ignore any warnings Hail prints if you know that to be the
         case.  Otherwise, run :meth:`~hail.VariantDataset.split_multi` before :meth:`~hail.VariantDataset.annotate_variants_vds`.
 
-        :param :class:`.~hail.VariantDataset` other: Variant dataset to annotate with.
+        :param :class:`~hail.VariantDataset` other: Variant dataset to annotate with.
 
         :param str root: Sample annotation path to add variant annotations.
 
         :param str expr: Annotation expression.
 
         :return: Annotated variant dataset.
-        :rtype: :class:`.~hail.VariantDataset`
+        :rtype: :class:`~hail.VariantDataset`
         '''
 
         jvds = self._jvds.annotateVariantsVDS(other._jvds, joption(root), joption(expr))
@@ -1505,7 +1505,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         annotations are exported.
 
         The FORMAT field is generated from the genotype schema, which
-        must be a :class:`.~hail.expr.TStruct`.  There is a FORMAT
+        must be a :class:`~hail.expr.TStruct`.  There is a FORMAT
         field for each field of the struct.
 
         INFO and FORMAT fields may be generated from Struct fields of type Call, Int32, Float32, Float64, or String.
@@ -1527,7 +1527,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         will have empty Description fields and the Number and Type fields will be determined from their corresponding Hail types.
         To add a desired Description, Number, and/or Type to a FORMAT or INFO field or to specify FILTER lines, use the
         ``metadata`` option to supply a dictionary with the relevant information.
-        See :class:`.~hail.api1.HailContext.get_vcf_metadata` for how this dictionary should be structured.
+        See :class:`~hail.api1.HailContext.get_vcf_metadata` for how this dictionary should be structured.
 
 
         The *example_out.vcf* header will *not* contain lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
@@ -1552,7 +1552,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
             a set of VCF files (one per partition) without the header. If None, concatenate the header and all partitions into one VCF file.
         :type parallel: str or None
 
-        :param metadata: Dictionary with information to fill in the VCF header. See :class:`.~hail.api1.HailContext.get_vcf_metadata` for an example.
+        :param metadata: Dictionary with information to fill in the VCF header. See :class:`~hail.api1.HailContext.get_vcf_metadata` for an example.
         :type metadata: (dict of str to (dict of str to (dict of str to str))) or None
         """
 
@@ -1723,7 +1723,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                            keep=True, left_aligned=False, keep_star=False):
         """Filter a user-defined set of alternate alleles for each variant for
         :meth:`.VariantDataset.genotype_schema`
-        :class:`.~hail.expr.TGenotype` or the HTS schema:
+        :class:`~hail.expr.TGenotype` or the HTS schema:
 
         .. code-block:: text
 
@@ -2251,7 +2251,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         or more variants, even on large datasets.
 
         :param variants: List of variants to keep or remove.
-        :type variants: list of :class:`.~hail.representation.Variant`
+        :type variants: list of :class:`~hail.representation.Variant`
 
         :param bool keep: If true, keep variants in ``variants``, otherwise remove them.
 
@@ -2326,7 +2326,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         """Return global annotations as a Python object.
 
         :return: Dataset global annotations.
-        :rtype: :class:`.~hail.representation.Struct`
+        :rtype: :class:`~hail.representation.Struct`
         """
         if self._globals is None:
             self._globals = self.global_schema._convert_to_py(self._jvds.globalAnnotation())
@@ -3406,7 +3406,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         mitochondria, decoys, etc. are not given special treatment.
 
         :param pedigree: Sample pedigree.
-        :type pedigree: :class:`.~hail.representation.Pedigree`
+        :type pedigree: :class:`~hail.representation.Pedigree`
 
         :returns: Four tables with Mendel error statistics.
         :rtype: (:class:`.KeyTable`, :class:`.KeyTable`, :class:`.KeyTable`, :class:`.KeyTable`)
@@ -4637,7 +4637,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
          - **max_alleles** (*int*) - The highest number of alleles at any variant.
          
         :return: Object containing summary information.
-        :rtype: :class:`.~hail.utils.Summary`
+        :rtype: :class:`~hail.utils.Summary`
         """
 
         js = self._jvds.summarize()
@@ -4856,7 +4856,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     @typecheck_method(keep_star=bool,
                       left_aligned=bool)
     def split_multi_hts(self, keep_star=False, left_aligned=False):
-        """Split multiallelic variants for :meth:`.VariantDataset.genotype_schema` :class:`.~hail.expr.TGenotype` or the HTS schema:
+        """Split multiallelic variants for :meth:`.VariantDataset.genotype_schema` :class:`~hail.expr.TGenotype` or the HTS schema:
 
         .. code-block:: text
 
@@ -5105,7 +5105,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
          - **pval** (*Float64*) -- p-value.
 
         :param pedigree: Sample pedigree.
-        :type pedigree: :class:`.~hail.representation.Pedigree`
+        :type pedigree: :class:`~hail.representation.Pedigree`
 
         :return: Key table with TDT association results.
         :rtype: :class:`.KeyTable`

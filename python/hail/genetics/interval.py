@@ -19,7 +19,7 @@ class Interval(HistoryMixin):
     :type start: :class:`.Locus`
     :param end: exclusive end locus
     :type end: :class:`.Locus`
-    :param reference_genome: Reference genome to use. Default is :class:`.~.HailContext.default_reference`.
+    :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
     :type reference_genome: :class:`.GenomeReference`
     """
 
@@ -105,7 +105,7 @@ class Interval(HistoryMixin):
         Note that the start locus must precede the start locus.
 
         :param str string: String to parse.
-        :param reference_genome: Reference genome to use. Default is :class:`.~.HailContext.default_reference`.
+        :param reference_genome: Reference genome to use. Default is :class:`~.HailContext.default_reference`.
         :type reference_genome: :class:`.GenomeReference`
 
         :rtype: :class:`.Interval`

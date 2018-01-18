@@ -1360,7 +1360,7 @@ class KeyTable(HistoryMixin):
         :param int n: Number of rows to take.
 
         :return: Rows from the start of the table.
-        :rtype: list of :class:`.~hail.representation.Struct`
+        :rtype: list of :class:`~hail.representation.Struct`
         """
 
         return [self.schema._convert_to_py(r) for r in self._jkt.take(n)]
