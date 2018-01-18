@@ -616,7 +616,11 @@ object LoadVCF {
         && !input.endsWith(".vcf.bgz")) {
         if (input.endsWith(".vcf.gz")) {
           if (!forcegz)
-            fatal(".gz cannot be loaded in parallel, use .bgz or force=True override")
+            fatal(""".gz cannot be loaded in parallel. Is your file actually *block* gzipped?
+                    |If your file is actually block gzipped (even though its extension is .gz),
+                    |use force_bgz=True to ignore the file extension and treat this file as if
+                    |it were a .bgz file. If you are sure that you want to load a non-block 
+                    |gzipped using the very slow, non-parallel algorithm, use force=True.""".stripMargin)
         } else
           fatal(s"unknown input file type `$input', expect .vcf[.bgz]")
       }
