@@ -84,11 +84,12 @@ def export_gen(dataset, output, precision=4):
             raise KeyError
     except KeyError:
         raise FatalError("export_gen: no entry field 'GP' of type Array[Float64]")
-        
+    
+    dataset = require_biallelic(dataset, 'export_plink')
+    
     Env.hail().io.gen.ExportGen.apply(dataset._jvds, output, precision)
 
 @handle_py4j
-# @require_biallelic
 @typecheck(dataset=MatrixTable,
            output=strlike,
            fam_args=expr_any)
@@ -172,7 +173,8 @@ def export_plink(dataset, output, **fam_args):
         analyze('export_plink/{}'.format(k), v, dataset._col_indices)
         exprs.append('`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
     base, _ = dataset._process_joins(*named_exprs.values())
-    
+    base = require_biallelic(base, 'export_plink')
+
     Env.hail().io.plink.ExportPlink.apply(base._jvds, output, ','.join(exprs))
 
 @handle_py4j
