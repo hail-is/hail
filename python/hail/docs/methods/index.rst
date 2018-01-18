@@ -32,6 +32,7 @@ Methods
     hail.methods.import_bed
     hail.methods.import_fam
     hail.methods.nirvana
+    hail.methods.tdt
 
 .. autofunction:: hail.methods.linreg
 .. autofunction:: hail.methods.sample_rows
@@ -59,3 +60,5 @@ Methods
 .. autofunction:: hail.methods.import_bed
 .. autofunction:: hail.methods.import_fam
 .. autofunction:: hail.methods.nirvana
+.. autofunction:: hail.methods.tdt
+
