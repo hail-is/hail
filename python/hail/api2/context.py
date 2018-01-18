@@ -22,12 +22,14 @@ class HailContext(HistoryMixin):
                       append=bool,
                       min_block_size=integral,
                       branching_factor=integral,
-                      tmp_dir=strlike)
+                      tmp_dir=strlike,
+                      default_reference=strlike)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False,
-                 min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
+                 min_block_size=1, branching_factor=50, tmp_dir='/tmp',
+                 default_reference="GRCh37"):
 
-        self._hc1 = hail.HailContext(sc, app_name, master, local, log, quiet, append, min_block_size, branching_factor, tmp_dir)
+        self._hc1 = hail.HailContext(sc, app_name, master, local, log, quiet, append, min_block_size, branching_factor, tmp_dir, default_reference)
         self._counter = 0
 
     @staticmethod
