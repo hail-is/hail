@@ -328,6 +328,9 @@ class Expression(object):
         raise NotImplementedError(
             "The truth value of an expression is undefined\n  Hint: instead of if/else, use 'f.cond'")
 
+    def __iter__(self):
+        raise TypeError("'Expression' object is not iterable")
+
     def _unary_op(self, name):
         return construct_expr(UnaryOperation(self._ast, name),
                               self._type, self._indices, self._aggregations, self._joins, self._refs)

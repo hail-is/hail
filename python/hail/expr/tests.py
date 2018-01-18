@@ -192,3 +192,7 @@ class Tests(unittest.TestCase):
         assert_typed(s.annotate(),
                      Struct(f1=1, f2=2, f3=3),
                      TStruct(['f1', 'f2', 'f3'], [TInt32(),TInt32(),TInt32()]))
+
+    def test_iter(self):
+        a = functions.capture([1,2,3])
+        self.assertRaises(TypeError, lambda: eval_expr(list(a)))
