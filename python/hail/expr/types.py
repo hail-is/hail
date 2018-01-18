@@ -119,6 +119,9 @@ class Type(HistoryMixin):
         """
         return
 
+    def _deep_optional(self):
+        return Type._from_java(self._jtype.deepOptional())
+
 
 class Intern(type):
     _instances = {}

@@ -2,7 +2,7 @@ from .summary import Summary
 from .misc import FunctionDocumentation, wrap_to_list, get_env_or_default, get_URI, new_temp_file, storage_level
 from .hadoop_utils import hadoop_copy, hadoop_read, hadoop_write, hadoop_read_binary
 from .struct import Struct
-from .java import error, warn, info
+from .java import error, warn, info, FatalError
 
 __all__ = ['Summary',
            'FunctionDocumentation',
@@ -18,4 +18,5 @@ __all__ = ['Summary',
            'Struct',
            'error',
            'warn',
-           'info']
+           'info',
+           'FatalError']

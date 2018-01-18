@@ -4988,6 +4988,16 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: :py:class:`.VariantDataset`
         """
 
+        hts_genotype_schema = TStruct._from_java(Env.hail().variant.Genotype.htsGenotypeType().deepOptional())
+        if self.genotype_schema._deep_optional() != hts_genotype_schema:
+            raise FatalError("""
+split_multi_hts: genotype_schema must be the HTS genotype schema
+  found: {}
+  expected: {}
+              
+hint: Use `annotate_genotypes_expr` to alter the genotype schema or `split_multi` to split genotypes with a generic schema.
+""".format(self.genotype_schema, hts_genotype_schema))
+
         variant_expr = 'va.aIndex = aIndex, va.wasSplit = wasSplit'
         genotype_expr = '''
 g = let
