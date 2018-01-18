@@ -2111,7 +2111,7 @@ class MatrixTable(object):
     @handle_py4j
     @typecheck_method(max_partitions=integral)
     def naive_coalesce(self, max_partitions):
-        """Naively descrease the number of partitions.
+        """Naively decrease the number of partitions.
 
         Example
         -------
