@@ -295,26 +295,9 @@ class Tests(unittest.TestCase):
 
             return np.array(data)
 
-        def from_api1(ds):
-            ds = ds.to_hail1()
-            rrm = ds.rrm()
-            fn = utils.new_temp_file(suffix='.tsv')
-            rrm.export_tsv(fn)
-            data = []
-            with open(utils.get_URI(fn)) as f:
-                f.readline()
-                for line in f:
-                    row = line.strip().split()
-                    data.append(map(float, row))
-
-            return np.array(data)
-
         manual = manual_calculation(dataset)
         rrm = hail_calculation(dataset)
-        rrm1 = from_api1(dataset)
 
-        self.assertTrue(np.allclose(manual, rrm1))
-        self.assertTrue(np.allclose(rrm1, rrm))
         self.assertTrue(np.allclose(manual, rrm))
 
 
