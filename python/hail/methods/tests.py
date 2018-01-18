@@ -255,17 +255,13 @@ class Tests(unittest.TestCase):
                                                 m1,
                                                 fst=(k * [fst]),
                                                 seed=seed,
-                                                num_partitions=4,
-                                                af_dist=UniformDist(0.1, 0.9)).to_hail2()
+                                                num_partitions=4).to_hail2()
 
-        def to_int_python(ds):
-            return BlockMatrix.from_matrix_table(ds['GT'].num_alt_alleles()).to_local_matrix()
-
-        def manual_calculation(ds):
-            ds = to_int_python(ds)
+        def direct_calculation(ds):
+            ds = BlockMatrix.from_matrix_table(ds['GT'].num_alt_alleles()).to_numpy_matrix()
 
             # filter out constant rows
-            isconst = lambda r: any([all([gt == c for gt in r]) for c in range(3)])
+            isconst = lambda r: any([all([(gt < c + .01) and (gt > c - .01) for gt in r]) for c in range(3)])
             ds = ds[[not isconst(row) for row in ds]]
 
             nvariants, nsamples = ds.shape
@@ -294,7 +290,7 @@ class Tests(unittest.TestCase):
 
             return np.array(data)
 
-        manual = manual_calculation(dataset)
+        manual = direct_calculation(dataset)
         rrm = hail_calculation(dataset)
 
         self.assertTrue(np.allclose(manual, rrm))

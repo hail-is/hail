@@ -2390,7 +2390,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         f = new_temp_file(suffix="bm")
 
-        vds._jvds.writeBlockMatrix(f, normalized_genotype_expr, BlockMatrix.default_block_size())
+        vds._jvds.writeBlockMatrix(f, normalized_genotype_expr)
         vds.unpersist()
 
         bm = BlockMatrix.read(f)
@@ -4469,7 +4469,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         f = new_temp_file(suffix="bm")
 
-        vds._jvds.writeBlockMatrix(f, normalized_genotype_expr, BlockMatrix.default_block_size())
+        vds._jvds.writeBlockMatrix(f, normalized_genotype_expr)
         vds.unpersist()
 
         bm = BlockMatrix.read(f)

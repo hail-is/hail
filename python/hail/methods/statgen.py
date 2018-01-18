@@ -1005,8 +1005,6 @@ def grm(dataset):
 def rrm(call_expr):
     """Computes the Realized Relationship Matrix (RRM).
 
-    .. include:: ../_templates/req_tvariant.rst
-
     .. include:: ../_templates/req_biallelic.rst
 
     Examples

@@ -5,7 +5,7 @@ import java.net.URI
 
 import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.HailContext
-import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.annotations.{Memory, Region, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.variant.{GenomeReference, Locus, MatrixTable}
@@ -30,29 +30,12 @@ trait Py4jUtils {
   // FIXME: Currently this can only send much less than the limit of
   // BlockMatrix.toLocalMatrix. That's probably fine.
   def doubleBDMToBytes(mat: BDM[Double]): Array[Byte] = {
-    val region = Region()
-    val types = TStruct("rows" -> TInt32Required,
-      "cols" -> TInt32Required,
-      "vals" -> TArray(TFloat64Required, required=true))
-
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(types)
-    rvb.startStruct()
-    rvb.addInt(mat.rows)
-    rvb.addInt(mat.cols)
-    rvb.startArray(mat.rows*mat.cols)
-    var i = 0
-    while (i < mat.rows) {
-      var j = 0
-      while (j < mat.cols) {
-        rvb.addDouble(mat(i,j))
-        j += 1
-      }
-      i += 1
-    }
-    rvb.endArray()
-    rvb.endStruct()
-    region.loadBytes(rvb.end(), region.size.toInt)
+    // assumes matrix is written as written by BlockMatrix
+    val buf = new Array[Byte](8 + 8 * mat.rows * mat.cols)
+    Memory.storeInt(buf, 0, mat.rows)
+    Memory.storeInt(buf, 4, mat.cols)
+    Memory.memcpy(buf, 8, mat.data, 0, 8*mat.rows*mat.cols)
+    buf
   }
 
   def getURI(uri: String): String = new URI(uri).getPath
