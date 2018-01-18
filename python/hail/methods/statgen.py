@@ -443,7 +443,6 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     return (jiterable_to_list(r._1()), scores, loadings)
 
 @handle_py4j
-@require_biallelic
 @typecheck_method(k=integral,
                   maf=numeric,
                   block_size=integral,
@@ -697,7 +696,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         `i`: `String`, `j`: `String`, `kin`: `Double`, `k2`: `Double`,
         `k1`: `Double`, `k0`: `Double`. The table is keyed by `i` and `j`.
     """
-
+    dataset = require_biallelic(dataset, 'pc_relate')
     intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
     _, scores, _ = hwe_normalized_pca(dataset, k, False, True)
     return Table(
