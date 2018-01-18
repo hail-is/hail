@@ -613,6 +613,16 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False):
 
     """
 
+    hts_genotype_schema = TStruct._from_java(Env.hail().variant.Genotype.htsGenotypeType().deepOptional())
+    if ds.entry_schema._deep_optional() != hts_genotype_schema:
+        raise FatalError("""
+split_multi_hts: entry schema must be the HTS genotype schema
+  found: {}
+  expected: {}
+
+hint: Use `split_multi` to split entries with a non-HTS genotype schema.
+""".format(ds.entry_schema, hts_genotype_schema))
+
     variant_expr = 'va.aIndex = aIndex, va.wasSplit = wasSplit'
     genotype_expr = '''
 g = let

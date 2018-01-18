@@ -268,6 +268,12 @@ class Tests(unittest.TestCase):
         # required python3
         # self.assertTrue(ds1._same(ds2))
 
+        ds = self.get_dataset()
+        ds = ds.annotate_entries(X = ds.GT)
+        self.assertRaisesRegexp(utils.FatalError,
+                                "split_multi_hts: entry schema must be the HTS genotype schema",
+                                methods.split_multi_hts(ds))
+
     def test_mendel_errors(self):
         dataset = self.get_dataset()
         men, fam, ind, var = methods.mendel_errors(dataset, Pedigree.read('src/test/resources/sample.fam'))
