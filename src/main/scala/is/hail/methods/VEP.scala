@@ -3,18 +3,18 @@ package is.hail.methods
 import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.rvd.{OrderedRVD, OrderedRVType}
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable, Variant}
+import is.hail.variant.{MatrixTable, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.reflect.ClassTag
 
 object VEP {
 
@@ -391,22 +391,48 @@ object VEP {
       }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
+    val vepType: Type = if (csq) TArray(TString()) else vepSignature
+
+    val vepOrderedRVType = new OrderedRVType(
+      Array("pk"), Array("pk", "v"),
+      TStruct(
+        "pk" -> vsm.locusType,
+        "v" -> vsm.vSignature,
+        "vep" -> vepType))
+
+    val vepRowType = vepOrderedRVType.rowType
+    val (t, pkProjection) = Type.partitionKeyProjection(vsm.vSignature)
+    assert(t == vsm.locusType)
+
+    val vepRVD: OrderedRVD = OrderedRVD(
+      vepOrderedRVType,
+      vsm.rdd2.partitioner,
+      annotations.mapPartitions { it =>
+        val region = Region()
+        val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
+
+        it.map { case (v, vep) =>
+          rvb.start(vepRowType)
+          rvb.startStruct()
+          rvb.addAnnotation(vepRowType.fieldType(0), pkProjection(v))
+          rvb.addAnnotation(vepRowType.fieldType(1), v)
+          rvb.addAnnotation(vepRowType.fieldType(2), vep)
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
+
+          rv
+      }})
+
     info(s"vep: annotated ${ annotations.count() } variants")
 
-    val (newVASignature, insertVEP) = vsm.vaSignature.insert(if (csq) TArray(TString()) else vepSignature, parsedRoot)
+    val (newVAType, inserter) = vsm.vaSignature.insert(vepType, parsedRoot)
 
-    implicit val variantOrd = vsm.genomeReference.variantOrdering
+    val newMatrixType = vsm.matrixType.copy(vaType = newVAType)
+    val newRDD2 = vsm.orderedRVDLeftJoinDistinctAndInsert(vsm.rdd2, vepRVD,
+      newMatrixType.orderedRVType, product = false, 2, newVAType, inserter)
 
-    val newRDD = vsm.typedRDD[Locus, Variant]
-      .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
-        left.sortedLeftJoinDistinct(right)
-          .map { case (v, ((va, gs), a)) => (v, (insertVEP(va, a.orNull), gs)) }
-      }
-
-    (csq, newVASignature) match {
-      case (true, t: TStruct) => vsm.copyLegacy(rdd = newRDD)
-      case _ => vsm.copyLegacy(rdd = newRDD, vaSignature = newVASignature)
-    }
+    vsm.copy2(rdd2 = newRDD2, vaSignature = newVAType)
   }
 
   def apply(vsm: MatrixTable, config: String, root: String = "va.vep", csq: Boolean = false, blockSize: Int = 1000): MatrixTable =

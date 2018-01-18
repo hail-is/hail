@@ -3,9 +3,10 @@ package is.hail.methods
 import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
-import is.hail.annotations.{Annotation, Querier}
+import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
+import is.hail.rvd.{OrderedRVD, OrderedRVType}
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, Variant}
 import org.apache.spark.storage.StorageLevel
@@ -327,18 +328,44 @@ object Nirvana {
 
     info(s"nirvana: annotated ${ annotations.count() } variants")
 
-    val (newVASignature, insertNirvana) = vds.vaSignature.insert(nirvanaSignature, parsedRoot)
+    val nirvanaOrderedRVType = new OrderedRVType(
+      Array("pk"), Array("pk", "v"),
+      TStruct(
+        "pk" -> vds.locusType,
+        "v" -> vds.vSignature,
+        "nirvana" -> nirvanaSignature))
 
-    val newRDD = vds.typedRDD[Locus, Variant]
-      .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
-        left.sortedLeftJoinDistinct(right)
-          .map { case (v, ((va, gs), vaNirvana)) =>
-            (v, (insertNirvana(va, vaNirvana.orNull), gs))
-          }
-      }
+    val nirvanaRowType = nirvanaOrderedRVType.rowType
+    val (t, pkProjection) = Type.partitionKeyProjection(vds.vSignature)
+    assert(t == vds.locusType)
 
-    vds.copyLegacy(rdd = newRDD,
-      vaSignature = newVASignature)
+    val nirvanaRVD: OrderedRVD = OrderedRVD(
+      nirvanaOrderedRVType,
+      vds.rdd2.partitioner,
+      annotations.mapPartitions { it =>
+        val region = Region()
+        val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
+
+        it.map { case (v, nirvana) =>
+          rvb.start(nirvanaRowType)
+          rvb.startStruct()
+          rvb.addAnnotation(nirvanaRowType.fieldType(0), pkProjection(v))
+          rvb.addAnnotation(nirvanaRowType.fieldType(1), v)
+          rvb.addAnnotation(nirvanaRowType.fieldType(2), nirvana)
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
+
+          rv
+        }})
+
+    val (newVAType, inserter) = vds.vaSignature.insert(nirvanaSignature, parsedRoot)
+
+    val newMatrixType = vds.matrixType.copy(vaType = newVAType)
+    val newRDD2 = vds.orderedRVDLeftJoinDistinctAndInsert(vds.rdd2, nirvanaRVD,
+      newMatrixType.orderedRVType, product = false, 2, newVAType, inserter)
+
+    vds.copy2(rdd2 = newRDD2, vaSignature = newVAType)
   }
 
   def apply(vsm: MatrixTable, config: String, blockSize: Int = 500000, root: String): MatrixTable =

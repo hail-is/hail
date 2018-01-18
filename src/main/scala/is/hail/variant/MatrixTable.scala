@@ -890,7 +890,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     root: String, expr: String, product: Boolean): MatrixTable =
     annotateVariantsTable(kt, if (vdsKey != null) vdsKey.asScala else null, root, expr, product)
 
-  private def orderedRVDLeftJoinDistinctAndInsert(
+  def orderedRVDLeftJoinDistinctAndInsert(
     lrvd: OrderedRVD,
     rrvd: OrderedRVD,
     newOrderedRVType: OrderedRVType, product: Boolean, valueIdx: Int, newVAType: Type, inserter: Inserter): OrderedRVD = {
