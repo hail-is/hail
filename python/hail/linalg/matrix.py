@@ -114,8 +114,8 @@ class BlockMatrix(object):
     def to_local_matrix(self):
         b = Env.jutils().doubleBDMToBytes(self._jbm.toLocalMatrix())
         rows, cols = unpack('<II', b[:8])
-        data = [[unpack('<d', b[24+8*(i*cols+j):32+8*(i*cols+j)])[0] for j in range(cols)] for i in range(rows)]
-        return np.array(data)
+        data = np.fromstring(bytes(b[24:]), dtype='<f8')
+        return np.reshape(data, (rows, cols))
 
     @handle_py4j
     @typecheck_method(i=numeric)
@@ -128,4 +128,3 @@ class BlockMatrix(object):
         return self * (1./i)
 
 block_matrix_type.set(BlockMatrix)
-
