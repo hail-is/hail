@@ -193,6 +193,6 @@ class Tests(unittest.TestCase):
                      Struct(f1=1, f2=2, f3=3),
                      TStruct(['f1', 'f2', 'f3'], [TInt32(),TInt32(),TInt32()]))
 
-    def test_lambdas(self):
+    def test_iter(self):
         a = functions.capture([1,2,3])
-        self.assertRaises(TypeError, lambda: eval_expr(list(a.map(lambda x: x * 2))))
+        self.assertRaises(TypeError, lambda: eval_expr(list(a)))
