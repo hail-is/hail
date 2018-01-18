@@ -1162,7 +1162,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         **Notes**
 
         This method computes the genotype call concordance between two
-        bialellic variant datasets.  It requires unique sample IDs and
+        biallelic variant datasets.  It requires unique sample IDs and
         performs an inner join on samples (only samples in both
         datasets will be considered).
 
@@ -2360,7 +2360,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Notes**
 
-        The genetic relationship matrix (GRM) :math:`G` encodes genetic correlation between each pair of samples. It is defined by :math:`G = MM^T` where :math:`M` is a standardized version of the genotype matrix, computed as follows. Let :math:`C` be the :math:`n \\times m` matrix of raw genotypes in the variant dataset, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+        The genetic relationship matrix (GRM) :math:`G` encodes genetic correlation between each pair of samples. It is defined by :math:`G = MM^T` where :math:`M` is a standardized version of the genotype matrix, computed as follows. Let :math:`C` be the :math:`n \\times m` matrix of raw genotypes in the variant dataset, with rows indexed by :math:`n` samples and columns indexed by :math:`m` biallelic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
 
         .. math::
 
@@ -4427,7 +4427,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         **Notes**
 
         The Realized Relationship Matrix is defined as follows. Consider the :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by :math:`n` samples and
-        columns indexed by the :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which
+        columns indexed by the :math:`m` biallelic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which
         can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column
         :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
 
