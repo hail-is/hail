@@ -11,7 +11,7 @@ import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType, RVD}
 import is.hail.utils._
-import is.hail.variant.GenomeReference
+import is.hail.variant.{GenomeReference, MatrixTable}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
@@ -765,6 +765,137 @@ class Table(val hc: HailContext,
     }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
   }
 
+  def toMatrixTable(rowKeyExpr: String, colKeyExpr: String, dataExpr: String, nPartitions: Option[Int] = None): MatrixTable = {
+
+    val keyEC = EvalContext((fields.map { f => f.name -> f.typ } ++
+      globalSignature.fields.map { f => f.name -> f.typ })
+      .zipWithIndex
+      .map { case ((name, t), i) => name -> (i, t) }
+      .toMap)
+
+    val g = globals.asInstanceOf[Row]
+    var i = 0
+    while (i < globalSignature.size) {
+      keyEC.set(nColumns + i, g.get(i))
+      i += 1
+    }
+
+    val (rowKeyType, rowKeyF) = Parser.parseExpr(rowKeyExpr, keyEC)
+    val (colKeyType, colKeyF) = Parser.parseExpr(colKeyExpr, keyEC)
+
+    val localRowType = coerce[TStruct](rvd.rowType)
+
+    val (ePaths, eTypes, entryF) = Parser.parseAnnotationExprs(dataExpr, keyEC, None)
+    val entryNames = ePaths.map(_.head)
+    val entryType = TStruct((entryNames, eTypes).zipped.toSeq: _*)
+    val nFields = entryType.size
+
+    val colIDs = rvd.rdd.mapPartitions[Annotation] { it =>
+      val ur = new UnsafeRow(localRowType)
+      it.map { rv =>
+        ur.set(rv)
+        keyEC.setAllFromRow(ur)
+        val key = colKeyF()
+        Annotation.copy(colKeyType, key)
+      }
+    }.distinct.collect()
+    val colMap = colIDs.zipWithIndex.toMap
+    val ncols = colIDs.size
+
+    info(s"$ncols columns")
+
+    val matrixType = MatrixType(sType=colKeyType,
+      vType=rowKeyType,
+      genotypeType=entryType
+    )
+
+    val (pkType, p) = Type.partitionKeyProjection(rowKeyType)
+
+    val zVals: (Region, Array[Long]) = (Region(), Array.tabulate[Long](ncols) { i => -1L })
+
+    val seqOp: ((Region, Array[Long]), RegionValue) => (Region, Array[Long]) = {
+      case (agg, rv) =>
+        val region = agg._1
+        val entries = agg._2
+        val ur = new UnsafeRow(localRowType, rv)
+        keyEC.setAllFromRow(ur)
+        val entryFields = entryF()
+        val rvb = new RegionValueBuilder(region)
+        rvb.start(entryType)
+        rvb.startStruct()
+        var j = 0
+        while (j < nFields) {
+          rvb.addAnnotation(eTypes(j), entryFields(j))
+          j += 1
+        }
+        rvb.endStruct()
+        entries.update(colMap(colKeyF()), rvb.end())
+        agg
+    }
+
+    val combOp: ((Region, Array[Long]), (Region, Array[Long])) => (Region, Array[Long]) = {
+      case (agg1, (region2, entries2)) =>
+        val region = agg1._1
+        val entries = agg1._2
+        val rvb = new RegionValueBuilder(region)
+        var i = 0
+        while (i < ncols) {
+          val off = entries2(i)
+          if (off != -1) {
+            rvb.start(entryType)
+            rvb.addRegionValue(entryType, region2, off)
+            entries.update(i, rvb.end())
+          }
+          i += 1
+        }
+        agg1
+    }
+
+    val newRDD = rvd.rdd.mapPartitions[(Annotation, RegionValue)] { it =>
+      val ur = new UnsafeRow(coerce[TStruct](localRowType))
+      it.map { rv =>
+        ur.set(rv)
+        keyEC.setAllFromRow(ur)
+        val key = rowKeyF()
+        (Annotation.copy(rowKeyType, key), rv)
+      }
+    }.aggregateByKey(zVals, nPartitions.getOrElse(this.nPartitions))(seqOp, combOp)
+      .mapPartitions { it =>
+        val region = Region()
+        val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
+        it.map { case (k, (region2, entries)) =>
+          region.clear()
+          rvb.start(matrixType.rowType)
+          rvb.startStruct()
+          rvb.addAnnotation(pkType, p(k))
+          rvb.addAnnotation(rowKeyType, k)
+          rvb.startStruct()
+          rvb.endStruct()
+          rvb.startArray(ncols)
+          var i = 0
+          while (i < ncols) {
+            if (entries(i) != -1)
+              rvb.addRegionValue(entryType, region2, entries(i))
+            else
+              rvb.setMissing()
+            i += 1
+          }
+          rvb.endArray()
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
+          rv
+        }
+      }
+
+    new MatrixTable(hc,
+      matrixType,
+      MatrixLocalValue(Annotation.empty,
+        colIDs,
+        Annotation.emptyIndexedSeq(ncols)),
+      OrderedRVD(matrixType.orderedRVType, newRDD, None, None))
+  }
+
   def aggregate(keyCond: String, aggCond: String, nPartitions: Option[Int] = None): Table = {
 
     val aggregationST = (fields.map { f => f.name -> f.typ } ++
@@ -834,7 +965,6 @@ class Table(val hc: HailContext,
     val newKey = key.filter(!columns.contains(_))
     copy(rdd = rdd.map(grouper), signature = newSignature, key = newKey)
   }
-
 
   def expandTypes(): Table = {
     val localSignature = signature

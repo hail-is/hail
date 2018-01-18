@@ -2,11 +2,13 @@ package is.hail.methods
 
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations._
+import is.hail.check.Prop.forAll
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
+import is.hail.variant.{MatrixTable, VSMSubgen}
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.testng.annotations.Test
@@ -61,6 +63,27 @@ class TableSuite extends SparkSuite {
     }
 
     assert(importedData == exportedData)
+  }
+
+  @Test def testToMatrixTable() {
+    forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
+      var expr = ""
+      vds.genotypeSignature.fieldNames.foreach { n =>
+        expr += n
+        expr += " = g."
+        expr += n
+        expr += ", "
+      }
+      val original = vds.annotateSamplesExpr("sa = {}")
+        .annotateVariantsExpr("va = {}")
+        .annotateGlobalExpr("global = {}")
+        .filterSamplesExpr("gs.exists(g => isDefined(g))")
+        .filterVariantsExpr("gs.exists(g => isDefined(g))")
+
+      val actual = vds.genotypeKT().toMatrixTable("v", "s", expr.substring(0, expr.length() - 2))
+        .reorderSamples(original.sampleIds.toArray)
+      actual.same(original)
+    }.check()
   }
 
   @Test def testAnnotate() {

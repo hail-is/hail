@@ -2,6 +2,7 @@ from decorator import decorator
 from hail.api2 import MatrixTable
 from hail.utils.java import Env, handle_py4j
 from hail.typecheck.check import typecheck, strlike
+from hail.expr.expression import *
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, method=strlike)
@@ -49,3 +50,30 @@ def rename_duplicates(dataset):
     """
 
     return MatrixTable(dataset._jvds.renameDuplicates())
+
+@handle_py4j
+def to_matrix_table(table, row_key, col_key, **entry_exprs):
+
+    all_exprs = []
+    row_key = to_expr(row_key)
+    all_exprs.append(row_key)
+    analyze('to_matrix_table/row_key', row_key, table._row_indices)
+    col_key = to_expr(col_key)
+    all_exprs.append(col_key)
+    analyze('to_matrix_table/col_key', col_key, table._row_indices)
+
+    exprs = []
+
+    entry_exprs = {k: to_expr(v) for k, v in entry_exprs.items()}
+    for k, e in entry_exprs.items():
+        all_exprs.append(e)
+        analyze('to_matrix_table/entry_exprs/{}'.format(k), e, table._row_indices)
+        exprs.append('`{k}` = {v}'.format(k=k, v=e._ast.to_hql()))
+
+    base, cleanup = table._process_joins(*all_exprs)
+
+    return MatrixTable(base._jt.toMatrixTable(row_key._ast.to_hql(),
+                                              col_key._ast.to_hql(),
+                                              ",\n".join(exprs),
+                                              joption(None)))
+
