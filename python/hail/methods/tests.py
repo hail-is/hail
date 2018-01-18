@@ -254,6 +254,13 @@ class Tests(unittest.TestCase):
         _, _, loadings = methods.pca(dataset.GT.num_alt_alleles(), k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
 
+    def test_pcrelate(self):
+        dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()
+        t = methods.pc_relate(dataset, 2, 0.05, block_size=64, statistics="phi")
+
+        self.assertTrue(isinstance(t, Table))
+        t.count()
+
     def test_rename_duplicates(self):
         dataset = self.get_dataset() # FIXME - want to rename samples with same id
         renamed_ids = methods.rename_duplicates(dataset).cols_table().select('s').collect()
