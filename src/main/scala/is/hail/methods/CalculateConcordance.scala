@@ -60,6 +60,9 @@ class ConcordanceCombiner extends Serializable {
 object CalculateConcordance {
 
   def apply(left: MatrixTable, right: MatrixTable): (IndexedSeq[IndexedSeq[Long]], Table, Table) = {
+    left.requireUniqueSamples("concordance")
+    right.requireUniqueSamples("concordance")
+
     val overlap = left.sampleIds.toSet.intersect(right.sampleIds.toSet)
     if (overlap.isEmpty)
       fatal("No overlapping samples between datasets")
@@ -106,7 +109,6 @@ object CalculateConcordance {
     val nSamples = leftIds.length
     val sampleResults = join.mapPartitions { it =>
       val comb = Array.fill(nSamples)(new ConcordanceCombiner)
-      val leftToRight = leftToRightBc.value
 
       val lview = HardCallView(leftRowType)
       val rview = HardCallView(rightRowType)
@@ -125,7 +127,7 @@ object CalculateConcordance {
           if (lrv != null)
             lview.setGenotype(li)
           if (rrv != null)
-            rview.setGenotype(leftToRight(li))
+            rview.setGenotype(leftToRightBc.value(li))
           comb(li).merge(
             if (lrv != null) {
               if (lview.hasGT)
@@ -152,7 +154,6 @@ object CalculateConcordance {
 
     val variantRDD = join.mapPartitions { it =>
       val comb = new ConcordanceCombiner
-      val rightToLeft = leftToRightBc.value
 
       val lur = new UnsafeRow(leftRowType)
       val rur = new UnsafeRow(rightRowType)
@@ -184,7 +185,7 @@ object CalculateConcordance {
           if (lrv != null)
             lview.setGenotype(li)
           if (rrv != null)
-            rview.setGenotype(leftToRight(li))
+            rview.setGenotype(leftToRightBc.value(li))
           comb.merge(
             if (lrv != null) {
               if (lview.hasGT)

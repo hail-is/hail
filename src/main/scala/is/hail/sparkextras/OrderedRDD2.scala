@@ -92,17 +92,18 @@ class OrderedZipJoinIterator(
       nextLeft()
       nextRight()
 
-      var c = 0
-      if (lrv != null) {
-        if (rrv != null)
-          c = lrKOrd.compare(lrv, rrv)
-        else
-          -1
-      } else if (rrv != null)
-        1
-      else {
-        assert(!lit.hasNext && !rit.hasNext)
-        return false
+      val c = {
+        if (lrv != null) {
+          if (rrv != null)
+            lrKOrd.compare(lrv, rrv)
+          else
+            -1
+        } else if (rrv != null)
+          1
+        else {
+          assert(!lit.hasNext && !rit.hasNext)
+          return false
+        }
       }
 
       if (c == 0) {
@@ -167,7 +168,7 @@ class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
     val rightIt = partition.rightPartitions.iterator.flatMap { p =>
       right.rdd.iterator(p, context)
     }
-      .filter { rrv =>leftPartitionForRightRow.getPartition(rrv) == index }
+      .filter { rrv => leftPartitionForRightRow.getPartition(rrv) == index }
 
     new OrderedZipJoinIterator(left.typ, right.typ, leftIt, rightIt)
   }
