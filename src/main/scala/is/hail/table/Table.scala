@@ -80,6 +80,8 @@ object Table {
     else if (!path.endsWith(".kt") && !path.endsWith(".kt/"))
       fatal(s"key table files must end in '.kt', but found '$path'")
 
+    GenomeReference.importReferences(hc.hadoopConf, path + "/references/")
+
     val metadataFile = path + "/metadata.json.gz"
     if (!hc.hadoopConf.exists(metadataFile))
       fatal(
@@ -915,6 +917,11 @@ class Table(val hc: HailContext,
     hc.hadoopConf.mkDir(path)
 
     val partitionCounts = rvd.rdd.writeRows(path, signature)
+
+    val refPath = path + "/references/"
+    hc.hadoopConf.mkDir(refPath)
+    GenomeReference.exportReferences(hc, refPath, signature)
+    GenomeReference.exportReferences(hc, refPath, globalSignature)
 
     val metadata = KeyTableMetadata(Table.fileVersion,
       key,

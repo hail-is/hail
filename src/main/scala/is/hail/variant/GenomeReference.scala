@@ -4,7 +4,7 @@ import java.io.InputStream
 
 import is.hail.HailContext
 import is.hail.check.Gen
-import is.hail.expr.types.{TInterval, TLocus, TVariant}
+import is.hail.expr.types._
 import is.hail.expr.{JSONAnnotationImpex, JSONExtractGenomeReference, Parser}
 import is.hail.utils._
 import org.json4s._
@@ -14,6 +14,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
+import org.apache.hadoop.conf.Configuration
 
 abstract class GRBase extends Serializable {
   val variantType: TVariant
@@ -378,6 +379,42 @@ object GenomeReference {
     addReference(gr)
     gr
   }
+
+  def importReferences(hConf: Configuration, path: String) {
+    if (hConf.exists(path)) {
+      val refs = hConf.listStatus(path)
+      refs.foreach { fs =>
+        val grPath = fs.getPath.toString
+        val gr = hConf.readFile(grPath) { (is: InputStream) => fromJSON(JsonMethods.parse(is)) }
+        val name = gr.name
+        if (!GenomeReference.hasReference(name))
+          addReference(gr)
+        else {
+          if (GenomeReference.getReference(name) != gr)
+            fatal(s"`$name' already exists and is not identical to the imported reference from `$grPath'.")
+        }
+      }
+    }
+  }
+
+  private def writeReference(hc: HailContext, path: String, gr: GRBase) {
+    val grPath = path + gr.name + ".json.gz"
+    if (!hailReferences.contains(gr.name) && !hc.hadoopConf.exists(grPath))
+      gr.asInstanceOf[GenomeReference].write(hc, grPath)
+  }
+
+  def exportReferences(hc: HailContext, path: String, t: Type) { (t: @unchecked) match {
+      case TArray(elementType, _) => exportReferences(hc, path, elementType)
+      case TSet(elementType, req) => exportReferences(hc, path, elementType)
+      case TDict(keyType, valueType, _) =>
+        exportReferences(hc, path, keyType)
+        exportReferences(hc, path, valueType)
+      case TStruct(fields, _) => fields.foreach(fd => exportReferences(hc, path, fd.typ))
+      case TVariant(gr, _) => writeReference(hc, path, gr)
+      case TLocus(gr, _) => writeReference(hc, path, gr)
+      case TInterval(TLocus(gr, _), _) => writeReference(hc, path, gr)
+      case _ =>
+  }}
 
   def compare(contigsIndex: Map[String, Int], c1: String, c2: String): Int = {
     (contigsIndex.get(c1), contigsIndex.get(c2)) match {
