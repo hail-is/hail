@@ -21,7 +21,7 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
         dataset = vds.annotate_samples_expr('sa = drop(sa, qc)').to_hail2()
         from hail.methods import trio_matrix
 
-    >>> pedigree = Pedigree.read('data/myStudy.fam')
+    >>> pedigree = Pedigree.read('data/case_control_study.fam')
     >>> trio_dataset = trio_matrix(dataset, pedigree, complete_trios=True)
 
     **Notes**

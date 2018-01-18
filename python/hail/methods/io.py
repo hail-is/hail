@@ -473,7 +473,7 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
 
     Import a FAM file with a quantitative phenotype:
 
-    >>> fam_kt = methods.import_fam('data/quant_pheno_study.fam', quant_pheno=True)
+    >>> fam_kt = methods.import_fam('data/quantitative_study.fam', quant_pheno=True)
 
     Notes
     -----

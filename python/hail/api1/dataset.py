@@ -5904,7 +5904,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         Create a trio matrix:
 
-        >>> pedigree = Pedigree.read('data/myStudy.fam')
+        >>> pedigree = Pedigree.read('data/case_control_study.fam')
         >>> trio_matrix = vds.trio_matrix(pedigree, complete_trios=True)
 
         **Notes**
