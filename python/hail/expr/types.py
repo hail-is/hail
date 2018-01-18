@@ -290,7 +290,7 @@ class TString(Type):
 
 
 class TBoolean(Type):
-    """Hail type for boolean (``True`` or ``False``) values.
+    """Hail type for Boolean (``True`` or ``False``) values.
 
     In Python, these are represented as :obj:`bool`.
     """
