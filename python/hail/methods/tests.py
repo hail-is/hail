@@ -272,7 +272,8 @@ class Tests(unittest.TestCase):
         ds = ds.annotate_entries(X = ds.GT)
         self.assertRaisesRegexp(utils.FatalError,
                                 "split_multi_hts: entry schema must be the HTS genotype schema",
-                                methods.split_multi_hts(ds))
+                                methods.split_multi_hts,
+                                ds)
 
     def test_mendel_errors(self):
         dataset = self.get_dataset()
