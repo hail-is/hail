@@ -1589,7 +1589,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       .annotateVariantsTable(kt.select(kt.key), root = "va.predicate")
       .filterVariantsExpr("va.predicate", keep = keep)
     assert(t.vaSignature.asInstanceOf[TStruct].field("predicate").typ == TBoolean())
-    t.variantsKT().export("/tmp/foo.tsv")
 
     t.annotateVariantsExpr("va = va.save_va")
   }
