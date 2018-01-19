@@ -7,12 +7,12 @@ import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-class OrderedDependency2(left: OrderedRVD, right: OrderedRVD) extends NarrowDependency[RegionValue](right.rdd) {
+class OrderedDependency(left: OrderedRVD, right: OrderedRVD) extends NarrowDependency[RegionValue](right.rdd) {
   override def getParents(partitionId: Int): Seq[Int] =
-    OrderedDependency2.getDependencies(left.partitioner, right.partitioner)(partitionId)
+    OrderedDependency.getDependencies(left.partitioner, right.partitioner)(partitionId)
 }
 
-object OrderedDependency2 {
+object OrderedDependency {
   def getDependencies(p1: OrderedRVPartitioner, p2: OrderedRVPartitioner)(partitionId: Int): Range = {
     val lastPartition = if (partitionId == p1.rangeBounds.length)
       p2.numPartitions - 1
@@ -33,7 +33,7 @@ case class OrderedJoinDistinctRDD2Partition(index: Int, leftPartition: Partition
 class OrderedJoinDistinctRDD2(left: OrderedRVD, right: OrderedRVD, joinType: String)
   extends RDD[JoinedRegionValue](left.sparkContext,
     Seq[Dependency[_]](new OneToOneDependency(left.rdd),
-      new OrderedDependency2(left, right))) {
+      new OrderedDependency(left, right))) {
   assert(joinType == "left" || joinType == "inner")
   override val partitioner: Option[Partitioner] = Some(left.partitioner)
 
@@ -41,7 +41,7 @@ class OrderedJoinDistinctRDD2(left: OrderedRVD, right: OrderedRVD, joinType: Str
     Array.tabulate[Partition](left.getNumPartitions)(i =>
       OrderedJoinDistinctRDD2Partition(i,
         left.partitions(i),
-        OrderedDependency2.getDependencies(left.partitioner, right.partitioner)(i)
+        OrderedDependency.getDependencies(left.partitioner, right.partitioner)(i)
           .map(right.partitions)
           .toArray))
   }
@@ -140,7 +140,7 @@ case class OrderedZipJoinRDDPartition(index: Int, leftPartition: Partition, righ
 class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
   extends RDD[JoinedRegionValue](left.sparkContext,
     Seq[Dependency[_]](new OneToOneDependency(left.rdd),
-      new OrderedDependency2(left, right))) {
+      new OrderedDependency(left, right))) {
   private val leftPartitionForRightRow = new OrderedRVPartitioner(
     left.partitioner.numPartitions,
     right.typ.partitionKey,
@@ -153,7 +153,7 @@ class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
     Array.tabulate[Partition](left.getNumPartitions)(i =>
       OrderedZipJoinRDDPartition(i,
         left.partitions(i),
-        OrderedDependency2.getDependencies(left.partitioner, right.partitioner)(i)
+        OrderedDependency.getDependencies(left.partitioner, right.partitioner)(i)
           .map(right.partitions)
           .toArray))
   }

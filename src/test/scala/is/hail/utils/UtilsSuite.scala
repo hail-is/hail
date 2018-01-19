@@ -85,44 +85,6 @@ class UtilsSuite extends SparkSuite {
     assert(!rdd1.exists(_ < 0))
   }
 
-  @Test def spanningIterator() = {
-    assert(span(List()) == List())
-    assert(span(List((1, "a"))) == List((1, List("a"))))
-    assert(span(List((1, "a"), (1, "b"))) == List((1, List("a", "b"))))
-    assert(span(List((1, "a"), (2, "b"))) == List((1, List("a")), (2, List("b"))))
-    assert(span(List((1, "a"), (1, "b"), (2, "c"))) ==
-      List((1, List("a", "b")), (2, List("c"))))
-    assert(span(List((1, "a"), (2, "b"), (2, "c"))) ==
-      List((1, List("a")), (2, List("b", "c"))))
-    assert(span(List((1, "a"), (2, "b"), (1, "c"))) ==
-      List((1, List("a")), (2, List("b")), (1, List("c"))))
-  }
-
-  def span[K, V](tuples: List[(K, V)]) = {
-    new SpanningIterator(tuples.iterator).toIterable.toList
-  }
-
-  @Test def testLeftJoinIterators() {
-    val g = for (uniqueInts <- Gen.buildableOf[Set](Gen.choose(0, 1000)).map(set => set.toIndexedSeq.sorted);
-      toZip <- Gen.buildableOfN[IndexedSeq](uniqueInts.size, arbitrary[String])
-    ) yield {
-      uniqueInts.zip(toZip)
-    }
-
-    val p = Prop.forAll(g, g) { case (it1, it2) =>
-      val m2 = it2.toMap
-
-      val join = it1.iterator.sortedLeftJoinDistinct(it2.iterator).toIndexedSeq
-
-      val check1 = it1 == join.map { case (k, (v1, _)) => (k, v1) }
-      val check2 = join.forall { case (k, (_, v2)) => v2 == m2.get(k) }
-
-      check1 && check2
-    }
-
-    p.check()
-  }
-
   @Test def testSortFileStatus() {
     val rhc = new RichHadoopConfiguration(sc.hadoopConfiguration)
 
@@ -137,26 +99,6 @@ class UtilsSuite extends SparkSuite {
       "MEMORY_AND_DISK", "MEMORY_AND_DISK_2", "MEMORY_AND_DISK_SER", "MEMORY_AND_DISK_SER_2", "OFF_HEAP")
 
     sls.foreach { sl => StorageLevel.fromString(sl) }
-  }
-
-  @Test def sortedUnionIterator() {
-    val g = for {
-      gr <- GenomeReference.gen
-      v = VariantSubgen.fromGenomeRef(gr).gen
-      a1 <- Gen.buildableOf[Array](v)
-      a2 <- Gen.buildableOf[Array](v)
-    } yield (gr, a1, a2)
-
-    val p = Prop.forAll(g) {
-      case (gr, a1, a2) =>
-        implicit val variantOrd = gr.variantOrdering
-        val sa1 = a1.sorted.map(v => (v, "foo"))
-        val sa2 = a2.sorted.map(v => (v, "foo"))
-        (sa1 ++ sa2).sorted.sameElements(
-          new SortedUnionPairIterator(sa1.iterator, sa2.iterator).toSeq)
-    }
-
-    p.check()
   }
 
   @Test def testDictionaryOrdering() {
