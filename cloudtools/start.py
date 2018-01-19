@@ -1,6 +1,6 @@
 from subprocess import call, check_output
 
-COMPATIBILITY_VERSION = 3
+COMPATIBILITY_VERSION = 4
 
 # master machine type to memory map, used for setting spark.driver.memory property
 machine_mem = {
