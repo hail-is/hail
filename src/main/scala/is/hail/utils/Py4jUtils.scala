@@ -26,14 +26,13 @@ trait Py4jUtils {
       list.add(elem)
     list
   }
-
-  // FIXME: Currently this needs 8 * r * c < int.max.
-  def bdmToBytes(bdm: BDM[Double]): Array[Byte] = {
-    assert(8 * bdm.rows * bdm.cols < Integer.MAX_VALUE)
+  
+  def bdmGetBytes(bdm: BDM[Double], start: Int, n: Int): Array[Byte] = {
+    assert(8L * n < Integer.MAX_VALUE.toLong)
     assert(bdm.offset == 0)
     assert(bdm.majorStride == (if (bdm.isTranspose) bdm.cols else bdm.rows))
-    val buf = new Array[Byte](8 * bdm.rows * bdm.cols)
-    Memory.memcpy(buf, 0, bdm.data, 0, 8 * bdm.rows * bdm.cols)
+    val buf = new Array[Byte](8 * n)
+    Memory.memcpy(buf, 0, bdm.data, 8 * start, 8 * n)
     buf
   }
 

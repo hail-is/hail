@@ -127,11 +127,19 @@ def numpy_from_breeze(bdm):
     if bdm.majorStride() != expected_stride:
         raise ValueError("Expected major stride of Breeze matrix to be {}, found {}"
                          .format(expected_stride, bdm.majorStride()))
-    if cols * rows > 0x7ffff:
+    if cols * rows > 0x7ffffff:
         raise ValueError("rows * cols must be smaller than {}, found {} by {} matrix"
-                         .format(0x7ffff, rows, cols))
+                         .format(0x7ffffff, rows, cols))
 
-    b = Env.jutils().bdmToBytes(bdm)
+    if cols * rows <= 0x7ffff:
+        b = Env.jutils().bdmGetBytes(bdm, 0, cols * rows)
+    else:
+        b = bytearray()
+        i = 0
+        while (i < rows * cols):
+            n = min(0x7ffff, rows * cols - i)
+            b.append(Env.jutils().bdmGetBytes(bdm, i, n))
+            i += n
     data = np.fromstring(bytes(b), dtype='f8')
     return np.reshape(data, (cols, rows)).T if bdm.isTranspose else np.reshape(data, (rows, cols))
 
