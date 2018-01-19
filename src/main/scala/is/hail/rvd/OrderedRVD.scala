@@ -12,6 +12,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 class OrderedRVD private(
   val typ: OrderedRVType,
@@ -59,6 +60,13 @@ class OrderedRVD private(
     OrderedRVD(newTyp,
       partitioner,
       rdd.mapPartitions(f))
+
+  def zipPartitionsPreservesPartitioning[T](newTyp: OrderedRVType, rdd2: RDD[T])(f: (Iterator[RegionValue], Iterator[T]) => Iterator[RegionValue])(implicit tct: ClassTag[T]): OrderedRVD =
+    OrderedRVD(newTyp,
+      partitioner,
+      rdd.zipPartitions(rdd2) { case (it, it2) =>
+          f(it, it2)
+      })
 
   override def filter(p: (RegionValue) => Boolean): OrderedRVD =
     OrderedRVD(typ,
@@ -377,6 +385,21 @@ class OrderedRVD private(
     }
 
     OrderedRVD(newTyp, partitioner, newRDD)
+  }
+
+  def subsetPartitions(keep: Array[Int]): OrderedRVD = {
+    require(keep.length <= rdd.partitions.length, "tried to subset to more partitions than exist")
+    require(keep.isIncreasing && keep.forall { i => i >= 0 && i < rdd.partitions.length },
+      "values not sorted or not in range [0, number of partitions)")
+
+    val newRangeBounds = keep.init.map(partitioner.rangeBounds)
+    val newPartitioner = new OrderedRVPartitioner(
+      keep.length,
+      partitioner.partitionKey,
+      partitioner.kType,
+      UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
+
+    OrderedRVD(typ, newPartitioner, rdd.subsetPartitions(keep))
   }
 }
 
