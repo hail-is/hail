@@ -2664,6 +2664,7 @@ object FunctionRegistry {
   registerMethod("toInt64", (s: String) => s.toLong, "Convert value to a 64-bit integer.")
   registerMethod("toFloat32", (s: String) => s.toFloat, "Convert value to a 32-bit floating point number.")
   registerMethod("toFloat64", (s: String) => s.toDouble, "Convert value to a 64-bit floating point number.")
+  registerMethod("toBoolean", (s: String) => s.toBoolean, "Convert value to a boolean.")
 
   registerMethod("toInt32", (b: Boolean) => b.toInt, "Convert value to a 32-bit integer. Returns 1 if true, else 0.")
   registerMethod("toInt64", (b: Boolean) => b.toLong, "Convert value to a 64-bit integer. Returns 1 if true, else 0.")

@@ -196,3 +196,33 @@ class Tests(unittest.TestCase):
     def test_iter(self):
         a = functions.capture([1,2,3])
         self.assertRaises(TypeError, lambda: eval_expr(list(a)))
+
+    def test_str_ops(self):
+        s = functions.capture("123")
+        self.assertEqual(eval_expr(s.to_int32()), 123)
+
+        s = functions.capture("123123123123")
+        self.assertEqual(eval_expr(s.to_int64()), 123123123123)
+
+        s = functions.capture("1.5")
+        self.assertEqual(eval_expr(s.to_float32()), 1.5)
+        self.assertEqual(eval_expr(s.to_float64()), 1.5)
+
+        s1 = functions.capture('true')
+        s2 = functions.capture('True')
+        s3 = functions.capture('TRUE')
+
+        s4 = functions.capture('false')
+        s5 = functions.capture('False')
+        s6 = functions.capture('FALSE')
+
+        self.assertTrue(eval_expr(s1.to_boolean()))
+        self.assertTrue(eval_expr(s2.to_boolean()))
+        self.assertTrue(eval_expr(s3.to_boolean()))
+
+        self.assertFalse(eval_expr(s4.to_boolean()))
+        self.assertFalse(eval_expr(s5.to_boolean()))
+        self.assertFalse(eval_expr(s6.to_boolean()))
+
+
+

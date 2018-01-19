@@ -2938,6 +2938,102 @@ class StringExpression(AtomicExpression):
         return construct_expr(RegexMatch(self._ast, regex), TBoolean(),
                               self._indices, self._aggregations, self._joins, self._refs)
 
+    def to_int32(self):
+        """Parse the string to a 32-bit integer.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> s = functions.capture('123')
+            >>> eval_expr(s.to_int32())
+            123
+
+        Returns
+        -------
+        :class:`.Int32Expression`
+            Parsed integer expression.
+        """
+        return self._method("toInt32", TInt32())
+
+    def to_int64(self):
+        """Parse the string to a 64-bit integer.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> s = functions.capture('123123123123')
+            >>> eval_expr(s.to_int64())
+            123123123123L
+
+        Returns
+        -------
+        :class:`.Int64Expression`
+            Parsed integer expression.
+        """
+
+        return self._method("toInt64", TInt64())
+
+    def to_float32(self):
+        """Parse the string to a 32-bit float.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> s = functions.capture('1.5')
+            >>> eval_expr(s.to_float32())
+            5e-08
+
+        Returns
+        -------
+        :class:`.Float32Expression`
+            Parsed float expression.
+        """
+        return self._method("toFloat32", TFloat32())
+
+    def to_float64(self):
+        """Parse the string to a 64-bit float.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> s = functions.capture('1.15e80')
+            >>> eval_expr(s.to_float64())
+            1.15e+80
+
+        Returns
+        -------
+        :class:`.Float32Expression`
+            Parsed float expression.
+        """
+        return self._method("toFloat64", TFloat64())
+
+    def to_boolean(self):
+        """Parse the string to a Boolean.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> s = functions.capture('TRUE')
+            >>> eval_expr(s.to_boolean())
+            True
+
+        Notes
+        -----
+        Acceptable values are: ``True``, ``true``, ``TRUE``, ``False``,
+        ``false``, and ``FALSE``.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            Parsed Boolean expression.
+        """
+
+        return self._method("toBoolean", TBoolean())
 
 class CallExpression(Expression):
     """Expression of type :class:`.TCall`.
