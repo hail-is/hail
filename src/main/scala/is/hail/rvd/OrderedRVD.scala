@@ -112,6 +112,8 @@ class OrderedRVD private(
     }
   }
 
+  def orderedZipJoin(right: OrderedRVD): RDD[JoinedRegionValue] = new OrderedZipJoinRDD(this, right)
+
   def partitionSortedUnion(rdd2: OrderedRVD): OrderedRVD = {
     assert(typ == rdd2.typ)
     assert(partitioner == rdd2.partitioner)
@@ -278,7 +280,7 @@ class OrderedRVD private(
         newRDD)
     }
   }
-  
+
   def head(n: Long): OrderedRVD = {
     require(n >= 0)
 

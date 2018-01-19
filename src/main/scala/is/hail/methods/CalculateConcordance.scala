@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.annotations.UnsafeRow
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
@@ -14,16 +15,8 @@ class ConcordanceCombiner extends Serializable {
   // 5x5 square matrix indexed by [NoData, NoCall, HomRef, Het, HomVar] on each axis
   val mapping = MultiArray2.fill(5, 5)(0L)
 
-  def mergeBoth(left: Int, right: Int) {
-    mapping(left + 2, right + 2) += 1
-  }
-
-  def mergeLeft(left: Int) {
-    mapping(left + 2, 0) += 1
-  }
-
-  def mergeRight(right: Int) {
-    mapping(0, right + 2) += 1
+  def merge(left: Int, right: Int) {
+    mapping(left, right) += 1
   }
 
   def merge(other: ConcordanceCombiner): ConcordanceCombiner = {
@@ -67,14 +60,17 @@ class ConcordanceCombiner extends Serializable {
 object CalculateConcordance {
 
   def apply(left: MatrixTable, right: MatrixTable): (IndexedSeq[IndexedSeq[Long]], Table, Table) = {
+    left.requireUniqueSamples("concordance")
+    right.requireUniqueSamples("concordance")
+
     val overlap = left.sampleIds.toSet.intersect(right.sampleIds.toSet)
     if (overlap.isEmpty)
       fatal("No overlapping samples between datasets")
 
     if (left.vSignature != right.vSignature)
       fatal(s"""Cannot compute concordance for datasets with different reference genomes:
-              |  left: ${left.vSignature.toPrettyString(compact = true)}
-              |  right: ${right.vSignature.toPrettyString(compact = true)}""")
+              |  left: ${ left.vSignature.toPrettyString(compact = true) }
+              |  right: ${ right.vSignature.toPrettyString(compact = true) }""")
 
     info(
       s"""Found ${ overlap.size } overlapping samples
@@ -101,46 +97,53 @@ object CalculateConcordance {
 
     assert(leftIds.toSet == overlap && rightIds.toSet == overlap)
 
-    val leftIdIndex = leftIds.zipWithIndex.toMap
-    val rightIdMapping = rightIds.map(leftIdIndex).toArray
-    val rightIdMappingBc = left.sparkContext.broadcast(rightIdMapping)
+    val rightIdIndex = rightIds.zipWithIndex.toMap
+    val leftToRight = leftIds.map(rightIdIndex).toArray
+    val leftToRightBc = left.sparkContext.broadcast(leftToRight)
 
-    val join = leftFiltered.typedRDD[Locus, Variant].orderedOuterJoinDistinct(rightFiltered.typedRDD[Locus, Variant])
+    val join = leftFiltered.rdd2.orderedZipJoin(rightFiltered.rdd2)
+
+    val leftRowType = leftFiltered.rowType
+    val rightRowType = rightFiltered.rowType
 
     val nSamples = leftIds.length
     val sampleResults = join.mapPartitions { it =>
-      val arr = Array.ofDim[Int](nSamples)
       val comb = Array.fill(nSamples)(new ConcordanceCombiner)
-      val rightMapping = rightIdMappingBc.value
 
-      it.foreach { case (v, (v1, v2)) =>
-        ((v1, v2): @unchecked) match {
+      val lview = HardCallView(leftRowType)
+      val rview = HardCallView(rightRowType)
 
-          case (Some((_, leftGS)), Some((_, rightGS))) =>
-            var i = 0
-            rightGS.foreach { g =>
-              arr(rightMapping(i)) = Genotype.unboxedGT(g)
-              i += 1
-            }
-            assert(i == nSamples)
-            i = 0
-            leftGS.foreach { g =>
-              comb(i).mergeBoth(Genotype.unboxedGT(g), arr(i))
-              i += 1
-            }
-          case (None, Some((_, rightGS))) =>
-            var i = 0
-            rightGS.foreach { g =>
-              comb(rightMapping(i)).mergeRight(Genotype.unboxedGT(g))
-              i += 1
-            }
-            assert(i == nSamples)
-          case (Some((_, leftGS)), None) =>
-            var i = 0
-            leftGS.foreach { g =>
-              comb(i).mergeLeft(Genotype.unboxedGT(g))
-              i += 1
-            }
+      it.foreach { jrv =>
+        val lrv = jrv.rvLeft
+        val rrv = jrv.rvRight
+
+        if (lrv != null)
+          lview.setRegion(lrv)
+        if (rrv != null)
+          rview.setRegion(rrv)
+
+        var li = 0
+        while (li < nSamples) {
+          if (lrv != null)
+            lview.setGenotype(li)
+          if (rrv != null)
+            rview.setGenotype(leftToRightBc.value(li))
+          comb(li).merge(
+            if (lrv != null) {
+              if (lview.hasGT)
+                lview.getGT + 2
+              else
+                1
+            } else
+              0,
+            if (rrv != null) {
+              if (rview.hasGT)
+                rview.getGT + 2
+              else
+                1
+            } else
+              0)
+          li += 1
         }
       }
       Iterator(comb)
@@ -150,31 +153,55 @@ object CalculateConcordance {
     }
 
     val variantRDD = join.mapPartitions { it =>
-      val arr = Array.ofDim[Int](nSamples)
       val comb = new ConcordanceCombiner
-      val rightMapping = rightIdMappingBc.value
 
-      it.map { case (v, (value1, value2)) =>
+      val lur = new UnsafeRow(leftRowType)
+      val rur = new UnsafeRow(rightRowType)
+      val lview = HardCallView(leftRowType)
+      val rview = HardCallView(rightRowType)
+
+      it.map { jrv =>
         comb.reset()
-        ((value1, value2): @unchecked) match {
-          case (Some((_, leftGS)), Some((_, rightGS))) =>
-            var i = 0
-            rightGS.foreach { g =>
-              arr(rightMapping(i)) = Genotype.unboxedGT(g)
-              i += 1
-            }
-            assert(i == nSamples)
-            i = 0
-            leftGS.foreach { g =>
-              comb.mergeBoth(Genotype.unboxedGT(g), arr(i))
-              i += 1
-            }
-          case (None, Some((_, gs2))) =>
-            gs2.foreach { g =>
-              comb.mergeRight(Genotype.unboxedGT(g))
-            }
-          case (Some((_, gs1)), None) =>
-            gs1.foreach { g => comb.mergeLeft(Genotype.unboxedGT(g)) }
+
+        val lrv = jrv.rvLeft
+        val rrv = jrv.rvRight
+
+        val v =
+          if (lrv != null) {
+            lur.set(lrv)
+            lur.get(1)
+          } else {
+            rur.set(rrv)
+            rur.get(1)
+          }
+
+        if (lrv != null)
+          lview.setRegion(lrv)
+        if (rrv != null)
+          rview.setRegion(rrv)
+
+        var li = 0
+        while (li < nSamples) {
+          if (lrv != null)
+            lview.setGenotype(li)
+          if (rrv != null)
+            rview.setGenotype(leftToRightBc.value(li))
+          comb.merge(
+            if (lrv != null) {
+              if (lview.hasGT)
+                lview.getGT + 2
+              else
+                1
+            } else
+              0,
+            if (rrv != null) {
+              if (rview.hasGT)
+                rview.getGT + 2
+              else
+                1
+            } else
+              0)
+          li += 1
         }
         val r = Row(v, comb.nDiscordant, comb.toAnnotation)
         assert(variantSchema.typeCheck(r))

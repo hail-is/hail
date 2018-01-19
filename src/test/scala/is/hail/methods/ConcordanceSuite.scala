@@ -67,12 +67,12 @@ class ConcordanceSuite extends SparkSuite {
   @Test def testCombiner() {
     val comb = new ConcordanceCombiner
 
-    comb.mergeBoth(-1, 1)
-    comb.mergeBoth(-1, 1)
-    comb.mergeBoth(-1, 1)
-    comb.mergeBoth(-1, 1)
-    comb.mergeRight(2)
-    comb.mergeLeft(0)
+    comb.merge(1, 3)
+    comb.merge(1, 3)
+    comb.merge(1, 3)
+    comb.merge(1, 3)
+    comb.merge(0, 4)
+    comb.merge(2, 0)
 
     assert(comb.toAnnotation == IndexedSeq(
       IndexedSeq(0L, 0L, 0L, 0L, 1L),
@@ -84,23 +84,23 @@ class ConcordanceSuite extends SparkSuite {
 
     val comb2 = new ConcordanceCombiner
 
-    comb2.mergeLeft(2)
-    comb2.mergeLeft(2)
-    comb2.mergeLeft(-1)
-    comb2.mergeLeft(-1)
-    comb2.mergeLeft(2)
-    comb2.mergeRight(0)
-    comb2.mergeRight(1)
-    comb2.mergeRight(1)
-    comb2.mergeBoth(1, 1)
-    comb2.mergeBoth(1, 1)
-    comb2.mergeBoth(-1, 1)
-    comb2.mergeBoth(-1, 1)
-    comb2.mergeBoth(1, -1)
-    comb2.mergeBoth(1, -1)
-    comb2.mergeBoth(2, -1)
-    comb2.mergeBoth(2, -1)
-    comb2.mergeBoth(2, -1)
+    comb2.merge(4, 0)
+    comb2.merge(4, 0)
+    comb2.merge(1, 0)
+    comb2.merge(1, 0)
+    comb2.merge(4, 0)
+    comb2.merge(0, 2)
+    comb2.merge(0, 3)
+    comb2.merge(0, 3)
+    comb2.merge(3, 3)
+    comb2.merge(3, 3)
+    comb2.merge(1, 3)
+    comb2.merge(1, 3)
+    comb2.merge(3, 1)
+    comb2.merge(3, 1)
+    comb2.merge(4, 1)
+    comb2.merge(4, 1)
+    comb2.merge(4, 1)
 
     assert(comb2.toAnnotation == IndexedSeq(
       IndexedSeq(0L, 0L, 1L, 2L, 0L),
@@ -126,13 +126,13 @@ class ConcordanceSuite extends SparkSuite {
       var n = 0
       values.foreach { case (i, j) =>
         if (i == -2)
-          comb.mergeRight(j)
+          comb.merge(0, j + 2)
         else if (j == -2)
-          comb.mergeLeft(i)
+          comb.merge(i + 2, 0)
         else {
           if (i >= 0 && j >= 0 && i != j)
             n += 1
-          comb.mergeBoth(i, j)
+          comb.merge(i + 2, j + 2)
         }
       }
       n == comb.nDiscordant
@@ -158,7 +158,7 @@ class ConcordanceSuite extends SparkSuite {
 
       val innerJoinSamples = innerJoin.map { case (k, v) => (k._2, v) }
         .aggregateByKey(new ConcordanceCombiner)({ case (comb, (g1, g2)) =>
-          comb.mergeBoth(Genotype.unboxedGT(g1), Genotype.unboxedGT(g2))
+          comb.merge(Genotype.unboxedGT(g1) + 2, Genotype.unboxedGT(g2) + 2)
           comb
         }, { case (comb1, comb2) => comb1.merge(comb2) })
         .map { case (s, comb) => (s, comb.toAnnotation.tail.map(_.tail)) }
@@ -166,7 +166,7 @@ class ConcordanceSuite extends SparkSuite {
 
       val innerJoinVariants = innerJoin.map { case (k, v) => (k._1, v) }
         .aggregateByKey(new ConcordanceCombiner)({ case (comb, (g1, g2)) =>
-          comb.mergeBoth(Genotype.unboxedGT(g1), Genotype.unboxedGT(g2))
+          comb.merge(Genotype.unboxedGT(g1) + 2, Genotype.unboxedGT(g2) + 2)
           comb
         }, { case (comb1, comb2) => comb1.merge(comb2) })
         .collectAsMap

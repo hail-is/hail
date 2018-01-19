@@ -194,16 +194,23 @@ def concordance(left, right):
     Notes
     -----
 
-    This method computes the genotype call concordance (from the entry field
-    **GT**) between two biallelic datasets. It performs an inner join on column
-    keys (only column keys in both datasets will be considered), and an outer
-    join on row keys. If a column key is duplicated in the right dataset, the
-    column joined with the left dataset will be randomly chosen. If a row key is
-    only in one dataset, then each genotype is treated as "no data" in the
-    other. This method returns a tuple of three objects: a nested list of list
-    of int with global concordance summary statistics, a table with concordance
-    statistics per column key, and a table with concordance statistics per row
-    key.
+    This method computes the genotype call concordance (from the entry
+    field **GT**) between two biallelic variant datasets.  It requires
+    unique sample IDs and performs an inner join on samples (only
+    samples in both datasets will be considered).
+
+    It performs an ordered zip join of the variants.  That means the
+    variants of each dataset are sorted, with duplicate variants
+    appearing in some random relative order, and then zipped together.
+    When a variant appears a different number of times between the two
+    datasets, the dataset with the fewer number of instances is padded
+    with "no data".  For example, if a variant is only in one dataset,
+    then each genotype is treated as "no data" in the other.
+
+    This method returns a tuple of three objects: a nested list of
+    list of int with global concordance summary statistics, a table
+    with concordance statistics per column key, and a table with
+    concordance statistics per row key.
 
     **Using the global summary result**
 
@@ -271,6 +278,7 @@ def concordance(left, right):
     (list of list of int, :class:`.Table`, :class:`.Table`)
         The global concordance statistics, a table with concordance statistics
         per column key, and a table with concordance statistics per row key.
+
     """
 
     left = require_biallelic(left, "concordance, left")
