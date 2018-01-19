@@ -139,7 +139,7 @@ class AnnotateSuite extends SparkSuite {
       expr = "va.stuff = select(table, Rand1, Rand2, Gene)")
 
     val q1 = anno1.queryVA("va.stuff")._2
-    anno1.typedRDD[Locus, Variant]
+    anno1.typedRDD[Variant]
       .collect()
       .foreach {
         case (v, (va, gs)) =>

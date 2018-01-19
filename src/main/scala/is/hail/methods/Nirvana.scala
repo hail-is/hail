@@ -285,17 +285,17 @@ object Nirvana {
 
     info("Running Nirvana")
 
-    val annotations = vds.typedRDD[Locus, Variant].mapValues { case (va, gs) => va }
-      .mapPartitions({ it =>
+    val localRowType = vds.rowType
+    val annotations = vds.rdd2
+      .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
         if (path.orNull != null)
           env.put("PATH", path.get)
 
-        it.filter { case (v, va) =>
-          rootQuery.forall(q => q(va) == null)
+        it.map { rv =>
+          Variant.fromRegionValue(rv.region, localRowType.loadField(rv, 1))
         }
-          .map { case (v, _) => v }
           .grouped(localBlockSize)
           .flatMap { block =>
             val (jt, proc) = block.iterator.pipe(pb,
@@ -322,7 +322,7 @@ object Nirvana {
 
             r
           }
-      }, preservesPartitioning = true)
+      }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
 

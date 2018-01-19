@@ -59,46 +59,46 @@ object MatrixTable {
       MatrixRead(dirname, nPartitions, fileMetadata, dropSamples, dropVariants))
   }
 
-  def apply(hc: HailContext,
-    metadata: VSMMetadata,
-    localValue: VSMLocalValue,
-    rdd: OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])]): MatrixTable =
-    new MatrixTable(hc, metadata,
-      MatrixLiteral(
-        MatrixType(metadata),
-        MatrixValue(MatrixType(metadata), localValue, rdd)))
-
-  def apply(hc: HailContext, fileMetadata: VSMFileMetadata,
-    rdd: OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])]): MatrixTable =
-    MatrixTable(hc, fileMetadata.metadata, fileMetadata.localValue, rdd)
-
   def fromLegacy[RK, T](hc: HailContext,
     metadata: VSMMetadata,
     localValue: VSMLocalValue,
     rdd: RDD[(RK, (Annotation, Iterable[T]))]): MatrixTable = {
-    implicit val kOk = metadata.vSignature.orderedKey
-    MatrixTable(hc, metadata, localValue,
-      rdd.mapPartitions({ it =>
-        it.map { case (v, (va, gs)) =>
-          (v: Annotation, (va, gs: Iterable[Annotation]))
-        }
-      }, preservesPartitioning = true).toOrderedRDD)
-  }
 
-  def fromLegacy[RK, T](hc: HailContext,
-    metadata: VSMMetadata,
-    localValue: VSMLocalValue,
-    rdd: RDD[(RK, (Annotation, Iterable[T]))],
-    fastKeys: RDD[RK]): MatrixTable = {
-    implicit val kOk = metadata.vSignature.orderedKey
-    MatrixTable(hc, metadata, localValue,
-      OrderedRDD(
-        rdd.mapPartitions({ it =>
+    val matrixType = MatrixType(metadata)
+    val localGType = matrixType.genotypeType
+    val localRowType = matrixType.rowType
+    val (t, p) = Type.partitionKeyProjection(matrixType.vType)
+    assert(t == matrixType.locusType)
+    val localNSamples = localValue.nSamples
+
+    new MatrixTable(hc, metadata, localValue,
+      OrderedRVD(matrixType.orderedRVType,
+        rdd.mapPartitions { it =>
+          val region = Region()
+          val rvb = new RegionValueBuilder(region)
+          val rv = RegionValue(region)
+
           it.map { case (v, (va, gs)) =>
-            (v: Annotation, (va, gs: Iterable[Annotation]))
+            region.clear()
+            rvb.start(localRowType)
+            rvb.startStruct()
+            rvb.addAnnotation(localRowType.fieldType(0), p(v))
+            rvb.addAnnotation(localRowType.fieldType(1), v)
+            rvb.addAnnotation(localRowType.fieldType(2), va)
+            rvb.startArray(localNSamples) // gs
+            val git = gs.iterator
+            var i = 0
+            while (i < localNSamples) {
+              rvb.addAnnotation(localGType, git.next())
+              i += 1
+            }
+            rvb.endArray() // gs
+            rvb.endStruct()
+            rv.setOffset(rvb.end())
+
+            rv
           }
-        }, preservesPartitioning = true),
-        Some(fastKeys.map { k => k: Annotation }), None))
+        }, None, None))
   }
 
   def fromLegacy[RK, T](hc: HailContext,
@@ -308,7 +308,7 @@ object MatrixTable {
         rvb.addAnnotation(locusType, projection(ur.get(kIndex))) // pk
         rvb.addField(ktRowType, rv, kIndex) // v
         rvb.startStruct() // va
-        var i = 0
+      var i = 0
         while (i < ktValueFieldIdx.length) {
           rvb.addField(ktRowType, rv, ktValueFieldIdx(i))
           i += 1
@@ -1549,10 +1549,10 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
           val intervalsRDD = partitionKeyedIntervals
             .partitionBy(new Partitioner {
-            def getPartition(key: Any): Int = partitionMap(key.asInstanceOf[Int])
+              def getPartition(key: Any): Int = partitionMap(key.asInstanceOf[Int])
 
-            def numPartitions: Int = overlapPartitions.length
-          })
+              def numPartitions: Int = overlapPartitions.length
+            })
             .values
 
           val localRowType = rowType
@@ -1562,7 +1562,8 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
               it.filter { rv =>
                 val ur = new UnsafeRow(localRowType, rv)
                 val v = ur.get(1)
-                itree.contains(locusOrdering, v.asInstanceOf[Variant].locus) }
+                itree.contains(locusOrdering, v.asInstanceOf[Variant].locus)
+              }
             }
 
           return copy2(rdd2 = newRDD2)
@@ -1735,12 +1736,18 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val localNSamples = nSamples
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localRowType = rowType
 
     Table(hc,
-      rdd.mapPartitions { it =>
+      rdd2.mapPartitions { it =>
         val n = vNames.length + gNames.length * localNSamples
 
-        it.map { case (v, (va, gs)) =>
+        it.map { rv =>
+          val ur = new UnsafeRow(localRowType, rv)
+          val v = ur.get(1)
+          val va = ur.get(2)
+          val gs = ur.getAs[IndexedSeq[Any]](3)
+
           val a = new Array[Any](n)
 
           var j = 0
@@ -1805,11 +1812,17 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val globalBc = sparkContext.broadcast(globalAnnotation)
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localRowType = rowType
 
-    val result = rdd.mapPartitions { it =>
+    val result = rdd2.mapPartitions { it =>
       val zv = zVal.map(_.copy())
       ec.set(0, globalBc.value)
-      it.foreach { case (v, (va, gs)) =>
+      it.foreach { rv =>
+        val ur = new UnsafeRow(localRowType, rv)
+        val v = ur.get(1)
+        val va = ur.get(2)
+        val gs = ur.getAs[IndexedSeq[Any]](3)
+
         var i = 0
         ec.set(2, v)
         ec.set(3, va)
@@ -2067,12 +2080,30 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val vaSignatureBc = sparkContext.broadcast(vaSignature)
     val gSignatureBc = sparkContext.broadcast(genotypeSignature)
 
+    val rowType1 = rowType
+    val rowType2 = that.rowType
     metadataSame &&
-      rdd.zipPartitions(that.rdd.orderedRepartitionBy(rdd.orderedPartitioner)) { (it1, it2) =>
+      rdd2.rdd.zipPartitions(
+        OrderedRVD.shuffle(
+          that.rdd2.typ,
+          rdd2.partitioner.withKType(that.rdd2.typ.partitionKey, that.rdd2.typ.kType),
+          that.rdd2.rdd)
+          .rdd) { (it1, it2) =>
         var partSame = true
         while (it1.hasNext && it2.hasNext) {
-          val (v1, (va1, gs1)) = it1.next()
-          val (v2, (va2, gs2)) = it2.next()
+          val rv1 = it1.next()
+          val rv2 = it2.next()
+
+          val ur1 = new UnsafeRow(rowType1, rv1)
+          val ur2 = new UnsafeRow(rowType2, rv2)
+
+          val v1 = ur1.get(1)
+          val va1 = ur1.get(2)
+          val gs1 = ur1.getAs[Iterable[Any]](3)
+
+          val v2 = ur2.get(1)
+          val va2 = ur2.get(2)
+          val gs2 = ur2.getAs[Iterable[Any]](3)
 
           if (v1 != v2 && partSame) {
             println(
@@ -2139,21 +2170,6 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     copy2(rdd2 = rdd2.sample(withReplacement = false, fraction, seed))
   }
 
-  def copyLegacy[RK, T](rdd: RDD[(RK, (Annotation, Iterable[T]))],
-    sampleIds: IndexedSeq[Annotation] = sampleIds,
-    sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
-    globalAnnotation: Annotation = globalAnnotation,
-    sSignature: Type = sSignature,
-    saSignature: TStruct = saSignature,
-    vSignature: Type = vSignature,
-    vaSignature: TStruct = vaSignature,
-    globalSignature: TStruct = globalSignature,
-    genotypeSignature: TStruct = genotypeSignature): MatrixTable =
-    MatrixTable.fromLegacy(hc,
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
-      VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
-      rdd)
-
   def copy2(rdd2: OrderedRVD = rdd2,
     sampleIds: IndexedSeq[Annotation] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
@@ -2208,7 +2224,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
   }
 
   override def toString =
-    s"MatrixTable(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation)"
+    s"MatrixTable(metadata=$metadata, rdd2=$rdd2, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation)"
 
   def nSamples: Int = sampleIds.length
 
@@ -2884,8 +2900,8 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         idx += 1
         rv2.setOffset(rv2b.end())
         rv2
-        }
       }
+    }
     copy2(vaSignature = newVAType, rdd2 = indexedRDD)
   }
 

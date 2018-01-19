@@ -2,6 +2,7 @@ package is.hail.stats
 
 import is.hail.SparkSuite
 import is.hail.utils._
+import is.hail.testUtils._
 import org.testng.annotations.Test
 
 class InfoScoreSuite extends SparkSuite {

@@ -557,6 +557,7 @@ object OrderedRVD {
         .filter(_.numPartitions >= rdd.partitions.length)
         .getOrElse {
           val ranges = calculateKeyRanges(typ, pkis, rdd.getNumPartitions)
+          println("ranges", ranges)
           new OrderedRVPartitioner(ranges.length + 1, typ.partitionKey, typ.kType, ranges)
         }
       (SHUFFLE, shuffle(typ, p, rdd))
@@ -564,9 +565,20 @@ object OrderedRVD {
   }
 
   def calculateKeyRanges(typ: OrderedRVType, pkis: Array[OrderedRVPartitionInfo], nPartitions: Int): UnsafeIndexedSeq = {
-    val keys = pkis
+    val pkOrd = typ.pkOrd
+    var keys = pkis
       .flatMap(_.samples)
-      .sorted(typ.pkOrd)
+      .sorted(pkOrd)
+
+    val ab = new ArrayBuilder[RegionValue]()
+    var i = 0
+    while (i < keys.length) {
+      if (i == 0
+        || pkOrd.compare(keys(i - 1), keys(i)) != 0)
+        ab += keys(i)
+      i += 1
+    }
+    keys = ab.result()
 
     // FIXME weighted
     val rangeBounds =

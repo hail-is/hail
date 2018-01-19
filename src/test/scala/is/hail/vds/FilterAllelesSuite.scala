@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.annotations._
 import is.hail.check.Prop
 import is.hail.expr.types._
-import is.hail.utils._
+import is.hail.testUtils._
 import is.hail.variant.{AltAllele, Genotype, MatrixTable, VSMFileMetadata, VSMSubgen, Variant}
 import org.testng.annotations.Test
 

@@ -25,13 +25,12 @@ class ImportMatrixSuite extends SparkSuite {
     val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
       val vsm = LoadMatrix(hc, files, Some(Array("v")), Array(TString()), "v")
-      vsm.rdd.count()
+      vsm.rdd2.count()
     }
     assert(e.getMessage.contains("number of elements"))
   }
 
   @Test def testTypes() {
-    implicit val KOk = TString().typedOrderedKey[String, String]
     val genMatrix = VSMSubgen(
       sSigGen = Gen.const(TString()),
       saSigGen = Gen.const(TStruct.empty()),

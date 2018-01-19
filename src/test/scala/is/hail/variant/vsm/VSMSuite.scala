@@ -381,7 +381,7 @@ class VSMSuite extends SparkSuite {
 
     def getGenotypes(vds: MatrixTable): RDD[((Variant, Annotation), Annotation)] = {
       val sampleIds = vds.sampleIds
-      vds.typedRDD[Locus, Variant].flatMap { case (v, (_, gs)) =>
+      vds.typedRDD[Variant].flatMap { case (v, (_, gs)) =>
         gs.zip(sampleIds).map { case (g, s) =>
           ((v, s), g)
         }

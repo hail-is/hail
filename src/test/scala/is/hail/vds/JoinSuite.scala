@@ -6,6 +6,7 @@ import is.hail.expr.types.{TStruct, TVariant}
 import is.hail.table.Table
 import is.hail.variant.{GenomeReference, Variant, MatrixTable}
 import is.hail.utils._
+import is.hail.testUtils._
 
 import scala.language.implicitConversions
 import org.apache.spark.sql.Row
@@ -54,11 +55,12 @@ class JoinSuite extends SparkSuite {
       Variant("1", 13, "A", "T"),
       Variant("1", 15, "A", "T"))
 
-    val leftKt = Table(hc, sc.parallelize(leftVariants.map(Row(_))), TStruct("v" -> TVariant(GenomeReference.GRCh37))).keyBy("v")
+    val vType = TVariant(GenomeReference.GRCh37)
+    val leftKt = Table(hc, sc.parallelize(leftVariants.map(Row(_))), TStruct("v" -> vType)).keyBy("v")
     leftKt.typeCheck()
     val left = MatrixTable.fromTable(leftKt)
 
-    val rightKt = Table(hc, sc.parallelize(rightVariants.map(Row(_))), TStruct("v" -> TVariant(GenomeReference.GRCh37))).keyBy("v")
+    val rightKt = Table(hc, sc.parallelize(rightVariants.map(Row(_))), TStruct("v" -> vType)).keyBy("v")
     rightKt.typeCheck()
     val right = MatrixTable.fromTable(rightKt)
 
@@ -66,24 +68,24 @@ class JoinSuite extends SparkSuite {
 
     // Inner distinct ordered join
     val jInner = left.rdd2.orderedJoinDistinct(right.rdd2, "inner")
-    val jInnerOrdRDD1 = left.rdd.orderedInnerJoinDistinct(right.rdd)
+    val jInnerOrdRDD1 = left.rdd.join(right.rdd.distinct)
 
     assert(jInner.count() == jInnerOrdRDD1.count())
     assert(jInner.forall(jrv => jrv.rvLeft != null && jrv.rvRight != null))
     assert(jInner.map { jrv =>
       val ur = new UnsafeRow(localRowType, jrv.rvLeft)
       ur.getAs[Variant](1)
-    }.collect() sameElements jInnerOrdRDD1.map(_._1).collect())
+    }.collect() sameElements jInnerOrdRDD1.map(_._1).collect().sorted(vType.ordering.toOrdering))
 
     // Left distinct ordered join
     val jLeft = left.rdd2.orderedJoinDistinct(right.rdd2, "left")
-    val jLeftOrdRDD1 = left.rdd.orderedLeftJoinDistinct(right.rdd)
+    val jLeftOrdRDD1 = left.rdd.leftOuterJoin(right.rdd.distinct)
 
     assert(jLeft.count() == jLeftOrdRDD1.count())
     assert(jLeft.forall(jrv => jrv.rvLeft != null))
     assert(jLeft.map { jrv =>
       val ur = new UnsafeRow(localRowType, jrv.rvLeft)
       ur.getAs[Variant](1)
-    }.collect() sameElements jLeftOrdRDD1.map(_._1).collect())
+    }.collect() sameElements jLeftOrdRDD1.map(_._1).collect().sorted(vType.ordering.toOrdering))
   }
 }
