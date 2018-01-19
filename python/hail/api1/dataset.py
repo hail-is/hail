@@ -5164,7 +5164,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         """
 
         trio_matrix = self.trio_matrix(pedigree, complete_trios=True)
-        trio_matrix = trio_matrix.filter_samples_expr('isDefined(sa.isFemale)')
+        trio_matrix = trio_matrix.filter_samples_expr('isDefined(sa.is_female)')
 
         hom_ref = 0
         het = 1
@@ -5206,7 +5206,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                     let ploidy =
                         if (va.category == 0) 2
                         else if (va.category == -1) -1
-                        else if (sa.isFemale) 2
+                        else if (sa.is_female) 2
                         else 1 in
                         global.mapping.get(
                             {{kid: g.proband.GT.nNonRefAlleles(),

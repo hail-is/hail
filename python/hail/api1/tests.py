@@ -401,10 +401,10 @@ class ContextTests(unittest.TestCase):
 
         vds_assoc.variants_table().select(['Variant = v', 'va.lmmreg.*']).export('/tmp/lmmreg.tsv')
 
-        men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_file('sample.fam')))
-        men.select(['fid', 's', 'code'])
-        fam.select(['father', 'nChildren'])
-        self.assertEqual(ind.key, ['s'])
+        men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_file('/sample.fam')))
+        men.select(['fam_id', 'id', 'code'])
+        fam.select(['pat_id', 'children'])
+        self.assertEqual(ind.key, ['id'])
         self.assertEqual(var.key, ['v'])
         sample_split.annotate_variants_table(var, root='va.mendel').count()
 
