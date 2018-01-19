@@ -9,7 +9,6 @@ from struct import unpack
 import hail.utils as utils
 from hail.expr.expression import ExpressionException
 from hail.utils.misc import test_file
-from hail.stats import UniformDist
 from hail.linalg import BlockMatrix
 from math import sqrt
 >>>>>>> first pass at rrm
@@ -259,6 +258,8 @@ class Tests(unittest.TestCase):
 
         def direct_calculation(ds):
             ds = BlockMatrix.from_matrix_table(ds['GT'].num_alt_alleles()).to_numpy_matrix()
+            print(ds.shape)
+            print(ds)
 
             # filter out constant rows
             isconst = lambda r: any([all([(gt < c + .01) and (gt > c - .01) for gt in r]) for c in range(3)])

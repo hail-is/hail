@@ -1,5 +1,5 @@
 from hail.utils import new_temp_file, storage_level
-from hail.utils.java import Env, handle_py4j, scala_object, jarray
+from hail.utils.java import Env, handle_py4j, scala_object, jarray, numpy_from_breeze
 from hail.typecheck import *
 from hail.api2 import MatrixTable
 from hail.expr.expression import expr_numeric, to_expr, analyze
@@ -112,10 +112,7 @@ class BlockMatrix(object):
 
     @handle_py4j
     def to_numpy_matrix(self):
-        b = Env.jutils().doubleBDMToBytes(self._jbm.toLocalMatrix())
-        rows, cols = unpack('II', b[:8])
-        data = np.fromstring(bytes(b[8:]), dtype='f8')
-        return np.reshape(data, (cols, rows)).T
+        return numpy_from_breeze(self._jbm.toLocalMatrix())
 
     @handle_py4j
     @typecheck_method(i=numeric)

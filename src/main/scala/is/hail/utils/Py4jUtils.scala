@@ -27,14 +27,13 @@ trait Py4jUtils {
     list
   }
 
-  // FIXME: Currently this can only send much less than the limit of
-  // BlockMatrix.toLocalMatrix. That's probably fine.
-  def doubleBDMToBytes(mat: BDM[Double]): Array[Byte] = {
-    // assumes matrix is written as written by BlockMatrix
-    val buf = new Array[Byte](8 + 8 * mat.rows * mat.cols)
-    Memory.storeInt(buf, 0, mat.rows)
-    Memory.storeInt(buf, 4, mat.cols)
-    Memory.memcpy(buf, 8, mat.data, 0, 8*mat.rows*mat.cols)
+  // FIXME: Currently this needs 8 * r * c < int.max.
+  def bdmToBytes(bdm: BDM[Double]): Array[Byte] = {
+    assert(8 * bdm.rows * bdm.cols < Integer.MAX_VALUE)
+    assert(bdm.offset == 0)
+    assert(bdm.majorStride == (if (bdm.isTranspose) bdm.cols else bdm.rows))
+    val buf = new Array[Byte](8 * bdm.rows * bdm.cols)
+    Memory.memcpy(buf, 0, bdm.data, 0, 8 * bdm.rows * bdm.cols)
     buf
   }
 
