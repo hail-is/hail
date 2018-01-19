@@ -38,7 +38,8 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
       v.contig + ":" + v.start + ":" + v.ref + ":" + v.alt + "\t" + code + "\t" + errorString
   }
 
-  def errorString = gtString(variant, gtDad) + " x " + gtString(variant, gtMom) + " -> " + gtString(variant, gtKid)
+  def errorString: String =
+    gtString(variant, gtDad) + " x " + gtString(variant, gtMom) + " -> " + gtString(variant, gtKid)
 }
 
 object MendelErrors {

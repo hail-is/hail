@@ -32,18 +32,18 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
     This method builds a new matrix table with one column per trio. If ``complete_trios`` is true,
     then only trios that satisfy :meth:`~hail.representation.Trio.is_complete`
     are included. In this new dataset, the column identifiers
-    are the sample IDs of the trio probands. The column annotations and
+    are the sample IDs of the trio probands. The column fields and
     entries of the matrix are changed in the following ways:
 
     The new column fields are:
 
      - **proband.id** (*String*) - Proband sample ID, same as trio column key.
-     - **proband.annotations** (*Struct*) - Annotations on the proband.
+     - **proband.fields** (*Struct*) - Fields on the proband.
      - **father.id** (*String*) - Father sample ID.
-     - **father.annotations** (*Struct*) - Annotations on the father.
+     - **father.fields** (*Struct*) - Fields on the father.
      - **mother.id** (*String*) - Mother sample ID.
-     - **mother.annotations** (*Struct*) - Annotations on the mother.
-     - **is_female** (*Boolean*) - Proband is female. True for female, False for male, missing if unknown.
+     - **mother.fields** (*Struct*) - Fields on the mother.
+     - **is_female** (*Boolean*) - Proband is female. True for female, false for male, missing if unknown.
      - **fam_id** (*String*) - Family identifier.
 
     The new entry fields are:
@@ -126,7 +126,7 @@ def mendel_errors(dataset, pedigree):
 
     **Third table:** errors per individual. This table contains one row per
     individual. Each error is counted toward the proband, father, and mother
-    according to the last column in the table below.
+    according to the `Implicated` in the table below.
 
     Columns:
 
@@ -144,59 +144,56 @@ def mendel_errors(dataset, pedigree):
         - **v** (*Variant*) -- Variant (key column).
         - **errors** (*Int32*) -- Number of Mendel errors in this variant.
 
-    The CODE of each Mendel error is determined by the table below, extending
-    the `Plink classification
-    <https://www.cog-genomics.org/plink2/basic_stats#mendel>`__.
+    The code of each Mendel error is determined by the table below, extending
+    the `Plink classification <https://www.cog-genomics.org/plink2/basic_stats#mendel>`__.
 
     The copy state of a locus with respect to a trio is defined as follows,
     where PAR is the `pseudoautosomal region
     <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__ (PAR) defined by
-    the reference genome of the locus.
+    the reference genome.
 
     - HemiX -- in non-PAR of X, male child
     - HemiY -- in non-PAR of Y, male child
     - Auto -- otherwise (in autosome or PAR, female child)
 
-    :math:`Any` refers to :math:`\{ HomRef, Het, HomVar, NoCall \}` and :math:`~`
+    `Any` refers to the set \{ HomRef, Het, HomVar, NoCall \} and `~`
     denotes complement in this set.
-
-    #FIXME add samples implicated
     
-    +--------+------------+------------+----------+------------------+
-    |Code    | Dad        | Mom        |     Kid  |   Copy State     |
-    +========+============+============+==========+==================+
-    |    1   | HomVar     | HomVar     | Het      | Auto             |
-    +--------+------------+------------+----------+------------------+
-    |    2   | HomRef     | HomRef     | Het      | Auto             |
-    +--------+------------+------------+----------+------------------+
-    |    3   | HomRef     |  ~ HomRef  |  HomVar  | Auto             |
-    +--------+------------+------------+----------+------------------+
-    |    4   |  ~ HomRef  | HomRef     |  HomVar  | Auto             |
-    +--------+------------+------------+----------+------------------+
-    |    5   | HomRef     | HomRef     |  HomVar  | Auto             |
-    +--------+------------+------------+----------+------------------+
-    |    6   | HomVar     |  ~ HomVar  |  HomRef  | Auto             |
-    +--------+------------+------------+----------+------------------+
-    |    7   |  ~ HomVar  | HomVar     |  HomRef  | Auto             |
-    +--------+------------+------------+----------+------------------+
-    |    8   | HomVar     | HomVar     |  HomRef  | Auto             |
-    +--------+------------+------------+----------+------------------+
-    |    9   | Any        | HomVar     |  HomRef  | HemiX            |
-    +--------+------------+------------+----------+------------------+
-    |   10   | Any        | HomRef     |  HomVar  | HemiX            |
-    +--------+------------+------------+----------+------------------+
-    |   11   | HomVar     | Any        |  HomRef  | HemiY            |
-    +--------+------------+------------+----------+------------------+
-    |   12   | HomRef     | Any        |  HomVar  | HemiY            |
-    +--------+------------+------------+----------+------------------+
+    +------+---------+---------+--------+----------------------------+
+    | Code | Dad     | Mom     | Kid    | Copy State | Implicated    |
+    +======+=========+=========+========+============+===============+
+    |    1 | HomVar  | HomVar  | Het    | Auto       | Dad, Mom, Kid |
+    +------+---------+---------+--------+------------+---------------+
+    |    2 | HomRef  | HomRef  | Het    | Auto       | Dad, Mom, Kid |
+    +------+---------+---------+--------+------------+---------------+
+    |    3 | HomRef  | ~HomRef | HomVar | Auto       | Dad, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |    4 | ~HomRef | HomRef  | HomVar | Auto       | Mom, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |    5 | HomRef  | HomRef  | HomVar | Auto       | Kid           |
+    +------+---------+---------+--------+------------+---------------+
+    |    6 | HomVar  | ~HomVar | HomRef | Auto       | Dad, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |    7 | ~HomVar | HomVar  | HomRef | Auto       | Mom, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |    8 | HomVar  | HomVar  | HomRef | Auto       | Kid           |
+    +------+---------+---------+--------+------------+---------------+
+    |    9 | Any     | HomVar  | HomRef | HemiX      | Mom, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |   10 | Any     | HomRef  | HomVar | HemiX      | Mom, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |   11 | HomVar  | Any     | HomRef | HemiY      | Dad, Kid      |
+    +------+---------+---------+--------+------------+---------------+
+    |   12 | HomRef  | Any     | HomVar | HemiY      | Dad, Kid      |
+    +------+---------+---------+--------+------------+---------------+
 
-    This method only considers children with two parents and a defined sex.
+    This meod only considers children with two parents and a defined sex.
 
     This method assumes all contigs apart from those defined as
     :meth:`~hail.representation.GenomeReference.x_contigs` or
     :meth:`~hail.representation.GenomeReference.y_contigs` by the reference
-    genome are fully autosomal. Mitochondria, decoys, etc. are not given special
-    treatment.
+    genome are fully autosomal. Mitochondria, decoys, etc. are not given
+    special treatment.
 
     Parameters
     ----------
@@ -337,44 +334,48 @@ def tdt(dataset, pedigree):
 
     t = TDict(TStruct(['kid', 'dad', 'mom', 'copy_state'], [TInt32(), TInt32(), TInt32(), TInt32()]), TArray(TInt32()))
 
-    l = [(hom_ref, het, het, auto, 0, 2),
-     (hom_ref, hom_ref, het, auto, 0, 1),
-     (hom_ref, het, hom_ref, auto, 0, 1),
-     (het, het, het, auto, 1, 1),
-     (het, hom_ref, het, auto, 1, 0),
-     (het, het, hom_ref, auto, 1, 0),
-     (het, hom_var, het, auto, 0, 1),
-     (het, het, hom_var, auto, 0, 1),
-     (hom_var, het, het, auto, 2, 0),
-     (hom_var, het, hom_var, auto, 1, 0),
-     (hom_var, hom_var, het, auto, 1, 0),
-     (hom_ref, hom_ref, het, hemi_X, 0, 1),
-     (hom_ref, hom_var, het, hemi_X, 0, 1),
-     (hom_var, hom_ref, het, hemi_X, 1, 0),
-     (hom_var, hom_var, het, hemi_X, 1, 0)]
+    l = [(hom_ref,     het,     het,   auto, 0, 2),
+         (hom_ref, hom_ref,     het,   auto, 0, 1),
+         (hom_ref,     het, hom_ref,   auto, 0, 1),
+         (    het,     het,     het,   auto, 1, 1),
+         (    het, hom_ref,     het,   auto, 1, 0),
+         (    het,     het, hom_ref,   auto, 1, 0),
+         (    het, hom_var,     het,   auto, 0, 1),
+         (    het,     het, hom_var,   auto, 0, 1),
+         (hom_var,     het,     het,   auto, 2, 0),
+         (hom_var,     het, hom_var,   auto, 1, 0),
+         (hom_var, hom_var,     het,   auto, 1, 0),
+         (hom_ref, hom_ref,     het, hemi_X, 0, 1),
+         (hom_ref, hom_var,     het, hemi_X, 0, 1),
+         (hom_var, hom_ref,     het, hemi_X, 1, 0),
+         (hom_var, hom_var,     het, hemi_X, 1, 0)]
 
     mapping = {Struct(**{'kid': v[0], 'dad': v[1], 'mom': v[2], 'copy_state': v[3]}): [v[4], v[5]] for v in l}
 
     tri = trio_matrix(dataset, pedigree, complete_trios=True)
-    tri = tri.filter_samples(isDefined(sa.isFemale))
-    tri = tri.annotate_global('global.mapping', mapping, t)
+    tri = tri.filter_samples(functions.is_defined(tri.is_female))
+    tri = tri.annotate_global(mapping = mapping)
 
-    tri = tri.annotate_variants(category = functions.cond((tri.v.isAutosomal() | tri.v.inXPar() | tri.v.inYPar()),
-                                                          0,
-                                                          functions.cond(tri.v.inXNonPar(),
-                                                                         1,
-                                                                         -1)))
+    tri = tri.annotate_variants(category =
+                                functions.cond((tri.v.isAutosomal() | tri.v.inXPar() | tri.v.inYPar()),
+                                                0,
+                                                functions.cond(tri.v.inXNonPar(),
+                                                               1,
+                                                               -1)))
 
+    tri = tri.annotate_variants(
+        agg.filter(tri.category != 1 | !tri.father.GT.isHet(), tri)
+        
     s = '''
         va.{name} = gs
             .filter(g => va.category != 1 || !g.father.GT.isHet())
             .map(g =>
                 let ploidy =
-                    if (va.category == 0) 2
-                    else if (va.category == -1) -1
-                    else if (sa.isFemale) 2
+                    if (tri.category == 0) 2
+                    else if (tri.category == -1) -1
+                    else if (tri.is_female) 2
                     else 1 in
-                    global.mapping.get(
+                    tri.mapping.get(
                         {{kid: g.proband.GT.nNonRefAlleles(),
                         dad: g.father.GT.nNonRefAlleles(),
                         mom: g.mother.GT.nNonRefAlleles(),
@@ -382,15 +383,16 @@ def tdt(dataset, pedigree):
                     )[{index}])
             .sum()'''
 
-    per_variant_results = (
-        tri
-            .annotate_variants_expr([s.format(name='t', index=0), s.format(name='u', index=1)])
-            .variants_table()
-            .annotate('transmitted = va.t, untransmitted = va.u')
+    tdt_table = (tri
+            .annotate_variants([s.format(name='t', index=0), s.format(name='u', index=1)])
+            .variants_table())
+    
+    tdt_table = tdt_table
+            .annotate(transmitted = tdt_table.t, untransmitted = tdt_table.u)
             .select(['v', 'transmitted', 'untransmitted'])
-            .annotate('chi2 = if (transmitted + untransmitted > 0) '
-                      '((transmitted - untransmitted) ** 2) / (transmitted + untransmitted) '
+            .annotate(chi2 = functions.cond(transmitted + untransmitted > 0,
+                                            ((transmitted - untransmitted) ** 2) / (transmitted + untransmitted) '
                       'else 0.0')
             .annotate('p = pchisqtail(chi2, 1.0)')
     )
-    return per_variant_results
+    return tdt_results
