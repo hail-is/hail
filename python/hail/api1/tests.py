@@ -907,3 +907,10 @@ va.AC = gs.map(g => g.GT.nNonRefAlleles()).sum()
         _, _, loadings = (hc.balding_nichols_model(3, 100, 100)
                           .pca('g.GT.nNonRefAlleles()', k=2))
         self.assertEqual(loadings, None)
+
+    def test_split_multi_hts(self):
+        vds = hc.import_vcf("src/test/resources/sample.vcf")
+        vds = vds.annotate_genotypes_expr("g = {GT: g.GT}")
+        self.assertRaisesRegexp(FatalError,
+                                "split_multi_hts: genotype_schema must be the HTS genotype schema",
+                                vds.split_multi_hts)
