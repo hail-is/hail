@@ -1268,14 +1268,14 @@ class KeyTable(HistoryMixin):
         <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
         annotations:
 
-        >>> fam_kt = KeyTable.import_fam('data/myStudy.fam')
+        >>> fam_kt = KeyTable.import_fam('data/case_control_study.fam')
 
         In Hail, unlike PLINK, the user must *explicitly* distinguish between
         case-control and quantitative phenotypes. Importing a quantitative
         phenotype without ``quantitative=True`` will return an error
         (unless all values happen to be ``0``, ``1``, ``2``, and ``-9``):
 
-        >>> fam_kt = KeyTable.import_fam('data/myStudy.fam', quantitative=True)
+        >>> fam_kt = KeyTable.import_fam('data/quantitative_study.fam', quantitative=True)
 
         **Columns**
 

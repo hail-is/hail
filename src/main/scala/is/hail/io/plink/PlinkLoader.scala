@@ -15,7 +15,7 @@ import org.apache.hadoop.io.LongWritable
 
 case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
 
-case class FamFileConfig(isQuantitative: Boolean = false,
+case class FamFileConfig(isQuantPheno: Boolean = false,
   delimiter: String = "\\t",
   missingValue: String = "NA")
 
@@ -50,9 +50,9 @@ object PlinkLoader {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
-    val phenoSig = if (ffConfig.isQuantitative) ("qPheno", TFloat64()) else ("isCase", TBoolean())
+    val phenoSig = if (ffConfig.isQuantPheno) ("quant_pheno", TFloat64()) else ("is_case", TBoolean())
 
-    val signature = TStruct(("famID", TString()), ("patID", TString()), ("matID", TString()), ("isFemale", TBoolean()), phenoSig)
+    val signature = TStruct(("fam_id", TString()), ("pat_id", TString()), ("mat_id", TString()), ("is_female", TBoolean()), phenoSig)
 
     val idBuilder = new ArrayBuilder[String]
     val structBuilder = new ArrayBuilder[Annotation]
@@ -79,7 +79,7 @@ object PlinkLoader {
         }
 
         val pheno1 =
-          if (ffConfig.isQuantitative)
+          if (ffConfig.isQuantPheno)
             pheno match {
               case ffConfig.missingValue => null
               case numericRegex() => pheno.toDouble

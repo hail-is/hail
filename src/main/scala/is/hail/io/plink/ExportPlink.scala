@@ -7,7 +7,7 @@ import is.hail.utils._
 
 object ExportPlink {
   def apply(vsm: MatrixTable, path: String, famExpr: String = "id = s") {
-    vsm.requireColKeyString("export plink")
+    vsm.requireColKeyString("export_plink")
 
     val ec = EvalContext(Map(
       "s" -> (0, TString()),
@@ -30,22 +30,22 @@ object ExportPlink {
         "2"
       else
         "1"
-    }.getOrElse("-9")
-    val formatQPheno: Formatter = a => a.map(_.toString).getOrElse("-9")
+    }.getOrElse("NA")
+    val formatQPheno: Formatter = a => a.map(_.toString).getOrElse("NA")
 
     val famColumns: Map[String, (Type, Int, Formatter)] = Map(
-      "famID" -> (TString(), 0, formatID),
+      "fam_id" -> (TString(), 0, formatID),
       "id" -> (TString(), 1, formatID),
-      "patID" -> (TString(), 2, formatID),
-      "matID" -> (TString(), 3, formatID),
-      "isFemale" -> (TBoolean(), 4, formatIsFemale),
-      "qPheno" -> (TFloat64(), 5, formatQPheno),
-      "isCase" -> (TBoolean(), 5, formatIsCase))
+      "pat_id" -> (TString(), 2, formatID),
+      "mat_id" -> (TString(), 3, formatID),
+      "is_female" -> (TBoolean(), 4, formatIsFemale),
+      "quant_pheno" -> (TFloat64(), 5, formatQPheno),
+      "is_case" -> (TBoolean(), 5, formatIsCase))
 
     val (names, types, f) = Parser.parseNamedExprs(famExpr, ec)
 
     val famFns: Array[(Array[Option[Any]]) => String] = Array(
-      _ => "0", _ => "0", _ => "0", _ => "0", _ => "-9", _ => "-9")
+      _ => "0", _ => "0", _ => "0", _ => "0", _ => "NA", _ => "NA")
 
     (names.zipWithIndex, types).zipped.foreach { case ((name, i), t) =>
       famColumns.get(name) match {

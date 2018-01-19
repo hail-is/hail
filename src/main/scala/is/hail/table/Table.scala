@@ -127,11 +127,11 @@ object Table {
     BedAnnotator.apply(hc, filename, gr)
   }
 
-  def importFam(hc: HailContext, path: String, isQuantitative: Boolean = false,
+  def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
     delimiter: String = "\\t",
     missingValue: String = "NA"): Table = {
 
-    val ffConfig = FamFileConfig(isQuantitative, delimiter, missingValue)
+    val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
 
     val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
 

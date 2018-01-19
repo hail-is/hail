@@ -23,6 +23,7 @@ Methods
     hail.methods.vep
     hail.methods.export_cassandra
     hail.methods.export_gen
+    hail.methods.export_plink
     hail.methods.export_solr
     hail.methods.export_vcf
     hail.methods.concordance
@@ -48,6 +49,7 @@ Methods
 .. autofunction:: hail.methods.vep
 .. autofunction:: hail.methods.export_cassandra
 .. autofunction:: hail.methods.export_gen
+.. autofunction:: hail.methods.export_plink
 .. autofunction:: hail.methods.export_solr
 .. autofunction:: hail.methods.export_vcf
 .. autofunction:: hail.methods.concordance

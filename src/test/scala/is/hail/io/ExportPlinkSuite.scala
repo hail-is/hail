@@ -76,7 +76,7 @@ class ExportPlinkSuite extends SparkSuite {
       .annotateVariantsExpr("va = {rsid: str(v)}")
 
     ExportPlink(vds, plink,
-      "famID = sa.famID, id = s, matID = sa.matID, patID = sa.patID, isFemale = sa.isFemale, isCase = sa.isCase")
+      "fam_id = sa.fam_id, id = s, mat_id = sa.mat_id, pat_id = sa.pat_id, is_female = sa.is_female, is_case = sa.is_case")
 
     assert(hc.importPlinkBFile(plink)
       // .hardCalls()
