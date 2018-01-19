@@ -328,12 +328,10 @@ def tdt(dataset, pedigree):
     hom_ref = 0
     het = 1
     hom_var = 2
-
+    
     auto = 2
     hemi_X = 1
-
-    t = TDict(TStruct(['kid', 'dad', 'mom', 'copy_state'], [TInt32(), TInt32(), TInt32(), TInt32()]), TArray(TInt32()))
-
+    
     l = [(hom_ref,     het,     het,   auto, 0, 2),
          (hom_ref, hom_ref,     het,   auto, 0, 1),
          (hom_ref,     het, hom_ref,   auto, 0, 1),
@@ -349,50 +347,66 @@ def tdt(dataset, pedigree):
          (hom_ref, hom_var,     het, hemi_X, 0, 1),
          (hom_var, hom_ref,     het, hemi_X, 1, 0),
          (hom_var, hom_var,     het, hemi_X, 1, 0)]
-
-    mapping = {Struct(**{'kid': v[0], 'dad': v[1], 'mom': v[2], 'copy_state': v[3]}): [v[4], v[5]] for v in l}
-
-    tri = trio_matrix(dataset, pedigree, complete_trios=True)
-    tri = tri.filter_samples(functions.is_defined(tri.is_female))
-    tri = tri.annotate_global(mapping = mapping)
-
-    tri = tri.annotate_variants(category =
-                                functions.cond((tri.v.isAutosomal() | tri.v.inXPar() | tri.v.inYPar()),
-                                                0,
-                                                functions.cond(tri.v.inXNonPar(),
-                                                               1,
-                                                               -1)))
-
-    tri = tri.annotate_variants(
-        agg.filter(tri.category != 1 | !tri.father.GT.isHet(), tri)
-        
-    s = '''
-        va.{name} = gs
-            .filter(g => va.category != 1 || !g.father.GT.isHet())
-            .map(g =>
-                let ploidy =
-                    if (tri.category == 0) 2
-                    else if (tri.category == -1) -1
-                    else if (tri.is_female) 2
-                    else 1 in
-                    tri.mapping.get(
-                        {{kid: g.proband.GT.nNonRefAlleles(),
-                        dad: g.father.GT.nNonRefAlleles(),
-                        mom: g.mother.GT.nNonRefAlleles(),
-                        copy_state: ploidy}}
-                    )[{index}])
-            .sum()'''
-
-    tdt_table = (tri
-            .annotate_variants([s.format(name='t', index=0), s.format(name='u', index=1)])
-            .variants_table())
     
-    tdt_table = tdt_table
-            .annotate(transmitted = tdt_table.t, untransmitted = tdt_table.u)
-            .select(['v', 'transmitted', 'untransmitted'])
-            .annotate(chi2 = functions.cond(transmitted + untransmitted > 0,
-                                            ((transmitted - untransmitted) ** 2) / (transmitted + untransmitted) '
-                      'else 0.0')
-            .annotate('p = pchisqtail(chi2, 1.0)')
-    )
-    return tdt_results
+    mapping = {functions.capture([v[0], v[1], v[2], v[3]]): [v[4], v[5]] for v in l}
+    
+    tri = trio_matrix(dataset, pedigree, complete_trios=True)
+    tri = tri.filter_cols(functions.is_defined(tri.is_female))
+    tri = tri.annotate_globals(mapping = mapping)
+
+    tri = tri.annotate_rows(category =
+        functions.cond(tri.v.in_autosome_or_par(),
+                        0,
+                        functions.cond(tri.v.in_x_nonpar(),
+                                       1,
+                                       -1)))
+
+    tri = tri.annotate_rows(t = agg.sum(
+        agg.filter((tri.category == 1) | ~tri.father_entry.GT.is_het(),
+            functions.bind(
+                functions.cond(
+                    tri.category == 0,
+                    2,
+                    functions.cond(
+                        tri.category == -1,
+                        -1,
+                        functions.cond(
+                                tri.is_female,
+                                2,
+                                1))),
+                lambda ploidy: tri.mapping[[
+                            tri.proband_entry.GT.num_alt_alleles(),
+                            tri.father_entry.GT.num_alt_alleles(),
+                            tri.mother_entry.GT.num_alt_alleles(),
+                            ploidy]][0]))))
+    
+    tri = tri.annotate_rows(u = agg.sum(
+        agg.filter((tri.category == 1) | ~tri.father_entry.GT.is_het(),
+            functions.bind(
+                functions.cond(
+                    tri.category == 0,
+                    2,
+                    functions.cond(
+                        tri.category == -1,
+                        -1,
+                        functions.cond(
+                                tri.is_female,
+                                2,
+                                1))),
+                lambda ploidy: tri.mapping[[
+                            tri.proband_entry.GT.num_alt_alleles(),
+                            tri.father_entry.GT.num_alt_alleles(),
+                            tri.mother_entry.GT.num_alt_alleles(),
+                            ploidy]][1]))))
+
+    tab = tri.rows_table().select('v', 't', 'u')
+    
+    tab = tab.annotate(chi2 =
+        functions.cond(
+            tab.t + tab.u > 0,
+            ((tab.t - tab.u) ** 2) / (tab.t + tab.u),
+            0.0))
+    
+    tab = tab.annotate(pval = functions.pchisqtail(tab.chi2, 1.0))
+
+    return tab

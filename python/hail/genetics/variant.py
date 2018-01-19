@@ -231,54 +231,55 @@ class Variant(HistoryMixin):
         """
         return Locus._from_java(self._jrep.locus(), self._rg)
 
-    def is_autosomal_or_pseudoautosomal(self):
-        """True if this polymorphism is found on an autosome, or the PAR on X or Y.
-
-        :rtype: bool
-        """
-        return self._jrep.isAutosomalOrPseudoAutosomal(self._rg._jrep)
-
-    def is_autosomal(self):
+    def in_autosome(self):
         """True if this polymorphism is located on an autosome.
 
         :rtype: bool
         """
         return self._jrep.isAutosomal(self._rg._jrep)
 
-    def is_mitochondrial(self):
-        """True if this polymorphism is mapped to mitochondrial DNA.
+    def in_autosome_or_par(self):
+        """True if this polymorphism is on an autosome,
+        or a pseudoautosomal region on chromosome X or Y.
+
+        :rtype: bool
+        """
+        return self._jrep.isAutosomalOrPseudoAutosomal(self._rg._jrep)
+
+    def in_mito(self):
+        """True if this polymorphism is on mitochondrial DNA.
 
         :rtype: bool
         """
 
         return self._jrep.isMitochondrial(self._rg._jrep)
 
-    def in_X_PAR(self):
-        """True of this polymorphism is found on the pseudoautosomal region of chromosome X.
+    def in_x_par(self):
+        """True if this polymorphism is on a pseudoautosomal region of chromosome X.
 
         :rtype: bool
         """
 
         return self._jrep.inXPar(self._rg._jrep)
 
-    def in_Y_PAR(self):
-        """True of this polymorphism is found on the pseudoautosomal region of chromosome Y.
+    def in_y_par(self):
+        """True if this polymorphism is on a pseudoautosomal region of chromosome Y.
 
         :rtype: bool
         """
 
         return self._jrep.inYPar(self._rg._jrep)
 
-    def in_X_non_PAR(self):
-        """True of this polymorphism is found on the non-pseudoautosomal region of chromosome X.
+    def in_x_nonpar(self):
+        """True if this polymorphism is on a non-pseudoautosomal region of chromosome X.
 
         :rtype: bool
         """
 
         return self._jrep.inXNonPar(self._rg._jrep)
 
-    def in_Y_non_PAR(self):
-        """True of this polymorphism is found on the non-pseudoautosomal region of chromosome Y.
+    def in_y_nonpar(self):
+        """True if this polymorphism is on a non-pseudoautosomal region of chromosome Y.
 
         :rtype: bool
         """
