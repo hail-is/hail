@@ -786,7 +786,7 @@ class ContextTests(unittest.TestCase):
 
         tkt = (vds.trio_matrix(ped, complete_trios=True)
                   .genotypes_table()
-                  .annotate('fam = sa.proband.annotations.fam.fam_id, data = [{role: 0, g: g.proband}, {role: 1, g: g.father}, {role: 2, g: g.mother}]')
+                  .annotate('fam = sa.proband.fields.fam.fam_id, data = [{role: 0, g: g.proband}, {role: 1, g: g.father}, {role: 2, g: g.mother}]')
                   .select(['v', 'fam', 'data'])
                   .explode('data')
                   .filter('isDefined(data.g)')
@@ -807,9 +807,9 @@ class ContextTests(unittest.TestCase):
 
         t_sa = (vds.trio_matrix(ped, complete_trios=True)
                 .samples_table()
-                .annotate('fam = sa.proband.annotations.fam.fam_id, data = [{role: 0, sa: sa.proband.annotations}, '
-                          '{role: 1, sa: sa.father.annotations}, '
-                          '{role: 2, sa: sa.mother.annotations}]')
+                .annotate('fam = sa.proband.fields.fam.fam_id, data = [{role: 0, sa: sa.proband.fields}, '
+                          '{role: 1, sa: sa.father.fields}, '
+                          '{role: 2, sa: sa.mother.fields}]')
                 .select(['fam', 'data'])
                 .explode('data')
                 .filter('isDefined(data.sa)')

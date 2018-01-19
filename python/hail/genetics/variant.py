@@ -232,7 +232,7 @@ class Variant(HistoryMixin):
         return Locus._from_java(self._jrep.locus(), self._rg)
 
     def in_autosome(self):
-        """True if this polymorphism is located on an autosome.
+        """True if this polymorphism is on an autosome.
 
         :rtype: bool
         """

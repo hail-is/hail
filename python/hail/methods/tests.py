@@ -432,3 +432,27 @@ class Tests(unittest.TestCase):
         # FIXME still resolving: these should throw an error due to unexpected row / entry indicies, still looking into why a more cryptic error is being thrown
         # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.v.contig))
         # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.GT))
+        
+    def test_tdt(self):
+        pedigree = Pedigree.read('src/test/resources/tdt.fam')
+        tdt_tab = (methods.split_multi_hts(hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4))
+                   .tdt(pedigree))
+
+        truth = hc.import_table('/Users/jbloom/hail/src/test/resources/tdt_results.tsv',
+                               types={'POSITION': TInt32(), 'T': TInt32(), 'U': TInt32(),
+                                      'Chi2': TFloat64(), 'Pval': TFloat64()})
+        truth = (truth
+                 .transmute(v = functions.variant(truth.CHROM, truth.POSITION, truth.REF, [truth.ALT]))
+                 .key_by('v'))
+
+        bad = tdt_tab.join(truth, how='outer')
+        
+        bad = bad.filter(~(
+                (bad.t == bad.T) &
+                (bad.u == bad.U) &
+                ((bad.chi2 - bad.Chi2).abs() < 0.001) &
+                ((bad.pval - bad.Pval).abs() < 0.001)))
+        
+        if bad.count() != 0:
+            bad.order_by(asc(bad.v)).show()
+            self.fail('Found rows in violation of the predicate (see show output)')

@@ -29,13 +29,15 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
 
     **Notes**
 
-    This method builds a new matrix table with one column per trio. If ``complete_trios`` is true,
-    then only trios that satisfy :meth:`~hail.representation.Trio.is_complete`
+    This method builds a new matrix table with one column per trio.
+    If ``complete_trios`` is true, then only trios that satisfy
+    :meth:`~hail.representation.Trio.is_complete`
     are included. In this new dataset, the column identifiers
     are the sample IDs of the trio probands. The column fields and
     entries of the matrix are changed in the following ways:
 
-    The new column fields are:
+    The new column fields consist of three Structs (proband, father, mother),
+    a Boolean field, and a String field:
 
      - **proband.id** (*String*) - Proband sample ID, same as trio column key.
      - **proband.fields** (*Struct*) - Fields on the proband.
@@ -43,8 +45,9 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
      - **father.fields** (*Struct*) - Fields on the father.
      - **mother.id** (*String*) - Mother sample ID.
      - **mother.fields** (*Struct*) - Fields on the mother.
-     - **is_female** (*Boolean*) - Proband is female. True for female, false for male, missing if unknown.
-     - **fam_id** (*String*) - Family identifier.
+     - **is_female** (*Boolean*) - Proband is female.
+       True for female, false for male, missing if unknown.
+     - **fam_id** (*String*) - Family ID.
 
     The new entry fields are:
 
@@ -86,7 +89,7 @@ def mendel_errors(dataset, pedigree):
 
     Annotate columns with the number of Mendel errors:
 
-    >>> annotated_samples = dataset.annotate_cols(mendel=per_sample[dataset.id])
+    >>> annotated_samples = dataset.annotate_cols(mendel=per_sample[dataset.s])
 
     Annotate rows with the number of Mendel errors:
 
@@ -98,7 +101,8 @@ def mendel_errors(dataset, pedigree):
     The example above returns four tables, which contain Mendelian violations
     grouped in various ways. These tables are modeled after the `PLINK mendel
     formats <https://www.cog-genomics.org/plink2/formats#mendel>`_, resembling
-    the ``.mendel``, ``.fmendel``, ``.imendel``, and ``.lmendel`` formats, respectively.
+    the ``.mendel``, ``.fmendel``, ``.imendel``, and ``.lmendel`` formats,
+    respectively.
 
     **First table:** all Mendel errors. This table contains one row per Mendel
     error, keyed by the variant and proband id.
@@ -107,7 +111,8 @@ def mendel_errors(dataset, pedigree):
 
         - **fam_id** (*String*) -- Family ID.
         - **id** (*String*) -- Proband ID. (key column)
-        - **v** (*Variant*) -- Variant in which the error was found. (key column)
+        - **v** (*Variant*) -- Variant in which the error was found.
+          (key column)
         - **code** (*Int32*) -- Mendel error code, see below.
         - **error** (*String*) -- Readable representation of Mendel error.
 
@@ -120,9 +125,10 @@ def mendel_errors(dataset, pedigree):
         - **pat_id** (*String*) -- Paternal ID. (key column)
         - **mat_id** (*String*) -- Maternal ID. (key column)
         - **children** (*Int32*) -- Number of children in this nuclear family.
-        - **errors** (*Int32*) -- Number of Mendel errors in this nuclear family.
-        - **snp_errors** (*Int32*) -- Number of Mendel errors at SNPs in this nuclear
+        - **errors** (*Int32*) -- Number of Mendel errors in this nuclear
           family.
+        - **snp_errors** (*Int32*) -- Number of Mendel errors at SNPs in this
+          nuclear family.
 
     **Third table:** errors per individual. This table contains one row per
     individual. Each error is counted toward the proband, father, and mother
@@ -145,7 +151,8 @@ def mendel_errors(dataset, pedigree):
         - **errors** (*Int32*) -- Number of Mendel errors in this variant.
 
     The code of each Mendel error is determined by the table below, extending
-    the `Plink classification <https://www.cog-genomics.org/plink2/basic_stats#mendel>`__.
+    the
+    `Plink classification <https://www.cog-genomics.org/plink2/basic_stats#mendel>`__.
 
     The copy state of a locus with respect to a trio is defined as follows,
     where PAR is the `pseudoautosomal region
@@ -303,10 +310,9 @@ def tdt(dataset, pedigree):
 
      - **v** (*Variant*) -- Variant tested.
 
-     - **transmitted** (*Int32*) -- Number of transmitted alternate alleles.
+     - **t** (*Int32*) -- Number of transmitted alternate alleles.
 
-     - **untransmitted** (*Int32*) -- Number of untransmitted alternate
-       alleles.
+     - **u** (*Int32*) -- Number of untransmitted alternate alleles.
 
      - **chi2** (*Float64*) -- TDT statistic.
 
@@ -330,7 +336,7 @@ def tdt(dataset, pedigree):
     hom_var = 2
     
     auto = 2
-    hemi_X = 1
+    hemi_x = 1
     
     l = [(hom_ref,     het,     het,   auto, 0, 2),
          (hom_ref, hom_ref,     het,   auto, 0, 1),
@@ -343,10 +349,10 @@ def tdt(dataset, pedigree):
          (hom_var,     het,     het,   auto, 2, 0),
          (hom_var,     het, hom_var,   auto, 1, 0),
          (hom_var, hom_var,     het,   auto, 1, 0),
-         (hom_ref, hom_ref,     het, hemi_X, 0, 1),
-         (hom_ref, hom_var,     het, hemi_X, 0, 1),
-         (hom_var, hom_ref,     het, hemi_X, 1, 0),
-         (hom_var, hom_var,     het, hemi_X, 1, 0)]
+         (hom_ref, hom_ref,     het, hemi_x, 0, 1),
+         (hom_ref, hom_var,     het, hemi_x, 0, 1),
+         (hom_var, hom_ref,     het, hemi_x, 1, 0),
+         (hom_var, hom_var,     het, hemi_x, 1, 0)]
     
     mapping = {functions.capture([v[0], v[1], v[2], v[3]]): [v[4], v[5]] for v in l}
     
@@ -360,9 +366,10 @@ def tdt(dataset, pedigree):
                         functions.cond(tri.v.in_x_nonpar(),
                                        1,
                                        -1)))
-
+    
+    # FIXME calculate in one pass once aggs are re-vectorized
     tri = tri.annotate_rows(t = agg.sum(
-        agg.filter((tri.category == 1) | ~tri.father_entry.GT.is_het(),
+        agg.filter((tri.category != 1) | ~tri.father_entry.GT.is_het(),
             functions.bind(
                 functions.cond(
                     tri.category == 0,
@@ -374,14 +381,14 @@ def tdt(dataset, pedigree):
                                 tri.is_female,
                                 2,
                                 1))),
-                lambda ploidy: tri.mapping[[
+                lambda ploidy: tri.mapping.get([
                             tri.proband_entry.GT.num_alt_alleles(),
                             tri.father_entry.GT.num_alt_alleles(),
                             tri.mother_entry.GT.num_alt_alleles(),
-                            ploidy]][0]))))
+                            ploidy])[0]))))
     
     tri = tri.annotate_rows(u = agg.sum(
-        agg.filter((tri.category == 1) | ~tri.father_entry.GT.is_het(),
+        agg.filter((tri.category != 1) | ~tri.father_entry.GT.is_het(),
             functions.bind(
                 functions.cond(
                     tri.category == 0,
@@ -393,11 +400,11 @@ def tdt(dataset, pedigree):
                                 tri.is_female,
                                 2,
                                 1))),
-                lambda ploidy: tri.mapping[[
+                lambda ploidy: tri.mapping.get([
                             tri.proband_entry.GT.num_alt_alleles(),
                             tri.father_entry.GT.num_alt_alleles(),
                             tri.mother_entry.GT.num_alt_alleles(),
-                            ploidy]][1]))))
+                            ploidy])[1]))))
 
     tab = tri.rows_table().select('v', 't', 'u')
     
@@ -408,5 +415,5 @@ def tdt(dataset, pedigree):
             0.0))
     
     tab = tab.annotate(pval = functions.pchisqtail(tab.chi2, 1.0))
-
+    
     return tab
