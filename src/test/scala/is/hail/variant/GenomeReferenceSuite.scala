@@ -2,7 +2,10 @@ package is.hail.variant
 
 import java.io.FileNotFoundException
 
+import is.hail.check.Prop._
+import is.hail.check.Properties
 import is.hail.expr.types.{TInterval, TLocus, TStruct, TVariant}
+import is.hail.io.reference.FastaReader
 import is.hail.table.Table
 import is.hail.utils.HailException
 import is.hail.{SparkSuite, TestUtils}
@@ -283,5 +286,28 @@ class GenomeReferenceSuite extends SparkSuite {
     assert(hc.read(outVDS).vaSignature.fieldOption("v2").get.typ == TVariant(gr))
     TestUtils.interceptFatal("`foo' already exists and is not identical to the imported reference from")(hc.readTable(outKT2))
     GenomeReference.removeReference("foo")
+  }
+
+  @Test def testFasta() {
+    val fastaFile = "src/test/resources/fake_reference.fasta"
+    val fastaIndexFile = "src/test/resources/fake_reference.fasta.fai"
+    val gr = GenomeReference("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
+    GenomeReference.addReference(gr)
+
+    object Spec extends Properties("Fasta Random") {
+      val fr = new FastaReader(gr, fastaFile, fastaIndexFile, 3, 5)
+      property("cache gives same base as from file") = forAll(Locus.gen(gr)) { l =>
+        fr.lookupLocus(l) == fr.reader.getSubsequenceAt(l.contig, l.position, l.position).getBaseString
+      }
+    }
+
+    Spec.check()
+
+    gr.addSequence(fastaFile, fastaIndexFile)
+    val table = hc.importTable("src/test/resources/fake_reference.tsv")
+    val tableAnn = table.annotate("baseComputed = getBaseFromReference(Locus(test)(contig, pos.toInt32()))")
+    println(tableAnn.showString())
+
+    GenomeReference.removeReference(gr.name)
   }
 }
