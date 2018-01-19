@@ -13,8 +13,8 @@ class RegionValueAltAllele(taa: TAltAllele) extends View with IAltAllele {
   private var cachedRef: String = null
   private var cachedAlt: String = null
 
-  assert(t.isFieldRequired(refIdx))
-  assert(t.isFieldRequired(altIdx))
+  assert(t.fieldRequired(refIdx))
+  assert(t.fieldRequired(altIdx))
 
   def setRegion(region: Region, offset: Long) {
     this.region = region

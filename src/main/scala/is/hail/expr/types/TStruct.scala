@@ -70,6 +70,10 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   val fieldNames: Array[String] = fields.map(_.name).toArray
 
+  val fieldRequired: Array[Boolean] = fields.map(_.typ.required).toArray
+
+  val fieldTypes: Array[Type] = fields.map(_.typ).toArray
+
   def index(str: String): Option[Int] = fieldIdx.get(str)
 
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
@@ -80,7 +84,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def fieldType(i: Int): Type = fields(i).typ
 
-  def size: Int = fields.length
+  val size: Int = fields.length
 
   override def getOption(path: List[String]): Option[Type] =
     if (path.isEmpty)
@@ -576,7 +580,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     } else
       Gen.size.flatMap(fuel =>
         if (size > fuel)
-          Gen.uniformSequence(fields.map(f => if (isFieldRequired(f.index)) f.typ.genValue else Gen.const(null))).map(a => Annotation(a: _*))
+          Gen.uniformSequence(fields.map(f => if (fieldRequired(f.index)) f.typ.genValue else Gen.const(null))).map(a => Annotation(a: _*))
         else
           Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
@@ -654,7 +658,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     val a = new Array[Int](size)
     fields.foreach { f =>
       a(f.index) = i
-      if (!isFieldRequired(f.index))
+      if (!fieldRequired(f.index))
         i += 1
     }
     (a, i)
@@ -732,16 +736,15 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     c
   }
 
-  def isFieldRequired(fieldIdx: Int): Boolean = fieldType(fieldIdx).required
 
   def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
     isFieldDefined(rv.region, rv.offset, fieldIdx)
 
   def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
-    isFieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
+    fieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
 
   def isFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    if (isFieldRequired(fieldIdx))
+    if (fieldRequired(fieldIdx))
       false
     else
       region.loadBit(offset, missingIdx(fieldIdx))
@@ -750,12 +753,12 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     !isFieldMissing(region, offset, fieldIdx)
 
   def setFieldMissing(region: Region, offset: Long, fieldIdx: Int) {
-    assert(!isFieldRequired(fieldIdx))
+    assert(!fieldRequired(fieldIdx))
     region.setBit(offset, missingIdx(fieldIdx))
   }
 
   def setFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
-    assert(!isFieldRequired(fieldIdx))
+    assert(!fieldRequired(fieldIdx))
     region.setBit(offset, missingIdx(fieldIdx))
   }
 
