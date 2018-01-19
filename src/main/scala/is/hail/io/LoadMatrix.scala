@@ -260,7 +260,7 @@ object LoadMatrix {
 
           var ii = 0
           while (ii < nAnnotations) {
-            val t = at.fieldType(ii)
+            val t = at.fieldTypes(ii)
             ec.set(ii, t match {
               case _: TInt32 => getInt(fileByPartition(i), null, ii)
               case _: TInt64 => getLong(fileByPartition(i), null, ii)
@@ -281,7 +281,7 @@ object LoadMatrix {
           rvb.startStruct()
           ii = 0
           while (ii < at.size) {
-            rvb.addAnnotation(at.fieldType(ii), ec.a(ii))
+            rvb.addAnnotation(at.fieldTypes(ii), ec.a(ii))
             ii += 1
           }
           rvb.endStruct()

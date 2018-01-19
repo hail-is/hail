@@ -36,7 +36,7 @@ object PCA {
         region.clear()
         rvb.start(localRowType)
         rvb.startStruct()
-        rvb.addAnnotation(rowType.fieldType(0), s)
+        rvb.addAnnotation(rowType.fieldTypes(0), s)
         if (asArrays) rvb.startArray(k) else rvb.startStruct()
         var j = 0
         while (j < k) {
@@ -82,7 +82,7 @@ object PCA {
           region.clear()
           rvb.start(rowTypeBc.value)
           rvb.startStruct()
-          rvb.addAnnotation(rowTypeBc.value.fieldType(0), variantsBc.value(ir.index.toInt))
+          rvb.addAnnotation(rowTypeBc.value.fieldTypes(0), variantsBc.value(ir.index.toInt))
           if (asArray) rvb.startArray(k) else rvb.startStruct()
           var i = 0
           while (i < k) {

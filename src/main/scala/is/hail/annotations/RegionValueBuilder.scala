@@ -154,8 +154,8 @@ class RegionValueBuilder(var region: Region) {
     val i = indexstk.top
     typestk.top match {
       case t: TStruct =>
-        if (t.fieldType(i).required)
-          fatal(s"cannot set missing field for required type ${ t.fieldType(i) }")
+        if (t.fieldTypes(i).required)
+          fatal(s"cannot set missing field for required type ${ t.fieldTypes(i) }")
         t.setFieldMissing(region, offsetstk.top, i)
       case t: TArray =>
         if (t.elementType.required)
@@ -315,7 +315,7 @@ class RegionValueBuilder(var region: Region) {
 
   def addField(t: TStruct, fromRegion: Region, fromOff: Long, i: Int) {
     if (t.isFieldDefined(fromRegion, fromOff, i))
-      addRegionValue(t.fieldType(i), fromRegion, t.loadField(fromRegion, fromOff, i))
+      addRegionValue(t.fieldTypes(i), fromRegion, t.loadField(fromRegion, fromOff, i))
     else
       setMissing()
   }

@@ -55,7 +55,7 @@ object LinearRegression {
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newRDD2Type, inserter) = vsm.rdd2.typ.insert(LinearRegression.schema, "va" :: pathVA)
-    val newVAType = newRDD2Type.rowType.fieldType(2)
+    val newVAType = newRDD2Type.rowType.fieldTypes(2)
 
     val localRowType = vsm.rowType
     val newRDD2 = vsm.rdd2.copy(

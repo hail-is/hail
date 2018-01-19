@@ -94,8 +94,8 @@ object BgenLoader {
         region.clear()
         rvb.start(kType)
         rvb.startStruct()
-        rvb.addAnnotation(kType.fieldType(0), vRecoded.locus) // locus/pk
-        rvb.addAnnotation(kType.fieldType(1), vRecoded)
+        rvb.addAnnotation(kType.fieldTypes(0), vRecoded.locus) // locus/pk
+        rvb.addAnnotation(kType.fieldTypes(1), vRecoded)
         rvb.endStruct()
 
         rv.setOffset(rvb.end())
@@ -118,9 +118,9 @@ object BgenLoader {
         region.clear()
         rvb.start(rowType)
         rvb.startStruct()
-        rvb.addAnnotation(rowType.fieldType(0), vRecoded.locus) // locus/pk
-        rvb.addAnnotation(rowType.fieldType(1), vRecoded)
-        rvb.addAnnotation(rowType.fieldType(2), va)
+        rvb.addAnnotation(rowType.fieldTypes(0), vRecoded.locus) // locus/pk
+        rvb.addAnnotation(rowType.fieldTypes(1), vRecoded)
+        rvb.addAnnotation(rowType.fieldTypes(2), va)
         record.getValue(rvb) // gs
         rvb.endStruct()
 

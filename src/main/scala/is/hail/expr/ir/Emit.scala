@@ -339,7 +339,7 @@ object Emit {
           xo := coerce[Long](xmo.mux(defaultValue(t), vo)))
         (setup,
           xmo || !t.isFieldDefined(region, xo, fieldIdx),
-          region.loadIRIntermediate(t.fieldType(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
+          region.loadIRIntermediate(t.fieldTypes(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
       case GetFieldMissingness(o, name) =>
         val t = coerce[TStruct](o.typ)
         val fieldIdx = t.fieldIdx(name)

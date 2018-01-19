@@ -77,7 +77,7 @@ object Variant {
 
   def fromRegionValue(r: Region, offset: Long): Variant = {
     val t = TVariant.representation()
-    val altsType = t.fieldType(3).asInstanceOf[TArray]
+    val altsType = t.fieldTypes(3).asInstanceOf[TArray]
 
     val contig = TString.loadString(r, t.loadField(r, offset, 0))
     val pos = r.loadInt(t.loadField(r, offset, 1))

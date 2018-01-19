@@ -15,7 +15,7 @@ object HTSGenotypeView {
 }
 
 final class HTSGenotypeView(rs: TStruct) {
-  private val tgs = rs.fieldType(3).asInstanceOf[TArray]
+  private val tgs = rs.fieldTypes(3).asInstanceOf[TArray]
   private val tg = tgs.elementType.asInstanceOf[TStruct]
 
   private def lookupField(name: String, expected: Type): (Boolean, Int) = {
@@ -118,7 +118,7 @@ object ArrayGenotypeView {
 }
 
 final class ArrayGenotypeView(rowType: TStruct) {
-  private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
+  private val tgs = rowType.fieldTypes(3).asInstanceOf[TArray]
   private val tg = tgs.elementType match {
     case tg: TStruct => tg
     case _ => null
@@ -190,7 +190,7 @@ object HardCallView {
 }
 
 final class HardCallView(rowType: TStruct, callField: String) {
-  private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
+  private val tgs = rowType.fieldTypes(3).asInstanceOf[TArray]
   private val tg = tgs.elementType match {
     case tg: TStruct => tg
     case _ => null
@@ -248,7 +248,7 @@ final class HardCallView(rowType: TStruct, callField: String) {
 }
 
 final class HardcallTrioGenotypeView(rs: TStruct, callField: String) {
-  private val trioTgs = rs.fieldType(3).asInstanceOf[TArray]
+  private val trioTgs = rs.fieldTypes(3).asInstanceOf[TArray]
   private val trioTg = trioTgs.elementType.asInstanceOf[TStruct]
 
   require(trioTg.hasField("proband") && trioTg.hasField("mother") && trioTg.hasField("father"))
@@ -256,11 +256,11 @@ final class HardcallTrioGenotypeView(rs: TStruct, callField: String) {
   private val motherIndex = trioTg.fieldIdx("mother")
   private val fatherIndex = trioTg.fieldIdx("father")
 
-  private val tg = trioTg.fieldType(probandIndex).fundamentalType.asInstanceOf[TStruct]
+  private val tg = trioTg.fieldTypes(probandIndex).fundamentalType.asInstanceOf[TStruct]
 
   require(tg.hasField(callField))
   private val gtIndex = tg.fieldIdx(callField)
-  require(tg.unify(trioTg.fieldType(motherIndex).fundamentalType) && tg.unify(trioTg.fieldType(fatherIndex).fundamentalType))
+  require(tg.unify(trioTg.fieldTypes(motherIndex).fundamentalType) && tg.unify(trioTg.fieldTypes(fatherIndex).fundamentalType))
 
   private var m: Region = _
   private var gsOffset: Long = _

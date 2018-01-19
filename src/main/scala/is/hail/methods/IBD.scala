@@ -352,7 +352,7 @@ object IBD {
 
     { (rv: RegionValue) =>
       val v = Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))
-      val va = UnsafeRow.read(rowType.fieldType(2), rv.region, rowType.loadField(rv, 2))
+      val va = UnsafeRow.read(rowType.fieldTypes(2), rv.region, rowType.loadField(rv, 2))
       mafEc.setAll(v, va)
       val maf = computeMafThunk()
 

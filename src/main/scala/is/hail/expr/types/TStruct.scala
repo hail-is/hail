@@ -82,8 +82,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def field(name: String): Field = fields(fieldIdx(name))
 
-  def fieldType(i: Int): Type = fields(i).typ
-
   val size: Int = fields.length
 
   override def getOption(path: List[String]): Option[Type] =

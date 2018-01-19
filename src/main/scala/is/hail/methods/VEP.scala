@@ -380,7 +380,7 @@ object VEP {
               }
 
             val r = kt.toArray
-              .sortBy(_._1)(localRowType.fieldType(1).asInstanceOf[TVariant].gr.variantOrdering)
+              .sortBy(_._1)(localRowType.fieldTypes(1).asInstanceOf[TVariant].gr.variantOrdering)
 
             val rc = proc.waitFor()
             if (rc != 0)
@@ -415,9 +415,9 @@ object VEP {
         it.map { case (v, vep) =>
           rvb.start(vepRowType)
           rvb.startStruct()
-          rvb.addAnnotation(vepRowType.fieldType(0), pkProjection(v))
-          rvb.addAnnotation(vepRowType.fieldType(1), v)
-          rvb.addAnnotation(vepRowType.fieldType(2), vep)
+          rvb.addAnnotation(vepRowType.fieldTypes(0), pkProjection(v))
+          rvb.addAnnotation(vepRowType.fieldTypes(1), v)
+          rvb.addAnnotation(vepRowType.fieldTypes(2), vep)
           rvb.endStruct()
           rv.setOffset(rvb.end())
 
