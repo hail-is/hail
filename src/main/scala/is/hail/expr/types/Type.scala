@@ -90,7 +90,7 @@ object Type {
 
   val genRequired: Gen[Type] = preGenArb(required = true)
 
-  val genInsertable: Gen[Type] = Gen.coin(0.2).flatMap(preGenArb(_, genInsertableStruct))
+  val genInsertable: Gen[TStruct] = genInsertableStruct
 
   def genWithValue: Gen[(Type, Annotation)] = for {
     s <- Gen.size

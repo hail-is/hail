@@ -10,15 +10,15 @@ import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
-class ExprAnnotator(val ec: EvalContext, t: Type, expr: String, head: Option[String]) extends Serializable {
+class ExprAnnotator(val ec: EvalContext, t: TStruct, expr: String, head: Option[String]) extends Serializable {
   private val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, head)
 
   private val inserters = new Array[Inserter](types.length)
-  val newT: Type = {
+  val newT: TStruct = {
     var newT = t
     var i = 0
     while (i < types.length) {
-      val (newSig, ins) = newT.insert(types(i), paths(i))
+      val (newSig, ins) = newT.structInsert(types(i), paths(i))
       inserters(i) = ins
       newT = newSig
       i += 1
@@ -178,7 +178,8 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
     "g" -> (6, vsm.genotypeSignature)))
   val gAnnotator = new ExprAnnotator(gEC, vsm.genotypeSignature, genotypeExpr, Some(Annotation.GENOTYPE_HEAD))
 
-  val newMatrixType = vsm.matrixType.copy(vaType = vAnnotator.newT, genotypeType = gAnnotator.newT)
+  val newMatrixType = vsm.matrixType.copy(vaType = vAnnotator.newT.asInstanceOf[TStruct],
+    genotypeType = gAnnotator.newT.asInstanceOf[TStruct])
 
   def split(sortAlleles: Boolean, removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
     val localKeepStar = keepStar

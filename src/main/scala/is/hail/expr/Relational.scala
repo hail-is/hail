@@ -20,11 +20,11 @@ import scala.collection.mutable
 
 case class MatrixType(
   metadata: VSMMetadata) extends BaseType {
-  def globalType: Type = metadata.globalSignature
+  def globalType: TStruct = metadata.globalSignature
 
   def sType: Type = metadata.sSignature
 
-  def saType: Type = metadata.saSignature
+  def saType: TStruct = metadata.saSignature
 
   def locusType: Type = vType match {
     case t: TVariant => TLocus(t.gr)
@@ -33,9 +33,9 @@ case class MatrixType(
 
   def vType: Type = metadata.vSignature
 
-  def vaType: Type = metadata.vaSignature
+  def vaType: TStruct = metadata.vaSignature
 
-  def genotypeType: Type = metadata.genotypeSignature
+  def genotypeType: TStruct = metadata.genotypeSignature
 
   def rowType: TStruct =
     TStruct(
@@ -94,10 +94,10 @@ case class MatrixType(
       "g" -> (5, genotypeType)))
   }
 
-  def copy(globalType: Type = globalType,
-    sType: Type = sType, saType: Type = saType,
-    vType: Type = vType, vaType: Type = vaType,
-    genotypeType: Type = genotypeType): MatrixType =
+  def copy(globalType: TStruct = globalType,
+    sType: Type = sType, saType: TStruct = saType,
+    vType: Type = vType, vaType: TStruct = vaType,
+    genotypeType: TStruct = genotypeType): MatrixType =
     MatrixType(metadata = metadata.copy(
       globalSignature = globalType,
       sSignature = sType, saSignature = saType,

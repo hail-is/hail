@@ -359,7 +359,7 @@ object Nirvana {
           rv
         }})
 
-    val (newVAType, inserter) = vds.vaSignature.insert(nirvanaSignature, parsedRoot)
+    val (newVAType, inserter) = vds.vaSignature.structInsert(nirvanaSignature, parsedRoot)
 
     val newMatrixType = vds.matrixType.copy(vaType = newVAType)
     val newRDD2 = vds.orderedRVDLeftJoinDistinctAndInsert(vds.rdd2, nirvanaRVD,

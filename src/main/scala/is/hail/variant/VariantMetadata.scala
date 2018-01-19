@@ -30,12 +30,12 @@ object VSMFileMetadata {
     sampleAnnotations: IndexedSeq[Annotation] = null,
     globalAnnotation: Annotation = Annotation.empty,
     sSignature: Type = TString(),
-    saSignature: Type = TStruct.empty(),
+    saSignature: TStruct = TStruct.empty(),
     vSignature: Type = TVariant(GenomeReference.defaultReference),
-    vaSignature: Type = TStruct.empty(),
-    globalSignature: Type = TStruct.empty(),
+    vaSignature: TStruct = TStruct.empty(),
+    globalSignature: TStruct = TStruct.empty(),
     // FIXME require
-    genotypeSignature: Type = Genotype.htsGenotypeType): VSMFileMetadata = {
+    genotypeSignature: TStruct = Genotype.htsGenotypeType): VSMFileMetadata = {
     VSMFileMetadata(
       VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       VSMLocalValue(globalAnnotation, sampleIds,
@@ -54,8 +54,8 @@ case class VSMFileMetadata(
 
 case class VSMMetadata(
   sSignature: Type = TString(),
-  saSignature: Type = TStruct.empty(),
+  saSignature: TStruct = TStruct.empty(),
   vSignature: Type = TVariant(GenomeReference.defaultReference),
-  vaSignature: Type = TStruct.empty(),
-  globalSignature: Type = TStruct.empty(),
-  genotypeSignature: Type = Genotype.htsGenotypeType)
+  vaSignature: TStruct = TStruct.empty(),
+  globalSignature: TStruct = TStruct.empty(),
+  genotypeSignature: TStruct = Genotype.htsGenotypeType)

@@ -299,7 +299,7 @@ object Aggregators {
     seqOp: (MultiArray2[Aggregator], UnsafeRow) => MultiArray2[Aggregator],
     combOp: (MultiArray2[Aggregator], MultiArray2[Aggregator]) => MultiArray2[Aggregator],
     resultOp: (MultiArray2[Aggregator], RegionValueBuilder) => Unit,
-    resultType: Type)
+    resultType: TStruct)
 
   def makeFunctions[T](ec: EvalContext, setEC: (EvalContext, T) => Unit): (Array[Aggregator],
     (Array[Aggregator], T) => Array[Aggregator],

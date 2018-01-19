@@ -47,7 +47,7 @@ object LoadMatrix {
     keyExpr: String,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    cellType: Type = TInt64(),
+    cellType: TStruct = TStruct("x" -> TInt64()),
     missingValue: String = "NA"): MatrixTable = {
 
     val sep = '\t'
@@ -297,8 +297,9 @@ object LoadMatrix {
                      |    in file ${ fileByPartition(i) }""".stripMargin
                 )
               }
+              rvb.startStruct()
               missing = false
-              cellType match {
+              cellType.fields(0).typ match {
                 case _: TInt32 =>
                   val v = getInt(fileByPartition(i), rowKey, ii + nAnnotations)
                   if (missing) rvb.setMissing() else rvb.addInt(v)
@@ -315,6 +316,7 @@ object LoadMatrix {
                   val v = getString(fileByPartition(i), rowKey, ii + nAnnotations)
                   if (missing) rvb.setMissing() else rvb.addString(v)
               }
+              rvb.endStruct()
               ii += 1
             }
             if (off < line.length) {

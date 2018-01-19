@@ -62,10 +62,8 @@ class IntervalSuite extends SparkSuite {
       out.write("1\t50\t150\t+\tTHING5")
     }
 
-    assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), root = "va", product = true)
-      .variantsAndAnnotations
-      .collect()
-      .head._2.asInstanceOf[IndexedSeq[_]].toSet == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
+    assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), root = "va.foo", product = true)
+        .variantsKT().query("va.map(x => x.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
   @Test def testNew() {

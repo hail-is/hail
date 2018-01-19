@@ -143,11 +143,11 @@ object MatrixTable {
     GenomeReference.importReferences(hConf, dirname + "/references/")
 
     val sSignature = Parser.parseType(metadata.sample_schema)
-    val saSignature = Parser.parseType(metadata.sample_annotation_schema)
+    val saSignature = Parser.parseType(metadata.sample_annotation_schema).asInstanceOf[TStruct]
     val vSignature = Parser.parseType(metadata.variant_schema)
-    val vaSignature = Parser.parseType(metadata.variant_annotation_schema)
-    val genotypeSignature = Parser.parseType(metadata.genotype_schema)
-    val globalSignature = Parser.parseType(metadata.global_schema)
+    val vaSignature = Parser.parseType(metadata.variant_annotation_schema).asInstanceOf[TStruct]
+    val genotypeSignature = Parser.parseType(metadata.genotype_schema).asInstanceOf[TStruct]
+    val globalSignature = Parser.parseType(metadata.global_schema).asInstanceOf[TStruct]
 
     val sampleInfoSchema = TStruct(("id", sSignature), ("annotation", saSignature))
     val sampleInfo = metadata.sample_annotations.asInstanceOf[JArray]
@@ -181,11 +181,11 @@ object MatrixTable {
   def genGeneric(hc: HailContext): Gen[MatrixTable] =
     VSMSubgen(
       sSigGen = Type.genArb,
-      saSigGen = Type.genArb,
+      saSigGen = Type.genInsertableStruct,
       vSigGen = Type.genArb,
-      vaSigGen = Type.genArb,
-      globalSigGen = Type.genArb,
-      tSigGen = Type.genArb,
+      vaSigGen = Type.genInsertableStruct,
+      globalSigGen = Type.genInsertableStruct,
+      tSigGen = Type.genInsertableStruct,
       sGen = (t: Type) => t.genNonmissingValue,
       saGen = (t: Type) => t.genValue,
       vaGen = (t: Type) => t.genValue,
@@ -331,28 +331,28 @@ object MatrixTable {
 
 case class VSMSubgen(
   sSigGen: Gen[Type],
-  saSigGen: Gen[Type],
+  saSigGen: Gen[TStruct],
   vSigGen: Gen[Type],
-  vaSigGen: Gen[Type],
-  globalSigGen: Gen[Type],
-  tSigGen: Gen[Type],
+  vaSigGen: Gen[TStruct],
+  globalSigGen: Gen[TStruct],
+  tSigGen: Gen[TStruct],
   sGen: (Type) => Gen[Annotation],
-  saGen: (Type) => Gen[Annotation],
-  vaGen: (Type) => Gen[Annotation],
-  globalGen: (Type) => Gen[Annotation],
+  saGen: (TStruct) => Gen[Annotation],
+  vaGen: (TStruct) => Gen[Annotation],
+  globalGen: (TStruct) => Gen[Annotation],
   vGen: (Type) => Gen[Annotation],
-  tGen: (Type, Annotation) => Gen[Annotation]) {
+  tGen: (TStruct, Annotation) => Gen[Annotation]) {
 
   def gen(hc: HailContext): Gen[MatrixTable] =
     for (size <- Gen.size;
       (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
 
       vSig <- vSigGen.resize(3);
-      vaSig <- vaSigGen.map(t => t.deepOptional()).resize(3);
+      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
       sSig <- sSigGen.resize(3);
-      saSig <- saSigGen.map(t => t.deepOptional()).resize(3);
+      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
       globalSig <- globalSigGen.resize(5);
-      tSig <- tSigGen.map(t => t.structOptional()).resize(3);
+      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
       global <- globalGen(globalSig).resize(25);
       nPartitions <- Gen.choose(1, 10);
 
@@ -663,7 +663,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val inserterBuilder = new ArrayBuilder[Inserter]()
 
     val finalType = (paths, types).zipped.foldLeft(globalSignature) { case (v, (ids, signature)) =>
-      val (s, i) = v.insert(signature, ids)
+      val (s, i) = v.structInsert(signature, ids)
       inserterBuilder += i
       s
     }
@@ -681,8 +681,8 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       globalSignature = finalType)
   }
 
-  def insertGlobal(sig: Type, path: List[String]): (Type, Inserter) = {
-    globalSignature.insert(sig, path)
+  def insertGlobal(sig: Type, path: List[String]): (TStruct, Inserter) = {
+    globalSignature.structInsert(sig, path)
   }
 
   def annotateSamples(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
@@ -705,7 +705,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
     val finalType = (paths, types).zipped.foldLeft(saSignature) { case (sas, (ids, signature)) =>
-      val (s, i) = sas.insert(signature, ids)
+      val (s, i) = sas.structInsert(signature, ids)
       inserterBuilder += i
       s
     }
@@ -761,7 +761,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       }
     }
 
-    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) = {
+    val (finalType, inserter): (TStruct, (Annotation, Annotation) => Annotation) = {
       val (t, ins) = if (expr != null) {
         val ec = EvalContext(Map(
           "sa" -> (0, saSignature),
@@ -823,7 +823,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     }
   }
 
-  def annotateSamples(annotation: (Annotation) => Annotation, newSignature: Type, inserter: Inserter): MatrixTable = {
+  def annotateSamples(annotation: (Annotation) => Annotation, newSignature: TStruct, inserter: Inserter): MatrixTable = {
     val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
       val sa = sampleAnnotations(i)
       val newAnnotation = inserter(sa, annotation(id))
@@ -855,7 +855,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val inserters = new Array[Inserter](types.length)
     var i = 0
     while (i < types.length) {
-      val (newSig, ins) = newVASignature.insert(types(i), paths(i))
+      val (newSig, ins) = newVASignature.structInsert(types(i), paths(i))
       inserters(i) = ins
       newVASignature = newSig
       i += 1
@@ -949,7 +949,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
         })
   }
 
-  private def annotateVariantsVariantTable(kt: Table, product: Boolean, newVAType: Type, inserter: Inserter): MatrixTable = {
+  private def annotateVariantsVariantTable(kt: Table, product: Boolean, newVAType: TStruct, inserter: Inserter): MatrixTable = {
     var orderedKT = kt.toSingletonKeyOrderedRVD(Some(rdd2.partitioner))
     if (product)
       orderedKT = orderedKT.groupByKey()
@@ -961,7 +961,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     copy2(rdd2 = newRDD2, vaSignature = newVAType)
   }
 
-  private def annotateVariantsLocusTable(kt: Table, product: Boolean, newVAType: Type, inserter: Inserter): MatrixTable = {
+  private def annotateVariantsLocusTable(kt: Table, product: Boolean, newVAType: TStruct, inserter: Inserter): MatrixTable = {
     val pkPart = rdd2.partitioner.withKType(Array("pk"), rdd2.partitioner.pkType)
 
     val pkRowType = new OrderedRVType(Array("pk"), Array("pk"), rdd2.rowType)
@@ -986,7 +986,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     copy2(rdd2 = newRDD2, vaSignature = newVAType)
   }
 
-  private def annotateVariantsIntervalTable(kt: Table, product: Boolean, newVAType: Type, inserter: Inserter): MatrixTable = {
+  private def annotateVariantsIntervalTable(kt: Table, product: Boolean, newVAType: TStruct, inserter: Inserter): MatrixTable = {
     val newMatrixType = matrixType.copy(vaType = newVAType)
     val newRowType = newMatrixType.rowType
 
@@ -1139,7 +1139,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
   def nPartitions: Int = rdd2.partitions.length
 
-  def annotateVariants2(rightRDD2: OrderedRVD, newVAType: Type, inserter: Inserter): MatrixTable = {
+  def annotateVariants2(rightRDD2: OrderedRVD, newVAType: TStruct, inserter: Inserter): MatrixTable = {
     val leftRowType = rowType
     val rightRowType = rightRDD2.typ.rowType
 
@@ -1198,7 +1198,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       case _ => fatal("this module requires one of `root' or 'code', but not both")
     }
 
-    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
+    val (finalType, inserter): (TStruct, (Annotation, Annotation) => Annotation) =
       if (isCode) {
         val ec = EvalContext(Map(
           "va" -> (0, vaSignature),
@@ -1236,7 +1236,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     }
 
     val (newRowType, inserter) = rowType.unsafeInsert(keyType, path)
-    val newVAType = newRowType.asInstanceOf[TStruct].fieldType(2)
+    val newVAType = newRowType.asInstanceOf[TStruct].fieldType(2).asInstanceOf[TStruct]
     val localRowType = rowType
 
     val explodedRDD = rdd2.rdd.mapPartitions { it =>
@@ -1284,7 +1284,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
       }
     }
 
-    val (newSASig, inserter) = saSignature.insert(keyType, path)
+    val (newSASig, inserter) = saSignature.structInsert(keyType, path)
 
     val sampleMap = new Array[Int](size)
     val newSampleIds = new Array[Annotation](size)
@@ -1357,7 +1357,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
     val newGType = (paths, types).zipped.foldLeft(genotypeSignature) { case (gsig, (ids, signature)) =>
-      val (s, i) = gsig.insert(signature, ids)
+      val (s, i) = gsig.structInsert(signature, ids)
       inserterBuilder += i
       s
     }
@@ -1615,12 +1615,12 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     copy2(rdd2 = rdd2.head(n))
   }
 
-  def insertSA(sig: Type, args: String*): (Type, Inserter) = insertSA(sig, args.toList)
+  def insertSA(sig: Type, args: String*): (TStruct, Inserter) = insertSA(sig, args.toList)
 
-  def insertSA(sig: Type, path: List[String]): (Type, Inserter) = saSignature.insert(sig, path)
+  def insertSA(sig: Type, path: List[String]): (TStruct, Inserter) = saSignature.structInsert(sig, path)
 
-  def insertVA(sig: Type, path: List[String]): (Type, Inserter) = {
-    vaSignature.insert(sig, path)
+  def insertVA(sig: Type, path: List[String]): (TStruct, Inserter) = {
+    vaSignature.structInsert(sig, path)
   }
 
   def insertIntoRow[PC](makePartitionContext: () => PC)(typeToInsert: Type, path: List[String],
@@ -1628,8 +1628,8 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val newRDD2 = rdd2.insert(makePartitionContext)(typeToInsert, path, inserter)
     copy2(rdd2 = newRDD2,
       // don't need to update vSignature, insert can't change the keys
-      vaSignature = newRDD2.typ.rowType.fieldType(2),
-      genotypeSignature = newRDD2.typ.rowType.fieldType(3).asInstanceOf[TArray].elementType)
+      vaSignature = newRDD2.typ.rowType.fieldType(2).asInstanceOf[TStruct],
+      genotypeSignature = newRDD2.typ.rowType.fieldType(3).asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
   }
 
   /**
@@ -2170,11 +2170,11 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
     globalAnnotation: Annotation = globalAnnotation,
     sSignature: Type = sSignature,
-    saSignature: Type = saSignature,
+    saSignature: TStruct = saSignature,
     vSignature: Type = vSignature,
-    vaSignature: Type = vaSignature,
-    globalSignature: Type = globalSignature,
-    genotypeSignature: Type = genotypeSignature): MatrixTable =
+    vaSignature: TStruct = vaSignature,
+    globalSignature: TStruct = globalSignature,
+    genotypeSignature: TStruct = genotypeSignature): MatrixTable =
     MatrixTable(hc,
       VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
@@ -2184,11 +2184,11 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
     globalAnnotation: Annotation = globalAnnotation,
     sSignature: Type = sSignature,
-    saSignature: Type = saSignature,
+    saSignature: TStruct = saSignature,
     vSignature: Type = vSignature,
-    vaSignature: Type = vaSignature,
-    globalSignature: Type = globalSignature,
-    genotypeSignature: Type = genotypeSignature): MatrixTable =
+    vaSignature: TStruct = vaSignature,
+    globalSignature: TStruct = globalSignature,
+    genotypeSignature: TStruct = genotypeSignature): MatrixTable =
     MatrixTable.fromLegacy(hc,
       VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
@@ -2199,22 +2199,22 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
     globalAnnotation: Annotation = globalAnnotation,
     sSignature: Type = sSignature,
-    saSignature: Type = saSignature,
+    saSignature: TStruct = saSignature,
     vSignature: Type = vSignature,
-    vaSignature: Type = vaSignature,
-    globalSignature: Type = globalSignature,
-    genotypeSignature: Type = genotypeSignature): MatrixTable =
+    vaSignature: TStruct = vaSignature,
+    globalSignature: TStruct = globalSignature,
+    genotypeSignature: TStruct = genotypeSignature): MatrixTable =
     new MatrixTable(hc,
       VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd2)
 
   def copyAST(ast: MatrixIR = ast,
     sSignature: Type = sSignature,
-    saSignature: Type = saSignature,
+    saSignature: TStruct = saSignature,
     vSignature: Type = vSignature,
-    vaSignature: Type = vaSignature,
-    globalSignature: Type = globalSignature,
-    genotypeSignature: Type = genotypeSignature): MatrixTable =
+    vaSignature: TStruct = vaSignature,
+    globalSignature: TStruct = globalSignature,
+    genotypeSignature: TStruct = genotypeSignature): MatrixTable =
     new MatrixTable(hc,
       VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       ast)
@@ -2904,7 +2904,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     val path = List("va", name)
 
     val (newRowType, inserter) = rowType.unsafeInsert(TInt64(), path)
-    val newVAType = newRowType.asInstanceOf[TStruct].fieldType(2)
+    val newVAType = newRowType.asInstanceOf[TStruct].fieldType(2).asInstanceOf[TStruct]
     val localRowType = rowType
 
     val partStarts = partitionStarts()
@@ -2931,7 +2931,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
   def indexCols(name: String): MatrixTable = {
     val path = List(name)
-    val (newColType, inserter) = saSignature.insert(TInt32(), path)
+    val (newColType, inserter) = saSignature.structInsert(TInt32(), path)
     val newSampleAnnotations = Array.tabulate(nSamples) { i =>
       inserter(sampleAnnotations(i), i)
     }

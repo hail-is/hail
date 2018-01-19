@@ -129,12 +129,12 @@ object Annotation {
 
   def fromSeq(values: Seq[Any]): Annotation = Row.fromSeq(values)
 
-  def buildInserter(code: String, t: Type, ec: EvalContext, expectedHead: String): (Type, Inserter) = {
+  def buildInserter(code: String, t: TStruct, ec: EvalContext, expectedHead: String): (TStruct, Inserter) = {
     val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, Some(expectedHead))
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
     val finalType = (paths, types).zipped.foldLeft(t) { case (t, (ids, signature)) =>
-      val (s, i) = t.insert(signature, ids)
+      val (s, i) = t.structInsert(signature, ids)
       inserterBuilder += i
       s
     }

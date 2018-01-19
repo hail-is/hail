@@ -114,7 +114,7 @@ object PlinkLoader {
     bedPath: String,
     sampleIds: IndexedSeq[String],
     sampleAnnotations: IndexedSeq[Annotation],
-    sampleAnnotationSignature: Type,
+    sampleAnnotationSignature: TStruct,
     variants: Array[(Variant, String)],
     nPartitions: Option[Int] = None,
     a2Reference: Boolean = true,

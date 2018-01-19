@@ -526,7 +526,8 @@ class HailContext private(val sc: SparkContext,
     missingVal: String = "NA"): MatrixTable = {
     val inputs = hadoopConf.globAll(files)
 
-    LoadMatrix(this, inputs, annotationHeaders, annotationTypes, keyExpr, nPartitions = nPartitions, dropSamples = dropSamples, cellType = cellType, missingValue = missingVal)
+    LoadMatrix(this, inputs, annotationHeaders, annotationTypes, keyExpr, nPartitions = nPartitions,
+      dropSamples = dropSamples, cellType = TStruct("x" -> cellType), missingValue = missingVal)
   }
 
   def indexBgen(file: String) {
