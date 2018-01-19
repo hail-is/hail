@@ -41,6 +41,12 @@ if role == 'Master':
 	hail_version = check_output(['/usr/share/google/get_metadata_value', 'attributes/HAIL_VERSION'])
 	hash_name = check_output(['/usr/share/google/get_metadata_value', 'attributes/HASH'])
 
+        py4j_versions = {
+                "2.0": "0.10.3",
+                "2.1": "0.10.3",
+                "2.2": "0.10.4"}
+        py4j = py4j_versions[spark[:3]]
+
 	# Hail jar
 	try:
 		custom_jar = check_output(['/usr/share/google/get_metadata_value', 'attributes/JAR'])
@@ -100,7 +106,7 @@ if role == 'Master':
 			'PYTHONHASHSEED': '0',
 			'SPARK_HOME': '/usr/lib/spark/',
 			'SPARK_CONF_DIR': '/home/hail/conf/',
-			'PYTHONPATH': '/usr/lib/spark/python/:/usr/lib/spark/python/lib/py4j-0.10.3-src.zip:/home/hail/{}'.format(hail_zip)
+			'PYTHONPATH': '/usr/lib/spark/python/:/usr/lib/spark/python/lib/py4j-{}-src.zip:/home/hail/{}'.format(py4j, hail_zip)
 		}
 	}
 
