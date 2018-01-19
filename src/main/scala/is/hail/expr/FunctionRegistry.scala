@@ -793,7 +793,7 @@ object FunctionRegistry {
     val gr = GR.gr
     (x: Variant) => x.isAutosomal(gr)
   }, "True if chromosome is not X, not Y, and not MT.")(variantHr(GR), boolHr)
-  registerMethodDependent("isAutosomalOrPsuedoAutosomal", { () =>
+  registerMethodDependent("isAutosomalOrPseudoAutosomal", { () =>
     val gr = GR.gr
     (x: Variant) => x.isAutosomalOrPseudoAutosomal(gr)
   }, "True if chromosome is autosomal or in PAR on X or Y.")(variantHr(GR), boolHr)  
