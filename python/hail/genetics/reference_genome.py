@@ -1,6 +1,6 @@
 from hail.typecheck import *
 from hail.utils import wrap_to_list
-from hail.utils.java import jiterable_to_list, Env
+from hail.utils.java import jiterable_to_list, Env, joption
 from hail.typecheck import oneof, transformed
 import hail as hl
 
@@ -261,6 +261,61 @@ class ReferenceGenome(object):
         """
 
         self._jrep.write(Env.hc()._jhc, output)
+
+    @typecheck_method(fasta_file=str,
+                      index_file=str)
+    def add_sequence(self, fasta_file, index_file):
+        """Load the reference sequence from a FASTA file.
+
+        Notes
+        -----
+        This method can only be run once per reference genome. Use
+        :meth:`~has_sequence` to test whether a sequence is loaded.
+
+        Parameters
+        ----------
+        fasta_file : :obj:`str`
+            Path to FASTA file. Can be compressed (GZIP) or uncompressed.
+        index_file : :obj:`str`
+            Path to FASTA index file. Must be uncompressed.
+        """
+        self._jrep.addSequence(Env.hc()._jhc, fasta_file, index_file)
+
+    def has_sequence(self):
+        """True if the reference sequence has been loaded.
+
+        Returns
+        -------
+        :obj:`bool`
+        """
+        return self._jrep.hasSequence()
+
+    @classmethod
+    @typecheck_method(name=str,
+                      fasta_file=str,
+                      index_file=str)
+    def from_fasta_file(cls, name, fasta_file, index_file):
+        """Create reference genome from a FASTA file.
+
+        Notes
+        -----
+        The resulting reference genome will have default values
+        for `x_contigs`, `y_contigs`, `mt_contigs`, and `par`.
+
+        Parameters
+        ----------
+        name: :obj:`str`
+            Name for new reference genome.
+        fasta_file : :obj:`str`
+            Path to FASTA file. Can be compressed (GZIP) or uncompressed.
+        index_file : :obj:`str`
+            Path to FASTA index file. Must be uncompressed.
+
+        Returns
+        -------
+        :class:`.ReferenceGenome`
+        """
+        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFASTAFile(Env.hc()._jhc, name, fasta_file, index_file))
 
     def _init_from_java(self, jrep):
         self._jrep = jrep

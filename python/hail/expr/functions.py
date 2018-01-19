@@ -3353,3 +3353,57 @@ def bool(expr):
         return expr != 0
     else:
         return expr._method("toBoolean", tbool)
+
+
+@typecheck(reference_genome=reference_genome_type,
+           contig=expr_str,
+           position=expr_int32,
+           before=expr_int32,
+           after=expr_int32)
+def get_sequence(reference_genome, contig, position, before=0, after=0):
+    """Return the reference sequence at a given locus.
+
+    Examples
+    --------
+
+    Get reference allele for ``'GRCh37'`` at the locus ``'1:45323'``:
+
+    .. doctest::
+        :options: +SKIP
+
+        >>> hl.get_sequence('GRCh37', '1', 45323)
+        "T"
+
+    Notes
+    -----
+    This function requires the method
+    :meth:`~hail.genetics.ReferenceGenome.add_sequence` has been called on the
+    reference genome for `locus`.
+
+    Returns ``None`` if `contig` and `position` are not valid coordinates in
+    `reference_genome`.
+
+    Parameters
+    ----------
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+        Reference genome to use.
+    contig : :class:`.Expression` of type :py:data:`.tstr`
+        Locus contig.
+    position : :class:`.Expression` of type :py:data:`.tint32`
+        Locus position.
+    before : :class:`.Expression` of type :py:data:`.tint32`, optional
+        Number of bases to include before the locus of interest. Truncates at
+        contig boundary.
+    after : :class:`.Expression` of type :py:data:`.tint32`, optional
+        Number of bases to include after the locus of interest. Truncates at
+        contig boundary.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tstr`
+    """
+
+    if not reference_genome.has_sequence():
+        raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(reference_genome.name))
+    return _func("getReferenceSequence({})".format(reference_genome.name), tstr,
+                 contig, position, before, after)

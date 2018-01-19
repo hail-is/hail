@@ -2,10 +2,12 @@ package is.hail.variant
 
 import java.io.InputStream
 
+import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
 import is.hail.check.Gen
 import is.hail.expr.types._
 import is.hail.expr.{JSONExtractContig, JSONExtractReferenceGenome, JSONExtractIntervalLocus, Parser}
+import is.hail.io.reference.FASTAReader
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -160,7 +162,51 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Interval(start, end, true, false)
   }
 
+  private var fastaReader: FASTAReader = _
+
   def contigParser = Parser.oneOfLiteral(contigs)
+
+  val globalPosContigStarts = {
+    var pos = 0L
+    contigs.map { c =>
+      val x = (c, pos)
+      pos += contigLength(c)
+      x
+    }.toMap
+  }
+
+  val nBases = lengths.map(_._2.toLong).sum
+
+  private val globalPosOrd = TInt64().ordering
+
+  @transient private var globalPosTree: IntervalTree[String] = _
+
+  def getGlobalPosTree = IntervalTree.annotationTree[String](globalPosOrd, {
+    var pos = 0L
+    contigs.map { c =>
+      val x = Interval(pos, pos + contigLength(c), includeStart = true, includeEnd = false)
+      pos += contigLength(c)
+      (x, c)
+    }
+  })
+
+  def locusToGlobalPos(contig: String, pos: Int): Long =
+    globalPosContigStarts(contig) + (pos - 1)
+
+  def locusToGlobalPos(l: Locus): Long = locusToGlobalPos(l.contig, l.position)
+
+  def globalPosToContig(idx: Long): String = {
+    if (globalPosTree == null)
+      globalPosTree = getGlobalPosTree
+    val result = globalPosTree.queryValues(globalPosOrd, idx)
+    assert(result.length == 1)
+    result(0)
+  }
+
+  def globalPosToLocus(idx: Long): Locus = {
+    val contig = globalPosToContig(idx)
+    Locus(contig, (idx - globalPosContigStarts(contig) + 1).toInt)
+  }
 
   def contigLength(contig: String): Int = lengths.get(contig) match {
     case Some(l) => l
@@ -174,22 +220,24 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def isValidContig(contig: String): Boolean = contigsSet.contains(contig)
 
-  private def isValidPosition(contig: String, pos: Int): Boolean = pos > 0 && pos <= contigLength(contig)
+  def isValidLocus(contig: String, pos: Int): Boolean = pos > 0 && pos <= contigLength(contig)
+
+  def isValidLocus(l: Locus): Boolean = isValidLocus(l.contig, l.position)
 
   def checkLocus(l: Locus): Unit = checkLocus(l.contig, l.position)
 
   def checkLocus(contig: String, pos: Int): Unit = {
     if (!isValidContig(contig))
       fatal(s"Invalid locus `$contig:$pos' found. Contig `$contig' is not in the reference genome `$name'.")
-    if (!isValidPosition(contig, pos))
+    if (!isValidLocus(contig, pos))
       fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
   }
-
+  
   def checkVariant(contig: String, start: Int, ref: String, alt: String): Unit = {
     val v = s"$contig:$start:$ref:$alt"
     if (!isValidContig(contig))
       fatal(s"Invalid variant `$v' found. Contig `$contig' is not in the reference genome `$name'.")
-    if (!isValidPosition(contig, start))
+    if (!isValidLocus(contig, start))
       fatal(s"Invalid variant `$v' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
   }
 
@@ -202,17 +250,17 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Invalid interval `$i' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
     if (!isValidContig(end.contig))
       fatal(s"Invalid interval `$i' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
-    if (!isValidPosition(start.contig, start.position))
+    if (!isValidLocus(start.contig, start.position))
       fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
-    if (!isValidPosition(end.contig, end.position))
+    if (!isValidLocus(end.contig, end.position))
       fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome `$name'.")
   }
 
   def checkInterval(l1: Locus, l2: Locus): Unit = {
     val i = s"$l1-$l2"
-    if (!isValidPosition(l1.contig, l1.position))
+    if (!isValidLocus(l1.contig, l1.position))
       fatal(s"Invalid interval `$i' found. Locus `$l1' is not in the reference genome `$name'.")
-    if (!isValidPosition(l2.contig, l2.position))
+    if (!isValidLocus(l2.contig, l2.position))
       fatal(s"Invalid interval `$i' found. Locus `$l2' is not in the reference genome `$name'.")
   }
 
@@ -220,9 +268,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     val i = s"$contig:$start-$end"
     if (!isValidContig(contig))
       fatal(s"Invalid interval `$i' found. Contig `$contig' is not in the reference genome `$name'.")
-    if (!isValidPosition(contig, start))
+    if (!isValidLocus(contig, start))
       fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
-    if (!isValidPosition(contig, end))
+    if (!isValidLocus(contig, end))
       fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
   }
 
@@ -273,6 +321,56 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Found ${ badContigs.size } ${ plural(badContigs.size, "contig mapping that does", "contigs mapping that do") }" +
         s" not have remapped contigs in reference genome '$name':\n  " +
         s"@1", badContigs.truncatable("\n  "))
+  }
+
+  def hasSequence: Boolean = fastaReader != null
+
+  def addSequence(hc: HailContext, fastaFile: String, indexFile: String) {
+    if (hasSequence)
+      fatal(s"FASTA sequence has already been loaded for reference genome `$name'.")
+
+    val hConf = hc.hadoopConf
+    if (!hConf.exists(fastaFile))
+      fatal(s"FASTA file '$fastaFile' does not exist.")
+    if (!hConf.exists(indexFile))
+      fatal(s"FASTA index file '$indexFile' does not exist.")
+
+    val indexFilePath = new java.io.File(FASTAReader.getLocalIndexFileName(fastaFile)).toPath
+    val index = new FastaSequenceIndex(indexFilePath)
+
+    val missingContigs = contigs.filterNot(index.hasIndexEntry)
+    if (missingContigs.nonEmpty)
+      fatal(s"Contigs missing in FASTA `$fastaFile' that are present in reference genome `$name':\n  " +
+        s"@1", missingContigs.truncatable("\n  "))
+
+    val invalidLengths = lengths.flatMap { case (c, l) =>
+      val fastaLength = index.getIndexEntry(c).getSize
+      if (fastaLength != l)
+        Some((c, l, fastaLength))
+      else
+        None
+    }.map { case (c, e, f) => s"$c\texpected:$e\tfound:$f"}
+
+    if (invalidLengths.nonEmpty)
+      fatal(s"Contig sizes in FASTA `$fastaFile' do not match expected sizes for reference genome `$name':\n  " +
+        s"@1", invalidLengths.truncatable("\n  "))
+
+    fastaReader = FASTAReader(hc, this, fastaFile, indexFile)
+  }
+
+  def getSequence(contig: String, position: Int, before: Int = 0, after: Int = 0): String = {
+    if (!hasSequence)
+      fatal(s"FASTA file has not been loaded for reference genome '$name'.")
+    fastaReader.lookup(contig, position, before, after)
+  }
+
+  def getSequence(l: Locus, before: Int, after: Int): String =
+    getSequence(l.contig, l.position, before, after)
+
+  def getSequence(i: Interval): String = {
+    if (!hasSequence)
+      fatal(s"FASTA file has not been loaded for reference genome '$name'.")
+    fastaReader.lookup(i)
   }
 
   override def equals(other: Any): Boolean = {
@@ -379,6 +477,32 @@ object ReferenceGenome {
     rg
   }
 
+  def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String): ReferenceGenome = {
+    val hConf = hc.hadoopConf
+    if (!hConf.exists(fastaFile))
+      fatal(s"FASTA file '$fastaFile' does not exist.")
+    if (!hConf.exists(indexFile))
+      fatal(s"FASTA index file '$indexFile' does not exist.")
+
+    val indexFilePath = new java.io.File(FASTAReader.getLocalIndexFileName(fastaFile)).toPath
+    val index = new FastaSequenceIndex(indexFilePath)
+
+    val contigs = new ArrayBuilder[String]
+    val lengths = new ArrayBuilder[(String, Int)]
+
+    index.iterator().asScala.foreach { entry =>
+      val contig = entry.getContig
+      val length = entry.getSize
+      contigs += contig
+      lengths += (contig, length.toInt)
+    }
+
+    val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap)
+    addReference(rg)
+    rg.fastaReader = FASTAReader(hc, rg, fastaFile, indexFile)
+    rg
+  }
+
   def importReferences(hConf: Configuration, path: String) {
     if (hConf.exists(path)) {
       val refs = hConf.listStatus(path)
@@ -397,9 +521,9 @@ object ReferenceGenome {
   }
 
   private def writeReference(hc: HailContext, path: String, rg: RGBase) {
-    val grPath = path + "/" + rg.name + ".json.gz"
-    if (!hailReferences.contains(rg.name) && !hc.hadoopConf.exists(grPath))
-      rg.asInstanceOf[ReferenceGenome].write(hc, grPath)
+    val rgPath = path + "/" + rg.name + ".json.gz"
+    if (!hailReferences.contains(rg.name) && !hc.hadoopConf.exists(rgPath))
+      rg.asInstanceOf[ReferenceGenome].write(hc, rgPath)
   }
 
   def exportReferences(hc: HailContext, path: String, t: Type) {

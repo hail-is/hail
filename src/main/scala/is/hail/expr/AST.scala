@@ -426,20 +426,43 @@ case class TupleConstructor(posn: Position, elements: Array[AST]) extends BaseSt
   } yield ir.MakeTuple(irElements)
 }
 
-case class ReferenceGenomeDependentConstructor(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
+case class ReferenceGenomeDependentFunctions(posn: Position, fName: String, grName: String, args: Array[AST]) extends AST(posn, args) {
   val rg = ReferenceGenome.getReference(grName)
+
   val rTyp = fName match {
     case "Locus" => rg.locusType
     case "LocusInterval" => rg.intervalType
     case "LocusAlleles" => TStruct("locus" -> rg.locusType, "alleles" -> TArray(TString()))
+    case "getReferenceSequence" => TString()
     case _ => throw new UnsupportedOperationException
   }
 
-  override def typecheckThis(): Type = rTyp
+  override def typecheckThis(): Type = {
+    fName match {
+      case "getReferenceSequence" =>
+        args.map(_.`type`) match {
+          case Array(TString(_), TInt32(_), TInt32(_), TInt32(_)) =>
+          case _ => fatal(s"invalid arguments to 'getReferenceSequence'.")
+        }
+      case _ =>
+    }
+    rTyp
+  }
 
   override def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
-  override def compile(): CM[Code[AnyRef]] = FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
+  override def compile(): CM[Code[AnyRef]] = fName match {
+    case "getReferenceSequence" =>
+      val localRG = rg
+      val f: (String, Int, Int, Int) => String = { (contig, pos, before, after) =>
+        if (localRG.isValidLocus(contig, pos))
+          localRG.getSequence(contig, pos, before, after)
+        else
+          null
+      }
+      AST.evalComposeCodeM(args(0), args(1), args(2), args(3))(CM.invokePrimitive4(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
+    case _ => FunctionRegistry.call(fName, args, args.map(_.`type`).toSeq, Some(rTyp))
+  }
 
   def toIR(agg: Option[String] = None): Option[IR] = None
 }
