@@ -20,7 +20,7 @@ object BitPackedVectorView {
 }
 
 class BitPackedVectorView(rowType: TStruct) {
-  val vView = new RegionValueVariant(rowType.fieldTypes(1).asInstanceOf[TVariant])
+  val vView = new RegionValueVariant(rowType.fieldType(1).asInstanceOf[TVariant])
 
   // All types are required!
   private val pkIndex = 0

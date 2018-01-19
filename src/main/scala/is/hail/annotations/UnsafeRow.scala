@@ -254,7 +254,7 @@ class UnsafeRow(var t: TStruct,
     if (isNullAt(i))
       null
     else
-      UnsafeRow.read(t.fieldTypes(i), region, t.loadField(region, offset, i))
+      UnsafeRow.read(t.fieldType(i), region, t.loadField(region, offset, i))
   }
 
   def copy(): Row = new UnsafeRow(t, region, offset)

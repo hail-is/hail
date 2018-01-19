@@ -523,7 +523,7 @@ class FormatParser(
   def parseAddField(l: VCFLine, rvb: RegionValueBuilder, i: Int) {
     val j = formatFieldGIndex(i)
     rvb.setFieldIndex(j)
-    gType.fieldTypes(j) match {
+    gType.fieldType(j) match {
       case TCall(_) =>
         l.parseAddCall(rvb)
       case TInt32(_) =>

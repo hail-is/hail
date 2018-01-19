@@ -72,7 +72,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   val fieldRequired: Array[Boolean] = fields.map(_.typ.required).toArray
 
-  val fieldTypes: Array[Type] = fields.map(_.typ).toArray
+  val fieldType: Array[Type] = fields.map(_.typ).toArray
 
   def index(str: String): Option[Int] = fieldIdx.get(str)
 

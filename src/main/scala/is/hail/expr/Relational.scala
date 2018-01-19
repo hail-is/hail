@@ -197,9 +197,9 @@ object MatrixValue {
             region.clear()
             rvb.start(localRowType)
             rvb.startStruct()
-            rvb.addAnnotation(localRowType.fieldTypes(0), kOk.project(v))
-            rvb.addAnnotation(localRowType.fieldTypes(1), v)
-            rvb.addAnnotation(localRowType.fieldTypes(2), va)
+            rvb.addAnnotation(localRowType.fieldType(0), kOk.project(v))
+            rvb.addAnnotation(localRowType.fieldType(1), v)
+            rvb.addAnnotation(localRowType.fieldType(2), va)
             rvb.startArray(localNSamples)
             var i = 0
             val git = gs.iterator

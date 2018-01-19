@@ -350,9 +350,9 @@ object Nirvana {
         it.map { case (v, nirvana) =>
           rvb.start(nirvanaRowType)
           rvb.startStruct()
-          rvb.addAnnotation(nirvanaRowType.fieldTypes(0), pkProjection(v))
-          rvb.addAnnotation(nirvanaRowType.fieldTypes(1), v)
-          rvb.addAnnotation(nirvanaRowType.fieldTypes(2), nirvana)
+          rvb.addAnnotation(nirvanaRowType.fieldType(0), pkProjection(v))
+          rvb.addAnnotation(nirvanaRowType.fieldType(1), v)
+          rvb.addAnnotation(nirvanaRowType.fieldType(2), nirvana)
           rvb.endStruct()
           rv.setOffset(rvb.end())
 

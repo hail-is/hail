@@ -47,7 +47,7 @@ object LDPruneSuite {
     "gs" -> TArray(Genotype.htsGenotypeType)
   )
 
-  val bitPackedVectorViewType = BitPackedVectorView.rowType(rowType.fieldTypes(0), rowType.fieldTypes(1))
+  val bitPackedVectorViewType = BitPackedVectorView.rowType(rowType.fieldType(0), rowType.fieldType(1))
 
   def makeRV(gs: Iterable[Annotation]): RegionValue = {
     val gArr = gs.toIndexedSeq

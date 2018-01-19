@@ -124,12 +124,12 @@ object FilterAlleles {
                 rvb.set(rv.region)
                 rvb.start(newRowType)
                 rvb.startStruct()
-                rvb.addAnnotation(newRowType.fieldTypes(0), newV.locus)
-                rvb.addAnnotation(newRowType.fieldTypes(1), newV)
+                rvb.addAnnotation(newRowType.fieldType(0), newV.locus)
+                rvb.addAnnotation(newRowType.fieldType(1), newV)
 
                 vAnnotator.ec.setAll(localGlobalAnnotation, v, va, newV, oldToNew, newToOld)
                 val newVA = vAnnotator.insert(va)
-                rvb.addAnnotation(newRowType.fieldTypes(2), newVA)
+                rvb.addAnnotation(newRowType.fieldType(2), newVA)
 
                 gAnnotator.ec.setAll(localGlobalAnnotation, v, va, newV, oldToNew, newToOld)
 
@@ -140,7 +140,7 @@ object FilterAlleles {
                   gAnnotator.ec.set(6, localSampleIdsBc.value(k))
                   gAnnotator.ec.set(7, localSampleAnnotationsBc.value(k))
                   gAnnotator.ec.set(8, g)
-                  rvb.addAnnotation(newRowType.fieldTypes(3).asInstanceOf[TArray].elementType, gAnnotator.insert(g))
+                  rvb.addAnnotation(newRowType.fieldType(3).asInstanceOf[TArray].elementType, gAnnotator.insert(g))
                   k += 1
                 }
                 rvb.endArray()

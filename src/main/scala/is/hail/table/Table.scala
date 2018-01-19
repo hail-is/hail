@@ -1217,7 +1217,7 @@ class Table(val hc: HailContext,
     assert(nKeys == 1)
     val localSignature = signature
     val kIndex = keyFieldIdx(0)
-    val vType = signature.fieldTypes(kIndex)
+    val vType = signature.fieldType(kIndex)
     val (pkType, pkProjection) = Type.partitionKeyProjection(vType)
     val orderedKTType =
       if (partitionKeyed)

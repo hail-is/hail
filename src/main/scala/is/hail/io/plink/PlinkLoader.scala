@@ -155,8 +155,8 @@ object PlinkLoader {
           region.clear()
           rvb.start(kType)
           rvb.startStruct()
-          rvb.addAnnotation(kType.fieldTypes(0), v.locus) // locus/pk
-          rvb.addAnnotation(kType.fieldTypes(1), v)
+          rvb.addAnnotation(kType.fieldType(0), v.locus) // locus/pk
+          rvb.addAnnotation(kType.fieldType(1), v)
           rvb.endStruct()
 
           rv.setOffset(rvb.end())
@@ -179,8 +179,8 @@ object PlinkLoader {
           region.clear()
           rvb.start(rowType)
           rvb.startStruct()
-          rvb.addAnnotation(rowType.fieldTypes(0), v.locus) // locus/pk
-          rvb.addAnnotation(rowType.fieldTypes(1), v)
+          rvb.addAnnotation(rowType.fieldType(0), v.locus) // locus/pk
+          rvb.addAnnotation(rowType.fieldType(1), v)
           rvb.startStruct()
           rvb.addAnnotation(TString(), rsid)
           rvb.endStruct()

@@ -79,11 +79,11 @@ object OrderedRVType {
     t2: TStruct, fields2: Array[Int]): UnsafeOrdering = {
     require(fields1.length == fields2.length)
     require((fields1, fields2).zipped.forall { case (f1, f2) =>
-      t1.fieldTypes(f1) == t2.fieldTypes(f2)
+      t1.fieldType(f1) == t2.fieldType(f2)
     })
 
     val nFields = fields1.length
-    val fieldOrderings = fields1.map(f1 => t1.fieldTypes(f1).unsafeOrdering(missingGreatest = true))
+    val fieldOrderings = fields1.map(f1 => t1.fieldType(f1).unsafeOrdering(missingGreatest = true))
 
     new UnsafeOrdering {
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {

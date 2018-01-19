@@ -12,13 +12,13 @@ class RegionValueVariant(tv: TVariant) extends IVariant with View {
   private val startIdx: Int = t.fieldIdx("start")
   private val refIdx: Int = t.fieldIdx("ref")
   private val altAllelesIdx: Int = t.fieldIdx("altAlleles")
-  private val tAltAlleles: TArray = t.fieldTypes(altAllelesIdx).asInstanceOf[TArray]
+  private val tAltAlleles: TArray = t.fieldType(altAllelesIdx).asInstanceOf[TArray]
   private val tAltAllele: TAltAllele = tAltAlleles.elementType.asInstanceOf[TAltAllele]
   private val altAllelesView = new ArrayView(tAltAlleles, new RegionValueAltAllele(tAltAllele))
 
-  assert(t.fieldTypes(contigIdx).required)
-  assert(t.fieldTypes(startIdx).required)
-  assert(t.fieldTypes(refIdx).required)
+  assert(t.fieldType(contigIdx).required)
+  assert(t.fieldType(startIdx).required)
+  assert(t.fieldType(refIdx).required)
   assert(tAltAlleles.required)
   assert(tAltAlleles.elementType.required)
 

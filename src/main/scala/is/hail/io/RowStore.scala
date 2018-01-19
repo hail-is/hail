@@ -382,7 +382,7 @@ final class Decoder(in: InputBuffer) {
     while (i < t.size) {
       if (t.isFieldDefined(region, offset, i)) {
         val off = offset + t.byteOffsets(i)
-        t.fieldTypes(i) match {
+        t.fieldType(i) match {
           case t2: TStruct => readStruct(t2, region, off)
           case t2: TArray =>
             val aoff = readArray(t2, region)

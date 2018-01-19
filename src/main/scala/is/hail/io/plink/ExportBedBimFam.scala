@@ -41,7 +41,7 @@ object ExportBedBimFam {
 
   def bimRowTransformer(rowType: TStruct): Iterator[RegionValue] => Iterator[String] = { it =>
     val vIdx = rowType.fieldIdx("v")
-    val tVariant = rowType.fieldTypes(vIdx).asInstanceOf[TVariant]
+    val tVariant = rowType.fieldType(vIdx).asInstanceOf[TVariant]
     val v = new RegionValueVariant(tVariant)
 
     it.map { rv =>
