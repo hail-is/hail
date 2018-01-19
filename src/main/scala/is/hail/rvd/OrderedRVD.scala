@@ -225,7 +225,7 @@ class OrderedRVD private(
 
   def filterIntervals(intervals: IntervalTree[_]): OrderedRVD = {
     val pkOrdering = typ.pkType.ordering
-    val intervalsBc = rdd.sparkContext.broadcast(intervals)
+    val intervalsBc: org.apache.spark.broadcast.Broadcast[IntervalTree[_]] = rdd.sparkContext.broadcast(intervals)
     val rowType = typ.rowType
     val pkRowFieldIdx = typ.pkRowFieldIdx
     val pred: (RegionValue) => Boolean = (rv: RegionValue) => {

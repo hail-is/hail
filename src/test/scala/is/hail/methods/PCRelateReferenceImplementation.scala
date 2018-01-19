@@ -89,7 +89,7 @@ object PCRelateReferenceImplementation {
     val stddev = new DenseMatrix[Double](m, n, stddeva)
 
     val denom = stddev.t * stddev
-    val phi = (numer :/ denom) / 4.0
+    val phi = (numer /:/ denom) / 4.0
 
     def toDom(gt: Double, mu: Double): Double = gt match {
       case 0.0 => mu
@@ -194,7 +194,7 @@ object PCRelateReferenceImplementation {
 
     val k0 = new DenseMatrix[Double](n, n, k0a)
 
-    val k1 = 1.0 - (k0 :+ k2)
+    val k1 = 1.0 - (k0 +:+ k2)
 
     (PCRelate.Result(phi, k0, k1, k2), ibs0, mu_si)
   }

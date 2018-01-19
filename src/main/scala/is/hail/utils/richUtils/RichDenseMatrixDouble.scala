@@ -70,7 +70,7 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       if (keepRow(row)) {
         nRows += 1
         for (col <- 0 until m.cols)
-          ab += m.unsafeValueAt(row, col)
+          ab += m.valueAt(row, col)
       }
 
     if (nRows > 0)
@@ -88,7 +88,7 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       if (keepCol(col)) {
         nCols += 1
         for (row <- 0 until m.rows)
-          ab += m.unsafeValueAt(row, col)
+          ab += m.valueAt(row, col)
       }
 
     if (nCols > 0)

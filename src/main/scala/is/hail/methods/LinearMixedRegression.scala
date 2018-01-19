@@ -154,7 +154,7 @@ object LinearMixedRegression {
       info(s"lmmreg: Computing statistics for each variant...")
 
       val scalerLMM = if (nEigs == n) {
-        val T = Ut(::, *) :* diagLMM.sqrtInvD
+        val T = Ut(::, *) *:* diagLMM.sqrtInvD
         val Qt = qr.reduced.justQ(diagLMM.TC).t
         val QtTy = Qt * diagLMM.Ty
         val TyQtTy = (diagLMM.Ty dot diagLMM.Ty) - (QtTy dot QtTy)
@@ -253,8 +253,8 @@ class LowRankScalerLMM(con: LMMConstants, delta: Double, logNullS2: Double, useM
   val invDelta = 1 / delta
 
   val Z = (con.S + delta).map(1 / _ - invDelta)
-  val ydy = con.yty / delta + (Uty dot (Uty :* Z))
-  val UtcovZUtcov = Utcov.t * (Utcov(::, *) :* Z)
+  val ydy = con.yty / delta + (Uty dot (Uty *:* Z))
+  val UtcovZUtcov = Utcov.t * (Utcov(::, *) *:* Z)
 
   val r1 = 0 to 0
   val r2 = 1 to d
@@ -269,10 +269,10 @@ class LowRankScalerLMM(con: LMMConstants, delta: Double, logNullS2: Double, useM
 
     val Utx = Ut * x
     val UtC = DenseMatrix.horzcat(Utx.toDenseMatrix.t, Utcov)
-    val ZUtx = Utx :* Z
+    val ZUtx = Utx *:* Z
 
     val Cty = DenseVector.vertcat(DenseVector(x dot y), covty)
-    val Cdy = invDelta * Cty + (UtC.t * (Uty :* Z))
+    val Cdy = invDelta * Cty + (UtC.t * (Uty *:* Z))
 
     val CzC = DenseMatrix.zeros[Double](d + 1, d + 1)
     CzC(0, 0) = Utx dot ZUtx
@@ -318,12 +318,12 @@ object DiagLMM {
           val delta = FastMath.exp(logDelta)
           val invDelta = 1 / delta
           val D = S + delta
-          val dy = Uty :/ D
+          val dy = Uty /:/ D
           val Z = D.map(1 / _ - invDelta)
 
-          val ydy = invDelta * yty + (Uty dot (Uty :* Z))
-          val Cdy = invDelta * Cty + (UtC.t * (Uty :* Z))
-          val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) :* Z))
+          val ydy = invDelta * yty + (Uty dot (Uty *:* Z))
+          val Cdy = invDelta * Cty + (UtC.t * (Uty *:* Z))
+          val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) *:* Z))
 
           val b = CdC \ Cdy
           val sigma2 = (ydy - (Cdy dot b)) / n
@@ -341,12 +341,12 @@ object DiagLMM {
           val delta = FastMath.exp(logDelta)
           val invDelta = 1 / delta
           val D = S + delta
-          val dy = Uty :/ D
+          val dy = Uty /:/ D
           val Z = D.map(1 / _ - invDelta)
 
-          val ydy = invDelta * yty + (Uty dot (Uty :* Z))
-          val Cdy = invDelta * Cty + (UtC.t * (Uty :* Z))
-          val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) :* Z))
+          val ydy = invDelta * yty + (Uty dot (Uty *:* Z))
+          val Cdy = invDelta * Cty + (UtC.t * (Uty *:* Z))
+          val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) *:* Z))
 
           val b = CdC \ Cdy
           val sigma2 = (ydy - (Cdy dot b)) / (n - d)
@@ -436,19 +436,19 @@ object DiagLMM {
     def fitUsingDelta(delta: Double, optGlobalFit: Option[GlobalFitLMM]): DiagLMM = {
       val invDelta = 1 / delta
       val invD = (S + delta).map(1 / _)
-      val dy = Uty :* invD
+      val dy = Uty *:* invD
 
       val Z = invD - invDelta
 
-      val ydy = invDelta * yty + (Uty dot (Uty :* Z))
-      val Cdy = invDelta * Cty + (UtC.t * (Uty :* Z))
-      val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) :* Z))
+      val ydy = invDelta * yty + (Uty dot (Uty *:* Z))
+      val Cdy = invDelta * Cty + (UtC.t * (Uty *:* Z))
+      val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) *:* Z))
 
       val b = CdC \ Cdy
       val s2 = (ydy - (Cdy dot b)) / (if (useML) n else n - d)
       val sqrtInvD = sqrt(invD)
-      val TC = UtC(::, *) :* sqrtInvD
-      val Ty = Uty :* sqrtInvD
+      val TC = UtC(::, *) *:* sqrtInvD
+      val Ty = Uty *:* sqrtInvD
       val TyTy = Ty dot Ty
 
       DiagLMM(b, s2, math.log(s2), delta, optGlobalFit, sqrtInvD, TC, Ty, TyTy, useML)

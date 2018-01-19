@@ -146,7 +146,7 @@ object Skat {
   
       val mu = sigmoid(cov * logRegM.b)
       val V = mu.map(x => x * (1 - x))
-      val VX = cov(::, *) :* V
+      val VX = cov(::, *) *:* V
       val XtVX = cov.t * VX
       XtVX.forceSymmetry()
       var Cinv: DenseMatrix[Double] = null
@@ -167,7 +167,7 @@ object Skat {
       def logisticTuple(x: DenseVector[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
         val sqrt_q = resBc.value dot xw      
-        SkatTuple(sqrt_q * sqrt_q, xw :* sqrtVBc.value , CinvXtVBc.value * xw)
+        SkatTuple(sqrt_q * sqrt_q, xw *:* sqrtVBc.value , CinvXtVBc.value * xw)
       }
   
       keyGsWeightRdd.map { case (key, vs) =>
