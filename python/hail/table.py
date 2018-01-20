@@ -1070,8 +1070,8 @@ class Table(TableTemplate):
 
         self._jt.write(output, overwrite, _codec_spec)
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool)
-    def show(self, n=10, width=90, truncate=None, types=True):
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, print_config=str)
+    def show(self, n=10, width=90, truncate=None, types=True, **print_config):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1092,6 +1092,20 @@ class Table(TableTemplate):
             |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
             +-------+-------+--------+-------+-------+-------+-------+-------+
 
+        Notes
+        -----
+        This method accepts print configuration parameters as keyword
+        arguments. The valid parameters are:
+
+         - ``missing``: The literal string to be printed for missing values.
+           The default is ``'NA'``.
+         - ``float_format``: The format string to be used for floating-point
+           values. The default is ``%.4e``, which prints scientific notation
+           with four significant figures after the decimal point.
+         - ``bool_true``: The literal string to be printed for ``True`` values.
+         - ``bool_false``: The literal string to be printed for ``False``
+           values.
+
         Parameters
         ----------
         n : :obj:`int`
@@ -1103,8 +1117,10 @@ class Table(TableTemplate):
             ``None``, truncate fields to the given `width`.
         types : :obj:`bool`
             Print an extra header line with the type of each field.
+        print_config : keyword args of :obj:`str`
+            Print configuration parameters.
         """
-        to_print = self._jt.showString(n, joption(truncate), types, width)
+        to_print = self._jt.showString(n, joption(truncate), types, width, get_print_config(print_config))
         print(to_print)
 
     def view_join_rows(self, *exprs):

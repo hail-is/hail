@@ -49,7 +49,7 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def strNonNull(a: Annotation, config: PrintConfig): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =
     Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])

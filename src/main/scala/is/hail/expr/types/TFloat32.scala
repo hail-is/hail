@@ -21,7 +21,8 @@ class TFloat32(override val required: Boolean) extends TNumeric {
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Float]
 
-  override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Float].formatted("%.5e")
+  override def strNonNull(a: Annotation, config: PrintConfig): String =
+    config.floatFormat.format(a.asInstanceOf[Double])
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 

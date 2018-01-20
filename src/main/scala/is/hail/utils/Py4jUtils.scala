@@ -2,6 +2,7 @@ package is.hail.utils
 
 import java.io.{InputStream, OutputStream}
 import java.net.URI
+import java.util.IllegalFormatConversionException
 
 import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.HailContext
@@ -110,6 +111,33 @@ trait Py4jUtils {
   }
 
   def escapePyString(s: String): String = StringEscapeUtils.escapeString(s)
+
+  def makePrintConfig(config: java.util.HashMap[String, String]): PrintConfig = {
+    assert(config.size() == 4)
+    val pc = PrintConfig(missing = config.get("missing"),
+      boolTrue = config.get("bool_true"),
+      boolFalse = config.get("bool_false"),
+      floatFormat = config.get("float_format"))
+
+    try {
+      val a = Array(0.0, 1.0, -1.0)
+      val x = a.map(_.formatted(pc.floatFormat))
+      if (a.zip(x).exists { case (f, str) => D_!=(f, str.toDouble) }) {
+        throw new HailException(
+          s"""'float_format' parameter '${ pc.floatFormat }' seems to be invalid.
+             |    If this should be a valid format string, please post an issue:
+             |      https://github.com/hail-is/hail/issues
+             |    Examples of acceptable format strings applied to float 123.456789:
+             |      '%.2f' - 123.45
+             |      '%.2e' - 1.23e+02""".stripMargin)
+      }
+    } catch {
+      case e: IllegalFormatConversionException =>
+        throw new HailException(s"Format string '${ pc.floatFormat }' was invalid", cause = e)
+    }
+
+    pc
+  }
 
   def escapeIdentifier(s: String): String = prettyIdentifier(s)
 }

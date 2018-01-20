@@ -230,7 +230,11 @@ abstract class Type extends BaseType with Serializable {
 
   def schema: DataType = SparkAnnotationImpex.exportType(this)
 
-  def str(a: Annotation): String = if (a == null) "NA" else a.toString
+  final def str(a: Annotation): String = str(a, PrintConfig.default)
+
+  final def str(a: Annotation, config: PrintConfig): String = if (a == null) config.missing else strNonNull(a, config)
+
+  def strNonNull(a: Annotation, config: PrintConfig): String = a.toString
 
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
