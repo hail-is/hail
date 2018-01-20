@@ -326,7 +326,10 @@ class Expression(object):
 
     def __nonzero__(self):
         raise NotImplementedError(
-            "The truth value of an expression is undefined\n  Hint: instead of if/else, use 'f.cond'")
+            "The truth value of an expression is undefined\n"
+            "    Hint: instead of 'if x', use 'functions.cond(x, ...)'\n"
+            "    Hint: instead of 'x and y' or 'x or y', use 'x & y' or 'x | y'\n"
+            "    Hint: instead of 'not x', use '~x'")
 
     def __iter__(self):
         raise TypeError("'Expression' object is not iterable")
