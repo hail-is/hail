@@ -792,11 +792,15 @@ object FunctionRegistry {
   registerMethodDependent("isAutosomal", { () =>
     val gr = GR.gr
     (x: Variant) => x.isAutosomal(gr)
-  }, "True if chromosome is not X, not Y, and not MT.")(variantHr(GR), boolHr)
+  }, "True if chromosome is not an X, Y, or MT contig.")(variantHr(GR), boolHr)
   registerMethodDependent("isAutosomalOrPseudoAutosomal", { () =>
     val gr = GR.gr
     (x: Variant) => x.isAutosomalOrPseudoAutosomal(gr)
-  }, "True if chromosome is autosomal or in PAR on X or Y.")(variantHr(GR), boolHr)  
+  }, "True if chromosome is autosomal or in PAR on X or Y.")(variantHr(GR), boolHr)
+  registerMethodDependent("isMitochondrial", { () =>
+    val gr = GR.gr
+    (x: Variant) => x.isMitochondrial(gr)
+  }, "True if contig is mitochondrial")(variantHr(GR), boolHr)
   registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")(locusHr(GR), stringHr)
   registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")(locusHr(GR), int32Hr)
   registerField("start", { (x: Interval) => x.start }, "Start of the interval (inclusive).")(intervalHr(TTHr), TTHr)

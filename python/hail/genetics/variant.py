@@ -233,6 +233,7 @@ class Variant(HistoryMixin):
 
     def in_autosome(self):
         """True if this polymorphism is on an autosome.
+        (not an X, Y, or MT contig).
 
         :rtype: bool
         """
