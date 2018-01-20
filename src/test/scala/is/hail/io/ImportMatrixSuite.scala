@@ -39,7 +39,7 @@ class ImportMatrixSuite extends SparkSuite {
       vaSigGen = Gen.const(TStruct.empty()),
       globalSigGen = Gen.const(TStruct.empty()),
       tSigGen = Gen.zip(Gen.oneOf[Type](TInt32(), TInt64(), TFloat32(), TFloat64(), TString()), Gen.coin(0.2))
-        .map { case (typ, req) => typ.setRequired(req) }.map { t => TStruct("x" -> t)},
+        .map { case (typ, req) => typ.setRequired(req) }.map { t => TStruct("x" -> t) },
       sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
       saGen = (t: Type) => t.genNonmissingValue,
       vaGen = (t: Type) => t.genNonmissingValue,
@@ -48,9 +48,9 @@ class ImportMatrixSuite extends SparkSuite {
       tGen = (t: Type, v: Annotation) => t.genValue)
 
     forAll(MatrixTable.gen(hc, genMatrix)
-        .filter(vsm => !vsm.sampleIds.contains("v"))) { vsm =>
+      .filter(vsm => !vsm.sampleIds.contains("v"))) { vsm =>
       val actual: MatrixTable = {
-        val f = tmpDir.createTempFile(extension="txt")
+        val f = tmpDir.createTempFile(extension = "txt")
         vsm.makeKT("v = v", "`` = g.x", Array("v")).export(f)
         LoadMatrix(hc, Array(f), None, Array(TString()), "v", cellType = vsm.genotypeSignature)
       }
