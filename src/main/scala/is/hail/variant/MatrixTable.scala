@@ -1741,9 +1741,10 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     Table(hc,
       rdd2.mapPartitions { it =>
         val n = vNames.length + gNames.length * localNSamples
+        val ur = new UnsafeRow(localRowType)
 
         it.map { rv =>
-          val ur = new UnsafeRow(localRowType, rv)
+          ur.set(rv)
           val v = ur.get(1)
           val va = ur.get(2)
           val gs = ur.getAs[IndexedSeq[Any]](3)
@@ -1815,10 +1816,12 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     val localRowType = rowType
 
     val result = rdd2.mapPartitions { it =>
+      val ur = new UnsafeRow(localRowType)
+
       val zv = zVal.map(_.copy())
       ec.set(0, globalBc.value)
       it.foreach { rv =>
-        val ur = new UnsafeRow(localRowType, rv)
+        ur.set(rv)
         val v = ur.get(1)
         val va = ur.get(2)
         val gs = ur.getAs[IndexedSeq[Any]](3)
@@ -2089,13 +2092,15 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
           rdd2.partitioner.withKType(that.rdd2.typ.partitionKey, that.rdd2.typ.kType),
           that.rdd2.rdd)
           .rdd) { (it1, it2) =>
+        val ur1 = new UnsafeRow(rowType1)
+        val ur2 = new UnsafeRow(rowType2)
         var partSame = true
         while (it1.hasNext && it2.hasNext) {
           val rv1 = it1.next()
           val rv2 = it2.next()
 
-          val ur1 = new UnsafeRow(rowType1, rv1)
-          val ur2 = new UnsafeRow(rowType2, rv2)
+          ur1.set(rv1)
+          ur2.set(rv2)
 
           val v1 = ur1.get(1)
           val va1 = ur1.get(2)

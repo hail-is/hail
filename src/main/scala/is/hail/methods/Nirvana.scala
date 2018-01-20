@@ -225,16 +225,6 @@ object Nirvana {
   def annotate(vds: MatrixTable, config: String, blockSize: Int, root: String = "va.nirvana"): MatrixTable = {
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
-    val rootType =
-      vds.vaSignature.getOption(parsedRoot)
-        .filter { t =>
-          val r = t == nirvanaSignature
-          if (!r) {
-            warn(s"type for $parsedRoot does not match Nirvana signature, overwriting.")
-          }
-          r
-        }
-
     val properties = try {
       val p = new Properties()
       val is = new FileInputStream(config)
@@ -261,9 +251,6 @@ object Nirvana {
     val supplementaryAnnotationDirectory = if(supplementaryAnnotationDirectoryOpt.isEmpty) List[String]() else List("--sd", supplementaryAnnotationDirectoryOpt.get)
 
     val reference = properties.getProperty("hail.nirvana.reference")
-
-    val rootQuery = rootType
-      .map(_ => vds.vaSignature.query(parsedRoot))
 
     val cmd: List[String] = List[String](dotnet, s"$nirvanaLocation") ++
       List("-c", cache) ++
