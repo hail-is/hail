@@ -2,6 +2,7 @@ from hail.utils.java import handle_py4j, Env, joption
 from hail.typecheck import enumeration
 import difflib
 from collections import defaultdict
+import os
 
 
 class FunctionDocumentation(object):
@@ -40,6 +41,21 @@ storage_level = enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
                             'MEMORY_ONLY_2', 'MEMORY_ONLY_SER', 'MEMORY_ONLY_SER_2',
                             'MEMORY_AND_DISK', 'MEMORY_AND_DISK_2', 'MEMORY_AND_DISK_SER',
                             'MEMORY_AND_DISK_SER_2', 'OFF_HEAP')
+
+_test_dir = None
+
+
+def test_file(filename):
+    global _test_dir
+    if _test_dir is None:
+        path = '.'
+        while not os.path.exists(os.path.join(path, 'LICENSE')):
+            path = os.path.join(path, '..')
+        _test_dir = os.path.join(path, 'src', 'test', 'resources')
+        from hail.utils import info
+        info('Test dir relative path is {}'.format(_test_dir))
+
+    return os.path.join(_test_dir, filename)
 
 
 def plural(orig, n, alternate=None):

@@ -13,6 +13,7 @@ from hail.api1.keytable import asc, desc
 from hail.expr.types import *
 from hail.genetics import *
 from hail.utils import *
+from hail.utils.misc import test_file
 
 hc = None
 
@@ -30,26 +31,24 @@ def float_eq(x, y, tol=10 ** -6):
 
 class ContextTests(unittest.TestCase):
     def test_context(self):
-        test_resources = 'src/test/resources'
-
-        hc.grep('Mom1', test_resources + '/mendel.fam')
+        hc.grep('Mom1', test_file('mendel.fam'))
 
         # index
-        hc.index_bgen(test_resources + '/example.v11.bgen')
+        hc.index_bgen(test_file('example.v11.bgen'))
 
-        bgen = hc.import_bgen(test_resources + '/example.v11.bgen',
-                              sample_file=test_resources + '/example.sample',
+        bgen = hc.import_bgen(test_file('example.v11.bgen'),
+                              sample_file=test_file('example.sample'),
                               contig_recoding={"01": "1"})
         self.assertTrue(bgen.variants_table().forall("""v.contig == "1" """))
         self.assertEqual(bgen.count()[1], 199)
 
-        gen = hc.import_gen(test_resources + '/example.gen',
-                            sample_file=test_resources + '/example.sample',
+        gen = hc.import_gen(test_file('example.gen'),
+                            sample_file=test_file('example.sample'),
                             contig_recoding={"01": "1"})
         self.assertTrue(gen.variants_table().forall("""v.contig == "1" """))
         self.assertEqual(gen.count()[1], 199)
 
-        vcf = hc.import_vcf(test_resources + '/sample2.vcf',
+        vcf = hc.import_vcf(test_file('sample2.vcf'),
                             reference_genome=GenomeReference.GRCh38(),
                             contig_recoding={"22": "chr22"}).split_multi_hts()
 
@@ -77,11 +76,11 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(hc.eval_expr_typed('[1, 2, 3].map(x => x * 2)'), ([2, 4, 6], TArray(TInt32())))
         self.assertEqual(hc.eval_expr('[1, 2, 3].map(x => x * 2)'), [2, 4, 6])
 
-        vcf_metadata = hc.get_vcf_metadata(test_resources + '/sample.vcf.bgz')
+        vcf_metadata = hc.get_vcf_metadata(test_file('sample.vcf.bgz'))
 
-        gds = hc.import_vcf(test_resources + '/sample.vcf.bgz')
+        gds = hc.import_vcf(test_file('sample.vcf.bgz'))
         self.assertEqual(gds.genotype_schema, Type.hts_schema())
-        gds = hc.import_vcf(test_resources + '/sample.vcf.bgz')
+        gds = hc.import_vcf(test_file('sample.vcf.bgz'))
 
         gds.write('/tmp/sample_generic.vds', overwrite=True)
         gds_read = hc.read('/tmp/sample_generic.vds')
@@ -94,14 +93,12 @@ class ContextTests(unittest.TestCase):
         metadata_imported = hc.get_vcf_metadata('/tmp/sample_generic.vcf')
         self.assertDictEqual(vcf_metadata, metadata_imported)
 
-        matrix = hc.import_matrix(test_resources + '/samplematrix1.txt', 'v', [TString()], annotation_headers=['v'])
+        matrix = hc.import_matrix(test_file('samplematrix1.txt'), 'v', [TString()], annotation_headers=['v'])
         self.assertEqual(matrix.count()[1], 10)
 
     def test_dataset(self):
-        test_resources = 'src/test/resources'
-
-        vds = hc.import_vcf(test_resources + '/sample.vcf')
-        vds2 = hc.import_vcf(test_resources + '/sample2.vcf')
+        vds = hc.import_vcf(test_file('sample.vcf'))
+        vds2 = hc.import_vcf(test_file('sample2.vcf'))
 
         for (dataset, dataset2) in [(vds, vds2)]:
             gt = 'g.GT'
@@ -124,19 +121,19 @@ class ContextTests(unittest.TestCase):
             dataset.annotate_global_expr('global.foo = 5')
             dataset.annotate_global_expr(['global.foo = 5', 'global.bar = 6'])
 
-            dataset = dataset.annotate_samples_table(hc.import_table(test_resources + '/sampleAnnotations.tsv')
+            dataset = dataset.annotate_samples_table(hc.import_table(test_file('sampleAnnotations.tsv'))
                                                      .key_by('Sample'),
                                                      expr='sa.isCase = table.Status == "CASE", sa.qPhen = table.qPhen')
 
             (dataset.annotate_variants_expr('va.nCalled = gs.filter(g => isDefined({0})).count()'.format(gt))
              .count())
 
-            loci_tb = (hc.import_table(test_resources + '/sample2_loci.tsv')
+            loci_tb = (hc.import_table(test_file('sample2_loci.tsv'))
                        .annotate('locus = Locus(chr, pos.toInt32())').key_by('locus'))
             (dataset.annotate_variants_table(loci_tb, root='va.locus_annot')
              .count())
 
-            variants_tb = (hc.import_table(test_resources + '/variantAnnotations.tsv')
+            variants_tb = (hc.import_table(test_file('variantAnnotations.tsv'))
                            .annotate('variant = Variant(Chromosome, Position.toInt32(), Ref, Alt)').key_by('variant'))
             (dataset.annotate_variants_table(variants_tb, root='va.table')
              .count())
@@ -148,18 +145,18 @@ class ContextTests(unittest.TestCase):
             downsampled.variants_table().select(['chr = v.contig', 'pos = v.start']).export('/tmp/sample2_loci.tsv')
             downsampled.variants_table().select('v').export('/tmp/sample2_variants.tsv')
 
-            with open(test_resources + '/sample2.sample_list') as f:
+            with open(test_file('sample2.sample_list')) as f:
                 samples = [s.strip() for s in f]
             (dataset.filter_samples_list(samples)
              .count()[0] == 56)
 
-            locus_tb = (hc.import_table(test_resources + '/sample2_loci.tsv')
+            locus_tb = (hc.import_table(test_file('sample2_loci.tsv'))
                         .annotate('locus = Locus(chr, pos.toInt32())')
                         .key_by('locus'))
 
             (dataset.annotate_variants_table(locus_tb, root='va.locus_annot').count())
 
-            tb = (hc.import_table(test_resources + '/variantAnnotations.tsv')
+            tb = (hc.import_table(test_file('variantAnnotations.tsv'))
                   .annotate('variant = Variant(Chromosome, Position.toInt32(), Ref, Alt)')
                   .key_by('variant'))
             (dataset.annotate_variants_table(tb, root='va.table').count())
@@ -171,8 +168,8 @@ class ContextTests(unittest.TestCase):
             self.assertEqual(dataset.drop_samples().count()[0], 0)
             self.assertEqual(dataset.drop_variants().count()[1], 0)
 
-            dataset_dedup = (hc.import_vcf([test_resources + '/sample2.vcf',
-                                            test_resources + '/sample2.vcf'])
+            dataset_dedup = (hc.import_vcf([test_file('sample2.vcf'),
+                                            test_file('sample2.vcf')])
                              .deduplicate())
             self.assertEqual(dataset_dedup.count()[1], 735)
 
@@ -183,22 +180,22 @@ class ContextTests(unittest.TestCase):
              .variants_table().select('v').export('/tmp/sample2.variant_list'))
 
             (dataset.filter_variants_table(
-                KeyTable.import_interval_list(test_resources + '/annotinterall.interval_list'))
+                KeyTable.import_interval_list(test_file('annotinterall.interval_list')))
              .count())
 
             dataset.filter_intervals(Interval.parse('1:100-end')).count()
             dataset.filter_intervals(map(Interval.parse, ['1:100-end', '3-22'])).count()
 
             (dataset.filter_variants_table(
-                KeyTable.import_interval_list(test_resources + '/annotinterall.interval_list'))
+                KeyTable.import_interval_list(test_file('annotinterall.interval_list')))
              .count())
 
             self.assertEqual(dataset2.filter_variants_table(
-                hc.import_table(test_resources + '/sample2_variants.tsv',
+                hc.import_table(test_file('sample2_variants.tsv'),
                                 key='f0', impute=True, no_header=True))
                              .count()[1], 21)
 
-            m2 = {r.f0: r.f1 for r in hc.import_table(test_resources + '/sample2_rename.tsv',
+            m2 = {r.f0: r.f1 for r in hc.import_table(test_file('sample2_rename.tsv'),
                                                       no_header=True).collect()}
             self.assertEqual(dataset2.join(dataset2.rename_samples(m2))
                              .count()[0], 200)
@@ -288,14 +285,14 @@ class ContextTests(unittest.TestCase):
             random.shuffle(new_sample_order)
             self.assertEqual(vds.reorder_samples(new_sample_order).sample_ids, new_sample_order)
 
-        sample = hc.import_vcf(test_resources + '/sample.vcf').cache()
+        sample = hc.import_vcf(test_file('sample.vcf')).cache()
 
         sample.summarize().report()
         sample.drop_samples().summarize().report()
 
         sample_split = sample.split_multi_hts()
 
-        sample2 = hc.import_vcf(test_resources + '/sample2.vcf')
+        sample2 = hc.import_vcf(test_file('sample2.vcf'))
         sample2 = sample2.persist()
 
         sample2_split = sample2.split_multi_hts()
@@ -325,21 +322,21 @@ class ContextTests(unittest.TestCase):
 
         self.assertEqual(sample2.genotype_schema, Type.hts_schema())
 
-        m2 = {r.f0: r.f1 for r in hc.import_table(test_resources + '/sample2_rename.tsv', no_header=True,
+        m2 = {r.f0: r.f1 for r in hc.import_table(test_file('sample2_rename.tsv'), no_header=True,
                                                   impute=True)
             .collect()}
         self.assertEqual(sample2.join(sample2.rename_samples(m2))
                          .count()[0], 200)
 
-        cov = hc.import_table(test_resources + '/regressionLinear.cov',
+        cov = hc.import_table(test_file('regressionLinear.cov'),
                               types={'Cov1': TFloat64(), 'Cov2': TFloat64()}).key_by('Sample')
 
-        phen1 = hc.import_table(test_resources + '/regressionLinear.pheno', missing='0',
+        phen1 = hc.import_table(test_file('regressionLinear.pheno'), missing='0',
                                 types={'Pheno': TFloat64()}).key_by('Sample')
-        phen2 = hc.import_table(test_resources + '/regressionLogisticBoolean.pheno', missing='0',
+        phen2 = hc.import_table(test_file('regressionLogisticBoolean.pheno'), missing='0',
                                 types={'isCase': TBoolean()}).key_by('Sample')
 
-        regression = (hc.import_vcf(test_resources + '/regressionLinear.vcf')
+        regression = (hc.import_vcf(test_file('regressionLinear.vcf'))
                       .split_multi_hts()
                       .annotate_samples_table(cov, root='sa.cov')
                       .annotate_samples_table(phen1, root='sa.pheno.Pheno')
@@ -356,14 +353,14 @@ class ContextTests(unittest.TestCase):
                          'sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.GT.gt).collect()[0]')
                      .annotate_samples_expr('sa.pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit'))
 
-        covariatesSkat = hc.import_table(test_resources + "/skat.cov", impute=True).key_by("Sample")
+        covariatesSkat = hc.import_table(test_file("skat.cov"), impute=True).key_by("Sample")
 
-        phenotypesSkat = (hc.import_table(test_resources + "/skat.pheno", types={"Pheno": TFloat64()}, missing="0")
+        phenotypesSkat = (hc.import_table(test_file("skat.pheno"), types={"Pheno": TFloat64()}, missing="0")
                           .key_by("Sample"))
 
-        intervalsSkat = KeyTable.import_interval_list(test_resources + "/skat.interval_list")
+        intervalsSkat = KeyTable.import_interval_list(test_file("skat.interval_list"))
 
-        weightsSkat = (hc.import_table(test_resources + "/skat.weights",
+        weightsSkat = (hc.import_table(test_file("skat.weights"),
                                        types={"locus": TLocus(), "weight": TFloat64()})
                        .key_by("locus"))
 
@@ -404,7 +401,7 @@ class ContextTests(unittest.TestCase):
 
         vds_assoc.variants_table().select(['Variant = v', 'va.lmmreg.*']).export('/tmp/lmmreg.tsv')
 
-        men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_resources + '/sample.fam'))
+        men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_file('sample.fam')))
         men.select(['fid', 's', 'code'])
         fam.select(['father', 'nChildren'])
         self.assertEqual(ind.key, ['s'])
@@ -413,7 +410,7 @@ class ContextTests(unittest.TestCase):
 
         sample_split.pca_of_normalized_genotypes()
 
-        sample_split.tdt(Pedigree.read(test_resources + '/sample.fam'))
+        sample_split.tdt(Pedigree.read(test_file('sample.fam')))
 
         sample2_split.variant_qc().variant_schema
 
@@ -469,12 +466,10 @@ class ContextTests(unittest.TestCase):
         VariantDataset.from_table(sample.variants_table())
 
     def test_keytable(self):
-        test_resources = 'src/test/resources'
-
         # Import
         # columns: Sample Status qPhen
-        kt = hc.import_table(test_resources + '/sampleAnnotations.tsv', impute=True).key_by('Sample')
-        kt2 = hc.import_table(test_resources + '/sampleAnnotations2.tsv', impute=True).key_by('Sample')
+        kt = hc.import_table(test_file('sampleAnnotations.tsv'), impute=True).key_by('Sample')
+        kt2 = hc.import_table(test_file('sampleAnnotations2.tsv'), impute=True).key_by('Sample')
 
         # Variables
         self.assertEqual(kt.num_columns, 3)
@@ -529,7 +524,7 @@ class ContextTests(unittest.TestCase):
 
         kt.annotate("newField = [0, 1, 2]").explode(["newField"])
 
-        sample = hc.import_vcf(test_resources + '/sample.vcf')
+        sample = hc.import_vcf(test_file('sample.vcf'))
         sample_variants = (sample.variants_table()
                            .annotate('v = str(v), va.filters = va.filters.toArray()')
                            .flatten())
@@ -566,7 +561,7 @@ class ContextTests(unittest.TestCase):
                     for r in kt4.order_by(desc('a'), 'b').collect()]
         self.assertEqual(bydescab, [(7, 'baz'), (5, 'quam'), (5, None), (-1, 'quam'), (None, 'foo')])
 
-        KeyTable.import_fam(test_resources + '/sample.fam')._typecheck()
+        KeyTable.import_fam(test_file('sample.fam'))._typecheck()
 
         self.assertEqual(kt.union(kt).count(), kt.count() * 2)
         self.assertEqual(kt.union(kt, kt).count(), kt.count() * 3)

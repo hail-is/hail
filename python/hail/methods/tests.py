@@ -8,6 +8,7 @@ import numpy as np
 from struct import unpack
 import hail.utils as utils
 from hail.expr.expression import ExpressionException
+from hail.utils.misc import test_file
 
 hc = None
 
@@ -27,12 +28,8 @@ class Tests(unittest.TestCase):
 
     def get_dataset(self):
         if Tests._dataset is None:
-            Tests._dataset = hc.import_vcf('src/test/resources/sample.vcf').to_hail1().split_multi_hts().to_hail2()
+            Tests._dataset = hc.import_vcf(test_file('sample.vcf')).to_hail1().split_multi_hts().to_hail2()
         return Tests._dataset
-
-    @property
-    def test_resources(self):
-        return "src/test/resources"
 
     def test_ibd(self):
         dataset = self.get_dataset()
@@ -327,7 +324,7 @@ class Tests(unittest.TestCase):
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
     def test_import_interval_list(self):
-        interval_file = self.test_resources + '/annotinterall.interval_list'
+        interval_file = test_file('annotinterall.interval_list')
         nint = methods.import_interval_list(interval_file).count()
         i = 0
         with open(interval_file) as f:
@@ -337,7 +334,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(nint, i)
 
     def test_import_bed(self):
-        bed_file = self.test_resources + '/example1.bed'
+        bed_file = test_file('example1.bed')
         nbed = methods.import_bed(bed_file).count()
         i = 0
         with open(bed_file) as f:
@@ -351,7 +348,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(nbed, i)
 
     def test_import_fam(self):
-        fam_file = self.test_resources + '/sample.fam'
+        fam_file = test_file('sample.fam')
         nfam = methods.import_fam(fam_file).count()
         i = 0
         with open(fam_file) as f:
