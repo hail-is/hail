@@ -11,7 +11,6 @@ from hail.expr.expression import ExpressionException
 from hail.utils.misc import test_file
 from hail.linalg import BlockMatrix
 from math import sqrt
->>>>>>> first pass at rrm
 
 hc = None
 
