@@ -37,7 +37,7 @@ object ExportGen {
       }
 
       val localNSamples = vsm.nSamples
-      val localRowType = vsm.rowType
+      val localRowType = vsm.rvRowType
       vsm.rdd2.mapPartitions { it =>
         val sb = new StringBuilder
         val view = new ArrayGenotypeView(localRowType)

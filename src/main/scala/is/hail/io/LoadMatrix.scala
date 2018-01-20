@@ -89,12 +89,11 @@ object LoadMatrix {
       case (name, partition) => partition == 0 || fileByPartition(partition - 1) != name
     }.map { case (_, partition) => partition }.toSet
 
-    val matrixType = MatrixType(VSMMetadata(
-      sSignature = TString(),
-      vSignature = t,
-      vaSignature = annotationType,
-      genotypeSignature = cellType
-    ))
+    val matrixType = MatrixType(
+      sType = TString(),
+      vType = t,
+      vaType = annotationType,
+      genotypeType = cellType)
 
     val keyType = matrixType.kType
 
@@ -275,7 +274,7 @@ object LoadMatrix {
           val rowKey = f()
 
           region.clear()
-          rvb.start(matrixType.rowType)
+          rvb.start(matrixType.rvRowType)
           rvb.startStruct()
           rvb.addAnnotation(t, rowKey)
           rvb.addAnnotation(t, rowKey)
@@ -336,8 +335,8 @@ object LoadMatrix {
       }
 
     new MatrixTable(hc,
-      matrixType.metadata,
-      VSMLocalValue(Annotation.empty,
+      matrixType,
+      MatrixLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
       OrderedRVD(matrixType.orderedRVType, rdd, None, None))

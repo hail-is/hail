@@ -220,7 +220,7 @@ object Skat {
     val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
     val sampleIdsBc = vsm.sampleIdsBc
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
-    val localRowType = vsm.rowType
+    val localRowType = vsm.rvRowType
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
 

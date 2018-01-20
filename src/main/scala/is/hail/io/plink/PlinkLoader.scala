@@ -130,16 +130,14 @@ object PlinkLoader {
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val metadata = VSMMetadata(
-      saSignature = sampleAnnotationSignature,
-      vaSignature = plinkSchema,
-      vSignature = TVariant(gr),
-      globalSignature = TStruct.empty(),
-      genotypeSignature = TStruct("GT" -> TCall()))
+    val matrixType = MatrixType(
+      saType = sampleAnnotationSignature,
+      vaType = plinkSchema,
+      vType = TVariant(gr),
+      genotypeType = TStruct("GT" -> TCall()))
 
-    val matrixType = MatrixType(metadata)
     val kType = matrixType.kType
-    val rowType = matrixType.rowType
+    val rowType = matrixType.rvRowType
 
     val fastKeys = rdd.mapPartitions { it =>
       val region = Region()
@@ -193,8 +191,8 @@ object PlinkLoader {
       }
     }
 
-    new MatrixTable(hc, metadata,
-      VSMLocalValue(globalAnnotation = Annotation.empty,
+    new MatrixTable(hc, matrixType,
+      MatrixLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = sampleAnnotations),
       OrderedRVD(matrixType.orderedRVType, rdd2, Some(fastKeys), None))

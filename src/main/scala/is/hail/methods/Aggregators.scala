@@ -25,7 +25,7 @@ object Aggregators {
   // keyMap is just a mapping of sampleIds.map { s => newKey(s) }
   def buildVariantAggregationsByKey(sc: SparkContext,
     typ: MatrixType,
-    localValue: VSMLocalValue,
+    localValue: MatrixLocalValue,
     nKeys: Int,
     keyMap: Array[Int],
     ec: EvalContext): (RegionValue) => Array[() => Unit] = {
@@ -39,7 +39,7 @@ object Aggregators {
     val localSamplesBc = sc.broadcast(localValue.sampleIds)
     val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
     val localGlobalAnnotations = localValue.globalAnnotation
-    val localRowType = typ.rowType
+    val localRowType = typ.rvRowType
 
     { (rv: RegionValue) =>
       val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
@@ -92,7 +92,7 @@ object Aggregators {
 
   def buildVariantAggregations(sc: SparkContext,
     typ: MatrixType,
-    localValue: VSMLocalValue,
+    localValue: MatrixLocalValue,
     ec: EvalContext): Option[(RegionValue) => Unit] = {
 
     val aggregations = ec.aggregations
@@ -104,7 +104,7 @@ object Aggregators {
     val localSamplesBc = sc.broadcast(localValue.sampleIds)
     val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
     val localGlobalAnnotations = localValue.globalAnnotation
-    val localRowType = typ.rowType
+    val localRowType = typ.rvRowType
 
     Some({ (rv: RegionValue) =>
       val ur = new UnsafeRow(localRowType, rv.region, rv.offset)
@@ -164,7 +164,7 @@ object Aggregators {
       baseArray.update(i, j, aggregations(j)._3.copy())
     }
 
-    val localRowType = value.typ.rowType
+    val localRowType = value.typ.rvRowType
 
     val result = value.rdd2.treeAggregate(baseArray)({ case (arr, rv) =>
       val ur = new UnsafeRow(localRowType, rv.region, rv.offset)

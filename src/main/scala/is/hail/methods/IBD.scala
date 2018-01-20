@@ -213,7 +213,7 @@ object IBD {
 
     val nSamples = vds.nSamples
 
-    val rowType = vds.rowType
+    val rowType = vds.rvRowType
     val unnormalizedIbse = vds.rdd2.mapPartitions { it =>
       val view = HardCallView(rowType)
       it.map { rv =>
@@ -348,7 +348,7 @@ object IBD {
     val mafSymbolTable = Map("v" -> (0, vds.vSignature), "va" -> (1, vds.vaSignature))
     val mafEc = EvalContext(mafSymbolTable)
     val computeMafThunk = RegressionUtils.parseExprAsDouble(computeMafExpr, mafEc)
-    val rowType = vds.rowType
+    val rowType = vds.rvRowType
 
     { (rv: RegionValue) =>
       val v = Variant.fromRegionValue(rv.region, rowType.loadField(rv, 1))

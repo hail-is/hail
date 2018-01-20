@@ -297,7 +297,7 @@ object VEP {
     val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path).getOrElse("") else ""
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
-    val localRowType = vsm.rowType
+    val localRowType = vsm.rvRowType
     val annotations = vsm.rdd2
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)

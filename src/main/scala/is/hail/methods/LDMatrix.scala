@@ -26,7 +26,7 @@ object LDMatrix {
     
     val nSamples = vds.nSamples
 
-    val rowType = vds.rowType
+    val rowType = vds.rvRowType
 
     val filteredNormalizedHardCalls = vds.rdd2.mapPartitions { it =>
       val view = HardCallView(rowType)

@@ -117,8 +117,8 @@ object ArrayGenotypeView {
   val tArrayFloat64 = TArray(TFloat64())
 }
 
-final class ArrayGenotypeView(rowType: TStruct) {
-  private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
+final class ArrayGenotypeView(rvRowType: TStruct) {
+  private val tgs = rvRowType.fieldType(3).asInstanceOf[TArray]
   private val tg = tgs.elementType match {
     case tg: TStruct => tg
     case _ => null
@@ -150,7 +150,7 @@ final class ArrayGenotypeView(rowType: TStruct) {
 
   def setRegion(mb: Region, offset: Long) {
     this.m = mb
-    gsOffset = rowType.loadField(m, offset, 3)
+    gsOffset = rvRowType.loadField(m, offset, 3)
     gsLength = tgs.loadLength(m, gsOffset)
   }
 
@@ -189,8 +189,8 @@ object HardCallView {
   }
 }
 
-final class HardCallView(rowType: TStruct, callField: String) {
-  private val tgs = rowType.fieldType(3).asInstanceOf[TArray]
+final class HardCallView(rvRowType: TStruct, callField: String) {
+  private val tgs = rvRowType.fieldType(3).asInstanceOf[TArray]
   private val tg = tgs.elementType match {
     case tg: TStruct => tg
     case _ => null
@@ -221,7 +221,7 @@ final class HardCallView(rowType: TStruct, callField: String) {
 
   def setRegion(mb: Region, offset: Long) {
     this.m = mb
-    gsOffset = rowType.loadField(m, offset, 3)
+    gsOffset = rvRowType.loadField(m, offset, 3)
     gsLength = tgs.loadLength(m, gsOffset)
   }
 

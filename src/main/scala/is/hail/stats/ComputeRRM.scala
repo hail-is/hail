@@ -79,7 +79,7 @@ object ToNormalizedRowMatrix {
   def apply(vds: MatrixTable): RowMatrix = {
     val n = vds.nSamples
 
-    val rowType = vds.rowType
+    val rowType = vds.rvRowType
     val rows = vds.rdd2.mapPartitions { it =>
       val view = HardCallView(rowType)
 
@@ -104,7 +104,7 @@ object ToNormalizedIndexedRowMatrix {
     assert(partStarts.length == vds.rdd2.getNumPartitions + 1)
     val partStartsBc = vds.sparkContext.broadcast(partStarts)
 
-    val rowType = vds.rowType
+    val rowType = vds.rvRowType
     val indexedRows = vds.rdd2.mapPartitionsWithIndex { case (i, it) =>
       val view = HardCallView(rowType)
 

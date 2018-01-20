@@ -66,7 +66,7 @@ object LogisticRegression {
     val (newRVDType, inserter) = vsm.rdd2.typ.insert(logRegTest.schema, "va" :: pathVA)
     val newVAType = newRVDType.rowType.fieldType(2).asInstanceOf[TStruct]
 
-    val localRowType = vsm.rowType
+    val localRowType = vsm.rvRowType
     val newRVD = vsm.rdd2.mapPartitionsPreservesPartitioning(newRVDType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()

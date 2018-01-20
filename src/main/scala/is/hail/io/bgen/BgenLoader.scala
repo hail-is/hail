@@ -3,7 +3,7 @@ package is.hail.io.bgen
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.{MatrixType}
+import is.hail.expr.MatrixLocalValue
 import is.hail.io.vcf.LoadVCF
 import is.hail.io.{HadoopFSDataBinaryReader, IndexBTree}
 import is.hail.rvd.OrderedRVD
@@ -69,17 +69,15 @@ object BgenLoader {
 
     val signature = TStruct("rsid" -> TString(), "varid" -> TString())
 
-    val metadata = VSMMetadata(
-      TString(),
-      saSignature = TStruct.empty(),
-      TVariant(gr),
-      vaSignature = signature,
-      genotypeSignature = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())),
-      globalSignature = TStruct.empty())
+    val matrixType = MatrixType(
+      sType = TString(),
+      saType = TStruct.empty(),
+      vType = TVariant(gr),
+      vaType = signature,
+      genotypeType = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())))
 
-    val matrixType = MatrixType(metadata)
     val kType = matrixType.kType
-    val rowType = matrixType.rowType
+    val rowType = matrixType.rvRowType
 
     val fastKeys = sc.union(results.map(_.rdd.mapPartitions { it =>
       val region = Region()
@@ -129,8 +127,8 @@ object BgenLoader {
       }
     }))
 
-    new MatrixTable(hc, metadata,
-      VSMLocalValue(globalAnnotation = Annotation.empty,
+    new MatrixTable(hc, matrixType,
+      MatrixLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
         sampleAnnotations = Array.fill(nSamples)(Annotation.empty)),
       OrderedRVD(matrixType.orderedRVType, rdd2, Some(fastKeys), None))

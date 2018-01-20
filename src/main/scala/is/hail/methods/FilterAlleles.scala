@@ -88,8 +88,8 @@ object FilterAlleles {
         Some((filtv, newToOld, oldToNew))
       }
 
-      val localRowType = vsm.matrixType.rowType
-      val newRowType = newMatrixType.rowType
+      val localRowType = vsm.matrixType.rvRowType
+      val newRowType = newMatrixType.rvRowType
 
       val localSampleIdsBc = vsm.sampleIdsBc
       val localSampleAnnotationsBc = vsm.sampleAnnotationsBc

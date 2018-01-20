@@ -72,7 +72,7 @@ object MendelErrors {
       warn(s"$nSamplesDiscarded ${ plural(nSamplesDiscarded, "sample") } discarded from .fam: sex of child is missing.")
 
     val trioMatrix = vds.trioMatrix(Pedigree(trios), completeTrios = true)
-    val rowType = trioMatrix.rowType
+    val rowType = trioMatrix.rvRowType
     val nTrios = trioMatrix.nSamples
 
     val sc = vds.sparkContext

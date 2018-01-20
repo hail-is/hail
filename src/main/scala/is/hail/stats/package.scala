@@ -4,7 +4,7 @@ import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype, MatrixTable, VSMFileMetadata, Variant}
+import is.hail.variant.{GenomeReference, Genotype, MatrixTable, MatrixFileMetadata, Variant}
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
@@ -353,7 +353,7 @@ package object stats {
       },
       nPartitions)
 
-    MatrixTable.fromLegacy(hc, VSMFileMetadata(sampleIds), rdd)
+    MatrixTable.fromLegacy(hc, MatrixFileMetadata(sampleIds), rdd)
   }
 
   // genotypes(i,j) is genotype of variant j in sample i; i and j are 0-based indices
@@ -380,7 +380,7 @@ package object stats {
       },
       nPartitions)
 
-    MatrixTable.fromLegacy(hc, VSMFileMetadata(sampleIds,
+    MatrixTable.fromLegacy(hc, MatrixFileMetadata(sampleIds,
       vSignature = TVariant(GenomeReference.defaultReference),
       genotypeSignature = TStruct(
         "GP" -> TArray(TFloat64()))),

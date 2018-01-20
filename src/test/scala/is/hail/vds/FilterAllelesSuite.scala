@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.check.Prop
 import is.hail.expr.types._
 import is.hail.testUtils._
-import is.hail.variant.{AltAllele, Genotype, MatrixTable, VSMFileMetadata, VSMSubgen, Variant}
+import is.hail.variant.{AltAllele, Genotype, MatrixFileMetadata, MatrixTable, VSMSubgen, Variant}
 import org.testng.annotations.Test
 
 class FilterAllelesSuite extends SparkSuite {
@@ -31,7 +31,7 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
     val row1: (Variant, (Annotation, Iterable[Annotation])) = (variant1, (va1, genotypes1))
 
-    val vds = MatrixTable.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = MatrixTable.fromLegacy(hc, MatrixFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),
@@ -59,7 +59,7 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
     val row1: (Variant, (Annotation, Iterable[Annotation])) = (variant1, (va1, genotypes1))
 
-    val vds = MatrixTable.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = MatrixTable.fromLegacy(hc, MatrixFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),
@@ -88,7 +88,7 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
     val row1: (Variant, (Annotation, Iterable[Annotation])) = (variant1, (va1, genotypes1))
 
-    val vds = MatrixTable.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = MatrixTable.fromLegacy(hc, MatrixFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),
@@ -116,7 +116,7 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(genotype11, genotype12, genotype13)
     val row1: (Variant, (Annotation, Iterable[Annotation])) = (variant1, (va1, genotypes1))
 
-    val vds = MatrixTable.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = MatrixTable.fromLegacy(hc, MatrixFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),
@@ -141,7 +141,7 @@ class FilterAllelesSuite extends SparkSuite {
     val genotypes1 = Seq(Genotype(1), Genotype(2), Genotype(3))
     val row1: (Variant, (Annotation, Iterable[Annotation])) = (variant1, (va1, genotypes1))
 
-    val vds = MatrixTable.fromLegacy(hc, VSMFileMetadata(Array("1", "2", "3"),
+    val vds = MatrixTable.fromLegacy(hc, MatrixFileMetadata(Array("1", "2", "3"),
       IndexedSeq[Annotation](null, null, null),
       null,
       TString(),

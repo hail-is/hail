@@ -8,102 +8,13 @@ import is.hail.expr.types._
 import is.hail.methods.Aggregators
 import is.hail.sparkextras._
 import is.hail.rvd._
-import is.hail.variant.{VSMFileMetadata, VSMLocalValue, VSMMetadata}
+import is.hail.variant.{GenomeReference, Genotype, MatrixFileMetadata}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.json4s.jackson.JsonMethods
-
-import scala.collection.mutable
-
-case class MatrixType(
-  metadata: VSMMetadata) extends BaseType {
-  def globalType: TStruct = metadata.globalSignature
-
-  def sType: Type = metadata.sSignature
-
-  def saType: TStruct = metadata.saSignature
-
-  def locusType: Type = vType match {
-    case t: TVariant => TLocus(t.gr)
-    case _ => vType
-  }
-
-  def vType: Type = metadata.vSignature
-
-  def vaType: TStruct = metadata.vaSignature
-
-  def genotypeType: TStruct = metadata.genotypeSignature
-
-  def rowType: TStruct =
-    TStruct(
-      "pk" -> locusType,
-      "v" -> vType,
-      "va" -> vaType,
-      "gs" -> TArray(genotypeType))
-
-  def orderedRVType: OrderedRVType = {
-    new OrderedRVType(Array("pk"),
-      Array("pk", "v"),
-      rowType)
-  }
-
-  def pkType: TStruct = orderedRVType.pkType
-
-  def kType: TStruct = orderedRVType.kType
-
-  def sampleEC: EvalContext = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "s" -> (1, sType),
-      "sa" -> (2, saType),
-      "g" -> (3, genotypeType),
-      "v" -> (4, vType),
-      "va" -> (5, vaType))
-    EvalContext(Map(
-      "global" -> (0, globalType),
-      "s" -> (1, sType),
-      "sa" -> (2, saType),
-      "gs" -> (3, TAggregable(genotypeType, aggregationST))))
-  }
-
-  def variantEC: EvalContext = {
-    val aggregationST = Map(
-      "global" -> (0, globalType),
-      "v" -> (1, vType),
-      "va" -> (2, vaType),
-      "g" -> (3, genotypeType),
-      "s" -> (4, sType),
-      "sa" -> (5, saType))
-    EvalContext(Map(
-      "global" -> (0, globalType),
-      "v" -> (1, vType),
-      "va" -> (2, vaType),
-      "gs" -> (3, TAggregable(genotypeType, aggregationST))))
-  }
-
-  def genotypeEC: EvalContext = {
-    EvalContext(Map(
-      "global" -> (0, globalType),
-      "v" -> (1, vType),
-      "va" -> (2, vaType),
-      "s" -> (3, sType),
-      "sa" -> (4, saType),
-      "g" -> (5, genotypeType)))
-  }
-
-  def copy(globalType: TStruct = globalType,
-    sType: Type = sType, saType: TStruct = saType,
-    vType: Type = vType, vaType: TStruct = vaType,
-    genotypeType: TStruct = genotypeType): MatrixType =
-    MatrixType(metadata = metadata.copy(
-      globalSignature = globalType,
-      sSignature = sType, saSignature = saType,
-      vSignature = vType, vaSignature = vaType,
-      genotypeSignature = genotypeType))
-}
 
 object BaseIR {
   def genericRewriteTopDown(ast: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
@@ -170,13 +81,33 @@ abstract class BaseIR {
   }
 }
 
+object MatrixLocalValue {
+  def apply(sampleIds: IndexedSeq[Annotation]): MatrixLocalValue =
+    MatrixLocalValue(Annotation.empty,
+      sampleIds,
+      Annotation.emptyIndexedSeq(sampleIds.length))
+}
+
+case class MatrixLocalValue(
+  globalAnnotation: Annotation,
+  sampleIds: IndexedSeq[Annotation],
+  sampleAnnotations: IndexedSeq[Annotation]) {
+  assert(sampleIds.length == sampleAnnotations.length)
+
+  def nSamples: Int = sampleIds.length
+
+  def dropSamples(): MatrixLocalValue = MatrixLocalValue(globalAnnotation,
+    IndexedSeq.empty[Annotation],
+    IndexedSeq.empty[Annotation])
+}
+
 object MatrixValue {
 
 }
 
 case class MatrixValue(
   typ: MatrixType,
-  localValue: VSMLocalValue,
+  localValue: MatrixLocalValue,
   rdd2: OrderedRVD) {
 
   def sparkContext: SparkContext = rdd2.sparkContext
@@ -198,7 +129,7 @@ case class MatrixValue(
   def sampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = sampleIds.zip(sampleAnnotations)
 
   def filterSamplesKeep(keep: Array[Int]): MatrixValue = {
-    val rowType = typ.rowType
+    val rowType = typ.rvRowType
     val keepType = TArray(!TInt32())
     val makeF = ir.Compile("row", ir.RegionValueRep[Long](rowType),
       "keep", ir.RegionValueRep[Long](keepType),
@@ -294,10 +225,10 @@ case class MatrixLiteral(
 case class MatrixRead(
   path: String,
   nPartitions: Int,
-  fileMetadata: VSMFileMetadata,
+  fileMetadata: MatrixFileMetadata,
   dropSamples: Boolean,
   dropVariants: Boolean) extends MatrixIR {
-  def typ: MatrixType = MatrixType(fileMetadata.metadata)
+  def typ: MatrixType = fileMetadata.matrixType
 
   override def partitionCounts: Option[Array[Long]] = fileMetadata.partitionCounts
 
@@ -309,7 +240,6 @@ case class MatrixRead(
   }
 
   def execute(hc: HailContext): MatrixValue = {
-    val metadata = fileMetadata.metadata
     val localValue =
       if (dropSamples)
         fileMetadata.localValue.dropSamples()
@@ -324,9 +254,9 @@ case class MatrixRead(
           typ.orderedRVType,
           OrderedRVPartitioner(hc.sc,
             hc.hadoopConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))),
-          hc.readRows(path, typ.rowType, nPartitions))
+          hc.readRows(path, typ.rvRowType, nPartitions))
         if (dropSamples) {
-          val localRowType = typ.rowType
+          val localRowType = typ.rvRowType
           rdd = rdd.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
             var rv2b = new RegionValueBuilder()
             var rv2 = RegionValue()
@@ -381,7 +311,7 @@ case class FilterSamples(
     val prev = child.execute(hc)
 
     val localGlobalAnnotation = prev.localValue.globalAnnotation
-    val sas = typ.metadata.saSignature
+    val sas = typ.saType
     val ec = typ.sampleEC
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
@@ -421,7 +351,7 @@ case class FilterVariants(
     val aggregatorOption = Aggregators.buildVariantAggregations(
       prev.rdd2.sparkContext, prev.typ, prev.localValue, ec)
 
-    val localPrevRowType = prev.typ.rowType
+    val localPrevRowType = prev.typ.rvRowType
     val p = (rv: RegionValue) => {
       val ur = new UnsafeRow(localPrevRowType, rv.region.copy(), rv.offset)
 

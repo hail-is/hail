@@ -25,7 +25,7 @@ class ComputeRRMSuite extends SparkSuite {
 
     val n = vds.nSamples
 
-    val rt = vds.rowType
+    val rt = vds.rvRowType
     val gtVects = vds.rdd2.mapPartitions {it =>
       val view = HardCallView(rt)
       it.flatMap { rv =>

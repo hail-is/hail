@@ -344,7 +344,7 @@ object ExportVCF {
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(TSet(TString())))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
     
-    val localRowType = vsm.rowType
+    val localRowType = vsm.rvRowType
     val tgs = localRowType.fields(3).typ.asInstanceOf[TArray]
     
     vsm.rdd2.mapPartitions { it =>

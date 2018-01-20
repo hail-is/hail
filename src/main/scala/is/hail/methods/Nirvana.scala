@@ -272,7 +272,7 @@ object Nirvana {
 
     info("Running Nirvana")
 
-    val localRowType = vds.rowType
+    val localRowType = vds.rvRowType
     val annotations = vds.rdd2
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.asJava)

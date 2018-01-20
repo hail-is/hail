@@ -134,7 +134,7 @@ object VariantQC {
     vsm.requireRowKeyVariant("variant_qc")
 
     val localNSamples = vsm.nSamples
-    val localRowType = vsm.rowType
+    val localRowType = vsm.rvRowType
 
     vsm.insertIntoRow(() => HTSGenotypeView(localRowType))(VariantQC.signature,
       "va" :: Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD), { (view, rv, rvb) =>
