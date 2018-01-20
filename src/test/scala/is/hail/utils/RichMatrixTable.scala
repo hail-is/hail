@@ -102,11 +102,11 @@ class RichMatrixTable(vsm: MatrixTable) {
     sampleAnnotations: IndexedSeq[Annotation] = vsm.sampleAnnotations,
     globalAnnotation: Annotation = vsm.globalAnnotation,
     sSignature: Type = vsm.sSignature,
-    saSignature: Type = vsm.saSignature,
+    saSignature: TStruct = vsm.saSignature,
     vSignature: Type = vsm.vSignature,
-    vaSignature: Type = vsm.vaSignature,
-    globalSignature: Type = vsm.globalSignature,
-    genotypeSignature: Type = vsm.genotypeSignature): MatrixTable =
+    vaSignature: TStruct = vsm.vaSignature,
+    globalSignature: TStruct = vsm.globalSignature,
+    genotypeSignature: TStruct = vsm.genotypeSignature): MatrixTable =
     MatrixTable.fromLegacy(vsm.hc,
       VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
@@ -116,11 +116,11 @@ class RichMatrixTable(vsm: MatrixTable) {
     sampleAnnotations: IndexedSeq[Annotation] = vsm.sampleAnnotations,
     globalAnnotation: Annotation = vsm.globalAnnotation,
     sSignature: Type = vsm.sSignature,
-    saSignature: Type = vsm.saSignature,
+    saSignature: TStruct = vsm.saSignature,
     vSignature: Type = vsm.vSignature,
-    vaSignature: Type = vsm.vaSignature,
-    globalSignature: Type = vsm.globalSignature,
-    genotypeSignature: Type = vsm.genotypeSignature): MatrixTable =
+    vaSignature: TStruct = vsm.vaSignature,
+    globalSignature: TStruct = vsm.globalSignature,
+    genotypeSignature: TStruct = vsm.genotypeSignature): MatrixTable =
     MatrixTable.fromLegacy(vsm.hc,
       VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
