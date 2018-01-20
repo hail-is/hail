@@ -1,10 +1,10 @@
 from hail.typecheck import *
-from hail.utils.java import Env, handle_py4j, joption
+from hail.utils.java import Env, handle_py4j, joption, FatalError
 from hail.api2 import Table, MatrixTable
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
 from hail.genetics import GenomeReference
-from .misc import require_biallelic
+from hail.methods.misc import require_biallelic
 
 @handle_py4j
 @typecheck(table=Table,
