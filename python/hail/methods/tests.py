@@ -435,8 +435,9 @@ class Tests(unittest.TestCase):
         
     def test_tdt(self):
         pedigree = Pedigree.read('src/test/resources/tdt.fam')
-        tdt_tab = (methods.split_multi_hts(hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4))
-                   .tdt(pedigree))
+        tdt_tab = (methods.tdt(
+            methods.split_multi_hts(hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4)),
+            pedigree))
 
         truth = hc.import_table('/Users/jbloom/hail/src/test/resources/tdt_results.tsv',
                                types={'POSITION': TInt32(), 'T': TInt32(), 'U': TInt32(),

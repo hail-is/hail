@@ -1,9 +1,8 @@
 from hail.genetics.pedigree import Pedigree
 from hail.typecheck import *
 from hail.expr import functions
-from hail.expr.types import TDict, TStruct, TInt32, TArray
+import hail.expr.aggregators as agg
 from hail.utils.java import handle_py4j
-from hail.utils import Struct
 from hail.api2 import MatrixTable, Table
 from .misc import require_biallelic
 
@@ -233,13 +232,17 @@ def tdt(dataset, pedigree):
     --------
     Compute TDT association results and export to a file:
 
-    >>> pedigree = Pedigree.read('data/trios.fam')
-    >>> tdt_table = methods.tdt(dataset, pedigree)
+    .. testsetup::
+    
+        tdt_dataset = hc.import_vcf('data/tdt_tiny.vcf')
+
+    >>> pedigree = Pedigree.read('data/tdt_trios.fam')
+    >>> tdt_table = methods.tdt(tdt_dataset, pedigree)
     >>> tdt_table.export('output/tdt_results.tsv')
 
     Export only variants with p-values below 0.001:
 
-    >>> tdt_table = tdt_table.filter('p < 0.001')
+    >>> tdt_table = tdt_table.filter(tdt_table.pval < 0.001)
     >>> tdt_table.export("output/tdt_results.tsv")
 
     Notes
