@@ -284,13 +284,14 @@ object Parser extends JavaTokenParsers {
     }, isNamed)
   }
 
-  def parseType(code: String): Type = {
-    // println(s"code = $code")
-    parseAll(type_expr, code) match {
+  def parse[T](parser: Parser[T], code: String): T = {
+    parseAll(parser, code) match {
       case Success(result, _) => result
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
   }
+
+  def parseType(code: String): Type = parse(type_expr, code)
 
   def parseAnnotationTypes(code: String): Map[String, Type] = {
     // println(s"code = $code")
@@ -640,6 +641,16 @@ object Parser extends JavaTokenParsers {
       ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields =>
         TStruct(fields)
       }
+
+  def parsePhysicalType(code: String): PhysicalType = parse(physical_type, code)
+
+  def physical_type: Parser[PhysicalType] =
+    ("Default" ~ "[") ~> type_expr <~ "]" ^^ { t => PDefault(t) }
+
+  def parseEncodedType(code: String): PhysicalType = parse(physical_type, code)
+
+  def encoded_type: Parser[EncodedType] =
+    ("Default" ~ "[") ~> type_expr <~ "]" ^^ { t => EDefault(t) }
 
   def solr_named_args: Parser[Array[(String, Map[String, AnyRef], AST)]] =
     repsep(solr_named_arg, ",") ^^ (_.toArray)
