@@ -49,6 +49,7 @@ object LoadMatrix {
     dropSamples: Boolean = false,
     cellType: TStruct = TStruct("x" -> TInt64()),
     missingValue: String = "NA"): MatrixTable = {
+    require(cellType.size == 1, "cellType can only have 1 field")
 
     val sep = '\t'
     val nAnnotations = annotationTypes.length

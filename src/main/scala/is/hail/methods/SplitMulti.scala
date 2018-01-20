@@ -179,7 +179,7 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
   val gAnnotator = new ExprAnnotator(gEC, vsm.genotypeSignature, genotypeExpr, Some(Annotation.GENOTYPE_HEAD))
 
   val newMatrixType = vsm.matrixType.copy(vaType = vAnnotator.newT,
-    genotypeType = gAnnotator.newT.asInstanceOf[TStruct])
+    genotypeType = gAnnotator.newT)
 
   def split(sortAlleles: Boolean, removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
     val localKeepStar = keepStar
