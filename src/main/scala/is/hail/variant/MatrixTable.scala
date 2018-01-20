@@ -490,9 +490,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   }
 
   def unsafeRowRDD(): RDD[UnsafeRow] = {
-    val localRowType = rowType
+    val localRVRowType = rvRowType
     rdd2.map { rv =>
-      new UnsafeRow(localRowType, rv.region.copy(), rv.offset)
+      new UnsafeRow(localRVRowType, rv.region.copy(), rv.offset)
     }
   }
 
