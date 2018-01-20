@@ -47,8 +47,9 @@ object LoadMatrix {
     keyExpr: String,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    cellType: Type = TInt64(),
+    cellType: TStruct = TStruct("x" -> TInt64()),
     missingValue: String = "NA"): MatrixTable = {
+    require(cellType.size == 1, "cellType can only have 1 field")
 
     val sep = '\t'
     val nAnnotations = annotationTypes.length
@@ -297,8 +298,9 @@ object LoadMatrix {
                      |    in file ${ fileByPartition(i) }""".stripMargin
                 )
               }
+              rvb.startStruct()
               missing = false
-              cellType match {
+              cellType.fields(0).typ match {
                 case _: TInt32 =>
                   val v = getInt(fileByPartition(i), rowKey, ii + nAnnotations)
                   if (missing) rvb.setMissing() else rvb.addInt(v)
@@ -315,6 +317,7 @@ object LoadMatrix {
                   val v = getString(fileByPartition(i), rowKey, ii + nAnnotations)
                   if (missing) rvb.setMissing() else rvb.addString(v)
               }
+              rvb.endStruct()
               ii += 1
             }
             if (off < line.length) {

@@ -31,7 +31,7 @@ object AnnotateAllelesExpr {
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
     val newType = (paths, types).zipped.foldLeft(vsm.vaSignature) { case (vas, (ids, signature)) =>
-      val (s, i) = vas.insert(TArray(signature), ids)
+      val (s, i) = vas.structInsert(TArray(signature), ids)
       inserterBuilder += i
       s
     }

@@ -235,12 +235,6 @@ class ExportVCFSuite extends SparkSuite {
         out)
     }
 
-    TestUtils.interceptFatal("export_vcf requires g to have type TStruct") {
-      ExportVCF(vds
-        .annotateGenotypesExpr("g = 5"),
-        out)
-    }
-
     TestUtils.interceptFatal("Invalid type for format field `BOOL'. Found Boolean.") {
       ExportVCF(vds
         .annotateGenotypesExpr("g = {BOOL: true}"),

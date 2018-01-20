@@ -64,7 +64,7 @@ object LogisticRegression {
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
     val (newRVDType, inserter) = vsm.rdd2.typ.insert(logRegTest.schema, "va" :: pathVA)
-    val newVAType = newRVDType.rowType.fieldType(2)
+    val newVAType = newRVDType.rowType.fieldType(2).asInstanceOf[TStruct]
 
     val localRowType = vsm.rowType
     val newRVD = vsm.rdd2.mapPartitionsPreservesPartitioning(newRVDType) { it =>

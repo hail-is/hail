@@ -51,14 +51,6 @@ class GenericDatasetSuite extends SparkSuite {
     ExportVCF(gds, gds_exportvcf_path)
     assert(gds.same(hc.importVCF(gds_exportvcf_path)))
 
-    // not TGenotype or TStruct signature
-    intercept[HailException] {
-      val path = tmpDir.createTempFile(extension = "vcf")
-      ExportVCF(gds
-        .annotateGenotypesExpr("g = 5"),
-        path)
-    }
-
     // struct field
     intercept[HailException] {
       val path = tmpDir.createTempFile(extension = ".vcf")

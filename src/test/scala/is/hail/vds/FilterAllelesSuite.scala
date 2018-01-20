@@ -147,10 +147,10 @@ class FilterAllelesSuite extends SparkSuite {
       TString(),
       TStruct.empty()),
       sc.parallelize(Seq(row1)))
-      .filterAlleles("aIndex == 2", variantExpr = "va = newToOld", keep = false, subset = false)
+      .filterAlleles("aIndex == 2", variantExpr = "va = {nto: newToOld}", keep = false, subset = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
-    val newVa1: IndexedSeq[Int] = Array(0, 1)
+    val newVa1 = Annotation(IndexedSeq(0, 1))
     val newGenotypes1 = Seq(Genotype(1), Genotype(2), Genotype(0))
     val newRow1 = (newVariant1, (newVa1, newGenotypes1))
 

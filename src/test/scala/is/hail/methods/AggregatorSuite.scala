@@ -297,11 +297,9 @@ va.hist.nGreater == va.nGreater
         assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.nSamples)
         assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.nSamples)
 
-        vds.annotateVariantsExpr(s"""va = gs.filter(g => s == "$s1").map(g => 1).sum()""")
-          .rdd
-          .collect()
-          .foreach { case (_, (va, _)) => assert(va == 1) }
-        true
+        vds.annotateVariantsExpr(s"""va.foo = gs.filter(g => s == "$s1").map(g => 1).sum()""")
+            .variantsKT()
+            .forall("va.foo == 1")
       })
 
     p.check()

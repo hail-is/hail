@@ -426,7 +426,7 @@ object VEP {
 
     info(s"vep: annotated ${ annotations.count() } variants")
 
-    val (newVAType, inserter) = vsm.vaSignature.insert(vepType, parsedRoot)
+    val (newVAType, inserter) = vsm.vaSignature.structInsert(vepType, parsedRoot)
 
     val newMatrixType = vsm.matrixType.copy(vaType = newVAType)
     val newRDD2 = vsm.orderedRVDLeftJoinDistinctAndInsert(vsm.rdd2, vepRVD,

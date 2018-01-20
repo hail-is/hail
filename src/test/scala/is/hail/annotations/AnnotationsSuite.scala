@@ -270,16 +270,6 @@ class AnnotationsSuite extends SparkSuite {
     assert(vds.variantsAndAnnotations
       .collect()
       .forall { case (v, va) => va == Annotation("test") })
-
-    // remap the head
-    val toAdd8 = "dummy"
-    val toAdd8Sig = TString()
-    val (s11, i8) = vds.insertVA(toAdd8Sig, List[String]())
-    vds = vds.mapAnnotations(s11, (v, va, gs) => i8(va, toAdd8))
-
-    assert(vds.vaSignature.schema == toAdd8Sig.schema)
-    assert(vds.variantsAndAnnotations.collect()
-      .forall { case (v, va) => va == "dummy" })
   }
 
   @Test def testWeirdNamesReadWrite() {
