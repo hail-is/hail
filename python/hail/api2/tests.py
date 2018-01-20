@@ -5,6 +5,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 from hail2 import *
+from hail.utils.misc import test_file
 
 hc = None
 
@@ -41,8 +42,7 @@ def convert_struct_to_dict(x):
 
 class TableTests(unittest.TestCase):
     def test_conversion(self):
-        test_resources = 'src/test/resources'
-        kt_old = hc.import_table(test_resources + '/sampleAnnotations.tsv', impute=True).to_hail1()
+        kt_old = hc.import_table(test_file('sampleAnnotations.tsv'), impute=True).to_hail1()
         kt_new = kt_old.to_hail2()
         kt_old2 = kt_new.to_hail1()
         self.assertListEqual(kt_new.columns, ['Sample', 'Status', 'qPhen'])
@@ -326,8 +326,7 @@ class TableTests(unittest.TestCase):
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):
-        test_resources = 'src/test/resources/'
-        return hc.import_vcf(test_resources + "sample.vcf", min_partitions=min_partitions)
+        return hc.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
 
     def testConversion(self):
         vds = self.get_vds()
@@ -701,23 +700,21 @@ class ColumnTests(unittest.TestCase):
 
 class ContextTests(unittest.TestCase):
     def test_imports(self):
-        test_resources = 'src/test/resources/'
+        hc.index_bgen(test_file('example.v11.bgen'))
 
-        hc.index_bgen(test_resources + '/example.v11.bgen')
-
-        bgen = hc.import_bgen(test_resources + '/example.v11.bgen',
-                              sample_file=test_resources + '/example.sample',
+        bgen = hc.import_bgen(test_file('example.v11.bgen'),
+                              sample_file=test_file('example.sample'),
                               contig_recoding={"01": "1"}).rows_table()
         self.assertTrue(bgen.forall(bgen.v.contig == "1"))
         self.assertEqual(bgen.count(), 199)
 
-        gen = hc.import_gen(test_resources + '/example.gen',
-                            sample_file=test_resources + '/example.sample',
+        gen = hc.import_gen(test_file('example.gen'),
+                            sample_file=test_file('example.sample'),
                             contig_recoding={"01": "1"}).rows_table()
         self.assertTrue(gen.forall(gen.v.contig == "1"))
         self.assertEqual(gen.count(), 199)
 
-        vcf = hc.import_vcf(test_resources + '/sample2.vcf',
+        vcf = hc.import_vcf(test_file('sample2.vcf'),
                             reference_genome=GenomeReference.GRCh38(),
                             contig_recoding={"22": "chr22"}).to_hail1().split_multi_hts()
 
