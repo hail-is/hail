@@ -2984,7 +2984,7 @@ class StringExpression(AtomicExpression):
 
             >>> s = functions.capture('1.5')
             >>> eval_expr(s.to_float32())
-            5e-08
+            1.5
 
         Returns
         -------
@@ -3006,7 +3006,7 @@ class StringExpression(AtomicExpression):
 
         Returns
         -------
-        :class:`.Float32Expression`
+        :class:`.Float64Expression`
             Parsed float expression.
         """
         return self._method("toFloat64", TFloat64())
