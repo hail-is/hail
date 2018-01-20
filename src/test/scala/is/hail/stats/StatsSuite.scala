@@ -55,7 +55,7 @@ class StatsSuite extends SparkSuite {
 
     val G1 = DenseMatrix.zeros[Int](3, 2)
 
-    vds.typedRDD[Locus, Variant].collect().foreach{ case (v, (va, gs)) => gs.zipWithIndex.foreach { case (g, i) => G1(i, v.start - 1) = Genotype.gt(g).getOrElse(-1) } }
+    vds.typedRDD[Variant].collect().foreach{ case (v, (va, gs)) => gs.zipWithIndex.foreach { case (g, i) => G1(i, v.start - 1) = Genotype.gt(g).getOrElse(-1) } }
 
     assert(vds.sampleIds == IndexedSeq("0", "1", "2"))
     assert(vds.variants.collect().toSet == Set(Variant("1", 1, "A", "C"), Variant("1", 2, "A", "C")))

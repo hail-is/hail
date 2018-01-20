@@ -3,7 +3,6 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, Prop}
-import is.hail.sparkextras.OrderedRDD
 import is.hail.utils.richUtils.RichHadoopConfiguration
 import is.hail.variant._
 import org.apache.spark.storage.StorageLevel
@@ -70,7 +69,7 @@ class UtilsSuite extends SparkSuite {
     val answer1 = Array((1, (1, Option(1))), (2, (4, Option(2))), (3, (9, Option(3))), (4, (16, Option(4))))
     val pairRDD1 = sc.parallelize(Array(1, 2, 3, 4)).map { i => (i, i * i) }
     val pairRDD2 = sc.parallelize(Array(1, 2, 3, 4, 1, 2, 3, 4)).map { i => (i, i) }
-    val join = pairRDD1.leftOuterJoinDistinct(pairRDD2)
+    val join = pairRDD1.leftOuterJoin(pairRDD2.distinct)
 
     assert(join.collect().sortBy(t => t._1) sameElements answer1)
     assert(join.count() == 4)
@@ -84,64 +83,6 @@ class UtilsSuite extends SparkSuite {
     assert(!rdd1.forall(_ < 3))
     assert(rdd1.exists(_ > 4))
     assert(!rdd1.exists(_ < 0))
-  }
-
-  @Test def spanningIterator() = {
-    assert(span(List()) == List())
-    assert(span(List((1, "a"))) == List((1, List("a"))))
-    assert(span(List((1, "a"), (1, "b"))) == List((1, List("a", "b"))))
-    assert(span(List((1, "a"), (2, "b"))) == List((1, List("a")), (2, List("b"))))
-    assert(span(List((1, "a"), (1, "b"), (2, "c"))) ==
-      List((1, List("a", "b")), (2, List("c"))))
-    assert(span(List((1, "a"), (2, "b"), (2, "c"))) ==
-      List((1, List("a")), (2, List("b", "c"))))
-    assert(span(List((1, "a"), (2, "b"), (1, "c"))) ==
-      List((1, List("a")), (2, List("b")), (1, List("c"))))
-  }
-
-  def span[K, V](tuples: List[(K, V)]) = {
-    new SpanningIterator(tuples.iterator).toIterable.toList
-  }
-
-  @Test def testLeftJoinIterators() {
-    val g = for (uniqueInts <- Gen.buildableOf[Set](Gen.choose(0, 1000)).map(set => set.toIndexedSeq.sorted);
-      toZip <- Gen.buildableOfN[IndexedSeq](uniqueInts.size, arbitrary[String])
-    ) yield {
-      uniqueInts.zip(toZip)
-    }
-
-    val p = Prop.forAll(g, g) { case (it1, it2) =>
-      val m2 = it2.toMap
-
-      val join = it1.iterator.sortedLeftJoinDistinct(it2.iterator).toIndexedSeq
-
-      val check1 = it1 == join.map { case (k, (v1, _)) => (k, v1) }
-      val check2 = join.forall { case (k, (_, v2)) => v2 == m2.get(k) }
-
-      check1 && check2
-    }
-
-    p.check()
-  }
-
-  @Test def testKeySortIterator() {
-    val g = for {
-      gr <- GenomeReference.gen
-      seq <- Gen.distinctBuildableOf[IndexedSeq](Gen.zip(VariantSubgen.fromGenomeRef(gr).gen, arbitrary[Int]))
-    } yield (gr, seq)
-
-    val p = Prop.forAll(g) { case (gr, indSeq) =>
-      implicit val variantOrd = gr.variantOrdering
-      implicit val locusOrd = gr.locusOrdering
-      implicit val ordKey = Variant.orderedKey(gr)
-
-      val kSorted = indSeq.sortBy(_._1)
-      val localKeySorted = OrderedRDD.localKeySort(indSeq.sortBy(_._1.locus).iterator).toIndexedSeq
-
-      kSorted == localKeySorted
-    }
-
-    p.check()
   }
 
   @Test def testSortFileStatus() {
@@ -158,26 +99,6 @@ class UtilsSuite extends SparkSuite {
       "MEMORY_AND_DISK", "MEMORY_AND_DISK_2", "MEMORY_AND_DISK_SER", "MEMORY_AND_DISK_SER_2", "OFF_HEAP")
 
     sls.foreach { sl => StorageLevel.fromString(sl) }
-  }
-
-  @Test def sortedUnionIterator() {
-    val g = for {
-      gr <- GenomeReference.gen
-      v = VariantSubgen.fromGenomeRef(gr).gen
-      a1 <- Gen.buildableOf[Array](v)
-      a2 <- Gen.buildableOf[Array](v)
-    } yield (gr, a1, a2)
-
-    val p = Prop.forAll(g) {
-      case (gr, a1, a2) =>
-        implicit val variantOrd = gr.variantOrdering
-        val sa1 = a1.sorted.map(v => (v, "foo"))
-        val sa2 = a2.sorted.map(v => (v, "foo"))
-        (sa1 ++ sa2).sorted.sameElements(
-          new SortedUnionPairIterator(sa1.iterator, sa2.iterator).toSeq)
-    }
-
-    p.check()
   }
 
   @Test def testDictionaryOrdering() {

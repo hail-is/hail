@@ -57,8 +57,6 @@ trait Implicits {
 
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
-  implicit def toRichIteratorOfByte(i: Iterator[Byte]): RichIteratorOfByte = new RichIteratorOfByte(i)
-
   implicit def toRichLong(l: Long): RichLong = new RichLong(l)
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
@@ -94,8 +92,6 @@ trait Implicits {
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
 
   implicit def toRichSC(sc: SparkContext): RichSparkContext = new RichSparkContext(sc)
-
-  implicit def toRichSortedPairIterator[K, V](it: Iterator[(K, V)]): RichPairIterator[K, V] = new RichPairIterator(it)
 
   implicit def toRichString(str: String): RichString = new RichString(str)
 

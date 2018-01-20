@@ -5,10 +5,8 @@ import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Parameters}
 import is.hail.distributedmatrix.BlockMatrix
-import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.table.Table
-import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
@@ -22,31 +20,6 @@ import org.testng.annotations.Test
 import scala.collection.mutable
 import scala.language.postfixOps
 import scala.util.Random
-
-object VSMSuite {
-  def checkOrderedRDD[T, K, V](rdd: OrderedRDD[T, K, V])(implicit kOrd: Ordering[K]): Boolean = {
-    import Ordering.Implicits._
-
-    case class PartInfo(min: K, max: K, isSorted: Boolean)
-
-    val partInfo = rdd.mapPartitionsWithIndex { case (i, it) =>
-      if (it.hasNext) {
-        val s = it.map(_._1).toSeq
-
-        Iterator((i, PartInfo(s.head, s.last, s.isSorted)))
-      } else
-        Iterator()
-    }.collect()
-      .sortBy(_._1)
-      .map(_._2)
-
-    partInfo.forall(_.isSorted) &&
-      (partInfo.isEmpty ||
-        partInfo.zip(partInfo.tail).forall { case (pi, pinext) =>
-          pi.max < pinext.min
-        })
-  }
-}
 
 class VSMSuite extends SparkSuite {
 
@@ -302,34 +275,6 @@ class VSMSuite extends SparkSuite {
       "The VSM generator seems non-linear because the magnitude of the R coefficient is less than 0.9")
   }
 
-  @Test def testCoalesce() {
-    val g = for (
-      vsm <- MatrixTable.gen(hc, VSMSubgen.random);
-      k <- Gen.choose(1, math.max(1, vsm.nPartitions)))
-      yield (vsm, k)
-
-    forAll(g) { case (vsm, k) =>
-      val coalesced = vsm.coalesce(k)
-      val n = coalesced.nPartitions
-      implicit val variantOrd = vsm.genomeReference.variantOrdering
-      VSMSuite.checkOrderedRDD(coalesced.typedRDD[Locus, Variant]) && vsm.same(coalesced) && n <= k
-    }.check()
-  }
-
-  @Test def testNaiveCoalesce() {
-    val g = for (
-      vsm <- MatrixTable.gen(hc, VSMSubgen.random);
-      k <- Gen.choose(1, math.max(1, vsm.nPartitions)))
-      yield (vsm, k)
-
-    forAll(g) { case (vsm, k) =>
-      val coalesced = vsm.naiveCoalesce(k)
-      val n = coalesced.nPartitions
-      implicit val variantOrd = vsm.genomeReference.variantOrdering
-      VSMSuite.checkOrderedRDD(coalesced.typedRDD[Locus, Variant]) && vsm.same(coalesced) && n <= k
-    }.check()
-  }
-
   @Test def testOverwrite() {
     val out = tmpDir.createTempFile("out", "vds")
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
@@ -436,7 +381,7 @@ class VSMSuite extends SparkSuite {
 
     def getGenotypes(vds: MatrixTable): RDD[((Variant, Annotation), Annotation)] = {
       val sampleIds = vds.sampleIds
-      vds.typedRDD[Locus, Variant].flatMap { case (v, (_, gs)) =>
+      vds.typedRDD[Variant].flatMap { case (v, (_, gs)) =>
         gs.zip(sampleIds).map { case (g, s) =>
           ((v, s), g)
         }

@@ -2,7 +2,6 @@ package is.hail.expr.types
 
 import is.hail.annotations._
 import is.hail.check._
-import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
 import is.hail.variant._
 
@@ -45,30 +44,6 @@ case class TVariant(gr: GRBase, override val required: Boolean = false) extends 
     ExtendedOrdering.extendToNull(gr.variantOrdering)
 
   override val partitionKey: Type = TLocus(gr)
-
-  override def typedOrderedKey[PK, K]: OrderedKey[PK, K] = new OrderedKey[PK, K] {
-    def project(key: K): PK = key.asInstanceOf[Variant].locus.asInstanceOf[PK]
-
-    val kOrd: Ordering[K] = ordering.toOrdering.asInstanceOf[Ordering[K]]
-
-    val pkOrd: Ordering[PK] = TLocus(gr).ordering.toOrdering.asInstanceOf[Ordering[PK]]
-
-    val kct: ClassTag[K] = classTag[Variant].asInstanceOf[ClassTag[K]]
-
-    val pkct: ClassTag[PK] = classTag[Locus].asInstanceOf[ClassTag[PK]]
-  }
-
-  override def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
-    def project(key: Annotation): Annotation = key.asInstanceOf[Variant].locus
-
-    val kOrd: Ordering[Annotation] = ordering.toOrdering
-
-    val pkOrd: Ordering[Annotation] = TLocus(gr).ordering.toOrdering
-
-    val kct: ClassTag[Annotation] = classTag[Annotation]
-
-    val pkct: ClassTag[Annotation] = classTag[Annotation]
-  }
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {

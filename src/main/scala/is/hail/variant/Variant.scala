@@ -3,7 +3,6 @@ package is.hail.variant
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.types._
-import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -12,7 +11,6 @@ import org.apache.spark.sql.types._
 import org.json4s._
 
 import scala.collection.JavaConverters._
-import scala.reflect.ClassTag
 
 object Contig {
   def gen(gr: GenomeReference): Gen[(String, Int)] = Gen.oneOfSeq(gr.lengths.toSeq)
@@ -122,19 +120,6 @@ object Variant {
       r.getSeq[Row](3)
         .map(s => AltAllele.fromRow(s))
         .toArray)
-
-  def orderedKey(gr: GenomeReference): OrderedKey[Locus, Variant] =
-    new OrderedKey[Locus, Variant] {
-      def project(key: Variant): Locus = key.locus
-
-      val kOrd: Ordering[Variant] = gr.variantOrdering
-
-      val pkOrd: Ordering[Locus] = gr.locusOrdering
-
-      val kct: ClassTag[Variant] = implicitly[ClassTag[Variant]]
-
-      val pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
-    }
 
   def variantUnitRdd(sc: SparkContext, input: String): RDD[(Variant, Unit)] =
     sc.textFileLines(input)

@@ -225,16 +225,6 @@ object Nirvana {
   def annotate(vds: MatrixTable, config: String, blockSize: Int, root: String = "va.nirvana"): MatrixTable = {
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
-    val rootType =
-      vds.vaSignature.getOption(parsedRoot)
-        .filter { t =>
-          val r = t == nirvanaSignature
-          if (!r) {
-            warn(s"type for $parsedRoot does not match Nirvana signature, overwriting.")
-          }
-          r
-        }
-
     val properties = try {
       val p = new Properties()
       val is = new FileInputStream(config)
@@ -262,9 +252,6 @@ object Nirvana {
 
     val reference = properties.getProperty("hail.nirvana.reference")
 
-    val rootQuery = rootType
-      .map(_ => vds.vaSignature.query(parsedRoot))
-
     val cmd: List[String] = List[String](dotnet, s"$nirvanaLocation") ++
       List("-c", cache) ++
       supplementaryAnnotationDirectory ++
@@ -285,17 +272,17 @@ object Nirvana {
 
     info("Running Nirvana")
 
-    val annotations = vds.typedRDD[Locus, Variant].mapValues { case (va, gs) => va }
-      .mapPartitions({ it =>
+    val localRowType = vds.rowType
+    val annotations = vds.rdd2
+      .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
         if (path.orNull != null)
           env.put("PATH", path.get)
 
-        it.filter { case (v, va) =>
-          rootQuery.forall(q => q(va) == null)
+        it.map { rv =>
+          Variant.fromRegionValue(rv.region, localRowType.loadField(rv, 1))
         }
-          .map { case (v, _) => v }
           .grouped(localBlockSize)
           .flatMap { block =>
             val (jt, proc) = block.iterator.pipe(pb,
@@ -322,7 +309,7 @@ object Nirvana {
 
             r
           }
-      }, preservesPartitioning = true)
+      }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
 

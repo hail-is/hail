@@ -1,12 +1,10 @@
 package is.hail.variant
 
 import is.hail.check.Prop._
-import is.hail.check.{Gen, Properties}
-import is.hail.utils.{ByteIterator, _}
+import is.hail.check.Gen
+import is.hail.utils._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-
-import scala.collection.mutable
 
 class GenotypeSuite extends TestNGSuite {
 

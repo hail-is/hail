@@ -1,9 +1,7 @@
 package is.hail.utils
 
-import is.hail.expr._
 import is.hail.annotations._
 import is.hail.rvd.OrderedRVType
-import is.hail.sparkextras._
 
 object SortedDistinctRowIterator {
   def transformer(ort: OrderedRVType): Iterator[RegionValue] => SortedDistinctRowIterator =

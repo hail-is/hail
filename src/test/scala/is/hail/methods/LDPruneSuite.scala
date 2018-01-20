@@ -129,7 +129,7 @@ class LDPruneSuite extends SparkSuite {
 
   def isUncorrelated(vds: MatrixTable, r2Threshold: Double, windowSize: Int): Boolean = {
     val nSamplesLocal = vds.nSamples
-    val r2Matrix = correlationMatrix(vds.typedRDD[Locus, Variant].map { case (v, (va, gs)) => gs }.collect(), nSamplesLocal)
+    val r2Matrix = correlationMatrix(vds.typedRDD[Variant].map { case (v, (va, gs)) => gs }.collect(), nSamplesLocal)
     val variantMap = vds.variants.zipWithIndex().map { case (v, i) => (i.toInt, v.asInstanceOf[Variant]) }.collectAsMap()
 
     r2Matrix.indices.forall { case (i, j) =>
@@ -321,7 +321,7 @@ class LDPruneSuite extends SparkSuite {
     val nSamples = vds.nSamples
     val filteredVDS = vds.copyLegacy(
       genotypeSignature = Genotype.htsGenotypeType,
-      rdd = vds.typedRDD[Locus, Variant]
+      rdd = vds.typedRDD[Variant]
         .filter { case (v, (va, gs)) =>
           v.isBiallelic &&
             LDPruneSuite.toBitPackedVectorView(gs.hardCallIterator, nSamples).isDefined
