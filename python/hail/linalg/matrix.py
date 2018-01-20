@@ -1,8 +1,10 @@
 from hail.utils import new_temp_file, storage_level
-from hail.utils.java import Env, handle_py4j, scala_object, jarray
+from hail.utils.java import Env, handle_py4j, scala_object, jarray, numpy_from_breeze
 from hail.typecheck import *
 from hail.api2 import MatrixTable
 from hail.expr.expression import expr_numeric, to_expr, analyze
+from struct import unpack
+import numpy as np
 
 block_matrix_type = lazy()
 
@@ -108,5 +110,18 @@ class BlockMatrix(object):
     def unpersist(self):
         return BlockMatrix(self._jbm.unpersist())
 
-block_matrix_type.set(BlockMatrix)
+    @handle_py4j
+    def to_numpy_matrix(self):
+        return numpy_from_breeze(self._jbm.toLocalMatrix())
 
+    @handle_py4j
+    @typecheck_method(i=numeric)
+    def __mul__(self, i):
+        return BlockMatrix(self._jbm.scalarMultiply(float(i)))
+
+    @handle_py4j
+    @typecheck_method(i=numeric)
+    def __div__(self, i):
+        return self * (1./i)
+
+block_matrix_type.set(BlockMatrix)

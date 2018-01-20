@@ -13,6 +13,7 @@ Methods
     hail.methods.ld_matrix
     hail.methods.trio_matrix
     hail.methods.grm
+    hail.methods.rrm
     hail.methods.ibd
     hail.methods.pca
     hail.methods.hwe_normalized_pca
@@ -39,6 +40,7 @@ Methods
 .. autofunction:: hail.methods.ld_matrix
 .. autofunction:: hail.methods.trio_matrix
 .. autofunction:: hail.methods.grm
+.. autofunction:: hail.methods.rrm
 .. autofunction:: hail.methods.ibd
 .. autofunction:: hail.methods.pca
 .. autofunction:: hail.methods.hwe_normalized_pca

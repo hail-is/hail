@@ -3,7 +3,10 @@ package is.hail.utils
 import java.io.{InputStream, OutputStream}
 import java.net.URI
 
+import breeze.linalg.{DenseMatrix => BDM, _}
 import is.hail.HailContext
+import is.hail.annotations.{Memory, Region, RegionValueBuilder}
+import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.variant.{GenomeReference, Locus, MatrixTable}
 
@@ -23,7 +26,16 @@ trait Py4jUtils {
       list.add(elem)
     list
   }
-  
+
+  def bdmGetBytes(bdm: BDM[Double], start: Int, n: Int): Array[Byte] = {
+    assert(8L * n < Integer.MAX_VALUE)
+    assert(bdm.offset == 0)
+    assert(bdm.majorStride == (if (bdm.isTranspose) bdm.cols else bdm.rows))
+    val buf = new Array[Byte](8 * n)
+    Memory.memcpy(buf, 0, bdm.data, start, n)
+    buf
+  }
+
   def getURI(uri: String): String = new URI(uri).getPath
 
   // we cannot construct an array because we don't have the class tag

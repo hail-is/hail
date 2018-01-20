@@ -6,6 +6,7 @@ from threading import Thread
 import py4j
 from pyspark.sql.utils import CapturedException
 from decorator import decorator
+import numpy as np
 
 
 class FatalError(Exception):
@@ -114,6 +115,34 @@ def jiterable_to_list(it):
 
 def jarray_to_list(a):
     return list(a) if a else None
+
+def numpy_from_breeze(bdm):
+    isT = bdm.isTranspose()
+    rows, cols = bdm.rows(), bdm.cols()
+    entries = rows * cols
+
+    if bdm.offset() != 0:
+        raise ValueError("Expected offset of Breeze matrix to be 0, found {}"
+                         .format(bdm.offset()))
+    expected_stride = cols if isT else rows
+    if bdm.majorStride() != expected_stride:
+        raise ValueError("Expected major stride of Breeze matrix to be {}, found {}"
+                         .format(expected_stride, bdm.majorStride()))
+    if entries > 0x7fffffff:
+        raise ValueError("rows * cols must be smaller than {}, found {} by {} matrix"
+                         .format(0x7fffffff, rows, cols))
+
+    if entries <= 0x100000:
+        b = Env.jutils().bdmGetBytes(bdm, 0, entries)
+    else:
+        b = bytearray()
+        i = 0
+        while (i < entries):
+            n = min(0x100000, entries - i)
+            b.extend(Env.jutils().bdmGetBytes(bdm, i, n))
+            i += n
+    data = np.fromstring(bytes(b), dtype='f8')
+    return np.reshape(data, (cols, rows)).T if bdm.isTranspose else np.reshape(data, (rows, cols))
 
 
 class Log4jLogger:

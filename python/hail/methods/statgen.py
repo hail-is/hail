@@ -9,6 +9,7 @@ from hail.utils.java import handle_py4j, joption
 from .misc import require_biallelic
 from hail.expr import functions
 import hail.expr.aggregators as agg
+from math import sqrt
 
 
 @handle_py4j
@@ -998,3 +999,104 @@ def grm(dataset):
                                       grm,
                                       [row.s for row in dataset.cols_table().select('s').collect()],
                                       n_variants)
+
+@handle_py4j
+@typecheck(call_expr=CallExpression)
+def rrm(call_expr):
+    """Computes the Realized Relationship Matrix (RRM).
+
+    .. include:: ../_templates/req_biallelic.rst
+
+    Examples
+    --------
+
+    >>> kinship_matrix = methods.rrm(dataset['GT'])
+
+    Notes
+    -----
+
+    The Realized Relationship Matrix is defined as follows. Consider the
+    :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by
+    :math:`n` samples and columns indexed by the :math:`m` bialellic autosomal
+    variants; :math:`C_{ij}` is the number of alternate alleles of variant
+    :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For
+    each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is
+    computed as half the mean of the non-missing entries of column :math:`j`.
+    Entries of :math:`M` are then mean-centered and variance-normalized as
+
+    .. math::
+
+        M_{ij} =
+          \\frac{C_{ij}-2p_j}
+                {\sqrt{\\frac{m}{n} \\sum_{k=1}^n (C_{ij}-2p_j)^2}},
+
+    with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype
+    imputation). This scaling normalizes each variant column to have empirical
+    variance :math:`1/m`, which gives each sample row approximately unit total
+    variance (assuming linkage equilibrium) and yields the :math:`n \\times n`
+    sample correlation or realized relationship matrix (RRM) :math:`K` as simply
+
+    .. math::
+
+        K = MM^T
+
+    Note that the only difference between the Realized Relationship Matrix and
+    the Genetic Relationship Matrix (GRM) used in :func:`.methods.grm` is the
+    variant (column) normalization: where RRM uses empirical variance, GRM uses
+    expected variance under Hardy-Weinberg Equilibrium.
+
+
+    Parameters
+    ----------
+    call_expr : :class:`.CallExpression`
+        Expression on a :class:`.MatrixTable` that gives the genotype call.
+
+    Returns
+        :return: Realized Relationship Matrix for all samples.
+        :rtype: :class:`.KinshipMatrix`
+        """
+    source = call_expr._indices.source
+    if not isinstance(source, MatrixTable):
+        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
+            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    dataset = source
+    base, _ = dataset._process_joins(call_expr)
+    analyze('rrm', call_expr, dataset._entry_indices)
+
+    dataset = require_biallelic(dataset, 'rrm')
+
+    call_expr._indices = dataset._entry_indices
+    gt_expr = call_expr.num_alt_alleles()
+    dataset = dataset.annotate_rows(AC=agg.sum(gt_expr),
+                                    ACsq=agg.sum(gt_expr * gt_expr),
+                                    n_called=agg.count_where(functions.is_defined(call_expr)))
+    dataset = dataset.filter_rows((dataset.AC > 0) &
+                                  (dataset.AC < 2 * dataset.n_called) &
+                                  ((dataset.AC != dataset.n_called) |
+                                   (dataset.ACsq != dataset.n_called)))
+
+    n_samples = dataset.count_cols()
+    n_variants = dataset.count_rows()
+    if n_variants == 0:
+        raise FatalError("Cannot run RRM: found 0 variants after filtering out monomorphic sites.")
+    info("Computing RRM using {} variants.".format(n_variants))
+
+    call_expr._indices = dataset._entry_indices
+    gt_expr = call_expr.num_alt_alleles()
+    normalized_genotype_expr = functions.bind(
+        dataset.AC / dataset.n_called,
+        lambda mean_gt: functions.bind(
+            functions.sqrt((dataset.ACsq +
+                            (n_samples - dataset.n_called) * mean_gt ** 2) /
+                           n_samples - mean_gt ** 2),
+            lambda stddev: functions.cond(functions.is_defined(call_expr),
+                                          (gt_expr - mean_gt) / stddev, 0)))
+
+    bm = BlockMatrix.from_matrix_table(normalized_genotype_expr)
+    dataset.unpersist()
+    rrm = bm.T.dot(bm) / n_variants
+
+    return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
+                                            rrm,
+                                            [row.s for row in dataset.cols_table().select('s').collect()],
+                                            n_variants)

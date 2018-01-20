@@ -2794,7 +2794,7 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
     (irm, optionVariants)
   }
 
-  def writeBlockMatrix(dirname: String, expr: String, blockSize: Int): Unit = {
+  def writeBlockMatrix(dirname: String, expr: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rdd2.getNumPartitions + 1)
 

@@ -34,10 +34,6 @@ object ComputeRRM {
   def apply(vds: MatrixTable, forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
     info(s"rrm: Computing Realized Relationship Matrix...")
 
-    def scaleMatrix(matrix: Matrix, scalar: Double): Matrix = {
-      Matrices.dense(matrix.numRows, matrix.numCols, matrix.toArray.map(_ * scalar))
-    }
-
     val useBlock = (forceBlock, forceGramian) match {
       case (false, false) => vds.nSamples > 3000 // for small matrices, computeGramian fits in memory and runs faster than BlockMatrix product
       case (true, true) => fatal("Cannot force both Block and Gramian")
