@@ -14,6 +14,8 @@ from .misc import require_biallelic
 def trio_matrix(dataset, pedigree, complete_trios=False):
     """Builds and returns a matrix where columns correspond to trios and entries contain genotypes for the trio.
 
+    .. include:: ../_templates/req_tstring.rst
+
     Examples
     --------
 
@@ -69,9 +71,9 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
 def mendel_errors(dataset, pedigree):
     """Find Mendel errors; count per variant, individual and nuclear family.
 
-    .. include:: ../_templates/req_tvariant.rst
-    
     .. include:: ../_templates/req_tstring.rst
+
+    .. include:: ../_templates/req_tvariant.rst
     
     .. include:: ../_templates/req_biallelic.rst
 
@@ -214,6 +216,8 @@ def mendel_errors(dataset, pedigree):
            pedigree=Pedigree)
 def tdt(dataset, pedigree):
     """Performs the transmission disequilibrium test on trios.
+
+    .. include:: ../_templates/req_tstring.rst
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -369,7 +373,7 @@ def tdt(dataset, pedigree):
     tri = trio_matrix(dataset, pedigree, complete_trios=True)
     
     # this filter removes mendel error of het father in x_nonpar. It also avoids
-    #   building and lookup up config in common case that neither parent is het
+    #   building and looking up config in common case that neither parent is het
     parent_is_valid_het = functions.bind(tri.father_entry.GT.is_het(),
         lambda father_is_het: father_is_het & tri.auto_or_x_par | 
                              (tri.mother_entry.GT.is_het() & ~father_is_het))
