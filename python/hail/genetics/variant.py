@@ -237,7 +237,7 @@ class Variant(HistoryMixin):
         Notes
         -----
         All contigs are considered autosomal except those
-        designated as X, Y, or MT by the :class`.GenomeReference`.
+        designated as X, Y, or MT by :class:`.GenomeReference`.
 
         :rtype: bool
         """

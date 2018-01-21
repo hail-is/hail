@@ -39,15 +39,15 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
     The new column fields consist of three Structs (proband, father, mother),
     a Boolean field, and a String field:
 
-     - **proband.id** (*String*) - Proband sample ID, same as trio column key.
-     - **proband.fields** (*Struct*) - Column fields on the proband.
-     - **father.id** (*String*) - Father sample ID.
-     - **father.fields** (*Struct*) - Column fields on the father.
-     - **mother.id** (*String*) - Mother sample ID.
-     - **mother.fields** (*Struct*) - Column fields on the mother.
-     - **is_female** (*Boolean*) - Proband is female.
-       True for female, false for male, missing if unknown.
-     - **fam_id** (*String*) - Family ID.
+    - **proband.id** (*String*) - Proband sample ID, same as trio column key.
+    - **proband.fields** (*Struct*) - Column fields on the proband.
+    - **father.id** (*String*) - Father sample ID.
+    - **father.fields** (*Struct*) - Column fields on the father.
+    - **mother.id** (*String*) - Mother sample ID.
+    - **mother.fields** (*Struct*) - Column fields on the mother.
+    - **is_female** (*Boolean*) - Proband is female.
+      True for female, false for male, missing if unknown.
+    - **fam_id** (*String*) - Family ID.
 
     The new entry fields are:
 
@@ -109,8 +109,6 @@ def mendel_errors(dataset, pedigree):
     **First table:** all Mendel errors. This table contains one row per Mendel
     error, keyed by the variant and proband id.
 
-    Columns:
-
         - **fam_id** (*String*) -- Family ID.
         - **s** (*String*) -- Proband ID. (key field)
         - **v** (*Variant*) -- Variant in which the error was found.
@@ -120,8 +118,6 @@ def mendel_errors(dataset, pedigree):
 
     **Second table:** errors per nuclear family. This table contains one row
     per nuclear family, keyed by the parents.
-
-    Columns:
 
         - **fam_id** (*String*) -- Family ID.
         - **pat_id** (*String*) -- Paternal ID. (key field)
@@ -136,8 +132,6 @@ def mendel_errors(dataset, pedigree):
     individual. Each error is counted toward the proband, father, and mother
     according to the `Implicated` in the table below.
 
-    Columns:
-
         - **s** (*String*) -- Sample ID (key field).
         - **fam_id** (*String*) -- Family ID.
         - **errors** (*Int64*) -- Number of Mendel errors involving this
@@ -146,8 +140,6 @@ def mendel_errors(dataset, pedigree):
           individual at SNPs.
 
     **Fourth table:** errors per variant.
-
-    Columns:
 
         - **v** (*Variant*) -- Variant (key field).
         - **errors** (*Int32*) -- Number of Mendel errors in this variant.
@@ -161,7 +153,7 @@ def mendel_errors(dataset, pedigree):
     as follows, where PAR is the `pseudoautosomal region
     <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__ (PAR) of X and Y
     defined by the reference genome and the autosome is defined by
-    :meth:`.in_autosome`.
+    :meth:`~hail.genetics.Variant.in_autosome`.
 
     - Auto -- in autosome or in PAR or female child
     - HemiX -- in non-PAR of X and male child
@@ -229,17 +221,27 @@ def tdt(dataset, pedigree):
 
     Examples
     --------
-    Compute TDT association results and export to a file:
+    Compute TDT association statistics and show the first two results:
 
     .. testsetup::
-    
+
         tdt_dataset = hc.import_vcf('data/tdt_tiny.vcf')
 
-    >>> pedigree = Pedigree.read('data/tdt_trios.fam')
-    >>> tdt_table = methods.tdt(tdt_dataset, pedigree)
-    >>> tdt_table.export('output/tdt_results.tsv')
+    .. doctest::
+    
+        >>> pedigree = Pedigree.read('data/tdt_trios.fam')
+        >>> tdt_table = methods.tdt(tdt_dataset, pedigree)
+        >>> tdt_table.show(2)
+        +------------------+-------+-------+-------------+-------------+
+        | v                |     t |     u |        chi2 |        pval |
+        +------------------+-------+-------+-------------+-------------+
+        | Variant(GRCh37)  | Int32 | Int32 |     Float64 |     Float64 |
+        +------------------+-------+-------+-------------+-------------+
+        | 1:246714629:C:A  |     0 |     4 | 4.00000e+00 | 4.55003e-02 |
+        | 2:167262169:T:C  |     0 |     0 |         NaN |         NaN |
+        +------------------+-------+-------+-------------+-------------+
 
-    Export only variants with p-values below 0.001:
+    Export variants with p-values below 0.001:
 
     >>> tdt_table = tdt_table.filter(tdt_table.pval < 0.001)
     >>> tdt_table.export("output/tdt_results.tsv")
@@ -260,12 +262,12 @@ def tdt(dataset, pedigree):
     freedom under the null hypothesis.
 
     :func:`tdt` only considers complete trios (two parents and a proband with
-    defined sex) and only returns results for the autosome (as defined by
-    :meth:`.in_autosome`) and chromosome X. Transmissions and non-transmissions
-    are counted only for the configurations of genotypes and copy state in the
-    table below, in order to filter out Mendel errors and configurations where
-    transmission is guaranteed. The copy state of a locus with respect to a trio
-    is defined as follows: 
+    defined sex) and only returns results for the autosome, as defined by
+    :meth:`~hail.genetics.Variant.in_autosome`, and chromosome X. Transmissions
+    and non-transmissions are counted only for the configurations of genotypes
+    and copy state in the table below, in order to filter out Mendel errors and
+    configurations where transmission is guaranteed. The copy state of a locus
+    with respect to a trio is defined as follows:
 
     - Auto -- in autosome or in PAR of X or female child
     - HemiX -- in non-PAR of X and male child

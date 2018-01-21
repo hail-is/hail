@@ -293,7 +293,6 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(manual, rrm))
 
-
     def test_pca(self):
         dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()
         eigenvalues, scores, loadings = methods.pca(dataset.GT.num_alt_alleles(), k=2, compute_loadings=True)
@@ -446,9 +445,9 @@ class Tests(unittest.TestCase):
         truth = (truth
             .transmute(v = functions.variant(truth.CHROM, truth.POSITION, truth.REF, [truth.ALT]))
             .key_by('v'))
-
+        
         if tdt_tab.count() != truth.count():
-            self.fail('Result has {} rows but should have {} rows'.format(tdt_tab.count(), truth.count()))
+           self.fail('Result has {} rows but should have {} rows'.format(tdt_tab.count(), truth.count()))
 
         bad = (tdt_tab.filter(functions.is_nan(tdt_tab.pval), keep=False)
             .join(truth.filter(functions.is_nan(truth.Pval), keep=False), how='outer'))

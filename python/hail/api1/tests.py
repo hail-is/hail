@@ -401,7 +401,7 @@ class ContextTests(unittest.TestCase):
 
         vds_assoc.variants_table().select(['Variant = v', 'va.lmmreg.*']).export('/tmp/lmmreg.tsv')
 
-        men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_file('/sample.fam')))
+        men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_file('sample.fam')))
         men.select(['fam_id', 's', 'code'])
         fam.select(['pat_id', 'children'])
         self.assertEqual(ind.key, ['s'])
@@ -831,12 +831,9 @@ class ContextTests(unittest.TestCase):
                  .drop(['CHROM', 'POSITION', 'REF', 'ALT'])
                  .key_by('v'))
 
-        if tdt_tab.count() != truth.count():
-            self.fail('Result has {} rows but should have {} rows'.format(tdt_tab.count(), truth.count()))
-
         bad = (tdt_tab
-               .filter('is_nan(pval)', keep=False)
-               .join(truth.filter('is_nan(Pval)', keep=False), how='outer')
+               .filter('isnan(p)', keep=False)
+               .join(truth.filter('isnan(Pval)', keep=False), how='outer')
                .filter('!(transmitted == T && '
                        'untransmitted == U && '
                        'abs(chi2 - Chi2) < 0.001 && '
