@@ -2774,150 +2774,178 @@ object FunctionRegistry {
   register("//", (x: Float, y: Float) => math.floor(x / y).toFloat, null)
   register("//", (x: Double, y: Double) => math.floor(x / y), null)
 
-  register("//", { (xs: IndexedSeq[Int], y: Int) =>
-    val a = new Array[Int](xs.length)
+  register("//", { (xs: IndexedSeq[java.lang.Integer], y: Int) =>
+    val a = new Array[java.lang.Integer](xs.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floorDiv(xs(i), y)
+      val x = xs(i)
+      if (x != null)
+        a(i) = java.lang.Math.floorDiv(x, y)
       i += 1
     }
-    a: IndexedSeq[Int]
-  }, null)(arrayHr(int32Hr), int32Hr, arrayHr(int32Hr))
+    a: IndexedSeq[java.lang.Integer]
+  }, null)(arrayHr(boxedInt32Hr), int32Hr, arrayHr(boxedInt32Hr))
 
-  register("//", { (x: Int, ys: IndexedSeq[Int]) =>
-    val a = new Array[Int](ys.length)
+  register("//", { (x: Int, ys: IndexedSeq[java.lang.Integer]) =>
+    val a = new Array[java.lang.Integer](ys.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floorDiv(x, ys(i))
+      val y = ys(i)
+      if (y != null)
+        a(i) = java.lang.Math.floorDiv(x, y)
       i += 1
     }
-    a: IndexedSeq[Int]
-  }, null)(int32Hr, arrayHr(int32Hr), arrayHr(int32Hr))
+    a: IndexedSeq[java.lang.Integer]
+  }, null)(int32Hr, arrayHr(boxedInt32Hr), arrayHr(boxedInt32Hr))
 
-  register("//", { (xs: IndexedSeq[Int], ys: IndexedSeq[Int]) =>
+  register("//", { (xs: IndexedSeq[java.lang.Integer], ys: IndexedSeq[java.lang.Integer]) =>
     if (xs.length != ys.length)
       fatal(
         s"""Cannot apply operation '//' to arrays of unequal length:
            |  Left: ${ xs.length } elements, [${ xs.mkString(", ") }]
            |  Right: ${ ys.length } elements [${ ys.mkString(", ") }]""".stripMargin)
 
-    val a = new Array[Int](xs.length)
+    val a = new Array[java.lang.Integer](xs.length)
     var i = 0
     while (i < a.length) {
+      val x = xs(i)
+      val y = ys(i)
+      if (x != null && y != null)
       a(i) = java.lang.Math.floorDiv(xs(i), ys(i))
       i += 1
     }
-    a: IndexedSeq[Int]
-  }, null)(arrayHr(int32Hr), arrayHr(int32Hr), arrayHr(int32Hr))
+    a: IndexedSeq[java.lang.Integer]
+  }, null)(arrayHr(boxedInt32Hr), arrayHr(boxedInt32Hr), arrayHr(boxedInt32Hr))
 
-  register("//", { (xs: IndexedSeq[Long], y: Long) =>
-    val a = new Array[Long](xs.length)
+  register("//", { (xs: IndexedSeq[java.lang.Long], y: Long) =>
+    val a = new Array[java.lang.Long](xs.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floorDiv(xs(i), y)
+      val x = xs(i)
+      if (x != null)
+        a(i) = java.lang.Math.floorDiv(x, y)
       i += 1
     }
-    a: IndexedSeq[Long]
-  }, null)(arrayHr(int64Hr), int64Hr, arrayHr(int64Hr))
+    a: IndexedSeq[java.lang.Long]
+  }, null)(arrayHr(boxedInt64Hr), int64Hr, arrayHr(boxedInt64Hr))
 
-  register("//", { (x: Long, ys: IndexedSeq[Long]) =>
-    val a = new Array[Long](ys.length)
+  register("//", { (x: Long, ys: IndexedSeq[java.lang.Long]) =>
+    val a = new Array[java.lang.Long](ys.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floorDiv(x, ys(i))
+      val y = ys(i)
+      if (y != null)
+        a(i) = java.lang.Math.floorDiv(x, y)
       i += 1
     }
-    a: IndexedSeq[Long]
-  }, null)(int64Hr, arrayHr(int64Hr), arrayHr(int64Hr))
+    a: IndexedSeq[java.lang.Long]
+  }, null)(int64Hr, arrayHr(boxedInt64Hr), arrayHr(boxedInt64Hr))
 
-  register("//", { (xs: IndexedSeq[Long], ys: IndexedSeq[Long]) =>
+  register("//", { (xs: IndexedSeq[java.lang.Long], ys: IndexedSeq[java.lang.Long]) =>
     if (xs.length != ys.length)
       fatal(
         s"""Cannot apply operation '//' to arrays of unequal length:
            |  Left: ${ xs.length } elements, [${ xs.mkString(", ") }]
            |  Right: ${ ys.length } elements [${ ys.mkString(", ") }]""".stripMargin)
 
-    val a = new Array[Long](xs.length)
+    val a = new Array[java.lang.Long](xs.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floorDiv(xs(i), ys(i))
+      val x = xs(i)
+      val y = ys(i)
+      if (x != null && y != null)
+        a(i) = java.lang.Math.floorDiv(xs(i), ys(i))
       i += 1
     }
-    a: IndexedSeq[Long]
-  }, null)(arrayHr(int64Hr), arrayHr(int64Hr), arrayHr(int64Hr))
+    a: IndexedSeq[java.lang.Long]
+  }, null)(arrayHr(boxedInt64Hr), arrayHr(boxedInt64Hr), arrayHr(boxedInt64Hr))
 
-  register("//", { (xs: IndexedSeq[Float], y: Float) =>
-    val a = new Array[Float](xs.length)
+  register("//", { (xs: IndexedSeq[java.lang.Float], y: Float) =>
+    val a = new Array[java.lang.Float](xs.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floor(xs(i) / y).toFloat
+      val x = xs(i)
+      if (x != null)
+        a(i) = java.lang.Math.floor(x / y).toFloat
       i += 1
     }
-    a: IndexedSeq[Float]
-  }, null)(arrayHr(float32Hr), float32Hr, arrayHr(float32Hr))
+    a: IndexedSeq[java.lang.Float]
+  }, null)(arrayHr(boxedFloat32Hr), float32Hr, arrayHr(boxedFloat32Hr))
 
-  register("//", { (x: Float, ys: IndexedSeq[Float]) =>
-    val a = new Array[Float](ys.length)
+  register("//", { (x: Float, ys: IndexedSeq[java.lang.Float]) =>
+    val a = new Array[java.lang.Float](ys.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floor(x / ys(i)).toFloat
+      val y = ys(i)
+      if (y != null)
+        a(i) = java.lang.Math.floor(x / y).toFloat
       i += 1
     }
-    a: IndexedSeq[Float]
-  }, null)(float32Hr, arrayHr(float32Hr), arrayHr(float32Hr))
+    a: IndexedSeq[java.lang.Float]
+  }, null)(float32Hr, arrayHr(boxedFloat32Hr), arrayHr(boxedFloat32Hr))
 
-  register("//", { (xs: IndexedSeq[Float], ys: IndexedSeq[Float]) =>
+  register("//", { (xs: IndexedSeq[java.lang.Float], ys: IndexedSeq[java.lang.Float]) =>
     if (xs.length != ys.length)
       fatal(
         s"""Cannot apply operation '//' to arrays of unequal length:
            |  Left: ${ xs.length } elements, [${ xs.mkString(", ") }]
            |  Right: ${ ys.length } elements [${ ys.mkString(", ") }]""".stripMargin)
 
-    val a = new Array[Float](xs.length)
+    val a = new Array[java.lang.Float](xs.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floor(xs(i) / ys(i)).toFloat
+      val x = xs(i)
+      val y = ys(i)
+      if (x != null && y != null)
+        a(i) = java.lang.Math.floor(x / y).toFloat
       i += 1
     }
-    a: IndexedSeq[Float]
-  }, null)(arrayHr(float32Hr), arrayHr(float32Hr), arrayHr(float32Hr))
+    a: IndexedSeq[java.lang.Float]
+  }, null)(arrayHr(boxedFloat32Hr), arrayHr(boxedFloat32Hr), arrayHr(boxedFloat32Hr))
 
-  register("//", { (xs: IndexedSeq[Double], y: Double) =>
-    val a = new Array[Double](xs.length)
+  register("//", { (xs: IndexedSeq[java.lang.Double], y: Double) =>
+    val a = new Array[java.lang.Double](xs.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floor(xs(i) / y)
+      val x = xs(i)
+      if (x != null)
+        a(i) = java.lang.Math.floor(x / y)
       i += 1
     }
-    a: IndexedSeq[Double]
-  }, null)(arrayHr(float64Hr), float64Hr, arrayHr(float64Hr))
+    a: IndexedSeq[java.lang.Double]
+  }, null)(arrayHr(boxedFloat64Hr), float64Hr, arrayHr(boxedFloat64Hr))
 
-  register("//", { (x: Double, ys: IndexedSeq[Double]) =>
-    val a = new Array[Double](ys.length)
+  register("//", { (x: Double, ys: IndexedSeq[java.lang.Double]) =>
+    val a = new Array[java.lang.Double](ys.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floor(x / ys(i))
+      val y = ys(i)
+      if (y != null)
+        a(i) = java.lang.Math.floor(x / y)
       i += 1
     }
-    a: IndexedSeq[Double]
-  }, null)(float64Hr, arrayHr(float64Hr), arrayHr(float64Hr))
+    a: IndexedSeq[java.lang.Double]
+  }, null)(float64Hr, arrayHr(boxedFloat64Hr), arrayHr(boxedFloat64Hr))
 
-  register("//", { (xs: IndexedSeq[Double], ys: IndexedSeq[Double]) =>
+  register("//", { (xs: IndexedSeq[java.lang.Double], ys: IndexedSeq[java.lang.Double]) =>
     if (xs.length != ys.length)
       fatal(
         s"""Cannot apply operation '//' to arrays of unequal length:
            |  Left: ${ xs.length } elements, [${ xs.mkString(", ") }]
            |  Right: ${ ys.length } elements [${ ys.mkString(", ") }]""".stripMargin)
 
-    val a = new Array[Double](xs.length)
+    val a = new Array[java.lang.Double](xs.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floor(xs(i) / ys(i))
+      val x = xs(i)
+      val y = ys(i)
+      if (x != null && y != null)
+        a(i) = java.lang.Math.floor(x / y)
       i += 1
     }
-    a: IndexedSeq[Double]
-  }, null)(arrayHr(float64Hr), arrayHr(float64Hr), arrayHr(float64Hr))
-
+    a: IndexedSeq[java.lang.Double]
+  }, null)(arrayHr(boxedFloat64Hr), arrayHr(boxedFloat64Hr), arrayHr(boxedFloat64Hr))
+  
   register("%", (x: Int, y: Int) => java.lang.Math.floorMod(x, y), null)
   register("%", (x: Long, y: Long) => java.lang.Math.floorMod(x, y), null)
   register("%", (x: Float, y: Float) => {
@@ -2929,181 +2957,207 @@ object FunctionRegistry {
     if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
   }, null)
 
-  register("%", { (xs: IndexedSeq[Int], y: Int) =>
-    val a = new Array[Int](xs.length)
+  register("%", { (xs: IndexedSeq[java.lang.Integer], y: Int) =>
+    val a = new Array[java.lang.Integer](xs.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floorMod(xs(i), y)
+      val x = xs(i)
+      if (x != null)
+        a(i) = java.lang.Math.floorMod(x, y)
       i += 1
     }
-    a: IndexedSeq[Int]
-  }, null)(arrayHr(int32Hr), int32Hr, arrayHr(int32Hr))
+    a: IndexedSeq[java.lang.Integer]
+  }, null)(arrayHr(boxedInt32Hr), int32Hr, arrayHr(boxedInt32Hr))
 
-  register("%", { (x: Int, ys: IndexedSeq[Int]) =>
-    val a = new Array[Int](ys.length)
+  register("%", { (x: Int, ys: IndexedSeq[java.lang.Integer]) =>
+    val a = new Array[java.lang.Integer](ys.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floorMod(x, ys(i))
+      val y = ys(i)
+      if (y != null)
+        a(i) = java.lang.Math.floorMod(x, y)
       i += 1
     }
-    a: IndexedSeq[Int]
-  }, null)(int32Hr, arrayHr(int32Hr), arrayHr(int32Hr))
+    a: IndexedSeq[java.lang.Integer]
+  }, null)(int32Hr, arrayHr(boxedInt32Hr), arrayHr(boxedInt32Hr))
 
-  register("%", { (xs: IndexedSeq[Int], ys: IndexedSeq[Int]) =>
+  register("%", { (xs: IndexedSeq[java.lang.Integer], ys: IndexedSeq[java.lang.Integer]) =>
     if (xs.length != ys.length)
       fatal(
         s"""Cannot apply operation '%' to arrays of unequal length:
            |  Left: ${ xs.length } elements, [${ xs.mkString(", ") }]
            |  Right: ${ ys.length } elements [${ ys.mkString(", ") }]""".stripMargin)
 
-    val a = new Array[Int](xs.length)
+    val a = new Array[java.lang.Integer](xs.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floorMod(xs(i), ys(i))
+      val x = xs(i)
+      val y = ys(i)
+      if (x != null && y != null)
+        a(i) = java.lang.Math.floorMod(xs(i), ys(i))
       i += 1
     }
-    a: IndexedSeq[Int]
-  }, null)(arrayHr(int32Hr), arrayHr(int32Hr), arrayHr(int32Hr))
+    a: IndexedSeq[java.lang.Integer]
+  }, null)(arrayHr(boxedInt32Hr), arrayHr(boxedInt32Hr), arrayHr(boxedInt32Hr))
 
-  register("%", { (xs: IndexedSeq[Long], y: Long) =>
-    val a = new Array[Long](xs.length)
+  register("%", { (xs: IndexedSeq[java.lang.Long], y: Long) =>
+    val a = new Array[java.lang.Long](xs.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floorMod(xs(i), y)
+      val x = xs(i)
+      if (x != null)
+        a(i) = java.lang.Math.floorMod(x, y)
       i += 1
     }
-    a: IndexedSeq[Long]
-  }, null)(arrayHr(int64Hr), int64Hr, arrayHr(int64Hr))
+    a: IndexedSeq[java.lang.Long]
+  }, null)(arrayHr(boxedInt64Hr), int64Hr, arrayHr(boxedInt64Hr))
 
-  register("%", { (x: Long, ys: IndexedSeq[Long]) =>
-    val a = new Array[Long](ys.length)
+  register("%", { (x: Long, ys: IndexedSeq[java.lang.Long]) =>
+    val a = new Array[java.lang.Long](ys.length)
     var i = 0
     while (i < a.length) {
-      a(i) = java.lang.Math.floorMod(x, ys(i))
+      val y = ys(i)
+      if (y != null)
+        a(i) = java.lang.Math.floorMod(x, y)
       i += 1
     }
-    a: IndexedSeq[Long]
-  }, null)(int64Hr, arrayHr(int64Hr), arrayHr(int64Hr))
+    a: IndexedSeq[java.lang.Long]
+  }, null)(int64Hr, arrayHr(boxedInt64Hr), arrayHr(boxedInt64Hr))
 
-  register("%", { (xs: IndexedSeq[Long], ys: IndexedSeq[Long]) =>
+  register("%", { (xs: IndexedSeq[java.lang.Long], ys: IndexedSeq[java.lang.Long]) =>
     if (xs.length != ys.length)
       fatal(
         s"""Cannot apply operation '%' to arrays of unequal length:
            |  Left: ${ xs.length } elements, [${ xs.mkString(", ") }]
            |  Right: ${ ys.length } elements [${ ys.mkString(", ") }]""".stripMargin)
 
-    val a = new Array[Long](xs.length)
-    var i = 0
-    while (i < a.length) {
-      a(i) = java.lang.Math.floorMod(xs(i), ys(i))
-      i += 1
-    }
-    a: IndexedSeq[Long]
-  }, null)(arrayHr(int64Hr), arrayHr(int64Hr), arrayHr(int64Hr))
-  
-  register("%", { (xs: IndexedSeq[Float], y: Float) =>
-    val a = new Array[Float](xs.length)
+    val a = new Array[java.lang.Long](xs.length)
     var i = 0
     while (i < a.length) {
       val x = xs(i)
-      val t = x % y
-      if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
-        a(i) = t 
-      else 
-        a(i) = t + y
+      val y = ys(i)
+      if (x != null && y != null)
+        a(i) = java.lang.Math.floorMod(xs(i), ys(i))
       i += 1
     }
-    a: IndexedSeq[Float]
-  }, null)(arrayHr(float32Hr), float32Hr, arrayHr(float32Hr))
+    a: IndexedSeq[java.lang.Long]
+  }, null)(arrayHr(boxedInt64Hr), arrayHr(boxedInt64Hr), arrayHr(boxedInt64Hr))
 
-  register("%", { (x: Float, ys: IndexedSeq[Float]) =>
-    val a = new Array[Float](ys.length)
+  register("%", { (xs: IndexedSeq[java.lang.Float], y: Float) =>
+    val a = new Array[java.lang.Float](xs.length)
+    var i = 0
+    while (i < a.length) {
+      val x = xs(i)
+      if (x != null) {
+        val t = x % y
+        if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
+          a(i) = t
+        else
+          a(i) = t + y
+      }
+      i += 1
+    }
+    a: IndexedSeq[java.lang.Float]
+  }, null)(arrayHr(boxedFloat32Hr), float32Hr, arrayHr(boxedFloat32Hr))
+
+  register("%", { (x: Float, ys: IndexedSeq[java.lang.Float]) =>
+    val a = new Array[java.lang.Float](ys.length)
     var i = 0
     while (i < a.length) {
       val y = ys(i)
-      val t = x % y
-      if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
-        a(i) = t
-      else
-        a(i) = t + y
+      if (y != null) {
+        val t = x % y
+        if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
+          a(i) = t
+        else
+          a(i) = t + y
+      }
       i += 1
     }
-    a: IndexedSeq[Float]
-  }, null)(float32Hr, arrayHr(float32Hr), arrayHr(float32Hr))
+    a: IndexedSeq[java.lang.Float]
+  }, null)(float32Hr, arrayHr(boxedFloat32Hr), arrayHr(boxedFloat32Hr))
 
-  register("%", { (xs: IndexedSeq[Float], ys: IndexedSeq[Float]) =>
+  register("%", { (xs: IndexedSeq[java.lang.Float], ys: IndexedSeq[java.lang.Float]) =>
     if (xs.length != ys.length)
       fatal(
         s"""Cannot apply operation '%' to arrays of unequal length:
            |  Left: ${ xs.length } elements, [${ xs.mkString(", ") }]
            |  Right: ${ ys.length } elements [${ ys.mkString(", ") }]""".stripMargin)
 
-    val a = new Array[Float](xs.length)
+    val a = new Array[java.lang.Float](xs.length)
     var i = 0
     while (i < a.length) {
       val x = xs(i)
       val y = ys(i)
-      val t = x % y
-      if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
-        a(i) = t
-      else
-        a(i) = t + y
+      if (x != null && y != null) {
+        val t = x % y
+        if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
+          a(i) = t
+        else
+          a(i) = t + y
+      }
       i += 1
     }
-    a: IndexedSeq[Float]
-  }, null)(arrayHr(float32Hr), arrayHr(float32Hr), arrayHr(float32Hr))
+    a: IndexedSeq[java.lang.Float]
+  }, null)(arrayHr(boxedFloat32Hr), arrayHr(boxedFloat32Hr), arrayHr(boxedFloat32Hr))
 
-  register("%", { (xs: IndexedSeq[Double], y: Double) =>
-    val a = new Array[Double](xs.length)
+  register("%", { (xs: IndexedSeq[java.lang.Double], y: Double) =>
+    val a = new Array[java.lang.Double](xs.length)
     var i = 0
     while (i < a.length) {
       val x = xs(i)
-      val t = x % y
-      if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
-        a(i) = t
-      else
-        a(i) = t + y
+      if (x != null) {
+        val t = x % y
+        if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
+          a(i) = t
+        else
+          a(i) = t + y
+      }
       i += 1
     }
-    a: IndexedSeq[Double]
-  }, null)(arrayHr(float64Hr), float64Hr, arrayHr(float64Hr))
+    a: IndexedSeq[java.lang.Double]
+  }, null)(arrayHr(boxedFloat64Hr), float64Hr, arrayHr(boxedFloat64Hr))
 
-  register("%", { (x: Double, ys: IndexedSeq[Double]) =>
-    val a = new Array[Double](ys.length)
+  register("%", { (x: Double, ys: IndexedSeq[java.lang.Double]) =>
+    val a = new Array[java.lang.Double](ys.length)
     var i = 0
     while (i < a.length) {
       val y = ys(i)
-      val t = x % y
-      if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
-        a(i) = t
-      else
-        a(i) = t + y
+      if (y != null) {
+        val t = x % y
+        if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
+          a(i) = t
+        else
+          a(i) = t + y
+      }
       i += 1
     }
-    a: IndexedSeq[Double]
-  }, null)(float64Hr, arrayHr(float64Hr), arrayHr(float64Hr))
+    a: IndexedSeq[java.lang.Double]
+  }, null)(float64Hr, arrayHr(boxedFloat64Hr), arrayHr(boxedFloat64Hr))
 
-  register("%", { (xs: IndexedSeq[Double], ys: IndexedSeq[Double]) =>
+  register("%", { (xs: IndexedSeq[java.lang.Double], ys: IndexedSeq[java.lang.Double]) =>
     if (xs.length != ys.length)
       fatal(
         s"""Cannot apply operation '%' to arrays of unequal length:
            |  Left: ${ xs.length } elements, [${ xs.mkString(", ") }]
            |  Right: ${ ys.length } elements [${ ys.mkString(", ") }]""".stripMargin)
 
-    val a = new Array[Double](xs.length)
+    val a = new Array[java.lang.Double](xs.length)
     var i = 0
     while (i < a.length) {
       val x = xs(i)
       val y = ys(i)
-      val t = x % y
-      if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
-        a(i) = t
-      else
-        a(i) = t + y
+      if (x != null && y != null) {
+        val t = x % y
+        if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0)
+          a(i) = t
+        else
+          a(i) = t + y
+      }
       i += 1
     }
-    a: IndexedSeq[Double]
-  }, null)(arrayHr(float64Hr), arrayHr(float64Hr), arrayHr(float64Hr))
+    a: IndexedSeq[java.lang.Double]
+  }, null)(arrayHr(boxedFloat64Hr), arrayHr(boxedFloat64Hr), arrayHr(boxedFloat64Hr))
 
   register("+", (x: String, y: Any) => x + y, null)(stringHr, TTHr, stringHr)
 
