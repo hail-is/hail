@@ -70,7 +70,7 @@ Expressions
 
 .. autoclass:: ArrayNumericExpression
     :show-inheritance:
-    :special-members: __add__, __sub__, __mul__, __div__, __pow__
+    :special-members: __add__, __sub__, __mul__, __div__, __floordiv__, __pow__, __mod__
 
 .. autoclass:: ArrayStringExpression
     :show-inheritance:
@@ -121,7 +121,7 @@ Expressions
 
 .. autoclass:: NumericExpression
     :show-inheritance:
-    :special-members: __lt__, __le__, __gt__, __ge__, __neg__, __add__, __sub__, __mul__, __div__, __mod__, __pow__
+    :special-members: __lt__, __le__, __gt__, __ge__, __neg__, __add__, __sub__, __mul__, __div__, __floordiv__, __mod__, __pow__
 
 .. autoclass:: SetExpression
     :show-inheritance:

@@ -1248,6 +1248,59 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
                 return t
         return self._bin_op_numeric_reverse("/", other, ret_type_f)
 
+    def __floordiv__(self, other):
+        """Positionally divide by an array or a scalar using floor division.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(a1 // 2)
+            [0, 0, 1, 1, 2, 2]
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression`
+            Dividend.
+
+        Returns
+        -------
+        :class:`.NumericExpression`
+            Array of positional dividends.
+        """
+        return self._bin_op_numeric('//', other)
+
+    def __rfloordiv__(self, other):
+        return self._bin_op_numeric_reverse('//', other)
+
+    def __mod__(self, other):
+        """Positionally compute the left modulo the right.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(32 % a[1:])
+            [0,
+
+            >>> eval_expr(7 % y)
+            2.5
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression`
+            Dividend.
+
+        Returns
+        -------
+        :class:`.NumericExpression`
+            Remainder after dividing the left by the right.
+        """
+        return self._bin_op_numeric('%', other)
+
+    def __rmod__(self, other):
+        return self._bin_op_numeric_reverse('%', other)
+
     def __pow__(self, other):
         """Positionally raise to the power of an array or a scalar.
 
@@ -1274,7 +1327,7 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         return self._bin_op_numeric('**', other, lambda _: TArray(TFloat64()))
 
     def __rpow__(self, other):
-        return self._bin_op_numeric_reverse('**', other, lambda _: TArray(TFloat64))
+        return self._bin_op_numeric_reverse('**', other, lambda _: TArray(TFloat64()))
 
     @typecheck_method(ascending=expr_bool)
     def sort(self, ascending=True):
@@ -2596,6 +2649,34 @@ class NumericExpression(AtomicExpression):
                 # Float64 or Float32
                 return t
         return self._bin_op_numeric_reverse("/", other, ret_type_f)
+
+    def __floordiv__(self, other):
+        """Divide two numbers with floor division.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(x // 2)
+            1
+
+            >>> eval_expr(y // 2)
+            2.0
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression`
+            Dividend.
+
+        Returns
+        -------
+        :class:`.NumericExpression`
+            The floor of the left number divided by the right.
+        """
+        return self._bin_op_numeric('//', other)
+
+    def __rfloordiv__(self, other):
+        return self._bin_op_numeric_reverse('//', other)
 
     def __mod__(self, other):
         """Compute the left modulo the right number.

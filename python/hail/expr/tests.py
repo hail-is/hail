@@ -194,7 +194,7 @@ class Tests(unittest.TestCase):
                      TStruct(['f1', 'f2', 'f3'], [TInt32(),TInt32(),TInt32()]))
 
     def test_iter(self):
-        a = functions.capture([1,2,3])
+        a = functions.capture([1, 2, 3])
         self.assertRaises(TypeError, lambda: eval_expr(list(a)))
 
     def test_str_ops(self):
@@ -224,5 +224,496 @@ class Tests(unittest.TestCase):
         self.assertFalse(eval_expr(s5.to_boolean()))
         self.assertFalse(eval_expr(s6.to_boolean()))
 
+    def check_expr(self, expr, expected, expected_type):
+        self.assertEqual(expected_type, expr.dtype)
+        self.assertEqual((expected, expected_type), eval_expr_typed(expr))
 
+    def test_arithmetic(self):
+        a_int32 = functions.capture([2, 4, 8, 16])
+        a_int64 = a_int32.map(lambda x: x.to_int64())
+        a_float32 = a_int32.map(lambda x: x.to_float32())
+        a_float64 = a_int32.map(lambda x: x.to_float64())
+        int64_4 = functions.capture(4).to_int64()
+        int64_4s = functions.capture([4, 4, 4, 4]).map(lambda x: x.to_int64())
+        float32_4 = functions.capture(4).to_float32()
+        float32_4s = functions.capture([4, 4, 4, 4]).map(lambda x: x.to_float32())
+        float64_4 = functions.capture(4).to_float64()
+        float64_4s = functions.capture([4, 4, 4, 4]).map(lambda x: x.to_float64())
+        int64_3 = functions.capture(3).to_int64()
+        int64_3s = functions.capture([3, 3, 3, 3]).map(lambda x: x.to_int64())
+        float32_3 = functions.capture(3).to_float32()
+        float32_3s = functions.capture([3, 3, 3, 3]).map(lambda x: x.to_float32())
+        float64_3 = functions.capture(3).to_float64()
+        float64_3s = functions.capture([3, 3, 3, 3]).map(lambda x: x.to_float64())
+
+        ##########
+        # Division
+        ##########
+
+        expected = [0.5, 1.0, 2.0, 4.0]
+        expected_inv = [2.0, 1.0, 0.5, 0.25]
+
+        self.check_expr(a_int32 / 4, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 / 4, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 / 4, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 / 4, expected, TArray(TFloat64()))
+
+        self.check_expr(4 / a_int32, expected_inv, TArray(TFloat32()))
+        self.check_expr(4 / a_int64, expected_inv, TArray(TFloat32()))
+        self.check_expr(4 / a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(4 / a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 / [4, 4, 4, 4], expected, TArray(TFloat32()))
+        self.check_expr(a_int64 / [4, 4, 4, 4], expected, TArray(TFloat32()))
+        self.check_expr(a_float32 / [4, 4, 4, 4], expected, TArray(TFloat32()))
+        self.check_expr(a_float64 / [4, 4, 4, 4], expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 / int64_4, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 / int64_4, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 / int64_4, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 / int64_4, expected, TArray(TFloat64()))
+
+        self.check_expr(int64_4 / a_int32, expected_inv, TArray(TFloat32()))
+        self.check_expr(int64_4 / a_int64, expected_inv, TArray(TFloat32()))
+        self.check_expr(int64_4 / a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(int64_4 / a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 / int64_4s, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 / int64_4s, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 / int64_4s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 / int64_4s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 / float32_4, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 / float32_4, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 / float32_4, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 / float32_4, expected, TArray(TFloat64()))
+
+        self.check_expr(float32_4 / a_int32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_4 / a_int64, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_4 / a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_4 / a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 / float32_4s, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 / float32_4s, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 / float32_4s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 / float32_4s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 / float64_4, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 / float64_4, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 / float64_4, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 / float64_4, expected, TArray(TFloat64()))
+
+        self.check_expr(float64_4 / a_int32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_4 / a_int64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_4 / a_float32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_4 / a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 / float64_4s, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 / float64_4s, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 / float64_4s, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 / float64_4s, expected, TArray(TFloat64()))
+
+
+        ################
+        # Floor Division
+        ################
+
+        expected = [0, 1, 2, 5]
+        expected_inv = [1, 0, 0, 0]
+
+        self.check_expr(a_int32 // 3, expected, TArray(TInt32()))
+        self.check_expr(a_int64 // 3, expected, TArray(TInt64()))
+        self.check_expr(a_float32 // 3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 // 3, expected, TArray(TFloat64()))
+
+        self.check_expr(3 // a_int32, expected_inv, TArray(TInt32()))
+        self.check_expr(3 // a_int64, expected_inv, TArray(TInt64()))
+        self.check_expr(3 // a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(3 // a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 // [3, 3, 3, 3], expected, TArray(TInt32()))
+        self.check_expr(a_int64 // [3, 3, 3, 3], expected, TArray(TInt64()))
+        self.check_expr(a_float32 // [3, 3, 3, 3], expected, TArray(TFloat32()))
+        self.check_expr(a_float64 // [3, 3, 3, 3], expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 // int64_3, expected, TArray(TInt64()))
+        self.check_expr(a_int64 // int64_3, expected, TArray(TInt64()))
+        self.check_expr(a_float32 // int64_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 // int64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(int64_3 // a_int32, expected_inv, TArray(TInt64()))
+        self.check_expr(int64_3 // a_int64, expected_inv, TArray(TInt64()))
+        self.check_expr(int64_3 // a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(int64_3 // a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 // int64_3s, expected, TArray(TInt64()))
+        self.check_expr(a_int64 // int64_3s, expected, TArray(TInt64()))
+        self.check_expr(a_float32 // int64_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 // int64_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 // float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 // float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 // float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 // float32_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float32_3 // a_int32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 // a_int64, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 // a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 // a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 // float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 // float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 // float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 // float32_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 // float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 // float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 // float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 // float64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float64_3 // a_int32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 // a_int64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 // a_float32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 // a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 // float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 // float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 // float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 // float64_3s, expected, TArray(TFloat64()))
+
+        ##########
+        # Addition
+        ##########
+
+        expected = [5, 7, 11, 19]
+        expected_inv = expected
+
+        self.check_expr(a_int32 + 3, expected, TArray(TInt32()))
+        self.check_expr(a_int64 + 3, expected, TArray(TInt64()))
+        self.check_expr(a_float32 + 3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 + 3, expected, TArray(TFloat64()))
+
+        self.check_expr(3 + a_int32, expected_inv, TArray(TInt32()))
+        self.check_expr(3 + a_int64, expected_inv, TArray(TInt64()))
+        self.check_expr(3 + a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(3 + a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 + [3, 3, 3, 3], expected, TArray(TInt32()))
+        self.check_expr(a_int64 + [3, 3, 3, 3], expected, TArray(TInt64()))
+        self.check_expr(a_float32 + [3, 3, 3, 3], expected, TArray(TFloat32()))
+        self.check_expr(a_float64 + [3, 3, 3, 3], expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 + int64_3, expected, TArray(TInt64()))
+        self.check_expr(a_int64 + int64_3, expected, TArray(TInt64()))
+        self.check_expr(a_float32 + int64_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 + int64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(int64_3 + a_int32, expected_inv, TArray(TInt64()))
+        self.check_expr(int64_3 + a_int64, expected_inv, TArray(TInt64()))
+        self.check_expr(int64_3 + a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(int64_3 + a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 + int64_3s, expected, TArray(TInt64()))
+        self.check_expr(a_int64 + int64_3s, expected, TArray(TInt64()))
+        self.check_expr(a_float32 + int64_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 + int64_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 + float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 + float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 + float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 + float32_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float32_3 + a_int32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 + a_int64, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 + a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 + a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 + float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 + float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 + float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 + float32_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 + float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 + float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 + float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 + float64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float64_3 + a_int32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 + a_int64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 + a_float32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 + a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 + float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 + float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 + float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 + float64_3s, expected, TArray(TFloat64()))
+
+        #############
+        # Subtraction
+        #############
+
+        expected = [-1, 1, 5, 13]
+        expected_inv = [1, -1, -5, -13]
+
+        self.check_expr(a_int32 - 3, expected, TArray(TInt32()))
+        self.check_expr(a_int64 - 3, expected, TArray(TInt64()))
+        self.check_expr(a_float32 - 3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 - 3, expected, TArray(TFloat64()))
+
+        self.check_expr(3 - a_int32, expected_inv, TArray(TInt32()))
+        self.check_expr(3 - a_int64, expected_inv, TArray(TInt64()))
+        self.check_expr(3 - a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(3 - a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 - [3, 3, 3, 3], expected, TArray(TInt32()))
+        self.check_expr(a_int64 - [3, 3, 3, 3], expected, TArray(TInt64()))
+        self.check_expr(a_float32 - [3, 3, 3, 3], expected, TArray(TFloat32()))
+        self.check_expr(a_float64 - [3, 3, 3, 3], expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 - int64_3, expected, TArray(TInt64()))
+        self.check_expr(a_int64 - int64_3, expected, TArray(TInt64()))
+        self.check_expr(a_float32 - int64_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 - int64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(int64_3 - a_int32, expected_inv, TArray(TInt64()))
+        self.check_expr(int64_3 - a_int64, expected_inv, TArray(TInt64()))
+        self.check_expr(int64_3 - a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(int64_3 - a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 - int64_3s, expected, TArray(TInt64()))
+        self.check_expr(a_int64 - int64_3s, expected, TArray(TInt64()))
+        self.check_expr(a_float32 - int64_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 - int64_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 - float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 - float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 - float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 - float32_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float32_3 - a_int32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 - a_int64, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 - a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 - a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 - float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 - float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 - float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 - float32_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 - float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 - float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 - float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 - float64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float64_3 - a_int32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 - a_int64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 - a_float32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 - a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 - float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 - float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 - float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 - float64_3s, expected, TArray(TFloat64()))
+
+        ################
+        # Multiplication
+        ################
+
+        expected = [6, 12, 24, 48]
+        expected_inv = expected
+
+        self.check_expr(a_int32 * 3, expected, TArray(TInt32()))
+        self.check_expr(a_int64 * 3, expected, TArray(TInt64()))
+        self.check_expr(a_float32 * 3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 * 3, expected, TArray(TFloat64()))
+
+        self.check_expr(3 * a_int32, expected_inv, TArray(TInt32()))
+        self.check_expr(3 * a_int64, expected_inv, TArray(TInt64()))
+        self.check_expr(3 * a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(3 * a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 * [3, 3, 3, 3], expected, TArray(TInt32()))
+        self.check_expr(a_int64 * [3, 3, 3, 3], expected, TArray(TInt64()))
+        self.check_expr(a_float32 * [3, 3, 3, 3], expected, TArray(TFloat32()))
+        self.check_expr(a_float64 * [3, 3, 3, 3], expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 * int64_3, expected, TArray(TInt64()))
+        self.check_expr(a_int64 * int64_3, expected, TArray(TInt64()))
+        self.check_expr(a_float32 * int64_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 * int64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(int64_3 * a_int32, expected_inv, TArray(TInt64()))
+        self.check_expr(int64_3 * a_int64, expected_inv, TArray(TInt64()))
+        self.check_expr(int64_3 * a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(int64_3 * a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 * int64_3s, expected, TArray(TInt64()))
+        self.check_expr(a_int64 * int64_3s, expected, TArray(TInt64()))
+        self.check_expr(a_float32 * int64_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 * int64_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 * float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 * float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 * float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 * float32_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float32_3 * a_int32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 * a_int64, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 * a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 * a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 * float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 * float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 * float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 * float32_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 * float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 * float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 * float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 * float64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float64_3 * a_int32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 * a_int64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 * a_float32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 * a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 * float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 * float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 * float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 * float64_3s, expected, TArray(TFloat64()))
+
+
+        ################
+        # Exponentiation
+        ################
+
+        expected = [8, 64, 512, 4096]
+        expected_inv = [9.0, 81.0, 6561.0, 43046721.0]
+
+        self.check_expr(a_int32 ** 3, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 ** 3, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 ** 3, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 ** 3, expected, TArray(TFloat64()))
+
+        self.check_expr(3 ** a_int32, expected_inv, TArray(TFloat64()))
+        self.check_expr(3 ** a_int64, expected_inv, TArray(TFloat64()))
+        self.check_expr(3 ** a_float32, expected_inv, TArray(TFloat64()))
+        self.check_expr(3 ** a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 ** [3, 3, 3, 3], expected, TArray(TFloat64()))
+        self.check_expr(a_int64 ** [3, 3, 3, 3], expected, TArray(TFloat64()))
+        self.check_expr(a_float32 ** [3, 3, 3, 3], expected, TArray(TFloat64()))
+        self.check_expr(a_float64 ** [3, 3, 3, 3], expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 ** int64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 ** int64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 ** int64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 ** int64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(int64_3 ** a_int32, expected_inv, TArray(TFloat64()))
+        self.check_expr(int64_3 ** a_int64, expected_inv, TArray(TFloat64()))
+        self.check_expr(int64_3 ** a_float32, expected_inv, TArray(TFloat64()))
+        self.check_expr(int64_3 ** a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 ** int64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 ** int64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 ** int64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 ** int64_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 ** float32_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 ** float32_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 ** float32_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 ** float32_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float32_3 ** a_int32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float32_3 ** a_int64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float32_3 ** a_float32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float32_3 ** a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 ** float32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 ** float32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 ** float32_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 ** float32_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 ** float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 ** float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 ** float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 ** float64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float64_3 ** a_int32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 ** a_int64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 ** a_float32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 ** a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 ** float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 ** float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 ** float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 ** float64_3s, expected, TArray(TFloat64()))
+
+        #########
+        # Modulus
+        #########
+
+        expected = [2, 1, 2, 1]
+        expected_inv = [1, 3, 3, 3]
+
+        self.check_expr(a_int32 % 3, expected, TArray(TInt32()))
+        self.check_expr(a_int64 % 3, expected, TArray(TInt64()))
+        self.check_expr(a_float32 % 3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 % 3, expected, TArray(TFloat64()))
+
+        self.check_expr(3 % a_int32, expected_inv, TArray(TInt32()))
+        self.check_expr(3 % a_int64, expected_inv, TArray(TInt64()))
+        self.check_expr(3 % a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(3 % a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 % [3, 3, 3, 3], expected, TArray(TInt32()))
+        self.check_expr(a_int64 % [3, 3, 3, 3], expected, TArray(TInt64()))
+        self.check_expr(a_float32 % [3, 3, 3, 3], expected, TArray(TFloat32()))
+        self.check_expr(a_float64 % [3, 3, 3, 3], expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 % int64_3, expected, TArray(TInt64()))
+        self.check_expr(a_int64 % int64_3, expected, TArray(TInt64()))
+        self.check_expr(a_float32 % int64_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 % int64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(int64_3 % a_int32, expected_inv, TArray(TInt64()))
+        self.check_expr(int64_3 % a_int64, expected_inv, TArray(TInt64()))
+        self.check_expr(int64_3 % a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(int64_3 % a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 % int64_3s, expected, TArray(TInt64()))
+        self.check_expr(a_int64 % int64_3s, expected, TArray(TInt64()))
+        self.check_expr(a_float32 % int64_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 % int64_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 % float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 % float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 % float32_3, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 % float32_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float32_3 % a_int32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 % a_int64, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 % a_float32, expected_inv, TArray(TFloat32()))
+        self.check_expr(float32_3 % a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 % float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_int64 % float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float32 % float32_3s, expected, TArray(TFloat32()))
+        self.check_expr(a_float64 % float32_3s, expected, TArray(TFloat64()))
+
+        self.check_expr(a_int32 % float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 % float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 % float64_3, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 % float64_3, expected, TArray(TFloat64()))
+
+        self.check_expr(float64_3 % a_int32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 % a_int64, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 % a_float32, expected_inv, TArray(TFloat64()))
+        self.check_expr(float64_3 % a_float64, expected_inv, TArray(TFloat64()))
+
+        self.check_expr(a_int32 % float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_int64 % float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float32 % float64_3s, expected, TArray(TFloat64()))
+        self.check_expr(a_float64 % float64_3s, expected, TArray(TFloat64()))
 
