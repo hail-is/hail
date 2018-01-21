@@ -43,10 +43,10 @@ object MatrixType {
 
 case class MatrixType(
   globalType: TStruct,
-  colKey: Array[String],
+  colKey: IndexedSeq[String],
   colType: TStruct,
-  rowPartitionKey: Array[String],
-  rowKey: Array[String],
+  rowPartitionKey: IndexedSeq[String],
+  rowKey: IndexedSeq[String],
   // FIXME rowType
   rowType: TStruct,
   entryType: TStruct) extends BaseType {
