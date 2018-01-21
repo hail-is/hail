@@ -139,14 +139,14 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
   def mendelKT(): Table = {
     val signature = TStruct(
       "fam_id" -> TString(),
-      "id" -> TString(),
+      "s" -> TString(),
       "v" -> vSig,
       "code" -> TInt32(),
       "error" -> TString())
 
     val rdd = mendelErrors.map { e => Row(e.trio.fam.orNull, e.trio.kid, e.variant, e.code, e.errorString) }
 
-    Table(hc, rdd, signature, Array("id", "v"))
+    Table(hc, rdd, signature, Array("s", "v"))
   }
 
   def fMendelKT(): Table = {
@@ -175,7 +175,7 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
 
     val signature = TStruct(
       "fam_id" -> TString(),
-      "id" -> TString(),
+      "s" -> TString(),
       "errors" -> TInt64(),
       "snp_errors" -> TInt64()
     )
@@ -188,7 +188,7 @@ case class MendelErrors(hc: HailContext, vSig: Type, trios: IndexedSeq[CompleteT
 
     val rdd = nErrorPerIndiv.map { case (s, (n, nSNP)) => Row(trioFamBc.value.getOrElse(s, null), s, n, nSNP) }
 
-    Table(hc, rdd, signature, Array("id"))
+    Table(hc, rdd, signature, Array("s"))
   }
 
   def lMendelKT(): Table = {

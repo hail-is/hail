@@ -3762,8 +3762,12 @@ class VariantExpression(Expression):
         return self._method("inYPar", TBoolean())
 
     def in_autosome(self):
-        """Returns ``True`` if the polymorphism is on an autosome
-        (not an X, Y, or MT contig).
+        """Returns ``True`` if the polymorphism is on an autosome.
+
+        Notes
+        -----
+        All contigs are considered autosomal except those
+        designated as X, Y, or MT by the :class`.GenomeReference`.
 
         Examples
         --------

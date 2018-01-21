@@ -233,15 +233,19 @@ class Variant(HistoryMixin):
 
     def in_autosome(self):
         """True if this polymorphism is on an autosome.
-        (not an X, Y, or MT contig).
+        
+        Notes
+        -----
+        All contigs are considered autosomal except those
+        designated as X, Y, or MT by the :class`.GenomeReference`.
 
         :rtype: bool
         """
         return self._jrep.isAutosomal(self._rg._jrep)
 
     def in_autosome_or_par(self):
-        """True if this polymorphism is on an autosome,
-        or a pseudoautosomal region on chromosome X or Y.
+        """True if this polymorphism is on an autosome or a pseudoautosomal
+        region of chromosome X or Y.
 
         :rtype: bool
         """
@@ -265,6 +269,12 @@ class Variant(HistoryMixin):
 
     def in_y_par(self):
         """True if this polymorphism is on a pseudoautosomal region of chromosome Y.
+
+        Note
+        ----
+        Many variant callers only generate variants on chromosome X for the
+        pseudoautosomal region. In this case, all variants mapped to chromosome
+        Y are non-pseudoautosomal.
 
         :rtype: bool
         """

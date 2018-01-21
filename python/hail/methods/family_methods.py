@@ -14,7 +14,8 @@ from .misc import require_biallelic
 def trio_matrix(dataset, pedigree, complete_trios=False):
     """Builds and returns a matrix where columns correspond to trios and entries contain genotypes for the trio.
 
-    **Examples**
+    Examples
+    --------
 
     Create a trio matrix:
 
@@ -26,24 +27,24 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
     >>> pedigree = Pedigree.read('data/case_control_study.fam')
     >>> trio_dataset = trio_matrix(dataset, pedigree, complete_trios=True)
 
-    **Notes**
+    Notes
+    -----
 
-    This method builds a new matrix table with one column per trio.
-    If ``complete_trios`` is true, then only trios that satisfy
-    :meth:`~hail.representation.Trio.is_complete`
-    are included. In this new dataset, the column identifiers
-    are the sample IDs of the trio probands. The column fields and
+    This method builds a new matrix table with one column per trio. If
+    `complete_trios` is ``True``, then only trios that satisfy
+    :meth:`.Trio.is_complete` are included. In this new dataset, the column
+    identifiers are the sample IDs of the trio probands. The column fields and
     entries of the matrix are changed in the following ways:
 
     The new column fields consist of three Structs (proband, father, mother),
     a Boolean field, and a String field:
 
      - **proband.id** (*String*) - Proband sample ID, same as trio column key.
-     - **proband.fields** (*Struct*) - Fields on the proband.
+     - **proband.fields** (*Struct*) - Column fields on the proband.
      - **father.id** (*String*) - Father sample ID.
-     - **father.fields** (*Struct*) - Fields on the father.
+     - **father.fields** (*Struct*) - Column fields on the father.
      - **mother.id** (*String*) - Mother sample ID.
-     - **mother.fields** (*Struct*) - Fields on the mother.
+     - **mother.fields** (*Struct*) - Column fields on the mother.
      - **is_female** (*Boolean*) - Proband is female.
        True for female, false for male, missing if unknown.
      - **fam_id** (*String*) - Family ID.
@@ -69,7 +70,9 @@ def mendel_errors(dataset, pedigree):
     """Find Mendel errors; count per variant, individual and nuclear family.
 
     .. include:: ../_templates/req_tvariant.rst
+    
     .. include:: ../_templates/req_tstring.rst
+    
     .. include:: ../_templates/req_biallelic.rst
 
     Examples
@@ -109,9 +112,9 @@ def mendel_errors(dataset, pedigree):
     Columns:
 
         - **fam_id** (*String*) -- Family ID.
-        - **id** (*String*) -- Proband ID. (key column)
+        - **s** (*String*) -- Proband ID. (key field)
         - **v** (*Variant*) -- Variant in which the error was found.
-          (key column)
+          (key field)
         - **code** (*Int32*) -- Mendel error code, see below.
         - **error** (*String*) -- Readable representation of Mendel error.
 
@@ -121,8 +124,8 @@ def mendel_errors(dataset, pedigree):
     Columns:
 
         - **fam_id** (*String*) -- Family ID.
-        - **pat_id** (*String*) -- Paternal ID. (key column)
-        - **mat_id** (*String*) -- Maternal ID. (key column)
+        - **pat_id** (*String*) -- Paternal ID. (key field)
+        - **mat_id** (*String*) -- Maternal ID. (key field)
         - **children** (*Int32*) -- Number of children in this nuclear family.
         - **errors** (*Int32*) -- Number of Mendel errors in this nuclear
           family.
@@ -135,7 +138,7 @@ def mendel_errors(dataset, pedigree):
 
     Columns:
 
-        - **id** (*String*) -- Sample ID (key column).
+        - **s** (*String*) -- Sample ID (key field).
         - **fam_id** (*String*) -- Family ID.
         - **errors** (*Int64*) -- Number of Mendel errors involving this
           individual.
@@ -146,25 +149,27 @@ def mendel_errors(dataset, pedigree):
 
     Columns:
 
-        - **v** (*Variant*) -- Variant (key column).
+        - **v** (*Variant*) -- Variant (key field).
         - **errors** (*Int32*) -- Number of Mendel errors in this variant.
 
-    The code of each Mendel error is determined by the table below, extending
-    the
+    This method only considers complete trios (two parents and proband with
+    defined sex). The code of each Mendel error is determined by the table
+    below, extending the
     `Plink classification <https://www.cog-genomics.org/plink2/basic_stats#mendel>`__.
 
-    The copy state of a locus with respect to a trio is defined as follows,
-    where PAR is the `pseudoautosomal region
-    <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__ (PAR) defined by
-    the reference genome.
+    In the table, the copy state of a locus with respect to a trio is defined
+    as follows, where PAR is the `pseudoautosomal region
+    <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__ (PAR) of X and Y
+    defined by the reference genome and the autosome is defined by
+    :meth:`.in_autosome`.
 
-    - HemiX -- in non-PAR of X, male child
-    - HemiY -- in non-PAR of Y, male child
-    - Auto -- otherwise (in autosome or PAR, female child)
+    - Auto -- in autosome or in PAR or female child
+    - HemiX -- in non-PAR of X and male child
+    - HemiY -- in non-PAR of Y and male child
 
     `Any` refers to the set \{ HomRef, Het, HomVar, NoCall \} and `~`
     denotes complement in this set.
-    
+
     +------+---------+---------+--------+----------------------------+
     | Code | Dad     | Mom     | Kid    | Copy State | Implicated    |
     +======+=========+=========+========+============+===============+
@@ -193,14 +198,6 @@ def mendel_errors(dataset, pedigree):
     |   12 | HomRef  | Any     | HomVar | HemiY      | Dad, Kid      |
     +------+---------+---------+--------+------------+---------------+
 
-    This meod only considers children with two parents and a defined sex.
-
-    This method assumes all contigs apart from those defined as
-    :meth:`~hail.representation.GenomeReference.x_contigs` or
-    :meth:`~hail.representation.GenomeReference.y_contigs` by the reference
-    genome are fully autosomal. Mitochondria, decoys, etc. are not given
-    special treatment.
-
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
@@ -214,7 +211,9 @@ def mendel_errors(dataset, pedigree):
         Four tables as detailed in notes with Mendel error statistics.
     """
 
-    kts = require_biallelic(dataset, 'mendel_errors')._jvds.mendelErrors(pedigree._jrep)
+    dataset = require_biallelic(dataset, 'mendel_errors')
+
+    kts = dataset._jvds.mendelErrors(pedigree._jrep)
     return Table(kts._1()), Table(kts._2()), \
            Table(kts._3()), Table(kts._4())
 
@@ -249,31 +248,35 @@ def tdt(dataset, pedigree):
     -----
     The
     `transmission disequilibrium test <https://en.wikipedia.org/wiki/Transmission_disequilibrium_test#The_case_of_trios:_one_affected_child_per_family>`__
-    tracks the number of times the alternate allele is transmitted (t) or not
-    transmitted (u) from a heterozgyous parent to an affected child under the
-    null that the rate of such transmissions is 0.5. For variants where
-    transmission is guaranteed (i.e., the Y chromosome, mitochondria, and
-    paternal chromosome X variants outside of the PAR), the test is invalid. 
-
-    The TDT statistic is given by
+    compares the number of times the alternate allele is transmitted (t) versus
+    not transmitted (u) from a heterozgyous parent to an affected child. The null
+    hypothesis holds that each case is equally likely. The TDT statistic is given by
 
     .. math::
 
-        (t-u)^2 \over (t+u)
+        (t - u)^2 \over (t + u)
 
-    and asymptotically follows a chi-squared distribution with 1 d.o.f.
-    under the null hypothesis.
+    and asymptotically follows a chi-squared distribution with one degree of
+    freedom under the null hypothesis.
 
-    The number of transmissions and untransmissions for each possible set of
-    genotypes is determined from the table below. The copy state of a locus with
-    respect to a trio is defined as follows, where PAR is the pseudoautosomal
-    region (PAR) as specified in the reference genome. 
+    :func:`tdt` only considers complete trios (two parents and a proband with
+    defined sex) and only returns results for the autosome (as defined by
+    :meth:`.in_autosome`) and chromosome X. Transmissions and non-transmissions
+    are counted only for the configurations of genotypes and copy state in the
+    table below, in order to filter out Mendel errors and configurations where
+    transmission is guaranteed. The copy state of a locus with respect to a trio
+    is defined as follows: 
 
-    - HemiX -- in non-PAR of X and child is male
-    - Auto -- otherwise (in autosome or PAR, or child is female)
+    - Auto -- in autosome or in PAR of X or female child
+    - HemiX -- in non-PAR of X and male child
+
+    Here PAR is the `pseudoautosomal region
+    <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__
+    of X and Y defined by :class`.GenomeReference`, which many variant callers
+    map to chromosome X.
 
     +--------+--------+--------+------------+---+---+
-    |  Kid   | Dad    | Mom    | Copy State | T | U |
+    |  Kid   | Dad    | Mom    | Copy State | t | u |
     +========+========+========+============+===+===+
     | HomRef | Het    | Het    | Auto       | 0 | 2 |
     +--------+--------+--------+------------+---+---+
@@ -306,9 +309,6 @@ def tdt(dataset, pedigree):
     | HomVar | HomVar | Het    | HemiX      | 1 | 0 |
     +--------+--------+--------+------------+---+---+
 
-    :func:`tdt` only considers complete trios (two parents and a proband with
-    defined sex).
-
     :func:`tdt` produces a table with the following columns:
 
      - **v** (*Variant*) -- Variant tested.
@@ -334,89 +334,54 @@ def tdt(dataset, pedigree):
         Table of TDT results.
     """
 
+    dataset = require_biallelic(dataset, 'tdt')
+    dataset = dataset.annotate_rows(auto_or_x_par = dataset.v.in_autosome() | dataset.v.in_x_par())
+    dataset = dataset.filter_rows(dataset.auto_or_x_par | dataset.v.in_x_nonpar())
+
     hom_ref = 0
     het = 1
     hom_var = 2
-    
+
     auto = 2
     hemi_x = 1
-    
-    l = [(hom_ref,     het,     het,   auto, 0, 2),
-         (hom_ref, hom_ref,     het,   auto, 0, 1),
-         (hom_ref,     het, hom_ref,   auto, 0, 1),
-         (    het,     het,     het,   auto, 1, 1),
-         (    het, hom_ref,     het,   auto, 1, 0),
-         (    het,     het, hom_ref,   auto, 1, 0),
-         (    het, hom_var,     het,   auto, 0, 1),
-         (    het,     het, hom_var,   auto, 0, 1),
-         (hom_var,     het,     het,   auto, 2, 0),
-         (hom_var,     het, hom_var,   auto, 1, 0),
-         (hom_var, hom_var,     het,   auto, 1, 0),
-         (hom_ref, hom_ref,     het, hemi_x, 0, 1),
-         (hom_ref, hom_var,     het, hemi_x, 0, 1),
-         (hom_var, hom_ref,     het, hemi_x, 1, 0),
-         (hom_var, hom_var,     het, hemi_x, 1, 0)]
-    
-    mapping = {functions.capture([v[0], v[1], v[2], v[3]]): [v[4], v[5]] for v in l}
-    
+
+    #               kid,     dad,     mom,   copy, t, u
+    config_counts = [(hom_ref,     het,     het,   auto, 0, 2),
+                     (hom_ref, hom_ref,     het,   auto, 0, 1),
+                     (hom_ref,     het, hom_ref,   auto, 0, 1),
+                     (    het,     het,     het,   auto, 1, 1),
+                     (    het, hom_ref,     het,   auto, 1, 0),
+                     (    het,     het, hom_ref,   auto, 1, 0),
+                     (    het, hom_var,     het,   auto, 0, 1),
+                     (    het,     het, hom_var,   auto, 0, 1),
+                     (hom_var,     het,     het,   auto, 2, 0),
+                     (hom_var,     het, hom_var,   auto, 1, 0),
+                     (hom_var, hom_var,     het,   auto, 1, 0),
+                     (hom_ref, hom_ref,     het, hemi_x, 0, 1),
+                     (hom_ref, hom_var,     het, hemi_x, 0, 1),
+                     (hom_var, hom_ref,     het, hemi_x, 1, 0),
+                     (hom_var, hom_var,     het, hemi_x, 1, 0)]
+
+    count_map = functions.broadcast({functions.capture([c[0], c[1], c[2], c[3]]): [c[4], c[5]] for c in config_counts})
+
     tri = trio_matrix(dataset, pedigree, complete_trios=True)
-    tri = tri.filter_cols(functions.is_defined(tri.is_female))
-    tri = tri.annotate_globals(mapping = mapping)
-
-    tri = tri.annotate_rows(category =
-        functions.cond(tri.v.in_autosome_or_par(),
-                        0,
-                        functions.cond(tri.v.in_x_nonpar(),
-                                       1,
-                                       -1)))
     
-    # FIXME calculate in one pass once aggs are re-vectorized
-    tri = tri.annotate_rows(t = agg.sum(
-        agg.filter((tri.category != 1) | ~tri.father_entry.GT.is_het(),
-            functions.bind(
-                functions.cond(
-                    tri.category == 0,
-                    2,
-                    functions.cond(
-                        tri.category == -1,
-                        -1,
-                        functions.cond(
-                                tri.is_female,
-                                2,
-                                1))),
-                lambda ploidy: tri.mapping.get([
-                            tri.proband_entry.GT.num_alt_alleles(),
-                            tri.father_entry.GT.num_alt_alleles(),
-                            tri.mother_entry.GT.num_alt_alleles(),
-                            ploidy])[0]))))
+    # this filter removes mendel error of het father in x_nonpar. It also avoids
+    #   building and lookup up config in common case that neither parent is het
+    parent_is_valid_het = functions.bind(tri.father_entry.GT.is_het(),
+        lambda father_is_het: father_is_het & tri.auto_or_x_par | 
+                             (tri.mother_entry.GT.is_het() & ~father_is_het))
     
-    tri = tri.annotate_rows(u = agg.sum(
-        agg.filter((tri.category != 1) | ~tri.father_entry.GT.is_het(),
-            functions.bind(
-                functions.cond(
-                    tri.category == 0,
-                    2,
-                    functions.cond(
-                        tri.category == -1,
-                        -1,
-                        functions.cond(
-                                tri.is_female,
-                                2,
-                                1))),
-                lambda ploidy: tri.mapping.get([
-                            tri.proband_entry.GT.num_alt_alleles(),
-                            tri.father_entry.GT.num_alt_alleles(),
-                            tri.mother_entry.GT.num_alt_alleles(),
-                            ploidy])[1]))))
+    copy_state = functions.cond(tri.auto_or_x_par | tri.is_female, 2, 1)
+    config = [tri.proband_entry.GT.gt, tri.father_entry.GT.gt, tri.mother_entry.GT.gt, copy_state]
 
+    # FIXME combine using agg.array_sum once implemented
+    tri = tri.annotate_rows(
+        t = agg.sum(agg.filter(parent_is_valid_het, count_map.get(config)[0])),
+        u = agg.sum(agg.filter(parent_is_valid_het, count_map.get(config)[1])))
+    
     tab = tri.rows_table().select('v', 't', 'u')
-    
-    tab = tab.annotate(chi2 =
-        functions.cond(
-            tab.t + tab.u > 0,
-            ((tab.t - tab.u) ** 2) / (tab.t + tab.u),
-            0.0))
-    
+    tab = tab.annotate(chi2 = ((tab.t - tab.u) ** 2) / (tab.t + tab.u))
     tab = tab.annotate(pval = functions.pchisqtail(tab.chi2, 1.0))
-    
-    return tab
+
+    return tab.cache()

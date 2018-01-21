@@ -150,15 +150,15 @@ class Tests(unittest.TestCase):
         print(ped.trios[:5])
         print(ped.complete_trios)
 
-        t1 = Trio('kid1', father='dad1', is_female=True)
-        t2 = Trio('kid1', father='dad1', is_female=True)
+        t1 = Trio('kid1', pat_id='dad1', is_female=True)
+        t2 = Trio('kid1', pat_id='dad1', is_female=True)
 
         self.assertEqual(t1, t2)
 
-        self.assertEqual(t1.fam, None)
-        self.assertEqual(t1.proband, 'kid1')
-        self.assertEqual(t1.father, 'dad1')
-        self.assertEqual(t1.mother, None)
+        self.assertEqual(t1.fam_id, None)
+        self.assertEqual(t1.s, 'kid1')
+        self.assertEqual(t1.pat_id, 'dad1')
+        self.assertEqual(t1.mat_id, None)
         self.assertEqual(t1.is_female, True)
         self.assertEqual(t1.is_complete(), False)
         self.assertEqual(t1.is_female, True)

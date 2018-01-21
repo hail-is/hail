@@ -338,9 +338,9 @@ class Tests(unittest.TestCase):
     def test_mendel_errors(self):
         dataset = self.get_dataset()
         men, fam, ind, var = methods.mendel_errors(dataset, Pedigree.read('src/test/resources/sample.fam'))
-        men.select('fam_id', 'id', 'code')
+        men.select('fam_id', 's', 'code')
         fam.select('pat_id', 'children')
-        self.assertEqual(ind.key, ['id'])
+        self.assertEqual(ind.key, ['s'])
         self.assertEqual(var.key, ['v'])
         dataset.annotate_rows(mendel=var[dataset.v]).count_rows()
 
@@ -434,25 +434,30 @@ class Tests(unittest.TestCase):
         # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.GT))
         
     def test_tdt(self):
-        pedigree = Pedigree.read('src/test/resources/tdt.fam')
+        pedigree = Pedigree.read(test_file('tdt.fam'))
         tdt_tab = (methods.tdt(
-            methods.split_multi_hts(hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4)),
+            methods.split_multi_hts(hc.import_vcf(test_file('tdt.vcf'), min_partitions=4)),
             pedigree))
 
-        truth = hc.import_table('/Users/jbloom/hail/src/test/resources/tdt_results.tsv',
-                               types={'POSITION': TInt32(), 'T': TInt32(), 'U': TInt32(),
-                                      'Chi2': TFloat64(), 'Pval': TFloat64()})
+        truth = hc.import_table(
+            test_file('tdt_results.tsv'),
+            types={'POSITION': TInt32(), 'T': TInt32(), 'U': TInt32(),
+                   'Chi2': TFloat64(), 'Pval': TFloat64()})
         truth = (truth
-                 .transmute(v = functions.variant(truth.CHROM, truth.POSITION, truth.REF, [truth.ALT]))
-                 .key_by('v'))
+            .transmute(v = functions.variant(truth.CHROM, truth.POSITION, truth.REF, [truth.ALT]))
+            .key_by('v'))
 
-        bad = tdt_tab.join(truth, how='outer')
+        if tdt_tab.count() != truth.count():
+            self.fail('Result has {} rows but should have {} rows'.format(tdt_tab.count(), truth.count()))
+
+        bad = (tdt_tab.filter(functions.is_nan(tdt_tab.pval), keep=False)
+            .join(truth.filter(functions.is_nan(truth.Pval), keep=False), how='outer'))
         
         bad = bad.filter(~(
-                (bad.t == bad.T) &
-                (bad.u == bad.U) &
-                ((bad.chi2 - bad.Chi2).abs() < 0.001) &
-                ((bad.pval - bad.Pval).abs() < 0.001)))
+            (bad.t == bad.T) &
+            (bad.u == bad.U) &
+            ((bad.chi2 - bad.Chi2).abs() < 0.001) &
+            ((bad.pval - bad.Pval).abs() < 0.001)))
         
         if bad.count() != 0:
             bad.order_by(asc(bad.v)).show()

@@ -402,9 +402,9 @@ class ContextTests(unittest.TestCase):
         vds_assoc.variants_table().select(['Variant = v', 'va.lmmreg.*']).export('/tmp/lmmreg.tsv')
 
         men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_file('/sample.fam')))
-        men.select(['fam_id', 'id', 'code'])
+        men.select(['fam_id', 's', 'code'])
         fam.select(['pat_id', 'children'])
-        self.assertEqual(ind.key, ['id'])
+        self.assertEqual(ind.key, ['s'])
         self.assertEqual(var.key, ['v'])
         sample_split.annotate_variants_table(var, root='va.mendel').count()
 
@@ -819,7 +819,7 @@ class ContextTests(unittest.TestCase):
 
     def test_tdt(self):
         pedigree = Pedigree.read('src/test/resources/tdt.fam')
-        tdt_res = (hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4)
+        tdt_tab = (hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4)
                    .split_multi_hts()
                    .tdt(pedigree))
 
@@ -831,8 +831,12 @@ class ContextTests(unittest.TestCase):
                  .drop(['CHROM', 'POSITION', 'REF', 'ALT'])
                  .key_by('v'))
 
-        bad = (tdt_res
-               .join(truth, how='outer')
+        if tdt_tab.count() != truth.count():
+            self.fail('Result has {} rows but should have {} rows'.format(tdt_tab.count(), truth.count()))
+
+        bad = (tdt_tab
+               .filter('is_nan(pval)', keep=False)
+               .join(truth.filter('is_nan(Pval)', keep=False), how='outer')
                .filter('!(transmitted == T && '
                        'untransmitted == U && '
                        'abs(chi2 - Chi2) < 0.001 && '
