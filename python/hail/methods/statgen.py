@@ -438,9 +438,9 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
 @handle_py4j
 @typecheck(ds=MatrixTable,
            kinshipMatrix=KinshipMatrix,
-           y=strlike,
-           x=strlike,
-           covariates=listof(strlike),
+           y=Expression,
+           x=Expression,
+           covariates=listof(Expression),
            global_root=strlike,
            va_root=strlike,
            run_assoc=bool,
@@ -462,8 +462,8 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     association using a linear mixed model:
 
     >>> ds = hc.read("data/example_lmmreg.vds")
-    >>> kinship_matrix = methods.rmm(ds.filter_rows(ds.useInKinship))
-    >>> lmm_ds = methods.lmmreg(ds, kinship_matrix, ds.pheno, ds.GT.nNonRefAlleles(), [ds.cov1, ds.cov2])
+    >>> kinship_matrix = methods.rrm(ds.filter_rows(ds.useInKinship)['GT'])
+    >>> lmm_ds = methods.lmmreg(ds, kinship_matrix, ds.pheno, ds.GT.num_alt_alleles(), [ds.cov1, ds.cov2])
 
     Notes
     -----
@@ -478,7 +478,8 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     2) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
     3) fit covariate coefficients and variance parameters in the
        sample-covariates-only (global) model using restricted maximum
-       likelihood (`REML`_), storing results in a global field under `lmmreg_global`
+       likelihood (`REML`_), storing results in a global field under
+       `lmmreg_global`
     4) test each variant for association, storing results in a row-indexed
        field under `lmmreg`
 
@@ -735,7 +736,8 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
 
     .. math::
 
-      h^2 = 1 - \mathrm{sigmoid}(\mathrm{ln}(\delta)) = \mathrm{sigmoid}(-\mathrm{ln}(\delta))
+      h^2 = 1 - \mathrm{sigmoid}(\mathrm{ln}(\delta))
+          = \mathrm{sigmoid}(-\mathrm{ln}(\delta))
 
     .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
 
@@ -767,7 +769,8 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
 
     .. math::
 
-      \frac{x_3 (y_2 - y_1) + x_2 (y_1 - y_3) + x_1 (y_3 - y_2))}{(x_2 - x_1)(x_1 - x_3)(x_3 - x_2)} = -\frac{1}{2 \sigma^2}
+      \frac{x_3 (y_2 - y_1) + x_2 (y_1 - y_3) + x_1 (y_3 - y_2))}
+           {(x_2 - x_1)(x_1 - x_3)(x_3 - x_2)} = -\frac{1}{2 \sigma^2}
 
     The standard error :math:`\hat{\sigma}` is then estimated by solving for
     :math:`\sigma`.
@@ -910,14 +913,14 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
 
     base, cleanup = ds._process_joins(*all_exprs)
 
-    jds = base._jvds.lmmreg(kinshipMatrix,
+    jds = base._jvds.lmmreg(kinshipMatrix._jkm,
                             y._ast.to_hql(),
                             x._ast.to_hql(),
                             jarray(Env.jvm().java.lang.String,
                                    [cov._ast.to_hql() for cov in covariates]),
                             use_ml,
-                            global_root,
-                            va_root,
+                            'global.`{}`'.format(global_root),
+                            'va.`{}`'.format(va_root),
                             run_assoc,
                             joption(delta),
                             sparsity_threshold,

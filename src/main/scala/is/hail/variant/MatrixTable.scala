@@ -128,13 +128,13 @@ object MatrixTable {
           s"""corrupt or outdated VDS: invalid metadata
              |  Recreate VDS with current version of Hail.
              |  Detailed exception:
-             |  ${e.getMessage}""".stripMargin)
+             |  ${ e.getMessage }""".stripMargin)
       }
     }
 
     if (metadata.version != MatrixTable.fileVersion)
       fatal(
-        s"""Invalid VDS: old version [${metadata.version}]
+        s"""Invalid VDS: old version [${ metadata.version }]
            |  Recreate VDS with current version of Hail.
          """.stripMargin)
 
@@ -791,8 +791,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       if (keyTypes != vdsKeyType)
         fatal(
           s"""method `annotateSamplesTable' encountered a mismatch between table keys and computed keys.
-             |  Computed keys:  [ ${vdsKeyType.mkString(", ")} ]
-             |  Key table keys: [ ${keyTypes.mkString(", ")} ]""".stripMargin)
+             |  Computed keys:  [ ${ vdsKeyType.mkString(", ") } ]
+             |  Key table keys: [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
 
       val keyFuncArray = vdsKeyFs.toArray
 
@@ -1912,12 +1912,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val missingSamples = sampleSet -- newSampleSet
     if (missingSamples.nonEmpty)
-      fatal(s"Found ${missingSamples.size} ${plural(missingSamples.size, "sample ID")} in dataset that are not in new ordering:\n  " +
+      fatal(s"Found ${ missingSamples.size } ${ plural(missingSamples.size, "sample ID") } in dataset that are not in new ordering:\n  " +
         s"@1", missingSamples.truncatable("\n  "))
 
     val notInDataset = newSampleSet -- sampleSet
     if (notInDataset.nonEmpty)
-      fatal(s"Found ${notInDataset.size} ${plural(notInDataset.size, "sample ID")} in new ordering that are not in dataset:\n  " +
+      fatal(s"Found ${ notInDataset.size } ${ plural(notInDataset.size, "sample ID") } in new ordering that are not in dataset:\n  " +
         s"@1", notInDataset.truncatable("\n  "))
 
     val oldIndex = (colKeys: IndexedSeq[Annotation]).zipWithIndex.toMap
@@ -1966,7 +1966,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     requireColKeyString("rename duplicates")
     val (newIds, duplicates) = mangle(stringSampleIds.toArray)
     if (duplicates.nonEmpty)
-      info(s"Renamed ${duplicates.length} duplicate ${plural(duplicates.length, "sample ID")}. " +
+      info(s"Renamed ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
         s"Mangled IDs as follows:\n  @1", duplicates.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
     else
       info(s"No duplicate sample IDs found.")
@@ -1981,36 +1981,36 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       metadataSame = false
       println(
         s"""different va signature:
-           |  left:  ${vaSignature.toPrettyString(compact = true)}
-           |  right: ${that.vaSignature.toPrettyString(compact = true)}""".stripMargin)
+           |  left:  ${ vaSignature.toPrettyString(compact = true) }
+           |  right: ${ that.vaSignature.toPrettyString(compact = true) }""".stripMargin)
     }
     if (saSignature != that.saSignature) {
       metadataSame = false
       println(
         s"""different sa signature:
-           |  left:  ${saSignature.toPrettyString(compact = true)}
-           |  right: ${that.saSignature.toPrettyString(compact = true)}""".stripMargin)
+           |  left:  ${ saSignature.toPrettyString(compact = true) }
+           |  right: ${ that.saSignature.toPrettyString(compact = true) }""".stripMargin)
     }
     if (globalSignature != that.globalSignature) {
       metadataSame = false
       println(
         s"""different global signature:
-           |  left:  ${globalSignature.toPrettyString(compact = true)}
-           |  right: ${that.globalSignature.toPrettyString(compact = true)}""".stripMargin)
+           |  left:  ${ globalSignature.toPrettyString(compact = true) }
+           |  right: ${ that.globalSignature.toPrettyString(compact = true) }""".stripMargin)
     }
     if (!sampleAnnotationsSimilar(that, tolerance)) {
       metadataSame = false
       println(
         s"""different sample annotations:
            |  left:  $sampleAnnotations
-           |  right: ${that.sampleAnnotations}""".stripMargin)
+           |  right: ${ that.sampleAnnotations }""".stripMargin)
     }
     if (!globalSignature.valuesSimilar(globalAnnotation, that.globalAnnotation)) {
       metadataSame = false
       println(
         s"""different global annotation:
            |  left:  $globalAnnotation
-           |  right: ${that.globalAnnotation}""".stripMargin)
+           |  right: ${ that.globalAnnotation }""".stripMargin)
     }
     if (!metadataSame)
       println("metadata were not the same")
@@ -2158,8 +2158,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       foundError = true
       warn(
         s"""found violation in global annotation
-           |Schema: ${globalSignature.toPrettyString()}
-           |Annotation: ${Annotation.printAnnotation(globalAnnotation)}""".stripMargin)
+           |Schema: ${ globalSignature.toPrettyString() }
+           |Annotation: ${ Annotation.printAnnotation(globalAnnotation) }""".stripMargin)
     }
 
     sampleAnnotations.zipWithIndex.find { case (sa, i) => !saSignature.typeCheck(sa) }
@@ -2779,7 +2779,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def filterAlleles(filterExpr: String, variantExpr: String = "",
     keep: Boolean = true, subset: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): MatrixTable = {
     if (!genotypeSignature.isOfType(Genotype.htsGenotypeType))
-      fatal(s"filter_alleles: genotype_schema must be the HTS genotype schema, found: ${genotypeSignature}")
+      fatal(s"filter_alleles: genotype_schema must be the HTS genotype schema, found: ${ genotypeSignature }")
 
     val genotypeExpr = if (subset) {
       """
