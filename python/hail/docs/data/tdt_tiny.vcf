@@ -1,0 +1,28 @@
+##fileformat=VCFv4.1
+##FILTER=<ID=PASS,Description="All filters passed">
+##ALT=<ID=NON_REF,Description="Represents any possible alternative allele at this location">
+##FILTER=<ID=LowQual,Description="Low quality">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=.,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth (reads with MQ=255 or with bad mates are filtered)">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
+##GVCFBlock=minGQ=0(inclusive),maxGQ=5(exclusive)
+##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes, for each ALT allele, in the same order as listed">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency, for each ALT allele, in the same order as listed">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##reference=file:///seq/references/Homo_sapiens_assembly19/v1/Homo_sapiens_assembly19.fasta
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	1	2	3	4	5	6	7	8	9	10	11	12	13	16	17	18
+1	246714629	.	C	A	234	PASS	AC=6;AF=0.5;AN=22	GT	0/1	0/0	0/0	0/1	0/0	./.	./.	./.	./.	./.	0/0	0/1	0/1	0/0	0/1	0/1
+2	167262169	rs35344714	T	C	875	PASS	AC=2;AF=0.0714285;AN=28	GT	./.	./.	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/0
+8	141566311	rs2271738	C	T	456	PASS	AC=10;AF=0.32;AN=32	GT	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/1	0/0	1/1	1/1	0/0	1/1	1/1
+12	94543506	.	C	T	579	PASS	AC=4;AF=0.125;AN=32	GT	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/1	0/0	0/0	0/1	0/0	0/0	0/1
+16	66597143	rs2232726	G	T	344	PASS	AC=7;AF=0.2692;AN=26	GT	0/1	0/0	0/1	./.	./.	./.	0/0	0/0	0/0	0/1	0/0	0/0	1/1	0/0	0/0	1/1
+17	45669428	.	T	TA	344	PASS	AC=6;AF=0.33;AN=18	GT	0/1	0/0	0/1	./.	./.	./.	./.	./.	./.	./.	0/0	0/1	0/1	0/0	0/1	0/1
+19	78658	.	G	GTT	397	PASS	AC=6;AF=0.2308;AN=26	GT	./.	./.	./.	0/1	0/0	0/0	0/1	0/1	0/0	0/1	0/0	0/1	0/0	0/0	0/1	0/0
+20	60987737	rs6089366	C	T	234	PASS	AC=10;AF=0.32;AN=32	GT	0/0	0/0	0/0	0/1	0/0	0/0	1/1	0/0	0/0	0/1	0/0	0/1	1/1	0/0	0/1	1/1
+21	43645906	.	A	G	235	PASS	AC=11;AF=0.34375;AN=32	GT	0/1	0/1	0/1	0/1	0/0	0/0	1/1	0/0	0/0	0/1	0/0	1/1	0/0	0/0	1/1	0/0
+X	20113	.	A	T	261	PASS	AC=9;AF=0.28125;AN=26	GT	0/1	0/0	0/1	./.	./.	./.	0/0	0/0	0/0	0/1	0/0	1/1	0/1	1/1	0/0	0/1
+X	20114	.	A	TT	261	PASS	AC=10;AF=0.26;AN=26	GT	./.	./.	./.	0/1	0/0	0/0	0/1	0/1	0/0	0/1	0/0	1/1	0/1	1/1	0/0	0/1
+Y	155238	.	A	C	288	PASS	AC=29;AF=0.1;AN=32	GT	1/1	1/1	1/1	1/1	1/1	1/1	1/1	1/1	1/1	0/1	1/1	1/1	0/1	1/1	1/1	0/1
+MT	15000	.	T	C	288	PASS	AC=29;AF=0.1;AN=32	GT	1/1	1/1	1/1	1/1	1/1	1/1	1/1	1/1	1/1	0/1	1/1	1/1	0/1	1/1	1/1	0/1

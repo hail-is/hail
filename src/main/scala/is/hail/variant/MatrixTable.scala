@@ -2614,14 +2614,14 @@ class MatrixTable(val hc: HailContext, val metadata: VSMMetadata,
 
     val memberAnnotationType = TStruct(
       "id" -> TString(required = true),
-      "annotations" -> saSignature
+      "fields" -> saSignature
     )
     val newSaSignature = TStruct(
       "proband" -> memberAnnotationType,
       "father" -> memberAnnotationType,
       "mother" -> memberAnnotationType,
-      "isFemale" -> TBooleanOptional,
-      "famID" -> TStringOptional
+      "is_female" -> TBooleanOptional,
+      "fam_id" -> TStringOptional
     )
 
     val newSampleAnnotations = new Array[Annotation](nTrios)

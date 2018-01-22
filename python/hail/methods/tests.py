@@ -293,7 +293,6 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(manual, rrm))
 
-
     def test_pca(self):
         dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()
         eigenvalues, scores, loadings = methods.pca(dataset.GT.num_alt_alleles(), k=2, compute_loadings=True)
@@ -338,8 +337,8 @@ class Tests(unittest.TestCase):
     def test_mendel_errors(self):
         dataset = self.get_dataset()
         men, fam, ind, var = methods.mendel_errors(dataset, Pedigree.read('src/test/resources/sample.fam'))
-        men.select('fid', 's', 'code')
-        fam.select('father', 'nChildren')
+        men.select('fam_id', 's', 'code')
+        fam.select('pat_id', 'children')
         self.assertEqual(ind.key, ['s'])
         self.assertEqual(var.key, ['v'])
         dataset.annotate_rows(mendel=var[dataset.v]).count_rows()
@@ -432,3 +431,33 @@ class Tests(unittest.TestCase):
         # FIXME still resolving: these should throw an error due to unexpected row / entry indicies, still looking into why a more cryptic error is being thrown
         # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.v.contig))
         # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.GT))
+        
+    def test_tdt(self):
+        pedigree = Pedigree.read(test_file('tdt.fam'))
+        tdt_tab = (methods.tdt(
+            methods.split_multi_hts(hc.import_vcf(test_file('tdt.vcf'), min_partitions=4)),
+            pedigree))
+
+        truth = hc.import_table(
+            test_file('tdt_results.tsv'),
+            types={'POSITION': TInt32(), 'T': TInt32(), 'U': TInt32(),
+                   'Chi2': TFloat64(), 'Pval': TFloat64()})
+        truth = (truth
+            .transmute(v = functions.variant(truth.CHROM, truth.POSITION, truth.REF, [truth.ALT]))
+            .key_by('v'))
+        
+        if tdt_tab.count() != truth.count():
+           self.fail('Result has {} rows but should have {} rows'.format(tdt_tab.count(), truth.count()))
+
+        bad = (tdt_tab.filter(functions.is_nan(tdt_tab.pval), keep=False)
+            .join(truth.filter(functions.is_nan(truth.Pval), keep=False), how='outer'))
+        
+        bad = bad.filter(~(
+            (bad.t == bad.T) &
+            (bad.u == bad.U) &
+            ((bad.chi2 - bad.Chi2).abs() < 0.001) &
+            ((bad.pval - bad.Pval).abs() < 0.001)))
+        
+        if bad.count() != 0:
+            bad.order_by(asc(bad.v)).show()
+            self.fail('Found rows in violation of the predicate (see show output)')

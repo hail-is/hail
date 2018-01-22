@@ -2245,7 +2245,7 @@ class BooleanExpression(AtomicExpression):
         Parameters
         ----------
         other : :class:`.BooleanExpression`
-            Right-side operation.
+            Right-side operand.
 
         Returns
         -------
@@ -2285,7 +2285,7 @@ class BooleanExpression(AtomicExpression):
         Parameters
         ----------
         other : :class:`.BooleanExpression`
-            Right-side operation.
+            Right-side operand.
 
         Returns
         -------
@@ -2295,7 +2295,7 @@ class BooleanExpression(AtomicExpression):
         return self._bin_op_logical("||", other)
 
     def __invert__(self):
-        """Return the boolean inverse.
+        """Return the boolean negation.
 
         Examples
         --------
@@ -2313,7 +2313,7 @@ class BooleanExpression(AtomicExpression):
         Returns
         -------
         :class:`.BooleanExpression`
-            Boolean inverse.
+            Boolean negation.
         """
         return self._unary_op("!")
 
@@ -3665,7 +3665,7 @@ class VariantExpression(Expression):
 
     @property
     def contig(self):
-        """Returns the chromosome.
+        """Returns the contig (chromosome).
 
         Examples
         --------
@@ -3682,7 +3682,8 @@ class VariantExpression(Expression):
         return self._field("contig", TString())
 
     def in_x_nonpar(self):
-        """Returns ``True`` if the polymorphism is in a non-pseudoautosomal region of chromosome X.
+        """Returns ``True`` if the polymorphism is in a non-pseudoautosomal
+        region of chromosome X.
 
         Examples
         --------
@@ -3694,12 +3695,12 @@ class VariantExpression(Expression):
         Returns
         -------
         :class:`.BooleanExpression`
-            ``True`` if the variant is found in a non-pseudoautosomal region of chromosome X.
         """
         return self._method("inXNonPar", TBoolean())
 
     def in_x_par(self):
-        """Returns ``True`` if the polymorphism is in the pseudoautosomal region of chromosome X.
+        """Returns ``True`` if the polymorphism is in a pseudoautosomal region
+        of chromosome X.
 
         Examples
         --------
@@ -3711,12 +3712,12 @@ class VariantExpression(Expression):
         Returns
         -------
         :class:`.BooleanExpression`
-            ``True`` if the variant is found in a pseudoautosomal region of chromosome X.
         """
         return self._method("inXPar", TBoolean())
 
     def in_y_nonpar(self):
-        """Returns ``True`` if the polymorphism is in a non-pseudoautosomal region of chromosome Y.
+        """Returns ``True`` if the polymorphism is in a non-pseudoautosomal
+        region of chromosome Y.
 
         Examples
         --------
@@ -3734,12 +3735,12 @@ class VariantExpression(Expression):
         Returns
         -------
         :class:`.BooleanExpression`
-            ``True`` if the variant is found in a non-pseudoautosomal region of chromosome Y.
         """
         return self._method("inYNonPar", TBoolean())
 
     def in_y_par(self):
-        """Returns ``True`` if the polymorphism is in a pseudoautosomal region of chromosome Y.
+        """Returns ``True`` if the polymorphism is in a pseudoautosomal region
+        of chromosome Y.
 
         Examples
         --------
@@ -3757,26 +3758,62 @@ class VariantExpression(Expression):
         Returns
         -------
         :class:`.BooleanExpression`
-            ``True`` if the variant is found in a pseudoautosomal region of chromosome Y.
         """
         return self._method("inYPar", TBoolean())
 
-    def is_autosomal(self):
-        """Returns ``True`` if the polymorphism is found on an autosome.
+    def in_autosome(self):
+        """Returns ``True`` if the polymorphism is on an autosome.
+
+        Notes
+        -----
+        All contigs are considered autosomal except those
+        designated as X, Y, or MT by :class:`.GenomeReference`.
 
         Examples
         --------
         .. doctest::
 
-            >>> eval_expr(variant.is_autosomal())
+            >>> eval_expr(variant.in_autosome())
             True
 
         Returns
         -------
         :class:`.BooleanExpression`
-            ``True`` if the variant is found on an autosome.
         """
         return self._method("isAutosomal", TBoolean())
+
+    def in_autosome_or_par(self):
+        """Returns ``True`` if the polymorphism is on an autosome or
+        a pseudoautosomal region of chromosome X or Y.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.in_autosome_or_par())
+            True
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("isAutosomalOrPseudoAutosomal", TBoolean())
+
+    def in_mito(self):
+        """Returns ``True`` if the polymorphism is on mitochondrial DNA.
+
+        Examples
+        --------
+        .. doctest::
+
+            >>> eval_expr(variant.in_mito())
+            True
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("isMitochondrial", TBoolean())
 
     def is_biallelic(self):
         """Returns ``True`` if there is only one alternate allele.

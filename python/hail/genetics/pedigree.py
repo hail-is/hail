@@ -6,16 +6,16 @@ from hail.utils.java import *
 class Trio(HistoryMixin):
     """Class containing information about nuclear family relatedness and sex.
 
-    :param str proband: Sample ID of proband.
+    :param str s: Sample ID of proband.
 
-    :param fam: Family ID.
-    :type fam: str or None
+    :param fam_id: Family ID.
+    :type fam_id: str or None
 
-    :param father: Sample ID of father.
-    :type father: str or None
+    :param pat_id: Sample ID of father.
+    :type pat_id: str or None
 
-    :param mother: Sample ID of mother.
-    :type mother: str or None
+    :param mat_id: Sample ID of mother.
+    :type mat_id: str or None
 
     :param is_female: Sex of proband.
     :type is_female: bool or None
@@ -23,23 +23,23 @@ class Trio(HistoryMixin):
 
     @handle_py4j
     @record_init
-    @typecheck_method(proband=strlike,
-                      fam=nullable(strlike),
-                      father=nullable(strlike),
-                      mother=nullable(strlike),
+    @typecheck_method(s=strlike,
+                      fam_id=nullable(strlike),
+                      pat_id=nullable(strlike),
+                      mat_id=nullable(strlike),
                       is_female=nullable(bool))
-    def __init__(self, proband, fam=None, father=None, mother=None, is_female=None):
+    def __init__(self, s, fam_id=None, pat_id=None, mat_id=None, is_female=None):
         jobject = Env.hail().variant.Sex
         if is_female is not None:
             jsex = jsome(jobject.Female()) if is_female else jsome(jobject.Male())
         else:
             jsex = jnone()
 
-        self._jrep = Env.hail().methods.BaseTrio(proband, joption(fam), joption(father), joption(mother), jsex)
-        self._fam = fam
-        self._proband = proband
-        self._father = father
-        self._mother = mother
+        self._jrep = Env.hail().methods.BaseTrio(s, joption(fam_id), joption(pat_id), joption(mat_id), jsex)
+        self._fam_id = fam_id
+        self._s = s
+        self._pat_id = pat_id
+        self._mat_id = mat_id
         self._is_female = is_female
 
     @classmethod
@@ -50,14 +50,14 @@ class Trio(HistoryMixin):
         return trio
 
     def __repr__(self):
-        return 'Trio(proband=%s, fam=%s, father=%s, mother=%s, is_female=%s)' % (
-            repr(self.proband), repr(self.fam), repr(self.father),
-            repr(self.mother), repr(self.is_female))
+        return 'Trio(s=%s, fam_id=%s, pat_id=%s, mat_id=%s, is_female=%s)' % (
+            repr(self.s), repr(self.fam_id), repr(self.pat_id),
+            repr(self.mat_id), repr(self.is_female))
 
     def __str__(self):
-        return 'Trio(proband=%s, fam=%s, father=%s, mother=%s, is_female=%s)' % (
-            str(self.proband), str(self.fam), str(self.father),
-            str(self.mother), str(self.is_female))
+        return 'Trio(s=%s, fam_id=%s, pat_id=%s, mat_id=%s, is_female=%s)' % (
+            str(self.s), str(self.fam_id), str(self.pat_id),
+            str(self.mat_id), str(self.is_female))
 
     def __eq__(self, other):
         return isinstance(other, Trio) and self._jrep == other._jrep
@@ -68,55 +68,56 @@ class Trio(HistoryMixin):
 
     @property
     @handle_py4j
-    def proband(self):
+    def s(self):
         """ID of proband in trio, never missing.
 
         :rtype: str
         """
-        if not hasattr(self, '_proband'):
-            self._proband = self._jrep.kid()
-        return self._proband
+        if not hasattr(self, '_s'):
+            self._s = self._jrep.kid()
+        return self._s
 
     @property
     @handle_py4j
-    def father(self):
+    def pat_id(self):
         """ID of father in trio, may be missing.
 
         :rtype: str or None
         """
 
-        if not hasattr(self, '_father'):
-            self._father = from_option(self._jrep.dad())
-        return self._father
+        if not hasattr(self, '_pat_id'):
+            self._pat_id = from_option(self._jrep.dad())
+        return self._pat_id
 
     @property
     @handle_py4j
-    def mother(self):
+    def mat_id(self):
         """ID of mother in trio, may be missing.
 
         :rtype: str or None
         """
 
-        if not hasattr(self, '_mother'):
-            self._mother = from_option(self._jrep.mom())
-        return self._mother
+        if not hasattr(self, '_mat_id'):
+            self._mat_id = from_option(self._jrep.mom())
+        return self._mat_id
 
     @property
     @handle_py4j
-    def fam(self):
+    def fam_id(self):
         """Family ID.
 
         :rtype: str or None
         """
 
-        if not hasattr(self, '_fam'):
-            self._fam = from_option(self._jrep.fam())
-        return self._fam
+        if not hasattr(self, '_fam_id'):
+            self._fam_id = from_option(self._jrep.fam())
+        return self._fam_id
 
     @property
     @handle_py4j
     def is_male(self):
-        """Returns True if the proband is a reported male, False if reported female, and None if no sex is defined.
+        """Returns ``True`` if the proband is a reported male,
+        ``False`` if reported female, and ``None`` if no sex is defined.
 
         :rtype: bool or None
         """
@@ -132,7 +133,8 @@ class Trio(HistoryMixin):
     @property
     @handle_py4j
     def is_female(self):
-        """Returns True if the proband is a reported female, False if reported male, and None if no sex is defined.
+        """Returns ``True`` if the proband is a reported female,
+        ``False`` if reported male, and ``None`` if no sex is defined.
 
         :rtype: bool or None
         """
@@ -150,9 +152,9 @@ class Trio(HistoryMixin):
     def is_complete(self):
         """Returns True if the trio has a defined mother, father, and sex.
 
-        The considered fields are ``mother``, ``father``, and ``sex``.
-        Recall that ``proband`` may never be missing. The ``fam`` field
-        may be missing in a complete trio.
+        The considered fields are :meth:`mat_id`, :meth:`pat_id`, and
+        :meth:`is_female`. Recall that ``s`` may never be missing. The
+        :meth:`fam_id` field may be missing in a complete trio.
 
         :rtype: bool
         """
@@ -196,17 +198,17 @@ class Pedigree(HistoryMixin):
     @typecheck_method(fam_path=strlike,
                       delimiter=strlike)
     def read(cls, fam_path, delimiter='\\s+'):
-        """Read a .fam file and return a pedigree object.
+        """Read a PLINK .fam file and return a pedigree object.
 
         **Examples**
 
         >>> ped = Pedigree.read('data/test.fam')
 
-        **Notes**
+        Notes
+        -------
 
-        This method reads a `PLINK .fam file <https://www.cog-genomics.org/plink2/formats#fam>`_.
-
-        Hail expects a file in the same spec as PLINK outlines.
+        See `PLINK .fam file <https://www.cog-genomics.org/plink2/formats#fam>`_ for
+        the required format.
 
         :param str fam_path: path to .fam file.
 
@@ -248,8 +250,8 @@ class Pedigree(HistoryMixin):
         For any trio, the following steps will be applied:
 
          - If the proband is not in the list of samples provided, the trio is removed.
-         - If the father is not in the list of samples provided, the father is set to ``None``.
-         - If the mother is not in the list of samples provided, the mother is set to ``None``.
+         - If the father is not in the list of samples provided, `pat_id` is set to ``None``.
+         - If the mother is not in the list of samples provided, `mat_id` is set to ``None``.
 
         :param samples: list of sample IDs to keep
         :type samples: list of str
@@ -281,7 +283,8 @@ class Pedigree(HistoryMixin):
             Use the key table method :meth:`~hail.KeyTable.import_fam` to manipulate this
             information.
 
-        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+        A text file containing the Python code to generate this output file is
+        available at ``<output>.history.txt``.
 
         :param path: output path
         :type path: str
