@@ -351,7 +351,7 @@ def tdt(dataset, pedigree):
     auto = 2
     hemi_x = 1
 
-    #               kid,     dad,     mom,   copy, t, u
+    #                     kid,     dad,     mom,   copy, t, u
     config_counts = [(hom_ref,     het,     het,   auto, 0, 2),
                      (hom_ref, hom_ref,     het,   auto, 0, 1),
                      (hom_ref,     het, hom_ref,   auto, 0, 1),
@@ -371,22 +371,21 @@ def tdt(dataset, pedigree):
     count_map = functions.broadcast({functions.capture([c[0], c[1], c[2], c[3]]): [c[4], c[5]] for c in config_counts})
 
     tri = trio_matrix(dataset, pedigree, complete_trios=True)
-    
+
     # this filter removes mendel error of het father in x_nonpar. It also avoids
     #   building and looking up config in common case that neither parent is het
     parent_is_valid_het = functions.bind(tri.father_entry.GT.is_het(),
-        lambda father_is_het: father_is_het & tri.auto_or_x_par | 
-                             (tri.mother_entry.GT.is_het() & ~father_is_het))
-    
+        lambda father_is_het: (father_is_het & tri.auto_or_x_par) | 
+                              (tri.mother_entry.GT.is_het() & ~father_is_het))
+
     copy_state = functions.cond(tri.auto_or_x_par | tri.is_female, 2, 1)
+
     config = [tri.proband_entry.GT.gt, tri.father_entry.GT.gt, tri.mother_entry.GT.gt, copy_state]
 
-    # FIXME combine using agg.array_sum once implemented
-    tri = tri.annotate_rows(
-        t = agg.sum(agg.filter(parent_is_valid_het, count_map.get(config)[0])),
-        u = agg.sum(agg.filter(parent_is_valid_het, count_map.get(config)[1])))
-    
-    tab = tri.rows_table().select('v', 't', 'u')
+    tri = tri.annotate_rows(counts = agg.array_sum(agg.filter(parent_is_valid_het, count_map.get(config))))
+
+    tab = tri.rows_table().select('v', 'counts')
+    tab = tab.transmute(t = tab.counts[0], u = tab.counts[1])
     tab = tab.annotate(chi2 = ((tab.t - tab.u) ** 2) / (tab.t + tab.u))
     tab = tab.annotate(pval = functions.pchisqtail(tab.chi2, 1.0))
 

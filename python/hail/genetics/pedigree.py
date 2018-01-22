@@ -152,9 +152,9 @@ class Trio(HistoryMixin):
     def is_complete(self):
         """Returns True if the trio has a defined mother, father, and sex.
 
-        The considered fields are ``mat_id``, ``pat_id``, and ``is_female``.
-        Recall that ``s`` may never be missing. The ``fam_id`` field
-        may be missing in a complete trio.
+        The considered fields are :meth:`mat_id`, :meth:`pat_id`, and
+        :meth:`is_female`. Recall that ``s`` may never be missing. The
+        :meth:`fam_id` field may be missing in a complete trio.
 
         :rtype: bool
         """
