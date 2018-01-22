@@ -34,9 +34,10 @@ object LinearRegression {
     val dRec = 1d / d
 
     if (d < 1)
-      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x and intercept) implies $d degrees of freedom.")
 
-    info(s"Running linear regression for ${ y.cols } ${ plural(y.cols, "phenotype") } on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+    info(s"linreg: running linear regression on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
+       + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
