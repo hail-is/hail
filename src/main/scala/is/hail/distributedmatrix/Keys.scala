@@ -6,10 +6,10 @@ import is.hail.expr.types.Type
 import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.json4s.jackson.Serialization
-import org.json4s.{JArray, JValue}
+import org.json4s.JValue
 import org.json4s.jackson.JsonMethods.parse
 
-case class KeysImpex(typeStr: String, valuesJ: JValue)
+case class KeysImpex(typeStr: String, values: Array[JValue])
 
 object Keys {
   def unify(left: Option[Keys], right: Option[Keys], msg: String): Option[Keys] = {
@@ -23,7 +23,7 @@ object Keys {
   }
   
   def read(sc: SparkContext, uri: String): Keys = {
-    val KeysImpex(typeStr, JArray(arr)) =  sc.hadoopConfiguration.readTextFile(uri)(in =>
+    val KeysImpex(typeStr, values) =  sc.hadoopConfiguration.readTextFile(uri)(in =>
       try {
         val json = parse(in)
         json.extract[KeysImpex]
@@ -36,9 +36,8 @@ object Keys {
       })
     
     val typ = Parser.parseType(typeStr)
-    val values = arr.map(JSONAnnotationImpex.importAnnotation(_, typ)).toArray
-    
-    new Keys(typ, values)
+   
+    new Keys(typ, values.map(JSONAnnotationImpex.importAnnotation(_, typ)))
   }
 }
 
@@ -63,9 +62,8 @@ class Keys(val typ: Type, val values: Array[Annotation]) {
   
   def filter(pred: Annotation => Boolean): Keys = new Keys(typ, values.filter(pred))
   
-  def filter(keep: Array[Int], check: Boolean = true): Keys = {
-    if (check)
-      require(keep.isEmpty || (keep.isIncreasing && keep.head >= 0 && keep.last < length))
+  def filter(keep: Array[Int]): Keys = {
+    require(keep.isEmpty || (keep.isIncreasing && keep.head >= 0 && keep.last < length))
     new Keys(typ, keep.map(values))
   }
   
@@ -76,8 +74,8 @@ class Keys(val typ: Type, val values: Array[Annotation]) {
   
   def write(sc: SparkContext, uri: String) {
     val typeStr = typ.toPrettyString(compact = true)
-    val valuesJ = JArray(values.map(typ.toJSON).toList)
 
-    sc.hadoopConfiguration.writeTextFile(uri)(out => Serialization.write(KeysImpex(typeStr, valuesJ), out))
+    sc.hadoopConfiguration.writeTextFile(uri)(out =>
+      Serialization.write(KeysImpex(typeStr, values.map(typ.toJSON)), out))
   }
 }

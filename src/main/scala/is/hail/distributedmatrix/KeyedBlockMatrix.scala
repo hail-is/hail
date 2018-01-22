@@ -137,7 +137,7 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
   def filterRows(keep: Array[Int]): KeyedBlockMatrix =
     new KeyedBlockMatrix(
       bm.filterRows(keep.map(_.toLong)),
-      rowKeys.map(_.filter(keep, check = false)),
+      rowKeys.map(_.filter(keep)),
       colKeys)
 
   def filterCols(pred: Annotation => Boolean): KeyedBlockMatrix =
@@ -153,7 +153,7 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
       new KeyedBlockMatrix(
         bm.filterCols(keep.map(_.toLong)),
         rowKeys,
-        colKeys.map(_.filter(keep, check = false)))
+        colKeys.map(_.filter(keep)))
 
   def filter(rowPred: Annotation => Boolean, colPred: Annotation => Boolean): KeyedBlockMatrix =
     (rowKeys, colKeys) match {
@@ -172,8 +172,8 @@ class KeyedBlockMatrix(val bm: BlockMatrix, val rowKeys: Option[Keys], val colKe
   def filter(keepRows: Array[Int], keepCols: Array[Int]): KeyedBlockMatrix =
         new KeyedBlockMatrix(
           bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)),
-          rowKeys.map(_.filter(keepRows, check = false)),
-          colKeys.map(_.filter(keepCols, check = false)))
+          rowKeys.map(_.filter(keepRows)),
+          colKeys.map(_.filter(keepCols)))
   
   def write(uri: String, forceRowMajor: Boolean = false) {
     val sc = bm.blocks.sparkContext
