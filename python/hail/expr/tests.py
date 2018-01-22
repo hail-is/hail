@@ -228,7 +228,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(expected_type, expr.dtype)
         self.assertEqual((expected, expected_type), eval_expr_typed(expr))
 
-    def test_arithmetic(self):
+    def test_division(self):
         a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
         a_int64 = a_int32.map(lambda x: x.to_int64())
         a_float32 = a_int32.map(lambda x: x.to_float32())
@@ -240,17 +240,6 @@ class Tests(unittest.TestCase):
         float32_4s = int32_4s.map(lambda x: x.to_float32())
         float64_4 = functions.capture(4).to_float64()
         float64_4s = int32_4s.map(lambda x: x.to_float64())
-        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
-        int64_3 = functions.capture(3).to_int64()
-        int64_3s = int32_3s.map(lambda x: x.to_int64())
-        float32_3 = functions.capture(3).to_float32()
-        float32_3s = int32_3s.map(lambda x: x.to_float32())
-        float64_3 = functions.capture(3).to_float64()
-        float64_3s = int32_3s.map(lambda x: x.to_float64())
-
-        ##########
-        # Division
-        ##########
 
         expected = [0.5, 1.0, 2.0, 4.0, None]
         expected_inv = [2.0, 1.0, 0.5, 0.25, None]
@@ -315,10 +304,19 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float32 / float64_4s, expected, TArray(TFloat64()))
         self.check_expr(a_float64 / float64_4s, expected, TArray(TFloat64()))
 
-
-        ################
-        # Floor Division
-        ################
+    def test_floor_division(self):
+        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int64 = a_int32.map(lambda x: x.to_int64())
+        a_float32 = a_int32.map(lambda x: x.to_float32())
+        a_float64 = a_int32.map(lambda x: x.to_float64())
+        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
+        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
+        int64_3 = functions.capture(3).to_int64()
+        int64_3s = int32_3s.map(lambda x: x.to_int64())
+        float32_3 = functions.capture(3).to_float32()
+        float32_3s = int32_3s.map(lambda x: x.to_float32())
+        float64_3 = functions.capture(3).to_float64()
+        float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [0, 1, 2, 5, None]
         expected_inv = [1, 0, 0, 0, None]
@@ -383,9 +381,19 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float32 // float64_3s, expected, TArray(TFloat64()))
         self.check_expr(a_float64 // float64_3s, expected, TArray(TFloat64()))
 
-        ##########
-        # Addition
-        ##########
+    def test_addition(self):
+        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int64 = a_int32.map(lambda x: x.to_int64())
+        a_float32 = a_int32.map(lambda x: x.to_float32())
+        a_float64 = a_int32.map(lambda x: x.to_float64())
+        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
+        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
+        int64_3 = functions.capture(3).to_int64()
+        int64_3s = int32_3s.map(lambda x: x.to_int64())
+        float32_3 = functions.capture(3).to_float32()
+        float32_3s = int32_3s.map(lambda x: x.to_float32())
+        float64_3 = functions.capture(3).to_float64()
+        float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [5, 7, 11, 19, None]
         expected_inv = expected
@@ -450,9 +458,19 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float32 + float64_3s, expected, TArray(TFloat64()))
         self.check_expr(a_float64 + float64_3s, expected, TArray(TFloat64()))
 
-        #############
-        # Subtraction
-        #############
+    def test_subtraction(self):
+        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int64 = a_int32.map(lambda x: x.to_int64())
+        a_float32 = a_int32.map(lambda x: x.to_float32())
+        a_float64 = a_int32.map(lambda x: x.to_float64())
+        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
+        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
+        int64_3 = functions.capture(3).to_int64()
+        int64_3s = int32_3s.map(lambda x: x.to_int64())
+        float32_3 = functions.capture(3).to_float32()
+        float32_3s = int32_3s.map(lambda x: x.to_float32())
+        float64_3 = functions.capture(3).to_float64()
+        float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [-1, 1, 5, 13, None]
         expected_inv = [1, -1, -5, -13, None]
@@ -517,9 +535,19 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float32 - float64_3s, expected, TArray(TFloat64()))
         self.check_expr(a_float64 - float64_3s, expected, TArray(TFloat64()))
 
-        ################
-        # Multiplication
-        ################
+    def test_multiplication(self):
+        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int64 = a_int32.map(lambda x: x.to_int64())
+        a_float32 = a_int32.map(lambda x: x.to_float32())
+        a_float64 = a_int32.map(lambda x: x.to_float64())
+        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
+        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
+        int64_3 = functions.capture(3).to_int64()
+        int64_3s = int32_3s.map(lambda x: x.to_int64())
+        float32_3 = functions.capture(3).to_float32()
+        float32_3s = int32_3s.map(lambda x: x.to_float32())
+        float64_3 = functions.capture(3).to_float64()
+        float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [6, 12, 24, 48, None]
         expected_inv = expected
@@ -584,10 +612,19 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float32 * float64_3s, expected, TArray(TFloat64()))
         self.check_expr(a_float64 * float64_3s, expected, TArray(TFloat64()))
 
-
-        ################
-        # Exponentiation
-        ################
+    def test_exponentiation(self):
+        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int64 = a_int32.map(lambda x: x.to_int64())
+        a_float32 = a_int32.map(lambda x: x.to_float32())
+        a_float64 = a_int32.map(lambda x: x.to_float64())
+        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
+        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
+        int64_3 = functions.capture(3).to_int64()
+        int64_3s = int32_3s.map(lambda x: x.to_int64())
+        float32_3 = functions.capture(3).to_float32()
+        float32_3s = int32_3s.map(lambda x: x.to_float32())
+        float64_3 = functions.capture(3).to_float64()
+        float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [8, 64, 512, 4096, None]
         expected_inv = [9.0, 81.0, 6561.0, 43046721.0, None]
@@ -652,9 +689,19 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float32 ** float64_3s, expected, TArray(TFloat64()))
         self.check_expr(a_float64 ** float64_3s, expected, TArray(TFloat64()))
 
-        #########
-        # Modulus
-        #########
+    def test_modulus(self):
+        a_int32 = functions.capture([2, 4, 8, 16, functions.null(TInt32())])
+        a_int64 = a_int32.map(lambda x: x.to_int64())
+        a_float32 = a_int32.map(lambda x: x.to_float32())
+        a_float64 = a_int32.map(lambda x: x.to_float64())
+        int32_4s = functions.capture([4, 4, 4, 4, functions.null(TInt32())])
+        int32_3s = functions.capture([3, 3, 3, 3, functions.null(TInt32())])
+        int64_3 = functions.capture(3).to_int64()
+        int64_3s = int32_3s.map(lambda x: x.to_int64())
+        float32_3 = functions.capture(3).to_float32()
+        float32_3s = int32_3s.map(lambda x: x.to_float32())
+        float64_3 = functions.capture(3).to_float64()
+        float64_3s = int32_3s.map(lambda x: x.to_float64())
 
         expected = [2, 1, 2, 1, None]
         expected_inv = [1, 3, 3, 3, None]
