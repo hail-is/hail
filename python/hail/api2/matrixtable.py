@@ -2405,7 +2405,7 @@ class MatrixTable(object):
         .. doctest::
 
             >>> dataset_result = dataset.head(3)
-            >>> dataset_result.count()
+            >>> dataset_result.count_rows()
             3
 
         Notes
@@ -2416,7 +2416,7 @@ class MatrixTable(object):
 
         Parameters
         ----------
-        n : int
+        n : :obj:`int`
             Number of rows to include.
 
         Returns
