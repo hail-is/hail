@@ -1,6 +1,7 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
+import is.hail.expr.types._
 
 trait RegionValueAggregator extends Serializable {
   def seqOp(region: Region, off: Long, missing: Boolean): Unit

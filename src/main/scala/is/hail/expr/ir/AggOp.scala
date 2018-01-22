@@ -42,49 +42,46 @@ final case class Histogram() extends AggOp { }
 
 object AggOp {
 
-  def get(op: AggOp, typs: Array[Type]): CodeAggregator[_, _] =
-    m((op, typs)).getOrElse(incompatible(op, typs))
+  def get(op: AggOp, inputType: Type, argumentTypes: Array[Type]): CodeAggregator[_, _] =
+    m((op, inputType, argumentTypes)).getOrElse(incompatible(op, inputType, argumentTypes))
 
-  def getType(op: AggOp, typs: Array[Type]): Type =
-    m((op, typs)).getOrElse(incompatible(op, typs)).out
+  def getType(op: AggOp, inputType: Type, argumentTypes: Array[Type]): Type =
+    m((op, inputType, argumentTypes)).getOrElse(incompatible(op, inputType, argumentTypes)).out
 
-  private val m: ((AggOp, Array[Type])) => Option[CodeAggregator[_, _]] = lift {
-    case (Fraction(), Array(_: TBoolean)) => CodeAggregator[Boolean]((_,_) => Code.newInstance[RegionValueFractionAggregator](), TFloat64())
-    case (Statistics(), Array(_: TFloat64)) => CodeAggregator[Double]((_,_) => Code.newInstance[RegionValueStatisticsAggregator](), RegionValueStatisticsAggregator.typ)
-    case (Collect(), Array(_: TBoolean)) => CodeAggregator[Boolean]((_,_) => Code.newInstance[RegionValueCollectBooleanAggregator](), TArray(TBoolean()))
-    case (Collect(), Array(_: TInt32)) => CodeAggregator[Int]((_,_) => Code.newInstance[RegionValueCollectIntAggregator](), TArray(TInt32()))
+  private val m: ((AggOp, Type, Array[Type])) => Option[CodeAggregator[_, _]] = lift {
+    case (Fraction(), in: TBoolean, Array()) => CodeAggregator[RegionValueFractionAggregator, Boolean](in, TFloat64())
+    case (Statistics(), in: TFloat64, Array()) => CodeAggregator[RegionValueStatisticsAggregator, Double](in, RegionValueStatisticsAggregator.typ)
+    case (Collect(), in: TBoolean, Array()) => CodeAggregator[RegionValueCollectBooleanAggregator, Boolean](in, TArray(TBoolean()))
+    case (Collect(), in: TInt32, Array()) => CodeAggregator[RegionValueCollectIntAggregator, Int](in, TArray(TInt32()))
     // FIXME: implement these
-    // case (Collect(), _: TInt64) => CodeAggregator[Long]((_,_) => Code.newInstance[RegionValueCollectLongAggregator]())
-    // case (Collect(), _: TFloat32) => CodeAggregator[Float]((_,_) => Code.newInstance[RegionValueCollectFloatAggregator]())
-    // case (Collect(), _: TFloat64) => CodeAggregator[Double]((_,_) => Code.newInstance[RegionValueCollectDoubleAggregator]())
-    // case (Collect(), _: TArray) => CodeAggregator[Long]((_,_) => Code.newInstance[RegionValueCollectArrayAggregator]())
-    // case (Collect(), _: TStruct) => CodeAggregator[Long]((_,_) => Code.newInstance[RegionValueCollectStructAggregator]())
+    // case (Collect(), _: TInt64) =>
+    // case (Collect(), _: TFloat32) =>
+    // case (Collect(), _: TFloat64) =>
+    // case (Collect(), _: TArray) =>
+    // case (Collect(), _: TStruct) =>
     // case (InfoScore() =>
-    case (Sum(), Array(_: TInt32)) => CodeAggregator[Int]((_,_) => Code.newInstance[RegionValueSumIntAggregator](), TInt32())
-    case (Sum(), Array(_: TInt64)) => CodeAggregator[Long]((_,_) => Code.newInstance[RegionValueSumLongAggregator](), TInt64())
-    case (Sum(), Array(_: TFloat32)) => CodeAggregator[Float]((_,_) => Code.newInstance[RegionValueSumFloatAggregator](), TFloat32())
-    case (Sum(), Array(_: TFloat64)) => CodeAggregator[Double]((_,_) => Code.newInstance[RegionValueSumDoubleAggregator](), TFloat64())
+    case (Sum(), in: TInt32, Array()) => CodeAggregator[RegionValueSumIntAggregator, Int](in, TInt32())
+    case (Sum(), in: TInt64, Array()) => CodeAggregator[RegionValueSumLongAggregator, Long](in, TInt64())
+    case (Sum(), in: TFloat32, Array()) => CodeAggregator[RegionValueSumFloatAggregator, Float](in, TFloat32())
+    case (Sum(), in: TFloat64, Array()) => CodeAggregator[RegionValueSumDoubleAggregator, Double](in, TFloat64())
     // case (HardyWeinberg(), _: T) =>
     // case (Product(), _: T) =>
-    case (Max(), Array(_: TBoolean)) => CodeAggregator[Boolean]((_,_) => Code.newInstance[RegionValueMaxBooleanAggregator](), TBoolean())
-    case (Max(), Array(_: TInt32)) => CodeAggregator[Int]((_,_) => Code.newInstance[RegionValueMaxIntAggregator](), TInt32())
-    case (Max(), Array(_: TInt64)) => CodeAggregator[Long]((_,_) => Code.newInstance[RegionValueMaxLongAggregator](), TInt64())
-    case (Max(), Array(_: TFloat32)) => CodeAggregator[Float]((_,_) => Code.newInstance[RegionValueMaxFloatAggregator](), TFloat32())
-    case (Max(), Array(_: TFloat64)) => CodeAggregator[Double]((_,_) => Code.newInstance[RegionValueMaxDoubleAggregator](), TFloat64())
+    case (Max(), in: TBoolean, Array()) => CodeAggregator[RegionValueMaxBooleanAggregator, Boolean](in, TBoolean())
+    case (Max(), in: TInt32, Array()) => CodeAggregator[RegionValueMaxIntAggregator, Int](in, TInt32())
+    case (Max(), in: TInt64, Array()) => CodeAggregator[RegionValueMaxLongAggregator, Long](in, TInt64())
+    case (Max(), in: TFloat32, Array()) => CodeAggregator[RegionValueMaxFloatAggregator, Float](in, TFloat32())
+    case (Max(), in: TFloat64, Array()) => CodeAggregator[RegionValueMaxDoubleAggregator, Double](in, TFloat64())
     // case (Min(), _: T) =>
-    case (Take(), Array(_: TInt32, _: TBoolean)) => CodeAggregator[Int](RegionValueTakeBooleanAggregator.stagedNew, TArray(TBoolean()))
-    case (Take(), Array(_: TInt32, _: TInt32)) => CodeAggregator[Int](RegionValueTakeIntAggregator.stagedNew, TArray(TInt32()))
-    case (Take(), Array(_: TInt32, _: TInt64)) => CodeAggregator[Int](RegionValueTakeLongAggregator.stagedNew, TArray(TInt64()))
-    case (Take(), Array(_: TInt32, _: TFloat32)) => CodeAggregator[Int](RegionValueTakeFloatAggregator.stagedNew, TArray(TFloat32()))
-    case (Take(), Array(_: TInt32, _: TFloat64)) => CodeAggregator[Int](RegionValueTakeDoubleAggregator.stagedNew, TArray(TFloat64()))
-    case (Histogram(), Array(_: TFloat64, _: TFloat64, _: TInt32, _: TFloat64)) =>
-      CodeAggregator[Double](RegionValueHistogramAggregator.stagedNew, RegionValueHistogramAggregator.typ)
+    case (Take(), in: TBoolean, args@Array(_: TInt32)) => CodeAggregator[RegionValueTakeBooleanAggregator, Boolean](in, TArray(in), classOf[Int])
+    case (Take(), in: TInt32, args@Array(_: TInt32)) => CodeAggregator[RegionValueTakeIntAggregator, Int](in, TArray(in), classOf[Int])
+    case (Take(), in: TInt64, args@Array(_: TInt32)) => CodeAggregator[RegionValueTakeLongAggregator, Long](in, TArray(in), classOf[Int])
+    case (Take(), in: TFloat32, args@Array(_: TInt32)) => CodeAggregator[RegionValueTakeFloatAggregator, Float](in, TArray(in), classOf[Int])
+    case (Take(), in: TFloat64, args@Array(_: TInt32)) => CodeAggregator[RegionValueTakeDoubleAggregator, Double](in, TArray(in), classOf[Int])
+    case (Histogram(), in: TFloat64, args@Array(_: TFloat64, _: TFloat64, _: TInt32)) =>
+      CodeAggregator[RegionValueHistogramAggregator, Double](in, RegionValueHistogramAggregator.typ, classOf[Double], classOf[Double], classOf[Int])
   }
 
-  private def incompatible(op: AggOp, typs: Array[Type]): Nothing = {
-    val typs2 = typs.reverse
-    val elementType = typs2.head
-    val argumentTypes = typs2.tail.reverse
-    throw new RuntimeException(s"no aggregator named $op taking arguments (${argumentTypes.mkString(",")}) operating on aggregables of type $elementType")
+  private def incompatible(op: AggOp, inputType: Type, argumentTypes: Array[Type]): Nothing = {
+    throw new RuntimeException(s"no aggregator named $op taking arguments (${argumentTypes.mkString(",")}) operating on aggregables of type $inputType")
   }
 }

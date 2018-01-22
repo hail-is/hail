@@ -55,7 +55,7 @@ object ExtractAggregators {
       val (doargs, margs, vargs) = args.map(Emit.toCode(_, constfb, 1)).unzip3
       constfb.emit(Code(
         Code(doargs:_*),
-        AggOp.get(op, args.map(_.typ) :+ x.inputType)
+        AggOp.get(op, x.inputType, args.map(_.typ))
           .stagedNew(vargs, margs)))
       constfb.result()()(Region())
   }

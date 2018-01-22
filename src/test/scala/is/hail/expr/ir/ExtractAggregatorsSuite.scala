@@ -96,7 +96,7 @@ class ExtractAggregatorsSuite {
   def sum() {
     val region = Region()
     val sum = run[Double, Int, Double](region,
-      ApplyAggNullaryOp(AggIn(), Sum()),
+      ApplyAggOp(AggIn(), Sum(), Array()),
       addArray(region, (0 to 100).map(_.toDouble):_*),
       _ => 10)
 
@@ -107,7 +107,7 @@ class ExtractAggregatorsSuite {
   def sumEmpty() {
     val region = Region()
     val sum = run[Double, Int, Double](region,
-      ApplyAggNullaryOp(AggIn(), Sum()),
+      ApplyAggOp(AggIn(), Sum(), Array()),
       addArray[Double](region),
       _ => 10)
 
@@ -118,7 +118,7 @@ class ExtractAggregatorsSuite {
   def sumOne() {
     val region = Region()
     val sum = run[Double, Int, Double](region,
-      ApplyAggNullaryOp(AggIn(), Sum()),
+      ApplyAggOp(AggIn(), Sum(), Array()),
       addArray[Double](region, 42.0),
       _ => 10)
 
@@ -129,7 +129,7 @@ class ExtractAggregatorsSuite {
   def sumMissing() {
     val region = Region()
     val sum = run[Double, Int, Double](region,
-      ApplyAggNullaryOp(AggIn(), Sum()),
+      ApplyAggOp(AggIn(), Sum(), Array()),
       addBoxedArray[java.lang.Double](region, null, 42.0, null),
       _ => 10)
     assert(sum === 42.0)
@@ -139,7 +139,7 @@ class ExtractAggregatorsSuite {
   def sumAllMissing() {
     val region = Region()
     val sum = run[Double, Int, Double](region,
-      ApplyAggNullaryOp(AggIn(), Sum()),
+      ApplyAggOp(AggIn(), Sum(), Array()),
       addBoxedArray[java.lang.Double](region, null, null, null),
       _ => 10)
     assert(sum === 0.0)
@@ -149,8 +149,8 @@ class ExtractAggregatorsSuite {
   def usingScope1() {
     val region = Region()
     val sum = run[Double, Int, Int](region,
-      ApplyAggNullaryOp(AggMap(AggIn(), "x", Ref("scope0")),
-        Sum()),
+      ApplyAggOp(AggMap(AggIn(), "x", Ref("scope0")),
+        Sum(), Array()),
       addBoxedArray[java.lang.Double](region, null, null, null),
       10 * _)
     assert(sum == 30)
@@ -160,8 +160,8 @@ class ExtractAggregatorsSuite {
   def usingScope2() {
     val region = Region()
     val sum = run[Double, Int, Int](region,
-      ApplyAggNullaryOp(AggMap(AggIn(), "x", Ref("scope0")),
-        Sum()),
+      ApplyAggOp(AggMap(AggIn(), "x", Ref("scope0")),
+        Sum(), Array()),
       addBoxedArray[java.lang.Double](region, 1.0, 2.0, null),
       10 * _)
     assert(sum == 30)
@@ -171,8 +171,8 @@ class ExtractAggregatorsSuite {
   def usingScope3() {
     val region = Region()
     val sum = run[Double, Double, Double](region,
-      ApplyAggNullaryOp(AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("scope0"), Ref("x"))),
-        Sum()),
+      ApplyAggOp(AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("scope0"), Ref("x"))),
+        Sum(), Array()),
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
       _ => 10.0)
     assert(sum === 110.0)
@@ -182,12 +182,12 @@ class ExtractAggregatorsSuite {
   def filter1() {
     val region = Region()
     val ir =
-      ApplyAggNullaryOp(
+      ApplyAggOp(
         AggMap(
           AggFilter(AggIn(), "x", ApplyBinaryPrimOp
             (NEQ(), Ref("x"), F64(10.0))), "x",
           ApplyBinaryPrimOp(Multiply(), Ref("scope0"), Ref("x"))),
-        Sum())
+        Sum(), Array())
     val sum = run[Double, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -199,14 +199,14 @@ class ExtractAggregatorsSuite {
   def filter2() {
     val region = Region()
     val ir =
-      ApplyAggNullaryOp(
+      ApplyAggOp(
         AggMap(
           AggFilter(AggIn(),
             "x",
             ApplyBinaryPrimOp(EQ(), Ref("x"), F64(10.0))),
           "x",
           ApplyBinaryPrimOp(Multiply(), Ref("scope0"), Ref("x"))),
-        Sum())
+        Sum(), Array())
     val sum = run[Double, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -218,14 +218,14 @@ class ExtractAggregatorsSuite {
   def filter3() {
     val region = Region()
     val ir =
-      ApplyAggNullaryOp(
+      ApplyAggOp(
         AggFilter(
           AggMap(AggIn(),
             "x",
             ApplyBinaryPrimOp(Multiply(), Ref("scope0"), Ref("x"))),
           "x",
           ApplyBinaryPrimOp(EQ(), Ref("x"), F64(100.0))),
-        Sum())
+        Sum(), Array())
     val sum = run[Double, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -237,14 +237,14 @@ class ExtractAggregatorsSuite {
   def flatMap() {
     val region = Region()
     val ir =
-      ApplyAggNullaryOp(
+      ApplyAggOp(
         AggFlatMap(
           AggMap(AggIn(),
             "x",
             ApplyBinaryPrimOp(Multiply(), Ref("scope0"), Ref("x"))),
           "x",
           MakeArray(Array(F64(100.0), Ref("x")))),
-        Sum())
+        Sum(), Array())
     val sum = run[Double, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -256,14 +256,14 @@ class ExtractAggregatorsSuite {
   def fraction() {
     val region = Region()
     val ir =
-      ApplyAggNullaryOp(
+      ApplyAggOp(
         AggMap(
           AggMap(AggIn(),
             "x",
             ApplyBinaryPrimOp(Multiply(), Ref("scope0"), Ref("x"))),
           "x",
           ApplyBinaryPrimOp(EQ(), Ref("x"), F64(100.0))),
-        Fraction())
+        Fraction(), Array())
     val fraction = run[Double, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Double](region, 1.0, 10.0, null),
@@ -275,7 +275,7 @@ class ExtractAggregatorsSuite {
   def fractionNaDoesNotContribute1() {
     val region = Region()
     val ir =
-      ApplyAggNullaryOp(AggIn(), Fraction())
+      ApplyAggOp(AggIn(), Fraction(), Array())
     val fraction = run[Boolean, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Boolean](region, true, false, null),
@@ -287,7 +287,7 @@ class ExtractAggregatorsSuite {
   def fractionNaDoesNotContribute2() {
     val region = Region()
     val ir =
-      ApplyAggNullaryOp(AggIn(), Fraction())
+      ApplyAggOp(AggIn(), Fraction(), Array())
     val fraction = run[Boolean, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Boolean](region, false, false, null),
@@ -299,7 +299,7 @@ class ExtractAggregatorsSuite {
   def fractionNaDoesNotContribute3() {
     val region = Region()
     val ir =
-      ApplyAggNullaryOp(AggIn(), Fraction())
+      ApplyAggOp(AggIn(), Fraction(), Array())
     val fraction = run[Boolean, Double, Double](region,
       ir,
       addBoxedArray[java.lang.Boolean](region, true, true, null),
@@ -312,7 +312,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val expected = Array[java.lang.Boolean](true, true, null)
     val ir =
-      ApplyAggNullaryOp(AggIn(), Collect())
+      ApplyAggOp(AggIn(), Collect(), Array())
     val aOff = run[Boolean, Double, Long](region,
       ir,
       addBoxedArray(region, expected: _*),
@@ -327,7 +327,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val expected = Array[java.lang.Integer](5, 10, null)
     val ir =
-      ApplyAggNullaryOp(AggIn(), Collect())
+      ApplyAggOp(AggIn(), Collect(), Array())
     val aOff = run[Int, Double, Long](region,
       ir,
       addBoxedArray(region, expected: _*),
@@ -342,7 +342,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val expected = Array[Int](5, 10, -5)
     val ir =
-      ApplyAggNullaryOp(AggIn(), Collect())
+      ApplyAggOp(AggIn(), Collect(), Array())
     val aOff = run[Int, Double, Long](region,
       ir,
       addBoxedArray(region, expected: _*),
@@ -358,7 +358,7 @@ class ExtractAggregatorsSuite {
     val input = Array[Int](5, 10, -5)
     val expected = input.map(x => x * x).toArray
     val ir =
-      ApplyAggNullaryOp(
+      ApplyAggOp(
         AggMap(
           AggIn(),
           "x",
@@ -366,7 +366,7 @@ class ExtractAggregatorsSuite {
             Multiply(),
             Ref("x"),
             Ref("x"))),
-        Collect())
+        Collect(), Array())
     val aOff = run[Int, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -381,7 +381,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Boolean](true, false, false)
     val ir =
-      ApplyAggNullaryOp(AggIn(), Max())
+      ApplyAggOp(AggIn(), Max(), Array())
     val actual = run[Boolean, Double, Boolean](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -395,7 +395,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Boolean](false, false, false)
     val ir =
-      ApplyAggNullaryOp(AggIn(), Max())
+      ApplyAggOp(AggIn(), Max(), Array())
     val actual = run[Boolean, Double, Boolean](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -409,7 +409,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Int](5, 10, -5)
     val ir =
-      ApplyAggNullaryOp(AggIn(), Max())
+      ApplyAggOp(AggIn(), Max(), Array())
     val actual = run[Int, Double, Int](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -423,7 +423,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Long](5L, 10L, -5L)
     val ir =
-      ApplyAggNullaryOp(AggIn(), Max())
+      ApplyAggOp(AggIn(), Max(), Array())
     val actual = run[Long, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -437,7 +437,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Float](5.0f, 10.0f, -5.0f)
     val ir =
-      ApplyAggNullaryOp(AggIn(), Max())
+      ApplyAggOp(AggIn(), Max(), Array())
     val actual = run[Float, Double, Float](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -451,7 +451,7 @@ class ExtractAggregatorsSuite {
     val region = Region()
     val input = Array[Double](5.0, 10.0, -5.0)
     val ir =
-      ApplyAggNullaryOp(AggIn(), Max())
+      ApplyAggOp(AggIn(), Max(), Array())
     val actual = run[Double, Double, Double](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -466,7 +466,7 @@ class ExtractAggregatorsSuite {
     val input = Array[Int](5, 10, -5)
     val expected = input.take(2)
     val ir =
-      ApplyAggUnaryOp(AggIn(), Take(), I32(2))
+      ApplyAggOp(AggIn(), Take(), Array(I32(2)))
     val aOff = run[Int, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -481,7 +481,7 @@ class ExtractAggregatorsSuite {
     val input = Array[Double](5.0, 10.0, -5.0)
     val expected = input.take(2)
     val ir =
-      ApplyAggUnaryOp(AggIn(), Take(), I32(2))
+      ApplyAggOp(AggIn(), Take(), Array(I32(2)))
     val aOff = run[Double, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -496,7 +496,7 @@ class ExtractAggregatorsSuite {
     val input = Array[java.lang.Double](5.0, null, -5.0)
     val expected = input.take(2)
     val ir =
-      ApplyAggUnaryOp(AggIn(), Take(), I32(2))
+      ApplyAggOp(AggIn(), Take(), Array(I32(2)))
     val aOff = run[Double, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),
@@ -511,7 +511,7 @@ class ExtractAggregatorsSuite {
     val input = Array[java.lang.Double](5.0, null, -5.0, 1.0, 15.0, 1.0, 17.0, 1.5)
     val expected = input.take(2)
     val ir =
-      ApplyAggTernaryOp(AggIn(), Histogram(), F64(0.0), F64(10.0), I32(5))
+      ApplyAggOp(AggIn(), Histogram(), Array(F64(0.0), F64(10.0), I32(5)))
     val hOff = run[Double, Double, Long](region,
       ir,
       addBoxedArray(region, input: _*),

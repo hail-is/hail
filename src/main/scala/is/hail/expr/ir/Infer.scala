@@ -118,7 +118,7 @@ object Infer {
         infer(a)
         args.foreach(infer(_))
         val tAgg = coerce[TAggregable](a.typ)
-        x.typ = AggOp.getType(op, args.map(_.typ) :+ tAgg.elementType)
+        x.typ = AggOp.getType(op, tAgg.elementType, args.map(_.typ))
       case x@MakeStruct(fields, _) =>
         fields.foreach { case (name, a) => infer(a) }
         x.typ = TStruct(fields.map { case (name, a) =>

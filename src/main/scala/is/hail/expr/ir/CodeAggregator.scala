@@ -8,36 +8,23 @@ import is.hail.expr.{HailRep, hailType}
 
 import scala.reflect.ClassTag
 
-object CodeAggregator {
-  def apply[T] = codeAggregatorCurriedInstance.asInstanceOf[CodeAggregatorCurried[T]]
-}
-
 /**
   * Pair the aggregator with a staged seqOp that calls the non-generic seqOp
   * method and handles missingness correctly
   *
   **/
-class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo, T : ClassTag]
-  (in: Type, val stagedNew: (Array[Code[_]], Array[Code[Boolean]]) => Code[Agg], val out: Type) {
+case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo, T : ClassTag]
+  (in: Type, out: Type, constructorArgumentTypes: Class[_]*) {
   def seqOp(rva: Code[RegionValueAggregator], v: Code[_], mv: Code[Boolean]): Code[Unit] = {
     mv.mux(
       Code.checkcast[Agg](rva).invoke[T, Boolean, Unit]("seqOp", coerce[T](defaultValue(in)), true),
       Code.checkcast[Agg](rva).invoke[T, Boolean, Unit]("seqOp", coerce[T](v), false))
   }
+
+  def stagedNew(v: Array[Code[_]], m: Array[Code[Boolean]]): Code[Agg] = {
+    val anyArgMissing = m.fold[Code[Boolean]](false)(_ | _)
+    anyArgMissing.mux(
+      Code._throw(Code.newInstance[RuntimeException, String]("Aggregators must have non missing arguments")),
+      Code.newInstance[Agg](constructorArgumentTypes.toArray, v))
+  }
 }
-
-/**
-  * Curries the type arguments which enables inference on Agg, with manual
-  * annotation of T
-  *
-  **/
-sealed trait CodeAggregatorCurried[T] {
-  def apply[Agg <: RegionValueAggregator : ClassTag : TypeInfo]
-    (stagedNew: (Array[Code[_]], Array[Code[Boolean]]) => Code[Agg], out: Type)
-    (implicit tct: ClassTag[T], hrt: HailRep[T]): CodeAggregator[Agg, T] =
-    new CodeAggregator(hailType[T], stagedNew, out)
-}
-
-private object codeAggregatorCurriedInstance extends CodeAggregatorCurried[Nothing]
-
-

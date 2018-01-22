@@ -334,7 +334,7 @@ private class Emit(
         (setup, xmout, xvout)
 
       case x@ApplyAggOp(a, op, args, _) =>
-        val agg = AggOp.get(op, args.map(_.typ) :+ x.inputType)
+        val agg = AggOp.get(op, x.inputType, args.map(_.typ))
         present(emitAgg(a)(agg.seqOp(aggregator, _, _)))
 
       case x@MakeStruct(fields, _) =>
