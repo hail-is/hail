@@ -76,7 +76,7 @@ def construct_reference(name, type, indices, prefix=None):
         ast = Select(Reference(prefix, True), name)
     else:
         ast = Reference(name, True)
-    return construct_expr(ast, type, indices, refs=LinkedList(tuple).push((name, indices)))
+    return construct_expr(ast, type._deep_optional(), indices, refs=LinkedList(tuple).push((name, indices)))
 
 def to_expr(e):
     if isinstance(e, Expression):

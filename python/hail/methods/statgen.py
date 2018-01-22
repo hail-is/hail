@@ -1118,3 +1118,67 @@ def balding_nichols_model(populations, samples, variants, num_partitions=None,
     return Env.hc().balding_nichols_model(populations, samples, variants, num_partitions,
                                           pop_dist, fst, af_dist, seed, reference_genome).to_hail2()
 
+class FilterAlleles(object):
+    def __init__(self, ds, filter_expr, keep, left_aligned, keep_star):
+        self.ds = ds
+        self.filter_expr = filter_expr
+        self.keep = keep
+        self.left_aligned = left_aligned
+        self.keep_star = keep_star
+        self.row_exprs = None
+        self.entry_exprs = None
+
+        # FIXME getitem or getattr
+        self.old_to_new = construct_reference('oldToNew', TArray(TInt32()), self.ds._row_indices)
+        self.new_to_old = construct_reference('newToOld', TArray(TInt32()), self.ds._row_indices)
+        self.new_v = construct_reference('newV', self.ds._rowkey_schema, self.ds._row_indices)
+
+    def annotate_rows(self, **named_exprs):
+        # FIXME double-assignment
+        self.row_exprs = named_exprs
+
+    def annotate_entries(self, **named_exprs):
+        # FIXME double-assignment
+        self.entry_exprs = named_exprs
+
+    def filter(self):
+        if not self.row_exprs:
+            self.row_exprs = {}
+        if not self.entry_exprs:
+            self.entry_exprs = {}
+        
+        base, cleanup = self.ds._process_joins(*(
+            [self.filter_expr] + self.row_exprs.values() + self.entry_exprs.values()))
+        
+        analyze('filter_alleles', self.filter_expr, base._row_indices)
+        filter_hql = self.filter_expr._ast.to_hql()
+        
+        row_hqls = []
+        for k, v in self.row_exprs.items():
+            analyze('filter_alleles', v, base._row_indices)
+            row_hqls.append('va.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
+            base._check_field_name(k, base._row_indices)
+        row_hql = ',\n'.join(row_hqls)
+
+        entry_hqls = []
+        for k, v in self.entry_exprs.items():
+            analyze('filter_alleles', v, base._entry_indices)
+            entry_hqls.append('g.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
+            base._check_field_name(k, base._entry_indices)
+        entry_hql = ',\n'.join(entry_hqls)
+
+        print(filter_hql, row_hqls, entry_hqls)
+        
+        m = MatrixTable(
+            Env.hail().methods.FilterAlleles.apply(
+                base._jvds, '({p})[aIndex - 1]'.format(p=filter_hql), row_hql, entry_hql, self.keep, self.left_aligned, self.keep_star))
+        return cleanup(m)
+
+# FIXME ArrayBooleanExpression
+@typecheck(filter_expr=ArrayExpression, keep=bool, left_aligned=bool, keep_star=bool)
+def filter_alleles(filter_expr, keep=True, left_aligned=False, keep_star=False):
+    source = filter_expr._indices.source
+    if not isinstance(source, MatrixTable):
+        raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
+            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    return FilterAlleles(source, filter_expr, keep, left_aligned, keep_star)

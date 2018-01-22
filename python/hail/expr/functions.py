@@ -1548,3 +1548,48 @@ def to_str(x):
     :class:`.StringExpression`
     """
     return _func("str", TString(), x)
+
+@typecheck(pl=ArrayInt32Expression)
+def gt_from_pl(pl):
+    """Call genotype from Phred-scaled probability likelihoods.  Returns
+    the index of the smallest PL value if it is unique, and missing
+    otherwise.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.gt_from_pl([69,0,1035]))
+        1
+
+    Parameters
+    ----------
+    pl
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+
+    """
+    return _func("gtFromPL", TInt32(), pl)
+
+@typecheck(pl=ArrayInt32Expression)
+def gq_from_pl(pl):
+    """Compute genotype quality from Phred-scaled probability likelihoods.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.gq_from_pl([0,69,1035]))
+        69
+
+    Parameters
+    ----------
+    pl
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+    """
+    return _func("gqFromPL", TInt32(), pl)
