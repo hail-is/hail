@@ -393,7 +393,7 @@ def sum(expr):
 
 @typecheck(expr=oneof(Aggregable, expr_any))
 def array_sum(expr):
-    """Compute the coordinate sum of records of `expr`.
+    """Compute the coordinate-wise sum of all records of `expr`.
 
     Examples
     --------
@@ -401,12 +401,13 @@ def array_sum(expr):
 
     .. doctest::
 
-        >>> dataset.aggregate(ac_sum=agg.array_sum([table1.C1, table1.C2]))
+        >>> table1.aggregate(ac_sum=agg.array_sum([table1.C1, table1.C2]))
         Struct(ac_sum=[25, 46])
 
-    Warning
-    -------
-    This method fails if it encounters two arrays of different length.
+    Notes
+    ------
+    All records must have the same length. Each coordinate is summed
+    independently as described in :func:`sum`.
 
     Parameters
     ----------
