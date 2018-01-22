@@ -124,11 +124,13 @@ class Tests(unittest.TestCase):
         table = Table.range(10)
         r = table.aggregate(x=agg.count(),
                             y=agg.count_where(table.idx % 2 == 0),
-                            z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)))
+                            z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
+                            arr_sum = agg.array_sum([1, 2, functions.null(TInt32())]))
 
         self.assertEqual(r.x, 10)
         self.assertEqual(r.y, 5)
         self.assertEqual(r.z, 5)
+        self.assertEqual(r.arr_sum, [10, 20, 0])
 
         r = table.aggregate(fraction_odd = agg.fraction(table.idx % 2 == 0),
                             lessthan6 = agg.fraction(table.idx < 6),
