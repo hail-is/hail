@@ -1260,13 +1260,11 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
 
         Parameters
         ----------
-        other : :class:`.NumericExpression`
-            Dividend.
+        other : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
 
         Returns
         -------
-        :class:`.NumericExpression`
-            Array of positional dividends.
+        :class:`.ArrayNumericExpression`
         """
         return self._bin_op_numeric('//', other)
 
@@ -1280,21 +1278,16 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         --------
         .. doctest::
 
-            >>> eval_expr(32 % a[1:])
-            [0,
-
-            >>> eval_expr(7 % y)
-            2.5
+            >>> eval_expr(a1 % 2)
+            [0, 1, 0, 1, 0, 1]
 
         Parameters
         ----------
-        other : :class:`.NumericExpression`
-            Dividend.
+        other : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
 
         Returns
         -------
-        :class:`.NumericExpression`
-            Remainder after dividing the left by the right.
+        :class:`.ArrayNumericExpression`
         """
         return self._bin_op_numeric('%', other)
 
@@ -1317,12 +1310,10 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         Parameters
         ----------
         other : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
-            Value or array to exponentiate by.
 
         Returns
         -------
         :class:`.ArrayNumericExpression`
-            Array of positional exponentiations.
         """
         return self._bin_op_numeric('**', other, lambda _: TArray(TFloat64()))
 
