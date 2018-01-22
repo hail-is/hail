@@ -391,6 +391,37 @@ def sum(expr):
         raise TypeError("'sum' expects a numeric argument, found '{}'".format(agg._type))
     return _agg_func('sum', agg, agg._type)
 
+@typecheck(expr=oneof(Aggregable, expr_any))
+def array_sum(expr):
+    """Compute the coordinate-wise sum of all records of `expr`.
+
+    Examples
+    --------
+    Compute the sum of `C1` and `C2`:
+
+    .. doctest::
+
+        >>> table1.aggregate(ac_sum=agg.array_sum([table1.C1, table1.C2]))
+        Struct(ac_sum=[25, 46])
+
+    Notes
+    ------
+    All records must have the same length. Each coordinate is summed
+    independently as described in :func:`sum`.
+
+    Parameters
+    ----------
+    expr : :class:`.ArrayNumericExpression`
+
+    Returns
+    -------
+    :class:`.ArrayNumericExpression`
+    """
+    agg = _to_agg(expr)
+    if not (isinstance(agg._type, TArray) and is_numeric(agg._type.element_type)):
+        raise TypeError("'array_sum' expects a numeric array argument, found '{}'".format(agg._type))
+    return _agg_func('sum', agg, agg._type)
+
 @typecheck(expr=oneof(Aggregable, expr_numeric))
 def mean(expr):
     """Compute the mean value of records of `expr`.
