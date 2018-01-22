@@ -58,6 +58,8 @@ autosummary_generate = ['api.rst', 'genetics/index.rst', 'methods/index.rst', 'u
 # autoclass_content = "both"
 autodoc_default_flags = ['members', 'undoc-members']
 
+napoleon_use_rtype = False
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates', '_templates/_autosummary']
 
@@ -187,7 +189,7 @@ language = None
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '**/.ipynb_checkpoints']
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
