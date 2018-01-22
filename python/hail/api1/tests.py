@@ -402,8 +402,8 @@ class ContextTests(unittest.TestCase):
         vds_assoc.variants_table().select(['Variant = v', 'va.lmmreg.*']).export('/tmp/lmmreg.tsv')
 
         men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_file('sample.fam')))
-        men.select(['fid', 's', 'code'])
-        fam.select(['father', 'nChildren'])
+        men.select(['fam_id', 's', 'code'])
+        fam.select(['pat_id', 'children'])
         self.assertEqual(ind.key, ['s'])
         self.assertEqual(var.key, ['v'])
         sample_split.annotate_variants_table(var, root='va.mendel').count()
@@ -786,7 +786,7 @@ class ContextTests(unittest.TestCase):
 
         tkt = (vds.trio_matrix(ped, complete_trios=True)
                   .genotypes_table()
-                  .annotate('fam = sa.proband.annotations.fam.fam_id, data = [{role: 0, g: g.proband}, {role: 1, g: g.father}, {role: 2, g: g.mother}]')
+                  .annotate('fam = sa.proband.fields.fam.fam_id, data = [{role: 0, g: g.proband}, {role: 1, g: g.father}, {role: 2, g: g.mother}]')
                   .select(['v', 'fam', 'data'])
                   .explode('data')
                   .filter('isDefined(data.g)')
@@ -807,9 +807,9 @@ class ContextTests(unittest.TestCase):
 
         t_sa = (vds.trio_matrix(ped, complete_trios=True)
                 .samples_table()
-                .annotate('fam = sa.proband.annotations.fam.fam_id, data = [{role: 0, sa: sa.proband.annotations}, '
-                          '{role: 1, sa: sa.father.annotations}, '
-                          '{role: 2, sa: sa.mother.annotations}]')
+                .annotate('fam = sa.proband.fields.fam.fam_id, data = [{role: 0, sa: sa.proband.fields}, '
+                          '{role: 1, sa: sa.father.fields}, '
+                          '{role: 2, sa: sa.mother.fields}]')
                 .select(['fam', 'data'])
                 .explode('data')
                 .filter('isDefined(data.sa)')
@@ -819,7 +819,7 @@ class ContextTests(unittest.TestCase):
 
     def test_tdt(self):
         pedigree = Pedigree.read('src/test/resources/tdt.fam')
-        tdt_res = (hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4)
+        tdt_tab = (hc.import_vcf('src/test/resources/tdt.vcf', min_partitions=4)
                    .split_multi_hts()
                    .tdt(pedigree))
 
@@ -831,8 +831,9 @@ class ContextTests(unittest.TestCase):
                  .drop(['CHROM', 'POSITION', 'REF', 'ALT'])
                  .key_by('v'))
 
-        bad = (tdt_res
-               .join(truth, how='outer')
+        bad = (tdt_tab
+               .filter('isnan(p)', keep=False)
+               .join(truth.filter('isnan(Pval)', keep=False), how='outer')
                .filter('!(transmitted == T && '
                        'untransmitted == U && '
                        'abs(chi2 - Chi2) < 0.001 && '
