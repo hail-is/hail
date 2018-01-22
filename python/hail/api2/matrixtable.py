@@ -2393,4 +2393,38 @@ class MatrixTable(object):
         """
         return MatrixTable(self._jvds.unionCols(other._jvds))
 
+    @handle_py4j
+    @typecheck_method(n=integral)
+    def head(self, n):
+        """Subset matrix to first `n` rows.
+
+        Examples
+        --------
+        Subset to the first three rows of the matrix:
+
+        .. doctest::
+
+            >>> dataset_result = dataset.head(3)
+            >>> dataset_result.count_rows()
+            3
+
+        Notes
+        -----
+
+        The number of partitions in the new matrix is equal to the number of
+        partitions containing the first `n` rows.
+
+        Parameters
+        ----------
+        n : :obj:`int`
+            Number of rows to include.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix including the first `n` rows.
+        """
+
+        return MatrixTable(self._jvds.head(n))
+
 matrix_table_type.set(MatrixTable)
