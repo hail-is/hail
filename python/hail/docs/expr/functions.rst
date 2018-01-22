@@ -23,6 +23,13 @@ Functions
     gt_index
     hardy_weinberg_p
     index
+    parse_locus
+    locus
+    parse_variant
+    variant
+    interval
+    parse_interval
+    call
     is_defined
     is_missing
     is_nan
@@ -65,6 +72,13 @@ Functions
 .. autofunction:: gt_index
 .. autofunction:: hardy_weinberg_p
 .. autofunction:: index
+.. autofunction:: parse_locus
+.. autofunction:: locus
+.. autofunction:: parse_variant
+.. autofunction:: variant
+.. autofunction:: interval
+.. autofunction:: parse_interval
+.. autofunction:: call
 .. autofunction:: is_defined
 .. autofunction:: is_missing
 .. autofunction:: is_nan
