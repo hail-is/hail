@@ -1130,6 +1130,11 @@ class Table(TableTemplate):
         uid = Env._get_uid()
 
         src = indices.source
+
+        key_set = set(self.key)
+        new_fields = [x for x in self.schema.fields if x.name not in key_set]
+        new_schema = TStruct.from_fields(new_fields)
+
         if src is None or len(indices.axes) == 0:
             # FIXME: this should be OK: table[m.global_index_into_table]
             raise ExpressionException('found explicit join indexed by a scalar expression')
@@ -1151,7 +1156,7 @@ class Table(TableTemplate):
 
             all_uids = uids[:]
             all_uids.append(uid)
-            return construct_expr(Reference(uid), self.schema, indices, aggregations,
+            return construct_expr(Reference(uid), new_schema, indices, aggregations,
                                   joins.push(Join(joiner, all_uids)), refs)
         elif isinstance(src, MatrixTable):
             for e in exprs:
@@ -1171,7 +1176,7 @@ class Table(TableTemplate):
                     joiner = lambda left: MatrixTable(left._jvds.annotateVariantsTable(
                         right._jt, [e._ast.to_hql() for e in exprs], 'va.{}'.format(uid), None, False))
 
-                return construct_expr(Select(Reference('va'), uid), self.schema,
+                return construct_expr(Select(Reference('va'), uid), new_schema,
                                       indices, aggregations, joins.push(Join(joiner, [uid])))
             elif indices == src._col_indices:
                 if len(exprs) == 1 and exprs[0] is src['s']:
@@ -1182,7 +1187,7 @@ class Table(TableTemplate):
                     # use vds_key
                     joiner = lambda left: MatrixTable(left._jvds.annotateSamplesTable(
                         right._jt, [e._ast.to_hql() for e in exprs], 'sa.{}'.format(uid), None, False))
-                return construct_expr(Select(Reference('sa'), uid), self.schema,
+                return construct_expr(Select(Reference('sa'), uid), new_schema,
                                       indices, aggregations, joins.push(Join(joiner, [uid])))
             else:
                 raise NotImplementedError()
