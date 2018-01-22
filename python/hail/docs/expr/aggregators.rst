@@ -17,6 +17,7 @@ Aggregators
     min
     max
     sum
+    array_sum
     mean
     stats
     product
@@ -37,6 +38,7 @@ Aggregators
 .. autofunction:: min
 .. autofunction:: max
 .. autofunction:: sum
+.. autofunction:: array_sum
 .. autofunction:: mean
 .. autofunction:: stats
 .. autofunction:: product
