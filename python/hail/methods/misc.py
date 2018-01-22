@@ -5,11 +5,14 @@ from hail.typecheck.check import typecheck, strlike
 from hail.expr.expression import *
 
 @handle_py4j
-@typecheck(table=Table, i=strlike, j=strlike, tie_breaker=nullable(strlike))
+@typecheck(i=Expression,
+           j=Expression,
+           tie_breaker=nullable(func_spec(2, NumericExpression)))
 def maximal_independent_set(table, i, j, tie_breaker=None):
-    """Compute a `maximal independent set
-    <https://en.wikipedia.org/wiki/Maximal_independent_set>`__ of vertices in
-    an undirected graph whose edges are given by this key table.
+    """Compute a `maximal independent set`_ of vertices in an undirected graph
+    whose edges are given by a two-column table.
+
+    .. _maximal independent set: https://en.wikipedia.org/wiki/Maximal_independent_set
 
     Examples
     --------
@@ -17,20 +20,22 @@ def maximal_independent_set(table, i, j, tie_breaker=None):
     Prune individuals from a dataset until no close relationships remain with
     respect to a PC-Relate measure of kinship.
 
-    >>> vds = hc.import_vcf("data/sample.vcf.bgz")
-    >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
-    >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
-    >>> related_samples_to_keep = related_pairs.maximal_independent_set("i", "j")
+    >>> ds = hc.import_vcf('data/sample.vcf.bgz')
+    >>> pc_rel = methods.pc_relate(ds, 2, 0.001)
+    >>> rel_pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
+    >>> related_samples = rel_pairs.aggregate(samps = agg.collect_as_set(agg.explode([rel_pairs.i, rel_pairs.j]))).samps
+    >>> related_samples_to_keep = related_pairs.maximal_independent_set(rel_pairs.i, rel_pairs.j)
     >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
-    >>> vds.filter_samples_list(list(related_samples_to_remove))
+    >>> ds.filter_cols_list(list(related_samples_to_remove))
 
     Prune individuals from a dataset, prefering to keep cases over controls.
 
-    >>> vds = hc.read("data/example.vds")
-    >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
-    >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
-    >>> related_samples_to_keep = (related_pairs
-    ...   .key_by("i").join(vds.samples_table()).annotate('iAndCase = { id: i, isCase: sa.isCase }')
+    >>> ds = hc.read('data/example.vds')
+    >>> pc_rel = methods.pc_relate(ds, 2, 0.001)
+    >>> rel_pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
+    >>> related_samples = rel_pairs.aggregate(samps = agg.collect_as_set(agg.explode([rel_pairs.i, rel_pairs.j]))).samps
+    >>> related_samples_to_keep = (rel_pairs
+    ...   .key_by('i').join(vds.samples_table()).annotate('iAndCase = { id: i, isCase: sa.isCase }')
     ...   .select(['j', 'iAndCase'])
     ...   .key_by("j").join(vds.samples_table()).annotate('jAndCase = { id: j, isCase: sa.isCase }')
     ...   .select(['iAndCase', 'jAndCase'])
@@ -39,24 +44,26 @@ def maximal_independent_set(table, i, j, tie_breaker=None):
     >>> related_samples_to_remove = related_samples - {x.id for x in related_samples_to_keep}
     >>> vds.filter_samples_list(list(related_samples_to_remove))
 
-    **Notes**
+    Notes
+    -----
 
-    The vertex set of the graph is implicitly all the values realized by
-    ``i`` and ``j`` on the rows of this key table. Each row of the key table
-    corresponds to an undirected edge between the vertices given by
-    evaluating ``i`` and ``j`` on that row. An undirected edge may appear
-    multiple times in the key table and will not affect the output. Vertices
-    with self-edges are removed as they are not independent of themselves.
+    The vertex set of the graph is implicitly all the values realized by `i`
+    and `j` on the rows of this key table. Each row of the key table
+    corresponds to an undirected edge between the vertices given by evaluating
+    `i` and `j` on that row. An undirected edge may appear multiple times in
+    the key table and will not affect the output. Vertices with self-edges are
+    removed as they are not independent of themselves.
 
-    The expressions for ``i`` and ``j`` must have the same type.
+    The expressions for `i` and `j` must have the same type.
 
     This method implements a greedy algorithm which iteratively removes a
     vertex of highest degree until the graph contains no edges.
 
-    ``tie_breaker`` is a Hail expression that defines an ordering on
-    nodes. It has two values in scope, ``l`` and ``r``, that refer the two
-    nodes being compared. A pair of nodes can be ordered in one of three
-    ways, and ``tie_breaker`` must encode the relationship as follows:
+    `tie_breaker` is a Python function taking two arguments---say `l` and
+    `r`---each of which is an :class:`Expression` of the same type as `i` and
+    `j`. `tie_breaker` returns a :class:`NumericExpression`, which defines an
+    ordering on nodes. A pair of nodes can be ordered in one of three ways, and
+    `tie_breaker` must encode the relationship as follows:
 
      - if ``l < r`` then ``tie_breaker`` evaluates to some negative integer
      - if ``l == r`` then ``tie_breaker`` evaluates to 0
@@ -75,8 +82,15 @@ def maximal_independent_set(table, i, j, tie_breaker=None):
     :rtype: list of elements with the same type as ``i`` and ``j``
 
     """
+    if i.dtype != j.dtype:
+        raise ValueError("Expects arguments `i` and `j` to have same type. Found...")
 
-    return jarray_to_list(self._jkt.maximalIndependentSet(i, j, joption(tie_breaker)))
+    node_t = i.dtype
+    node_e = type(i)
+    table = i._indices.source
+    l = node_e(Reference('l', node_t))
+    r = node_e(Reference('r', node_t))
+    return jarray_to_list(table._jkt.maximalIndependentSet(i._ast.to_hql(), j._ast.to_hql(), joption(tie_breaker(l, r))))
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, method=strlike)
