@@ -67,21 +67,22 @@ object LinearMixedRegression {
     val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x and intercept) implies $d degrees of freedom.")
 
-    info(s"lmmreg: running lmmreg on $n samples with $k sample ${ plural(k, "covariate") } including intercept...")
+    info(s"lmmreg: running linear mixed regression on $n samples for response variable y,\n"
+       + s"    with input variable x, intercept, and ${ k - 1 } additional ${ plural(k - 1, "covariate") }...")
 
     val K = filteredKinshipMatrix.matrix.toHailBlockMatrix().toLocalMatrix()
 
-    info(s"lmmreg: Computing eigendecomposition of kinship matrix...")
+    info(s"lmmreg: computing eigendecomposition of kinship matrix...")
 
     val eigK = eigSymD(K)
     val fullU = eigK.eigenvectors
     val fullS = eigK.eigenvalues // increasing order
 
     optDelta match {
-      case Some(_) => info(s"lmmreg: Delta specified by user")
-      case None => info(s"lmmreg: Estimating delta using ${ if (useML) "ML" else "REML" }... ")
+      case Some(_) => info(s"lmmreg: delta specified by user")
+      case None => info(s"lmmreg: estimating delta using ${ if (useML) "ML" else "REML" }... ")
     }
 
     val nEigs = (optNEigs, optDroppedVarianceFraction) match {
@@ -96,8 +97,8 @@ object LinearMixedRegression {
     val Ut = fullU(::, (n - nEigs) until n).t
     val S = fullS((n - nEigs) until n)
 
-    info(s"lmmreg: Evals 1 to ${ math.min(20, nEigs) }: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
-    info(s"lmmreg: Evals $nEigs to ${ math.max(1, nEigs - 20) }: " + (0 until math.min(nEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
+    info(s"lmmreg: eigenvalues 1 to ${ math.min(20, nEigs) }: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
+    info(s"lmmreg: eigenvalues $nEigs to ${ math.max(1, nEigs - 20) }: " + (0 until math.min(nEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
 
     val lmmConstants = LMMConstants(y, cov, S, Ut)
 
