@@ -42,7 +42,7 @@ object Copy {
         ApplyUnaryPrimOp(op, x, typ)
       case MakeArray(args, typ) =>
         assert(args.length == children.length)
-        MakeArray(children.toArray, typ)
+        MakeArray(children, typ)
       case MakeArrayN(_, elementType) =>
         val IndexedSeq(len) = children
         MakeArrayN(len, elementType)
@@ -83,7 +83,7 @@ object Copy {
         AggFlatMap(a, name, body, typ)
       case ApplyAggOp(_, op, args, typ) =>
         val a +: args = children
-        ApplyAggOp(a, op, args.toArray, typ)
+        ApplyAggOp(a, op, args, typ)
       case In(_, _) =>
         same
       case InMissingness(_) =>

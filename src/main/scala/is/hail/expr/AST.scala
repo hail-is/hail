@@ -405,7 +405,7 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
 
   def toIR(agg: Option[String] = None): Option[IR] = for {
     irElements <- anyFailAllFail(elements.map(_.toIR(agg)))
-  } yield ir.MakeArray(irElements.toArray, `type`.asInstanceOf[TArray])
+  } yield ir.MakeArray(irElements, `type`.asInstanceOf[TArray])
 }
 
 case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
@@ -829,16 +829,17 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case ("sum", IndexedSeq()) =>
       for {
         a <- lhs.toIR(agg)
+        _ = println("yo: " + a)
         elementType = a.typ.asInstanceOf[TAggregable].elementType
-      } yield ir.ApplyAggOp(a, ir.Sum(), Array(), elementType)
+      } yield ir.ApplyAggOp(a, ir.Sum(), Seq(), elementType)
     case (m, IndexedSeq(Lambda(_, name, body))) =>
       for {
         a <- lhs.toIR(agg)
         b <- body.toIR(agg)
         result <- optMatch(m) {
-          case "map" => ir.AggMap(a, name, b)
-          case "filter" => ir.AggFilter(a, name, b)
-          case "flatMap" => ir.AggFlatMap(a, name, b)
+          case "map" => ir.AggMap(a, name, b, `type`.asInstanceOf[TAggregable])
+          case "filter" => ir.AggFilter(a, name, b, `type`.asInstanceOf[TAggregable])
+          case "flatMap" => ir.AggFlatMap(a, name, b, `type`.asInstanceOf[TAggregable])
         }
       } yield result
     case _ => None
@@ -891,7 +892,7 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   def compile() = CM.lookup(symbol)
 
   def toIR(agg: Option[String] = None): Option[IR] = agg match {
-    case Some(x) if x == symbol => Some(ir.AggIn())
+    case Some(x) if x == symbol => Some(ir.AggIn(`type`.asInstanceOf[TAggregable]))
     case _ => Some(ir.Ref(symbol, `type`))
   }
 }

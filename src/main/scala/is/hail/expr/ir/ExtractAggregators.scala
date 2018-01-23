@@ -56,7 +56,7 @@ object ExtractAggregators {
       constfb.emit(Code(
         Code(doargs:_*),
         AggOp.get(op, x.inputType, args.map(_.typ))
-          .stagedNew(vargs, margs)))
+          .stagedNew(vargs.toArray, margs.toArray)))
       constfb.result()()(Region())
   }
 }

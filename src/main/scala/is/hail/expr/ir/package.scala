@@ -34,7 +34,7 @@ package object ir {
           v
         else
           ir.GetField(s, f.name))
-    }.toArray)
+    })
   }
 
   private[ir] def coerce[T](c: Code[_]): Code[T] = asm4s.coerce(c)

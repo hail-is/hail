@@ -29,7 +29,7 @@ object Children {
     case ApplyUnaryPrimOp(op, x, typ) =>
       Array(x)
     case MakeArray(args, typ) =>
-      args
+      args.toIndexedSeq
     case MakeArrayN(len, elementType) =>
       Array(len)
     case ArrayRef(a, i, typ) =>
@@ -43,9 +43,9 @@ object Children {
     case ArrayFold(a, zero, accumName, valueName, body, typ) =>
       Array(a, zero, body)
     case MakeStruct(fields, _) =>
-      fields.map(_._2)
+      fields.map(_._2).toIndexedSeq
     case InsertFields(old, fields, _) =>
-      old +: fields.map(_._2)
+      (old +: fields.map(_._2)).toIndexedSeq
     case AggIn(_) =>
       none
     case AggMap(a, _, body, _) =>
@@ -55,7 +55,7 @@ object Children {
     case AggFlatMap(a, name, body, typ) =>
       Array(a, body)
     case ApplyAggOp(a, op, args, _) =>
-      a +: args
+      (a +: args).toIndexedSeq
     case GetField(o, name, typ) =>
       Array(o)
     case GetFieldMissingness(o, name) =>

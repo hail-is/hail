@@ -23,12 +23,12 @@ class ASTToIRSuite {
     "3.0" -> F64(3.0),
     "true" -> True(),
     "false" -> False(),
-    "{}" -> MakeStruct(Array()),
-    "{a : 1}" -> MakeStruct(Array(("a", I32(1)))),
-    "{a: 1, b: 2}" -> MakeStruct(Array(
+    "{}" -> MakeStruct(Seq()),
+    "{a : 1}" -> MakeStruct(Seq(("a", I32(1)))),
+    "{a: 1, b: 2}" -> MakeStruct(Seq(
       ("a", I32(1)), ("b", I32(2)))),
-    "[1, 2]" -> MakeArray(Array(I32(1), I32(2)), TArray(TInt32())),
-    "[42.0]" -> MakeArray(Array(F64(42.0)), TArray(TFloat64()))
+    "[1, 2]" -> MakeArray(Seq(I32(1), I32(2)), TArray(TInt32())),
+    "[42.0]" -> MakeArray(Seq(F64(42.0)), TArray(TFloat64()))
   )
   } {
     assert(toIR(in).contains(out),
@@ -40,13 +40,13 @@ class ASTToIRSuite {
   def getField() { for { (in, out) <- Array(
     "{a: 1, b: 2}.a" ->
       GetField(
-        MakeStruct(Array(
+        MakeStruct(Seq(
           ("a", I32(1)), ("b", I32(2)))),
         "a",
         TInt32()),
     "{a: 1, b: 2}.b" ->
       GetField(
-        MakeStruct(Array(
+        MakeStruct(Seq(
           ("a", I32(1)), ("b", I32(2)))),
         "b",
         TInt32())
@@ -106,25 +106,29 @@ class ASTToIRSuite {
   @Test
   def aggs() { for { (in, out) <- Array(
     "aggregable.sum()" ->
-      ApplyAggOp(AggIn(), Sum(), Array(), TInt32()),
+      ApplyAggOp(AggIn(), Sum(), Seq()),
     "aggregable.map(x => x * 5).sum()" ->
       ApplyAggOp(
-        AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), I32(5), TInt32())),
-        Sum(), Array(), TInt32()),
+        AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x"), I32(5))),
+        Sum(), Seq(), TInt32()),
     "aggregable.map(x => x * something).sum()" ->
       ApplyAggOp(
-        AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), Ref("something", TInt32()), TInt32())),
-        Sum(), Array(), TInt32()),
+        AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x"), Ref("something"))),
+        Sum(), Seq()),
     "aggregable.filter(x => x > 2).sum()" ->
       ApplyAggOp(
-        AggFilter(AggIn(), "x", ApplyBinaryPrimOp(GT(), Ref("x", TInt32()), I32(2), TBoolean())),
-        Sum(), Array(), TBoolean()),
+        AggFilter(AggIn(), "x", ApplyBinaryPrimOp(GT(), Ref("x"), I32(2))),
+        Sum(), Seq()),
     "aggregable.flatMap(x => [x * 5]).sum()" ->
       ApplyAggOp(
-        AggFlatMap(AggIn(), "x", MakeArray(Array(ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()) ,I32(5), TInt32())), TArray(TInt32()))),
-        Sum(), Array(), TInt32())
+        AggFlatMap(AggIn(), "x",
+          MakeArray(Seq(ApplyBinaryPrimOp(Multiply(), Ref("x") ,I32(5))))),
+        Sum(), Seq())
   )
   } {
+    val tAgg = TAggregable(TInt32())
+    tAgg.symTab = Map("something" -> (0, TInt32(): Type))
+    Infer(out, Some(tAgg))
     assert(toIR(in).contains(out),
       s"expected '$in' to parse and convert into $out, but got ${toIR(in)}")
   }

@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.expr.BaseIR
 import is.hail.utils._
+import scala.util.hashing.MurmurHash3
 
 sealed trait IR extends BaseIR {
   def typ: Type
@@ -34,18 +35,7 @@ final case class Ref(name: String, var typ: Type = null) extends IR
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR, var typ: Type = null) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR, var typ: Type = null) extends IR
 
-final case class MakeArray(args: Array[IR], var typ: TArray = null) extends IR {
-  override def toString: String = s"MakeArray(${ args.toFastIndexedSeq }, $typ)"
-  override def hashCode(): Int =
-    scala.util.hashing.MurmurHash3.arrayHash(args) + typ.##
-  override def equals(that: Any): Boolean = that match {
-    case MakeArray(args2, typ2) =>
-      args.length == args2.length &&
-      typ == typ2 &&
-      args.sameElements(args2)
-    case _ => false
-  }
-}
+final case class MakeArray(args: Seq[IR], var typ: TArray = null) extends IR
 final case class MakeArrayN(len: IR, elementType: Type) extends IR { def typ: TArray = TArray(elementType) }
 final case class ArrayRef(a: IR, i: IR, var typ: Type = null) extends IR
 final case class ArrayMissingnessRef(a: IR, i: IR) extends IR { val typ: Type = TBoolean() }
@@ -57,34 +47,13 @@ final case class AggIn(var typ: TAggregable = null) extends IR
 final case class AggMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
 final case class AggFilter(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
 final case class AggFlatMap(a: IR, name: String, body: IR, var typ: TAggregable = null) extends IR
-final case class ApplyAggOp(a: IR, op: AggOp, args: Array[IR], var typ: Type = null) extends IR {
+final case class ApplyAggOp(a: IR, op: AggOp, args: Seq[IR], var typ: Type = null) extends IR {
   def inputType: Type = coerce[TAggregable](a.typ).elementType
 }
 
-final case class MakeStruct(fields: Array[(String, IR)], var typ: TStruct = null) extends IR {
-  override def toString: String = s"MakeStruct(${ fields.toFastIndexedSeq })"
-  override def hashCode(): Int =
-    scala.util.hashing.MurmurHash3.arrayHash(fields)
-  override def equals(that: Any): Boolean = that match {
-    case MakeStruct(fields2, _) =>
-      fields.length == fields2.length &&
-      fields.sameElements(fields2)
-    case _ => false
-  }
-}
+final case class MakeStruct(fields: Seq[(String, IR)], var typ: TStruct = null) extends IR
 
-final case class InsertFields(old: IR, fields: Array[(String, IR)], var typ: TStruct = null) extends IR {
-  override def toString: String = s"InsertFields($old, ${ fields.toFastIndexedSeq })"
-  override def hashCode(): Int =
-    old.hashCode() * 41 + scala.util.hashing.MurmurHash3.arrayHash(fields)
-  override def equals(that: Any): Boolean = that match {
-    case InsertFields(old2, fields2, _) =>
-      old.equals(old2) &&
-      fields.length == fields2.length &&
-        fields.sameElements(fields2)
-    case _ => false
-  }
-}
+final case class InsertFields(old: IR, fields: Seq[(String, IR)], var typ: TStruct = null) extends IR
 
 final case class GetField(o: IR, name: String, var typ: Type = null) extends IR
 final case class GetFieldMissingness(o: IR, name: String) extends IR { val typ: Type = TBoolean() }

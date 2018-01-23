@@ -479,9 +479,9 @@ class Table(val hc: HailContext, val ir: TableIR) {
           } else {
             old.typ match {
               case t: TStruct if t.selfField(f).isDefined =>
-                (f, InsertFields(GetField(old, f), flatten(GetField(old, f), newF).toArray))
+                (f, InsertFields(GetField(old, f), flatten(GetField(old, f), newF)))
               case _ =>
-                (f, MakeStruct(flatten(I32(0), newF).toArray))
+                (f, MakeStruct(flatten(I32(0), newF)))
             }
           }
         }.toIndexedSeq
