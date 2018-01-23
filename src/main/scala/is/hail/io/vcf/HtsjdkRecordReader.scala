@@ -191,18 +191,21 @@ object HtsjdkRecordReader {
   private val haploidRegex = """^[0-9]+$""".r
   private val diploidRegex = """^([0-9]+)[|/]([0-9]+)$""".r
 
-  def parseCall(gt: String, nAlleles: Int): Call = {
-    val call: Call = gt match {
-      case diploidRegex(a0, a1) => Call(Genotype.gtIndexWithSwap(a0.toInt, a1.toInt))
+  def parseCall(gt: String, nAlleles: Int): BoxedCall = {
+    gt match {
+      case diploidRegex(a0, a1) =>
+        val c = Call(Genotype.gtIndexWithSwap(a0.toInt, a1.toInt))
+        Call.check(c, nAlleles)
+        c
       case VCFConstants.EMPTY_GENOTYPE => null
       case VCFConstants.EMPTY_ALLELE => null
       case haploidRegex() =>
         val i = gt.toInt
-        Call(Genotype.gtIndexWithSwap(i, i))
+        val c = Call(Genotype.gtIndexWithSwap(i, i))
+        Call.check(c, nAlleles)
+        c
       case _ => fatal(s"Invalid input format for Call type. Found `$gt'.")
     }
-    Call.check(call, nAlleles)
-    call
   }
 
   def addAttribute(rvb: RegionValueBuilder, attr: Any, t: Type, nAlleles: Int) {

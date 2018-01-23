@@ -273,11 +273,13 @@ class Tests(unittest.TestCase):
             mat = np.array([[(g-mean[i])/stddev[i] for g in row] for i, row in enumerate(ds)])
 
             rrm = mat.T.dot(mat) / nvariants
+            
             return rrm
 
         def hail_calculation(ds):
             rrm = methods.rrm(ds['GT'])
             fn = utils.new_temp_file(suffix='.tsv')
+
             rrm.export_tsv(fn)
             data = []
             with open(utils.get_URI(fn)) as f:

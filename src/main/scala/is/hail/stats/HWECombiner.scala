@@ -15,14 +15,12 @@ class HWECombiner extends Serializable {
   var nHomVar = 0
 
   def merge(gt: Call): HWECombiner = {
-    if (gt!= null) {
-      if (Call.isHomRef(gt))
-        nHomRef += 1
-      else if (Call.isHet(gt))
-        nHet += 1
-      else if (Call.isHomVar(gt))
-        nHomVar += 1
-    }
+    if (Call.isHomRef(gt))
+      nHomRef += 1
+    else if (Call.isHet(gt))
+      nHet += 1
+    else if (Call.isHomVar(gt))
+      nHomVar += 1
 
     this
   }
