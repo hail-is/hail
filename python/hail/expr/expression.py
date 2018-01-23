@@ -1344,6 +1344,11 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
         return self._method("sort", self._type, ascending)
 
 
+class ArrayBooleanExpression(ArrayExpression):
+    """Expression of type :class:`.TArray` with element type :class:`.TBoolean`."""
+    pass
+
+
 class ArrayFloat64Expression(ArrayNumericExpression):
     """Expression of type :class:`.TArray` with element type :class:`.TFloat64`."""
     pass
@@ -4027,6 +4032,7 @@ typ_to_expr = {
 }
 
 elt_typ_to_array_expr = {
+    TBoolean: ArrayBooleanExpression,
     TInt32: ArrayInt32Expression,
     TFloat64: ArrayFloat64Expression,
     TInt64: ArrayInt64Expression,

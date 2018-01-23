@@ -1128,17 +1128,18 @@ class FilterAlleles(object):
         self.row_exprs = None
         self.entry_exprs = None
 
-        # FIXME getitem or getattr
         self.old_to_new = construct_reference('oldToNew', TArray(TInt32()), self.ds._row_indices)
         self.new_to_old = construct_reference('newToOld', TArray(TInt32()), self.ds._row_indices)
         self.new_v = construct_reference('newV', self.ds._rowkey_schema, self.ds._row_indices)
 
     def annotate_rows(self, **named_exprs):
-        # FIXME double-assignment
+        if self.row_exprs:
+            raise RuntimeError('annotate_rows already called')
         self.row_exprs = named_exprs
 
     def annotate_entries(self, **named_exprs):
-        # FIXME double-assignment
+        if self.row_exprs:
+            raise RuntimeError('annotate_entries already called')
         self.entry_exprs = named_exprs
 
     def filter(self):
@@ -1174,9 +1175,64 @@ class FilterAlleles(object):
                 base._jvds, '({p})[aIndex - 1]'.format(p=filter_hql), row_hql, entry_hql, self.keep, self.left_aligned, self.keep_star))
         return cleanup(m)
 
-# FIXME ArrayBooleanExpression
-@typecheck(filter_expr=ArrayExpression, keep=bool, left_aligned=bool, keep_star=bool)
+@typecheck(filter_expr=ArrayBooleanExpression, keep=bool, left_aligned=bool, keep_star=bool)
 def filter_alleles(filter_expr, keep=True, left_aligned=False, keep_star=False):
+    """Filter out a set of alternate alleles for each variant.  If all
+    alternate alleles of a variant are filtered out, the variant
+    itself is filtered out.  `filter_expr` is an alternate allele
+    indexed `Array[Boolean]` where the booleans, combined with `keep`,
+    determine which alternate alleles to filter out.
+
+    Examples
+    --------
+    
+    Filter alleles with zero AC count on a dataset with the HTS entry
+    schema and update the ``info.AC`` and entry fields.
+
+    >>> fa = methods.filter_alleles(ds.info.AC.map(lambda AC: AC == 0), keep=False)
+    ... fa.annotate_rows(
+    ...     info = ds.info.annotate(AC = fa.new_to_old[1:].map(lambda i: ds.info.AC[i - 1])))
+    ... newPL = functions.cond(
+    ...     functions.is_defined(ds.PL),
+    ...     functions.range(0, fa.new_v.num_genotypes()).map(
+    ...         lambda newi: functions.bind(
+    ...             functions.call(newi),
+    ...             lambda newc: ds.PL[functions.gt_index(fa.new_to_old[newc.gtj()], fa.new_to_old[newc.gtk()])])),
+    ...     functions.null(TArray(TInt32())))
+    ... fa.annotate_entries(
+    ...     GT = functions.call(functions.gt_from_pl(newPL)),
+    ...     AD = functions.cond(
+    ...         functions.is_defined(ds.AD),
+    ...         functions.range(0, fa.new_v.num_alleles()).map(
+    ...             lambda newi: ds.AD[fa.new_to_old[newi]]),
+    ...         functions.null(TArray(TInt32()))),
+    ...     GQ = functions.gq_from_pl(newPL),
+    ...     PL = newPL)
+    ... filtered_result = fa.filter()
+    
+    Parameters
+    ----------
+    filter_expr : :class:`.ArrayBooleanExpression`
+        Boolean filter expression.
+
+    keep : bool
+        If True, keep alternate alleles where the corresponding element of `filter_expr` is True.  If False, remove the alternate alleles where the corresponding element is True.
+
+    left_aligned : bool
+        If True, variants are assumed to be left aligned and have
+        unique loci.  This avoids a shuffle.  If the assumption is
+        violated, an error is generated.
+
+    keep_star : bool
+        If True, keep variants where the only unfiltered alternate
+        alleles are ``*`` alleles.
+
+    Returns
+    -------
+    :class:`.FilterAlleles`
+        Returns an object for performing the filter alleles process which allow you to recode the row and entry fields and finally perform the filter.
+
+    """
     source = filter_expr._indices.source
     if not isinstance(source, MatrixTable):
         raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
