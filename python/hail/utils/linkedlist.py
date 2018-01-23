@@ -53,3 +53,9 @@ class LinkedList(Iterable):
 
     def __nonzero__(self):
         return not self.empty()
+
+    def __len__(self):
+        l = 0
+        for _ in self:
+            l += 1
+        return l
