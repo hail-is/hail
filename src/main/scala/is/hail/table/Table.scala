@@ -765,6 +765,37 @@ class Table(val hc: HailContext,
     }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
   }
 
+  def toOrderedTable(rowType: TStruct, ec: EvalContext, pkF: () => Annotation,
+    rowKeyF: () => Annotation, fieldFs: () => Array[Annotation]): Table = {
+
+    val orderedType = new OrderedRVType(Array(rowType.fieldNames(0)), rowType.fieldNames.slice(0, 2), rowType)
+    val newRDD = rvd.rdd.mapPartitions { it =>
+      val ur = new UnsafeRow(rowType)
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      it.map { rv =>
+        rvb.set(rv.region)
+        ur.set(rv)
+        ec.setAllFromRow(ur)
+        rvb.start(rowType)
+        rvb.startStruct()
+        rvb.addAnnotation(orderedType.pkType, pkF())
+        rvb.addAnnotation(orderedType.kType, rowKeyF())
+        val f = fieldFs()
+        var i = 2
+        while (i < rowType.size) {
+          rvb.addAnnotation(rowType.fieldType(i), f(i))
+          i += 1
+        }
+        rvb.endStruct()
+        rv2.set(rv.region, rvb.end())
+        rv2
+      }
+    }
+
+    copy2(rvd=OrderedRVD(orderedType, newRDD, None, None), signature=rowType)
+  }
+
   def toMatrixTable(rowKeyExpr: String, colKeyExpr: String, dataExpr: String, nPartitions: Option[Int] = None): MatrixTable = {
 
     val keyEC = EvalContext((fields.map { f => f.name -> f.typ } ++
@@ -811,82 +842,9 @@ class Table(val hc: HailContext,
 
     val (pkType, p) = Type.partitionKeyProjection(rowKeyType)
 
-    val zVals: (Region, Array[Long]) = (Region(), Array.tabulate[Long](ncols) { i => -1L })
+    val ordered = toOrderedTable(TStruct((Seq(("r", rowKeyType), ("c", colKeyType)) ++ (entryNames, eTypes).zipped.toSeq): _*), keyEC, rowKeyF, colKeyF, entryF)
 
-    val seqOp: ((Region, Array[Long]), RegionValue) => (Region, Array[Long]) = {
-      case (agg, rv) =>
-        val region = agg._1
-        val entries = agg._2
-        val ur = new UnsafeRow(localRowType, rv)
-        keyEC.setAllFromRow(ur)
-        val entryFields = entryF()
-        val rvb = new RegionValueBuilder(region)
-        rvb.start(entryType)
-        rvb.startStruct()
-        var j = 0
-        while (j < nFields) {
-          rvb.addAnnotation(eTypes(j), entryFields(j))
-          j += 1
-        }
-        rvb.endStruct()
-        entries.update(colMap(colKeyF()), rvb.end())
-        agg
-    }
-
-    val combOp: ((Region, Array[Long]), (Region, Array[Long])) => (Region, Array[Long]) = {
-      case (agg1, (region2, entries2)) =>
-        val region = agg1._1
-        val entries = agg1._2
-        val rvb = new RegionValueBuilder(region)
-        var i = 0
-        while (i < ncols) {
-          val off = entries2(i)
-          if (off != -1) {
-            rvb.start(entryType)
-            rvb.addRegionValue(entryType, region2, off)
-            entries.update(i, rvb.end())
-          }
-          i += 1
-        }
-        agg1
-    }
-
-    val newRDD = rvd.rdd.mapPartitions[(Annotation, RegionValue)] { it =>
-      val ur = new UnsafeRow(coerce[TStruct](localRowType))
-      it.map { rv =>
-        ur.set(rv)
-        keyEC.setAllFromRow(ur)
-        val key = rowKeyF()
-        (Annotation.copy(rowKeyType, key), rv)
-      }
-    }.aggregateByKey(zVals, nPartitions.getOrElse(this.nPartitions))(seqOp, combOp)
-      .mapPartitions { it =>
-        val region = Region()
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
-        it.map { case (k, (region2, entries)) =>
-          region.clear()
-          rvb.start(matrixType.rowType)
-          rvb.startStruct()
-          rvb.addAnnotation(pkType, p(k))
-          rvb.addAnnotation(rowKeyType, k)
-          rvb.startStruct()
-          rvb.endStruct()
-          rvb.startArray(ncols)
-          var i = 0
-          while (i < ncols) {
-            if (entries(i) != -1)
-              rvb.addRegionValue(entryType, region2, entries(i))
-            else
-              rvb.setMissing()
-            i += 1
-          }
-          rvb.endArray()
-          rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
-        }
-      }
+    
 
     new MatrixTable(hc,
       matrixType,

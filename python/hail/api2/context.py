@@ -177,4 +177,4 @@ class HailContext(HistoryMixin):
     @record_method
     @typecheck_method(path=strlike)
     def read_table(self, path):
-        return self._hc1.read_table(path)
+        return self._hc1.read_table(path).to_hail2()
