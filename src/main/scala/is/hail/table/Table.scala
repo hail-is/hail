@@ -766,11 +766,12 @@ class Table(val hc: HailContext,
   }
 
   def toOrderedTable(rowType: TStruct, ec: EvalContext, pkF: () => Annotation,
-    rowKeyF: () => Annotation, fieldFs: () => Array[Annotation]): Table = {
-
-    val orderedType = new OrderedRVType(Array(rowType.fieldNames(0)), rowType.fieldNames.slice(0, 2), rowType)
+    keyF: Array[() => Annotation], fieldFs: () => Array[Annotation]): Table = {
+    val localSig = signature
+    val nKeys = keyF.length + 1
+    val orderedType = new OrderedRVType(Array(rowType.fieldNames(0)), rowType.fieldNames.slice(0, nKeys), rowType)
     val newRDD = rvd.rdd.mapPartitions { it =>
-      val ur = new UnsafeRow(rowType)
+      val ur = new UnsafeRow(localSig)
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
       it.map { rv =>
@@ -779,21 +780,28 @@ class Table(val hc: HailContext,
         ec.setAllFromRow(ur)
         rvb.start(rowType)
         rvb.startStruct()
-        rvb.addAnnotation(orderedType.pkType, pkF())
-        rvb.addAnnotation(orderedType.kType, rowKeyF())
-        val f = fieldFs()
-        var i = 2
-        while (i < rowType.size) {
-          rvb.addAnnotation(rowType.fieldType(i), f(i))
+        rvb.addAnnotation(rowType.fieldType(0), pkF())
+        var i = 1
+        while (i < nKeys) {
+          rvb.addAnnotation(rowType.fieldType(i), keyF(i-1)())
           i += 1
         }
+        val f = fieldFs()
+        val t = coerce[TStruct](rowType.fieldType(i))
+        rvb.startStruct()
+        var j = 0
+        while (j < t.size) {
+          rvb.addAnnotation(t.fieldType(j), f(j))
+          j += 1
+        }
+        rvb.endStruct()
         rvb.endStruct()
         rv2.set(rv.region, rvb.end())
         rv2
       }
     }
 
-    copy2(rvd=OrderedRVD(orderedType, newRDD, None, None), signature=rowType)
+    copy2(rvd=OrderedRVD(orderedType, newRDD, None, None), signature=rowType, key=rowType.fieldNames.slice(0, nKeys))
   }
 
   def toMatrixTable(rowKeyExpr: String, colKeyExpr: String, dataExpr: String, nPartitions: Option[Int] = None): MatrixTable = {
@@ -842,16 +850,71 @@ class Table(val hc: HailContext,
 
     val (pkType, p) = Type.partitionKeyProjection(rowKeyType)
 
-    val ordered = toOrderedTable(TStruct((Seq(("r", rowKeyType), ("c", colKeyType)) ++ (entryNames, eTypes).zipped.toSeq): _*), keyEC, rowKeyF, colKeyF, entryF)
+    val orderedType = TStruct("pk" -> pkType, "r" -> rowKeyType, "c" -> TInt32(), "e" -> entryType)
+    val ordered = toOrderedTable(orderedType, keyEC, {() => p(rowKeyF())}, Array(rowKeyF, {() => colMap(colKeyF())}), entryF)
 
-    
+    val newRVD = ordered.rvd.asInstanceOf[OrderedRVD].mapPartitionsPreservesPartitioning(matrixType.orderedRVType) { it =>
+      new Iterator[RegionValue] {
+        val region = Region()
+        val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
+        val rvRowKey = RegionValue(region)
+        val currentRowKey: RegionValue = RegionValue()
+        var current: RegionValue = null
+        var isEnd: Boolean = false
+
+        def hasNext: Boolean = {
+          if (isEnd || (current == null && !it.hasNext)) {
+            isEnd = true
+            return false
+          }
+          if (current == null)
+            current = it.next()
+            currentRowKey.set(current.region, orderedType.loadField(current, 1))
+          true
+        }
+
+        def next(): RegionValue = {
+          if (!hasNext)
+            throw new java.util.NoSuchElementException()
+          region.clear()
+          rvb.start(matrixType.rowType)
+          rvb.startStruct()
+          rvb.addField(orderedType, current, 0)
+          rvb.addField(orderedType, current, 1)
+          rvRowKey.setOffset(matrixType.rowType.loadField(region, rvb.offsetstk.top, 1))
+          rvb.startStruct()
+          rvb.endStruct()
+          rvb.startArray(ncols)
+          var i = 0
+          while (i < ncols && hasNext && matrixType.vType.unsafeOrdering().compare(rvRowKey, currentRowKey) == 0) {
+            val nextint = current.region.loadInt(orderedType.fieldOffset(current.offset, 2))
+            while (i < nextint) {
+              rvb.setMissing()
+              i += 1
+            }
+            rvb.addField(orderedType, current, 3)
+            current = null
+            i += 1
+          }
+          while (i < ncols) {
+            rvb.setMissing()
+            i += 1
+          }
+          rvb.endArray()
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
+          rv
+        }
+      }
+    }
 
     new MatrixTable(hc,
       matrixType,
       MatrixLocalValue(Annotation.empty,
         colIDs,
         Annotation.emptyIndexedSeq(ncols)),
-      OrderedRVD(matrixType.orderedRVType, newRDD, None, None))
+      newRVD)
   }
 
   def aggregate(keyCond: String, aggCond: String, nPartitions: Option[Int] = None): Table = {
