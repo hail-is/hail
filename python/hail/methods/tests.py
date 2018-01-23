@@ -467,3 +467,19 @@ class Tests(unittest.TestCase):
         graph = t.select(i = t.idx, j = t.idx + 10)
         mis = methods.maximal_independent_set(graph.i, graph.j, lambda l, r: l - r)
         self.assertEqual(sorted(mis), range(0, 10))
+
+    def test_filter_alleles(self):
+        # poor man's Gen
+        paths = ['src/test/resources/sample.vcf',
+                 'src/test/resources/multipleChromosomes.vcf',
+                 'src/test/resources/sample2.vcf']
+        for path in paths:
+            ds = hc.import_vcf(path)
+            self.assertEqual(
+                FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: False))
+                .filter()
+                .count_rows(), 0)
+            self.assertEqual(
+                FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: True))
+                .filter()
+                .count_rows(), ds.count_rows())

@@ -34,7 +34,7 @@ Methods
     hail.methods.import_fam
     hail.methods.nirvana
     hail.methods.tdt
-    hail.methods.filter_alleles
+    hail.methods.FilterAlleles
 
 .. autofunction:: hail.methods.linreg
 .. autofunction:: hail.methods.sample_rows
@@ -64,4 +64,4 @@ Methods
 .. autofunction:: hail.methods.import_fam
 .. autofunction:: hail.methods.nirvana
 .. autofunction:: hail.methods.tdt
-.. autofunction:: hail.methods.filter_alleles
+.. autoclass:: hail.methods.FilterAlleles

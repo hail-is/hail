@@ -9,19 +9,6 @@ import is.hail.variant.{AltAllele, Genotype, MatrixFileMetadata, MatrixTable, VS
 import org.testng.annotations.Test
 
 class FilterAllelesSuite extends SparkSuite {
-  @Test def filterAllAlleles(): Unit = {
-    Prop.forAll(VSMSubgen.random.gen(hc)) { vds =>
-      vds.filterAlleles("false", subset = true).countVariants() == 0
-    }.check()
-  }
-
-  @Test def filterNoAlleles(): Unit = {
-    Prop.forAll(VSMSubgen.random.gen(hc)) { vds =>
-      vds.filterAlleles("true", subset = true, keepStar = true)
-        .countVariants() == vds.countVariants()
-    }.check()
-  }
-
   @Test def filterSecondOfTwoAllelesDowncode(): Unit = {
     val variant1 = new Variant("contig", 0, "ref", IndexedSeq("alt1", "alt2").map(AltAllele("ref", _)))
     val va1 = null
