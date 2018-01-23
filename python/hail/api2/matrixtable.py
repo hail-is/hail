@@ -2032,6 +2032,46 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.filterSamplesList(jkeys, keep))
 
     @handle_py4j
+    @typecheck_method(mapping=listof(strlike))
+    def reorder_columns(self, mapping):
+        """Reorder columns.
+
+        .. include:: ../_templates/req_tstring.rst
+
+        Examples
+        --------
+
+        Randomly shuffle order of columns:
+
+        >>> import random
+        >>> new_sample_order = [x.s for x in dataset.cols_table().select("s").collect()]
+        >>> random.shuffle(new_sample_order)
+        >>> vds_reordered = dataset.reorder_columns(new_sample_order)
+
+        Notes
+        -----
+
+        This method requires the keys to be unique. `mapping` must contain the
+        same set of keys as
+        ``[x.s for x in dataset.cols_table().select("s").collect()]``. The
+        order of the keys in `mapping` determines the column order in the
+        output dataset.
+
+        Parameters
+        ----------
+        mapping : :obj:`list` of :obj:`str`
+            New ordering of column keys.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix table with columns reordered.
+        """
+
+        jvds = self._jvds.reorderSamples(mapping)
+        return MatrixTable(jvds)
+
+    @handle_py4j
     def num_partitions(self):
         """Number of partitions.
 

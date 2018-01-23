@@ -4,6 +4,7 @@ Unit tests for Hail.
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
+import random
 from hail2 import *
 from hail.utils.misc import test_file
 
@@ -492,6 +493,12 @@ class MatrixTests(unittest.TestCase):
             self.assertEqual(i, struct.colidx)
         for i, struct in enumerate(ds.rows_table().select('rowidx').collect()):
             self.assertEqual(i, struct.rowidx)
+
+    def test_reorder_columns(self):
+        vds = self.get_vds()
+        new_sample_order = [x.s for x in vds.cols_table().select("s").collect()]
+        random.shuffle(new_sample_order)
+        self.assertEqual([x.s for x in vds.reorder_columns(new_sample_order).cols_table().select("s").collect()], new_sample_order)
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
