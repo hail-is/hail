@@ -2043,6 +2043,8 @@ class Table(TableTemplate):
         :class:`.StructExpression`
             Struct of all global fields.
         """
+        # FIXME: this is horribly inefficient. It can be solved by using a
+        # FIXME: 'row' and 'globals' symbol in the Table parser, like VSM
         return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.global_schema.fields}))
 
     @property
@@ -2055,6 +2057,8 @@ class Table(TableTemplate):
         :class:`.StructExpression`
             Struct of all row fields.
         """
+        # FIXME: this is horribly inefficient. It can be solved by using a
+        # FIXME: 'row' and 'globals' symbol in the Table parser, like VSM
         return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.schema.fields}))
 
 table_type.set(Table)
