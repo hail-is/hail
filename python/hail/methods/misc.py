@@ -1,4 +1,3 @@
-from decorator import decorator
 from hail.api2 import MatrixTable, Table
 from hail.utils.java import Env, handle_py4j, jarray_to_list, joption
 from hail.typecheck.check import typecheck, strlike
@@ -21,10 +20,13 @@ def maximal_independent_set(i, j, tie_breaker=None):
     Prune individuals from a dataset until no close relationships remain with
     respect to a PC-Relate measure of kinship.
 
-    >>> ds = hc.import_vcf('data/sample.vcf')
+    >>> ds = hc.import_vcf('data/sample.vcf.bgz')
     >>> pc_rel = methods.pc_relate(ds, 2, 0.001)
     >>> rel_pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
-    >>> related_samples = rel_pairs.aggregate(samps = agg.collect_as_set(agg.explode([rel_pairs.i, rel_pairs.j]))).samps
+    >>> related_samples = rel_pairs
+    ...     .aggregate(samps = agg.collect_as_set(
+    ...                                agg.explode([rel_pairs.i, rel_pairs.j])))
+    ...     .samps
     >>> related_samples_to_keep = methods.maximal_independent_set(rel_pairs.i, rel_pairs.j)
     >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
     >>> ds.filter_cols_list(list(related_samples_to_remove))
@@ -34,15 +36,24 @@ def maximal_independent_set(i, j, tie_breaker=None):
     >>> ds = hc.read('data/example.vds')
     >>> pc_rel = methods.pc_relate(ds, 2, 0.001)
     >>> rel_pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
-    >>> related_samples = rel_pairs.aggregate(samps = agg.collect_as_set(agg.explode([rel_pairs.i, rel_pairs.j]))).samps
-    >>> related_samples_to_keep = (rel_pairs
-    ...   .key_by('i').join(vds.samples_table()).annotate('iAndCase = { id: i, isCase: sa.isCase }')
-    ...   .select(['j', 'iAndCase'])
-    ...   .key_by("j").join(vds.samples_table()).annotate('jAndCase = { id: j, isCase: sa.isCase }')
-    ...   .select(['iAndCase', 'jAndCase'])
-    ...   .maximal_independent_set("iAndCase", "jAndCase",
-    ...     'if (l.isCase && !r.isCase) -1 else if (!l.isCase && r.isCase) 1 else 0'))
-    >>> related_samples_to_remove = related_samples - {x.id for x in related_samples_to_keep}
+    >>> related_samples = rel_pairs
+    ...     .aggregate(samps = agg.collect_as_set(
+    ...                                agg.explode([rel_pairs.i, rel_pairs.j])))
+    ...     .samps
+    >>> samples = ds.cols_table()
+    >>> rel_pairs_with_case = rel_pairs.select(
+    ...     iAndCase = {'id': rel_pairs.i, 'isCase': samples[rel_pairs.i].isCase},
+    ...     jAndCase = {'id': rel_pairs.j, 'isCase': samples[rel_pairs.j].isCase})
+    >>> related_samples_to_keep = rel_pairs_with_case
+    ...     .maximal_independent_set(
+    ...         rel_pairs_with_case.iAndCase,
+    ...         rel_pairs.with_case.jAndCase,
+    ...         lambda l, r:
+    ...             if (l.isCase & !r.isCase) -1
+    ...             else if (!l.isCase & r.isCase) 1
+    ...             else 0)
+    >>> related_samples_to_remove = related_samples
+    ...     - {x.id for x in related_samples_to_keep}
     >>> vds.filter_samples_list(list(related_samples_to_remove))
 
     Notes
@@ -75,14 +86,21 @@ def maximal_independent_set(i, j, tie_breaker=None):
     When multiple nodes have the same degree, this algorithm will order the
     nodes according to ``tie_breaker`` and remove the *largest* node.
 
-    :param str i: expression to compute one endpoint.
-    :param str j: expression to compute another endpoint.
-    :param tie_breaker: Expression used to order nodes with equal degree.
+    Parameters
+    ----------
+    i : :class:`.Expression`
+        Expression to compute one endpoint.
+    j : :class:`.Expression`
+        Expression to compute another endpoint.
+    tie_breaker : function
+        Function used to order nodes with equal degree.
 
-    :return: a list of vertices in a maximal independent set.
-    :rtype: list of elements with the same type as ``i`` and ``j``
-
+    Returns
+    -------
+    :obj:`list` of elements with the same type as `i` and `j`
+        A list of vertices in a maximal independent set.
     """
+
     if i.dtype != j.dtype:
         raise ValueError("Expects arguments `i` and `j` to have same type. Found...")
     source = i._indices.source

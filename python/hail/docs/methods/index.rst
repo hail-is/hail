@@ -22,6 +22,7 @@ Methods
     hail.methods.split_multi_hts
     hail.methods.mendel_errors
     hail.methods.vep
+    hail.methods.maximal_independent_set
     hail.methods.export_cassandra
     hail.methods.export_gen
     hail.methods.export_plink
@@ -50,6 +51,7 @@ Methods
 .. autofunction:: hail.methods.split_multi_hts
 .. autofunction:: hail.methods.mendel_errors
 .. autofunction:: hail.methods.vep
+.. autofunction:: hail.methods.maximal_independent_set
 .. autofunction:: hail.methods.export_cassandra
 .. autofunction:: hail.methods.export_gen
 .. autofunction:: hail.methods.export_plink
