@@ -28,7 +28,11 @@ class LDMatrixSuite extends SparkSuite {
     val nSamples = vds.numCols
 
     val variantsTable = vds.variantRDD.map { case (v, (_, gs)) =>
-      (v, LDPruneSuite.toBitPackedVectorView(gs.hardCallIterator, nSamples))}.collectAsMap()
+      (v, LDPruneSuite.toBitPackedVectorView(LDPruneSuite.convertCallsToGs(gs.map { g => Genotype.call(g) match {
+        case Some(c) => c: BoxedCall
+        case None => null: BoxedCall
+      }}.toArray), nSamples))
+    }.collectAsMap()
 
     val indexToBPVV = distLDMatrix.variants.map(v => variantsTable(v).get)
     val distLDMatrixLocal = distLDMatrix.matrix.toHailBlockMatrix().toLocalMatrix()
@@ -58,7 +62,7 @@ class LDMatrixSuite extends SparkSuite {
     * Tests that the method agrees with local Breeze math.
     */
   @Test def localTest() {
-    val genotypes: DenseMatrix[Int] = DenseMatrix((0, 2, 1),
+    val diploidGtIndices: DenseMatrix[Int] = DenseMatrix((0, 2, 1),
                                                   (1, 0, 0))
 
     def localLDCompute(G: DenseMatrix[Int]): DenseMatrix[Double] = {
@@ -73,9 +77,9 @@ class LDMatrixSuite extends SparkSuite {
       ld
     }
 
-    val localLD = localLDCompute(genotypes)
+    val localLD = localLDCompute(diploidGtIndices)
 
-    val vds = stats.vdsFromGtMatrix(hc)(genotypes.t)
+    val vds = stats.vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(diploidGtIndices.t))
     val distLdSpark = LDMatrix(vds).matrix.toBlockMatrix().toLocalMatrix()
     val distLDBreeze = new DenseMatrix[Double](distLdSpark.numRows, distLdSpark.numCols, distLdSpark.toArray)
 

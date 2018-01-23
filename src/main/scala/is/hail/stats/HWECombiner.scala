@@ -5,6 +5,8 @@ import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.Call
 
+import scala.annotation.switch
+
 object HWECombiner {
   def signature = TStruct("rExpectedHetFrequency" -> TFloat64(), "pHWE" -> TFloat64())
 }
@@ -14,13 +16,17 @@ class HWECombiner extends Serializable {
   var nHet = 0
   var nHomVar = 0
 
-  def merge(gt: Call): HWECombiner = {
-    if (Call.isHomRef(gt))
-      nHomRef += 1
-    else if (Call.isHet(gt))
-      nHet += 1
-    else if (Call.isHomVar(gt))
-      nHomVar += 1
+  def merge(c: Call): HWECombiner = {
+    (Call.ploidy(c): @switch) match {
+      case 2 =>
+        if (Call.isHomRef(c))
+          nHomRef += 1
+        else if (Call.isHet(c))
+          nHet += 1
+        else if (Call.isHomVar(c))
+          nHomVar += 1
+      case _ =>
+    }
 
     this
   }

@@ -9,8 +9,6 @@ import is.hail.variant.{Genotype, Locus, MatrixTable, RegionValueVariant, Varian
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-import scala.reflect.ClassTag
-
 class ExprAnnotator(val ec: EvalContext, t: TStruct, expr: String, head: Option[String]) extends Serializable {
   private val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, head)
 
@@ -30,7 +28,7 @@ class ExprAnnotator(val ec: EvalContext, t: TStruct, expr: String, head: Option[
   def insert(a: Annotation): Annotation = {
     var newA = a
     var i = 0
-    var xs = f()
+    val xs = f()
     while (i < xs.length) {
       newA = inserters(i)(newA, xs(i))
       i += 1
@@ -155,17 +153,17 @@ object SplitMulti {
     apply(vsm, "va.aIndex = aIndex, va.wasSplit = wasSplit",
       s"""g =
     let
-      newgt = downcode(g.GT, aIndex) and
+      newc = downcode(g.GT, aIndex) and
       newad = if (isDefined(g.AD))
           let sum = g.AD.sum() and adi = g.AD[aIndex] in [sum - adi, adi]
         else
           NA: Array[Int] and
       newpl = if (isDefined(g.PL))
-          range(3).map(i => range(g.PL.length).filter(j => downcode(Call(j), aIndex) == Call(i)).map(j => g.PL[j]).min())
+          range(3).map(i => range(g.PL.length).filter(j => downcode(UnphasedDiploidGtIndexCall(j), aIndex) == UnphasedDiploidGtIndexCall(i)).map(j => g.PL[j]).min())
         else
           NA: Array[Int] and
       newgq = gqFromPL(newpl)
-    in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }""")
+    in { GT: newc, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }""")
   }
 
   def apply(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, keepStar: Boolean = false, leftAligned: Boolean = false): MatrixTable = {

@@ -605,6 +605,12 @@ def hardy_weinberg(expr):
     equally-likely outcome. See this `document <LeveneHaldane.pdf>`__ for
     details on the Levene-Haldane distribution and references.
 
+    Warning
+    -------
+    Non-diploid calls (``ploidy != 2``) are not included in statistics. It is
+    assumed the row is biallelic. Use :func:`~hail.methods.split_multi` to split multiallelic
+    variants before computing statistics.
+
     Parameters
     ----------
     expr : :class:`.CallExpression`
@@ -826,29 +832,29 @@ def call_stats(expr, alleles):
 
         >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.alleles))
         >>> dataset_result.rows_table().select('locus', 'alleles', 'gt_stats').show()
-        +-----------------+--------------+----------------+-------------+--------------+
-        | v               | gt_stats.AC  | gt_stats.AF    | gt_stats.AN | gt_stats.GC  |
-        +-----------------+--------------+----------------+-------------+--------------+
-        | Variant(GRCh37) | Array[Int32] | Array[Float64] |       Int32 | Array[Int32] |
-        +-----------------+--------------+----------------+-------------+--------------+
-        | 20:10019093:A:G | [111,89]     | [0.555,0.445]  |         200 | [36,39,25]   |
-        | 20:10026348:A:G | [198,2]      | [0.99,0.01]    |         200 | [98,2,0]     |
-        | 20:10026357:T:C | [166,34]     | [0.83,0.17]    |         200 | [68,30,2]    |
-        | 20:10030188:T:A | [166,34]     | [0.83,0.17]    |         200 | [68,30,2]    |
-        | 20:10030452:G:A | [170,30]     | [0.85,0.15]    |         200 | [71,28,1]    |
-        | 20:10030508:T:C | [199,1]      | [0.995,0.005]  |         200 | [99,1,0]     |
-        | 20:10030573:G:A | [198,2]      | [0.99,0.01]    |         200 | [98,2,0]     |
-        | 20:10032413:T:G | [166,34]     | [0.83,0.17]    |         200 | [68,30,2]    |
-        | 20:10036107:T:G | [187,13]     | [0.935,0.065]  |         200 | [87,13,0]    |
-        | 20:10036141:C:T | [192,8]      | [0.96,0.04]    |         200 | [92,8,0]     |
-        +-----------------+--------------+----------------+-------------+--------------+
+        +-----------------+--------------+----------------+-------------+
+        | v               | gt_stats.AC  | gt_stats.AF    | gt_stats.AN |
+        +-----------------+--------------+----------------+-------------+
+        | Variant(GRCh37) | Array[Int32] | Array[Float64] |       Int32 |
+        +-----------------+--------------+----------------+-------------+
+        | 20:10019093:A:G | [111,89]     | [0.555,0.445]  |         200 |
+        | 20:10026348:A:G | [198,2]      | [0.99,0.01]    |         200 |
+        | 20:10026357:T:C | [166,34]     | [0.83,0.17]    |         200 |
+        | 20:10030188:T:A | [166,34]     | [0.83,0.17]    |         200 |
+        | 20:10030452:G:A | [170,30]     | [0.85,0.15]    |         200 |
+        | 20:10030508:T:C | [199,1]      | [0.995,0.005]  |         200 |
+        | 20:10030573:G:A | [198,2]      | [0.99,0.01]    |         200 |
+        | 20:10032413:T:G | [166,34]     | [0.83,0.17]    |         200 |
+        | 20:10036107:T:G | [187,13]     | [0.935,0.065]  |         200 |
+        | 20:10036141:C:T | [192,8]      | [0.96,0.04]    |         200 |
+        +-----------------+--------------+----------------+-------------+
 
     Notes
     -----
     This method is meaningful for computing call metrics per variant, but not
     especially meaningful for computing metrics per sample.
 
-    This method returns a struct expression with four fields:
+    This method returns a struct expression with three fields:
 
      - `AC` (:class:`.TArray` of :class:`.TInt32`) - Allele counts. One element
        for each allele, including the reference.
@@ -856,8 +862,6 @@ def call_stats(expr, alleles):
        element for each allele, including the reference.
      - `AN` (:class:`.TInt32`) - Allele number. The total number of called
        alleles, or the number of non-missing calls * 2.
-     - `GC` (:class:`.TArray` of :class:`.TInt32`) - Genotype counts. One element
-       for each possible biallelic configuration.
 
     Parameters
     ----------
@@ -869,7 +873,7 @@ def call_stats(expr, alleles):
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `AC`, `AF`, `AN`, and `GC`.
+        Struct expression with fields `AC`, `AF`, and `AN`
     """
     agg = _to_agg(expr)
     alleles = to_expr(alleles)
@@ -889,7 +893,7 @@ def call_stats(expr, alleles):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    t = TStruct(['AC', 'AF', 'AN', 'GC'], [TArray(TInt32()), TArray(TFloat64()), TInt32(), TArray(TInt32())])
+    t = TStruct(['AC', 'AF', 'AN'], [TArray(TInt32()), TArray(TFloat64()), TInt32()])
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 @typecheck(expr=oneof(Aggregable, expr_numeric), start=numeric, end=numeric, bins=numeric)

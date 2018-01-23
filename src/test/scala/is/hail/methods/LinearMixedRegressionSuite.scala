@@ -8,7 +8,7 @@ import is.hail.expr.types._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{MatrixTable, Variant}
+import is.hail.variant.{Call2, MatrixTable, Variant}
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
@@ -105,7 +105,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       (Variant("1", j + 1, "A", "C"), lmmfit(convert(G(::, j to j), Double))) }.toMap
 
     // Then solve with LinearMixedModel and compare
-    val vds0 = vdsFromGtMatrix(hc)(G)
+    val vds0 = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(G))
     val pheno = y.toArray
     val cov1 = C(::, 1).toArray
     val cov2 = C(::, 2).toArray
@@ -201,8 +201,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val mG = G.cols
     val mW = G.cols
-
-    // println(s"$mG of $m0 variants are not constant")
 
     val W = convert(G(::, 0 until mW), Double)
 
@@ -427,7 +425,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .filterVariantsExpr("va.alleles.length() == 2")
       .annotateSamplesTable(covariates, root = "cov")
       .annotateSamplesTable(phenotypes, root = "pheno")
-      .annotateSamplesExpr("""culprit = gs.filter(g => va.locus.contig == "1" && va.locus.position == 1 && va.alleles == ["C", "T"]).map(g => g.GT.gt).collect()[0]""")
+      .annotateSamplesExpr("""culprit = gs.filter(g => va.locus.contig == "1" && va.locus.position == 1 && va.alleles == ["C", "T"]).map(g => g.GT.nNonRefAlleles()).collect()[0]""")
       .annotateSamplesExpr("pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit")
 
     val vdsKinship = vdsAssoc.filterVariantsExpr("va.locus.position < 4")
@@ -488,8 +486,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
   rand.setSeed(5)
   val randomNorms = (1 to 10).map(x => rand.nextGaussian())
 
-  lazy val vdsSmall = vdsFromGtMatrix(hc)(smallMat)
-    .annotateSamplesExpr("culprit = gs.filter(g => va.locus.position == 2).map(g => g.GT.gt).collect()[0]")
+  lazy val vdsSmall = vdsFromCallMatrix(hc)(TestUtils.unphasedDiploidGtIndicesToBoxedCall(smallMat))
+    .annotateSamplesExpr("culprit = gs.filter(g => va.locus.position == 2).map(g => g.nNonRefAlleles()).collect()[0]")
     .annotateGlobal(randomNorms, TArray(TFloat64()), "global.randNorms")
     .annotateSamplesExpr("pheno = sa.culprit + global.randNorms[sa.s.toInt32()]")
 

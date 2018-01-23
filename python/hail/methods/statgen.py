@@ -2056,7 +2056,7 @@ hint: Use `split_multi` to split entries with a non-HTS genotype schema.
     pl = f.or_missing(
         f.is_defined(ds.PL),
         (f.range(0, 3).map(lambda i: (f.range(0, functions.triangle(ds.alleles.length()))
-                                      .filter(lambda j: f.downcode(f.call(j), sm.a_index()) == f.call(i))
+                                      .filter(lambda j: f.downcode(f.unphased_diploid_gt_index_call(j), sm.a_index()) == f.unphased_diploid_gt_index_call(i))
                                       .map(lambda j: ds.PL[j])
                                       .min()))))
     sm.update_rows(a_index=sm.a_index(), was_split=sm.was_split())
@@ -2469,11 +2469,11 @@ class FilterAlleles(object):
     ...     functions.is_defined(dataset.PL),
     ...     functions.range(0, functions.triangle(fa.new_alleles.length())).map(
     ...         lambda newi: functions.bind(
-    ...             functions.call(newi),
-    ...             lambda newc: dataset.PL[functions.gt_index(fa.new_to_old[newc.gtj()], fa.new_to_old[newc.gtk()])])),
+    ...             functions.unphased_diploid_gt_index_call(newi),
+    ...             lambda newc: dataset.PL[functions.call(False, fa.new_to_old[newc[0]], fa.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
     ...     functions.null(TArray(TInt32())))
     ... fa.annotate_entries(
-    ...     GT = functions.call(functions.gt_from_pl(newPL)),
+    ...     GT = functions.unphased_diploid_gt_index_call(newPL.unique_min_index()),
     ...     AD = functions.cond(
     ...         functions.is_defined(dataset.AD),
     ...         functions.range(0, fa.new_alleles.length()).map(
@@ -2675,13 +2675,12 @@ class FilterAlleles(object):
             functions.is_defined(ds.PL),
             functions.bind(functions.range(0, functions.triangle(self.new_alleles.length())).map(
                 lambda newi: functions.bind(
-                    functions.call(newi),
-                    lambda newc: ds.PL[functions.gt_index(
-                        self.new_to_old[newc.gtj()], self.new_to_old[newc.gtk()])])),
+                    functions.unphased_diploid_gt_index_call(newi),
+                    lambda newc: ds.PL[functions.call(False, self.new_to_old[newc[0]], self.new_to_old[newc[1]]).unphased_diploid_gt_index()])),
                 lambda unnorm: unnorm - unnorm.min()),
             functions.null(TArray(TInt32())))
         self.annotate_entries(
-            GT = functions.call(functions.gt_from_pl(newPL)),
+            GT = functions.unphased_diploid_gt_index_call(newPL.unique_min_index()),
             AD = functions.cond(
                 functions.is_defined(ds.AD),
                 functions.range(0, self.new_alleles.length()).map(
@@ -2770,15 +2769,17 @@ class FilterAlleles(object):
             (functions.range(0, functions.triangle(self.new_alleles.length()))
              .map(lambda newi: (functions.range(0, functions.triangle(ds.alleles.length()))
                                 .filter(lambda oldi: functions.bind(
-                                    functions.call(oldi),
-                                    lambda oldc: functions.gt_index(self.old_to_new[oldc.gtj()],
-                                                                    self.old_to_new[oldc.gtk()]) == newi))
+                                    functions.unphased_diploid_gt_index_call(oldi),
+                                    lambda oldc: functions.call(False,
+                                                                    self.old_to_new[oldc[0]],
+                                                                    self.old_to_new[oldc[1]]) == functions.unphased_diploid_gt_index_call(newi)))
                                 .map(lambda oldi: ds.PL[oldi])
                                 .min()))),
             functions.null(TArray(TInt32())))
         self.annotate_entries(
-            GT = functions.gt_index(self.old_to_new[ds.GT.gtj()],
-                                    self.old_to_new[ds.GT.gtk()]),
+            GT = functions.call(False,
+                                self.old_to_new[ds.GT[0]],
+                                self.old_to_new[ds.GT[1]]),
             AD = functions.cond(
                 functions.is_defined(ds.AD),
                 (functions.range(0, self.new_alleles.length())

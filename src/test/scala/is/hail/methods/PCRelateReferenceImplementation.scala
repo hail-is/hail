@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import breeze.linalg.{DenseMatrix, inv}
-import is.hail.variant.{Genotype, Variant, MatrixTable}
+import is.hail.variant.{Call, Genotype, MatrixTable, Variant}
 import is.hail.testUtils._
 
 object PCRelateReferenceImplementation {
@@ -9,7 +9,7 @@ object PCRelateReferenceImplementation {
     val indexToId: Map[Int, String] = vds.stringSampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
 
     val gts = vds.typedRDD[Variant].zipWithIndex.map { case ((v, (va, gs)), i) =>
-      val a = gs.map(Genotype.gt).toArray
+      val a = gs.map(g => Genotype.call(g).map(Call.nNonRefAlleles)).toArray
       val mean = a.flatten.sum.toDouble / a.flatten.length
       (i, a.map { case Some(v) => v.toDouble ; case None => mean })
     }.collect().sortBy(_._1).flatMap(_._2)

@@ -1,10 +1,9 @@
 package is.hail.methods
 
 import is.hail.annotations._
-import is.hail.expr.Parser
 import is.hail.expr.types._
 import is.hail.stats.LeveneHaldane
-import is.hail.variant.{HTSGenotypeView, MatrixTable}
+import is.hail.variant.{Call, HTSGenotypeView, MatrixTable}
 import org.apache.spark.util.StatCounter
 
 final class VariantQCCombiner {
@@ -17,7 +16,8 @@ final class VariantQCCombiner {
 
   val gqSC: StatCounter = new StatCounter()
 
-  def mergeGT(gt: Int) {
+  def mergeGT(c: Call) {
+    val gt = Call.unphasedDiploidGtIndex(c)
     (gt: @unchecked) match {
       case 0 => nHomRef += 1
       case 1 => nHet += 1
