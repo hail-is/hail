@@ -4,7 +4,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Parameters}
-import is.hail.distributedmatrix.BlockMatrix
+import is.hail.distributedmatrix.{BlockMatrix, KeyedBlockMatrix, Keys}
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
@@ -422,4 +422,28 @@ class VSMSuite extends SparkSuite {
       assert(BlockMatrix.read(hc, dirname).toLocalMatrix() === lm)
     }
   }
+  
+  @Test def testWriteKeyedBlockMatrix() {
+    val dirname = tmpDir.createTempFile()
+    val nSamples = 6
+    val nVariants = 9
+    val vsm = hc.baldingNicholsModel(1, nSamples, nVariants, Some(4))      
+    
+    val data = vsm.collect().zipWithIndex.flatMap { 
+      case (row, v) => row.getAs[IndexedSeq[Row]](3).zipWithIndex.map {
+        case (gt, s) => (gt.getInt(0) + (v + 1) + s).toDouble
+      }
+    }
+    val lm = new DenseMatrix[Double](nSamples, nVariants, data).t // data is row major
+    val rowKeys = new Keys(TVariant(GenomeReference.defaultReference), Array.tabulate(nVariants)(i => Variant("1", i + 1, "A", "C")))
+    val colKeys = new Keys(TString(), Array.tabulate(nSamples)(_.toString))
+    
+    vsm.writeKeyedBlockMatrix(dirname, "g.GT.gt + v.start + s.toInt32()", blockSize = 3)
+    
+    val kbm = KeyedBlockMatrix.read(hc, dirname)
+    
+    assert(kbm.bm.toLocalMatrix() === lm)
+    kbm.rowKeys.get.assertSame(rowKeys)
+    kbm.colKeys.get.assertSame(colKeys)    
+  }  
 }
