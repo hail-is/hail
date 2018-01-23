@@ -33,7 +33,6 @@ class Struct(Mapping, HistoryMixin):
     :param dict attributes: struct members.
     """
 
-    @record_init
     def __init__(self, **kwargs):
         self._fields = kwargs
         for k, v in kwargs.items():

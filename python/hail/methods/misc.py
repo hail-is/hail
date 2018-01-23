@@ -20,41 +20,38 @@ def maximal_independent_set(i, j, tie_breaker=None):
     Prune individuals from a dataset until no close relationships remain with
     respect to a PC-Relate measure of kinship.
 
-    >>> ds = hc.import_vcf('data/sample.vcf.bgz')
-    >>> pc_rel = methods.pc_relate(ds, 2, 0.001)
+    >>> pc_rel = methods.pc_relate(dataset, 2, 0.001)
     >>> rel_pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
-    >>> related_samples = rel_pairs
-    ...     .aggregate(samps = agg.collect_as_set(
-    ...                                agg.explode([rel_pairs.i, rel_pairs.j])))
-    ...     .samps
+    >>> related_samples = rel_pairs.aggregate(
+    ...     samps = agg.collect_as_set(agg.explode([rel_pairs.i, rel_pairs.j]))).samps
     >>> related_samples_to_keep = methods.maximal_independent_set(rel_pairs.i, rel_pairs.j)
     >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
-    >>> ds.filter_cols_list(list(related_samples_to_remove))
+    >>> result = dataset.filter_cols_list(list(related_samples_to_remove))
 
     Prune individuals from a dataset, prefering to keep cases over controls.
 
-    >>> ds = hc.read('data/example.vds')
-    >>> pc_rel = methods.pc_relate(ds, 2, 0.001)
+    >>> pc_rel = methods.pc_relate(dataset, 2, 0.001)
     >>> rel_pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
-    >>> related_samples = rel_pairs
-    ...     .aggregate(samps = agg.collect_as_set(
-    ...                                agg.explode([rel_pairs.i, rel_pairs.j])))
-    ...     .samps
+    >>> related_samples = rel_pairs.aggregate(
+    ...     samps = agg.collect_as_set(agg.explode([rel_pairs.i, rel_pairs.j]))).samps
     >>> samples = ds.cols_table()
     >>> rel_pairs_with_case = rel_pairs.select(
-    ...     iAndCase = {'id': rel_pairs.i, 'isCase': samples[rel_pairs.i].isCase},
-    ...     jAndCase = {'id': rel_pairs.j, 'isCase': samples[rel_pairs.j].isCase})
-    >>> related_samples_to_keep = rel_pairs_with_case
-    ...     .maximal_independent_set(
+    ...     iAndCase = Struct(id = rel_pairs.i, isCase = samples[rel_pairs.i].isCase),
+    ...     jAndCase = Struct(id = rel_pairs.j, isCase = samples[rel_pairs.j].isCase))
+    >>> tie_breaker = lambda l, r:
+    ...                   if l.isCase & !r.isCase
+    >>> related_samples_to_keep = rel_pairs_with_case.maximal_independent_set(
     ...         rel_pairs_with_case.iAndCase,
     ...         rel_pairs.with_case.jAndCase,
     ...         lambda l, r:
-    ...             if (l.isCase & !r.isCase) -1
-    ...             else if (!l.isCase & r.isCase) 1
-    ...             else 0)
-    >>> related_samples_to_remove = related_samples
-    ...     - {x.id for x in related_samples_to_keep}
-    >>> vds.filter_samples_list(list(related_samples_to_remove))
+    ...             if l.isCase & !r.isCase:
+    ...                 return -1
+    ...             else if !l.isCase & r.isCase:
+    ...                 return 1
+    ...             else:
+    ...                 return 0)
+    >>> related_samples_to_remove = related_samples - {x.id for x in related_samples_to_keep}
+    >>> result = dataset.filter_cols_list(list(related_samples_to_remove))
 
     Notes
     -----
@@ -110,12 +107,16 @@ def maximal_independent_set(i, j, tie_breaker=None):
     if i._indices.source != j._indices.source:
         raise ValueError("Expects arguments `i` and `j` to be expressions of the same Table.")
 
-    table = source
     node_t = i.dtype
     l = construct_expr(Reference('l'), node_t)
     r = construct_expr(Reference('r'), node_t)
-    tie_breaker_expr = tie_breaker(l, r)._ast.to_hql() if tie_breaker else None
-    return jarray_to_list(table._jt.maximalIndependentSet(i._ast.to_hql(), j._ast.to_hql(), joption(tie_breaker_expr)))
+    tie_breaker_expr = tie_breaker(l, r) if tie_breaker else None
+    exprs = [i, j]
+    if tie_breaker_expr:
+        exprs.append(tie_breaker_expr)
+    base, _ = source._process_joins(*exprs)
+    tie_breaker_hql = tie_breaker_expr._ast.to_hql() if tie_breaker_expr else None
+    return jarray_to_list(base._jt.maximalIndependentSet(i._ast.to_hql(), j._ast.to_hql(), joption(tie_breaker_hql)))
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, method=strlike)
