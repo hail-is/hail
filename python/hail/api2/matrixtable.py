@@ -404,7 +404,20 @@ class MatrixTable(object):
         if self._genotype_schema is None:
             self._genotype_schema = Type._from_java(self._jvds.genotypeSignature())
         return self._genotype_schema
-    
+
+    @handle_py4j
+    def get_globals(self):
+        """Returns the global values of the dataset as Python values.
+
+        Returns
+        -------
+        :class:`.Struct`
+            Global values.
+        """
+        if self._globals is None:
+            self._globals = self.global_schema._convert_to_py(self._jvds.globals())
+        return self._globals
+
     @property
     @handle_py4j
     def globals(self):

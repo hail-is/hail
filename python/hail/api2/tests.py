@@ -317,7 +317,7 @@ class TableTests(unittest.TestCase):
         kt2 = Table.range(1)
 
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
-        self.assertEqual(kt2.globals().kt_foo, 5)
+        self.assertEqual(kt2.get_globals().kt_foo, 5)
 
     def test_drop(self):
         kt = Table.range(10)

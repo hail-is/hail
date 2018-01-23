@@ -87,7 +87,7 @@ class TableTemplate(HistoryMixin):
         return self._jt.toString()
 
     @handle_py4j
-    def globals(self):
+    def get_globals(self):
         if self._globals is None:
             self._globals = self.global_schema._convert_to_py(self._jt.globals())
         return self._globals
