@@ -2036,32 +2036,36 @@ class MatrixTable(object):
     def reorder_columns(self, mapping):
         """Reorder columns.
 
+        .. include:: ../_templates/req_tstring.rst
+
         Examples
         --------
 
-        Randomly shuffle order of samples:
+        Randomly shuffle order of columns:
 
         >>> import random
-        >>> new_sample_order = vds.sample_ids[:]
+        >>> new_sample_order = [x.s for x in dataset.cols_table().select("s").collect()]
         >>> random.shuffle(new_sample_order)
-        >>> vds_reordered = vds.reorder_samples(new_sample_order)
+        >>> vds_reordered = dataset.reorder_columns(new_sample_order)
 
         Notes
         -----
 
-        This method requires unique sample ids. `mapping` must contain the
-        same ids as :meth:`~hail.VariantDataset.sample_ids`. The order of the
-        ids in `mapping` determines the sample id order in the output dataset.
+        This method requires the keys to be unique. `mapping` must contain the
+        same set of keys as
+        ``[x.s for x in dataset.cols_table().select("s").collect()]``. The
+        order of the keys in `mapping` determines the column order in the
+        output dataset.
 
         Parameters
         ----------
-        mapping : list of str
-            New ordering of sample ids.
+        mapping : :obj:`list` of :obj:`str`
+            New ordering of column keys.
 
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix table with samples reordered.
+            Matrix table with columns reordered.
         """
 
         jvds = self._jvds.reorderSamples(mapping)
