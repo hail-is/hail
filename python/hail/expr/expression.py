@@ -4085,7 +4085,7 @@ def analyze(caller, expr, expected_indices, aggregation_axes=set()):
 
     if unexpected_axes:
         # one or more out-of-scope fields
-        assert len(refs) > 0
+        assert not refs.empty()
         bad_refs = []
         for name, inds in refs:
             bad_axes = inds.axes.intersection(unexpected_axes)
