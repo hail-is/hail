@@ -211,9 +211,9 @@ class GroupedTable(TableTemplate):
         for k, v in named_exprs.items():
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             replace_aggregables(v._ast, agg_base)
-            strs.append('`{}` = {}'.format(k, v._ast.to_hql()))
+            strs.append('{} = {}'.format(escape_id(k), v._ast.to_hql()))
 
-        group_strs = ',\n'.join('`{}` = {}'.format(k, v._ast.to_hql()) for k, v in self._groups)
+        group_strs = ',\n'.join('{} = {}'.format(escape_id(k), v._ast.to_hql()) for k, v in self._groups)
         return cleanup(
             Table(base._jt.aggregate(group_strs, ",\n".join(strs), joption(self._npartitions))))
 
@@ -435,7 +435,7 @@ class Table(TableTemplate):
         base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
             analyze('Table.annotate_globals', v, self._global_indices)
-            exprs.append('`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
+            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
 
         m = Table(base._jt.annotateGlobalExpr(",\n".join(exprs)))
         return cleanup(m)
@@ -493,7 +493,7 @@ class Table(TableTemplate):
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('Table.select_globals', e, self._global_indices)
-            strs.append('`{}` = {}'.format(k, to_expr(e)._ast.to_hql()))
+            strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
 
         return cleanup(Table(base._jt.selectGlobal(strs)))
 
@@ -563,14 +563,15 @@ class Table(TableTemplate):
         fields_referenced = set()
         for k, v in named_exprs.items():
             analyze('Table.transmute', v, self._row_indices)
-            exprs.append('{k} = {v}'.format(k=k, v=v._ast.to_hql()))
+            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
             for name, inds in v._refs:
                 if inds == self._row_indices:
                     fields_referenced.add(name)
-
         fields_referenced = fields_referenced - set(named_exprs.keys())
 
-        return cleanup(Table(base._jt.annotate(",\n".join(exprs)).drop(list(fields_referenced))))
+        return cleanup(Table(base._jt
+                             .annotate(",\n".join(exprs))
+                             .drop(list(fields_referenced))))
 
     @handle_py4j
     def annotate(self, **named_exprs):
@@ -603,7 +604,7 @@ class Table(TableTemplate):
         base, cleanup = self._process_joins(*named_exprs.values())
         for k, v in named_exprs.items():
             analyze('Table.annotate', v, self._row_indices)
-            exprs.append('{k} = {v}'.format(k=k, v=v._ast.to_hql()))
+            exprs.append('{k} = {v}'.format(k=escape_id(k), v=v._ast.to_hql()))
 
         return cleanup(Table(base._jt.annotate(",\n".join(exprs))))
 
@@ -760,7 +761,7 @@ class Table(TableTemplate):
         for k, e in named_exprs.items():
             all_exprs.append(e)
             analyze('Table.select', e, self._row_indices)
-            strs.append('`{}` = {}'.format(k, to_expr(e)._ast.to_hql()))
+            strs.append('{} = {}'.format(escape_id(k), to_expr(e)._ast.to_hql()))
 
         return cleanup(Table(base._jt.select(strs, False)))
 
@@ -820,15 +821,15 @@ class Table(TableTemplate):
         table = self
         if any(self._fields[field]._indices == self._global_indices for field in fields_to_drop):
             # need to drop globals
-            new_global_fields = {k.name: table._fields[k.name] for k in table.global_schema.fields if
-                                 k.name not in fields_to_drop}
-            table = table.select_globals(**new_global_fields)
+            new_global_fields = [k.name for k in table.global_schema.fields if
+                                 k.name not in fields_to_drop]
+            table = table.select_globals(*new_global_fields)
 
         if any(self._fields[field]._indices == self._row_indices for field in fields_to_drop):
             # need to drop row fields
-            new_row_fields = {k.name: table._fields[k.name] for k in table.schema.fields if
-                              k.name not in fields_to_drop}
-            table = table.select(**new_row_fields)
+            new_row_fields = [k.name for k in table.schema.fields if
+                                                  k.name not in fields_to_drop]
+            table = table.select(*new_row_fields)
 
         return table
 

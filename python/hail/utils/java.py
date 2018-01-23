@@ -118,6 +118,11 @@ def jiterable_to_list(it):
     else:
         return None
 
+def escape_str(s):
+    return Env.jutils().escapePyString(s)
+
+def escape_id(s):
+    return Env.jutils().escapeIdentifier(s)
 
 def jarray_to_list(a):
     return list(a) if a else None
