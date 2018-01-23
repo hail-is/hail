@@ -2032,8 +2032,8 @@ class MatrixTable(object):
         return MatrixTable(self._jvds.filterSamplesList(jkeys, keep))
 
     @handle_py4j
-    @typecheck_method(mapping=listof(strlike))
-    def reorder_columns(self, mapping):
+    @typecheck_method(order=listof(strlike))
+    def reorder_columns(self, order):
         """Reorder columns.
 
         .. include:: ../_templates/req_tstring.rst
@@ -2046,20 +2046,20 @@ class MatrixTable(object):
         >>> import random
         >>> new_sample_order = [x.s for x in dataset.cols_table().select("s").collect()]
         >>> random.shuffle(new_sample_order)
-        >>> vds_reordered = dataset.reorder_columns(new_sample_order)
+        >>> dataset_reordered = dataset.reorder_columns(new_sample_order)
 
         Notes
         -----
 
-        This method requires the keys to be unique. `mapping` must contain the
+        This method requires the keys to be unique. `order` must contain the
         same set of keys as
         ``[x.s for x in dataset.cols_table().select("s").collect()]``. The
-        order of the keys in `mapping` determines the column order in the
+        order of the keys in `order` determines the column order in the
         output dataset.
 
         Parameters
         ----------
-        mapping : :obj:`list` of :obj:`str`
+        order : :obj:`list` of :obj:`str`
             New ordering of column keys.
 
         Returns
@@ -2068,7 +2068,7 @@ class MatrixTable(object):
             Matrix table with columns reordered.
         """
 
-        jvds = self._jvds.reorderSamples(mapping)
+        jvds = self._jvds.reorderSamples(order)
         return MatrixTable(jvds)
 
     @handle_py4j
