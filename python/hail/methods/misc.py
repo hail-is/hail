@@ -1,14 +1,15 @@
 from decorator import decorator
 from hail.api2 import MatrixTable, Table
-from hail.utils.java import Env, handle_py4j
+from hail.utils.java import Env, handle_py4j, jarray_to_list, joption
 from hail.typecheck.check import typecheck, strlike
 from hail.expr.expression import *
+from hail.expr.ast import Reference
 
 @handle_py4j
 @typecheck(i=Expression,
            j=Expression,
            tie_breaker=nullable(func_spec(2, NumericExpression)))
-def maximal_independent_set(table, i, j, tie_breaker=None):
+def maximal_independent_set(i, j, tie_breaker=None):
     """Compute a `maximal independent set`_ of vertices in an undirected graph
     whose edges are given by a two-column table.
 
@@ -20,11 +21,11 @@ def maximal_independent_set(table, i, j, tie_breaker=None):
     Prune individuals from a dataset until no close relationships remain with
     respect to a PC-Relate measure of kinship.
 
-    >>> ds = hc.import_vcf('data/sample.vcf.bgz')
+    >>> ds = hc.import_vcf('data/sample.vcf')
     >>> pc_rel = methods.pc_relate(ds, 2, 0.001)
     >>> rel_pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
     >>> related_samples = rel_pairs.aggregate(samps = agg.collect_as_set(agg.explode([rel_pairs.i, rel_pairs.j]))).samps
-    >>> related_samples_to_keep = related_pairs.maximal_independent_set(rel_pairs.i, rel_pairs.j)
+    >>> related_samples_to_keep = methods.maximal_independent_set(rel_pairs.i, rel_pairs.j)
     >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
     >>> ds.filter_cols_list(list(related_samples_to_remove))
 
@@ -84,13 +85,19 @@ def maximal_independent_set(table, i, j, tie_breaker=None):
     """
     if i.dtype != j.dtype:
         raise ValueError("Expects arguments `i` and `j` to have same type. Found...")
+    source = i._indices.source
+    if not isinstance(source, Table):
+        raise ValueError("Expect an expression of 'Table', found {}".format(
+            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    if i._indices.source != j._indices.source:
+        raise ValueError("Expects arguments `i` and `j` to be expressions of the same Table.")
 
+    table = source
     node_t = i.dtype
-    node_e = type(i)
-    table = i._indices.source
-    l = node_e(Reference('l', node_t))
-    r = node_e(Reference('r', node_t))
-    return jarray_to_list(table._jkt.maximalIndependentSet(i._ast.to_hql(), j._ast.to_hql(), joption(tie_breaker(l, r))))
+    l = construct_expr(Reference('l'), node_t)
+    r = construct_expr(Reference('r'), node_t)
+    tie_breaker_expr = tie_breaker(l, r)._ast.to_hql() if tie_breaker else None
+    return jarray_to_list(table._jt.maximalIndependentSet(i._ast.to_hql(), j._ast.to_hql(), joption(tie_breaker_expr)))
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, method=strlike)
