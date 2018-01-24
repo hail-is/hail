@@ -1919,7 +1919,8 @@ class MatrixTable(object):
                 all_uids.extend(j.temp_vars)
 
         def cleanup(matrix):
-            return matrix.drop(*all_uids)
+            remaining_uids = [uid for uid in all_uids if uid in matrix._fields]
+            return matrix.drop(*remaining_uids)
 
         return left, cleanup
 
