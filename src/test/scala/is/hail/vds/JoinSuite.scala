@@ -64,7 +64,7 @@ class JoinSuite extends SparkSuite {
     rightKt.typeCheck()
     val right = MatrixTable.fromTable(rightKt)
 
-    val localRowType = left.rowType
+    val localRowType = left.rvRowType
 
     // Inner distinct ordered join
     val jInner = left.rdd2.orderedJoinDistinct(right.rdd2, "inner")

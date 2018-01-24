@@ -40,10 +40,10 @@ class ExprAnnotator(val ec: EvalContext, t: TStruct, expr: String, head: Option[
 
 class SplitMultiPartitionContext(
   keepStar: Boolean,
-  nSamples: Int, globalAnnotation: Annotation, rowType: TStruct,
-  vAnnotator: ExprAnnotator, gAnnotator: ExprAnnotator, newRowType: TStruct) {
+  nSamples: Int, globalAnnotation: Annotation, rvRowType: TStruct,
+  vAnnotator: ExprAnnotator, gAnnotator: ExprAnnotator, newRVRowType: TStruct) {
   var prevLocus: Locus = null
-  var ur = new UnsafeRow(rowType)
+  var ur = new UnsafeRow(rvRowType)
   val splitRegion = Region()
   val rvb = new RegionValueBuilder()
   val splitrv = RegionValue()
@@ -88,7 +88,7 @@ class SplitMultiPartitionContext(
     val va = ur.get(2)
 
     if (sortAlleles)
-      splitVariants = splitVariants.sortBy { case (svj, i) => svj } (rowType.fieldType(1).asInstanceOf[TVariant].variantOrdering)
+      splitVariants = splitVariants.sortBy { case (svj, i) => svj } (rvRowType.fieldType(1).asInstanceOf[TVariant].variantOrdering)
 
     val nAlleles = v.nAlleles
     val nGenotypes = v.nGenotypes
@@ -98,10 +98,10 @@ class SplitMultiPartitionContext(
       .map { case (svj, i) =>
         splitRegion.clear()
         rvb.set(splitRegion)
-        rvb.start(newRowType)
+        rvb.start(newRVRowType)
         rvb.startStruct()
-        rvb.addAnnotation(newRowType.fieldType(0), svj.locus)
-        rvb.addAnnotation(newRowType.fieldType(1), svj)
+        rvb.addAnnotation(newRVRowType.fieldType(0), svj.locus)
+        rvb.addAnnotation(newRVRowType.fieldType(1), svj)
 
         vAnnotator.ec.setAll(globalAnnotation, v, svj, va, i, wasSplit)
         rvb.addAnnotation(vAnnotator.newT, vAnnotator.insert(va))
@@ -185,11 +185,11 @@ class SplitMulti(vsm: MatrixTable, variantExpr: String, genotypeExpr: String, ke
     val localKeepStar = keepStar
     val localGlobalAnnotation = vsm.globalAnnotation
     val localNSamples = vsm.nSamples
-    val localRowType = vsm.rowType
+    val localRowType = vsm.rvRowType
     val localVAnnotator = vAnnotator
     val localGAnnotator = gAnnotator
 
-    val newRowType = newMatrixType.rowType
+    val newRowType = newMatrixType.rvRowType
 
     vsm.rdd2.mapPartitions { it =>
       val context = new SplitMultiPartitionContext(

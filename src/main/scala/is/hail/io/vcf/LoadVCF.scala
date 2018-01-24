@@ -884,19 +884,16 @@ object LoadVCF {
 
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val vsmMetadata = VSMMetadata(
-      TString(),
-      TStruct.empty(),
-      TVariant(gr),
-      vaSignature,
-      TStruct.empty(),
-      genotypeSignature)
-    val matrixType = MatrixType(vsmMetadata)
+    val matrixType: MatrixType = MatrixType(
+      sType = TString(),
+      vType = TVariant(gr),
+      vaType = vaSignature,
+      genotypeType = genotypeSignature)
 
     val locusType = matrixType.locusType
     val vType = matrixType.vType
-    val kType = matrixType.kType
-    val rowType = matrixType.rowType
+    val kType = matrixType.orderedRVType.kType
+    val rowType = matrixType.rvRowType
 
     // nothing after the key
     val justVariants = parseLines(() => ())((c, l, rvb) => ())(lines, kType, gr, contigRecoding)
@@ -937,8 +934,8 @@ object LoadVCF {
       Some(justVariants), None)
 
     new MatrixTable(hc,
-      vsmMetadata,
-      VSMLocalValue(Annotation.empty,
+      matrixType,
+      MatrixLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
       rdd)

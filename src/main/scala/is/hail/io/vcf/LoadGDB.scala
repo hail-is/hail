@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, MatrixTable, VSMLocalValue, VSMMetadata, Variant}
+import is.hail.variant.{GenomeReference, MatrixTable, Variant}
 import org.json4s._
 
 import scala.collection.JavaConversions._
@@ -191,14 +191,11 @@ object LoadGDB {
 
     queryFile.delete()
 
-    MatrixTable.fromLegacy(hc, VSMMetadata(
-      TString(),
-      TStruct.empty(),
-      TVariant(gr),
-      variantAnnotationSignatures,
-      TStruct.empty(),
-      genotypeSignature),
-      VSMLocalValue(Annotation.empty,
+    MatrixTable.fromLegacy(hc, MatrixType(
+      vType = TVariant(gr),
+      vaType = variantAnnotationSignatures,
+      genotypeType = genotypeSignature),
+      MatrixLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
       recordRDD)

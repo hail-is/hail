@@ -17,7 +17,7 @@ object FilterIntervals {
   def apply[U](vsm: MatrixTable, intervals: IntervalTree[U], keep: Boolean): MatrixTable = {
     if (keep) {
       val pkIntervals = IntervalTree(
-        vsm.matrixType.pkType.ordering,
+        vsm.matrixType.orderedRVType.pkType.ordering,
         intervals.map { case (i, _) =>
           Interval(Row(i.start), Row(i.end))
         }.toArray)

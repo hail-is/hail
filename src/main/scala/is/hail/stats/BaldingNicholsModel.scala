@@ -5,10 +5,10 @@ import breeze.stats.distributions._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.{MatrixType}
+import is.hail.expr.MatrixLocalValue
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype, MatrixTable, VSMLocalValue, VSMMetadata, Variant}
+import is.hail.variant.{GenomeReference, MatrixTable}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
@@ -107,17 +107,15 @@ object BaldingNicholsModel {
       "ancestralAFDist" -> ancestralAFAnnotationSignature,
       "seed" -> TInt32())
 
-    val vsmMetadata = VSMMetadata(
-      TString(),
-      saSignature,
-      TVariant(gr),
-      vaSignature,
-      globalSignature,
-      TStruct("GT" -> TCall()))
+    val matrixType = MatrixType(
+      globalType = globalSignature,
+      sType = TString(),
+      saType = saSignature,
+      vType = TVariant(gr),
+      vaType = vaSignature,
+      genotypeType = TStruct("GT" -> TCall()))
 
-    val matrixType = MatrixType(vsmMetadata)
-
-    val rowType = matrixType.rowType
+    val rowType = matrixType.rvRowType
 
     val rdd = sc.parallelize((0 until M).view.map(m => (m, Rand.randInt.draw())), nPartitions)
       .mapPartitions { it =>
@@ -207,8 +205,8 @@ object BaldingNicholsModel {
     val ordrdd = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
 
     new MatrixTable(hc,
-      vsmMetadata,
-      VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
+      matrixType,
+      MatrixLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
       ordrdd)
   }
 }

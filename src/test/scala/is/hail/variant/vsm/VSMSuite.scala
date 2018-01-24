@@ -28,15 +28,15 @@ class VSMSuite extends SparkSuite {
     val vds2 = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
     assert(vds1.same(vds2))
 
-    val s1mdata = VSMFileMetadata(Array("S1", "S2", "S3"))
+    val s1mdata = MatrixFileMetadata(Array("S1", "S2", "S3"))
     val s1va1: Annotation = null
     val s1va2 = Annotation()
 
-    val s2mdata = VSMFileMetadata(Array("S1", "S2"))
+    val s2mdata = MatrixFileMetadata(Array("S1", "S2"))
     val s2va1: Annotation = null
     val s2va2: Annotation = null
 
-    val s3mdata = VSMFileMetadata(
+    val s3mdata = MatrixFileMetadata(
       Array("S1", "S2", "S3"),
       Annotation.emptyIndexedSeq(3),
       vaSignature = TStruct(
@@ -47,7 +47,7 @@ class VSMSuite extends SparkSuite {
     val s3va2 = Annotation(Annotation("yes"), "no")
     val s3va3 = Annotation(Annotation("no"), "yes")
 
-    val s4mdata = VSMFileMetadata(
+    val s4mdata = MatrixFileMetadata(
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
       vaSignature = TStruct(

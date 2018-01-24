@@ -1,9 +1,9 @@
 package is.hail.utils
 
 import is.hail.annotations.{Annotation, Inserter, Querier, UnsafeRow}
-import is.hail.expr.{EvalContext, Parser}
+import is.hail.expr.{EvalContext, MatrixLocalValue, Parser}
 import is.hail.expr.types._
-import is.hail.variant.{MatrixTable, VSMLocalValue, VSMMetadata}
+import is.hail.variant.MatrixTable
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
@@ -76,7 +76,7 @@ class RichMatrixTable(vsm: MatrixTable) {
   def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = vsm.stringSampleIds.zip(vsm.sampleAnnotations)
 
   def rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))] = {
-    val localRowType = vsm.rowType
+    val localRowType = vsm.rvRowType
     vsm.rdd2.rdd.map { rv =>
       val ur = new UnsafeRow(localRowType, rv.region.copy(), rv.offset)
       val v = ur.get(1)
@@ -108,8 +108,8 @@ class RichMatrixTable(vsm: MatrixTable) {
     globalSignature: TStruct = vsm.globalSignature,
     genotypeSignature: TStruct = vsm.genotypeSignature): MatrixTable =
     MatrixTable.fromLegacy(vsm.hc,
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
-      VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
+      MatrixType(globalSignature, sSignature, saSignature, vSignature, vaSignature, genotypeSignature),
+      MatrixLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
 
   def copyLegacy[RK, T](rdd: RDD[(RK, (Annotation, Iterable[T]))],
     sampleIds: IndexedSeq[Annotation] = vsm.sampleIds,
@@ -122,7 +122,7 @@ class RichMatrixTable(vsm: MatrixTable) {
     globalSignature: TStruct = vsm.globalSignature,
     genotypeSignature: TStruct = vsm.genotypeSignature): MatrixTable =
     MatrixTable.fromLegacy(vsm.hc,
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature),
-      VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
+      MatrixType(globalSignature, sSignature, saSignature, vSignature, vaSignature, genotypeSignature),
+      MatrixLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
       rdd)
 }

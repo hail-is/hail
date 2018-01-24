@@ -41,15 +41,15 @@ object AnnotateAllelesExpr {
     val aggregateOption = Aggregators.buildVariantAggregations(vsm.sparkContext, splitMatrixType, vsm.value.localValue, ec)
 
     val localNSamples = vsm.nSamples
-    val localRowType = vsm.rowType
+    val localRowType = vsm.rvRowType
 
     val localGlobalAnnotation = vsm.globalAnnotation
     val localVAnnotator = splitmulti.vAnnotator
     val localGAnnotator = splitmulti.gAnnotator
-    val splitRowType = splitMatrixType.rowType
+    val splitRowType = splitMatrixType.rvRowType
 
     val newMatrixType = vsm.matrixType.copy(vaType = newType)
-    val newRowType = newMatrixType.rowType
+    val newRowType = newMatrixType.rvRowType
 
     val newRDD2 = OrderedRVD(
       newMatrixType.orderedRVType,

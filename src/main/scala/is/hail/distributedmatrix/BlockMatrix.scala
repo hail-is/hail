@@ -981,7 +981,7 @@ case class WriteBlocksRDDPartition(index: Int, start: Int, skip: Int, end: Int) 
 class WriteBlocksRDD(path: String,
   rvd: RVD,
   sc: SparkContext,
-  rowType: TStruct,
+  rvRowType: TStruct,
   sampleIdsBc: Broadcast[IndexedSeq[Annotation]],
   sampleAnnotationsBc: Broadcast[IndexedSeq[Annotation]],
   parentPartStarts: Array[Long],
@@ -1061,7 +1061,7 @@ class WriteBlocksRDD(path: String,
 
     val bytes = new Array[Byte](blockSize << 3)
 
-    val ur = new UnsafeRow(rowType)
+    val ur = new UnsafeRow(rvRowType)
 
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start

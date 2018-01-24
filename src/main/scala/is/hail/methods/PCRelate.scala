@@ -116,7 +116,7 @@ object PCRelate {
 
   def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
     val nSamples = vds.nSamples
-    val localRowType = vds.rowType
+    val localRowType = vds.rvRowType
     val partStarts = vds.partitionStarts()
     val partStartsBc = vds.sparkContext.broadcast(partStarts)
     val rdd = vds.rdd2.mapPartitionsWithIndex { case (partIdx, it) =>

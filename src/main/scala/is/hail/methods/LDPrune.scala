@@ -15,12 +15,12 @@ import org.apache.spark.sql.Row
 object BitPackedVectorView {
   val bpvEltSize = TInt64Required.byteSize
 
-  def rowType(rpkTyp: Type, rkTyp: Type): TStruct = TStruct("pk" -> rpkTyp, "v" -> rkTyp,
+  def rvRowType(rpkTyp: Type, rkTyp: Type): TStruct = TStruct("pk" -> rpkTyp, "v" -> rkTyp,
     "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64Required, "sd" -> TFloat64Required)
 }
 
-class BitPackedVectorView(rowType: TStruct) {
-  val vView = new RegionValueVariant(rowType.fieldType(1).asInstanceOf[TVariant])
+class BitPackedVectorView(rvRowType: TStruct) {
+  val vView = new RegionValueVariant(rvRowType.fieldType(1).asInstanceOf[TVariant])
 
   // All types are required!
   private val pkIndex = 0
@@ -41,13 +41,13 @@ class BitPackedVectorView(rowType: TStruct) {
 
   def setRegion(mb: Region, offset: Long) {
     this.m = mb
-    vOffset = rowType.loadField(m, offset, vIndex)
-    bpvOffset = rowType.loadField(m, offset, bpvIndex)
+    vOffset = rvRowType.loadField(m, offset, vIndex)
+    bpvOffset = rvRowType.loadField(m, offset, bpvIndex)
     bpvLength = TArray(TInt64Required).loadLength(m, bpvOffset)
     bpvEltOffset = TArray(TInt64Required).elementOffset(bpvOffset, bpvLength, 0)
-    nSamplesOffset = rowType.loadField(m, offset, nSamplesIndex)
-    meanOffset = rowType.loadField(m, offset, meanIndex)
-    sdOffset = rowType.loadField(m, offset, sdIndex)
+    nSamplesOffset = rvRowType.loadField(m, offset, nSamplesIndex)
+    meanOffset = rvRowType.loadField(m, offset, meanIndex)
+    sdOffset = rvRowType.loadField(m, offset, sdIndex)
 
     vView.setRegion(m, vOffset)
   }
@@ -82,7 +82,7 @@ object LDPrune {
   val genotypesPerPack = 32
   val nPartitionsPerCore = 3
 
-  case class GlobalPruneIntermediate(rvd: RVD, rowType: TStruct, index: Int, persist: Boolean)
+  case class GlobalPruneIntermediate(rvd: RVD, rvRowType: TStruct, index: Int, persist: Boolean)
 
   val table: Array[Byte] = {
     val t = Array.ofDim[Byte](256 * 4)
@@ -367,7 +367,7 @@ object LDPrune {
       val (rvds, inputs) = generalRDDInputs(i)
       pruneIntermediates(i) = GlobalPruneIntermediate(
         rvd = RVD(inputRDD.typ.rowType, new GeneralRDD(sc, rvds.map(_.rdd), Array((inputs, pruneF)))),
-        rowType = localRowType,
+        rvRowType = localRowType,
         index = 0,
         persist = false) // creating single partition RDDs with partition index = 0
     }
@@ -441,9 +441,9 @@ object LDPrune {
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"`memory_per_core' must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB.")
 
-    val localRowType = vsm.rowType
+    val localRowType = vsm.rvRowType
 
-    val bpvType = BitPackedVectorView.rowType(vsm.vSignature.partitionKey, vsm.vSignature)
+    val bpvType = BitPackedVectorView.rvRowType(vsm.vSignature.partitionKey, vsm.vSignature)
 
     val typ = vsm.rdd2.typ
 

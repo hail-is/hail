@@ -103,8 +103,8 @@ object CalculateConcordance {
 
     val join = leftFiltered.rdd2.orderedZipJoin(rightFiltered.rdd2)
 
-    val leftRowType = leftFiltered.rowType
-    val rightRowType = rightFiltered.rowType
+    val leftRowType = leftFiltered.rvRowType
+    val rightRowType = rightFiltered.rvRowType
 
     val nSamples = leftIds.length
     val sampleResults = join.mapPartitions { it =>

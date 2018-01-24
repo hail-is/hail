@@ -58,7 +58,7 @@ object LinearRegression {
     val (newRDD2Type, inserter) = vsm.rdd2.typ.insert(LinearRegression.schema, "va" :: pathVA)
     val newVAType = newRDD2Type.rowType.fieldType(2).asInstanceOf[TStruct]
 
-    val localRowType = vsm.rowType
+    val localRowType = vsm.rvRowType
     val newRDD2 = vsm.rdd2.copy(
       typ = newRDD2Type,
       rdd = vsm.rdd2.mapPartitions { it =>

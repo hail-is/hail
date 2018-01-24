@@ -4616,7 +4616,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: list of :class:`.hail.representation.Struct`
         """
 
-        schema = Type._from_java(self._jvds.rowType())
+        schema = Type._from_java(self._jvds.rvRowType())
         return [schema._convert_to_py(r) for r in self._jvds.collect()]
 
 
@@ -4647,7 +4647,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         :rtype: list of :class:`.hail.representation.Struct`
         """
 
-        schema = Type._from_java(self._jvds.rowType())
+        schema = Type._from_java(self._jvds.rvRowType())
         return [schema._convert_to_py(r) for r in self._jvds.take(n)]
 
     @handle_py4j

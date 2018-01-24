@@ -40,19 +40,19 @@ case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevR
 }
 
 object LDPruneSuite {
-  val rowType = TStruct(
+  val rvRowType = TStruct(
     "pk" -> GenomeReference.GRCh37.locusType,
     "v" -> GenomeReference.GRCh37.variantType,
     "va" -> TStruct(),
     "gs" -> TArray(Genotype.htsGenotypeType)
   )
 
-  val bitPackedVectorViewType = BitPackedVectorView.rowType(rowType.fieldType(0), rowType.fieldType(1))
+  val bitPackedVectorViewType = BitPackedVectorView.rvRowType(rvRowType.fieldType(0), rvRowType.fieldType(1))
 
   def makeRV(gs: Iterable[Annotation]): RegionValue = {
     val gArr = gs.toIndexedSeq
     val rvb = new RegionValueBuilder(Region())
-    rvb.start(rowType)
+    rvb.start(rvRowType)
     rvb.startStruct()
     rvb.setMissing()
     rvb.setMissing()
@@ -84,7 +84,7 @@ object LDPruneSuite {
 
   def toBitPackedVectorRegionValue(rv: RegionValue, nSamples: Int): Option[RegionValue] = {
     val rvb = new RegionValueBuilder(Region())
-    val hcView = HardCallView(rowType)
+    val hcView = HardCallView(rvRowType)
     hcView.setRegion(rv)
 
     rvb.start(bitPackedVectorViewType)
@@ -241,7 +241,7 @@ class LDPruneSuite extends SparkSuite {
         val bv1 = LDPruneSuite.toBitPackedVectorView(v1Ann, nSamples)
         val bv2 = LDPruneSuite.toBitPackedVectorView(v2Ann, nSamples)
 
-        val view = HardCallView(LDPruneSuite.rowType)
+        val view = HardCallView(LDPruneSuite.rvRowType)
 
         val rv1 = LDPruneSuite.makeRV(v1Ann)
         view.setRegion(rv1)

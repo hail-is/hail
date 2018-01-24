@@ -159,7 +159,7 @@ class SampleQCCombiner extends Serializable {
 object SampleQC {
   def results(vsm: MatrixTable): Array[SampleQCCombiner] = {
     val depth = treeAggDepth(vsm.hc, vsm.nPartitions)
-    val rowType = vsm.rowType
+    val rowType = vsm.rvRowType
     val nSamples = vsm.nSamples
     if (vsm.rdd2.partitions.nonEmpty)
       vsm.rdd2
