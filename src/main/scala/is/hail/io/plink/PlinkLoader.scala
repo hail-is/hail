@@ -136,7 +136,7 @@ object PlinkLoader {
       vType = TVariant(gr),
       genotypeType = TStruct("GT" -> TCall()))
 
-    val kType = matrixType.kType
+    val kType = matrixType.orderedRVType.kType
     val rowType = matrixType.rvRowType
 
     val fastKeys = rdd.mapPartitions { it =>

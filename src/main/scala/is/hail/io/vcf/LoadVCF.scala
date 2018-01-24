@@ -892,7 +892,7 @@ object LoadVCF {
 
     val locusType = matrixType.locusType
     val vType = matrixType.vType
-    val kType = matrixType.kType
+    val kType = matrixType.orderedRVType.kType
     val rowType = matrixType.rvRowType
 
     // nothing after the key

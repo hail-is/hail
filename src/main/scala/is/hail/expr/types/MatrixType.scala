@@ -87,10 +87,6 @@ case class MatrixType(
       rvRowType)
   }
 
-  def pkType: TStruct = orderedRVType.pkType
-
-  def kType: TStruct = orderedRVType.kType
-
   def sampleEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalType),

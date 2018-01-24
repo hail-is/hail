@@ -76,7 +76,7 @@ object BgenLoader {
       vaType = signature,
       genotypeType = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())))
 
-    val kType = matrixType.kType
+    val kType = matrixType.orderedRVType.kType
     val rowType = matrixType.rvRowType
 
     val fastKeys = sc.union(results.map(_.rdd.mapPartitions { it =>
