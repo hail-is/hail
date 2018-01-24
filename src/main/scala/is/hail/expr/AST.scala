@@ -820,19 +820,19 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case (t, _, _) => FunctionRegistry.call(method, lhs +: args, t +: args.map(_.`type`))
   }
 
-  def toIR(agg: Option[String] = None): Option[IR] = (method, args: IndexedSeq[AST]) match {
-    case ("[]", IndexedSeq(rhs)) if lhs.`type`.isInstanceOf[TArray] =>
+  def toIR(agg: Option[String] = None): Option[IR] = (lhs.`type`, method, args: IndexedSeq[AST]) match {
+    case (_: TArray, "[]", IndexedSeq(rhs)) =>
       for {
         a <- lhs.toIR(agg)
         i <- rhs.toIR(agg)
       } yield ir.ArrayRef(a, i, `type`)
-    case ("sum", IndexedSeq()) =>
+    case (_: TAggregable, "sum", IndexedSeq()) =>
       for {
         a <- lhs.toIR(agg)
         _ = println("yo: " + a)
         elementType = a.typ.asInstanceOf[TAggregable].elementType
       } yield ir.ApplyAggOp(a, ir.Sum(), Seq(), elementType)
-    case (m, IndexedSeq(Lambda(_, name, body))) =>
+    case (_: TAggregable, m, IndexedSeq(Lambda(_, name, body))) =>
       for {
         a <- lhs.toIR(agg)
         b <- body.toIR(agg)

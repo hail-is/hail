@@ -78,8 +78,8 @@ class ASTToIRSuite {
   def primOps() { for { (in, out) <- Array(
     "-1" -> ApplyUnaryPrimOp(Negate(), I32(1), TInt32()),
     "!true" -> ApplyUnaryPrimOp(Bang(), True(), TBoolean()),
-    "1 / 2" -> ApplyBinaryPrimOp(Divide(), I32(1), I32(2), TInt32()),
-    "1.0 / 2.0" -> ApplyBinaryPrimOp(Divide(), F64(1.0), F64(2.0), TFloat64()),
+    "1 / 2" -> ApplyBinaryPrimOp(FloatingPointDivide(), I32(1), I32(2), TInt32()),
+    "1.0 / 2.0" -> ApplyBinaryPrimOp(FloatingPointDivide(), F64(1.0), F64(2.0), TFloat64()),
     "1.0 < 2.0" -> ApplyBinaryPrimOp(LT(), F64(1.0), F64(2.0), TBoolean()),
     "1.0 <= 2.0" -> ApplyBinaryPrimOp(LTEQ(), F64(1.0), F64(2.0), TBoolean()),
     "1.0 >= 2.0" -> ApplyBinaryPrimOp(GTEQ(), F64(1.0), F64(2.0), TBoolean()),
@@ -88,12 +88,12 @@ class ASTToIRSuite {
     "1.0 != 2.0" -> ApplyBinaryPrimOp(NEQ(), F64(1.0), F64(2.0), TBoolean()),
     "0 / 0 + 1" -> ApplyBinaryPrimOp(
       Add(),
-      ApplyBinaryPrimOp(Divide(), I32(0), I32(0), TInt32()),
+      ApplyBinaryPrimOp(FloatingPointDivide(), I32(0), I32(0), TInt32()),
       I32(1),
       TInt32()),
     "0 / 0 * 1" -> ApplyBinaryPrimOp(
       Multiply(),
-      ApplyBinaryPrimOp(Divide(), I32(0), I32(0), TInt32()),
+      ApplyBinaryPrimOp(FloatingPointDivide(), I32(0), I32(0), TInt32()),
       I32(1),
       TInt32())
   )

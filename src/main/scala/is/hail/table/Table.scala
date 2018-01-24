@@ -433,7 +433,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     if (paths.length == 0)
       return this
 
-    val irs = asts.flatMap(_.toIR())
+    val irs = asts.flatMap { x => x.typecheck(ec); x.toIR() }
 
     if (irs.length != asts.length) {
       info("Some ASTs could not be converted to IR. Falling back to AST predicate for Table.annotate.")
