@@ -700,17 +700,17 @@ class BlockMatrixSuite extends SparkSuite {
     } {
       val bm = BlockMatrix.from(sc, lm, blockSize)      
       for {
-        rowsToKeep <- Seq(
+        keepRows <- Seq(
           Array(1),
           Array(0, 3, 4, 5, 7),
           Array(0, 1, 2, 3, 4, 5, 6, 7, 8))  
-        colsToKeep <- Seq(
+        keepCols <- Seq(
           Array(2),
           Array(1, 4, 5, 7, 8, 9),
           Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))  
       } {
-        val filteredViaBlock = bm.filter(rowsToKeep.map(_.toLong), colsToKeep.map(_.toLong)).toLocalMatrix()
-        val filteredViaBreeze = lm(rowsToKeep.toIndexedSeq, colsToKeep.toIndexedSeq).copy
+        val filteredViaBlock = bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)).toLocalMatrix()
+        val filteredViaBreeze = lm(keepRows.toIndexedSeq, keepCols.toIndexedSeq).copy
         
         assert(filteredViaBlock === filteredViaBreeze)
       }
