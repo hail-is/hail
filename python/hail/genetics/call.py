@@ -8,7 +8,7 @@ class Call(HistoryMixin):
     An object that represents an individual's call at a genomic locus.
 
     :param call: Genotype hard call
-    :type call: int or None
+    :type call: int
     """
 
     _call_jobject = None

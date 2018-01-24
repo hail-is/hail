@@ -6,7 +6,8 @@ import is.hail.utils.HailIterator
 import scala.language.implicitConversions
 
 package object variant {
-  type Call = java.lang.Integer
+  type Call = Int
+  type BoxedCall = java.lang.Integer
 
   class RichIterableGenotype(val ig: Iterable[Annotation]) extends AnyVal {
     def hardCallIterator: HailIterator[Int] =

@@ -1070,6 +1070,7 @@ def rrm(call_expr):
     dataset = dataset.annotate_rows(AC=agg.sum(gt_expr),
                                     ACsq=agg.sum(gt_expr * gt_expr),
                                     n_called=agg.count_where(functions.is_defined(call_expr)))
+
     dataset = dataset.filter_rows((dataset.AC > 0) &
                                   (dataset.AC < 2 * dataset.n_called) &
                                   ((dataset.AC != dataset.n_called) |

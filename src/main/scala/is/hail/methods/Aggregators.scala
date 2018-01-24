@@ -713,7 +713,7 @@ class CallStatsAggregator(variantF: (Any) => Any)
         combiner = new CallStatsCombiner(v.asInstanceOf[Variant])
     }
 
-    if (combiner != null)
+    if (combiner != null && x != null)
       combiner.merge(x.asInstanceOf[Call])
   }
 

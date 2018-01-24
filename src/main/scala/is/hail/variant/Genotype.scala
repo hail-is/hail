@@ -165,8 +165,8 @@ object Genotype {
     m2 - m
   }
 
-  def gtFromPL(a: IndexedSeq[Int]): Call = {
-    def f(i: Int, m: Int, mi: Int, count: Int): Call = {
+  def gtFromPL(a: IndexedSeq[Int]): BoxedCall = {
+    def f(i: Int, m: Int, mi: Int, count: Int): BoxedCall = {
       if (i == a.length) {
         assert(count >= 1)
         if (count == 1)
