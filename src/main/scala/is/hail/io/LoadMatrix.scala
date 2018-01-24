@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.conf.Configuration
@@ -24,20 +24,25 @@ object LoadMatrix {
   }
 
   // this assumes that col IDs are in last line of header.
-  def parseHeader(line: String, sep: Char = '\t', nAnnotations: Int, annotationHeaders: Option[Seq[String]]): (Array[String], Array[String]) =
+  def parseHeader(hConf: Configuration, file: String, sep: Char, nAnnotations: Int,
+    annotationHeaders: Option[Seq[String]], noHeader: Boolean): (Array[String], Array[String]) = {
+    val line = hConf.readFile(file) { s => Source.fromInputStream(s).getLines().next() }
+    parseHeader(line, sep, nAnnotations, annotationHeaders, noHeader)
+  }
+
+  def parseHeader(line: String, sep: Char, nAnnotations: Int,
+    annotationHeaders: Option[Seq[String]], noHeader: Boolean=false): (Array[String], Array[String]) = {
+    var r = line.split(sep)
+    r = if (noHeader) Array.tabulate(r.length)(_.toString()) else r
     annotationHeaders match {
       case None =>
-        val r = line.split(sep)
         if (r.length < nAnnotations)
           fatal(s"Expected $nAnnotations annotation columns; only ${ r.length } columns in table.")
         (r.slice(0, nAnnotations), r.slice(nAnnotations, r.length))
       case Some(h) =>
         assert(h.length == nAnnotations)
-        (h.toArray, line.split(sep))
+        (h.toArray, if (noHeader) r.slice(nAnnotations, r.length) else r)
     }
-
-  def getHeaderLines[T](hConf: Configuration, file: String, nLines: Int = 1): String = hConf.readFile(file) { s =>
-    Source.fromInputStream(s).getLines().next()
   }
 
   def apply(hc: HailContext,
@@ -65,14 +70,10 @@ object LoadMatrix {
     val sc = hc.sc
     val hConf = hc.hadoopConf
 
-    val (annotationNames, header1) = parseHeader(getHeaderLines(hConf, files.head), sep, nAnnotations, annotationHeaders)
+    val (annotationNames, header1) = parseHeader(hConf, files.head, sep, nAnnotations, annotationHeaders, noHeader)
     val symTab = annotationNames.zip(annotationTypes)
     val annotationType = TStruct(symTab: _*)
     val ec = EvalContext(symTab: _*)
-    val (t, f) = optKeyExpr match {
-      case Some(keyExpr) => Parser.parseExpr(keyExpr, ec)
-      case None => (TInt64(), { () => 0 })
-    }
 
     val header1Bc = sc.broadcast(header1)
 
@@ -102,7 +103,41 @@ object LoadMatrix {
       rowPartitionKey = Array("row_id"),
       entryType = cellType)
 
-    val fastKeys =
+    val partitionCounts = Array(0L) ++ lines.filter(l => l.value.nonEmpty)
+      .mapPartitionsWithIndex { (i, it) =>
+        if (firstPartitions(i)) {
+          val hd1 = header1Bc.value
+          if (!noHeader) {
+            val (annotationNamesCheck, hd) = parseHeader(it.next().value, sep, nAnnotations, annotationHeaders)
+            if (!annotationNames.sameElements(annotationNamesCheck)) {
+              fatal("column headers for annotations must be the same across files.")
+            }
+            if (!hd1.sameElements(hd)) {
+              if (hd1.length != hd.length) {
+                fatal(
+                  s"""invalid sample ids: lengths of headers differ.
+                     |    ${ hd1.length } elements in ${ files(0) }
+                     |    ${ hd.length } elements in ${ fileByPartition(i) }
+               """.stripMargin
+                )
+              }
+              hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
+                if (s1 != s2) {
+                  fatal(
+                    s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $j.
+                       |    ${ files(0) }: $s1
+                       |    ${ fileByPartition(i) }: $s2""".
+                      stripMargin)
+                }
+              }
+            }
+          }
+        }
+        it
+      }.countPerPartition()
+
+    val key = optKeyExpr.flatMap { expr => Some(Parser.parseExpr(expr, ec)) }
+    val (t, f) = key.getOrElse((TInt64(), () => null))
 
     val rdd = lines.filter(l => l.value.nonEmpty)
       .mapPartitionsWithIndex { (i, it) =>
@@ -110,34 +145,11 @@ object LoadMatrix {
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 
-        if (firstPartitions(i)) {
-          val hd1 = header1Bc.value
-          val (annotationNamesCheck, hd) = parseHeader(it.next().value, sep, nAnnotations, annotationHeaders)
-          if (!annotationNames.sameElements(annotationNamesCheck)) {
-            fatal("column headers for annotations must be the same across files.")
-          }
-          if (!hd1.sameElements(hd)) {
-            if (hd1.length != hd.length) {
-              fatal(
-                s"""invalid sample ids: lengths of headers differ.
-                   |    ${ hd1.length } elements in ${ files(0) }
-                   |    ${ hd.length } elements in ${ fileByPartition(i) }
-               """.stripMargin
-              )
-            }
-            hd1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
-              if (s1 != s2) {
-                fatal(
-                  s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $j.
-                     |    ${ files(0) }: $s1
-                     |    ${ fileByPartition(i) }: $s2""".
-                    stripMargin)
-              }
-            }
-          }
-        }
-
         val at = matrixType.rowType.asInstanceOf[TStruct]
+        var row = 0L
+        if (firstPartitions(i) && !noHeader) {
+          it.next()
+        }
 
         it.map { v =>
           val line = v.value
@@ -278,7 +290,10 @@ object LoadMatrix {
             ii += 1
           }
 
-          val rowKey = keyF()
+          val rowKey: Annotation = optKeyExpr match {
+            case Some(_) => f()
+            case None => partitionCounts(i) + row
+          }
 
           region.clear()
           rvb.start(matrixType.rvRowType)
@@ -334,14 +349,31 @@ object LoadMatrix {
           rvb.endArray()
           rvb.endStruct()
           rv.setOffset(rvb.end())
+          row += 1
           rv
         }
       }
+
+    val hintPartitioner = if (noHeader) {
+      val rvb = new RegionValueBuilder(Region())
+      rvb.start(TArray(TStruct("pk" -> TInt64())))
+      rvb.startArray(partitionCounts.length - 2)
+      var c = 0L
+      partitionCounts.slice(1, partitionCounts.length - 1).foreach { i =>
+        c += i
+        rvb.startStruct()
+        rvb.addLong(c)
+        rvb.endStruct()
+      }
+      rvb.endArray()
+      Some(new OrderedRVDPartitioner(partitionCounts.length - 1, Array("pk"), TStruct("pk"->TInt64(), "v"->TInt64()),
+        new UnsafeIndexedSeq(TArray(TStruct("pk" -> TInt64())), rvb.region, rvb.end())))
+    } else None
 
     new MatrixTable(hc,
       matrixType,
       Annotation.empty,
       sampleIds.map(x => Annotation(x)),
-      OrderedRVD(matrixType.orvdType, rdd, None, None))
+      OrderedRVD(matrixType.orvdType, rdd, None, hintPartitioner))
   }
 }

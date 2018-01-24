@@ -17,7 +17,7 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testHeadersNotIdentical() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/sampleheader*.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Some(Array("v")), Array(TString()), "v")
+      val vsm = LoadMatrix(hc, files, Some(Array("v")), Seq(TString()), Some("v"))
     }
     assert(e.getMessage.contains("invalid sample ids"))
   }
@@ -25,7 +25,7 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testMissingVals() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Some(Array("v")), Array(TString()), "v")
+      val vsm = LoadMatrix(hc, files, Some(Array("v")), Seq(TString()), Some("v"))
       vsm.rvd.count()
     }
     assert(e.getMessage.contains("number of elements"))
@@ -53,7 +53,7 @@ class ImportMatrixSuite extends SparkSuite {
       val actual: MatrixTable = {
         val f = tmpDir.createTempFile(extension = "txt")
         vsm.makeKT("v = va.v", "`` = g.x", Array("v")).export(f)
-        LoadMatrix(hc, Array(f), None, Array(TString()), "v", cellType = vsm.entryType)
+        LoadMatrix(hc, Array(f), None, Seq(TString()), Some("v"), cellType = vsm.entryType)
       }
       assert(vsm.unfilterEntries().same(actual
         .annotateSamplesExpr("s = sa.col_id")
@@ -64,6 +64,15 @@ class ImportMatrixSuite extends SparkSuite {
         .selectRows("va.v"),
         // table impex outputs doubles with %.4e
         tolerance = 1e-4))
+
+      val actual2: MatrixTable = {
+        val f = tmpDir.createTempFile(extension = "txt")
+        vsm.makeKT("v = v", "`` = g.x", Array("v")).export(f, header=false)
+        println(f)
+        LoadMatrix(hc, Array(f), Some(Array("v")), Seq(TString()), Some("v"), cellType = vsm.entryType, noHeader=true)
+      }
+      assert(vsm.copy2(colValues = actual2.colValues).same(actual2.annotateVariantsExpr("va = {}")))
+
 
       val tmp1 = tmpDir.createTempFile(extension = "vds")
       vsm.write(tmp1, overwrite = true)
