@@ -295,6 +295,9 @@ class TableTests(unittest.TestCase):
         ktr = kt.annotate(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
         self.assertTrue(ktr.aggregate(result=agg.collect(ktr.e)).result == ['quam'])
 
+        ktr = kt.select(e=kt4[kt3[kt2[kt1[kt.a].b].c].d].e)
+        self.assertTrue(ktr.aggregate(result=agg.collect(ktr.e)).result == ['quam'])
+
         self.assertEqual(kt.filter(kt4[kt3[kt2[kt1[kt.a].b].c].d].e == 'quam').count(), 1)
 
         m = hc.import_vcf('src/test/resources/sample.vcf')
