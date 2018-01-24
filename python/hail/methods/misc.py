@@ -7,7 +7,7 @@ from hail.expr.ast import Reference
 @handle_py4j
 @typecheck(i=Expression,
            j=Expression,
-           tie_breaker=nullable(func_spec(2, NumericExpression)))
+           tie_breaker=anytype) #nullable(func_spec(2, NumericExpression)))
 def maximal_independent_set(i, j, tie_breaker=None):
     """Compute a `maximal independent set`_ of vertices in an undirected graph
     whose edges are given by a two-column table.
@@ -38,18 +38,14 @@ def maximal_independent_set(i, j, tie_breaker=None):
     >>> rel_pairs_with_case = rel_pairs.select(
     ...     iAndCase = Struct(id = rel_pairs.i, isCase = samples[rel_pairs.i].isCase),
     ...     jAndCase = Struct(id = rel_pairs.j, isCase = samples[rel_pairs.j].isCase))
-    >>> tie_breaker = lambda l, r:
-    ...                   if l.isCase & !r.isCase
-    >>> related_samples_to_keep = rel_pairs_with_case.maximal_independent_set(
+    >>> def tie_breaker(l, r):
+    ...     functions.capture(
+    ...         functions.cond(l.isCase & ~r.isCase, -1,
+    ...             functions.cond(~l.isCase & r.isCase, 1, 0)))
+    >>> related_samples_to_keep = methods.maximal_independent_set(
     ...         rel_pairs_with_case.iAndCase,
-    ...         rel_pairs.with_case.jAndCase,
-    ...         lambda l, r:
-    ...             if l.isCase & !r.isCase:
-    ...                 return -1
-    ...             else if !l.isCase & r.isCase:
-    ...                 return 1
-    ...             else:
-    ...                 return 0)
+    ...         rel_pairs_with_case.jAndCase,
+    ...         tie_breaker)
     >>> related_samples_to_remove = related_samples - {x.id for x in related_samples_to_keep}
     >>> result = dataset.filter_cols_list(list(related_samples_to_remove))
 
