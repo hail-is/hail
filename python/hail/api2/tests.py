@@ -495,10 +495,10 @@ class MatrixTests(unittest.TestCase):
             self.assertEqual(i, struct.rowidx)
 
     def test_reorder_columns(self):
-        vds = self.get_vds()
-        new_sample_order = [x.s for x in vds.cols_table().select("s").collect()]
+        ds = self.get_vds()
+        new_sample_order = [x.s for x in ds.cols_table().select("s").collect()]
         random.shuffle(new_sample_order)
-        self.assertEqual([x.s for x in vds.reorder_columns(new_sample_order).cols_table().select("s").collect()], new_sample_order)
+        self.assertEqual([x.s for x in ds.reorder_columns(new_sample_order).cols_table().select("s").collect()], new_sample_order)
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
