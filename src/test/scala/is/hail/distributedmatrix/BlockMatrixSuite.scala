@@ -117,7 +117,7 @@ class BlockMatrixSuite extends SparkSuite {
       6, 3,  0,  -3,
       9, 6,  3,  0))
 
-    val actual = (m :- m.t).toLocalMatrix()
+    val actual = (m -:- m.t).toLocalMatrix()
     assert(actual == expected)
   }
 
@@ -237,7 +237,7 @@ class BlockMatrixSuite extends SparkSuite {
       val actual = (l --* v).toLocalMatrix()
       val repeatedR = (0 until l.nRows.toInt).flatMap(_ => v).toArray
       val repeatedRMatrix = new BDM(v.length, l.nRows.toInt, repeatedR).t
-      val expected = l.toLocalMatrix() :* repeatedRMatrix
+      val expected = l.toLocalMatrix() *:* repeatedRMatrix
 
       sameDoubleMatrixNaNEqualsNaN(actual, expected)
     }.check()
@@ -259,7 +259,7 @@ class BlockMatrixSuite extends SparkSuite {
       27, 30, 33, 36,
       52, 56, 60, 64))
 
-    assert((l :* v).toLocalMatrix() == result)
+    assert((l *:* v).toLocalMatrix() == result)
   }
 
   @Test
@@ -270,10 +270,10 @@ class BlockMatrixSuite extends SparkSuite {
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
-      val actual = (l :* v).toLocalMatrix()
+      val actual = (l *:* v).toLocalMatrix()
       val repeatedR = (0 until l.nCols.toInt).flatMap(_ => v).toArray
       val repeatedRMatrix = new BDM(v.length, l.nCols.toInt, repeatedR)
-      val expected = l.toLocalMatrix() :* repeatedRMatrix
+      val expected = l.toLocalMatrix() *:* repeatedRMatrix
 
       if (sameDoubleMatrixNaNEqualsNaN(actual, expected))
         true
@@ -300,7 +300,7 @@ class BlockMatrixSuite extends SparkSuite {
       12, 13, 14, 15,
       17, 18, 19, 20))
 
-    assert((l :+ v).toLocalMatrix() == result)
+    assert((l +:+ v).toLocalMatrix() == result)
   }
 
   @Test

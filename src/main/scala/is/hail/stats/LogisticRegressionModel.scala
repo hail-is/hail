@@ -50,7 +50,7 @@ object WaldTest extends LogisticRegressionTest {
     val waldStats = if (fit.converged) {
       try {
         val se = sqrt(diag(inv(fit.fisher.get)))
-        val z = fit.b :/ se
+        val z = fit.b /:/ se
         val p = z.map(zi => 2 * pnorm(-math.abs(zi)))
 
         Some(WaldStats(fit.b, se, z, p))
@@ -183,9 +183,9 @@ object ScoreTest extends LogisticRegressionTest {
         score(r0) := nullFit.score.get
         score(r1) := X1.t * (y - mu)
         fisher(r0, r0) := nullFit.fisher.get
-        fisher(r0, r1) := X0.t * (X1(::, *) :* (mu :* (1d - mu)))
+        fisher(r0, r1) := X0.t * (X1(::, *) *:* (mu *:* (1d - mu)))
         fisher(r1, r0) := fisher(r0, r1).t
-        fisher(r1, r1) := X1.t * (X1(::, *) :* (mu :* (1d - mu)))
+        fisher(r1, r1) := X1.t * (X1(::, *) *:* (mu *:* (1d - mu)))
 
         val chi2 = score dot (fisher \ score)
         val p = chiSquaredTail(m - m0, chi2)
@@ -235,7 +235,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
         b := bInterceptOnly()
         mu := sigmoid(X * b)
         score := X.t * (y - mu)
-        fisher := X.t * (X(::, *) :* (mu :* (1d - mu)))
+        fisher := X.t * (X(::, *) *:* (mu *:* (1d - mu)))
       case Some(nullFit) =>
         val m0 = nullFit.b.length
 
@@ -250,9 +250,9 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
         score(r0) := nullFit.score.get
         score(r1) := X1.t * (y - mu)
         fisher(r0, r0) := nullFit.fisher.get
-        fisher(r0, r1) := X0.t * (X1(::, *) :* (mu :* (1d - mu)))
+        fisher(r0, r1) := X0.t * (X1(::, *) *:* (mu *:* (1d - mu)))
         fisher(r1, r0) := fisher(r0, r1).t
-        fisher(r1, r1) := X1.t * (X1(::, *) :* (mu :* (1d - mu)))
+        fisher(r1, r1) := X1.t * (X1(::, *) *:* (mu *:* (1d - mu)))
     }
 
     var iter = 1
@@ -272,7 +272,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
           b += deltaB
           mu := sigmoid(X * b)
           score := X.t * (y - mu)
-          fisher := X.t * (X(::, *) :* (mu :* (1d - mu)))
+          fisher := X.t * (X(::, *) *:* (mu *:* (1d - mu)))
         }
       } catch {
         case e: breeze.linalg.MatrixSingularException => exploded = true
@@ -280,7 +280,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
       }
     }
 
-    val logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu))))
+    val logLkhd = sum(breeze.numerics.log((y *:* mu) + ((1d - y) *:* (1d - mu))))
 
     LogisticRegressionFit(b, Some(score), Some(fisher), logLkhd, iter, converged, exploded)
   }
@@ -298,14 +298,14 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     while (!converged && !exploded && iter <= maxIter) {
       try {
         val mu = sigmoid(X(::, 0 until m0) * b)
-        val sqrtW = sqrt(mu :* (1d - mu))
-        val QR = qr.reduced(X(::, *) :* sqrtW)
+        val sqrtW = sqrt(mu *:* (1d - mu))
+        val QR = qr.reduced(X(::, *) *:* sqrtW)
         val h = QR.q(*, ::).map(r => r dot r)
-        val deltaB = TriSolve(QR.r(0 until m0, 0 until m0), QR.q(::, 0 until m0).t * ((y - mu) + (h :* (0.5 - mu)) :/ sqrtW))
+        val deltaB = TriSolve(QR.r(0 until m0, 0 until m0), QR.q(::, 0 until m0).t * ((y - mu) + (h *:* (0.5 - mu)) /:/ sqrtW))
 
         if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
-          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) + sum(log(abs(diag(QR.r))))
+          logLkhd = sum(breeze.numerics.log((y *:* mu) + ((1d - y) *:* (1d - mu)))) + sum(log(abs(diag(QR.r))))
         } else {
           iter += 1
           b += deltaB

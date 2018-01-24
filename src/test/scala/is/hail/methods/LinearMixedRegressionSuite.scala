@@ -347,22 +347,22 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val h2Vals = sigmoid(-logDeltaGrid)
 
     // d(h2) / d (ln(delta)) = - h2 * (1 - h2)
-    val widths = h2Vals :* (1d - h2Vals)
+    val widths = h2Vals *:* (1d - h2Vals)
 
     // normalization constant
     val total1 = exp(logLkhdVals1) dot widths
     val total3 = exp(logLkhdVals3) dot widths
 
     // normalized likelihood of h2
-    val h2Posterior1 = (exp(logLkhdVals1) :* widths) :/ total1
-    val h2Posterior3 = (exp(logLkhdVals3) :* widths) :/ total3
+    val h2Posterior1 = (exp(logLkhdVals1) *:* widths) /:/ total1
+    val h2Posterior3 = (exp(logLkhdVals3) *:* widths) /:/ total3
 
     // normal approximation to mean and standard deviation
-    val meanPosterior1 = sum(h2Vals :* h2Posterior1)
-    val meanPosterior3 = sum(h2Vals :* h2Posterior3)
+    val meanPosterior1 = sum(h2Vals *:* h2Posterior1)
+    val meanPosterior3 = sum(h2Vals *:* h2Posterior3)
 
-    val sdPosterior1 = math.sqrt(sum((h2Vals :- meanPosterior1) :* (h2Vals :- meanPosterior1) :* h2Posterior1 ))
-    val sdPosterior3 = math.sqrt(sum((h2Vals :- meanPosterior3) :* (h2Vals :- meanPosterior3) :* h2Posterior3 ))
+    val sdPosterior1 = math.sqrt(sum((h2Vals -:- meanPosterior1) *:* (h2Vals -:- meanPosterior1) *:* h2Posterior1 ))
+    val sdPosterior3 = math.sqrt(sum((h2Vals -:- meanPosterior3) *:* (h2Vals -:- meanPosterior3) *:* h2Posterior3 ))
 
     assert(math.abs(h2Chr1 - meanPosterior1) < 0.01) // both are approx 0.37
     assert(math.abs(seH2Chr3 - meanPosterior3) < 0.07) // values are approx 0.14 and 0.20
@@ -383,11 +383,11 @@ class LinearMixedRegressionSuite extends SparkSuite {
     // comparing normLkhdH2 and approximation of h2Posterior over h2Grid
     val h2Grid = DenseVector((0.01 to 0.99 by 0.01).toArray)
 
-    val h2NormLkhdMean1 = sum(h2Grid :* h2NormLkhd1)
-    val h2NormLkhdMean3 = sum(h2Grid :* h2NormLkhd3)
+    val h2NormLkhdMean1 = sum(h2Grid *:* h2NormLkhd1)
+    val h2NormLkhdMean3 = sum(h2Grid *:* h2NormLkhd3)
 
-    val h2NormLkhdSe1 = sum((h2Grid - h2NormLkhdMean1) :* (h2Grid - h2NormLkhdMean1) :* h2NormLkhd1)
-    val h2NormLkhdSe3 = sum((h2Grid - h2NormLkhdMean3) :* (h2Grid - h2NormLkhdMean3) :* h2NormLkhd3)
+    val h2NormLkhdSe1 = sum((h2Grid - h2NormLkhdMean1) *:* (h2Grid - h2NormLkhdMean1) *:* h2NormLkhd1)
+    val h2NormLkhdSe3 = sum((h2Grid - h2NormLkhdMean3) *:* (h2Grid - h2NormLkhdMean3) *:* h2NormLkhd3)
 
     val minLogDelta = -8
     val pointsPerUnit = 100
@@ -400,11 +400,11 @@ class LinearMixedRegressionSuite extends SparkSuite {
     h2Post1 :/= sum(h2Post1)
     h2Post3 :/= sum(h2Post3)
 
-    val h2PostMean1 = sum(h2Grid :* h2Post1)
-    val h2PostMean3 = sum(h2Grid :* h2Post3)
+    val h2PostMean1 = sum(h2Grid *:* h2Post1)
+    val h2PostMean3 = sum(h2Grid *:* h2Post3)
 
-    val h2PostSe1 = math.sqrt(sum((h2Grid - h2PostMean1) :* (h2Grid - h2PostMean1) :* h2Post1))
-    val h2PostSe3 = math.sqrt(sum((h2Grid - h2PostMean3) :* (h2Grid - h2PostMean3) :* h2Post3))
+    val h2PostSe1 = math.sqrt(sum((h2Grid - h2PostMean1) *:* (h2Grid - h2PostMean1) *:* h2Post1))
+    val h2PostSe3 = math.sqrt(sum((h2Grid - h2PostMean3) *:* (h2Grid - h2PostMean3) *:* h2Post3))
 
     assert(math.abs(meanPosterior1 - h2PostMean1) < 0.03) // approx 0.37 and 0.40
     assert(math.abs(meanPosterior3 - h2PostMean3) < 0.06) // approx 0.20 and 0.26

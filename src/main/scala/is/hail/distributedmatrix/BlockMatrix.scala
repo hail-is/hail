@@ -141,16 +141,16 @@ object BlockMatrix {
       def *(r: BDM[Double]): M =
         l.multiply(r)
 
-      def :+(r: M): M =
+      def +:+(r: M): M =
         l.add(r)
 
-      def :-(r: M): M =
+      def -:-(r: M): M =
         l.subtract(r)
 
-      def :*(r: M): M =
+      def *:*(r: M): M =
         l.pointwiseMultiply(r)
 
-      def :/(r: M): M =
+      def /:/(r: M): M =
         l.pointwiseDivide(r)
 
       def +(r: Double): M =
@@ -165,10 +165,10 @@ object BlockMatrix {
       def /(r: Double): M =
         l.scalarDivide(r)
 
-      def :+(v: Array[Double]): M =
+      def +:+(v: Array[Double]): M =
         l.vectorAddToEveryColumn(v)
 
-      def :*(v: Array[Double]): M =
+      def *:*(v: Array[Double]): M =
         l.vectorPointwiseMultiplyEveryColumn(v)
 
       def --+(v: Array[Double]): M =
@@ -228,10 +228,10 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     blockMap2(that, _ - _)
 
   def pointwiseMultiply(that: M): M =
-    blockMap2(that, _ :* _)
+    blockMap2(that, _ *:* _)
 
   def pointwiseDivide(that: M): M =
-    blockMap2(that, _ :/ _)
+    blockMap2(that, _ /:/ _)
 
   def multiply(that: M): M =
     new BlockMatrix(new BlockMatrixMultiplyRDD(this, that), blockSize, nRows, that.nCols)
@@ -249,7 +249,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     blockMap(_ - i)
 
   def scalarMultiply(i: Double): M =
-    blockMap(_ :* i)
+    blockMap(_ *:* i)
 
   def scalarDivide(i: Double): M =
     blockMap(_ / i)

@@ -180,7 +180,7 @@ object PCRelate {
   }
 
   def k1(k2: M, k0: M): M = {
-    1.0 - (k2 :+ k0)
+    1.0 - (k2 +:+ k0)
   }
 
 }
@@ -224,7 +224,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
       if (statistics >= PhiK2K0) {
         val k0 = this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize)).cache()
         if (statistics >= PhiK2K0K1) {
-          val k1 = (1.0 - (k2 :+ k0)).cache()
+          val k1 = (1.0 - (k2 +:+ k0)).cache()
           Result(phi, k0, k1, k2)
         } else
           Result(phi, k0, null, k2)
@@ -257,7 +257,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     
     val stddev = variance.map(math.sqrt)
 
-    (gram(centeredG) :/ gram(stddev)) / 4.0
+    (gram(centeredG) /:/ gram(stddev)) / 4.0
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
@@ -271,7 +271,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
         if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
       } (g, mu).cache()
     
-    (homalt.t * homref) :+ (homref.t * homalt)
+    (homalt.t * homref) +:+ (homref.t * homalt)
   }
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
@@ -288,7 +288,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
       }
     })
 
-    gram(normalizedGD) :/ gram(variance)
+    gram(normalizedGD) /:/ gram(variance)
   }
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
@@ -308,7 +308,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
           (1.0 - mu) * (1.0 - mu)
       } (g, mu).cache()
     
-    val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
+    val denom = (mu2.t * oneMinusMu2) +:+ (oneMinusMu2.t * mu2)
     BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phi <= k0cutoff)
         1.0 - 4.0 * phi + k2
