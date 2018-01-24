@@ -1984,7 +1984,6 @@ class Table(TableTemplate):
 
         exprs = []
 
-        entry_exprs = {k: v for k, v in entry_exprs.items()}
         for k, e in entry_exprs.items():
             all_exprs.append(e)
             analyze('to_matrix_table/entry_exprs/{}'.format(k), e, self._row_indices)
