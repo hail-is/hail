@@ -1226,7 +1226,8 @@ class Table(TableTemplate):
             left = left.key_by(*original_key)
 
         def cleanup(table):
-            return table.drop(*all_uids)
+            remaining_uids = [uid for uid in all_uids if uid in table._fields]
+            return table.drop(*remaining_uids)
 
         return left, cleanup
 
