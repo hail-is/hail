@@ -95,7 +95,7 @@ object LoadMatrix {
       vaType = annotationType,
       genotypeType = cellType)
 
-    val keyType = matrixType.orderedRV.kType
+    val keyType = matrixType.orderedRVType.kType
 
     val rdd = lines.filter(l => l.value.nonEmpty)
       .mapPartitionsWithIndex { (i, it) =>
