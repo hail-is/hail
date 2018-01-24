@@ -44,11 +44,12 @@ object LoadMatrix {
     files: Array[String],
     annotationHeaders: Option[Seq[String]],
     annotationTypes: Seq[Type],
-    keyExpr: String,
+    optKeyExpr: Option[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     cellType: TStruct = TStruct("x" -> TInt64()),
-    missingValue: String = "NA"): MatrixTable = {
+    missingValue: String = "NA",
+    noHeader: Boolean = false): MatrixTable = {
     require(cellType.size == 1, "cellType can only have 1 field")
 
     val sep = '\t'
@@ -68,7 +69,10 @@ object LoadMatrix {
     val symTab = annotationNames.zip(annotationTypes)
     val annotationType = TStruct(symTab: _*)
     val ec = EvalContext(symTab: _*)
-    val (keyType, keyF) = Parser.parseExpr(keyExpr, ec)
+    val (t, f) = optKeyExpr match {
+      case Some(keyExpr) => Parser.parseExpr(keyExpr, ec)
+      case None => (TInt64(), { () => 0 })
+    }
 
     val header1Bc = sc.broadcast(header1)
 
@@ -98,6 +102,8 @@ object LoadMatrix {
       rowPartitionKey = Array("row_id"),
       entryType = cellType)
 
+    val fastKeys =
+
     val rdd = lines.filter(l => l.value.nonEmpty)
       .mapPartitionsWithIndex { (i, it) =>
         val region = Region()
@@ -108,7 +114,7 @@ object LoadMatrix {
           val hd1 = header1Bc.value
           val (annotationNamesCheck, hd) = parseHeader(it.next().value, sep, nAnnotations, annotationHeaders)
           if (!annotationNames.sameElements(annotationNamesCheck)) {
-            fatal("column headers for annotations must be the same accross files.")
+            fatal("column headers for annotations must be the same across files.")
           }
           if (!hd1.sameElements(hd)) {
             if (hd1.length != hd.length) {

@@ -525,25 +525,27 @@ class HailContext private(val sc: SparkContext,
   def importMatrix(file: String,
     annotationHeaders: Option[Seq[String]],
     annotationTypes: Seq[Type],
-    keyExpr: String,
+    keyExpr: Option[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
-    missingVal: String = "NA"): MatrixTable =
-    importMatrices(List(file), annotationHeaders, annotationTypes, keyExpr, nPartitions, dropSamples, cellType, missingVal)
+    missingVal: String = "NA",
+    noHeader: Boolean = false): MatrixTable =
+    importMatrices(List(file), annotationHeaders, annotationTypes, keyExpr, nPartitions, dropSamples, cellType, missingVal, noHeader)
 
   def importMatrices(files: Seq[String],
     annotationHeaders: Option[Seq[String]],
     annotationTypes: Seq[Type],
-    keyExpr: String,
+    keyExpr: Option[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
-    missingVal: String = "NA"): MatrixTable = {
+    missingVal: String = "NA",
+    noHeader: Boolean = false): MatrixTable = {
     val inputs = hadoopConf.globAll(files)
 
     LoadMatrix(this, inputs, annotationHeaders, annotationTypes, keyExpr, nPartitions = nPartitions,
-      dropSamples = dropSamples, cellType = TStruct("x" -> cellType), missingValue = missingVal)
+      dropSamples = dropSamples, cellType = TStruct("x" -> cellType), missingValue = missingVal, noHeader = noHeader)
   }
 
   def indexBgen(file: String) {
