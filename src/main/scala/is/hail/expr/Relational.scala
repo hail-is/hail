@@ -412,7 +412,7 @@ abstract sealed class TableIR extends BaseIR {
   def partitionCounts: Option[Array[Long]] = None
 
   def env: Env[IR] = {
-    new Env[IR]()
+    Env.empty[IR]
       .bind(typ.rowType.fieldNames.map {f => (f, GetField(In(0, typ.rowType), f)) }:_*)
       .bind(typ.globalType.fieldNames.map {f => (f, GetField(In(1, typ.globalType), f)) }:_*)
   }

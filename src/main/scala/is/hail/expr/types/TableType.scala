@@ -12,7 +12,7 @@ case class TableType(rowType: TStruct, key: Array[String], globalType: TStruct) 
   def fields: Map[String, Type] = Map(rowType.fields.map { f => f.name -> f.typ } ++ globalType.fields.map { f => f.name -> f.typ }: _*)
 
   def env: Env[Type] = {
-    new Env[Type]()
+    Env.empty[Type]
       .bind(rowType.fields.map {f => (f.name, f.typ) }:_*)
       .bind(globalType.fields.map {f => (f.name, f.typ) }:_*)
   }
