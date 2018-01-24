@@ -105,7 +105,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
 @handle_py4j
 @typecheck(dataset=MatrixTable,
            ys=oneof(Expression, listof(Expression)),
-           x=Expression,
+           x=NumericExpression,
            covariates=listof(Expression),
            root=strlike,
            block_size=integral)
@@ -159,11 +159,11 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 
     Parameters
     ----------
-    ys : :obj:`list` of :class:`.Expression`
+    ys : :obj:`list` of :class:`.NumericExpression`
         One or more response expressions.
-    x : :class:`.Expression`
+    x : :class:`.NumericExpression`
         Input variable.
-    covariates : :obj:`list` of :class:`.Expression`
+    covariates : :obj:`list` of :class:`.NumericExpression`
         Covariate expressions.
     root : :obj:`str`
         Name of resulting row-indexed field.
@@ -213,7 +213,8 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
            covariates=listof(Expression),
            root=strlike)
 def logreg(dataset, test, y, x, covariates=[], root='logreg'):
-    r"""Test each variant for association using logistic regression.
+    r"""For each row, test a derived input variable for association with a
+    Boolean response variable using logistic regression.
 
     Examples
     --------
@@ -221,22 +222,27 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     Run the logistic regression Wald test per variant using a Boolean
     phenotype and two covariates stored in column-indexed fields:
 
-    >>> ds_result = methods.logreg(dataset, test='wald', y=dataset.pheno.isCase, x=dataset.GT.num_alt_alleles(), covariates=[dataset.pheno.age, dataset.pheno.isFemale])
+    >>> ds_result = methods.logreg(
+    ...     dataset,
+    ...     test='wald',
+    ...     y=dataset.pheno.isCase,
+    ...     x=dataset.GT.num_alt_alleles(),
+    ...     covariates=[dataset.pheno.age, dataset.pheno.isFemale])
 
     Notes
     -----
 
-    The :func:`.logreg` method performs, for each variant, a significance test
-    of the genotype in predicting a binary (case-control) phenotype based on
-    the logistic regression model. The phenotype type must either be numeric
-    (with all present values 0 or 1) or Boolean, in which case true and false
-    are coded as 1 and 0, respectively.
+    The :func:`.logreg` method performs, for each row, a significance test of
+    the input variable in predicting a binary (case-control) response
+    variable based on the logistic regression model. The response variable
+    type must either be numeric (with all present values 0 or 1) or Boolean,
+    in which case true and false are coded as 1 and 0, respectively.
 
     Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'),
     Rao score test ('score'), and Firth test ('firth'). Hail only includes
-    samples for which the phenotype and all covariates are defined. For each
-    variant, Hail imputes missing input values as the mean of the non-missing
-    values.
+    columns for which the response variable and all covariates are defined.
+    For each row, Hail imputes missing input values as the mean of the
+    non-missing values.
 
     The example above considers a model of the form
 
@@ -263,14 +269,14 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     ========== =============== ======  ============================================
     Test       Field           Type    Value
     ========== =============== ======  ============================================
-    Wald       `logreg.beta`   Double  fit genotype coefficient,
+    Wald       `logreg.beta`   Double  fit effect coefficient,
                                        :math:`\hat\beta_1`
     Wald       `logreg.se`     Double  estimated standard error,
                                        :math:`\widehat{\mathrm{se}}`
     Wald       `logreg.zstat`  Double  Wald :math:`z`-statistic, equal to
                                        :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
     Wald       `logreg.pval`   Double  Wald p-value testing :math:`\beta_1 = 0`
-    LRT, Firth `logreg.beta`   Double  fit genotype coefficient,
+    LRT, Firth `logreg.beta`   Double  fit effect coefficient,
                                        :math:`\hat\beta_1`
     LRT, Firth `logreg.chi2`   Double  deviance statistic
     LRT, Firth `logreg.pval`   Double  LRT / Firth p-value testing
@@ -280,7 +286,7 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     ========== =============== ======  ============================================
 
     For the Wald and likelihood ratio tests, Hail fits the logistic model for
-    each variant using Newton iteration and only emits the above annotations
+    each row using Newton iteration and only emits the above annotations
     when the maximum likelihood estimate of the coefficients converges. The
     Firth test uses a modified form of Newton iteration. To help diagnose
     convergence issues, Hail also emits three variant annotations which
@@ -396,12 +402,12 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     ----------
     test : {'wald', 'lrt', 'score', 'firth'}
         Statistical test.
-    y : :class:`.Expression`
+    y : :class:`.AtomicExpression`
         Response expression. Must evaluate to Boolean or numeric with all values
         0 or 1.
-    x : :class:`.Expression`
+    x : :class:`.NumericExpression`
         Expression for input variable.
-    covariates : :obj:`list` of :class:`.Expression`, optional
+    covariates : :obj:`list` of :class:`.NumericExpression`, optional
         Covariate expressions.
     root : :obj:`str`, optional
         Name of resulting row-indexed field.
@@ -859,13 +865,13 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     kinshipMatrix : :class:`.KinshipMatrix`
         Kinship matrix to be used.
 
-    y : :class:`.Expression`
+    y : :class:`.NumericExpression`
         Response sample expression.
 
-    x : :class:`.Expression`
+    x : :class:`.NumericExpression`
         Input variable.
 
-    covariates : :obj:`list` of :class:`.Expression`
+    covariates : :obj:`list` of :class:`.NumericExpression`
         List of covariate sample expressions.
 
     global_root : :obj:`str`
