@@ -2769,19 +2769,37 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val irm = new IndexedRowMatrix(indexedRows, partStarts.last, nSamples)
 
-    val optionVariants =
-      someIf(getVariants,
-        rdd2.mapPartitions { it =>
-          val ur = new UnsafeRow(localRVRowType)
-          it.map { rv =>
-            ur.set(rv)
-            ur.get(1)
-          }
-        }.collect())
-
-    (irm, optionVariants)
+    (irm, someIf(getVariants, rowKeys().values))
   }
 
+  def rowKeys(): Keys = {
+    val localRVRowType = rvRowType
+
+    val values = rdd2.mapPartitions { it =>
+      val ur = new UnsafeRow(localRVRowType)
+      it.map { rv =>
+        ur.set(rv)
+        ur.get(1)
+      }
+    }.collect()
+    
+    new Keys(vSignature, values)
+  }
+    
+  def writeKeyedBlockMatrix(dirname: String, expr: String, blockSize: Int = BlockMatrix.defaultBlockSize,
+    keepRowKeys: Boolean = true, keepColKeys: Boolean = true): Unit = {
+    
+    sparkContext.hadoopConfiguration.mkDir(dirname)
+
+    if (keepRowKeys)
+      rowKeys().write(sparkContext, dirname + "/rowkeys")
+      
+    if (keepColKeys)
+      new Keys(sSignature, sampleIds.toArray).write(sparkContext, dirname + "/colkeys")
+    
+    writeBlockMatrix(dirname + "/blockmatrix", expr, blockSize)
+  }  
+  
   def writeBlockMatrix(dirname: String, expr: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rdd2.getNumPartitions + 1)
