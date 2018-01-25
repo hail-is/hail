@@ -385,6 +385,24 @@ def Dict(keys, values):
     ret_type = TDict(key_col._type, value_col._type)
     return _func("Dict", ret_type, keys, values)
 
+def dbeta(x, a, b):
+    """
+    Returns the probability density at x of a `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`__
+    with parameters a (alpha) and b (beta).
+
+    Parameters
+    ----------
+    x : float or :class:`.Float64Expression`
+        Point in [0,1] at which to sample. If a < 1 then x must be positive.
+        If b < 1 then x must be less than 1.
+    a : float or :class:`.Float64Expression`
+        The alpha parameter in the beta distribution. The result is undefined
+        for non-positive a.
+    b : float or :class:`.Float64Expression`
+        The beta parameter in the beta distribution. The result is undefined
+        for non-positive b.
+    """
+    return _func("dbeta", TFloat64(), x, a, b)
 
 @typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
 def dpois(x, lamb, log_p=False):
@@ -643,6 +661,23 @@ def parse_locus(s, reference_genome=None):
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), TLocus(reference_genome),
                           s._indices, s._aggregations, s._joins, s._refs)
 
+@typecheck(pl=ArrayNumericExpression)
+def pl_dosage(pl):
+    """
+    Return expected genotype dosage from array of Phred-scaled genotype
+    likelihoods with uniform prior. Only defined for bi-allelic variants. The
+    `pl` argument must be length 3.
+
+    Parameters
+    ----------
+    pl : :obj:`.ArrayNumericExpression`
+        Length 3 list of bi-allelic Phred-scaled genotype likelihoods
+
+    Returns
+    -------
+    :class:`.Float64Expression`
+    """
+    return _func("plDosage", TFloat64(), pl)
 
 @typecheck(start=expr_locus, end=expr_locus)
 def interval(start, end):
