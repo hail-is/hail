@@ -1769,11 +1769,7 @@ class MatrixTable(object):
                     MatrixTable(left._jvds.annotateVariantsVDS(right._jvds, jsome('{}.{}'.format(prefix, uid)),
                                                                jnone())))
             elif indices == src._row_indices:
-                prefix = 'va'
-                joiner = lambda left: (
-                    MatrixTable(left._jvds.annotateVariantsTable(right._jvds.variantsKT(),
-                                                                 [expr._ast.to_hql()],
-                                                                 '{}.{}'.format(prefix, uid), None, False)))
+                return self.rows_table().view_join_rows(expr)
             elif indices == src._col_indices:
                 prefix = 'sa'
                 joiner = lambda left: (
@@ -1832,11 +1828,7 @@ class MatrixTable(object):
                                                                 [expr._ast.to_hql()],
                                                                 '{}.{}'.format(prefix, uid), None, False)))
             elif indices == src._row_indices:
-                prefix = 'va'
-                joiner = lambda left: (
-                    MatrixTable(left._jvds.annotateVariantsTable(right._jvds.samplesKT(),
-                                                                 [expr._ast.to_hql()],
-                                                                 '{}.{}'.format(prefix, uid), None, False)))
+                return self.cols_table().view_join_rows(expr)
             else:
                 # FIXME: implement entry-based join in the expression language
                 raise NotImplementedError('MatrixTable.view_join_cols join with indices {}'.format(indices))

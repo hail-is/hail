@@ -818,7 +818,7 @@ class Table(TableTemplate):
                     raise ExpressionException("method 'drop' expects string field names or top-level field expressions"
                                               " (e.g. table['foo'])")
             else:
-                assert isinstance(e, str) or isinstance(str, unicode)
+                assert isinstance(e, str) or isinstance(e, unicode)
                 if e not in self._fields:
                     raise IndexError("table has no field '{}'".format(e))
                 fields_to_drop.add(e)
@@ -1169,15 +1169,46 @@ class Table(TableTemplate):
             elif indices == src._row_indices:
                 if len(exprs) == 1 and exprs[0] is src['v']:
                     # no vds_key (way faster)
-                    joiner = lambda left: MatrixTable(left._jvds.annotateVariantsTable(
-                        right._jt, None, 'va.{}'.format(uid), None, False))
+                    def joiner(left):
+                        return MatrixTable(left._jvds.annotateVariantsTable(
+                            right._jt, 'va.{}'.format(uid), None, False))
+                    
+                    return construct_expr(Select(Reference('va'), uid), new_schema,
+                                          indices, aggregations, joins.push(Join(joiner, [uid])))
                 else:
                     # use vds_key
-                    joiner = lambda left: MatrixTable(left._jvds.annotateVariantsTable(
-                        right._jt, [e._ast.to_hql() for e in exprs], 'va.{}'.format(uid), None, False))
+                    uids = [Env._get_uid() for i in range(len(exprs))]
+                    def joiner(left):
+                        from hail.expr import functions, aggregators as agg
+                        
+                        v_uid = Env._get_uid()
+                        k_uid = Env._get_uid()
 
-                return construct_expr(Select(Reference('va'), uid), new_schema,
-                                      indices, aggregations, joins.push(Join(joiner, [uid])))
+                        # extract v, key exprs
+                        left2 = left.select_rows(
+                            **{uid: e for uid, e in zip(uids, exprs)})
+                        lrt = left2.rows_table().rename({'v': v_uid}).key_by(*uids)
+                        
+                        vt = lrt.join(right)
+                        # group uids
+                        vt = vt.annotate(**{
+                            k_uid: Struct(**{uid: vt[uid] for uid in uids})})
+                        vt = vt.drop(*uids)
+                        # group by v and index by the key exprs
+                        vt = (vt.group_by(v_uid)
+                              .aggregate(values = agg.collect(
+                                  Struct(**{c: vt[c] for c in vt.columns if c != v_uid}))))
+                        vt = vt.annotate(values = functions.index(vt.values, k_uid))
+                        
+                        return MatrixTable(
+                            left._jvds.annotateVariantsTable(
+                                vt._jt, 'va.{}'.format(uid), None, False))
+
+                    return construct_expr(
+                        ApplyMethod('get',
+                                    Select(Reference('va'), uid),
+                                    StructDeclaration(uids, [e._ast for e in exprs])),
+                        new_schema, indices, aggregations, joins.push(Join(joiner, [uid])))
             elif indices == src._col_indices:
                 if len(exprs) == 1 and exprs[0] is src['s']:
                     # no vds_key (faster)

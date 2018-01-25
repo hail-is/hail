@@ -309,63 +309,6 @@ class VSMSuite extends SparkSuite {
     }.check()
   }
 
-  @Test def testAnnotateVariantsKeyTableWithComputedKey() {
-    forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
-      val vds2 = vds.annotateVariantsExpr("va.key = v.start % 2 == 0")
-
-      val kt = Table(hc, sc.parallelize(Array(Row(true, 1), Row(false, 2))),
-        TStruct(("key", TBoolean()), ("value", TInt32())), Array("key"))
-
-      val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Seq("va.key"), root = "va.foo")
-      val result = resultVds.rdd.collect()
-      val (_, getKey) = resultVds.queryVA("va.key")
-      val (_, getFoo) = resultVds.queryVA("va.foo")
-
-      result.forall { case (v, (va, gs)) =>
-        if (getKey(va).asInstanceOf[Boolean]) {
-          assert(getFoo(va) == 1)
-          getFoo(va) == 1
-        } else {
-          assert(getFoo(va) == 2)
-          getFoo(va) == 2
-        }
-      }
-    }.check()
-  }
-
-  @Test def testAnnotateVariantsKeyTableWithComputedKey2() {
-    forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
-      val vds2 = vds.annotateVariantsExpr("va.key1 =  v.start % 2 == 0, va.key2 = v.contig.length() % 2 == 0")
-
-      def f(a: Boolean, b: Boolean): Int =
-        if (a)
-          if (b) 1 else 2
-        else if (b) 3 else 4
-
-      def makeAnnotation(a: Boolean, b: Boolean): Row =
-        Row(a, b, f(a, b))
-
-      val mapping = sc.parallelize(Array(
-        makeAnnotation(true, true),
-        makeAnnotation(true, false),
-        makeAnnotation(false, true),
-        makeAnnotation(false, false)))
-
-      val kt = Table(hc, mapping, TStruct(("key1", TBoolean()), ("key2", TBoolean()), ("value", TInt32())), Array("key1", "key2"))
-
-      val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Seq("va.key1", "va.key2"),
-        expr = "va.foo = table")
-      val result = resultVds.rdd.collect()
-      val (_, getKey1) = resultVds.queryVA("va.key1")
-      val (_, getKey2) = resultVds.queryVA("va.key2")
-      val (_, getFoo) = resultVds.queryVA("va.foo")
-
-      result.forall { case (v, (va, gs)) =>
-        getFoo(va) == f(getKey1(va).asInstanceOf[Boolean], getKey2(va).asInstanceOf[Boolean])
-      }
-    }.check()
-  }
-
   @Test def testQueryGenotypes() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
     vds.queryGenotypes("gs.map(g => g.GQ).hist(0, 100, 100)")
