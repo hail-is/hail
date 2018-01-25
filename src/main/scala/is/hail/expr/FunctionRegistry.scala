@@ -212,7 +212,7 @@ object FunctionRegistry {
                 (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
               } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
             res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
+          ) yield res).runWithDelayedValues(bodyST.toSeq.zipWithIndex.map { case ((name, (_, typ)), i) => (name, typ, i) }, ec);
 
           g = (x: Any) => {
             localA(idx) = x
@@ -245,7 +245,7 @@ object FunctionRegistry {
                 (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
               } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
             res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
+          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (i, typ)) => (name, typ, i) }, ec);
 
           g = (x: Any) => {
             localA(idx) = x
