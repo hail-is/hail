@@ -183,6 +183,9 @@ object PCRelate {
     1.0 - (k2 :+ k0)
   }
 
+  def solve(a: DenseMatrix[Double], b: M): M = {
+    breeze.linalg.inv(a) * b
+  }
 }
 
 class PCRelate(maf: Double, blockSize: Int) extends Serializable {

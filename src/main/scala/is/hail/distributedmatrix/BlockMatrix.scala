@@ -195,6 +195,11 @@ object BlockMatrix {
         r.blockMap(ll / _)
       }
     }
+
+    implicit class LocalShim(l: BDM[Double]) {
+      def *(r: M): M =
+        r.leftMultiply(l)
+    }
   }
 }
 
@@ -240,6 +245,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     require(nCols == lm.rows,
       s"incompatible matrix dimensions: ${ nRows } x ${ nCols } and ${ lm.rows } x ${ lm.cols }")
     multiply(BlockMatrix.from(blocks.sparkContext, lm, blockSize))
+  }
+
+  def leftMultiply(lm: BDM[Double]): M = {
+    require(lm.cols == nRows,
+      s"incompatible matrix dimensions: ${ lm.rows } x ${ lm.cols } and ${ nRows } x ${ nCols }")
+    BlockMatrix.from(blocks.sparkContext, lm, blockSize).multiply(this)
   }
 
   def scalarAdd(i: Double): M =
