@@ -2043,9 +2043,10 @@ class Table(TableTemplate):
         :class:`.StructExpression`
             Struct of all global fields.
         """
-        # FIXME: this is horribly inefficient. It can be solved by using a
-        # FIXME: 'row' and 'globals' symbol in the Table parser, like VSM
-        return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.global_schema.fields}))
+        # FIXME: Impossible to correct a struct with the correct schema
+        # FIXME: need 'row' and 'globals' symbol in the Table parser, like VSM
+        raise NotImplementedError()
+        # return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.global_schema.fields}))
 
     @property
     @handle_py4j
@@ -2057,8 +2058,8 @@ class Table(TableTemplate):
         :class:`.StructExpression`
             Struct of all row fields.
         """
-        # FIXME: this is horribly inefficient. It can be solved by using a
+        # FIXME: Impossible to correct a struct with the correct schema
         # FIXME: 'row' and 'globals' symbol in the Table parser, like VSM
-        return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.schema.fields}))
+        raise NotImplementedError()
 
 table_type.set(Table)
