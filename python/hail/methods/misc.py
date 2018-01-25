@@ -22,42 +22,42 @@ def maximal_independent_set(i, j, tie_breaker=None):
     respect to a PC-Relate measure of kinship.
 
     >>> pc_rel = methods.pc_relate(dataset, 2, 0.001)
-    >>> rel_pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
-    >>> related_samples = rel_pairs.aggregate(
-    ...     samps = agg.collect_as_set(agg.explode([rel_pairs.i, rel_pairs.j]))).samps
-    >>> related_samples_to_keep = methods.maximal_independent_set(rel_pairs.i, rel_pairs.j)
+    >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
+    >>> related_samples = pairs.aggregate(
+    ...     samples = agg.collect_as_set(agg.explode([pairs.i, pairs.j]))).samples
+    >>> related_samples_to_keep = methods.maximal_independent_set(pairs.i, pairs.j)
     >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
-    >>> result = dataset.filter_cols_list(list(related_samples_to_remove))
+    >>> result = dataset.filter_cols_list(list(related_samples_to_remove), keep=False)
 
-    Prune individuals from a dataset, prefering to keep cases over controls.
+    Prune individuals from a dataset, preferring to keep cases over controls.
 
     >>> pc_rel = methods.pc_relate(dataset, 2, 0.001)
-    >>> rel_pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
-    >>> related_samples = rel_pairs.aggregate(
-    ...     samps = agg.collect_as_set(agg.explode([rel_pairs.i, rel_pairs.j]))).samps
-    >>> samples = ds.cols_table()
-    >>> rel_pairs_with_case = rel_pairs.select(
-    ...     iAndCase = Struct(id = rel_pairs.i, isCase = samples[rel_pairs.i].isCase),
-    ...     jAndCase = Struct(id = rel_pairs.j, isCase = samples[rel_pairs.j].isCase))
+    >>> pairs = pc_rel.filter(pc_rel['kin'] > 0.125).select('i', 'j')
+    >>> related_samples = pairs.aggregate(
+    ...     samples = agg.collect_as_set(agg.explode([pairs.i, pairs.j]))).samples
+    >>> samples = dataset.cols_table()
+    >>> pairs_with_case = pairs.select(
+    ...     i = Struct(id = pairs.i, is_case = samples[pairs.i].isCase),
+    ...     j = Struct(id = pairs.j, is_case = samples[pairs.j].isCase))
     >>> def tie_breaker(l, r):
-    ...     return functions.cond(l.isCase & ~r.isCase, -1,
-    ...         functions.cond(~l.isCase & r.isCase, 1, 0))
+    ...     return functions.cond(l.is_case & ~r.is_case, -1,
+    ...         functions.cond(~l.is_case & r.is_case, 1, 0))
     >>> related_samples_to_keep = methods.maximal_independent_set(
-    ...         rel_pairs_with_case.iAndCase,
-    ...         rel_pairs_with_case.jAndCase,
+    ...         pairs_with_case.i,
+    ...         pairs_with_case.j,
     ...         tie_breaker)
     >>> related_samples_to_remove = related_samples - {x.id for x in related_samples_to_keep}
-    >>> result = dataset.filter_cols_list(list(related_samples_to_remove))
+    >>> result = dataset.filter_cols_list(list(related_samples_to_remove), keep=False)
 
     Notes
     -----
 
     The vertex set of the graph is implicitly all the values realized by `i`
-    and `j` on the rows of this key table. Each row of the key table
-    corresponds to an undirected edge between the vertices given by evaluating
-    `i` and `j` on that row. An undirected edge may appear multiple times in
-    the key table and will not affect the output. Vertices with self-edges are
-    removed as they are not independent of themselves.
+    and `j` on the rows of this table. Each row of the table corresponds to an
+    undirected edge between the vertices given by evaluating `i` and `j` on
+    that row. An undirected edge may appear multiple times in the table and
+    will not affect the output. Vertices with self-edges are removed as they
+    are not independent of themselves.
 
     The expressions for `i` and `j` must have the same type.
 
