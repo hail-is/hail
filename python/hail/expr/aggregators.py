@@ -772,10 +772,9 @@ def inbreeding(expr, prior):
 
     ``F`` is the inbreeding coefficient, and is computed by: ``(O - E) / (N - E)``.
 
-    This method returns a struct expression with five fields:
+    This method returns a struct expression with four fields:
 
      - `Fstat` (:class:`.TFloat64`): ``F``, the inbreeding coefficient.
-     - `nTotal` (:class:`.TInt64`): Total number of calls.
      - `nCalled` (:class:`.TInt64`): ``N``, the number of non-missing calls.
      - `expectedHoms` (:class:`.TFloat64`): ``E``, the expected number of homozygotes.
      - `observedHoms` (:class:`.TInt64`): ``O``, the number of observed homozygotes.
@@ -810,8 +809,8 @@ def inbreeding(expr, prior):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    t = TStruct(['Fstat', 'nTotal', 'nCalled', 'expectedHoms', 'observedHoms'],
-                [TFloat64(), TInt64(), TInt64(), TFloat64(), TInt64()])
+    t = TStruct(['Fstat', 'nCalled', 'expectedHoms', 'observedHoms'],
+                [TFloat64(), TInt64(), TFloat64(), TInt64()])
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 
