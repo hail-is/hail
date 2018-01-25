@@ -459,6 +459,8 @@ class MatrixTests(unittest.TestCase):
         rt = vds.rows_table()
         ct = vds.cols_table()
 
+        vds.annotate_rows(**rt[vds.v])
+
         self.assertTrue(rt.forall(rt.y2 == 2))
         self.assertTrue(ct.forall(ct.c2 == 2))
 
