@@ -2,6 +2,7 @@ from decorator import decorator
 from hail.api2 import MatrixTable
 from hail.utils.java import Env, handle_py4j
 from hail.typecheck.check import typecheck, strlike
+from hail.expr.expression import *
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, method=strlike)
@@ -49,3 +50,4 @@ def rename_duplicates(dataset):
     """
 
     return MatrixTable(dataset._jvds.renameDuplicates())
+

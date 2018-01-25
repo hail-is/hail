@@ -1973,5 +1973,33 @@ class Table(TableTemplate):
 
         return Table(self._jt.explode(fields_rev[field]))
 
+    @typecheck_method(row_key=expr_any,
+                      col_key=expr_any,
+                      entry_exprs=expr_any)
+    @handle_py4j
+    def to_matrix_table(self, row_key, col_key, **entry_exprs):
+
+        from hail.api2 import MatrixTable
+
+        all_exprs = []
+        all_exprs.append(row_key)
+        analyze('to_matrix_table/row_key', row_key, self._row_indices)
+        all_exprs.append(col_key)
+        analyze('to_matrix_table/col_key', col_key, self._row_indices)
+
+        exprs = []
+
+        for k, e in entry_exprs.items():
+            all_exprs.append(e)
+            analyze('to_matrix_table/entry_exprs/{}'.format(k), e, self._row_indices)
+            exprs.append('`{k}` = {v}'.format(k=k, v=e._ast.to_hql()))
+
+        base, cleanup = self._process_joins(*all_exprs)
+
+        return MatrixTable(base._jt.toMatrixTable(row_key._ast.to_hql(),
+                                                  col_key._ast.to_hql(),
+                                                  ",\n".join(exprs),
+                                                  joption(None)))
+
 
 table_type.set(Table)

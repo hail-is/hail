@@ -11,7 +11,7 @@ import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType, RVD}
 import is.hail.utils._
-import is.hail.variant.GenomeReference
+import is.hail.variant.{GenomeReference, MatrixTable}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
@@ -765,6 +765,158 @@ class Table(val hc: HailContext,
     }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
   }
 
+  def toOrderedTable(rowType: TStruct, ec: EvalContext, pkF: () => Annotation,
+    keyF: Array[() => Annotation], fieldFs: () => Array[Annotation]): Table = {
+    val localSig = signature
+    val nKeys = keyF.length + 1
+    val orderedType = new OrderedRVType(Array(rowType.fieldNames(0)), rowType.fieldNames.slice(0, nKeys), rowType)
+    val newRDD = rvd.rdd.mapPartitions { it =>
+      val ur = new UnsafeRow(localSig)
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      it.map { rv =>
+        rvb.set(rv.region)
+        ur.set(rv)
+        ec.setAllFromRow(ur)
+        rvb.start(rowType)
+        rvb.startStruct()
+        rvb.addAnnotation(rowType.fieldType(0), pkF())
+        var i = 1
+        while (i < nKeys) {
+          rvb.addAnnotation(rowType.fieldType(i), keyF(i-1)())
+          i += 1
+        }
+        val f = fieldFs()
+        val t = coerce[TStruct](rowType.fieldType(i))
+        rvb.startStruct()
+        var j = 0
+        while (j < t.size) {
+          rvb.addAnnotation(t.fieldType(j), f(j))
+          j += 1
+        }
+        rvb.endStruct()
+        rvb.endStruct()
+        rv2.set(rv.region, rvb.end())
+        rv2
+      }
+    }
+
+    copy2(rvd=OrderedRVD(orderedType, newRDD, None, None), signature=rowType, key=rowType.fieldNames.slice(0, nKeys))
+  }
+
+  def toMatrixTable(rowKeyExpr: String, colKeyExpr: String, dataExpr: String, nPartitions: Option[Int] = None): MatrixTable = {
+
+    val keyEC = EvalContext((fields.map { f => f.name -> f.typ } ++
+      globalSignature.fields.map { f => f.name -> f.typ })
+      .zipWithIndex
+      .map { case ((name, t), i) => name -> (i, t) }
+      .toMap)
+
+    val g = globals.asInstanceOf[Row]
+    var i = 0
+    while (i < globalSignature.size) {
+      keyEC.set(nColumns + i, g.get(i))
+      i += 1
+    }
+
+    val (rowKeyType, rowKeyF) = Parser.parseExpr(rowKeyExpr, keyEC)
+    val (colKeyType, colKeyF) = Parser.parseExpr(colKeyExpr, keyEC)
+
+    val localRowType = coerce[TStruct](rvd.rowType)
+
+    val (ePaths, eTypes, entryF) = Parser.parseAnnotationExprs(dataExpr, keyEC, None)
+    val entryNames = ePaths.map(_.head)
+    val entryType = TStruct((entryNames, eTypes).zipped.toSeq: _*)
+    val nFields = entryType.size
+
+    val colIDs = rvd.rdd.mapPartitions[Annotation] { it =>
+      val ur = new UnsafeRow(localRowType)
+      it.map { rv =>
+        ur.set(rv)
+        keyEC.setAllFromRow(ur)
+        val key = colKeyF()
+        Annotation.copy(colKeyType, key)
+      }
+    }.distinct.collect()
+    val colMap = colIDs.zipWithIndex.toMap
+    val ncols = colIDs.size
+
+    info(s"$ncols columns")
+
+    val matrixType = MatrixType(sType=colKeyType,
+      vType=rowKeyType,
+      genotypeType=entryType
+    )
+
+    val (pkType, p) = Type.partitionKeyProjection(rowKeyType)
+
+    val orderedType = TStruct("pk" -> pkType, "r" -> rowKeyType, "c" -> TInt32(), "e" -> entryType)
+    val ordered = toOrderedTable(orderedType, keyEC, {() => p(rowKeyF())}, Array(rowKeyF, {() => colMap(colKeyF())}), entryF)
+
+    val newRVD = ordered.rvd.asInstanceOf[OrderedRVD].mapPartitionsPreservesPartitioning(matrixType.orderedRVType) { it =>
+      new Iterator[RegionValue] {
+        val region = Region()
+        val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
+        val rvRowKey = RegionValue(region)
+        val currentRowKey: RegionValue = RegionValue()
+        var current: RegionValue = null
+        var isEnd: Boolean = false
+
+        def hasNext: Boolean = {
+          if (isEnd || (current == null && !it.hasNext)) {
+            isEnd = true
+            return false
+          }
+          if (current == null)
+            current = it.next()
+            currentRowKey.set(current.region, orderedType.loadField(current, 1))
+          true
+        }
+
+        def next(): RegionValue = {
+          if (!hasNext)
+            throw new java.util.NoSuchElementException()
+          region.clear()
+          rvb.start(matrixType.rvRowType)
+          rvb.startStruct()
+          rvb.addField(orderedType, current, 0)
+          rvb.addField(orderedType, current, 1)
+          rvRowKey.setOffset(matrixType.rowType.loadField(region, rvb.offsetstk.top, 1))
+          rvb.startStruct()
+          rvb.endStruct()
+          rvb.startArray(ncols)
+          var i = 0
+          while (i < ncols && hasNext && matrixType.vType.unsafeOrdering().compare(rvRowKey, currentRowKey) == 0) {
+            val nextint = current.region.loadInt(orderedType.fieldOffset(current.offset, 2))
+            while (i < nextint) {
+              rvb.setMissing()
+              i += 1
+            }
+            rvb.addField(orderedType, current, 3)
+            current = null
+            i += 1
+          }
+          while (i < ncols) {
+            rvb.setMissing()
+            i += 1
+          }
+          rvb.endArray()
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
+          rv
+        }
+      }
+    }
+
+    new MatrixTable(hc,
+      matrixType,
+      MatrixLocalValue(Annotation.empty,
+        colIDs,
+        Annotation.emptyIndexedSeq(ncols)),
+      newRVD)
+  }
+
   def aggregate(keyCond: String, aggCond: String, nPartitions: Option[Int] = None): Table = {
 
     val aggregationST = (fields.map { f => f.name -> f.typ } ++
@@ -834,7 +986,6 @@ class Table(val hc: HailContext,
     val newKey = key.filter(!columns.contains(_))
     copy(rdd = rdd.map(grouper), signature = newSignature, key = newKey)
   }
-
 
   def expandTypes(): Table = {
     val localSignature = signature
