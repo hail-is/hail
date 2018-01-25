@@ -401,13 +401,73 @@ class Tests(unittest.TestCase):
         _, _, loadings = hl.pca(dataset.GT.n_alt_alleles(), k=2, compute_loadings=False)
         self.assertEqual(loadings, None)
 
-    def test_pcrelate(self):
-        dataset = hl.balding_nichols_model(3, 100, 100)
-        dataset = dataset.annotate_cols(sample_idx = hl.str(dataset.sample_idx))
-        t = hl.pc_relate(dataset, 2, 0.05, block_size=64, statistics="phi")
+    def _R_pc_relate(self, mt, maf):
+        import subprocess as sp
 
-        self.assertTrue(isinstance(t, hl.Table))
-        t.count()
+        plink_file = utils.uri_path(utils.new_temp_file())
+        hl.export_plink(mt, plink_file, id=hl.str(mt.col_key[0]))
+        try:
+            sp.check_output(
+                ["Rscript",
+                 resource("is/hail/methods/runPcRelate.R"),
+                 plink_file,
+                 str(maf)],
+                stderr=sp.STDOUT)
+        except sp.CalledProcessError as e:
+            print(e.output)
+            raise e
+        types = {
+            'ID1': hl.tstr,
+            'ID2': hl.tstr,
+            'nsnp': hl.tfloat64,
+            'kin': hl.tfloat64,
+            'k0': hl.tfloat64,
+            'k1': hl.tfloat64,
+            'k2': hl.tfloat64
+        }
+        plink_kin = hl.import_table(plink_file + '.out',
+                                    delimiter=' +',
+                                    types=types)
+        plink_kin = plink_kin.select(i='ID1',
+                                     j='ID2',
+                                     kin='kin',
+                                     k0='k0',
+                                     k1='k1',
+                                     k2='k2').key_by('i', 'j')
+        return plink_kin
+
+    def test_pc_relate_on_balding_nichols_against_R_pc_relate(self):
+        mt = hl.balding_nichols_model(3, 100, 1000)
+        mt = mt.annotate_cols(sample_idx=hl.str(mt.sample_idx))
+        _, scores, _ = hl.hwe_normalized_pca(mt, k=2, compute_loadings=False, as_array=True)
+
+        hkin = hl.pc_relate(mt, 0.00, k=2)
+        hkin_s = hl.pc_relate(mt, 0.00, scores=scores)
+        rkin = self._R_pc_relate(mt, 0.00)
+
+        rkin._same(hkin, tolerance=1e-4)
+        rkin._same(hkin_s, tolerance=1e-4)
+
+    def test_pcrelate_paths(self):
+        mt = hl.balding_nichols_model(3, 50, 100)
+        mt = mt.annotate_cols(sample_idx=hl.str(mt.sample_idx))
+        _, scores2, _ = hl.hwe_normalized_pca(mt, k=2, compute_loadings=False, as_array=True)
+        _, scores3, _ = hl.hwe_normalized_pca(mt, k=3, compute_loadings=False, as_array=True)
+
+        kin1 = hl.pc_relate(mt, 0.10, k=2, statistics='phi', block_size=64, )
+        kin2 = hl.pc_relate(mt, 0.05, k=2, statistics='phik2', block_size=64)
+        kin3 = hl.pc_relate(mt, 0.02, k=3, statistics='phik2k0', block_size=64)
+        kin4 = hl.pc_relate(mt, 0.01, k=3, statistics='all', block_size=64)
+
+        kin_s1 = hl.pc_relate(mt, 0.10, scores=scores2, statistics='phi', block_size=32)
+        kin_s2 = hl.pc_relate(mt, 0.05, scores=scores2, statistics='phik2', block_size=32)
+        kin_s3 = hl.pc_relate(mt, 0.02, scores=scores3, statistics='phik2k0', block_size=32)
+        kin_s4 = hl.pc_relate(mt, 0.01, scores=scores3, statistics='all', block_size=32)
+
+        kin1._same(kin_s1, tolerance=1e-5)
+        kin2._same(kin_s2, tolerance=1e-5)
+        kin3._same(kin_s3, tolerance=1e-5)
+        kin4._same(kin_s4, tolerance=1e-5)
 
     def test_rename_duplicates(self):
         dataset = self.get_dataset()  # FIXME - want to rename samples with same id

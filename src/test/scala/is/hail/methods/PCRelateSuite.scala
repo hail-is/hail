@@ -41,7 +41,7 @@ class PCRelateSuite extends SparkSuite {
       .mapValues(quadMap(toD).tupled)
 
   def runPcRelateHail(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double, minKinship: Double, statistics: PCRelate.StatisticSubset): Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)] =
-    PCRelate.toTable(vds, pcs, maf, blockSize, minKinship, statistics)
+    PCRelate(vds, pcs, maf, blockSize, minKinship, statistics)
       .collect()
       .map(x => x.asInstanceOf[Row])
       .map(r => ((r(0), r(1)), (r(2), r(3), r(4), r(5))))
@@ -157,7 +157,7 @@ class PCRelateSuite extends SparkSuite {
         None
     }
     if (!fails.isEmpty)
-      fails.foreach(println _)
+      fails.foreach(println)
     assert(fails.isEmpty)
   }
 
@@ -169,11 +169,27 @@ class PCRelateSuite extends SparkSuite {
 
     val (truth, truth_g, truth_ibs0, truth_mu) = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
 
-    val pcr = new PCRelate(0.01, blockSize)
+    val pcr = new PCRelate(0.01, blockSize, PCRelate.PhiK2K0K1, PCRelate.defaultStorageLevel)
     val g = PCRelate.vdsToMeanImputedMatrix(vds)
-    val dmu = pcr.mu(g, pcs)
+    
     // blockedG : variant x sample
     val blockedG = BlockMatrix.fromIRM(g, blockSize)
+
+    val predmu = pcr.mu(BlockMatrix.fromIRM(g, blockSize), pcs)
+    
+    val dmu = BlockMatrix.map2 { (g, mu) =>
+      def badmu(mu: Double, maf: Double): Boolean =
+        mu <= maf || mu >= (1.0 - maf) || mu <= 0.0 || mu >= 1.0
+  
+      def badgt(gt: Double): Boolean =
+        gt != 0.0 && gt != 1.0 && gt != 2.0
+      
+      if (badgt(g) || badmu(mu, 0.01))
+        Double.NaN
+      else
+        mu
+    } (blockedG, predmu).cache()
+    
     val actual = runPcRelateHail(vds, pcs, 0.01)
     val actual_g = blockedG.toBreezeMatrix().t
     val actual_ibs0 = pcr.ibs0(blockedG, dmu, blockSize).toBreezeMatrix()
