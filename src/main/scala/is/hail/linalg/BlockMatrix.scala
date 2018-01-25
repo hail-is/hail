@@ -208,7 +208,6 @@ object BlockMatrix {
       def /(r: M): M =
         r.reverseScalarDivide(l)
     }
-
   }
 
 }

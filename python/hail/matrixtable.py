@@ -2031,6 +2031,15 @@ class MatrixTable(ExprContainer):
         """
         return Table(self._jvds.colsTable())
 
+    def col_keys(self) -> Table:
+        """A table containing the column keys.
+
+        Returns
+        -------
+        :class:`.Table`
+        """
+        return self.cols().select(*self.col_key)
+
     def entries(self) -> Table:
         """Returns a matrix in coordinate table form.
 
@@ -2344,7 +2353,7 @@ class MatrixTable(ExprContainer):
         Randomly shuffle order of columns:
 
         >>> import random
-        >>> new_sample_order = [x.s for x in dataset.cols().select("s").collect()]
+        >>> new_sample_order = dataset.col_keys()
         >>> random.shuffle(new_sample_order)
         >>> dataset_reordered = dataset.reorder_columns(new_sample_order)
 
@@ -2353,7 +2362,7 @@ class MatrixTable(ExprContainer):
 
         This method requires the keys to be unique. `order` must contain the
         same set of keys as
-        ``[x.s for x in dataset.cols_table().select("s").collect()]``. The
+        ``dataset.col_keys()``. The
         order of the keys in `order` determines the column order in the
         output dataset.
 

@@ -8,14 +8,13 @@ from hail.genetics import KinshipMatrix
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_col_key_str
+from hail.methods.misc import require_biallelic, require_col_key_str, require_unique_samples
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.utils.java import *
 from hail.utils.misc import check_collisions
-
 
 @typecheck(dataset=MatrixTable,
            maf=nullable(expr_float64),
@@ -1349,12 +1348,12 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
             "Cannot run PCA: found 0 variants after filtering out monomorphic sites.")
     info("Running PCA using {} variants.".format(n_variants))
 
-    entry_expr = hl.bind(
-        dataset.AC / dataset.n_called,
-        lambda mean_gt: hl.cond(hl.is_defined(dataset.GT),
-                                (dataset.GT.n_alt_alleles() - mean_gt) /
-                                hl.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
-                                0.0))
+    dataset = dataset.annotate_rows(mean_gt = dataset.AC / dataset.n_called)
+    dataset = dataset.annotate_rows(hwe_std_dev = hl.sqrt(dataset.mean_gt * (2 - dataset.mean_gt) * n_variants / 2))
+
+    entry_expr = hl.or_else((dataset.GT.n_alt_alleles() - dataset.mean_gt) /
+                             dataset.hwe_std_dev,
+                             0.0)
     result = pca(entry_expr,
                  k,
                  compute_loadings,
@@ -1470,16 +1469,16 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
         loadings = Table(loadings)
     return (jiterable_to_list(r._1()), scores, loadings)
 
-
-@typecheck(dataset=MatrixTable,
+@typecheck(ds=MatrixTable,
            k=int,
            maf=numeric,
            block_size=int,
+           path=nullable(str),
            min_kinship=numeric,
            statistics=enumeration("phi", "phik2", "phik2k0", "all"))
-def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
-    """Compute relatedness estimates between individuals using a variant
-    of the PC-Relate method.
+def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
+    """Compute relatedness estimates between individuals using a variant of the
+    PC-Relate method.
 
     .. include:: ../_templates/experimental.rst
 
@@ -1700,6 +1699,72 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     maf : :obj:`float`
         The minimum individual-specific allele frequency for an allele used to
         measure relatedness.
+    path : :obj:`str` or :obj:`None`
+        A temporary directory to store intermediate matrices. Storing the matrices
+        to a file system is necessary for reliable execution of this method.
+    block_size : :obj:`int`
+        the side length of the blocks of the block-distributed matrices; this
+        should be set such that at least three of these matrices fit in memory
+        (in addition to all other objects necessary for Spark and Hail).
+    min_kinship : :obj:`float`
+        Pairs of samples with kinship lower than ``min_kinship`` are excluded
+        from the results.
+    statistics : :obj:`str`
+        the set of statistics to compute, `phi` will only compute the
+        kinship statistic, `phik2` will compute the kinship and
+        identity-by-descent two statistics, `phik2k0` will compute the
+        kinship statistics and both identity-by-descent two and zero, `all`
+        computes the kinship statistic and all three identity-by-descent
+        statistics.
+
+    Returns
+    -------
+    :class:`.Table`
+        A :class:`.Table` mapping pairs of samples to estimations of their
+        kinship and identity-by-descent zero, one, and two.
+
+        The fields of the resulting :class:`.Table` entries are of types:
+        `i`: ``ds.colkey_schema``, `j`: ``ds.colkey_schema``, `kin`: `Double`, `k2`: `Double`,
+        `k1`: `Double`, `k0`: `Double`. The table is keyed by `i` and `j`.
+
+    """
+    ds = require_biallelic(ds, 'pc_relate')
+    ds = require_unique_samples(ds, 'pc_relate')
+
+    _, scores, _ = hwe_normalized_pca(ds, k, False, True)
+
+    scores = scores.annotate(FIXME_join_logic_lifts_a_single_field_to_the_top_level=0)
+
+    ds = ds.annotate_cols(scores=scores[ds.s].scores)
+
+    return pc_relate_with_scores(ds, ds.scores, maf, path, block_size, min_kinship, statistics)
+
+@typecheck(ds=MatrixTable,
+           scores=ArrayFloat64Expression,
+           maf=numeric,
+           path=nullable(str),
+           block_size=int,
+           min_kinship=numeric,
+           statistics=enumeration("phi", "phik2", "phik2k0", "all"))
+def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
+    """The PC-Relate method parameterized by sample PC scores
+
+    See the detailed documentation at :meth:`.pc_relate`.
+
+    Parameters
+    ----------
+    ds : :class:`.MatrixTable`
+        A biallelic-variant keyed :class:`.MatrixTable` containing
+        genotype information.
+    scores : :class:`ArrayNumericExpression`
+        A column-indexed expression defining the principal component scores for
+        each column. Every column must have the same number of scores.
+    maf : :obj:`float`
+        The minimum individual-specific allele frequency for an allele used to
+        measure relatedness.
+    path : :obj:`str` or :obj:`None`
+        A temporary directory to store intermediate matrices. Storing the matrices
+        to a file system is necessary for reliable execution of this method.
     block_size : :obj:`int`
         the side length of the blocks of the block-distributed matrices; this
         should be set such that at least three of these matrices fit in memory
@@ -1722,24 +1787,48 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         kinship and identity-by-descent zero, one, and two.
 
         The fields of the resulting :class:`.Table` entries are of types: `i`:
-        :py:data:`.tstr`, `j`: :py:data:`.tstr`, `kin`: :py:data:`.tfloat64`, `k2`:
-        :py:data:`.tfloat64`, `k1`: :py:data:`.tfloat64`, `k0`:
-        :py:data:`.tfloat64`. The table is keyed by `i` and `j`.
-
+        ``ds.colkey_schema``, `j`: ``ds.colkey_schema``, `kin`:
+        :py:data:`.tfloat64`, `k2`: :py:data:`tfloat64`, `k1`:
+        :py:data:`tfloat64`, `k0`: :py:data:`tfloat64`. The table is keyed by
+        `i` and `j`.
     """
-    require_col_key_str(dataset, 'pc_relate')
-    dataset = require_biallelic(dataset, 'pc_relate')
-    intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
-    _, scores, _ = hwe_normalized_pca(dataset, k, False, True)
+    assert(scores._indices.source == ds)
+    # analyze('pc_relate_with_scores', scores, ds._col_indices)
+    ds = ds.annotate_cols(scores=scores)
+    ds = require_biallelic(ds, 'pc_relate_with_scores')
+    ds = require_unique_samples(ds, 'pc_relate_with_scores')
+    ds = ds.select_entries(GT=ds.GT,
+                           naa=ds.GT.num_alt_alleles().to_float64())
+    ds = ds.select_rows(
+        mean_gt=(agg.sum(ds.naa) /
+                 agg.count_where(functions.is_defined(ds.GT))))
+    mean_imputed_gt = functions.or_else(ds.naa, ds.mean_gt)
+    g = BlockMatrix.from_matrix_table(mean_imputed_gt,
+                                      path=path,
+                                      block_size=block_size)
+
+    pc_scores = (ds.index_cols('column_index').cols_table().collect())
+    pc_scores.sort(key=lambda x: x.column_index)
+    pc_scores = [x.scores for x in pc_scores]
+
+    int_statistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
+
+    col_keys_table = ds.col_keys()
+    col_keys_local = col_keys_table.collect()
+    col_keys_schema = col_keys_table.schema
+    col_keys_local_java = [col_keys_schema._convert_to_j(x) for x in col_keys_local]
+
     return Table(
         scala_object(Env.hail().methods, 'PCRelate')
-            .apply(dataset._jvds,
-                   k,
-                   scores._jt,
-                   maf,
-                   block_size,
-                   min_kinship,
-                   intstatistics))
+        .apply(Env.hc()._jhc,
+               g._jbm,
+               jarray(Env.jvm().java.lang.Object, col_keys_local_java),
+               col_keys_schema._jtype,
+               pc_scores,
+               maf,
+               block_size,
+               min_kinship,
+               int_statistics))
 
 
 class SplitMulti(object):
@@ -2145,9 +2234,8 @@ def genetic_relatedness_matrix(dataset):
 
     return KinshipMatrix._from_block_matrix(tstr,
                                             grm,
-                                            [row.s for row in dataset.cols().select('s').collect()],
+                                            dataset.col_key[0].collect(),
                                             n_variants)
-
 
 @typecheck(call_expr=CallExpression)
 def realized_relationship_matrix(call_expr):
