@@ -1,3 +1,4 @@
+from decorator import decorator
 from hail.api2 import MatrixTable, Table
 from hail.utils.java import Env, handle_py4j, jarray_to_list, joption
 from hail.typecheck.check import typecheck, strlike
@@ -7,7 +8,7 @@ from hail.expr.ast import Reference
 @handle_py4j
 @typecheck(i=Expression,
            j=Expression,
-           tie_breaker=anytype) #nullable(func_spec(2, NumericExpression)))
+           tie_breaker=nullable(func_spec(2, expr_numeric)))
 def maximal_independent_set(i, j, tie_breaker=None):
     """Compute a `maximal independent set`_ of vertices in an undirected graph
     whose edges are given by a two-column table.
@@ -39,9 +40,8 @@ def maximal_independent_set(i, j, tie_breaker=None):
     ...     iAndCase = Struct(id = rel_pairs.i, isCase = samples[rel_pairs.i].isCase),
     ...     jAndCase = Struct(id = rel_pairs.j, isCase = samples[rel_pairs.j].isCase))
     >>> def tie_breaker(l, r):
-    ...     functions.capture(
-    ...         functions.cond(l.isCase & ~r.isCase, -1,
-    ...             functions.cond(~l.isCase & r.isCase, 1, 0)))
+    ...     return functions.cond(l.isCase & ~r.isCase, -1,
+    ...         functions.cond(~l.isCase & r.isCase, 1, 0))
     >>> related_samples_to_keep = methods.maximal_independent_set(
     ...         rel_pairs_with_case.iAndCase,
     ...         rel_pairs_with_case.jAndCase,
@@ -95,24 +95,31 @@ def maximal_independent_set(i, j, tie_breaker=None):
     """
 
     if i.dtype != j.dtype:
-        raise ValueError("Expects arguments `i` and `j` to have same type. Found...")
+        raise ValueError("Expects arguments `i` and `j` to have same type. "
+                         "Found {} and {}.".format(i.dtype, j.dtype))
     source = i._indices.source
     if not isinstance(source, Table):
         raise ValueError("Expect an expression of 'Table', found {}".format(
-            "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+            "expression of '{}'".format(
+                source.__class__) if source is not None else 'scalar expression'))
     if i._indices.source != j._indices.source:
-        raise ValueError("Expects arguments `i` and `j` to be expressions of the same Table.")
+        raise ValueError(
+            "Expects arguments `i` and `j` to be expressions of the same Table. "
+            "Found\n{}\n{}".format(i, j))
 
     node_t = i.dtype
     l = construct_expr(Reference('l'), node_t)
     r = construct_expr(Reference('r'), node_t)
-    tie_breaker_expr = tie_breaker(l, r) if tie_breaker else None
-    exprs = [i, j]
-    if tie_breaker_expr:
-        exprs.append(tie_breaker_expr)
-    base, _ = source._process_joins(*exprs)
-    tie_breaker_hql = tie_breaker_expr._ast.to_hql() if tie_breaker_expr else None
-    return jarray_to_list(base._jt.maximalIndependentSet(i._ast.to_hql(), j._ast.to_hql(), joption(tie_breaker_hql)))
+    if tie_breaker:
+        tie_breaker_expr = tie_breaker(l, r)
+        base, _ = source._process_joins(i, j, tie_breaker_expr)
+        tie_breaker_hql = tie_breaker_expr._ast.to_hql()
+    else:
+        base, _ = source._process_joins(i, j)
+        tie_breaker_hql = None
+    return jarray_to_list(base._jt.maximalIndependentSet(i._ast.to_hql(),
+                                                         j._ast.to_hql(),
+                                                         joption(tie_breaker_hql)))
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, method=strlike)
