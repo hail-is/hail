@@ -269,7 +269,7 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   def runAggregator(ec: EvalContext): CPS[Any] = {
     val typedNames = ec.st.toSeq
       .sortBy { case (_, (i, _)) => i }
-      .map { case (name, (_, typ)) => (name, typ) }
+      .map { case (name, (i, typ)) => (name, typ, i) }
     val values = ec.a.asInstanceOf[mutable.ArrayBuffer[AnyRef]]
 
     val idx = ec.a.length

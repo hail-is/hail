@@ -59,16 +59,16 @@ case class CM[+T](mt: (E, S) => (T, S)) {
   }
 
   def run(bindings: Seq[(String, Type, AnyRef)], ec: EvalContext)(implicit ev: T <:< Code[AnyRef]): () => AnyRef = {
-    val typedNames = bindings.map { case (name, typ, _) => (name, typ) }
+    val typedNames = bindings.zipWithIndex.map { case ((name, typ, _), i) => (name, typ, i) }
     val values: mutable.ArrayBuffer[AnyRef] = bindings.map(_._3).to[mutable.ArrayBuffer]
     val f: mutable.ArrayBuffer[AnyRef] => AnyRef = runWithDelayedValues(typedNames, ec)
 
     () => f(values)
   }
 
-  def runWithDelayedValues(typedNames: Seq[(String, Type)], ec: EvalContext)(implicit ev: T <:< Code[AnyRef]): mutable.ArrayBuffer[AnyRef] => AnyRef = {
+  def runWithDelayedValues(typedNames: Seq[(String, Type, Int)], ec: EvalContext)(implicit ev: T <:< Code[AnyRef]): mutable.ArrayBuffer[AnyRef] => AnyRef = {
     val e = emptyE
-    val codeBindings = typedNames.zipWithIndex.map { case ((name, typ), i) =>
+    val codeBindings = typedNames.map { case (name, typ, i) =>
       (name, (typ, Code.checkcast(e.fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
     }
     val e2 = e.copy(m = codeBindings.toMap)
@@ -208,7 +208,7 @@ object CM {
       bindings <- availableBindings();
       cvalues = CompilationHelp.arrayOf(bindings.map { case (_, (_, code)) => code }.toIndexedSeq);
       ec <- ec();
-      compiledCode = cc.runWithDelayedValues((name, typ) +: bindings.map { case (name, (typ, _)) => (name, typ) }.toSeq, ec);
+      compiledCode = cc.runWithDelayedValues((name, typ, 0) +: bindings.zipWithIndex.map { case ((name, (typ, _)), i) => (name, typ, i + 1) }.toSeq, ec);
       f <- invokePrimitive1(((vs: Array[AnyRef]) => (x: AnyRef) => compiledCode((x +: vs).to[mutable.ArrayBuffer])).asInstanceOf[AnyRef => AnyRef])(cvalues)
     ) yield f.asInstanceOf[Code[AnyRef => T]]
   }
