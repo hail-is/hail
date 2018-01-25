@@ -1651,7 +1651,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
         val gsRightOffset = rightRVRowType.loadField(rrv.region, rrv.offset, 3) // right gs
       val gsRightLength = tgs.loadLength(rrv.region, gsRightOffset)
-        println(gsRightLength, localRightSamples)
         assert(gsRightLength == localRightSamples)
 
         var i = 0
