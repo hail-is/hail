@@ -344,7 +344,7 @@ case class FilterVariants(
     val prev = child.execute(hc)
 
     val localGlobalAnnotation = prev.localValue.globalAnnotation
-    val ec = child.typ.variantEC
+    val ec = prev.typ.variantEC
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
 
