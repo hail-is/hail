@@ -202,13 +202,17 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     mc.t * mc
   }
 
+
   def apply(vds: MatrixTable, pcs: DenseMatrix[Double], statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
     vds.requireUniqueSamples("pc_relate")
     val g = vdsToMeanImputedMatrix(vds)
-
     val mu = this.mu(g, pcs).cache()
     val blockedG = BlockMatrix.from(g, blockSize).cache()
 
+    apply(blockedG, mu, pcs, statistics)
+  }
+
+  def apply(blockedG: M, mu: M, pcs: DenseMatrix, statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
     val variance =
       BlockMatrix.map2 { (g, mu) =>
         if (badgt(g) || badmu(mu))

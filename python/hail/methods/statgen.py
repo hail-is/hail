@@ -443,6 +443,31 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
         loadings = Table(loadings)
     return (jiterable_to_list(r._1()), scores, loadings)
 
+def pc_relate2(ds, k, maf, path=None, block_size=None, min_kinship=-float("inf"), statistics="all"):
+    ds = require_biallelic(ds, 'hwe_normalized_pca')
+    ds = ds.annotate_rows(total_alt_alleles=agg.sum(ds.GT.num_alt_alleles()),
+                          n_called=agg.count_where(functions.is_defined(ds.GT)))
+
+    mean_imputed_gt = functions.bind(
+        ds.total_alt_alleles / ds.n_called,
+        lambda mean_gt: functions.cond(
+            functions.is_defined(ds.GT), ds.GT, mean_gt))
+
+    g = BlockMatrix.from_matrix_table(mean_imputed_gt, path=path, block_size=block_size)
+
+    _, scores, _ = hwe_normalized_pca(ds, k, False, True)
+
+    intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
+    return Table(
+        scala_object(Env.hail().methods, 'PCRelate')
+            .apply(g._jbm,
+                   k,
+                   scores._jt,
+                   maf,
+                   block_size,
+                   min_kinship,
+                   intstatistics))
+
 @handle_py4j
 @typecheck_method(k=integral,
                   maf=numeric,

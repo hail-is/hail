@@ -374,7 +374,7 @@ case class VSMSubgen(
 
 object VSMSubgen {
   val random = VSMSubgen(
-    sSigGen = Gen.const(TString()),
+    sSigGen = Gen.const(T String()),
     saSigGen = Type.genInsertable,
     vSigGen = GenomeReference.gen.map(TVariant(_)),
     vaSigGen = Type.genInsertable,
