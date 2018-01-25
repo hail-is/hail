@@ -132,8 +132,8 @@ def require_biallelic(dataset, method):
     return dataset
 
 @handle_py4j
-@typecheck(dataset=MatrixTable)
-def rename_duplicates(dataset):
+@typecheck(dataset=MatrixTable, name=strlike)
+def rename_duplicates(dataset, name='unique_id'):
     """Rename duplicate column keys.
 
     .. include:: ../_templates/req_tstring.rst
@@ -142,29 +142,30 @@ def rename_duplicates(dataset):
     --------
 
     >>> renamed = methods.rename_duplicates(dataset).cols_table()
-    >>> duplicate_samples = (renamed.filter(renamed.s != renamed.originalID)
-    ...                             .select('originalID')
+    >>> duplicate_samples = (renamed.filter(renamed.s != renamed.unique_id)
+    ...                             .select('s')
     ...                             .collect())
 
     Notes
     -----
 
-    This method produces a dataset with unique column keys by appending a unique
-    suffix ``_N`` to duplicate keys. For example, if the column key "NA12878"
-    appears three times in the dataset, the first will be left as "NA12878", the
-    second will be renamed "NA12878_1", and the third will be "NA12878_2". The
-    original column key is stored in the column field `originalID`.
+    This method produces a new column field from the string column key by
+    appending a unique suffix ``_N`` as necessary. For example, if the column
+    key "NA12878" appears three times in the dataset, the first will produce
+    "NA12878", the second will produce "NA12878_1", and the third will produce
+    "NA12878_2". The name of this new field is parameterized by `name`.
 
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
         Dataset.
+    name : :obj:`str`
+        Name of new field.
 
     Returns
     -------
     :class:`.MatrixTable`
-        Dataset with duplicate column keys renamed.
     """
 
-    return MatrixTable(dataset._jvds.renameDuplicates())
+    return MatrixTable(dataset._jvds.renameDuplicates(name))
 

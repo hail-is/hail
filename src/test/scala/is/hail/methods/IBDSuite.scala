@@ -149,7 +149,7 @@ class IBDSuite extends SparkSuite {
     val us = IBD.toRDD(IBD(vds)).collect().toMap
 
     val plink = runPlinkIBD(vds)
-    val sampleIds = vds.sampleIds
+    val sampleIds = vds.stringSampleIds
 
     assert(mapSameElements(us, plink,
       (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y)))

@@ -89,12 +89,12 @@ class Tests(unittest.TestCase):
         ldm = methods.ld_matrix(dataset, force_local=True)
 
     def test_linreg(self):
-        dataset = methods.import_vcf('src/test/resources/regressionLinear.vcf')
+        dataset = methods.import_vcf(test_file('regressionLinear.vcf'))
 
-        phenos = methods.import_table('src/test/resources/regressionLinear.pheno',
+        phenos = methods.import_table(test_file('regressionLinear.pheno'),
                                  types={'Pheno': TFloat64()},
                                  key='Sample')
-        covs = methods.import_table('src/test/resources/regressionLinear.cov',
+        covs = methods.import_table(test_file('regressionLinear.cov'),
                                types={'Cov1': TFloat64(), 'Cov2': TFloat64()},
                                key='Sample')
 
@@ -107,11 +107,10 @@ class Tests(unittest.TestCase):
         dataset.count_rows()
 
     def test_trio_matrix(self):
-        ped = Pedigree.read('src/test/resources/triomatrix.fam')
-        from hail import KeyTable
-        fam_table = methods.import_fam('src/test/resources/triomatrix.fam')
+        ped = Pedigree.read(test_file('triomatrix.fam'))
+        fam_table = methods.import_fam(test_file('triomatrix.fam'))
 
-        dataset = methods.import_vcf('src/test/resources/triomatrix.vcf')
+        dataset = methods.import_vcf(test_file('triomatrix.vcf'))
         dataset = dataset.annotate_cols(fam = fam_table[dataset.s])
 
         tm = methods.trio_matrix(dataset, ped, complete_trios=True)
@@ -318,9 +317,9 @@ class Tests(unittest.TestCase):
         self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
 
     def test_split_multi_hts(self):
-        ds1 = methods.import_vcf('src/test/resources/split_test.vcf')
+        ds1 = methods.import_vcf(test_file('split_test.vcf'))
         ds1 = methods.split_multi_hts(ds1)
-        ds2 = methods.import_vcf('src/test/resources/split_test_b.vcf')
+        ds2 = methods.import_vcf(test_file('split_test_b.vcf'))
         self.assertEqual(ds1.aggregate_entries(foo = agg.product((ds1.wasSplit == (ds1.v.start != 1180)).to_int32())).foo, 1)
         ds1 = ds1.drop('wasSplit','aIndex')
         # required python3
@@ -335,7 +334,7 @@ class Tests(unittest.TestCase):
 
     def test_mendel_errors(self):
         dataset = self.get_dataset()
-        men, fam, ind, var = methods.mendel_errors(dataset, Pedigree.read('src/test/resources/sample.fam'))
+        men, fam, ind, var = methods.mendel_errors(dataset, Pedigree.read(test_file('sample.fam')))
         men.select('fam_id', 's', 'code')
         fam.select('pat_id', 'children')
         self.assertEqual(ind.key, ['s'])
@@ -343,8 +342,8 @@ class Tests(unittest.TestCase):
         dataset.annotate_rows(mendel=var[dataset.v]).count_rows()
 
     def test_export_vcf(self):
-        dataset = methods.import_vcf('src/test/resources/sample.vcf.bgz')
-        vcf_metadata = methods.get_vcf_metadata('src/test/resources/sample.vcf.bgz')
+        dataset = methods.import_vcf(test_file('sample.vcf.bgz'))
+        vcf_metadata = methods.get_vcf_metadata(test_file('sample.vcf.bgz'))
         methods.export_vcf(dataset, '/tmp/sample.vcf', metadata=vcf_metadata)
         dataset_imported = methods.import_vcf('/tmp/sample.vcf')
         self.assertTrue(dataset._same(dataset_imported))

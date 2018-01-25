@@ -33,13 +33,6 @@ hc = Env.hc()
 (hc.import_vcf("data/sample.vcf.bgz")
     .write("data/example2.multi.generic.vds", overwrite=True))
 
-(hc.import_vcf('data/sample.vcf.bgz')
-    .split_multi_hts()
-    .variant_qc()
-    .annotate_samples_table(hc.import_table('data/example_lmmreg.tsv', 'Sample', impute=True), root='sa')
-    .annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
-    .write("data/example_lmmreg.vds", overwrite=True))
-
 (hc.import_vcf('data/example_burden.vcf')
     .annotate_samples_table(hc.import_table('data/example_burden.tsv', 'Sample', impute=True), root='sa.burden')
     .annotate_variants_expr('va.weight = v.start.toFloat64()')
@@ -55,6 +48,13 @@ multiallelic_generic_vds = hc.read('data/example2.multi.generic.vds')
 vds.split_multi_hts().ld_matrix().write("data/ld_matrix")
 
 table1 = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
+lmmreg_ds = methods.variant_qc(methods.split_multi_hts(hc.import_vcf('data/sample.vcf.bgz')))
+lmmreg_tsv = hc.import_table('data/example_lmmreg.tsv', 'Sample', impute=True)
+lmmreg_ds = lmmreg_ds.annotate_cols(**lmmreg_tsv[lmmreg_ds['s']])
+lmmreg_ds = lmmreg_ds.annotate_rows(useInKinship = lmmreg_ds.variant_qc.AF > 0.05)
+lmmreg_ds.write('data/example_lmmreg.vds', overwrite=True)
+
+table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
 table1 = table1.annotate_globals(global_field_1 = 5, global_field_2 = 10)
 
 dataset = (vds.annotate_samples_expr('sa = merge(drop(sa, qc), {sample_qc: sa.qc})')

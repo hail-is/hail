@@ -1,11 +1,12 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.types.TVariant
+import is.hail.expr.types.{TString, TStruct, TVariant}
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{GenomeReference, Genotype, VSMSubgen, Variant, MatrixTable}
+import is.hail.variant.{GenomeReference, Genotype, MatrixTable, VSMSubgen, Variant}
 import org.apache.spark.SparkContext
 import org.testng.annotations.Test
 
@@ -16,12 +17,12 @@ class ConcordanceSuite extends SparkSuite {
     gr <- GenomeReference.gen
     vds1 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(gr))))
     vds2 <- MatrixTable.gen(hc, VSMSubgen.plinkSafeBiallelic.copy(vSigGen = Gen.const(TVariant(gr))))
-    scrambledIds1 <- Gen.shuffle(vds1.sampleIds).map(_.iterator)
+    scrambledIds1 <- Gen.shuffle(vds1.stringSampleIds).map(_.iterator)
     newIds2 <- Gen.parameterized { p =>
-      Gen.const(vds2.sampleIds.map { id =>
+      Gen.const(vds2.stringSampleIds.map { id =>
         if (scrambledIds1.hasNext && p.rng.nextUniform(0, 1) < .5) {
           val newId = scrambledIds1.next()
-          if (!vds2.sampleIds.contains(newId)) newId else id
+          if (!vds2.stringSampleIds.contains(newId)) newId else id
         }
         else
           id
@@ -33,7 +34,8 @@ class ConcordanceSuite extends SparkSuite {
         if (scrambledVariants1.hasNext && p.rng.nextUniform(0, 1) < .5) (v, scrambledVariants1.next()) else (v, v)
       }.toMap)
     }
-  } yield (vds1, vds2.copyLegacy(sampleIds = newIds2,
+  } yield (vds1, vds2.copyLegacy(sampleAnnotations = newIds2.map(Annotation(_)),
+    saSignature = TStruct("s" -> TString()),
     rdd = vds2.rdd.map { case (v, (vaGS)) => (newVariantMapping(v), vaGS) }))
 
   //FIXME use SnpSift when it's fixed
@@ -141,7 +143,9 @@ class ConcordanceSuite extends SparkSuite {
 
   @Test def test() {
     Prop.forAll(gen(sc).filter { case (vds1, vds2) =>
-      vds1.sampleIds.toSet.intersect(vds2.sampleIds.toSet).nonEmpty &&
+      println(vds1.saSignature, vds1.colKey)
+      println(vds2.saSignature, vds2.colKey)
+      vds1.stringSampleIds.toSet.intersect(vds2.stringSampleIds.toSet).nonEmpty &&
         vds1.variants.intersection(vds2.variants).count() > 0
     }) { case (vds1, vds2) =>
 

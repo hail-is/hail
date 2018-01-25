@@ -45,6 +45,17 @@ object TStruct {
 final case class TStruct(fields: IndexedSeq[Field], override val required: Boolean = false) extends Type {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
+  val fieldIdx: Map[String, Int] =
+    fields.map(f => (f.name, f.index)).toMap
+
+  val fieldNames: Array[String] = fields.map(_.name).toArray
+
+  val fieldRequired: Array[Boolean] = fields.map(_.typ.required).toArray
+
+  val fieldType: Array[Type] = fields.map(_.typ).toArray
+
+  assert(fieldNames.areDistinct(), fieldNames.duplicates())
+
   override def children: Seq[Type] = fields.map(_.typ)
 
   override def canCompare(other: Type): Boolean = other match {
@@ -65,14 +76,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   override def subst() = TStruct(fields.map(f => f.copy(typ = f.typ.subst().asInstanceOf[Type])))
 
-  val fieldIdx: Map[String, Int] =
-    fields.map(f => (f.name, f.index)).toMap
-
-  val fieldNames: Array[String] = fields.map(_.name).toArray
-
-  val fieldRequired: Array[Boolean] = fields.map(_.typ.required).toArray
-
-  val fieldType: Array[Type] = fields.map(_.typ).toArray
 
   def index(str: String): Option[Int] = fieldIdx.get(str)
 

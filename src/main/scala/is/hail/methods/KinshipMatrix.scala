@@ -24,6 +24,7 @@ object KinshipMatrix {
 }
 
 case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) extends ExportableMatrix {
+  require(sampleSignature == TString(), sampleSignature)
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   def requireSampleTString(method: String) {

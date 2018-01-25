@@ -365,8 +365,9 @@ class MatrixTests(unittest.TestCase):
                                 y3=agg.count_where(True),
                                 y4=vds.foo + vds.apple)
 
-        expected_schema = TStruct(['apple', 'y1', 'y2', 'y3', 'y4'],
-                                  [TInt32(), TInt64(), TFloat64(), TInt64(), TInt32()])
+        expected_schema = TStruct(['s', 'apple', 'y1', 'y2', 'y3', 'y4'],
+                                  [TString(),
+                                   TInt32(), TInt64(), TFloat64(), TInt64(), TInt32()])
 
         self.assertTrue(schema_eq(vds.col_schema, expected_schema),
                         "expected: " + str(vds.col_schema) + "\nactual: " + str(expected_schema))
@@ -442,7 +443,7 @@ class MatrixTests(unittest.TestCase):
     def test_joins(self):
         vds = self.get_vds().select_rows(x1=1, y1=1)
         vds2 = vds.select_rows(x2=1, y2=2)
-        vds2 = vds2.select_cols(c1 = 1, c2 = 2)
+        vds2 = vds2.select_cols('s', c1 = 1, c2 = 2)
 
         vds = vds.annotate_rows(y2 = vds2[vds.v, :].y2)
         vds = vds.annotate_cols(c2 = vds2[:, vds.s].c2)
