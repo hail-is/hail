@@ -104,9 +104,9 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
-           ys=oneof(Expression, listof(Expression)),
-           x=NumericExpression,
-           covariates=listof(Expression),
+           ys=oneof(expr_numeric, listof(expr_numeric)),
+           x=expr_numeric,
+           covariates=listof(oneof(expr_numeric, expr_bool)),
            root=strlike,
            block_size=integral)
 def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
@@ -208,9 +208,9 @@ def linreg(dataset, ys, x, covariates=[], root='linreg', block_size=16):
 @handle_py4j
 @typecheck(dataset=MatrixTable,
            test=strlike,
-           y=Expression,
-           x=Expression,
-           covariates=listof(Expression),
+           y=oneof(expr_bool, expr_numeric),
+           x=expr_numeric,
+           covariates=listof(oneof(expr_numeric, expr_bool)),
            root=strlike)
 def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     r"""For each row, test a derived input variable for association with a
@@ -402,10 +402,10 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
     ----------
     test : {'wald', 'lrt', 'score', 'firth'}
         Statistical test.
-    y : :class:`.AtomicExpression`
+    y : numeric or Boolean expression
         Response expression. Must evaluate to Boolean or numeric with all values
         0 or 1.
-    x : :class:`.NumericExpression`
+    x : numeric expression
         Expression for input variable.
     covariates : :obj:`list` of :class:`.NumericExpression`, optional
         Covariate expressions.
@@ -444,9 +444,9 @@ def logreg(dataset, test, y, x, covariates=[], root='logreg'):
 @handle_py4j
 @typecheck(ds=MatrixTable,
            kinshipMatrix=KinshipMatrix,
-           y=Expression,
-           x=Expression,
-           covariates=listof(Expression),
+           y=expr_numeric,
+           x=expr_numeric,
+           covariates=listof(oneof(expr_numeric, expr_bool)),
            global_root=strlike,
            va_root=strlike,
            run_assoc=bool,
@@ -505,7 +505,9 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
       Step 5.
 
     :func:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on
-    whether :math:`\delta` is set or fit.
+    whether :math:`\delta` is set or fit. These global annotations are stored
+    under the prefix `global_root`, which is by default ``lmmreg_global``. The
+    prefix is not displayed in the table below.
 
     .. list-table::
        :header-rows: 1
@@ -513,51 +515,51 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
        * - Field
          - Type
          - Value
-       * - `lmmreg_global.useML`
+       * - `useML`
          - Boolean
          - true if fit by ML, false if fit by REML
-       * - `lmmreg_global.beta`
+       * - `beta`
          - Dict[String, Double]
          - map from *intercept* and the given ``covariates`` expressions to the
            corresponding fit :math:`\beta` coefficients
-       * - `lmmreg_global.sigmaG2`
+       * - `sigmaG2`
          - Double
          - fit coefficient of genetic variance, :math:`\hat{\sigma}_g^2`
-       * - `lmmreg_global.sigmaE2`
+       * - `sigmaE2`
          - Double
          - fit coefficient of environmental variance :math:`\hat{\sigma}_e^2`
-       * - `lmmreg_global.delta`
+       * - `delta`
          - Double
          - fit ratio of variance component coefficients, :math:`\hat{\delta}`
-       * - `lmmreg_global.h2`
+       * - `h2`
          - Double
          - fit narrow-sense heritability, :math:`\hat{h}^2`
-       * - `lmmreg_global.nEigs`
+       * - `nEigs`
          - Int
          - number of eigenvectors of kinship matrix used to fit model
-       * - `lmmreg_global.dropped_variance_fraction`
+       * - `dropped_variance_fraction`
          - Double
          - specified value of `dropped_variance_fraction`
-       * - `lmmreg_global.evals`
+       * - `evals`
          - Array[Double]
          - all eigenvalues of the kinship matrix in descending order
-       * - `lmmreg_global.fit.seH2`
+       * - `fit.seH2`
          - Double
          - standard error of :math:`\hat{h}^2` under asymptotic normal
            approximation
-       * - `lmmreg_global.fit.normLkhdH2`
+       * - `fit.normLkhdH2`
          - Array[Double]
          - likelihood function of :math:`h^2` normalized on the discrete grid
            ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for
            percentage ``i``.
-       * - `lmmreg_global.fit.maxLogLkhd`
+       * - `fit.maxLogLkhd`
          - Double
          - (restricted) maximum log likelihood corresponding to
            :math:`\hat{\delta}`
-       * - `lmmreg_global.fit.logDeltaGrid`
+       * - `fit.logDeltaGrid`
          - Array[Double]
          - values of :math:`\mathrm{ln}(\delta)` used in the grid search
-       * - `lmmreg_global.fit.logLkhdVals`
+       * - `fit.logLkhdVals`
          - Array[Double]
          - (restricted) log likelihood of :math:`y` given :math:`X` and
            :math:`\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\beta` and
@@ -568,21 +570,23 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
 
     If Step 5 is performed, :func:`.lmmreg` also adds four linear regression
-    variant annotations.
+    variant annotations. These annotations are stored under the row-indexed
+    field prefix `va_root`, which defaults to ``lmmreg``. Once again, the prefix
+    is not displayed in the table.
 
-    +------------------+--------+------------------------------------------------+
-    | Field            | Type   | Value                                          |
-    +==================+========+================================================+
-    | `lmmreg.beta`    | Double | fit genotype coefficient, :math:`\hat\beta_0`  |
-    +------------------+--------+------------------------------------------------+
-    | `lmmreg.sigmaG2` | Double | fit coefficient of genetic variance component, |
-    |                  |        | :math:`\hat{\sigma}_g^2`                       |
-    +------------------+--------+------------------------------------------------+
-    | `lmmreg.chi2`    | Double | :math:`\chi^2` statistic of the likelihood     |
-    |                  |        | ratio test                                     |
-    +------------------+--------+------------------------------------------------+
-    | `lmmreg.pval`    | Double | :math:`p`-value                                |
-    +------------------+--------+------------------------------------------------+
+    +-----------+--------+------------------------------------------------+
+    | Field     | Type   | Value                                          |
+    +===========+========+================================================+
+    | `beta`    | Double | fit genotype coefficient, :math:`\hat\beta_0`  |
+    +-----------+--------+------------------------------------------------+
+    | `sigmaG2` | Double | fit coefficient of genetic variance component, |
+    |           |        | :math:`\hat{\sigma}_g^2`                       |
+    +-----------+--------+------------------------------------------------+
+    | `chi2`    | Double | :math:`\chi^2` statistic of the likelihood     |
+    |           |        | ratio test                                     |
+    +-----------+--------+------------------------------------------------+
+    | `pval`    | Double | :math:`p`-value                                |
+    +-----------+--------+------------------------------------------------+
 
     Those variants that don't vary across the included samples (e.g., all
     genotypes are HomRef) will have missing annotations.
