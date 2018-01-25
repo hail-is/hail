@@ -664,9 +664,8 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
     @typecheck_method(table=KeyTable,
                       root=nullable(strlike),
                       expr=nullable(strlike),
-                      vds_key=nullable(oneof(strlike, listof(strlike))),
                       product=bool)
-    def annotate_variants_table(self, table, root=None, expr=None, vds_key=None, product=False):
+    def annotate_variants_table(self, table, root=None, expr=None, product=False):
         """Annotate variants with a key table.
 
         **Examples**
@@ -680,13 +679,6 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         >>> kt = hc1.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
         >>> vds_result = vds.annotate_variants_table(table, root='va.scores')
-
-        Add annotations from a gene-and-type-keyed TSV:
-
-        >>> table = hc1.import_table('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
-        >>> vds_result = (vds.annotate_variants_table(table,
-        ...       root='va.foo',
-        ...       vds_key=['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
 
         Annotate variants with the target in a GATK interval list file:
 
@@ -719,19 +711,6 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         If the key is an ``Interval``, then a variant in the dataset will match any interval in
         the table that contains the variant's locus (chromosome and position).
-
-        If the key is not one of the above three types (a String representing gene ID, for instance),
-        or if another join strategy should be used for a key of one of these three types (join with a
-        locus object in variant annotations, for instance) for these types, then the ``vds_key`` argument
-        should be passed. This argument expects a list of expressions whose types match, in order,
-        the table's key types. Note that using ``vds_key`` is slower than annotation with a standard
-        key type.
-
-        Each expression in the list ``vds_key`` has the following symbols in
-        scope:
-
-          - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
-          - ``va``: variant annotations
 
         **The** ``root`` **and** ``expr`` **arguments**
 
@@ -806,18 +785,12 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         :param expr: Annotation expression. (This or ``root`` required).
         :type expr: str or None
 
-        :param vds_key: Join key for the dataset. Much slower than default joins.
-        :type vds_key: str, list of str, or None.
-
         :param bool product: Join with all matching keys (see note).
 
         :return: Annotated variant dataset.
         :rtype: :class:`.VariantDataset`
         """
-        if vds_key:
-            vds_key = wrap_to_list(vds_key)
-
-        jvds = self._jvds.annotateVariantsTable(table._jkt, vds_key, root, expr, product)
+        jvds = self._jvds.annotateVariantsTable(table._jkt, root, expr, product)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -1115,16 +1088,10 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
             elif db_file.endswith('.kt'):
 
                 # join on gene symbol for gene annotations
-                if db_file == 'gs://annotationdb/gene/gene.kt':
-                    if gene_key:
-                        vds_key = gene_key
-                    else:
-                        vds_key = 'va.gene.transcript.gene_symbol'
-                else:
-                    vds_key = None
+                assert db_file != 'gs://annotationdb/gene/gene.kt'
 
                 # annotate analysis VDS with database keytable
-                self = self.annotate_variants_table(self.hc1.read_table(db_file), expr=expr, vds_key=vds_key)
+                self = self.annotate_variants_table(self.hc1.read_table(db_file), expr=expr)
 
             else:
                 continue

@@ -870,10 +870,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       })
   }
 
-  def annotateVariantsTable(kt: Table, vdsKey: java.util.ArrayList[String],
-    root: String, expr: String, product: Boolean): MatrixTable =
-    annotateVariantsTable(kt, if (vdsKey != null) vdsKey.asScala else null, root, expr, product)
-
   def orderedRVDLeftJoinDistinctAndInsert(
     lrvd: OrderedRVD,
     rrvd: OrderedRVD,
@@ -1050,27 +1046,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     copy2(rdd2 = newRVD, vaSignature = newVAType)
   }
 
-  def annotateVariantsTable(kt: Table, vdsKey: Seq[String] = null, root: String = null, expr: String = null,
+  def annotateVariantsTable(kt: Table, root: String = null, expr: String = null,
     product: Boolean = false): MatrixTable = {
     if (!((root != null) ^ (expr != null)))
       fatal("method `annotateVariantsTable' requires one of `root' or 'expr', but not both")
-
-    // FIXME move to Python
-    if (vdsKey != null) {
-      val vdsKeyFields = vdsKey.indices.map("_" + _.toString)
-
-      val vName = kt.signature.uniqueFieldName("v")
-
-      val selectExpr = (Seq(s"$vName = v") ++ (vdsKeyFields, vdsKey).zipped.map { (f, e) =>
-        s"`$f` = $e"
-      }).toArray
-      val newKT = kt.join(variantsKT()
-        .select(selectExpr)
-        .keyBy(vdsKeyFields), "inner")
-        .drop(kt.keyFields.map(_.name)) // join takes the left key names
-        .keyBy(vName)
-      return annotateVariantsTable(newKT, root = root, expr = expr, product = product)
-    }
 
     val ktValueType = kt.valueSignature
 
@@ -2782,24 +2761,24 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         ur.get(1)
       }
     }.collect()
-    
+
     new Keys(vSignature, values)
   }
-    
+
   def writeKeyedBlockMatrix(dirname: String, expr: String, blockSize: Int = BlockMatrix.defaultBlockSize,
     keepRowKeys: Boolean = true, keepColKeys: Boolean = true): Unit = {
-    
+
     sparkContext.hadoopConfiguration.mkDir(dirname)
 
     if (keepRowKeys)
       rowKeys().write(sparkContext, dirname + "/rowkeys")
-      
+
     if (keepColKeys)
       new Keys(sSignature, sampleIds.toArray).write(sparkContext, dirname + "/colkeys")
-    
+
     writeBlockMatrix(dirname + "/blockmatrix", expr, blockSize)
-  }  
-  
+  }
+
   def writeBlockMatrix(dirname: String, expr: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rdd2.getNumPartitions + 1)

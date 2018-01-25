@@ -504,6 +504,56 @@ class MatrixTests(unittest.TestCase):
         random.shuffle(new_sample_order)
         self.assertEqual([x.s for x in ds.reorder_columns(new_sample_order).cols_table().select("s").collect()], new_sample_order)
 
+    def test_computed_key_join_1(self):
+        ds = self.get_vds()
+        kt = Table.parallelize(
+            [{'key': 0, 'value': True},
+             {'key': 1, 'value': False}],
+            TStruct(['key', 'value'],
+                    [TInt32(), TBoolean()]),
+            key=['key'])
+        ds = ds.annotate_rows(key = ds.v.start % 2)
+        ds = ds.annotate_rows(value = kt[ds.key].value)
+        rt = ds.rows_table()
+        self.assertTrue(
+            rt.forall(((rt.v.start % 2) == 0) == rt.value))
+
+    def test_computed_key_join_2(self):
+        # multiple keys
+        ds = self.get_vds()
+        kt = Table.parallelize(
+            [{'key1': 0, 'key2': 0, 'value': 0},
+             {'key1': 1, 'key2': 0, 'value': 1},
+             {'key1': 0, 'key2': 1, 'value': -2},
+             {'key1': 1, 'key2': 1, 'value': -1}],
+            TStruct(['key1', 'key2', 'value'],
+                    [TInt32(), TInt32(), TInt32()]),
+            key=['key1', 'key2'])
+        ds = ds.annotate_rows(key1 = ds.v.start % 2, key2 = ds.info.DP % 2)
+        ds = ds.annotate_rows(value = kt[ds.key1, ds.key2].value)
+        rt = ds.rows_table()
+        self.assertTrue(
+            rt.forall((rt.v.start % 2) - 2 * (rt.info.DP % 2) == rt.value))
+
+    def test_computed_key_join_3(self):
+        # duplicate row keys
+        ds = self.get_vds()
+        kt = Table.parallelize(
+            [{'culprit': 'InbreedingCoeff', 'value': 'IB'}],
+            TStruct(['culprit', 'value'],
+                    [TString(), TString()]),
+            key=['culprit'])
+        ds = ds.annotate_rows(
+            info = ds.info.annotate(culprit = [ds.info.culprit, "foo"]))
+        ds = ds.explode_rows(ds.info.culprit)
+        ds = ds.annotate_rows(value = kt[ds.info.culprit].value)
+        rt = ds.rows_table()
+        self.assertTrue(
+            rt.forall(functions.cond(
+                rt.info.culprit == "InbreedingCoeff",
+                rt.value == "IB",
+                functions.is_missing(rt.value))))
+
 class FunctionsTests(unittest.TestCase):
     def test(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],

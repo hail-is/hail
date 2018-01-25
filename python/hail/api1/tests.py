@@ -250,8 +250,6 @@ class ContextTests(unittest.TestCase):
                   .annotate("v2 = v")
                   .key_by(["v", "v2"]))
 
-            dataset.annotate_variants_table(kt, root='va.foo', vds_key=["v", "v"])
-
             self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
 
             dataset.genotypes_table()
@@ -454,7 +452,6 @@ class ContextTests(unittest.TestCase):
         kt = (sample2.variants_table()
               .annotate("v2 = v")
               .key_by(["v", "v2"]))
-        sample2.annotate_variants_table(kt, root="va.foo", vds_key=["v", "v"])
 
         self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
 
