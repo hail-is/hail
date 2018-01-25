@@ -878,7 +878,7 @@ class Table(val hc: HailContext,
           if (!hasNext)
             throw new java.util.NoSuchElementException()
           region.clear()
-          rvb.start(matrixType.rowType)
+          rvb.start(matrixType.rvRowType)
           rvb.startStruct()
           rvb.addField(orderedType, current, 0)
           rvb.addField(orderedType, current, 1)
