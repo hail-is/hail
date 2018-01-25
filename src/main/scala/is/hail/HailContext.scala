@@ -527,25 +527,36 @@ class HailContext private(val sc: SparkContext,
     annotationTypes: Seq[Type],
     keyExpr: Option[String],
     nPartitions: Option[Int] = None,
+    forceBGZ: Boolean = false,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
     missingVal: String = "NA",
     noHeader: Boolean = false): MatrixTable =
-    importMatrices(List(file), annotationHeaders, annotationTypes, keyExpr, nPartitions, dropSamples, cellType, missingVal, noHeader)
+    importMatrices(List(file), annotationHeaders, annotationTypes, keyExpr, nPartitions, forceBGZ, dropSamples, cellType, missingVal, noHeader)
 
   def importMatrices(files: Seq[String],
     annotationHeaders: Option[Seq[String]],
     annotationTypes: Seq[Type],
     keyExpr: Option[String],
     nPartitions: Option[Int] = None,
+    forceBGZ: Boolean = false,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
     missingVal: String = "NA",
     noHeader: Boolean = false): MatrixTable = {
     val inputs = hadoopConf.globAll(files)
 
-    LoadMatrix(this, inputs, annotationHeaders, annotationTypes, keyExpr, nPartitions = nPartitions,
-      dropSamples = dropSamples, cellType = TStruct("x" -> cellType), missingValue = missingVal, noHeader = noHeader)
+    val codecs = sc.hadoopConfiguration.get("io.compression.codecs")
+
+    if (forceBGZ)
+      hadoopConf.set("io.compression.codecs",
+        codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
+    try {
+      LoadMatrix(this, inputs, annotationHeaders, annotationTypes, keyExpr, nPartitions = nPartitions,
+        dropSamples = dropSamples, cellType = TStruct("x" -> cellType), missingValue = missingVal, noHeader = noHeader)
+    } finally {
+      hadoopConf.set("io.compression.codecs", codecs)
+    }
   }
 
   def indexBgen(file: String) {

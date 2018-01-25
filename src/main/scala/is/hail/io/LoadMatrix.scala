@@ -32,13 +32,16 @@ object LoadMatrix {
 
   def parseHeader(line: String, sep: Char, nAnnotations: Int,
     annotationHeaders: Option[Seq[String]], noHeader: Boolean=false): (Array[String], Array[String]) = {
-    var r = line.split(sep)
-    r = if (noHeader) Array.tabulate(r.length)(_.toString()) else r
+    val r = line.split(sep)
     annotationHeaders match {
       case None =>
         if (r.length < nAnnotations)
           fatal(s"Expected $nAnnotations annotation columns; only ${ r.length } columns in table.")
-        (r.slice(0, nAnnotations), r.slice(nAnnotations, r.length))
+        if (noHeader)
+          (Array.tabulate(nAnnotations) { i => "f"+i.toString() },
+            Array.tabulate(r.length - nAnnotations) { i => "col"+i.toString() })
+        else
+          (r.slice(0, nAnnotations), r.slice(nAnnotations, r.length))
       case Some(h) =>
         assert(h.length == nAnnotations)
         (h.toArray, if (noHeader) r.slice(nAnnotations, r.length) else r)
@@ -354,7 +357,7 @@ object LoadMatrix {
         }
       }
 
-    val hintPartitioner = if (noHeader) {
+    val orderedRVD = if (optKeyExpr.isEmpty) {
       val rvb = new RegionValueBuilder(Region())
       rvb.start(TArray(TStruct("pk" -> TInt64())))
       rvb.startArray(partitionCounts.length - 2)
@@ -362,18 +365,22 @@ object LoadMatrix {
       partitionCounts.slice(1, partitionCounts.length - 1).foreach { i =>
         c += i
         rvb.startStruct()
-        rvb.addLong(c)
+        rvb.addLong(c-1)
         rvb.endStruct()
       }
       rvb.endArray()
-      Some(new OrderedRVDPartitioner(partitionCounts.length - 1, Array("pk"), TStruct("pk"->TInt64(), "v"->TInt64()),
-        new UnsafeIndexedSeq(TArray(TStruct("pk" -> TInt64())), rvb.region, rvb.end())))
-    } else None
+
+      val ranges = new UnsafeIndexedSeq(TArray(TStruct("pk" -> TInt64())), rvb.region, rvb.end())
+      val partitioner = new OrderedRVDPartitioner(partitionCounts.length - 1,
+        Array("pk"), matrixType.orvdType.kType, ranges)
+      OrderedRVD(matrixType.orvdType, partitioner, rdd)
+    } else
+      OrderedRVD(matrixType.orvdType, rdd, None, None)
 
     new MatrixTable(hc,
       matrixType,
       Annotation.empty,
       sampleIds.map(x => Annotation(x)),
-      OrderedRVD(matrixType.orvdType, rdd, None, hintPartitioner))
+      orderedRVD)
   }
 }
