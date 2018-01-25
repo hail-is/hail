@@ -9,7 +9,10 @@ import is.hail.expr.types._
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.testng.annotations.Test
+import is.hail.table.Table
+import org.apache.spark.rdd.RDD
 
 case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevRec: Double) {
   def unpack(): Array[Int] = {
@@ -105,14 +108,6 @@ object LDPruneSuite {
       BitPackedVector((0 until bpvv.getNPacks).map(bpvv.getPack).toArray, bpvv.getNSamples, bpvv.getMean, bpvv.getStdDevRecip)
     }
   }
-}
-
-class LDPruneSuite extends SparkSuite {
-  val bytesPerCoreMB = 256
-  val nCores = 4
-  lazy val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)))
-
-  def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
   def correlationMatrix(gts: Array[Iterable[Annotation]], nSamples: Int) = {
     val bvi = gts.map { gs => LDPruneSuite.toBitPackedVectorView(gs, nSamples) }
@@ -126,22 +121,82 @@ class LDPruneSuite extends SparkSuite {
     val nVariants = bvi.length
     new MultiArray2(nVariants, nVariants, r2.toArray)
   }
+}
 
-  def isUncorrelated(vds: MatrixTable, r2Threshold: Double, windowSize: Int): Boolean = {
-    val nSamplesLocal = vds.numCols
-    val r2Matrix = correlationMatrix(vds.typedRDD[Variant].map { case (v, (va, gs)) => gs }.collect(), nSamplesLocal)
-    val variantMap = vds.variants.zipWithIndex().map { case (v, i) => (i.toInt, v.asInstanceOf[Variant]) }.collectAsMap()
+class LDPruneSuite extends SparkSuite {
+  val bytesPerCoreMB = 256
+  val nCores = 4
+  lazy val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)))
 
+  def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
+  
+  def getLocallyPrunedRDDWithGT(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table): 
+  RDD[(Locus, Any, Iterable[Annotation])] = {
+    
+    val locusIndex = locallyPrunedTable.rvd.rowType.fieldIdx("locus")
+    val allelesIndex = locallyPrunedTable.rvd.rowType.fieldIdx("alleles")
+
+    val locallyPrunedVariants = locallyPrunedTable.rdd.mapPartitions(
+      it => it.map(row => (row.get(locusIndex), row.get(allelesIndex))), preservesPartitioning = true).collectAsSet()
+
+    unprunedMatrixTable.rdd.map { case (v, (va, gs)) =>
+      (v.asInstanceOf[GenericRow].get(0).asInstanceOf[Locus], v.asInstanceOf[GenericRow].get(1), gs)
+    }.filter { case (locus, alleles, gs) => locallyPrunedVariants.contains((locus, alleles)) }
+  }
+  
+  def isGloballyUncorrelated(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table, r2Threshold: Double,
+    windowSize: Int): Boolean = {
+    
+    val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
+    val nSamples = unprunedMatrixTable.numCols
+
+    val r2Matrix = LDPruneSuite.correlationMatrix(locallyPrunedRDD.map { case (locus, alleles, gs) => gs }.collect(), nSamples)
+    val variantMap = locallyPrunedRDD.zipWithIndex.map { case ((locus, alleles, gs), i) => (i.toInt, locus) }.collectAsMap()
+    
     r2Matrix.indices.forall { case (i, j) =>
-      val v1 = variantMap(i)
-      val v2 = variantMap(j)
+      val locus1 = variantMap(i)
+      val locus2 = variantMap(j)
       val r2 = r2Matrix(i, j)
 
-      v1 == v2 ||
-        v1.contig != v2.contig ||
-        (v1.contig == v2.contig && math.abs(v1.start - v2.start) > windowSize) ||
+      locus1 == locus2 ||
+        locus1.contig != locus2.contig ||
+        (locus1.contig == locus2.contig && math.abs(locus1.position - locus2.position) > windowSize) ||
         r2.exists(_ < r2Threshold)
     }
+  }
+
+  def isLocallyUncorrelated(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table, r2Threshold: Double,
+    windowSize: Int): Boolean = {
+
+    val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
+    val nSamples = unprunedMatrixTable.numCols
+
+    val locallyUncorrelated = {
+      locallyPrunedRDD.mapPartitions(it => {
+        // bind function for serialization
+        val computeCorrelationMatrix = (gts: Array[Iterable[Annotation]], nSamps: Int) =>
+          LDPruneSuite.correlationMatrix(gts, nSamps)
+
+        val (it1, it2) = it.duplicate
+        val localR2Matrix = computeCorrelationMatrix(it1.map { case (locus, alleles, gs) => gs }.toArray, nSamples)
+        val localVariantMap = it2.zipWithIndex.map { case ((locus, alleles, gs), i) => (i, locus) }.toMap
+
+        val uncorrelated = localR2Matrix.indices.forall { case (i, j) =>
+          val locus1 = localVariantMap(i)
+          val locus2 = localVariantMap(j)
+          val r2 = localR2Matrix(i, j)
+
+          locus1 == locus2 ||
+            locus1.contig != locus2.contig ||
+            (locus1.contig == locus2.contig && math.abs(locus1.position - locus2.position) > windowSize) ||
+            r2.exists(_ < r2Threshold)
+        }
+
+        Iterator(uncorrelated)
+      }, preservesPartitioning = true)
+    }
+
+    locallyUncorrelated.fold(true)((bool1, bool2) => bool1 && bool2)
   }
 
   @Test def testBitPackUnpack() {
@@ -171,7 +226,7 @@ class LDPruneSuite extends SparkSuite {
       line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
     }.value).toArray))
 
-    val computedR2 = correlationMatrix(calls.map(LDPruneSuite.convertCallsToGs), 8)
+    val computedR2 = LDPruneSuite.correlationMatrix(calls.map(LDPruneSuite.convertCallsToGs), 8)
 
     val isSame = actualR2.indices.forall { case (i, j) =>
       val expected = actualR2(i, j)
@@ -201,16 +256,16 @@ class LDPruneSuite extends SparkSuite {
 
   @Test def testIdenticalVariants() {
     val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/ldprune2.vcf", nPartitions = Option(2)))
-    val prunedVds = LDPrune(vds, nCores, 0.2, 700, memoryPerCoreMB = bytesPerCoreMB)
-    assert(prunedVds.countRows() == 1)
+    val locallyPrunedVariantsTable = LDPrune(vds, nCores, 0.2, 700, memoryPerCoreMB = bytesPerCoreMB)
+    assert(locallyPrunedVariantsTable.count() == 1)
   }
 
   @Test def testMultipleChr() = {
     val r2 = 0.2
     val windowSize = 500
     val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/ldprune_multchr.vcf", nPartitions = Option(10)))
-    val prunedVds = LDPrune(vds, nCores, r2, windowSize, bytesPerCoreMB)
-    assert(isUncorrelated(prunedVds, r2, windowSize))
+    val locallyPrunedVariantsTable = LDPrune(vds, nCores, r2, windowSize, bytesPerCoreMB)
+    assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, r2, windowSize))
   }
 
   object Spec extends Properties("LDPrune") {
@@ -297,15 +352,10 @@ class LDPruneSuite extends SparkSuite {
     }
   }
 
-  @Test def testLargerInput() {
-    val prunedVds = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000000, memoryPerCoreMB = 200)
-    assert(isUncorrelated(prunedVds, 0.2, 1000000))
-  }
-
   @Test def testNoPrune() {
     val filteredVDS = vds.filterRowsExpr("AGG.filter(g => isDefined(g.GT)).map(_ => g.GT).collectAsSet().size() > 1")
-    val prunedVDS = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
-    assert(prunedVDS.countRows() == filteredVDS.countRows())
+    val locallyPrunedVariantsTable = LDPrune(filteredVDS, nCores, r2Threshold = 1, windowSize = 0, memoryPerCoreMB = 200)
+    assert(locallyPrunedVariantsTable.count() == filteredVDS.countRows())
   }
 
   @Test def bitPackedVectorCorrectWhenOffsetNotZero() {
@@ -333,5 +383,12 @@ class LDPruneSuite extends SparkSuite {
     bpv.setRegion(r, rvb.end())
     assert(bpv.getContig == "X")
     assert(bpv.getStart == 42)
+  }
+
+  @Test def testIsLocallyUncorrelated() {
+    val vds = TestUtils.splitMultiHTS(hc.importVCF("src/test/resources/sample.vcf"))
+    val locallyPrunedVariantsTable = LDPrune(vds, nCores, r2Threshold = 0.2, windowSize = 1000000, memoryPerCoreMB = 256)
+    assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
+    assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
   }
 }

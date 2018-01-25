@@ -960,10 +960,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       ec.setAll(globalsBc.value, r)
       (iThunk(), jThunk())
     }
-
-    if (edgeRdd.count() > 400000)
-      warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
-
+    
     Graph.maximalIndependentSet(edgeRdd.collect(), maybeTieBreaker)
   }
 
@@ -972,13 +969,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
     val (iType, _) = Parser.parseExpr(iExpr, rowEvalContext())
 
-    val relatedNodesToKeep = this.maximalIndependentSet(iExpr, jExpr, maybeTieBreaker).toSet
+    val relatedNodesInMIS = this.maximalIndependentSet(iExpr, jExpr, maybeTieBreaker).toSet
 
-    val nodes = this.select(s"{node : [$iExpr, $jExpr] }")
-      .explode("node")
-      .keyBy("node")
-
-    nodes.annotateGlobal(relatedNodesToKeep, TSet(iType), "relatedNodesToKeep")
+    val nodes = this.select(s"{node : [$iExpr, $jExpr] }").explode("node").keyBy("node")
+    
+    nodes.annotateGlobal(relatedNodesInMIS, TSet(iType), "relatedNodesToKeep")
       .filter(s"global.relatedNodesToKeep.contains(row.node)", keep = keep)
       .selectGlobal("{}")
   }

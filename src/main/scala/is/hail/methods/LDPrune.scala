@@ -4,16 +4,14 @@ import java.util
 
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.storage.StorageLevel
-import is.hail.sparkextras._
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, UnpartitionedRVD}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType}
+import is.hail.table.Table
 import is.hail.variant._
 import is.hail.utils._
-import org.apache.spark.sql.Row
 
 object BitPackedVectorView {
-  val bpvEltSize = TInt64Required.byteSize
+  val bpvElementSize = TInt64Required.byteSize
 
   def rvRowType(locusType: Type, allelesType: Type): TStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
     "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64Required, "sd" -> TFloat64Required)
@@ -23,27 +21,22 @@ class BitPackedVectorView(rvRowType: TStruct) {
   val vView = new RegionValueVariant(rvRowType)
 
   // All types are required!
-  private val bpvIndex = 2
-  private val nSamplesIndex = 3
-  private val meanIndex = 4
-  private val sdIndex = 5
-
   private var m: Region = _
   private var bpvOffset: Long = _
   private var bpvLength: Int = _
-  private var bpvEltOffset: Long = _
+  private var bpvElementOffset: Long = _
   private var nSamplesOffset: Long = _
   private var meanOffset: Long = _
   private var sdOffset: Long = _
 
   def setRegion(mb: Region, offset: Long) {
     this.m = mb
-    bpvOffset = rvRowType.loadField(m, offset, bpvIndex)
+    bpvOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("bpv"))
     bpvLength = TArray(TInt64Required).loadLength(m, bpvOffset)
-    bpvEltOffset = TArray(TInt64Required).elementOffset(bpvOffset, bpvLength, 0)
-    nSamplesOffset = rvRowType.loadField(m, offset, nSamplesIndex)
-    meanOffset = rvRowType.loadField(m, offset, meanIndex)
-    sdOffset = rvRowType.loadField(m, offset, sdIndex)
+    bpvElementOffset = TArray(TInt64Required).elementOffset(bpvOffset, bpvLength, 0)
+    nSamplesOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("nSamples"))
+    meanOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("mean"))
+    sdOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("sd"))
 
     vView.setRegion(m, offset)
   }
@@ -57,7 +50,7 @@ class BitPackedVectorView(rvRowType: TStruct) {
   def getPack(idx: Int): Long = {
     if (idx < 0 || idx >= bpvLength)
       throw new ArrayIndexOutOfBoundsException(idx)
-    val packOffset = bpvEltOffset + idx * BitPackedVectorView.bpvEltSize
+    val packOffset = bpvElementOffset + idx * BitPackedVectorView.bpvElementSize
     m.loadLong(packOffset)
   }
 
@@ -76,10 +69,8 @@ object LDPrune {
   val genotypesPerPack = 32
   val nPartitionsPerCore = 3
 
-  case class GlobalPruneIntermediate(rvd: RVD, rvRowType: TStruct, index: Int, persist: Boolean)
-
-  val table: Array[Byte] = {
-    val t = Array.ofDim[Byte](256 * 4)
+  val lookupTable: Array[Byte] = {
+    val table = Array.ofDim[Byte](256 * 4)
 
     (0 until 256).foreach { i =>
       val xi = i & 3
@@ -87,23 +78,24 @@ object LDPrune {
       val yi = (i >> 4) & 3
       val yj = (i >> 6) & 3
 
-      val res = findTableValue(xi, yi, xj, yj)
+      val res = doubleSampleLookup(xi, yi, xj, yj)
 
-      t(i * 4) = res._1.toByte
-      t(i * 4 + 1) = res._2.toByte
-      t(i * 4 + 2) = res._3.toByte
-      t(i * 4 + 3) = res._4.toByte
+      table(i * 4) = res._1.toByte
+      table(i * 4 + 1) = res._2.toByte
+      table(i * 4 + 2) = res._3.toByte
+      table(i * 4 + 3) = res._4.toByte
     }
-    t
+    table
   }
 
-  private def findTableValue(a: Int, b: Int, c: Int, d: Int): (Int, Int, Int, Int) = {
-    val r1 = findTableValue(a, b)
-    val r2 = findTableValue(c, d)
+  private def doubleSampleLookup(sample1VariantX: Int, sample1VariantY: Int, sample2VariantX: Int,
+    sample2VariantY: Int): (Int, Int, Int, Int) = {
+    val r1 = singleSampleLookup(sample1VariantX, sample1VariantY)
+    val r2 = singleSampleLookup(sample2VariantX, sample2VariantY)
     (r1._1 + r2._1, r1._2 + r2._2, r1._3 + r2._3, r1._4 + r2._4)
   }
 
-  private def findTableValue(xi: Int, yi: Int): (Int, Int, Int, Int) = {
+  private def singleSampleLookup(xi: Int, yi: Int): (Int, Int, Int, Int) = {
     var xySum = 0
     var XbarCount = 0
     var YbarCount = 0
@@ -154,14 +146,11 @@ object LDPrune {
       }
       packOffset -= 2
 
-      if (gt == 1) {
-        gtSum += 1
-        gtSumSq += 1
-      } else if (gt == 2) {
-        gtSum += 2
-        gtSumSq += 4
-      } else if (gt == -1) {
-        nMissing += 1
+      gt match {
+        case 1 => gtSum += 1; gtSumSq += 1
+        case 2 => gtSum += 2; gtSumSq += 4
+        case -1 => nMissing += 1
+        case _ =>
       }
 
       i += 1
@@ -217,17 +206,16 @@ object LDPrune {
 
       while (shift >= 0) {
         val b = (((lY >> shift) & 15) << 4 | ((lX >> shift) & 15)).toInt
-        xySum += table(b * 4)
-        XbarCount += table(b * 4 + 1)
-        YbarCount += table(b * 4 + 2)
-        XbarYbarCount += table(b * 4 + 3)
+        xySum += lookupTable(b * 4)
+        XbarCount += lookupTable(b * 4 + 1)
+        YbarCount += lookupTable(b * 4 + 2)
+        XbarYbarCount += lookupTable(b * 4 + 3)
         shift -= 4
       }
       pack += 1
     }
 
-    val r = stdDevRecX * stdDevRecY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
-    r
+    stdDevRecX * stdDevRecY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
   }
 
   def computeR2(x: BitPackedVectorView, y: BitPackedVectorView): Double = {
@@ -241,10 +229,7 @@ object LDPrune {
     val localRowType = inputRDD.typ.rowType
 
     inputRDD.mapPartitionsPreservesPartitioning(inputRDD.typ) { it =>
-      val queue = queueSize match {
-        case Some(qs) => new util.ArrayDeque[RegionValue](qs)
-        case None => new util.ArrayDeque[RegionValue]
-      }
+      val queue = new util.ArrayDeque[RegionValue](queueSize.getOrElse(16))
 
       val bpvv = new BitPackedVectorView(localRowType)
       val bpvvPrev = new BitPackedVectorView(localRowType)
@@ -283,106 +268,17 @@ object LDPrune {
     }
   }
 
-  private def pruneGlobal(inputRDD: OrderedRVD,
-    r2Threshold: Double, windowSize: Int): (OrderedRVD, Long) = {
-    val sc = inputRDD.sparkContext
-
-    require(inputRDD.storageLevel == StorageLevel.MEMORY_AND_DISK)
-
-    val partitioner = inputRDD.partitioner
-    val rangeBounds = partitioner.rangeBounds
-    val nPartitions = inputRDD.getNumPartitions
-
-    val localRowType = inputRDD.typ.rowType
-
-    def computeDependencies(partitionId: Int): Array[Int] = {
-      val startLocus = rangeBounds(partitionId).start.asInstanceOf[Row].getAs[Locus](0)
-      val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
-      
-      val minPart = partitioner.getPartitionPK(Annotation(minLocus))
-      Array.range(minPart, partitionId + 1).reverse
-    }
-
-    def pruneF = (x: Array[Iterator[RegionValue]]) => {
-      val nPartitions = x.length
-      val targetIterator = x(0)
-      val prevPartitions = x.drop(1).reverse
-
-      val bpvv = new BitPackedVectorView(localRowType)
-      val bpvvPrev = new BitPackedVectorView(localRowType)
-
-      if (nPartitions == 1)
-        targetIterator
-      else {
-        var targetData = targetIterator.map(_.copy()).toArray
-
-        prevPartitions.foreach { it =>
-          it.foreach { prevRV =>
-            bpvvPrev.setRegion(prevRV)
-            targetData = targetData.filter { rv =>
-              bpvv.setRegion(rv)
-              if (bpvv.getContig != bpvvPrev.getContig || math.abs(bpvv.getStart - bpvvPrev.getStart) > windowSize)
-                true
-              else {
-                computeR2(bpvv, bpvvPrev) < r2Threshold
-              }
-            }
-          }
-        }
-        targetData.iterator
-      }
-    }
-
-    val contigStartPartitions = Array.range(0, nPartitions).filter { i =>
-      i == 0 || rangeBounds(i - 1).end.asInstanceOf[Row].getAs[Locus](0).contig != rangeBounds(i).end.asInstanceOf[Row].getAs[Locus](0).contig
-    }
-
-    val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
-
-    def generalRDDInputs(partitionIndex: Int): (Array[RVD], Array[(Int, Int)]) = {
-      val (rvds, inputs) = computeDependencies(partitionIndex).zipWithIndex.map { case (depIndex, i) =>
-        if (depIndex == partitionIndex || contigStartPartitions.contains(depIndex))
-          (inputRDD, (i, depIndex))
-        else {
-          val gpi = pruneIntermediates(depIndex)
-          pruneIntermediates(depIndex) = gpi.copy(rvd = gpi.rvd.persist(StorageLevel.MEMORY_AND_DISK), persist = true)
-          (pruneIntermediates(depIndex).rvd, (i, gpi.index))
-        }
-      }.unzip
-      (rvds, inputs)
-    }
-
-    for (i <- 0 until nPartitions) {
-      val (rvds, inputs) = generalRDDInputs(i)
-      pruneIntermediates(i) = GlobalPruneIntermediate(
-        rvd = new UnpartitionedRVD(
-          inputRDD.typ.rowType,
-          new GeneralRDD(sc, rvds.map(_.rdd), Array(inputs))
-            .flatMap(pruneF)),
-        rvRowType = localRowType,
-        index = 0,
-        persist = false) // creating single partition RDDs with partition index = 0
-    }
-
-    val prunedRDD = OrderedRVD(inputRDD.typ,
-      inputRDD.partitioner,
-      new GeneralRDD[RegionValue](
-        sc,
-        pruneIntermediates.map(_.rvd.rdd),
-        pruneIntermediates.zipWithIndex.map { case (gpi, i) => Array((i, gpi.index)) })
-        .flatMap(pruneF))
-      .persist(StorageLevel.MEMORY_AND_DISK)
-
-    val nVariantsKept = prunedRDD.count()
-
-    pruneIntermediates.foreach { gpi =>
-      if (gpi.persist)
-        gpi.rvd.unpersist()
-    }
-    inputRDD.unpersist()
-
-    (prunedRDD, nVariantsKept)
+  private def pruneLocalTimed(inputRDD: OrderedRVD, r2Threshold: Double, windowSize: Int, maxQueueSize: Option[Int]):
+  ((OrderedRVD, Long, Int), Long) = {
+    time({
+      val prunedRDD = pruneLocal(inputRDD, r2Threshold, windowSize, maxQueueSize).persist(StorageLevel.MEMORY_AND_DISK)
+      val nVariantsKept = prunedRDD.count()
+      val nPartitions = prunedRDD.partitions.length
+      assert(nVariantsKept >= 1)
+      (prunedRDD, nVariantsKept, nPartitions)
+    })
   }
+
 
   def estimateMemoryRequirements(nVariants: Long, nSamples: Int, nCores: Int, memoryPerCore: Long) = {
     val nBytesPerVariant = math.ceil(8 * nSamples.toDouble / genotypesPerPack).toLong + variantByteOverhead
@@ -404,11 +300,11 @@ object LDPrune {
     (maxQueueSize, nPartitions)
   }
 
-  def apply(vsm: MatrixTable, nCores: Int,
-    r2Threshold: Double = 0.2, windowSize: Int = 1000000, memoryPerCoreMB: Long = 256): MatrixTable = {
-    vsm.requireRowKeyVariant("ld_prune")
+  def apply(mt: MatrixTable, nCores: Int, r2Threshold: Double = 0.2, windowSize: Int = 1000000,
+    memoryPerCoreMB: Long = 256): Table = {
 
-    // in bytes
+    mt.requireRowKeyVariant("ld_prune")
+
     val memoryPerCore = memoryPerCoreMB * 1024L * 1024L
 
     if (nCores <= 0)
@@ -420,9 +316,7 @@ object LDPrune {
     if (windowSize < 0)
       fatal(s"Window size must be greater than or equal to 0. Found `$windowSize'.")
 
-    val nVariantsInitial = vsm.countRows()
-    val nPartitionsInitial = vsm.nPartitions
-    val nSamples = vsm.numCols
+    val (nVariantsInitial, nPartitionsInitial, nSamples) = (mt.countRows(), mt.nPartitions, mt.numCols)
 
     val minMemoryPerCore = math.ceil((1d / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
     val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, nCores, memoryPerCore)
@@ -432,69 +326,78 @@ object LDPrune {
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"`memory_per_core' must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB.")
 
-    val fullRowType = vsm.rvRowType
+    val fullRowType = mt.rvRowType
 
-    val bpvType = BitPackedVectorView.rvRowType(vsm.rowKeyTypes(0), vsm.rowKeyTypes(1))
+    val locusIndex = mt.rowType.fieldIdx("locus")
+    val allelesIndex = mt.rowType.fieldIdx("alleles")
 
-    val locusIndex = vsm.rowType.fieldIdx("locus")
-    val allelesIndex = vsm.rowType.fieldIdx("alleles")
+    val bpvType = BitPackedVectorView.rvRowType(mt.rowKeyTypes(locusIndex), mt.rowKeyTypes(allelesIndex))
 
-    val typ = vsm.rvd.typ
+    val typ = mt.rvd.typ
 
-    val standardizedRDD = vsm.rvd
+    val standardizedRDD = mt.rvd
       .mapPartitionsPreservesPartitioning(new OrderedRVDType(typ.partitionKey, typ.key, bpvType))({ it =>
         val hcView = HardCallView(fullRowType)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
-        val rv2 = RegionValue(region)
+        val newRV = RegionValue(region)
 
         it.flatMap { rv =>
-          region.clear()
           hcView.setRegion(rv)
+          region.clear()
           rvb.set(region)
           rvb.start(bpvType)
           rvb.startStruct()
-          rvb.addField(fullRowType, rv, locusIndex)
-          rvb.addField(fullRowType, rv, allelesIndex)
+          rvb.addFields(fullRowType, rv, Array(locusIndex, allelesIndex))
 
-          val keep = addBitPackedVector(rvb, hcView, nSamples) // add bit packed genotype vector with metadata
+          val keep = addBitPackedVector(rvb, hcView, nSamples)
 
           if (keep) {
             rvb.endStruct()
-            rv2.setOffset(rvb.end())
-            Some(rv2)
+            newRV.setOffset(rvb.end())
+            Some(newRV)
           }
           else
             None
         }
       })
 
-    val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
-      val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, windowSize, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)
-      val nVariantsKept = prunedRDD.count()
-      val nPartitions = prunedRDD.getNumPartitions
-      assert(nVariantsKept >= 1)
-      (prunedRDD, nVariantsKept, nPartitions)
-    })
+    val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = pruneLocalTimed(
+      standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
     info(s"LD prune step 1 of 3: nVariantsKept=$nVariantsLP1, nPartitions=$nPartitionsLP1, time=${ formatTime(durationLP1) }")
 
-    val ((rddLP2, nVariantsLP2, nPartitionsLP2), durationLP2) = time({
-      val (_, nPartitionsRequired) = estimateMemoryRequirements(nVariantsLP1, nSamples, nCores, memoryPerCore)
-      val repartRDD = rddLP1.coalesce(nPartitionsRequired, shuffle = true).persist(StorageLevel.MEMORY_AND_DISK)
-      repartRDD.count()
-      rddLP1.unpersist()
-      val prunedRDD = pruneLocal(repartRDD, r2Threshold, windowSize, None).persist(StorageLevel.MEMORY_AND_DISK)
-      val nVariantsKept = prunedRDD.count()
-      val nPartitions = prunedRDD.getNumPartitions
-      assert(nVariantsKept >= 1)
-      repartRDD.unpersist()
-      (prunedRDD, nVariantsKept, nPartitions)
-    })
+    val (_, nPartitionsRequired) = estimateMemoryRequirements(nVariantsLP1, nSamples, nCores, memoryPerCore)
+    val repartRDD = rddLP1.coalesce(nPartitionsRequired, shuffle = true).persist(StorageLevel.MEMORY_AND_DISK)
+    repartRDD.count()
+    rddLP1.unpersist()
+    val ((rddLP2, nVariantsLP2, nPartitionsLP2), durationLP2) = pruneLocalTimed(repartRDD, r2Threshold, windowSize, None)
+    repartRDD.unpersist()
     info(s"LD prune step 2 of 3: nVariantsKept=$nVariantsLP2, nPartitions=$nPartitionsLP2, time=${ formatTime(durationLP2) }")
+    
+    val tableType = TableType(
+      rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "sd_reciprocal" -> TFloat64Required),
+      key = mt.rowKey, globalType = TStruct.empty())
 
-    val ((globalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(rddLP2, r2Threshold, windowSize))
-    info(s"LD prune step 3 of 3: nVariantsKept=$nVariantsFinal, time=${ formatTime(globalDuration) }")
+    val sitesOnlyRDD = rddLP2.mapPartitionsPreservesPartitioning(
+      new OrderedRVDType(typ.partitionKey, typ.key, tableType.rowType))({
+      it =>
+        val region = Region()
+        val rvb = new RegionValueBuilder(region)
+        val newRV = RegionValue(region)
 
-    vsm.copy2(rvd = vsm.rvd.orderedJoinDistinct(globalPrunedRDD, "inner", _.map(_.rvLeft), vsm.rvd.typ))
+        it.map { rv =>
+          region.clear()
+          rvb.set(region)
+          rvb.start(tableType.rowType)
+          rvb.startStruct()
+          rvb.addFields(bpvType, rv, Array("locus", "alleles", "mean", "sd").map(field => bpvType.fieldIdx(field)))
+          rvb.endStruct()
+          newRV.setOffset(rvb.end())
+          newRV
+        }
+    })
+
+    new Table(hc = mt.hc, rdd = sitesOnlyRDD.rdd, signature = tableType.rowType, key = tableType.key)
   }
 }
+

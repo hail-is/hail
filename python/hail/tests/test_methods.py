@@ -1361,9 +1361,44 @@ class Tests(unittest.TestCase):
             hl.import_vcf(resource('filter_alleles/keep_allele2_downcode.vcf'))._same(fa.filter()))
 
     def test_ld_prune(self):
-        ds = hl.split_multi_hts(
-            hl.import_vcf(resource('sample.vcf')))
-        hl.ld_prune(ds, 8).count_rows()
+        ds = hl.split_multi_hts(hl.import_vcf('src/test/resources/sample.vcf'))
+        pruned_table = hl.ld_prune(ds, 8, r2=0.2, window=1000000)
+
+        filtered_ds = (ds.filter_rows(hl.is_defined(pruned_table[(ds.locus, ds.alleles)])))
+        filtered_ds = filtered_ds.annotate_rows(stats=agg.stats(filtered_ds.GT.n_alt_alleles()))
+        filtered_ds = filtered_ds.annotate_rows(
+            mean=filtered_ds.stats.mean, sd_reciprocal=1 / filtered_ds.stats.stdev)
+
+        n_samples = filtered_ds.count_cols()
+        normalized_mean_imputed_genotype_expr = (
+            hl.cond(hl.is_defined(filtered_ds['GT']),
+                    (filtered_ds['GT'].n_alt_alleles() - filtered_ds['mean'])
+                    * filtered_ds['sd_reciprocal'] * (1 / hl.sqrt(n_samples)), 0))
+
+        block_matrix = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
+        entries = ((block_matrix @ block_matrix.T) ** 2).entries()
+
+        index_table = filtered_ds.add_row_index().rows().select('locus', 'row_idx').key_by('row_idx')
+        entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
+
+        contig_filter = entries.locus_i.contig == entries.locus_j.contig
+        window_filter = (hl.abs(entries.locus_i.position - entries.locus_j.position)) <= 1000000
+        identical_filter = entries.i != entries.j
+
+        assert (entries.filter(
+            (entries['entry'] >= 0.2) & (contig_filter) & (window_filter) & (identical_filter)).count() == 0)
+
+    def test_ld_prune_no_prune(self):
+        ds = hl.split_multi_hts(hl.import_vcf('src/test/resources/sample.vcf'))
+        pruned_table = hl.ld_prune(ds, n_cores=8, r2=1, window=0)
+        expected_ds = ds.filter_rows(
+            agg.collect_as_set(agg.filter(hl.is_defined(ds['GT']), ds.GT)).size()>1, keep=True)
+        assert(pruned_table.count() == expected_ds.count_rows())
+
+    def test_ld_prune_identical_variants(self):
+        ds = hl.import_vcf("src/test/resources/ldprune2.vcf", min_partitions=2)
+        pruned_table = hl.ld_prune(ds, 8)
+        assert(pruned_table.count()==1)
 
     def test_entries_table(self):
         n_rows, n_cols = 5, 3
