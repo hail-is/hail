@@ -92,7 +92,7 @@ object PCRelate {
     apply(vds.hc, blockedG, vds.sampleIds.toArray, vds.sSignature, k, pcaScores, maf, blockSize, minKinship, statistics)
   }
 
-  private def tableToBDM(t: Table, nRows: Int, nCols: Int) = {
+  private def tableToBDM(t: Table, nRows: Int, nCols: Int): DenseMatrix[Double] = {
     val scoreArray = new Array[Double](nRows * nCols)
     val pcs = t.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
     var i = 0
