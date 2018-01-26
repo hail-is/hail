@@ -686,7 +686,8 @@ def pl_dosage(pl):
     :class:`.Float64Expression`
     """
     if not isinstance(pl, ArrayNumericExpression):
-        raise TypeError("Function 'pl_dosage' expects an 'ArrayNumericExpression'. Found {}.".format(type(pl)))
+        raise TypeError("Function 'pl_dosage' expects an expression of type "
+                        "'Array[numeric]'. Found {}".format(pl.dtype))
     return _func("plDosage", TFloat64(), pl)
 
 @typecheck(start=expr_locus, end=expr_locus)
