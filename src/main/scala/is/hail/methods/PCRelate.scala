@@ -161,9 +161,6 @@ object PCRelate {
 
   private val k0cutoff = math.pow(2.0, -5.0 / 2.0)
 
-  def vdsToMeanImputedBlockMatrix(vds: MatrixTable): M =
-    BlockMatrix.from(vdsToMeanImputedMatrix(vds))
-
   def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
     val nSamples = vds.nSamples
     val localRowType = vds.rvRowType
