@@ -464,6 +464,12 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(rt.forall(rt.y2 == 2))
         self.assertTrue(ct.forall(ct.c2 == 2))
 
+    def test_table_join(self):
+        ds = self.get_vds()
+        # test different row schemas
+        self.assertTrue(ds.union_cols(ds.drop(ds.info))
+                        .count_rows(), 346)
+
     def test_naive_coalesce(self):
         vds = self.get_vds(min_partitions=8)
         self.assertEqual(vds.num_partitions(), 8)

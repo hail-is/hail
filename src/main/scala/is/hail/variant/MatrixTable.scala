@@ -1623,9 +1623,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         right.vSignature.toPrettyString(compact = true))
     }
 
-    val localRVRowType = rvRowType
+    val leftRVRowType = rvRowType
     val localLeftSamples = nSamples
     val localRightSamples = right.nSamples
+    val rightRVRowType = right.rvRowType
     val tgs = rvRowType.fieldType(3).asInstanceOf[TArray]
 
     val joined = rdd2.orderedJoinDistinct(right.rdd2, "inner").mapPartitions({ it =>
@@ -1637,18 +1638,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         val rrv = jrv.rvRight
 
         rvb.set(lrv.region)
-        rvb.start(localRVRowType)
+        rvb.start(leftRVRowType)
         rvb.startStruct()
-        rvb.addField(localRVRowType, lrv, 0) // l
-        rvb.addField(localRVRowType, lrv, 1) // v
-        rvb.addField(localRVRowType, lrv, 2) // va
+        rvb.addField(leftRVRowType, lrv, 0) // l
+        rvb.addField(leftRVRowType, lrv, 1) // v
+        rvb.addField(leftRVRowType, lrv, 2) // va
         rvb.startArray(localLeftSamples + localRightSamples)
 
-        val gsLeftOffset = localRVRowType.loadField(lrv.region, lrv.offset, 3) // left gs
+        val gsLeftOffset = leftRVRowType.loadField(lrv.region, lrv.offset, 3) // left gs
       val gsLeftLength = tgs.loadLength(lrv.region, gsLeftOffset)
         assert(gsLeftLength == localLeftSamples)
 
-        val gsRightOffset = localRVRowType.loadField(rrv.region, rrv.offset, 3) // right gs
+        val gsRightOffset = rightRVRowType.loadField(rrv.region, rrv.offset, 3) // right gs
       val gsRightLength = tgs.loadLength(rrv.region, gsRightOffset)
         assert(gsRightLength == localRightSamples)
 
