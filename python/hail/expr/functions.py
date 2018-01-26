@@ -385,6 +385,7 @@ def Dict(keys, values):
     ret_type = TDict(key_col._type, value_col._type)
     return _func("Dict", ret_type, keys, values)
 
+@typecheck(x=expr_numeric, a=expr_numeric, b=expr_numeric)
 def dbeta(x, a, b):
     """
     Returns the probability density at x of a `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`__
@@ -402,6 +403,13 @@ def dbeta(x, a, b):
         The beta parameter in the beta distribution. The result is undefined
         for non-positive b.
     """
+    if not (x >= 0 and x <= 1):
+        raise ValueError("Requires 'x' in [0,1]. Found x={}".format(x))
+    if not (a > 0 and b > 0):
+        raise ValueError("Requires 'a' and 'b' to be strictly positive. Found a={}, b={}".format(a, b))
+    if a < 1 and x == 0:
+        raise ValueError("When 'a'<1, requires 'x' in (0,1], and when 'b'<1,"
+                         "requires 'x' in [0,1). Found a={}, b={}, x={}".format(a, b, x))
     return _func("dbeta", TFloat64(), x, a, b)
 
 @typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
@@ -661,7 +669,7 @@ def parse_locus(s, reference_genome=None):
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), TLocus(reference_genome),
                           s._indices, s._aggregations, s._joins, s._refs)
 
-@typecheck(pl=ArrayNumericExpression)
+@typecheck(pl=expr_list)
 def pl_dosage(pl):
     """
     Return expected genotype dosage from array of Phred-scaled genotype
@@ -677,6 +685,8 @@ def pl_dosage(pl):
     -------
     :class:`.Float64Expression`
     """
+    if not isinstance(pl, ArrayNumericExpression):
+        raise TypeError("Function 'pl_dosage' expects an 'ArrayNumericExpression'. Found {}.".format(type(pl)))
     return _func("plDosage", TFloat64(), pl)
 
 @typecheck(start=expr_locus, end=expr_locus)
