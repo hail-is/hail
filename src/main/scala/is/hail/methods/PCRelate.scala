@@ -100,7 +100,7 @@ object PCRelate {
       val row = pcs(i).getAs[IndexedSeq[Double]](1)
       var j = 0
       while (j < nCols) {
-        scoreArray(j * nCols + i) = row(j)
+        scoreArray(j * nRows + i) = row(j)
         j += 1
       }
       i += 1
