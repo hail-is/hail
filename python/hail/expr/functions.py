@@ -592,7 +592,7 @@ def locus(contig, pos, reference_genome=None):
     pos : int or :class:`.Int32Expression`
         Base position along the chromosome.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`~hail.default_reference` if not passed).
 
     Returns
     -------
@@ -628,7 +628,7 @@ def parse_locus(s, reference_genome=None):
     s : str or :class:`.StringExpression`
         String to parse.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -660,7 +660,7 @@ def interval(start, end):
     end : :class:`.hail.genetics.Locus` or :class:`.LocusExpression`
         End locus (exclusive).
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -703,7 +703,7 @@ def parse_interval(s, reference_genome=None):
     s : str or :class:`.StringExpression`
         String to parse.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -741,7 +741,7 @@ def variant(contig, pos, ref, alts, reference_genome=None):
     alts : :class:`.ArrayExpression` or list of str or :class:`.StringExpression`
         List of alternate alleles.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------
@@ -782,7 +782,7 @@ def parse_variant(s, reference_genome=None):
     s : str or :class:`.StringExpression`
         String to parse.
     reference_genome : :class:`.hail.genetics.GenomeReference` (optional)
-        Reference genome to use (uses :meth:`hail.api2.HailContext.default_reference` if not passed).
+        Reference genome to use (uses :meth:`.default_reference` if not passed).
 
     Returns
     -------

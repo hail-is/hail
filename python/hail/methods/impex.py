@@ -5,7 +5,6 @@ from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
 from hail.genetics import GenomeReference
 from hail.methods.misc import require_biallelic
-from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
 
 @handle_py4j
@@ -257,7 +256,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     Description, Number, and/or Type value in a FORMAT or INFO field or to
     specify FILTER lines, use the `metadata` parameter to supply a dictionary
     with the relevant information. See
-    :class:`~hail.api2.HailContext.get_vcf_metadata` for how to obtain the
+    :func:`get_vcf_metadata` for how to obtain the
     dictionary corresponding to the original VCF, and for info on how this
     dictionary should be structured. 
     
@@ -301,7 +300,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         concatenate the header and all partitions into one VCF file.
     metadata : :obj:`dict[str]` or :obj:`dict[str, dict[str, str]`, optional
         Dictionary with information to fill in the VCF header. See
-        :class:`~hail.api2.HailContext.get_vcf_metadata` for how this
+        :func:`get_vcf_metadata` for how this
         dictionary should be structured.
     """
 
@@ -638,23 +637,6 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
 @typecheck(path=oneof(strlike, listof(strlike)))
 def index_bgen(path):
     Env.hc().index_bgen(path)
-
-
-@handle_py4j
-@typecheck(populations=integral,
-           samples=integral,
-           variants=integral,
-           num_partitions=nullable(integral),
-           pop_dist=nullable(listof(numeric)),
-           fst=nullable(listof(numeric)),
-           af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
-           seed=integral,
-           reference_genome=nullable(GenomeReference))
-def balding_nichols_model(populations, samples, variants, num_partitions=None,
-                          pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
-                          seed=0, reference_genome=None):
-    return Env.hc().balding_nichols_model(populations, samples, variants, num_partitions,
-                                          pop_dist, fst, af_dist, seed, reference_genome).to_hail2()
 
 
 @handle_py4j
