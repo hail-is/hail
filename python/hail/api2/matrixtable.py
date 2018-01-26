@@ -2538,5 +2538,41 @@ class MatrixTable(object):
         jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt)
         return MatrixTable(jmt)
 
+    @handle_py4j
+    @typecheck_method(frac=numeric,
+                      seed=integral)
+    def sample_rows(self, frac, seed=1):
+        """Downsample rows to a given fraction of the dataset.
+
+        Examples
+        --------
+
+        Downsample dataset to 1% of rows.
+
+        >>> small_dataset = dataset.sample_rows(0.01)
+
+        Notes
+        -----
+
+        This method may not sample exactly ``(fraction * n_rows)`` rows from
+        the dataset.
+
+        Parameters
+        ----------
+        frac : :obj:`float`
+            Expected fraction of rows to keep.
+        seed : :obj:`int`
+            Random seed.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+
+        if not (0 <= frac <= 1):
+            raise ValueError("Requires 'frac' in [0,1]. Found frac={}".format(frac))
+
+        return MatrixTable(self._jvds.sampleVariants(frac, seed))
+
 
 matrix_table_type.set(MatrixTable)

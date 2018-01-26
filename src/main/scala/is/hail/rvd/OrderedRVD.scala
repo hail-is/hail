@@ -73,7 +73,7 @@ class OrderedRVD private(
       partitioner,
       rdd.filter(p))
 
-  def sample(withReplacement: Boolean, fraction: Double, seed: Long): OrderedRVD =
+  override def sample(withReplacement: Boolean, fraction: Double, seed: Long): OrderedRVD =
     OrderedRVD(typ,
       partitioner,
       rdd.sample(withReplacement, fraction, seed))
