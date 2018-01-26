@@ -6,7 +6,7 @@ from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j, joption
-from .misc import require_biallelic
+from .misc import require_biallelic, require_unique_samples
 from hail.expr import functions
 import hail.expr.aggregators as agg
 from math import sqrt
@@ -444,10 +444,10 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     return (jiterable_to_list(r._1()), scores, loadings)
 
 @handle_py4j
-@typecheck(dataset=MatrixTable,
+@typecheck(ds=MatrixTable,
            k=integral,
            maf=numeric,
-           path=strlike,
+           path=nullable(strlike),
            block_size=integral,
            min_kinship=numeric,
            statistics=enumeration("phi", "phik2", "phik2k0", "all"))

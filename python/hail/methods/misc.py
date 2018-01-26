@@ -132,7 +132,7 @@ def require_biallelic(dataset, method):
     return dataset
 
 @handle_py4j
-@typecheck(ds=MatrixTable, method=strlike)
+@typecheck(ds=MatrixTable, method_name=strlike)
 def require_unique_samples(ds, method_name):
     ds._jvds.requireUniqueSamples(method_name)
     return ds
