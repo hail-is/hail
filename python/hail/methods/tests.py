@@ -463,3 +463,10 @@ class Tests(unittest.TestCase):
         if bad.count() != 0:
             bad.order_by(asc(bad.v)).show()
             self.fail('Found rows in violation of the predicate (see show output)')
+
+    def test_maximal_independent_set(self):
+        # prefer to remove nodes with higher index
+        t = Table.range(10)
+        graph = t.select(i = t.idx, j = t.idx + 10)
+        mis = methods.maximal_independent_set(graph.i, graph.j, lambda l, r: l - r)
+        self.assertEqual(sorted(mis), range(0, 10))

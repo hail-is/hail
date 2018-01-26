@@ -1267,7 +1267,8 @@ class Table(TableTemplate):
     @typecheck_method(n=integral,
                       num_partitions=nullable(integral))
     def range(cls, n, num_partitions=None):
-        """Construct a table with `n` rows with field `index` that ranges from 0 to ``n - 1``.
+        """Construct a table with `n` rows and one field `idx` that ranges from
+        0 to ``n - 1``.
 
         Examples
         --------
