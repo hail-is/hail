@@ -443,42 +443,15 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
         loadings = Table(loadings)
     return (jiterable_to_list(r._1()), scores, loadings)
 
-def pc_relate2(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
-    ds = require_biallelic(ds, 'hwe_normalized_pca')
-    ds = ds.annotate_rows(total_alt_alleles=agg.sum(ds.GT.num_alt_alleles()),
-                          n_called=agg.count_where(functions.is_defined(ds.GT)))
-
-    mean_imputed_gt = functions.bind(
-        ds.total_alt_alleles / ds.n_called,
-        lambda mean_gt: functions.cond(
-            functions.is_defined(ds.GT), ds.GT.num_alt_alleles().to_float64(), mean_gt))
-
-    g = BlockMatrix.from_matrix_table(mean_imputed_gt, path=path, block_size=block_size)
-
-    _, scores, _ = hwe_normalized_pca(ds, k, False, True)
-
-    intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
-    return Table(
-        scala_object(Env.hail().methods, 'PCRelate')
-        .newapply(Env.hc()._jhc,
-                  g._jbm,
-                  jarray(Env.jvm().java.lang.Object, [ds.colkey_schema._convert_to_j(x) for x in ds.col_keys()]),
-                  ds.colkey_schema._jtype,
-                  k,
-                  scores._jt,
-                  maf,
-                  block_size,
-                  min_kinship,
-                  intstatistics))
-
 @handle_py4j
-@typecheck_method(dataset=MatrixTable,
-                  k=integral,
-                  maf=numeric,
-                  block_size=integral,
-                  min_kinship=numeric,
-                  statistics=enumeration("phi", "phik2", "phik2k0", "all"))
-def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
+@typecheck(dataset=MatrixTable,
+           k=integral,
+           maf=numeric,
+           path=strlike,
+           block_size=integral,
+           min_kinship=numeric,
+           statistics=enumeration("phi", "phik2", "phik2k0", "all"))
+def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
     """Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -496,18 +469,18 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     components to correct for ancestral populations, and a minimum minor
     allele frequency filter of 0.01:
 
-    >>> rel = vds.pc_relate(10, 0.01)
+    >>> rel = ds.pc_relate(10, 0.01)
 
     Calculate values as above, but when performing distributed matrix
     multiplications use a matrix-block-size of 1024 by 1024.
 
-    >>> rel = vds.pc_relate(10, 0.01, 1024)
+    >>> rel = ds.pc_relate(10, 0.01, 1024)
 
     Calculate values as above, excluding sample-pairs with kinship less
     than 0.1. This is more efficient than producing the full table and
     filtering using :meth:`.Table.filter`.
 
-    >>> rel = vds.pc_relate(5, 0.01, min_kinship=0.1)
+    >>> rel = ds.pc_relate(5, 0.01, min_kinship=0.1)
 
 
     The traditional estimator for kinship between a pair of individuals
@@ -701,6 +674,9 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     maf : :obj:`float`
         The minimum individual-specific allele frequency for an allele used to
         measure relatedness.
+    path : :obj:`str`
+        A temporary directory to store intermediate matrices. Storing the matrices
+        to a file system is necessary for reliability of this method.
     block_size : :obj:`int`
         the side length of the blocks of the block-distributed matrices; this
         should be set such that at least three of these matrices fit in memory
@@ -723,21 +699,36 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         kinship and identity-by-descent zero, one, and two.
 
         The fields of the resulting :class:`.Table` entries are of types:
-        `i`: `String`, `j`: `String`, `kin`: `Double`, `k2`: `Double`,
+        `i`: ``ds.colkey_schema``, `j`: ``ds.colkey_schema``, `kin`: `Double`, `k2`: `Double`,
         `k1`: `Double`, `k0`: `Double`. The table is keyed by `i` and `j`.
     """
-    dataset = require_biallelic(dataset, 'pc_relate')
+    ds = require_biallelic(ds, 'pc_relate')
+    ds = require_unique_samples(ds, 'pc_relate')
+    ds = ds.annotate_rows(total_alt_alleles=agg.sum(ds.GT.num_alt_alleles()),
+                          n_called=agg.count_where(functions.is_defined(ds.GT)))
+
+    mean_imputed_gt = functions.bind(
+        ds.total_alt_alleles / ds.n_called,
+        lambda mean_gt: functions.cond(
+            functions.is_defined(ds.GT), ds.GT.num_alt_alleles().to_float64(), mean_gt))
+
+    g = BlockMatrix.from_matrix_table(mean_imputed_gt, path=path, block_size=block_size)
+
+    _, scores, _ = hwe_normalized_pca(ds, k, False, True)
+
     intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
-    _, scores, _ = hwe_normalized_pca(dataset, k, False, True)
     return Table(
         scala_object(Env.hail().methods, 'PCRelate')
-            .apply(dataset._jvds,
-                   k,
-                   scores._jt,
-                   maf,
-                   block_size,
-                   min_kinship,
-                   intstatistics))
+        .apply(Env.hc()._jhc,
+               g._jbm,
+               jarray(Env.jvm().java.lang.Object, [ds.colkey_schema._convert_to_j(x) for x in ds.col_keys()]),
+               ds.colkey_schema._jtype,
+               k,
+               scores._jt,
+               maf,
+               block_size,
+               min_kinship,
+               intstatistics))
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,

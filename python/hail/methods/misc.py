@@ -132,6 +132,12 @@ def require_biallelic(dataset, method):
     return dataset
 
 @handle_py4j
+@typecheck(ds=MatrixTable, method=strlike)
+def require_unique_samples(ds, method_name):
+    ds._jvds.requireUniqueSamples(method_name)
+    return ds
+
+@handle_py4j
 @typecheck(dataset=MatrixTable)
 def rename_duplicates(dataset):
     """Rename duplicate column keys.

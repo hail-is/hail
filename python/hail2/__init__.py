@@ -1,6 +1,7 @@
 import hail.expr.functions as functions
 import hail.expr.aggregators as agg
 import hail.methods as methods
+import hail.linalg as linalg
 from hail.api2 import MatrixTable, Table, HailContext
 from hail.expr import Type, TInt32, TInt64, TFloat32, TFloat64, TString, TBoolean, TArray, TSet, TDict, TStruct, \
     TLocus, TVariant, TAltAllele, TCall, TInterval, eval_expr, eval_expr_typed
