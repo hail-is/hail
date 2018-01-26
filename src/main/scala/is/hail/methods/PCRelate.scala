@@ -235,25 +235,6 @@ object PCRelate {
     new IndexedRowMatrix(rdd.cache(), partStarts.last, nSamples)
   }
 
-  /**
-    * g: SNP x Sample
-    * pcs: Sample x D
-    *
-    * result: (SNP x (D+1))
-    */
-  def fitBeta(g: IndexedRowMatrix, pcs: DenseMatrix[Double], blockSize: Int): M = {
-    import breeze.linalg.*
-
-    val aa = g.rows.sparkContext.broadcast(pcs(*, ::).map(_.toArray).toArray)
-    val rdd = g.rows.map { case IndexedRow(i, v) =>
-      val ols = new OLSMultipleLinearRegression()
-      ols.newSampleData(v.toArray, aa.value)
-      val a = ols.estimateRegressionParameters()
-      IndexedRow(i, Vectors.dense(a))
-    }
-    BlockMatrix.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.cols + 1), blockSize)
-  }
-
   def k1(k2: M, k0: M): M = {
     1.0 - (k2 :+ k0)
   }
