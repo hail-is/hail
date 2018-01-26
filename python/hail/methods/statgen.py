@@ -1015,7 +1015,14 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     weights in Hail using alternate allele frequencies stored in a row-indexd
     field `AF`, one can use the expression:
 
-    ``functions.dbeta(AF[0].min(AF[1]), 1.0, 25.0) ** 2``
+    .. testsetup:: *
+
+        ds2 = methods.variant_qc(dataset)
+
+    .. doctest::
+
+        >>> functions.dbeta(ds2.variant_qc.AF.min(1 - ds2.variant_qc.AF),
+        ...                 1.0, 25.0) ** 2
 
     In the logistic case, the phenotype must either be numeric (with all
     present values 0 or 1) or Boolean, in which case true and false are coded

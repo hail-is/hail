@@ -388,8 +388,16 @@ def Dict(keys, values):
 @typecheck(x=expr_numeric, a=expr_numeric, b=expr_numeric)
 def dbeta(x, a, b):
     """
-    Returns the probability density at x of a `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`__
-    with parameters a (alpha) and b (beta).
+    Returns the probability density at `x` of a `beta distribution
+    <https://en.wikipedia.org/wiki/Beta_distribution>`__ with parameters `a`
+    (alpha) and `b` (beta).
+
+    Examples
+    --------
+    .. doctest::
+
+        >> eval_expr(functions.dbeta(.2, 5, 20))
+        4.900377563180943
 
     Parameters
     ----------
@@ -403,13 +411,6 @@ def dbeta(x, a, b):
         The beta parameter in the beta distribution. The result is undefined
         for non-positive b.
     """
-    if not (x >= 0 and x <= 1):
-        raise ValueError("Requires 'x' in [0,1]. Found x={}".format(x))
-    if not (a > 0 and b > 0):
-        raise ValueError("Requires 'a' and 'b' to be strictly positive. Found a={}, b={}".format(a, b))
-    if a < 1 and x == 0:
-        raise ValueError("When 'a'<1, requires 'x' in (0,1], and when 'b'<1,"
-                         "requires 'x' in [0,1). Found a={}, b={}, x={}".format(a, b, x))
     return _func("dbeta", TFloat64(), x, a, b)
 
 @typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
@@ -676,18 +677,25 @@ def pl_dosage(pl):
     likelihoods with uniform prior. Only defined for bi-allelic variants. The
     `pl` argument must be length 3.
 
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.pl_dosage([5, 10, 100]))
+        0.24025307377482674
+
     Parameters
     ----------
-    pl : :obj:`.ArrayNumericExpression`
+    pl : :obj:`.ArrayInt32Expression`
         Length 3 list of bi-allelic Phred-scaled genotype likelihoods
 
     Returns
     -------
     :class:`.Float64Expression`
     """
-    if not isinstance(pl, ArrayNumericExpression):
+    if not isinstance(pl, ArrayInt32Expression):
         raise TypeError("Function 'pl_dosage' expects an expression of type "
-                        "'Array[numeric]'. Found {}".format(pl.dtype))
+                        "'Array[TInt32]'. Found {}".format(pl.dtype))
     return _func("plDosage", TFloat64(), pl)
 
 @typecheck(start=expr_locus, end=expr_locus)
