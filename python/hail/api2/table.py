@@ -1099,13 +1099,21 @@ class Table(TableTemplate):
             raise ExpressionException('Key mismatch: table has {} keys, found {} index expressions'.format(
                 len(self.key), len(exprs)))
 
-        i = 0
-        for k, e in zip(self.key, exprs):
-            if not self[k]._type == e._type:
+        if len(exprs) == 1 and exprs[0]._type == TVariant():
+            key_type = self[self.key[0]]._type
+            if not (key_type == TVariant() or
+                    key_type == TLocus() or
+                    key_type == TInterval(TLocus())):
                 raise ExpressionException(
-                    'Type mismatch at index {} of Table index: expected key type {}, found {}'.format(
-                        i, str(self[k]._type), str(e._type)))
-            i += 1
+                    'Type mismatch: expected key type TVariant(), TLocus(), '
+                    'or TInterval(TLocus()), found {}'.format(key_type))
+        else:
+            for i, (k, e) in enumerate(zip(self.key, exprs)):
+                if not self[k]._type == e._type:
+                    raise ExpressionException(
+                        'Type mismatch at index {} of Table index: '
+                        'expected key type {}, found {}'
+                        .format(type_error_idx, expected_type, found_type))
 
         indices, aggregations, joins, refs = unify_all(*exprs)
 
