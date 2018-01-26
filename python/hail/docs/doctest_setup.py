@@ -11,9 +11,10 @@ for f in files:
     if os.path.isdir(f):
         shutil.rmtree(f)
 
-hc = HailContext(log="output/hail.log", quiet=True)
+init(log="output/hail.log", quiet=True)
 
-hc1 = hc._hc1
+from hail.utils.java import Env
+hc1 = Env.hc()
 
 (hc1.import_vcf('data/sample.vcf.bgz')
     .sample_variants(0.03)
@@ -53,7 +54,7 @@ multiallelic_generic_vds = hc1.read('data/example2.multi.generic.vds')
 
 vds.split_multi_hts().ld_matrix().write("data/ld_matrix")
 
-table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
+table1 = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
 table1 = table1.annotate_globals(global_field_1 = 5, global_field_2 = 10)
 
 dataset = (vds.annotate_samples_expr('sa = merge(drop(sa, qc), {sample_qc: sa.qc})')

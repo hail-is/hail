@@ -8,18 +8,12 @@ import random
 from hail2 import *
 from hail.utils.misc import test_file
 
-hc = None
-
-
 def setUpModule():
-    global hc
-    hc = HailContext(master='local[2]', min_block_size=0)
+    init(master='local[2]', min_block_size=0)
 
 
 def tearDownModule():
-    global hc
-    hc.stop()
-    hc = None
+    stop()
 
 
 def schema_eq(x, y):
@@ -43,7 +37,7 @@ def convert_struct_to_dict(x):
 
 class TableTests(unittest.TestCase):
     def test_conversion(self):
-        kt_old = hc.import_table(test_file('sampleAnnotations.tsv'), impute=True).to_hail1()
+        kt_old = methods.import_table(test_file('sampleAnnotations.tsv'), impute=True).to_hail1()
         kt_new = kt_old.to_hail2()
         kt_old2 = kt_new.to_hail1()
         self.assertListEqual(kt_new.columns, ['Sample', 'Status', 'qPhen'])
@@ -299,7 +293,7 @@ class TableTests(unittest.TestCase):
 
         self.assertEqual(kt.filter(kt4[kt3[kt2[kt1[kt.a].b].c].d].e == 'quam').count(), 1)
 
-        m = hc.import_vcf('src/test/resources/sample.vcf')
+        m = methods.import_vcf('src/test/resources/sample.vcf')
         vkt = m.rows_table()
         vkt = vkt.select(vkt.v, vkt.qual)
         vkt = vkt.annotate(qual2=m[vkt.v, :].qual)
@@ -329,7 +323,7 @@ class TableTests(unittest.TestCase):
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):
-        return hc.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
+        return methods.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
 
     def testConversion(self):
         vds = self.get_vds()
@@ -471,7 +465,7 @@ class MatrixTests(unittest.TestCase):
         self.assertTrue(vds._same(repart))
 
     def tests_unions(self):
-        dataset = hc.import_vcf('src/test/resources/sample2.vcf')
+        dataset = methods.import_vcf('src/test/resources/sample2.vcf')
 
         # test union_rows
         ds1 = dataset.filter_rows(dataset.v.start % 2 == 1)
@@ -711,21 +705,21 @@ class ColumnTests(unittest.TestCase):
 
 class ContextTests(unittest.TestCase):
     def test_imports(self):
-        hc.index_bgen(test_file('example.v11.bgen'))
+        methods.index_bgen(test_file('example.v11.bgen'))
 
-        bgen = hc.import_bgen(test_file('example.v11.bgen'),
+        bgen = methods.import_bgen(test_file('example.v11.bgen'),
                               sample_file=test_file('example.sample'),
                               contig_recoding={"01": "1"}).rows_table()
         self.assertTrue(bgen.forall(bgen.v.contig == "1"))
         self.assertEqual(bgen.count(), 199)
 
-        gen = hc.import_gen(test_file('example.gen'),
+        gen = methods.import_gen(test_file('example.gen'),
                             sample_file=test_file('example.sample'),
                             contig_recoding={"01": "1"}).rows_table()
         self.assertTrue(gen.forall(gen.v.contig == "1"))
         self.assertEqual(gen.count(), 199)
 
-        vcf = hc.import_vcf(test_file('sample2.vcf'),
+        vcf = methods.import_vcf(test_file('sample2.vcf'),
                             reference_genome=GenomeReference.GRCh38(),
                             contig_recoding={"22": "chr22"}).to_hail1().split_multi_hts()
 
@@ -735,7 +729,7 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(vcf_table.forall(vcf_table.v.contig == "chr22"))
 
         bfile = '/tmp/sample_plink'
-        plink = hc.import_plink(
+        plink = methods.import_plink(
             bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True, contig_recoding={'chr22': '22'}).rows_table()
         self.assertTrue(plink.forall(plink.v.contig == "22"))
         self.assertEqual(vcf_table.count(), plink.count())
