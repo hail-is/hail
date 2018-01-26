@@ -1100,7 +1100,10 @@ class Table(TableTemplate):
          - ``missing``: The literal string to be printed for missing values.
            The default is ``'NA'``.
          - ``float_format``: The format string to be used for floating-point
-           values. The default is ``%.4e``, which prints scientific notation
+           values. The default is ``%.4e``, which prints scientific notation.
+           See the `full spec
+           <https://docs.oracle.com/javase/7/docs/api/java/util/Formatter.html>`__
+           for more information.
            with four significant figures after the decimal point.
          - ``bool_true``: The literal string to be printed for ``True`` values.
          - ``bool_false``: The literal string to be printed for ``False``
