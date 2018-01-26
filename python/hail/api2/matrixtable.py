@@ -1640,6 +1640,10 @@ class MatrixTable(object):
         self._jvds.write(output, overwrite)
 
     @handle_py4j
+    def col_keys(self):
+        return [row.s for row in self.cols_table().select('s').collect()]
+
+    @handle_py4j
     def rows_table(self):
         """Returns a table with all row fields in the matrix.
 

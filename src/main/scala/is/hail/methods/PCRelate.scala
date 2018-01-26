@@ -7,6 +7,7 @@ import is.hail.distributedmatrix.BlockMatrix.ops._
 import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
+import is.hail.HailContext
 import is.hail.variant.{HardCallView, MatrixTable, Variant}
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg.Vectors
@@ -32,7 +33,44 @@ object PCRelate {
   val defaultMinKinship = Double.NegativeInfinity
   val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
 
-  def apply(vds: MatrixTable, k: Int, pcaScores: Table, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): Table = {
+  def newapply(hc: HailContext,
+    blockedG: M,
+    columnKeys: Array[Annotation],
+    columnKeyType: Type,
+    k: Int,
+    pcaScores: Table,
+    maf: Double,
+    blockSize: Int,
+    minKinship: Double = PCRelate.defaultMinKinship,
+    statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): Table = {
+
+    if (blockedG.nCols > Integer.MAX_VALUE) {
+      fatal(s"PC Relate is incompatible with variant sample matrices containing more than ${Integer.MAX_VALUE} samples")
+    }
+    val nSamples = blockedG.nCols.toInt
+    val scoreArray = new Array[Double](nSamples * k)
+    val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
+    var i = 0
+    while (i < nSamples) {
+      val row = pcs(i).getAs[IndexedSeq[Double]](1)
+      var j = 0
+      while (j < k) {
+        scoreArray(j * nSamples + i) = row(j)
+        j += 1
+      }
+      i += 1
+    }
+    PCRelate.newtoTable(hc, blockedG, columnKeys, columnKeyType, new DenseMatrix[Double](nSamples, k, scoreArray), maf, blockSize, minKinship, statistics)
+  }
+
+  def apply(vds: MatrixTable,
+    k: Int,
+    pcaScores: Table,
+    maf: Double,
+    blockSize: Int,
+    minKinship: Double = PCRelate.defaultMinKinship,
+    statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): Table = {
+
     val scoreArray = new Array[Double](vds.nSamples * k)
     val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
     var i = 0
@@ -48,8 +86,8 @@ object PCRelate {
     PCRelate.toTable(vds, new DenseMatrix[Double](vds.nSamples, k, scoreArray), maf, blockSize, minKinship, statistics)
   }
 
-  private val signature =
-    TStruct(("i", TString()), ("j", TString()), ("kin", TFloat64()), ("k0", TFloat64()), ("k1", TFloat64()), ("k2", TFloat64()))
+  private def signature(columnKeyType: Type) =
+    TStruct(("i", columnKeyType), ("j", columnKeyType), ("kin", TFloat64()), ("k0", TFloat64()), ("k1", TFloat64()), ("k2", TFloat64()))
   private val keys = Array("i", "j")
 
   private def toRowRdd(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double, blockSize: Int, minKinship: Double, statistics: StatisticSubset): RDD[Row] = {
@@ -87,32 +125,67 @@ object PCRelate {
 
     statistics match {
       case PhiOnly => phi.blocks
-        .flatMap { case ((blocki, blockj), phi) => fuseBlocks(blocki, blockj, phi, null, null, null) }
+          .flatMap { case ((blocki, blockj), phi) => fuseBlocks(blocki, blockj, phi, null, null, null) }
       case PhiK2 => (phi.blocks join k2.blocks)
-        .flatMap { case ((blocki, blockj), (phi, k2)) => fuseBlocks(blocki, blockj, phi, null, null, k2) }
+          .flatMap { case ((blocki, blockj), (phi, k2)) => fuseBlocks(blocki, blockj, phi, null, null, k2) }
       case PhiK2K0 => (phi.blocks join k0.blocks join k2.blocks)
-        .flatMap { case ((blocki, blockj), ((phi, k0), k2)) => fuseBlocks(blocki, blockj, phi, k0, null, k2) }
+          .flatMap { case ((blocki, blockj), ((phi, k0), k2)) => fuseBlocks(blocki, blockj, phi, k0, null, k2) }
       case PhiK2K0K1 => (phi.blocks join k0.blocks join k1.blocks join k2.blocks)
-        .flatMap { case ((blocki, blockj), (((phi, k0), k1), k2)) => fuseBlocks(blocki, blockj, phi, k0, k1, k2) }
+          .flatMap { case ((blocki, blockj), (((phi, k0), k1), k2)) => fuseBlocks(blocki, blockj, phi, k0, k1, k2) }
+    }
+  }
+
+  private def toRowRdd(blockedG: M, sampleIds: Array[Annotation], pcs: DenseMatrix[Double], maf: Double, blockSize: Int, minKinship: Double, statistics: StatisticSubset): RDD[Row] = {
+    val Result(phi, k0, k1, k2) = new PCRelate(maf, blockSize).newapply(blockedG, pcs, statistics)
+
+    def fuseBlocks(i: Int, j: Int, lmPhi: DenseMatrix[Double], lmK0: DenseMatrix[Double], lmK1: DenseMatrix[Double], lmK2: DenseMatrix[Double]) = {
+      val iOffset = i * blockSize
+      val jOffset = j * blockSize
+
+      if (i <= j) {
+        val size = lmPhi.rows * lmPhi.cols
+        val ab = new ArrayBuilder[Row]()
+        var jj = 1
+        while (jj < lmPhi.cols) {
+          var ii = 0
+          // assumes square blocks
+          val rowsAboveDiagonal = if (i < j) lmPhi.rows else jj
+          while (ii < rowsAboveDiagonal) {
+            val kin = lmPhi(ii, jj)
+            if (kin >= minKinship) {
+              val k0 = if (lmK0 == null) null else lmK0(ii, jj)
+              val k1 = if (lmK1 == null) null else lmK1(ii, jj)
+              val k2 = if (lmK2 == null) null else lmK2(ii, jj)
+              ab += Annotation(sampleIds(iOffset + ii), sampleIds(jOffset + jj), kin, k0, k1, k2).asInstanceOf[Row]
+            }
+            ii += 1
+          }
+          jj += 1
+        }
+        ab.result()
+      } else
+        new Array[Row](0)
+    }
+
+    statistics match {
+      case PhiOnly => phi.blocks
+          .flatMap { case ((blocki, blockj), phi) => fuseBlocks(blocki, blockj, phi, null, null, null) }
+      case PhiK2 => (phi.blocks join k2.blocks)
+          .flatMap { case ((blocki, blockj), (phi, k2)) => fuseBlocks(blocki, blockj, phi, null, null, k2) }
+      case PhiK2K0 => (phi.blocks join k0.blocks join k2.blocks)
+          .flatMap { case ((blocki, blockj), ((phi, k0), k2)) => fuseBlocks(blocki, blockj, phi, k0, null, k2) }
+      case PhiK2K0K1 => (phi.blocks join k0.blocks join k1.blocks join k2.blocks)
+          .flatMap { case ((blocki, blockj), (((phi, k0), k1), k2)) => fuseBlocks(blocki, blockj, phi, k0, k1, k2) }
     }
   }
 
   def toTable(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, statistics: StatisticSubset = defaultStatisticSubset): Table =
-    Table(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship, statistics), signature, keys)
+    Table(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship, statistics), signature(TString()), keys)
+
+  def newtoTable(hc: HailContext, blockedG: M, columnKeys: Array[Annotation], columnKeyType: Type, pcs: DenseMatrix[Double], maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship, statistics: StatisticSubset = defaultStatisticSubset): Table =
+    Table(hc, toRowRdd(blockedG, columnKeys, pcs, maf, blockSize, minKinship, statistics), signature(columnKeyType), keys)
 
   private val k0cutoff = math.pow(2.0, -5.0 / 2.0)
-
-  private def prependConstantColumn(k: Double, m: DenseMatrix[Double]): DenseMatrix[Double] = {
-    val result = new Array[Double](m.rows * (m.cols + 1))
-    var i = 0
-    while (i < m.rows) {
-      result(i) = 1
-      i += 1
-    }
-    System.arraycopy(m.toArray, 0, result, m.rows, m.rows * m.cols)
-
-    new DenseMatrix(m.rows, m.cols + 1, result)
-  }
 
   def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
     val nSamples = vds.nSamples
@@ -169,6 +242,8 @@ object PCRelate {
     * result: (SNP x (D+1))
     */
   def fitBeta(g: IndexedRowMatrix, pcs: DenseMatrix[Double], blockSize: Int): M = {
+    import breeze.linalg.*
+
     val aa = g.rows.sparkContext.broadcast(pcs(*, ::).map(_.toArray).toArray)
     val rdd = g.rows.map { case IndexedRow(i, v) =>
       val ols = new OLSMultipleLinearRegression()
@@ -181,10 +256,6 @@ object PCRelate {
 
   def k1(k2: M, k0: M): M = {
     1.0 - (k2 :+ k0)
-  }
-
-  def solve(a: DenseMatrix[Double], b: M): M = {
-    breeze.linalg.inv(a) * b
   }
 }
 
@@ -209,13 +280,13 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   def apply(vds: MatrixTable, pcs: DenseMatrix[Double], statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
     vds.requireUniqueSamples("pc_relate")
     val g = vdsToMeanImputedMatrix(vds)
-    val mu = this.mu(g, pcs).cache()
     val blockedG = BlockMatrix.from(g, blockSize).cache()
 
-    apply(blockedG, mu, pcs, statistics)
+    newapply(blockedG, pcs, statistics)
   }
 
-  def apply(blockedG: M, mu: M, pcs: DenseMatrix, statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
+  def newapply(blockedG: M, pcs: DenseMatrix[Double], statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
+    val mu = this.mu(blockedG, pcs)
     val variance =
       BlockMatrix.map2 { (g, mu) =>
         if (badgt(g) || badmu(mu))
@@ -246,12 +317,16 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     * {@code pcs} is sample by numPCs
     *
     **/
-  private[methods] def mu(g: IndexedRowMatrix, pcs: DenseMatrix[Double]): M = {
-    val beta = fitBeta(g, pcs, blockSize)
+  private[methods] def mu(blockedG: M, pcs: DenseMatrix[Double]): M = {
+    import breeze.linalg._
 
-    val pcsWithIntercept = prependConstantColumn(1.0, pcs)
+    val pcsWithIntercept = DenseMatrix.horzcat(DenseMatrix.ones[Double](pcs.rows, 1), pcs)
 
-    (beta * pcsWithIntercept.t) / 2.0
+    val qr.QR(q, r) = qr.reduced(pcsWithIntercept)
+
+    val beta = blockedG.leftMultiply(q.t).leftMultiply(inv(r))
+
+    (beta.leftMultiply(pcsWithIntercept) / 2.0).t
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {

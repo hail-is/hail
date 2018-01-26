@@ -443,7 +443,7 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
         loadings = Table(loadings)
     return (jiterable_to_list(r._1()), scores, loadings)
 
-def pc_relate2(ds, k, maf, path=None, block_size=None, min_kinship=-float("inf"), statistics="all"):
+def pc_relate2(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
     ds = require_biallelic(ds, 'hwe_normalized_pca')
     ds = ds.annotate_rows(total_alt_alleles=agg.sum(ds.GT.num_alt_alleles()),
                           n_called=agg.count_where(functions.is_defined(ds.GT)))
@@ -451,7 +451,7 @@ def pc_relate2(ds, k, maf, path=None, block_size=None, min_kinship=-float("inf")
     mean_imputed_gt = functions.bind(
         ds.total_alt_alleles / ds.n_called,
         lambda mean_gt: functions.cond(
-            functions.is_defined(ds.GT), ds.GT, mean_gt))
+            functions.is_defined(ds.GT), ds.GT.num_alt_alleles().to_float64(), mean_gt))
 
     g = BlockMatrix.from_matrix_table(mean_imputed_gt, path=path, block_size=block_size)
 
@@ -460,16 +460,20 @@ def pc_relate2(ds, k, maf, path=None, block_size=None, min_kinship=-float("inf")
     intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
     return Table(
         scala_object(Env.hail().methods, 'PCRelate')
-            .apply(g._jbm,
-                   k,
-                   scores._jt,
-                   maf,
-                   block_size,
-                   min_kinship,
-                   intstatistics))
+        .newapply(Env.hc()._jhc,
+                  g._jbm,
+                  jarray(Env.jvm().java.lang.Object, [ds.colkey_schema._convert_to_j(x) for x in ds.col_keys()]),
+                  ds.colkey_schema._jtype,
+                  k,
+                  scores._jt,
+                  maf,
+                  block_size,
+                  min_kinship,
+                  intstatistics))
 
 @handle_py4j
-@typecheck_method(k=integral,
+@typecheck_method(dataset=MatrixTable,
+                  k=integral,
                   maf=numeric,
                   block_size=integral,
                   min_kinship=numeric,
@@ -1022,7 +1026,7 @@ def grm(dataset):
 
     return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
                                       grm,
-                                      [row.s for row in dataset.cols_table().select('s').collect()],
+                                      dataset.col_keys(),
                                       n_variants)
 
 @handle_py4j
@@ -1124,5 +1128,5 @@ def rrm(call_expr):
 
     return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
                                             rrm,
-                                            [row.s for row in dataset.cols_table().select('s').collect()],
+                                            dataset.col_keys(),
                                             n_variants)
