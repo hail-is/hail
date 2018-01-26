@@ -560,6 +560,11 @@ class MatrixTests(unittest.TestCase):
                 rt.value == "IB",
                 functions.is_missing(rt.value))))
 
+    def test_vcf_regression(self):
+        ds = hc.import_vcf(test_file('33alleles.vcf'))
+        self.assertEqual(
+            ds.filter_rows(ds.v.num_alleles() == 2).count_rows(), 0)
+
 class FunctionsTests(unittest.TestCase):
     def test(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
