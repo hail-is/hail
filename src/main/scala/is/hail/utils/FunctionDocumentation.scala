@@ -317,7 +317,7 @@ object FunctionDocumentation {
     """
     .. testsetup::
 
-        vds = hc1.read("data/example.vds").annotate_variants_expr('va.genes = ["ACBD", "DCBA"]')
+        vds = hc.read("data/example.vds").annotate_variants_expr('va.genes = ["ACBD", "DCBA"]')
     """)
 
   def writeFile(filename: String, text: String) = {

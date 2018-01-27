@@ -15,14 +15,11 @@ from math import sqrt
 hc = None
 
 def setUpModule():
-    global hc
-    hc = HailContext()  # master = 'local[2]')
+    init(master='local[2]', min_block_size=0)
 
 
 def tearDownModule():
-    global hc
-    hc.stop()
-    hc = None
+    stop()
 
 
 class Tests(unittest.TestCase):
@@ -30,7 +27,7 @@ class Tests(unittest.TestCase):
 
     def get_dataset(self):
         if Tests._dataset is None:
-            Tests._dataset = hc.import_vcf(test_file('sample.vcf')).to_hail1().split_multi_hts().to_hail2()
+            Tests._dataset = methods.split_multi_hts(methods.import_vcf(test_file('sample.vcf')))
         return Tests._dataset
 
     def test_ibd(self):
@@ -92,12 +89,12 @@ class Tests(unittest.TestCase):
         ldm = methods.ld_matrix(dataset, force_local=True)
 
     def test_linreg(self):
-        dataset = hc.import_vcf('src/test/resources/regressionLinear.vcf')
+        dataset = methods.import_vcf('src/test/resources/regressionLinear.vcf')
 
-        phenos = hc.import_table('src/test/resources/regressionLinear.pheno',
+        phenos = methods.import_table('src/test/resources/regressionLinear.pheno',
                                  types={'Pheno': TFloat64()},
                                  key='Sample')
-        covs = hc.import_table('src/test/resources/regressionLinear.cov',
+        covs = methods.import_table('src/test/resources/regressionLinear.cov',
                                types={'Cov1': TFloat64(), 'Cov2': TFloat64()},
                                key='Sample')
 
@@ -112,9 +109,9 @@ class Tests(unittest.TestCase):
     def test_trio_matrix(self):
         ped = Pedigree.read('src/test/resources/triomatrix.fam')
         from hail import KeyTable
-        fam_table = KeyTable.import_fam('src/test/resources/triomatrix.fam').to_hail2()
+        fam_table = methods.import_fam('src/test/resources/triomatrix.fam')
 
-        dataset = hc.import_vcf('src/test/resources/triomatrix.vcf')
+        dataset = methods.import_vcf('src/test/resources/triomatrix.vcf')
         dataset = dataset.annotate_cols(fam = fam_table[dataset.s])
 
         tm = methods.trio_matrix(dataset, ped, complete_trios=True)
@@ -248,12 +245,12 @@ class Tests(unittest.TestCase):
         k = 3
         fst = .9
 
-        dataset = hc._hc1.balding_nichols_model(k,
+        dataset = methods.balding_nichols_model(k,
                                                 n1,
                                                 m1,
                                                 fst=(k * [fst]),
                                                 seed=seed,
-                                                num_partitions=4).to_hail2()
+                                                num_partitions=4)
 
         def direct_calculation(ds):
             ds = BlockMatrix.from_matrix_table(ds['GT'].num_alt_alleles()).to_numpy_matrix()
@@ -296,7 +293,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(manual, rrm))
 
     def test_pca(self):
-        dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()
+        dataset = methods.balding_nichols_model(3, 100, 100)
         eigenvalues, scores, loadings = methods.pca(dataset.GT.num_alt_alleles(), k=2, compute_loadings=True)
 
         self.assertEqual(len(eigenvalues), 2)
@@ -309,7 +306,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(loadings, None)
 
     def test_pcrelate(self):
-        dataset = hc._hc1.balding_nichols_model(3, 100, 100).to_hail2()
+        dataset = methods.balding_nichols_model(3, 100, 100)
         t = methods.pc_relate(dataset, 2, 0.05, block_size=64, statistics="phi")
 
         self.assertTrue(isinstance(t, Table))
@@ -321,9 +318,9 @@ class Tests(unittest.TestCase):
         self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
 
     def test_split_multi_hts(self):
-        ds1 = hc.import_vcf('src/test/resources/split_test.vcf')
+        ds1 = methods.import_vcf('src/test/resources/split_test.vcf')
         ds1 = methods.split_multi_hts(ds1)
-        ds2 = hc.import_vcf('src/test/resources/split_test_b.vcf')
+        ds2 = methods.import_vcf('src/test/resources/split_test_b.vcf')
         self.assertEqual(ds1.aggregate_entries(foo = agg.product((ds1.wasSplit == (ds1.v.start != 1180)).to_int32())).foo, 1)
         ds1 = ds1.drop('wasSplit','aIndex')
         # required python3
@@ -346,13 +343,13 @@ class Tests(unittest.TestCase):
         dataset.annotate_rows(mendel=var[dataset.v]).count_rows()
 
     def test_export_vcf(self):
-        dataset = hc.import_vcf('src/test/resources/sample.vcf.bgz')
-        vcf_metadata = hc.get_vcf_metadata('src/test/resources/sample.vcf.bgz')
+        dataset = methods.import_vcf('src/test/resources/sample.vcf.bgz')
+        vcf_metadata = methods.get_vcf_metadata('src/test/resources/sample.vcf.bgz')
         methods.export_vcf(dataset, '/tmp/sample.vcf', metadata=vcf_metadata)
-        dataset_imported = hc.import_vcf('/tmp/sample.vcf')
+        dataset_imported = methods.import_vcf('/tmp/sample.vcf')
         self.assertTrue(dataset._same(dataset_imported))
 
-        metadata_imported = hc.get_vcf_metadata('/tmp/sample.vcf')
+        metadata_imported = methods.get_vcf_metadata('/tmp/sample.vcf')
         self.assertDictEqual(vcf_metadata, metadata_imported)
 
     def test_concordance(self):
@@ -437,10 +434,10 @@ class Tests(unittest.TestCase):
     def test_tdt(self):
         pedigree = Pedigree.read(test_file('tdt.fam'))
         tdt_tab = (methods.tdt(
-            methods.split_multi_hts(hc.import_vcf(test_file('tdt.vcf'), min_partitions=4)),
+            methods.split_multi_hts(methods.import_vcf(test_file('tdt.vcf'), min_partitions=4)),
             pedigree))
 
-        truth = hc.import_table(
+        truth = methods.import_table(
             test_file('tdt_results.tsv'),
             types={'POSITION': TInt32(), 'T': TInt32(), 'U': TInt32(),
                    'Chi2': TFloat64(), 'Pval': TFloat64()})

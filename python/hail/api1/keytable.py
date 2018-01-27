@@ -47,7 +47,7 @@ class KeyTable(HistoryMixin):
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
 
-    >>> kt1 = hc1.import_table('data/kt_example1.tsv', impute=True)
+    >>> kt1 = hc.import_table('data/kt_example1.tsv', impute=True)
 
     +--+---+---+-+-+----+----+----+
     |ID|HT |SEX|X|Z| C1 | C2 | C3 |
@@ -61,7 +61,7 @@ class KeyTable(HistoryMixin):
     |4 |60 |F  |8|2|11	|90  |-10 |
     +--+---+---+-+-+----+----+----+
 
-    >>> kt2 = hc1.import_table('data/kt_example2.tsv', impute=True)
+    >>> kt2 = hc.import_table('data/kt_example2.tsv', impute=True)
 
     +---+---+------+
     |ID	|A  |B     |
@@ -783,7 +783,7 @@ class KeyTable(HistoryMixin):
         Assume ``kt3`` is a :class:`.KeyTable` with three columns: c1, c2 and
         c3.
 
-        >>> kt3 = hc1.import_table('data/kt_example3.tsv', impute=True,
+        >>> kt3 = hc.import_table('data/kt_example3.tsv', impute=True,
         ...                       types={'c1': TString(), 'c2': TArray(TInt32()), 'c3': TArray(TArray(TInt32()))})
 
         The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
@@ -1320,7 +1320,7 @@ class KeyTable(HistoryMixin):
 
         Take the union of rows from two tables:
 
-        >>> other = hc1.import_table('data/kt_example1.tsv', impute=True)
+        >>> other = hc.import_table('data/kt_example1.tsv', impute=True)
         >>> union_kt = kt1.union(other)
 
         **Notes**
@@ -1504,7 +1504,7 @@ class KeyTable(HistoryMixin):
         Prune individuals from a dataset until no close relationships remain
         with respect to a PC-Relate measure of kinship.
 
-        >>> vds = hc1.import_vcf("data/sample.vcf.bgz")
+        >>> vds = hc.import_vcf("data/sample.vcf.bgz")
         >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
         >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
         >>> related_samples_to_keep = related_pairs.maximal_independent_set("i", "j")
@@ -1513,7 +1513,7 @@ class KeyTable(HistoryMixin):
 
         Prune individuals from a dataset, prefering to keep cases over controls.
 
-        >>> vds = hc1.read("data/example.vds")
+        >>> vds = hc.read("data/example.vds")
         >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
         >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
         >>> related_samples_to_keep = (related_pairs
@@ -1576,7 +1576,7 @@ class KeyTable(HistoryMixin):
 
         ``kt4`` is a :class:`.KeyTable` with five columns: A, B, C, D and E.
 
-        >>> kt4 = hc1.import_table('data/kt_example4.tsv', impute=True,
+        >>> kt4 = hc.import_table('data/kt_example4.tsv', impute=True,
         ...                       types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
         ...                              'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
         ...                              'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
@@ -1636,7 +1636,7 @@ class KeyTable(HistoryMixin):
 
         ``kt5`` is a :class:`.KeyTable` with three columns: A, B, and C.
 
-        >>> kt5 = hc1.import_table('data/kt_example5.tsv', impute=True)
+        >>> kt5 = hc.import_table('data/kt_example5.tsv', impute=True)
 
         The types of each column are ``Int32``, ``Boolean`` and ``String`` respectively.
 
