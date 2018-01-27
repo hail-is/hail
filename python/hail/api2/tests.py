@@ -36,13 +36,6 @@ def convert_struct_to_dict(x):
 
 
 class TableTests(unittest.TestCase):
-    def test_conversion(self):
-        kt_old = methods.import_table(test_file('sampleAnnotations.tsv'), impute=True).to_hail1()
-        kt_new = kt_old.to_hail2()
-        kt_old2 = kt_new.to_hail1()
-        self.assertListEqual(kt_new.columns, ['Sample', 'Status', 'qPhen'])
-        self.assertTrue(kt_old.same(kt_old2))
-
     def test_annotate(self):
         schema = TStruct(['a', 'b', 'c', 'd', 'e', 'f'],
                          [TInt32(), TInt32(), TInt32(), TInt32(), TString(), TArray(TInt32())])
@@ -54,7 +47,7 @@ class TableTests(unittest.TestCase):
         kt = Table.parallelize(rows, schema)
 
         result1 = convert_struct_to_dict(kt.annotate(foo=kt.a + 1,
-                                                     foo2=kt.a).to_hail1().take(1)[0])
+                                                     foo2=kt.a).take(1)[0])
 
         self.assertDictEqual(result1, {'a': 4,
                                        'b': 1,
@@ -70,7 +63,7 @@ class TableTests(unittest.TestCase):
                                                         'b.y': 23,
                                                         'b.z': True,
                                                         'b.q.hello': [1, 2, 3]}
-                                                     ).to_hail1().take(1)[0])
+                                                     ).take(1)[0])
 
         self.assertDictEqual(result2, {'a': {'foo': 5},
                                        'b': {'x': "hello", 'y': 23, 'z': True, 'q': {'hello': [1, 2, 3]}},
@@ -95,7 +88,7 @@ class TableTests(unittest.TestCase):
             x13=kt.f.map(lambda x: [[x, x + 1], [x + 2]]).flatmap(lambda x: x),
             x14=functions.cond(kt.a < kt.b, kt.c, functions.null(TInt32())),
             x15={1, 2, 3}
-        ).to_hail1().take(1)[0])
+        ).take(1)[0])
 
         self.assertDictEqual(result3, {'a': 4,
                                        'b': 1,
@@ -241,7 +234,7 @@ class TableTests(unittest.TestCase):
                            x14=agg.call_stats(kt.GT, Variant("1", 10000, "A", "T")),
                            x15=agg.collect(Struct(a=5, b="foo", c=Struct(banana='apple')))[0],
                            x16=agg.collect(Struct(a=5, b="foo", c=Struct(banana='apple')).c.banana)[0]
-                           ).to_hail1().take(1)[0])
+                           ).take(1)[0])
 
         expected = {u'status': 0,
                     u'x13': {u'nCalled': 2L, u'expectedHoms': 1.64, u'Fstat': -1.777777777777777, u'observedHoms': 1L},
@@ -324,14 +317,6 @@ class TableTests(unittest.TestCase):
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):
         return methods.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
-
-    def testConversion(self):
-        vds = self.get_vds()
-        vds_old = vds.to_hail1()
-        vds_new = vds_old.to_hail2()
-        self.assertTrue(vds._same(vds_new))
-        vds_old2 = vds_new.to_hail1()
-        self.assertTrue(vds_old.same(vds_old2))
 
     def test_update(self):
         vds = self.get_vds()
@@ -630,7 +615,7 @@ class FunctionsTests(unittest.TestCase):
             sqrt=functions.sqrt(kt.a),
             to_str=[functions.to_str(5), functions.to_str(kt.a), functions.to_str(kt.g)],
             where=functions.cond(kt.i, 5, 10)
-        ).to_hail1().take(1)[0])
+        ).take(1)[0])
 
         # print(result) # Fixme: Add asserts
 
@@ -683,7 +668,7 @@ class ColumnTests(unittest.TestCase):
             x34=(kt.a == 0) | (kt.b == 5),
             x35=False,
             x36=True
-        ).to_hail1().take(1)[0])
+        ).take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
                     'x1': 9, 'x2': 9, 'x3': 5,
@@ -712,7 +697,7 @@ class ColumnTests(unittest.TestCase):
             x4=kt.a[1:2],
             x5=kt.a[-1:2],
             x6=kt.a[:2]
-        ).to_hail1().take(1)[0])
+        ).take(1)[0])
 
         expected = {'a': [1, 2, 3], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3],
                     'x4': [2], 'x5': [], 'x6': [1, 2]}
@@ -736,7 +721,7 @@ class ColumnTests(unittest.TestCase):
             x7=kt.a.values(),
             x8=kt.a.size(),
             x9=kt.a.map_values(lambda v: v * 2.0)
-        ).to_hail1().take(1)[0])
+        ).take(1)[0])
 
         expected = {'a': {'cat': 3, 'dog': 7}, 'x': 2.0, 'x1': 3, 'x2': 7, 'x3': False,
                     'x4': False, 'x5': {'cat', 'dog'}, 'x6': ['cat', 'dog'],
@@ -799,13 +784,14 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(gen.forall(gen.v.contig == "1"))
         self.assertEqual(gen.count(), 199)
 
-        vcf = methods.import_vcf(test_file('sample2.vcf'),
-                            reference_genome=GenomeReference.GRCh38(),
-                            contig_recoding={"22": "chr22"}).to_hail1().split_multi_hts()
+        vcf = methods.split_multi_hts(
+            methods.import_vcf(test_file('sample2.vcf'),
+                               reference_genome=GenomeReference.GRCh38(),
+                               contig_recoding={"22": "chr22"}))
 
-        vcf.export_plink('/tmp/sample_plink')
+        methods.export_plink(vcf, '/tmp/sample_plink')
 
-        vcf_table = vcf.to_hail2().rows_table()
+        vcf_table = vcf.rows_table()
         self.assertTrue(vcf_table.forall(vcf_table.v.contig == "chr22"))
 
         bfile = '/tmp/sample_plink'
