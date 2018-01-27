@@ -616,6 +616,7 @@ class FunctionsTests(unittest.TestCase):
             or_missing=functions.or_missing(kt.i, kt.j),
             pchisqtail=functions.pchisqtail(kt.a.to_float64(), kt.b.to_float64()),
             pcoin=functions.rand_bool(0.5),
+
             pnorm=functions.pnorm(0.2),
             pow=2.0 ** kt.b,
             ppois=functions.ppois(kt.a.to_float64(), kt.b.to_float64()),

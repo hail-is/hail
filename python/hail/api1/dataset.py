@@ -384,47 +384,6 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
     @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_samples_expr(self, expr):
-        """Annotate samples with expression.
-
-        **Examples**
-
-        Compute per-sample GQ statistics for hets:
-
-        >>> vds_result = (vds.annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.GT.isHet()).map(g => g.GQ).stats()')
-        ...                  .samples_table()
-        ...                  .select(['sample = s', 'het_gq_mean = sa.gqHetStats.mean'])
-        ...                  .export('output/samples.txt'))
-
-        Compute the list of genes with a singleton LOF per sample:
-
-        >>> variant_annotations_table = hc.import_table('data/consequence.tsv', impute=True).key_by('Variant')
-        >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, expr='va.consequence = table.Consequence')
-        ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.GT.nNonRefAlleles()).sum() == 1')
-        ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.GT.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
-
-        To create an annotation for only a subset of samples based on an existing annotation:
-
-        >>> vds_result = vds.annotate_samples_expr('sa.newpheno = if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Float64')
-
-        .. note::
-
-            For optimal performance, be sure to explicitly give the alternative (``NA``) the same type as the consequent (``sa.pheno.bloodPressure``).
-
-        **Notes**
-
-        ``expr`` is in sample context so the following symbols are in scope:
-
-        - ``s`` (*Sample*): sample
-        - ``sa``: sample annotations
-        - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): aggregable of genotype for sample ``s``
-
-        :param expr: Annotation expression.
-        :type expr: str or list of str
-
-        :return: Annotated variant dataset.
-        :rtype: :class:`.VariantDataset`
-        """
 
         if isinstance(expr, list):
             expr = ','.join(expr)
@@ -666,130 +625,6 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                       expr=nullable(strlike),
                       product=bool)
     def annotate_variants_table(self, table, root=None, expr=None, product=False):
-        """Annotate variants with a key table.
-
-        **Examples**
-
-        Add annotations from a variant-keyed tab separated file:
-
-        >>> table = hc.import_table('data/variant-lof.tsv', impute=True).key_by('v')
-        >>> vds_result = vds.annotate_variants_table(table, root='va.lof')
-
-        Add annotations from a locus-keyed TSV:
-
-        >>> kt = hc.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
-        >>> vds_result = vds.annotate_variants_table(table, root='va.scores')
-
-        Annotate variants with the target in a GATK interval list file:
-
-        >>> intervals = KeyTable.import_interval_list('data/exons2.interval_list')
-        >>> vds_result = vds.annotate_variants_table(intervals, root='va.exon')
-
-        Annotate variants with all targets from matching intervals in a GATK interval list file:
-
-        >>> intervals = KeyTable.import_interval_list('data/exons2.interval_list')
-        >>> vds_result = vds.annotate_variants_table(intervals, root='va.exons', product=True)
-
-        Annotate variants using a UCSC BED file, marking each variant true/false for an overlap with any interval:
-
-        >>> intervals = KeyTable.import_bed('data/file2.bed')
-        >>> vds_result = vds.annotate_variants_table(intervals, root='va.bed')
-
-        **Notes**
-
-        This method takes as an argument a :class:`.KeyTable` object. Hail has default join strategies
-        for tables keyed by Variant, Locus, or Interval.
-
-        **Join strategies:**
-
-        If the key is a ``Variant``, then a variant in the dataset will match a variant in the
-        table that is equivalent. Be careful, however: ``1:1:A:T`` does not match ``1:1:A:T,C``,
-        and vice versa.
-
-        If the key is a ``Locus``, then a variant in the dataset will match any locus in the table
-        which is equivalent to ``v.locus`` (same chromosome and position).
-
-        If the key is an ``Interval``, then a variant in the dataset will match any interval in
-        the table that contains the variant's locus (chromosome and position).
-
-        **The** ``root`` **and** ``expr`` **arguments**
-
-        .. note::
-
-            One of ``root`` or ``expr`` is required, but not both.
-
-        The ``expr`` parameter expects an annotation assignment involving ``va`` (the existing
-        variant annotations in the dataset) and ``table`` (the values(s) in the table),
-        like ``va.col1 = table.col1, va.col2 = table.col2`` or ``va = merge(va, table)``.
-        The ``root`` parameter expects an annotation path beginning in ``va``, like ``va.annotations``.
-        Passing ``root='va.annotations'`` is the same as passing ``expr='va.annotations = table'``.
-
-        ``expr`` has the following symbols in scope:
-
-          - ``va``: variant annotations
-          - ``table``: See note.
-
-        .. note::
-
-            The value of ``table`` inside root/expr depends on the number of values in the key table,
-            as well as the ``product`` argument. There are three behaviors based on the number of values
-            and one branch for ``product`` being true and false, for a total of six modes:
-
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | Number of value columns | ``product`` | Type of  ``table`` | Value of  ``table``                           |
-            +=========================+=============+====================+===============================================+
-            | More than 2             | False       | ``Struct``         | Struct with an element for each column.       |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | 1                       | False       | ``T``              | The value column.                             |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | 0                       | False       | ``Boolean``        | Existence of any matching key.                |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | More than 2             | True        | ``Array[Struct]``  | An array with a struct for each matching key. |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | 1                       | True        | ``Array[T]``       | An array with a value for each matching key.  |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | 0                       | True        | ``Int``            | The number of matching keys.                  |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-
-        **Common uses for the** ``expr`` **argument**
-
-        Put annotations on the top level under ``va``:
-
-        .. code-block:: text
-
-            expr='va = merge(va, table)'
-
-        Annotate only specific annotations from the table:
-
-        .. code-block:: text
-
-            expr='va.annotations = select(table, toKeep1, toKeep2, toKeep3)'
-
-        The above is roughly equivalent to:
-
-        .. code-block:: text
-
-            expr='''va.annotations.toKeep1 = table.toKeep1,
-                va.annotations.toKeep2 = table.toKeep2,
-                va.annotations.toKeep3 = table.toKeep3'''
-
-        Finally, for more information about importing key tables from text,
-        see the documentation for :meth:`hail.api1.HailContext.import_table`.
-
-        :param table: Key table.
-        :type table: :class:`.KeyTable`
-
-        :param root: Variant annotation path to store text table. (This or ``expr`` required).
-        :type root: str or None
-
-        :param expr: Annotation expression. (This or ``root`` required).
-        :type expr: str or None
-
-        :param bool product: Join with all matching keys (see note).
-
-        :return: Annotated variant dataset.
-        :rtype: :class:`.VariantDataset`
-        """
         jvds = self._jvds.annotateVariantsTable(table._jkt, root, expr, product)
         return VariantDataset(self.hc, jvds)
 
@@ -1091,7 +926,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                 assert db_file != 'gs://annotationdb/gene/gene.kt'
 
                 # annotate analysis VDS with database keytable
-                self = self.annotate_variants_table(self.hc.read_table(db_file), expr=expr)
+                self = self.annotate_variants_table(self.hc.read_table(db_file), expr=expr, vds_key=vds_key)
 
             else:
                 continue
