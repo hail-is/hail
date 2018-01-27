@@ -680,16 +680,6 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         >>> kt = hc.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
         >>> vds_result = vds.annotate_variants_table(table, root='va.scores')
 
-<<<<<<< f2aad11110329a27b3f55f37f2a08bf1b7c59472
-=======
-        Add annotations from a gene-and-type-keyed TSV:
-
-        >>> table = hc.import_table('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
-        >>> vds_result = (vds.annotate_variants_table(table,
-        ...       root='va.foo',
-        ...       vds_key=['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
-
->>>>>>> Remove Hail2 HailContext, do automatic or explicit init instead. (#2820)
         Annotate variants with the target in a GATK interval list file:
 
         >>> intervals = KeyTable.import_interval_list('data/exons2.interval_list')
@@ -1101,11 +1091,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                 assert db_file != 'gs://annotationdb/gene/gene.kt'
 
                 # annotate analysis VDS with database keytable
-<<<<<<< f2aad11110329a27b3f55f37f2a08bf1b7c59472
-                self = self.annotate_variants_table(self.hc1.read_table(db_file), expr=expr)
-=======
-                self = self.annotate_variants_table(self.hc.read_table(db_file), expr=expr, vds_key=vds_key)
->>>>>>> Remove Hail2 HailContext, do automatic or explicit init instead. (#2820)
+                self = self.annotate_variants_table(self.hc.read_table(db_file), expr=expr)
 
             else:
                 continue
