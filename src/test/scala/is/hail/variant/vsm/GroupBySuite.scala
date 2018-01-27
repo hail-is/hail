@@ -73,7 +73,7 @@ class GroupBySuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64()), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateVariantsTable(intervals, root="va.genes", product=true)
+      .annotateVariantsTable(intervals, expr="va.genes = table.map(x => x.target)", product=true)
       .annotateVariantsExpr("va.weight = v.start.toFloat64")
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")

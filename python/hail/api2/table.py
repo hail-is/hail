@@ -1206,7 +1206,7 @@ class Table(TableTemplate):
 
                     return construct_expr(
                         ApplyMethod('get',
-                                    Select(Reference('va'), uid),
+                                    Select(Select(Reference('va'), uid), 'values'),
                                     StructDeclaration(uids, [e._ast for e in exprs])),
                         new_schema, indices, aggregations, joins.push(Join(joiner, [uid])))
             elif indices == src._col_indices:

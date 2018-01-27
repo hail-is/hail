@@ -1051,23 +1051,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     if (!((root != null) ^ (expr != null)))
       fatal("method `annotateVariantsTable' requires one of `root' or 'expr', but not both")
 
-    val ktValueType = kt.valueSignature
+    var valueType: Type = kt.valueSignature
 
-    var (valueType, f): (Type, Annotation => Annotation) = ktValueType.size match {
-      case 0 => (TBoolean(), _ != null)
-      case 1 => (ktValueType.fields.head.typ, x => if (x != null) x.asInstanceOf[Row].get(0) else null)
-      case _ => (ktValueType, identity[Annotation])
-    }
-
-    if (product) {
-      valueType = if (valueType.isInstanceOf[TBoolean]) TInt32(valueType.required) else TArray(valueType)
-      f = if (ktValueType.size == 0)
-        _.asInstanceOf[IndexedSeq[_]].length
-      else {
-        val g = f
-        _.asInstanceOf[IndexedSeq[_]].map(g)
-      }
-    }
+    if (product)
+      valueType = TArray(valueType)
 
     val (newVAType, inserter) = {
       val (t, ins) = if (expr != null) {
@@ -1075,9 +1062,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           "va" -> (0, vaSignature),
           "table" -> (1, valueType)))
         Annotation.buildInserter(expr, vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else insertVA(valueType, Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
+      } else
+        insertVA(valueType, Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
 
-      (t, (a: Annotation, toIns: Annotation) => ins(a, f(toIns)))
+      (t, (a: Annotation, toIns: Annotation) => ins(a, toIns))
     }
 
     val keyTypes = kt.keyFields.map(_.typ)
@@ -1548,7 +1536,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     }
 
     val t = annotateVariantsExpr("va = {save_va: va}")
-      .annotateVariantsTable(kt.select(kt.key), root = "va.predicate")
+      .annotateVariantsTable(kt.select(kt.key), expr = "va.predicate = isDefined(table)")
       .filterVariantsExpr("va.predicate", keep = keep)
     assert(t.vaSignature.asInstanceOf[TStruct].field("predicate").typ == TBoolean())
 
