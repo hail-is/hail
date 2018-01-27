@@ -2047,17 +2047,17 @@ class Table(TableTemplate):
     @handle_py4j
     @typecheck_method(expand=bool,
                       flatten=bool)
-    def to_dataframe(self, expand=True, flatten=True):
+    def to_spark(self, expand=True, flatten=True):
         """Converts this key table to a Spark DataFrame.
 
         Parameters
         ----------
-        expand : bool
-            If true, expand_types before converting to Pandas DataFrame.
+        expand : :obj:`bool`
+            If True, expand_types before converting to Pandas DataFrame.
 
-        flatten : bool
-            If true, flatten before converting to Pandas DataFrame.
-            If `expand` and `flatten` are true, flatten is run after
+        flatten : :obj:`bool`
+            If True, flatten before converting to Pandas DataFrame.
+            If `expand` and `flatten` are True, flatten is run after
             expand so that expanded types are flattened.
 
         Returns
@@ -2080,12 +2080,12 @@ class Table(TableTemplate):
 
         Parameters
         ----------
-        expand : bool
-            If true, expand_types before converting to Pandas DataFrame.
+        expand : :obj:`bool`
+            If True, expand_types before converting to Pandas DataFrame.
 
-        flatten : bool
-            If true, flatten before converting to Pandas DataFrame.
-            If `expand` and `flatten` are true, flatten is run after
+        flatten : :obj:`bool`
+            If True, flatten before converting to Pandas DataFrame.
+            If `expand` and `flatten` are True, flatten is run after
             expand so that expanded types are flattened.
 
         Returns
@@ -2093,7 +2093,7 @@ class Table(TableTemplate):
         :class:`.pandas.DataFrame`
             Pandas DataFrame constructed from the table.
         """
-        return self.to_dataframe(expand, flatten).toPandas()
+        return self.to_spark(expand, flatten).toPandas()
 
 
 table_type.set(Table)

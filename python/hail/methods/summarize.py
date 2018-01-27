@@ -8,6 +8,8 @@ from hail.utils import Summary
 def summarize(ds):
     """Returns a summary of useful information about the dataset.
 
+    .. include:: ../_templates/experimental.rst
+
     .. include:: ../_templates/req_tvariant.rst
 
     Examples
