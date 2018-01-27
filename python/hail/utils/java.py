@@ -53,7 +53,11 @@ class Env:
     @staticmethod
     def hc():
         if not Env._hc:
-            raise EnvironmentError('no Hail context initialized, create one first')
+            from hail2 import init
+            import sys
+            sys.stderr.write("Initializing Spark and Hail with default parameters...\n")
+            init()
+            assert Env._hc is not None
         return Env._hc
 
 

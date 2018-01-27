@@ -1,10 +1,11 @@
 from hail.typecheck import *
-from hail.utils.java import Env, handle_py4j, joption, FatalError
+from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args
 from hail.api2 import Table, MatrixTable
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
 from hail.genetics import GenomeReference
 from hail.methods.misc import require_biallelic
+
 
 @handle_py4j
 @typecheck(table=Table,
@@ -23,6 +24,7 @@ def export_cassandra(table, address, keyspace, table_name, block_size=100, rate=
 
     table._jkt.exportCassandra(address, keyspace, table_name, block_size, rate)
 
+
 @handle_py4j
 @typecheck(dataset=MatrixTable,
            output=strlike,
@@ -39,8 +41,8 @@ def export_gen(dataset, output, precision=4):
     Import genotype probability data, filter variants based on INFO score, and
     export data to a GEN and SAMPLE file:
     
-    >>> ds = hc.import_gen('data/example.gen', sample_file='data/example.sample')
-    >>> ds = ds.filter_rows(agg.infoScore(ds.GP).score >= 0.9) # doctest: +SKIP
+    >>> ds = methods.import_gen('data/example.gen', sample_file='data/example.sample')
+    >>> ds = ds.filter_rows(agg.info_score(ds.GP).score >= 0.9) # doctest: +SKIP
     >>> methods.export_gen(ds, 'output/infoscore_filtered')
 
     Notes
@@ -84,10 +86,11 @@ def export_gen(dataset, output, precision=4):
             raise KeyError
     except KeyError:
         raise FatalError("export_gen: no entry field 'GP' of type Array[Float64]")
-    
+
     dataset = require_biallelic(dataset, 'export_plink')
-    
+
     Env.hail().io.gen.ExportGen.apply(dataset._jvds, output, precision)
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -156,10 +159,10 @@ def export_plink(dataset, output, **fam_args):
     fam_args : varargs of :class:`hail.expr.expression.Expression`
         Named expressions defining FAM field values.
     """
-    
+
     fam_dict = {'fam_id': TString(), 'id': TString(), 'mat_id': TString(), 'pat_id': TString(),
                 'is_female': TBoolean(), 'is_case': TBoolean(), 'quant_pheno': TFloat64()}
-        
+
     exprs = []
     named_exprs = {k: v for k, v in fam_args.items()}
     if ('is_case' in named_exprs) and ('quant_pheno' in named_exprs):
@@ -169,13 +172,14 @@ def export_plink(dataset, output, **fam_args):
             raise ValueError("fam_arg '{}' not recognized. Valid names: {}".format(k, ', '.join(fam_dict)))
         elif (v.dtype != fam_dict[k]):
             raise TypeError("fam_arg '{}' expression has type {}, expected type {}".format(k, v.dtype, fam_dict[k]))
-        
+
         analyze('export_plink/{}'.format(k), v, dataset._col_indices)
         exprs.append('`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
     base, _ = dataset._process_joins(*named_exprs.values())
     base = require_biallelic(base, 'export_plink')
 
     Env.hail().io.plink.ExportPlink.apply(base._jvds, output, ','.join(exprs))
+
 
 @handle_py4j
 @typecheck(table=Table,
@@ -191,6 +195,7 @@ def export_solr(table, zk_host, collection, block_size=100):
     """
 
     table._jkt.exportSolr(zk_host, collection, block_size)
+
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -251,7 +256,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     Description, Number, and/or Type value in a FORMAT or INFO field or to
     specify FILTER lines, use the `metadata` parameter to supply a dictionary
     with the relevant information. See
-    :class:`~hail.api2.HailContext.get_vcf_metadata` for how to obtain the
+    :func:`get_vcf_metadata` for how to obtain the
     dictionary corresponding to the original VCF, and for info on how this
     dictionary should be structured. 
     
@@ -295,7 +300,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         concatenate the header and all partitions into one VCF file.
     metadata : :obj:`dict[str]` or :obj:`dict[str, dict[str, str]`, optional
         Dictionary with information to fill in the VCF header. See
-        :class:`~hail.api2.HailContext.get_vcf_metadata` for how this
+        :func:`get_vcf_metadata` for how this
         dictionary should be structured.
     """
 
@@ -369,6 +374,7 @@ def import_interval_list(path, reference_genome=None):
     rg = reference_genome if reference_genome else Env.hc().default_reference
     t = Env.hail().table.Table.importIntervalList(Env.hc()._jhc, path, rg._jrep)
     return Table(t)
+
 
 @handle_py4j
 @typecheck(path=strlike,
@@ -456,6 +462,7 @@ def import_bed(path, reference_genome=None):
     jt = Env.hail().table.Table.importBED(Env.hc()._jhc, path, rg._jrep)
     return Table(jt)
 
+
 @handle_py4j
 @typecheck(path=strlike,
            quant_pheno=bool,
@@ -521,3 +528,118 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
     jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
                                            quant_pheno, delimiter, missing)
     return Table(jkt)
+
+
+@handle_py4j
+@typecheck(regex=strlike,
+           path=oneof(strlike, listof(strlike)),
+           max_count=integral)
+def grep(regex, path, max_count=100):
+    Env.hc().grep(regex, jindexed_seq_args(path), max_count)
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)),
+           tolerance=numeric,
+           sample_file=nullable(strlike),
+           min_partitions=nullable(integral),
+           reference_genome=nullable(GenomeReference),
+           contig_recoding=nullable(dictof(strlike, strlike)))
+def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None,
+                contig_recoding=None):
+    return Env.hc().import_bgen(path, tolerance, sample_file, min_partitions, reference_genome,
+                                contig_recoding).to_hail2()
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)),
+           sample_file=nullable(strlike),
+           tolerance=numeric,
+           min_partitions=nullable(integral),
+           chromosome=nullable(strlike),
+           reference_genome=nullable(GenomeReference),
+           contig_recoding=nullable(dictof(strlike, strlike)))
+def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None, reference_genome=None,
+               contig_recoding=None):
+    return Env.hc().import_gen(path, sample_file, tolerance, min_partitions, chromosome, reference_genome,
+                               contig_recoding).to_hail2()
+
+
+@handle_py4j
+@typecheck(paths=oneof(strlike, listof(strlike)),
+           key=oneof(strlike, listof(strlike)),
+           min_partitions=nullable(int),
+           impute=bool,
+           no_header=bool,
+           comment=nullable(strlike),
+           delimiter=strlike,
+           missing=strlike,
+           types=dictof(strlike, Type),
+           quote=nullable(char),
+           reference_genome=nullable(GenomeReference))
+def import_table(paths, key=[], min_partitions=None, impute=False, no_header=False,
+                 comment=None, delimiter="\t", missing="NA", types={}, quote=None, reference_genome=None):
+    return Env.hc().import_table(paths, key, min_partitions, impute, no_header, comment,
+                                 delimiter, missing, types, quote, reference_genome).to_hail2()
+
+
+@handle_py4j
+@typecheck(bed=strlike,
+           bim=strlike,
+           fam=strlike,
+           min_partitions=nullable(integral),
+           delimiter=strlike,
+           missing=strlike,
+           quant_pheno=bool,
+           a2_reference=bool,
+           reference_genome=nullable(GenomeReference),
+           contig_recoding=nullable(dictof(strlike, strlike)),
+           drop_chr0=bool)
+def import_plink(bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
+                 missing='NA', quant_pheno=False, a2_reference=True, reference_genome=None,
+                 contig_recoding={'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}, drop_chr0=False):
+    return Env.hc().import_plink(bed, bim, fam, min_partitions, delimiter,
+                                 missing, quant_pheno, a2_reference, reference_genome, contig_recoding,
+                                 drop_chr0).to_hail2()
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)),
+           drop_cols=bool,
+           drop_rows=bool)
+def read_matrix(path, drop_cols=False, drop_rows=False):
+    return Env.hc().read(path, drop_cols, drop_rows).to_hail2()
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)))
+def get_vcf_metadata(path):
+    return Env.hc().get_vcf_metadata(path)
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)),
+           force=bool,
+           force_bgz=bool,
+           header_file=nullable(strlike),
+           min_partitions=nullable(integral),
+           drop_samples=bool,
+           call_fields=oneof(strlike, listof(strlike)),
+           reference_genome=nullable(GenomeReference),
+           contig_recoding=nullable(dictof(strlike, strlike)))
+def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partitions=None,
+               drop_samples=False, call_fields=[], reference_genome=None, contig_recoding=None):
+    return Env.hc().import_vcf(path, force, force_bgz, header_file, min_partitions,
+                               drop_samples, call_fields, reference_genome, contig_recoding).to_hail2()
+
+
+@handle_py4j
+@typecheck(path=oneof(strlike, listof(strlike)))
+def index_bgen(path):
+    Env.hc().index_bgen(path)
+
+
+@handle_py4j
+@typecheck(path=strlike)
+def read_table(path):
+    return Env.hc().read_table(path).to_hail2()
