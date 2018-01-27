@@ -32,20 +32,13 @@ import scala.language.{existentials, implicitConversions}
 import scala.reflect.ClassTag
 
 case class VDSMetadata(
-  version: Int,
-  // FIXME remove on next reimport
-  split: Option[Boolean],
-  sample_annotation_schema: String,
-  col_key: Array[String],
-  variant_schema: String,
-  variant_annotation_schema: String,
-  global_schema: String,
-  genotype_schema: String,
-  sample_annotations: JValue,
+  file_version: Int,
+  hail_version: String,
+  matrix_type: String,
   global_annotation: JValue,
-  // FIXME make partition_counts non-optional, remove n_partitions at next reimport
+  sample_annotations: JValue,
   n_partitions: Int,
-  partition_counts: Option[Array[Long]])
+  partition_counts: Array[Long])
 
 object MatrixTable {
   final val fileVersion: Int = 0x101
@@ -132,19 +125,19 @@ object MatrixTable {
       }
     }
 
-    if (metadata.version != MatrixTable.fileVersion)
+    if (metadata.file_version != MatrixTable.fileVersion)
       fatal(
-        s"""Invalid VDS: old version [${ metadata.version }]
+        s"""Invalid VDS: old version [${ metadata.file_version }]
            |  Recreate VDS with current version of Hail.
          """.stripMargin)
 
     GenomeReference.importReferences(hConf, dirname + "/references/")
 
-    val saSignature = Parser.parseType(metadata.sample_annotation_schema).asInstanceOf[TStruct]
-    val vSignature = Parser.parseType(metadata.variant_schema)
-    val vaSignature = Parser.parseType(metadata.variant_annotation_schema).asInstanceOf[TStruct]
-    val genotypeSignature = Parser.parseType(metadata.genotype_schema).asInstanceOf[TStruct]
-    val globalSignature = Parser.parseType(metadata.global_schema).asInstanceOf[TStruct]
+    val matrixType: MatrixType = Parser.parseMatrixType(metadata.matrix_type)
+
+    val sType = matrixType.sType
+    val saType = matrixType.saType
+    val globalType = matrixType.globalType
 
     val sampleInfo = metadata.sample_annotations.asInstanceOf[JArray]
       .arr
@@ -158,13 +151,12 @@ object MatrixTable {
       .toArray
 
     val globalAnnotation = JSONAnnotationImpex.importAnnotation(metadata.global_annotation,
-      globalSignature, "global")
+      globalType, "global")
 
 
-    (MatrixFileMetadata(MatrixType(globalSignature, saSignature, metadata.col_key,
-      vSignature, vaSignature, genotypeSignature),
+    (MatrixFileMetadata(matrixType,
       MatrixLocalValue(globalAnnotation, sampleInfo),
-      metadata.partition_counts),
+      Some(metadata.partition_counts)),
       metadata.n_partitions)
   }
 
@@ -2158,7 +2150,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       foundError = true
       warn(
         s"""found violation in global annotation
-           |Schema: ${ globalSignature.toPrettyString() }
+           |Schema: ${ globalSignature.toPrettyString }
            |Annotation: ${ Annotation.printAnnotation(globalAnnotation) }""".stripMargin)
     }
 
@@ -2167,7 +2159,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         foundError = true
         warn(
           s"""found violation in sample annotations for col $i
-             |Schema: ${ saSignature.toPrettyString() }
+             |Schema: ${ saSignature.toPrettyString }
              |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
       }
 
@@ -2181,7 +2173,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         foundError = true
         warn(
           s"""found violation in row with row key $v
-             |Schema: ${ localRVRowType.toPrettyString() }
+             |Schema: ${ localRVRowType.toPrettyString }
              |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
       }
 
@@ -2304,18 +2296,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val globalJ = JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature)
 
     val metadata = VDSMetadata(
-      version = MatrixTable.fileVersion,
-      split = None,
-      sample_annotation_schema = saSignature.toPrettyString(compact = true),
-      col_key = colKey.toArray,
-      variant_schema = vSignature.toPrettyString(compact = true),
-      variant_annotation_schema = vaSignature.toPrettyString(compact = true),
-      genotype_schema = genotypeSignature.toPrettyString(compact = true),
-      global_schema = globalSignature.toPrettyString(compact = true),
+      file_version = MatrixTable.fileVersion,
+      hail_version = hc.version,
+      matrix_type = matrixType.toPrettyString,
       sample_annotations = sampleAnnotationsJ,
       global_annotation = globalJ,
       n_partitions = partitionCounts.length,
-      partition_counts = Some(partitionCounts))
+      partition_counts = partitionCounts)
 
     hConf.writeTextFile(dirname + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))

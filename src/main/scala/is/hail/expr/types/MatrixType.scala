@@ -2,6 +2,7 @@ package is.hail.expr.types
 
 import is.hail.expr.EvalContext
 import is.hail.rvd.OrderedRVType
+import is.hail.utils._
 import is.hail.variant.{GenomeReference, Genotype}
 
 object MatrixType {
@@ -128,4 +129,41 @@ case class MatrixType(
     vaType: TStruct = vaType,
     genotypeType: TStruct = genotypeType): MatrixType =
     MatrixType(globalType, saType, colKey, vType, vaType, genotypeType)
+
+  def pretty(sb: StringBuilder, indent: Int = 0, compact: Boolean = false) {
+    // FIXME compact
+    sb.append("Matrix{")
+
+    sb.append("global:")
+    globalType.pretty(sb, indent, compact)
+    sb += ','
+
+    sb.append("col_key:[")
+    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+    sb += ']'
+    sb += ','
+
+    sb.append("col:")
+    colType.pretty(sb, indent, compact)
+    sb += ','
+
+    sb.append("row_key:[[")
+    rowPartitionKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+    sb += ']'
+    val rowRestKey = rowKey.drop(rowPartitionKey.length)
+    if (rowRestKey.nonEmpty) {
+      sb += ','
+      rowRestKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+    }
+    sb += ']'
+    sb += ','
+
+    sb.append("row:")
+    rowType.pretty(sb, indent, compact)
+    sb += ','
+
+    sb.append("entry:")
+    entryType.pretty(sb, indent, compact)
+    sb += '}'
+  }
 }

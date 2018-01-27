@@ -38,15 +38,14 @@ object SortColumn {
 
 case class SortColumn(column: String, sortOrder: SortOrder)
 
-case class KeyTableMetadata(
-  version: Int,
+case class TableMetadata(
+  file_version: Int,
+  hail_version: String,
   key: Array[String],
-  schema: String,
-  globalSchema: Option[String],
-  globals: Option[JValue],
-  // FIXME make partition_counts non-optional, remove n_partitions at next reimport
+  table_type: String,
+  globals: JValue,
   n_partitions: Int,
-  partition_counts: Option[Array[Long]])
+  partition_counts: Array[Long])
 
 case class TableLocalValue(globals: Row)
 
@@ -90,19 +89,17 @@ object Table {
     val metadata = hc.hadoopConf.readFile(metadataFile) { in =>
       // FIXME why doesn't this work?  Serialization.read[KeyTableMetadata](in)
       val json = parse(in)
-      json.extract[KeyTableMetadata]
+      json.extract[TableMetadata]
     }
 
-    val schema = Parser.parseType(metadata.schema).asInstanceOf[TStruct]
-    val globalSchema = metadata.globalSchema.map(str => Parser.parseType(str).asInstanceOf[TStruct]).getOrElse(TStruct.empty())
-    val globals = metadata.globals.map(g => JSONAnnotationImpex.importAnnotation(g, globalSchema).asInstanceOf[Row])
-      .getOrElse(Row.empty)
+    val tableType = Parser.parseTableType(metadata.table_type)
+    val globals = JSONAnnotationImpex.importAnnotation(metadata.globals, tableType.globalType).asInstanceOf[Row]
     new Table(hc, TableRead(path,
-      TableType(schema, metadata.key, globalSchema),
+      tableType,
       TableLocalValue(globals),
       dropRows = false,
       metadata.n_partitions,
-      metadata.partition_counts))
+      Some(metadata.partition_counts)))
   }
 
   def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
@@ -163,8 +160,7 @@ object Table {
   }
 }
 
-class Table(val hc: HailContext,
-  val ir: TableIR) {
+class Table(val hc: HailContext, val ir: TableIR) {
 
   def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: Array[String] = Array.empty,
     globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, TableLiteral(
@@ -242,7 +238,7 @@ class Table(val hc: HailContext,
       if (!localSignature.typeCheck(a))
         fatal(
           s"""found violation in row annotation
-             |  Schema: ${ localSignature.toPrettyString() }
+             |  Schema: ${ localSignature.toPrettyString }
              |
              |  Annotation: ${ Annotation.printAnnotation(a) }""".stripMargin
         )
@@ -1072,13 +1068,13 @@ class Table(val hc: HailContext,
     GenomeReference.exportReferences(hc, refPath, signature)
     GenomeReference.exportReferences(hc, refPath, globalSignature)
 
-    val metadata = KeyTableMetadata(Table.fileVersion,
+    val metadata = TableMetadata(Table.fileVersion,
+      hc.version,
       key,
-      signature.toPrettyString(compact = true),
-      Some(globalSignature.toPrettyString(compact = true)),
-      Some(JSONAnnotationImpex.exportAnnotation(globals, globalSignature)),
+      ir.typ.toPrettyString,
+      JSONAnnotationImpex.exportAnnotation(globals, globalSignature),
       nPartitions,
-      Some(partitionCounts))
+      partitionCounts)
 
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))
