@@ -398,7 +398,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
         Compute the list of genes with a singleton LOF per sample:
 
         >>> variant_annotations_table = hc1.import_table('data/consequence.tsv', impute=True).key_by('Variant')
-        >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, root='va.consequence')
+        >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, expr='va.consequence = table.Consequence')
         ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.GT.nNonRefAlleles()).sum() == 1')
         ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.GT.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
 

@@ -198,9 +198,9 @@ class AnnotateSuite extends SparkSuite {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
       .cache()
 
-    val bed1r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example1.bed"), root = "va.test")
-    val bed2r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example2.bed"), root = "va.test")
-    val bed3r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example3.bed"), root = "va.test")
+    val bed1r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example1.bed"), expr = "va.test = isDefined(table)")
+    val bed2r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example2.bed"), expr = "va.test = table.target")
+    val bed3r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example3.bed"), expr = "va.test = table.target")
 
     val q1 = bed1r.queryVA("va.test")._2
     val q2 = bed2r.queryVA("va.test")._2
@@ -243,10 +243,10 @@ class AnnotateSuite extends SparkSuite {
 
     val int1r = vds.annotateVariantsTable(IntervalList.read(hc,
       "src/test/resources/exampleAnnotation1.interval_list"),
-      root = "va.test")
+      expr = "va.test = isDefined(table)")
     val int2r = vds.annotateVariantsTable(
       IntervalList.read(hc, "src/test/resources/exampleAnnotation2.interval_list"),
-      root = "va.test")
+      expr = "va.test = table.target")
 
     assert(int1r.same(bed1r))
     assert(int2r.same(bed2r))
@@ -289,7 +289,7 @@ class AnnotateSuite extends SparkSuite {
     assert(vds.same(t))
 
     // json
-    val importJSONFile = tmpDir.createTempFile("variantAnnotationsJSON", ".vds")
+    val importJSONFile = tmpDir.createTempFile("variantAnnotationsJSON", "vds")
     // FIXME better way to array-ify
 
     val kt2 = hc.importTable("src/test/resources/importAnnot.json",
@@ -304,7 +304,7 @@ class AnnotateSuite extends SparkSuite {
       .filterVariantsExpr("v.isBiallelic")
     vds.write(importJSONFile)
 
-    vds = sSample.annotateVariantsTable(kt2, root = "va.third")
+    vds = sSample.annotateVariantsTable(kt2, expr = "va.third = table.f0")
 
     t = sSample.annotateVariantsVDS(hc.readVDS(importJSONFile), root = Some("va.third"))
 

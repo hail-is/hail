@@ -62,7 +62,7 @@ class IntervalSuite extends SparkSuite {
       out.write("1\t50\t150\t+\tTHING5")
     }
 
-    assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), root = "va.foo", product = true)
+    assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), expr = "va.foo = table.map(x => x.target)", product = true)
         .variantsKT().query("va.map(x => x.foo).collect()[0].toSet()")._1 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
@@ -131,7 +131,7 @@ class IntervalSuite extends SparkSuite {
   @Test def testAnnotateIntervalsAll() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
       .annotateVariantsTable(IntervalList.read(hc, "src/test/resources/annotinterall.interval_list"),
-        root = "va.annot",
+        expr = "va.annot = table.map(x => x.target)",
         product = true)
 
     val (t, q) = vds.queryVA("va.annot")

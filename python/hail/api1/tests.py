@@ -363,8 +363,8 @@ class ContextTests(unittest.TestCase):
                        .key_by("locus"))
 
         skatVds = (vds2.split_multi_hts()
-            .annotate_variants_table(intervalsSkat, root="va.gene")
-            .annotate_variants_table(weightsSkat, root="va.weight")
+            .annotate_variants_table(intervalsSkat, expr="va.gene = table.target")
+            .annotate_variants_table(weightsSkat, expr="va.weight = table.weight")
             .annotate_samples_table(phenotypesSkat, root="sa.pheno")
             .annotate_samples_table(covariatesSkat, root="sa.cov")
             .annotate_samples_expr("sa.pheno = if (sa.pheno == 1.0) false else " +

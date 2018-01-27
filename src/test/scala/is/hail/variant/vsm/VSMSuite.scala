@@ -298,7 +298,7 @@ class VSMSuite extends SparkSuite {
     forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.bar = va")
       val kt = vds2.variantsKT()
-      val resultVds = vds2.annotateVariantsTable(kt, expr = "va.foo = table.bar")
+      val resultVds = vds2.annotateVariantsTable(kt, expr = "va.foo = table.va.bar")
       val result = resultVds.rdd.collect()
       val (_, getFoo) = resultVds.queryVA("va.foo")
       val (_, getBar) = resultVds.queryVA("va.bar")

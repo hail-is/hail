@@ -116,7 +116,7 @@ class ExportSuite extends SparkSuite {
 
     val types = Parser.parseAnnotationTypes(hadoopConf.readFile(out + ".types")(Source.fromInputStream(_).mkString))
     val readBack = vds.annotateVariantsTable(hc.importTable(out, types = types).keyBy("v"),
-      root = "va")
+      expr = "va = table.va")
     assert(vds.same(readBack))
   }
 }
