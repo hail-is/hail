@@ -32,7 +32,6 @@ on the Python programming interface.
     :toctree: ./api2/
     :template: class.rst
 
-    hail.api2.HailContext
     hail.api2.Table
     hail.api2.GroupedTable
     hail.api2.MatrixTable

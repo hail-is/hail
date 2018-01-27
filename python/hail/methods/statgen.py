@@ -1,6 +1,6 @@
 from hail.api2.matrixtable import MatrixTable, Table
 from hail.expr.expression import *
-from hail.genetics import KinshipMatrix
+from hail.genetics import KinshipMatrix, GenomeReference
 from hail.genetics.ldMatrix import LDMatrix
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
@@ -10,7 +10,7 @@ from .misc import require_biallelic
 from hail.expr import functions
 import hail.expr.aggregators as agg
 from math import sqrt
-
+from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -1101,3 +1101,20 @@ def rrm(call_expr):
                                             rrm,
                                             [row.s for row in dataset.cols_table().select('s').collect()],
                                             n_variants)
+
+@handle_py4j
+@typecheck(populations=integral,
+           samples=integral,
+           variants=integral,
+           num_partitions=nullable(integral),
+           pop_dist=nullable(listof(numeric)),
+           fst=nullable(listof(numeric)),
+           af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
+           seed=integral,
+           reference_genome=nullable(GenomeReference))
+def balding_nichols_model(populations, samples, variants, num_partitions=None,
+                          pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
+                          seed=0, reference_genome=None):
+    return Env.hc().balding_nichols_model(populations, samples, variants, num_partitions,
+                                          pop_dist, fst, af_dist, seed, reference_genome).to_hail2()
+

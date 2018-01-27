@@ -124,7 +124,7 @@ class GroupedTable(TableTemplate):
 
     .. testsetup ::
 
-        table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
+        table1 = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
 
     """
 
@@ -223,13 +223,7 @@ class Table(TableTemplate):
 
     In the examples below, we have imported two key tables from text files (``table1`` and ``table2``).
 
-    .. testsetup ::
-
-        hc.stop()
-        from hail2 import *
-        hc = HailContext()
-
-    >>> table1 = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
+    >>> table1 = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
     >>> table1.show()
 
     .. code-block:: text
@@ -245,7 +239,7 @@ class Table(TableTemplate):
         |     4 |    60 | F      |     8 |     2 |    11 |    90 |   -10 |
         +-------+-------+--------+-------+-------+-------+-------+-------+
 
-    >>> table2 = hc.import_table('data/kt_example2.tsv', impute=True, key='ID')
+    >>> table2 = methods.import_table('data/kt_example2.tsv', impute=True, key='ID')
     >>> table2.show()
 
     .. code-block:: text
@@ -513,7 +507,7 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            table4 = hc.import_table('data/kt_example4.tsv', impute=True,
+            table4 = methods.import_table('data/kt_example4.tsv', impute=True,
                                   types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
                                  'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
                                  'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
@@ -1492,7 +1486,7 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            table = hc.import_table('data/kt_example1.tsv', impute=True, key='ID')
+            table = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
             other_table = table
 
         >>> union_table = table.union(other_table)
@@ -1936,7 +1930,7 @@ class Table(TableTemplate):
 
         .. testsetup::
 
-            people_table = hc.import_table('data/explode_example.tsv', delimiter='\\s+',
+            people_table = methods.import_table('data/explode_example.tsv', delimiter='\\s+',
                                      types={'Age': TInt32(), 'Children': TArray(TString())})
 
         .. doctest::
