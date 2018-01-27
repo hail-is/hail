@@ -2195,7 +2195,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       "v" -> (1, vSignature),
       "va" -> (2, vaSignature),
       "g" -> (3, genotypeSignature),
-      "sa" -> (5, saSignature))
+      "sa" -> (4, saSignature))
     EvalContext(Map(
       "global" -> (0, globalSignature),
       "v" -> (1, vSignature),
