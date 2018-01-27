@@ -41,8 +41,8 @@ def export_gen(dataset, output, precision=4):
     Import genotype probability data, filter variants based on INFO score, and
     export data to a GEN and SAMPLE file:
     
-    >>> ds = hc.import_gen('data/example.gen', sample_file='data/example.sample')
-    >>> ds = ds.filter_rows(agg.infoScore(ds.GP).score >= 0.9) # doctest: +SKIP
+    >>> ds = methods.import_gen('data/example.gen', sample_file='data/example.sample')
+    >>> ds = ds.filter_rows(agg.info_score(ds.GP).score >= 0.9) # doctest: +SKIP
     >>> methods.export_gen(ds, 'output/infoscore_filtered')
 
     Notes

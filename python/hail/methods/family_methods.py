@@ -229,7 +229,7 @@ def tdt(dataset, pedigree):
 
     .. testsetup::
 
-        tdt_dataset = hc.import_vcf('data/tdt_tiny.vcf')
+        tdt_dataset = methods.import_vcf('data/tdt_tiny.vcf')
 
     .. doctest::
     
