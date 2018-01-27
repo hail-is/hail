@@ -407,7 +407,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
                 None
             }
           }.toArray
-        case other => fatal(s"Can only ungroup fields of type Struct, but found type ${ other.toPrettyString(compact = true) } for identifier $identifier.")
+        case other => fatal(s"Can only ungroup fields of type Struct, but found type ${ other.toString } for identifier $identifier.")
       }
     }
 
@@ -561,12 +561,16 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
       sb += '}'
     } else {
-      sb.append("Struct {")
-      sb += '\n'
-      fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
-      sb += '\n'
-      sb.append(" " * indent)
-      sb += '}'
+      if (size == 0)
+        sb.append("Struct { }")
+      else {
+        sb.append("Struct {")
+        sb += '\n'
+        fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
+        sb += '\n'
+        sb.append(" " * indent)
+        sb += '}'
+      }
     }
   }
 

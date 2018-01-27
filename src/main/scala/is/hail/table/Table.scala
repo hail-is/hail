@@ -229,7 +229,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     if (!globalSignature.typeCheck(globals)) {
       fatal(
         s"""found violation of global signature
-           |  Schema: ${ globalSignature.toPrettyString(compact = true) }
+           |  Schema: ${ globalSignature.toString }
            |  Annotation: $globals""".stripMargin)
     }
 
@@ -238,7 +238,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
       if (!localSignature.typeCheck(a))
         fatal(
           s"""found violation in row annotation
-             |  Schema: ${ localSignature.toPrettyString }
+             |  Schema: ${ localSignature.toString }
              |
              |  Annotation: ${ Annotation.printAnnotation(a) }""".stripMargin
         )
@@ -257,8 +257,8 @@ class Table(val hc: HailContext, val ir: TableIR) {
     if (signature != other.signature) {
       info(
         s"""different signatures:
-           | left: ${ signature.toPrettyString(compact = true) }
-           | right: ${ other.signature.toPrettyString(compact = true) }
+           | left: ${ signature.toString }
+           | right: ${ other.signature.toString }
            |""".stripMargin)
       false
     } else if (key.toSeq != other.key.toSeq) {
@@ -271,8 +271,8 @@ class Table(val hc: HailContext, val ir: TableIR) {
     } else if (globalSignature != other.globalSignature) {
       info(
         s"""different global signatures:
-           | left: ${ globalSignature.toPrettyString(compact = true) }
-           | right: ${ other.globalSignature.toPrettyString(compact = true) }
+           | left: ${ globalSignature.toString }
+           | right: ${ other.globalSignature.toString }
            |""".stripMargin)
       false
     } else if (globals != other.globals) {
@@ -642,8 +642,8 @@ class Table(val hc: HailContext, val ir: TableIR) {
     if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
       fatal(
         s"""Both key tables must have the same number of keys and the types of keys must be identical. Order matters.
-           |  Left signature: ${ keySignature.toPrettyString(compact = true) }
-           |  Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
+           |  Left signature: ${ keySignature.toString }
+           |  Right signature: ${ other.keySignature.toString }""".stripMargin)
 
     val joinedFields = keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields
 
@@ -1071,7 +1071,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val metadata = TableMetadata(Table.fileVersion,
       hc.version,
       key,
-      ir.typ.toPrettyString,
+      ir.typ.toString,
       JSONAnnotationImpex.exportAnnotation(globals, globalSignature),
       nPartitions,
       partitionCounts)
@@ -1223,7 +1223,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
           convertType(f.typ, if (name == null) f.name else name + "." + f.name, ab)
         }
         case _ =>
-          ab += (name, t.toPrettyString(compact = true), t.isInstanceOf[TNumeric])
+          ab += (name, t.toString, t.isInstanceOf[TNumeric])
       }
     }
 

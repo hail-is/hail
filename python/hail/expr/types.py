@@ -64,7 +64,7 @@ class Type(HistoryMixin):
         return self._jtype.toString()
 
     def __str__(self):
-        return self._jtype.toPrettyString(0, True)
+        return self._jtype.toString()
 
     def __eq__(self, other):
         return isinstance(other, Type) and self._jtype.equals(other._jtype)
@@ -75,7 +75,7 @@ class Type(HistoryMixin):
     def __hash__(self):
         return self._jtype.hashCode()
 
-    def pretty(self, indent=0):
+    def pretty(self):
         """Returns a prettily formatted string representation of the type.
 
         :param int indent: Number of spaces to indent.
@@ -83,7 +83,7 @@ class Type(HistoryMixin):
         :rtype: str
         """
 
-        return self._jtype.toPrettyString(indent, False)
+        return self._jtype.toPrettyString(False)
 
     @classmethod
     def _from_java(cls, jtype):

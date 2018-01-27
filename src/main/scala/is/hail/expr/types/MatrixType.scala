@@ -46,7 +46,6 @@ case class MatrixType(
   colType: TStruct,
   rowPartitionKey: IndexedSeq[String],
   rowKey: IndexedSeq[String],
-  // FIXME rowType
   rowType: TStruct,
   entryType: TStruct) extends BaseType {
   assert({
@@ -71,14 +70,13 @@ case class MatrixType(
 
   def genotypeType: TStruct = entryType
 
-  // FIXME rename
   // FIXME needs to be rowType ++ TStruct(entriesField -> TArray(entryType))
   val rvRowType: TStruct =
-    TStruct(
-      "pk" -> locusType,
-      "v" -> vType,
-      "va" -> vaType,
-      "gs" -> TArray(genotypeType))
+  TStruct(
+    "pk" -> locusType,
+    "v" -> vType,
+    "va" -> vaType,
+    "gs" -> TArray(genotypeType))
 
   def orderedRVType: OrderedRVType = {
     new OrderedRVType(Array("pk"),
@@ -130,40 +128,60 @@ case class MatrixType(
     genotypeType: TStruct = genotypeType): MatrixType =
     MatrixType(globalType, saType, colKey, vType, vaType, genotypeType)
 
-  def pretty(sb: StringBuilder, indent: Int = 0, compact: Boolean = false) {
-    // FIXME compact
-    sb.append("Matrix{")
+  def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
+    var indent = indent0
 
-    sb.append("global:")
+    val space: String = if (compact) "" else " "
+
+    def newline(extra: Int = 0) {
+      if (!compact) {
+        sb += '\n'
+        sb.append(" " * indent)
+      }
+    }
+
+    sb.append(s"Matrix$space{")
+    indent += 4
+    newline()
+
+    sb.append(s"global:$space")
     globalType.pretty(sb, indent, compact)
     sb += ','
+    newline()
 
-    sb.append("col_key:[")
-    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+    sb.append(s"col_key:$space[")
+    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(",$space"))
     sb += ']'
     sb += ','
+    newline()
 
-    sb.append("col:")
+    sb.append(s"col:$space")
     colType.pretty(sb, indent, compact)
     sb += ','
+    newline()
 
-    sb.append("row_key:[[")
-    rowPartitionKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+    sb.append(s"row_key:$space[[")
+    rowPartitionKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
     sb += ']'
     val rowRestKey = rowKey.drop(rowPartitionKey.length)
     if (rowRestKey.nonEmpty) {
       sb += ','
-      rowRestKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+      rowRestKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
     }
     sb += ']'
     sb += ','
+    newline()
 
-    sb.append("row:")
+    sb.append(s"row:$space")
     rowType.pretty(sb, indent, compact)
     sb += ','
+    newline()
 
-    sb.append("entry:")
+    sb.append(s"entry:$space")
     entryType.pretty(sb, indent, compact)
+
+    indent -= 4
+    newline()
     sb += '}'
   }
 }

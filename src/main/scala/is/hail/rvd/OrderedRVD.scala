@@ -110,8 +110,8 @@ class OrderedRVD private(
     if (lTyp.kType != rTyp.kType)
       fatal(
         s"""Incompatible join keys.  Keys must have same length and types, in order:
-           | Left key type: ${ lTyp.kType.toPrettyString(compact = true) }
-           | Right key type: ${ rTyp.kType.toPrettyString(compact = true) }
+           | Left key type: ${ lTyp.kType.toString }
+           | Right key type: ${ rTyp.kType.toString }
          """.stripMargin)
 
     joinType match {

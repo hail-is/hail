@@ -47,7 +47,7 @@ class Keys(val typ: Type, val values: Array[Annotation]) {
   def assertSame(that: Keys, msg: String = "") {
     if (typ != that.typ)
       fatal(msg + "Keys have different types: " +
-        s"${typ.toPrettyString(compact = true)}, ${ that.typ.toPrettyString(compact = true) }")
+        s"${ typ.toString }, ${ that.typ.toString }")
 
     if (values.length != that.values.length)
       fatal(msg + s"Differing number of keys: $length, ${ that.length }")
@@ -73,7 +73,7 @@ class Keys(val typ: Type, val values: Array[Annotation]) {
   }
   
   def write(sc: SparkContext, uri: String) {
-    val typeStr = typ.toPrettyString(compact = true)
+    val typeStr = typ.toString
 
     sc.hadoopConfiguration.writeTextFile(uri)(out =>
       Serialization.write(KeysImpex(typeStr, values.map(typ.toJSON)), out))

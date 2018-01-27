@@ -20,21 +20,38 @@ case class TableType(rowType: TStruct, key: Array[String], globalType: TStruct) 
     case ir2 => Recur(remapIR)(ir2)
   }
 
-  def pretty(sb: StringBuilder, indent: Int = 0, compact: Boolean = false) {
-    // FIXME compact
-    sb.append("Table{")
+  def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
+    var indent = indent0
 
-    sb.append("global:")
+    val space: String = if (compact) "" else " "
+
+    def newline() {
+      if (!compact) {
+        sb += '\n'
+        sb.append(" " * indent)
+      }
+    }
+
+    sb.append(s"Table$space{")
+    indent += 4
+    newline()
+
+    sb.append(s"global:$space")
     globalType.pretty(sb, indent, compact)
     sb += ','
+    newline()
 
-    sb.append("key:[")
+    sb.append(s"key:$space[")
     key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
     sb += ']'
     sb += ','
+    newline()
 
-    sb.append("row:")
+    sb.append(s"row:$space")
     rowType.pretty(sb, indent, compact)
+
+    indent -= 4
+    newline()
     sb += '}'
   }
 }

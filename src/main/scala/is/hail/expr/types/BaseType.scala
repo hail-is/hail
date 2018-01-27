@@ -1,9 +1,7 @@
 package is.hail.expr.types
 
 abstract class BaseType {
-  override final def toString: String = toPrettyString
-
-  def toPrettyString: String = toPrettyString(compact = true)
+  override final def toString: String = toPrettyString(compact = true)
 
   def toPrettyString(compact: Boolean): String = {
     val sb = new StringBuilder

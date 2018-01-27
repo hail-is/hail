@@ -200,16 +200,16 @@ object MatrixTable {
           s"""cannot combine datasets with incompatible column keys
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          colKeySchema.map(_.toPrettyString(compact = true)).mkString(", "),
-          ssig.map(_.toPrettyString(compact = true)).mkString(", ")
+          colKeySchema.map(_.toString).mkString(", "),
+          ssig.map(_.toString).mkString(", ")
         )
       } else if (vsig != rowKeySchema) {
         fatal(
           s"""cannot combine datasets with different row key schemata
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          rowKeySchema.toPrettyString(compact = true),
-          vsig.toPrettyString(compact = true)
+          rowKeySchema.toString,
+          vsig.toString
         )
       } else if (colKeys != cks) {
         fatal(
@@ -221,16 +221,16 @@ object MatrixTable {
           s"""cannot combine datasets with different row annotation schemata
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          vaSchema.toPrettyString(compact = true),
-          vas.toPrettyString(compact = true)
+          vaSchema.toString,
+          vas.toString
         )
       } else if (gsig != genotypeSchema) {
         fatal(
           s"""cannot read datasets with different cell schemata
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          genotypeSchema.toPrettyString(compact = true),
-          gsig.toPrettyString(compact = true)
+          genotypeSchema.toString,
+          gsig.toString
         )
       }
     }
@@ -1578,15 +1578,22 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         s"""union_cols: cannot combine datasets with different entry schema
            |  left entry schema: @1
            |  right entry schema: @2""".stripMargin,
-        genotypeSignature.toPrettyString(compact = true),
-        right.genotypeSignature.toPrettyString(compact = true))
+        genotypeSignature.toString,
+        right.genotypeSignature.toString)
     }
 
     if (!sSignature.sameElements(right.sSignature)) {
       fatal(
         s"""union_cols: cannot combine datasets with different column key schema
+<<<<<<< df52bcbf6861651df0a43eaa86322724e3420bb1
            |  left column schema: [${sSignature.map(_.toPrettyString(compact = true)).mkString(", ")}]
            |  right column schema: [${right.sSignature.map(_.toPrettyString(compact = true)).mkString(", ")}]""".stripMargin)
+=======
+           |  left column schema: @1
+           |  right column schema: @2""".stripMargin,
+        sSignature.toString,
+        right.sSignature.toString)
+>>>>>>> more cleanup
     }
 
     if (saSignature != right.saSignature) {
@@ -1594,8 +1601,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         s"""union_cols: cannot combine datasets with different column schema
            |  left column schema: @1
            |  right column schema: @2""".stripMargin,
-        saSignature.toPrettyString(compact = true),
-        right.saSignature.toPrettyString(compact = true))
+        saSignature.toString,
+        right.saSignature.toString)
     }
 
     if (vSignature != right.vSignature) {
@@ -1603,8 +1610,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         s"""union_cols: cannot combine datasets with different row key schema
            |  left row key schema: @1
            |  right row key schema: @2""".stripMargin,
-        vSignature.toPrettyString(compact = true),
-        right.vSignature.toPrettyString(compact = true))
+        vSignature.toString,
+        right.vSignature.toString)
     }
 
     val leftRVRowType = rvRowType
@@ -1973,22 +1980,22 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       metadataSame = false
       println(
         s"""different va signature:
-           |  left:  ${ vaSignature.toPrettyString(compact = true) }
-           |  right: ${ that.vaSignature.toPrettyString(compact = true) }""".stripMargin)
+           |  left:  ${ vaSignature.toString }
+           |  right: ${ that.vaSignature.toString }""".stripMargin)
     }
     if (saSignature != that.saSignature) {
       metadataSame = false
       println(
         s"""different sa signature:
-           |  left:  ${ saSignature.toPrettyString(compact = true) }
-           |  right: ${ that.saSignature.toPrettyString(compact = true) }""".stripMargin)
+           |  left:  ${ saSignature.toString }
+           |  right: ${ that.saSignature.toString }""".stripMargin)
     }
     if (globalSignature != that.globalSignature) {
       metadataSame = false
       println(
         s"""different global signature:
-           |  left:  ${ globalSignature.toPrettyString(compact = true) }
-           |  right: ${ that.globalSignature.toPrettyString(compact = true) }""".stripMargin)
+           |  left:  ${ globalSignature.toString }
+           |  right: ${ that.globalSignature.toString }""".stripMargin)
     }
     if (!sampleAnnotationsSimilar(that, tolerance)) {
       metadataSame = false
@@ -2150,7 +2157,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       foundError = true
       warn(
         s"""found violation in global annotation
-           |Schema: ${ globalSignature.toPrettyString }
+           |Schema: ${ globalSignature.toString }
            |Annotation: ${ Annotation.printAnnotation(globalAnnotation) }""".stripMargin)
     }
 
@@ -2158,8 +2165,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       .foreach { case (sa, i) =>
         foundError = true
         warn(
+<<<<<<< df52bcbf6861651df0a43eaa86322724e3420bb1
           s"""found violation in sample annotations for col $i
              |Schema: ${ saSignature.toPrettyString }
+=======
+          s"""found violation in sample annotations for sample $s
+             |Schema: ${ saSignature.toString }
+>>>>>>> more cleanup
              |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
       }
 
@@ -2173,7 +2185,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         foundError = true
         warn(
           s"""found violation in row with row key $v
-             |Schema: ${ localRVRowType.toPrettyString }
+             |Schema: ${ localRVRowType.toString }
              |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
       }
 
@@ -2298,7 +2310,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val metadata = VDSMetadata(
       file_version = MatrixTable.fileVersion,
       hail_version = hc.version,
-      matrix_type = matrixType.toPrettyString,
+      matrix_type = matrixType.toString,
       sample_annotations = sampleAnnotationsJ,
       global_annotation = globalJ,
       n_partitions = partitionCounts.length,
