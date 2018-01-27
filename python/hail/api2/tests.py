@@ -555,7 +555,7 @@ class MatrixTests(unittest.TestCase):
                 functions.is_missing(rt.value))))
 
     def test_vcf_regression(self):
-        ds = hc.import_vcf(test_file('33alleles.vcf'))
+        ds = methods.import_vcf(test_file('33alleles.vcf'))
         self.assertEqual(
             ds.filter_rows(ds.v.num_alleles() == 2).count_rows(), 0)
 
