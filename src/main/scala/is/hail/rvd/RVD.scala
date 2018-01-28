@@ -38,7 +38,7 @@ case class RVDSpec(
         val partitionBounds = UnsafeIndexedSeq(rangeBoundsType,
           JSONAnnotationImpex.importAnnotation(args.partition_bounds, rangeBoundsType).asInstanceOf[IndexedSeq[Annotation]])
         OrderedRVD(orvdType,
-          new OrderedRVDPartitioner(args.part_files.length, orvdType.partitionKey, orvdType.pkType, partitionBounds),
+          new OrderedRVDPartitioner(args.part_files.length, orvdType.partitionKey, orvdType.kType, partitionBounds),
           hc.readRows(path, orvdType.rowType, args.part_files))
     }
   }

@@ -397,7 +397,7 @@ object VSMSubgen {
     tGen = (t: Type, v: Annotation) => Genotype.genRealistic(v.asInstanceOf[Variant]))
 }
 
-class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator {
+class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def this(hc: HailContext,
     matrixType: MatrixType,
@@ -2412,10 +2412,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val (partFiles, partitionCounts) = rdd2.rdd.writeRows(dirname, rvRowType)
 
     writeMetadata(dirname, partFiles, partitionCounts)
-
-    hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
-      Serialization.write(rdd2.partitioner.toJSON, out)
-    }
 
     hadoopConf.writeTextFile(dirname + "/_SUCCESS")(out => ())
   }

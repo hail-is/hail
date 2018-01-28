@@ -8,7 +8,7 @@ import is.hail.expr.ir._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
-import is.hail.methods.{Aggregators, Filter}
+import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, MatrixTable}
@@ -19,7 +19,7 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
