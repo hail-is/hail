@@ -15,7 +15,7 @@ import is.hail.testUtils._
 
 class ImportMatrixSuite extends SparkSuite {
 
-  val genMatrix = VSMSubgen(
+  val genImportableMatrix = VSMSubgen(
     sSigGen = Gen.const(TString()),
     saSigGen = Gen.const(TStruct.empty()),
     vSigGen = Gen.const(TString()),
@@ -49,8 +49,8 @@ class ImportMatrixSuite extends SparkSuite {
 
   // FIXME this test is broken, @tpoterba has fixed in a separate branch
   @Test(enabled = false) def testTypes() {
-    forAll(MatrixTable.gen(hc, genMatrix)
-      .filter(vsm => !vsm.stringSampleIds.contains("v"))) { vsm =>
+    forAll(MatrixTable.gen(hc, genImportableMatrix)
+      .filter(vsm => !vsm.colValues.contains("v"))) { vsm =>
       val actual: MatrixTable = {
         val f = tmpDir.createTempFile(extension = "txt")
         vsm.makeKT("v = va.v", "`` = g.x", Array("v")).export(f)
@@ -77,13 +77,12 @@ class ImportMatrixSuite extends SparkSuite {
   }
 
   @Test def testTypesNoHeader() {
-    forAll(MatrixTable.gen(hc, genMatrix)
+    forAll(MatrixTable.gen(hc, genImportableMatrix)
       .filter(vsm => !vsm.sampleIds.contains("v"))) { vsm =>
 
       val actual2: MatrixTable = {
         val f = tmpDir.createTempFile(extension = "txt")
         vsm.makeKT("v = v", "`` = g.x", Array("v")).export(f, header=false)
-        println(f)
         LoadMatrix(hc, Array(f), Some(Array("v")), Seq(TString()), Some("v"), cellType = vsm.entryType, noHeader=true)
       }
       assert(vsm.copy2(colValues = actual2.colValues).same(actual2.annotateVariantsExpr("va = {}")))
@@ -99,17 +98,16 @@ class ImportMatrixSuite extends SparkSuite {
   }
 
   @Test def testTypesNoKey() {
-    forAll(MatrixTable.gen(hc, genMatrix)
+    def getValuesKT(vsm: MatrixTable): Table = {
+      vsm.renameSamples(vsm.sampleIds.zipWithIndex.map { case (id, i) =>
+        "col" + i.toString }
+        .toArray[Annotation])
+        .makeKT("v = v", "`` = g.x", Array())
+        .drop(Array("v"))
+    }
+
+    forAll(MatrixTable.gen(hc, genImportableMatrix)
       .filter(vsm => !vsm.sampleIds.contains("v"))) { vsm =>
-
-      def getValuesKT(vsm: MatrixTable): Table = {
-        vsm.renameSamples(vsm.sampleIds.zipWithIndex.map { case (id, i) =>
-          "col" + i.toString }
-          .toArray[Annotation])
-          .makeKT("v = v", "`` = g.x", Array())
-          .drop(Array("v"))
-      }
-
 
       val actual2: MatrixTable = {
         val f = tmpDir.createTempFile(extension = "txt")
@@ -117,10 +115,10 @@ class ImportMatrixSuite extends SparkSuite {
         println(f)
         LoadMatrix(hc, Array(f), None, Seq(), None, cellType = vsm.genotypeSignature, noHeader=true)
       }
-      println("loaded matrix!")
       val compare = vsm.annotateVariantsTable(vsm.variantsKT().index("idx"), Seq("v"), root="va").groupVariantsBy("va.idx", "x = gs.collect()[0].x")
       assert(compare.copy2(sampleIds = actual2.sampleIds).same(actual2), "not same")
 
+      actual2.unionCols(actual2)
 
       val tmp1 = tmpDir.createTempFile(extension = "vds")
       vsm.write(tmp1, true)

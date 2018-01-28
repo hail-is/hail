@@ -484,6 +484,17 @@ class HailContext private(val sc: SparkContext,
     LoadVCF.parseHeaderMetadata(this, reader, file)
   }
 
+  private[this] val codecsKey = "io.compression.codecs"
+  private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
+  private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGZipCodecGZ"
+  private[this] def forceBGZip[T](body: => T): T = {
+    val defaultCodecs = hadoopConf.get(codecsKey)
+    hadoopConf.set(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
+    try { body } finally { hadoopConf.set(codecsKey, defaultCodecs) }
+  }
+  private[this] def forceBGZip[T](force: Boolean)(body: => T): T =
+    if (force) forceBGZip(body) else body
+
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
@@ -508,54 +519,41 @@ class HailContext private(val sc: SparkContext,
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
-    val codecs = sc.hadoopConfiguration.get("io.compression.codecs")
-
-    if (forceBGZ)
-      hadoopConf.set("io.compression.codecs",
-        codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
-    try {
+    forceBGZip(forceBGZ) {
       val reader = new HtsjdkRecordReader(callFields)
       LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, gr,
         contigRecoding.getOrElse(Map.empty[String, String]))
-    } finally {
-      hadoopConf.set("io.compression.codecs", codecs)
     }
   }
 
   def importMatrix(file: String,
-    annotationHeaders: Option[Seq[String]],
-    annotationTypes: Seq[Type],
-    keyExpr: Option[String],
+    fieldHeaders: Option[Seq[String]],
+    fieldTypes: Seq[Type],
+    optKeyExpr: Option[String],
     nPartitions: Option[Int] = None,
     forceBGZ: Boolean = false,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
     missingVal: String = "NA",
     noHeader: Boolean = false): MatrixTable =
-    importMatrices(List(file), annotationHeaders, annotationTypes, keyExpr, nPartitions, forceBGZ, dropSamples, cellType, missingVal, noHeader)
+    importMatrices(List(file), fieldHeaders, fieldTypes, optKeyExpr, nPartitions, forceBGZ, dropSamples, cellType, missingVal, noHeader)
 
   def importMatrices(files: Seq[String],
-    annotationHeaders: Option[Seq[String]],
-    annotationTypes: Seq[Type],
-    keyExpr: Option[String],
+    fieldHeaders: Option[Seq[String]],
+    fieldTypes: Seq[Type],
+    optKeyExpr: Option[String],
     nPartitions: Option[Int] = None,
     forceBGZ: Boolean = false,
     dropSamples: Boolean = false,
     cellType: Type = TInt64(),
     missingVal: String = "NA",
     noHeader: Boolean = false): MatrixTable = {
+
     val inputs = hadoopConf.globAll(files)
 
-    val codecs = sc.hadoopConfiguration.get("io.compression.codecs")
-
-    if (forceBGZ)
-      hadoopConf.set("io.compression.codecs",
-        codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
-    try {
-      LoadMatrix(this, inputs, annotationHeaders, annotationTypes, keyExpr, nPartitions = nPartitions,
+    forceBGZip(forceBGZ) {
+      LoadMatrix(this, inputs, fieldHeaders, fieldTypes, optKeyExpr, nPartitions = nPartitions,
         dropSamples = dropSamples, cellType = TStruct("x" -> cellType), missingValue = missingVal, noHeader = noHeader)
-    } finally {
-      hadoopConf.set("io.compression.codecs", codecs)
     }
   }
 

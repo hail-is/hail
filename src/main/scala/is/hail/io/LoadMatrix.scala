@@ -24,28 +24,44 @@ object LoadMatrix {
   }
 
   // this assumes that col IDs are in last line of header.
-  def parseHeader(hConf: Configuration, file: String, sep: Char, nAnnotations: Int,
-    annotationHeaders: Option[Seq[String]], noHeader: Boolean): (Array[String], Array[String]) = {
+  def parseHeader(hConf: Configuration, file: String, sep: Char, nRowFields: Int,
+    fieldHeaders: Option[Seq[String]], noHeader: Boolean): (Array[String], Array[String]) = {
     val line = hConf.readFile(file) { s => Source.fromInputStream(s).getLines().next() }
-    parseHeader(line, sep, nAnnotations, annotationHeaders, noHeader)
+    parseHeader(line.split(sep), nRowFields, fieldHeaders, noHeader)
   }
 
-  def parseHeader(line: String, sep: Char, nAnnotations: Int,
+  def parseHeader(r: Array[String], nRowFields: Int,
     annotationHeaders: Option[Seq[String]], noHeader: Boolean=false): (Array[String], Array[String]) = {
-    val r = line.split(sep)
     annotationHeaders match {
       case None =>
-        if (r.length < nAnnotations)
-          fatal(s"Expected $nAnnotations annotation columns; only ${ r.length } columns in table.")
+        if (r.length < nRowFields)
+          fatal(s"Expected $nRowFields annotation columns; only ${ r.length } columns in table.")
         if (noHeader)
-          (Array.tabulate(nAnnotations) { i => "f"+i.toString() },
-            Array.tabulate(r.length - nAnnotations) { i => "col"+i.toString() })
+          (Array.tabulate(nRowFields) { i => "f"+i.toString() },
+            Array.tabulate(r.length - nRowFields) { i => "col"+i.toString() })
         else
-          (r.slice(0, nAnnotations), r.slice(nAnnotations, r.length))
+          (r.slice(0, nRowFields), r.slice(nRowFields, r.length))
       case Some(h) =>
-        assert(h.length == nAnnotations)
-        (h.toArray, if (noHeader) r.slice(nAnnotations, r.length) else r)
+        assert(h.length == nRowFields)
+        (h.toArray, if (noHeader) Array.tabulate(r.length - h.length) { i => "col"+i.toString() } else r)
     }
+  }
+
+  def makePartitionerFromCounts(partitionCounts: Array[Long], kType: TStruct): OrderedRVDPartitioner = {
+    val rvb = new RegionValueBuilder(Region())
+    rvb.start(TArray(TStruct("pk" -> TInt64())))
+    rvb.startArray(partitionCounts.length - 2)
+    var c = 0L
+    partitionCounts.tail.foreach { i =>
+      c += i
+      rvb.startStruct()
+      rvb.addLong(c - 1)
+      rvb.endStruct()
+    }
+    rvb.endArray()
+    val ranges = new UnsafeIndexedSeq(TArray(TStruct("pk" -> TInt64())), rvb.region, rvb.end())
+    val partitioner = new OrderedRVDPartitioner(partitionCounts.length - 1,
+      Array("pk"), kType, ranges)
   }
 
   def apply(hc: HailContext,
@@ -106,12 +122,12 @@ object LoadMatrix {
       rowPartitionKey = Array("row_id"),
       entryType = cellType)
 
-    val partitionCounts = Array(0L) ++ lines.filter(l => l.value.nonEmpty)
+    val partitionCounts = lines.filter(l => l.value.nonEmpty)
       .mapPartitionsWithIndex { (i, it) =>
         if (firstPartitions(i)) {
-          val hd1 = header1Bc.value
           if (!noHeader) {
-            val (annotationNamesCheck, hd) = parseHeader(it.next().value, sep, nAnnotations, annotationHeaders)
+            val hd1 = header1Bc.value
+            val (annotationNamesCheck, hd) = parseHeader(it.next().value.split(sep), sep, nAnnotations, annotationHeaders)
             if (!annotationNames.sameElements(annotationNamesCheck)) {
               fatal("column headers for annotations must be the same across files.")
             }
@@ -137,10 +153,16 @@ object LoadMatrix {
           }
         }
         it
-      }.countPerPartition()
+      }.countPerPartition().scanLeft(0L)(_ + _)
 
-    val key = optKeyExpr.flatMap { expr => Some(Parser.parseExpr(expr, ec)) }
-    val (t, f) = key.getOrElse((TInt64(), () => null))
+    println(partitionCounts.foldLeft("")(_ + _.toString() + ", "))
+
+
+
+    val (t, computeRowKey) = optKeyExpr.map(Parser.parseExpr(_, ec)) match {
+      case Some((t, f)) => (t, { (rowBlock: Int, row: Long) => f() })
+      case None => (TInt64(), { (rowBlock: Int, row: Long) => partitionCounts(rowBlock) + row })
+    }
 
     val rdd = lines.filter(l => l.value.nonEmpty)
       .mapPartitionsWithIndex { (i, it) =>
@@ -154,7 +176,7 @@ object LoadMatrix {
           it.next()
         }
 
-        it.map { v =>
+        it.zipWithIndex.map { case (v, row) =>
           val line = v.value
           var off = 0
           var missing = false
@@ -293,10 +315,7 @@ object LoadMatrix {
             ii += 1
           }
 
-          val rowKey: Annotation = optKeyExpr match {
-            case Some(_) => f()
-            case None => partitionCounts(i) + row
-          }
+          val rowKey = computeRowKey(i, row)
 
           region.clear()
           rvb.start(matrixType.rvRowType)
@@ -352,27 +371,12 @@ object LoadMatrix {
           rvb.endArray()
           rvb.endStruct()
           rv.setOffset(rvb.end())
-          row += 1
           rv
         }
       }
 
     val orderedRVD = if (optKeyExpr.isEmpty) {
-      val rvb = new RegionValueBuilder(Region())
-      rvb.start(TArray(TStruct("pk" -> TInt64())))
-      rvb.startArray(partitionCounts.length - 2)
-      var c = 0L
-      partitionCounts.slice(1, partitionCounts.length - 1).foreach { i =>
-        c += i
-        rvb.startStruct()
-        rvb.addLong(c-1)
-        rvb.endStruct()
-      }
-      rvb.endArray()
-
-      val ranges = new UnsafeIndexedSeq(TArray(TStruct("pk" -> TInt64())), rvb.region, rvb.end())
-      val partitioner = new OrderedRVDPartitioner(partitionCounts.length - 1,
-        Array("pk"), matrixType.orvdType.kType, ranges)
+      val partitioner = makePartitionerFromCounts(partitionCounts, matrixType.orvdType.kType)
       OrderedRVD(matrixType.orvdType, partitioner, rdd)
     } else
       OrderedRVD(matrixType.orvdType, rdd, None, None)
