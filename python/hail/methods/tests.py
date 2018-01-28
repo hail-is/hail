@@ -474,7 +474,7 @@ class Tests(unittest.TestCase):
                  'src/test/resources/multipleChromosomes.vcf',
                  'src/test/resources/sample2.vcf']
         for path in paths:
-            ds = hc.import_vcf(path)
+            ds = methods.import_vcf(path)
             self.assertEqual(
                 FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: False))
                 .filter()
