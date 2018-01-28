@@ -1,5 +1,5 @@
-from __future__ import print_function  # Python 2 and 3 print compatibility
 
+from pyspark.sql import DataFrame
 from hail.expr.expression import *
 from hail.utils import wrap_to_list, storage_level
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
@@ -1088,18 +1088,6 @@ class Table(TableTemplate):
         to_print = self._jt.showString(n, joption(truncate), types, width)
         print(to_print)
 
-    def to_hail1(self):
-        """Convert table to :class:`.hail.api1.KeyTable`.
-
-        Returns
-        -------
-        :class:`.hail.api1.KeyTable`
-        """
-        import hail
-        kt = hail.KeyTable(Env.hc(), self._jt)
-        kt._set_history(History('is a mystery'))
-        return kt
-
     @handle_py4j
     def view_join_rows(self, *exprs):
         if not len(exprs) > 0:
@@ -1145,7 +1133,7 @@ class Table(TableTemplate):
 
             def joiner(left):
                 left = Table(left._jt.annotate(full_key_strs)).key_by(*uids)
-                left = left.to_hail1().join(right.to_hail1(), 'left').to_hail2()
+                left = Table(left._jt.join(right._jt, 'left'))
                 return left
 
             all_uids = uids[:]
@@ -2055,5 +2043,57 @@ class Table(TableTemplate):
         # FIXME: Impossible to correct a struct with the correct schema
         # FIXME: 'row' and 'globals' symbol in the Table parser, like VSM
         raise NotImplementedError()
+
+    @handle_py4j
+    @typecheck_method(expand=bool,
+                      flatten=bool)
+    def to_spark(self, expand=True, flatten=True):
+        """Converts this key table to a Spark DataFrame.
+
+        Parameters
+        ----------
+        expand : :obj:`bool`
+            If True, expand_types before converting to Pandas DataFrame.
+
+        flatten : :obj:`bool`
+            If True, flatten before converting to Pandas DataFrame.
+            If `expand` and `flatten` are True, flatten is run after
+            expand so that expanded types are flattened.
+
+        Returns
+        -------
+        :class:`.pyspark.sql.DataFrame`
+            Spark DataFrame constructed from the table.
+        """
+        jt = self._jt
+        if expand:
+            jt = jt.expandTypes()
+        if flatten:
+            jt = jt.flatten()
+        return DataFrame(jt.toDF(Env.hc()._jsql_context), Env.hc()._sql_context)
+
+    @handle_py4j
+    @typecheck_method(expand=bool,
+                      flatten=bool)
+    def to_pandas(self, expand=True, flatten=True):
+        """Converts this table into a Pandas DataFrame.
+
+        Parameters
+        ----------
+        expand : :obj:`bool`
+            If True, expand_types before converting to Pandas DataFrame.
+
+        flatten : :obj:`bool`
+            If True, flatten before converting to Pandas DataFrame.
+            If `expand` and `flatten` are True, flatten is run after
+            expand so that expanded types are flattened.
+
+        Returns
+        -------
+        :class:`.pandas.DataFrame`
+            Pandas DataFrame constructed from the table.
+        """
+        return self.to_spark(expand, flatten).toPandas()
+
 
 table_type.set(Table)

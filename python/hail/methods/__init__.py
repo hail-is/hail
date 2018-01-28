@@ -5,6 +5,7 @@ from .impex import export_cassandra, export_gen, export_plink, export_solr, expo
 from .statgen import linreg, sample_rows, ibd, ld_matrix, grm, rrm, pca, hwe_normalized_pca, \
     pc_relate, split_multi_hts, balding_nichols_model, FilterAlleles
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana
+from .summarize import summarize
 from .misc import rename_duplicates, maximal_independent_set
 
 __all__ = ['trio_matrix',
@@ -46,4 +47,5 @@ __all__ = ['trio_matrix',
            'import_vcf',
            'index_bgen',
            'balding_nichols_model',
-           'FilterAlleles']
+           'FilterAlleles',
+           'summarize']
