@@ -261,7 +261,7 @@ object MatrixTable {
         None, None))
   }
 
-  def fromTable(kt: Table): MatrixTable = {
+  def fromRowsTable(kt: Table): MatrixTable = {
     if (kt.key.length != 1)
       fatal("from_table: key must have a single field")
     val vType = kt.keyFields(0).typ

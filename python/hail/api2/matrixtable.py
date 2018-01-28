@@ -2506,5 +2506,37 @@ class MatrixTable(object):
     def _filter_partitions(self, parts, keep=True):
         return MatrixTable(self._jvds.filterPartitions(parts, keep))
 
+    @classmethod
+    @handle_py4j
+    @typecheck_method(table=Table)
+    def from_rows_table(cls, table):
+        """Construct matrix table with no columns from a table.
+
+        Examples
+        --------
+        Import a text table and construct a sites-only variant dataset:
+
+        >>> table = methods.import_table('data/variant-lof.tsv', key='v', types={'v': TVariant()})
+        >>> sites_vds = MatrixTable.from_rows_table(table)
+
+        Notes
+        -----
+        The table must be keyed by a singel column.
+
+        All columns in the table become row-indexed columns in the
+        result.
+
+        Parameters
+        ----------
+        table : :class:`.Table`
+            The table to be converted.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+        jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt)
+        return MatrixTable(jmt)
+
 
 matrix_table_type.set(MatrixTable)
