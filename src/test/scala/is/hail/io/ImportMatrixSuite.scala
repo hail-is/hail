@@ -112,14 +112,12 @@ class ImportMatrixSuite extends SparkSuite {
       val actual2: MatrixTable = {
         val f = tmpDir.createTempFile(extension = "txt")
         getValuesKT(vsm).export(f, header=false)
-        println(f)
         LoadMatrix(hc, Array(f), None, Seq(), None, cellType = vsm.genotypeSignature, noHeader=true)
       }
       val compare = vsm.annotateVariantsTable(vsm.variantsKT().index("idx"), Seq("v"), root="va").groupVariantsBy("va.idx", "x = gs.collect()[0].x")
       assert(compare.copy2(sampleIds = actual2.sampleIds).same(actual2), "not same")
 
       actual2.unionCols(actual2)
-
       val tmp1 = tmpDir.createTempFile(extension = "vds")
       vsm.write(tmp1, true)
 
