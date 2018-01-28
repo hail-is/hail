@@ -1245,6 +1245,8 @@ class FilterAlleles(object):
         """
         if self._row_exprs:
             raise RuntimeError('annotate_rows already called')
+        for k, v in named_exprs.items():
+            analyze('FilterAlleles', v, base._row_indices)
         self._row_exprs = named_exprs
 
     def annotate_entries(self, **named_exprs):
@@ -1259,6 +1261,8 @@ class FilterAlleles(object):
         """
         if self._entry_exprs:
             raise RuntimeError('annotate_entries already called')
+        for k, v in named_exprs.items():
+            analyze('FilterAlleles', v, base._entry_indices)
         self._entry_exprs = named_exprs
 
     def filter(self):
@@ -1277,19 +1281,16 @@ class FilterAlleles(object):
         base, cleanup = self._ds._process_joins(*(
             [self._filter_expr] + self._row_exprs.values() + self._entry_exprs.values()))
         
-        analyze('filter_alleles', self._filter_expr, base._row_indices)
         filter_hql = self._filter_expr._ast.to_hql()
         
         row_hqls = []
         for k, v in self._row_exprs.items():
-            analyze('filter_alleles', v, base._row_indices)
             row_hqls.append('va.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             base._check_field_name(k, base._row_indices)
         row_hql = ',\n'.join(row_hqls)
 
         entry_hqls = []
         for k, v in self._entry_exprs.items():
-            analyze('filter_alleles', v, base._entry_indices)
             entry_hqls.append('g.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
             base._check_field_name(k, base._entry_indices)
         entry_hql = ',\n'.join(entry_hqls)
