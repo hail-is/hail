@@ -29,7 +29,8 @@ class Env:
     @staticmethod
     def jvm():
         if not Env._jvm:
-            raise EnvironmentError('no Hail context initialized, create one first')
+            Env.hc()
+            assert Env._jvm is not None
         return Env._jvm
 
     @staticmethod
@@ -41,7 +42,8 @@ class Env:
     @staticmethod
     def gateway():
         if not Env._gateway:
-            raise EnvironmentError('no Hail context initialized, create one first')
+            Env.hc()
+            assert Env._gateway is not None
         return Env._gateway
 
     @staticmethod
