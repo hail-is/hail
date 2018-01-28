@@ -36,7 +36,7 @@ class Tests(unittest.TestCase):
         def plinkify(ds, min=None, max=None):
             vcf = utils.new_temp_file(prefix="plink", suffix="vcf")
             plinkpath = utils.new_temp_file(prefix="plink")
-            ds.to_hail1().export_vcf(vcf)
+            methods.export_vcf(ds, vcf)
             threshold_string = "{} {}".format("--min {}".format(min) if min else "",
                                               "--max {}".format(max) if max else "")
 
@@ -183,7 +183,7 @@ class Tests(unittest.TestCase):
         dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
         dataset = dataset.filter_rows(dataset.n_called == n_samples).persist()
 
-        dataset.to_hail1().export_plink(b_file)
+        methods.export_plink(dataset, b_file, id = dataset.s)
 
         sample_ids = [row.s for row in dataset.cols_table().select('s').collect()]
         n_variants = dataset.count_rows()

@@ -10,7 +10,8 @@ def sample_qc(dataset, name='sample_qc'):
 
     .. include:: ../_templates/req_tvariant.rst
 
-    **Examples**
+    Examples
+    --------
 
     .. testsetup::
 
