@@ -87,7 +87,7 @@ class TableTemplate(HistoryMixin):
         return self._jt.toString()
 
     @handle_py4j
-    def globals(self):
+    def get_globals(self):
         if self._globals is None:
             self._globals = self.global_schema._convert_to_py(self._jt.globals())
         return self._globals
@@ -2027,5 +2027,33 @@ class Table(TableTemplate):
                                                   ",\n".join(exprs),
                                                   joption(None)))
 
+    @property
+    @handle_py4j
+    def globals(self):
+        """Returns a struct expression including all global fields.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct of all global fields.
+        """
+        # FIXME: Impossible to correct a struct with the correct schema
+        # FIXME: need 'row' and 'globals' symbol in the Table parser, like VSM
+        raise NotImplementedError()
+        # return to_expr(Struct(**{fd.name: self[fd.name] for fd in self.global_schema.fields}))
+
+    @property
+    @handle_py4j
+    def row(self):
+        """Returns a struct expression including all row-indexed fields.
+
+        Returns
+        -------
+        :class:`.StructExpression`
+            Struct of all row fields.
+        """
+        # FIXME: Impossible to correct a struct with the correct schema
+        # FIXME: 'row' and 'globals' symbol in the Table parser, like VSM
+        raise NotImplementedError()
 
 table_type.set(Table)

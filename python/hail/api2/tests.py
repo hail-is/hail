@@ -311,7 +311,7 @@ class TableTests(unittest.TestCase):
         kt2 = Table.range(1)
 
         kt2 = kt2.annotate_globals(kt_foo=kt[:].foo)
-        self.assertEqual(kt2.globals().kt_foo, 5)
+        self.assertEqual(kt2.get_globals().kt_foo, 5)
 
     def test_drop(self):
         kt = Table.range(10)
@@ -558,6 +558,23 @@ class MatrixTests(unittest.TestCase):
         ds = methods.import_vcf(test_file('33alleles.vcf'))
         self.assertEqual(
             ds.filter_rows(ds.v.num_alleles() == 2).count_rows(), 0)
+
+    def test_field_groups(self):
+        ds = self.get_vds()
+
+        df = ds.annotate_rows(row_struct=ds.row).rows_table()
+        self.assertTrue(df.forall((df.info == df.row_struct.info) & (df.qual == df.row_struct.qual)))
+
+        ds2 = ds.index_cols()
+        df = ds2.annotate_cols(col_struct=ds2.col).cols_table()
+        self.assertTrue(df.forall((df.col_idx == df.col_struct.col_idx)))
+
+        df = ds.annotate_entries(entry_struct = ds.entry).entries_table()
+        self.assertTrue(df.forall(
+            ((functions.is_missing(df.GT) |
+             (df.GT == df.entry_struct.GT)) &
+             (df.AD == df.entry_struct.AD))))
+
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
