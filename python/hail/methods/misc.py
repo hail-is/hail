@@ -26,8 +26,8 @@ def maximal_independent_set(i, j, tie_breaker=None):
     >>> related_samples = pairs.aggregate(
     ...     samples = agg.collect_as_set(agg.explode([pairs.i, pairs.j]))).samples
     >>> related_samples_to_keep = methods.maximal_independent_set(pairs.i, pairs.j)
-    >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
-    >>> result = dataset.filter_cols_list(list(related_samples_to_remove), keep=False)
+    >>> related_samples_to_remove = functions.broadcast(related_samples - set(related_samples_to_keep))
+    >>> result = dataset.filter_cols(related_samples_to_remove.contains(dataset.s), keep=False)
 
     Prune individuals from a dataset, preferring to keep cases over controls.
 
@@ -46,8 +46,8 @@ def maximal_independent_set(i, j, tie_breaker=None):
     ...         pairs_with_case.i,
     ...         pairs_with_case.j,
     ...         tie_breaker)
-    >>> related_samples_to_remove = related_samples - {x.id for x in related_samples_to_keep}
-    >>> result = dataset.filter_cols_list(list(related_samples_to_remove), keep=False)
+    >>> related_samples_to_remove = functions.broadcast(related_samples - {x.id for x in related_samples_to_keep})
+    >>> result = dataset.filter_cols(related_samples_to_remove.contains(dataset.s), keep=False)
 
     Notes
     -----
