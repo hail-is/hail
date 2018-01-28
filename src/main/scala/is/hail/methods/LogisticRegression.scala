@@ -55,7 +55,7 @@ object LogisticRegression {
     val sc = vsm.sparkContext
 
     val localGlobalAnnotationBc = sc.broadcast(vsm.globals)
-    val sampleAnnotationsBc = vsm.sampleAnnotationsBc
+    val sampleAnnotationsBc = vsm.colValuesBc
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
     val yBc = sc.broadcast(y)

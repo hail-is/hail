@@ -9,7 +9,7 @@ import is.hail.annotations._
 import is.hail.table.Table
 import is.hail.expr.EvalContext
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVType, RVD}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD}
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.commons.lang3.StringUtils
@@ -124,7 +124,15 @@ object BlockMatrix {
       Iterator.single(gp.blockCoordinates(i), bdm)
     }
 
-    val blocks = hc.readPartitions(uri, gp.numPartitions, readBlock, Some(gp))
+    val nPartitions = gp.numPartitions
+    val d = digitsNeeded(nPartitions)
+    val partFiles = Array.tabulate[String](nPartitions) { i =>
+      val is = i.toString
+      assert(is.length <= d)
+      "part-" + StringUtils.leftPad(is, d, "0")
+    }
+
+    val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
 
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }

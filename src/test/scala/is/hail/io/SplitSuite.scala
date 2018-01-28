@@ -25,7 +25,7 @@ class SplitSuite extends SparkSuite {
       VSMSubgen.random.copy(vGen = _ => splittableVariantGen))) { vds =>
       val method1 = SplitMulti(vds).variants.collect().toSet
       val method2 = vds.variants.flatMap { v1 =>
-        val v = v1
+        val v = v1.asInstanceOf[Variant]
         v.altAlleles.iterator
           .map { aa =>
             Variant(v.contig, v.start, v.ref, Array(aa)).minRep

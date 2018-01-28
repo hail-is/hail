@@ -334,8 +334,8 @@ object LoadMatrix {
 
     new MatrixTable(hc,
       matrixType,
-      MatrixLocalValue(Annotation.empty,
-        sampleIds.map(x => Annotation(x))),
+      Annotation.empty,
+      sampleIds.map(x => Annotation(x)),
       OrderedRVD(matrixType.orderedRVType, rdd, None, None))
   }
 }

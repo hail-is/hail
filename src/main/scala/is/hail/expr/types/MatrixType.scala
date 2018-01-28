@@ -1,7 +1,7 @@
 package is.hail.expr.types
 
 import is.hail.expr.EvalContext
-import is.hail.rvd.OrderedRVType
+import is.hail.rvd.OrderedRVDType
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, Genotype}
 
@@ -46,8 +46,17 @@ case class MatrixType(
 
   val rowKeyStruct = TStruct(rowKey.map(k => k -> rowType.fieldByName(k).typ): _*)
 
-  def orderedRVType: OrderedRVType = {
-    new OrderedRVType(rowPartitionKey.toArray,
+  val colsTableType: TableType = TableType(colType, colKey, globalType)
+
+  val rowsTableType: TableType = TableType(rowType, rowKey, globalType)
+
+  val entriesTableType: TableType = TableType(
+    TStruct(MatrixType.entriesIdentifier -> TArray(entryType)),
+    Array.empty[String],
+    globalType)
+
+  def orderedRVType: OrderedRVDType = {
+    new OrderedRVDType(rowPartitionKey.toArray,
       rowKey.toArray,
       rvRowType)
   }
@@ -106,7 +115,7 @@ case class MatrixType(
     newline()
 
     sb.append(s"col_key:$space[")
-    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(",$space"))
+    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
     sb += ']'
     sb += ','
     newline()
@@ -149,7 +158,7 @@ case class MatrixType(
     rowType: TStruct = rowType,
     entryType: TStruct = entryType): MatrixType = {
     if (this.rowPartitionKey.nonEmpty && rowPartitionKey.isEmpty) {
-      warn(s"deleted row partition key [${this.rowPartitionKey.mkString(", ")}], " +
+      warn(s"deleted row partition key [${ this.rowPartitionKey.mkString(", ") }], " +
         s"all downstream operations will be single-threaded")
     }
 

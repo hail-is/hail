@@ -5,7 +5,6 @@ import breeze.stats.distributions._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.MatrixLocalValue
 import is.hail.rvd.OrderedRVD
 import is.hail.utils._
 import is.hail.variant.{Call, Call2, GenomeReference, MatrixTable}
@@ -196,7 +195,7 @@ object BaldingNicholsModel {
 
     new MatrixTable(hc,
       matrixType,
-      MatrixLocalValue(globalAnnotation, sampleAnnotations),
+      globalAnnotation, sampleAnnotations,
       ordrdd)
   }
 }

@@ -2,11 +2,12 @@ package is.hail.io
 
 import java.io.{InputStream, OutputStream}
 
-import is.hail.annotations.{Memory, Region, RegionValue}
+import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.variant.LZ4Utils
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 
 class ArrayInputStream(var a: Array[Byte], var end: Int) extends InputStream {
@@ -521,7 +522,93 @@ object RichRDDRegionValue {
 }
 
 class RichRDDRegionValue(val rdd: RDD[RegionValue]) extends AnyVal {
-  def writeRows(path: String, t: TStruct): Array[Long] = {
+  def writeRows(path: String, t: TStruct): (Array[String], Array[Long]) = {
     rdd.writePartitions(path, RichRDDRegionValue.writeRowsPartition(t))
+  }
+
+  def writeRowsSplit(path: String, t: MatrixType): (Array[String], Array[Long]) = {
+    val sc = rdd.sparkContext
+    val hConf = sc.hadoopConfiguration
+
+    hConf.mkDir(path + "/rows/parts")
+    hConf.mkDir(path + "/entries/parts")
+
+    val sHConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+
+    val nPartitions = rdd.getNumPartitions
+    val d = digitsNeeded(nPartitions)
+
+    val partFiles = Array.tabulate[String](nPartitions) { i =>
+      val is = i.toString
+      assert(is.length <= d)
+      "part-" + StringUtils.leftPad(is, d, "0")
+    }
+
+    val fullRowType = t.rvRowType
+    val rowsRVType = t.rowType
+    val localEntriesIndex: Int = t.entriesIdx
+
+    val entriesRVType = TStruct(
+      MatrixType.entriesIdentifier -> TArray(t.entryType))
+
+    val partitionCounts = rdd.mapPartitionsWithIndex { case (i, it) =>
+      val hConf = sHConfBc.value.value
+
+      val is = i.toString
+      assert(is.length <= d)
+      val pis = StringUtils.leftPad(is, d, "0")
+
+      val rowsPartPath = path + "/rows/parts/part-" + pis
+      val rowsOS = hConf.unsafeWriter(rowsPartPath)
+
+      val entriesPartPath = path + "/entries/parts/part-" + pis
+      val entriesOS = sHConfBc.value.value.unsafeWriter(entriesPartPath)
+
+      val rowsEN = new Encoder(new LZ4OutputBuffer(rowsOS))
+      val entriesEN = new Encoder(new LZ4OutputBuffer(entriesOS))
+      var rowCount = 0L
+
+      val rvb = new RegionValueBuilder()
+      val fullRow = new UnsafeRow(fullRowType)
+
+      it.foreach { rv =>
+        fullRow.set(rv)
+        val row = fullRow.deleteField(localEntriesIndex)
+
+        val region = rv.region
+        rvb.set(region)
+        rvb.start(rowsRVType)
+        rvb.addAnnotation(rowsRVType, row)
+
+        rowsEN.writeByte(1)
+        rowsEN.writeRegionValue(rowsRVType, region, rvb.end())
+
+        rvb.start(entriesRVType)
+        rvb.startStruct()
+        rvb.addField(fullRowType, rv, localEntriesIndex)
+        rvb.endStruct()
+
+        entriesEN.writeByte(1)
+        entriesEN.writeRegionValue(entriesRVType, region, rvb.end())
+
+        rowCount += 1
+      }
+
+      rowsEN.writeByte(0) // end
+      rowsEN.flush()
+      rowsOS.close()
+
+      entriesEN.writeByte(0)
+      entriesEN.flush()
+      entriesOS.close()
+
+      Iterator.single(rowCount)
+    }
+      .collect()
+
+    val itemCount = partitionCounts.sum
+    info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions")
+
+    (partFiles, partitionCounts)
   }
 }

@@ -16,7 +16,7 @@ import is.hail.table.Table
 import is.hail.rvd.OrderedRVD
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{Call2, GenomeReference, Genotype, HTSGenotypeView, Locus, MatrixFileMetadata, MatrixTable, VSMSubgen, Variant}
+import is.hail.variant.{Call2, GenomeReference, Genotype, HTSGenotypeView, Locus, MatrixTable, VSMSubgen, Variant}
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
@@ -28,6 +28,8 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
 import scala.reflect.{ClassTag, classTag}
+
+case class FilePartition(index: Int, file: String) extends Partition
 
 object HailContext {
 
@@ -324,10 +326,16 @@ class HailContext private(val sc: SparkContext,
     val rdd = sc.union(results.map(_.rdd))
 
     MatrixTable.fromLegacy(this,
-      MatrixFileMetadata(samples.map(Annotation(_)),
-        vaSignature = signature,
-        genotypeSignature = TStruct("GT" -> TCall(),
+      MatrixType.fromParts(
+        globalType = TStruct.empty(),
+        colKey = Array("s"),
+        colType = TStruct("s" -> TString()),
+        rowPartitionKey = Array("v"), rowKey = Array("v"),
+        rowType = signature,
+        entryType = TStruct("GT" -> TCall(),
           "GP" -> TArray(TFloat64()))),
+      Annotation.empty,
+      samples.map(Annotation(_)),
       rdd)
   }
 
@@ -428,38 +436,30 @@ class HailContext private(val sc: SparkContext,
 
   def readPartitions[T: ClassTag](
     path: String,
-    nPartitions: Int,
+    partFiles: Array[String],
     read: (Int, InputStream) => Iterator[T],
     optPartitioner: Option[Partitioner] = None): RDD[T] = {
+    val nPartitions = partFiles.length
 
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
-    val d = digitsNeeded(nPartitions)
 
     new RDD[T](sc, Nil) {
       def getPartitions: Array[Partition] =
-        Array.tabulate(nPartitions)(i =>
-          new Partition {
-            def index: Int = i
-          })
+        Array.tabulate(nPartitions)(i => FilePartition(i, partFiles(i)))
 
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
-        val i = split.index
-        val is = i.toString
-        assert(is.length <= d)
-        val pis = StringUtils.leftPad(is, d, "0")
-
-        val filename = path + "/parts/part-" + pis
+        val p = split.asInstanceOf[FilePartition]
+        val filename = path + "/parts/" + p.file
         val in = sHadoopConfBc.value.value.unsafeReader(filename)
-
-        read(i, in)
+        read(p.index, in)
       }
 
       @transient override val partitioner: Option[Partitioner] = optPartitioner
     }
   }
 
-  def readRows(path: String, t: TStruct, nPartitions: Int): RDD[RegionValue] =
-    readPartitions(path, nPartitions, HailContext.readRowsPartition(t))
+  def readRows(path: String, t: TStruct, partFiles: Array[String]): RDD[RegionValue] =
+    readPartitions(path, partFiles, HailContext.readRowsPartition(t))
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
     val reader = new HtsjdkRecordReader(Set.empty)

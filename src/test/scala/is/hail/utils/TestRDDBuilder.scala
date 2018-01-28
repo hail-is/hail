@@ -2,6 +2,7 @@ package is.hail.utils
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.types.{MatrixType, TString, TStruct, TVariant}
 import is.hail.variant._
 
 import scala.util.Random
@@ -125,6 +126,14 @@ object TestRDDBuilder {
       }.toArray
     
     val variantRDD = hc.sc.parallelize(variantArray)
-    MatrixTable.fromLegacy(hc, MatrixFileMetadata(sampleList.map(Annotation(_))), variantRDD)
+    MatrixTable.fromLegacy(hc,
+      MatrixType.fromParts(
+        globalType = TStruct.empty(),
+        colKey = Array("s"),
+        colType = TStruct("s" -> TString()),
+        rowPartitionKey = Array("v"), rowKey = Array("v"),
+        rowType = TStruct("v" -> TVariant(GenomeReference.defaultReference)),
+        entryType = Genotype.htsGenotypeType),
+      Annotation.empty, sampleList.map(Annotation(_)), variantRDD)
   }
 }
