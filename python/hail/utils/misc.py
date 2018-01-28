@@ -5,16 +5,6 @@ from collections import defaultdict
 import os
 
 
-class FunctionDocumentation(object):
-    @handle_py4j
-    def types_rst(self, file_name):
-        Env.hail().utils.FunctionDocumentation.makeTypesDocs(file_name)
-
-    @handle_py4j
-    def functions_rst(self, file_name):
-        Env.hail().utils.FunctionDocumentation.makeFunctionsDocs(file_name)
-
-
 def wrap_to_list(s):
     if isinstance(s, list):
         return s
@@ -73,7 +63,8 @@ def plural(orig, n, alternate=None):
 
 
 def get_obj_metadata(obj):
-    from hail.api2 import MatrixTable, GroupedMatrixTable, Table, GroupedTable
+    from hail.matrixtable import MatrixTable, GroupedMatrixTable
+    from hail.table import Table, GroupedTable
     if isinstance(obj, MatrixTable):
         return 'MatrixTable', obj, MatrixTable
     elif isinstance(obj, GroupedMatrixTable):

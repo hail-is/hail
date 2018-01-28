@@ -1,11 +1,12 @@
-from hail.api2.matrixtable import MatrixTable, Table
+from hail.matrixtable import MatrixTable
+from hail.table import Table
 from hail.expr.expression import *
 from hail.genetics import KinshipMatrix, GenomeReference
 from hail.genetics.ldMatrix import LDMatrix
 from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
-from hail.utils.java import handle_py4j, joption
+from hail.utils.java import handle_py4j, joption, jarray
 from .misc import require_biallelic
 from hail.expr import functions
 import hail.expr.aggregators as agg
@@ -1143,16 +1144,13 @@ def ld_matrix(dataset, force_local=False):
 
     .. include:: ../_templates/req_biallelic.rst
 
-    .. testsetup::
+    Examples
+    --------
 
-        dataset = vds.annotate_samples_expr('sa = drop(sa, qc)').to_hail2()
-        from hail.methods import ld_matrix
+    >>> ld_matrix = methods.ld_matrix(dataset)
 
-    **Examples**
-
-    >>> ld_matrix = ld_matrix(dataset)
-
-    **Notes**
+    Notes
+    -----
 
     Each entry (i, j) in the LD matrix gives the :math:`r` value between variants i and j, defined as
     `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
@@ -1172,18 +1170,23 @@ def ld_matrix(dataset, force_local=False):
         :meth:`.sample_variants`, :meth:`.filter_variants_expr`, or :meth:`.ld_prune` before
         calling this unless your dataset is very small.
 
-    :param dataset: Variant-keyed dataset.
-    :type dataset: :class:`.MatrixTable`
+    Parameters
+    ----------
+    dataset : :class:`.MatrixTable`
+        Variant-keyed dataset.
+    force_local : `obj`:bool
+        If ``True``, the LD matrix is computed using local matrix
+        multiplication on the Spark driver.  This may improve
+        performance when the genotype matrix is small enough to easily
+        fit in local memory.  If false, the LD matrix is computed
+        using distributed matrix multiplication if the number of
+        entries exceeds :math:`5000^2` and locally otherwise.
 
-    :param bool force_local: If true, the LD matrix is computed using local matrix multiplication on the Spark driver.
-        This may improve performance when the genotype matrix is small enough to easily fit in local memory.
-        If false, the LD matrix is computed using distributed matrix multiplication if the number of entries
-        exceeds :math:`5000^2` and locally otherwise.
-
-    :return: Matrix of r values between pairs of variants.
-    :rtype: :class:`.LDMatrix`
+    Returns
+    -------
+    :class:`.LDMatrix`
+        Matrix of r values between pairs of variants.
     """
-
     jldm = Env.hail().methods.LDMatrix.apply(require_biallelic(dataset, 'ld_matrix')._jvds, force_local)
     return LDMatrix(jldm)
 
@@ -1372,14 +1375,15 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     return (jiterable_to_list(r._1()), scores, loadings)
 
 @handle_py4j
-@typecheck_method(k=integral,
-                  maf=numeric,
-                  block_size=integral,
-                  min_kinship=numeric,
-                  statistics=enumeration("phi", "phik2", "phik2k0", "all"))
+@typecheck(dataset=MatrixTable,
+           k=integral,
+           maf=numeric,
+           block_size=integral,
+           min_kinship=numeric,
+           statistics=enumeration("phi", "phik2", "phik2k0", "all"))
 def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
-    """Compute relatedness estimates between individuals using a variant of the
-    PC-Relate method.
+    """Compute relatedness estimates between individuals using a variant
+    of the PC-Relate method.
 
     .. include:: ../_templates/experimental.rst
 
@@ -1395,19 +1399,18 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
     components to correct for ancestral populations, and a minimum minor
     allele frequency filter of 0.01:
 
-    >>> rel = vds.pc_relate(10, 0.01)
+    >>> rel = methods.pc_relate(dataset, 10, 0.01)
 
     Calculate values as above, but when performing distributed matrix
     multiplications use a matrix-block-size of 1024 by 1024.
 
-    >>> rel = vds.pc_relate(10, 0.01, 1024)
+    >>> rel = methods.pc_relate(dataset, 10, 0.01, 1024)
 
     Calculate values as above, excluding sample-pairs with kinship less
     than 0.1. This is more efficient than producing the full table and
     filtering using :meth:`.Table.filter`.
 
-    >>> rel = vds.pc_relate(5, 0.01, min_kinship=0.1)
-
+    >>> rel = methods.pc_relate(dataset, 5, 0.01, min_kinship=0.1)
 
     The traditional estimator for kinship between a pair of individuals
     :math:`i` and :math:`j`, sharing the set :math:`S_{ij}` of
@@ -1591,10 +1594,11 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
        PCRelate are often too noisy to reliably distinguish these pairs from
        higher-degree-relative-pairs or unrelated pairs.
 
-
-
     Parameters
     ----------
+    ds : :class:`.MatrixTable`
+        A biallelic-variant keyed :class:`.MatrixTable` containing
+        genotype information.
     k : :obj:`int`
         The number of principal components to use to distinguish ancestries.
     maf : :obj:`float`

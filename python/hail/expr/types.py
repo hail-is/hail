@@ -704,7 +704,7 @@ class TVariant(Type):
     ----------
     reference_genome: :class:`.GenomeReference`
         Reference genome to use. Default is
-        :meth:`hail.api1.HailContext.default_reference`.
+        :meth:`hail.default_reference`.
     """
 
     @record_init
@@ -836,7 +836,7 @@ class TLocus(Type):
     ----------
     reference_genome: :class:`.GenomeReference`
         Reference genome to use. Default is
-        :meth:`hail.api1.HailContext.default_reference`.
+        :meth:`hail.default_reference`.
     """
 
     @record_init

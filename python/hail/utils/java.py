@@ -55,7 +55,7 @@ class Env:
     @staticmethod
     def hc():
         if not Env._hc:
-            from hail2 import init
+            from hail.context import init
             import sys
             sys.stderr.write("Initializing Spark and Hail with default parameters...\n")
             init()

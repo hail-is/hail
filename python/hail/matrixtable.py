@@ -4,7 +4,7 @@ from hail.expr.expression import *
 from hail.utils import storage_level
 from hail.utils.java import handle_py4j, escape_id
 from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple
-from hail.api2 import Table
+from hail.table import Table
 
 
 class GroupedMatrixTable(object):
@@ -617,7 +617,7 @@ class MatrixTable(object):
 
         >>> dataset_result = dataset.annotate_cols(sample_gq_stats = agg.stats(dataset.GQ))
 
-        Add sample metadata from a :class:`.hail.api2.Table`.
+        Add sample metadata from a :class:`.hail.Table`.
 
         >>> dataset_result = dataset.annotate_cols(population = table2[dataset.s].pop)
 
@@ -2227,7 +2227,7 @@ class MatrixTable(object):
         Notes
         -----
 
-        This method is an alias for :func:`persist("MEMORY_ONLY") <hail.api2.MatrixTable.persist>`.
+        This method is an alias for :func:`persist("MEMORY_ONLY") <hail.MatrixTable.persist>`.
 
         Returns
         -------
