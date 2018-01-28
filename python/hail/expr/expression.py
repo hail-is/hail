@@ -76,7 +76,7 @@ def construct_reference(name, type, indices, prefix=None):
         ast = Select(Reference(prefix, True), name)
     else:
         ast = Reference(name, True)
-    return construct_expr(ast, type, indices, refs=LinkedList(tuple).push((name, indices)))
+    return construct_expr(ast, type._deep_optional(), indices, refs=LinkedList(tuple).push((name, indices)))
 
 def to_expr(e):
     if isinstance(e, Expression):
@@ -1342,6 +1342,11 @@ class ArrayNumericExpression(ArrayExpression, CollectionNumericExpression):
             Sorted array.
         """
         return self._method("sort", self._type, ascending)
+
+
+class ArrayBooleanExpression(ArrayExpression):
+    """Expression of type :class:`.TArray` with element type :class:`.TBoolean`."""
+    pass
 
 
 class ArrayFloat64Expression(ArrayNumericExpression):
@@ -4027,6 +4032,7 @@ typ_to_expr = {
 }
 
 elt_typ_to_array_expr = {
+    TBoolean: ArrayBooleanExpression,
     TInt32: ArrayInt32Expression,
     TFloat64: ArrayFloat64Expression,
     TInt64: ArrayInt64Expression,
