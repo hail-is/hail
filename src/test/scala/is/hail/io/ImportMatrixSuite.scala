@@ -47,7 +47,7 @@ class ImportMatrixSuite extends SparkSuite {
       tGen = (t: Type, v: Annotation) => t.genValue)
 
     forAll(MatrixTable.gen(hc, genMatrix)
-      .filter(vsm => !vsm.sampleIds.contains("v"))) { vsm =>
+      .filter(vsm => !vsm.stringSampleIds.contains("v"))) { vsm =>
       val actual: MatrixTable = {
         val f = tmpDir.createTempFile(extension = "txt")
         vsm.makeKT("v = v", "`` = g.x", Array("v")).export(f)

@@ -53,7 +53,7 @@ object PCRelate {
   private val keys = Array("i", "j")
 
   private def toRowRdd(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double, blockSize: Int, minKinship: Double, statistics: StatisticSubset): RDD[Row] = {
-    val localSampleIds = vds.sampleIds
+    val localSampleIds = vds.stringSampleIds
     val Result(phi, k0, k1, k2) = new PCRelate(maf, blockSize)(vds, pcs, statistics)
 
     def fuseBlocks(i: Int, j: Int, lmPhi: DenseMatrix[Double], lmK0: DenseMatrix[Double], lmK1: DenseMatrix[Double], lmK2: DenseMatrix[Double]) = {

@@ -66,22 +66,21 @@ class TableSuite extends SparkSuite {
   }
 
   @Test def testToMatrixTable() {
-    forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
+    forAll(MatrixTable.gen(hc, VSMSubgen.random).map(_.annotateSamplesExpr("sa = {col_id: sa.s}").keyColsBy("col_id"))) { vds =>
       var expr = ""
-      vds.genotypeSignature.fieldNames.foreach { n =>
+      vds.genotypeSignature.fieldNames.foreachBetween { n =>
         expr += n
-        expr += " = g."
+        expr += " = "
         expr += n
-        expr += ", "
-      }
-      val original = vds.annotateSamplesExpr("sa = {}")
+      } { expr += ", "}
+      val original = vds
         .annotateVariantsExpr("va = {}")
         .annotateGlobalExpr("global = {}")
         .filterSamplesExpr("gs.exists(g => isDefined(g))")
         .filterVariantsExpr("gs.exists(g => isDefined(g))")
 
-      val actual = vds.genotypeKT().toMatrixTable("v", "s", expr.substring(0, expr.length() - 2))
-        .reorderSamples(original.sampleIds.toArray)
+      val actual = vds.genotypeKT().toMatrixTable("v", "col_id", expr)
+        .reorderSamples(original.colKeys.toArray)
       actual.same(original)
     }.check()
   }

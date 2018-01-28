@@ -218,7 +218,6 @@ object Skat {
     val sc = vsm.sparkContext
 
     val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
-    val sampleIdsBc = vsm.sampleIdsBc
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
     val localRowType = vsm.rvRowType
 
@@ -241,7 +240,7 @@ object Skat {
           val missingSamples = new ArrayBuilder[Int]()
 
           RegressionUtils.inputVector(x,
-            localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
+            localGlobalAnnotationBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
             ec, xf,
             completeSampleIndexBc.value, missingSamples)
 

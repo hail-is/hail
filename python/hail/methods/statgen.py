@@ -102,6 +102,7 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
                                               joption(min),
                                               joption(max)))
 
+@handle_py4j
 @typecheck(dataset=MatrixTable,
            ys=oneof(Expression, listof(Expression)),
            x=Expression,
@@ -391,15 +392,14 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     PC bi-plots this amounts to a change in aspect ratio; for use of PCs as
     covariates in regression it is immaterial.)
 
-    Scores are stored in a :class:`.Table` with the following fields:
+    Scores are stored in a :class:`.Table` with the column keys of the matrix,
+    and the following additional field:
 
-     - **s**: Column key of the dataset.
-
-     - **pcaScores**: The principal component scores. This can have two different
+     - **scores**: The principal component scores. This can have two different
        structures, depending on the value of the `as_array` flag.
 
-    If `as_array` is ``False`` (default), then `pcaScores` is a ``Struct`` with
-    fields `PC1`, `PC2`, etc. If `as_array` is ``True``, then `pcaScores` is a
+    If `as_array` is ``False`` (default), then `scores` is a ``Struct`` with
+    fields `PC1`, `PC2`, etc. If `as_array` is ``True``, then `scores` is a
     field of type ``Array[Float64]`` containing the principal component scores.
 
     Loadings are stored in a :class:`.Table` with a structure similar to the scores
@@ -995,7 +995,7 @@ def grm(dataset):
     dataset.unpersist()
     grm = bm.T.dot(bm)
 
-    return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
+    return KinshipMatrix._from_block_matrix(TString(),
                                       grm,
                                       [row.s for row in dataset.cols_table().select('s').collect()],
                                       n_variants)
@@ -1097,7 +1097,7 @@ def rrm(call_expr):
     dataset.unpersist()
     rrm = bm.T.dot(bm) / n_variants
 
-    return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
+    return KinshipMatrix._from_block_matrix(TString(),
                                             rrm,
                                             [row.s for row in dataset.cols_table().select('s').collect()],
                                             n_variants)

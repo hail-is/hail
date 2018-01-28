@@ -16,7 +16,7 @@ class RichMatrixTable(vsm: MatrixTable) {
     mapWithAll[(Annotation, Annotation, Annotation, Annotation, Annotation)]((v, va, s, sa, g) => (v, va, s, sa, g))
 
   def mapWithAll[U](f: (Annotation, Annotation, Annotation, Annotation, Annotation) => U)(implicit uct: ClassTag[U]): RDD[U] = {
-    val localSampleIdsBc = vsm.sampleIdsBc
+    val localSampleIdsBc = vsm.sparkContext.broadcast(vsm.stringSampleIds)
     val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
 
     rdd
@@ -27,7 +27,7 @@ class RichMatrixTable(vsm: MatrixTable) {
   }
 
   def mapWithKeys[U](f: (Annotation, Annotation, Annotation) => U)(implicit uct: ClassTag[U]): RDD[U] = {
-    val localSampleIdsBc = vsm.sampleIdsBc
+    val localSampleIdsBc = vsm.sparkContext.broadcast(vsm.stringSampleIds)
 
     rdd
       .flatMap { case (v, (va, gs)) =>
@@ -38,7 +38,8 @@ class RichMatrixTable(vsm: MatrixTable) {
 
   def annotateSamplesF(signature: Type, path: List[String], annotation: (Annotation) => Annotation): MatrixTable = {
     val (t, i) = vsm.insertSA(signature, path)
-    vsm.annotateSamples(annotation, t, i)
+    val sampleIds = vsm.stringSampleIds
+    vsm.annotateSamples(t, i) { case (_, i) => annotation(sampleIds(i)) }
   }
 
   def insertVA(sig: Type, args: String*): (Type, Inserter) = vsm.insertVA(sig, args.toList)
@@ -98,31 +99,27 @@ class RichMatrixTable(vsm: MatrixTable) {
     rdd.mapValuesWithKey { case (v, (va, gs)) => va }
 
   def copy(rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))] = rdd,
-    sampleIds: IndexedSeq[Annotation] = vsm.sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = vsm.sampleAnnotations,
     globalAnnotation: Annotation = vsm.globalAnnotation,
-    sSignature: Type = vsm.sSignature,
     saSignature: TStruct = vsm.saSignature,
     vSignature: Type = vsm.vSignature,
     vaSignature: TStruct = vsm.vaSignature,
     globalSignature: TStruct = vsm.globalSignature,
     genotypeSignature: TStruct = vsm.genotypeSignature): MatrixTable =
     MatrixTable.fromLegacy(vsm.hc,
-      MatrixType(globalSignature, sSignature, saSignature, vSignature, vaSignature, genotypeSignature),
-      MatrixLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
+      MatrixType(globalSignature, saSignature, Array("s"), vSignature, vaSignature, genotypeSignature),
+      MatrixLocalValue(globalAnnotation, sampleAnnotations), rdd)
 
   def copyLegacy[RK, T](rdd: RDD[(RK, (Annotation, Iterable[T]))],
-    sampleIds: IndexedSeq[Annotation] = vsm.sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = vsm.sampleAnnotations,
     globalAnnotation: Annotation = vsm.globalAnnotation,
-    sSignature: Type = vsm.sSignature,
     saSignature: TStruct = vsm.saSignature,
     vSignature: Type = vsm.vSignature,
     vaSignature: TStruct = vsm.vaSignature,
     globalSignature: TStruct = vsm.globalSignature,
     genotypeSignature: TStruct = vsm.genotypeSignature): MatrixTable =
     MatrixTable.fromLegacy(vsm.hc,
-      MatrixType(globalSignature, sSignature, saSignature, vSignature, vaSignature, genotypeSignature),
-      MatrixLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
+      MatrixType(globalSignature, saSignature, Array("s"), vSignature, vaSignature, genotypeSignature),
+      MatrixLocalValue(globalAnnotation, sampleAnnotations),
       rdd)
 }

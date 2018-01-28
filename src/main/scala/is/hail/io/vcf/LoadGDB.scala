@@ -192,12 +192,13 @@ object LoadGDB {
     queryFile.delete()
 
     MatrixTable.fromLegacy(hc, MatrixType(
+      colType = TStruct("s" -> TString()),
+      colKey = Array("s"),
       vType = TVariant(gr),
       vaType = variantAnnotationSignatures,
       genotypeType = genotypeSignature),
       MatrixLocalValue(Annotation.empty,
-        sampleIds,
-        Annotation.emptyIndexedSeq(sampleIds.length)),
+        sampleIds.map(x => Annotation(x))),
       recordRDD)
   }
 }

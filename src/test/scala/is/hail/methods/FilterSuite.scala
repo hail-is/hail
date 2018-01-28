@@ -13,7 +13,7 @@ class FilterSuite extends SparkSuite {
   @Test def filterTest() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
 
-    assert(vds.filterSamplesExpr("\"^HG\" ~ s").nSamples == 63)
+    assert(vds.filterSamplesExpr("\"^HG\" ~ sa.s").nSamples == 63)
 
     assert(vds.filterVariantsExpr("v.start >= 14066228", keep = false).countVariants() == 173)
 
@@ -39,7 +39,7 @@ class FilterSuite extends SparkSuite {
 
     assert(sQcVds.filterSamplesExpr("sa.qc.dpMean > 60").nSamples == 6)
 
-    assert(sQcVds.filterSamplesExpr("if (\"^C1048\" ~ s) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3")
+    assert(sQcVds.filterSamplesExpr("if (\"^C1048\" ~ sa.s) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3")
       .nSamples == 16)
 
     val vQcVds = VariantQC(vds)
@@ -57,7 +57,7 @@ class FilterSuite extends SparkSuite {
     assert(vQcVds.filterVariantsExpr("isDefined(va.qc.rHetHomVar)").countVariants() == 117)
 
     val highGQ = vds.filterGenotypes("g.GQ < 20", keep = false)
-    assert(!highGQ.genotypeKT().exists("g.GQ < 20"))
+    assert(!highGQ.genotypeKT().exists("GQ < 20"))
     assert(highGQ.genotypeKT().count() == 30889)
 
     val highGQorMidQGAndLowFS = vds.filterGenotypes("g.GQ < 20 || (g.GQ < 30 && va.info.FS > 30)", keep = false)
@@ -75,7 +75,7 @@ class FilterSuite extends SparkSuite {
 
     val highGQ2 = vds2.filterGenotypes("g.GQ < 20", keep = false)
 
-    assert(!highGQ2.genotypeKT().exists("g.GQ < 20"))
+    assert(!highGQ2.genotypeKT().exists("GQ < 20"))
 
     val chr1 = vds2.filterVariantsExpr("v.contig == \"1\"")
 
@@ -95,7 +95,7 @@ class FilterSuite extends SparkSuite {
 
     val vds = SplitMulti(TestRDDBuilder.buildRDD(8, 8, hc))
 
-    val sampleList = hadoopConf.readLines("src/test/resources/filter.sample_list")(_.map(_.value: Annotation).toSet)
+    val sampleList = hadoopConf.readLines("src/test/resources/filter.sample_list")(_.map(s => Annotation(s.value)).toSet)
     assert(vds.filterSamplesList(sampleList).nSamples == 3)
 
     assert(vds.filterSamplesList(sampleList, keep = false).nSamples == 5)
@@ -115,7 +115,7 @@ class FilterSuite extends SparkSuite {
 
   @Test def MissingTest() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf"))
-    val keepOneSample = VariantQC(vds.filterSamplesExpr("s == \"C1046::HG02024\""))
+    val keepOneSample = VariantQC(vds.filterSamplesExpr("sa.s == \"C1046::HG02024\""))
 
     val q = keepOneSample.queryVA("va.qc.rHetHomVar")._2
     val missingVariants = keepOneSample.variantsAndAnnotations

@@ -6,15 +6,14 @@ import is.hail.variant.MatrixTable
 import is.hail.utils._
 
 object ExportPlink {
-  def apply(vsm: MatrixTable, path: String, famExpr: String = "id = s") {
+  def apply(vsm: MatrixTable, path: String, famExpr: String = "id = sa.s") {
     vsm.requireColKeyString("export_plink")
 
     val ec = EvalContext(Map(
-      "s" -> (0, TString()),
-      "sa" -> (1, vsm.saSignature),
-      "global" -> (2, vsm.globalSignature)))
+      "sa" -> (0, vsm.saSignature),
+      "global" -> (1, vsm.globalSignature)))
 
-    ec.set(2, vsm.globalAnnotation)
+    ec.set(1, vsm.globalAnnotation)
 
     type Formatter = (Option[Any]) => String
 
@@ -64,7 +63,7 @@ object ExportPlink {
     if (badSampleIds.nonEmpty) {
       fatal(
         s"""Found ${ badSampleIds.length } sample IDs with whitespace
-           |  Please run `renamesamples' to fix this problem before exporting to plink format
+           |  Fix this problem before exporting to plink format
            |  Bad sample IDs: @1 """.stripMargin, badSampleIds)
     }
 
@@ -80,9 +79,9 @@ object ExportPlink {
     ).writeTable(path + ".bim", vsm.hc.tmpDir)
 
     val famRows = vsm
-      .sampleIdsAndAnnotations
-      .map { case (s, sa) =>
-        ec.setAll(s, sa)
+      .sampleAnnotations
+      .map { sa =>
+        ec.set(0, sa)
         val a = f().map(Option(_))
         famFns.map(_ (a)).mkString("\t")
       }

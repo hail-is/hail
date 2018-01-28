@@ -314,7 +314,7 @@ object IBD {
     }
 
     val computeMaf = computeMafExpr.map(generateComputeMaf(vds, _))
-    val sampleIds = vds.sampleIds.asInstanceOf[IndexedSeq[String]]
+    val sampleIds = vds.stringSampleIds
 
     val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
     new Table(vds.hc, ktRdd2, ibdSignature, Array("i", "j"))

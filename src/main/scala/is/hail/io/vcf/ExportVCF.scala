@@ -315,7 +315,7 @@ object ExportVCF {
       sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
       if (hasSamples)
         sb.append("\tFORMAT")
-      vsm.sampleIds.foreach { id =>
+      vsm.stringSampleIds.foreach { id =>
         sb += '\t'
         sb.append(id)
       }

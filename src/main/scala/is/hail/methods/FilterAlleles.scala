@@ -36,7 +36,6 @@ object FilterAlleles {
       "newV" -> (3, vsm.vSignature),
       "oldToNew" -> (4, TArray(TInt32())),
       "newToOld" -> (5, TArray(TInt32())),
-      "s" -> (6, vsm.sSignature),
       "sa" -> (7, vsm.saSignature),
       "g" -> (8, vsm.genotypeSignature)))
 
@@ -91,7 +90,6 @@ object FilterAlleles {
       val localRowType = vsm.matrixType.rvRowType
       val newRowType = newMatrixType.rvRowType
 
-      val localSampleIdsBc = vsm.sampleIdsBc
       val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
 
       rdd.mapPartitions(newRowType) { it =>
@@ -137,7 +135,6 @@ object FilterAlleles {
                 var k = 0
                 while (k < localNSamples) {
                   val g = gs(k)
-                  gAnnotator.ec.set(6, localSampleIdsBc.value(k))
                   gAnnotator.ec.set(7, localSampleAnnotationsBc.value(k))
                   gAnnotator.ec.set(8, g)
                   rvb.addAnnotation(newRowType.fieldType(3).asInstanceOf[TArray].elementType, gAnnotator.insert(g))

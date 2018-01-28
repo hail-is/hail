@@ -90,7 +90,8 @@ object LoadMatrix {
     }.map { case (_, partition) => partition }.toSet
 
     val matrixType = MatrixType(
-      sType = TString(),
+      colType = TStruct("s" -> TString()),
+      colKey = Array("s"),
       vType = t,
       vaType = annotationType,
       genotypeType = cellType)
@@ -337,8 +338,7 @@ object LoadMatrix {
     new MatrixTable(hc,
       matrixType,
       MatrixLocalValue(Annotation.empty,
-        sampleIds,
-        Annotation.emptyIndexedSeq(sampleIds.length)),
+        sampleIds.map(x => Annotation(x))),
       OrderedRVD(matrixType.orderedRVType, rdd, None, None))
   }
 }

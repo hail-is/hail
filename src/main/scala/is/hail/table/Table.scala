@@ -135,13 +135,9 @@ object Table {
 
     val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
 
-    val rows = data.map { case (id, values) => Row.fromSeq(Array(id) ++ values.asInstanceOf[Row].toSeq) }.toArray
-    val rdd = hc.sc.parallelize(rows)
+    val rdd = hc.sc.parallelize(data)
 
-    val newFields = List("ID" -> TString()) ++ typ.asInstanceOf[TStruct].fields.map(f => (f.name, f.typ))
-    val struct = TStruct(newFields: _*)
-
-    Table(hc, rdd, struct, Array("ID"))
+    Table(hc, rdd, typ, Array("id"))
   }
 
   def apply(hc: HailContext, rdd: RDD[Row], signature: TStruct, key: Array[String] = Array.empty,
@@ -620,15 +616,17 @@ class Table(val hc: HailContext,
   def drop(columnsToDrop: java.util.ArrayList[String]): Table = drop(columnsToDrop.asScala.toArray)
 
   def rename(columnMap: Map[String, String]): Table = {
-    val newSignature = TStruct(signature.fields.map { fd => fd.copy(name = columnMap.getOrElse(fd.name, fd.name)) })
+    val newFields = signature.fields.map { fd => fd.copy(name = columnMap.getOrElse(fd.name, fd.name)) }
+    val duplicates = newFields.map(_.name).duplicates()
+    if (duplicates.nonEmpty)
+      fatal(s"Found duplicate column names after renaming columns: `${ duplicates.mkString(", ") }'")
+
+    val newSignature = TStruct(newFields)
     val newColumns = newSignature.fields.map(_.name)
     val newKey = key.map(n => columnMap.getOrElse(n, n))
     val duplicateColumns = newColumns.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter {
       _._2 > 1
     }
-
-    if (duplicateColumns.nonEmpty)
-      fatal(s"Found duplicate column names after renaming columns: `${ duplicateColumns.keys.mkString(", ") }'")
 
     copy(rdd = rdd, signature = newSignature, key = newKey)
   }
@@ -843,7 +841,8 @@ class Table(val hc: HailContext,
 
     info(s"$ncols columns")
 
-    val matrixType = MatrixType(sType=colKeyType,
+    val matrixType = MatrixType(colType = TStruct("col_id" -> colKeyType),
+      colKey = Array("col_id"),
       vType=rowKeyType,
       genotypeType=entryType
     )
@@ -912,8 +911,7 @@ class Table(val hc: HailContext,
     new MatrixTable(hc,
       matrixType,
       MatrixLocalValue(Annotation.empty,
-        colIDs,
-        Annotation.emptyIndexedSeq(ncols)),
+        colIDs.map(Annotation(_))),
       newRVD)
   }
 
