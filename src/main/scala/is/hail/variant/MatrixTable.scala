@@ -135,14 +135,13 @@ object MatrixTable {
 
     val matrixType: MatrixType = Parser.parseMatrixType(metadata.matrix_type)
 
-    val sType = matrixType.sType
     val saType = matrixType.saType
     val globalType = matrixType.globalType
 
     val sampleInfo = metadata.sample_annotations.asInstanceOf[JArray]
       .arr
       .map {
-        case jv: JObject => JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations")
+        case jv: JObject => JSONAnnotationImpex.importAnnotation(jv, saType, "sample_annotations")
         case other => fatal(
           s"""corrupt VDS: invalid metadata
              |  Invalid sample annotation metadata
@@ -1585,15 +1584,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     if (!sSignature.sameElements(right.sSignature)) {
       fatal(
         s"""union_cols: cannot combine datasets with different column key schema
-<<<<<<< df52bcbf6861651df0a43eaa86322724e3420bb1
-           |  left column schema: [${sSignature.map(_.toPrettyString(compact = true)).mkString(", ")}]
-           |  right column schema: [${right.sSignature.map(_.toPrettyString(compact = true)).mkString(", ")}]""".stripMargin)
-=======
-           |  left column schema: @1
-           |  right column schema: @2""".stripMargin,
-        sSignature.toString,
-        right.sSignature.toString)
->>>>>>> more cleanup
+           |  left column schema: [${sSignature.map(_.toString).mkString(", ")}]
+           |  right column schema: [${right.sSignature.map(_.toString).mkString(", ")}]""".stripMargin)
     }
 
     if (saSignature != right.saSignature) {
@@ -2165,13 +2157,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       .foreach { case (sa, i) =>
         foundError = true
         warn(
-<<<<<<< df52bcbf6861651df0a43eaa86322724e3420bb1
           s"""found violation in sample annotations for col $i
-             |Schema: ${ saSignature.toPrettyString }
-=======
-          s"""found violation in sample annotations for sample $s
              |Schema: ${ saSignature.toString }
->>>>>>> more cleanup
              |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
       }
 
