@@ -140,8 +140,8 @@ case class MatrixValue(
         it.map { rv =>
           val region = rv.region
           val offset2 =
-          rv2.set(region,
-            f(region, rv.offset, false, region.appendArrayInt(keep), false))
+            rv2.set(region,
+              f(region, rv.offset, false, region.appendArrayInt(keep), false))
           rv2
         }
       })
@@ -160,13 +160,13 @@ object MatrixIR {
   def optimize(ast: MatrixIR): MatrixIR = {
     BaseIR.rewriteTopDown(ast, {
       case FilterVariants(
-      MatrixRead(path, nPartitions, fileMetadata, dropSamples, _),
+      MatrixRead(path, rvdSpec, fileMetadata, dropSamples, _),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, nPartitions, fileMetadata, dropSamples, dropVariants = true)
+        MatrixRead(path, rvdSpec, fileMetadata, dropSamples, dropVariants = true)
       case FilterSamples(
-      MatrixRead(path, nPartitions, fileMetadata, _, dropVariants),
+      MatrixRead(path, rvdSpec, fileMetadata, _, dropVariants),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, nPartitions, fileMetadata, dropSamples = true, dropVariants)
+        MatrixRead(path, rvdSpec, fileMetadata, dropSamples = true, dropVariants)
 
       case FilterVariants(m, Const(_, true, TBoolean(_))) =>
         m
@@ -212,7 +212,7 @@ case class MatrixLiteral(
 
 case class MatrixRead(
   path: String,
-  nPartitions: Int,
+  rvdSpec: RVDSpec,
   fileMetadata: MatrixFileMetadata,
   dropSamples: Boolean,
   dropVariants: Boolean) extends MatrixIR {
@@ -234,15 +234,11 @@ case class MatrixRead(
       else
         fileMetadata.localValue
 
-    val rdd =
+    val rvd =
       if (dropVariants)
         OrderedRVD.empty(hc.sc, typ.orderedRVType)
       else {
-        var rdd = OrderedRVD(
-          typ.orderedRVType,
-          OrderedRVPartitioner(hc.sc,
-            hc.hadoopConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))),
-          hc.readRows(path, typ.rvRowType, nPartitions))
+        var rdd = rvdSpec.resolve(hc, path).asInstanceOf[OrderedRVD]
         if (dropSamples) {
           val localRowType = typ.rvRowType
           rdd = rdd.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
@@ -276,7 +272,7 @@ case class MatrixRead(
     MatrixValue(
       typ,
       localValue,
-      rdd)
+      rvd)
   }
 
   override def toString: String = s"MatrixRead($path, dropSamples = $dropSamples, dropVariants = $dropVariants)"
@@ -381,7 +377,6 @@ case class TableValue(typ: TableType, localValue: TableLocalValue, rvd: RVD) {
 }
 
 
-
 object TableIR {
   def optimize(ir: TableIR): TableIR = {
     BaseIR.rewriteTopDown(ir, {
@@ -401,8 +396,8 @@ abstract sealed class TableIR extends BaseIR {
 
   def env: Env[IR] = {
     Env.empty[IR]
-      .bind(typ.rowType.fieldNames.map {f => (f, GetField(In(0, typ.rowType), f)) }:_*)
-      .bind(typ.globalType.fieldNames.map {f => (f, GetField(In(1, typ.globalType), f)) }:_*)
+      .bind(typ.rowType.fieldNames.map { f => (f, GetField(In(0, typ.rowType), f)) }: _*)
+      .bind(typ.globalType.fieldNames.map { f => (f, GetField(In(1, typ.globalType), f)) }: _*)
   }
 
   def execute(hc: HailContext): TableValue
@@ -425,7 +420,7 @@ case class TableRead(path: String,
   ktType: TableType,
   localValue: TableLocalValue,
   dropRows: Boolean,
-  nPartitions: Int,
+  rvdSpec: RVDSpec,
   override val partitionCounts: Option[Array[Long]]) extends TableIR {
 
   val typ: TableType = ktType
@@ -443,7 +438,7 @@ case class TableRead(path: String,
       if (dropRows)
         RVD.empty(hc.sc, typ.rowType)
       else
-        RVD(typ.rowType, hc.readRows(path, typ.rowType, nPartitions)))
+        rvdSpec.resolve(hc, path))
   }
 }
 
@@ -494,19 +489,19 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
     TableValue(typ,
       tv.localValue,
       tv.rvd.mapPartitions(typ.rowType) { it =>
-      val globalRV = RegionValue()
-      val globalRVb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      val newRow = f()
-      it.map { rv =>
-        globalRVb.set(rv.region)
-        globalRVb.start(gType)
-        globalRVb.addAnnotation(gType, globals)
-        globalRV.set(rv.region, globalRVb.end())
-        rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
-        rv2
-      }
-    })
+        val globalRV = RegionValue()
+        val globalRVb = new RegionValueBuilder()
+        val rv2 = RegionValue()
+        val newRow = f()
+        it.map { rv =>
+          globalRVb.set(rv.region)
+          globalRVb.start(gType)
+          globalRVb.addAnnotation(gType, globals)
+          globalRV.set(rv.region, globalRVb.end())
+          rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
+          rv2
+        }
+      })
   }
 }
 

@@ -7,7 +7,7 @@ import is.hail.expr.types._
 import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.storage.StorageLevel
 import is.hail.sparkextras._
-import is.hail.rvd.{OrderedRVD, OrderedRVType, RVD}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD}
 import is.hail.variant._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -448,7 +448,7 @@ object LDPrune {
     val typ = vsm.rdd2.typ
 
     val standardizedRDD = vsm.rdd2
-      .mapPartitionsPreservesPartitioning(new OrderedRVType(typ.partitionKey, typ.key, bpvType))({ it =>
+      .mapPartitionsPreservesPartitioning(new OrderedRVDType(typ.partitionKey, typ.key, bpvType))({ it =>
         val hcView = HardCallView(localRowType)
         val region = Region()
         val rvb = new RegionValueBuilder(region)

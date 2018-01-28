@@ -29,6 +29,8 @@ import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
 import scala.reflect.{ClassTag, classTag}
 
+case class FilePartition(index: Int, file: String) extends Partition
+
 object HailContext {
 
   val tera: Long = 1024L * 1024L * 1024L * 1024L
@@ -427,38 +429,30 @@ class HailContext private(val sc: SparkContext,
 
   def readPartitions[T: ClassTag](
     path: String,
-    nPartitions: Int,
+    partFiles: Array[String],
     read: (Int, InputStream) => Iterator[T],
     optPartitioner: Option[Partitioner] = None): RDD[T] = {
+    val nPartitions = partFiles.length
 
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
-    val d = digitsNeeded(nPartitions)
 
     new RDD[T](sc, Nil) {
       def getPartitions: Array[Partition] =
-        Array.tabulate(nPartitions)(i =>
-          new Partition {
-            def index: Int = i
-          })
+        Array.tabulate(nPartitions)(i => FilePartition(i, partFiles(i)))
 
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
-        val i = split.index
-        val is = i.toString
-        assert(is.length <= d)
-        val pis = StringUtils.leftPad(is, d, "0")
-
-        val filename = path + "/parts/part-" + pis
+        val p = split.asInstanceOf[FilePartition]
+        val filename = path + "/parts/" + p.file
         val in = sHadoopConfBc.value.value.unsafeReader(filename)
-
-        read(i, in)
+        read(p.index, in)
       }
 
       @transient override val partitioner: Option[Partitioner] = optPartitioner
     }
   }
 
-  def readRows(path: String, t: TStruct, nPartitions: Int): RDD[RegionValue] =
-    readPartitions(path, nPartitions, HailContext.readRowsPartition(t))
+  def readRows(path: String, t: TStruct, partFiles: Array[String]): RDD[RegionValue] =
+    readPartitions(path, partFiles, HailContext.readRowsPartition(t))
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
     val reader = new HtsjdkRecordReader(Set.empty)

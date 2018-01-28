@@ -184,7 +184,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       .subsetPartitions((0 to idxLast).toArray)
   }
   
-  def writePartitions(path: String, write: (Int, Iterator[T], OutputStream) => Long): Array[Long] = {
+  def writePartitions(path: String, write: (Int, Iterator[T], OutputStream) => Long): (Array[String], Array[Long]) = {
     val sc = r.sparkContext
     val hadoopConf = sc.hadoopConfiguration
     
@@ -194,6 +194,12 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     
     val nPartitions = r.getNumPartitions
     val d = digitsNeeded(nPartitions)
+
+    val partFiles = Array.tabulate[String](nPartitions) { i =>
+      val is = i.toString
+      assert(is.length <= d)
+      "part-" + StringUtils.leftPad(is, d, "0")
+    }
 
     val partitionCounts = r.mapPartitionsWithIndex { case (i, it) =>
       val is = i.toString
@@ -211,6 +217,6 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     val itemCount = partitionCounts.sum
     info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions")
     
-    partitionCounts
+    (partFiles, partitionCounts)
   }
 }

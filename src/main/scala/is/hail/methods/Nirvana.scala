@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.{JSONAnnotationImpex, Parser}
-import is.hail.rvd.{OrderedRVD, OrderedRVType}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType}
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, Variant}
 import org.apache.spark.storage.StorageLevel
@@ -315,7 +315,7 @@ object Nirvana {
 
     info(s"nirvana: annotated ${ annotations.count() } variants")
 
-    val nirvanaOrderedRVType = new OrderedRVType(
+    val nirvanaOrderedRVType = new OrderedRVDType(
       Array("pk"), Array("pk", "v"),
       TStruct(
         "pk" -> vds.locusType,

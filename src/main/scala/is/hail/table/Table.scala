@@ -9,7 +9,7 @@ import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
-import is.hail.rvd.{OrderedRVD, OrderedRVPartitioner, OrderedRVType, RVD}
+import is.hail.rvd._
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, MatrixTable}
 import org.apache.commons.lang3.StringUtils
@@ -19,7 +19,7 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -44,7 +44,7 @@ case class TableMetadata(
   key: Array[String],
   table_type: String,
   globals: JValue,
-  n_partitions: Int,
+  rvd_spec: RVDSpec,
   partition_counts: Array[Long])
 
 case class TableLocalValue(globals: Row)
@@ -98,7 +98,7 @@ object Table {
       tableType,
       TableLocalValue(globals),
       dropRows = false,
-      metadata.n_partitions,
+      metadata.rvd_spec,
       Some(metadata.partition_counts)))
   }
 
@@ -769,7 +769,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     keyF: Array[() => Annotation], fieldFs: () => Array[Annotation]): Table = {
     val localSig = signature
     val nKeys = keyF.length + 1
-    val orderedType = new OrderedRVType(Array(rowType.fieldNames(0)), rowType.fieldNames.slice(0, nKeys), rowType)
+    val orderedType = new OrderedRVDType(Array(rowType.fieldNames(0)), rowType.fieldNames.slice(0, nKeys), rowType)
     val newRDD = rvd.rdd.mapPartitions { it =>
       val ur = new UnsafeRow(localSig)
       val rvb = new RegionValueBuilder()
@@ -1067,7 +1067,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
     hc.hadoopConf.mkDir(path)
 
-    val partitionCounts = rvd.rdd.writeRows(path, signature)
+    val (partFiles, partitionCounts) = rvd.rdd.writeRows(path, signature)
 
     val refPath = path + "/references/"
     hc.hadoopConf.mkDir(refPath)
@@ -1079,7 +1079,10 @@ class Table(val hc: HailContext, val ir: TableIR) {
       key,
       ir.typ.toString,
       JSONAnnotationImpex.exportAnnotation(globals, globalSignature),
-      nPartitions,
+      RVDSpec("RVD",
+        Extraction.decompose(RVDSpecArgs(
+          signature.toString,
+          partFiles))),
       partitionCounts)
 
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
@@ -1369,7 +1372,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     ))
   }
 
-  def toSingletonKeyOrderedRVD(hintPartitioner: Some[OrderedRVPartitioner], partitionKeyed: Boolean = false): OrderedRVD = {
+  def toSingletonKeyOrderedRVD(hintPartitioner: Some[OrderedRVDPartitioner], partitionKeyed: Boolean = false): OrderedRVD = {
     assert(nKeys == 1)
     val localSignature = signature
     val kIndex = keyFieldIdx(0)
@@ -1377,12 +1380,12 @@ class Table(val hc: HailContext, val ir: TableIR) {
     val (pkType, pkProjection) = Type.partitionKeyProjection(vType)
     val orderedKTType =
       if (partitionKeyed)
-        new OrderedRVType(Array("pk"), Array("pk"),
+        new OrderedRVDType(Array("pk"), Array("pk"),
           TStruct(
             "pk" -> pkType,
             "value" -> valueSignature))
       else
-        new OrderedRVType(Array("pk"), Array("pk", "v"),
+        new OrderedRVDType(Array("pk"), Array("pk", "v"),
           TStruct(
             "pk" -> pkType,
             "v" -> vType,

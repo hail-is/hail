@@ -1,18 +1,53 @@
 package is.hail.rvd
 
-import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.types.Type
+import is.hail.HailContext
+import is.hail.annotations._
+import is.hail.expr.{JSONAnnotationImpex, Parser}
+import is.hail.expr.types.{TArray, Type}
 import is.hail.utils._
 import org.apache.spark.{Partition, SparkContext}
 import org.apache.spark.rdd.{AggregateWithContext, RDD}
 import org.apache.spark.storage.StorageLevel
+import org.json4s.JValue
 
 import scala.reflect.ClassTag
+
+case class RVDSpecArgs(
+  row_type: String, // TStruct
+  part_files: Array[String])
+
+case class OrderedRVDSpecArgs(
+  ordered_row_type: String, // OrderedRVDType
+  part_files: Array[String],
+  partition_bounds: JValue)
+
+case class RVDSpec(
+  name: String,
+  jargs: JValue) {
+  def resolve(hc: HailContext, path: String): RVD = {
+    name match {
+      case "RVD" =>
+        val args = jargs.extract[RVDSpecArgs]
+        val rowType = Parser.parseStructType(args.row_type)
+        RVD(rowType, hc.readRows(path, rowType, args.part_files))
+
+      case "OrderedRVD" =>
+        val args = jargs.extract[OrderedRVDSpecArgs]
+        val orvdType: OrderedRVDType = Parser.parseOrderedRVDType(args.ordered_row_type)
+        val rangeBoundsType = TArray(orvdType.pkType)
+        val partitionBounds = UnsafeIndexedSeq(rangeBoundsType,
+          JSONAnnotationImpex.importAnnotation(args.partition_bounds, rangeBoundsType).asInstanceOf[IndexedSeq[Annotation]])
+        OrderedRVD(orvdType,
+          new OrderedRVDPartitioner(args.part_files.length, orvdType.partitionKey, orvdType.pkType, partitionBounds),
+          hc.readRows(path, orvdType.rowType, args.part_files))
+    }
+  }
+}
 
 object RVD {
   def apply(rowType: Type, rdd: RDD[RegionValue]): ConcreteRVD = new ConcreteRVD(rowType, rdd)
 
-  def empty(sc: SparkContext, rowType: Type) = ConcreteRVD.empty(sc, rowType)
+  def empty(sc: SparkContext, rowType: Type): ConcreteRVD = ConcreteRVD.empty(sc, rowType)
 }
 
 case class PersistedRVRDD(
@@ -21,6 +56,7 @@ case class PersistedRVRDD(
 
 trait RVD {
   self =>
+  // FIXME TStruct
   def rowType: Type
 
   def rdd: RDD[RegionValue]
