@@ -476,10 +476,10 @@ class Tests(unittest.TestCase):
         for path in paths:
             ds = methods.import_vcf(path)
             self.assertEqual(
-                FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: False))
+                methods.FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: False))
                 .filter()
                 .count_rows(), 0)
             self.assertEqual(
-                FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: True))
+                methods.FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: True))
                 .filter()
                 .count_rows(), ds.count_rows())
