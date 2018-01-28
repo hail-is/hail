@@ -48,7 +48,7 @@ multiallelic_generic_vds = hc.read('data/example2.multi.generic.vds')
 vds.split_multi_hts().ld_matrix().write("data/ld_matrix")
 
 table1 = methods.import_table('data/kt_example1.tsv', impute=True, key='ID')
-lmmreg_ds = methods.variant_qc(methods.split_multi_hts(hc.import_vcf('data/sample.vcf.bgz')))
+lmmreg_ds = methods.variant_qc(methods.split_multi_hts(methods.import_vcf('data/sample.vcf.bgz')))
 lmmreg_tsv = hc.import_table('data/example_lmmreg.tsv', 'Sample', impute=True)
 lmmreg_ds = lmmreg_ds.annotate_cols(**lmmreg_tsv[lmmreg_ds['s']])
 lmmreg_ds = lmmreg_ds.annotate_rows(useInKinship = lmmreg_ds.variant_qc.AF > 0.05)
