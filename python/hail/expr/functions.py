@@ -4,9 +4,11 @@ from hail.expr.expression import *
 from hail.expr.ast import *
 from hail.genetics import Variant, Locus, Call, GenomeReference
 
+
 def _func(name, ret_type, *args):
     indices, aggregations, joins, refs = unify_all(*args)
     return construct_expr(ApplyMethod(name, *(a._ast for a in args)), ret_type, indices, aggregations, joins, refs)
+
 
 @typecheck(t=Type)
 def null(t):
@@ -178,6 +180,7 @@ def cond(condition, consequent, alternate):
         t = consequent._type
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
                           t, indices, aggregations, joins, refs)
+
 
 @typecheck(expr=expr_any, f=func_spec(1, expr_any))
 def bind(expr, f):
@@ -673,7 +676,7 @@ def interval(start, end):
     if not start._type._rg == end._type._rg:
         raise TypeError('Reference genome mismatch: {}, {}'.format(start._type._rg, end._type._rg))
     return construct_expr(
-    ApplyMethod('Interval', start._ast, end._ast), TInterval(TLocus(start._type._rg)),
+        ApplyMethod('Interval', start._ast, end._ast), TInterval(TLocus(start._type._rg)),
         indices, aggregations, joins, refs)
 
 
@@ -713,7 +716,7 @@ def parse_interval(s, reference_genome=None):
     if reference_genome is None:
         reference_genome = Env.hc().default_reference
     return construct_expr(
-    ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), TInterval(TLocus(reference_genome)),
+        ApplyMethod('LocusInterval({})'.format(reference_genome.name), s._ast), TInterval(TLocus(reference_genome)),
         s._indices, s._aggregations, s._joins, s._refs)
 
 
@@ -793,6 +796,7 @@ def parse_variant(s, reference_genome=None):
         reference_genome = Env.hc().default_reference
     return construct_expr(ApplyMethod('Variant({})'.format(reference_genome.name), s._ast),
                           TVariant(reference_genome), s._indices, s._aggregations, s._joins, s._refs)
+
 
 @typecheck(i=expr_int32)
 def call(i):
@@ -1105,6 +1109,7 @@ def or_missing(predicate, value):
     predicate = to_expr(predicate)
     return _func("orMissing", predicate._type, predicate, value)
 
+
 @typecheck(x=expr_int32, n=expr_int32, p=expr_numeric,
            alternative=enumeration("two.sided", "greater", "less"))
 def binom_test(x, n, p, alternative):
@@ -1144,6 +1149,7 @@ def binom_test(x, n, p, alternative):
         p-value.
     """
     return _func("binomTest", TFloat64(), x, n, p, alternative)
+
 
 @typecheck(x=expr_numeric, df=expr_numeric)
 def pchisqtail(x, df):
@@ -1526,6 +1532,307 @@ def sqrt(x):
     :class:`.Float64Expression`
     """
     return _func("sqrt", TFloat64(), x)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_snp(ref, alt):
+    """Returns ``True`` if the alleles constitute a single nucleotide polymorphism.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_snp('A', 'T'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_snp", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_mnp(ref, alt):
+    """Returns ``True`` if the alleles constitute a multiple nucleotide polymorphism.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_mnp('AA', 'GT'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_mnp", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_transition(ref, alt):
+    """Returns ``True`` if the alleles constitute a transition.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_transition('A', 'T'))
+        False
+
+        >>> eval_expr(functions.is_transition('A', 'G'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_transition", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_transversion(ref, alt):
+    """Returns ``True`` if the alleles constitute a transversion.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_transition('A', 'T'))
+        True
+
+        >>> eval_expr(functions.is_transition('A', 'G'))
+        False
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_transversion", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_insertion(ref, alt):
+    """Returns ``True`` if the alleles constitute an insertion.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_insertion('A', 'ATT'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_insertion", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_deletion(ref, alt):
+    """Returns ``True`` if the alleles constitute a deletion.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_deletion('ATT', 'A'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_deletion", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_indel(ref, alt):
+    """Returns ``True`` if the alleles constitute an insertion or deletion.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_indel('ATT', 'A'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_indel", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_star(ref, alt):
+    """Returns ``True`` if the alleles constitute an upstream deletion.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_deletion('A', '*'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_star", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def is_complex(ref, alt):
+    """Returns ``True`` if the alleles constitute a complex polymorphism.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.is_deletion('ATT', 'GCA'))
+        True
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("is_complex", TBoolean(), ref, alt)
+
+
+@typecheck(ref=expr_str, alt=expr_str)
+def allele_type(ref, alt):
+    """Returns the type of the polymorphism as a string.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.allele_type('A', 'T'))
+        'SNP'
+
+        >>> eval_expr(functions.allele_type('ATT', 'A'))
+        'Deletion'
+
+    Notes
+    -----
+    The possible return values are:
+     - ``"SNP"``
+     - ``"MNP"``
+     - ``"Insertion"``
+     - ``"Deletion"``
+     - ``"Complex"``
+     - ``"Star"``
+
+    Parameters
+    ----------
+    ref : :class:`.StringExpression`
+        Reference allele.
+    alt : :class:`.StringExpression`
+        Alternate allele.
+
+    Returns
+    -------
+    :class:`.StringExpression`
+    """
+    return _func("allele_type", TString(), ref, alt)
+
+
+@typecheck(s1=expr_str, s2=expr_str)
+def hamming(s1, s2):
+    """Returns the Hamming distance between the two strings.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.hamming('ATATA', 'ATGCA'))
+        2
+
+        >>> eval_expr(functions.hamming('abcdefg', 'zzcdefz'))
+        3
+
+    Notes
+    -----
+    This method will fail if the two strings have different length.
+
+    Parameters
+    ----------
+    s1 : :class:`.StringExpression`
+        First string.
+    s2 : :class:`.StringExpression`
+        Second string.
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+    """
+    return _func("hamming", TInt32(), s1, s2)
 
 
 @typecheck(x=expr_any)
