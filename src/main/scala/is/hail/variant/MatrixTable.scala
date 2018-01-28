@@ -35,8 +35,8 @@ case class VDSMetadata(
   version: Int,
   // FIXME remove on next reimport
   split: Option[Boolean],
-  sample_schema: String,
   sample_annotation_schema: String,
+  col_key: Array[String],
   variant_schema: String,
   variant_annotation_schema: String,
   global_schema: String,
@@ -140,20 +140,16 @@ object MatrixTable {
 
     GenomeReference.importReferences(hConf, dirname + "/references/")
 
-    val sSignature = Parser.parseType(metadata.sample_schema)
     val saSignature = Parser.parseType(metadata.sample_annotation_schema).asInstanceOf[TStruct]
     val vSignature = Parser.parseType(metadata.variant_schema)
     val vaSignature = Parser.parseType(metadata.variant_annotation_schema).asInstanceOf[TStruct]
     val genotypeSignature = Parser.parseType(metadata.genotype_schema).asInstanceOf[TStruct]
     val globalSignature = Parser.parseType(metadata.global_schema).asInstanceOf[TStruct]
 
-    val sampleInfoSchema = TStruct(("id", sSignature), ("annotation", saSignature))
     val sampleInfo = metadata.sample_annotations.asInstanceOf[JArray]
       .arr
       .map {
-        case JObject(List(("id", id), ("annotation", jv))) =>
-          (JSONAnnotationImpex.importAnnotation(id, sSignature, "sample_annotations.id"),
-            JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations.annotation"))
+        case jv: JObject => JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations")
         case other => fatal(
           s"""corrupt VDS: invalid metadata
              |  Invalid sample annotation metadata
@@ -164,11 +160,10 @@ object MatrixTable {
     val globalAnnotation = JSONAnnotationImpex.importAnnotation(metadata.global_annotation,
       globalSignature, "global")
 
-    val ids = sampleInfo.map(_._1)
-    val annotations = sampleInfo.map(_._2)
 
-    (MatrixFileMetadata(MatrixType(globalSignature, sSignature, saSignature, vSignature, vaSignature, genotypeSignature),
-      MatrixLocalValue(globalAnnotation, ids, annotations),
+    (MatrixFileMetadata(MatrixType(globalSignature, saSignature, metadata.col_key,
+      vSignature, vaSignature, genotypeSignature),
+      MatrixLocalValue(globalAnnotation, sampleInfo),
       metadata.partition_counts),
       metadata.n_partitions)
   }
@@ -194,27 +189,27 @@ object MatrixTable {
 
   def checkDatasetSchemasCompatible(datasets: Array[MatrixTable]) {
     val first = datasets(0)
-    val sampleIds = first.sampleIds
     val vaSchema = first.vaSignature
     val genotypeSchema = first.genotypeSignature
     val rowKeySchema = first.vSignature
     val colKeySchema = first.sSignature
+    val colKeys = first.colKeys
 
     datasets.indices.tail.foreach { i =>
       val vds = datasets(i)
-      val ids = vds.sampleIds
       val vas = vds.vaSignature
       val gsig = vds.genotypeSignature
       val vsig = vds.vSignature
       val ssig = vds.sSignature
+      val cks = vds.colKeys
 
-      if (ssig != colKeySchema) {
+      if (!ssig.sameElements(colKeySchema)) {
         fatal(
-          s"""cannot combine datasets with different column key schemata
+          s"""cannot combine datasets with incompatible column keys
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          colKeySchema.toPrettyString(compact = true),
-          ssig.toPrettyString(compact = true)
+          colKeySchema.map(_.toPrettyString(compact = true)).mkString(", "),
+          ssig.map(_.toPrettyString(compact = true)).mkString(", ")
         )
       } else if (vsig != rowKeySchema) {
         fatal(
@@ -224,11 +219,11 @@ object MatrixTable {
           rowKeySchema.toPrettyString(compact = true),
           vsig.toPrettyString(compact = true)
         )
-      } else if (ids != sampleIds) {
+      } else if (colKeys != cks) {
         fatal(
           s"""cannot combine datasets with different column identifiers or ordering
              |  IDs in datasets[0]: @1
-             |  IDs in datasets[$i]: @2""".stripMargin, sampleIds, ids)
+             |  IDs in datasets[$i]: @2""".stripMargin, colKeys, cks)
       } else if (vas != vaSchema) {
         fatal(
           s"""cannot combine datasets with different row annotation schemata
@@ -317,7 +312,7 @@ object MatrixTable {
       }
     }
 
-    val localValue = MatrixLocalValue(Annotation.empty, Array.empty[Annotation], Array.empty[Annotation])
+    val localValue = MatrixLocalValue(Annotation.empty, Array.empty[Annotation])
     val rdd2 = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
 
     new MatrixTable(kt.hc, matrixType, localValue, rdd2)
@@ -364,9 +359,10 @@ case class VSMSubgen(
       yield {
         assert(sampleIds.forall(_ != null))
         assert(rows.forall(_._1 != null))
+        val (finalSaSchema, ins) = saSig.structInsert(sSig, List("s"))
         MatrixTable.fromLegacy(hc,
-          MatrixType(globalSig, sSig, saSig, vSig, vaSig, tSig),
-          MatrixLocalValue(global, sampleIds, saValues),
+          MatrixType(globalSig, finalSaSchema, Array("s"), vSig, vaSig, tSig),
+          MatrixLocalValue(global, sampleIds.zip(saValues).map { case (id, sa) => ins(sa, id) }),
           hc.sc.parallelize(rows, nPartitions))
           .deduplicate()
       }
@@ -434,7 +430,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
   def requireColKeyString(method: String) {
     sSignature match {
-      case _: TString =>
+      case Array(_: TString) =>
       case t =>
         fatal(s"in $method: column key schema must be String, found: $t")
     }
@@ -445,7 +441,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   val matrixType: MatrixType = ast.typ
 
   val globalSignature = matrixType.globalType
-  val sSignature = matrixType.sType
+  val colKey: IndexedSeq[String] = matrixType.colKey
+  def sSignature: Array[Type] = colKey
+    .map(s => matrixType.saType.fieldType(matrixType.saType.fieldIdx(s)))
+    .toArray
   val saSignature = matrixType.saType
   val locusType: Type = matrixType.locusType
   val vSignature = matrixType.vType
@@ -459,7 +458,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     v
   }
 
-  lazy val MatrixValue(_, MatrixLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd2) = value
+  lazy val MatrixValue(_, MatrixLocalValue(globalAnnotation, sampleAnnotations), rdd2) = value
 
   def partitionCounts(): Array[Long] = {
     ast.partitionCounts match {
@@ -471,19 +470,34 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   // length nPartitions + 1, first element 0, last element rdd2 count
   def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)
 
+  def colKeys: IndexedSeq[Annotation] = {
+    val queriers = colKey.map(saSignature.query(_))
+    sampleAnnotations.map(a => Row.fromSeq(queriers.map(q => q(a)))).toArray[Annotation]
+  }
+
+  def keyColsBy(keys: java.util.ArrayList[String]): MatrixTable = keyColsBy(keys.asScala: _*)
+
+  def keyColsBy(keys: String*): MatrixTable = {
+    val colFields = saSignature.fieldNames.toSet
+    assert(keys.forall(colFields.contains))
+    copy2(colKey = keys.toArray[String]: IndexedSeq[String])
+  }
+
   def stringSampleIds: IndexedSeq[String] = {
-    assert(sSignature.isInstanceOf[TString])
-    sampleIds.map(_.asInstanceOf[String])
+    assert(sSignature.length == 1 && sSignature(0).isInstanceOf[TString], sSignature.toSeq)
+    val querier = saSignature.query(colKey(0))
+    sampleAnnotations.map(querier(_).asInstanceOf[String])
   }
 
   def stringSampleIdSet: Set[String] = stringSampleIds.toSet
 
-  lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
-
-  lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
+  lazy val sampleAnnotationsBc = {
+    val saArrayType = TArray(saSignature, required = true)
+    sparkContext.broadcast(UnsafeIndexedSeq(saArrayType, sampleAnnotations))
+  }
 
   def requireUniqueSamples(method: String) {
-    val dups = sampleIds.counter().filter(_._2 > 1).toArray
+    val dups = stringSampleIds.counter().filter(_._2 > 1).toArray
     if (dups.nonEmpty)
       fatal(s"Method '$method' does not support duplicate sample IDs. Duplicates:" +
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
@@ -503,13 +517,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def groupSamplesBy(keyExpr: String, aggExpr: String): MatrixTable = {
     val localRVRowType = rvRowType
     val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
-      "s" -> (1, sSignature),
       Annotation.SAMPLE_HEAD -> (2, saSignature)))
     val (keyType, keyF) = Parser.parseExpr(keyExpr, sEC)
     sEC.set(0, globalAnnotation)
 
-    val keysBySample = sampleIds.zip(sampleAnnotations).map { case (s, sa) =>
-      sEC.set(1, s)
+    val keysBySample = sampleAnnotations.map { sa =>
       sEC.set(2, sa)
       keyF()
     }
@@ -522,7 +534,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val ec = variantEC
     val (resultNames, resultTypes, resultF) = Parser.parseAnnotationExprs(aggExpr, ec, None)
     val entryType = TStruct(resultNames.map(_.head).zip(resultTypes).toSeq: _*)
-    val mt = matrixType.copy(sType = keyType, saType = TStruct.empty(), genotypeType = entryType)
+
+    val newColKey = Array("s")
+    val newSaType = TStruct("s" -> keyType)
+
+    val mt = matrixType.copy(colKey = newColKey, saType = newSaType, genotypeType = entryType)
     val newRowType = mt.rvRowType
 
     val aggregate = Aggregators.buildVariantAggregationsByKey(this, nKeys, samplesMap, ec)
@@ -564,10 +580,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     }
 
     copy2(rdd2 = groupedRDD2,
-      sampleIds = newKeys,
-      sampleAnnotations = Array.fill(newKeys.length)(Annotation.empty),
-      sSignature = keyType,
-      saSignature = TStruct.empty(),
+      sampleAnnotations = newKeys.map(Annotation(_)),
+      colKey = newColKey,
+      saSignature = newSaType,
       genotypeSignature = entryType)
   }
 
@@ -696,25 +711,33 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, value, ec)
 
     ec.set(0, globalAnnotation)
-    val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) =>
-      sampleAggregationOption.foreach(f => f.apply(s))
-      ec.set(1, s)
-      ec.set(2, sa)
-      f().zip(inserters)
+
+    val newAnnotations = new Array[Annotation](nSamples)
+
+    var i = 0
+    while (i < nSamples) {
+      sampleAggregationOption.foreach(_.apply(i))
+      val sa = sampleAnnotations(i)
+      ec.set(1, sa)
+
+      newAnnotations(i) = f().zip(inserters)
         .foldLeft(sa) { case (sa, (v, inserter)) =>
           inserter(sa, v)
         }
+      i += 1
     }
 
+    val saFields = finalType.fieldNames.toSet
     copy2(
       sampleAnnotations = newAnnotations,
+      colKey = colKey.filter(saFields.contains),
       saSignature = finalType
     )
   }
 
   def annotateSamples(annotations: Map[Annotation, Annotation], signature: Type, code: String): MatrixTable = {
     val (t, i) = insertSA(signature, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
-    annotateSamples(s => annotations.getOrElse(s, null), t, i)
+    annotateSamples(t, i) { case (s, _) => annotations.getOrElse(s, null) }
   }
 
   def annotateSamplesTable(kt: Table, vdsKey: java.util.ArrayList[String],
@@ -754,7 +777,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       (t, (a: Annotation, toIns: Annotation) => ins(a, f(toIns)))
     }
 
-    val keyTypes = kt.keyFields.map(_.typ)
+    val keyTypes = kt.keyFields.map(_.typ).toSeq
 
     val keyedRDD = kt.keyedRDD()
       .filter { case (k, v) => k.toSeq.forall(_ != null) }
@@ -762,10 +785,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val nullValue: IndexedSeq[Annotation] = if (product) IndexedSeq() else null
 
     if (vdsKey != null) {
-      val keyEC = EvalContext(Map("s" -> (0, sSignature), "sa" -> (1, saSignature)))
+      val keyEC = EvalContext(Map("sa" -> (0, saSignature)))
       val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, keyEC)).unzip
 
-      if (!keyTypes.sameElements(vdsKeyType))
+      if (keyTypes != vdsKeyType)
         fatal(
           s"""method `annotateSamplesTable' encountered a mismatch between table keys and computed keys.
              |  Computed keys:  [ ${ vdsKeyType.mkString(", ") } ]
@@ -773,22 +796,24 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
       val keyFuncArray = vdsKeyFs.toArray
 
-      val thisRdd = sparkContext.parallelize(sampleIdsAndAnnotations.map { case (s, sa) =>
-        keyEC.setAll(s, sa)
-        (Row.fromSeq(keyFuncArray.map(_ ())), s)
-      })
+      val vdsKeys = sampleAnnotations.map { sa =>
+        keyEC.set(0, sa)
+        (Row.fromSeq(keyFuncArray.map(_ ())), ())
+      }.toArray
 
-      var r = keyedRDD.join(thisRdd).map { case (_, (tableAnnotation, s)) => (s, tableAnnotation: Annotation) }
+      val thisRDD = sparkContext.parallelize(vdsKeys)
+      var r = keyedRDD.join(thisRDD).map { case (k, (tableAnnotation, _)) => (k, tableAnnotation: Annotation) }
       if (product)
         r = r.groupByKey().mapValues(is => (is.toArray[Annotation]: IndexedSeq[Annotation]): Annotation)
 
       val m = r.collectAsMap()
 
-      annotateSamples(m.getOrElse(_, nullValue), finalType, inserter)
+      annotateSamples(finalType, inserter) { case (_, i) => m.getOrElse(vdsKeys(i)._1, nullValue) }
     } else {
+      val ssig = sSignature.toSeq
       keyTypes match {
-        case Array(`sSignature`) =>
-          var r = keyedRDD.map { case (k, v) => (k.asInstanceOf[Row].get(0), v: Annotation) }
+        case `ssig` =>
+          var r = keyedRDD.map { case (k, v) => (k: Annotation, v: Annotation) }
 
           if (product)
             r = r.groupByKey()
@@ -796,24 +821,26 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
           val m = r.collectAsMap()
 
-          annotateSamples(m.getOrElse(_, nullValue), finalType, inserter)
+          annotateSamples(finalType, inserter) { case (ck, _) => m.getOrElse(ck, nullValue) }
         case other =>
           fatal(
-            s"""method 'annotate_samples_table' expects a key table keyed by [ $sSignature ]
+            s"""method 'annotate_samples_table' expects a key table keyed by [ ${sSignature.mkString(",")} ]
                |  Found key [ ${ other.mkString(", ") } ] instead.""".stripMargin)
       }
     }
   }
 
-  def annotateSamples(annotation: (Annotation) => Annotation, newSignature: TStruct, inserter: Inserter): MatrixTable = {
-    val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
-      val sa = sampleAnnotations(i)
-      val newAnnotation = inserter(sa, annotation(id))
+  def annotateSamples(newSignature: TStruct, inserter: Inserter)(f: (Annotation, Int) => Annotation): MatrixTable = {
+    val newAnnotations = colKeys.zip(sampleAnnotations)
+      .zipWithIndex
+      .map { case ((ck, sa), i) =>
+        val newAnnotation = inserter(sa, f(ck, i))
       newSignature.typeCheck(newAnnotation)
       newAnnotation
     }
 
-    copy2(sampleAnnotations = newAnnotations, saSignature = newSignature)
+    val newFields = newSignature.fieldNames.toSet
+    copy2(sampleAnnotations = newAnnotations, saSignature = newSignature, colKey = colKey.filter(newFields.contains))
   }
 
   def mapAnnotations(newVASignature: Type, f: (Annotation, Annotation, Iterable[Annotation]) => Annotation): MatrixTable = {
@@ -1236,7 +1263,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val (newSASig, inserter) = saSignature.structInsert(keyType, path)
 
     val sampleMap = new Array[Int](size)
-    val newSampleIds = new Array[Annotation](size)
     val newSampleAnnotations = new Array[Annotation](size)
 
     var i = 0
@@ -1244,7 +1270,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     while (i < nSamples) {
       keys(i).foreach { e =>
         sampleMap(j) = i
-        newSampleIds(j) = sampleIds(i)
         newSampleAnnotations(j) = inserter(sampleAnnotations(i), e)
         j += 1
       }
@@ -1268,10 +1293,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           rv2b.addRegionValue(localRVRowType.fieldType(i), rv.region, localRVRowType.loadField(rv, i))
           i += 1
         }
-        rv2b.startArray(newSampleIds.length)
+        rv2b.startArray(newSampleAnnotations.length)
         i = 0
         val arrayOff = localRVRowType.loadField(rv, 3)
-        while (i < newSampleIds.length) {
+        while (i < newSampleAnnotations.length) {
           rv2b.addRegionValue(localGSSig.elementType, rv.region,
             localGSSig.loadElement(rv.region, arrayOff, sampleMapBc.value(i)))
           i += 1
@@ -1284,8 +1309,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     }
 
-    copy2(sampleIds = newSampleIds,
-      sampleAnnotations = newSampleAnnotations,
+    copy2(sampleAnnotations = newSampleAnnotations,
       saSignature = newSASig,
       rdd2 = rdd2.copy(rdd = newRDD))
   }
@@ -1294,13 +1318,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val symTab = Map(
       "v" -> (0, vSignature),
       "va" -> (1, vaSignature),
-      "s" -> (2, sSignature),
-      "sa" -> (3, saSignature),
-      "g" -> (4, genotypeSignature),
-      "global" -> (5, globalSignature))
+      "sa" -> (2, saSignature),
+      "g" -> (3, genotypeSignature),
+      "global" -> (4, globalSignature))
     val ec = EvalContext(symTab)
 
-    ec.set(5, globalAnnotation)
+    ec.set(4, globalAnnotation)
 
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.GENOTYPE_HEAD))
 
@@ -1314,7 +1337,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val localNSamples = nSamples
     val localRVRowType = rvRowType
-    val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
 
     val newMatrixType = matrixType.copy(genotypeType = newGType)
@@ -1343,11 +1365,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           rvb.startArray(localNSamples)
           var i = 0
           while (i < localNSamples) {
-            val s = localSampleIdsBc.value(i)
             val sa = localSampleAnnotationsBc.value(i)
             val g = gs(i)
 
-            ec.setAll(v, va, s, sa, g)
+            ec.setAll(v, va, sa, g)
             val newG = f().zip(inserters)
               .foldLeft(g) { case (ga, (a, inserter)) =>
                 inserter(ga, a)
@@ -1379,7 +1400,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     })
   }
 
-  def filterSamples(p: (Annotation, Annotation) => Boolean): MatrixTable = {
+  def filterSamples(p: (Annotation, Int) => Boolean): MatrixTable = {
     copyAST(ast = MatrixLiteral(matrixType, value.filterSamples(p)))
   }
 
@@ -1408,21 +1429,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def filterSamplesList(samples: Set[Annotation], keep: Boolean = true): MatrixTable = {
     val p = (s: Annotation, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
     filterSamples(p)
-  }
-
-  def filterSamplesTable(table: Table, keep: Boolean): MatrixTable = {
-    table.keyFields.map(_.typ) match {
-      case Array(`sSignature`) =>
-        val sampleSet = table.keyedRDD()
-          .map { case (k, v) => k.get(0) }
-          .filter(_ != null)
-          .collectAsSet()
-        filterSamplesList(sampleSet.toSet, keep)
-
-      case other => fatal(
-        s"""method 'filterSamplesTable' requires a table with key [ $sSignature ]
-           |  Found key [ ${ other.mkString(", ") } ]""".stripMargin)
-    }
   }
 
   /**
@@ -1584,13 +1590,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         right.genotypeSignature.toPrettyString(compact = true))
     }
 
-    if (sSignature != right.sSignature) {
+    if (!sSignature.sameElements(right.sSignature)) {
       fatal(
         s"""union_cols: cannot combine datasets with different column key schema
-           |  left column schema: @1
-           |  right column schema: @2""".stripMargin,
-        sSignature.toPrettyString(compact = true),
-        right.sSignature.toPrettyString(compact = true))
+           |  left column schema: [${sSignature.map(_.toPrettyString(compact = true)).mkString(", ")}]
+           |  right column schema: [${right.sSignature.map(_.toPrettyString(compact = true)).mkString(", ")}]""".stripMargin)
     }
 
     if (saSignature != right.saSignature) {
@@ -1660,8 +1664,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     }, preservesPartitioning = true)
 
-    copy2(sampleIds = sampleIds ++ right.sampleIds,
-      sampleAnnotations = sampleAnnotations ++ right.sampleAnnotations,
+    copy2(sampleAnnotations = sampleAnnotations ++ right.sampleAnnotations,
       rdd2 = OrderedRVD(rdd2.typ, rdd2.partitioner, joined))
   }
 
@@ -1679,9 +1682,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val gSymTab = Map(
       "v" -> (0, vSignature),
       "va" -> (1, vaSignature),
-      "s" -> (2, sSignature),
-      "sa" -> (3, saSignature),
-      "g" -> (4, genotypeSignature))
+      "sa" -> (2, saSignature),
+      "g" -> (3, genotypeSignature))
     val gEC = EvalContext(gSymTab)
     val gA = gEC.a
 
@@ -1698,7 +1700,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }).toSeq: _*)
 
     val localNSamples = nSamples
-    val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
     val localRVRowType = rvRowType
 
@@ -1723,9 +1724,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           }
 
           gs.iterator.zipWithIndex.foreach { case (g, i) =>
-            val s = localSampleIdsBc.value(i)
             val sa = localSampleAnnotationsBc.value(i)
-            gEC.setAll(v, va, s, sa, g)
+            gEC.setAll(v, va, sa, g)
             gf().foreach { x =>
               a(j) = x
               j += 1
@@ -1761,8 +1761,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       "g" -> (1, genotypeSignature),
       "v" -> (2, vSignature),
       "va" -> (3, vaSignature),
-      "s" -> (4, sSignature),
-      "sa" -> (5, saSignature))
+      "sa" -> (4, saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature),
       "gs" -> (1, TAggregable(genotypeSignature, aggregationST))))
@@ -1775,7 +1774,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     })
 
     val globalBc = sparkContext.broadcast(globalAnnotation)
-    val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
     val localRVRowType = rvRowType
 
@@ -1794,8 +1792,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         ec.set(2, v)
         ec.set(3, va)
         gs.foreach { g =>
-          ec.set(4, localSampleIdsBc.value(i))
-          ec.set(5, localSampleAnnotationsBc.value(i))
+          ec.set(4, localSampleAnnotationsBc.value(i))
           seqOp(zv, g)
           i += 1
         }
@@ -1832,20 +1829,19 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def querySamples(exprs: Array[String]): Array[(Annotation, Type)] = {
     val aggregationST = Map(
       "global" -> (0, globalSignature),
-      "s" -> (1, sSignature),
-      "sa" -> (2, saSignature))
+      "sa" -> (1, saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature),
-      "samples" -> (1, TAggregable(sSignature, aggregationST))))
+      "samples" -> (1, TAggregable(saSignature, aggregationST))))
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
     val localGlobalAnnotation = globalAnnotation
-    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[(Annotation, Annotation)](ec, { case (ec, (s, sa)) =>
-      ec.setAll(localGlobalAnnotation, s, sa)
+    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, (sa)) =>
+      ec.setAll(localGlobalAnnotation, sa)
     })
 
-    val results = sampleIdsAndAnnotations
+    val results = sampleAnnotations
       .aggregate(zVal)(seqOp, combOp)
     resOp(results)
     ec.set(0, localGlobalAnnotation)
@@ -1905,13 +1901,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     }
   }
 
-  def reorderSamples(newIds: java.util.ArrayList[Annotation]): MatrixTable =
-    reorderSamples(newIds.asScala.toArray)
+  def reorderSamples(newIds: java.util.ArrayList[String]): MatrixTable =
+    reorderSamples(newIds.asScala.toArray.map(Annotation(_)))
 
   def reorderSamples(newIds: Array[Annotation]): MatrixTable = {
     requireUniqueSamples("reorder_samples")
 
-    val sampleSet = sampleIds.toSet
+    val sampleSet = colKeys.toSet[Annotation]
     val newSampleSet = newIds.toSet
 
     val missingSamples = sampleSet -- newSampleSet
@@ -1924,7 +1920,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       fatal(s"Found ${ notInDataset.size } ${ plural(notInDataset.size, "sample ID") } in new ordering that are not in dataset:\n  " +
         s"@1", notInDataset.truncatable("\n  "))
 
-    val oldIndex = sampleIds.zipWithIndex.toMap
+    val oldIndex = (colKeys: IndexedSeq[Annotation]).zipWithIndex.toMap
     val newToOld = newIds.map(oldIndex)
 
     val newAnnotations = Array.tabulate(nSamples) { i =>
@@ -1963,27 +1959,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     }
 
-    copy2(rdd2 = reorderedRDD2, sampleIds = newIds, sampleAnnotations = newAnnotations)
+    copy2(rdd2 = reorderedRDD2, sampleAnnotations = newAnnotations)
   }
 
-  def renameSamples(newIds: java.util.ArrayList[Annotation]): MatrixTable =
-    renameSamples(newIds.asScala.toArray)
-
-  def renameSamples(newIds: Array[Annotation]): MatrixTable = {
-    if (newIds.length != sampleIds.length)
-      fatal(s"dataset contains $nSamples samples, but new ID list contains ${ newIds.length }")
-    copy2(sampleIds = newIds)
-  }
-
-  def renameSamples(mapping: java.util.Map[Annotation, Annotation]): MatrixTable =
-    renameSamples(mapping.asScala.toMap)
-
-  def renameSamples(mapping: Map[Annotation, Annotation]): MatrixTable = {
-    val newSampleIds = sampleIds.map(s => mapping.getOrElse(s, s))
-    copy2(sampleIds = newSampleIds)
-  }
-
-  def renameDuplicates(): MatrixTable = {
+  def renameDuplicates(id: String): MatrixTable = {
     requireColKeyString("rename duplicates")
     val (newIds, duplicates) = mangle(stringSampleIds.toArray)
     if (duplicates.nonEmpty)
@@ -1991,9 +1970,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         s"Mangled IDs as follows:\n  @1", duplicates.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
     else
       info(s"No duplicate sample IDs found.")
-    val (newSchema, ins) = insertSA(TString(), "originalID")
-    val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) => ins(sa, s) }
-    copy2(sampleIds = newIds, saSignature = newSchema, sampleAnnotations = newAnnotations)
+    val (newSchema, ins) = insertSA(TString(), id)
+    val newAnnotations = sampleAnnotations.zipWithIndex.map { case (sa, i) => ins(sa, newIds(i)) }.toArray
+    copy2(saSignature = newSchema, sampleAnnotations = newAnnotations)
   }
 
   def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
@@ -2019,13 +1998,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
            |  left:  ${ globalSignature.toPrettyString(compact = true) }
            |  right: ${ that.globalSignature.toPrettyString(compact = true) }""".stripMargin)
     }
-    if (sampleIds != that.sampleIds) {
-      metadataSame = false
-      println(
-        s"""different sample ids:
-           |  left:  $sampleIds
-           |  right: ${ that.sampleIds }""".stripMargin)
-    }
     if (!sampleAnnotationsSimilar(that, tolerance)) {
       metadataSame = false
       println(
@@ -2033,7 +2005,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
            |  left:  $sampleAnnotations
            |  right: ${ that.sampleAnnotations }""".stripMargin)
     }
-    if (sampleIds != that.sampleIds) {
+    if (!globalSignature.valuesSimilar(globalAnnotation, that.globalAnnotation)) {
       metadataSame = false
       println(
         s"""different global annotation:
@@ -2043,7 +2015,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     if (!metadataSame)
       println("metadata were not the same")
 
-    val localSampleIds = sampleIds
     val vaSignatureBc = sparkContext.broadcast(vaSignature)
     val gSignatureBc = sparkContext.broadcast(genotypeSignature)
 
@@ -2090,11 +2061,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
                  |  $va2""".stripMargin)
             partSame = false
           }
-          val genotypesSame = (localSampleIds, gs1, gs2).zipped.forall { case (s, g1, g2) =>
+          val genotypesSame = gs1.iterator.zipWithIndex.zip(gs2.iterator).forall { case ((g1, i), g2) =>
             val gSame = gSignatureBc.value.valuesSimilar(g1, g2, tolerance)
             if (!gSame && !partSame) {
               println(
-                s"""at $v1, $s, genotypes were not the same:
+                s"""at $v1, col $i, genotypes were not the same:
                    |  $g1
                    |  $g2
                    """.stripMargin)
@@ -2115,20 +2086,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def sampleEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalSignature),
-      "s" -> (1, sSignature),
-      "sa" -> (2, saSignature),
-      "g" -> (3, genotypeSignature),
-      "v" -> (4, vSignature),
-      "va" -> (5, vaSignature))
+      "sa" -> (1, saSignature),
+      "g" -> (2, genotypeSignature),
+      "v" -> (3, vSignature),
+      "va" -> (4, vaSignature))
     EvalContext(Map(
       "global" -> (0, globalSignature),
-      "s" -> (1, sSignature),
-      "sa" -> (2, saSignature),
-      "gs" -> (3, TAggregable(genotypeSignature, aggregationST))))
+      "sa" -> (1, saSignature),
+      "gs" -> (2, TAggregable(genotypeSignature, aggregationST))))
   }
 
   def sampleAnnotationsSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
-    require(saSignature == that.saSignature)
+    require(saSignature == that.saSignature, s"\n${saSignature}\n${that.saSignature}")
     sampleAnnotations.zip(that.sampleAnnotations)
       .forall { case (s1, s2) => saSignature.valuesSimilar(s1, s2, tolerance)
       }
@@ -2140,31 +2109,25 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   }
 
   def copy2(rdd2: OrderedRVD = rdd2,
-    sampleIds: IndexedSeq[Annotation] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
+    colKey: IndexedSeq[String] = colKey,
     globalAnnotation: Annotation = globalAnnotation,
-    sSignature: Type = sSignature,
     saSignature: TStruct = saSignature,
     vSignature: Type = vSignature,
     vaSignature: TStruct = vaSignature,
     globalSignature: TStruct = globalSignature,
     genotypeSignature: TStruct = genotypeSignature): MatrixTable =
     new MatrixTable(hc,
-      MatrixType(globalSignature, sSignature, saSignature, vSignature, vaSignature, genotypeSignature),
-      MatrixLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd2)
+      MatrixType(globalSignature, saSignature, colKey, vSignature, vaSignature, genotypeSignature),
+      MatrixLocalValue(globalAnnotation, sampleAnnotations), rdd2)
 
   def copyAST(ast: MatrixIR = ast): MatrixTable =
     new MatrixTable(hc, ast)
 
   def samplesKT(): Table = {
-    Table(hc, sparkContext.parallelize(sampleIdsAndAnnotations)
-      .map { case (s, sa) =>
-        Row(s, sa)
-      },
-      TStruct(
-        "s" -> sSignature,
-        "sa" -> saSignature),
-      Array("s"))
+    Table(hc, sparkContext.parallelize(sampleAnnotations.map(_.asInstanceOf[Row])),
+      saSignature,
+      colKey.toArray)
   }
 
   def storageLevel: String = rdd2.storageLevel.toReadableString()
@@ -2185,9 +2148,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   }
 
   override def toString =
-    s"MatrixTable(rdd2=$rdd2, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation)"
+    s"MatrixTable(rdd2=$rdd2, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleAnnotations, globalAnnotation=$globalAnnotation)"
 
-  def nSamples: Int = sampleIds.length
+  def nSamples: Int = sampleAnnotations.length
 
   def typecheck() {
     var foundError = false
@@ -2199,11 +2162,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
            |Annotation: ${ Annotation.printAnnotation(globalAnnotation) }""".stripMargin)
     }
 
-    sampleIdsAndAnnotations.find { case (_, sa) => !saSignature.typeCheck(sa) }
-      .foreach { case (s, sa) =>
+    sampleAnnotations.zipWithIndex.find { case (sa, i) => !saSignature.typeCheck(sa) }
+      .foreach { case (sa, i) =>
         foundError = true
         warn(
-          s"""found violation in sample annotations for sample $s
+          s"""found violation in sample annotations for col $i
              |Schema: ${ saSignature.toPrettyString() }
              |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
       }
@@ -2226,16 +2189,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       fatal("found one or more type check errors")
   }
 
-  def sampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = sampleIds.zip(sampleAnnotations)
-
   def variantEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalSignature),
       "v" -> (1, vSignature),
       "va" -> (2, vaSignature),
       "g" -> (3, genotypeSignature),
-      "s" -> (4, sSignature),
-      "sa" -> (5, saSignature))
+      "sa" -> (4, saSignature))
     EvalContext(Map(
       "global" -> (0, globalSignature),
       "v" -> (1, vSignature),
@@ -2268,19 +2228,29 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
   def genotypeKT(): Table = {
     val localNSamples = nSamples
-    val localSType = sSignature
     val localSAType = saSignature
     val localRVRowType = rvRowType
-    val typ = TStruct(
-      "v" -> vSignature,
-      "va" -> vaSignature,
-      "s" -> sSignature,
-      "sa" -> saSignature,
-      "g" -> genotypeSignature)
+
+    val allFields = Array("v" -> vSignature) ++
+      vaSignature.fields.map(f => f.name -> f.typ) ++
+      saSignature.fields.map(f => f.name -> f.typ) ++
+      genotypeSignature.fields.map(f => f.name -> f.typ)
+
+    val resultStruct = TStruct(allFields: _*)
+
+    val localVaSignature = vaSignature
+    val localSaSignature = saSignature
+    val localGenoSignature = genotypeSignature
+
+    val saArrayType = TArray(saSignature, required = true)
+
     val gsType = localRVRowType.fieldType(3).asInstanceOf[TArray]
-    val localSampleIdsBc = sampleIdsBc
+
     val localSampleAnnotationsBc = sampleAnnotationsBc
     new Table(hc, rdd2.mapPartitions { it =>
+
+      val sa = localSampleAnnotationsBc.value
+
       val rv2b = new RegionValueBuilder()
       val rv2 = RegionValue()
       it.flatMap { rv =>
@@ -2293,21 +2263,30 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           }
           .map { i =>
             rv.region.clear(rvEnd)
-            rv2b.start(typ)
+            rv2b.clear()
+            rv2b.start(resultStruct)
             rv2b.startStruct()
             rv2b.addField(localRVRowType, rv, 1) // v
-            rv2b.addField(localRVRowType, rv, 2) // va
-            rv2b.addAnnotation(localSType, localSampleIdsBc.value(i))
-            rv2b.addAnnotation(localSAType, localSampleAnnotationsBc.value(i))
-            rv2b.addElement(gsType, rv.region, gsOffset, i)
+
+            if (localRVRowType.isFieldDefined(rv, 2))
+              rv2b.addAllFields(localVaSignature, rv.region, localRVRowType.loadField(rv, 2))
+            else
+              rv2b.skipFields(localVaSignature.size)
+
+            if (saArrayType.isElementDefined(sa.region, sa.aoff, i))
+              rv2b.addAllFields(localSaSignature, sa.region, saArrayType.loadElement(sa.region, sa.aoff, i))
+            else
+              rv2b.skipFields(localSaSignature.size)
+
+            rv2b.addAllFields(localGenoSignature, rv.region, gsType.elementOffsetInRegion(rv.region, gsOffset, i))
             rv2b.endStruct()
             rv2.set(rv.region, rv2b.end())
             rv2
           }
       }
     },
-      typ,
-      Array("v", "s"))
+      resultStruct,
+      Array("v") ++ colKey)
   }
 
   def writeMetadata(dirname: String, partitionCounts: Array[Long]) {
@@ -2319,19 +2298,16 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     hConf.mkDir(dirname)
 
     val sampleAnnotationsJ = JArray(
-      sampleIdsAndAnnotations
-        .map { case (id, annotation) =>
-          JObject(List(("id", JSONAnnotationImpex.exportAnnotation(id, sSignature)),
-            ("annotation", JSONAnnotationImpex.exportAnnotation(annotation, saSignature))))
-        }
+      sampleAnnotations
+        .map { annotation => JSONAnnotationImpex.exportAnnotation(annotation, saSignature) }
         .toList)
     val globalJ = JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature)
 
     val metadata = VDSMetadata(
       version = MatrixTable.fileVersion,
       split = None,
-      sample_schema = sSignature.toPrettyString(compact = true),
       sample_annotation_schema = saSignature.toPrettyString(compact = true),
+      col_key = colKey.toArray,
       variant_schema = vSignature.toPrettyString(compact = true),
       variant_annotation_schema = vaSignature.toPrettyString(compact = true),
       genotype_schema = genotypeSignature.toPrettyString(compact = true),
@@ -2346,7 +2322,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val refPath = dirname + "/references/"
     hc.hadoopConf.mkDir(refPath)
-    Array(sSignature, vSignature, saSignature, vaSignature, genotypeSignature, globalSignature).foreach { t =>
+    Array(vSignature, saSignature, vaSignature, genotypeSignature, globalSignature).foreach { t =>
       GenomeReference.exportReferences(hc, refPath, t)
     }
   }
@@ -2380,20 +2356,18 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val symTab = Map(
       "v" -> (0, vSignature),
       "va" -> (1, vaSignature),
-      "s" -> (2, sSignature),
-      "sa" -> (3, saSignature),
-      "g" -> (4, genotypeSignature),
-      "global" -> (5, globalSignature))
+      "sa" -> (2, saSignature),
+      "g" -> (3, genotypeSignature),
+      "global" -> (4, globalSignature))
 
     val ec = EvalContext(symTab)
-    ec.set(5, globalAnnotation)
+    ec.set(4, globalAnnotation)
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 
     val localKeep = keep
     val localRVRowType = rvRowType
     val localNSamples = nSamples
     val localGType = genotypeSignature
-    val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
 
     copy2(
@@ -2418,10 +2392,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           rvb.startArray(localNSamples)
           var i = 0
           while (i < localNSamples) {
-            val s = localSampleIdsBc.value(i)
             val sa = localSampleAnnotationsBc.value(i)
             val g = gs(i)
-            ec.setAll(v, va, s, sa, g)
+            ec.setAll(v, va, sa, g)
             if (Filter.boxedKeepThis(f(), localKeep))
               rvb.addAnnotation(localGType, g)
             else
@@ -2553,29 +2526,28 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   }
 
   def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): MatrixTable = {
-    if (!sSignature.isInstanceOf[TString])
+    sSignature match {
+      case Array(_: TString) =>
+      case _ =>
       fatal("trio_matrix requires column keys of type String")
+    }
     requireUniqueSamples("trio_matrix")
 
     val filteredPedigree = pedigree.filterTo(stringSampleIds.toSet)
     val trios = if (completeTrios) filteredPedigree.completeTrios else filteredPedigree.trios
     val nTrios = trios.length
 
-    val sampleIndices = sampleIds.zipWithIndex.toMap
+    val sampleIndices = stringSampleIds.zipWithIndex.toMap
 
     val kidIndices = Array.fill[Int](nTrios)(-1)
     val dadIndices = Array.fill[Int](nTrios)(-1)
     val momIndices = Array.fill[Int](nTrios)(-1)
-    val kidIds = new Array[String](nTrios)
 
-    val memberAnnotationType = TStruct(
-      "id" -> TString(required = true),
-      "fields" -> saSignature
-    )
     val newSaSignature = TStruct(
-      "proband" -> memberAnnotationType,
-      "father" -> memberAnnotationType,
-      "mother" -> memberAnnotationType,
+      "id" -> TString(),
+      "proband" -> saSignature,
+      "father" -> saSignature,
+      "mother" -> saSignature,
       "is_female" -> TBooleanOptional,
       "fam_id" -> TStringOptional
     )
@@ -2587,21 +2559,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       val t = trios(i)
       val kidIndex = sampleIndices(t.kid)
       kidIndices(i) = kidIndex
-      kidIds(i) = t.kid
-      val kidAnnotation = Row(t.kid, sampleAnnotations(kidIndex))
+      val kidAnnotation = sampleAnnotations(kidIndex)
 
       var dadAnnotation: Annotation = null
       t.dad.foreach { dad =>
         val index = sampleIndices(dad)
         dadIndices(i) = index
-        dadAnnotation = Row(dad, sampleAnnotations(index))
+        dadAnnotation = sampleAnnotations(index)
       }
 
       var momAnnotation: Annotation = null
       t.mom.foreach { mom =>
         val index = sampleIndices(mom)
         momIndices(i) = index
-        momAnnotation = Row(mom, sampleAnnotations(index))
+        momAnnotation = sampleAnnotations(index)
       }
 
       val isFemale: java.lang.Boolean = (t.sex: @unchecked) match {
@@ -2612,7 +2583,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
       val famID = t.fam.orNull
 
-      newSampleAnnotations(i) = Row(kidAnnotation, dadAnnotation, momAnnotation, isFemale, famID)
+      newSampleAnnotations(i) = Row(t.kid, kidAnnotation, dadAnnotation, momAnnotation, isFemale, famID)
       i += 1
     }
 
@@ -2682,9 +2653,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     }
 
     copy2(rdd2 = newRDD,
-      sampleIds = kidIds,
       sampleAnnotations = newSampleAnnotations,
       saSignature = newSaSignature,
+      colKey=Array("id"),
       genotypeSignature = newEntryType)
   }
 
@@ -2694,14 +2665,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val partStartsBc = sparkContext.broadcast(partStarts)
 
     val localRVRowType = rvRowType
-    val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
 
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature),
       "v" -> (1, vSignature),
       "va" -> (2, vaSignature),
-      "s" -> (3, sSignature),
       "sa" -> (4, saSignature),
       "g" -> (5, genotypeSignature)))
     val f = RegressionUtils.parseExprAsDouble(expr, ec)
@@ -2720,11 +2689,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         val a = new Array[Double](ns)
         var k = 0
         while (k < ns) {
-          ec.set(3, localSampleIdsBc.value(k))
           ec.set(4, localSampleAnnotationsBc.value(k))
           ec.set(5, gs(k))
           a(k) = f() match {
-            case null => fatal(s"Entry expr must be non-missing. Found missing value for sample ${ localSampleIdsBc.value(k) } and variant ${ ur.get(1) }")
+            case null => fatal(s"Entry expr must be non-missing. Found missing value for col $k and variant ${ ur.get(1) }")
             case t => t.toDouble
           }
           k += 1
@@ -2763,8 +2731,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       rowKeys().write(sparkContext, dirname + "/rowkeys")
 
     if (keepColKeys)
-      new Keys(sSignature, sampleIds.toArray).write(sparkContext, dirname + "/colkeys")
-
+      new Keys(TStruct(colKey.zip(sSignature): _*), colKeys.toArray).write(sparkContext, dirname + "/colkeys")
     writeBlockMatrix(dirname + "/blockmatrix", expr, blockSize)
   }
 
@@ -2776,7 +2743,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       "global" -> (0, globalSignature),
       "v" -> (1, vSignature),
       "va" -> (2, vaSignature),
-      "s" -> (3, sSignature),
       "sa" -> (4, saSignature),
       "g" -> (5, genotypeSignature)))
     val f = RegressionUtils.parseExprAsDouble(expr, ec)
@@ -2799,7 +2765,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     hadoop.mkDir(dirname + "/parts")
     val gp = GridPartitioner(blockSize, nRows, nCols)
     val blockCount =
-      new WriteBlocksRDD(dirname, rdd2, sparkContext, rvRowType, sampleIdsBc, sampleAnnotationsBc, partStarts, f, ec, gp)
+      new WriteBlocksRDD(dirname, rdd2, sparkContext, rvRowType, sparkContext.broadcast(colKeys),
+        sparkContext.broadcast(sampleAnnotations), partStarts, f, ec, gp)
         .reduce(_ + _)
 
     assert(blockCount == gp.numPartitions)

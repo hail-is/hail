@@ -9,7 +9,7 @@ import is.hail.variant.{HardCallView, MatrixTable}
 
 object RegressionUtils {
   def inputVector(x: DenseVector[Double],
-    globalAnnotation: Annotation, sampleIds: IndexedSeq[Annotation], sampleAnnotations: IndexedSeq[Annotation],
+    globalAnnotation: Annotation, sampleAnnotations: IndexedSeq[Annotation],
     row: (Annotation, (Annotation, Iterable[Annotation])),
     ec: EvalContext,
     xf: () => java.lang.Double,
@@ -35,9 +35,8 @@ object RegressionUtils {
       assert(completeSampleIndex(j) == i)
 
       val g = git.next()
-      ec.set(3, sampleIds(i))
-      ec.set(4, sampleAnnotations(i))
-      ec.set(5, g)
+      ec.set(3, sampleAnnotations(i))
+      ec.set(4, g)
       val dosage = xf()
       if (dosage != null) {
         sum += dosage
@@ -139,8 +138,8 @@ object RegressionUtils {
   def getSampleAnnotations(vds: MatrixTable, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
     val aQs = annots.map(parseExprAsDouble(_, ec))
 
-    vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-      ec.setAll(s, sa)
+    vds.sampleAnnotations.map { sa =>
+      ec.set(0, sa)
       aQs.map { aQ =>
         val a = aQ()
         if (a != null)
@@ -173,8 +172,7 @@ object RegressionUtils {
       fatal("No phenotypes present.")
 
     val symTab = Map(
-      "s" -> (0, TString()),
-      "sa" -> (1, vsm.saSignature))
+      "sa" -> (0, vsm.saSignature))
 
     val ec = EvalContext(symTab)
 

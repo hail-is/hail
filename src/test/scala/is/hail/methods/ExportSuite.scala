@@ -17,7 +17,7 @@ class ExportSuite extends SparkSuite {
     vds = SampleQC(vds)
 
     val out = tmpDir.createTempFile("out", ".tsv")
-    vds.samplesKT().select("Sample = s", "sa.qc.*").export(out)
+    vds.samplesKT().select("Sample = s", "qc.*").export(out)
 
     val sb = new StringBuilder()
     sb.tsvAppend(Array(1, 2, 3, 4, 5))
@@ -60,7 +60,7 @@ class ExportSuite extends SparkSuite {
 
   @Test def testExportSamples() {
     val vds = SplitMulti(hc.importVCF("src/test/resources/sample.vcf")
-      .filterSamplesExpr("""s == "C469::HG02026""""))
+      .filterSamplesExpr("""sa.s == "C469::HG02026""""))
     assert(vds.nSamples == 1)
 
     // verify exports localSamples
@@ -104,7 +104,7 @@ class ExportSuite extends SparkSuite {
     vds = SampleQC(vds)
     vds
       .samplesKT()
-      .select("computation = 5 * (if (sa.qc.callRate < .95) 0 else 1)")
+      .select("computation = 5 * (if (qc.callRate < .95) 0 else 1)")
       .export(f)
   }
 

@@ -45,7 +45,6 @@ object LinearRegression {
     val sc = vsm.sparkContext
 
     val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
-    val sampleIdsBc = vsm.sampleIdsBc
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
@@ -90,7 +89,7 @@ object LinearRegression {
               val gs = ur.getAs[IndexedSeq[Annotation]](3)
 
               RegressionUtils.inputVector(X(::, i),
-                localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
+                localGlobalAnnotationBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
                 ec, xf,
                 completeSampleIndexBc.value, missingSamples)
 

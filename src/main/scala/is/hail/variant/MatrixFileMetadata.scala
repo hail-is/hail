@@ -7,23 +7,18 @@ import is.hail.expr.types._
 object MatrixFileMetadata {
   def apply(matrixType: MatrixType, localValue: MatrixLocalValue): MatrixFileMetadata = MatrixFileMetadata(matrixType, localValue, None)
 
-  def apply(sampleIds: IndexedSeq[String],
-    sampleAnnotations: IndexedSeq[Annotation] = null,
+  def apply(sampleAnnotations: IndexedSeq[Annotation],
     globalAnnotation: Annotation = Annotation.empty,
-    sSignature: Type = TString(),
-    saSignature: TStruct = TStruct.empty(),
+    saSignature: TStruct = TStruct("s" -> TString()),
+    colKey: IndexedSeq[String] = Array("s"),
     vSignature: Type = TVariant(GenomeReference.defaultReference),
     vaSignature: TStruct = TStruct.empty(),
     globalSignature: TStruct = TStruct.empty(),
     // FIXME require
     genotypeSignature: TStruct = Genotype.htsGenotypeType): MatrixFileMetadata = {
     MatrixFileMetadata(
-      MatrixType(globalSignature, sSignature, saSignature, vSignature, vaSignature, genotypeSignature),
-      MatrixLocalValue(globalAnnotation, sampleIds,
-        if (sampleAnnotations == null)
-          Annotation.emptyIndexedSeq(sampleIds.length)
-        else
-          sampleAnnotations))
+      MatrixType(globalSignature, saSignature, colKey, vSignature, vaSignature, genotypeSignature),
+      MatrixLocalValue(globalAnnotation, sampleAnnotations))
   }
 }
 

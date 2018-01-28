@@ -80,7 +80,7 @@ object BaldingNicholsModel {
     val Fst1_k = (1d - Fst_k) :/ Fst_k
     val Fst1_kBc = sc.broadcast(Fst1_k)
 
-    val saSignature = TStruct("pop" -> TInt32())
+    val saSignature = TStruct("s" -> TString(), "pop" -> TInt32())
     val vaSignature = TStruct("ancestralAF" -> TFloat64(), "AF" -> TArray(TFloat64()))
 
     val ancestralAFAnnotation = af_dist match {
@@ -109,8 +109,8 @@ object BaldingNicholsModel {
 
     val matrixType = MatrixType(
       globalType = globalSignature,
-      sType = TString(),
-      saType = saSignature,
+      colType = saSignature,
+      colKey = Array("s"),
       vType = TVariant(gr),
       vaType = vaSignature,
       genotypeType = TStruct("GT" -> TCall()))
@@ -198,15 +198,14 @@ object BaldingNicholsModel {
         }
       }
 
-    val sampleIds = (0 until N).map(_.toString).toArray
-    val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(pop))
+    val sampleAnnotations = (0 until N).map { i => Annotation(i.toString, popOfSample_n(i)) }.toArray
 
     // FIXME: should use fast keys
     val ordrdd = OrderedRVD(matrixType.orderedRVType, rdd, None, None)
 
     new MatrixTable(hc,
       matrixType,
-      MatrixLocalValue(globalAnnotation, sampleIds, sampleAnnotations),
+      MatrixLocalValue(globalAnnotation, sampleAnnotations),
       ordrdd)
   }
 }

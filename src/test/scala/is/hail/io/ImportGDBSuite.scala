@@ -73,7 +73,7 @@ class ImportGDBSuite extends SparkSuite {
 
     assert(vcfVariantSampleMatrix.variants.collect.sameElements(gdbVariantSampleMatrix.variants.collect))
 
-    assert(vcfVariantSampleMatrix.sampleIds.equals(gdbVariantSampleMatrix.sampleIds))
+    assert(vcfVariantSampleMatrix.stringSampleIds.equals(gdbVariantSampleMatrix.stringSampleIds))
   }
 
   @Test def genomicsDBRDDGenotypeData() {

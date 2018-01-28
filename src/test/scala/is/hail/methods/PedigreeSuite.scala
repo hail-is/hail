@@ -15,7 +15,7 @@ class PedigreeSuite extends SparkSuite {
     assert(ped.trios == pedwr.trios) // this passes because all samples in .fam are in pedigree.vcf
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
-    val sampleIndex = vds.sampleIds.zipWithIndex.toMap
+    val sampleIndex = vds.stringSampleIds.zipWithIndex.toMap
     assert(nuclearFams(("Dad1", "Mom1")).toSet ==
       Set("Son1", "Dtr1"))
     assert(nuclearFams(("Dad2", "Mom2")).toSet ==

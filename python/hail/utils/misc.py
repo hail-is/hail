@@ -21,6 +21,11 @@ def wrap_to_list(s):
     else:
         return [s]
 
+def wrap_to_tuple(x):
+    if isinstance(x, tuple):
+        return x
+    else:
+        return x,
 
 def get_env_or_default(maybe, envvar, default):
     import os
@@ -94,7 +99,7 @@ def get_nice_attr_error(obj, item):
             dd[f.lower()].append(f)
 
         obj_namespace = {x for x in dir(cls) if not x.startswith('_')}
-        methods = {x for x in obj_namespace if callable(getattr(obj, x))}
+        methods = {x for x in obj_namespace if callable(cls.__dict__[x])}
         props = obj_namespace - methods
 
         item_lower = item.lower()

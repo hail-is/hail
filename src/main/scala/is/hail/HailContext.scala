@@ -323,7 +323,7 @@ class HailContext private(val sc: SparkContext,
     val rdd = sc.union(results.map(_.rdd))
 
     MatrixTable.fromLegacy(this,
-      MatrixFileMetadata(samples,
+      MatrixFileMetadata(samples.map(Annotation(_)),
         vaSignature = signature,
         genotypeSignature = TStruct("GT" -> TCall(),
           "GP" -> TArray(TFloat64()))),

@@ -26,11 +26,13 @@ object ImputeSexPlink {
 
     val resultSA = vsm
       .filterVariantsExpr(s"va.AF > $mafThreshold")
-      .annotateSamplesExpr(s"""sa =
+      .annotateSamplesExpr(s"""sa.__imputesex =
 let ib = gs.map(g => g.GT).inbreeding(g => va.AF) and
     isFemale = if (ib.Fstat < $fFemaleThreshold) true else if (ib.Fstat > $fMaleThreshold) false else NA: Boolean
  in merge({ isFemale: isFemale }, ib)""")
       .samplesKT()
+      .select(in.colKey.map(prettyIdentifier).toArray ++ Array("__imputesex"))
+      .ungroup("__imputesex")
 
     in.annotateSamplesTable(resultSA, root = "sa.imputesex")
   }
