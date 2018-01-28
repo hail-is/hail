@@ -1299,3 +1299,13 @@ class FilterAlleles(object):
             Env.hail().methods.FilterAlleles.apply(
                 base._jvds, '({p})[aIndex - 1]'.format(p=filter_hql), row_hql, entry_hql, self._keep, self._left_aligned, self._keep_star))
         return cleanup(m)
+
+@handle_py4j
+@typecheck(ds=MatrixTable,
+           num_cores=integral,
+           r2=numeric,
+           window=integral,
+           memory_per_core=integral)
+def ld_prune(ds, num_cores, r2=0.2, window=1000000, memory_per_core=256):
+    jmt = Env.hail().methods.LDPrune.apply(ds._jvds, num_cores, r2, window, memory_per_core)
+    return MatrixTable(jmt)
