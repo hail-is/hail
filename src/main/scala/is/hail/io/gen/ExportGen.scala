@@ -10,7 +10,7 @@ object ExportGen {
     def writeSampleFile() {
       // FIXME: should output all relevant sample annotations such as phenotype, gender, ...
       vsm.hc.hadoopConf.writeTable(path + ".sample",
-        "ID_1 ID_2 missing" :: "0 0 0" :: vsm.sampleIds.map(s => s"$s $s 0").toList)
+        "ID_1 ID_2 missing" :: "0 0 0" :: vsm.stringSampleIds.map(s => s"$s $s 0").toList)
     }
 
     def writeGenFile() {

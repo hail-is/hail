@@ -36,7 +36,6 @@ object Aggregators {
 
     val localA = ec.a
     val localNSamples = localValue.nSamples
-    val localSamplesBc = sc.broadcast(localValue.sampleIds)
     val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
     val localGlobalAnnotations = localValue.globalAnnotation
     val localRowType = typ.rvRowType
@@ -66,7 +65,6 @@ object Aggregators {
       while (i < localNSamples) {
         localA(3) = gs(i)
         if (keyMap(i) != -1) {
-          localA(4) = localSamplesBc.value(i)
           localA(5) = localAnnotationsBc.value(i)
 
           var j = 0
@@ -101,7 +99,6 @@ object Aggregators {
 
     val localA = ec.a
     val localNSamples = localValue.nSamples
-    val localSamplesBc = sc.broadcast(localValue.sampleIds)
     val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
     val localGlobalAnnotations = localValue.globalAnnotation
     val localRowType = typ.rvRowType
@@ -119,11 +116,9 @@ object Aggregators {
       localA(2) = va
 
       var i = 0
-      val git = gs.iterator
       while (i < localNSamples) {
-        localA(3) = git.next()
-        localA(4) = localSamplesBc.value(i)
-        localA(5) = localAnnotationsBc.value(i)
+        localA(3) = gs(i)
+        localA(4) = localAnnotationsBc.value(i)
 
         var j = 0
         while (j < aggs.size) {
@@ -142,7 +137,7 @@ object Aggregators {
     })
   }
 
-  def buildSampleAggregations(hc: HailContext, value: MatrixValue, ec: EvalContext): Option[(Annotation) => Unit] = {
+  def buildSampleAggregations(hc: HailContext, value: MatrixValue, ec: EvalContext): Option[(Int) => Unit] = {
 
     val aggregations = ec.aggregations
 
@@ -152,7 +147,6 @@ object Aggregators {
     val localA = ec.a
     val localNSamples = value.nSamples
     val localGlobalAnnotations = value.globalAnnotation
-    val localSamplesBc = value.sampleIdsBc
     val localSampleAnnotationsBc = value.sampleAnnotationsBc
 
     val nAggregations = aggregations.length
@@ -174,15 +168,13 @@ object Aggregators {
       val gs = ur.getAs[IndexedSeq[Annotation]](3)
 
       localA(0) = localGlobalAnnotations
-      localA(4) = v
-      localA(5) = va
+      localA(3) = v
+      localA(4) = va
 
-      var git = gs.iterator
       var i = 0
       while (i < localNSamples) {
-        localA(1) = localSamplesBc.value(i)
-        localA(2) = localSampleAnnotationsBc.value(i)
-        localA(3) = git.next()
+        localA(1) = localSampleAnnotationsBc.value(i)
+        localA(2) = gs(i)
 
         var j = 0
         while (j < nAggregations) {
@@ -206,9 +198,7 @@ object Aggregators {
       arr1
     }, depth = depth)
 
-    val sampleIndex = value.sampleIds.zipWithIndex.toMap
-    Some((s: Annotation) => {
-      val i = sampleIndex(s)
+    Some((i: Int) => {
       for (j <- 0 until nAggregations) {
         aggregations(j)._1.v = result(i, j).result
       }
@@ -224,7 +214,6 @@ object Aggregators {
 
     val localNSamples = vsm.nSamples
     val localGlobalAnnotations = vsm.globalAnnotation
-    val localSamplesBc = vsm.sampleIdsBc
     val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
 
     val aggregations = ec.aggregations
@@ -237,15 +226,14 @@ object Aggregators {
 
     val seqOp = (ma: MultiArray2[Aggregator], ur: UnsafeRow) => {
       ec.set(0, localGlobalAnnotations)
-      ec.set(4, ur.get(1))
-      ec.set(5, ur.get(2))
+      ec.set(3, ur.get(1))
+      ec.set(4, ur.get(2))
 
-      val gsIt = ur.getAs[IndexedSeq[Annotation]](3).iterator
+      val gs = ur.getAs[IndexedSeq[Annotation]](3)
       var i = 0
       while (i < localNSamples) {
-        ec.set(1, localSamplesBc.value(i))
-        ec.set(2, localSampleAnnotationsBc.value(i))
-        ec.set(3, gsIt.next)
+        ec.set(1, localSampleAnnotationsBc.value(i))
+        ec.set(2, gs(i))
 
         var j = 0
         while (j < nAggregations) {
@@ -271,7 +259,6 @@ object Aggregators {
 
       var i = 0
       while (i < localNSamples) {
-        ec.set(1, localSamplesBc.value(i))
         ec.set(2, localSampleAnnotationsBc.value(i))
         var j = 0
         while (j < nAggregations) {

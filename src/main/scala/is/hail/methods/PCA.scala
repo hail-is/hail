@@ -7,6 +7,7 @@ import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.MatrixTable
+import org.apache.spark.sql.Row
 
 object PCA {
   def pcSchema(k: Int, asArray: Boolean = false): Type =
@@ -21,12 +22,13 @@ object PCA {
     val hc = vsm.hc
     val sc = hc.sc
 
-    val rowType = TStruct("s" -> vsm.sSignature, "pcaScores" -> PCA.pcSchema(k, asArrays))
+    val rowType = TStruct(vsm.colKey.zip(vsm.sSignature) ++ Seq("scores" -> PCA.pcSchema(k, asArrays)): _*)
     val rowTypeBc = sc.broadcast(rowType)
 
     val scoresBc = sc.broadcast(scores)
+    val localSSignature = vsm.sSignature
 
-    val scoresRDD = sc.parallelize(vsm.sampleIds.zipWithIndex).mapPartitions[RegionValue] { it =>
+    val scoresRDD = sc.parallelize(vsm.colKeys.zipWithIndex).mapPartitions[RegionValue] { it =>
       val region = Region()
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
@@ -36,9 +38,14 @@ object PCA {
         region.clear()
         rvb.start(localRowType)
         rvb.startStruct()
-        rvb.addAnnotation(rowType.fieldType(0), s)
-        if (asArrays) rvb.startArray(k) else rvb.startStruct()
         var j = 0
+        val keys = s.asInstanceOf[Row]
+        while (j < localSSignature.length) {
+          rvb.addAnnotation(localSSignature(j), keys.get(j))
+          j += 1
+        }
+        if (asArrays) rvb.startArray(k) else rvb.startStruct()
+        j = 0
         while (j < k) {
           rvb.addDouble(scoresBc.value(i, j))
           j += 1
@@ -49,7 +56,7 @@ object PCA {
         rv
       }
     }
-    new Table(hc, scoresRDD, rowType, Array("s"))
+    new Table(hc, scoresRDD, rowType, vsm.colKey.toArray)
   }
 
   // returns (eigenvalues, sample scores, optional variant loadings)

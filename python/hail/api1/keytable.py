@@ -1517,9 +1517,9 @@ class KeyTable(HistoryMixin):
         >>> related_pairs = vds.pc_relate(2, 0.001).filter("kin > 0.125")
         >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
         >>> related_samples_to_keep = (related_pairs
-        ...   .key_by("i").join(vds.samples_table()).annotate('iAndCase = { id: i, isCase: sa.isCase }')
+        ...   .key_by("i").join(vds.samples_table()).annotate('iAndCase = { id: i, isCase: isCase }')
         ...   .select(['j', 'iAndCase'])
-        ...   .key_by("j").join(vds.samples_table()).annotate('jAndCase = { id: j, isCase: sa.isCase }')
+        ...   .key_by("j").join(vds.samples_table()).annotate('jAndCase = { id: j, isCase: isCase }')
         ...   .select(['iAndCase', 'jAndCase'])
         ...   .maximal_independent_set("iAndCase", "jAndCase",
         ...     'if (l.isCase && !r.isCase) -1 else if (!l.isCase && r.isCase) 1 else 0'))

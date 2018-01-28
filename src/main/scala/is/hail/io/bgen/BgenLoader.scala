@@ -70,8 +70,8 @@ object BgenLoader {
     val signature = TStruct("rsid" -> TString(), "varid" -> TString())
 
     val matrixType = MatrixType(
-      sType = TString(),
-      saType = TStruct.empty(),
+      colKey = Array("s"),
+      colType = TStruct("s" -> TString()),
       vType = TVariant(gr),
       vaType = signature,
       genotypeType = TStruct("GT" -> TCall(), "GP" -> TArray(TFloat64())))
@@ -129,8 +129,7 @@ object BgenLoader {
 
     new MatrixTable(hc, matrixType,
       MatrixLocalValue(globalAnnotation = Annotation.empty,
-        sampleIds = sampleIds,
-        sampleAnnotations = Array.fill(nSamples)(Annotation.empty)),
+        sampleAnnotations = sampleIds.map(x => Annotation(x))),
       OrderedRVD(matrixType.orderedRVType, rdd2, Some(fastKeys), None))
   }
 

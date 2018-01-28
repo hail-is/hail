@@ -44,7 +44,7 @@ object LinearMixedRegression {
     val xf = RegressionUtils.parseExprAsDouble(xExpr, ec)
 
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(assocVSM, yExpr, covExpr)
-    val completeSampleIds = completeSampleIndex.map(assocVSM.sampleIds)
+    val completeSampleIds = completeSampleIndex.map(assocVSM.stringSampleIds)
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
@@ -145,7 +145,6 @@ object LinearMixedRegression {
       val sc = assocVSM.sparkContext
 
       val localGlobalAnnotationBc = sc.broadcast(assocVSM.globalAnnotation)
-      val sampleIdsBc = assocVSM.sampleIdsBc
       val sampleAnnotationsBc = assocVSM.sampleAnnotationsBc
 
       val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
@@ -173,7 +172,7 @@ object LinearMixedRegression {
         val missingSamples = new ArrayBuilder[Int]()
 
         RegressionUtils.inputVector(x,
-          localGlobalAnnotationBc.value, sampleIdsBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
+          localGlobalAnnotationBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
           ec, xf,
           completeSampleIndexBc.value, missingSamples)
 

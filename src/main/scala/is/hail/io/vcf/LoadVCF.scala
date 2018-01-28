@@ -885,7 +885,8 @@ object LoadVCF {
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val matrixType: MatrixType = MatrixType(
-      sType = TString(),
+      colType = TStruct("s" -> TString()),
+      colKey = Array("s"),
       vType = TVariant(gr),
       vaType = vaSignature,
       genotypeType = genotypeSignature)
@@ -936,8 +937,7 @@ object LoadVCF {
     new MatrixTable(hc,
       matrixType,
       MatrixLocalValue(Annotation.empty,
-        sampleIds,
-        Annotation.emptyIndexedSeq(sampleIds.length)),
+        sampleIds.map(x => Annotation(x))),
       rdd)
   }
 

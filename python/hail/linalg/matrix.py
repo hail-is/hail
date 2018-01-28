@@ -56,12 +56,12 @@ class BlockMatrix(object):
     @property
     @handle_py4j
     def num_rows(self):
-        return self._jbm.rows()
+        return self._jbm.nRows()
 
     @property
     @handle_py4j
     def num_cols(self):
-        return self._jbm.cols()
+        return self._jbm.nCols()
 
     @property
     @handle_py4j

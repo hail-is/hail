@@ -91,7 +91,7 @@ class VariantDataset(HistoryMixin):
         """
 
         if self._sample_ids is None:
-            self._sample_ids = jiterable_to_list(self._jvds.sampleIds())
+            self._sample_ids = jiterable_to_list(self._jvds.stringSampleIds())
         return self._sample_ids
 
     @handle_py4j
@@ -384,47 +384,6 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
     @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_samples_expr(self, expr):
-        """Annotate samples with expression.
-
-        **Examples**
-
-        Compute per-sample GQ statistics for hets:
-
-        >>> vds_result = (vds.annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.GT.isHet()).map(g => g.GQ).stats()')
-        ...                  .samples_table()
-        ...                  .select(['sample = s', 'het_gq_mean = sa.gqHetStats.mean'])
-        ...                  .export('output/samples.txt'))
-
-        Compute the list of genes with a singleton LOF per sample:
-
-        >>> variant_annotations_table = hc.import_table('data/consequence.tsv', impute=True).key_by('Variant')
-        >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, expr='va.consequence = table.Consequence')
-        ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.GT.nNonRefAlleles()).sum() == 1')
-        ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.GT.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
-
-        To create an annotation for only a subset of samples based on an existing annotation:
-
-        >>> vds_result = vds.annotate_samples_expr('sa.newpheno = if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Float64')
-
-        .. note::
-
-            For optimal performance, be sure to explicitly give the alternative (``NA``) the same type as the consequent (``sa.pheno.bloodPressure``).
-
-        **Notes**
-
-        ``expr`` is in sample context so the following symbols are in scope:
-
-        - ``s`` (*Sample*): sample
-        - ``sa``: sample annotations
-        - ``global``: global annotations
-        - ``gs`` (*Aggregable[Genotype]*): aggregable of genotype for sample ``s``
-
-        :param expr: Annotation expression.
-        :type expr: str or list of str
-
-        :return: Annotated variant dataset.
-        :rtype: :class:`.VariantDataset`
-        """
 
         if isinstance(expr, list):
             expr = ','.join(expr)
@@ -628,7 +587,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
 
         Collect a list of sample IDs with non-ref calls in LOF variants:
 
-        >>> vds_result = vds.annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.GT.isNonRef()).map(g => s).collect()')
+        >>> vds_result = vds.annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.GT.isNonRef()).map(g => sa.s).collect()')
 
         Substitute a custom string for the rsID field:
 
@@ -666,130 +625,6 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                       expr=nullable(strlike),
                       product=bool)
     def annotate_variants_table(self, table, root=None, expr=None, product=False):
-        """Annotate variants with a key table.
-
-        **Examples**
-
-        Add annotations from a variant-keyed tab separated file:
-
-        >>> table = hc.import_table('data/variant-lof.tsv', impute=True).key_by('v')
-        >>> vds_result = vds.annotate_variants_table(table, root='va.lof')
-
-        Add annotations from a locus-keyed TSV:
-
-        >>> kt = hc.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
-        >>> vds_result = vds.annotate_variants_table(table, root='va.scores')
-
-        Annotate variants with the target in a GATK interval list file:
-
-        >>> intervals = KeyTable.import_interval_list('data/exons2.interval_list')
-        >>> vds_result = vds.annotate_variants_table(intervals, root='va.exon')
-
-        Annotate variants with all targets from matching intervals in a GATK interval list file:
-
-        >>> intervals = KeyTable.import_interval_list('data/exons2.interval_list')
-        >>> vds_result = vds.annotate_variants_table(intervals, root='va.exons', product=True)
-
-        Annotate variants using a UCSC BED file, marking each variant true/false for an overlap with any interval:
-
-        >>> intervals = KeyTable.import_bed('data/file2.bed')
-        >>> vds_result = vds.annotate_variants_table(intervals, root='va.bed')
-
-        **Notes**
-
-        This method takes as an argument a :class:`.KeyTable` object. Hail has default join strategies
-        for tables keyed by Variant, Locus, or Interval.
-
-        **Join strategies:**
-
-        If the key is a ``Variant``, then a variant in the dataset will match a variant in the
-        table that is equivalent. Be careful, however: ``1:1:A:T`` does not match ``1:1:A:T,C``,
-        and vice versa.
-
-        If the key is a ``Locus``, then a variant in the dataset will match any locus in the table
-        which is equivalent to ``v.locus`` (same chromosome and position).
-
-        If the key is an ``Interval``, then a variant in the dataset will match any interval in
-        the table that contains the variant's locus (chromosome and position).
-
-        **The** ``root`` **and** ``expr`` **arguments**
-
-        .. note::
-
-            One of ``root`` or ``expr`` is required, but not both.
-
-        The ``expr`` parameter expects an annotation assignment involving ``va`` (the existing
-        variant annotations in the dataset) and ``table`` (the values(s) in the table),
-        like ``va.col1 = table.col1, va.col2 = table.col2`` or ``va = merge(va, table)``.
-        The ``root`` parameter expects an annotation path beginning in ``va``, like ``va.annotations``.
-        Passing ``root='va.annotations'`` is the same as passing ``expr='va.annotations = table'``.
-
-        ``expr`` has the following symbols in scope:
-
-          - ``va``: variant annotations
-          - ``table``: See note.
-
-        .. note::
-
-            The value of ``table`` inside root/expr depends on the number of values in the key table,
-            as well as the ``product`` argument. There are three behaviors based on the number of values
-            and one branch for ``product`` being true and false, for a total of six modes:
-
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | Number of value columns | ``product`` | Type of  ``table`` | Value of  ``table``                           |
-            +=========================+=============+====================+===============================================+
-            | More than 2             | False       | ``Struct``         | Struct with an element for each column.       |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | 1                       | False       | ``T``              | The value column.                             |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | 0                       | False       | ``Boolean``        | Existence of any matching key.                |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | More than 2             | True        | ``Array[Struct]``  | An array with a struct for each matching key. |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | 1                       | True        | ``Array[T]``       | An array with a value for each matching key.  |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-            | 0                       | True        | ``Int``            | The number of matching keys.                  |
-            +-------------------------+-------------+--------------------+-----------------------------------------------+
-
-        **Common uses for the** ``expr`` **argument**
-
-        Put annotations on the top level under ``va``:
-
-        .. code-block:: text
-
-            expr='va = merge(va, table)'
-
-        Annotate only specific annotations from the table:
-
-        .. code-block:: text
-
-            expr='va.annotations = select(table, toKeep1, toKeep2, toKeep3)'
-
-        The above is roughly equivalent to:
-
-        .. code-block:: text
-
-            expr='''va.annotations.toKeep1 = table.toKeep1,
-                va.annotations.toKeep2 = table.toKeep2,
-                va.annotations.toKeep3 = table.toKeep3'''
-
-        Finally, for more information about importing key tables from text,
-        see the documentation for :meth:`hail.api1.HailContext.import_table`.
-
-        :param table: Key table.
-        :type table: :class:`.KeyTable`
-
-        :param root: Variant annotation path to store text table. (This or ``expr`` required).
-        :type root: str or None
-
-        :param expr: Annotation expression. (This or ``root`` required).
-        :type expr: str or None
-
-        :param bool product: Join with all matching keys (see note).
-
-        :return: Annotated variant dataset.
-        :rtype: :class:`.VariantDataset`
-        """
         jvds = self._jvds.annotateVariantsTable(table._jkt, root, expr, product)
         return VariantDataset(self.hc, jvds)
 
@@ -1091,7 +926,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
                 assert db_file != 'gs://annotationdb/gene/gene.kt'
 
                 # annotate analysis VDS with database keytable
-                self = self.annotate_variants_table(self.hc.read_table(db_file), expr=expr)
+                self = self.annotate_variants_table(self.hc.read_table(db_file), expr=expr, vds_key=vds_key)
 
             else:
                 continue
@@ -1387,7 +1222,7 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
     @write_history('output')
     @typecheck_method(output=strlike,
                       fam_expr=strlike)
-    def export_plink(self, output, fam_expr='id = s'):
+    def export_plink(self, output, fam_expr='id = sa.s'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
         .. include:: ../_templates/req_tvariant.rst
@@ -2036,41 +1871,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
     @handle_py4j
     @record_method
-    @typecheck_method(table=KeyTable,
-                      keep=bool)
-    def filter_samples_table(self, table, keep=True):
-        """Filter samples with a table keyed by sample ID.
-
-        **Examples**
-
-        Keep samples in a text file:
-
-        >>> table = hc.import_table('data/samples1.tsv').key_by('Sample')
-        >>> vds_filtered = vds.filter_samples_table(table, keep=True)
-
-        Remove samples in a text file with 1 field, and no header:
-
-        >>> to_remove = hc.import_table('data/exclude_samples.txt', no_header=True).key_by('f0')
-        >>> vds_filtered = vds.filter_samples_table(to_remove, keep=False)
-
-        **Notes**
-
-        This method filters out or filters to the keys of a table. The table must have a key of
-        type ``String``.
-
-        :param table: Key table.
-        :type table: :class:`.KeyTable`
-
-        :param bool keep: If true, keep only the keys in ``table``, otherwise remove them.
-
-        :return: Filtered dataset.
-        :rtype: :class:`.VariantDataset`
-        """
-
-        return VariantDataset(self.hc, self._jvds.filterSamplesTable(table._jkt, keep))
-
-    @handle_py4j
-    @record_method
     def drop_variants(self):
         """Discard all variants, variant annotations and genotypes.
 
@@ -2363,7 +2163,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         bm = BlockMatrix.read(f)
         grm = bm.T.dot(bm)
 
-        return KinshipMatrix._from_block_matrix(self.sample_schema, grm, self.sample_ids, n_variants)
+        return KinshipMatrix._from_block_matrix(TString(), grm, self.sample_ids, n_variants)
 
     @handle_py4j
     @record_method
@@ -2860,254 +2660,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         jvds = self._jvds.linreg(jarray(Env.jvm().java.lang.String, ys), x,
                                  jarray(Env.jvm().java.lang.String, covariates), root, variant_block_size)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    @record_method
-    @typecheck_method(kinshipMatrix=KinshipMatrix,
-                      y=strlike,
-                      x=strlike,
-                      covariates=listof(strlike),
-                      global_root=strlike,
-                      va_root=strlike,
-                      run_assoc=bool,
-                      use_ml=bool,
-                      delta=nullable(numeric),
-                      sparsity_threshold=numeric,
-                      n_eigs=nullable(integral),
-                      dropped_variance_fraction=(nullable(float)))
-    def lmmreg(self, kinshipMatrix, y, x, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0,
-               n_eigs=None, dropped_variance_fraction=None):
-        """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
-
-        **Examples**
-
-        Suppose the variant dataset saved at *data/example_lmmreg.vds* has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :meth:`.lmmreg` function in
-
-        >>> assoc_vds = hc.read("data/example_lmmreg.vds")
-        >>> kinship_matrix = assoc_vds.filter_variants_expr('va.useInKinship').rrm()
-        >>> lmm_vds = assoc_vds.lmmreg(kinship_matrix, 'sa.pheno', 'g.GT.nNonRefAlleles()', ['sa.cov1', 'sa.cov2'])
-
-        will execute the following four steps in order:
-
-        1) filter to samples in given kinship matrix to those for which ``sa.pheno``, ``sa.cov``, and ``sa.cov2`` are all defined
-        2) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
-        3) fit covariate coefficients and variance parameters in the sample-covariates-only (global) model using restricted maximum likelihood (`REML <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`__), storing results in global annotations under ``global.lmmreg``
-        4) test each variant for association, storing results under ``va.lmmreg`` in variant annotations
-
-        This plan can be modified as follows:
-
-        - Set ``run_assoc=False`` to not test any variants for association, i.e. skip Step 5.
-        - Set ``use_ml=True`` to use maximum likelihood instead of REML in Steps 4 and 5.
-        - Set the ``delta`` argument to manually set the value of :math:`\delta` rather that fitting :math:`\delta` in Step 4.
-        - Set the ``global_root`` argument to change the global annotation root in Step 4.
-        - Set the ``va_root`` argument to change the variant annotation root in Step 5.
-
-        :meth:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on whether :math:`\delta` is set or fit.
-
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | Annotation                                   | Type                 | Value                                                                                                                                                |
-        +==============================================+======================+======================================================================================================================================================+
-        | ``global.lmmreg.useML``                      | Boolean              | true if fit by ML, false if fit by REML                                                                                                              |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.beta``                       | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\\beta` coefficients                                    |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaG2``                    | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                        |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaE2``                    | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                   |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.delta``                      | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                   |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.h2``                         | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.nEigs``                      | Int                  | number of eigenvectors of kinship matrix used to fit model                                                                                           |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.dropped_variance_fraction``  | Double               | specified value of ``dropped_variance_fraction``                                                                                                     |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.evals``                      | Array[Double]        | all eigenvalues of the kinship matrix in descending order                                                                                            |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.seH2``                   | Double               | standard error of :math:`\\hat{h}^2` under asymptotic normal approximation                                                                            |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.normLkhdH2``             | Array[Double]        | likelihood function of :math:`h^2` normalized on the discrete grid ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for percentage ``i``.    |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.maxLogLkhd``             | Double               | (restricted) maximum log likelihood corresponding to :math:`\\hat{\delta}`                                                                            |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logDeltaGrid``           | Array[Double]        | values of :math:`\\mathrm{ln}(\delta)` used in the grid search                                                                                        |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logLkhdVals``            | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
-        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-
-        These global annotations are also added to ``hail.log``, with the ranked evals and :math:`\delta` grid with values in .tsv tabular form.  Use ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
-
-        If Step 5 is performed, :meth:`.lmmreg` also adds four linear regression variant annotations.
-
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | Annotation             | Type   | Value                                                                   |
-        +========================+========+=========================================================================+
-        | ``va.lmmreg.beta``     | Double | fit genotype coefficient, :math:`\hat\\beta_0`                           |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.sigmaG2``  | Double | fit coefficient of genetic variance component, :math:`\hat{\sigma}_g^2` |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.chi2``     | Double | :math:`\chi^2` statistic of the likelihood ratio test                   |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.pval``     | Double | :math:`p`-value                                                         |
-        +------------------------+--------+-------------------------------------------------------------------------+
-
-        Those variants that don't vary across the included samples (e.g., all genotypes
-        are HomRef) will have missing annotations.
-
-        The simplest way to export all resulting annotations is:
-
-        >>> lmm_vds.variants_table()
-        ...        .select(['variant = v', 'va.lmmreg.*'])
-        ...        .export('output/lmmreg.tsv.bgz')
-        >>> lmmreg_results = lmm_vds.globals['lmmreg']
-
-        **Performance**
-
-        Hail's initial version of :meth:`.lmmreg` scales beyond 15k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. Analysts have used :meth:`.lmmreg` in research to compute kinship from 100k common variants and test 32 million non-rare variants on 8k whole genomes in about 10 minutes on `Google cloud <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__.
-
-        While :meth:`.lmmreg` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix>`__ (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`__, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`__. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
-
-        Given the eigendecomposition, fitting the global model (Step 4) takes on the order of a few seconds on master. Association testing (Step 5) is fully distributed by variant with per-variant time complexity that is completely independent of the number of sample covariates and dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below, which we accelerate with a sparse representation of :math:`v`.  The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor. For example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of memory on a 16-core worker node with two 8-core executors. So for large :math:`n`, we recommend using a high-memory configuration such as ``highmem`` workers.
-
-        **Linear mixed model**
-
-        :meth:`.lmmreg` estimates the genetic proportion of residual phenotypic variance (narrow-sense heritability) under a kinship-based linear mixed model, and then optionally tests each variant for association using the likelihood ratio test. Inference is exact.
-
-        We first describe the sample-covariates-only model used to estimate heritability, which we simply refer to as the *global model*. With :math:`n` samples and :math:`c` sample covariates, we define:
-
-        - :math:`y = n \\times 1` vector of phenotypes
-        - :math:`X = n \\times c` matrix of sample covariates and intercept column of ones
-        - :math:`K = n \\times n` kinship matrix
-        - :math:`I = n \\times n` identity matrix
-        - :math:`\\beta = c \\times 1` vector of covariate coefficients
-        - :math:`\sigma_g^2 =` coefficient of genetic variance component :math:`K`
-        - :math:`\sigma_e^2 =` coefficient of environmental variance component :math:`I`
-        - :math:`\delta = \\frac{\sigma_e^2}{\sigma_g^2} =` ratio of environmental and genetic variance component coefficients
-        - :math:`h^2 = \\frac{\sigma_g^2}{\sigma_g^2 + \sigma_e^2} = \\frac{1}{1 + \delta} =` genetic proportion of residual phenotypic variance
-
-        Under a linear mixed model, :math:`y` is sampled from the :math:`n`-dimensional `multivariate normal distribution <https://en.wikipedia.org/wiki/Multivariate_normal_distribution>`__ with mean :math:`X \\beta` and variance components that are scalar multiples of :math:`K` and :math:`I`:
-
-        .. math::
-
-          y \sim \mathrm{N}\\left(X\\beta, \sigma_g^2 K + \sigma_e^2 I\\right)
-
-        Thus the model posits that the residuals :math:`y_i - X_{i,:}\\beta` and :math:`y_j - X_{j,:}\\beta` have covariance :math:`\sigma_g^2 K_{ij}` and approximate correlation :math:`h^2 K_{ij}`. Informally: phenotype residuals are correlated as the product of overall heritability and pairwise kinship. By contrast, standard (unmixed) linear regression is equivalent to fixing :math:`\sigma_2` (equivalently, :math:`h^2`) at 0 above, so that all phenotype residuals are independent.
-
-        **Caution:** while it is tempting to interpret :math:`h^2` as the `narrow-sense heritability <https://en.wikipedia.org/wiki/Heritability#Definition>`__ of the phenotype alone, note that its value depends not only the phenotype and genetic data, but also on the choice of sample covariates.
-
-        **Fitting the global model**
-
-        The core algorithm is essentially a distributed implementation of the spectral approach taken in `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__. Let :math:`K = USU^T` be the `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix#Real_symmetric_matrices>`__ of the real symmetric matrix :math:`K`. That is:
-
-        - :math:`U = n \\times n` orthonormal matrix whose columns are the eigenvectors of :math:`K`
-        - :math:`S = n \\times n` diagonal matrix of eigenvalues of :math:`K` in descending order. :math:`S_{ii}` is the eigenvalue of eigenvector :math:`U_{:,i}`
-        - :math:`U^T = n \\times n` orthonormal matrix, the transpose (and inverse) of :math:`U`
-
-        A bit of matrix algebra on the multivariate normal density shows that the linear mixed model above is mathematically equivalent to the model
-
-        .. math::
-
-          U^Ty \\sim \mathrm{N}\\left(U^TX\\beta, \sigma_g^2 (S + \delta I)\\right)
-
-        for which the covariance is diagonal (e.g., unmixed). That is, rotating the phenotype vector (:math:`y`) and covariate vectors (columns of :math:`X`) in :math:`\mathbb{R}^n` by :math:`U^T` transforms the model to one with independent residuals. For any particular value of :math:`\delta`, the restricted maximum likelihood (REML) solution for the latter model can be solved exactly in time complexity that is linear rather than cubic in :math:`n`.  In particular, having rotated, we can run a very efficient 1-dimensional optimization procedure over :math:`\delta` to find the REML estimate :math:`(\hat{\delta}, \\hat{\\beta}, \\hat{\sigma}_g^2)` of the triple :math:`(\delta, \\beta, \sigma_g^2)`, which in turn determines :math:`\\hat{\sigma}_e^2` and :math:`\\hat{h}^2`.
-
-        We first compute the maximum log likelihood on a :math:`\delta`-grid that is uniform on the log scale, with :math:`\\mathrm{ln}(\delta)` running from -8 to 8 by 0.01, corresponding to :math:`h^2` decreasing from 0.9995 to 0.0005. If :math:`h^2` is maximized at the lower boundary then standard linear regression would be more appropriate and Hail will exit; more generally, consider using standard linear regression when :math:`\\hat{h}^2` is very small. A maximum at the upper boundary is highly suspicious and will also cause Hail to exit. In any case, the log file records the table of grid values for further inspection, beginning under the info line containing "lmmreg: table of delta".
-
-        If the optimal grid point falls in the interior of the grid as expected, we then use `Brent's method <https://en.wikipedia.org/wiki/Brent%27s_method>`__ to find the precise location of the maximum over the same range, with initial guess given by the optimal grid point and a tolerance on :math:`\\mathrm{ln}(\delta)` of 1e-6. If this location differs from the optimal grid point by more than 0.01, a warning will be displayed and logged, and one would be wise to investigate by plotting the values over the grid.
-
-        Note that :math:`h^2` is related to :math:`\\mathrm{ln}(\delta)` through the `sigmoid function <https://en.wikipedia.org/wiki/Sigmoid_function>`_. More precisely,
-
-        .. math::
-
-          h^2 = 1 - \mathrm{sigmoid}(\\mathrm{ln}(\delta)) = \mathrm{sigmoid}(-\\mathrm{ln}(\delta))
-
-        Hence one can change variables to extract a high-resolution discretization of the likelihood function of :math:`h^2` over :math:`[0,1]` at the corresponding REML estimators for :math:`\\beta` and :math:`\sigma_g^2`, as well as integrate over the normalized likelihood function using `change of variables <https://en.wikipedia.org/wiki/Integration_by_substitution>`_ and the `sigmoid differential equation <https://en.wikipedia.org/wiki/Sigmoid_function#Properties>`_.
-
-        For convenience, ``global.lmmreg.fit.normLkhdH2`` records the the likelihood function of :math:`h^2` normalized over the discrete grid ``0.01, 0.02, ..., 0.98, 0.99``. The length of the array is 101 so that index ``i`` contains the likelihood at percentage ``i``. The values at indices 0 and 100 are left undefined.
-
-        By the theory of maximum likelihood estimation, this normalized likelihood function is approximately normally distributed near the maximum likelihood estimate. So we estimate the standard error of the estimator of :math:`h^2` as follows. Let :math:`x_2` be the maximum likelihood estimate of :math:`h^2` and let :math:`x_ 1` and :math:`x_3` be just to the left and right of :math:`x_2`. Let :math:`y_1`, :math:`y_2`, and :math:`y_3` be the corresponding values of the (unnormalized) log likelihood function. Setting equal the leading coefficient of the unique parabola through these points (as given by Lagrange interpolation) and the leading coefficient of the log of the normal distribution, we have:
-
-        .. math::
-
-          \\frac{x_3 (y_2 - y_1) + x_2 (y_1 - y_3) + x_1 (y_3 - y_2))}{(x_2 - x_1)(x_1 - x_3)(x_3 - x_2)} = -\\frac{1}{2 \sigma^2}
-
-        The standard error :math:`\\hat{\sigma}` is then estimated by solving for :math:`\sigma`.
-
-        Note that the mean and standard deviation of the (discretized or continuous) distribution held in ``global.lmmreg.fit.normLkhdH2`` will not coincide with :math:`\\hat{h}^2` and :math:`\\hat{\sigma}`, since this distribution only becomes normal in the infinite sample limit. One can visually assess normality by plotting this distribution against a normal distribution with the same mean and standard deviation, or use this distribution to approximate credible intervals under a flat prior on :math:`h^2`.
-
-        **Testing each variant for association**
-
-        Fixing a single variant, we define:
-
-        - :math:`v = n \\times 1` input vector, with missing values imputed as the mean of the non-missing values
-        - :math:`X_v = \\left[v | X \\right] = n \\times (1 + c)` matrix concatenating :math:`v` and :math:`X`
-        - :math:`\\beta_v = (\\beta^0_v, \\beta^1_v, \\ldots, \\beta^c_v) = (1 + c) \\times 1` vector of covariate coefficients
-
-        Fixing :math:`\delta` at the global REML estimate :math:`\\hat{\delta}`, we find the REML estimate :math:`(\\hat{\\beta}_v, \\hat{\sigma}_{g,v}^2)` via rotation of the model
-
-        .. math::
-
-          y \\sim \\mathrm{N}\\left(X_v\\beta_v, \sigma_{g,v}^2 (K + \\hat{\delta} I)\\right)
-
-        Note that the only new rotation to compute here is :math:`U^T v`.
-
-        To test the null hypothesis that the genotype coefficient :math:`\\beta^0_v` is zero, we consider the restricted model with parameters :math:`((0, \\beta^1_v, \ldots, \\beta^c_v), \sigma_{g,v}^2)` within the full model with parameters :math:`(\\beta^0_v, \\beta^1_v, \\ldots, \\beta^c_v), \sigma_{g_v}^2)`, with :math:`\delta` fixed at :math:`\\hat\delta` in both. The latter fit is simply that of the global model, :math:`((0, \\hat{\\beta}^1, \\ldots, \\hat{\\beta}^c), \\hat{\sigma}_g^2)`. The likelihood ratio test statistic is given by
-
-        .. math::
-
-          \chi^2 = n \\, \\mathrm{ln}\left(\\frac{\hat{\sigma}^2_g}{\\hat{\sigma}_{g,v}^2}\\right)
-
-        and follows a chi-squared distribution with one degree of freedom. Here the ratio :math:`\\hat{\sigma}^2_g / \\hat{\sigma}_{g,v}^2` captures the degree to which adding the variant :math:`v` to the global model reduces the residual phenotypic variance.
-
-        **Kinship Matrix**
-
-        FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :meth:`~hail.VariantDataset.rrm`. However, any instance of :class:`.KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order.
-
-        **Low-rank approximation of kinship for improved performance**
-
-        :meth:`.lmmreg` can implicitly use a low-rank approximation of the kinship matrix to more rapidly fit delta and the statistics for each variant. The computational complexity per variant is proportional to the number of eigenvectors used. This number can be specified in two ways. Specify the parameter ``n_eigs`` to use only the top ``n_eigs`` eigenvectors. Alternatively, specify ``dropped_variance_fraction`` to use as many eigenvectors as necessary to capture all but at most this fraction of the sample variance (also known as the trace, or the sum of the eigenvalues). For example, ``dropped_variance_fraction=0.01`` will use the minimal number of eigenvectors to account for 99% of the sample variance. Specifying both parameters will apply the more stringent (fewest eigenvectors) of the two.
-
-        **Further background**
-
-        For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
-
-        :param kinshipMatrix: Kinship matrix to be used.
-        :type kinshipMatrix: :class:`.KinshipMatrix`
-
-        :param str y: Response sample annotation.
-
-        :param str x: Expression for the input variable.
-
-        :param covariates: List of covariate sample annotations.
-        :type covariates: list of str
-
-        :param str global_root: Global annotation root, a period-delimited path starting with `global`.
-
-        :param str va_root: Variant annotation root, a period-delimited path starting with `va`.
-
-        :param bool run_assoc: If true, run association testing in addition to fitting the global model.
-
-        :param bool use_ml: Use ML instead of REML throughout.
-
-        :param delta: Fixed delta value to use in the global model, overrides fitting delta.
-        :type delta: float or None
-
-        :param float sparsity_threshold: Genotype vector sparsity at or below which to use sparse genotype vector in rotation (advanced).
-
-        :param int n_eigs: Number of eigenvectors of the kinship matrix used to fit the model.
-
-        :param float dropped_variance_fraction: Upper bound on fraction of sample variance lost by dropping eigenvectors with small eigenvalues.
-
-        :return: Variant dataset with linear mixed regression annotations.
-        :rtype: :class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.lmmreg(kinshipMatrix._jkm, y, x, jarray(Env.jvm().java.lang.String, covariates),
-                                 use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
-                                 joption(n_eigs), joption(dropped_variance_fraction))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3868,28 +3420,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
     @property
     @handle_py4j
-    def colkey_schema(self):
-        """
-        Returns the signature of the column key (sample) contained in this VDS.
-
-        **Examples**
-
-        >>> print(vds.colkey_schema)
-
-        The ``pprint`` module can be used to print the schema in a more human-readable format:
-
-        >>> from pprint import pprint
-        >>> pprint(vds.colkey_schema)
-
-        :rtype: :class:`.Type`
-        """
-
-        if self._colkey_schema is None:
-            self._colkey_schema = Type._from_java(self._jvds.sSignature())
-        return self._colkey_schema
-
-    @property
-    @handle_py4j
     def sample_schema(self):
         """
         Returns the signature of the sample annotations contained in this VDS.
@@ -3984,7 +3514,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         **Examples**
 
         >>> low_callrate_samples, t = vds.query_samples_typed(
-        ...    'samples.filter(s => sa.qc.callRate < 0.95).collect()')
+        ...    'samples.filter(sa => sa.qc.callRate < 0.95).map(sa => sa.s).collect()')
 
         See :meth:`.query_samples` for more information.
 
@@ -4011,7 +3541,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
         **Examples**
 
-        >>> low_callrate_samples = vds.query_samples('samples.filter(s => sa.qc.callRate < 0.95).collect()')
+        >>> low_callrate_samples = vds.query_samples('samples.filter(sa => sa.qc.callRate < 0.95).map(sa => sa.s).collect()')
 
         **Notes**
 
@@ -4223,47 +3753,6 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
     @handle_py4j
     @record_method
-    @typecheck_method(mapping=oneof(dictof(strlike, strlike), listof(strlike)))
-    def rename_samples(self, mapping):
-        """Rename samples.
-
-        **Examples**
-
-        >>> vds_result = vds.rename_samples({'ID1': 'id1', 'ID2': 'id2'})
-
-        Use a file with an "old_id" and "new_id" column to rename samples:
-
-        >>> mapping_table = hc.import_table('data/sample_mapping.txt')
-        >>> mapping_dict = {row.old_id: row.new_id for row in mapping_table.collect()}
-        >>> vds_result = vds.rename_samples(mapping_dict)
-
-        Rename samples by replacing spaces with underscores:
-
-        >>> new_id_list = [s.replace(' ', '_') for s in vds.sample_ids]
-        >>> vds_result = vds.rename_samples(new_id_list)
-
-        **Notes**
-
-        This method either takes a dict or a list as an argument. If a
-        dict is passed, then each sample found as a key in the dict will
-        be renamed to the value. Samples not found in the dict will be
-        unchanged.
-
-        If a list is passed, this list must contain the same number of
-        elements as the dataset. Samples are renamed by index.
-
-        :param mapping: Mapping from old to new sample IDs.
-        :type mapping: list of str or dict of str to str
-
-        :return: Dataset with remapped sample IDs.
-        :rtype: :class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.renameSamples(mapping)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    @record_method
     @typecheck_method(mapping=listof(strlike))
     def reorder_samples(self, mapping):
         """Reorder samples.
@@ -4297,31 +3786,9 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
 
     @handle_py4j
     @record_method
-    def rename_duplicates(self):
-        """Rename duplicate samples.
+    def rename_duplicates(self, s='unique_id'):
 
-        **Examples**
-
-        >>> vds_result = vds.rename_duplicates()
-        >>> duplicate_sample_ids = vds_result.query_samples(
-        ...     'samples.filter(s => s != sa.originalID).map(s => sa.originalID).collectAsSet()')
-
-        **Notes**
-
-        This method produces a dataset with unique sample identifiers by appending
-        a unique suffix ``_N`` to duplicate samples. For example, if the id "NA12878"
-        appears three times in the dataset, the first will be left as "NA12878", the
-        second will be renamed "NA12878_1", and the third will be "NA12878_2". The
-        original ID is stored in sample annotations.
-
-        **Annotations**
-
-        :meth:`~hail.VariantDataset.rename_duplicates` adds one sample annotation:
-
-         - **sa.originalID** (*String*) -- Original sample ID.
-        """
-
-        jvds = self._jvds.renameDuplicates()
+        jvds = self._jvds.renameDuplicates(s)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -4442,7 +3909,7 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
         bm = BlockMatrix.read(f)
         rrm = bm.T.dot(bm) / nvariants
 
-        return KinshipMatrix._from_block_matrix(self.sample_schema, rrm, self.sample_ids, nvariants)
+        return KinshipMatrix._from_block_matrix(TString(), rrm, self.sample_ids, nvariants)
 
     @handle_py4j
     @typecheck_method(other=vds_type,
@@ -5793,33 +5260,6 @@ in { GT: newgt, AD: newad, DP: g.DP, GQ: newgq, PL: newpl }
     @handle_py4j
     @record_method
     def genotypes_table(self):
-        """Generate a fully expanded genotype table.
-
-        **Examples**
-
-        >>> gs = vds.genotypes_table()
-
-        **Notes**
-
-        This produces a (massive) flat table from all the
-        genotypes in the dataset. The table has columns:
-
-            - **v** (*Variant*) - Variant (key column).
-            - **va** (*Variant annotation schema*) - Variant annotations.
-            - **s** (*String*) - Sample ID (key column).
-            - **sa** (*Sample annotation schema*) - Sample annotations.
-            - **g** (*Genotype schema*) - Genotype or generic genotype.
-
-        .. caution::
-
-            This table has a row for each variant/sample pair. The genotype
-            key table for a dataset with 10M variants and 10K samples will
-            contain 100 billion rows. Writing or exporting this table will
-            produce a file **much** larger than the equivalent VDS.
-
-        :return: Key table with a row for each genotype.
-        :rtype: :class:`.KeyTable`
-        """
 
         return KeyTable(self.hc, self._jvds.genotypeKT())
 

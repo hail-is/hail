@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.io.annotators.IntervalList
 import org.testng.annotations.Test
 import is.hail.TestUtils._
-import is.hail.annotations.UnsafeRow
+import is.hail.annotations.{Annotation, UnsafeRow}
 import is.hail.check.Prop.forAll
 import is.hail.expr.types._
 import is.hail.utils._
@@ -48,14 +48,14 @@ class GroupBySuite extends SparkSuite {
         vsm.annotateVariantsExpr("va = {}").same(grouped)
       }
 
-      val uniqueSamples = vsm.sampleIds.toSet
-      if (vsm.sampleIds.size != uniqueSamples.size) {
+      val uniqueSamples = vsm.stringSampleIds.toSet
+      if (vsm.stringSampleIds.size != uniqueSamples.size) {
         sSkipped += 1
-        val grouped = vsm.groupSamplesBy("s", "first = gs.collect()[0]")
+        val grouped = vsm.groupSamplesBy("sa.s", "first = gs.collect()[0]")
         grouped.countVariants() == uniqueVariants.size
       } else {
-        val grouped = vsm.groupSamplesBy("s", "GT = gs.collect()[0].GT, AD = gs.collect()[0].AD, DP = gs.collect()[0].DP, GQ = gs.collect()[0].GQ, PL = gs.collect()[0].PL")
-        vsm.annotateSamplesExpr("sa = {}").same(grouped.reorderSamples(vsm.sampleIds.toArray))
+        val grouped = vsm.groupSamplesBy("sa.s", "GT = gs.collect()[0].GT, AD = gs.collect()[0].AD, DP = gs.collect()[0].DP, GQ = gs.collect()[0].GQ, PL = gs.collect()[0].PL")
+        vsm.annotateSamplesExpr("sa = {s: sa.s}").same(grouped.reorderSamples(vsm.stringSampleIds.toArray.map(Annotation(_))))
       }
     }
     p.check()

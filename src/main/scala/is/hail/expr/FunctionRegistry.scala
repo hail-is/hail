@@ -2002,13 +2002,6 @@ object FunctionRegistry {
 
   registerAggregator[Any, Long]("count", () => new CountAggregator(),
     """
-    Counts the number of elements in an aggregable.
-
-    **Examples**
-
-    Count the number of heterozygote genotype calls in an aggregable of genotypes (``gs``):
-
-    >>> vds_result = vds.annotate_variants_expr('va.nHets = gs.filter(g => g.GT.isHet()).count()')
     """
   )(aggregableHr(TTHr), int64Hr)
 
@@ -2017,15 +2010,6 @@ object FunctionRegistry {
     () => new CollectAggregator(t)
   },
     """
-    Returns an array with all of the elements in the aggregable. Order is not guaranteed.
-
-    **Examples**
-
-    Collect the list of sample IDs with heterozygote genotype calls per variant:
-
-    >>> vds_result = vds.annotate_variants_expr('va.hetSamples = gs.filter(g => g.GT.isHet()).map(g => s).collect()')
-
-    ``va.hetSamples`` will have the type ``Array[String]``.
     """
   )(aggregableHr(TTHr), arrayHr(TTHr))
 
@@ -2049,13 +2033,6 @@ object FunctionRegistry {
 
   registerAggregator[IndexedSeq[Int], IndexedSeq[Int]]("sum", () => new SumArrayAggregator[Int](),
     """
-    Compute the sum by index. All elements in the aggregable must have the same length.
-
-    **Examples**
-
-    Count the total number of occurrences of each allele across samples, per variant:
-
-    >>> vds_result = vds.annotate_variants_expr('va.AC = gs.map(g => g.GT.oneHotAlleles(v)).sum()')
     """
   )(aggregableHr(arrayHr(int32Hr)), arrayHr(int32Hr))
 
@@ -2150,19 +2127,6 @@ object FunctionRegistry {
 
   registerAggregator[Call, Any]("hardyWeinberg", () => new HWEAggregator(),
     """
-    Compute Hardy-Weinberg equilibrium p-value.
-
-    **Examples**
-
-    Add a new variant annotation that calculates HWE p-value by phenotype:
-
-    >>> vds_result = vds.annotate_variants_expr([
-    ...   'va.hweCase = gs.filter(g => sa.pheno.isCase).map(g => g.GT).hardyWeinberg()',
-    ...   'va.hweControl = gs.filter(g => !sa.pheno.isCase).map(g => g.GT).hardyWeinberg()'])
-
-    **Notes**
-
-    Hail computes the exact p-value with mid-p-value correction, i.e. the probability of a less-likely outcome plus one-half the probability of an equally-likely outcome. See this `document <LeveneHaldane.pdf>`__ for details on the Levene-Haldane distribution and references.
     """
   )(aggregableHr(callHr),
     new HailRep[Any] {
@@ -2174,27 +2138,6 @@ object FunctionRegistry {
     () => new CounterAggregator(t)
   },
     """
-    Counts the number of occurrences of each element in an aggregable.
-
-    **Examples**
-
-    Compute the number of indels in each chromosome:
-
-    >>> [indels_per_chr] = vds.query_variants(['variants.filter(v => v.altAllele().isIndel()).map(v => v.contig).counter()'])
-
-    **Notes**
-
-    We recommend this function is used with the `Python counter object <https://docs.python.org/2/library/collections.html#collections.Counter>`_.
-
-    >>> [counter] = vds.query_variants(['variants.flatMap(v => v.altAlleles).counter()'])
-    >>> from collections import Counter
-    >>> counter = Counter(counter)
-    >>> print(counter.most_common(5))
-    [(AltAllele(C, T), 129L),
-     (AltAllele(G, A), 112L),
-     (AltAllele(C, A), 60L),
-     (AltAllele(A, G), 46L),
-     (AltAllele(T, C), 44L)]
     """)(aggregableHr(TTHr),
     new HailRep[Any] {
       def typ = TDict(TTHr.typ, TInt64())
@@ -2202,33 +2145,6 @@ object FunctionRegistry {
 
   registerAggregator[Double, Any]("stats", () => new StatAggregator(),
     """
-    Compute summary statistics about a numeric aggregable.
-
-    **Examples**
-
-    Compute the mean genotype quality score per variant:
-
-    >>> vds_result = vds.annotate_variants_expr('va.gqMean = gs.map(g => g.GQ).stats().mean')
-
-    Compute summary statistics on the number of singleton calls per sample:
-
-    >>> [singleton_stats] = (vds.sample_qc()
-    ...     .query_samples(['samples.map(s => sa.qc.nSingleton).stats()']))
-
-    Compute GQ and DP statistics stratified by genotype call:
-
-    >>> gq_dp = [
-    ... 'va.homrefGQ = gs.filter(g => g.GT.isHomRef()).map(g => g.GQ).stats()',
-    ... 'va.hetGQ = gs.filter(g => g.GT.isHet()).map(g => g.GQ).stats()',
-    ... 'va.homvarGQ = gs.filter(g => g.GT.isHomVar()).map(g => g.GQ).stats()',
-    ... 'va.homrefDP = gs.filter(g => g.GT.isHomRef()).map(g => g.DP).stats()',
-    ... 'va.hetDP = gs.filter(g => g.GT.isHet()).map(g => g.DP).stats()',
-    ... 'va.homvarDP = gs.filter(g => g.GT.isHomVar()).map(g => g.DP).stats()']
-    >>> vds_result = vds.annotate_variants_expr(gq_dp)
-
-    **Notes**
-
-    The ``stats()`` aggregator can be used to replicate some of the values computed by :py:meth:`~hail.VariantDataset.variant_qc` and :py:meth:`~hail.VariantDataset.sample_qc` such as ``dpMean`` and ``dpStDev``.
     """)(aggregableHr(float64Hr),
     new HailRep[Any] {
       def typ = TStruct("mean" -> TFloat64(), "stdev" -> TFloat64(), "min" -> TFloat64(),
@@ -2251,42 +2167,12 @@ object FunctionRegistry {
     new HistAggregator(indices)
   },
     """
-    Compute frequency distributions of numeric parameters.
-
-    **Examples**
-
-    Compute GQ-distributions per variant:
-
-    >>> vds_result = vds.annotate_variants_expr('va.gqHist = gs.map(g => g.GQ).hist(0, 100, 20)')
-
-    Compute global GQ-distribution:
-
-    >>> gq_hist = vds.query_genotypes('gs.map(g => g.GQ).hist(0, 100, 100)')
-
-    **Notes**
-
-    - The start, end, and bins params are no-scope parameters, which means that while computations like 100 / 4 are acceptable, variable references like ``global.nBins`` are not.
-    - Bin size is calculated from (``end`` - ``start``) / ``bins``
-    - (``bins`` + 1) breakpoints are generated from the range (start to end by binsize)
-    - Each bin is left-inclusive, right-exclusive except the last bin, which includes the maximum value. This means that if there are N total bins, there will be N + 1 elements in ``binEdges``. For the invocation ``hist(0, 3, 3)``, ``binEdges`` would be ``[0, 1, 2, 3]`` where the bins are ``[0, 1), [1, 2), [2, 3]``.
     """, "start" -> "Starting point of first bin", "end" -> "End point of last bin", "bins" -> "Number of bins to create.")(aggregableHr(float64Hr), float64Hr, float64Hr, int32Hr, new HailRep[Any] {
     def typ = HistogramCombiner.schema
   })
 
   registerLambdaAggregator[Call, (Any) => Any, Any]("callStats", (vf: (Any) => Any) => new CallStatsAggregator(vf),
     """
-    Compute four commonly-used metrics over a set of genotypes in a variant.
-
-    **Examples**
-
-    Compute phenotype-specific call statistics:
-
-    >>> pheno_stats = [
-    ...   'va.case_stats = gs.filter(g => sa.pheno.isCase).map(g => g.GT).callStats(g => v)',
-    ...   'va.control_stats = gs.filter(g => !sa.pheno.isCase).map(g => g.GT).callStats(g => v)']
-    >>> vds_result = vds.annotate_variants_expr(pheno_stats)
-
-    ``va.eur_stats.AC`` will be the allele count (AC) computed from individuals marked as "EUR".
     """, "f" -> "Variant lambda expression such as ``g => v``."
   )(
     aggregableHr(callHr), unaryHr(callHr, variantHr(GR)), new HailRep[Any] {
@@ -2295,30 +2181,6 @@ object FunctionRegistry {
 
   registerLambdaAggregator[Call, (Any) => Any, Any]("inbreeding", (af: (Any) => Any) => new InbreedingAggregator(af),
     """
-    Compute inbreeding metric. This aggregator is equivalent to the `\`--het\` method in PLINK <https://www.cog-genomics.org/plink2/basic_stats#ibc>`_.
-
-    **Examples**
-
-    Calculate the inbreeding metric per sample:
-
-    >>> vds_result = (vds.variant_qc()
-    ...     .annotate_samples_expr('sa.inbreeding = gs.map(g => g.GT).inbreeding(g => va.qc.AF)'))
-
-    To obtain the same answer as `PLINK <https://www.cog-genomics.org/plink2>`_, use the following series of commands:
-
-    >>> vds_result = (vds.variant_qc()
-    ...     .filter_variants_expr('va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8 && v.isAutosomal()')
-    ...     .annotate_samples_expr('sa.inbreeding = gs.map(g => g.GT).inbreeding(g => va.qc.AF)'))
-
-    **Notes**
-
-    The Inbreeding Coefficient (F) is computed as follows:
-
-    #. For each variant and sample with a non-missing genotype call, ``E``, the expected number of homozygotes (computed from user-defined expression for minor allele frequency), is computed as ``1.0 - (2.0*maf*(1.0-maf))``
-    #. For each variant and sample with a non-missing genotype call, ``O``, the observed number of homozygotes, is computed as ``0 = heterozygote; 1 = homozygote``
-    #. For each variant and sample with a non-missing genotype call, ``N`` is incremented by 1
-    #. For each sample, ``E``, ``O``, and ``N`` are combined across variants
-    #. ``F`` is calculated by ``(O - E) / (N - E)``
     """, "af" -> "Lambda expression for the alternate allele frequency.")(
     aggregableHr(callHr), unaryHr(callHr, float64Hr), new HailRep[Any] {
       def typ = InbreedingCombiner.signature
@@ -2359,13 +2221,6 @@ object FunctionRegistry {
     (n: Int) => new TakeAggregator(t, n)
   },
     """
-    Take the first ``n`` items of an aggregable.
-
-    **Examples**
-
-    Collect the first 5 sample IDs with at least one alternate allele per variant:
-
-    >>> vds_result = vds.annotate_variants_expr("va.nonRefSamples = gs.filter(g => g.GT.nNonRefAlleles() > 0).map(g => s).take(5)")
     """, "n" -> "Number of items to take.")(
     aggregableHr(TTHr), int32Hr, arrayHr(TTHr))
 
@@ -2380,30 +2235,6 @@ object FunctionRegistry {
 
   private val integralTakeByDocs = genericTakeByDocs ++
     """
-    **Examples**
-
-    Consider an aggregable ``gs`` containing these elements::
-
-      7, 6, 3, NA, 1, 2, NA, 4, 5, -1
-
-    The expression ``gs.takeBy(x => x, 5)`` would return the array::
-
-      [-1, 1, 2, 3, 4]
-
-    The expression ``gs.takeBy(x => -x, 5)`` would return the array::
-
-      [7, 6, 5, 4, 3]
-
-    The expression ``gs.takeBy(x => x, 10)`` would return the array::
-
-      [-1, 1, 2, 3, 4, 5, 6, 7, NA, NA]
-
-    Returns the 10 samples with the least number of singletons:
-
-    >>> samplesMostSingletons = (vds
-    ...   .sample_qc()
-    ...   .query_samples('samples.takeBy(s => sa.qc.nSingleton, 10)'))
-
     """
 
   registerDependentLambdaAggregator("takeBy", () => {
@@ -2490,13 +2321,6 @@ object FunctionRegistry {
   }
   },
     """
-    Returns a new aggregable by applying a function ``f`` to each element and concatenating the resulting arrays.
-
-    **Examples**
-
-    Compute a list of genes per sample with loss of function variants (result may have duplicate entries):
-
-    >>> vds_result = vds.annotate_samples_expr('sa.lof_genes = gs.filter(g => va.consequence == "LOF" && g.GT.nNonRefAlleles() > 0).flatMap(g => va.genes).collect()')
     """
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
 
@@ -2512,11 +2336,6 @@ object FunctionRegistry {
   }
   },
     """
-    Returns a new aggregable by applying a function ``f`` to each element and concatenating the resulting sets.
-
-    Compute a list of genes per sample with loss of function variants (result does not have duplicate entries):
-
-    >>> vds_result = vds.annotate_samples_expr('sa.lof_genes = gs.filter(g => va.consequence == "LOF" && g.GT.nNonRefAlleles() > 0).flatMap(g => va.genes.toSet()).collect()')
     """, "f" -> "Lambda expression."
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, setHr(TUHr)), aggregableHr(TUHr, aggST))
 
@@ -2542,13 +2361,6 @@ object FunctionRegistry {
   }
   },
     """
-    Subsets an aggregable by evaluating ``f`` for each element and keeping those elements that evaluate to true.
-
-    **Examples**
-
-    Compute Hardy Weinberg Equilibrium for cases only:
-
-    >>> vds_result = vds.annotate_variants_expr("va.hweCase = gs.filter(g => sa.isCase).map(g => g.GT).hardyWeinberg()")
     """, "f" -> "Boolean lambda expression."
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, boolHr), aggregableHr(TTHr, aggST))
 
@@ -2556,13 +2368,6 @@ object FunctionRegistry {
   }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) => { (k: Code[AnyRef] => CM[Code[Unit]]) => f(x).flatMap(k) }
   },
     """
-    Change the type of an aggregable by evaluating ``f`` for each element.
-
-    **Examples**
-
-    Convert an aggregable of genotypes (``gs``) to an aggregable of genotype quality scores and then compute summary statistics:
-
-    >>> vds_result = vds.annotate_variants_expr("va.gqStats = gs.map(g => g.GQ).stats()")
     """, "f" -> "Lambda expression."
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, TUHr), aggregableHr(TUHr, aggST))
 

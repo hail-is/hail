@@ -12,6 +12,7 @@ import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
+import org.apache.spark.sql.Row
 
 case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
 
@@ -46,16 +47,17 @@ object PlinkLoader {
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def parseFam(filename: String, ffConfig: FamFileConfig,
-    hConf: hadoop.conf.Configuration): (IndexedSeq[(String, Annotation)], TStruct) = {
+    hConf: hadoop.conf.Configuration): (IndexedSeq[Row], TStruct) = {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
     val phenoSig = if (ffConfig.isQuantPheno) ("quant_pheno", TFloat64()) else ("is_case", TBoolean())
 
-    val signature = TStruct(("fam_id", TString()), ("pat_id", TString()), ("mat_id", TString()), ("is_female", TBoolean()), phenoSig)
+    val signature = TStruct(("id", TString()), ("fam_id", TString()), ("pat_id", TString()),
+      ("mat_id", TString()), ("is_female", TBoolean()), phenoSig)
 
     val idBuilder = new ArrayBuilder[String]
-    val structBuilder = new ArrayBuilder[Annotation]
+    val structBuilder = new ArrayBuilder[Row]
 
     val m = hConf.readLines(filename) {
       _.foreachLine { line =>
@@ -97,7 +99,7 @@ object PlinkLoader {
               case _ => null
             }
         idBuilder += kid
-        structBuilder += Annotation(fam1, dad1, mom1, isFemale1, pheno1)
+        structBuilder += Row(kid, fam1, dad1, mom1, isFemale1, pheno1)
       }
     }
 
@@ -107,12 +109,11 @@ object PlinkLoader {
     if (sampleIds.isEmpty)
       fatal("Empty .fam file")
 
-    (sampleIds.zip(structBuilder.result()), signature)
+    (structBuilder.result(), signature)
   }
 
   private def parseBed(hc: HailContext,
     bedPath: String,
-    sampleIds: IndexedSeq[String],
     sampleAnnotations: IndexedSeq[Annotation],
     sampleAnnotationSignature: TStruct,
     variants: Array[(Variant, String)],
@@ -122,7 +123,7 @@ object PlinkLoader {
     dropChr0: Boolean = false): MatrixTable = {
 
     val sc = hc.sc
-    val nSamples = sampleIds.length
+    val nSamples = sampleAnnotations.length
     val variantsBc = sc.broadcast(variants)
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
     sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
@@ -131,7 +132,8 @@ object PlinkLoader {
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val matrixType = MatrixType(
-      saType = sampleAnnotationSignature,
+      colType = sampleAnnotationSignature,
+      colKey = Array("s"),
       vaType = plinkSchema,
       vType = TVariant(gr),
       genotypeType = TStruct("GT" -> TCall()))
@@ -193,7 +195,6 @@ object PlinkLoader {
 
     new MatrixTable(hc, matrixType,
       MatrixLocalValue(globalAnnotation = Annotation.empty,
-        sampleIds = sampleIds,
         sampleAnnotations = sampleAnnotations),
       OrderedRVD(matrixType.orderedRVType, rdd2, Some(fastKeys), None))
   }
@@ -202,6 +203,10 @@ object PlinkLoader {
     nPartitions: Option[Int] = None, a2Reference: Boolean = true, gr: GenomeReference = GenomeReference.defaultReference,
     contigRecoding: Map[String, String] = Map.empty[String, String], dropChr0: Boolean = false): MatrixTable = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
+
+    val nameMap = Map("id" -> "s")
+    val saSignature = signature.copy(fields = signature.fields.map(f => f.copy(name = nameMap.getOrElse(f.name, f.name))))
+
     val nSamples = sampleInfo.length
     if (nSamples <= 0)
       fatal(".fam file does not contain any samples")
@@ -233,17 +238,7 @@ object PlinkLoader {
     if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
       fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
 
-    val (ids, annotations) = sampleInfo.unzip
-
-    val duplicateIds = ids.duplicates().toArray
-    if (duplicateIds.nonEmpty) {
-      val n = duplicateIds.length
-      warn(
-        s"""found $n duplicate sample ${ plural(n, "ID") }
-           |  Duplicate IDs: @1""".stripMargin, duplicateIds)
-    }
-
-    val vds = parseBed(hc, bedPath, ids, annotations, signature, variants, nPartitions, a2Reference, gr, dropChr0)
+    val vds = parseBed(hc, bedPath, sampleInfo, saSignature, variants, nPartitions, a2Reference, gr, dropChr0)
     vds
   }
 

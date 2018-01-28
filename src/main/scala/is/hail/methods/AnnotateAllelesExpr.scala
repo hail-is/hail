@@ -19,8 +19,7 @@ object AnnotateAllelesExpr {
       "v" -> (1, vsm.vSignature),
       "va" -> (2, splitMatrixType.vaType),
       "g" -> (3, splitMatrixType.genotypeType),
-      "s" -> (4, TString()),
-      "sa" -> (5, vsm.saSignature))
+      "sa" -> (4, vsm.saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, vsm.globalSignature),
       "v" -> (1, vsm.vSignature),

@@ -3,7 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.expr.expression import *
 from hail.utils import storage_level
 from hail.utils.java import handle_py4j
-from hail.utils.misc import get_nice_attr_error, get_nice_field_error
+from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_tuple
 from hail.api2 import Table
 
 
@@ -125,7 +125,7 @@ class GroupedMatrixTable(object):
 
         strs = []
 
-        base, cleanup = self._parent._process_joins(*((self._group,) + tuple(named_exprs.values())))
+        base, cleanup = self._parent._process_joins(*([self._group] + named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedMatrixTable.aggregate', v, self._grouped_indices,
                     {self._parent._row_axis, self._parent._col_axis})
@@ -142,7 +142,9 @@ class GroupedMatrixTable(object):
             return cleanup(
                 MatrixTable(base._jvds.groupSamplesBy(self._group._ast.to_hql(), ',\n'.join(strs))))
 
+
 matrix_table_type = lazy()
+
 
 class MatrixTable(object):
     """Hail's distributed implementation of a structured matrix.
@@ -203,7 +205,7 @@ class MatrixTable(object):
 
         self._globals = None
         self._sample_annotations = None
-        self._colkey_schema = None
+        self._col_key = None
         self._sa_schema = None
         self._rowkey_schema = None
         self._va_schema = None
@@ -217,7 +219,7 @@ class MatrixTable(object):
         self._row_indices = Indices(self, {self._row_axis})
         self._col_indices = Indices(self, {self._col_axis})
         self._entry_indices = Indices(self, {self._row_axis, self._col_axis})
-        self._reserved = {'v', 's'}
+        self._reserved = {'v'}
         self._fields = {}
 
         assert isinstance(self.global_schema, TStruct), self.col_schema
@@ -226,7 +228,6 @@ class MatrixTable(object):
         assert isinstance(self.entry_schema, TStruct), self.entry_schema
 
         self._set_field('v', construct_reference('v', self.rowkey_schema, self._row_indices))
-        self._set_field('s', construct_reference('s', self.colkey_schema, self._col_indices))
 
         for f in self.global_schema.fields:
             assert f.name not in self._reserved, f.name
@@ -275,7 +276,8 @@ class MatrixTable(object):
         else:
             raise AttributeError(get_nice_attr_error(self, item))
 
-    @typecheck_method(item=oneof(strlike, sized_tupleof(oneof(slice, Expression), oneof(slice, Expression))))
+    @typecheck_method(item=oneof(strlike, sized_tupleof(oneof(slice, Expression),
+                                                        oneof(slice, Expression, tupleof(Expression)))))
     def __getitem__(self, item):
         if isinstance(item, str) or isinstance(item, unicode):
             return self._get_field(item)
@@ -312,18 +314,20 @@ class MatrixTable(object):
                         )
                     )
             else:
-                col_key = to_expr(exprs[1])
-                if col_key._type != self.colkey_schema:
+                col_key = [to_expr(e) for e in wrap_to_tuple(exprs[1])]
+                key_types = [k.dtype for k in col_key]
+                expected = [self[k].dtype for k in self.col_key]
+                if key_types != expected:
                     raise ExpressionException(
-                        'Type mismatch for MatrixTable col key: expected key type {}, found {}'.format(
-                            str(self.colkey_schema), str(col_key._type)))
+                        'Type mismatch for MatrixTable column key: expected [{}], found [{}]'.format(
+                            ', '.join(map(str, expected)), ', '.join(map(str, key_types))))
 
             if row_key is not None and col_key is not None:
                 return self.view_join_entries(row_key, col_key)
             elif row_key is not None and col_key is None:
                 return self.view_join_rows(row_key)
             elif row_key is None and col_key is not None:
-                return self.view_join_cols(col_key)
+                return self.view_join_cols(*col_key)
             else:
                 return self.view_join_globals()
 
@@ -341,17 +345,16 @@ class MatrixTable(object):
         return self._global_schema
 
     @property
-    def colkey_schema(self):
-        """The schema of the column key.
+    def col_key(self):
+        """The list of column key fields.
 
         Returns
         -------
-        :class:`.Type`
-             Column key schema.
+        :obj:`list` of :obj:`str`
         """
-        if self._colkey_schema is None:
-            self._colkey_schema = Type._from_java(self._jvds.sSignature())
-        return self._colkey_schema
+        if self._col_key is None:
+            self._col_key = jiterable_to_list(self._jvds.colKey())
+        return self._col_key
 
     @property
     def col_schema(self):
@@ -473,6 +476,25 @@ class MatrixTable(object):
         return construct_expr(Reference('g', False), self.entry_schema,
                               indices=self._entry_indices,
                               refs=LinkedList(tuple).push(*[(f.name, self._entry_indices) for f in self.entry_schema.fields]))
+
+    @typecheck_method(fields=strlike)
+    def key_cols_by(self, *fields):
+        """Key columns by a new set of fields.
+
+        Parameters
+        ----------
+        fields : varargs of :obj:`str`
+            Fields to key by.
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+        for f in fields:
+            if f not in self._fields:
+                raise ValueError("MatrixTable has no field '{}'".format(f))
+            if not self[f]._indices == self._col_indices:
+                raise ValueError("field '{}' is not a column field".format(f))
+        return MatrixTable(self._jvds.keyColsBy(list(fields)))
 
     @handle_py4j
     def annotate_globals(self, **named_exprs):
@@ -738,11 +760,11 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             MatrixTable with specified global fields.
         """
-        exprs = tuple(to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs)
+        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
         for e in exprs:
             all_exprs.append(e)
             analyze('MatrixTable.select_globals', e, self._global_indices)
@@ -799,11 +821,11 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             MatrixTable with specified row fields.
         """
-        exprs = tuple(to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs)
+        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -865,11 +887,11 @@ class MatrixTable(object):
             MatrixTable with specified column fields.
         """
 
-        exprs = tuple(to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs)
+        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -925,11 +947,11 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             MatrixTable with specified entry fields.
         """
-        exprs = tuple(to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs)
+        exprs = [to_expr(e) if not isinstance(e, str) and not isinstance(e, unicode) else self[e] for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -1744,10 +1766,7 @@ class MatrixTable(object):
         :class:`.Table`
             Table with all column fields from the matrix, with one row per column of the matrix.
         """
-        kt = Table(self._jvds.samplesKT())
-
-        # explode the 'sa' struct to the top level
-        return kt.select(kt.s, *[f for f in kt.sa.values()])
+        return Table(self._jvds.samplesKT())
 
     @handle_py4j
     def entries_table(self):
@@ -1772,15 +1791,7 @@ class MatrixTable(object):
         :class:`.Table`
             Table with all non-global fields from the matrix, with **one row per entry of the matrix**.
         """
-        kt = Table(self._jvds.genotypeKT())
-
-        # explode the 'va', 'sa', 'g' structs to the top level
-        # FIXME: this part should really be in Scala
-        all_cols = []
-        all_cols.extend(kt.g.values())
-        all_cols.extend(kt.sa.values())
-        all_cols.extend(kt.va.values())
-        return kt.select(kt.v, kt.s, *all_cols)
+        return Table(self._jvds.genotypeKT())
 
     @handle_py4j
     def view_join_globals(self):
@@ -1793,7 +1804,8 @@ class MatrixTable(object):
                 assert isinstance(obj, Table)
                 return Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
 
-        return construct_expr(GlobalJoinReference(uid), self.global_schema, joins=LinkedList(Join).push(Join(joiner, [uid])))
+        return construct_expr(GlobalJoinReference(uid), self.global_schema,
+                              joins=LinkedList(Join).push(Join(joiner, [uid])))
 
     @handle_py4j
     def view_join_rows(self, expr):
@@ -1855,9 +1867,9 @@ class MatrixTable(object):
                                   joins.push(Join(joiner, uids_to_delete)), refs)
 
     @handle_py4j
-    def view_join_cols(self, expr):
-        expr = to_expr(expr)
-        indices, aggregations, joins, refs = expr._indices, expr._aggregations, expr._joins, expr._refs
+    def view_join_cols(self, *exprs):
+        exprs = [to_expr(e) for e in exprs]
+        indices, aggregations, joins, refs = unify_all(*exprs)
         src = indices.source
 
         if aggregations:
@@ -1868,25 +1880,30 @@ class MatrixTable(object):
         if src is None:
             raise ExpressionException('Cannot index with a scalar expression')
 
+        value_fields = [Field(f.name, f.typ) for f in self.col_schema.fields if f.name not in self.col_key]
+        expr_type = TStruct.from_fields(value_fields)
+
         if isinstance(src, Table):
             # join table with matrix.cols_table()
             right = self.cols_table()
-            select_struct = Struct(**{k: right[k] for k in [f.name for f in self.col_schema.fields]})
-            right = right.select(right.s, **{uid: select_struct})
+            select_struct = Struct(**{k: right[k] for k in [f.name for f in right.schema.fields
+                                                            if f.name not in right.key]})
+            right = right.select(*right.key, **{uid: select_struct})
 
-            key_uid = Env._get_uid()
-            uids_to_delete.append(key_uid)
+            key_uids = [Env._get_uid() for _ in exprs]
+            uids_to_delete.extend(key_uids)
 
             def joiner(left):
                 pre_key = left.key
-                left = Table(left._jt.annotate('{} = {}'.format(key_uid, expr._ast.to_hql())))
-                left = left.key_by(key_uid)
-                left = left.to_hail1().join(right.to_hail1(), 'left').to_hail2()
+                left = Table(left._jt.annotate('\n'.join(
+                    '{} = {}'.format(uid, expr._ast.to_hql()) for uid, expr in zip(key_uids, exprs))))
+                left = left.key_by(*key_uids)
+                left = left.join(right.to_hail1(), 'left')
                 left = left.key_by(*pre_key)
                 return left
 
             return construct_expr(Reference(uid),
-                                  self.col_schema, indices, aggregations, joins.push(Join(joiner, uids_to_delete)))
+                                  expr_type, indices, aggregations, joins.push(Join(joiner, uids_to_delete)))
         else:
             assert isinstance(src, MatrixTable)
             right = self
@@ -1895,15 +1912,15 @@ class MatrixTable(object):
                 prefix = 'sa'
                 joiner = lambda left: (
                     MatrixTable(left._jvds.annotateSamplesTable(right._jvds.samplesKT(),
-                                                                [expr._ast.to_hql()],
+                                                                [e._ast.to_hql() for e in exprs],
                                                                 '{}.{}'.format(prefix, uid), None, False)))
             elif indices == src._row_indices:
-                return self.cols_table().view_join_rows(expr)
+                return self.cols_table().view_join_rows(*exprs)
             else:
                 # FIXME: implement entry-based join in the expression language
                 raise NotImplementedError('MatrixTable.view_join_cols join with indices {}'.format(indices))
             return construct_expr(Select(Reference(prefix), uid),
-                                  self.col_schema, indices, aggregations,
+                                  expr_type, indices, aggregations,
                                   joins.push(Join(joiner, uids_to_delete)), refs)
 
     @handle_py4j
@@ -2002,12 +2019,11 @@ class MatrixTable(object):
             global_fields = ''.join("\n    '{name}': {type} ".format(
                 name=fd.name, type=format_type(fd.typ)) for fd in self.global_schema.fields)
 
-        row_fields = "\n    'v' [row key]: {}".format(format_type(self.rowkey_schema))
+        row_fields = "\n    'v': {}".format(format_type(self.rowkey_schema))
         row_fields += ''.join("\n    '{name}': {type} ".format(
             name=fd.name, type=format_type(fd.typ)) for fd in self.row_schema.fields)
 
-        col_fields = "\n    's' [col key]: {}".format(format_type(self.colkey_schema))
-        col_fields += ''.join("\n    '{name}': {type} ".format(
+        col_fields = ''.join("\n    '{name}': {type} ".format(
             name=fd.name, type=format_type(fd.typ)) for fd in self.col_schema.fields)
 
         if len(self.entry_schema.fields) == 0:
@@ -2063,39 +2079,6 @@ class MatrixTable(object):
             self._jvds.filterVariantsList(jkeys, keep))
 
     @handle_py4j
-    @typecheck_method(keys=list, keep=bool)
-    def filter_cols_list(self, keys, keep=True):
-        """Filter columns with a list of keys to keep or exclude.
-
-        Examples
-        --------
-        Remove three columns:
-
-        >>> to_remove = ['NA12878', 'NA12891', 'NA12892']
-        >>> dataset_result = dataset.filter_cols_list(to_remove, keep=False)
-
-        Parameters
-        ----------
-        keys : list
-            List of column keys to keep or remove.
-        keep : bool
-            If ``True``, subset columns to those appearing in `keys`. If
-            ``False``, remove columns in `keys`.
-
-        Returns
-        -------
-        :class:`.MatrixTable`
-            Matrix table with columns removed.
-        """
-
-        ck_type = self.colkey_schema
-        jkeys = []
-        for k in keys:
-            ck_type._typecheck(k)
-            jkeys.append(ck_type._convert_to_j(k))
-        return MatrixTable(self._jvds.filterSamplesList(jkeys, keep))
-
-    @handle_py4j
     @typecheck_method(order=listof(strlike))
     def reorder_columns(self, order):
         """Reorder columns.
@@ -2131,7 +2114,6 @@ class MatrixTable(object):
         :class:`.MatrixTable`
             Matrix table with columns reordered.
         """
-
         jvds = self._jvds.reorderSamples(order)
         return MatrixTable(jvds)
 
@@ -2530,5 +2512,6 @@ class MatrixTable(object):
         """
 
         return MatrixTable(self._jvds.head(n))
+
 
 matrix_table_type.set(MatrixTable)

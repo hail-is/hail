@@ -9,6 +9,7 @@ import is.hail.expr.types.TString
 import is.hail.stats.ComputeRRM
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 /**

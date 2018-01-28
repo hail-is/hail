@@ -26,8 +26,8 @@ def maximal_independent_set(i, j, tie_breaker=None):
     >>> related_samples = pairs.aggregate(
     ...     samples = agg.collect_as_set(agg.explode([pairs.i, pairs.j]))).samples
     >>> related_samples_to_keep = methods.maximal_independent_set(pairs.i, pairs.j)
-    >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
-    >>> result = dataset.filter_cols_list(list(related_samples_to_remove), keep=False)
+    >>> related_samples_to_remove = functions.broadcast(related_samples - set(related_samples_to_keep))
+    >>> result = dataset.filter_cols(related_samples_to_remove.contains(dataset.s), keep=False)
 
     Prune individuals from a dataset, preferring to keep cases over controls.
 
@@ -46,8 +46,8 @@ def maximal_independent_set(i, j, tie_breaker=None):
     ...         pairs_with_case.i,
     ...         pairs_with_case.j,
     ...         tie_breaker)
-    >>> related_samples_to_remove = related_samples - {x.id for x in related_samples_to_keep}
-    >>> result = dataset.filter_cols_list(list(related_samples_to_remove), keep=False)
+    >>> related_samples_to_remove = functions.broadcast(related_samples - {x.id for x in related_samples_to_keep})
+    >>> result = dataset.filter_cols(related_samples_to_remove.contains(dataset.s), keep=False)
 
     Notes
     -----
@@ -132,8 +132,8 @@ def require_biallelic(dataset, method):
     return dataset
 
 @handle_py4j
-@typecheck(dataset=MatrixTable)
-def rename_duplicates(dataset):
+@typecheck(dataset=MatrixTable, name=strlike)
+def rename_duplicates(dataset, name='unique_id'):
     """Rename duplicate column keys.
 
     .. include:: ../_templates/req_tstring.rst
@@ -142,29 +142,30 @@ def rename_duplicates(dataset):
     --------
 
     >>> renamed = methods.rename_duplicates(dataset).cols_table()
-    >>> duplicate_samples = (renamed.filter(renamed.s != renamed.originalID)
-    ...                             .select('originalID')
+    >>> duplicate_samples = (renamed.filter(renamed.s != renamed.unique_id)
+    ...                             .select('s')
     ...                             .collect())
 
     Notes
     -----
 
-    This method produces a dataset with unique column keys by appending a unique
-    suffix ``_N`` to duplicate keys. For example, if the column key "NA12878"
-    appears three times in the dataset, the first will be left as "NA12878", the
-    second will be renamed "NA12878_1", and the third will be "NA12878_2". The
-    original column key is stored in the column field `originalID`.
+    This method produces a new column field from the string column key by
+    appending a unique suffix ``_N`` as necessary. For example, if the column
+    key "NA12878" appears three times in the dataset, the first will produce
+    "NA12878", the second will produce "NA12878_1", and the third will produce
+    "NA12878_2". The name of this new field is parameterized by `name`.
 
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
         Dataset.
+    name : :obj:`str`
+        Name of new field.
 
     Returns
     -------
     :class:`.MatrixTable`
-        Dataset with duplicate column keys renamed.
     """
 
-    return MatrixTable(dataset._jvds.renameDuplicates())
+    return MatrixTable(dataset._jvds.renameDuplicates(name))
 

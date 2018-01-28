@@ -207,7 +207,7 @@ class GroupedTable(TableTemplate):
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
         strs = []
-        base, cleanup = self._parent._process_joins(*(tuple(v for _, v in self._groups) + tuple(named_exprs.values())))
+        base, cleanup = self._parent._process_joins(*([v for _, v in self._groups] + named_exprs.values()))
         for k, v in named_exprs.items():
             analyze('GroupedTable.aggregate', v, self._parent._global_indices, {self._parent._row_axis})
             replace_aggregables(v._ast, agg_base)
@@ -478,11 +478,11 @@ class Table(TableTemplate):
             Table with specified global fields.
         """
 
-        exprs = tuple(self[e] if not isinstance(e, Expression) else e for e in exprs)
+        exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
@@ -745,11 +745,11 @@ class Table(TableTemplate):
         :class:`.Table`
             Table with specified fields.
         """
-        exprs = tuple(self[e] if not isinstance(e, Expression) else e for e in exprs)
+        exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
         named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
         strs = []
         all_exprs = []
-        base, cleanup = self._process_joins(*(exprs + tuple(named_exprs.values())))
+        base, cleanup = self._process_joins(*(exprs + named_exprs.values()))
 
         for e in exprs:
             all_exprs.append(e)
