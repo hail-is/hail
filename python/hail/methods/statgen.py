@@ -1054,7 +1054,7 @@ def rrm(call_expr):
     Returns
         :return: Realized Relationship Matrix for all samples.
         :rtype: :class:`.KinshipMatrix`
-        """
+    """
     source = call_expr._indices.source
     if not isinstance(source, MatrixTable):
         raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
@@ -1118,3 +1118,184 @@ def balding_nichols_model(populations, samples, variants, num_partitions=None,
     return Env.hc().balding_nichols_model(populations, samples, variants, num_partitions,
                                           pop_dist, fst, af_dist, seed, reference_genome).to_hail2()
 
+class FilterAlleles(object):
+    """Filter out a set of alternate alleles.  If all alternate alleles of
+    a variant are filtered out, the variant itself is filtered out.
+    `filter_expr` is an alternate allele indexed `Array[Boolean]`
+    where the booleans, combined with `keep`, determine which
+    alternate alleles to filter out.
+
+    This object has bindings for values used in the filter alleles
+    process: `old_to_new`, `new_to_old` and `new_v`.  Call
+    :meth:`.FilterAlleles.annotate_rows` and/or
+    :meth:`.FilterAlleles.annotate_entries` to update row-indexed and
+    row- and column-indexed fields for the new, allele filtered
+    variant.  Finally, call :meth:`.FilterAlleles.filter` to perform
+    filter alleles.
+
+    Examples
+    --------
+    
+    Filter alleles with zero AC count on a dataset with the HTS entry
+    schema and update the ``info.AC`` and entry fields.
+
+    >>> fa = methods.FilterAlleles(dataset.info.AC.map(lambda AC: AC == 0), keep=False)
+    ... fa.annotate_rows(
+    ...     info = dataset.info.annotate(AC = fa.new_to_old[1:].map(lambda i: dataset.info.AC[i - 1])))
+    ... newPL = functions.cond(
+    ...     functions.is_defined(dataset.PL),
+    ...     functions.range(0, fa.new_v.num_genotypes()).map(
+    ...         lambda newi: functions.bind(
+    ...             functions.call(newi),
+    ...             lambda newc: dataset.PL[functions.gt_index(fa.new_to_old[newc.gtj()], fa.new_to_old[newc.gtk()])])),
+    ...     functions.null(TArray(TInt32())))
+    ... fa.annotate_entries(
+    ...     GT = functions.call(functions.gt_from_pl(newPL)),
+    ...     AD = functions.cond(
+    ...         functions.is_defined(dataset.AD),
+    ...         functions.range(0, fa.new_v.num_alleles()).map(
+    ...             lambda newi: dataset.AD[fa.new_to_old[newi]]),
+    ...         functions.null(TArray(TInt32()))),
+    ...     GQ = functions.gq_from_pl(newPL),
+    ...     PL = newPL)
+    ... filtered_result = fa.filter()
+    
+    Parameters
+    ----------
+    filter_expr : :class:`.ArrayBooleanExpression`
+        Boolean filter expression.
+    keep : bool
+        If ``True``, keep alternate alleles where the corresponding
+        element of `filter_expr` is ``True``.  If False, remove the
+        alternate alleles where the corresponding element is ``True``.
+    left_aligned : bool
+        If ``True``, variants are assumed to be left aligned and have
+        unique loci.  This avoids a shuffle.  If the assumption is
+        violated, an error is generated.
+    keep_star : bool
+        If ``True``, keep variants where the only unfiltered alternate
+        alleles are ``*`` alleles.
+    """
+    
+    @typecheck_method(filter_expr=ArrayBooleanExpression, keep=bool, left_aligned=bool, keep_star=bool)
+    def __init__(self, filter_expr, keep=True, left_aligned=False, keep_star=False):
+        source = filter_expr._indices.source
+        if not isinstance(source, MatrixTable):
+            raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
+                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+        ds = source
+
+        analyze('FilterAlleles', filter_expr, ds._row_indices)
+
+        self._ds = ds
+        self._filter_expr = filter_expr
+        self._keep = keep
+        self._left_aligned = left_aligned
+        self._keep_star = keep_star
+        self._row_exprs = None
+        self._entry_exprs = None
+
+        self._old_to_new = construct_reference('oldToNew', TArray(TInt32()), ds._row_indices)
+        self._new_to_old = construct_reference('newToOld', TArray(TInt32()), ds._row_indices)
+        self._new_v = construct_reference('newV', ds._rowkey_schema, ds._row_indices)
+
+    @property
+    def new_to_old(self):
+        """The array of old allele indices, such that ``new_to_old[newIndex] =
+        oldIndex`` and ``newToOld[0] = 0``.  A row-indexed expression.
+        
+        Returns
+        -------
+        :class:`.ArrayInt32Expression`
+            The array of old indices.
+        """
+        return self._new_to_old
+
+    @property
+    def old_to_new(self):
+        """The array of new allele indices.  All old filtered alleles have new
+        index 0.  A row-indexed expression.
+        
+        Returns
+        -------
+        :class:`.ArrayInt32Expression`
+            The array of new indices.
+        """
+        return self._old_to_new
+
+    @property
+    def new_v(self):
+        """The new, allele-filtered variant.  A row-indexed expression.
+        
+        Returns
+        -------
+        :class:`.VariantExpression`
+            The new, allele-filtered variant.
+        """
+        return self._new_v
+
+    def annotate_rows(self, **named_exprs):
+        """Create or update row-indexed fields for the new, allele filtered
+        variant.
+
+        Parameters
+        ----------
+        named_exprs : keyword args of :class:`.Expression`
+            Field names and the row-indexed expressions to compute them.
+        """
+        if self._row_exprs:
+            raise RuntimeError('annotate_rows already called')
+        for k, v in named_exprs.items():
+            analyze('FilterAlleles', v, base._row_indices)
+        self._row_exprs = named_exprs
+
+    def annotate_entries(self, **named_exprs):
+        """Create or update row- and column-indexed fields (entry fields) for
+        the new, allele filtered variant.
+
+        Parameters
+        ----------
+        named_exprs : keyword args of :class:`.Expression`
+            Field names and the row- and column-indexed expressions to
+            compute them.
+        """
+        if self._entry_exprs:
+            raise RuntimeError('annotate_entries already called')
+        for k, v in named_exprs.items():
+            analyze('FilterAlleles', v, base._entry_indices)
+        self._entry_exprs = named_exprs
+
+    def filter(self):
+        """Perform the filter alleles, returning a new matrix table.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Returns a matrix table with alleles filtered.
+        """
+        if not self._row_exprs:
+            self._row_exprs = {}
+        if not self._entry_exprs:
+            self._entry_exprs = {}
+        
+        base, cleanup = self._ds._process_joins(*(
+            [self._filter_expr] + self._row_exprs.values() + self._entry_exprs.values()))
+        
+        filter_hql = self._filter_expr._ast.to_hql()
+        
+        row_hqls = []
+        for k, v in self._row_exprs.items():
+            row_hqls.append('va.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
+            base._check_field_name(k, base._row_indices)
+        row_hql = ',\n'.join(row_hqls)
+
+        entry_hqls = []
+        for k, v in self._entry_exprs.items():
+            entry_hqls.append('g.`{k}` = {v}'.format(k=k, v=v._ast.to_hql()))
+            base._check_field_name(k, base._entry_indices)
+        entry_hql = ',\n'.join(entry_hqls)
+
+        m = MatrixTable(
+            Env.hail().methods.FilterAlleles.apply(
+                base._jvds, '({p})[aIndex - 1]'.format(p=filter_hql), row_hql, entry_hql, self._keep, self._left_aligned, self._keep_star))
+        return cleanup(m)
