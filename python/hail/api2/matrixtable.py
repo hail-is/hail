@@ -1834,7 +1834,7 @@ class MatrixTable(object):
                 pre_key = left.key
                 left = Table(left._jt.annotate('{} = {}'.format(key_uid, expr._ast.to_hql())))
                 left = left.key_by(key_uid)
-                left = left.to_hail1().join(right.to_hail1(), 'left').to_hail2()
+                left = Table(left._jt.join(right._jt, 'left'))
                 left = left.key_by(*pre_key)
                 return left
 
@@ -1898,7 +1898,7 @@ class MatrixTable(object):
                 left = Table(left._jt.annotate('\n'.join(
                     '{} = {}'.format(uid, expr._ast.to_hql()) for uid, expr in zip(key_uids, exprs))))
                 left = left.key_by(*key_uids)
-                left = left.join(right.to_hail1(), 'left')
+                left = Table(left._jt.join(right._jt, 'left'))
                 left = left.key_by(*pre_key)
                 return left
 
@@ -1952,7 +1952,7 @@ class MatrixTable(object):
                     row_key_uid, row_expr._ast.to_hql(),
                     col_key_uid, col_expr._ast.to_hql())))
                 left = left.key_by(row_key_uid, col_key_uid)
-                left = left.to_hail1().join(right.to_hail1(), 'left').to_hail2()
+                left = Table(left._jt.join(right._jt, 'left'))
                 left = left.key_by(*pre_key)
                 return left
 
@@ -1961,18 +1961,6 @@ class MatrixTable(object):
                                   joins.push(Join(joiner, uids_to_delete)), refs)
         else:
             raise NotImplementedError('matrix.view_join_entries with {}'.format(src.__class__))
-
-    def to_hail1(self):
-        """Convert to a hail1 variant dataset.
-
-        Returns
-        -------
-        :class:`.hail.api1.VariantDataset`
-        """
-        import hail
-        h1vds = hail.VariantDataset(Env.hc(), self._jvds)
-        h1vds._set_history(History('is a mystery'))
-        return h1vds
 
     @typecheck_method(name=strlike, indices=Indices)
     def _check_field_name(self, name, indices):
