@@ -1551,9 +1551,12 @@ def to_str(x):
 
 @typecheck(pl=ArrayInt32Expression)
 def gt_from_pl(pl):
-    """Call genotype from Phred-scaled probability likelihoods.  Returns
-    the index of the smallest PL value if it is unique, and missing
-    otherwise.
+    """Call genotype from Phred-scaled probability likelihoods.
+
+    Notes
+    -----
+    Returns the index of the smallest PL value if it is unique, and
+    missing otherwise.
 
     Examples
     --------
@@ -1564,12 +1567,11 @@ def gt_from_pl(pl):
 
     Parameters
     ----------
-    pl
+    pl : :class:`.ArrayInt32Expression`
 
     Returns
     -------
     :class:`.Int32Expression`
-
     """
     return _func("gtFromPL", TInt32(), pl)
 
@@ -1586,7 +1588,7 @@ def gq_from_pl(pl):
 
     Parameters
     ----------
-    pl
+    pl : :class:`.ArrayInt32Expression`
 
     Returns
     -------

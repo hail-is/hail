@@ -1054,7 +1054,7 @@ def rrm(call_expr):
     Returns
         :return: Realized Relationship Matrix for all samples.
         :rtype: :class:`.KinshipMatrix`
-        """
+    """
     source = call_expr._indices.source
     if not isinstance(source, MatrixTable):
         raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
@@ -1164,21 +1164,17 @@ class FilterAlleles(object):
     ----------
     filter_expr : :class:`.ArrayBooleanExpression`
         Boolean filter expression.
-
     keep : bool
-        If True, keep alternate alleles where the corresponding
-        element of `filter_expr` is True.  If False, remove the
-        alternate alleles where the corresponding element is True.
-
+        If ``True``, keep alternate alleles where the corresponding
+        element of `filter_expr` is ``True``.  If False, remove the
+        alternate alleles where the corresponding element is ``True``.
     left_aligned : bool
-        If True, variants are assumed to be left aligned and have
+        If ``True``, variants are assumed to be left aligned and have
         unique loci.  This avoids a shuffle.  If the assumption is
         violated, an error is generated.
-
     keep_star : bool
-        If True, keep variants where the only unfiltered alternate
+        If ``True``, keep variants where the only unfiltered alternate
         alleles are ``*`` alleles.
-
     """
     
     @typecheck_method(filter_expr=ArrayBooleanExpression, keep=bool, left_aligned=bool, keep_star=bool)
@@ -1188,7 +1184,9 @@ class FilterAlleles(object):
             raise ValueError("Expect an expression of 'MatrixTable', found {}".format(
                 "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
         ds = source
-        
+
+        analyze('FilterAlleles', filter_expr, ds._row_indices)
+
         self._ds = ds
         self._filter_expr = filter_expr
         self._keep = keep
@@ -1210,7 +1208,6 @@ class FilterAlleles(object):
         -------
         :class:`.ArrayInt32Expression`
             The array of old indices.
-
         """
         return self._new_to_old
 
@@ -1223,7 +1220,6 @@ class FilterAlleles(object):
         -------
         :class:`.ArrayInt32Expression`
             The array of new indices.
-
         """
         return self._old_to_new
 
@@ -1246,7 +1242,6 @@ class FilterAlleles(object):
         ----------
         named_exprs : keyword args of :class:`.Expression`
             Field names and the row-indexed expressions to compute them.
-
         """
         if self._row_exprs:
             raise RuntimeError('annotate_rows already called')
@@ -1261,7 +1256,6 @@ class FilterAlleles(object):
         named_exprs : keyword args of :class:`.Expression`
             Field names and the row- and column-indexed expressions to
             compute them.
-
         """
         if self._entry_exprs:
             raise RuntimeError('annotate_entries already called')
@@ -1300,8 +1294,6 @@ class FilterAlleles(object):
             base._check_field_name(k, base._entry_indices)
         entry_hql = ',\n'.join(entry_hqls)
 
-        print(filter_hql, row_hqls, entry_hqls)
-        
         m = MatrixTable(
             Env.hail().methods.FilterAlleles.apply(
                 base._jvds, '({p})[aIndex - 1]'.format(p=filter_hql), row_hql, entry_hql, self._keep, self._left_aligned, self._keep_star))
