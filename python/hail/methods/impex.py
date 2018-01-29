@@ -1,5 +1,5 @@
 from hail.typecheck import *
-from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args
+from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args, jset_args
 from hail.api2 import Table, MatrixTable
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
@@ -629,8 +629,121 @@ def get_vcf_metadata(path):
            contig_recoding=nullable(dictof(strlike, strlike)))
 def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partitions=None,
                drop_samples=False, call_fields=[], reference_genome=None, contig_recoding=None):
-    return Env.hc().import_vcf(path, force, force_bgz, header_file, min_partitions,
-                               drop_samples, call_fields, reference_genome, contig_recoding).to_hail2()
+    """Import VCF file(s) as a matrix table.
+
+    Examples
+    --------
+
+    >>> ds = methods.import_vcf('data/example2.vcf.bgz')
+
+    Notes
+    -----
+
+    Hail is designed to be maximally compatible with files in the `VCF v4.2
+    spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
+
+    :func:`.import_vcf` takes a list of VCF files to load. All files must have
+    the same header and the same set of samples in the same order (e.g., a
+    dataset split by chromosome). Files can be specified as :ref:`Hadoop glob
+    patterns <sec-hadoop-glob>`.
+
+    Ensure that the VCF file is correctly prepared for import: VCFs should
+    either be uncompressed (**.vcf**) or block compressed (**.vcf.bgz**). If you
+    have a large compressed VCF that ends in **.vcf.gz**, it is likely that the
+    file is actually block-compressed, and you should rename the file to
+    **.vcf.bgz** accordingly. If you actually have a standard gzipped file, it
+    is possible to import it to Hail using the `force` parameter. However, this
+    is not recommended -- all parsing will have to take place on one node
+    because gzip decompression is not parallelizable. In this case, import will
+    take significantly longer.
+
+    :func:`.import_vcf` does not perform deduplication - if the provided VCF(s)
+    contain multiple records with the same chrom, pos, ref, alt, all these
+    records will be imported as-is (in multiple rows) and will not be collapsed
+    into a single variant.
+
+    .. note::
+
+        Using the **FILTER** field:
+
+        The information in the FILTER field of a VCF is contained in the
+        ``filters`` row field. This annotation is a ``Set[String]`` and can be
+        queried for filter membership with expressions like
+        ``ds.filters.contains("VQSRTranche99.5...")``. Variants that are flagged
+        as "PASS" will have no filters applied; for these variants,
+        ``ds.filters.is_empty()`` is ``True``. Thus, filtering to PASS variants
+        can be done with :meth:`.MatrixTable.filter_rows` as follows:
+
+        >>> pass_ds = dataset.filter_rows(ds.filters.is_empty())
+
+    **Column Fields**
+
+    - `s` (:class:`.TString`) -- Column key. This is the sample ID.
+
+    **Row Fields**
+
+    - `v` (:class:`.TVariant`) -- Row key. This is the variant created from the CHROM,
+      POS, REF, and ALT fields.
+    - `filters` (:class:`.TSet` of :class:`.TString`) -- Set containing all filters applied to a
+      variant.
+    - `rsid` (:class:`.TString`) -- rsID of the variant.
+    - `qual` (:class:`.TFloat64`) -- Floating-point number in the QUAL field.
+    - `info` (:class:`.TStruct`) -- All INFO fields defined in the VCF header
+      can be found in the struct `info`. Data types match the type specified
+      in the VCF header, and if the declared ``Number`` is not 1, the result
+      will be stored as an array.
+
+    **Entry Fields**
+
+    :func:`.import_vcf` generates an entry field for each FORMAT field declared
+    in the VCF header. The types of these fields are generated according to the
+    same rules as INFO fields, with one difference -- "GT" and other fields
+    specified in `call_fields` will be read as :class:`.TCall`.
+
+    Parameters
+    ----------
+    path : :obj:`str` or :obj:`list` of :obj:`str`
+        VCF file(s) to read.
+    force : :obj:`bool`
+        If ``True``, load **.vcf.gz** files serially. No downstream operations
+        can be parallelized, so this mode is strongly discouraged.
+    force_bgz : :obj:`bool`
+        If ``True``, load **.vcf.gz** files as blocked gzip files, assuming
+        that they were actually compressed using the BGZ codec.
+    header_file : :obj:`str`, optional
+        Optional header override file. If not specified, the first file in
+        `path` is used.
+    min_partitions : :obj:`int`, optional
+        Minimum partitions to load per file.
+    drop_samples : :obj:`bool`
+        If ``True``, create sites-only dataset. Don't load sample IDs or
+        entries.
+    call_fields : :obj:`list` of :obj:`str`
+        List of FORMAT fields to load as :class:`.TCall`. "GT" is loaded as
+        a call automatically.
+    reference_genome: :class:`.GenomeReference`, optional
+        Reference genome to use. If ``None``, then the
+        :meth:`.HailContext.default_reference` is used.
+    contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
+        Mapping from contig name in VCF to contig name in loaded dataset.
+        All contigs must be present in the `reference_genome`, so this is
+        useful for mapping differently-formatted data onto known references.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    from hail2 import default_reference
+    rg = reference_genome if reference_genome else default_reference()
+
+    if contig_recoding:
+        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+
+    jmt = Env.hc()._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
+                                   joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep,
+                                   joption(contig_recoding))
+
+    return MatrixTable(jmt)
 
 
 @handle_py4j
