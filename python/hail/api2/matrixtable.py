@@ -2542,7 +2542,7 @@ class MatrixTable(object):
     @typecheck_method(p=numeric,
                       seed=integral)
     def sample_rows(self, p, seed=0):
-        """Downsample the dataset by keeping each row with probability ``p``.
+        """Downsample the matrix table by keeping each row with probability ``p``.
 
         Examples
         --------
@@ -2561,7 +2561,7 @@ class MatrixTable(object):
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix with approximately ``p * num_rows`` rows.
+            Matrix table with approximately ``p * num_rows`` rows.
         """
 
         if not (0 <= p <= 1):
