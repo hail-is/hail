@@ -33,52 +33,57 @@ object PCRelate {
   val defaultMinKinship = Double.NegativeInfinity
   val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
 
+  private[this] def apply(hc: HailContext,
+    blockedG: M,
+    columnKeys: Array[Annotation],
+    columnKeyType: Type,
+    pcs: DenseMatrix[Double],
+    maf: Double,
+    blockSize: Int,
+    minKinship: Double,
+    statistics: PCRelate.StatisticSubset): Table = {
+
+    val result = new PCRelate(maf, blockSize)(blockedG, pcs, statistics)
+
+    PCRelate.toTable(hc, result, columnKeys, columnKeyType, blockSize, minKinship, statistics)
+  }
+
   def apply(hc: HailContext,
     blockedG: M,
     columnKeys: Array[Annotation],
     columnKeyType: Type,
-    k: Int,
     pcaScores: Table,
     maf: Double,
     blockSize: Int,
     minKinship: Double,
     statistics: PCRelate.StatisticSubset): Table = {
 
-    if (blockedG.nCols > Integer.MAX_VALUE) {
-      fatal(s"PC Relate is incompatible with variant sample matrices containing more than ${Integer.MAX_VALUE} samples")
-    }
+    val pcs = tableToBDM(pcaScores, blockedG.nCols.toInt)
 
-    val pcs = tableToBDM(pcaScores, blockedG.nCols.toInt, k)
-    val result = new PCRelate(maf, blockSize)(blockedG, pcs, statistics)
-
-    PCRelate.toTable(hc, result, columnKeys, columnKeyType, blockSize, minKinship, statistics)
+    apply(hc, blockedG, columnKeys, columnKeyType, pcs, maf, blockSize, minKinship, statistics)
   }
 
   def apply(vds: MatrixTable,
-    k: Int,
     pcaScores: Table,
     maf: Double,
     blockSize: Int): Table =
-    apply(vds, k, pcaScores, maf, blockSize, defaultMinKinship, defaultStatisticSubset)
+    apply(vds, pcaScores, maf, blockSize, defaultMinKinship, defaultStatisticSubset)
 
   def apply(vds: MatrixTable,
-    k: Int,
     pcaScores: Table,
     maf: Double,
     blockSize: Int,
     statisticSubset: StatisticSubset): Table =
-    apply(vds, k, pcaScores, maf, blockSize, defaultMinKinship, statisticSubset)
+    apply(vds, pcaScores, maf, blockSize, defaultMinKinship, statisticSubset)
 
   def apply(vds: MatrixTable,
-    k: Int,
     pcaScores: Table,
     maf: Double,
     blockSize: Int,
     minKinship: Double): Table =
-    apply(vds, k, pcaScores, maf, blockSize, minKinship, defaultStatisticSubset)
+    apply(vds, pcaScores, maf, blockSize, minKinship, defaultStatisticSubset)
 
   def apply(vds: MatrixTable,
-    k: Int,
     pcaScores: Table,
     maf: Double,
     blockSize: Int,
@@ -89,10 +94,31 @@ object PCRelate {
     val g = vdsToMeanImputedMatrix(vds)
     val blockedG = BlockMatrix.from(g, blockSize).cache()
 
-    apply(vds.hc, blockedG, vds.sampleIds.toArray, vds.sSignature, k, pcaScores, maf, blockSize, minKinship, statistics)
+    apply(vds.hc, blockedG, vds.sampleIds.toArray, vds.sSignature, pcaScores, maf, blockSize, minKinship, statistics)
   }
 
-  private def tableToBDM(t: Table, nRows: Int, nCols: Int): DenseMatrix[Double] = {
+  // cribbing old tests
+  private[methods] def apply(vds: MatrixTable,
+    pcs: DenseMatrix[Double],
+    maf: Double,
+    blockSize: Int,
+    minKinship: Double,
+    statistics: PCRelate.StatisticSubset): Table = {
+
+    vds.requireUniqueSamples("pc_relate")
+    val g = vdsToMeanImputedMatrix(vds)
+    val blockedG = BlockMatrix.from(g, blockSize).cache()
+
+    apply(vds.hc, blockedG, vds.sampleIds.toArray, vds.sSignature, pcs, maf, blockSize, minKinship, statistics)
+  }
+
+  private def tableToBDM(t: Table, nRows: Int): DenseMatrix[Double] = {
+    val nCols = t.columns.length
+    if (nRows * nCols > Integer.MAX_VALUE) {
+      fatal(s"""PC Relate is incompatible with PC Score matrices containing
+               |more than ${Integer.MAX_VALUE} entries, given matrix had
+               |dimensions: $nRows x $nCols""".stripMargin)
+    }
     val scoreArray = new Array[Double](nRows * nCols)
     val pcs = t.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
     var i = 0
@@ -161,7 +187,8 @@ object PCRelate {
 
   private val k0cutoff = math.pow(2.0, -5.0 / 2.0)
 
-  def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
+  // now only used in tests
+  private[methods] def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
     val nSamples = vds.nSamples
     val localRowType = vds.rvRowType
     val partStarts = vds.partitionStarts()
