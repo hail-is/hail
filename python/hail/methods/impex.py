@@ -1,5 +1,6 @@
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args, jset_args
+from hail.utils import wrap_to_list
 from hail.api2 import Table, MatrixTable
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
@@ -645,7 +646,14 @@ def get_vcf_metadata(path):
     Examples
     --------
 
-    >>> metadata = hc.get_vcf_metadata('data/example2.vcf.bgz')
+    >>> metadata = methods.get_vcf_metadata('data/example2.vcf.bgz')
+    {'filter': {'LowQual': {'Description': ''}, ...},
+     'format': {'AD': {'Description': 'Allelic depths for the ref and alt alleles in the order listed',
+                       'Number': 'R',
+                       'Type': 'Integer'}, ...},
+     'info': {'AC': {'Description': 'Allele count in genotypes, for each ALT allele, in the same order as listed',
+                     'Number': 'A',
+                     'Type': 'Integer'}, ...}}
 
     Notes
     -----
@@ -665,9 +673,13 @@ def get_vcf_metadata(path):
 
     .. code-block:: python
 
-        metadata = {'format': {'DP': {'Number': '1', 'Type': 'Integer', 'Description': 'Read Depth'}},
-                    'filter': {'LowQual': {'Description': 'Low quality'}},
-                    'info': {'MQ': {'Number': '1', 'Type': 'Float', 'Description': 'RMS Mapping Quality'}}}
+        metadata = {'filter': {'LowQual': {'Description': 'Low quality'}},
+                    'format': {'DP': {'Description': 'Read Depth',
+                                      'Number': '1',
+                                      'Type': 'Integer'}},
+                    'info': {'MQ': {'Description': 'RMS Mapping Quality',
+                                    'Number': '1',
+                                    'Type': 'Float'}}}
 
     which can be used with :meth:`.export_vcf` to fill in the relevant fields in the header.
     
@@ -679,7 +691,7 @@ def get_vcf_metadata(path):
 
     Returns
     -------
-    dict of str to (dict of str to (dict of str to str))
+    `obj`:dict: of `obj`:str: to (`obj`:dict: of `obj`:str: to (`obj`:dict: of `obj`:str: to `obj`:str:))
     """
     typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
     return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(jindexed_seq_args(path)))
