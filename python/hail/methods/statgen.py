@@ -1320,7 +1320,6 @@ class FilterAlleles(object):
         return cleanup(m)
 
 @handle_py4j
-
 @typecheck(ds=MatrixTable,
            num_cores=integral,
            r2=numeric,
@@ -1330,7 +1329,9 @@ def ld_prune(ds, num_cores, r2=0.2, window=1000000, memory_per_core=256):
     jmt = Env.hail().methods.LDPrune.apply(ds._jvds, num_cores, r2, window, memory_per_core)
     return MatrixTable(jmt)
 
-@typecheck(left_aligned=bool)
+@handle_py4j
+@typecheck(ds=MatrixTable,
+           left_aligned=bool)
 def min_rep(ds, left_aligned=False):
     """Gives minimal, left-aligned representation of alleles. 
 
