@@ -685,7 +685,7 @@ def get_vcf_metadata(path):
     
     Parameters
     ----------
-    path : str or list of str
+    path : `obj`:str
         VCF file(s) to read. If more than one file is given, the first
         file is used.
 
