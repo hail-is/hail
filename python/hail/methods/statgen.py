@@ -1869,10 +1869,10 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     >>> ds = methods.balding_nichols_model(3, 100, 1000)
 
     Generate a dataset with 4 populations, 40 samples, 150 variants, 3
-    partitions, population distribution ``[0.1, 0.2, 0.3, 0.4]``, :math:`F_{ST}`
-    values ``[.02, .06, .04, .12]``, ancestral allele frequencies drawn from a
-    truncated beta distribution with ``a = 0.01`` and ``b = 0.05`` over the
-    interval ``[0.05, 1]``, and random seed 1:
+    partitions, population distribution ``[0.1, 0.2, 0.3, 0.4]``,
+    :math:`F_{ST}` values ``[.02, .06, .04, .12]``, ancestral allele
+    frequencies drawn from a truncated beta distribution with ``a = 0.01`` and
+    ``b = 0.05`` over the interval ``[0.05, 1]``, and random seed 1:
 
     >>> from hail.stats import TruncatedBetaDist
     >>>
@@ -1884,34 +1884,40 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Notes
     -----
-    This method simulates a variant dataset using the Balding-Nichols model, which we now define.
+    This method simulates a variant dataset using the Balding-Nichols model,
+    which we now define.
 
     - :math:`K` populations are labeled by integers 0, 1, ..., K - 1.
     - :math:`N` samples are labeled by strings 0, 1, ..., N - 1.
-    - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ..., ``1:M:A:C``.
+    - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ...,
+      ``1:M:A:C``.
     - The default population distribution :math:`\pi` is uniform.
-    - The default ancestral frequency distribution :math:`P_0` is uniform on ``[0.1, 0.9]``.
-      Other options are :class:`.UniformDist`, :class:`.BetaDist`, and :class:`.TruncatedBetaDist`.
+    - The default ancestral frequency distribution :math:`P_0` is uniform on
+      ``[0.1, 0.9]``. Other options are :class:`.UniformDist`,
+      :class:`.BetaDist`, and :class:`.TruncatedBetaDist`.
       All three classes are located in ``hail.stats``.
     - The default :math:`F_{ST}` values are all 0.1.
 
     The Balding-Nichols model models genotypes of individuals from a structured
-    population comprising :math:`K` homogeneous modern populations that have each
-    diverged from a single ancestral population (a `star phylogeny`). Each sample is assigned a populations by sampling from the categorical distribution :math:`\pi`. Note that the actual size of
-    each population is random.
+    population comprising :math:`K` homogeneous modern populations that have
+    each diverged from a single ancestral population (a `star phylogeny`). Each
+    sample is assigned a populations by sampling from the categorical
+    distribution :math:`\pi`. Note that the actual size of each population is
+    random.
 
-    Variants are bi-allelic, unphased, and unlinked. Ancestral allele frequencies are drawn independently for each variant from
-    a frequency spectrum :math:`P_0`. The extent of genetic drift of each modern
-    population from the ancestral population is defined by the corresponding
-    :math:`F_{ST}` parameter :math:`F_k` (here and below, lowercase indices run over a range bounded by the
-    corresponding uppercase parameter, e.g. :math:`k = 1, \ldots, K`). For each variant and population,
-    allele frequencies are drawn from a `beta distribution
-    <https://en.wikipedia.org/wiki/Beta_distribution>`__ whose parameters are
-    determined by the ancestral allele frequency and :math:`F_{ST}` parameter.
-    The beta distribution gives a continuous approximation of the effect of
-    genetic drift. We denote sample population assignments by
-    :math:`k_n`, ancestral allele frequencies by :math:`p_m`, population
-    allele frequencies by :math:`p_{k, m}`, and genotype calls by
+    Variants are bi-allelic, unphased, and unlinked. Ancestral allele
+    frequencies are drawn independently for each variant from a frequency
+    spectrum :math:`P_0`. The extent of genetic drift of each modern population
+    from the ancestral population is defined by the corresponding :math:`F_{ST}`
+    parameter :math:`F_k` (here and below, lowercase indices run over a range
+    bounded by the corresponding uppercase parameter, e.g. :math:`k = 1, \ldots,
+    K`). For each variant and population, allele frequencies are drawn from a
+    `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`__
+    whose parameters are determined by the ancestral allele frequency and
+    :math:`F_{ST}` parameter. The beta distribution gives a continuous
+    approximation of the effect of genetic drift. We denote sample population
+    assignments by :math:`k_n`, ancestral allele frequencies by :math:`p_m`,
+    population allele frequencies by :math:`p_{k, m}`, and genotype calls by
     :math:`g_{n, m}` (0, 1, and 2 correspond to homozygous reference,
     heterozygous, and homozygous variant, respectively).
     
@@ -1934,28 +1940,32 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Global fields:
 
-    - **num_populations** (*Int32*) -- Number of populations
-    - **num_samples** (*Int32*) -- Number of samples
-    - **num_variants** (*Int32*) -- Number of variants
-    - **pop_dist** (*Array[Float64]*) -- Population distribution indexed by population
-    - **fst** (*Array[Float64]*) -- :math:`F_{ST}` values indexed by population
-    - **ancestral_af_dist** (*Struct*) -- Description of the ancestral allele frequency distribution
-    - **seed** (*Int32*) -- Random seed
+    - **num_populations** (*Int32*) -- Number of populations.
+    - **num_samples** (*Int32*) -- Number of samples.
+    - **num_variants** (*Int32*) -- Number of variants.
+    - **pop_dist** (*Array[Float64]*) -- Population distribution indexed by
+      population.
+    - **fst** (*Array[Float64]*) -- :math:`F_{ST}` values indexed by
+      population.
+    - **ancestral_af_dist** (*Struct*) -- Description of the ancestral allele
+      frequency distribution.
+    - **seed** (*Int32*) -- Random seed.
 
     Row fields:
 
-    - **v** (*Variant*) - Variant (key field)
-    - **ancestral_af** (*Float64*) -- Ancestral allele frequency
-    - **af** (*Array[Float64]*) -- Modern allele frequencies indexed by population
+    - **v** (*Variant*) - Variant (key field).
+    - **ancestral_af** (*Float64*) -- Ancestral allele frequency.
+    - **af** (*Array[Float64]*) -- Modern allele frequencies indexed by
+      population.
 
     Column fields:
 
-    - **s** (*String*) - Sample ID (key field)
-    - **pop** (*Int32*) -- Population of sample
+    - **s** (*String*) - Sample ID (key field).
+    - **pop** (*Int32*) -- Population of sample.
 
-    Entry fields:
+    Entry field:
 
-    - **GT** (*Call*) -- Genotype call (unphased, diploid)
+    - **GT** (*Call*) -- Genotype call (unphased, diploid).
 
     Parameters
     ----------
