@@ -469,18 +469,18 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
     components to correct for ancestral populations, and a minimum minor
     allele frequency filter of 0.01:
 
-    >>> rel = ds.pc_relate(10, 0.01)
+    >>> rel = vds.pc_relate(10, 0.01)
 
     Calculate values as above, but when performing distributed matrix
     multiplications use a matrix-block-size of 1024 by 1024.
 
-    >>> rel = ds.pc_relate(10, 0.01, 1024)
+    >>> rel = vds.pc_relate(10, 0.01, 1024)
 
     Calculate values as above, excluding sample-pairs with kinship less
     than 0.1. This is more efficient than producing the full table and
     filtering using :meth:`.Table.filter`.
 
-    >>> rel = ds.pc_relate(5, 0.01, min_kinship=0.1)
+    >>> rel = vds.pc_relate(5, 0.01, min_kinship=0.1)
 
 
     The traditional estimator for kinship between a pair of individuals
@@ -676,7 +676,7 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
         measure relatedness.
     path : :obj:`str`
         A temporary directory to store intermediate matrices. Storing the matrices
-        to a file system is necessary for reliability of this method.
+        to a file system is necessary for reliable execution of this method.
     block_size : :obj:`int`
         the side length of the blocks of the block-distributed matrices; this
         should be set such that at least three of these matrices fit in memory
