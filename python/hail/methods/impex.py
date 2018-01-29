@@ -535,7 +535,7 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA'):
            path=oneof(strlike, listof(strlike)),
            max_count=integral)
 def grep(regex, path, max_count=100):
-    Env.hc().grep(regex, jindexed_seq_args(path), max_count)
+    Env.hc()._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
 
 @handle_py4j
@@ -547,8 +547,15 @@ def grep(regex, path, max_count=100):
            contig_recoding=nullable(dictof(strlike, strlike)))
 def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, reference_genome=None,
                 contig_recoding=None):
-    return Env.hc().import_bgen(path, tolerance, sample_file, min_partitions, reference_genome,
-                                contig_recoding).to_hail2()
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+    
+    if contig_recoding:
+        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+        
+    jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
+                                    tolerance, joption(min_partitions), rg._jrep,
+                                    joption(contig_recoding))
+    return MatrixTable(jmt)
 
 
 @handle_py4j
@@ -561,8 +568,14 @@ def import_bgen(path, tolerance=0.2, sample_file=None, min_partitions=None, refe
            contig_recoding=nullable(dictof(strlike, strlike)))
 def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None, reference_genome=None,
                contig_recoding=None):
-    return Env.hc().import_gen(path, sample_file, tolerance, min_partitions, chromosome, reference_genome,
-                               contig_recoding).to_hail2()
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+
+    if contig_recoding:
+        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+
+    jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
+                                   tolerance, rg._jrep, joption(contig_recoding))
+    return MatrixTable(jmt)
 
 
 @handle_py4j
@@ -579,8 +592,14 @@ def import_gen(path, sample_file=None, tolerance=0.2, min_partitions=None, chrom
            reference_genome=nullable(GenomeReference))
 def import_table(paths, key=[], min_partitions=None, impute=False, no_header=False,
                  comment=None, delimiter="\t", missing="NA", types={}, quote=None, reference_genome=None):
-    return Env.hc().import_table(paths, key, min_partitions, impute, no_header, comment,
-                                 delimiter, missing, types, quote, reference_genome).to_hail2()
+    key = wrap_to_list(key)
+    paths = wrap_to_list(paths)
+    jtypes = {k: v._jtype for k, v in types.items()}
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+    
+    jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
+                                   no_header, impute, quote, rg._jrep)
+    return Table(jt)
 
 
 @handle_py4j
@@ -598,9 +617,16 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 def import_plink(bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
                  missing='NA', quant_pheno=False, a2_reference=True, reference_genome=None,
                  contig_recoding={'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}, drop_chr0=False):
-    return Env.hc().import_plink(bed, bim, fam, min_partitions, delimiter,
-                                 missing, quant_pheno, a2_reference, reference_genome, contig_recoding,
-                                 drop_chr0).to_hail2()
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+
+    if contig_recoding:
+        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+
+    jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter,
+                                    missing, quant_pheno, a2_reference, rg._jrep,
+                                    joption(contig_recoding), drop_chr0)
+
+    return MatrixTable(jmt)
 
 
 @handle_py4j
@@ -608,13 +634,55 @@ def import_plink(bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
            drop_cols=bool,
            drop_rows=bool)
 def read_matrix(path, drop_cols=False, drop_rows=False):
-    return Env.hc().read(path, drop_cols, drop_rows).to_hail2()
+    return MatrixTable(Env.hc()._jhc.read(path, drop_cols, drop_rows))
 
 
 @handle_py4j
 @typecheck(path=oneof(strlike, listof(strlike)))
 def get_vcf_metadata(path):
-    return Env.hc().get_vcf_metadata(path)
+    """Extract metadata from VCF header.
+
+    Examples
+    --------
+
+    >>> metadata = hc.get_vcf_metadata('data/example2.vcf.bgz')
+
+    Notes
+    -----
+
+    This method parses the VCF header to extract the `ID`, `Number`,
+    `Type`, and `Description` fields from FORMAT and INFO lines as
+    well as `ID` and `Description` for FILTER lines. For example,
+    given the following header lines:
+
+    .. code-block:: text
+
+        ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+        ##FILTER=<ID=LowQual,Description="Low quality">
+        ##INFO=<ID=MQ,Number=1,Type=Float,Description="RMS Mapping Quality">
+
+    The resulting Python dictionary returned would be
+
+    .. code-block:: python
+
+        metadata = {'format': {'DP': {'Number': '1', 'Type': 'Integer', 'Description': 'Read Depth'}},
+                    'filter': {'LowQual': {'Description': 'Low quality'}},
+                    'info': {'MQ': {'Number': '1', 'Type': 'Float', 'Description': 'RMS Mapping Quality'}}}
+
+    which can be used with :meth:`.export_vcf` to fill in the relevant fields in the header.
+    
+    Parameters
+    ----------
+    path : str or list of str
+        VCF file(s) to read. If more than one file is given, the first
+        file is used.
+
+    Returns
+    -------
+    dict of str to (dict of str to (dict of str to str))
+    """
+    typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
+    return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(jindexed_seq_args(path)))
 
 
 @handle_py4j
@@ -749,10 +817,10 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
 @handle_py4j
 @typecheck(path=oneof(strlike, listof(strlike)))
 def index_bgen(path):
-    Env.hc().index_bgen(path)
+    Env.hc()._jhc.indexBgen(jindexed_seq_args(path))
 
 
 @handle_py4j
 @typecheck(path=strlike)
 def read_table(path):
-    return Env.hc().read_table(path).to_hail2()
+    Table(Env.hc()._jhc.readTable(path))
