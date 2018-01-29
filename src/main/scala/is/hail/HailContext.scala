@@ -486,14 +486,13 @@ class HailContext private(val sc: SparkContext,
 
   private[this] val codecsKey = "io.compression.codecs"
   private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
-  private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGZipCodecGZ"
-  private[this] def forceBGZip[T](body: => T): T = {
+  private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
+  private[this] def forceBGZip[T](force: Boolean)(body: => T): T = {
     val defaultCodecs = hadoopConf.get(codecsKey)
-    hadoopConf.set(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
+    if (force)
+      hadoopConf.set(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
     try { body } finally { hadoopConf.set(codecsKey, defaultCodecs) }
   }
-  private[this] def forceBGZip[T](force: Boolean)(body: => T): T =
-    if (force) forceBGZip(body) else body
 
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
@@ -519,7 +518,7 @@ class HailContext private(val sc: SparkContext,
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
-    forceBGZip(forceBGZ) {
+    forceBGZip(forceBGZ)  {
       val reader = new HtsjdkRecordReader(callFields)
       LoadVCF(this, reader, headerFile, inputs, nPartitions, dropSamples, gr,
         contigRecoding.getOrElse(Map.empty[String, String]))

@@ -51,9 +51,7 @@ object LoadMatrix {
     val rvb = new RegionValueBuilder(Region())
     rvb.start(TArray(TStruct("pk" -> TInt64())))
     rvb.startArray(partitionCounts.length - 1)
-    var c = 0L
-    partitionCounts.tail.foreach { i =>
-      c += i
+    partitionCounts.tail.foreach { c =>
       rvb.startStruct()
       rvb.addLong(c - 1)
       rvb.endStruct()
