@@ -1,6 +1,7 @@
 from hail.typecheck import typecheck_method
 from hail.expr.expression import unify_types, unify_types_limited, expr_any, expr_bool, ExpressionException
 
+
 class ConditionalBuilder(object):
     def __init__(self):
         self._ret_type = None
@@ -15,6 +16,7 @@ class ConditionalBuilder(object):
                 raise TypeError("'then' expressions must have same type, found '{}' and '{}'".format(
                     self._ret_type, t
                 ))
+
 
 class SwitchBuilder(ConditionalBuilder):
     """Class for generating conditional trees based on value of an expression.
@@ -50,6 +52,7 @@ class SwitchBuilder(ConditionalBuilder):
     expr : :class:`.Expression`
         Value to match against.
     """
+
     @typecheck_method(base=expr_any)
     def __init__(self, base):
         self._base = base
@@ -167,7 +170,6 @@ class SwitchBuilder(ConditionalBuilder):
         return self._finish(null(self._ret_type))
 
 
-
 class CaseBuilder(ConditionalBuilder):
     """Class for chaining multiple if-else statements.
 
@@ -195,6 +197,7 @@ class CaseBuilder(ConditionalBuilder):
     --------
     :func:`.case`
     """
+
     def __init__(self):
         super(CaseBuilder, self).__init__()
 

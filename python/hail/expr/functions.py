@@ -178,6 +178,7 @@ def cond(condition, consequent, alternate):
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
                           t, indices, aggregations, joins, refs)
 
+
 def case():
     """Chain multiple if-else statements with a :class:`.CaseBuilder`.
 
@@ -204,6 +205,7 @@ def case():
     """
     from hail.expr.utils import CaseBuilder
     return CaseBuilder()
+
 
 @typecheck(expr=expr_any)
 def switch(expr):
@@ -240,6 +242,7 @@ def switch(expr):
     """
     from hail.expr.utils import SwitchBuilder
     return SwitchBuilder(expr)
+
 
 @typecheck(expr=expr_any, f=func_spec(1, expr_any))
 def bind(expr, f):
