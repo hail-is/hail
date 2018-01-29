@@ -639,7 +639,7 @@ def read_matrix(path, drop_cols=False, drop_rows=False):
 
 
 @handle_py4j
-@typecheck(path=oneof(strlike, listof(strlike)))
+@typecheck(path=strlike)
 def get_vcf_metadata(path):
     """Extract metadata from VCF header.
 
@@ -694,7 +694,7 @@ def get_vcf_metadata(path):
     `obj`:dict: of `obj`:str: to (`obj`:dict: of `obj`:str: to (`obj`:dict: of `obj`:str: to `obj`:str:))
     """
     typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
-    return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(jindexed_seq_args(path)))
+    return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
 
 
 @handle_py4j
