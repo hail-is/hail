@@ -299,13 +299,15 @@ object LoadMatrix {
           var ii = 0
           while (ii < nAnnotations) {
             val t = at.fieldType(ii)
-            ec.set(ii, t match {
+            missing = false
+            val nonMissingVal = t match {
               case _: TInt32 => getInt(fileByPartition(i), null, ii)
               case _: TInt64 => getLong(fileByPartition(i), null, ii)
               case _: TFloat32 => getFloat(fileByPartition(i), null, ii)
               case _: TFloat64 => getDouble(fileByPartition(i), null, ii)
               case _: TString => getString(fileByPartition(i), null, ii)
-            })
+            }
+            ec.set(ii, if (missing) null else nonMissingVal)
             ii += 1
           }
 

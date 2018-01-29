@@ -21,7 +21,7 @@ class ImportMatrixSuite extends SparkSuite {
   val genImportableMatrix = VSMSubgen(
     sSigGen = Gen.const(TString()),
     saSigGen = Gen.const(TStruct.empty()),
-    vSigGen = Gen.const(TString()),
+    vSigGen = Gen.oneOf[Type](TInt32(), TInt64(), TString()),
     vaSigGen = Type.preGenStruct(required=false, genValidImportType),
     globalSigGen = Gen.const(TStruct.empty()),
     tSigGen = Gen.zip(genValidImportType, Gen.coin(0.2))
@@ -30,7 +30,7 @@ class ImportMatrixSuite extends SparkSuite {
     saGen = (t: Type) => t.genNonmissingValue,
     vaGen = (t: Type) => t.genNonmissingValue,
     globalGen = (t: Type) => t.genNonmissingValue,
-    vGen = (t: Type) => Gen.identifier,
+    vGen = (t: Type) => t.genNonmissingValue,
     tGen = (t: Type, v: Annotation) => t.genNonmissingValue)
 
   def reKeyRows(vsm: MatrixTable): MatrixTable = {
@@ -92,19 +92,19 @@ class ImportMatrixSuite extends SparkSuite {
     path
   }
 
-  def printVSM(vsm: MatrixTable): Unit = {
-    println(vsm.makeKT("v = v, va.*", "`` = g.x", Array("v")).showString(maxWidth = 190))
-  }
-
-  def checkValidResult(f: MatrixTable => MatrixTable): Unit = {
+  def checkValidResult(f: MatrixTable => (MatrixTable, MatrixTable)): Unit = {
     forAll(MatrixTable.gen(hc, genImportableMatrix)
-      .filter(vsm => vsm.sampleIds.intersect(vsm.vaSignature.fieldNames +: "v").isEmpty)) { vsm =>
-      val actual = f(vsm)
+      .filter(vsm => vsm.sampleIds.intersect(vsm.vaSignature.fieldNames).isEmpty &&
+        !vsm.vaSignature.fieldNames.contains("v") &&
+        !vsm.sampleIds.contains("v"))) { vsm =>
+      println(vsm.sampleIds.contains("v"))
+      val (transformed, result) = f(vsm)
+      assert(transformed.same(result, tolerance=0.001))
       val tmp1 = tmpDir.createTempFile(extension = "vds")
-      actual.write(tmp1, true)
+      result.write(tmp1, true)
 
       val vsm2 = MatrixTable.read(hc, tmp1)
-      assert(actual.same(vsm2))
+      assert(result.same(vsm2))
       true
     }.check()
   }
@@ -126,42 +126,47 @@ class ImportMatrixSuite extends SparkSuite {
     assert(e.getMessage.contains("number of elements"))
   }
 
-  @Test def testWithHeaderAndRowKey() {
+  @Test def testWithHeaderAndKey() {
     checkValidResult { vsm =>
       val actual: MatrixTable = {
         val f = exportImportableVds(vsm)
         val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
-        LoadMatrix(hc, Array(f), None, Seq(TString()) ++ vaTypes, Some("v"), cellType = vsm.entryType)
+        LoadMatrix(hc, Array(f), None, vsm.rowKeyTypes ++ vaTypes, Some("v"), cellType = vsm.entryType)
       }
-      assert(dropRowAnnotations(vsm).same(dropRowAnnotations(actual)))
-      actual
+      (vsm, dropRowAnnotations(actual, Some(Array("v"))))
     }
   }
 
-  @Test def testNoHeader() {
+  @Test def testNoHeaderWithKey() {
     checkValidResult { vsm =>
       val actual: MatrixTable = {
         val f = exportImportableVds(vsm, header=false)
         val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
-        LoadMatrix(hc, Array(f), Some(Array("v") ++ vaNames), Seq(TString()) ++ vaTypes, Some("v"), cellType = vsm.entryType, noHeader=true)
+        LoadMatrix(hc, Array(f), Some(Array("v") ++ vaNames), vsm.rowKeyTypes ++ vaTypes, Some("v"), cellType = vsm.entryType, noHeader=true)
       }
-      assert(reKeyCols(vsm).same(dropRowAnnotations(actual, Some(Array("v")))))
-      actual
+      (reKeyCols(vsm), dropRowAnnotations(actual, Some(Array("v"))))
     }
   }
 
-  @Test def testNoKey() {
+  @Test def testWithHeaderNoKey() {
     checkValidResult { vsm =>
       val actual: MatrixTable = {
         val f = exportImportableVds(vsm, rowKeys=false)
-        val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
+        val (_, vaTypes) = getVAFieldsAndTypes(vsm)
         LoadMatrix(hc, Array(f), None, vaTypes, None, cellType = vsm.entryType)
       }
-      printVSM(vsm)
-      printVSM(reKeyRows(vsm))
-      printVSM(actual)
-      assert(reKeyRows(vsm).same(actual), "not same")
-      actual
+      (reKeyRows(vsm), actual)
+    }
+  }
+
+  @Test def testNoHeaderNoKey() {
+    checkValidResult { vsm =>
+      val actual: MatrixTable = {
+        val f = exportImportableVds(vsm, header=false, rowKeys=false)
+        val (vaNames, vaTypes) = getVAFieldsAndTypes(vsm)
+        LoadMatrix(hc, Array(f), Some(vaNames), vaTypes, None, cellType = vsm.genotypeSignature, noHeader=true)
+      }
+      (reKeyCols(reKeyRows(vsm)), actual)
     }
   }
 }
