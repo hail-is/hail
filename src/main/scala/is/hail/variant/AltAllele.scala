@@ -132,7 +132,6 @@ object AltAlleleMethods {
     if (a1.length != a2.length)
       fatal(s"function 'hamming' requires strings to have equal length, " +
         s"found lengths ${a1.length} and ${a2.length}: '$a1', '$a2'")
-    require(a1.length == a2.length)
     var n = 0
     var i = 0
     while (i < a1.length) {
