@@ -662,7 +662,7 @@ class HailContext(HistoryMixin):
             self._jhc.read(path, drop_samples, drop_variants))
 
     @handle_py4j
-    @typecheck_method(path=oneof(strlike, listof(strlike)))
+    @typecheck_method(path=strlike)
     def get_vcf_metadata(self, path):
         """Extract metadata from VCF header.
 
@@ -693,13 +693,13 @@ class HailContext(HistoryMixin):
         which can be used with :class:`~hail.VariantDataset.export_vcf` to fill in the relevant fields in the header.
 
         :param path: VCF file(s) to read. If more than one file is given, the first file is used.
-        :type path: str or list of str
+        :type path: str
 
         :rtype: (dict of str to (dict of str to (dict of str to str)))
         """
 
         typ = TDict(TString(), TDict(TString(), TDict(TString(), TString())))
-        return typ._convert_to_py(self._jhc.parseVCFMetadata(jindexed_seq_args(path)))
+        return typ._convert_to_py(self._jhc.parseVCFMetadata(path))
 
     @handle_py4j
     @record_method
