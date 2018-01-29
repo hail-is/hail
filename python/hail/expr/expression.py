@@ -4161,6 +4161,7 @@ def analyze(caller, expr, expected_indices, aggregation_axes=set()):
         raise errors[0]
 
 
+@handle_py4j
 @typecheck(expression=expr_any)
 def eval_expr(expression):
     """Evaluate a Hail expression, returning the result.
@@ -4193,7 +4194,7 @@ def eval_expr(expression):
     """
     return eval_expr_typed(expression)[0]
 
-
+@handle_py4j
 @typecheck(expression=expr_any)
 def eval_expr_typed(expression):
     """Evaluate a Hail expression, returning the result and the type of the result.
