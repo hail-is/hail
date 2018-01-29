@@ -2859,4 +2859,19 @@ g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
     }
     copy2(saSignature = newColType, sampleAnnotations = newSampleAnnotations)
   }
+
+  def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): MatrixTable =
+    filterPartitions(parts.asScala.toArray, keep)
+
+  def filterPartitions(parts: Array[Int], keep: Boolean = true): MatrixTable = {
+    copy2(rdd2 =
+      rdd2.subsetPartitions(
+        if (keep)
+          parts
+        else {
+          val partSet = parts.toSet
+          (0 until rdd2.getNumPartitions).filter(i => !partSet.contains(i)).toArray
+        })
+    )
+  }
 }
