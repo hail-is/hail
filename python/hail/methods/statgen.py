@@ -704,19 +704,17 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
     """
     ds = require_biallelic(ds, 'pc_relate')
     ds = require_unique_samples(ds, 'pc_relate')
-    ds = ds.annotate_rows(total_alt_alleles=agg.sum(ds.GT.num_alt_alleles()),
-                          n_called=agg.count_where(functions.is_defined(ds.GT)))
+    ds = ds.annotate_rows(mean_gt =
+                          agg.sum(ds.GT.num_alt_alleles()) /
+                          agg.count_where(functions.is_defined(ds.GT)))
 
-    mean_imputed_gt = functions.bind(
-        ds.total_alt_alleles / ds.n_called,
-        lambda mean_gt: functions.cond(
-            functions.is_defined(ds.GT), ds.GT.num_alt_alleles().to_float64(), mean_gt))
+    mean_imputed_gt = functions.or_else(ds.GT.num_alt_alleles().to_float64(), ds.mean_gt)
 
     g = BlockMatrix.from_matrix_table(mean_imputed_gt, path=path, block_size=block_size)
 
     _, scores, _ = hwe_normalized_pca(ds, k, False, True)
 
-    intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
+    int_statistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
     return Table(
         scala_object(Env.hail().methods, 'PCRelate')
         .apply(Env.hc()._jhc,
@@ -728,7 +726,7 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
                maf,
                block_size,
                min_kinship,
-               intstatistics))
+               int_statistics))
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
