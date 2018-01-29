@@ -126,6 +126,6 @@ trait RVD {
 
   def coalesce(maxPartitions: Int, shuffle: Boolean): RVD = RVD(rowType, rdd.coalesce(maxPartitions, shuffle = shuffle))
 
-  def sample(withReplacement: Boolean, fraction: Double, seed: Long): RVD =
-    RVD(rowType, rdd.sample(withReplacement, fraction, seed))
+  def sample(withReplacement: Boolean, p: Double, seed: Long): RVD =
+    RVD(rowType, rdd.sample(withReplacement, p, seed))
 }

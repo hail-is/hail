@@ -73,10 +73,10 @@ class OrderedRVD private(
       partitioner,
       rdd.filter(p))
 
-  override def sample(withReplacement: Boolean, fraction: Double, seed: Long): OrderedRVD =
+  override def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
     OrderedRVD(typ,
       partitioner,
-      rdd.sample(withReplacement, fraction, seed))
+      rdd.sample(withReplacement, p, seed))
 
   override def persist(level: StorageLevel): OrderedRVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
