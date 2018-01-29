@@ -951,7 +951,7 @@ class HailContext(HistoryMixin):
         >>> vds = hc.balding_nichols_model(4, 40, 150, 10,
         ...                                pop_dist=[0.1, 0.2, 0.3, 0.4],
         ...                                fst=[.02, .06, .04, .12],
-        ...                                af_dist=TruncatedBetaDist(a=0.01, b=2.0, minVal=0.05, maxVal=1.0),
+        ...                                af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=1.0),
         ...                                seed=1)
 
         **Notes**

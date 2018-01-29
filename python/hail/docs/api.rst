@@ -47,3 +47,4 @@ on the Python programming interface.
     methods <methods/index>
     utils <utils/index>
     linalg <linalg/index>
+    stats <stats/index>

@@ -52,10 +52,10 @@ object BaldingNicholsModel {
 
     af_dist match {
       case u: UniformDist =>
-        if (u.minVal < 0)
-          fatal(s"minVal ${ u.minVal } must be at least 0")
-        else if (u.maxVal > 1)
-          fatal(s"maxVal ${ u.maxVal } must be at most 1")
+        if (u.min < 0)
+          fatal(s"min ${ u.min } must be at least 0")
+        else if (u.max > 1)
+          fatal(s"max ${ u.max } must be at most 1")
       case _ =>
     }
 
@@ -84,27 +84,26 @@ object BaldingNicholsModel {
     val vaSignature = TStruct("ancestralAF" -> TFloat64(), "AF" -> TArray(TFloat64()))
 
     val ancestralAFAnnotation = af_dist match {
-      case UniformDist(minVal, maxVal) => Annotation("UniformDist", minVal, maxVal)
+      case UniformDist(min, max) => Annotation("UniformDist", min, max)
       case BetaDist(a, b) => Annotation("BetaDist", a, b)
-      case TruncatedBetaDist(a, b, minVal, maxVal) => Annotation("TruncatedBetaDist", a, b, minVal, maxVal)
+      case TruncatedBetaDist(a, b, min, max) => Annotation("TruncatedBetaDist", a, b, min, max)
     }
     val globalAnnotation =
-      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
-
+      Annotation(K, N, M, popDistArray: IndexedSeq[Double], FstOfPopArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
 
     val ancestralAFAnnotationSignature = af_dist match {
-      case UniformDist(minVal, maxVal) => TStruct("type" -> TString(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
+      case UniformDist(min, max) => TStruct("type" -> TString(), "min" -> TFloat64(), "max" -> TFloat64())
       case BetaDist(a, b) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64())
-      case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64(), "minVal" -> TFloat64(), "maxVal" -> TFloat64())
+      case TruncatedBetaDist(a, b, min, max) => TStruct("type" -> TString(), "a" -> TFloat64(), "b" -> TFloat64(), "min" -> TFloat64(), "max" -> TFloat64())
     }
 
     val globalSignature = TStruct(
-      "nPops" -> TInt32(),
-      "nSamples" -> TInt32(),
-      "nVariants" -> TInt32(),
-      "popDist" -> TArray(TFloat64()),
-      "Fst" -> TArray(TFloat64()),
-      "ancestralAFDist" -> ancestralAFAnnotationSignature,
+      "num_populations" -> TInt32(),
+      "num_samples" -> TInt32(),
+      "num_variants" -> TInt32(),
+      "pop_dist" -> TArray(TFloat64()),
+      "fst" -> TArray(TFloat64()),
+      "ancestral_af_dist" -> ancestralAFAnnotationSignature,
       "seed" -> TInt32())
 
     val matrixType = MatrixType(
