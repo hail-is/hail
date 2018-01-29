@@ -1167,6 +1167,11 @@ class Table(val hc: HailContext,
 
   def take(n: Int): Array[Row] = rdd.take(n)
 
+  def sample(p: Double, seed: Int = 1): Table = {
+    require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
+    copy2(rvd = rvd.sample(withReplacement = false, p, seed))
+  }
+
   def index(name: String = "index"): Table = {
     if (columns.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
