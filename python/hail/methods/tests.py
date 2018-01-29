@@ -544,14 +544,14 @@ class Tests(unittest.TestCase):
 
         ds = methods.split_multi_hts(ds2)
         ds = ds.annotate_rows(gene = intervalsSkat[ds.v],
-                              weight = weightsSkat[ds.v])
-        ds = ds.annotate_columns(pheno = phenotypesSkat[ds.s],
+                              weight = weightsSkat[ds.v].weight)
+        ds = ds.annotate_cols(pheno = phenotypesSkat[ds.s],
                                  cov = covariatesSkat[ds.s])
-        ds = ds.annotate_columns(pheno = functions.cond(ds.pheno == 1.0,
+        ds = ds.annotate_cols(pheno = functions.cond(ds.pheno == 1.0,
             False,
             functions.cond(ds.pheno == 2.0,
                            True,
-                           None)))
+                           functions.null(TBoolean()))))
 
         methods.skat(ds,
                      key_expr=ds.gene,
