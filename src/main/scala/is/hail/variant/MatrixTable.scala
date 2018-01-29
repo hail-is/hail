@@ -2103,9 +2103,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
   }
 
-  def sampleVariants(fraction: Double, seed: Int = 1): MatrixTable = {
-    require(fraction > 0 && fraction < 1, s"the 'fraction' parameter must fall between 0 and 1, found $fraction")
-    copy2(rdd2 = rdd2.sample(withReplacement = false, fraction, seed))
+  def sampleVariants(p: Double, seed: Int = 1): MatrixTable = {
+    require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
+    copy2(rdd2 = rdd2.sample(withReplacement = false, p, seed))
   }
 
   def copy2(rdd2: OrderedRVD = rdd2,
