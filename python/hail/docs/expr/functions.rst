@@ -55,6 +55,17 @@ Functions
     select
     sqrt
     to_str
+    is_snp
+    is_mnp
+    is_transition
+    is_transversion
+    is_insertion
+    is_deletion
+    is_indel
+    is_star
+    is_complex
+    allele_type
+    hamming
 
 
 .. autofunction:: broadcast
@@ -104,3 +115,14 @@ Functions
 .. autofunction:: select
 .. autofunction:: sqrt
 .. autofunction:: to_str
+.. autofunction:: is_snp
+.. autofunction:: is_mnp
+.. autofunction:: is_transition
+.. autofunction:: is_transversion
+.. autofunction:: is_insertion
+.. autofunction:: is_deletion
+.. autofunction:: is_indel
+.. autofunction:: is_star
+.. autofunction:: is_complex
+.. autofunction:: allele_type
+.. autofunction:: hamming

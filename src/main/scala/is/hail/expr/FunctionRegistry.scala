@@ -10,7 +10,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Call, GRVariable, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, AltAlleleMethods, Call, GRVariable, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -803,6 +803,18 @@ object FunctionRegistry {
   registerMethod("isTransition", { (x: AltAllele) => x.isTransition }, "True if a purine-purine or pyrimidine-pyrimidine SNP.")
   registerMethod("isTransversion", { (x: AltAllele) => x.isTransversion }, "True if a purine-pyrimidine SNP.")
   registerMethod("category", { (x: AltAllele) => x.altAlleleType.toString }, "the alt allele type, i.e one of SNP, Insertion, Deletion, Star, MNP, Complex")
+
+  register("is_snp", { (ref: String, alt: String) => AltAlleleMethods.isSNP(ref, alt) }, null)
+  register("is_mnp", { (ref: String, alt: String) => AltAlleleMethods.isMNP(ref, alt) }, null)
+  register("is_transition", { (ref: String, alt: String) => AltAlleleMethods.isTransition(ref, alt) }, null)
+  register("is_transversion", { (ref: String, alt: String) => AltAlleleMethods.isTransversion(ref, alt) }, null)
+  register("is_insertion", { (ref: String, alt: String) => AltAlleleMethods.isInsertion(ref, alt) }, null)
+  register("is_deletion", { (ref: String, alt: String) => AltAlleleMethods.isDeletion(ref, alt) }, null)
+  register("is_indel", { (ref: String, alt: String) => AltAlleleMethods.isIndel(ref, alt) }, null)
+  register("is_star", { (ref: String, alt: String) => AltAlleleMethods.isStar(ref, alt) }, null)
+  register("is_complex", { (ref: String, alt: String) => AltAlleleMethods.isComplex(ref, alt) }, null)
+  register("allele_type", { (ref: String, alt: String) => AltAlleleMethods.altAlleleType(ref, alt).toString }, null)
+  register("hamming", { (ref: String, alt: String) => AltAlleleMethods.hamming(ref, alt) }, null)
 
   register("plDosage", { (pl: IndexedSeq[Int]) =>
     if (pl.length != 3)
