@@ -492,3 +492,8 @@ class Tests(unittest.TestCase):
         # FIXME actually test
         ds = self.get_dataset()
         methods.min_rep(ds)
+
+    def test_filter_intervals(self):
+        ds = self.get_dataset()
+        self.assertEqual(
+            methods.filter_intervals(ds, Interval.parse('20:10639222-10644705')).count_rows(), 3)

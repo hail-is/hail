@@ -6,7 +6,7 @@ from .statgen import linreg, sample_rows, ibd, ld_matrix, grm, rrm, pca, hwe_nor
     pc_relate, split_multi_hts, balding_nichols_model, FilterAlleles, ld_prune, min_rep
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana
 from .summarize import summarize
-from .misc import rename_duplicates, maximal_independent_set
+from .misc import rename_duplicates, maximal_independent_set, filter_intervals
 
 __all__ = ['trio_matrix',
            'linreg',
@@ -50,4 +50,5 @@ __all__ = ['trio_matrix',
            'FilterAlleles',
            'summarize',
            'ld_prune',
-           'min_rep']
+           'min_rep',
+           'filter_intervals']
