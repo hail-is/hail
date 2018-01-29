@@ -297,6 +297,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
                                     n_called=agg.count_where(functions.is_defined(dataset.GT)))
     dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
+    dataset = dataset.annotate_rows(mean_gt = dataset.AC / dataset.n_called)
 
     n_variants = dataset.count_rows()
     if n_variants == 0:
@@ -304,12 +305,12 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
             "Cannot run PCA: found 0 variants after filtering out monomorphic sites.")
     info("Running PCA using {} variants.".format(n_variants))
 
-    entry_expr = functions.bind(
-        dataset.AC / dataset.n_called,
-        lambda mean_gt: functions.cond(functions.is_defined(dataset.GT),
-                                       (dataset.GT.num_alt_alleles() - mean_gt) /
-                                       functions.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
-                                       0))
+    dataset = dataset.annotate_rows(denominator = functions.sqrt(dataset.mean_gt * (2 - dataset.mean_gt) * n_variants / 2))
+
+
+    entry_expr = functions.or_else((dataset.GT.num_alt_alleles() - dataset.mean_gt) /
+                                   dataset.denominator,
+                                   0)
     result = pca(entry_expr,
                  k,
                  compute_loadings,
