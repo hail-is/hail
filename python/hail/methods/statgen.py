@@ -1115,8 +1115,27 @@ def rrm(call_expr):
 def balding_nichols_model(populations, samples, variants, num_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                           seed=0, reference_genome=None):
-    return Env.hc().balding_nichols_model(populations, samples, variants, num_partitions,
-                                          pop_dist, fst, af_dist, seed, reference_genome).to_hail2()
+    if pop_dist is None:
+        jvm_pop_dist_opt = joption(pop_dist)
+    else:
+        jvm_pop_dist_opt = joption(jarray(Env.jvm().double, pop_dist))
+
+    if fst is None:
+        jvm_fst_opt = joption(fst)
+    else:
+        jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
+
+    rg = reference_genome if reference_genome else Env.hc().default_reference
+    
+    jmt = Env.hc()._jhc.baldingNicholsModel(populations, samples, variants,
+                                            joption(num_partitions),
+                                            jvm_pop_dist_opt,
+                                            jvm_fst_opt,
+                                            af_dist._jrep(),
+                                            seed,
+                                            rg._jrep)
+    return MatrixTable(jmt)
+
 
 class FilterAlleles(object):
     """Filter out a set of alternate alleles.  If all alternate alleles of
