@@ -317,6 +317,12 @@ class TableTests(unittest.TestCase):
         df.drop(df['\%!^!@#&#&$%#$%'])
         df.group_by(**{'*``81': df.a}).aggregate(c = agg.count())
 
+    def test_sample(self):
+        kt = Table.range(10)
+        kt_small = kt.sample(0.01)
+        self.assertTrue(kt_small.count() < kt.count())
+
+
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):
         return methods.import_vcf(test_file("sample.vcf"), min_partitions=min_partitions)
@@ -610,6 +616,11 @@ class MatrixTests(unittest.TestCase):
         # preserves the col, entry types
         self.assertEqual(rm.count_cols(), 0)
         self.assertTrue(rm.rows_table()._same(rt))
+
+    def test_sample_rows(self):
+        ds = self.get_vds()
+        ds_small = ds.sample_rows(0.01)
+        self.assertTrue(ds_small.count_rows() < ds.count_rows())
 
 
 class FunctionsTests(unittest.TestCase):

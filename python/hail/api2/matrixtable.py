@@ -2538,5 +2538,36 @@ class MatrixTable(object):
         jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt)
         return MatrixTable(jmt)
 
+    @handle_py4j
+    @typecheck_method(p=numeric,
+                      seed=integral)
+    def sample_rows(self, p, seed=0):
+        """Downsample the matrix table by keeping each row with probability ``p``.
+
+        Examples
+        --------
+
+        Downsample the dataset to approximately 1% of its rows.
+
+        >>> small_dataset = dataset.sample_rows(0.01)
+
+        Parameters
+        ----------
+        p : :obj:`float`
+            Probability of keeping each row.
+        seed : :obj:`int`
+            Random seed.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix table with approximately ``p * num_rows`` rows.
+        """
+
+        if not (0 <= p <= 1):
+            raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
+
+        return MatrixTable(self._jvds.sampleVariants(p, seed))
+
 
 matrix_table_type.set(MatrixTable)

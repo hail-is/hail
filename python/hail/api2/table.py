@@ -1573,6 +1573,37 @@ class Table(TableTemplate):
         return Table(self._jt.head(n))
 
     @handle_py4j
+    @typecheck_method(p=numeric,
+                      seed=integral)
+    def sample(self, p, seed=0):
+        """Downsample the table by keeping each row with probability ``p``.
+
+        Examples
+        --------
+
+        Downsample the table to approximately 1% of its rows.
+
+        >>> small_table1 = table1.sample(0.01)
+
+        Parameters
+        ----------
+        p : :obj:`float`
+            Probability of keeping each row.
+        seed : :obj:`int`
+            Random seed.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table with approximately ``p * num_rows`` rows.
+        """
+
+        if not (0 <= p <= 1):
+            raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
+
+        return Table(self._jt.sample(p, seed))
+
+    @handle_py4j
     @typecheck_method(n=integral,
                       shuffle=bool)
     def repartition(self, n, shuffle=True):
