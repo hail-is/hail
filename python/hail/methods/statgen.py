@@ -309,7 +309,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
     entry_expr = functions.or_else((dataset.GT.num_alt_alleles() - dataset.mean_gt) /
                                    dataset.hwe_std_dev,
-                                   0)
+                                   0.0)
     result = pca(entry_expr,
                  k,
                  compute_loadings,
