@@ -58,11 +58,11 @@ class JoinSuite extends SparkSuite {
     val vType = TVariant(GenomeReference.GRCh37)
     val leftKt = Table(hc, sc.parallelize(leftVariants.map(Row(_))), TStruct("v" -> vType)).keyBy("v")
     leftKt.typeCheck()
-    val left = MatrixTable.fromTable(leftKt)
+    val left = MatrixTable.fromRowsTable(leftKt)
 
     val rightKt = Table(hc, sc.parallelize(rightVariants.map(Row(_))), TStruct("v" -> vType)).keyBy("v")
     rightKt.typeCheck()
-    val right = MatrixTable.fromTable(rightKt)
+    val right = MatrixTable.fromRowsTable(rightKt)
 
     val localRowType = left.rvRowType
 
