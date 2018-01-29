@@ -648,22 +648,20 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     dataset split by chromosome). Files can be specified as :ref:`Hadoop glob
     patterns <sec-hadoop-glob>`.
 
-
     Ensure that the VCF file is correctly prepared for import: VCFs should
-    either be uncompressed (*.vcf*) or block compressed (*.vcf.bgz*). If you
-    have a large compressed VCF that ends in *.vcf.gz*, it is likely that the
+    either be uncompressed (**.vcf**) or block compressed (**.vcf.bgz**). If you
+    have a large compressed VCF that ends in **.vcf.gz**, it is likely that the
     file is actually block-compressed, and you should rename the file to
-    ".vcf.bgz" accordingly. If you actually have a standard gzipped file, it is
-    possible to import it to Hail using the ``force`` optional parameter.
-    However, this is not recommended -- all parsing will have to take place on
-    one node because gzip decompression is not parallelizable. In this case,
-    import will take significantly longer.
-
+    **.vcf.bgz** accordingly. If you actually have a standard gzipped file, it
+    is possible to import it to Hail using the `force` parameter. However, this
+    is not recommended -- all parsing will have to take place on one node
+    because gzip decompression is not parallelizable. In this case, import will
+    take significantly longer.
 
     :func:`.import_vcf` does not perform deduplication - if the provided VCF(s)
     contain multiple records with the same chrom, pos, ref, alt, all these
-    records will be imported as-is and will not be collapsed into a single
-    variant.
+    records will be imported as-is (in multiple rows) and will not be collapsed
+    into a single variant.
 
     .. note::
 
@@ -677,26 +675,24 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         ``ds.filters.is_empty()`` is ``True``. Thus, filtering to PASS variants
         can be done with :meth:`.MatrixTable.filter_rows` as follows:
 
-
         >>> pass_ds = dataset.filter_rows(ds.filters.is_empty())
-
 
     **Column Fields**
 
-    - **s** (*String*) -- Column key. This is the sample ID.
+    - `s` (:class:`.TString`) -- Column key. This is the sample ID.
 
     **Row Fields**
 
-    - **v** (*Variant*) -- Row key. This is the variant created from the CHROM,
+    - `v` (:class:`.TVariant`) -- Row key. This is the variant created from the CHROM,
       POS, REF, and ALT fields.
-    - **filters** (*Set[String]*) -- Set containing all filters applied to a
+    - `filters` (:class:`.TSet` of :class:`.TString`) -- Set containing all filters applied to a
       variant.
-    - **rsid** (*String*) -- rsID of the variant.
-    - **qual** (*Double*) -- Floating-point number in the QUAL field.
-    - **info** (*Struct*) -- All INFO fields defined in the VCF header
-      can be found in the struct `info`. Data types match the type
-      specified in the VCF header, and if the declared ``Number`` is not
-      1, the result will be stored as an array.
+    - `rsid` (:class:`.TString`) -- rsID of the variant.
+    - `qual` (:class:`.TFloat64`) -- Floating-point number in the QUAL field.
+    - `info` (:class:`.TStruct`) -- All INFO fields defined in the VCF header
+      can be found in the struct `info`. Data types match the type specified
+      in the VCF header, and if the declared ``Number`` is not 1, the result
+      will be stored as an array.
 
     **Entry Fields**
 
@@ -710,11 +706,11 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     path : :obj:`str` or :obj:`list` of :obj:`str`
         VCF file(s) to read.
     force : :obj:`bool`
-        If ``True``, load .gz files serially. No downstream operations can be
-        parallelized, so this mode is strongly discouraged.
+        If ``True``, load **.vcf.gz** files serially. No downstream operations
+        can be parallelized, so this mode is strongly discouraged.
     force_bgz : :obj:`bool`
-        If ``True``, load .gz files as blocked gzip files, assuming that they
-        were actually compressed using the BGZ codec.
+        If ``True``, load **.vcf.gz** files as blocked gzip files, assuming
+        that they were actually compressed using the BGZ codec.
     header_file : :obj:`str`, optional
         Optional header override file. If not specified, the first file in
         `path` is used.
@@ -744,8 +740,8 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep,
-                                joption(contig_recoding))
+                                   joption(min_partitions), drop_samples, jset_args(call_fields), rg._jrep,
+                                   joption(contig_recoding))
 
     return MatrixTable(jmt)
 
