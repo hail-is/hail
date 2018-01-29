@@ -9,7 +9,6 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.HailContext
 import is.hail.variant.{HardCallView, MatrixTable, Variant}
-import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
@@ -165,7 +164,7 @@ object PCRelate {
         }
         ab.result()
       } else
-        new Array[Row](0)
+        Array.empty[Row]
     }
 
     val Result(phi, k0, k1, k2) = r
@@ -260,15 +259,14 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
   def apply(uncachedBlockedG: M, pcs: DenseMatrix[Double], statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
     val blockedG = uncachedBlockedG.cache()
-    val mu = this.mu(blockedG, pcs)
-    val variance =
-      BlockMatrix.map2 { (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          mu * (1.0 - mu)
-      } (blockedG, mu).cache()
-
+    val preMu = this.mu(blockedG, pcs)
+    val mu = (BlockMatrix.map2 { (g, mu) =>
+      if (badgt(g) || badmu(mu))
+        Double.NaN
+      else
+        mu
+    } (blockedG, preMu)).cache()
+    val variance = mu.map(mu => if (mu.isNaN()) 0.0 else mu * (1.0 - mu)).cache()
     val phi = this.phi(mu, variance, blockedG).cache()
 
     if (statistics >= PhiK2) {
@@ -305,10 +303,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
     val centeredG = BlockMatrix.map2 { (g, mu) =>
-      if (badgt(g) || badmu(mu))
-        0.0
-      else
-        g - mu * 2.0
+      if (mu.isNaN) 0.0 else g - mu * 2.0
     } (g, mu)
 
     val stddev = variance.map(math.sqrt)
@@ -319,21 +314,23 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
     val homalt =
       BlockMatrix.map2 { (g, mu) =>
-        if (badgt(g) || badmu(mu) || g != 2.0) 0.0 else 1.0
+        if (mu.isNaN || g != 2.0) 0.0 else 1.0
       } (g, mu).cache()
 
     val homref =
       BlockMatrix.map2 { (g, mu) =>
-        if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
+        if (mu.isNaN || g != 0.0) 0.0 else 1.0
       } (g, mu).cache()
 
-    (homalt.t * homref) :+ (homref.t * homalt)
+    val temp = (homalt.t * homref).cache()
+
+    temp :+ temp.t
   }
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = phi.diagonal.map(2.0 * _)
     val normalizedGD = g.map2WithIndex(mu, { case (_, i, g, mu) =>
-      if (badmu(mu) || badgt(g))
+      if (mu.isNaN)
         0.0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
       else {
         val gd = if (g == 0.0) mu
@@ -349,22 +346,14 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
     val mu2 =
-      BlockMatrix.map2 { (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          mu * mu
-      } (g, mu).cache()
+      mu.map(mu => if (mu.isNaN) 0.0 else mu * mu)
 
     val oneMinusMu2 =
-      BlockMatrix.map2 { (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          (1.0 - mu) * (1.0 - mu)
-      } (g, mu).cache()
+      mu.map(mu => if (mu.isNaN) 0.0 else (1.0 - mu) * (1.0 - mu))
 
-    val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
+    val temp = mu2.t * oneMinusMu2
+    val denom = temp :+ temp.t
+
     BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phi <= k0cutoff)
         1.0 - 4.0 * phi + k2
