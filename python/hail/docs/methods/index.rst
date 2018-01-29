@@ -35,6 +35,7 @@ Methods
     hail.methods.nirvana
     hail.methods.tdt
     hail.methods.FilterAlleles
+    hail.methods.min_rep
 
 .. autofunction:: hail.methods.linreg
 .. autofunction:: hail.methods.sample_rows
@@ -65,3 +66,4 @@ Methods
 .. autofunction:: hail.methods.nirvana
 .. autofunction:: hail.methods.tdt
 .. autoclass:: hail.methods.FilterAlleles
+.. autofunction:: hail.methods.min_rep
