@@ -296,7 +296,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     dataset = require_biallelic(dataset, 'hwe_normalized_pca')
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
                                     n_called=agg.count_where(functions.is_defined(dataset.GT)))
-    dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
+    dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
     dataset = dataset.annotate_rows(mean_gt = dataset.AC / dataset.n_called)
 
     n_variants = dataset.count_rows()
@@ -314,7 +314,6 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
                  k,
                  compute_loadings,
                  as_array)
-    dataset.unpersist()
     return result
 
 
