@@ -487,3 +487,8 @@ class Tests(unittest.TestCase):
         ds = methods.split_multi_hts(
             methods.import_vcf(test_file('sample.vcf')))
         methods.ld_prune(ds, 8).count_rows()
+
+    def test_min_rep(self):
+        # FIXME actually test
+        ds = self.get_dataset()
+        methods.min_rep(ds)

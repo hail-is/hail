@@ -1328,3 +1328,37 @@ class FilterAlleles(object):
 def ld_prune(ds, num_cores, r2=0.2, window=1000000, memory_per_core=256):
     jmt = Env.hail().methods.LDPrune.apply(ds._jvds, num_cores, r2, window, memory_per_core)
     return MatrixTable(jmt)
+
+@handle_py4j
+@typecheck(ds=MatrixTable,
+           left_aligned=bool)
+def min_rep(ds, left_aligned=False):
+    """Gives minimal, left-aligned representation of alleles. 
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    Notes
+    -----
+    Note that this can change the variant position.
+
+    Examples
+    --------
+
+    Simple trimming of a multi-allelic site, no change in variant
+    position `1:10000:TAA:TAA,AA` => `1:10000:TA:T,A`
+
+    Trimming of a bi-allelic site leading to a change in position
+    `1:10000:AATAA,AAGAA` => `1:10002:T:G`
+
+    Parameters
+    ----------
+    left_aligned : bool
+        If ``True``, variants are assumed to be left aligned and have
+        unique loci.  This avoids a shuffle.  If the assumption is
+        violated, an error is generated.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    return MatrixTable(ds._jvds.minRep(left_aligned))
