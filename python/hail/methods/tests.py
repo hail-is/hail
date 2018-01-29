@@ -482,3 +482,8 @@ class Tests(unittest.TestCase):
                 methods.FilterAlleles(functions.range(0, ds.v.num_alt_alleles()).map(lambda i: True))
                 .filter()
                 .count_rows(), ds.count_rows())
+
+    def test_ld_prune(self):
+        ds = methods.split_multi_hts(
+            methods.import_vcf(test_file('sample.vcf')))
+        methods.ld_prune(ds, 8).count_rows()
