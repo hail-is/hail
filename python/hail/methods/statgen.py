@@ -450,8 +450,9 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
            path=nullable(strlike),
            block_size=integral,
            min_kinship=numeric,
-           statistics=enumeration("phi", "phik2", "phik2k0", "all"))
-def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
+           statistics=enumeration("phi", "phik2", "phik2k0", "all"),
+           pca_partitions=nullable(integral))
+def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all", pca_partitions=None):
     """Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -669,12 +670,14 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
 
     Parameters
     ----------
+    dataset : :class:`.MatrixTable`
+        Dataset in which to compute relatedness
     k : :obj:`int`
         The number of principal components to use to distinguish ancestries.
     maf : :obj:`float`
         The minimum individual-specific allele frequency for an allele used to
         measure relatedness.
-    path : :obj:`str`
+    path : :obj:`str` or :obj:`None`
         A temporary directory to store intermediate matrices. Storing the matrices
         to a file system is necessary for reliable execution of this method.
     block_size : :obj:`int`
@@ -691,6 +694,10 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
         kinship statistics and both identity-by-descent two and zero, `all`
         computes the kinship statistic and all three identity-by-descent
         statistics.
+    pca_partitions : :obj:`int` or :obj:`None`
+        the number of partitions to use when performing PCA, smaller is
+        better. If you are unsure how many to use, try one-tenth of the number
+        of partitions in the ``ds``
 
     Returns
     -------
@@ -701,18 +708,31 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
         The fields of the resulting :class:`.Table` entries are of types:
         `i`: ``ds.colkey_schema``, `j`: ``ds.colkey_schema``, `kin`: `Double`, `k2`: `Double`,
         `k1`: `Double`, `k0`: `Double`. The table is keyed by `i` and `j`.
+
     """
+    _, scores, _ = hwe_normalized_pca(ds if pca_partitions is None else ds.repartition(pca_partitions), k, False, True)
+
+    pc_relate_with_scores(ds, scores, maf, path, block_size, min_kinship, statistics)
+
+@handle_py4j
+@typecheck(ds=MatrixTable,
+           scores=Table,
+           maf=numeric,
+           path=nullable(strlike),
+           block_size=integral,
+           min_kinship=numeric,
+           statistics=enumeration("phi", "phik2", "phik2k0", "all"),
+           pca_partitions=nullable(integral))
+def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
     ds = require_biallelic(ds, 'pc_relate')
     ds = require_unique_samples(ds, 'pc_relate')
     ds = ds.annotate_rows(mean_gt =
-                          agg.sum(ds.GT.num_alt_alleles()) /
+                          agg.sum(ds.GT.num_alt_alleles()).to_float64() /
                           agg.count_where(functions.is_defined(ds.GT)))
 
     mean_imputed_gt = functions.or_else(ds.GT.num_alt_alleles().to_float64(), ds.mean_gt)
 
     g = BlockMatrix.from_matrix_table(mean_imputed_gt, path=path, block_size=block_size)
-
-    _, scores, _ = hwe_normalized_pca(ds, k, False, True)
 
     int_statistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
     return Table(
@@ -721,7 +741,6 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
                g._jbm,
                jarray(Env.jvm().java.lang.Object, [ds.colkey_schema._convert_to_j(x) for x in ds.col_keys()]),
                ds.colkey_schema._jtype,
-               k,
                scores._jt,
                maf,
                block_size,
