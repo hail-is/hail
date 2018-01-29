@@ -87,7 +87,7 @@ def to_expr(e):
                                   "    with aggregator functions or used with further calls to 'agg.explode'\n"
                                   "    and 'agg.filter'. They support no other operations.")
     elif isinstance(e, str) or isinstance(e, unicode):
-        return construct_expr(Literal('"{}"'.format(Env.jutils().escapePyString(e))), TString())
+        return construct_expr(Literal('"{}"'.format(escape_str(e))), TString())
     elif isinstance(e, bool):
         return construct_expr(Literal("true" if e else "false"), TBoolean())
     elif isinstance(e, int):
