@@ -5,7 +5,6 @@ from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
 from hail.genetics import GenomeReference
 from hail.methods.misc import require_biallelic
-from hail2 import default_reference
 
 
 @handle_py4j
@@ -734,6 +733,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     -------
     :class:`.MatrixTable`
     """
+    from hail2 import default_reference
     rg = reference_genome if reference_genome else default_reference()
 
     if contig_recoding:
