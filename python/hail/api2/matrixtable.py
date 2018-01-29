@@ -2501,7 +2501,6 @@ class MatrixTable(object):
 
         return MatrixTable(self._jvds.head(n))
 
-
     @handle_py4j
     @typecheck_method(parts=listof(integral), keep=bool)
     def _filter_partitions(self, parts, keep=True):

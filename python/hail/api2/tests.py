@@ -561,7 +561,6 @@ class MatrixTests(unittest.TestCase):
              (df.GT == df.entry_struct.GT)) &
              (df.AD == df.entry_struct.AD))))
 
-
     def test_filter_partitions(self):
         ds = self.get_vds(min_partitions=8)
         self.assertEqual(ds.num_partitions(), 8)
@@ -571,7 +570,7 @@ class MatrixTests(unittest.TestCase):
             ds._same(MatrixTable.union_rows(
                 ds._filter_partitions([0, 3, 7]),
                 ds._filter_partitions([0, 3, 7], keep=False))))
-            
+
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
