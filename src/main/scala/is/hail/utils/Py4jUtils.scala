@@ -113,6 +113,8 @@ trait Py4jUtils {
   }
 
   def escapePyString(s: String): String = StringEscapeUtils.escapeString(s)
+
+  def escapeIdentifier(s: String): String = prettyIdentifier(s)
 }
 
 class HadoopPyReader(in: InputStream) {
