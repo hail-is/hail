@@ -13,6 +13,8 @@ Functions
     chisq
     combine_variants
     cond
+    switch
+    case
     bind
     ctt
     dbeta
@@ -75,6 +77,8 @@ Functions
 .. autofunction:: chisq
 .. autofunction:: combine_variants
 .. autofunction:: cond
+.. autofunction:: switch
+.. autofunction:: case
 .. autofunction:: bind
 .. autofunction:: ctt
 .. autofunction:: dbeta
