@@ -307,7 +307,6 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
 
     dataset = dataset.annotate_rows(denominator = functions.sqrt(dataset.mean_gt * (2 - dataset.mean_gt) * n_variants / 2))
 
-
     entry_expr = functions.or_else((dataset.GT.num_alt_alleles() - dataset.mean_gt) /
                                    dataset.denominator,
                                    0)
