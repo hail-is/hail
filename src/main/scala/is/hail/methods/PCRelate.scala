@@ -296,9 +296,9 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
     val qr.QR(q, r) = qr.reduced(pcsWithIntercept)
 
-    val beta = blockedG.leftMultiply(q.t).leftMultiply(inv(r))
+    val halfBeta = blockedG.t.leftMultiply((inv(2.0 * r) * q.t))
 
-    (beta.leftMultiply(pcsWithIntercept) / 2.0).t
+    halfBeta.leftMultiply(pcsWithIntercept)
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
