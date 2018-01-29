@@ -728,7 +728,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
         a call automatically.
     reference_genome: :class:`.GenomeReference`, optional
         Reference genome to use. If ``None``, then the
-        :func:`.default_reference` is used.
+        :meth:`.HailContext.default_reference` is used.
     contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
         Mapping from contig name in VCF to contig name in loaded dataset.
         All contigs must be present in the `reference_genome`, so this is
