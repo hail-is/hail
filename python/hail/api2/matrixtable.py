@@ -2521,9 +2521,9 @@ class MatrixTable(object):
 
         Notes
         -----
-        The table must be keyed by a singel column.
+        The table must be keyed by a single field.
 
-        All columns in the table become row-indexed columns in the
+        All fields in the table become row-indexed fields in the
         result.
 
         Parameters
