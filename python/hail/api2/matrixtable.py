@@ -2539,40 +2539,35 @@ class MatrixTable(object):
         return MatrixTable(jmt)
 
     @handle_py4j
-    @typecheck_method(frac=numeric,
+    @typecheck_method(p=numeric,
                       seed=integral)
-    def sample_rows(self, frac, seed=1):
-        """Downsample rows to a given fraction of the dataset.
+    def sample_rows(self, p, seed=0):
+        """Downsample the dataset by keeping each row with probability ``p``.
 
         Examples
         --------
 
-        Downsample dataset to 1% of rows.
+        Downsample the dataset to approximately 1% of its rows.
 
         >>> small_dataset = dataset.sample_rows(0.01)
 
-        Notes
-        -----
-
-        This method may not sample exactly ``(fraction * n_rows)`` rows from
-        the dataset.
-
         Parameters
         ----------
-        frac : :obj:`float`
-            Expected fraction of rows to keep.
+        p : :obj:`float`
+            Probability of keeping each row.
         seed : :obj:`int`
             Random seed.
 
         Returns
         -------
         :class:`.MatrixTable`
+            Matrix with approximately ``p * num_rows`` rows.
         """
 
-        if not (0 <= frac <= 1):
-            raise ValueError("Requires 'frac' in [0,1]. Found frac={}".format(frac))
+        if not (0 <= p <= 1):
+            raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
-        return MatrixTable(self._jvds.sampleVariants(frac, seed))
+        return MatrixTable(self._jvds.sampleVariants(p, seed))
 
 
 matrix_table_type.set(MatrixTable)

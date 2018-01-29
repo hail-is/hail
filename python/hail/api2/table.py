@@ -1573,41 +1573,35 @@ class Table(TableTemplate):
         return Table(self._jt.head(n))
 
     @handle_py4j
-    @typecheck_method(frac=numeric,
+    @typecheck_method(p=numeric,
                       seed=integral)
-    def sample(self, frac, seed=1):
-        """Downsample rows to a given fraction of the table.
+    def sample(self, p, seed=0):
+        """Downsample the table by keeping each row with probability ``p``.
 
         Examples
         --------
 
-        Downsample table to 1% of rows.
+        Downsample the table to approximately 1% of its rows.
 
         >>> small_table1 = table1.sample(0.01)
 
-        Notes
-        -----
-
-        This method may not sample exactly ``(fraction * n_rows)`` rows from
-        the table.
-
         Parameters
         ----------
-        frac : :obj:`float`
-            Expected fraction of rows to keep.
+        p : :obj:`float`
+            Probability of keeping each row.
         seed : :obj:`int`
             Random seed.
 
         Returns
         -------
         :class:`.Table`
-            Table with rows downsampled to `frac`.
+            Table with approximately ``p * num_rows`` rows.
         """
 
-        if not (0 <= frac <= 1):
-            raise ValueError("Requires 'frac' in [0,1]. Found frac={}".format(frac))
+        if not (0 <= p <= 1):
+            raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
-        return Table(self._jt.sample(frac, seed))
+        return Table(self._jt.sample(p, seed))
 
     @handle_py4j
     @typecheck_method(n=integral,
