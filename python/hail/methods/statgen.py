@@ -712,7 +712,7 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
     """
     _, scores, _ = hwe_normalized_pca(ds if pca_partitions is None else ds.repartition(pca_partitions), k, False, True)
 
-    pc_relate_with_scores(ds, scores, maf, path, block_size, min_kinship, statistics)
+    return pc_relate_with_scores(ds, scores, maf, path, block_size, min_kinship, statistics)
 
 @handle_py4j
 @typecheck(ds=MatrixTable,
@@ -721,8 +721,7 @@ def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), 
            path=nullable(strlike),
            block_size=integral,
            min_kinship=numeric,
-           statistics=enumeration("phi", "phik2", "phik2k0", "all"),
-           pca_partitions=nullable(integral))
+           statistics=enumeration("phi", "phik2", "phik2k0", "all"))
 def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
     ds = require_biallelic(ds, 'pc_relate')
     ds = require_unique_samples(ds, 'pc_relate')
