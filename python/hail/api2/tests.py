@@ -58,20 +58,6 @@ class TableTests(unittest.TestCase):
                                        'foo': 5,
                                        'foo2': 4})
 
-        result2 = convert_struct_to_dict(kt.annotate(**{'a.foo': 5,
-                                                        'b.x': "hello",
-                                                        'b.y': 23,
-                                                        'b.z': True,
-                                                        'b.q.hello': [1, 2, 3]}
-                                                     ).take(1)[0])
-
-        self.assertDictEqual(result2, {'a': {'foo': 5},
-                                       'b': {'x': "hello", 'y': 23, 'z': True, 'q': {'hello': [1, 2, 3]}},
-                                       'c': 3,
-                                       'd': 5,
-                                       'e': "hello",
-                                       'f': [1, 2, 3]})
-
         result3 = convert_struct_to_dict(kt.annotate(
             x1=kt.f.map(lambda x: x * 2),
             x2=kt.f.map(lambda x: [x, x + 1]).flatmap(lambda x: x),
@@ -286,7 +272,7 @@ class TableTests(unittest.TestCase):
 
         self.assertEqual(kt.filter(kt4[kt3[kt2[kt1[kt.a].b].c].d].e == 'quam').count(), 1)
 
-        m = methods.import_vcf('src/test/resources/sample.vcf')
+        m = methods.import_vcf(test_file('sample.vcf'))
         vkt = m.rows_table()
         vkt = vkt.select(vkt.v, vkt.qual)
         vkt = vkt.annotate(qual2=m[vkt.v, :].qual)
@@ -313,6 +299,23 @@ class TableTests(unittest.TestCase):
         self.assertEqual(kt.drop('idx', 'foo').columns, ['sq', 'bar'])
         self.assertEqual(kt.drop(kt['idx'], kt['foo']).columns, ['sq', 'bar'])
 
+    def test_weird_names(self):
+        df = Table.range(10)
+        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
+
+        df.annotate_globals(**exprs)
+        df.select_globals(**exprs)
+
+        df.annotate(**exprs)
+        df.select(**exprs)
+        df = df.transmute(**exprs)
+
+        df.explode('\%!^!@#&#&$%#$%')
+        df.explode(df['\%!^!@#&#&$%#$%'])
+
+        df.drop('\%!^!@#&#&$%#$%')
+        df.drop(df['\%!^!@#&#&$%#$%'])
+        df.group_by(**{'*``81': df.a}).aggregate(c = agg.count())
 
 class MatrixTests(unittest.TestCase):
     def get_vds(self, min_partitions=None):
@@ -424,6 +427,34 @@ class MatrixTests(unittest.TestCase):
         vds = self.get_vds()
         vds = vds.drop_cols()
         self.assertEqual(vds.count_cols(), 0)
+
+    def test_weird_names(self):
+        ds = self.get_vds()
+        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
+
+        ds.annotate_globals(**exprs)
+        ds.select_globals(**exprs)
+
+        ds.annotate_cols(**exprs)
+        ds1 = ds.select_cols(**exprs)
+
+        ds.annotate_rows(**exprs)
+        ds2 = ds.select_rows(**exprs)
+
+        ds.annotate_entries(**exprs)
+        ds.select_entries(**exprs)
+
+        ds1.explode_cols('\%!^!@#&#&$%#$%')
+        ds1.explode_cols(ds1['\%!^!@#&#&$%#$%'])
+        ds1.group_cols_by(ds1.a).aggregate(**{'*``81': agg.count()})
+
+        ds1.drop('\%!^!@#&#&$%#$%')
+        ds1.drop(ds1['\%!^!@#&#&$%#$%'])
+
+        ds2.explode_rows('\%!^!@#&#&$%#$%')
+        ds2.explode_rows(ds2['\%!^!@#&#&$%#$%'])
+        ds2.group_rows_by(ds2.a).aggregate(**{'*``81': agg.count()})
+
 
     def test_joins(self):
         vds = self.get_vds().select_rows(x1=1, y1=1)

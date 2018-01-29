@@ -190,8 +190,9 @@ class Table(val hc: HailContext,
     fatal(s"Key names found that are not column names: ${ key.filterNot(columns.contains(_)).mkString(", ") }")
 
   private def rowEvalContext(): EvalContext = {
-    val ec = EvalContext((fields.map { f => f.name -> f.typ } ++
-      globalSignature.fields.map { f => f.name -> f.typ }): _*)
+    val ec = EvalContext(
+      fields.map { f => f.name -> f.typ } ++
+      globalSignature.fields.map { f => f.name -> f.typ }: _*)
     var i = 0
     while (i < globalSignature.size) {
       ec.set(i + nColumns, globals.get(i))
@@ -605,12 +606,17 @@ class Table(val hc: HailContext,
     select(selectedColumns.asScala.toArray, mangle)
 
   def drop(columnsToDrop: Array[String]): Table = {
-    val nonexistentColumns = columnsToDrop.diff(columns)
+    if (columnsToDrop.isEmpty)
+      return this
+
+    val colMapping = columns.map(c => prettyIdentifier(c) -> c).toMap
+    val escapedCols = columns.map(prettyIdentifier)
+    val nonexistentColumns = columnsToDrop.diff(escapedCols)
     if (nonexistentColumns.nonEmpty)
       fatal(s"Columns `${ nonexistentColumns.mkString(", ") }' do not exist in key table. Choose from `${ columns.mkString(", ") }'.")
 
-    val selectedColumns = columns.diff(columnsToDrop)
-    select(selectedColumns)
+    val selectedColumns = escapedCols.diff(columnsToDrop)
+    select(selectedColumns.map(colMapping(_)))
   }
 
   def drop(columnsToDrop: java.util.ArrayList[String]): Table = drop(columnsToDrop.asScala.toArray)
