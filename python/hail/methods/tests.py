@@ -523,28 +523,35 @@ class Tests(unittest.TestCase):
         self.assertEqual(glob.ancestral_af_dist, Struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95))
 
     def test_skat(self):
-        hc1 = hc._hc1
-        vds = hc1.import_vcf(test_file('sample2.vcf'))
+        ds2 = methods.import_vcf(test_file('sample2.vcf'))
 
-        covariatesSkat = hc1.import_table(test_file("skat.cov"), impute=True).key_by("Sample")
-
-        phenotypesSkat = (hc1.import_table(test_file("skat.pheno"), types={"Pheno": TFloat64()}, missing="0")
+        covariatesSkat = (methods
+                          .import_table(test_file("skat.cov"), impute=True)
                           .key_by("Sample"))
 
-        intervalsSkat = KeyTable.import_interval_list(test_file("skat.interval_list"))
+        phenotypesSkat = (methods.import_table(test_file("skat.pheno"),
+                                               types={"Pheno": TFloat64()},
+                                               missing="0")
+                          .key_by("Sample"))
 
-        weightsSkat = (hc1.import_table(test_file("skat.weights"),
-                                       types={"locus": TLocus(), "weight": TFloat64()})
-                         .key_by("locus"))
+        intervalsSkat = (methods
+                         .import_interval_list(test_file("skat.interval_list")))
 
-        skatVds = (vds.split_multi_hts()
-                   .annotate_variants_table(intervalsSkat, root="va.gene")
-                   .annotate_variants_table(weightsSkat, root="va.weight")
-                   .annotate_samples_table(phenotypesSkat, root="sa.pheno")
-                   .annotate_samples_table(covariatesSkat, root="sa.cov")
-                   .annotate_samples_expr("sa.pheno = if (sa.pheno == 1.0) false else " +
-                                          "if (sa.pheno == 2.0) true else NA: Boolean"))
-        ds = MatrixTable(skatVds._jvds)
+        weightsSkat = (methods.import_table(test_file("skat.weights"),
+                                            types={"locus": TLocus(),
+                                                   "weight": TFloat64()})
+                              .key_by("locus"))
+
+        ds = methods.split_multi_hts(ds2)
+        ds = ds.annotate_rows(gene = intervalsSkat[ds.v],
+                              weight = weightsSkat[ds.v])
+        ds = ds.annotate_columns(pheno = phenotypesSkat[ds.s],
+                                 cov = covariatesSkat[ds.s])
+        ds = ds.annotate_columns(pheno = functions.cond(ds.pheno == 1.0,
+            False,
+            functions.cond(ds.pheno == 2.0,
+                           True,
+                           None)))
 
         methods.skat(ds,
                      key_expr=ds.gene,
