@@ -2095,5 +2095,10 @@ class Table(TableTemplate):
         """
         return self.to_spark(expand, flatten).toPandas()
 
+    @handle_py4j
+    @typecheck_method(other=table_type)
+    def _same(self, other):
+        return self._jt.same(other._jt)
+
 
 table_type.set(Table)

@@ -571,6 +571,15 @@ class MatrixTests(unittest.TestCase):
                 ds._filter_partitions([0, 3, 7]),
                 ds._filter_partitions([0, 3, 7], keep=False))))
 
+    def test_from_rows_table(self):
+        ds = methods.import_vcf(test_file('sample.vcf'))
+        rt = ds.rows_table()
+        rm = MatrixTable.from_rows_table(rt)
+        # would be nice to compare rm to ds.drop_cols(), but the latter
+        # preserves the col, entry types
+        self.assertEqual(rm.count_cols(), 0)
+        self.assertTrue(rm.rows_table()._same(rt))
+
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
