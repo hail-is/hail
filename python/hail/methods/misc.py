@@ -1,6 +1,7 @@
 from decorator import decorator
 from hail.api2 import MatrixTable, Table
 from hail.utils.java import Env, handle_py4j, jarray_to_list, joption
+from hail.utils import wrap_to_list
 from hail.typecheck.check import typecheck, strlike
 from hail.expr.expression import *
 from hail.expr.ast import Reference
@@ -169,3 +170,11 @@ def rename_duplicates(dataset, name='unique_id'):
 
     return MatrixTable(dataset._jvds.renameDuplicates(name))
 
+@handle_py4j
+@typecheck(ds=MatrixTable,
+           intervals=oneof(Interval, listof(Interval)),
+           keep=bool)
+def filter_intervals(ds, intervals, keep=True):
+    intervals = wrap_to_list(intervals)
+    jmt = Env.hail().methods.FilterIntervals.apply(ds._jvds, [x._jrep for x in intervals], keep)
+    return MatrixTable(jmt)
