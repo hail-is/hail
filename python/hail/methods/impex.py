@@ -618,6 +618,100 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
 def import_plink(bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
                  missing='NA', quant_pheno=False, a2_reference=True, reference_genome=None,
                  contig_recoding={'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}, drop_chr0=False):
+    """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
+
+    Examples
+    --------
+
+    Import data from a PLINK binary file:
+
+    >>> vds = methods.import_plink(bed="data/test.bed",
+    ...                            bim="data/test.bim",
+    ...                            fam="data/test.fam")
+
+    Notes
+    -----
+
+    Only binary SNP-major mode files can be read into Hail. To convert your
+    file from individual-major mode to SNP-major mode, use PLINK to read in
+    your fileset and use the ``--make-bed`` option.
+
+    The centiMorgan position is not currently used in Hail (Column 3 in BIM
+    file).
+
+    The ID (``s``) used by Hail is the individual ID (column 2 in FAM file).
+
+    .. warning::
+
+        No duplicate individual IDs are allowed.
+
+    Annotations
+    -----------
+
+    :meth:`~hail.HailContext.import_plink` adds the following annotations:
+
+     - **va.rsid** (*String*) -- Column 2 in the BIM file.
+     - **sa.famID** (*String*) -- Column 1 in the FAM file. Set to missing if
+       ID equals "0".
+     - **sa.patID** (*String*) -- Column 3 in the FAM file. Set to missing if
+       ID equals "0".
+     - **sa.matID** (*String*) -- Column 4 in the FAM file. Set to missing if
+       ID equals "0".
+     - **sa.isFemale** (*String*) -- Column 5 in the FAM file. Set to missing
+       if value equals "-9", "0", or "N/A". Set to true if value equals "2".
+       Set to false if value equals "1".
+     - **sa.isCase** (*String*) -- Column 6 in the FAM file. Only present if
+       ``quantpheno`` equals False. Set to missing if value equals "-9", "0",
+       "N/A", or the value specified by ``missing``. Set to true if value
+       equals "2". Set to false if value equals "1".
+     - **sa.qPheno** (*String*) -- Column 6 in the FAM file. Only present if
+       ``quantpheno`` equals True. Set to missing if value equals ``missing``.
+
+    Parameters
+    ----------
+    bed : :obj:`str`
+        PLINK BED file.
+
+    bim : :obj:`str`
+        PLINK BIM file.
+
+    fam : :obj:`str`
+        PLINK FAM file.
+
+    min_partitions : :obj:`int` or :obj:`None`
+        Number of partitions.
+
+    missing : :obj:`str`
+        The string used to denote missing values **only** for the phenotype
+        field. This is in addition to "-9", "0", and "N/A" for case-control
+        phenotypes.
+
+    delimiter : :obj:`str`
+        FAM file field delimiter regex.
+
+    quant_pheno : :obj:`bool`
+    If True, FAM phenotype is interpreted as quantitative.
+
+    a2_reference : :obj:`bool`
+        If True, A2 is treated as the reference allele. If False, A1 is treated
+        as the reference allele.
+
+    reference_genome : :class:`.GenomeReference`
+        Reference genome to use. Default is
+        :class:`~.HailContext.default_reference`.
+
+    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str` (or :obj:`None`).
+        Dict of old contig name to new contig name. The new contig name must be
+        in the reference genome given by ``reference_genome``.
+
+    drop_chr0 : :obj:`bool`
+        If True, do not include variants with contig == "0".
+
+    Returns
+    -------
+    :class:`.VariantDataset`
+        Variant dataset imported from PLINK binary file.
+    """
     rg = reference_genome if reference_genome else Env.hc().default_reference
 
     if contig_recoding:

@@ -35,6 +35,7 @@ Methods
     hail.methods.import_interval_list
     hail.methods.import_bed
     hail.methods.import_fam
+    hail.methods.import_plink
     hail.methods.nirvana
     hail.methods.tdt
     hail.methods.FilterAlleles
@@ -70,6 +71,7 @@ Methods
 .. autofunction:: hail.methods.import_interval_list
 .. autofunction:: hail.methods.import_bed
 .. autofunction:: hail.methods.import_fam
+.. autofunction:: hail.methods.import_plink
 .. autofunction:: hail.methods.nirvana
 .. autofunction:: hail.methods.tdt
 .. autoclass:: hail.methods.FilterAlleles
