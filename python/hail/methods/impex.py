@@ -615,17 +615,26 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
            reference_genome=nullable(GenomeReference),
            contig_recoding=nullable(dictof(strlike, strlike)),
            drop_chr0=bool)
-def import_plink(bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
-                 missing='NA', quant_pheno=False, a2_reference=True, reference_genome=None,
-                 contig_recoding={'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}, drop_chr0=False):
-    """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
+def import_plink(bed, bim, fam,
+                 min_partitions=None,
+                 delimiter='\\\\s+',
+                 missing='NA',
+                 quant_pheno=False,
+                 a2_reference=True,
+                 reference_genome=None,
+                 contig_recoding={'23': 'X',
+                                  '24': 'Y',
+                                  '25': 'X',
+                                  '26': 'MT'},
+                 drop_chr0=False):
+    """Import PLINK binary file (BED, BIM, FAM) as a :class:`.MatrixTable`.
 
     Examples
     --------
 
     Import data from a PLINK binary file:
 
-    >>> vds = methods.import_plink(bed="data/test.bed",
+    >>> ds = methods.import_plink(bed="data/test.bed",
     ...                            bim="data/test.bim",
     ...                            fam="data/test.fam")
 
@@ -645,26 +654,26 @@ def import_plink(bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
 
         No duplicate individual IDs are allowed.
 
-    Annotations
-    -----------
+    The produced :class:`.MatrixTable` has one column-indexd field:
 
-    :meth:`~hail.HailContext.import_plink` adds the following annotations:
+     - **rsid** (*String*) -- Column 2 in the BIM file.
 
-     - **va.rsid** (*String*) -- Column 2 in the BIM file.
-     - **sa.famID** (*String*) -- Column 1 in the FAM file. Set to missing if
+    and six row-indexd fields:
+
+     - **famID** (*String*) -- Column 1 in the FAM file. Set to missing if
        ID equals "0".
-     - **sa.patID** (*String*) -- Column 3 in the FAM file. Set to missing if
+     - **patID** (*String*) -- Column 3 in the FAM file. Set to missing if
        ID equals "0".
-     - **sa.matID** (*String*) -- Column 4 in the FAM file. Set to missing if
+     - **matID** (*String*) -- Column 4 in the FAM file. Set to missing if
        ID equals "0".
-     - **sa.isFemale** (*String*) -- Column 5 in the FAM file. Set to missing
+     - **isFemale** (*String*) -- Column 5 in the FAM file. Set to missing
        if value equals "-9", "0", or "N/A". Set to true if value equals "2".
        Set to false if value equals "1".
-     - **sa.isCase** (*String*) -- Column 6 in the FAM file. Only present if
+     - **isCase** (*String*) -- Column 6 in the FAM file. Only present if
        ``quantpheno`` equals False. Set to missing if value equals "-9", "0",
        "N/A", or the value specified by ``missing``. Set to true if value
        equals "2". Set to false if value equals "1".
-     - **sa.qPheno** (*String*) -- Column 6 in the FAM file. Only present if
+     - **qPheno** (*String*) -- Column 6 in the FAM file. Only present if
        ``quantpheno`` equals True. Set to missing if value equals ``missing``.
 
     Parameters
@@ -709,16 +718,19 @@ def import_plink(bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
 
     Returns
     -------
-    :class:`.VariantDataset`
-        Variant dataset imported from PLINK binary file.
+    :class:`.MatrixTable`
+        Dataset imported from PLINK binary file.
     """
+
     rg = reference_genome if reference_genome else Env.hc().default_reference
 
     if contig_recoding:
-        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+        contig_recoding = TDict(TString(),
+                                TString())._convert_to_j(contig_recoding)
 
-    jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter,
-                                    missing, quant_pheno, a2_reference, rg._jrep,
+    jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions),
+                                    delimiter, missing, quant_pheno,
+                                    a2_reference, rg._jrep,
                                     joption(contig_recoding), drop_chr0)
 
     return MatrixTable(jmt)
@@ -729,6 +741,24 @@ def import_plink(bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
            drop_cols=bool,
            drop_rows=bool)
 def read_matrix(path, drop_cols=False, drop_rows=False):
+    """Read a `.vds` file as a :class:`.MatrixTable`
+
+    Parameters
+    ----------
+    path : :obj:`str`
+        File to read.
+
+    drop_samples : :obj:`bool`
+        If True, create sites-only dataset. Don't load sample ids, sample
+        annotations or gneotypes.
+
+    drop_variants : :obj:`bool`
+        If True, create samples-only dataset (no variants or genotypes).
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
     return MatrixTable(Env.hc()._jhc.read(path, drop_cols, drop_rows))
 
 
@@ -929,4 +959,15 @@ def index_bgen(path):
 @handle_py4j
 @typecheck(path=strlike)
 def read_table(path):
+    """Read a `.kt` file as a :class:`.Table`.
+
+    Parameters
+    ----------
+    path : :obj:`str`
+        File to read.
+
+    Returns
+    -------
+    :class:`.Table`
+    """
     Table(Env.hc()._jhc.readTable(path))

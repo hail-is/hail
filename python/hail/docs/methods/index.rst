@@ -32,6 +32,8 @@ Methods
     hail.methods.export_solr
     hail.methods.export_vcf
     hail.methods.concordance
+    hail.methods.read_matrix
+    hail.methods.read_table
     hail.methods.import_interval_list
     hail.methods.import_bed
     hail.methods.import_fam
@@ -68,6 +70,8 @@ Methods
 .. autofunction:: hail.methods.export_solr
 .. autofunction:: hail.methods.export_vcf
 .. autofunction:: hail.methods.concordance
+.. autofunction:: hail.methods.read_matrix
+.. autofunction:: hail.methods.read_table
 .. autofunction:: hail.methods.import_interval_list
 .. autofunction:: hail.methods.import_bed
 .. autofunction:: hail.methods.import_fam
