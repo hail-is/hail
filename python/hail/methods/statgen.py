@@ -964,7 +964,7 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
            iterations=integral)
 def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
          max_size=46340, accuracy=1e-6, iterations=10000):
-    r"""Test each keyed group of variants for association by linear or logistic
+    r"""Test each keyed group of rows for association by linear or logistic
     SKAT test.
 
     Examples
@@ -991,9 +991,9 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
 
     .. caution::
 
-       To process a group with :math:`m` variants, several copies of an
+       To process a group with :math:`m` rows, several copies of an
        :math:`m \times m` matrix of doubles must fit in worker memory. Groups
-       with tens of thousands of variants may exhaust worker memory causing the
+       with tens of thousands of rows may exhaust worker memory causing the
        entire job to fail. In this case, use the `max_size` parameter to skip
        groups larger than `max_size`.
 
@@ -1005,46 +1005,47 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
     <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
-    The test is run on complete samples (i.e., phenotype and all covariates
-    non-missing). For each variant, missing input values are imputed as the
-    mean of all non-missing input values.
+    The test is run on columns with `y` and all `covariates` non-missing. For
+    each row, missing input (`x`) values are imputed as the mean of all
+    non-missing input values.
 
-    Variant weights must be non-negative. Variants with missing weights are
-    ignored. In the R package ``skat``, default weights are given by evaluating
-    the Beta(1, 25) density at the minor allele frequency. To replicate these
-    weights in Hail using alternate allele frequencies stored in a row-indexd
-    field `AF`, one can use the expression:
+    Row weights must be non-negative. Rows with missing weights are ignored. In
+    the R package ``skat``---which assumes rows are variants---default weights
+    are given by evaluating the Beta(1, 25) density at the minor allele
+    frequency. To replicate these weights in Hail using alternate allele
+    frequencies stored in a row-indexd field `AF`, one can use the expression:
 
-    .. testsetup:: *
+    .. testsetup::
 
         ds2 = methods.variant_qc(dataset)
+        ds2 = ds2.select_rows(AF = ds2.variant_qc.AF)
 
     .. doctest::
 
-        >>> functions.dbeta(ds2.variant_qc.AF.min(1 - ds2.variant_qc.AF),
+        >>> functions.dbeta(ds2.AF.min(1 - ds2.AF),
         ...                 1.0, 25.0) ** 2
 
-    In the logistic case, the phenotype must either be numeric (with all
+    In the logistic case, the response `y` must either be numeric (with all
     present values 0 or 1) or Boolean, in which case true and false are coded
     as 1 and 0, respectively.
 
     The resulting :class:`.Table` provides the group's key, the size (number of
-    variants) in the group, the variance component score ``qstat``, the SKAT
+    rows) in the group, the variance component score ``qstat``, the SKAT
     p-value, and a fault flag. For the toy example above, the table has the
     form:
 
-    +------+------+-------+-------+-------+
-    |  key | size | qstat | pval  | fault |
-    +======+======+=======+=======+=======+
-    | geneA|   2  | 4.136 | 0.205 |   0   |
-    +------+------+-------+-------+-------+
-    | geneB|   1  | 5.659 | 0.195 |   0   |
-    +------+------+-------+-------+-------+
-    | geneC|   3  | 4.122 | 0.192 |   0   |
-    +------+------+-------+-------+-------+
+    +-------+------+-------+-------+-------+
+    |  key  | size | qstat | pval  | fault |
+    +=======+======+=======+=======+=======+
+    | geneA |   2  | 4.136 | 0.205 |   0   |
+    +-------+------+-------+-------+-------+
+    | geneB |   1  | 5.659 | 0.195 |   0   |
+    +-------+------+-------+-------+-------+
+    | geneC |   3  | 4.122 | 0.192 |   0   |
+    +-------+------+-------+-------+-------+
 
     Groups larger than `max_size` appear with missing ``qstat``, ``pval``, and
-    ``fault``. The hard limit on the number of variants in a group is 46340.
+    ``fault``. The hard limit on the number of rows in a group is 46340.
 
     Note that the variance component score ``qstat`` agrees with ``Q`` in the R
     package ``skat``, but both differ from :math:`Q` in the paper by the factor
@@ -1078,9 +1079,9 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     Parameters
     ----------
     key_expr : :class:`.Expression`
-        Row-indexed expression for key associated to each variant.
+        Row-indexed expression for key associated to each row.
     weight_expr : :class:`.NumericExpression`
-        Row-indexed expression of numeric type for variant weights.
+        Row-indexed expression of numeric type for row weights.
     y : :class:`.NumericExpression` or :class:`.BooleanExpression`
         Column-indexed response expression.
     x : :class:`.NumericExpression`

@@ -401,13 +401,13 @@ def dbeta(x, a, b):
 
     Parameters
     ----------
-    x : float or :class:`.Float64Expression`
+    x : :obj:`float` or :class:`.Float64Expression`
         Point in [0,1] at which to sample. If a < 1 then x must be positive.
         If b < 1 then x must be less than 1.
-    a : float or :class:`.Float64Expression`
+    a : :obj:`float` or :class:`.Float64Expression`
         The alpha parameter in the beta distribution. The result is undefined
         for non-positive a.
-    b : float or :class:`.Float64Expression`
+    b : :obj:`float` or :class:`.Float64Expression`
         The beta parameter in the beta distribution. The result is undefined
         for non-positive b.
     """
@@ -426,11 +426,11 @@ def dpois(x, lamb, log_p=False):
 
     Parameters
     ----------
-    x : float or :class:`.Float64Expression`
+    x : :obj:`float` or :class:`.Float64Expression`
         Non-negative number at which to compute the probability density.
-    lamb : float or :class:`.Float64Expression`
+    lamb : :obj:`float` or :class:`.Float64Expression`
         Poisson rate parameter. Must be non-negative.
-    log_p : bool or :class:`.BooleanExpression`
+    log_p : :obj:`bool` or :class:`.BooleanExpression`
         If true, the natural logarithm of the probability density is returned.
 
     Returns
@@ -686,7 +686,7 @@ def pl_dosage(pl):
 
     Parameters
     ----------
-    pl : :obj:`.ArrayInt32Expression`
+    pl : :class:`.ArrayInt32Expression`
         Length 3 list of bi-allelic Phred-scaled genotype likelihoods
 
     Returns

@@ -1100,10 +1100,11 @@ class Table(TableTemplate):
                 len(self.key), len(exprs)))
 
         if len(exprs) == 1 and exprs[0]._type == TVariant():
+            rg = exprs[0]._type._rg
             key_type = self[self.key[0]]._type
-            if not (key_type == TVariant() or
-                    key_type == TLocus() or
-                    key_type == TInterval(TLocus())):
+            if not (key_type == TVariant(rg) or
+                    key_type == TLocus(rg) or
+                    key_type == TInterval(TLocus(rg))):
                 raise ExpressionException(
                     'Type mismatch: expected key type TVariant(), TLocus(), '
                     'or TInterval(TLocus()), found {}'.format(key_type))
