@@ -7,6 +7,8 @@ Methods
 .. autosummary::
 
     hail.methods.linreg
+    hail.methods.logreg
+    hail.methods.lmmreg
     hail.methods.sample_rows
     hail.methods.sample_qc
     hail.methods.variant_qc
@@ -38,6 +40,8 @@ Methods
     hail.methods.min_rep
 
 .. autofunction:: hail.methods.linreg
+.. autofunction:: hail.methods.logreg
+.. autofunction:: hail.methods.lmmreg
 .. autofunction:: hail.methods.sample_rows
 .. autofunction:: hail.methods.sample_qc
 .. autofunction:: hail.methods.variant_qc
