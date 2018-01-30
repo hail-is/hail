@@ -62,7 +62,7 @@ object BaldingNicholsModel {
     val N = nSamples
     val M = nVariants
     val K = nPops
-    val popDist = DenseVector(popDistArray)
+    val popDist = DenseVector(popDistArray.clone())
     val FstOfPop = DenseVector(FstOfPopArray)
 
     info(s"balding_nichols_model: generating genotypes for $K populations, $N samples, and $M variants...")
