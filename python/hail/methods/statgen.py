@@ -1992,8 +1992,9 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     seed : :obj:`int`
         Random seed.
     reference_genome : :class:`.GenomeReference`, optional
-        The row key will have type `TVariant(reference_genome)`.
         Reference genome to use. Default is :class:`~.HailContext.default_reference`.
+        The row key will have type `TVariant(reference_genome)`.
+
 
     Returns
     -------

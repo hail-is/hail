@@ -289,7 +289,7 @@ class Tests(unittest.TestCase):
         manual = direct_calculation(dataset)
         rrm = hail_calculation(dataset)
 
-        # self.assertTrue(np.allclose(manual, rrm))
+        self.assertTrue(np.allclose(manual, rrm))
 
     def test_pca(self):
         dataset = methods.balding_nichols_model(3, 100, 100)
