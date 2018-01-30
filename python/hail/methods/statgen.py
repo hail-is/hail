@@ -1859,16 +1859,17 @@ def rrm(call_expr):
 def balding_nichols_model(num_populations, num_samples, num_variants, num_partitions=None,
                           pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                           seed=0, reference_genome=None):
-    r"""Generate a synthetic variant dataset using the Balding-Nichols model.
+    r"""Generate a matrix table of variants, samples, and genotypes using the
+    Balding-Nichols model.
 
     Examples
     --------
-    Generate a dataset with 3 populations, 100 samples in total, and 1000
-    variants:
+    Generate a matrix table of genotypes with 1000 variants and 100 samples
+    across 3 populations:
 
     >>> ds = methods.balding_nichols_model(3, 100, 1000)
 
-    Generate a dataset with 4 populations, 40 samples, 150 variants, 3
+    Generate a matrix table using 4 populations, 40 samples, 150 variants, 3
     partitions, population distribution ``[0.1, 0.2, 0.3, 0.4]``,
     :math:`F_{ST}` values ``[.02, .06, .04, .12]``, ancestral allele
     frequencies drawn from a truncated beta distribution with ``a = 0.01`` and
@@ -1884,14 +1885,14 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Notes
     -----
-    This method simulates a variant dataset using the Balding-Nichols model,
-    which we now define.
+    This method simulates a matrix table of variants, samples, and genotypes
+    using the Balding-Nichols model, which we now define.
 
     - :math:`K` populations are labeled by integers 0, 1, ..., K - 1.
     - :math:`N` samples are labeled by strings 0, 1, ..., N - 1.
     - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ...,
       ``1:M:A:C``.
-    - The default population distribution :math:`\pi` is uniform.
+    - The default distribution for population assignment :math:`\pi` is uniform.
     - The default ancestral frequency distribution :math:`P_0` is uniform on
       ``[0.1, 0.9]``. Other options are :class:`.UniformDist`,
       :class:`.BetaDist`, and :class:`.TruncatedBetaDist`.
@@ -1901,11 +1902,11 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     The Balding-Nichols model models genotypes of individuals from a structured
     population comprising :math:`K` homogeneous modern populations that have
     each diverged from a single ancestral population (a `star phylogeny`). Each
-    sample is assigned a populations by sampling from the categorical
+    sample is assigned a population by sampling from the categorical
     distribution :math:`\pi`. Note that the actual size of each population is
     random.
 
-    Variants are bi-allelic, unphased, and unlinked. Ancestral allele
+    Variants are modeled as bi-allelic and unlinked. Ancestral allele
     frequencies are drawn independently for each variant from a frequency
     spectrum :math:`P_0`. The extent of genetic drift of each modern population
     from the ancestral population is defined by the corresponding :math:`F_{ST}`
@@ -1917,11 +1918,11 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     :math:`F_{ST}` parameter. The beta distribution gives a continuous
     approximation of the effect of genetic drift. We denote sample population
     assignments by :math:`k_n`, ancestral allele frequencies by :math:`p_m`,
-    population allele frequencies by :math:`p_{k, m}`, and genotype calls by
-    :math:`g_{n, m}` (0, 1, and 2 correspond to homozygous reference,
-    heterozygous, and homozygous variant, respectively).
+    population allele frequencies by :math:`p_{k, m}`, and diploid, unphased
+    genotype calls by :math:`g_{n, m}` (0, 1, and 2 correspond to homozygous
+    reference, heterozygous, and homozygous variant, respectively).
     
-    The generative model in then given by:
+    The generative model is then given by:
 
     .. math::
         k_n \,&\sim\, \pi
@@ -1975,14 +1976,14 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
         Total number of samples.
     num_variants : :obj:`int`
         Number of variants.
-    num_partitions : :obj:`int` or ``None``
+    num_partitions : :obj:`int`, optional
         Number of partitions.
         Default is 1 partition per million entries or 8, whichever is larger.
-    pop_dist : :obj:`list` of :obj:`float`, or ``None``
+    pop_dist : :obj:`list` of :obj:`float`, optional
         Unnormalized population distribution, a list of length
         ``num_populations`` with non-negative values.
         Default is ``[1, ..., 1]``.
-    fst : :obj:`list` of :obj:`float`, or ``None``
+    fst : :obj:`list` of :obj:`float`, optional
         :math:`F_{ST}` values, a list of length ``num_populations`` with values
         in (0, 1). Default is ``[0.1, ..., 0.1]``.
     af_dist : :class:`.UniformDist` or :class:`.BetaDist` or :class:`.TruncatedBetaDist`
@@ -1990,15 +1991,16 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
         Default is ``UniformDist(0.1, 0.9)``.
     seed : :obj:`int`
         Random seed.
-    reference_genome : :class:`.GenomeReference` or ``None``
+    reference_genome : :class:`.GenomeReference`, optional
+        The row key will have type `TVariant(reference_genome)`.
         Reference genome to use. Default is :class:`~.HailContext.default_reference`.
 
     Returns
     -------
     :class:`.MatrixTable`
-        Simulated variant dataset.
+        Simulated matrix table of variants, samples, and genotypes.
     """
-    
+
     if pop_dist is None:
         jvm_pop_dist_opt = joption(pop_dist)
     else:
@@ -2010,7 +2012,7 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
         jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
 
     rg = reference_genome if reference_genome else Env.hc().default_reference
-    
+
     jmt = Env.hc()._jhc.baldingNicholsModel(num_populations, num_samples, num_variants,
                                             joption(num_partitions),
                                             jvm_pop_dist_opt,

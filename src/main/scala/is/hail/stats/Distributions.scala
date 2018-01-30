@@ -42,7 +42,7 @@ class TruncatedBeta(a: Double, b: Double, min: Double, max: Double)(randBasis: R
     fatal(s"min $min must be at least 0")
 
   if(max > 1)
-    fatal(s"max $min must be at most 1")
+    fatal(s"max $max must be at most 1")
 
   private val beta = new Beta(a, b)(randBasis)
 
