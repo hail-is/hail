@@ -259,7 +259,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
   def apply(uncachedBlockedG: M, pcs: DenseMatrix[Double], statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
     val blockedG = uncachedBlockedG.cache()
-    val preMu = this.mu(blockedG, pcs)
+    val preMu = this.mu(blockedG, pcs).cache()
     val mu = (BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         Double.NaN
@@ -298,7 +298,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
     val halfBeta = blockedG.t.leftMultiply(inv(2.0 * r) * q.t)
 
-    halfBeta.leftMultiply(pcsWithIntercept).cache()
+    halfBeta.leftMultiply(pcsWithIntercept).t
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
