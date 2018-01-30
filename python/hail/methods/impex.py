@@ -635,8 +635,8 @@ def import_plink(bed, bim, fam,
     Import data from a PLINK binary file:
 
     >>> ds = methods.import_plink(bed="data/test.bed",
-    ...                            bim="data/test.bim",
-    ...                            fam="data/test.fam")
+    ...                           bim="data/test.bim",
+    ...                           fam="data/test.fam")
 
     Notes
     -----
@@ -645,36 +645,41 @@ def import_plink(bed, bim, fam,
     file from individual-major mode to SNP-major mode, use PLINK to read in
     your fileset and use the ``--make-bed`` option.
 
-    The centiMorgan position is not currently used in Hail (Column 3 in BIM
-    file).
+    Hail ignores the centimorgan position (Column 3 in BIM file).
 
-    The ID (``s``) used by Hail is the individual ID (column 2 in FAM file).
+    Hail uses the individual ID (column 2 in FAM file) as the sample id (`s`).
+    The individual IDs must be unique.
 
-    .. warning::
+    The resulting :class:`.MatrixTable` has the following fields:
 
-        No duplicate individual IDs are allowed.
+    * Row fields:
 
-    The produced :class:`.MatrixTable` has one column-indexd field:
+        * **s** (*String*) -- Column 2 in the Fam file.
+        * **fam_id** (*String*) -- Column 1 in the FAM file. Set to missing if
+          ID equals "0".
+        * **pat_id** (*String*) -- Column 3 in the FAM file. Set to missing if
+          ID equals "0".
+        * **mat_id** (*String*) -- Column 4 in the FAM file. Set to missing if
+          ID equals "0".
+        * **is_female** (*String*) -- Column 5 in the FAM file. Set to missing
+          if value equals "-9", "0", or "N/A". Set to true if value equals "2".
+          Set to false if value equals "1".
+        * **is_case** (*String*) -- Column 6 in the FAM file. Only present if
+          ``quant_pheno`` equals False. Set to missing if value equals "-9",
+          "0", "N/A", or the value specified by ``missing``. Set to true if
+          value equals "2". Set to false if value equals "1".
+        * **quant_pheno** (*String*) -- Column 6 in the FAM file. Only present
+          if ``quantpheno`` equals True. Set to missing if value equals
+          ``missing``.
 
-     - **rsid** (*String*) -- Column 2 in the BIM file.
+    * Column fields:
 
-    and six row-indexd fields:
+        * **v** (*Variant*)
+        * **rsid** (*String*) -- Column 2 in the BIM file.
 
-     - **famID** (*String*) -- Column 1 in the FAM file. Set to missing if
-       ID equals "0".
-     - **patID** (*String*) -- Column 3 in the FAM file. Set to missing if
-       ID equals "0".
-     - **matID** (*String*) -- Column 4 in the FAM file. Set to missing if
-       ID equals "0".
-     - **isFemale** (*String*) -- Column 5 in the FAM file. Set to missing
-       if value equals "-9", "0", or "N/A". Set to true if value equals "2".
-       Set to false if value equals "1".
-     - **isCase** (*String*) -- Column 6 in the FAM file. Only present if
-       ``quantpheno`` equals False. Set to missing if value equals "-9", "0",
-       "N/A", or the value specified by ``missing``. Set to true if value
-       equals "2". Set to false if value equals "1".
-     - **qPheno** (*String*) -- Column 6 in the FAM file. Only present if
-       ``quantpheno`` equals True. Set to missing if value equals ``missing``.
+    * Entry fields:
+
+        * **GT** (*Call*)
 
     Parameters
     ----------
@@ -687,19 +692,19 @@ def import_plink(bed, bim, fam,
     fam : :obj:`str`
         PLINK FAM file.
 
-    min_partitions : :obj:`int` or :obj:`None`
+    min_partitions : :obj:`int`, optional
         Number of partitions.
 
     missing : :obj:`str`
-        The string used to denote missing values **only** for the phenotype
-        field. This is in addition to "-9", "0", and "N/A" for case-control
+        String used to denote missing values **only** for the phenotype field.
+        This is in addition to "-9", "0", and "N/A" for case-control
         phenotypes.
 
     delimiter : :obj:`str`
         FAM file field delimiter regex.
 
     quant_pheno : :obj:`bool`
-    If True, FAM phenotype is interpreted as quantitative.
+        If true, FAM phenotype is interpreted as quantitative.
 
     a2_reference : :obj:`bool`
         If True, A2 is treated as the reference allele. If False, A1 is treated
@@ -709,17 +714,17 @@ def import_plink(bed, bim, fam,
         Reference genome to use. Default is
         :class:`~.HailContext.default_reference`.
 
-    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str` (or :obj:`None`).
+    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
         in the reference genome given by ``reference_genome``.
 
     drop_chr0 : :obj:`bool`
-        If True, do not include variants with contig == "0".
+        If true, do not include variants with contig == "0".
 
     Returns
     -------
     :class:`.MatrixTable`
-        Dataset imported from PLINK binary file.
+        Dataset imported from PLINK files.
     """
 
     rg = reference_genome if reference_genome else Env.hc().default_reference
@@ -740,7 +745,7 @@ def import_plink(bed, bim, fam,
 @typecheck(path=oneof(strlike, listof(strlike)),
            drop_cols=bool,
            drop_rows=bool)
-def read_matrix(path, drop_cols=False, drop_rows=False):
+def read_matrix_table(path):
     """Read a `.vds` file as a :class:`.MatrixTable`
 
     Parameters
@@ -748,18 +753,11 @@ def read_matrix(path, drop_cols=False, drop_rows=False):
     path : :obj:`str`
         File to read.
 
-    drop_samples : :obj:`bool`
-        If True, create sites-only dataset. Don't load sample ids, sample
-        annotations or gneotypes.
-
-    drop_variants : :obj:`bool`
-        If True, create samples-only dataset (no variants or genotypes).
-
     Returns
     -------
     :class:`.MatrixTable`
     """
-    return MatrixTable(Env.hc()._jhc.read(path, drop_cols, drop_rows))
+    return MatrixTable(Env.hc()._jhc.read(path, False, False))
 
 
 @handle_py4j
