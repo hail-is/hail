@@ -306,9 +306,9 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
       if (mu.isNaN) 0.0 else g - mu * 2.0
     } (g, mu)
 
-    val stddev = variance.map(math.sqrt)
+    val twiceStdDev = variance.map(x => 2 * math.sqrt(x))
 
-    (gram(centeredG) :/ gram(stddev)) / 4.0
+    gram(centeredG) :/ gram(twiceStdDev)
   }
 
   private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
