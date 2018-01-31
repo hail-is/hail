@@ -24,6 +24,16 @@ if sys.version_info >= (3, 0) or sys.version_info <= (2, 6):
     raise EnvironmentError('Hail requires Python 2.7, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
 
+
+def default_reference():
+    """Return the default reference genome.
+
+    Returns
+    -------
+    :class:`.GenomeReference`
+    """
+    return Env.hc().default_reference
+
 __all__ = ['init',
            'stop',
            'default_reference',

@@ -32,3 +32,10 @@ Use ``from hail import *`` to access this functionality.
     utils <utils/index>
     linalg <linalg/index>
     stats <stats/index>
+
+.. rubric:: Functions
+
+.. toctree::
+    :maxdepth: 1
+
+.. autofunction:: hail2.default_reference
