@@ -742,9 +742,7 @@ def import_plink(bed, bim, fam,
 
 
 @handle_py4j
-@typecheck(path=oneof(strlike, listof(strlike)),
-           drop_cols=bool,
-           drop_rows=bool)
+@typecheck(path=oneof(strlike, listof(strlike)))
 def read_matrix_table(path):
     """Read a `.vds` file as a :class:`.MatrixTable`
 
