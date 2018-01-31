@@ -1954,7 +1954,7 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Row fields:
 
-    - **v** (*Variant*) - Variant (key field).
+    - **v** (:class:`.TVariant`) -- Variant (key field).
     - **ancestral_af** (*Float64*) -- Ancestral allele frequency.
     - **af** (*Array[Float64]*) -- Modern allele frequencies indexed by
       population.
@@ -1966,7 +1966,7 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Entry field:
 
-    - **GT** (*Call*) -- Genotype call (unphased, diploid).
+    - **GT** (:class:`.TCall`) -- Genotype call (diploid, unphased).
 
     Parameters
     ----------

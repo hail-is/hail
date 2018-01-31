@@ -502,7 +502,7 @@ class Tests(unittest.TestCase):
         from hail.stats import TruncatedBetaDist
 
         ds = methods.balding_nichols_model(2, 20, 25, 3,
-                 pop_dist=[1, 2],
+                 pop_dist=[1.0, 2.0],
                  fst=[.02, .06],
                  af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=0.95),
                  seed=1)
