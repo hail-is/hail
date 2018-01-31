@@ -9,6 +9,7 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.HailContext
 import is.hail.variant.{HardCallView, MatrixTable, Variant}
+import org.apache.spark.storage.StorageLevel
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
@@ -91,7 +92,7 @@ object PCRelate {
 
     vds.requireUniqueSamples("pc_relate")
     val g = vdsToMeanImputedMatrix(vds)
-    val blockedG = BlockMatrix.from(g, blockSize).cache()
+    val blockedG = BlockMatrix.from(g, blockSize).persist(StorageLevel.MEMORY_AND_DISK)
 
     apply(vds.hc, blockedG, vds.sampleIds.toArray, vds.sSignature, pcaScores, maf, blockSize, minKinship, statistics)
   }
@@ -106,7 +107,7 @@ object PCRelate {
 
     vds.requireUniqueSamples("pc_relate")
     val g = vdsToMeanImputedMatrix(vds)
-    val blockedG = BlockMatrix.from(g, blockSize).cache()
+    val blockedG = BlockMatrix.from(g, blockSize).persist(StorageLevel.MEMORY_AND_DISK)
 
     apply(vds.hc, blockedG, vds.sampleIds.toArray, vds.sSignature, pcs, maf, blockSize, minKinship, statistics)
   }
@@ -253,28 +254,28 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     gt != 0.0 && gt != 1.0 && gt != 2.0
 
   private def gram(m: M): M = {
-    val mc = m.cache()
+    val mc = m.persist(StorageLevel.MEMORY_AND_DISK)
     mc.t * mc
   }
 
   def apply(uncachedBlockedG: M, pcs: DenseMatrix[Double], statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
-    val blockedG = uncachedBlockedG.cache()
-    val preMu = this.mu(blockedG, pcs).cache()
+    val blockedG = uncachedBlockedG.persist(StorageLevel.MEMORY_AND_DISK)
+    val preMu = this.mu(blockedG, pcs).persist(StorageLevel.MEMORY_AND_DISK)
     val mu = (BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         Double.NaN
       else
         mu
-    } (blockedG, preMu)).cache()
-    val variance = mu.map(mu => if (mu.isNaN()) 0.0 else mu * (1.0 - mu)).cache()
-    val phi = this.phi(mu, variance, blockedG).cache()
+    } (blockedG, preMu)).persist(StorageLevel.MEMORY_AND_DISK)
+    val variance = mu.map(mu => if (mu.isNaN()) 0.0 else mu * (1.0 - mu)).persist(StorageLevel.MEMORY_AND_DISK)
+    val phi = this.phi(mu, variance, blockedG).persist(StorageLevel.MEMORY_AND_DISK)
 
     if (statistics >= PhiK2) {
-      val k2 = this.k2(phi, mu, variance, blockedG).cache()
+      val k2 = this.k2(phi, mu, variance, blockedG).persist(StorageLevel.MEMORY_AND_DISK)
       if (statistics >= PhiK2K0) {
-        val k0 = this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize)).cache()
+        val k0 = this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize)).persist(StorageLevel.MEMORY_AND_DISK)
         if (statistics >= PhiK2K0K1) {
-          val k1 = (1.0 - (k2 :+ k0)).cache()
+          val k1 = (1.0 - (k2 :+ k0)).persist(StorageLevel.MEMORY_AND_DISK)
           Result(phi, k0, k1, k2)
         } else
           Result(phi, k0, null, k2)
@@ -315,14 +316,14 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val homalt =
       BlockMatrix.map2 { (g, mu) =>
         if (mu.isNaN || g != 2.0) 0.0 else 1.0
-      } (g, mu).cache()
+      } (g, mu).persist(StorageLevel.MEMORY_AND_DISK)
 
     val homref =
       BlockMatrix.map2 { (g, mu) =>
         if (mu.isNaN || g != 0.0) 0.0 else 1.0
-      } (g, mu).cache()
+      } (g, mu).persist(StorageLevel.MEMORY_AND_DISK)
 
-    val temp = (homalt.t * homref).cache()
+    val temp = (homalt.t * homref).persist(StorageLevel.MEMORY_AND_DISK)
 
     temp :+ temp.t
   }
