@@ -43,7 +43,7 @@ object PCRelate {
     minKinship: Double,
     statistics: PCRelate.StatisticSubset): Table = {
 
-    val result = new PCRelate(maf, blockSize)(blockedG, pcs, statistics)
+    val result = new PCRelate(maf, blockSize, statistics)(blockedG, pcs)
 
     PCRelate.toTable(hc, result, columnKeys, columnKeyType, blockSize, minKinship, statistics)
   }
@@ -241,7 +241,7 @@ object PCRelate {
   }
 }
 
-class PCRelate(maf: Double, blockSize: Int) extends Serializable {
+class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset) extends Serializable {
   import PCRelate._
 
   require(maf >= 0.0)
@@ -258,17 +258,21 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     mc.t * mc
   }
 
-  def apply(uncachedBlockedG: M, pcs: DenseMatrix[Double], statistics: StatisticSubset = defaultStatisticSubset): Result[M] = {
-    val blockedG = uncachedBlockedG.persist(StorageLevel.MEMORY_AND_DISK)
-    val preMu = this.mu(blockedG, pcs).persist(StorageLevel.MEMORY_AND_DISK)
+ private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
+    if (statistics >= statisticsLevel) m.cache() else m
+
+  def apply(blockedG: M, pcs: DenseMatrix[Double]): Result[M] = {
+    val preMu = this.mu(blockedG, pcs)
     val mu = (BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         Double.NaN
       else
         mu
-    } (blockedG, preMu)).persist(StorageLevel.MEMORY_AND_DISK)
-    val variance = mu.map(mu => if (mu.isNaN()) 0.0 else mu * (1.0 - mu)).persist(StorageLevel.MEMORY_AND_DISK)
-    val phi = this.phi(mu, variance, blockedG).persist(StorageLevel.MEMORY_AND_DISK)
+   } (blockedG, preMu)).cache()
+    val variance = cacheWhen(PhiK2)(
+      mu.map(mu => if (mu.isNaN()) 0.0 else mu * (1.0 - mu)))
+    val phi = cacheWhen(PhiK2)(
+      this.phi(mu, variance, blockedG))
 
     if (statistics >= PhiK2) {
       val k2 = this.k2(phi, mu, variance, blockedG).persist(StorageLevel.MEMORY_AND_DISK)
