@@ -1941,32 +1941,32 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
 
     Global fields:
 
-    - **num_populations** (*Int32*) -- Number of populations.
-    - **num_samples** (*Int32*) -- Number of samples.
-    - **num_variants** (*Int32*) -- Number of variants.
-    - **pop_dist** (*Array[Float64]*) -- Population distribution indexed by
+    - `num_populations` (:class:`.TInt32`) -- Number of populations.
+    - `num_samples` (:class:`.TInt32`) -- Number of samples.
+    - `num_variants` (:class:`.TInt32`) -- Number of variants.
+    - `pop_dist` (:class:`.TArray` of :class:`.TFloat64`) -- Population distribution indexed by
       population.
-    - **fst** (*Array[Float64]*) -- :math:`F_{ST}` values indexed by
+    - `fst` (:class:`.TArray` of :class:`.TFloat64`) -- :math:`F_{ST}` values indexed by
       population.
-    - **ancestral_af_dist** (*Struct*) -- Description of the ancestral allele
+    - `ancestral_af_dist` (:class:`.TStruct`) -- Description of the ancestral allele
       frequency distribution.
-    - **seed** (*Int32*) -- Random seed.
+    - `seed` (:class:`.TInt32`) -- Random seed.
 
     Row fields:
 
-    - **v** (:class:`.TVariant`) -- Variant (key field).
-    - **ancestral_af** (*Float64*) -- Ancestral allele frequency.
-    - **af** (*Array[Float64]*) -- Modern allele frequencies indexed by
+    - `v` (:class:`.TVariant`) -- Variant (key field).
+    - `ancestral_af` (:class:`.TFloat64`) -- Ancestral allele frequency.
+    - `af` (:class:`.TArray` of :class:`.TFloat64`) -- Modern allele frequencies indexed by
       population.
 
     Column fields:
 
-    - **s** (*String*) - Sample ID (key field).
-    - **pop** (*Int32*) -- Population of sample.
+    - `s` (:class:`.TString`) - Sample ID (key field).
+    - `pop` (:class:`.TInt32`) -- Population of sample.
 
-    Entry field:
+    Entry fields:
 
-    - **GT** (:class:`.TCall`) -- Genotype call (diploid, unphased).
+    - `GT` (:class:`.TCall`) -- Genotype call (diploid, unphased).
 
     Parameters
     ----------
@@ -1995,7 +1995,6 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
         Reference genome to use. Default is :class:`~.HailContext.default_reference`.
         The row key will have type `TVariant(reference_genome)`.
 
-
     Returns
     -------
     :class:`.MatrixTable`
@@ -2012,7 +2011,8 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     else:
         jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
 
-    rg = reference_genome if reference_genome else Env.hc().default_reference
+    from hail2 import default_reference
+    rg = reference_genome if reference_genome else default_reference()
 
     jmt = Env.hc()._jhc.baldingNicholsModel(num_populations, num_samples, num_variants,
                                             joption(num_partitions),
