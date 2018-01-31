@@ -133,7 +133,7 @@ case class MatrixType(
 
     val space: String = if (compact) "" else " "
 
-    def newline(extra: Int = 0) {
+    def newline() {
       if (!compact) {
         sb += '\n'
         sb.append(" " * indent)

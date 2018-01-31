@@ -42,7 +42,7 @@ case class TableType(rowType: TStruct, key: Array[String], globalType: TStruct) 
     newline()
 
     sb.append(s"key:$space[")
-    key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+    key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(",$space"))
     sb += ']'
     sb += ','
     newline()
