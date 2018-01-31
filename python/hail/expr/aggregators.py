@@ -743,22 +743,22 @@ def inbreeding(expr, prior):
 
         >>> dataset_result = dataset.annotate_cols(IB = agg.inbreeding(dataset.GT, dataset.variant_qc.AF))
         >>> dataset_result.cols_table().show()
-        +----------------+--------------+-----------+------------+-----------------+-----------------+
-        | s              |     IB.Fstat | IB.nTotal | IB.nCalled | IB.expectedHoms | IB.observedHoms |
-        +----------------+--------------+-----------+------------+-----------------+-----------------+
-        | String         |      Float64 |     Int64 |      Int64 |         Float64 |           Int64 |
-        +----------------+--------------+-----------+------------+-----------------+-----------------+
-        | C1046::HG02024 | -1.23867e-01 |       338 |        338 |     2.96180e+02 |             291 |
-        | C1046::HG02025 |  2.02944e-02 |       339 |        339 |     2.97151e+02 |             298 |
-        | C1046::HG02026 |  5.47269e-02 |       336 |        336 |     2.94742e+02 |             297 |
-        | C1047::HG00731 | -1.89046e-02 |       337 |        337 |     2.95779e+02 |             295 |
-        | C1047::HG00732 |  1.38718e-01 |       337 |        337 |     2.95202e+02 |             301 |
-        | C1047::HG00733 |  3.50684e-01 |       338 |        338 |     2.96418e+02 |             311 |
-        | C1048::HG02024 | -1.95603e-01 |       338 |        338 |     2.96180e+02 |             288 |
-        | C1048::HG02025 |  2.02944e-02 |       339 |        339 |     2.97151e+02 |             298 |
-        | C1048::HG02026 |  6.74296e-02 |       338 |        338 |     2.96180e+02 |             299 |
-        | C1049::HG00731 | -1.00467e-02 |       337 |        337 |     2.95418e+02 |             295 |
-        +----------------+--------------+-----------+------------+-----------------+-----------------+
+        +----------------+--------------+------------+-----------------+-----------------+
+        | s              |     IB.Fstat | IB.nCalled | IB.expectedHoms | IB.observedHoms |
+        +----------------+--------------+------------+-----------------+-----------------+
+        | String         |      Float64 |      Int64 |         Float64 |           Int64 |
+        +----------------+--------------+------------+-----------------+-----------------+
+        | C1046::HG02024 | -1.23867e-01 |        338 |     2.96180e+02 |             291 |
+        | C1046::HG02025 |  2.02944e-02 |        339 |     2.97151e+02 |             298 |
+        | C1046::HG02026 |  5.47269e-02 |        336 |     2.94742e+02 |             297 |
+        | C1047::HG00731 | -1.89046e-02 |        337 |     2.95779e+02 |             295 |
+        | C1047::HG00732 |  1.38718e-01 |        337 |     2.95202e+02 |             301 |
+        | C1047::HG00733 |  3.50684e-01 |        338 |     2.96418e+02 |             311 |
+        | C1048::HG02024 | -1.95603e-01 |        338 |     2.96180e+02 |             288 |
+        | C1048::HG02025 |  2.02944e-02 |        339 |     2.97151e+02 |             298 |
+        | C1048::HG02026 |  6.74296e-02 |        338 |     2.96180e+02 |             299 |
+        | C1049::HG00731 | -1.00467e-02 |        337 |     2.95418e+02 |             295 |
+        +----------------+--------------+------------+-----------------+-----------------+
 
     Notes
     -----
@@ -772,10 +772,9 @@ def inbreeding(expr, prior):
 
     ``F`` is the inbreeding coefficient, and is computed by: ``(O - E) / (N - E)``.
 
-    This method returns a struct expression with five fields:
+    This method returns a struct expression with four fields:
 
      - `Fstat` (:class:`.TFloat64`): ``F``, the inbreeding coefficient.
-     - `nTotal` (:class:`.TInt64`): Total number of calls.
      - `nCalled` (:class:`.TInt64`): ``N``, the number of non-missing calls.
      - `expectedHoms` (:class:`.TFloat64`): ``E``, the expected number of homozygotes.
      - `observedHoms` (:class:`.TInt64`): ``O``, the number of observed homozygotes.
@@ -790,7 +789,7 @@ def inbreeding(expr, prior):
     Returns
     -------
     :class:`.StructExpression`
-        Struct expression with fields `Fstat`, `nTotal`, `nCalled`, `expectedHoms`, `observedHoms`.
+        Struct expression with fields `Fstat`, `nCalled`, `expectedHoms`, `observedHoms`.
     """
     agg = _to_agg(expr)
 
@@ -810,8 +809,8 @@ def inbreeding(expr, prior):
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')
 
-    t = TStruct(['Fstat', 'nTotal', 'nCalled', 'expectedHoms', 'observedHoms'],
-                [TFloat64(), TInt64(), TInt64(), TFloat64(), TInt64()])
+    t = TStruct(['Fstat', 'nCalled', 'expectedHoms', 'observedHoms'],
+                [TFloat64(), TInt64(), TFloat64(), TInt64()])
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 
