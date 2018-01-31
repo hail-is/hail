@@ -69,8 +69,8 @@ object CalculateConcordance {
 
     if (left.vSignature != right.vSignature)
       fatal(s"""Cannot compute concordance for datasets with different reference genomes:
-              |  left: ${ left.vSignature.toPrettyString(compact = true) }
-              |  right: ${ right.vSignature.toPrettyString(compact = true) }""")
+              |  left: ${ left.vSignature.toString }
+              |  right: ${ right.vSignature.toString }""")
 
     info(
       s"""Found ${ overlap.size } overlapping samples
