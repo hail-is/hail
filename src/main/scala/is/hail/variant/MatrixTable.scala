@@ -2761,53 +2761,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     hadoop.writeTextFile(dirname + "/_SUCCESS")(out => ())
   }
 
-  // FIXME remove when filter_alleles tests are migrated to Python
-  def filterAlleles(filterExpr: String, variantExpr: String = "",
-    keep: Boolean = true, subset: Boolean = true, leftAligned: Boolean = false, keepStar: Boolean = false): MatrixTable = {
-    if (!genotypeSignature.isOfType(Genotype.htsGenotypeType))
-      fatal(s"filter_alleles: genotype_schema must be the HTS genotype schema, found: ${ genotypeSignature }")
-
-    val genotypeExpr = if (subset) {
-      """
-g = let newpl = if (isDefined(g.PL))
-        let unnorm = range(newV.nGenotypes).map(newi =>
-            let oldi = gtIndex(newToOld[gtj(newi)], newToOld[gtk(newi)])
-             in g.PL[oldi]) and
-            minpl = unnorm.min()
-         in unnorm - minpl
-      else
-        NA: Array[Int] and
-    newgt = gtFromPL(newpl) and
-    newad = if (isDefined(g.AD))
-        range(newV.nAlleles).map(newi => g.AD[newToOld[newi]])
-      else
-        NA: Array[Int] and
-    newgq = gqFromPL(newpl) and
-    newdp = g.DP
- in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }
-        """
-    } else {
-      // downcode
-      s"""
-g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
-    newad = if (isDefined(g.AD))
-        range(newV.nAlleles).map(i => range(v.nAlleles).filter(j => oldToNew[j] == i).map(j => g.AD[j]).sum())
-      else
-        NA: Array[Int] and
-    newdp = g.DP and
-    newpl = if (isDefined(g.PL))
-        range(newV.nGenotypes).map(gi => range(v.nGenotypes).filter(gj => gtIndex(oldToNew[gtj(gj)], oldToNew[gtk(gj)]) == gi).map(gj => g.PL[gj]).min())
-      else
-        NA: Array[Int] and
-    newgq = gqFromPL(newpl)
- in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }
-        """
-    }
-
-    FilterAlleles(this, filterExpr, variantExpr, genotypeExpr,
-      keep = keep, leftAligned = leftAligned, keepStar = keepStar)
-  }
-
   def indexRows(name: String): MatrixTable = {
     val path = List("va", name)
 

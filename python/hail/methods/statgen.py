@@ -2359,6 +2359,167 @@ class FilterAlleles(object):
             analyze('FilterAlleles', v, base._entry_indices)
         self._entry_exprs = named_exprs
 
+    def subset_entries_hts(self):
+        """Use the subset algorithm to update the matrix table entries for the
+        new, allele filtered variant.  This requires the entries have
+        the HTS genotype schema:
+
+        .. code-block:: text
+
+            GT: Call,
+            AD: Array[!Int32],
+            DP: Int32,
+            GQ: Int32,
+            PL: Array[!Int32].
+
+        We will illustrate the behavior on the example genotype below
+        when filtering the first alternate allele (allele 1) at a site
+        with 1 reference allele and 2 alternate alleles.
+
+        .. code-block:: text
+
+          GT: 1/2
+          GQ: 10
+          AD: 0,50,35
+
+          0 | 1000
+          1 | 1000   10
+          2 | 1000   0     20
+            +-----------------
+               0     1     2
+
+        **The subset algorithm**
+
+        The subset algorithm subsets the AD and PL arrays
+        (i.e. removes entries corresponding to filtered alleles) and
+        then sets GT to the genotype with the minimum PL.  Note that
+        if the genotype changes (as in the example), the PLs are
+        re-normalized (shifted) so that the most likely genotype has a
+        PL of 0.  Qualitatively, subsetting corresponds to the belief
+        that the filtered alleles are not real so we should discard
+        any probability mass associated with them.
+
+        The subset algorithm would produce the following:
+
+        .. code-block:: text
+
+          GT: 1/1
+          GQ: 980
+          AD: 0,50
+
+          0 | 980
+          1 | 980    0
+            +-----------
+               0      1
+
+        In summary:
+
+        - GT: Set to most likely genotype based on the PLs ignoring the filtered allele(s).
+        - AD: The filtered alleles' columns are eliminated, e.g., filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``25,20``.
+        - DP: No change.
+        - PL: The filtered alleles' columns are eliminated and the remaining columns shifted so the minimum value is 0.
+        - GQ: The second-lowest PL (after shifting).
+
+        """
+        ds = self._ds
+        newPL = functions.bind(
+            functions.cond(
+                functions.is_defined(ds.PL),
+                functions.range(0, self.new_v.num_genotypes()).map(
+                    lambda newi: functions.bind(
+                        functions.call(newi),
+                        lambda newc: ds.PL[functions.gt_index(
+                            self.new_to_old[newc.gtj()], self.new_to_old[newc.gtk()])])),
+                functions.null(TArray(TInt32()))),
+            lambda unnorm: unnorm - unnorm.min())
+        self.annotate_entries(
+            GT = functions.call(functions.gt_from_pl(newPL)),
+            AD = functions.cond(
+                functions.is_defined(ds.AD),
+                functions.range(0, self.new_v.num_alleles()).map(
+                    lambda newi: ds.AD[self.new_to_old[newi]]),
+                functions.null(TArray(TInt32()))),
+            // DP unchanged
+            GQ = functions.gq_from_pl(newPL),
+            PL = newPL)
+
+    def downcode_entries_hts(self):
+        """Use the downcode algorithm to update the matrix table entries for
+        the new, allele filtered variant.  This requires the entries
+        have the HTS genotype schema:
+
+        **The downcode algorithm**
+
+        .. code-block:: text
+
+            GT: Call,
+            AD: Array[!Int32],
+            DP: Int32,
+            GQ: Int32,
+            PL: Array[!Int32].
+
+        The downcode algorithm recodes occurances of filtered alleles
+        to occurances of the reference allele (e.g. 1 -> 0 in our
+        example). So the depths of filtered alleles in the AD field
+        are added to the depth of the reference allele. Where
+        downcodeing filtered alleles merges distinct genotypes, the
+        minimum PL is used (since PL is on a log scale, this roughly
+        corresponds to adding probabilities). The PLs are then
+        re-normalized (shifted) so that the most likely genotype has a
+        PL of 0, and GT is set to this genotype.  If an allele is
+        filtered, this algorithm acts similarly to
+        :meth:`~hail.VariantDataset.split_multi`.
+
+        The downcoding algorithm would produce the following:
+
+        .. code-block:: text
+
+          GT: 0/1
+          GQ: 10
+          AD: 35,50
+
+          0 | 20
+          1 | 0    10
+            +-----------
+              0    1
+
+        In summary:
+
+        - GT: Downcode filtered alleles to reference.
+        - AD: The filtered alleles' columns are eliminated and their
+          value is added to the reference, e.g., filtering alleles 1
+          and 2 transforms ``25,5,10,20`` to ``40,20``.
+        - DP: No change.
+        - PL: Downcode filtered alleles to reference, combine PLs
+          using minimum for each overloaded genotype, and shift so the
+          overall minimum PL is 0.
+        - GQ: The second-lowest PL (after shifting).
+        """
+        ds = self._ds
+        newPL = functions.cond(
+            functions.is_defined(ds.PL),
+            functions.range(0, self.new_v.num_genotypes()).map(
+                lambda newi: (functions.range(0, ds.v.num_genotypes()).filter(
+                    lambda oldi: bind(
+                        functions.call(newi),
+                        lambda oldc: functions.gt_index(self.old_to_new[oldc.gtj()],
+                                                        self.old_to_new[oldc.gtk()]) == newi))
+                              .map(lambda oldi: ds.PL[oldi]).min())),
+            functions.null(TArray(TInt32())))
+        self.annotate_entries(
+            GT = functions.gt_index(self.old_to_new[ds.GT.gtj()],
+                                    self.old_to_new[ds.GT.gtk()]),
+            AD = functions.cond(
+                functions.is_defined(ds.AD),
+                functions.range(0, self.new_v.num_alleles()).map(
+                    lambda newi: functions.range(0, ds.v.num_alleles()).filter(
+                        lambda oldi: self.old_to_new[oldi] == newi).map(
+                            lambda oldi: ds.AD[oldi]).sum()),
+                functions.null(TArray(TInt32()))),
+            // DP unchanged
+            GQ = functions.gq_from_pl(newPL),
+            PL = newPL)
+
     def filter(self):
         """Perform the filter alleles, returning a new matrix table.
 
@@ -2393,292 +2554,6 @@ class FilterAlleles(object):
             Env.hail().methods.FilterAlleles.apply(
                 base._jvds, '({p})[aIndex - 1]'.format(p=filter_hql), row_hql, entry_hql, self._keep, self._left_aligned, self._keep_star))
         return cleanup(m)
-
-class FilterAllelesHTS(object):
-    def __init__(source, filter_expr,
-                 subset=True, keep=True, left_aligned=False, keep_star=False):
-        self._fa = FilterAlleles(source, filter_expr, keep, left_aligned, keep_star)
-        self._subset = subset
-
-    def annotate_rows(self, **named_exprs):
-        """Create or update row-indexed fields for the new, allele filtered
-        variant.
-
-        Parameters
-        ----------
-        named_exprs : keyword args of :class:`.Expression`
-            Field names and the row-indexed expressions to compute them.
-        """
-        if self._row_exprs:
-            raise RuntimeError('annotate_rows already called')
-        for k, v in named_exprs.items():
-            analyze('FilterAlleles', v, base._row_indices)
-        self._row_exprs = named_exprs
-        
-    def _annotate_entries_hts_subset(self):
-        ds = self._fa._ds
-        
-        newPL = functions.cond(
-            functions.is_defined(ds.PL),
-            functions.range(0, fa.new_v.num_genotypes()).map(
-                lambda newi: functions.bind(
-                    functions.call(newi),
-                    lambda newc: ds.PL[functions.gt_index(
-                        fa.new_to_old[newc.gtj()], fa.new_to_old[newc.gtk()])])),
-            functions.null(TArray(TInt32())))
-        self._fa.annotate_entries(
-            GT = functions.call(functions.gt_from_pl(newPL)),
-            AD = functions.cond(
-                functions.is_defined(ds.AD),
-                functions.range(0, fa.new_v.num_alleles()).map(
-                    lambda newi: ds.AD[fa.new_to_old[newi]]),
-                functions.null(TArray(TInt32()))),
-            GQ = functions.gq_from_pl(newPL),
-            PL = newPL)
-        
-        self._fa.annotate_entries('''
-g = let newpl = if (isDefined(g.PL))
-    let unnorm = range(newV.nGenotypes).map(newi =>
-        let oldi = gtIndex(newToOld[gtj(newi)], newToOld[gtk(newi)])
-         in g.PL[oldi]) and
-        minpl = unnorm.min()
-     in unnorm - minpl
-  else
-    NA: Array[Int] and
-newgt = gtFromPL(newpl) and
-newad = if (isDefined(g.AD))
-    range(newV.nAlleles).map(newi => g.AD[newToOld[newi]])
-  else
-    NA: Array[Int] and
-newgq = gqFromPL(newpl) and
-newdp = g.DP
-in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }
-''')
-
-    def _annotate_entries_hts_downcode(self):
-        self._fa.annotate_entries('''
-g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
-newad = if (isDefined(g.AD))
-    range(newV.nAlleles).map(i => range(v.nAlleles).filter(j => oldToNew[j] == i).map(j => g.AD[j]).sum())
-  else
-    NA: Array[Int] and
-newdp = g.DP and
-newpl = if (isDefined(g.PL))
-    range(newV.nGenotypes).map(gi => range(v.nGenotypes).filter(gj => gtIndex(oldToNew[gtj(gj)], oldToNew[gtk(gj)]) == gi).map(gj => g.PL[gj]).min())
-  else
-    NA: Array[Int] and
-newgq = gqFromPL(newpl)
-in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }
-''')
-        
-    def filter(self):
-        if self._subset:
-            self._annotate_entries_hts_subset()
-        else:
-            self._annotate_entries_hts_downcode()
-        return self._fa.filter()
-
-@handle_py4j
-@typecheck(ds=MatrixTable,
-           expr=strlike,
-           variant_expr=strlike,
-           subset=bool,
-           keep=bool,
-           left_aligned=bool,
-           keep_star=bool)
-def filter_alleles_hts(ds, expr, variant_expr, subset=True,
-                       keep=True, left_aligned=False, keep_star=False):
-    """Filter a user-defined set of alternate alleles for each variant for
-    a dataset whose entry schema is the HTS schema:
-
-    .. code-block:: text
-
-      Struct {
-        GT: Call,
-        AD: Array[!Int32],
-        DP: Int32,
-        GQ: Int32,
-        PL: Array[!Int32].
-      }
-
-    For generic entry schemas, use :class:`.FilterAlleles`..
-
-    If all alternate alleles of a variant are filtered, the
-    variant itself is filtered.  ``expr`` is evaluated for each
-    alternate allele, but not for the reference allele
-    (i.e. ``aIndex`` will never be zero).
-
-    .. include:: ../_templates/req_tvariant.rst
-
-    **Examples**
-
-    To remove alternate alleles with zero allele count and
-    update the alternate allele count annotation with the new
-    indices:
-
-    >>> vds_result = vds.filter_alleles_hts('va.info.AC[aIndex - 1] == 0',
-    ...     variant_expr='va.info.AC = newToOld[1:].map(i => va.info.AC[i - 1])',
-    ...     keep=False)
-
-    Note that we skip the first element of ``newToOld`` because
-    we are mapping between the new and old *allele* indices, not
-    the *alternate allele* indices.
-
-    **Notes**
-
-    :meth:`~hail.VariantDataset.filter_alleles_hts` implements two algorithms for filtering alleles: subset and downcode. We will illustrate their
-    behavior on the example genotype below when filtering the first alternate allele (allele 1) at a site with 1 reference
-    allele and 2 alternate alleles.
-
-    .. code-block:: text
-
-      GT: 1/2
-      GQ: 10
-      AD: 0,50,35
-
-      0 | 1000
-      1 | 1000   10
-      2 | 1000   0     20
-        +-----------------
-           0     1     2
-
-    **Subset algorithm**
-
-    The subset algorithm (the default, ``subset=True``) subsets the
-    AD and PL arrays (i.e. removes entries corresponding to filtered alleles)
-    and then sets GT to the genotype with the minimum PL.  Note
-    that if the genotype changes (as in the example), the PLs
-    are re-normalized (shifted) so that the most likely genotype has a PL of
-    0.  Qualitatively, subsetting corresponds to the belief
-    that the filtered alleles are not real so we should discard any
-    probability mass associated with them.
-
-    The subset algorithm would produce the following:
-
-    .. code-block:: text
-
-      GT: 1/1
-      GQ: 980
-      AD: 0,50
-
-      0 | 980
-      1 | 980    0
-        +-----------
-           0      1
-
-    In summary:
-
-    - GT: Set to most likely genotype based on the PLs ignoring the filtered allele(s).
-    - AD: The filtered alleles' columns are eliminated, e.g., filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``25,20``.
-    - DP: No change.
-    - PL: The filtered alleles' columns are eliminated and the remaining columns shifted so the minimum value is 0.
-    - GQ: The second-lowest PL (after shifting).
-
-    **Downcode algorithm**
-
-    The downcode algorithm (``subset=False``) recodes occurances of filtered alleles
-    to occurances of the reference allele (e.g. 1 -> 0 in our example). So the depths of filtered alleles in the AD field
-    are added to the depth of the reference allele. Where downcodeing filtered alleles merges distinct genotypes, the minimum PL is used (since PL is on a log scale, this roughly corresponds to adding probabilities). The PLs
-    are then re-normalized (shifted) so that the most likely genotype has a PL of 0, and GT is set to this genotype.
-    If an allele is filtered, this algorithm acts similarly to :meth:`~hail.VariantDataset.split_multi`.
-
-    The downcoding algorithm would produce the following:
-
-    .. code-block:: text
-
-      GT: 0/1
-      GQ: 10
-      AD: 35,50
-
-      0 | 20
-      1 | 0    10
-        +-----------
-          0    1
-
-    In summary:
-
-    - GT: Downcode filtered alleles to reference.
-    - AD: The filtered alleles' columns are eliminated and their value is added to the reference, e.g., filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
-    - DP: No change.
-    - PL: Downcode filtered alleles to reference, combine PLs using minimum for each overloaded genotype, and shift so the overall minimum PL is 0.
-    - GQ: The second-lowest PL (after shifting).
-
-    **Expression Variables**
-
-    The following symbols are in scope for ``expr``:
-
-    - ``global``: global annotations
-    - ``v`` (*Variant(GR)*): :ref:`variant(gr)`
-    - ``va``: variant annotations
-    - ``aIndex`` (*Int*): the index of the allele being tested
-
-    The following symbols are in scope for ``annotation``:
-
-    - ``global``: global annotations
-    - ``v`` (*Variant(GR)*): the old :ref:`variant(gr)`
-    - ``newV`` (*Variant(GR)*): the new :ref:`variant(gr)`
-    - ``va``: variant annotations
-    - ``newToOld`` (*Array[Int]*): the array of old indices (such that ``newToOld[newIndex] = oldIndex`` and ``newToOld[0] = 0``)
-
-    :param str expr: Boolean filter expression involving ``v`` (variant), ``va`` (variant annotations),
-        and ``aIndex`` (allele index)
-
-    :param str annotation: Annotation modifying expression involving ``v`` (old variant), ``newV`` (new variant), ``va`` (old variant annotations), and ``newToOld`` (maps from new to old indices).
-
-    :param bool subset: If true, subsets PL and AD, otherwise downcodes the PL and AD.
-        Genotype and GQ are set based on the resulting PLs.
-
-    :param bool keep: If true, keep variants matching expr
-
-    :param bool left_aligned: If True, variants are assumed to be
-      left aligned and have unique loci.  This avoids a shuffle.
-      If the assumption is violated, an error is generated.
-
-    :param bool keepStar: If true, keep variants where the only allele left is a ``*`` allele.
-
-    :return: Filtered variant dataset.
-    :rtype: :class:`.VariantDataset`
-
-    """
-
-    if subset:
-        genotype_expr = '''
-g = let newpl = if (isDefined(g.PL))
-    let unnorm = range(newV.nGenotypes).map(newi =>
-        let oldi = gtIndex(newToOld[gtj(newi)], newToOld[gtk(newi)])
-         in g.PL[oldi]) and
-        minpl = unnorm.min()
-     in unnorm - minpl
-  else
-    NA: Array[Int] and
-newgt = gtFromPL(newpl) and
-newad = if (isDefined(g.AD))
-    range(newV.nAlleles).map(newi => g.AD[newToOld[newi]])
-  else
-    NA: Array[Int] and
-newgq = gqFromPL(newpl) and
-newdp = g.DP
-in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }
-'''
-    else:
-        # downcode
-        genotype_expr = '''
-g = let newgt = gtIndex(oldToNew[gtj(g.GT)], oldToNew[gtk(g.GT)]) and
-newad = if (isDefined(g.AD))
-    range(newV.nAlleles).map(i => range(v.nAlleles).filter(j => oldToNew[j] == i).map(j => g.AD[j]).sum())
-  else
-    NA: Array[Int] and
-newdp = g.DP and
-newpl = if (isDefined(g.PL))
-    range(newV.nGenotypes).map(gi => range(v.nGenotypes).filter(gj => gtIndex(oldToNew[gtj(gj)], oldToNew[gtk(gj)]) == gi).map(gj => g.PL[gj]).min())
-  else
-    NA: Array[Int] and
-newgq = gqFromPL(newpl)
-in { GT: Call(newgt), AD: newad, DP: newdp, GQ: newgq, PL: newpl }
-'''
-
-    return self.filter_alleles(expr, variant_expr, genotype_expr,
-                               keep=keep, left_aligned=left_aligned, keep_star=keep_star)
 
 
 @handle_py4j
