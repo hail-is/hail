@@ -15,7 +15,7 @@ package object io {
       info.foreachBetween { case (name, t) =>
         sb.append(prettyIdentifier(name))
         sb.append(":")
-        t.pretty(sb, compact = true)
+        t.pretty(sb, 0, compact = true)
       } { sb += ',' }
 
       out.write(sb.result())

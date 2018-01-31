@@ -32,20 +32,13 @@ import scala.language.{existentials, implicitConversions}
 import scala.reflect.ClassTag
 
 case class VDSMetadata(
-  version: Int,
-  // FIXME remove on next reimport
-  split: Option[Boolean],
-  sample_annotation_schema: String,
-  col_key: Array[String],
-  variant_schema: String,
-  variant_annotation_schema: String,
-  global_schema: String,
-  genotype_schema: String,
-  sample_annotations: JValue,
+  file_version: Int,
+  hail_version: String,
+  matrix_type: String,
   global_annotation: JValue,
-  // FIXME make partition_counts non-optional, remove n_partitions at next reimport
+  sample_annotations: JValue,
   n_partitions: Int,
-  partition_counts: Option[Array[Long]])
+  partition_counts: Array[Long])
 
 object MatrixTable {
   final val fileVersion: Int = 0x101
@@ -132,24 +125,23 @@ object MatrixTable {
       }
     }
 
-    if (metadata.version != MatrixTable.fileVersion)
+    if (metadata.file_version != MatrixTable.fileVersion)
       fatal(
-        s"""Invalid VDS: old version [${ metadata.version }]
+        s"""Invalid VDS: old version [${ metadata.file_version }]
            |  Recreate VDS with current version of Hail.
          """.stripMargin)
 
     GenomeReference.importReferences(hConf, dirname + "/references/")
 
-    val saSignature = Parser.parseType(metadata.sample_annotation_schema).asInstanceOf[TStruct]
-    val vSignature = Parser.parseType(metadata.variant_schema)
-    val vaSignature = Parser.parseType(metadata.variant_annotation_schema).asInstanceOf[TStruct]
-    val genotypeSignature = Parser.parseType(metadata.genotype_schema).asInstanceOf[TStruct]
-    val globalSignature = Parser.parseType(metadata.global_schema).asInstanceOf[TStruct]
+    val matrixType: MatrixType = Parser.parseMatrixType(metadata.matrix_type)
+
+    val saType = matrixType.saType
+    val globalType = matrixType.globalType
 
     val sampleInfo = metadata.sample_annotations.asInstanceOf[JArray]
       .arr
       .map {
-        case jv: JObject => JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations")
+        case jv: JObject => JSONAnnotationImpex.importAnnotation(jv, saType, "sample_annotations")
         case other => fatal(
           s"""corrupt VDS: invalid metadata
              |  Invalid sample annotation metadata
@@ -158,13 +150,12 @@ object MatrixTable {
       .toArray
 
     val globalAnnotation = JSONAnnotationImpex.importAnnotation(metadata.global_annotation,
-      globalSignature, "global")
+      globalType, "global")
 
 
-    (MatrixFileMetadata(MatrixType(globalSignature, saSignature, metadata.col_key,
-      vSignature, vaSignature, genotypeSignature),
+    (MatrixFileMetadata(matrixType,
       MatrixLocalValue(globalAnnotation, sampleInfo),
-      metadata.partition_counts),
+      Some(metadata.partition_counts)),
       metadata.n_partitions)
   }
 
@@ -208,16 +199,16 @@ object MatrixTable {
           s"""cannot combine datasets with incompatible column keys
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          colKeySchema.map(_.toPrettyString(compact = true)).mkString(", "),
-          ssig.map(_.toPrettyString(compact = true)).mkString(", ")
+          colKeySchema.map(_.toString).mkString(", "),
+          ssig.map(_.toString).mkString(", ")
         )
       } else if (vsig != rowKeySchema) {
         fatal(
           s"""cannot combine datasets with different row key schemata
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          rowKeySchema.toPrettyString(compact = true),
-          vsig.toPrettyString(compact = true)
+          rowKeySchema.toString,
+          vsig.toString
         )
       } else if (colKeys != cks) {
         fatal(
@@ -229,16 +220,16 @@ object MatrixTable {
           s"""cannot combine datasets with different row annotation schemata
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          vaSchema.toPrettyString(compact = true),
-          vas.toPrettyString(compact = true)
+          vaSchema.toString,
+          vas.toString
         )
       } else if (gsig != genotypeSchema) {
         fatal(
           s"""cannot read datasets with different cell schemata
              |  Schema in datasets[0]: @1
              |  Schema in datasets[$i]: @2""".stripMargin,
-          genotypeSchema.toPrettyString(compact = true),
-          gsig.toPrettyString(compact = true)
+          genotypeSchema.toString,
+          gsig.toString
         )
       }
     }
@@ -1586,15 +1577,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         s"""union_cols: cannot combine datasets with different entry schema
            |  left entry schema: @1
            |  right entry schema: @2""".stripMargin,
-        genotypeSignature.toPrettyString(compact = true),
-        right.genotypeSignature.toPrettyString(compact = true))
+        genotypeSignature.toString,
+        right.genotypeSignature.toString)
     }
 
     if (!sSignature.sameElements(right.sSignature)) {
       fatal(
         s"""union_cols: cannot combine datasets with different column key schema
-           |  left column schema: [${sSignature.map(_.toPrettyString(compact = true)).mkString(", ")}]
-           |  right column schema: [${right.sSignature.map(_.toPrettyString(compact = true)).mkString(", ")}]""".stripMargin)
+           |  left column schema: [${sSignature.map(_.toString).mkString(", ")}]
+           |  right column schema: [${right.sSignature.map(_.toString).mkString(", ")}]""".stripMargin)
     }
 
     if (saSignature != right.saSignature) {
@@ -1602,8 +1593,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         s"""union_cols: cannot combine datasets with different column schema
            |  left column schema: @1
            |  right column schema: @2""".stripMargin,
-        saSignature.toPrettyString(compact = true),
-        right.saSignature.toPrettyString(compact = true))
+        saSignature.toString,
+        right.saSignature.toString)
     }
 
     if (vSignature != right.vSignature) {
@@ -1611,8 +1602,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         s"""union_cols: cannot combine datasets with different row key schema
            |  left row key schema: @1
            |  right row key schema: @2""".stripMargin,
-        vSignature.toPrettyString(compact = true),
-        right.vSignature.toPrettyString(compact = true))
+        vSignature.toString,
+        right.vSignature.toString)
     }
 
     val leftRVRowType = rvRowType
@@ -1981,22 +1972,22 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       metadataSame = false
       println(
         s"""different va signature:
-           |  left:  ${ vaSignature.toPrettyString(compact = true) }
-           |  right: ${ that.vaSignature.toPrettyString(compact = true) }""".stripMargin)
+           |  left:  ${ vaSignature.toString }
+           |  right: ${ that.vaSignature.toString }""".stripMargin)
     }
     if (saSignature != that.saSignature) {
       metadataSame = false
       println(
         s"""different sa signature:
-           |  left:  ${ saSignature.toPrettyString(compact = true) }
-           |  right: ${ that.saSignature.toPrettyString(compact = true) }""".stripMargin)
+           |  left:  ${ saSignature.toString }
+           |  right: ${ that.saSignature.toString }""".stripMargin)
     }
     if (globalSignature != that.globalSignature) {
       metadataSame = false
       println(
         s"""different global signature:
-           |  left:  ${ globalSignature.toPrettyString(compact = true) }
-           |  right: ${ that.globalSignature.toPrettyString(compact = true) }""".stripMargin)
+           |  left:  ${ globalSignature.toString }
+           |  right: ${ that.globalSignature.toString }""".stripMargin)
     }
     if (!sampleAnnotationsSimilar(that, tolerance)) {
       metadataSame = false
@@ -2158,7 +2149,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       foundError = true
       warn(
         s"""found violation in global annotation
-           |Schema: ${ globalSignature.toPrettyString() }
+           |Schema: ${ globalSignature.toString }
            |Annotation: ${ Annotation.printAnnotation(globalAnnotation) }""".stripMargin)
     }
 
@@ -2167,7 +2158,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         foundError = true
         warn(
           s"""found violation in sample annotations for col $i
-             |Schema: ${ saSignature.toPrettyString() }
+             |Schema: ${ saSignature.toString }
              |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
       }
 
@@ -2181,7 +2172,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         foundError = true
         warn(
           s"""found violation in row with row key $v
-             |Schema: ${ localRVRowType.toPrettyString() }
+             |Schema: ${ localRVRowType.toString }
              |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
       }
 
@@ -2304,18 +2295,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val globalJ = JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature)
 
     val metadata = VDSMetadata(
-      version = MatrixTable.fileVersion,
-      split = None,
-      sample_annotation_schema = saSignature.toPrettyString(compact = true),
-      col_key = colKey.toArray,
-      variant_schema = vSignature.toPrettyString(compact = true),
-      variant_annotation_schema = vaSignature.toPrettyString(compact = true),
-      genotype_schema = genotypeSignature.toPrettyString(compact = true),
-      global_schema = globalSignature.toPrettyString(compact = true),
+      file_version = MatrixTable.fileVersion,
+      hail_version = hc.version,
+      matrix_type = matrixType.toString,
       sample_annotations = sampleAnnotationsJ,
       global_annotation = globalJ,
       n_partitions = partitionCounts.length,
-      partition_counts = Some(partitionCounts))
+      partition_counts = partitionCounts)
 
     hConf.writeTextFile(dirname + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))

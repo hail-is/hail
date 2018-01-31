@@ -64,7 +64,7 @@ class Type(HistoryMixin):
         return self._jtype.toString()
 
     def __str__(self):
-        return self._jtype.toPrettyString(0, True)
+        return self._jtype.toString()
 
     def __eq__(self, other):
         return isinstance(other, Type) and self._jtype.equals(other._jtype)
