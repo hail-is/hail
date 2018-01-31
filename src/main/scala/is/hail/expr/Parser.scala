@@ -293,6 +293,10 @@ object Parser extends JavaTokenParsers {
 
   def parseType(code: String): Type = parse(type_expr, code)
 
+  def parseTableType(code: String): TableType = parse(table_type_expr, code)
+
+  def parseMatrixType(code: String): MatrixType = parse(matrix_type_expr, code)
+
   def parseAnnotationTypes(code: String): Map[String, Type] = {
     // println(s"code = $code")
     if (code.matches("""\s*"""))
@@ -619,10 +623,7 @@ object Parser extends JavaTokenParsers {
   def _required_type: Parser[Boolean] = "!" ^^ { _ => true } | success(false)
 
   def _type_expr: Parser[Type] =
-    "Empty" ^^ { _ => TStruct.empty() } |
-      // FIXME for backward compatability
-      "Interval" ~> ("(" ~> identifier <~ ")" ^^ { id => TInterval(GenomeReference.getReference(id).locusType) } |
-        "[" ~> type_expr <~ "]" ^^ { pointType => TInterval(pointType) }) |
+    "Interval" ~> "[" ~> type_expr <~ "]" ^^ { pointType => TInterval(pointType) } |
       "Boolean" ^^ { _ => TBoolean() } |
       "Int32" ^^ { _ => TInt32() } |
       "Int64" ^^ { _ => TInt64() } |
@@ -638,9 +639,32 @@ object Parser extends JavaTokenParsers {
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
       ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |
       ("Dict" ~ "[") ~> type_expr ~ "," ~ type_expr <~ "]" ^^ { case kt ~ _ ~ vt => TDict(kt, vt) } |
-      ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields =>
-        TStruct(fields)
-      }
+      _struct_expr
+
+  def struct_expr: Parser[TStruct] = _required_type ~ _struct_expr ^^ { case req ~ t => if (req) (!t).asInstanceOf[TStruct] else t }
+
+  def _struct_expr: Parser[TStruct] = ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields => TStruct(fields) }
+
+  def key: Parser[Array[String]] = "[" ~> (repsep(identifier, ",") ^^ { _.toArray }) <~ "]"
+
+  def trailing_keys: Parser[Array[String]] = rep("," ~> identifier) ^^ { _.toArray }
+
+  def table_type_expr: Parser[TableType] =
+    (("Table" ~ "{" ~ "global" ~ ":") ~> struct_expr) ~
+      (("," ~ "key" ~ ":") ~> key) ~
+      (("," ~ "row" ~ ":") ~> struct_expr <~ "}") ^^ { case globalType ~ key ~ rowType =>
+      TableType(rowType, key, globalType)
+    }
+
+  def matrix_type_expr: Parser[MatrixType] =
+    (("Matrix" ~ "{" ~ "global" ~ ":") ~> struct_expr) ~
+      (("," ~ "col_key" ~ ":") ~> key) ~
+      (("," ~ "col" ~ ":") ~> struct_expr) ~
+      (("," ~ "row_key" ~ ":" ~ "[") ~> key) ~ (trailing_keys <~ "]") ~
+      (("," ~ "row" ~ ":") ~> struct_expr) ~
+      (("," ~ "entry" ~ ":") ~> struct_expr <~ "}") ^^ { case globalType ~ colKey ~ colType ~ rowPartitionKey ~ rowRestKey ~ rowType ~ entryType =>
+      MatrixType(globalType, colKey, colType, rowPartitionKey, rowPartitionKey ++ rowRestKey, rowType, entryType)
+    }
 
   def parsePhysicalType(code: String): PhysicalType = parse(physical_type, code)
 

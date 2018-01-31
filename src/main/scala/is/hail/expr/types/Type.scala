@@ -190,26 +190,16 @@ abstract class Type extends BaseType with Serializable {
       (this, identity[Annotation])
   }
 
-  def _toString: String
-
-  final override def toString = {
-    if (required) "!" else ""
-  } + _toString
-
-  def _pretty(sb: StringBuilder, indent: Int = 0, compact: Boolean = false) {
-    sb.append(_toString)
-  }
-
-  final def pretty(sb: StringBuilder, indent: Int = 0, compact: Boolean = false) {
+  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
       sb.append("!")
     _pretty(sb, indent, compact)
   }
 
-  def toPrettyString(indent: Int = 0, compact: Boolean = false): String = {
-    val sb = new StringBuilder
-    pretty(sb, indent, compact = compact)
-    sb.result()
+  def _toString: String
+
+  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+    sb.append(_toString)
   }
 
   def fieldOption(fields: String*): Option[Field] = fieldOption(fields.toList)
