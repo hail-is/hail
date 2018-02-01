@@ -482,6 +482,33 @@ class Tests(unittest.TestCase):
                 .filter()
                 .count_rows(), ds.count_rows())
 
+    def test_filter_alleles2(self):
+        ds = methods.import_vcf(test_file('filter_alleles/input.vcf'))
+
+        fa = methods.FilterAlleles(ds, [True, False])
+        fa.filter_downcode_hts()
+        self.assertTrue(
+            methods.import_vcf(test_file('filter_alleles/filter_allele1_downcode.vcf'))._same(
+                fa.filter()))
+
+        fa = methods.FilterAlleles(ds, [False, True])
+        fa.filter_downcode_hts()
+        self.assertTrue(
+            methods.import_vcf(test_file('filter_alleles/filter_allele2_downcode.vcf'))._same(
+                fa.filter()))
+
+        fa = methods.FilterAlleles(ds, [True, False])
+        fa.filter_subset_hts()
+        self.assertTrue(
+            methods.import_vcf(test_file('filter_alleles/filter_allele1_subset.vcf'))._same(
+                fa.filter()))
+
+        fa = methods.FilterAlleles(ds, [False, True])
+        fa.filter_subset_hts()
+        self.assertTrue(
+            methods.import_vcf(test_file('filter_alleles/filter_allele2_subset.vcf'))._same(
+                fa.filter()))
+        
     def test_ld_prune(self):
         ds = methods.split_multi_hts(
             methods.import_vcf(test_file('sample.vcf')))
