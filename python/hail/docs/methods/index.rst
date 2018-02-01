@@ -38,6 +38,7 @@ Methods
     hail.methods.tdt
     hail.methods.FilterAlleles
     hail.methods.min_rep
+    hail.methods.balding_nichols_model
 
 .. autofunction:: hail.methods.linreg
 .. autofunction:: hail.methods.logreg
@@ -71,3 +72,4 @@ Methods
 .. autofunction:: hail.methods.tdt
 .. autoclass:: hail.methods.FilterAlleles
 .. autofunction:: hail.methods.min_rep
+.. autofunction:: hail.methods.balding_nichols_model
