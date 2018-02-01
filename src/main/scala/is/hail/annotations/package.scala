@@ -1,4 +1,5 @@
 package is.hail
+import is.hail.utils.Muple
 
 package object annotations {
 
@@ -20,13 +21,5 @@ package object annotations {
 
   type UnsafeInserter = (Region, Long, RegionValueBuilder, () => Unit) => Unit
 
-  case class Muple[T, U](var _1: T, var _2: U) {
-    def set(newLeft: T, newRight: U) {
-      _1 = newLeft
-      _2 = newRight
-    }
-    def left = _1
-    def right = _2
-  }
   type JoinedRegionValue = Muple[RegionValue, RegionValue]
 }
