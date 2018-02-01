@@ -226,27 +226,32 @@ class OrderedLeftJoinDistinctIterator(leftTyp: OrderedRVDType, rightTyp: Ordered
   }
 }
 
-class SteppedIterator[T](it: BufferedIterator[T], p: T => Boolean)
-    extends Iterator[T] {
+trait MutableEquiv[T] {
+  def setEquivClass: T => Unit
+  def inEquivClass: T => Boolean
+}
 
-  private var stillValid = p
+class StaircaseIterator[T](it: BufferedIterator[T], equiv: MutableEquiv[T])
+    extends Iterator[Iterator[T]] {
 
-  override def takeWhile(p: T => Boolean): SteppedIterator[T] = {
-    exhaust()
-    stillValid = p
-    this
+  private object stepIterator extends Iterator[T] {
+    def onStep = equiv.inEquivClass
+    def hasNext: Boolean = it.hasNext && onStep(it.head)
+    def next(): T = it.next()
+    def exhaust() while (hasNext) next()
+  }
+  if (it.hasNext) equiv.setEquivClass(it.head)
+
+  def hasNext: Boolean = {
+    stepIterator.exhaust()
+    it.hasNext
   }
 
-  def hasNext: Boolean = it.hasNext && stillValid(it.head)
-
-  def next(): T = {
+  def next(): Iterator[T] = {
     if (!hasNext)
       throw new NoSuchElementException("next on empty iterator")
-    it.next()
-  }
-
-  private def exhaust() {
-    while (hasNext) next()
+    equiv.setEquivClass(it.head)
+    stepIterator
   }
 }
 
