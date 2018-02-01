@@ -71,7 +71,7 @@ class JoinSuite extends SparkSuite {
     val jInnerOrdRDD1 = left.rdd.join(right.rdd.distinct)
 
     assert(jInner.count() == jInnerOrdRDD1.count())
-    assert(jInner.forall(jrv => jrv.rvLeft != null && jrv.rvRight != null))
+    assert(jInner.forall(jrv => jrv.left != null && jrv.right != null))
     assert(jInner.map { jrv =>
       val ur = new UnsafeRow(localRowType, jrv.rvLeft)
       ur.getAs[Variant](0)
@@ -82,7 +82,7 @@ class JoinSuite extends SparkSuite {
     val jLeftOrdRDD1 = left.rdd.leftOuterJoin(right.rdd.distinct)
 
     assert(jLeft.count() == jLeftOrdRDD1.count())
-    assert(jLeft.forall(jrv => jrv.rvLeft != null))
+    assert(jLeft.forall(jrv => jrv.left != null))
     assert(jLeft.map { jrv =>
       val ur = new UnsafeRow(localRowType, jrv.rvLeft)
       ur.getAs[Variant](0)

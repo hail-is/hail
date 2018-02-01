@@ -1780,8 +1780,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       val rv2 = RegionValue()
 
       it.map { jrv =>
-        val lrv = jrv.rvLeft
-        val rrv = jrv.rvRight
+        val lrv = jrv.left
+        val rrv = jrv.right
 
         rvb.set(lrv.region)
         rvb.start(leftRVType)

@@ -115,8 +115,8 @@ object CalculateConcordance {
       val rview = HardCallView(rightRowType)
 
       it.foreach { jrv =>
-        val lrv = jrv.rvLeft
-        val rrv = jrv.rvRight
+        val lrv = jrv.left
+        val rrv = jrv.right
 
         if (lrv != null)
           lview.setRegion(lrv)
@@ -166,8 +166,8 @@ object CalculateConcordance {
       it.map { jrv =>
         comb.reset()
 
-        val lrv = jrv.rvLeft
-        val rrv = jrv.rvRight
+        val lrv = jrv.left
+        val rrv = jrv.right
 
         val rowKeys: Row =
           if (lrv != null) {

@@ -62,76 +62,53 @@ class OrderedJoinDistinctRDD2(left: OrderedRVD, right: OrderedRVD, joinType: Str
   }
 }
 
-class OrderedZipJoinIterator(
-  leftTyp: OrderedRVDType, rightTyp: OrderedRVDType,
-  lit: Iterator[RegionValue], rit: Iterator[RegionValue])
-  extends Iterator[JoinedRegionValue] {
 
-  private val lrKOrd = OrderedRVDType.selectUnsafeOrdering(leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx)
+class GenericOrderedZipJoinIterator[T, U](
+  left: BufferedIterator[T], right: BufferedIterator[U],
+  leftDefault: T, rightDefault: U, ord: (T, U) => Int)
+    extends Iterator[Muple[T, U]] {
 
-  val jrv = JoinedRegionValue()
-  var present: Boolean = false
+  val muple = Muple(leftDefault, rightDefault)
 
-  var lrv: RegionValue = _
-  var rrv: RegionValue = _
+  def hasNext: Boolean = left.hasNext || right.hasNext
 
-  def nextLeft() {
-    if (lrv == null && lit.hasNext)
-      lrv = lit.next()
-  }
-
-  def nextRight() {
-    if (rrv == null && rit.hasNext)
-      rrv = rit.next()
-  }
-
-  def hasNext: Boolean = {
-    if (!present) {
-      nextLeft()
-      nextRight()
-
-      val c = {
-        if (lrv != null) {
-          if (rrv != null)
-            lrKOrd.compare(lrv, rrv)
-          else
-            -1
-        } else if (rrv != null)
+  def next(): Muple[T, U] = {
+    val c = {
+      if (left.hasNext) {
+        if (right.hasNext)
+          ord(left.head, right.head)
+        else
+          -1
+      } else if (right.hasNext)
           1
-        else {
-          assert(!lit.hasNext && !rit.hasNext)
-          return false
-        }
+      else {
+        assert(!hasNext)
+        throw new NoSuchElementException("next on empty iterator")
       }
-
-      if (c == 0) {
-        jrv.rvLeft = lrv
-        jrv.rvRight = rrv
-        lrv = null
-        rrv = null
-      } else if (c < 0) {
-        jrv.rvLeft = lrv
-        lrv = null
-        jrv.rvRight = null
-      } else {
-        // c > 0
-        jrv.rvLeft = null
-        jrv.rvRight = rrv
-        rrv = null
-      }
-      present = true
     }
-
-    present
-  }
-
-  def next(): JoinedRegionValue = {
-    if (!hasNext)
-      throw new NoSuchElementException("next on empty iterator")
-    present = false
-    jrv
+    if (c == 0) {
+      muple._1 = left.next()
+      muple._2 = right.next()
+    } else if (c < 0) {
+      muple._1 = left.next()
+      muple._2 = rightDefault
+    } else {
+      // c > 0
+      muple._1 = leftDefault
+      muple._2 = right.next()
+    }
+    muple
   }
 }
+
+class OrderedZipJoinIterator(
+  leftTyp: OrderedRVType, rightTyp: OrderedRVType,
+  lit: Iterator[RegionValue], rit: Iterator[RegionValue])
+    extends GenericOrderedZipJoinIterator[RegionValue, RegionValue](
+  lit.buffered, rit.buffered, null, null,
+  OrderedRVType.selectUnsafeOrdering(
+    leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx).compare
+)
 
 case class OrderedZipJoinRDDPartition(index: Int, leftPartition: Partition, rightPartitions: Array[Partition]) extends Partition
 
