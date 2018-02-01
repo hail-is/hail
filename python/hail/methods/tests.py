@@ -497,3 +497,26 @@ class Tests(unittest.TestCase):
         ds = self.get_dataset()
         self.assertEqual(
             methods.filter_intervals(ds, Interval.parse('20:10639222-10644705')).count_rows(), 3)
+
+    def test_balding_nichols_model(self):
+        from hail.stats import TruncatedBetaDist
+
+        ds = methods.balding_nichols_model(2, 20, 25, 3,
+                 pop_dist=[1.0, 2.0],
+                 fst=[.02, .06],
+                 af_dist=TruncatedBetaDist(a=0.01, b=2.0, min=0.05, max=0.95),
+                 seed=1)
+
+        self.assertEqual(ds.count_cols(), 20)
+        self.assertEqual(ds.count_rows(), 25)
+        self.assertEqual(ds.num_partitions(), 3)
+
+        glob = ds.get_globals()
+
+        self.assertEqual(glob.num_populations, 2)
+        self.assertEqual(glob.num_samples, 20)
+        self.assertEqual(glob.num_variants, 25)
+        self.assertEqual(glob.pop_dist, [1, 2])
+        self.assertEqual(glob.fst, [.02, .06])
+        self.assertEqual(glob.seed, 1)
+        self.assertEqual(glob.ancestral_af_dist, Struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95))

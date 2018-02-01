@@ -418,7 +418,7 @@ class MatrixTable(object):
             Global values.
         """
         if self._globals is None:
-            self._globals = self.global_schema._convert_to_py(self._jvds.globals())
+            self._globals = self.global_schema._convert_to_py(self._jvds.globalAnnotation())
         return self._globals
 
     @property
