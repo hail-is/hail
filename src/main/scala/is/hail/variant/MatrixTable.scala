@@ -1099,7 +1099,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
                |  [ $vSignature ]
                |  [ Locus ]
-               |  [ Interval[$locusType ]
+               |  [ Interval[$locusType ] ]
                |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
     }
   }

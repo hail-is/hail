@@ -10,6 +10,7 @@ import hail.utils as utils
 from hail.expr.expression import ExpressionException
 from hail.utils.misc import test_file
 from hail.linalg import BlockMatrix
+from hail.api1.keytable import KeyTable
 from math import sqrt
 
 hc = None
@@ -520,3 +521,50 @@ class Tests(unittest.TestCase):
         self.assertEqual(glob.fst, [.02, .06])
         self.assertEqual(glob.seed, 1)
         self.assertEqual(glob.ancestral_af_dist, Struct(type='TruncatedBetaDist', a=0.01, b=2.0, min=0.05, max=0.95))
+
+    def test_skat(self):
+        ds2 = methods.import_vcf(test_file('sample2.vcf'))
+
+        covariatesSkat = (methods
+                          .import_table(test_file("skat.cov"), impute=True)
+                          .key_by("Sample"))
+
+        phenotypesSkat = (methods.import_table(test_file("skat.pheno"),
+                                               types={"Pheno": TFloat64()},
+                                               missing="0")
+                          .key_by("Sample"))
+
+        intervalsSkat = (methods
+                         .import_interval_list(test_file("skat.interval_list")))
+
+        weightsSkat = (methods.import_table(test_file("skat.weights"),
+                                            types={"locus": TLocus(),
+                                                   "weight": TFloat64()})
+                              .key_by("locus"))
+
+        ds = methods.split_multi_hts(ds2)
+        ds = ds.annotate_rows(gene = intervalsSkat[ds.v],
+                              weight = weightsSkat[ds.v].weight)
+        ds = ds.annotate_cols(pheno = phenotypesSkat[ds.s],
+                                 cov = covariatesSkat[ds.s])
+        ds = ds.annotate_cols(pheno = functions.cond(ds.pheno == 1.0,
+            False,
+            functions.cond(ds.pheno == 2.0,
+                           True,
+                           functions.null(TBoolean()))))
+
+        methods.skat(ds,
+                     key_expr=ds.gene,
+                     weight_expr=ds.weight,
+                     y=ds.pheno,
+                     x=ds.GT.num_alt_alleles(),
+                     covariates=[ds.cov.Cov1, ds.cov.Cov2],
+                     logistic=False).count()
+
+        methods.skat(ds,
+                     key_expr=ds.gene,
+                     weight_expr=ds.weight,
+                     y=ds.pheno,
+                     x=functions.pl_dosage(ds.PL),
+                     covariates=[ds.cov.Cov1, ds.cov.Cov2],
+                     logistic=True).count()
