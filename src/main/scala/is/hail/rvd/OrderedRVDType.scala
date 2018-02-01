@@ -47,6 +47,15 @@ class OrderedRVDType(
 
   def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
 
+  val mutableEquiv = new MutableEquiv[RegionValue] {
+    val wrv = WritableRegionValue(kType)
+    def setEquivClass(representative: RegionValue) {
+      wrv.setSelect(rowType, kRowFieldIdx, representative)
+    }
+    def inEquivClass(rv: RegionValue): Boolean =
+      kRowOrd.compare(wrv.value, rv) == 0
+  }
+
   def insert(typeToInsert: Type, path: List[String]): (OrderedRVDType, UnsafeInserter) = {
     assert(path.nonEmpty)
     assert(!key.contains(path.head))
