@@ -6,7 +6,7 @@ from hail.linalg import BlockMatrix
 from hail.typecheck import *
 from hail.utils import wrap_to_list, new_temp_file, info
 from hail.utils.java import handle_py4j, joption
-from .misc import require_biallelic
+from .misc import require_biallelic, require_unique_samples
 from hail.expr import functions
 import hail.expr.aggregators as agg
 from math import sqrt
@@ -296,7 +296,7 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
     dataset = require_biallelic(dataset, 'hwe_normalized_pca')
     dataset = dataset.annotate_rows(AC=agg.sum(dataset.GT.num_alt_alleles()),
                                     n_called=agg.count_where(functions.is_defined(dataset.GT)))
-    dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called)).persist()
+    dataset = dataset.filter_rows((dataset.AC > 0) & (dataset.AC < 2 * dataset.n_called))
 
     n_variants = dataset.count_rows()
     if n_variants == 0:
@@ -304,17 +304,16 @@ def hwe_normalized_pca(dataset, k=10, compute_loadings=False, as_array=False):
             "Cannot run PCA: found 0 variants after filtering out monomorphic sites.")
     info("Running PCA using {} variants.".format(n_variants))
 
-    entry_expr = functions.bind(
-        dataset.AC / dataset.n_called,
-        lambda mean_gt: functions.cond(functions.is_defined(dataset.GT),
-                                       (dataset.GT.num_alt_alleles() - mean_gt) /
-                                       functions.sqrt(mean_gt * (2 - mean_gt) * n_variants / 2),
-                                       0))
+    dataset = dataset.annotate_rows(mean_gt = dataset.AC / dataset.n_called)
+    dataset = dataset.annotate_rows(hwe_std_dev = functions.sqrt(dataset.mean_gt * (2 - dataset.mean_gt) * n_variants / 2))
+
+    entry_expr = functions.or_else((dataset.GT.num_alt_alleles() - dataset.mean_gt) /
+                                   dataset.hwe_std_dev,
+                                   0.0)
     result = pca(entry_expr,
                  k,
                  compute_loadings,
                  as_array)
-    dataset.unpersist()
     return result
 
 
@@ -444,12 +443,15 @@ def pca(entry_expr, k=10, compute_loadings=False, as_array=False):
     return (jiterable_to_list(r._1()), scores, loadings)
 
 @handle_py4j
-@typecheck_method(k=integral,
-                  maf=numeric,
-                  block_size=integral,
-                  min_kinship=numeric,
-                  statistics=enumeration("phi", "phik2", "phik2k0", "all"))
-def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statistics="all"):
+@typecheck(ds=MatrixTable,
+           k=integral,
+           maf=numeric,
+           path=nullable(strlike),
+           block_size=integral,
+           min_kinship=numeric,
+           statistics=enumeration("phi", "phik2", "phik2k0", "all"),
+           pca_partitions=nullable(integral))
+def pc_relate(ds, k, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all", pca_partitions=None):
     """Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -667,11 +669,16 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
 
     Parameters
     ----------
+    dataset : :class:`.MatrixTable`
+        Dataset in which to compute relatedness
     k : :obj:`int`
         The number of principal components to use to distinguish ancestries.
     maf : :obj:`float`
         The minimum individual-specific allele frequency for an allele used to
         measure relatedness.
+    path : :obj:`str` or :obj:`None`
+        A temporary directory to store intermediate matrices. Storing the matrices
+        to a file system is necessary for reliable execution of this method.
     block_size : :obj:`int`
         the side length of the blocks of the block-distributed matrices; this
         should be set such that at least three of these matrices fit in memory
@@ -686,6 +693,10 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         kinship statistics and both identity-by-descent two and zero, `all`
         computes the kinship statistic and all three identity-by-descent
         statistics.
+    pca_partitions : :obj:`int` or :obj:`None`
+        the number of partitions to use when performing PCA, smaller is
+        better. If you are unsure how many to use, try one-tenth of the number
+        of partitions in the ``ds``
 
     Returns
     -------
@@ -694,21 +705,45 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         kinship and identity-by-descent zero, one, and two.
 
         The fields of the resulting :class:`.Table` entries are of types:
-        `i`: `String`, `j`: `String`, `kin`: `Double`, `k2`: `Double`,
+        `i`: ``ds.colkey_schema``, `j`: ``ds.colkey_schema``, `kin`: `Double`, `k2`: `Double`,
         `k1`: `Double`, `k0`: `Double`. The table is keyed by `i` and `j`.
+
     """
-    dataset = require_biallelic(dataset, 'pc_relate')
-    intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
-    _, scores, _ = hwe_normalized_pca(dataset, k, False, True)
+    _, scores, _ = hwe_normalized_pca(ds if pca_partitions is None else ds.repartition(pca_partitions), k, False, True)
+
+    return pc_relate_with_scores(ds, scores, maf, path, block_size, min_kinship, statistics)
+
+@handle_py4j
+@typecheck(ds=MatrixTable,
+           scores=Table,
+           maf=numeric,
+           path=nullable(strlike),
+           block_size=integral,
+           min_kinship=numeric,
+           statistics=enumeration("phi", "phik2", "phik2k0", "all"))
+def pc_relate_with_scores(ds, scores, maf, path=None, block_size=512, min_kinship=-float("inf"), statistics="all"):
+    ds = require_biallelic(ds, 'pc_relate')
+    ds = require_unique_samples(ds, 'pc_relate')
+    ds = ds.annotate_rows(mean_gt =
+                          agg.sum(ds.GT.num_alt_alleles()).to_float64() /
+                          agg.count_where(functions.is_defined(ds.GT)))
+
+    mean_imputed_gt = functions.or_else(ds.GT.num_alt_alleles().to_float64(), ds.mean_gt)
+
+    g = BlockMatrix.from_matrix_table(mean_imputed_gt, path=path, block_size=block_size)
+
+    int_statistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
     return Table(
         scala_object(Env.hail().methods, 'PCRelate')
-            .apply(dataset._jvds,
-                   k,
-                   scores._jt,
-                   maf,
-                   block_size,
-                   min_kinship,
-                   intstatistics))
+        .apply(Env.hc()._jhc,
+               g._jbm,
+               jarray(Env.jvm().java.lang.Object, [ds.colkey_schema._convert_to_j(x) for x in ds.col_keys()]),
+               ds.colkey_schema._jtype,
+               scores._jt,
+               maf,
+               block_size,
+               min_kinship,
+               int_statistics))
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -997,7 +1032,7 @@ def grm(dataset):
 
     return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
                                       grm,
-                                      [row.s for row in dataset.cols_table().select('s').collect()],
+                                      dataset.col_keys(),
                                       n_variants)
 
 @handle_py4j
@@ -1099,5 +1134,5 @@ def rrm(call_expr):
 
     return KinshipMatrix._from_block_matrix(dataset.colkey_schema,
                                             rrm,
-                                            [row.s for row in dataset.cols_table().select('s').collect()],
+                                            dataset.col_keys(),
                                             n_variants)

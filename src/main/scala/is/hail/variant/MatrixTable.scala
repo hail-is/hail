@@ -2735,7 +2735,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     }
 
-    val irm = new IndexedRowMatrix(indexedRows, partStarts.last, nSamples)
+    val irm = new IndexedRowMatrix(indexedRows.cache(), partStarts.last, nSamples)
 
     (irm, someIf(getVariants, rowKeys().values))
   }

@@ -41,7 +41,7 @@ class PCRelateSuite extends SparkSuite {
       .mapValues(quadMap(toD).tupled)
 
   def runPcRelateHail(vds: MatrixTable, pcs: DenseMatrix[Double], maf: Double, minKinship: Double, statistics: PCRelate.StatisticSubset): Map[(String, String), (java.lang.Double, java.lang.Double, java.lang.Double, java.lang.Double)] =
-    PCRelate.toTable(vds, pcs, maf, blockSize, minKinship, statistics)
+    PCRelate(vds, pcs, maf, blockSize, minKinship, statistics)
       .collect()
       .map(x => x.asInstanceOf[Row])
       .map(r => ((r(0), r(1)), (r(2), r(3), r(4), r(5))))
@@ -170,7 +170,7 @@ class PCRelateSuite extends SparkSuite {
 
     val pcr = new PCRelate(0.01, blockSize)
     val g = PCRelate.vdsToMeanImputedMatrix(vds)
-    val dmu = pcr.mu(g, pcs)
+    val dmu = pcr.mu(BlockMatrix.from(g, blockSize), pcs).cache()
     // blockedG : variant x sample
     val blockedG = BlockMatrix.from(g, blockSize)
     val actual = runPcRelateHail(vds, pcs, 0.01)

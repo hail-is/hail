@@ -1640,6 +1640,10 @@ class MatrixTable(object):
         self._jvds.write(output, overwrite)
 
     @handle_py4j
+    def col_keys(self):
+        return [row.s for row in self.cols_table().select('s').collect()]
+
+    @handle_py4j
     def rows_table(self):
         """Returns a table with all row fields in the matrix.
 
@@ -2037,7 +2041,7 @@ class MatrixTable(object):
         Randomly shuffle order of columns:
 
         >>> import random
-        >>> new_sample_order = [x.s for x in dataset.cols_table().select("s").collect()]
+        >>> new_sample_order = dataset.col_keys()
         >>> random.shuffle(new_sample_order)
         >>> dataset_reordered = dataset.reorder_columns(new_sample_order)
 
@@ -2046,7 +2050,7 @@ class MatrixTable(object):
 
         This method requires the keys to be unique. `order` must contain the
         same set of keys as
-        ``[x.s for x in dataset.cols_table().select("s").collect()]``. The
+        ``dataset.col_keys()``. The
         order of the keys in `order` determines the column order in the
         output dataset.
 
