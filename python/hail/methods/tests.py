@@ -483,32 +483,34 @@ class Tests(unittest.TestCase):
                 .count_rows(), ds.count_rows())
 
     def test_filter_alleles2(self):
+        # 1 variant: A:T,G
         ds = methods.import_vcf(test_file('filter_alleles/input.vcf'))
 
-        fa = methods.FilterAlleles(ds, [True, False])
-        fa.filter_downcode_hts()
+        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"))
+        fa.subset_entries_hts()
         self.assertTrue(
-            methods.import_vcf(test_file('filter_alleles/filter_allele1_downcode.vcf'))._same(
-                fa.filter()))
+            methods.import_vcf(test_file('filter_alleles/filter_allele1_downcode.vcf'))._same(fa.filter()))
 
-        fa = methods.FilterAlleles(ds, [False, True])
-        fa.filter_downcode_hts()
+        # also test keep=False
+        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"), keep=False)
+        fa.subset_entries_hts()
         self.assertTrue(
-            methods.import_vcf(test_file('filter_alleles/filter_allele2_downcode.vcf'))._same(
-                fa.filter()))
+            methods.import_vcf(test_file('filter_alleles/filter_allele2_downcode.vcf'))._same(fa.filter()))
 
-        fa = methods.FilterAlleles(ds, [True, False])
-        fa.filter_subset_hts()
+        # test test fa.annotate_rows
+        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "G"))
+        fa.annotate_rows(new_to_old = fa.new_to_old)
+        fa.subset_entries_hts()
         self.assertTrue(
-            methods.import_vcf(test_file('filter_alleles/filter_allele1_subset.vcf'))._same(
-                fa.filter()))
+            (methods.import_vcf(test_file('filter_alleles/filter_allele1_subset.vcf'))
+             .annotate_rows(new_to_old = [0, 2])
+             ._same(fa.filter())))
 
-        fa = methods.FilterAlleles(ds, [False, True])
-        fa.filter_subset_hts()
+        fa = methods.FilterAlleles(ds.v.alt_alleles.map(lambda aa: aa.alt == "T"))
+        fa.subset_entries_hts()
         self.assertTrue(
-            methods.import_vcf(test_file('filter_alleles/filter_allele2_subset.vcf'))._same(
-                fa.filter()))
-        
+            methods.import_vcf(test_file('filter_alleles/filter_allele2_subset.vcf'))._same(fa.filter()))
+
     def test_ld_prune(self):
         ds = methods.split_multi_hts(
             methods.import_vcf(test_file('sample.vcf')))

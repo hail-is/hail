@@ -2340,7 +2340,7 @@ class FilterAlleles(object):
         if self._row_exprs:
             raise RuntimeError('annotate_rows already called')
         for k, v in named_exprs.items():
-            analyze('FilterAlleles', v, base._row_indices)
+            analyze('FilterAlleles', v, self._ds._row_indices)
         self._row_exprs = named_exprs
 
     def annotate_entries(self, **named_exprs):
@@ -2356,7 +2356,7 @@ class FilterAlleles(object):
         if self._entry_exprs:
             raise RuntimeError('annotate_entries already called')
         for k, v in named_exprs.items():
-            analyze('FilterAlleles', v, base._entry_indices)
+            analyze('FilterAlleles', v, self._ds._entry_indices)
         self._entry_exprs = named_exprs
 
     def subset_entries_hts(self):
@@ -2439,7 +2439,7 @@ class FilterAlleles(object):
                 functions.range(0, self.new_v.num_alleles()).map(
                     lambda newi: ds.AD[self.new_to_old[newi]]),
                 functions.null(TArray(TInt32()))),
-            // DP unchanged
+            # DP unchanged
             GQ = functions.gq_from_pl(newPL),
             PL = newPL)
 
@@ -2516,7 +2516,7 @@ class FilterAlleles(object):
                         lambda oldi: self.old_to_new[oldi] == newi).map(
                             lambda oldi: ds.AD[oldi]).sum()),
                 functions.null(TArray(TInt32()))),
-            // DP unchanged
+            # DP unchanged
             GQ = functions.gq_from_pl(newPL),
             PL = newPL)
 
