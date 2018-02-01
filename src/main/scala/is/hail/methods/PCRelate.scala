@@ -92,7 +92,7 @@ object PCRelate {
 
     vds.requireUniqueSamples("pc_relate")
     val g = vdsToMeanImputedMatrix(vds)
-    val blockedG = BlockMatrix.from(g, blockSize).persist(StorageLevel.MEMORY_AND_DISK)
+    val blockedG = BlockMatrix.from(g, blockSize).cache()
 
     apply(vds.hc, blockedG, vds.sampleIds.toArray, vds.sSignature, pcaScores, maf, blockSize, minKinship, statistics)
   }
@@ -107,7 +107,7 @@ object PCRelate {
 
     vds.requireUniqueSamples("pc_relate")
     val g = vdsToMeanImputedMatrix(vds)
-    val blockedG = BlockMatrix.from(g, blockSize).persist(StorageLevel.MEMORY_AND_DISK)
+    val blockedG = BlockMatrix.from(g, blockSize).cache()
 
     apply(vds.hc, blockedG, vds.sampleIds.toArray, vds.sSignature, pcs, maf, blockSize, minKinship, statistics)
   }
@@ -254,7 +254,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
     gt != 0.0 && gt != 1.0 && gt != 2.0
 
   private def gram(m: M): M = {
-    val mc = m.persist(StorageLevel.MEMORY_AND_DISK)
+    val mc = m.cache()
     mc.t * mc
   }
 
@@ -275,11 +275,13 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
       this.phi(mu, variance, blockedG))
 
     if (statistics >= PhiK2) {
-      val k2 = this.k2(phi, mu, variance, blockedG).persist(StorageLevel.MEMORY_AND_DISK)
+      val k2 = cacheWhen(PhiK2K0)(
+        this.k2(phi, mu, variance, blockedG))
       if (statistics >= PhiK2K0) {
-        val k0 = this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize)).persist(StorageLevel.MEMORY_AND_DISK)
+        val k0 = cacheWhen(PhiK2K0K1)(
+          this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize)))
         if (statistics >= PhiK2K0K1) {
-          val k1 = (1.0 - (k2 :+ k0)).persist(StorageLevel.MEMORY_AND_DISK)
+          val k1 = (1.0 - (k2 :+ k0))
           Result(phi, k0, k1, k2)
         } else
           Result(phi, k0, null, k2)
@@ -320,14 +322,14 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
     val homalt =
       BlockMatrix.map2 { (g, mu) =>
         if (mu.isNaN || g != 2.0) 0.0 else 1.0
-      } (g, mu).persist(StorageLevel.MEMORY_AND_DISK)
+      } (g, mu)
 
     val homref =
       BlockMatrix.map2 { (g, mu) =>
         if (mu.isNaN || g != 0.0) 0.0 else 1.0
-      } (g, mu).persist(StorageLevel.MEMORY_AND_DISK)
+      } (g, mu)
 
-    val temp = (homalt.t * homref).persist(StorageLevel.MEMORY_AND_DISK)
+    val temp = (homalt.t * homref).cache()
 
     temp :+ temp.t
   }
