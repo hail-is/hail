@@ -7,7 +7,7 @@ Getting Started
 You'll need:
 
 - The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_.
-- `Spark 2.0.2 <http://spark.apache.org/downloads.html>`_. Hail should work with other versions of Spark 2, see below.
+- `Spark 2.0.2 <http://spark.apache.org/downloads.html>`_. Hail is compatible with Spark 2.0.x and 2.1.x.
 - Python 2.7 and Jupyter Notebooks. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
 
 --------------------
@@ -209,17 +209,16 @@ Hail on GCP even further, including via interactive Jupyter notebooks (also disc
 Building with other versions of Spark 2
 =======================================
 
-Hail should work with other versions of Spark 2.  To build against a
-different version, such as Spark 2.2.0, modify the above
-instructions as follows:
+Hail is compatible with Spark 2.0.x and 2.1.x.  To build against Spark 2.1.0,
+modify the above instructions as follows:
 
  - Set the Spark version in the gradle command
 
    .. code-block:: text
 
-      $ ./gradlew -Dspark.version=2.2.0 shadowJar
+      $ ./gradlew -Dspark.version=2.1.0 shadowJar
 
- - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.2.0-bin-hadoop2.7*
+ - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.1.0-bin-hadoop2.7*
 
  - The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
 
