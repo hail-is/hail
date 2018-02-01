@@ -3,6 +3,8 @@ package is.hail.sparkextras
 import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
 import is.hail.rvd.OrderedRVDType
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.{Iterator, Iterable, BufferedIterator}
+
 
 abstract class OrderedJoinIterator(leftTyp: OrderedRVType, rightTyp: OrderedRVType, leftIt: Iterator[RegionValue],
   rightIt: Iterator[RegionValue]) extends Iterator[JoinedRegionValue] {
@@ -221,5 +223,76 @@ class OrderedLeftJoinDistinctIterator(leftTyp: OrderedRVDType, rightTyp: Ordered
     }
 
     isPresent
+  }
+}
+
+class SteppedIterator[T](it: BufferedIterator[T], p: T => Boolean)
+    extends Iterator[T] {
+
+  private var stillValid = p
+
+  override def takeWhile(p: T => Boolean): SteppedIterator[T] = {
+    exhaust()
+    stillValid = p
+    this
+  }
+
+  def hasNext: Boolean = it.hasNext && stillValid(it.head)
+
+  def next(): T = {
+    if (!hasNext)
+      throw new NoSuchElementException("next on empty iterator")
+    it.next()
+  }
+
+  private def exhaust() {
+    while (hasNext) next()
+  }
+}
+
+class OrderedGroupedIterator(
+  typ: OrderedRVType, it: BufferedIterator[RegionValue], ord: UnsafeOrdering)
+    extends Iterator[Iterable[RegionValue]] {
+
+  private val region = Region()
+  private val idx = ArrayBuffer[Long]()
+  private val rvb = new RegionValueBuilder(region)
+
+  def hasNext: Boolean = it.hasNext
+
+  def next(): Iterable[RegionValue] = {
+    if (!hasNext)
+      throw new NoSuchElementException("next on empty iterator")
+    region.clear()
+    idx.clear()
+    while ()
+
+  }
+
+}
+
+class OrderedCogroupedIterator(
+  leftTyp: OrderedRVType, rightTyp: OrderedRVType,
+  left: Iterator[RegionValue], right: Iterator[RegionValue])
+    extends Iterator[(Iterator[RegionValue], Iterable[RegionValue])] {
+
+  private val left = left.buffered
+  private val right = right.buffered
+
+  private val rStore = Region()
+  private val rStoreIdx = ArrayBuffer[Long]()
+  private val rStoreRvb = new RegionValueBuilder(rStore)
+
+  private val lrKOrd = OrderedRVType.selectUnsafeOrdering(
+    leftTyp.rowType, leftTyp.kRowFieldIdx,
+    rightTyp.rowType, rightTyp.kRowFieldIdx)
+
+  // TODO: Fix
+  private val leftPred: RegionValue => Boolean = _
+  private val lSteppedIt = new SteppedIterator(left, leftPred)
+
+  def lrCompare: Int = {
+    assert(left.hasNext && right.hasNext)
+    lrKOrd.compare(left.head, right.head)
   }
 }
