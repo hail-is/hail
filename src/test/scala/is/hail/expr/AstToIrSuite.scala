@@ -86,12 +86,12 @@ class ASTToIRSuite {
     "1.0 > 2.0" -> ApplyBinaryPrimOp(GT(), F64(1.0), F64(2.0), TBoolean()),
     "1.0 == 2.0" -> ApplyBinaryPrimOp(EQ(), F64(1.0), F64(2.0), TBoolean()),
     "1.0 != 2.0" -> ApplyBinaryPrimOp(NEQ(), F64(1.0), F64(2.0), TBoolean()),
-    "0 / 0 + 1" -> ApplyBinaryPrimOp(
+    "0 // 0 + 1" -> ApplyBinaryPrimOp(
       Add(),
       ApplyBinaryPrimOp(FloatingPointDivide(), I32(0), I32(0), TFloat32()),
       I32(1),
       TInt32()),
-    "0 / 0 * 1" -> ApplyBinaryPrimOp(
+    "0 // 0 * 1" -> ApplyBinaryPrimOp(
       Multiply(),
       ApplyBinaryPrimOp(FloatingPointDivide(), I32(0), I32(0), TFloat32()),
       I32(1),
