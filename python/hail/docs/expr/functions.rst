@@ -15,6 +15,7 @@ Functions
     cond
     bind
     ctt
+    dbeta
     Dict
     dpois
     drop
@@ -42,6 +43,7 @@ Functions
     or_else
     or_missing
     pchisqtail
+    pl_dosage
     pnorm
     ppois
     qchisqtail
@@ -75,6 +77,7 @@ Functions
 .. autofunction:: cond
 .. autofunction:: bind
 .. autofunction:: ctt
+.. autofunction:: dbeta
 .. autofunction:: Dict
 .. autofunction:: dpois
 .. autofunction:: drop
@@ -102,6 +105,7 @@ Functions
 .. autofunction:: or_else
 .. autofunction:: or_missing
 .. autofunction:: pchisqtail
+.. autofunction:: pl_dosage
 .. autofunction:: pnorm
 .. autofunction:: ppois
 .. autofunction:: qchisqtail

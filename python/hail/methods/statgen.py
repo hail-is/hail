@@ -950,6 +950,190 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
 
     return cleanup(MatrixTable(jds))
 
+
+@handle_py4j
+@typecheck(dataset=MatrixTable,
+           key_expr=expr_any,
+           weight_expr=expr_numeric,
+           y=oneof(expr_numeric, expr_bool),
+           x=expr_numeric,
+           covariates=listof(oneof(expr_numeric, expr_bool)),
+           logistic=bool,
+           max_size=integral,
+           accuracy=numeric,
+           iterations=integral)
+def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
+         max_size=46340, accuracy=1e-6, iterations=10000):
+    r"""Test each keyed group of rows for association by linear or logistic
+    SKAT test.
+
+    Examples
+    --------
+
+    Test each gene for association using the linear sequence kernel association
+    test:
+
+    >>> ds = methods.read_matrix('data/example_burden.vds')
+    >>> skat_table = methods.skat(ds,
+    ...                           key_expr=ds.gene,
+    ...                           weight_expr=ds.weight,
+    ...                           y=ds.burden.pheno,
+    ...                           x=ds.GT.num_alt_alleles(),
+    ...                           covariates=[ds.burden.cov1, ds.burden.cov2])
+
+    .. caution::
+
+       By default, the Davies algorithm iterates up to 10k times until an
+       accuracy of 1e-6 is achieved. Hence a reported p-value of zero with no
+       issues may truly be as large as 1e-6. The accuracy and maximum number of
+       iterations may be controlled by the corresponding function parameters.
+       In general, higher accuracy requires more iterations.
+
+    .. caution::
+
+       To process a group with :math:`m` rows, several copies of an
+       :math:`m \times m` matrix of doubles must fit in worker memory. Groups
+       with tens of thousands of rows may exhaust worker memory causing the
+       entire job to fail. In this case, use the `max_size` parameter to skip
+       groups larger than `max_size`.
+
+    Notes
+    -----
+
+    This method provides a scalable implementation of the score-based
+    variance-component test originally described in
+    `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
+    <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
+
+    The test is run on columns with `y` and all `covariates` non-missing. For
+    each row, missing input (`x`) values are imputed as the mean of all
+    non-missing input values.
+
+    Row weights must be non-negative. Rows with missing weights are ignored. In
+    the R package ``skat``---which assumes rows are variants---default weights
+    are given by evaluating the Beta(1, 25) density at the minor allele
+    frequency. To replicate these weights in Hail using alternate allele
+    frequencies stored in a row-indexd field `AF`, one can use the expression:
+
+    .. testsetup::
+
+        ds2 = methods.variant_qc(dataset)
+        ds2 = ds2.select_rows(AF = ds2.variant_qc.AF)
+
+    .. doctest::
+
+        >>> functions.dbeta(ds2.AF.min(1 - ds2.AF),
+        ...                 1.0, 25.0) ** 2
+
+    In the logistic case, the response `y` must either be numeric (with all
+    present values 0 or 1) or Boolean, in which case true and false are coded
+    as 1 and 0, respectively.
+
+    The resulting :class:`.Table` provides the group's key, the size (number of
+    rows) in the group, the variance component score ``qstat``, the SKAT
+    p-value, and a fault flag. For the toy example above, the table has the
+    form:
+
+    +-------+------+-------+-------+-------+
+    |  key  | size | qstat | pval  | fault |
+    +=======+======+=======+=======+=======+
+    | geneA |   2  | 4.136 | 0.205 |   0   |
+    +-------+------+-------+-------+-------+
+    | geneB |   1  | 5.659 | 0.195 |   0   |
+    +-------+------+-------+-------+-------+
+    | geneC |   3  | 4.122 | 0.192 |   0   |
+    +-------+------+-------+-------+-------+
+
+    Groups larger than `max_size` appear with missing ``qstat``, ``pval``, and
+    ``fault``. The hard limit on the number of rows in a group is 46340.
+
+    Note that the variance component score ``qstat`` agrees with ``Q`` in the R
+    package ``skat``, but both differ from :math:`Q` in the paper by the factor
+    :math:`\frac{1}{2\sigma^2}` in the linear case and :math:`\frac{1}{2}` in
+    the logistic case, where :math:`\sigma^2` is the unbiased estimator of
+    residual variance for the linear null model. The R package also applies a
+    "small-sample adjustment" to the null distribution in the logistic case
+    when the sample size is less than 2000. Hail does not apply this
+    adjustment.
+
+    The fault flag is an integer indicating whether any issues occurred when
+    running the Davies algorithm to compute the p-value as the right tail of a
+    weighted sum of :math:`\chi^2(1)` distributions.
+
+    +-------------+-----------------------------------------+
+    | fault value | Description                             |
+    +=============+=========================================+
+    |      0      | no issues                               |
+    +------+------+-----------------------------------------+
+    |      1      | accuracy NOT achieved                   |
+    +------+------+-----------------------------------------+
+    |      2      | round-off error possibly significant    |
+    +------+------+-----------------------------------------+
+    |      3      | invalid parameters                      |
+    +------+------+-----------------------------------------+
+    |      4      | unable to locate integration parameters |
+    +------+------+-----------------------------------------+
+    |      5      | out of memory                           |
+    +------+------+-----------------------------------------+
+
+    Parameters
+    ----------
+    key_expr : :class:`.Expression`
+        Row-indexed expression for key associated to each row.
+    weight_expr : :class:`.NumericExpression`
+        Row-indexed expression of numeric type for row weights.
+    y : :class:`.NumericExpression` or :class:`.BooleanExpression`
+        Column-indexed response expression.
+    x : :class:`.NumericExpression`
+        Row- and column-indexed expression for input variable.
+    covariates : :obj:`list` of (:class:`.NumericExpression` or :class:`.BooleanExpression`)
+        List of column-indexed covariate expressions.
+    logistic : :obj:`bool`
+        If true, use the logistic test rather than the linear test.
+    max_size : :obj:`int`
+        Maximum size of group on which to run the test.
+    accuracy : :obj:`float`
+        Accuracy achieved by the Davies algorithm if fault value is zero.
+    iterations : :obj:`int`
+        Maximum number of iterations attempted by the Davies algorithm.
+
+    Returns
+    -------
+    :class:`.Table`
+        Table of SKAT results.
+    """
+    all_exprs = [key_expr, weight_expr, x, y]
+
+    # key_expr and weight_expr are row_indexed
+    analyze('skat/key_expr', key_expr, dataset._row_indices)
+    analyze('skat/weight_expr', weight_expr, dataset._row_indices)
+
+    # x is entry-indexed
+    analyze('skat/x', x, dataset._entry_indices)
+
+    # y and covariates are col-indexed
+    analyze('skat/y', y, dataset._col_indices)
+    for e in covariates:
+        all_exprs.append(e)
+        analyze('skat/covariates', e, dataset._col_indices)
+
+    base, _ = dataset._process_joins(*all_exprs)
+
+    jt = base._jvds.skat(
+        key_expr._ast.to_hql(),
+        weight_expr._ast.to_hql(),
+        y._ast.to_hql(),
+        x._ast.to_hql(),
+        jarray(Env.jvm().java.lang.String, [cov._ast.to_hql() for cov in covariates]),
+        logistic,
+        max_size,
+        accuracy,
+        iterations
+    )
+
+    return Table(jt)
+
+
 @handle_py4j
 @typecheck(dataset=MatrixTable, force_local=bool)
 def ld_matrix(dataset, force_local=False):

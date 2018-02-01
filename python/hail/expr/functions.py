@@ -385,6 +385,33 @@ def Dict(keys, values):
     ret_type = TDict(key_col._type, value_col._type)
     return _func("Dict", ret_type, keys, values)
 
+@typecheck(x=expr_numeric, a=expr_numeric, b=expr_numeric)
+def dbeta(x, a, b):
+    """
+    Returns the probability density at `x` of a `beta distribution
+    <https://en.wikipedia.org/wiki/Beta_distribution>`__ with parameters `a`
+    (alpha) and `b` (beta).
+
+    Examples
+    --------
+    .. doctest::
+
+        >> eval_expr(functions.dbeta(.2, 5, 20))
+        4.900377563180943
+
+    Parameters
+    ----------
+    x : :obj:`float` or :class:`.Float64Expression`
+        Point in [0,1] at which to sample. If a < 1 then x must be positive.
+        If b < 1 then x must be less than 1.
+    a : :obj:`float` or :class:`.Float64Expression`
+        The alpha parameter in the beta distribution. The result is undefined
+        for non-positive a.
+    b : :obj:`float` or :class:`.Float64Expression`
+        The beta parameter in the beta distribution. The result is undefined
+        for non-positive b.
+    """
+    return _func("dbeta", TFloat64(), x, a, b)
 
 @typecheck(x=expr_numeric, lamb=expr_numeric, log_p=expr_bool)
 def dpois(x, lamb, log_p=False):
@@ -399,11 +426,11 @@ def dpois(x, lamb, log_p=False):
 
     Parameters
     ----------
-    x : float or :class:`.Float64Expression`
+    x : :obj:`float` or :class:`.Float64Expression`
         Non-negative number at which to compute the probability density.
-    lamb : float or :class:`.Float64Expression`
+    lamb : :obj:`float` or :class:`.Float64Expression`
         Poisson rate parameter. Must be non-negative.
-    log_p : bool or :class:`.BooleanExpression`
+    log_p : :obj:`bool` or :class:`.BooleanExpression`
         If true, the natural logarithm of the probability density is returned.
 
     Returns
@@ -643,6 +670,33 @@ def parse_locus(s, reference_genome=None):
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), TLocus(reference_genome),
                           s._indices, s._aggregations, s._joins, s._refs)
 
+@typecheck(pl=expr_list)
+def pl_dosage(pl):
+    """
+    Return expected genotype dosage from array of Phred-scaled genotype
+    likelihoods with uniform prior. Only defined for bi-allelic variants. The
+    `pl` argument must be length 3.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.pl_dosage([5, 10, 100]))
+        0.24025307377482674
+
+    Parameters
+    ----------
+    pl : :class:`.ArrayInt32Expression`
+        Length 3 list of bi-allelic Phred-scaled genotype likelihoods
+
+    Returns
+    -------
+    :class:`.Float64Expression`
+    """
+    if not isinstance(pl, ArrayInt32Expression):
+        raise TypeError("Function 'pl_dosage' expects an expression of type "
+                        "'Array[TInt32]'. Found {}".format(pl.dtype))
+    return _func("plDosage", TFloat64(), pl)
 
 @typecheck(start=expr_locus, end=expr_locus)
 def interval(start, end):
