@@ -2,6 +2,7 @@ package is.hail.utils
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.types.MatrixType
 import is.hail.variant._
 
 import scala.util.Random
@@ -124,6 +125,6 @@ object TestRDDBuilder {
       }.toArray
     
     val variantRDD = hc.sc.parallelize(variantArray)
-    MatrixTable.fromLegacy(hc, MatrixFileMetadata(sampleList.map(Annotation(_))), variantRDD)
+    MatrixTable.fromLegacy(hc, MatrixType(), Annotation.empty, sampleList.map(Annotation(_)), variantRDD)
   }
 }

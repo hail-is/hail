@@ -28,17 +28,17 @@ class VSMSuite extends SparkSuite {
     val vds2 = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
     assert(vds1.same(vds2))
 
-    val s1mdata = MatrixFileMetadata(Array("S1", "S2", "S3").map(Annotation(_)))
+    val s1samples = Array("S1", "S2", "S3").map(Annotation(_))
     val s1va1: Annotation = null
     val s1va2 = Annotation()
 
-    val s2mdata = MatrixFileMetadata(Array("S1", "S2").map(Annotation(_)))
+    val s2samples = Array("S1", "S2").map(Annotation(_))
     val s2va1: Annotation = null
     val s2va2: Annotation = null
 
-    val s3mdata = MatrixFileMetadata(
-      Array("S1", "S2", "S3").map(Annotation(_)),
-      vaSignature = TStruct(
+    val s3samples = Array("S1", "S2", "S3").map(Annotation(_))
+    val s3typ = MatrixType(
+      vaType = TStruct(
         "inner" -> TStruct(
           "thing1" -> TString()),
         "thing2" -> TString()))
@@ -46,9 +46,9 @@ class VSMSuite extends SparkSuite {
     val s3va2 = Annotation(Annotation("yes"), "no")
     val s3va3 = Annotation(Annotation("no"), "yes")
 
-    val s4mdata = MatrixFileMetadata(
-      Array("S1", "S2").map(Annotation(_)),
-      vaSignature = TStruct(
+    val s4samples = Array("S1", "S2").map(Annotation(_))
+    val s4typ = MatrixType(
+      vaType = TStruct(
         "inner" -> TStruct(
           "thing1" -> TString()),
         "thing2" -> TString(),
@@ -56,12 +56,12 @@ class VSMSuite extends SparkSuite {
     val s4va1 = Annotation(Annotation("yes"), "yes", null)
     val s4va2 = Annotation(Annotation("yes"), "no", "dummy")
 
-    assert(s1mdata != s2mdata)
-    assert(s1mdata != s3mdata)
-    assert(s2mdata != s3mdata)
-    assert(s1mdata != s4mdata)
-    assert(s2mdata != s4mdata)
-    assert(s3mdata != s4mdata)
+    assert(s1samples != s2samples)
+    assert(s1samples != s3samples)
+    assert(s2samples != s3samples)
+    assert(s1samples != s4samples)
+    assert(s2samples != s4samples)
+    assert(s3samples != s4samples)
 
     val v1 = Variant("1", 1, "A", "T")
     val v2 = Variant("1", 2, "T", "G")
@@ -142,15 +142,15 @@ class VSMSuite extends SparkSuite {
         Iterable(Genotype(0),
           Genotype(0))))))
 
-    val vdss = Array(MatrixTable.fromLegacy(hc, s3mdata, s3rdd1),
-      MatrixTable.fromLegacy(hc, s3mdata, s3rdd2),
-      MatrixTable.fromLegacy(hc, s3mdata, s3rdd3),
-      MatrixTable.fromLegacy(hc, s2mdata, s2rdd4),
-      MatrixTable.fromLegacy(hc, s3mdata, s3rdd5),
-      MatrixTable.fromLegacy(hc, s3mdata, s3rdd6),
-      MatrixTable.fromLegacy(hc, s1mdata, s1rdd7),
-      MatrixTable.fromLegacy(hc, s2mdata, s2rdd8),
-      MatrixTable.fromLegacy(hc, s4mdata, s4rdd9))
+    val vdss = Array(MatrixTable.fromLegacy(hc, s3typ, Annotation.empty, s3samples, s3rdd1),
+      MatrixTable.fromLegacy(hc, s3typ, Annotation.empty, s3samples, s3rdd2),
+      MatrixTable.fromLegacy(hc, s3typ, Annotation.empty, s3samples, s3rdd3),
+      MatrixTable.fromLegacy(hc, MatrixType(), Annotation.empty, s2samples, s2rdd4),
+      MatrixTable.fromLegacy(hc, s3typ, Annotation.empty, s3samples, s3rdd5),
+      MatrixTable.fromLegacy(hc, s3typ, Annotation.empty, s3samples, s3rdd6),
+      MatrixTable.fromLegacy(hc, MatrixType(), Annotation.empty, s1samples, s1rdd7),
+      MatrixTable.fromLegacy(hc, MatrixType(), Annotation.empty, s2samples, s2rdd8),
+      MatrixTable.fromLegacy(hc, s4typ, Annotation.empty, s4samples, s4rdd9))
 
     for (vds <- vdss)
       vds.typecheck()
@@ -246,7 +246,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testInvalidMetadata() {
-    TestUtils.interceptFatal("""invalid metadata""") {
+    TestUtils.interceptFatal("file not found") {
       hc.readVDS("src/test/resources/0.1-1fd5cc7.vds").count()
     }
   }

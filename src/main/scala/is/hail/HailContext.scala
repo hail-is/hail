@@ -16,7 +16,7 @@ import is.hail.table.Table
 import is.hail.rvd.OrderedRVD
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenomeReference, Genotype, HTSGenotypeView, Locus, MatrixTable, MatrixFileMetadata, VSMSubgen, Variant}
+import is.hail.variant.{GenomeReference, Genotype, HTSGenotypeView, Locus, MatrixTable, VSMSubgen, Variant}
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
@@ -325,10 +325,12 @@ class HailContext private(val sc: SparkContext,
     val rdd = sc.union(results.map(_.rdd))
 
     MatrixTable.fromLegacy(this,
-      MatrixFileMetadata(samples.map(Annotation(_)),
-        vaSignature = signature,
-        genotypeSignature = TStruct("GT" -> TCall(),
+      MatrixType(
+        vaType = signature,
+        genotypeType = TStruct("GT" -> TCall(),
           "GP" -> TArray(TFloat64()))),
+      Annotation.empty,
+      samples.map(Annotation(_)),
       rdd)
   }
 

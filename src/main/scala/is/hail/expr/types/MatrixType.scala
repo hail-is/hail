@@ -15,8 +15,8 @@ object MatrixType {
 
   def apply(
     globalType: TStruct = TStruct.empty(),
-    colType: TStruct = TStruct.empty(),
-    colKey: IndexedSeq[String] = Array.empty[String],
+    colType: TStruct = TStruct("s" -> TString()),
+    colKey: IndexedSeq[String] = Array("s"),
     vType: Type = TVariant(GenomeReference.defaultReference),
     vaType: TStruct = TStruct.empty(),
     genotypeType: TStruct = Genotype.htsGenotypeType): MatrixType = {

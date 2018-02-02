@@ -936,8 +936,8 @@ object LoadVCF {
 
     new MatrixTable(hc,
       matrixType,
-      MatrixLocalValue(Annotation.empty,
-        sampleIds.map(x => Annotation(x))),
+      Annotation.empty,
+      sampleIds.map(x => Annotation(x)),
       rdd)
   }
 
