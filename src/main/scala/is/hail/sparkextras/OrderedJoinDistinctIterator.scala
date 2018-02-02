@@ -127,8 +127,14 @@ abstract class OrderedJoinIterator(
   }
 }
 
-abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRVDType, rightTyp: OrderedRVDType, leftIt: Iterator[RegionValue],
-  rightIt: Iterator[RegionValue]) extends Iterator[JoinedRegionValue] {
+
+abstract class OrderedJoinDistinctIterator(
+    leftTyp: OrderedRVDType,
+    rightTyp: OrderedRVDType,
+    leftIt: Iterator[RegionValue],
+    rightIt: Iterator[RegionValue])
+  extends Iterator[JoinedRegionValue] {
+
   private val jrv = JoinedRegionValue()
   private var lrv: RegionValue = _
   private var rrv: RegionValue = if (rightIt.hasNext) rightIt.next() else null
@@ -194,8 +200,33 @@ abstract class OrderedJoinDistinctIterator(leftTyp: OrderedRVDType, rightTyp: Or
   }
 }
 
-class OrderedInnerJoinDistinctIterator(leftTyp: OrderedRVDType, rightTyp: OrderedRVDType, leftIt: Iterator[RegionValue],
-  rightIt: Iterator[RegionValue]) extends OrderedJoinDistinctIterator(leftTyp, rightTyp, leftIt, rightIt) {
+// class OrderedInnerJoinDistinctIterator(
+//     leftTyp: OrderedRVDType,
+//     rightTyp: OrderedRVDType,
+//     leftIt: Iterator[RegionValue],
+//     rightIt: Iterator[RegionValue])
+//   extends Iterator[JoinedRegionValue] {
+
+//   val left = OrderedRVIterator(leftTyp, leftIt.buffered)
+//   val right = OrderedRVIterator(rightTyp, rightIt.buffered)
+//   val jrv = JoinedRegionValue()
+
+//   val it = for (Muple(l, r) <- left.cogroup(right) if (l.hasNext && r.hasNext))
+//   yield {
+//     jrv.set(l.head, r.head)
+//     jrv
+//   }
+
+//   def hasNext: Boolean = it.hasNext
+//   def next(): JoinedRegionValue = it.next()
+// }
+
+class OrderedInnerJoinDistinctIterator(
+    leftTyp: OrderedRVDType,
+    rightTyp: OrderedRVDType,
+    leftIt: Iterator[RegionValue],
+    rightIt: Iterator[RegionValue])
+  extends OrderedJoinDistinctIterator(leftTyp, rightTyp, leftIt, rightIt) {
 
   def hasNext: Boolean = {
     if (!isPresent) {
@@ -215,25 +246,55 @@ class OrderedInnerJoinDistinctIterator(leftTyp: OrderedRVDType, rightTyp: Ordere
   }
 }
 
-class OrderedLeftJoinDistinctIterator(leftTyp: OrderedRVDType, rightTyp: OrderedRVDType, leftIt: Iterator[RegionValue],
-  rightIt: Iterator[RegionValue]) extends OrderedJoinDistinctIterator(leftTyp, rightTyp, leftIt, rightIt) {
+class OrderedLeftJoinDistinctIterator(
+    leftTyp: OrderedRVDType,
+    rightTyp: OrderedRVDType,
+    leftIt: Iterator[RegionValue],
+    rightIt: Iterator[RegionValue])
+  extends Iterator[JoinedRegionValue] {
 
-  def hasNext: Boolean = {
-    if (!isPresent) {
-      advanceLeft1()
-      while (!isPresent && hasLeft) {
-        if (!hasRight || lrCompare() < 0)
-          setJRVRightNull()
-        else if (lrCompare() == 0)
-          setJRV()
-        else
-          advanceRight()
-      }
-    }
+  val left = OrderedRVIterator(leftTyp, leftIt.buffered)
+  val right = OrderedRVIterator(rightTyp, rightIt.buffered)
+  val jrv = JoinedRegionValue()
 
-    isPresent
+  val it = for {
+    Muple(l, r) <- left.cogroup(right)
+    lrv <- l
+  } yield {
+    if (r.hasNext)
+      jrv.set(lrv, r.head)
+    else
+      jrv.set(lrv, null)
+    jrv
   }
+
+  def hasNext: Boolean = it.hasNext
+  def next(): JoinedRegionValue = it.next()
 }
+
+// class OrderedLeftJoinDistinctIterator(
+//     leftTyp: OrderedRVType,
+//     rightTyp: OrderedRVType,
+//     leftIt: Iterator[RegionValue],
+//     rightIt: Iterator[RegionValue])
+//   extends OrderedJoinDistinctIterator(leftTyp, rightTyp, leftIt, rightIt) {
+
+//   def hasNext: Boolean = {
+//     if (!isPresent) {
+//       advanceLeft1()
+//       while (!isPresent && hasLeft) {
+//         if (!hasRight || lrCompare() < 0)
+//           setJRVRightNull()
+//         else if (lrCompare() == 0)
+//           setJRV()
+//         else
+//           advanceRight()
+//       }
+//     }
+
+//     isPresent
+//   }
+// }
 
 class StaircaseIterator[A](it: BufferedIterator[A], equiv: MutableEquiv[A])
   extends Iterator[BufferedIterator[A]] {
