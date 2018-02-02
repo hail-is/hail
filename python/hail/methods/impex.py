@@ -654,32 +654,32 @@ def import_plink(bed, bim, fam,
 
     * Row fields:
 
-        * **v** (:class:`.TVariant`) -- Variant (key field).
-        * **rsid** (:class:`.TString`) -- Column 2 in the BIM file.
+        * `v` (:class:`.TVariant`) -- Variant (key field).
+        * `rsid` (:class:`.TString`) -- Column 2 in the BIM file.
 
     * Column fields:
 
-        * **s** (:class:`.TString`) -- Column 2 in the Fam file (key field).
-        * **fam_id** (:class:`.TString`) -- Column 1 in the FAM file. Set to
+        * `s` (:class:`.TString`) -- Column 2 in the Fam file (key field).
+        * `fam_id` (:class:`.TString`) -- Column 1 in the FAM file. Set to
           missing if ID equals "0".
-        * **pat_id** (:class:`.TString`) -- Column 3 in the FAM file. Set to
+        * `pat_id` (:class:`.TString`) -- Column 3 in the FAM file. Set to
           missing if ID equals "0".
-        * **mat_id** (:class:`.TString`) -- Column 4 in the FAM file. Set to
+        * `mat_id` (:class:`.TString`) -- Column 4 in the FAM file. Set to
           missing if ID equals "0".
-        * **is_female** (:class:`.TString`) -- Column 5 in the FAM file. Set to
+        * `is_female` (:class:`.TString`) -- Column 5 in the FAM file. Set to
           missing if value equals "-9", "0", or "N/A". Set to true if value
           equals "2". Set to false if value equals "1".
-        * **is_case** (:class:`.TString`) -- Column 6 in the FAM file. Only
+        * `is_case` (:class:`.TString`) -- Column 6 in the FAM file. Only
           present if `quant_pheno` equals False. Set to missing if value equals
           "-9", "0", "N/A", or the value specified by `missing`. Set to true if
           value equals "2". Set to false if value equals "1".
-        * **quant_pheno** (:class:`.TString`) -- Column 6 in the FAM file. Only
+        * `quant_pheno` (:class:`.TString`) -- Column 6 in the FAM file. Only
           present if `quant_pheno` equals True. Set to missing if value equals
           `missing`.
 
     * Entry fields:
 
-        * **GT** (:class:`.TCall`) -- Genotype call (diploid, unphased).
+        * `GT` (:class:`.TCall`) -- Genotype call (diploid, unphased).
 
     Parameters
     ----------
