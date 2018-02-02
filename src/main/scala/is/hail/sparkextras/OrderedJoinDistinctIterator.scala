@@ -1,15 +1,19 @@
 package is.hail.sparkextras
 
-import is.hail.annotations.{JoinedRegionValue, Region, RegionValue,
-  RegionValueBuilder, UnsafeOrdering}
-import is.hail.rvd.OrderedRVDType
-import is.hail.utils.MutableEquiv
+import scala.collection.{BufferedIterator, Iterator}
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.{Iterator, Iterable, BufferedIterator}
 
+import is.hail.annotations.{JoinedRegionValue, OrderedRVIterator, Region, RegionValue, RegionValueBuilder, UnsafeOrdering}
+import is.hail.rvd.OrderedRVDType
+import is.hail.utils.{Muple, MutableEquiv}
 
-abstract class OrderedJoinIterator(leftTyp: OrderedRVDType, rightTyp: OrderedRVDType, leftIt: Iterator[RegionValue],
-  rightIt: Iterator[RegionValue]) extends Iterator[JoinedRegionValue] {
+abstract class OrderedJoinIterator(
+    leftTyp: OrderedRVDType,
+    rightTyp: OrderedRVDType,
+    leftIt: Iterator[RegionValue],
+    rightIt: Iterator[RegionValue])
+  extends Iterator[JoinedRegionValue] {
+
   private val jrv = JoinedRegionValue()
   private val rCache = Region()
   private val rCacheIdx = ArrayBuffer[Long]()
@@ -21,7 +25,10 @@ abstract class OrderedJoinIterator(leftTyp: OrderedRVDType, rightTyp: OrderedRVD
   private var jrvPresent = false
   private def rCachePresent = false
   private var rCacheCur = -1
-  private val lrKOrd = OrderedRVDType.selectUnsafeOrdering(leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx)
+  private val lrKOrd =
+    OrderedRVDType.selectUnsafeOrdering(
+      leftTyp.rowType, leftTyp.kRowFieldIdx,
+      rightTyp.rowType, rightTyp.kRowFieldIdx)
 
   def lrCompare: Int = {
     assert(lrv != null && rrv != null)
@@ -228,55 +235,27 @@ class OrderedLeftJoinDistinctIterator(leftTyp: OrderedRVDType, rightTyp: Ordered
   }
 }
 
-class StaircaseIterator[T](it: BufferedIterator[T], equiv: MutableEquiv[T])
-    extends Iterator[Iterator[T]] {
+class StaircaseIterator[A](it: BufferedIterator[A], equiv: MutableEquiv[A])
+  extends Iterator[BufferedIterator[A]] {
 
-  private object stepIterator extends Iterator[T] {
+  if (it.hasNext) equiv.setEquivClass(it.head)
+
+  private object stepIterator extends BufferedIterator[A] {
     def hasNext: Boolean = it.hasNext && equiv.inEquivClass(it.head)
-    def next(): T = it.next()
+    def head: A = { assert(hasNext); it.head }
+    def next(): A = { assert(hasNext); it.next() }
     def exhaust(): Unit = while (hasNext) next()
   }
-  if (it.hasNext) equiv.setEquivClass(it.head)
 
   def hasNext: Boolean = {
     stepIterator.exhaust()
     it.hasNext
   }
 
-  def next(): Iterator[T] = {
-    if (!hasNext)
-      throw new NoSuchElementException("next on empty iterator")
+  def next(): BufferedIterator[A] = {
+    val b = hasNext
+    assert(b)
     equiv.setEquivClass(it.head)
     stepIterator
   }
 }
-
-class RVStaircaseIterator(
-  typ: OrderedRVDType, it: BufferedIterator[RegionValue], ord: UnsafeOrdering)
-extends StaircaseIterator[RegionValue](it, typ.mutableEquiv)
-
-//class OrderedCogroupedIterator(
-//  leftTyp: OrderedRVType, rightTyp: OrderedRVType,
-//  left: Iterator[RegionValue], right: Iterator[RegionValue])
-//    extends Iterator[(Iterator[RegionValue], Iterable[RegionValue])] {
-//
-//  private val left = left.buffered
-//  private val right = right.buffered
-//
-//  private val rStore = Region()
-//  private val rStoreIdx = ArrayBuffer[Long]()
-//  private val rStoreRvb = new RegionValueBuilder(rStore)
-//
-//  private val lrKOrd = OrderedRVType.selectUnsafeOrdering(
-//    leftTyp.rowType, leftTyp.kRowFieldIdx,
-//    rightTyp.rowType, rightTyp.kRowFieldIdx)
-//
-//  // TODO: Fix
-//  private val leftPred: RegionValue => Boolean = _
-//  private val lSteppedIt = new SteppedIterator(left, leftPred)
-//
-//  def lrCompare: Int = {
-//    assert(left.hasNext && right.hasNext)
-//    lrKOrd.compare(left.head, right.head)
-//  }
-//}
