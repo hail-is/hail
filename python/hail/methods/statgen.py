@@ -104,6 +104,150 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
                                               joption(max)))
 
 @handle_py4j
+@typecheck(locus=expr_locus,
+           call=expr_call,
+           maf_threshold=numeric,
+           include_par=bool,
+           female_threshold=numeric,
+           male_threshold=numeric,
+           population_frequency=nullable(expr_numeric))
+def impute_sex(locus, call, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, population_frequency=None):
+    """Impute sex of samples by calculating inbreeding coefficient on the X
+    chromosome.
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    .. include:: ../_templates/req_biallelic.rst
+
+    Examples
+    --------
+
+    Remove samples where imputed sex does not equal reported sex:
+
+    >>> imputed_sex = methods.impute_sex(ds.locus, ds.GT)
+    >>> ds.filter_cols(imputed_sex[ds.s].isFemale != ds.pheno.isFemale)
+
+    Notes
+    -----
+
+    We have used the same implementation as `PLINK v1.7
+    <http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#sexcheck>`__.
+
+    Let `gr` be the the genome reference of the type of `locus` (as given by
+    :meth:`.TLocus.reference_genome`)
+
+    1. Filter the dataset to loci on the X contig defined by `gr`.
+
+    4. Calculate minor allele frequency (MAF) for each row from the dataset.
+
+    2. Filter to variants with MAF above `maf-threshold`.
+
+    3. Remove loci in the pseudoautosomal region, as defined by `gr`, if and
+       only if `include_par` is ``True`` (it defaults to ``False``)
+
+    5. For each row and column with a non-missing genotype call, :math:`E`, the
+       expected number of homozygotes (from population MAF), is computed as
+       :math:`1.0 - (2.0*maf*(1.0-maf))`.
+
+    6. For each row and column with a non-missing genotype call, :math:`O`, the
+       observed number of homozygotes, is computed interpreting ``0`` as
+       heterozygote and ``1`` as homozygote`
+
+    7. For each row and column with a non-missing genotype call, :math:`N` is
+       incremented by 1
+
+    8. For each column, :math:`E`, :math:`O`, and :math:`N` are combined across
+       variants
+
+    9. For each column, :math:`F` is calculated by :math:`(O - E) / (N - E)`
+
+    10. A sex is assigned to each sample with the following criteria:
+        - Female when ``F < 0.2``
+        - Male when ``F > 0.8``
+        Use `female-threshold` and `male-threshold` to change this behavior.
+
+    **Annotations**
+
+    The returned column-key indexed :class:`.Table` has the following fields:
+
+    - **isFemale** (:class:`.TBoolean`) -- True if the imputed sex is female, false if male, missing if undetermined
+    - **Fstat** (:class:`.TFloat64`) -- Inbreeding coefficient
+    - **nTotal** (:class:`.TInt64`) -- Total number of variants considered
+    - **nCalled**  (:class:`.TInt64`) -- Number of variants with a genotype call
+    - **expectedHoms** (:class:`.TFloat64`) -- Expected number of homozygotes
+    - **observedHoms** (:class:`.TInt64`) -- Observed number of homozygotes
+
+    locus
+    call
+
+    :param float maf_threshold: Minimum minor allele frequency threshold.
+
+    :param bool include_par: Include pseudoautosomal regions.
+
+    :param float female_threshold: Samples are called females if F <
+                                   femaleThreshold.
+
+    :param float male_threshold: Samples are called males if F > maleThreshold.
+
+    :param str population_frequency: Variant annotation for estimate of MAF. If None, MAF
+                         will be computed.
+
+    :return: Sex imputation statistics per sample.
+    :rtype: :class:`.Table`
+
+    """
+    source = call._indices.source
+
+    analyze('methods.impute_sex/locus', locus, source._row_indices)
+
+    gr = locus.dtype.reference_genome
+
+    analyze('methods.impute_sex/call', call, source._entry_indices)
+
+    lds, _ = source._process_joins(locus)
+    cds, _ = source._process_joins(call)
+
+    ds = cds.annotate_entries(call = call)
+    lds = lds.annotate_rows(locus = locus)
+    ds = ds.annotate_rows(locus = lds[ds.v,:].locus)
+
+    ds = require_biallelic(ds, 'impute_sex')
+
+    f = functions
+
+    # FIXME: filter_intervals
+    ds = ds.filter_rows(f.capture(set(gr.x_contigs)).contains(ds.locus.contig))
+
+    if (not include_par):
+        ds = ds.filter_rows(f.capture(gr.par).exists(lambda par: par.contains(ds.locus)),
+                            keep=False)
+
+    if (population_frequency is None):
+        ds = ds.annotate_rows(
+            aaf = (agg.sum(ds.call.num_alt_alleles()).to_float64() /
+                   agg.count_where(f.is_defined(ds.call)) / 2))
+    else:
+        pf_source = population_frequency._indices.source
+        analyze('methods.impute_sex/locus', population_frequency,
+                pf_source._row_indices, {pf_source._col_axis})
+        pf_kt, _ = pf_source._process_joins(population_frequency)
+        pf_kt = pf_kt.annotate_rows(aaf = population_frequency)
+        ds = ds.annotate_rows(aaf = pf_kt[ds.v, :].aaf)
+
+    ds = ds.filter_rows(ds.aaf > maf_threshold)
+
+    ds = ds.annotate_cols(ib = agg.inbreeding(ds.call, ds.aaf))
+
+    kt = ds.select_cols(
+        isFemale = f.cond(ds.ib.Fstat < female_threshold,
+                          True,
+                          f.cond(ds.ib.Fstat > male_threshold,
+                                 False,
+                                 f.null(TBoolean()))),
+        **ds.ib).cols_table()
+
+    return kt
+
 @typecheck(dataset=MatrixTable,
            ys=oneof(expr_numeric, listof(expr_numeric)),
            x=expr_numeric,
@@ -1144,6 +1288,11 @@ def ld_matrix(dataset, force_local=False):
 
     .. include:: ../_templates/req_biallelic.rst
 
+    .. testsetup::
+
+        dataset = vds.annotate_samples_expr('sa = drop(sa, qc)').to_hail2()
+        from hail.methods import ld_matrix
+
     Examples
     --------
 
@@ -1556,13 +1705,13 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
 
     Note
     ----
-    The ``block_size`` controls memory usage and parallelism. If it is large
+    The `block_size` controls memory usage and parallelism. If it is large
     enough to hold an entire sample-by-sample matrix of 64-bit doubles in
     memory, then only one Spark worker node can be used to compute matrix
     operations. If it is too small, communication overhead will begin to
     dominate the computation's time. The author has found that on Google
-    Dataproc (where each core has about 3.75GB of memory), setting
-    ``block_size`` larger than 512 tends to cause memory exhaustion errors.
+    Dataproc (where each core has about 3.75GB of memory), setting `block_size`
+    larger than 512 tends to cause memory exhaustion errors.
 
     Note
     ----
@@ -1628,6 +1777,7 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         The fields of the resulting :class:`.Table` entries are of types:
         `i`: `String`, `j`: `String`, `kin`: `Double`, `k2`: `Double`,
         `k1`: `Double`, `k0`: `Double`. The table is keyed by `i` and `j`.
+
     """
     dataset = require_biallelic(dataset, 'pc_relate')
     intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
