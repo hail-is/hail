@@ -46,7 +46,7 @@ package object utils extends Logging
     }
   }
 
-  def plural(n: Int, sing: String, plur: String = null): String =
+  def plural(n: Long, sing: String, plur: String = null): String =
     if (n == 1)
       sing
     else if (plur == null)

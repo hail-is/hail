@@ -1,7 +1,5 @@
 package is.hail.distributedmatrix
 
-import java.io.{DataInputStream, DataOutputStream}
-
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
@@ -591,16 +589,10 @@ class BlockMatrixSuite extends SparkSuite {
   @Test
   def readWriteBDM() {
     val lm = BDM.rand[Double](256, 129) // 33024 doubles
-    
     val fname = tmpDir.createTempFile("test")
-    
-    val dos = new DataOutputStream(hadoopConf.unsafeWriter(fname))
-    lm.write(dos)
-    dos.close() 
-    
-    val dis = new DataInputStream(hadoopConf.unsafeReader(fname))
-    val lm2 = RichDenseMatrixDouble.read(dis)
-    dis.close()
+
+    lm.write(hc, fname)    
+    val lm2 = RichDenseMatrixDouble.read(hc, fname)
     
     assert(lm === lm2)
   }
@@ -714,6 +706,17 @@ class BlockMatrixSuite extends SparkSuite {
         
         assert(filteredViaBlock === filteredViaBreeze)
       }
+    }
+  }
+  
+  @Test
+  def writeLocalAsBlockTest() {
+    val lm = new BDM[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
+    
+    for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
+      val fname = tmpDir.createTempFile("test")
+      lm.writeBlockMatrix(hc, fname, blockSize)
+      assert(lm === BlockMatrix.read(hc, fname).toLocalMatrix())
     }
   }
   
