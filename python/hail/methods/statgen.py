@@ -10,7 +10,6 @@ from hail.utils.java import handle_py4j, joption, jarray
 from .misc import require_biallelic
 from hail.expr import functions
 import hail.expr.aggregators as agg
-from math import sqrt
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
 @handle_py4j
@@ -106,12 +105,12 @@ def ibd(dataset, maf=None, bounded=True, min=None, max=None):
 @handle_py4j
 @typecheck(locus=expr_locus,
            call=expr_call,
-           maf_threshold=numeric,
+           aaf_threshold=numeric,
            include_par=bool,
            female_threshold=numeric,
            male_threshold=numeric,
-           population_frequency=nullable(expr_numeric))
-def impute_sex(locus, call, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, population_frequency=None):
+           aaf=nullable(expr_numeric))
+def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None):
     """Impute sex of samples by calculating inbreeding coefficient on the X
     chromosome.
 
@@ -124,7 +123,7 @@ def impute_sex(locus, call, maf_threshold=0.0, include_par=False, female_thresho
 
     Remove samples where imputed sex does not equal reported sex:
 
-    >>> imputed_sex = methods.impute_sex(ds.locus, ds.GT)
+    >>> imputed_sex = methods.impute_sex(ds.rows_table().v.locus(), ds.GT)
     >>> ds.filter_cols(imputed_sex[ds.s].isFemale != ds.pheno.isFemale)
 
     Notes
@@ -138,15 +137,15 @@ def impute_sex(locus, call, maf_threshold=0.0, include_par=False, female_thresho
 
     1. Filter the dataset to loci on the X contig defined by `gr`.
 
-    4. Calculate minor allele frequency (MAF) for each row from the dataset.
+    4. Calculate alternate allele frequency (AAF) for each row from the dataset.
 
-    2. Filter to variants with MAF above `maf-threshold`.
+    2. Filter to variants with AAF above `aaf_threshold`.
 
     3. Remove loci in the pseudoautosomal region, as defined by `gr`, if and
        only if `include_par` is ``True`` (it defaults to ``False``)
 
     5. For each row and column with a non-missing genotype call, :math:`E`, the
-       expected number of homozygotes (from population MAF), is computed as
+       expected number of homozygotes (from population AAF), is computed as
        :math:`1.0 - (2.0*maf*(1.0-maf))`.
 
     6. For each row and column with a non-missing genotype call, :math:`O`, the
@@ -177,43 +176,50 @@ def impute_sex(locus, call, maf_threshold=0.0, include_par=False, female_thresho
     - **expectedHoms** (:class:`.TFloat64`) -- Expected number of homozygotes
     - **observedHoms** (:class:`.TInt64`) -- Observed number of homozygotes
 
-    locus
-    call
+    locus : :class:`Expression`
+        A locus for each row. This should be a Table-like expression with only
+        one key. Will be keyed by `call`.
 
-    :param float maf_threshold: Minimum minor allele frequency threshold.
+    call : :class:`Expression`
+        A genotype call for each row and column. This should be a
+        MatrixTable-like expression with two keys. The first key indexes
+        `locus`.
 
-    :param bool include_par: Include pseudoautosomal regions.
+    aaf_threshold : :obj:`float`
+        Minimum minor allele frequency threshold.
 
-    :param float female_threshold: Samples are called females if F <
-                                   femaleThreshold.
+    include_par : :obj:`bool`
+        Include pseudoautosomal regions.
 
-    :param float male_threshold: Samples are called males if F > maleThreshold.
+    female_threshold : :obj:`float`
+        Samples are called females if F < female_threshold.
 
-    :param str population_frequency: Variant annotation for estimate of MAF. If None, MAF
-                         will be computed.
+    male_threshold : :obj:`float`
+        Samples are called males if F > male_threshold.
 
-    :return: Sex imputation statistics per sample.
-    :rtype: :class:`.Table`
+    aaf : :class:`Expression` or :obj:`None`
+        The alternate allele frequency for each row. Must be a Table-like
+        expression. Will be keyed by `call`. If ``None``, AAF will be computed
+        from `call`.
 
+    Return
+    ------
+    :class:`.Table`
+        Sex imputation statistics per sample.
     """
-    source = call._indices.source
-
-    analyze('methods.impute_sex/locus', locus, source._row_indices)
-
-    gr = locus.dtype.reference_genome
-
-    analyze('methods.impute_sex/call', call, source._entry_indices)
-
-    lds, _ = source._process_joins(locus)
-    cds, _ = source._process_joins(call)
-
-    ds = cds.annotate_entries(call = call)
-    lds = lds.annotate_rows(locus = locus)
-    ds = ds.annotate_rows(locus = lds[ds.v,:].locus)
-
-    ds = require_biallelic(ds, 'impute_sex')
 
     f = functions
+    gr = locus.dtype.reference_genome
+
+    csource = call._indices.source
+    lsource = locus._indices.source
+
+    call_ds = csource.annotate_entries(call=call)
+    locus_ds = lsource.annotate(locus=locus)
+    # FIXME: Why am I forced to assume locus_ds is a matrix table???
+    ds = call_ds.annotate_rows(locus=locus_ds[call_ds.v].locus)
+
+    ds = require_biallelic(ds, 'impute_sex')
 
     # FIXME: filter_intervals
     ds = ds.filter_rows(f.capture(set(gr.x_contigs)).contains(ds.locus.contig))
@@ -222,22 +228,17 @@ def impute_sex(locus, call, maf_threshold=0.0, include_par=False, female_thresho
         ds = ds.filter_rows(f.capture(gr.par).exists(lambda par: par.contains(ds.locus)),
                             keep=False)
 
-    if (population_frequency is None):
+    if (aaf is None):
         ds = ds.annotate_rows(
             aaf = (agg.sum(ds.call.num_alt_alleles()).to_float64() /
                    agg.count_where(f.is_defined(ds.call)) / 2))
     else:
-        pf_source = population_frequency._indices.source
-        analyze('methods.impute_sex/locus', population_frequency,
-                pf_source._row_indices, {pf_source._col_axis})
-        pf_kt, _ = pf_source._process_joins(population_frequency)
-        pf_kt = pf_kt.annotate_rows(aaf = population_frequency)
-        ds = ds.annotate_rows(aaf = pf_kt[ds.v, :].aaf)
+        aaf_source = aaf._indices.source
+        aaf_source = aaf_source.annotate(aaf = aaf)
+        ds = ds.annotate_rows(aaf = aaf_source[ds.v].aaf)
 
-    ds = ds.filter_rows(ds.aaf > maf_threshold)
-
+    ds = ds.filter_rows(ds.aaf > aaf_threshold)
     ds = ds.annotate_cols(ib = agg.inbreeding(ds.call, ds.aaf))
-
     kt = ds.select_cols(
         isFemale = f.cond(ds.ib.Fstat < female_threshold,
                           True,
