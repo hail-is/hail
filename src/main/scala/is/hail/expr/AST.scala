@@ -829,7 +829,6 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
     case (_: TAggregable, "sum", IndexedSeq()) =>
       for {
         a <- lhs.toIR(agg)
-        _ = println("yo: " + a)
         elementType = a.typ.asInstanceOf[TAggregable].elementType
       } yield ir.ApplyAggOp(a, ir.Sum(), Seq(), elementType)
     case (_: TAggregable, m, IndexedSeq(Lambda(_, name, body))) =>

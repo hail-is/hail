@@ -3,17 +3,15 @@ package is.hail.expr
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.testng.annotations.Test
+import org.scalatest.testng.TestNGSuite
 
-class ASTToIRSuite {
+class ASTToIRSuite extends TestNGSuite {
   private def toIR[T](s: String): Option[IR] = {
     val ast = Parser.parseToAST(s, EvalContext(Map(
       "aggregable"-> (0, TAggregable(TInt32(),
         Map("agg" -> (0, TInt32()),
           "something" -> (1, TInt32())))))))
-    ast.toIR(Some("aggregable")) match {
-      case Some(ir) => Some(ir)
-      case None => println(s"$s -> $ast -> None"); None
-    }
+    ast.toIR(Some("aggregable"))
   }
 
   @Test
@@ -88,12 +86,12 @@ class ASTToIRSuite {
     "1.0 != 2.0" -> ApplyBinaryPrimOp(NEQ(), F64(1.0), F64(2.0), TBoolean()),
     "0 // 0 + 1" -> ApplyBinaryPrimOp(
       Add(),
-      ApplyBinaryPrimOp(FloatingPointDivide(), I32(0), I32(0), TFloat32()),
+      ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(0), I32(0), TInt32()),
       I32(1),
       TInt32()),
     "0 // 0 * 1" -> ApplyBinaryPrimOp(
       Multiply(),
-      ApplyBinaryPrimOp(FloatingPointDivide(), I32(0), I32(0), TFloat32()),
+      ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(0), I32(0), TInt32()),
       I32(1),
       TInt32())
   )
