@@ -217,7 +217,6 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
 
     call_ds = csource.annotate_entries(call=call)
     locus_ds = lsource.annotate(locus=locus)
-    # FIXME: Why am I forced to assume locus_ds is a matrix table???
     ds = call_ds.annotate_rows(locus=locus_ds[call_ds.v].locus)
 
     ds = require_biallelic(ds, 'impute_sex')
