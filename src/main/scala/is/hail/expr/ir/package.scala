@@ -34,14 +34,17 @@ package object ir {
           v
         else
           ir.GetField(s, f.name))
-    }.toArray)
+    })
   }
 
-  def coerce[T](c: Code[_]): Code[T] = asm4s.coerce(c)
+  private[ir] def coerce[T](c: Code[_]): Code[T] = asm4s.coerce(c)
 
-  def coerce[T](lr: LocalRef[_]): LocalRef[T] = lr.asInstanceOf[LocalRef[T]]
+  private[ir] def coerce[T](lr: LocalRef[_]): LocalRef[T] = lr.asInstanceOf[LocalRef[T]]
 
-  def coerce[T <: Type](x: Type): T = x.asInstanceOf[T]
+  private[ir] def coerce[T](ti: TypeInfo[_]): TypeInfo[T] = ti.asInstanceOf[TypeInfo[T]]
 
-  def coerce[T](ti: TypeInfo[_]): TypeInfo[T] = ti.asInstanceOf[TypeInfo[T]]
+  private[ir] def coerce[T <: Type](x: Type): T = {
+    import is.hail.expr.types
+    types.coerce[T](x)
+  }
 }

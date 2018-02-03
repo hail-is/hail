@@ -1,30 +1,36 @@
 package is.hail.expr.ir
 
-import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.annotations._
+import is.hail.annotations.aggregators._
 import is.hail.expr.types._
 import is.hail.utils._
 import org.objectweb.asm.tree._
 
 import scala.language.existentials
+import scala.language.postfixOps
 
 object Emit {
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
 
-  private[ir] def toCode(ir: IR, fb: FunctionBuilder[_]): (Code[Unit], Code[Boolean], Code[_]) = {
-    toCode(ir, fb, Env.empty)
-  }
-
-  private[ir] def toCode(ir: IR, fb: FunctionBuilder[_], env: E): (Code[Unit], Code[Boolean], Code[_]) = {
-    emit(ir, fb, env, new StagedBitSet(fb))
-  }
-
-  private[ir] def toCode(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
-    emit(ir, fb, env, mb)
+  private[ir] def toCode(ir: IR, fb: FunctionBuilder[_], nSpecialArguments: Int): (Code[Unit], Code[Boolean], Code[_]) = {
+    emit(ir, fb, Env.empty, new StagedBitSet(fb), None, nSpecialArguments)
   }
 
   def apply(ir: IR, fb: FunctionBuilder[_]) {
-    val (dov, mv, vv) = toCode(ir, fb)
+    apply(ir, fb, None, 1)
+  }
+
+  def apply(ir: IR, fb: FunctionBuilder[_], nSpecialArguments: Int) {
+    apply(ir, fb, None, nSpecialArguments)
+  }
+
+  def apply(ir: IR, fb: FunctionBuilder[_], nSpecialArguments: Int, tAggIn: TAggregable) {
+    apply(ir, fb, Some(tAggIn), nSpecialArguments)
+  }
+
+  private def apply(ir: IR, fb: FunctionBuilder[_], tAggIn: Option[TAggregable], nSpecialArguments: Int) {
+    val (dov, mv, vv) = emit(ir, fb, Env.empty, new StagedBitSet(fb), tAggIn, nSpecialArguments)
     typeToTypeInfo(ir.typ) match { case ti: TypeInfo[t] =>
       fb.emit(Code(dov, mv.mux(
         Code._throw(Code.newInstance[RuntimeException, String]("cannot return empty")),
@@ -32,21 +38,78 @@ object Emit {
     }
   }
 
-  private def present(x: Code[_]): (Code[Unit], Code[Boolean], Code[_]) =
-    (Code._empty, const(false), x)
+  private def emit(
+    ir: IR,
+    fb: FunctionBuilder[_],
+    env: E,
+    mb: StagedBitSet,
+    tAggIn: Option[TAggregable],
+    nSpecialArguments: Int): (Code[Unit], Code[Boolean], Code[_]) = {
+    new Emit(fb, mb, tAggIn, nSpecialArguments).emit(ir, env)
+  }
+}
 
-  // the return value is interpreted as: (precompute, missingness, value)
-  // rules:
-  //  1. evaluate each returned Code[_] at most once
-  //  2. evaluate precompute *on all static code-paths* leading to missingness or value
-  //  3. gaurd the the evaluation of value by missingness
-  //
-  // JVM gotcha:
-  //  a variable must be initialized on all static code-paths to its use (ergo defaultValue)
-  private def emit(ir: IR, fb: FunctionBuilder[_], env: E, mb: StagedBitSet): (Code[Unit], Code[Boolean], Code[_]) = {
+private class Emit(
+  fb: FunctionBuilder[_],
+  mb: StagedBitSet,
+  tAggInOpt: Option[TAggregable],
+  nSpecialArguments: Int) {
+
+  import Emit.E
+
+  /**
+    * Invariants of the Returned Triplet
+    * ----------------------------------
+    *
+    * The elements of the triplet are called (precompute, missingness, value)
+    *
+    *  1. evaluate each returned Code[_] at most once
+    *  2. evaluate precompute *on all static code-paths* leading to missingness or value
+    *  3. gaurd the the evaluation of value by missingness
+    *
+    * JVM gotcha:
+    *  a variable must be initialized on all static code-paths to its use (ergo defaultValue)
+    *
+    * Argument Convention
+    * -------------------
+    *
+    * {@code In(i)} occupies two argument slots, one for the value and one for a
+    * missing bit. The value for {@code In(0)} is passed as argument
+    * {@code nSpecialArguments + 1}. The missingness bit is the subsequent
+    * argument. In general, the value for {@code In(i)} appears at
+    * {@code nSpecialArguments + 1 + i*2}.
+    *
+    * There must always be at least one special argument: a {@code Region} in
+    * which the IR can allocate memory.
+    *
+    * Aggregating expressions must have at least two special arguments. As with
+    * all expressions, the first argument must be a {@code Region}. The second
+    * argument is the {@code RegionValueAggregator} that implements the
+    * functionality of the (unique) {@code AggOp} in the expression. Note that
+    * the special arguments do not appear in pairs, i.e., they may not be
+    * missing.
+    *
+    * An aggregating expression additionally has an element argument and a
+    * number of "scope" argmuents following the special arguments. The type of
+    * the element is {@code tAggIn.elementType}. The number and types of the
+    * scope arguments is defined by the symbol table of {@code tAggIn}. The
+    * element argument and the scope arguments, unlike special arguments, appear
+    * in pairs of a value and a missingness bit. Moreover, the element argument
+    * must appear first.
+    *
+    **/
+  private def emit(ir: IR, env: E): (Code[Unit], Code[Boolean], Code[_]) = {
+    def emit(ir: IR, env: E = env): (Code[Unit], Code[Boolean], Code[_]) =
+      this.emit(ir, env)
+    def emitAgg(ir: IR, env: E = env)(k: (Code[_], Code[Boolean]) => Code[Unit]): Code[Unit] =
+      this.emitAgg(ir, aggEnv)(k)
+
     val region = fb.getArg[Region](1).load()
-    def emit(ir: IR, fb: FunctionBuilder[_] = fb, env: E = env, mb: StagedBitSet = mb): (Code[Unit], Code[Boolean], Code[_]) =
-      Emit.emit(ir, fb, env, mb)
+    lazy val aggregator = {
+      assert(nSpecialArguments >= 2)
+      fb.getArg[RegionValueAggregator](2)
+    }
+
     ir match {
       case I32(x) =>
         present(const(x))
@@ -270,6 +333,10 @@ object Emit {
                 i := i + 1))))
         (setup, xmout, xvout)
 
+      case x@ApplyAggOp(a, op, args, _) =>
+        val agg = AggOp.get(op, x.inputType, args.map(_.typ))
+        present(emitAgg(a)(agg.seqOp(aggregator, _, _)))
+
       case x@MakeStruct(fields, _) =>
         val initializers = fields.map { case (_, v) => (v.typ, emit(v)) }
         val srvb = new StagedRegionValueBuilder(fb, x.typ)
@@ -346,15 +413,117 @@ object Emit {
         val (doo, mo, vo) = emit(o)
         present(Code(doo, mo || !t.isFieldDefined(region, coerce[Long](vo), fieldIdx)))
 
-      case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap | _: AggSum =>
-        throw new RuntimeException(s"Aggregations must be extracted with ExtractAggregators before compilation: $ir")
+      case _: AggIn | _: AggMap | _: AggFilter | _: AggFlatMap =>
+        throw new RuntimeException(s"Aggregations must appear within an aggregation: $ir")
 
       case In(i, typ) =>
-        (Code._empty, fb.getArg[Boolean](i*2 + 3), fb.getArg(i*2 + 2)(typeToTypeInfo(typ)))
+        (Code._empty,
+          fb.getArg[Boolean](normalArgumentPosition(i) + 1),
+          fb.getArg(normalArgumentPosition(i))(typeToTypeInfo(typ)))
       case InMissingness(i) =>
         present(fb.getArg[Boolean](i*2 + 3))
       case Die(m) =>
         present(Code._throw(Code.newInstance[RuntimeException, String](m)))
     }
+  }
+
+  private def emitAgg(ir: IR, env: E)(continuation: (Code[_], Code[Boolean]) => Code[Unit]): Code[Unit] = {
+    def emit(ir: IR, env: E = env): (Code[Unit], Code[Boolean], Code[_]) =
+      this.emit(ir, env)
+    def emitAgg(ir: IR)(continuation: (Code[_], Code[Boolean]) => Code[Unit]): Code[Unit] =
+      this.emitAgg(ir, env)(continuation)
+
+    assert(nSpecialArguments >= 2)
+
+    val tAggIn = tAggInOpt.get
+
+    val region = fb.getArg[Region](1).load()
+    // aggregator is 2
+    val element = fb.getArg(3)(typeToTypeInfo(tAggIn.elementType)).load()
+    val melement = fb.getArg[Boolean](4).load()
+    ir match {
+      case AggIn(typ) =>
+        assert(tAggIn == typ)
+        continuation(element, melement)
+      case AggMap(a, name, body, typ) =>
+        val tA = coerce[TAggregable](a.typ)
+        val tElement = tA.elementType
+        val elementTi = typeToTypeInfo(tElement)
+        val x = coerce[Any](fb.newLocal()(elementTi))
+        val mx = mb.newBit
+        val (dobody, mbody, vbody) = emit(body, env.bind(name, (elementTi, mx.load(), x.load())))
+        emitAgg(a) { (v, mv) =>
+          Code(
+            mx := mv,
+            x := mx.mux(defaultValue(tElement), v),
+            dobody,
+            continuation(vbody, mbody)) }
+      case AggFilter(a, name, body, typ) =>
+        val tElement = coerce[TAggregable](a.typ).elementType
+        val elementTi = typeToTypeInfo(tElement)
+        val x = coerce[Any](fb.newLocal()(elementTi))
+        val mx = mb.newBit
+        val (dobody, mbody, vbody) = emit(body, env.bind(name, (elementTi, mx.load(), x.load())))
+        emitAgg(a) { (v, mv) =>
+          Code(
+            mx := mv,
+            x := mx.mux(defaultValue(tElement), v),
+            dobody,
+            // missing is false
+            (!mbody && coerce[Boolean](vbody)).mux(continuation(x, mx), Code._empty)) }
+      case AggFlatMap(a, name, body, typ) =>
+        val tA = coerce[TAggregable](a.typ)
+        val tElement = tA.elementType
+        val elementTi = typeToTypeInfo(tElement)
+        val tArray = coerce[TArray](body.typ)
+        val x = coerce[Any](fb.newLocal()(elementTi))
+        val arr = fb.newLocal[Long]
+        val len = fb.newLocal[Int]
+        val i = fb.newLocal[Int]
+        val mx = mb.newBit
+        val (dobody, mbody, vbody) = emit(body, env.bind(name, (elementTi, mx.load(), x.load())))
+        emitAgg(a) { (v, mv) =>
+          Code(
+            mx := mv,
+            x := mx.mux(defaultValue(tElement), v),
+            dobody,
+            mbody.mux(
+              Code._empty,
+              Code(
+                arr := coerce[Long](vbody),
+                i := 0,
+                len := tArray.loadLength(region, arr),
+                Code.whileLoop(i < len,
+                  continuation(
+                    region.loadIRIntermediate(tArray.elementType)(tArray.loadElement(region, arr, i)),
+                    tArray.isElementMissing(region, arr, i)),
+                  i ++)))) }
+      case _: ApplyAggOp =>
+        throw new RuntimeException(s"No nested aggregations allowed: $ir")
+      case In(_, _) | InMissingness(_) =>
+        throw new RuntimeException(s"No inputs may be referenced inside an aggregator: $ir")
+      case _ =>
+        throw new RuntimeException(s"Expected an aggregator, but found: $ir")
+    }
+  }
+
+  private def present(x: Code[_]): (Code[Unit], Code[Boolean], Code[_]) =
+    (Code._empty, const(false), x)
+
+  private lazy val aggEnv: E = {
+    val scopeOffset = nSpecialArguments + 2 // element and element missingness
+    Env.empty.bind(tAggInOpt.get.bindings.zipWithIndex
+      .map { case ((n, t), i) => n -> ((
+        typeToTypeInfo(t),
+        fb.getArg[Boolean](scopeOffset + i*2 + 2).load(),
+        fb.getArg(scopeOffset + i*2 + 1)(typeToTypeInfo(t)).load())) }: _*)
+  }
+
+  private def normalArgumentPosition(idx: Int): Int = {
+    val aggArgs = tAggInOpt match {
+      case Some(t) => (t.symTab.size + 1) * 2 // one extra for the element itself
+      case None => 0
+    }
+    nSpecialArguments + aggArgs + 1 + idx * 2
   }
 }
