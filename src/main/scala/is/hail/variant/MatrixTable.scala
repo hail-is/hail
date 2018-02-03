@@ -2375,9 +2375,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def writeCols(path: String): Unit = {
     hadoopConf.mkDir(path + "/parts")
-    val part0 = path + "/parts/part-0"
 
-    val os = hadoopConf.unsafeWriter(part0)
+    val os = hadoopConf.unsafeWriter(path + "/parts/part-0")
     val rvb = new RegionValueBuilder()
     val part0Count = RichRDDRegionValue.writeRowsPartition(matrixType.colType)(0,
       sampleAnnotations.map { a =>
@@ -2390,7 +2389,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val partitionCounts = Array(part0Count)
     val tableType = TableType(matrixType.colType, matrixType.colKey, matrixType.globalType)
-    val rvdSpec = UnpartitionedRVDSpec(matrixType.colType, Array(part0))
+    val rvdSpec = UnpartitionedRVDSpec(matrixType.colType, Array("part-0"))
     val metadata = JSONTableMetadata(FileFormat.version.rep,
       hc.version,
       tableType.toString,
