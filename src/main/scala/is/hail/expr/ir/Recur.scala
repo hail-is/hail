@@ -32,7 +32,7 @@ object Recur {
     case AggMap(a, name, body, typ) => AggMap(f(a), name, f(body), typ)
     case AggFilter(a, name, body, typ) => AggFilter(f(a), name, f(body), typ)
     case AggFlatMap(a, name, body, typ) => AggFlatMap(f(a), name, f(body), typ)
-    case AggSum(a, typ) => AggSum(f(a), typ)
+    case ApplyAggOp(a, op, args, typ) => ApplyAggOp(f(a), op, args.map(f), typ)
     case In(i, typ) => ir
     case InMissingness(i) => ir
     case Die(message) => ir

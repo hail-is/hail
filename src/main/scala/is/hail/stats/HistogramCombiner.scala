@@ -6,14 +6,14 @@ import is.hail.annotations.Annotation
 import is.hail.expr.types._
 
 object HistogramCombiner {
-  def schema: Type = TStruct(
+  def schema: TStruct = TStruct(
     "binEdges" -> TArray(TFloat64()),
     "binFrequencies" -> TArray(TInt64()),
     "nLess" -> TInt64(),
     "nGreater" -> TInt64())
 }
 
-class HistogramCombiner(indices: Array[Double]) extends Serializable {
+class HistogramCombiner(val indices: Array[Double]) extends Serializable {
 
   val min = indices.head
   val max = indices(indices.length - 1)
