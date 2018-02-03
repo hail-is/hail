@@ -433,7 +433,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
     if (paths.length == 0)
       return this
 
-    val irs = asts.flatMap(_.toIR())
+    val irs = asts.flatMap { x => x.typecheck(ec); x.toIR() }
 
     if (irs.length != asts.length) {
       info("Some ASTs could not be converted to IR. Falling back to AST predicate for Table.annotate.")
@@ -477,10 +477,12 @@ class Table(val hc: HailContext, val ir: TableIR) {
           if (newF.last._1.isEmpty) {
             (f, newF.last._2)
           } else {
-            if (old.typ.isInstanceOf[TStruct] && coerce[TStruct](old.typ).selfField(f).isDefined)
-               (f, InsertFields(GetField(old, f), flatten(GetField(old, f), newF).toArray))
-            else
-              (f, MakeStruct(flatten(I32(0), newF).toArray))
+            old.typ match {
+              case t: TStruct if t.selfField(f).isDefined =>
+                (f, InsertFields(GetField(old, f), flatten(GetField(old, f), newF)))
+              case _ =>
+                (f, MakeStruct(flatten(I32(0), newF)))
+            }
           }
         }.toIndexedSeq
       }

@@ -24,7 +24,7 @@ class CompileSuite {
   def mean() {
     val meanIr =
       Let("x", In(0, TArray(TFloat64())),
-        ApplyBinaryPrimOp(Divide(),
+        ApplyBinaryPrimOp(FloatingPointDivide(),
           ArrayFold(Ref("x"), F64(0.0), "sum", "v",
             ApplyBinaryPrimOp(Add(), Ref("sum"), Ref("v"))),
           Cast(ArrayLen(Ref("x")), TFloat64())))
@@ -163,7 +163,7 @@ class CompileSuite {
           Let("sum",
             ArrayFold(Ref("in"), F64(0), "sum", "v",
               ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v")))),
-            ApplyBinaryPrimOp(Divide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64())))))
+            ApplyBinaryPrimOp(FloatingPointDivide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64())))))
 
     val fb = FunctionBuilder.functionBuilder[Region, Long, Boolean, Double]
     doit(letAddIr, fb)
@@ -279,7 +279,7 @@ class CompileSuite {
             ArrayFold(Ref("in"), F64(0), "sum", "v",
               ApplyBinaryPrimOp(Add(), Ref("sum"), If(IsNA(Ref("v")), F64(0.0), Ref("v")))),
             Let("mean",
-              ApplyBinaryPrimOp(Divide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64())),
+              ApplyBinaryPrimOp(FloatingPointDivide(), Ref("sum"), Cast(Ref("nonMissing"), TFloat64())),
               ArrayMap(Ref("in"), "v",
                 If(IsNA(Ref("v")), Ref("mean"), Ref("v")))))))
 

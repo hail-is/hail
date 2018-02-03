@@ -471,7 +471,7 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
 
   val children: IndexedSeq[BaseIR] = Array(child) ++ preds
 
-  private val newIR: IR = InsertFields(In(0, child.typ.rowType), paths.zip(preds.map(child.typ.remapIR(_))).toArray)
+  private val newIR: IR = InsertFields(In(0, child.typ.rowType), paths.zip(preds.map(child.typ.remapIR(_))))
 
   val typ: TableType = {
     Infer(newIR, None, child.typ.env)

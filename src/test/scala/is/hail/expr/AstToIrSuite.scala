@@ -3,17 +3,15 @@ package is.hail.expr
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import org.testng.annotations.Test
+import org.scalatest.testng.TestNGSuite
 
-class ASTToIRSuite {
+class ASTToIRSuite extends TestNGSuite {
   private def toIR[T](s: String): Option[IR] = {
     val ast = Parser.parseToAST(s, EvalContext(Map(
       "aggregable"-> (0, TAggregable(TInt32(),
         Map("agg" -> (0, TInt32()),
           "something" -> (1, TInt32())))))))
-    ast.toIR(Some("aggregable")) match {
-      case Some(ir) => Some(ir)
-      case None => println(s"$s -> $ast -> None"); None
-    }
+    ast.toIR(Some("aggregable"))
   }
 
   @Test
@@ -23,12 +21,12 @@ class ASTToIRSuite {
     "3.0" -> F64(3.0),
     "true" -> True(),
     "false" -> False(),
-    "{}" -> MakeStruct(Array()),
-    "{a : 1}" -> MakeStruct(Array(("a", I32(1)))),
-    "{a: 1, b: 2}" -> MakeStruct(Array(
+    "{}" -> MakeStruct(Seq()),
+    "{a : 1}" -> MakeStruct(Seq(("a", I32(1)))),
+    "{a: 1, b: 2}" -> MakeStruct(Seq(
       ("a", I32(1)), ("b", I32(2)))),
-    "[1, 2]" -> MakeArray(Array(I32(1), I32(2)), TArray(TInt32())),
-    "[42.0]" -> MakeArray(Array(F64(42.0)), TArray(TFloat64()))
+    "[1, 2]" -> MakeArray(Seq(I32(1), I32(2)), TArray(TInt32())),
+    "[42.0]" -> MakeArray(Seq(F64(42.0)), TArray(TFloat64()))
   )
   } {
     assert(toIR(in).contains(out),
@@ -40,13 +38,13 @@ class ASTToIRSuite {
   def getField() { for { (in, out) <- Array(
     "{a: 1, b: 2}.a" ->
       GetField(
-        MakeStruct(Array(
+        MakeStruct(Seq(
           ("a", I32(1)), ("b", I32(2)))),
         "a",
         TInt32()),
     "{a: 1, b: 2}.b" ->
       GetField(
-        MakeStruct(Array(
+        MakeStruct(Seq(
           ("a", I32(1)), ("b", I32(2)))),
         "b",
         TInt32())
@@ -78,22 +76,22 @@ class ASTToIRSuite {
   def primOps() { for { (in, out) <- Array(
     "-1" -> ApplyUnaryPrimOp(Negate(), I32(1), TInt32()),
     "!true" -> ApplyUnaryPrimOp(Bang(), True(), TBoolean()),
-    "1 / 2" -> ApplyBinaryPrimOp(Divide(), I32(1), I32(2), TInt32()),
-    "1.0 / 2.0" -> ApplyBinaryPrimOp(Divide(), F64(1.0), F64(2.0), TFloat64()),
+    "1 / 2" -> ApplyBinaryPrimOp(FloatingPointDivide(), I32(1), I32(2), TFloat32()),
+    "1.0 / 2.0" -> ApplyBinaryPrimOp(FloatingPointDivide(), F64(1.0), F64(2.0), TFloat64()),
     "1.0 < 2.0" -> ApplyBinaryPrimOp(LT(), F64(1.0), F64(2.0), TBoolean()),
     "1.0 <= 2.0" -> ApplyBinaryPrimOp(LTEQ(), F64(1.0), F64(2.0), TBoolean()),
     "1.0 >= 2.0" -> ApplyBinaryPrimOp(GTEQ(), F64(1.0), F64(2.0), TBoolean()),
     "1.0 > 2.0" -> ApplyBinaryPrimOp(GT(), F64(1.0), F64(2.0), TBoolean()),
     "1.0 == 2.0" -> ApplyBinaryPrimOp(EQ(), F64(1.0), F64(2.0), TBoolean()),
     "1.0 != 2.0" -> ApplyBinaryPrimOp(NEQ(), F64(1.0), F64(2.0), TBoolean()),
-    "0 / 0 + 1" -> ApplyBinaryPrimOp(
+    "0 // 0 + 1" -> ApplyBinaryPrimOp(
       Add(),
-      ApplyBinaryPrimOp(Divide(), I32(0), I32(0), TInt32()),
+      ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(0), I32(0), TInt32()),
       I32(1),
       TInt32()),
-    "0 / 0 * 1" -> ApplyBinaryPrimOp(
+    "0 // 0 * 1" -> ApplyBinaryPrimOp(
       Multiply(),
-      ApplyBinaryPrimOp(Divide(), I32(0), I32(0), TInt32()),
+      ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(0), I32(0), TInt32()),
       I32(1),
       TInt32())
   )
@@ -105,13 +103,30 @@ class ASTToIRSuite {
 
   @Test
   def aggs() { for { (in, out) <- Array(
-    "aggregable.sum()" -> AggSum(AggIn()),
-    "aggregable.map(x => x * 5).sum()" -> AggSum(AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), I32(5), TInt32()))),
-    "aggregable.map(x => x * something).sum()" -> AggSum(AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()), Ref("something", TInt32()), TInt32()))),
-    "aggregable.filter(x => x > 2).sum()" -> AggSum(AggFilter(AggIn(), "x", ApplyBinaryPrimOp(GT(), Ref("x", TInt32()), I32(2), TBoolean()))),
-    "aggregable.flatMap(x => [x * 5]).sum()" -> AggSum(AggFlatMap(AggIn(), "x", MakeArray(Array(ApplyBinaryPrimOp(Multiply(), Ref("x", TInt32()) ,I32(5), TInt32())), TArray(TInt32()))))
+    "aggregable.sum()" ->
+      ApplyAggOp(AggIn(), Sum(), Seq()),
+    "aggregable.map(x => x * 5).sum()" ->
+      ApplyAggOp(
+        AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x"), I32(5))),
+        Sum(), Seq(), TInt32()),
+    "aggregable.map(x => x * something).sum()" ->
+      ApplyAggOp(
+        AggMap(AggIn(), "x", ApplyBinaryPrimOp(Multiply(), Ref("x"), Ref("something"))),
+        Sum(), Seq()),
+    "aggregable.filter(x => x > 2).sum()" ->
+      ApplyAggOp(
+        AggFilter(AggIn(), "x", ApplyBinaryPrimOp(GT(), Ref("x"), I32(2))),
+        Sum(), Seq()),
+    "aggregable.flatMap(x => [x * 5]).sum()" ->
+      ApplyAggOp(
+        AggFlatMap(AggIn(), "x",
+          MakeArray(Seq(ApplyBinaryPrimOp(Multiply(), Ref("x") ,I32(5))))),
+        Sum(), Seq())
   )
   } {
+    val tAgg = TAggregable(TInt32())
+    tAgg.symTab = Map("something" -> (0, TInt32(): Type))
+    Infer(out, Some(tAgg))
     assert(toIR(in).contains(out),
       s"expected '$in' to parse and convert into $out, but got ${toIR(in)}")
   }
