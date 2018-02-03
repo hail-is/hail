@@ -1,5 +1,6 @@
 from hail.matrixtable import MatrixTable
 from hail.table import Table
+from hail.tablify import tablify
 from hail.expr.expression import *
 from hail.genetics import KinshipMatrix, GenomeReference
 from hail.genetics.ldMatrix import LDMatrix
@@ -212,41 +213,33 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
     f = functions
     gr = locus.dtype.reference_genome
 
-    csource = call._indices.source
-    lsource = locus._indices.source
+    if (aaf is None):
+        aaf=(agg.sum(call.num_alt_alleles()).to_float64() /
+             agg.count_where(f.is_defined(call)) / 2)
 
-    call_ds = csource.annotate_entries(call=call)
-    locus_ds = lsource.annotate(locus=locus)
-    ds = call_ds.annotate_rows(locus=locus_ds[call_ds.v].locus)
+    call = tablify(call)
+    locus = tablify(locus)
+    aaf = tablify(aaf)
 
-    ds = require_biallelic(ds, 'impute_sex')
+    call = require_biallelic(call, 'impute_sex')
 
     # FIXME: filter_intervals
-    ds = ds.filter_rows(f.capture(set(gr.x_contigs)).contains(ds.locus.contig))
+    call = call.filter_rows(f.capture(set(gr.x_contigs)).contains(locus[call.v]._.contig))
 
     if (not include_par):
-        ds = ds.filter_rows(f.capture(gr.par).exists(lambda par: par.contains(ds.locus)),
-                            keep=False)
+        call = call.filter_rows(f.capture(gr.par).exists(lambda par: par.contains(locus[call.v]._)),
+                                keep=False)
 
-    if (aaf is None):
-        ds = ds.annotate_rows(
-            aaf=(agg.sum(ds.call.num_alt_alleles()).to_float64() /
-                 agg.count_where(f.is_defined(ds.call)) / 2))
-    else:
-        aaf_source = aaf._indices.source
-        aaf_source = aaf_source.annotate(aaf=aaf)
-        ds = ds.annotate_rows(aaf=aaf_source[ds.v].aaf)
-
-    ds = ds.filter_rows(ds.aaf > aaf_threshold)
-    ds = ds.annotate_cols(ib=agg.inbreeding(ds.call, ds.aaf))
-    kt = ds.select_cols(
-        s=ds.s,
-        is_female=f.cond(ds.ib.Fstat < female_threshold,
+    call = call.filter_rows(aaf[call.v]._ > aaf_threshold)
+    call = call.annotate_cols(ib=agg.inbreeding(call._, aaf[call.v]._))
+    kt = call.select_cols(
+        s=call.s,
+        is_female=f.cond(call.ib.Fstat < female_threshold,
                          True,
-                         f.cond(ds.ib.Fstat > male_threshold,
+                         f.cond(call.ib.Fstat > male_threshold,
                                 False,
                                 f.null(TBoolean()))),
-        **ds.ib).cols_table()
+        **call.ib).cols_table()
 
     return kt
 

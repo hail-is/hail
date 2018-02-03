@@ -3,6 +3,7 @@ import sys
 from hail.context import init, stop, default_reference
 from hail.table import Table, GroupedTable, asc, desc
 from hail.matrixtable import MatrixTable, GroupedMatrixTable
+from hail.tablify import tablify
 import hail.expr.functions as functions
 import hail.expr.aggregators as agg
 import hail.methods as methods
@@ -37,6 +38,7 @@ __all__ = ['init',
            'methods',
            'eval_expr',
            'eval_expr_typed',
+           'tablify',
            'Variant',
            'GenomeReference',
            'Locus',
