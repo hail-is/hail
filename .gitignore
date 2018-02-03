@@ -10,3 +10,6 @@ python/**/*.pyc
 python/hail/docs/_build/*
 src/main/c/libsimdpp-2.0-rc2.tar.gz
 src/main/c/libsimdpp-2.0-rc2
+src/main/c/lib
+src/main/resources/build-info.properties
+src/test/resources/example.v11.bgen.idx
