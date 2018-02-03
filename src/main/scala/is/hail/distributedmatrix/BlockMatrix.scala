@@ -107,7 +107,15 @@ object BlockMatrix {
       Iterator.single(gp.blockCoordinates(i), bdm)
     }
 
-    val blocks = hc.readPartitions(uri, gp.numPartitions, readBlock, Some(gp))
+    val nPartitions = gp.numPartitions
+    val d = digitsNeeded(nPartitions)
+    val partFiles = Array.tabulate[String](nPartitions) { i =>
+      val is = i.toString
+      assert(is.length <= d)
+      "part-" + StringUtils.leftPad(is, d, "0")
+    }
+
+    val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
 
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }

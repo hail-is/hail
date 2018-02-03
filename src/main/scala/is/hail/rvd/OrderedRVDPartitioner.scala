@@ -2,12 +2,10 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.{JSONAnnotationImpex, Parser}
 import is.hail.utils._
-import org.apache.spark.{Partitioner, SparkContext}
-import org.json4s.JsonAST._
+import org.apache.spark.Partitioner
 
-class OrderedRVPartitioner(
+class OrderedRVDPartitioner(
   val numPartitions: Int,
   val partitionKey: Array[String], val kType: TStruct,
   // rangeBounds is partition max, sorted ascending
@@ -19,7 +17,7 @@ class OrderedRVPartitioner(
   val (pkType, _) = kType.select(partitionKey)
 
   val pkKFieldIdx: Array[Int] = partitionKey.map(n => kType.fieldIdx(n))
-  val pkKOrd: UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx)
+  val pkKOrd: UnsafeOrdering = OrderedRVDType.selectUnsafeOrdering(pkType, (0 until pkType.size).toArray, kType, pkKFieldIdx)
 
   val rangeBoundsType = TArray(pkType)
   assert(rangeBoundsType.typeCheck(rangeBounds))
@@ -61,42 +59,15 @@ class OrderedRVPartitioner(
     part
   }
 
-  def toJSON: JValue =
-    JObject(List(
-      "numPartitions" -> JInt(numPartitions),
-      "partitionKey" -> JArray(partitionKey.map(n => JString(n)).toList),
-      "kType" -> JString(kType.toString),
-      "rangeBounds" -> JSONAnnotationImpex.exportAnnotation(rangeBounds, rangeBoundsType)))
-
-  def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVPartitioner = {
-    val newPart = new OrderedRVPartitioner(numPartitions, newPartitionKey, newKType, rangeBounds)
+  def withKType(newPartitionKey: Array[String], newKType: TStruct): OrderedRVDPartitioner = {
+    val newPart = new OrderedRVDPartitioner(numPartitions, newPartitionKey, newKType, rangeBounds)
     assert(newPart.pkType == pkType)
     newPart
   }
 }
 
-object OrderedRVPartitioner {
-  def empty(typ: OrderedRVType): OrderedRVPartitioner = {
-    new OrderedRVPartitioner(0, typ.partitionKey, typ.kType, UnsafeIndexedSeq.empty(TArray(typ.pkType)))
-  }
-
-  def apply(sc: SparkContext, jv: JValue): OrderedRVPartitioner = {
-    case class Extract(numPartitions: Int,
-      partitionKey: Array[String],
-      kType: String,
-      rangeBounds: JValue)
-    val ex = jv.extract[Extract]
-
-    val partitionKey = ex.partitionKey
-    val kType = Parser.parseType(ex.kType).asInstanceOf[TStruct]
-    val (pkType, _) = kType.select(partitionKey)
-
-    val rangeBoundsType = TArray(pkType)
-    new OrderedRVPartitioner(ex.numPartitions,
-      ex.partitionKey,
-      kType,
-      UnsafeIndexedSeq(
-        rangeBoundsType,
-        JSONAnnotationImpex.importAnnotation(ex.rangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Annotation]]))
+object OrderedRVDPartitioner {
+  def empty(typ: OrderedRVDType): OrderedRVDPartitioner = {
+    new OrderedRVDPartitioner(0, typ.partitionKey, typ.kType, UnsafeIndexedSeq.empty(TArray(typ.pkType)))
   }
 }
