@@ -38,7 +38,7 @@ object SortColumn {
 
 case class SortColumn(column: String, sortOrder: SortOrder)
 
-case class TableMetadata(typ: TableType, nPartitions: Int, partitionCounts: Option[Array[Long]])
+case class TableMetadata(typ: TableType, partitionCounts: Option[Array[Long]])
 
 case class JSONTableMetadata(
   file_version: Int,

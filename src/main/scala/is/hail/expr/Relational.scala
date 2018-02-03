@@ -201,8 +201,6 @@ case class MatrixRead(
   dropVariants: Boolean) extends MatrixIR {
   def typ: MatrixType = metadata.matrixType
 
-  def nPartitions: Int = metadata.nPartitions
-
   override def partitionCounts: Option[Array[Long]] = metadata.partitionCounts
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]

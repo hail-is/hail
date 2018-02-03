@@ -4,7 +4,6 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.distributedmatrix._
 import is.hail.expr._
-import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods._
 import is.hail.sparkextras._
 import is.hail.rvd._
@@ -24,7 +23,7 @@ import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Partitioner, SparkContext}
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
 import scala.language.{existentials, implicitConversions}
@@ -34,12 +33,10 @@ case class JSONMatrixTableMetadata(
   hail_version: String,
   matrix_type: String,
   rvd_spec: JValue,
-  n_partitions: Int,
   partition_counts: Option[Array[Long]])
 
 case class MatrixTableMetadata(
   matrixType: MatrixType,
-  nPartitions: Int,
   partitionCounts: Option[Array[Long]])
 
 object SemanticVersion {
@@ -139,7 +136,7 @@ object MatrixTable {
 
     val matrixType: MatrixType = Parser.parseMatrixType(metadata.matrix_type)
 
-    (MatrixTableMetadata(matrixType, metadata.n_partitions, metadata.partition_counts),
+    (MatrixTableMetadata(matrixType, metadata.partition_counts),
       RVDSpec.extract(metadata.rvd_spec))
   }
 
@@ -2271,7 +2268,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def writeMetadata(path: String, rvdSpec: RVDSpec, partitionCounts: Array[Long]) {
-    val sqlContext = hc.sqlContext
     val hConf = hc.hadoopConf
     hConf.mkDir(path)
 
@@ -2280,7 +2276,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       hail_version = hc.version,
       matrix_type = matrixType.toString,
       rvd_spec = rvdSpec.toJSON,
-      n_partitions = partitionCounts.length,
       partition_counts = Some(partitionCounts))
 
     hConf.writeTextFile(path + "/metadata.json.gz")(out =>
