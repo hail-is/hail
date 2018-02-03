@@ -73,12 +73,12 @@ class OrderedRVD private(
       partitioner,
       rdd.filter(p))
 
-  override def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
+  def sample(withReplacement: Boolean, p: Double, seed: Long): OrderedRVD =
     OrderedRVD(typ,
       partitioner,
       rdd.sample(withReplacement, p, seed))
 
-  override def persist(level: StorageLevel): OrderedRVD = {
+  def persist(level: StorageLevel): OrderedRVD = {
     val PersistedRVRDD(persistedRDD, iterationRDD) = persistRVRDD(level)
     new OrderedRVD(typ, partitioner, iterationRDD) {
       override def storageLevel: StorageLevel = persistedRDD.getStorageLevel
@@ -400,6 +400,15 @@ class OrderedRVD private(
       UnsafeIndexedSeq(partitioner.rangeBoundsType, newRangeBounds))
 
     OrderedRVD(typ, newPartitioner, rdd.subsetPartitions(keep))
+  }
+
+  def write(path: String): (RVDSpec, Array[Long]) = {
+    val (partFiles, partitionCounts) = rdd.writeRows(path, rowType)
+    (OrderedRVDSpec(
+      typ,
+      partFiles,
+      partitioner.rangeBounds),
+      partitionCounts)
   }
 }
 

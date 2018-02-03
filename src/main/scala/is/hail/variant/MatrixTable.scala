@@ -33,7 +33,7 @@ case class VDSMetadata(
   matrix_type: String,
   global_annotation: JValue,
   sample_annotations: JValue,
-  rvd_spec: RVDSpec,
+  rvd_spec: JValue,
   n_partitions: Int,
   partition_counts: Array[Long])
 
@@ -153,7 +153,7 @@ object MatrixTable {
     (MatrixFileMetadata(matrixType,
       MatrixLocalValue(globalAnnotation, sampleInfo),
       Some(metadata.partition_counts)),
-      metadata.rvd_spec)
+      RVDSpec.extract(metadata.rvd_spec))
   }
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
@@ -2277,7 +2277,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       Array("v") ++ colKey)
   }
 
-  def writeMetadata(dirname: String, partFiles: Array[String], partitionCounts: Array[Long]) {
+  def writeMetadata(dirname: String, rvdSpec: RVDSpec, partitionCounts: Array[Long]) {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
@@ -2297,12 +2297,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       matrix_type = matrixType.toString,
       sample_annotations = sampleAnnotationsJ,
       global_annotation = globalJ,
-      rvd_spec = RVDSpec("OrderedRVD",
-        Extraction.decompose(OrderedRVDSpecArgs(
-          matrixType.orderedRVType.toString,
-          partFiles,
-          JSONAnnotationImpex.exportAnnotation(rdd2.partitioner.rangeBounds,
-            rdd2.partitioner.rangeBoundsType)))),
+      rvd_spec = rvdSpec.toJSON,
       n_partitions = partitionCounts.length,
       partition_counts = partitionCounts)
 
@@ -2409,9 +2404,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     else if (hadoopConf.exists(dirname))
       fatal(s"file already exists at `$dirname'")
 
-    val (partFiles, partitionCounts) = rdd2.rdd.writeRows(dirname, rvRowType)
+    val (rvdSpec, partitionCounts) = rdd2.write(dirname)
 
-    writeMetadata(dirname, partFiles, partitionCounts)
+    writeMetadata(dirname, rvdSpec, partitionCounts)
 
     hadoopConf.writeTextFile(dirname + "/_SUCCESS")(out => ())
   }

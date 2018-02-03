@@ -44,7 +44,7 @@ case class TableMetadata(
   key: Array[String],
   table_type: String,
   globals: JValue,
-  rvd_spec: RVDSpec,
+  rvd_spec: JValue,
   partition_counts: Array[Long])
 
 case class TableLocalValue(globals: Row)
@@ -98,7 +98,7 @@ object Table {
       tableType,
       TableLocalValue(globals),
       dropRows = false,
-      metadata.rvd_spec,
+      RVDSpec.extract(metadata.rvd_spec),
       Some(metadata.partition_counts)))
   }
 
@@ -155,7 +155,7 @@ object Table {
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature),
         TableLocalValue(globals),
-        RVD(signature, rdd2))
+        new UnpartitionedRVD(signature, rdd2))
     ))
   }
 }
@@ -164,7 +164,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def this(hc: HailContext, rdd: RDD[RegionValue], signature: TStruct, key: Array[String] = Array.empty,
     globalSignature: TStruct = TStruct.empty(), globals: Row = Row.empty) = this(hc, TableLiteral(
-    TableValue(TableType(signature, key, globalSignature), TableLocalValue(globals), RVD(signature, rdd))
+    TableValue(TableType(signature, key, globalSignature), TableLocalValue(globals), new UnpartitionedRVD(signature, rdd))
   ))
 
   lazy val value: TableValue = {
@@ -1067,7 +1067,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
     hc.hadoopConf.mkDir(path)
 
-    val (partFiles, partitionCounts) = rvd.rdd.writeRows(path, signature)
+    val (rvdSpec, partitionCounts) = rvd.write(path)
 
     val refPath = path + "/references/"
     hc.hadoopConf.mkDir(refPath)
@@ -1079,10 +1079,7 @@ class Table(val hc: HailContext, val ir: TableIR) {
       key,
       ir.typ.toString,
       JSONAnnotationImpex.exportAnnotation(globals, globalSignature),
-      RVDSpec("RVD",
-        Extraction.decompose(RVDSpecArgs(
-          signature.toString,
-          partFiles))),
+      rvdSpec.toJSON,
       partitionCounts)
 
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>

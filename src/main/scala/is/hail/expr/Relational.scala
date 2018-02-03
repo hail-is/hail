@@ -238,7 +238,7 @@ case class MatrixRead(
       if (dropVariants)
         OrderedRVD.empty(hc.sc, typ.orderedRVType)
       else {
-        var rdd = rvdSpec.resolve(hc, path).asInstanceOf[OrderedRVD]
+        var rdd = rvdSpec.execute(hc, path).asInstanceOf[OrderedRVD]
         if (dropSamples) {
           val localRowType = typ.rvRowType
           rdd = rdd.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
@@ -436,9 +436,9 @@ case class TableRead(path: String,
     TableValue(typ,
       localValue,
       if (dropRows)
-        RVD.empty(hc.sc, typ.rowType)
+        UnpartitionedRVD.empty(hc.sc, typ.rowType)
       else
-        rvdSpec.resolve(hc, path))
+        rvdSpec.execute(hc, path))
   }
 }
 
