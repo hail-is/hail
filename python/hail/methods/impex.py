@@ -835,4 +835,4 @@ def index_bgen(path):
 @handle_py4j
 @typecheck(path=strlike)
 def read_table(path):
-    Table(Env.hc()._jhc.readTable(path))
+    return Table(Env.hc()._jhc.readTable(path))

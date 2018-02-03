@@ -197,8 +197,8 @@ object LoadGDB {
       vType = TVariant(gr),
       vaType = variantAnnotationSignatures,
       genotypeType = genotypeSignature),
-      MatrixLocalValue(Annotation.empty,
-        sampleIds.map(x => Annotation(x))),
+      Annotation.empty,
+      sampleIds.map(x => Annotation(x)),
       recordRDD)
   }
 }

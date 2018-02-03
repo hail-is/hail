@@ -5,7 +5,6 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.table.TableLocalValue
 import is.hail.expr.types._
 import is.hail.stats._
 import is.hail.utils._
@@ -20,12 +19,13 @@ import scala.reflect.ClassTag
 object Aggregators {
 
   def buildVariantAggregationsByKey(vsm: MatrixTable, nKeys: Int, keyMap: Array[Int], ec: EvalContext): (RegionValue) => Array[() => Unit] =
-    buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, nKeys, keyMap, ec)
+    buildVariantAggregationsByKey(vsm.sparkContext, vsm.matrixType, vsm.value.globalAnnotation, vsm.value.colAnnotations, nKeys, keyMap, ec)
 
   // keyMap is just a mapping of sampleIds.map { s => newKey(s) }
   def buildVariantAggregationsByKey(sc: SparkContext,
     typ: MatrixType,
-    localValue: MatrixLocalValue,
+    globalAnnotation: Annotation,
+    colAnnotations: IndexedSeq[Annotation],
     nKeys: Int,
     keyMap: Array[Int],
     ec: EvalContext): (RegionValue) => Array[() => Unit] = {
@@ -35,9 +35,9 @@ object Aggregators {
       return { rv => Array.fill[() => Unit](nKeys) { () => Unit } }
 
     val localA = ec.a
-    val localNSamples = localValue.nSamples
-    val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
-    val localGlobalAnnotations = localValue.globalAnnotation
+    val localNSamples = colAnnotations.length
+    val localAnnotationsBc = sc.broadcast(colAnnotations)
+    val localGlobalAnnotations = globalAnnotation
     val localRowType = typ.rvRowType
 
     { (rv: RegionValue) =>
@@ -86,11 +86,12 @@ object Aggregators {
   }
 
   def buildVariantAggregations(vsm: MatrixTable, ec: EvalContext): Option[(RegionValue) => Unit] =
-    buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.localValue, ec)
+    buildVariantAggregations(vsm.sparkContext, vsm.matrixType, vsm.value.globalAnnotation, vsm.value.colAnnotations, ec)
 
   def buildVariantAggregations(sc: SparkContext,
     typ: MatrixType,
-    localValue: MatrixLocalValue,
+    globalAnnotation: Annotation,
+    colAnnotations: IndexedSeq[Annotation],
     ec: EvalContext): Option[(RegionValue) => Unit] = {
 
     val aggregations = ec.aggregations
@@ -98,9 +99,9 @@ object Aggregators {
       return None
 
     val localA = ec.a
-    val localNSamples = localValue.nSamples
-    val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
-    val localGlobalAnnotations = localValue.globalAnnotation
+    val localNSamples = colAnnotations.length
+    val localAnnotationsBc = sc.broadcast(colAnnotations)
+    val localGlobalAnnotations = globalAnnotation
     val localRowType = typ.rvRowType
 
     Some({ (rv: RegionValue) =>

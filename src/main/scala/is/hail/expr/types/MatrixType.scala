@@ -1,7 +1,7 @@
 package is.hail.expr.types
 
 import is.hail.expr.EvalContext
-import is.hail.rvd.OrderedRVType
+import is.hail.rvd.OrderedRVDType
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, Genotype}
 
@@ -15,8 +15,8 @@ object MatrixType {
 
   def apply(
     globalType: TStruct = TStruct.empty(),
-    colType: TStruct = TStruct.empty(),
-    colKey: IndexedSeq[String] = Array.empty[String],
+    colType: TStruct = TStruct("s" -> TString()),
+    colKey: IndexedSeq[String] = Array("s"),
     vType: Type = TVariant(GenomeReference.defaultReference),
     vaType: TStruct = TStruct.empty(),
     genotypeType: TStruct = Genotype.htsGenotypeType): MatrixType = {
@@ -78,8 +78,8 @@ case class MatrixType(
     "va" -> vaType,
     "gs" -> TArray(genotypeType))
 
-  def orderedRVType: OrderedRVType = {
-    new OrderedRVType(Array("pk"),
+  def orderedRVType: OrderedRVDType = {
+    new OrderedRVDType(Array("pk"),
       Array("pk", "v"),
       rvRowType)
   }

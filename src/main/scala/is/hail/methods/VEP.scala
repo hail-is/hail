@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.expr._
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, OrderedRVType}
+import is.hail.rvd.{OrderedRVD, OrderedRVDType}
 import is.hail.utils._
 import is.hail.variant.{MatrixTable, Variant}
 import org.apache.spark.sql.Row
@@ -393,7 +393,7 @@ object VEP {
 
     val vepType: Type = if (csq) TArray(TString()) else vepSignature
 
-    val vepOrderedRVType = new OrderedRVType(
+    val vepOrderedRVType = new OrderedRVDType(
       Array("pk"), Array("pk", "v"),
       TStruct(
         "pk" -> vsm.locusType,

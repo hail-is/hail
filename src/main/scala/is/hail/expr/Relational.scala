@@ -3,18 +3,17 @@ package is.hail.expr
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir._
-import is.hail.table.TableLocalValue
 import is.hail.expr.types._
 import is.hail.methods.Aggregators
-import is.hail.sparkextras._
 import is.hail.rvd._
-import is.hail.variant.{GenomeReference, Genotype, MatrixFileMetadata}
+import is.hail.variant.MatrixTableMetadata
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.JsonMethods.parse
 
 object BaseIR {
   def genericRewriteTopDown(ast: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
@@ -81,42 +80,26 @@ abstract class BaseIR {
   }
 }
 
-case class MatrixLocalValue(
-  globalAnnotation: Annotation,
-  sampleAnnotations: IndexedSeq[Annotation]) {
-
-  def nSamples: Int = sampleAnnotations.length
-
-  def dropSamples(): MatrixLocalValue = MatrixLocalValue(
-    globalAnnotation,
-    IndexedSeq.empty[Annotation])
-}
-
-object MatrixValue {
-
-}
-
 case class MatrixValue(
   typ: MatrixType,
-  localValue: MatrixLocalValue,
+  globalAnnotation: Annotation,
+  colAnnotations: IndexedSeq[Annotation],
   rdd2: OrderedRVD) {
 
   def sparkContext: SparkContext = rdd2.sparkContext
 
   def nPartitions: Int = rdd2.partitions.length
 
-  def nSamples: Int = localValue.nSamples
-
-  def globalAnnotation: Annotation = localValue.globalAnnotation
+  def nSamples: Int = colAnnotations.length
 
   def sampleIds: IndexedSeq[Row] = {
     val queriers = typ.colKey.map(field => typ.colType.query(field))
-    localValue.sampleAnnotations.map(a => Row.fromSeq(queriers.map(_(a))))
+    colAnnotations.map(a => Row.fromSeq(queriers.map(_ (a))))
   }
 
-  def sampleAnnotations: IndexedSeq[Annotation] = localValue.sampleAnnotations
+  def sampleAnnotations: IndexedSeq[Annotation] = colAnnotations
 
-  lazy val sampleAnnotationsBc: Broadcast[IndexedSeq[Annotation]] = sparkContext.broadcast(sampleAnnotations)
+  lazy val sampleAnnotationsBc: Broadcast[IndexedSeq[Annotation]] = sparkContext.broadcast(colAnnotations)
 
   def filterSamplesKeep(keep: Array[Int]): MatrixValue = {
     val rowType = typ.rvRowType
@@ -130,8 +113,8 @@ case class MatrixValue(
             ir.Ref("i")))))
 
     val keepBc = sparkContext.broadcast(keep)
-    copy(localValue =
-      localValue.copy(sampleAnnotations = keep.map(sampleAnnotations)),
+    copy(
+      colAnnotations = keep.map(colAnnotations),
       rdd2 = rdd2.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
         val f = makeF()
         val keep = keepBc.value
@@ -140,8 +123,8 @@ case class MatrixValue(
         it.map { rv =>
           val region = rv.region
           val offset2 =
-          rv2.set(region,
-            f(region, rv.offset, false, region.appendArrayInt(keep), false))
+            rv2.set(region,
+              f(region, rv.offset, false, region.appendArrayInt(keep), false))
           rv2
         }
       })
@@ -150,7 +133,7 @@ case class MatrixValue(
   def filterSamples(p: (Annotation, Int) => Boolean): MatrixValue = {
     val keep = (0 until nSamples)
       .view
-      .filter { i => p(sampleAnnotations(i), i) }
+      .filter { i => p(colAnnotations(i), i) }
       .toArray
     filterSamplesKeep(keep)
   }
@@ -160,13 +143,13 @@ object MatrixIR {
   def optimize(ast: MatrixIR): MatrixIR = {
     BaseIR.rewriteTopDown(ast, {
       case FilterVariants(
-      MatrixRead(path, nPartitions, fileMetadata, dropSamples, _),
+      MatrixRead(path, rvdSpec, metadata, dropSamples, _),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, nPartitions, fileMetadata, dropSamples, dropVariants = true)
+        MatrixRead(path, rvdSpec, metadata, dropSamples, dropVariants = true)
       case FilterSamples(
-      MatrixRead(path, nPartitions, fileMetadata, _, dropVariants),
+      MatrixRead(path, rvdSpec, metadata, _, dropVariants),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, nPartitions, fileMetadata, dropSamples = true, dropVariants)
+        MatrixRead(path, rvdSpec, metadata, dropSamples = true, dropVariants)
 
       case FilterVariants(m, Const(_, true, TBoolean(_))) =>
         m
@@ -212,13 +195,13 @@ case class MatrixLiteral(
 
 case class MatrixRead(
   path: String,
-  nPartitions: Int,
-  fileMetadata: MatrixFileMetadata,
+  rvdSpec: RVDSpec,
+  metadata: MatrixTableMetadata,
   dropSamples: Boolean,
   dropVariants: Boolean) extends MatrixIR {
-  def typ: MatrixType = fileMetadata.matrixType
+  def typ: MatrixType = metadata.matrixType
 
-  override def partitionCounts: Option[Array[Long]] = fileMetadata.partitionCounts
+  override def partitionCounts: Option[Array[Long]] = metadata.partitionCounts
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -228,21 +211,30 @@ case class MatrixRead(
   }
 
   def execute(hc: HailContext): MatrixValue = {
-    val localValue =
-      if (dropSamples)
-        fileMetadata.localValue.dropSamples()
-      else
-        fileMetadata.localValue
+    val hConf = hc.hadoopConf
 
-    val rdd =
+    val globalFile = path + "/global.json.gz"
+    val globalAnnotation = hConf.readFile(globalFile) { in =>
+      JSONAnnotationImpex.importAnnotation(parse(in), typ.globalType)
+    }
+
+    val colAnnotations =
+      if (dropSamples)
+        IndexedSeq.empty[Annotation]
+      else {
+        val part0 = path + "/cols/parts/part-0"
+        val in = hConf.unsafeReader(part0)
+        HailContext.readRowsPartition(typ.colType)(0, in)
+          .map(rv => new UnsafeRow(typ.colType, rv.region.copy(), rv.offset))
+          .toArray
+          .toFastIndexedSeq
+      }
+
+    val rvd =
       if (dropVariants)
         OrderedRVD.empty(hc.sc, typ.orderedRVType)
       else {
-        var rdd = OrderedRVD(
-          typ.orderedRVType,
-          OrderedRVPartitioner(hc.sc,
-            hc.hadoopConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))),
-          hc.readRows(path, typ.rvRowType, nPartitions))
+        var rdd = rvdSpec.execute(hc, path).asInstanceOf[OrderedRVD]
         if (dropSamples) {
           val localRowType = typ.rvRowType
           rdd = rdd.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
@@ -275,8 +267,9 @@ case class MatrixRead(
 
     MatrixValue(
       typ,
-      localValue,
-      rdd)
+      globalAnnotation,
+      colAnnotations,
+      rvd)
   }
 
   override def toString: String = s"MatrixRead($path, dropSamples = $dropSamples, dropVariants = $dropVariants)"
@@ -298,7 +291,7 @@ case class FilterSamples(
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val localGlobalAnnotation = prev.localValue.globalAnnotation
+    val localGlobalAnnotation = prev.globalAnnotation
     val sas = typ.saType
     val ec = typ.sampleEC
 
@@ -331,13 +324,13 @@ case class FilterVariants(
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val localGlobalAnnotation = prev.localValue.globalAnnotation
+    val localGlobalAnnotation = prev.globalAnnotation
     val ec = prev.typ.variantEC
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
 
     val aggregatorOption = Aggregators.buildVariantAggregations(
-      prev.rdd2.sparkContext, prev.typ, prev.localValue, ec)
+      prev.rdd2.sparkContext, prev.typ, prev.globalAnnotation, prev.colAnnotations, ec)
 
     val localPrevRowType = prev.typ.rvRowType
     val p = (rv: RegionValue) => {
@@ -357,7 +350,7 @@ case class FilterVariants(
   }
 }
 
-case class TableValue(typ: TableType, localValue: TableLocalValue, rvd: RVD) {
+case class TableValue(typ: TableType, globals: Row, rvd: RVD) {
   def rdd: RDD[Row] = {
     val localRowType = typ.rowType
     rvd.rdd.map { rv => new UnsafeRow(localRowType, rv.region.copy(), rv.offset) }
@@ -365,14 +358,14 @@ case class TableValue(typ: TableType, localValue: TableLocalValue, rvd: RVD) {
 
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
     val globalType = typ.globalType
-    val globals = localValue.globals
+    val localGlobals = globals
     copy(rvd = rvd.mapPartitions(typ.rowType) { it =>
       val globalRV = RegionValue()
       val globalRVb = new RegionValueBuilder()
       it.filter { rv =>
         globalRVb.set(rv.region)
         globalRVb.start(globalType)
-        globalRVb.addAnnotation(globalType, globals)
+        globalRVb.addAnnotation(globalType, localGlobals)
         globalRV.set(rv.region, globalRVb.end())
         p(rv, globalRV)
       }
@@ -381,15 +374,14 @@ case class TableValue(typ: TableType, localValue: TableLocalValue, rvd: RVD) {
 }
 
 
-
 object TableIR {
   def optimize(ir: TableIR): TableIR = {
     BaseIR.rewriteTopDown(ir, {
       case TableFilter(TableFilter(x, p1), p2) =>
         TableFilter(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
       case TableFilter(x, True()) => x
-      case TableFilter(TableRead(path, ktType, localVal, _, nPart, pCounts), False() | NA(TBoolean(_))) =>
-        TableRead(path, ktType, localVal, true, nPart, pCounts)
+      case TableFilter(TableRead(path, globalPath, typ, _, nPart, pCounts), False() | NA(TBoolean(_))) =>
+        TableRead(path, globalPath, typ, true, nPart, pCounts)
     })
   }
 }
@@ -401,8 +393,8 @@ abstract sealed class TableIR extends BaseIR {
 
   def env: Env[IR] = {
     Env.empty[IR]
-      .bind(typ.rowType.fieldNames.map {f => (f, GetField(In(0, typ.rowType), f)) }:_*)
-      .bind(typ.globalType.fieldNames.map {f => (f, GetField(In(1, typ.globalType), f)) }:_*)
+      .bind(typ.rowType.fieldNames.map { f => (f, GetField(In(0, typ.rowType), f)) }: _*)
+      .bind(typ.globalType.fieldNames.map { f => (f, GetField(In(1, typ.globalType), f)) }: _*)
   }
 
   def execute(hc: HailContext): TableValue
@@ -421,14 +413,11 @@ case class TableLiteral(value: TableValue) extends TableIR {
   def execute(hc: HailContext): TableValue = value
 }
 
-case class TableRead(path: String,
-  ktType: TableType,
-  localValue: TableLocalValue,
+case class TableRead(path: String, globalPath: String,
+  typ: TableType,
   dropRows: Boolean,
-  nPartitions: Int,
+  rvdSpec: RVDSpec,
   override val partitionCounts: Option[Array[Long]]) extends TableIR {
-
-  val typ: TableType = ktType
 
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -438,12 +427,17 @@ case class TableRead(path: String,
   }
 
   def execute(hc: HailContext): TableValue = {
+    val globalFile = path + "/" + globalPath
+    val globalAnnotation = hc.hadoopConf.readFile(globalFile) { in =>
+      JSONAnnotationImpex.importAnnotation(parse(in), typ.globalType).asInstanceOf[Row]
+    }
+
     TableValue(typ,
-      localValue,
+      globalAnnotation,
       if (dropRows)
-        RVD.empty(hc.sc, typ.rowType)
+        UnpartitionedRVD.empty(hc.sc, typ.rowType)
       else
-        RVD(typ.rowType, hc.readRows(path, typ.rowType, nPartitions)))
+        rvdSpec.execute(hc, path))
   }
 }
 
@@ -489,24 +483,24 @@ case class TableAnnotate(child: TableIR, paths: IndexedSeq[String], preds: Index
       ir.RegionValueRep[Long](child.typ.globalType),
       ir.RegionValueRep[Long](typ.rowType),
       newIR)
-    val globals = tv.localValue.globals
+    val localGlobals = tv.globals
     val gType = typ.globalType
     TableValue(typ,
-      tv.localValue,
+      tv.globals,
       tv.rvd.mapPartitions(typ.rowType) { it =>
-      val globalRV = RegionValue()
-      val globalRVb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      val newRow = f()
-      it.map { rv =>
-        globalRVb.set(rv.region)
-        globalRVb.start(gType)
-        globalRVb.addAnnotation(gType, globals)
-        globalRV.set(rv.region, globalRVb.end())
-        rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
-        rv2
-      }
-    })
+        val globalRV = RegionValue()
+        val globalRVb = new RegionValueBuilder()
+        val rv2 = RegionValue()
+        val newRow = f()
+        it.map { rv =>
+          globalRVb.set(rv.region)
+          globalRVb.start(gType)
+          globalRVb.addAnnotation(gType, localGlobals)
+          globalRV.set(rv.region, globalRVb.end())
+          rv2.set(rv.region, newRow(rv.region, rv.offset, false, globalRV.offset, false))
+          rv2
+        }
+      })
   }
 }
 
