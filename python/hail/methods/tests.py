@@ -87,7 +87,7 @@ class Tests(unittest.TestCase):
 
         ds = methods.import_vcf(test_file('x-chromosome.vcf'))
 
-        sex = methods.impute_sex(ds.rows_table().v.locus(), ds.GT, include_par = True)
+        sex = methods.impute_sex(ds.v.locus(), ds.GT, include_par = True)
 
         vcf_file = utils.get_URI(utils.new_temp_file(prefix="plink", suffix="vcf"))
         out_file = utils.get_URI(utils.new_temp_file(prefix="plink"))

@@ -213,12 +213,16 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
     f = functions
     gr = locus.dtype.reference_genome
 
-    if (aaf is None):
-        aaf=(agg.sum(call.num_alt_alleles()).to_float64() /
-             agg.count_where(f.is_defined(call)) / 2)
-
     call = tablify(call)
     locus = tablify(locus)
+
+    if (aaf is None):
+        temp = call.select_rows(
+            aaf=(agg.sum(call._.num_alt_alleles()).to_float64() /
+                 agg.count_where(f.is_defined(call._)) / 2))
+        temp = temp.drop('_')
+        aaf = temp.aaf
+
     aaf = tablify(aaf)
 
     call = require_biallelic(call, 'impute_sex')
