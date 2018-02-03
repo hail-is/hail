@@ -1806,6 +1806,15 @@ object FunctionRegistry {
   register("//", (x: Float, y: Float) => math.floor(x / y).toFloat)
   register("//", (x: Double, y: Double) => math.floor(x / y))
 
+  register("floor", (x: Float) => math.floor(x).toFloat, null)
+  register("floor", (x: Double) => math.floor(x), null)
+
+  register("ceil", (x: Float) => math.ceil(x).toFloat, null)
+  register("ceil", (x: Double) => math.ceil(x), null)
+
+  register("round", (x: Float) => math.rint(x).toFloat, null)
+  register("round", (x: Double) => math.rint(x), null)
+
   register("//", { (xs: IndexedSeq[java.lang.Integer], y: Int) =>
     val a = new Array[java.lang.Integer](xs.length)
     var i = 0

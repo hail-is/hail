@@ -169,7 +169,8 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
 
     The returned column-key indexed :class:`.Table` has the following fields:
 
-    - **isFemale** (:class:`.TBoolean`) -- True if the imputed sex is female, false if male, missing if undetermined
+    - **s** -- The column key of `call`
+    - **is_female** (:class:`.TBoolean`) -- True if the imputed sex is female, false if male, missing if undetermined
     - **Fstat** (:class:`.TFloat64`) -- Inbreeding coefficient
     - **nTotal** (:class:`.TInt64`) -- Total number of variants considered
     - **nCalled**  (:class:`.TInt64`) -- Number of variants with a genotype call
@@ -230,21 +231,22 @@ def impute_sex(locus, call, aaf_threshold=0.0, include_par=False, female_thresho
 
     if (aaf is None):
         ds = ds.annotate_rows(
-            aaf = (agg.sum(ds.call.num_alt_alleles()).to_float64() /
-                   agg.count_where(f.is_defined(ds.call)) / 2))
+            aaf=(agg.sum(ds.call.num_alt_alleles()).to_float64() /
+                 agg.count_where(f.is_defined(ds.call)) / 2))
     else:
         aaf_source = aaf._indices.source
-        aaf_source = aaf_source.annotate(aaf = aaf)
-        ds = ds.annotate_rows(aaf = aaf_source[ds.v].aaf)
+        aaf_source = aaf_source.annotate(aaf=aaf)
+        ds = ds.annotate_rows(aaf=aaf_source[ds.v].aaf)
 
     ds = ds.filter_rows(ds.aaf > aaf_threshold)
-    ds = ds.annotate_cols(ib = agg.inbreeding(ds.call, ds.aaf))
+    ds = ds.annotate_cols(ib=agg.inbreeding(ds.call, ds.aaf))
     kt = ds.select_cols(
-        isFemale = f.cond(ds.ib.Fstat < female_threshold,
-                          True,
-                          f.cond(ds.ib.Fstat > male_threshold,
-                                 False,
-                                 f.null(TBoolean()))),
+        s=ds.s,
+        is_female=f.cond(ds.ib.Fstat < female_threshold,
+                         True,
+                         f.cond(ds.ib.Fstat > male_threshold,
+                                False,
+                                f.null(TBoolean()))),
         **ds.ib).cols_table()
 
     return kt

@@ -577,6 +577,21 @@ def fisher_exact_test(c1, c2, c3, c4):
     return _func("fet", ret_type, c1, c2, c3, c4)
 
 
+@typecheck(x=oneof(expr_float32, expr_float64))
+def floor(x):
+    """The largest integral value that is less than or equal to `x`."""
+    return _func("floor", x.dtype, x)
+
+@typecheck(x=oneof(expr_float32, expr_float64))
+def ceil(x):
+    """The smallest integral value that is greater than or equal to `x`."""
+    return _func("ceil", x.dtype, x)
+
+@typecheck(x=oneof(expr_float32, expr_float64))
+def round(x):
+    """The nearest integral value to `x`."""
+    return _func("round", x.dtype, x)
+
 @typecheck(j=expr_int32, k=expr_int32)
 def gt_index(j, k):
     """Convert from `j`/`k` pair to call index (the triangular number).

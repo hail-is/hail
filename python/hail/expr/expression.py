@@ -180,6 +180,9 @@ def to_expr(e):
 
 
 _lazy_int32 = lazy()
+_lazy_int64 = lazy()
+_lazy_float32 = lazy()
+_lazy_float64 = lazy()
 _lazy_numeric = lazy()
 _lazy_array = lazy()
 _lazy_set = lazy()
@@ -195,6 +198,18 @@ _lazy_expr = lazy()
 
 expr_int32 = transformed((_lazy_int32, identity),
                          (integral, to_expr))
+expr_int64 = transformed((_lazy_int64, identity),
+                         (integral, to_expr))
+expr_integral = transformed((_lazy_int64, identity),
+                            (_lazy_int32, identity),
+                            (integral, to_expr))
+expr_float32 = transformed((_lazy_float32, identity),
+                           (float, to_expr))
+expr_float64 = transformed((_lazy_float64, identity),
+                           (float, to_expr))
+expr_float = transformed((_lazy_float64, identity),
+                         (_lazy_float32, identity),
+                         (float, to_expr))
 expr_numeric = transformed((_lazy_numeric, identity),
                            (integral, to_expr),
                            (float, to_expr))
@@ -4270,6 +4285,9 @@ def eval_expr_typed(expression):
 
 
 _lazy_int32.set(Int32Expression)
+_lazy_int64.set(Int64Expression)
+_lazy_float32.set(Float32Expression)
+_lazy_float64.set(Float64Expression)
 _lazy_numeric.set(NumericExpression)
 _lazy_array.set(ArrayExpression)
 _lazy_set.set(SetExpression)

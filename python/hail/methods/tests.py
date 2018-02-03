@@ -82,6 +82,47 @@ class Tests(unittest.TestCase):
         methods.ibd(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
         methods.ibd(dataset, dataset['dummy_maf'].to_float32(), min=0.0, max=1.0)
 
+    def test_impute_sex_same_as_plink(self):
+        import subprocess as sp
+
+        ds = methods.import_vcf(test_file('x-chromosome.vcf'))
+
+        sex = methods.impute_sex(ds.rows_table().v.locus(), ds.GT, include_par = True)
+
+        vcf_file = utils.get_URI(utils.new_temp_file(prefix="plink", suffix="vcf"))
+        out_file = utils.get_URI(utils.new_temp_file(prefix="plink"))
+
+        methods.export_vcf(ds, vcf_file)
+
+        try:
+            out = sp.check_output(
+                ["plink", "--vcf", vcf_file, "--const-fid", "--check-sex",
+                 "--silent", "--out", out_file],
+                stderr=sp.STDOUT)
+        except sp.CalledProcessError as e:
+            print(e.output)
+            raise e
+
+        plink_sex = methods.import_table(out_file+'.sexcheck',
+                                         delimiter=' +',
+                                         types={'SNPSEX': TInt32(),
+                                                'F': TFloat64()})
+        plink_sex = plink_sex.select('IID', 'SNPSEX', 'F')
+        plink_sex = plink_sex.select(
+            s=plink_sex.IID,
+            is_female=functions.cond(plink_sex.SNPSEX == 2,
+                                     True,
+                                     functions.cond(plink_sex.SNPSEX == 1,
+                                                    False,
+                                                    functions.null(TBoolean()))),
+            f_stat=plink_sex.F).key_by('s')
+
+        sex = sex.select(s=sex.s,
+                         is_female=sex.is_female,
+                         f_stat=sex.Fstat)
+
+        self.assertTrue(plink_sex._same(sex, tolerance=1e-3))
+
     def test_ld_matrix(self):
         dataset = self.get_dataset()
 
