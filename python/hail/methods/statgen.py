@@ -1779,7 +1779,6 @@ def pc_relate(dataset, k, maf, block_size=512, min_kinship=-float("inf"), statis
         The fields of the resulting :class:`.Table` entries are of types:
         `i`: `String`, `j`: `String`, `kin`: `Double`, `k2`: `Double`,
         `k1`: `Double`, `k0`: `Double`. The table is keyed by `i` and `j`.
-
     """
     dataset = require_biallelic(dataset, 'pc_relate')
     intstatistics = {"phi": 0, "phik2": 1, "phik2k0": 2, "all": 3}[statistics]
