@@ -194,8 +194,8 @@ object PlinkLoader {
     }
 
     new MatrixTable(hc, matrixType,
-      MatrixLocalValue(globalAnnotation = Annotation.empty,
-        sampleAnnotations = sampleAnnotations),
+      Annotation.empty,
+      sampleAnnotations,
       OrderedRVD(matrixType.orderedRVType, rdd2, Some(fastKeys), None))
   }
 

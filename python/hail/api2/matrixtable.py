@@ -1732,6 +1732,23 @@ class MatrixTable(object):
         self._jvds.write(output, overwrite)
 
     @handle_py4j
+    def globals_table(self):
+        """Returns a table with a single row with the globals of the matrix table.
+
+        Examples
+        --------
+        Extract the globals table:
+
+        >>> globals_table = dataset.globals_table()
+
+        Returns
+        -------
+        :class:`.Table`
+            Table with the globals from the matrix, with a single row.
+        """
+        return Table(self._jvds.globalsKT())
+
+    @handle_py4j
     def rows_table(self):
         """Returns a table with all row fields in the matrix.
 

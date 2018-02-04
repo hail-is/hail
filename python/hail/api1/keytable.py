@@ -194,7 +194,7 @@ class KeyTable(HistoryMixin):
         """
 
         if self._key is None:
-            self._key = list(self._jkt.key())
+            self._key = jiterable_to_list(self._jt.key())
         return self._key
 
     @property

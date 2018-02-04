@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.{Annotation, Inserter, Querier, UnsafeRow}
-import is.hail.expr.{EvalContext, MatrixLocalValue, Parser}
+import is.hail.expr.{EvalContext, Parser}
 import is.hail.expr.types._
 import is.hail.variant.MatrixTable
 import org.apache.spark.rdd.RDD
@@ -108,7 +108,7 @@ class RichMatrixTable(vsm: MatrixTable) {
     genotypeSignature: TStruct = vsm.genotypeSignature): MatrixTable =
     MatrixTable.fromLegacy(vsm.hc,
       MatrixType(globalSignature, saSignature, Array("s"), vSignature, vaSignature, genotypeSignature),
-      MatrixLocalValue(globalAnnotation, sampleAnnotations), rdd)
+      globalAnnotation, sampleAnnotations, rdd)
 
   def copyLegacy[RK, T](rdd: RDD[(RK, (Annotation, Iterable[T]))],
     sampleAnnotations: IndexedSeq[Annotation] = vsm.sampleAnnotations,
@@ -120,6 +120,6 @@ class RichMatrixTable(vsm: MatrixTable) {
     genotypeSignature: TStruct = vsm.genotypeSignature): MatrixTable =
     MatrixTable.fromLegacy(vsm.hc,
       MatrixType(globalSignature, saSignature, Array("s"), vSignature, vaSignature, genotypeSignature),
-      MatrixLocalValue(globalAnnotation, sampleAnnotations),
+      globalAnnotation, sampleAnnotations,
       rdd)
 }

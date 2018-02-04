@@ -1,7 +1,7 @@
 package is.hail.expr.types
 
 import is.hail.expr.EvalContext
-import is.hail.rvd.OrderedRVType
+import is.hail.rvd.OrderedRVDType
 import is.hail.utils._
 import is.hail.variant.{GenomeReference, Genotype}
 
@@ -15,8 +15,8 @@ object MatrixType {
 
   def apply(
     globalType: TStruct = TStruct.empty(),
-    colType: TStruct = TStruct.empty(),
-    colKey: IndexedSeq[String] = Array.empty[String],
+    colType: TStruct = TStruct("s" -> TString()),
+    colKey: IndexedSeq[String] = Array("s"),
     vType: Type = TVariant(GenomeReference.defaultReference),
     vaType: TStruct = TStruct.empty(),
     genotypeType: TStruct = Genotype.htsGenotypeType): MatrixType = {
@@ -72,14 +72,29 @@ case class MatrixType(
 
   // FIXME needs to be rowType ++ TStruct(entriesField -> TArray(entryType))
   val rvRowType: TStruct =
-  TStruct(
-    "pk" -> locusType,
-    "v" -> vType,
-    "va" -> vaType,
-    "gs" -> TArray(genotypeType))
+    TStruct(
+      "pk" -> locusType,
+      "v" -> vType,
+      "va" -> vaType,
+      "gs" -> TArray(genotypeType))
 
-  def orderedRVType: OrderedRVType = {
-    new OrderedRVType(Array("pk"),
+  val rowsRVRowType: TStruct =
+    TStruct(
+      "pk" -> locusType,
+      "v" -> vType,
+      "va" -> vaType)
+
+  val colsTableType: TableType = TableType(colType, colKey, globalType)
+
+  val rowsTableType: TableType = TableType(rowsRVRowType, Array("pk", "v"), globalType)
+
+  val entriesRVRowType: TStruct =
+    TStruct("gs" -> TArray(genotypeType))
+
+  val entriesTableType: TableType = TableType(entriesRVRowType, Array.empty[String], globalType)
+
+  def orderedRVType: OrderedRVDType = {
+    new OrderedRVDType(Array("pk"),
       Array("pk", "v"),
       rvRowType)
   }
@@ -150,7 +165,7 @@ case class MatrixType(
     newline()
 
     sb.append(s"col_key:$space[")
-    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(",$space"))
+    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
     sb += ']'
     sb += ','
     newline()
