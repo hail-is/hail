@@ -37,7 +37,7 @@ object AnnotateAllelesExpr {
 
     val inserters = inserterBuilder.result()
 
-    val aggregateOption = Aggregators.buildVariantAggregations(vsm.sparkContext, splitMatrixType, vsm.value.localValue, ec)
+    val aggregateOption = Aggregators.buildVariantAggregations(vsm.sparkContext, splitMatrixType, vsm.value.globalAnnotation, vsm.value.colAnnotations, ec)
 
     val localNSamples = vsm.nSamples
     val localRowType = vsm.rvRowType

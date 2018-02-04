@@ -4,7 +4,7 @@ import is.hail.expr.EvalContext
 import is.hail.utils._
 import is.hail.expr.ir._
 
-case class TableType(rowType: TStruct, key: Array[String], globalType: TStruct) extends BaseType {
+case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
   def rowEC: EvalContext = EvalContext(rowType.fields.map { f => f.name -> f.typ } ++
       globalType.fields.map { f => f.name -> f.typ }: _*)
   def fields: Map[String, Type] = Map(rowType.fields.map { f => f.name -> f.typ } ++ globalType.fields.map { f => f.name -> f.typ }: _*)
@@ -42,7 +42,7 @@ case class TableType(rowType: TStruct, key: Array[String], globalType: TStruct) 
     newline()
 
     sb.append(s"key:$space[")
-    key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(",$space"))
+    key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
     sb += ']'
     sb += ','
     newline()

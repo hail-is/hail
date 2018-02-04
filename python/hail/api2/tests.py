@@ -6,7 +6,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 import unittest
 import random
 from hail2 import *
-from hail.utils.misc import test_file
+from hail.utils.misc import test_file, new_temp_file
 
 def setUpModule():
     init(master='local[2]', min_block_size=0)
@@ -622,6 +622,13 @@ class MatrixTests(unittest.TestCase):
         ds_small = ds.sample_rows(0.01)
         self.assertTrue(ds_small.count_rows() < ds.count_rows())
 
+    def test_read_stored_cols(self):
+        ds = self.get_vds()
+        ds = ds.annotate_globals(x = 'foo')
+        f = new_temp_file(suffix='vds')
+        ds.write(f)
+        t = methods.read_table(f + '/cols')
+        self.assertTrue(ds.cols_table()._same(t))
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
