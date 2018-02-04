@@ -34,9 +34,9 @@ object TAltAllele {
 
   def representation(required: Boolean = false): TStruct = {
     val t = TStruct(
-      "ref" -> !TString(),
-      "alt" -> !TString())
-    if (required) (!t).asInstanceOf[TStruct] else t
+      "ref" -> +TString(),
+      "alt" -> +TString())
+    t.setRequired(required).asInstanceOf[TStruct]
   }
 
 }

@@ -11,11 +11,11 @@ import scala.reflect.classTag
 object TVariant {
   def representation(required: Boolean = false): TStruct = {
   	val rep = TStruct(
-    "contig" -> !TString(),
-    "start" -> !TInt32(),
-    "ref" -> !TString(),
-    "altAlleles" -> !TArray(!TAltAllele()))
-    if (required) (!rep).asInstanceOf[TStruct] else rep
+    "contig" -> +TString(),
+    "start" -> +TInt32(),
+    "ref" -> +TString(),
+    "altAlleles" -> +TArray(+TAltAllele()))
+    rep.setRequired(required).asInstanceOf[TStruct]
   }
 }
 

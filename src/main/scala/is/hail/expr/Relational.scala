@@ -120,7 +120,7 @@ case class MatrixValue(
 
   def filterSamplesKeep(keep: Array[Int]): MatrixValue = {
     val rowType = typ.rvRowType
-    val keepType = TArray(!TInt32())
+    val keepType = TArray(+TInt32())
     val makeF = ir.Compile("row", ir.RegionValueRep[Long](rowType),
       "keep", ir.RegionValueRep[Long](keepType),
       ir.RegionValueRep[Long](rowType),

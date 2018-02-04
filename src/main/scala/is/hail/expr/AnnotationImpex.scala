@@ -223,7 +223,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
       fatal(s"wrong type for pos field: expected Int, got ${ types(1) }")
     if (types(2).isInstanceOf[TString])
       fatal(s"wrong type for ref field: expected String, got ${ types(2) }")
-    if (types(3) != TArray(TString()) && types(3) != TArray(!TString()))
+    if (types(3) != TArray(TString()) && types(3) != TArray(+TString()))
       fatal(s"wrong type for alt field: expected Array[String], got ${ types(3) }")
 
     (root: Annotation) => {
