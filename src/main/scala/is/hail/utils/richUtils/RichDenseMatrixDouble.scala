@@ -119,26 +119,32 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     }
   }
   
-  def write(dos: DataOutputStream) {
-    assert(m.offset == 0)
-    assert(m.majorStride == (if (m.isTranspose) m.cols else m.rows))
+  def isCompact: Boolean = m.offset == 0 && m.majorStride == (if (m.isTranspose) m.cols else m.rows)
 
+  def toCompactData(forceRowMajor: Boolean = false): Array[Double] = {
+    if (isCompact && (m.isTranspose || !forceRowMajor))
+      m.data
+    else if (forceRowMajor)
+      m.t.toArray
+    else
+      m.toArray
+  }
+
+  def write(dos: DataOutputStream, forceRowMajor: Boolean) {
     dos.writeInt(m.rows)
     dos.writeInt(m.cols)
-    assert(m.data.length == m.rows * m.cols)
-    dos.writeBoolean(m.isTranspose)
     
-    RichDenseMatrixDouble.writeDoubles(dos, m.data, m.data.length)
+    val data = m.toCompactData(forceRowMajor)
+    val isTranspose = if (forceRowMajor) true else m.isTranspose
+    
+    assert(data.length == m.rows * m.cols)
+    dos.writeBoolean(isTranspose)
+    
+    RichDenseMatrixDouble.writeDoubles(dos, data, data.length)
   }
   
-  def forceRowMajor(): DenseMatrix[Double] =
-    if (m.isTranspose)
-      m
-    else
-      new DenseMatrix(m.rows, m.cols, m.t.toArray, 0, m.cols, isTranspose = true)
-  
-  def write(hc: HailContext, path: String) {
-    hc.hadoopConf.writeDataFile(path)(write)
+  def write(hc: HailContext, path: String, forceRowMajor: Boolean = false) {
+    hc.hadoopConf.writeDataFile(path)(dos => write(dos, forceRowMajor))
   }
   
   def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false) {
@@ -164,11 +170,8 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       val iOffset = i * blockSize
       val jOffset = j * blockSize      
       var block = m(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
-    
-      if (forceRowMajor)
-        block.forceRowMajor().write(hc, filename)
-      else
-        block.copy.write(hc, filename)
+
+      block.copy.write(hc, filename, forceRowMajor)
     }
 
     info(s"wrote $nParts ${ plural(nParts, "item") } in $nParts ${ plural(nParts, "partition") }")

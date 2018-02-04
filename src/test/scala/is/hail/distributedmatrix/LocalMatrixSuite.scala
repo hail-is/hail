@@ -1,6 +1,5 @@
 package is.hail.distributedmatrix
 
-import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
@@ -52,20 +51,20 @@ class LocalMatrixSuite extends SparkSuite {
     assertEqual((m + m) - m, m)
 
     assertEqual(x - c, LocalMatrix(2, 1, Array(1.0, 0.0)))
-    assertEqual(x - c, (c - x).negation())
+    assertEqual(x - c, -(c - x))
     assertEqual(x - r, LocalMatrix(1, 3, Array(1.0, 0.0, -1.0)))
-    assertEqual(x - r, (r - x).negation())
+    assertEqual(x - r, -(r - x))
     assertEqual(x - m, LocalMatrix(2, 3, Array(1.0, 0.0, -1.0, -2.0, -3.0, -4.0)))
-    assertEqual(x - m, (m - x).negation())
+    assertEqual(x - m, -(m - x))
     assertEqual(x - m, e - m)
-    assertEqual(x - m, (m - e).negation())
+    assertEqual(x - m, -(m - e))
     
     assertEqual(c - m, LocalMatrix(2, 3, Array(0.0, 0.0, -2.0, -2.0, -4.0, -4.0)))
-    assertEqual(c - m, (m - c).negation())
+    assertEqual(c - m, -(m - c))
     assertEqual(r - m, LocalMatrix(2, 3, Array(0.0, -1.0, -1.0, -2.0, -2.0, -3.0)))
-    assertEqual(r - m, (m - r).negation())
+    assertEqual(r - m, -(m - r))
     assertEqual(c - r, LocalMatrix(2, 3, Array(0.0, 1.0, -1.0, 0.0, -2.0, -1.0)))
-    assertEqual(c - r, (r - c).negation())
+    assertEqual(c - r, -(r - c))
     
     // multiply
     assertEqual(x * x, LocalMatrix(1, 1, Array(4.0)))
@@ -95,19 +94,19 @@ class LocalMatrixSuite extends SparkSuite {
     assertApproxEqual((m * m) / m, m)
 
     assertApproxEqual(x / c, LocalMatrix(2, 1, Array(2.0, 1.0)))
-    assertApproxEqual(x / c, (c / x).reciprocal())
+    assertApproxEqual(x / c, 1.0 / (c / x))
     assertApproxEqual(x / r, LocalMatrix(1, 3, Array(2.0, 1.0, 2.0 / 3)))
-    assertApproxEqual(x / r, (r / x).reciprocal())
+    assertApproxEqual(x / r, 1.0 / (r / x))
     assertApproxEqual(x / m, LocalMatrix(2, 3, Array(2.0, 1.0, 2.0 / 3, 0.5, 0.4, 1.0 / 3)))
-    assertApproxEqual(x / m, (m / x).reciprocal())
+    assertApproxEqual(x / m, 1.0 / (m / x))
     assertApproxEqual(x / m, e / m)
-    assertApproxEqual(x / m, (m / e).reciprocal())
+    assertApproxEqual(x / m, 1.0 / (m / e))
     
     assertApproxEqual(c / m, LocalMatrix(2, 3, Array(1.0, 1.0, 1.0 / 3, 0.5, 0.2, 1.0 / 3)))
-    assertApproxEqual(c / m, (m / c).reciprocal())
+    assertApproxEqual(c / m, 1.0 / (m / c))
     assertApproxEqual(r / m, LocalMatrix(2, 3, Array(1.0, 0.5, 2.0 / 3, 0.5, 0.6, 0.5)))
-    assertApproxEqual(r / m, (m / r).reciprocal())
+    assertApproxEqual(r / m, 1.0 / (m / r))
     assertApproxEqual(c / r, LocalMatrix(2, 3, Array(1.0, 2.0, 0.5, 1.0, 1.0 / 3, 2.0 / 3)))
-    assertApproxEqual(c / r, (r / c).reciprocal())
+    assertApproxEqual(c / r, 1.0 / (r / c))
   }
 }
