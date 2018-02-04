@@ -7,7 +7,7 @@ import is.hail.expr.types._
 import is.hail.expr.ir._
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
-import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
+import is.hail.io.{CassandraConnector, CodecSpec, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
 import is.hail.rvd._
 import is.hail.utils._
@@ -17,6 +17,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -204,7 +205,16 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def fieldNames: Array[String] = fields.map(_.name)
 
-  def count(): Long = rvd.count()
+  def partitionCounts(): Array[Long] = {
+    ir.partitionCounts match {
+      case Some(counts) => counts
+      case None => rvd.countPerPartition()
+    }
+  }
+
+  def count(): Long = partitionCounts().sum
+
+  def forceCount(): Long = rvd.count()
 
   def nColumns: Int = fields.length
 
@@ -1111,7 +1121,14 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
   def collect(): IndexedSeq[Row] = rdd.collect()
 
-  def write(path: String, overwrite: Boolean = false) {
+  def write(path: String, overwrite: Boolean = false, codecSpecJSONStr: String = null) {
+    val codecSpec =
+      if (codecSpecJSONStr != null) {
+        val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
+        CodecSpec.extract(codecSpecJSON)
+      } else
+        CodecSpec.default
+
     if (overwrite)
       hc.hadoopConf.delete(path, recursive = true)
     else if (hc.hadoopConf.exists(path))
@@ -1121,9 +1138,9 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
     val globalsPath = path + "/globals"
     hc.hadoopConf.mkDir(globalsPath)
-    RVD.writeLocalUnpartitioned(hc, globalsPath, globalSignature, Array(globals))
+    RVD.writeLocalUnpartitioned(hc, globalsPath, globalSignature, codecSpec, Array(globals))
 
-    val partitionCounts = rvd.write(path + "/rows")
+    val partitionCounts = rvd.write(path + "/rows", codecSpec)
 
     val referencesPath = path + "/references"
     hc.hadoopConf.mkDir(referencesPath)

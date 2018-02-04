@@ -2,9 +2,9 @@ package is.hail.rvd
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.{JSONAnnotationImpex, Parser}
 import is.hail.expr.types.{TArray, TStruct, TStructSerializer}
-import is.hail.io.RichRDDRegionValue
+import is.hail.io.{CodecSpec, RichRDDRegionValue}
 import is.hail.utils._
 import org.apache.hadoop
 import org.apache.spark.{Partition, SparkContext}
@@ -30,14 +30,14 @@ object RVDSpec {
     jv.extract[RVDSpec]
   }
 
-  def readLocal(hc: HailContext, path: String, rowType: TStruct, partFiles: Array[String]): IndexedSeq[Row] = {
+  def readLocal(hc: HailContext, path: String, rowType: TStruct, codecSpec: CodecSpec, partFiles: Array[String]): IndexedSeq[Row] = {
     assert(partFiles.length == 1)
 
     val hConf = hc.hadoopConf
     partFiles.flatMap { p =>
       val f = path + "/parts/" + p
       val in = hConf.unsafeReader(f)
-      HailContext.readRowsPartition(rowType)(0, in)
+      HailContext.readRowsPartition(rowType, codecSpec)(0, in)
         .map(rv => new UnsafeRow(rowType, rv.region.copy(), rv.offset))
     }
       .toFastIndexedSeq
@@ -59,16 +59,18 @@ abstract class RVDSpec {
 
 case class UnpartitionedRVDSpec(
   rowType: TStruct,
+  codecSpec: CodecSpec,
   partFiles: Array[String]) extends RVDSpec {
   def read(hc: HailContext, path: String): UnpartitionedRVD =
-    new UnpartitionedRVD(rowType, hc.readRows(path, rowType, partFiles))
+    new UnpartitionedRVD(rowType, hc.readRows(path, rowType, codecSpec, partFiles))
 
   def readLocal(hc: HailContext, path: String): IndexedSeq[Row] =
-    RVDSpec.readLocal(hc, path, rowType, partFiles)
+    RVDSpec.readLocal(hc, path, rowType, codecSpec, partFiles)
 }
 
 case class OrderedRVDSpec(
   orvdType: OrderedRVDType,
+  codecSpec: CodecSpec,
   partFiles: Array[String],
   jRangeBounds: JValue) extends RVDSpec {
   def read(hc: HailContext, path: String): OrderedRVD = {
@@ -77,11 +79,11 @@ case class OrderedRVDSpec(
       new OrderedRVDPartitioner(partFiles.length, orvdType.partitionKey, orvdType.kType,
         UnsafeIndexedSeq(rangeBoundsType,
           JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType).asInstanceOf[IndexedSeq[Annotation]])),
-      hc.readRows(path, orvdType.rowType, partFiles))
+      hc.readRows(path, orvdType.rowType, codecSpec, partFiles))
   }
 
   def readLocal(hc: HailContext, path: String): IndexedSeq[Row] =
-    RVDSpec.readLocal(hc, path, orvdType.rowType, partFiles)
+    RVDSpec.readLocal(hc, path, orvdType.rowType, codecSpec, partFiles)
 }
 
 case class PersistedRVRDD(
@@ -89,13 +91,13 @@ case class PersistedRVRDD(
   iterationRDD: RDD[RegionValue])
 
 object RVD {
-  def writeLocalUnpartitioned(hc: HailContext, path: String, rowType: TStruct, rows: IndexedSeq[Annotation]): Array[Long] = {
+  def writeLocalUnpartitioned(hc: HailContext, path: String, rowType: TStruct, codecSpec: CodecSpec, rows: IndexedSeq[Annotation]): Array[Long] = {
     val hConf = hc.hadoopConf
     hConf.mkDir(path + "/parts")
 
     val os = hConf.unsafeWriter(path + "/parts/part-0")
     val rvb = new RegionValueBuilder()
-    val part0Count = RichRDDRegionValue.writeRowsPartition(rowType)(0,
+    val part0Count = RichRDDRegionValue.writeRowsPartition(rowType, codecSpec)(0,
       rows.map { a =>
         val region = Region()
         rvb.set(region)
@@ -104,7 +106,7 @@ object RVD {
         RegionValue(region, rvb.end())
       }.iterator, os)
 
-    val spec = UnpartitionedRVDSpec(rowType, Array("part-0"))
+    val spec = UnpartitionedRVDSpec(rowType, codecSpec, Array("part-0"))
     spec.write(hConf, path)
 
     Array(part0Count)
@@ -197,5 +199,5 @@ trait RVD {
 
   def sample(withReplacement: Boolean, p: Double, seed: Long): RVD
 
-  def write(path: String): Array[Long]
+  def write(path: String, codecSpec: CodecSpec): Array[Long]
 }

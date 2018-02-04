@@ -5,6 +5,7 @@ import java.util
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
+import is.hail.io.CodecSpec
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
@@ -414,10 +415,11 @@ class OrderedRVD private(
     OrderedRVD(typ, newPartitioner, rdd.subsetPartitions(keep))
   }
 
-  def write(path: String): Array[Long] = {
-    val (partFiles, partitionCounts) = rdd.writeRows(path, rowType)
+  def write(path: String, codecSpec: CodecSpec): Array[Long] = {
+    val (partFiles, partitionCounts) = rdd.writeRows(path, rowType, codecSpec)
     val spec = OrderedRVDSpec(
       typ,
+      codecSpec,
       partFiles,
       JSONAnnotationImpex.exportAnnotation(partitioner.rangeBounds, partitioner.rangeBoundsType))
     spec.write(sparkContext.hadoopConfiguration, path)

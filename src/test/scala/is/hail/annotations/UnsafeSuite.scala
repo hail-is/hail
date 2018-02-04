@@ -10,6 +10,7 @@ import is.hail.variant.{GenomeReference, Variant}
 import org.apache.spark.SparkEnv
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.Row
+import org.json4s.jackson.JsonMethods
 import org.testng.annotations.Test
 
 class UnsafeSuite extends SparkSuite {
@@ -25,26 +26,30 @@ class UnsafeSuite extends SparkSuite {
       .filter { case (t, a) => a != null }
     val p = Prop.forAll(g) { case (t, a) =>
       t.typeCheck(a)
-      val f = t.fundamentalType
 
-      region.clear()
-      rvb.start(f)
-      rvb.addRow(t, a.asInstanceOf[Row])
-      val offset = rvb.end()
-      val ur = new UnsafeRow(t, region, offset)
+      println("loop")
+      CodecSpec.codecSpecs.foreach { codecSpec =>
+        println(JsonMethods.compact(JsonMethods.render(codecSpec.toJSON)))
 
-      val aos = new ArrayOutputStream()
-      val en = new Encoder(new LZ4OutputBuffer(aos))
-      en.writeRegionValue(f, region, offset)
-      en.flush()
+        region.clear()
+        rvb.start(t)
+        rvb.addRow(t, a.asInstanceOf[Row])
+        val offset = rvb.end()
+        val ur = new UnsafeRow(t, region, offset)
 
-      region2.clear()
-      val ais = new ArrayInputStream(aos.a, aos.off)
-      val dec = new Decoder(new LZ4InputBuffer(ais))
-      val offset2 = dec.readRegionValue(f, region2)
-      val ur2 = new UnsafeRow(t, region2, offset2)
+        val aos = new ArrayOutputStream()
+        val en = codecSpec.buildEncoder(aos)
+        en.writeRegionValue(t, region, offset)
+        en.flush()
 
-      assert(t.valuesSimilar(a, ur2))
+        region2.clear()
+        val ais = new ArrayInputStream(aos.a, aos.off)
+        val dec = codecSpec.buildDecoder(ais)
+        val offset2 = dec.readRegionValue(t, region2)
+        val ur2 = new UnsafeRow(t, region2, offset2)
+
+        assert(t.valuesSimilar(a, ur2))
+      }
 
       true
     }

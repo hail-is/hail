@@ -363,6 +363,10 @@ class Table(TableTemplate):
     def count(self):
         return self._jt.count()
 
+    @handle_py4j
+    def _force_count(self):
+        return self._jt.forceCount()
+
     @classmethod
     @handle_py4j
     @record_classmethod
@@ -1025,8 +1029,9 @@ class Table(TableTemplate):
 
     @handle_py4j
     @typecheck_method(output=strlike,
-                      overwrite=bool)
-    def write(self, output, overwrite=False):
+                      overwrite=bool,
+                      _codec_spec=nullable(strlike))
+    def write(self, output, overwrite=False, _codec_spec=None):
         """Write to disk.
 
         Examples
@@ -1050,7 +1055,7 @@ class Table(TableTemplate):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        self._jt.write(output, overwrite)
+        self._jt.write(output, overwrite, _codec_spec)
 
     @handle_py4j
     @typecheck_method(n=integral, width=integral, truncate=nullable(integral), types=bool)

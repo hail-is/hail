@@ -8,6 +8,8 @@ import random
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.utils.misc import test_file, new_temp_file
+import json
+
 
 
 def setUpModule():
@@ -643,6 +645,26 @@ class MatrixTests(unittest.TestCase):
         ds.write(f)
         t = hl.read_table(f + '/globals')
         self.assertTrue(ds.globals_table()._same(t))
+
+    def test_codecs_matrix(self):
+        from hail.utils.java import Env
+        codecs = Env.hail().io.CodecSpec.codecSpecs()
+        ds = self.get_vds()
+        temp = new_temp_file(suffix='hmt')
+        for codec in codecs:
+            ds.write(temp, overwrite=True, _codec_spec=codec.toString())
+            ds2 = methods.read_matrix(temp)
+            self.assertTrue(ds._same(ds2))
+
+    def test_codecs_table(self):
+        from hail.utils.java import Env
+        codecs = Env.hail().io.CodecSpec.codecSpecs()
+        rt = self.get_vds().rows_table()
+        temp = new_temp_file(suffix='ht')
+        for codec in codecs:
+            rt.write(temp, overwrite=True, _codec_spec=codec.toString())
+            rt2 = methods.read_matrix(temp)
+            self.assertTrue(rt._same(rt2))
 
 class FunctionsTests(unittest.TestCase):
     def test(self):
