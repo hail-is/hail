@@ -84,6 +84,8 @@ case class MatrixType(
       "v" -> vType,
       "va" -> vaType)
 
+  val colsTableType: TableType = TableType(colType, colKey, globalType)
+
   val rowsTableType: TableType = TableType(rowsRVRowType, Array("pk", "v"), globalType)
 
   val entriesRVRowType: TStruct =

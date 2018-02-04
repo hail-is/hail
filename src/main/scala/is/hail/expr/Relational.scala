@@ -6,6 +6,7 @@ import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.methods.Aggregators
 import is.hail.rvd._
+import is.hail.table.TableMetadata
 import is.hail.variant.MatrixTableMetadata
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -233,7 +234,7 @@ case class MatrixRead(
       if (dropVariants)
         OrderedRVD.empty(hc.sc, typ.orderedRVType)
       else {
-        var rowsRVD = metadata.rowsRVDSpec.execute(hc, path + "/rows").asInstanceOf[OrderedRVD]
+        var rowsRVD = metadata.rowsRVDSpec.read(hc, path + "/rows").asInstanceOf[OrderedRVD]
         val rowsRowType = rowsRVD.rowType
         if (dropSamples) {
           rowsRVD.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
@@ -255,7 +256,7 @@ case class MatrixRead(
             }
           }
         } else {
-          val entriesRVD = metadata.entriesRVDSpec.execute(hc, path + "/entries")
+          val entriesRVD = metadata.entriesRVDSpec.read(hc, path + "/entries")
           val entriesRowType = entriesRVD.rowType
           OrderedRVD(typ.orderedRVType,
             rowsRVD.partitioner,
@@ -404,8 +405,8 @@ object TableIR {
       case TableFilter(TableFilter(x, p1), p2) =>
         TableFilter(x, ApplyBinaryPrimOp(DoubleAmpersand(), p1, p2))
       case TableFilter(x, True()) => x
-      case TableFilter(TableRead(path, globalPath, typ, _, nPart, pCounts), False() | NA(TBoolean(_))) =>
-        TableRead(path, globalPath, typ, true, nPart, pCounts)
+      case TableFilter(TableRead(path, metadata, _), False() | NA(TBoolean(_))) =>
+        TableRead(path, metadata, true)
     })
   }
 }
@@ -437,11 +438,10 @@ case class TableLiteral(value: TableValue) extends TableIR {
   def execute(hc: HailContext): TableValue = value
 }
 
-case class TableRead(path: String, globalPath: String,
-  typ: TableType,
-  dropRows: Boolean,
-  rvdSpec: RVDSpec,
-  override val partitionCounts: Option[Array[Long]]) extends TableIR {
+case class TableRead(path: String, metadata: TableMetadata, dropRows: Boolean) extends TableIR {
+  def typ: TableType = metadata.typ
+
+  override def partitionCounts: Option[Array[Long]] = metadata.partitionCounts
 
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -451,17 +451,13 @@ case class TableRead(path: String, globalPath: String,
   }
 
   def execute(hc: HailContext): TableValue = {
-    val globalFile = path + "/" + globalPath
-    val globalAnnotation = hc.hadoopConf.readFile(globalFile) { in =>
-      JSONAnnotationImpex.importAnnotation(parse(in), typ.globalType).asInstanceOf[Row]
-    }
-
+    val globals = metadata.globalsRVDSpec.readLocal(hc, path)(0)
     TableValue(typ,
-      globalAnnotation,
+      globals,
       if (dropRows)
         UnpartitionedRVD.empty(hc.sc, typ.rowType)
       else
-        rvdSpec.execute(hc, path))
+        metadata.rowsRVDSpec.read(hc, path))
   }
 }
 

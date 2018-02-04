@@ -7,8 +7,7 @@ import is.hail.expr._
 import is.hail.methods._
 import is.hail.sparkextras._
 import is.hail.rvd._
-import is.hail.io.RichRDDRegionValue
-import is.hail.table.{JSONTableMetadata, Table}
+import is.hail.table.{Table, TableMetadata}
 import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
@@ -32,15 +31,37 @@ case class JSONMatrixTableMetadata(
   file_version: Int,
   hail_version: String,
   matrix_type: String,
+  globals_rvd_spec: JValue,
+  cols_rvd_spec: JValue,
   rows_rvd_spec: JValue,
   entries_rvd_spec: JValue,
   partition_counts: Option[Array[Long]])
 
 case class MatrixTableMetadata(
   matrixType: MatrixType,
+  globalsRVDSpec: RVDSpec,
+  colsRVDSpec: RVDSpec,
   rowsRVDSpec: RVDSpec,
   entriesRVDSpec: RVDSpec,
-  partitionCounts: Option[Array[Long]])
+  partitionCounts: Option[Array[Long]]) {
+  def write(hc: HailContext, path: String) {
+    val hConf = hc.hadoopConf
+    hConf.mkDir(path)
+
+    val jmetadata = JSONMatrixTableMetadata(
+      file_version = FileFormat.version.rep,
+      hail_version = hc.version,
+      matrix_type = matrixType.toString,
+      globals_rvd_spec = globalsRVDSpec.toJSON,
+      cols_rvd_spec = colsRVDSpec.toJSON,
+      rows_rvd_spec = rowsRVDSpec.toJSON,
+      entries_rvd_spec = entriesRVDSpec.toJSON,
+      partition_counts = partitionCounts)
+
+    hConf.writeTextFile(path + "/metadata.json.gz")(out =>
+      Serialization.write(jmetadata, out))
+  }
+}
 
 object SemanticVersion {
   def apply(rep: Int): SemanticVersion =
@@ -140,6 +161,8 @@ object MatrixTable {
     val matrixType: MatrixType = Parser.parseMatrixType(metadata.matrix_type)
 
     MatrixTableMetadata(matrixType,
+      RVDSpec.extract(metadata.globals_rvd_spec),
+      RVDSpec.extract(metadata.cols_rvd_spec),
       RVDSpec.extract(metadata.rows_rvd_spec),
       RVDSpec.extract(metadata.entries_rvd_spec),
       metadata.partition_counts)
@@ -2184,6 +2207,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "gs" -> (3, TAggregable(genotypeSignature, aggregationST))))
   }
 
+  def globalsKT(): Table = {
+    Table(hc,
+      sparkContext.parallelize[Row](Array(globalAnnotation.asInstanceOf[Row])),
+      globalSignature,
+      Array.empty[String])
+  }
+
   def variantsKT(): Table = {
     val localRVRowType = rvRowType
     val typ = TStruct(
@@ -2272,28 +2302,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       Array("v") ++ colKey)
   }
 
-  def writeMetadata(path: String, metadata: MatrixTableMetadata) {
-    val hConf = hc.hadoopConf
-    hConf.mkDir(path)
-
-    val jmetadata = JSONMatrixTableMetadata(
-      file_version = FileFormat.version.rep,
-      hail_version = hc.version,
-      matrix_type = metadata.matrixType.toString,
-      rows_rvd_spec = metadata.rowsRVDSpec.toJSON,
-      entries_rvd_spec = metadata.entriesRVDSpec.toJSON,
-      partition_counts = metadata.partitionCounts)
-
-    hConf.writeTextFile(path + "/metadata.json.gz")(out =>
-      Serialization.write(jmetadata, out))
-
-    val refPath = path + "/references/"
-    hc.hadoopConf.mkDir(refPath)
-    Array(vSignature, saSignature, vaSignature, genotypeSignature, globalSignature).foreach { t =>
-      GenomeReference.exportReferences(hc, refPath, t)
-    }
-  }
-
   def coalesce(k: Int, shuffle: Boolean = true): MatrixTable = copy2(rdd2 = rdd2.coalesce(k, shuffle))
 
   def persist(storageLevel: String = "MEMORY_AND_DISK"): MatrixTable = {
@@ -2379,34 +2387,36 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def rvRowType: TStruct = matrixType.rvRowType
 
-  def writeCols(path: String): Unit = {
-    hadoopConf.mkDir(path + "/parts")
+  def writeCols(path: String, globalsRVDSpec: RVDSpec): RVDSpec = {
+    val (colsRVDSpec, partitionCounts) = RVD.writeLocalUnpartitioned(hc, path, matrixType.colType, sampleAnnotations)
 
-    val os = hadoopConf.unsafeWriter(path + "/parts/part-0")
-    val rvb = new RegionValueBuilder()
-    val part0Count = RichRDDRegionValue.writeRowsPartition(matrixType.colType)(0,
-      sampleAnnotations.map { a =>
-        val region = Region()
-        rvb.set(region)
-        rvb.start(matrixType.colType)
-        rvb.addAnnotation(matrixType.colType, a)
-        RegionValue(region, rvb.end())
-      }.iterator, os)
-
-    val partitionCounts = Array(part0Count)
-    val tableType = TableType(matrixType.colType, matrixType.colKey, matrixType.globalType)
-    val rvdSpec = UnpartitionedRVDSpec(matrixType.colType, Array("part-0"))
-    val metadata = JSONTableMetadata(FileFormat.version.rep,
-      hc.version,
-      tableType.toString,
-      "../global.json.gz",
-      rvdSpec.toJSON,
+    val metadata = TableMetadata(
+      matrixType.colsTableType,
+      globalsRVDSpec,
+      colsRVDSpec,
       Some(partitionCounts))
-
-    hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
-      Serialization.write(metadata, out))
+    metadata.write(hc, path)
 
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+
+    colsRVDSpec
+  }
+
+  def writeGlobals(path: String): RVDSpec = {
+    val (globalsRVDSpec, partitionCounts) = RVD.writeLocalUnpartitioned(hc, path, matrixType.globalType, Array(globalAnnotation))
+
+    val (emptyRVDSpec, _) = RVD.writeLocalUnpartitioned(hc, path + "/globals", TStruct.empty(), Array(Row()))
+
+    val metadata = TableMetadata(
+      TableType(globalSignature, Array.empty[String], TStruct.empty()),
+      emptyRVDSpec,
+      globalsRVDSpec,
+      Some(partitionCounts))
+    metadata.write(hc, path)
+
+    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+
+    globalsRVDSpec
   }
 
   def write(path: String, overwrite: Boolean = false): Unit = {
@@ -2419,43 +2429,45 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val (partFiles, partitionCounts) = rdd2.rdd.writeRowsSplit(path, matrixType)
 
+    hadoopConf.mkDir(path + "/globals")
+    val globalsRVDSpec = writeGlobals(path + "/globals")
+
     // rows metadata
     val rowsRVDSpec = OrderedRVDSpec(
       new OrderedRVDType(Array("pk"), Array("pk", "v"), matrixType.rowsRVRowType),
       partFiles,
       rdd2.partitioner.rangeBounds)
-    val rowsMetadata = JSONTableMetadata(FileFormat.version.rep,
-      hc.version,
-      matrixType.rowsTableType.toString,
-      "../global.json.gz",
-      rowsRVDSpec.toJSON,
+    val rowsMetadata = TableMetadata(
+      matrixType.rowsTableType,
+      globalsRVDSpec,
+      rowsRVDSpec,
       Some(partitionCounts))
-    hc.hadoopConf.writeTextFile(path + "/rows/metadata.json.gz")(out =>
-      Serialization.write(rowsMetadata, out))
+    rowsMetadata.write(hc, path + "/rows")
 
     hadoopConf.writeTextFile(path + "/rows/_SUCCESS")(out => ())
 
     // entries metadata
     val entriesRVDSpec = UnpartitionedRVDSpec(matrixType.entriesRVRowType, partFiles)
-    val entriesMetadata = JSONTableMetadata(FileFormat.version.rep,
-      hc.version,
-      matrixType.entriesTableType.toString,
-      "../global.json.gz",
-      entriesRVDSpec.toJSON,
+    val entriesMetadata = TableMetadata(
+      matrixType.entriesTableType,
+      globalsRVDSpec,
+      entriesRVDSpec,
       Some(partitionCounts))
-    hc.hadoopConf.writeTextFile(path + "/entries/metadata.json.gz")(out =>
-      Serialization.write(entriesMetadata, out))
+    entriesMetadata.write(hc, path + "/entries")
 
     hadoopConf.writeTextFile(path + "/entries/_SUCCESS")(out => ())
 
-    val metadata = MatrixTableMetadata(matrixType, rowsRVDSpec, entriesRVDSpec, Some(partitionCounts))
-    writeMetadata(path, metadata)
-
-    hadoopConf.writeTextFile(path + "/global.json.gz")(out =>
-      Serialization.write(JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature), out))
-
     hadoopConf.mkDir(path + "/cols")
-    writeCols(path + "/cols")
+    val colsRVDSpec = writeCols(path + "/cols", globalsRVDSpec)
+
+    val metadata = MatrixTableMetadata(matrixType, globalsRVDSpec, colsRVDSpec, rowsRVDSpec, entriesRVDSpec, Some(partitionCounts))
+    metadata.write(hc, path)
+
+    val refPath = path + "/references/"
+    hc.hadoopConf.mkDir(refPath)
+    Array(vSignature, saSignature, vaSignature, genotypeSignature, globalSignature).foreach { t =>
+      GenomeReference.exportReferences(hc, refPath, t)
+    }
 
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }

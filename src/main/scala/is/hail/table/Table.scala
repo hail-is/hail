@@ -9,6 +9,7 @@ import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.Aggregators
+import is.hail.rvd.RVDSpec
 import is.hail.rvd._
 import is.hail.utils._
 import is.hail.variant.{FileFormat, GenomeReference, MatrixTable, SemanticVersion}
@@ -38,14 +39,49 @@ object SortColumn {
 
 case class SortColumn(column: String, sortOrder: SortOrder)
 
-case class TableMetadata(typ: TableType, partitionCounts: Option[Array[Long]])
+object TableMetadata {
+  def read(hc: HailContext, path: String): TableMetadata = {
+    val metadataFile = path + "/metadata.json.gz"
+    val jv = hc.hadoopConf.readFile(metadataFile) { in => parse(in) }
+
+    val fileVersion = jv \ "file_version" match {
+      case JInt(rep) => SemanticVersion(rep.toInt)
+      case _ =>
+        fatal(s"metadata does not contain file version: $metadataFile")
+    }
+
+    if (!FileFormat.version.supports(fileVersion))
+      fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
+
+    val jmetadata = jv.extract[JSONTableMetadata]
+
+    TableMetadata(
+      Parser.parseTableType(jmetadata.table_type),
+      RVDSpec.extract(jmetadata.globals_rvd_spec),
+      RVDSpec.extract(jmetadata.rows_rvd_spec),
+      jmetadata.partition_counts)
+  }
+}
+
+case class TableMetadata(typ: TableType, globalsRVDSpec: RVDSpec, rowsRVDSpec: RVDSpec, partitionCounts: Option[Array[Long]]) {
+  def write(hc: HailContext, path: String) {
+    val metadata = JSONTableMetadata(FileFormat.version.rep,
+      hc.version,
+      typ.toString,
+      globalsRVDSpec.toJSON,
+      rowsRVDSpec.toJSON,
+      partitionCounts)
+    hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
+      Serialization.write(metadata, out))
+  }
+}
 
 case class JSONTableMetadata(
   file_version: Int,
   hail_version: String,
   table_type: String,
-  global_path: String,
-  rvd_spec: JValue,
+  globals_rvd_spec: JValue,
+  rows_rvd_spec: JValue,
   partition_counts: Option[Array[Long]])
 
 object Table {
@@ -73,36 +109,14 @@ object Table {
   }
 
   def read(hc: HailContext, path: String): Table = {
-    val hConf = hc.hadoopConf
-
     val successFile = path + "/_SUCCESS"
-    if (!hConf.exists(path + "/_SUCCESS"))
+    if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
 
     GenomeReference.importReferences(hc.hadoopConf, path + "/references/")
 
-    val metadataFile = path + "/metadata.json.gz"
-    val jsonMetadata = hc.hadoopConf.readFile(metadataFile) { in => parse(in) }
-
-    val fileVersion = jsonMetadata \ "file_version" match {
-      case JInt(rep) => SemanticVersion(rep.toInt)
-      case _ =>
-        fatal(s"metadata does not contain file version: $metadataFile")
-    }
-
-    if (!FileFormat.version.supports(fileVersion))
-      fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
-
-    val metadata = jsonMetadata.extract[JSONTableMetadata]
-
-    GenomeReference.importReferences(hConf, path + "/references/")
-
-    val tableType = Parser.parseTableType(metadata.table_type)
-    new Table(hc, TableRead(path, metadata.global_path,
-      tableType,
-      dropRows = false,
-      RVDSpec.extract(metadata.rvd_spec),
-      metadata.partition_counts))
+    val metadata = TableMetadata.read(hc, path)
+    new Table(hc, TableRead(path, metadata, dropRows = false))
   }
 
   def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
@@ -1067,25 +1081,17 @@ class Table(val hc: HailContext, val ir: TableIR) {
 
     hc.hadoopConf.mkDir(path)
 
-    val (rvdSpec, partitionCounts) = rvd.write(path)
+    val (globalsRVDSpec, _) = RVD.writeLocalUnpartitioned(hc, path + "/globals", globalSignature, Array(globals))
+
+    val (rowsRVDSpec, partitionCounts) = rvd.write(path)
 
     val refPath = path + "/references/"
     hc.hadoopConf.mkDir(refPath)
     GenomeReference.exportReferences(hc, refPath, signature)
     GenomeReference.exportReferences(hc, refPath, globalSignature)
 
-    val metadata = JSONTableMetadata(FileFormat.version.rep,
-      hc.version,
-      ir.typ.toString,
-      "global.json.gz",
-      rvdSpec.toJSON,
-      Some(partitionCounts))
-
-    hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
-      Serialization.write(metadata, out))
-
-    hc.hadoopConf.writeTextFile(path + "/global.json.gz")(out =>
-      Serialization.write(JSONAnnotationImpex.exportAnnotation(globals, globalSignature), out))
+    val metadata = TableMetadata(ir.typ, globalsRVDSpec, rowsRVDSpec, Some(partitionCounts))
+    metadata.write(hc, path)
 
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
