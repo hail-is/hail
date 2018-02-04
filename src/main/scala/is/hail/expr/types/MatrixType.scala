@@ -72,11 +72,24 @@ case class MatrixType(
 
   // FIXME needs to be rowType ++ TStruct(entriesField -> TArray(entryType))
   val rvRowType: TStruct =
-  TStruct(
-    "pk" -> locusType,
-    "v" -> vType,
-    "va" -> vaType,
-    "gs" -> TArray(genotypeType))
+    TStruct(
+      "pk" -> locusType,
+      "v" -> vType,
+      "va" -> vaType,
+      "gs" -> TArray(genotypeType))
+
+  val rowsRVRowType: TStruct =
+    TStruct(
+      "pk" -> locusType,
+      "v" -> vType,
+      "va" -> vaType)
+
+  val rowsTableType: TableType = TableType(rowsRVRowType, Array("pk", "v"), globalType)
+
+  val entriesRVRowType: TStruct =
+    TStruct("gs" -> TArray(genotypeType))
+
+  val entriesTableType: TableType = TableType(entriesRVRowType, Array.empty[String], globalType)
 
   def orderedRVType: OrderedRVDType = {
     new OrderedRVDType(Array("pk"),
@@ -150,7 +163,7 @@ case class MatrixType(
     newline()
 
     sb.append(s"col_key:$space[")
-    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(",$space"))
+    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
     sb += ']'
     sb += ','
     newline()

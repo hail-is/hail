@@ -143,13 +143,13 @@ object MatrixIR {
   def optimize(ast: MatrixIR): MatrixIR = {
     BaseIR.rewriteTopDown(ast, {
       case FilterVariants(
-      MatrixRead(path, rvdSpec, metadata, dropSamples, _),
+      MatrixRead(path, metadata, dropSamples, _),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, rvdSpec, metadata, dropSamples, dropVariants = true)
+        MatrixRead(path, metadata, dropSamples, dropVariants = true)
       case FilterSamples(
-      MatrixRead(path, rvdSpec, metadata, _, dropVariants),
+      MatrixRead(path, metadata, _, dropVariants),
       Const(_, false, TBoolean(_))) =>
-        MatrixRead(path, rvdSpec, metadata, dropSamples = true, dropVariants)
+        MatrixRead(path, metadata, dropSamples = true, dropVariants)
 
       case FilterVariants(m, Const(_, true, TBoolean(_))) =>
         m
@@ -195,7 +195,6 @@ case class MatrixLiteral(
 
 case class MatrixRead(
   path: String,
-  rvdSpec: RVDSpec,
   metadata: MatrixTableMetadata,
   dropSamples: Boolean,
   dropVariants: Boolean) extends MatrixIR {
@@ -234,35 +233,60 @@ case class MatrixRead(
       if (dropVariants)
         OrderedRVD.empty(hc.sc, typ.orderedRVType)
       else {
-        var rdd = rvdSpec.execute(hc, path).asInstanceOf[OrderedRVD]
+        var rowsRVD = metadata.rowsRVDSpec.execute(hc, path + "/rows").asInstanceOf[OrderedRVD]
+        val rowsRowType = rowsRVD.rowType
         if (dropSamples) {
-          val localRowType = typ.rvRowType
-          rdd = rdd.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
-            var rv2b = new RegionValueBuilder()
-            var rv2 = RegionValue()
-
+          rowsRVD.mapPartitionsPreservesPartitioning(typ.orderedRVType) { it =>
+            val rvb = new RegionValueBuilder()
+            val rv2 = RegionValue()
             it.map { rv =>
-              rv2b.set(rv.region)
-
-              rv2b.start(localRowType)
-              rv2b.startStruct()
-
-              rv2b.addField(localRowType, rv, 0)
-              rv2b.addField(localRowType, rv, 1)
-              rv2b.addField(localRowType, rv, 2)
-
-              rv2b.startArray(0) // gs
-              rv2b.endArray()
-
-              rv2b.endStruct()
-              rv2.set(rv.region, rv2b.end())
-
+              val region = rv.region
+              rvb.set(region)
+              rvb.start(typ.rvRowType)
+              rvb.startStruct()
+              rvb.addField(rowsRowType, rv, 0)
+              rvb.addField(rowsRowType, rv, 1)
+              rvb.addField(rowsRowType, rv, 2)
+              rvb.startArray(0)
+              rvb.endArray()
+              rvb.endStruct()
+              rv2.set(region, rvb.end())
               rv2
             }
           }
-        }
+        } else {
+          val entriesRVD = metadata.entriesRVDSpec.execute(hc, path + "/entries")
+          val entriesRowType = entriesRVD.rowType
+          OrderedRVD(typ.orderedRVType,
+            rowsRVD.partitioner,
+            rowsRVD.rdd.zipPartitions(entriesRVD.rdd) { case (it1, it2) =>
+              val rvb = new RegionValueBuilder()
 
-        rdd
+              new Iterator[RegionValue] {
+                def hasNext: Boolean = {
+                  val hn = it1.hasNext
+                  assert(hn == it2.hasNext)
+                  hn
+                }
+
+                def next(): RegionValue = {
+                  val rv1 = it1.next()
+                  val rv2 = it2.next()
+                  val region = rv2.region
+                  rvb.set(region)
+                  rvb.start(typ.rvRowType)
+                  rvb.startStruct()
+                  rvb.addField(rowsRowType, rv1, 0)
+                  rvb.addField(rowsRowType, rv1, 1)
+                  rvb.addField(rowsRowType, rv1, 2)
+                  rvb.addField(entriesRowType, rv2, 0)
+                  rvb.endStruct()
+                  rv2.set(region, rvb.end())
+                  rv2
+                }
+              }
+            })
+        }
       }
 
     MatrixValue(

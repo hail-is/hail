@@ -32,11 +32,14 @@ case class JSONMatrixTableMetadata(
   file_version: Int,
   hail_version: String,
   matrix_type: String,
-  rvd_spec: JValue,
+  rows_rvd_spec: JValue,
+  entries_rvd_spec: JValue,
   partition_counts: Option[Array[Long]])
 
 case class MatrixTableMetadata(
   matrixType: MatrixType,
+  rowsRVDSpec: RVDSpec,
+  entriesRVDSpec: RVDSpec,
   partitionCounts: Option[Array[Long]])
 
 object SemanticVersion {
@@ -64,11 +67,11 @@ object FileFormat {
 }
 
 object MatrixTable {
-  def read(hc: HailContext, dirname: String,
+  def read(hc: HailContext, path: String,
     dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable = {
-    val (metadata, rvdSpec) = readFileMetadata(hc.hadoopConf, dirname)
+    val metadata = readMetadata(hc.hadoopConf, path)
     new MatrixTable(hc,
-      MatrixRead(dirname, rvdSpec, metadata, dropSamples, dropVariants))
+      MatrixRead(path, metadata, dropSamples, dropVariants))
   }
 
   def fromLegacy[RK, T](hc: HailContext,
@@ -113,7 +116,7 @@ object MatrixTable {
         }, None, None))
   }
 
-  def readFileMetadata(hConf: hadoop.conf.Configuration, path: String): (MatrixTableMetadata, RVDSpec) = {
+  def readMetadata(hConf: hadoop.conf.Configuration, path: String): MatrixTableMetadata = {
     val successFile = path + "/_SUCCESS"
     if (!hConf.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
@@ -136,8 +139,10 @@ object MatrixTable {
 
     val matrixType: MatrixType = Parser.parseMatrixType(metadata.matrix_type)
 
-    (MatrixTableMetadata(matrixType, metadata.partition_counts),
-      RVDSpec.extract(metadata.rvd_spec))
+    MatrixTableMetadata(matrixType,
+      RVDSpec.extract(metadata.rows_rvd_spec),
+      RVDSpec.extract(metadata.entries_rvd_spec),
+      metadata.partition_counts)
   }
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
@@ -2267,19 +2272,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       Array("v") ++ colKey)
   }
 
-  def writeMetadata(path: String, rvdSpec: RVDSpec, partitionCounts: Array[Long]) {
+  def writeMetadata(path: String, metadata: MatrixTableMetadata) {
     val hConf = hc.hadoopConf
     hConf.mkDir(path)
 
-    val metadata = JSONMatrixTableMetadata(
+    val jmetadata = JSONMatrixTableMetadata(
       file_version = FileFormat.version.rep,
       hail_version = hc.version,
-      matrix_type = matrixType.toString,
-      rvd_spec = rvdSpec.toJSON,
-      partition_counts = Some(partitionCounts))
+      matrix_type = metadata.matrixType.toString,
+      rows_rvd_spec = metadata.rowsRVDSpec.toJSON,
+      entries_rvd_spec = metadata.entriesRVDSpec.toJSON,
+      partition_counts = metadata.partitionCounts)
 
     hConf.writeTextFile(path + "/metadata.json.gz")(out =>
-      Serialization.write(metadata, out))
+      Serialization.write(jmetadata, out))
 
     val refPath = path + "/references/"
     hc.hadoopConf.mkDir(refPath)
@@ -2410,9 +2416,40 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       fatal(s"file already exists: $path")
 
     hc.hadoopConf.mkDir(path)
-    val (rvdSpec, partitionCounts) = rdd2.write(path)
 
-    writeMetadata(path, rvdSpec, partitionCounts)
+    val (partFiles, partitionCounts) = rdd2.rdd.writeRowsSplit(path, matrixType)
+
+    // rows metadata
+    val rowsRVDSpec = OrderedRVDSpec(
+      new OrderedRVDType(Array("pk"), Array("pk", "v"), matrixType.rowsRVRowType),
+      partFiles,
+      rdd2.partitioner.rangeBounds)
+    val rowsMetadata = JSONTableMetadata(FileFormat.version.rep,
+      hc.version,
+      matrixType.rowsTableType.toString,
+      "../global.json.gz",
+      rowsRVDSpec.toJSON,
+      Some(partitionCounts))
+    hc.hadoopConf.writeTextFile(path + "/rows/metadata.json.gz")(out =>
+      Serialization.write(rowsMetadata, out))
+
+    hadoopConf.writeTextFile(path + "/rows/_SUCCESS")(out => ())
+
+    // entries metadata
+    val entriesRVDSpec = UnpartitionedRVDSpec(matrixType.entriesRVRowType, partFiles)
+    val entriesMetadata = JSONTableMetadata(FileFormat.version.rep,
+      hc.version,
+      matrixType.entriesTableType.toString,
+      "../global.json.gz",
+      entriesRVDSpec.toJSON,
+      Some(partitionCounts))
+    hc.hadoopConf.writeTextFile(path + "/entries/metadata.json.gz")(out =>
+      Serialization.write(entriesMetadata, out))
+
+    hadoopConf.writeTextFile(path + "/entries/_SUCCESS")(out => ())
+
+    val metadata = MatrixTableMetadata(matrixType, rowsRVDSpec, entriesRVDSpec, Some(partitionCounts))
+    writeMetadata(path, metadata)
 
     hadoopConf.writeTextFile(path + "/global.json.gz")(out =>
       Serialization.write(JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature), out))
