@@ -121,21 +121,20 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
   
   def isCompact: Boolean = m.offset == 0 && m.majorStride == (if (m.isTranspose) m.cols else m.rows)
 
-  def toCompactData(forceRowMajor: Boolean = false): Array[Double] = {
-    if (isCompact && (m.isTranspose || !forceRowMajor))
-      m.data
+  def toCompactData(forceRowMajor: Boolean = false): (Array[Double], Boolean) = {
+    if (isCompact && (!forceRowMajor || m.isTranspose || m.rows == 1 || m.cols == 1))
+      (m.data, m.isTranspose)
     else if (forceRowMajor)
-      m.t.toArray
+      (m.t.toArray, true)
     else
-      m.toArray
+      (m.toArray, false)
   }
 
   def write(dos: DataOutputStream, forceRowMajor: Boolean) {
     dos.writeInt(m.rows)
     dos.writeInt(m.cols)
     
-    val data = m.toCompactData(forceRowMajor)
-    val isTranspose = if (forceRowMajor) true else m.isTranspose
+    val (data, isTranspose) = m.toCompactData(forceRowMajor)
     
     assert(data.length == m.rows * m.cols)
     dos.writeBoolean(isTranspose)

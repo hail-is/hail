@@ -20,7 +20,16 @@ object LocalMatrix {
   def apply(m: BDM[Double]): M = new LocalMatrix(m)
 
   // vector => matrix with single column
-  def apply(v: BDV[Double]): M = LocalMatrix(new BDM(v.length, 1, v.toArray))
+  def apply(v: BDV[Double]): M = {
+    val data = if (v.offset == 0 && v.stride == 1) v.data else v.toArray
+    LocalMatrix(data)
+  }
+
+  // array => matrix with single column
+  def apply(data: Array[Double]): M = {
+    require(data.nonEmpty)
+    LocalMatrix(data.length, 1, data)
+  }
 
   def zeros(nRows: Int, nCols: Int): M =
     LocalMatrix(new BDM[Double](nRows, nCols))
@@ -31,11 +40,6 @@ object LocalMatrix {
   def apply(nRows: Int, nCols: Int, data: Array[Double], isTransposed: Boolean): M = {
     val m = new BDM[Double](nRows, nCols, data, 0, if (isTransposed) nCols else nRows, isTransposed)
     LocalMatrix(m)
-  }
-
-  def apply(a: Array[Double]): M = {
-    require(a.nonEmpty)
-    LocalMatrix(a.length, 1, a)
   }
 
   def read(hc: HailContext, path: String): M = new LocalMatrix(RichDenseMatrixDouble.read(hc, path))
@@ -87,10 +91,8 @@ class LocalMatrix(val m: BDM[Double]) {
 
   def isTranspose: Boolean = m.isTranspose  
 
-  def data: Array[Double] = m.data
-
   def toArray: Array[Double] =
-    if (m.isCompact && !m.isTranspose)
+    if (m.isCompact && (!isTranspose || nRows == 1 || nCols == 1))
       m.data
     else
       m.toArray
@@ -137,12 +139,12 @@ class LocalMatrix(val m: BDM[Double]) {
       that + m(0, 0)
     else
       (shapeType, that.shapeType) match {
-        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :+ BDV(that.data))
-        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :+ BDV(that.data))
-        case (`colType`, `matType`) => LocalMatrix(that.m(::, B_*) :+ BDV(data))
-        case (`rowType`, `matType`) => LocalMatrix(that.m(B_*, ::) :+ BDV(data))
-        case (`colType`, `rowType`) => LocalMatrix.outerSum(that.data, data)
-        case (`rowType`, `colType`) => LocalMatrix.outerSum(data, that.data)
+        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :+ BDV(that.toArray))
+        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :+ BDV(that.toArray))
+        case (`colType`, `matType`) => LocalMatrix(that.m(::, B_*) :+ BDV(this.toArray))
+        case (`rowType`, `matType`) => LocalMatrix(that.m(B_*, ::) :+ BDV(this.toArray))
+        case (`colType`, `rowType`) => LocalMatrix.outerSum(row = that.toArray, col = this.toArray)
+        case (`rowType`, `colType`) => LocalMatrix.outerSum(row = this.toArray, col = that.toArray)
       }
 
   def -(that: LocalMatrix): LocalMatrix =
@@ -154,8 +156,8 @@ class LocalMatrix(val m: BDM[Double]) {
       m(0, 0) - that
     else
       (shapeType, that.shapeType) match {
-        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :- BDV(that.data))
-        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :- BDV(that.data))
+        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :- BDV(that.toArray))
+        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :- BDV(that.toArray))
         case _ => this + (-that) // FIXME: room for improvement
       }
 
@@ -169,10 +171,10 @@ class LocalMatrix(val m: BDM[Double]) {
       that * m(0, 0)
     else
       (shapeType, that.shapeType) match {
-        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :* BDV(that.data))
-        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :* BDV(that.data))
-        case (`colType`, `matType`) => LocalMatrix(that.m(::, B_*) :* BDV(data))
-        case (`rowType`, `matType`) => LocalMatrix(that.m(B_*, ::) :* BDV(data))
+        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :* BDV(that.toArray))
+        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :* BDV(that.toArray))
+        case (`colType`, `matType`) => LocalMatrix(that.m(::, B_*) :* BDV(this.toArray))
+        case (`rowType`, `matType`) => LocalMatrix(that.m(B_*, ::) :* BDV(this.toArray))
         case (`colType`, `rowType`) => LocalMatrix(m * that.m)
         case (`rowType`, `colType`) => LocalMatrix(that.m * m)
       }
@@ -187,8 +189,8 @@ class LocalMatrix(val m: BDM[Double]) {
       m(0, 0) / that
     else
       (shapeType, that.shapeType) match {
-        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :/ BDV(that.data))
-        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :/ BDV(that.data))
+        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :/ BDV(that.toArray))
+        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :/ BDV(that.toArray))
         case _ => this * (1.0 / that) // FIXME: room for improvement
       }
 
