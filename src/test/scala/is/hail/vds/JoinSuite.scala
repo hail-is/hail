@@ -80,14 +80,6 @@ class JoinSuite extends SparkSuite {
     // Left distinct ordered join
     val jLeft = left.rvd.orderedJoinDistinct(right.rvd, "left")
     val jLeftOrdRDD1 = left.rdd.leftOuterJoin(right.rdd.distinct)
-    jLeft.collect().foreach { case Muple(l, r) =>
-      val rStr = if (r == null)
-               "null"
-             else
-               UnsafeRow.read(right.rvRowType, r.region, r.offset).toString
-
-      println(UnsafeRow.read(left.rvRowType, l.region, l.offset).toString + ", " + rStr)
-    }
 
     assert(jLeft.count() == jLeftOrdRDD1.count())
     assert(jLeft.forall(jrv => jrv.left != null))

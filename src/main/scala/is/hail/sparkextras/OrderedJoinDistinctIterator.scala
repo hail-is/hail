@@ -299,7 +299,7 @@ class OrderedLeftJoinDistinctIterator(
 class StaircaseIterator[A](it: BufferedIterator[A], equiv: MutableEquiv[A])
   extends Iterator[BufferedIterator[A]] {
 
-  if (it.hasNext) equiv.setEquivClass(it.head)
+  equiv.setEmpty()
 
   private object stepIterator extends BufferedIterator[A] {
     def hasNext: Boolean = it.hasNext && equiv.inEquivClass(it.head)
@@ -318,5 +318,16 @@ class StaircaseIterator[A](it: BufferedIterator[A], equiv: MutableEquiv[A])
     assert(b)
     equiv.setEquivClass(it.head)
     stepIterator
+  }
+}
+
+class TestIterator[A](seq: Seq[A])
+    extends BufferedIterator[A] {
+  var i = 0
+  def hasNext: Boolean = i < seq.length - 1
+  def head: A = seq(i)
+  def next(): A = {
+    i += 1
+    seq(i - 1)
   }
 }

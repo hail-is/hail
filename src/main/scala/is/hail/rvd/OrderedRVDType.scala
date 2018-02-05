@@ -49,10 +49,10 @@ class OrderedRVDType(
 
   def mutableEquiv = new MutableEquiv[RegionValue] {
     val wrv = WritableRegionValue(kType)
-    def setEquivClass(representative: RegionValue) {
+    def setNonEmptyEquivClass(representative: RegionValue) {
       wrv.setSelect(rowType, kRowFieldIdx, representative)
     }
-    def inEquivClass(rv: RegionValue): Boolean =
+    def inNonEmptyEquivClass(rv: RegionValue): Boolean =
       kRowOrd.compare(wrv.value, rv) == 0
   }
 
