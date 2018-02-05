@@ -47,7 +47,7 @@ class OrderedRVDType(
 
   def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
 
-  def mutableEquiv = new MutableEquiv[RegionValue] {
+  def mutableEquiv = new EquivalenceClassView[RegionValue] {
     val wrv = WritableRegionValue(kType)
     def setNonEmptyEquivClass(representative: RegionValue) {
       wrv.setSelect(rowType, kRowFieldIdx, representative)

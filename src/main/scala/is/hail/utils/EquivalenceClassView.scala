@@ -1,6 +1,6 @@
 package is.hail.utils
 
-trait MutableEquiv[A] {
+trait EquivalenceClassView[A] {
   def setNonEmptyEquivClass(a: A): Unit
   def inNonEmptyEquivClass(a: A): Boolean
 
@@ -17,8 +17,8 @@ trait MutableEquiv[A] {
   private var isEmpty = true
 }
 
-object MutableEquiv {
-  def fromEquiv[A](implicit equiv: Equiv[A]): MutableEquiv[A] = new MutableEquiv[A] {
+object EquivalenceClassView {
+  def fromEquiv[A](implicit equiv: Equiv[A]): EquivalenceClassView[A] = new EquivalenceClassView[A] {
     private var a: A = _
     def setNonEmptyEquivClass(a: A) = this.a = a
     def inNonEmptyEquivClass(a: A) = equiv.equiv(this.a, a)

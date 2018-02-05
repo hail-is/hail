@@ -5,7 +5,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import is.hail.annotations.{JoinedRegionValue, OrderedRVIterator, Region, RegionValue, RegionValueBuilder, UnsafeOrdering}
 import is.hail.rvd.OrderedRVDType
-import is.hail.utils.{Muple, MutableEquiv}
+import is.hail.utils.{Muple, EquivalenceClassView}
 
 abstract class OrderedJoinIterator(
     leftTyp: OrderedRVDType,
@@ -296,7 +296,7 @@ class OrderedLeftJoinDistinctIterator(
 //   }
 // }
 
-class StaircaseIterator[A](it: BufferedIterator[A], equiv: MutableEquiv[A])
+class StaircaseIterator[A](it: BufferedIterator[A], equiv: EquivalenceClassView[A])
   extends Iterator[BufferedIterator[A]] {
 
   equiv.setEmpty()
