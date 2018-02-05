@@ -131,12 +131,11 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
   }
 
   def write(dos: DataOutputStream, forceRowMajor: Boolean) {
+    val (data, isTranspose) = m.toCompactData(forceRowMajor)
+    assert(data.length == m.rows * m.cols)
+    
     dos.writeInt(m.rows)
     dos.writeInt(m.cols)
-    
-    val (data, isTranspose) = m.toCompactData(forceRowMajor)
-    
-    assert(data.length == m.rows * m.cols)
     dos.writeBoolean(isTranspose)
     
     RichDenseMatrixDouble.writeDoubles(dos, data, data.length)

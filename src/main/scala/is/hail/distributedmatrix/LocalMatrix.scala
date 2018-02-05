@@ -4,7 +4,9 @@ import is.hail.HailContext
 import is.hail.stats.eigSymD
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import is.hail.utils._
-import breeze.linalg.{inv, DenseMatrix => BDM, DenseVector => BDV, svd => breezeSVD, * => B_*, _}
+import scala.collection.immutable.Range
+import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, * => B_*,
+  svd => breezeSVD, cholesky => breezeCholesky, qr => breezeQR, _}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import org.apache.commons.math3.random.MersenneTwister
 
@@ -21,29 +23,34 @@ object LocalMatrix {
 
   // vector => matrix with single column
   def apply(v: BDV[Double]): M = {
-    val data = if (v.offset == 0 && v.stride == 1) v.data else v.toArray
+    val data = if (v.length == v.data.length) v.data else v.toArray
     LocalMatrix(data)
   }
 
   // array => matrix with single column
   def apply(data: Array[Double]): M = {
-    require(data.nonEmpty)
+    require(data.length > 0)
     LocalMatrix(data.length, 1, data)
   }
 
   def zeros(nRows: Int, nCols: Int): M =
     LocalMatrix(new BDM[Double](nRows, nCols))
 
-  def apply(nRows: Int, nCols: Int, data: Array[Double]): M =
-    LocalMatrix(new BDM(nRows, nCols, data))
-
-  def apply(nRows: Int, nCols: Int, data: Array[Double], isTransposed: Boolean): M = {
+  def apply(nRows: Int, nCols: Int, data: Array[Double], isTransposed: Boolean = false): M = {
     val m = new BDM[Double](nRows, nCols, data, 0, if (isTransposed) nCols else nRows, isTransposed)
     LocalMatrix(m)
   }
 
+  def apply(nRows: Int, nCols: Int, data: Array[Double], offset: Int, majorStride: Int, isTransposed: Boolean): M = {
+    val m = new BDM[Double](nRows, nCols, data, offset, majorStride, isTransposed)
+    LocalMatrix(m)
+  }
+  
   def read(hc: HailContext, path: String): M = new LocalMatrix(RichDenseMatrixDouble.read(hc, path))
 
+  // FIXME: if LocalMatrix name sticks, BlockMartrix toLocalMatrix should give LocalMatrix, wrapping toBreezeMatrix
+  def fromBlockMatrix(bm: BlockMatrix): M = LocalMatrix(bm.toLocalMatrix())
+  
   def random(nRows: Int, nCols: Int, seed: Int = 0, gaussian: Boolean = false): M = {
     val randBasis: RandBasis = new RandBasis(new ThreadLocalRandomGenerator(new MersenneTwister(seed)))
     val rand = if (gaussian) randBasis.gaussian else randBasis.uniform
@@ -79,6 +86,26 @@ object LocalMatrix {
       def /(r: M): M = LocalMatrix(l :/ r.m)
     }
   }
+  
+  def checkShapes(m1: LocalMatrix, m2: LocalMatrix, op: String): (Int, Int) = {
+    val shapeTypes = (m1.shapeType, m2.shapeType)
+
+    val compatible = shapeTypes match {
+      case (`matType`, `matType`) => m1.nRows == m2.nRows && m1.nCols == m2.nCols
+      case (`matType`, `rowType`) => m1.nCols == m2.nCols
+      case (`matType`, `colType`) => m1.nRows == m2.nRows
+      case (`rowType`, `matType`) => m1.nCols == m2.nCols
+      case (`rowType`, `rowType`) => m1.nCols == m2.nCols
+      case (`colType`, `matType`) => m1.nRows == m2.nRows
+      case (`colType`, `colType`) => m1.nRows == m2.nRows
+      case _ => true
+    }
+    
+    if (!compatible)
+      fatal(s"Incompatible shapes for $op with broadcasting: ${ m1.shape } and ${ m2.shape }")
+      
+    shapeTypes
+  }
 }
 
 // Matrix with NumPy-style ops and broadcasting
@@ -91,15 +118,15 @@ class LocalMatrix(val m: BDM[Double]) {
 
   def isTranspose: Boolean = m.isTranspose  
 
-  def toArray: Array[Double] =
+  def asArray: Array[Double] =
     if (m.isCompact && (!isTranspose || nRows == 1 || nCols == 1))
       m.data
     else
-      m.toArray
+      toArray
 
+  def toArray: Array[Double] = m.toArray
+  
   def copy() = LocalMatrix(m.copy)
-
-  def apply(i: Int, j: Int) = m(i, j)
 
   def write(hc: HailContext, path: String) {
     m.write(hc: HailContext, path)
@@ -108,13 +135,21 @@ class LocalMatrix(val m: BDM[Double]) {
   def toBlockMatrix(hc: HailContext, blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix =
     BlockMatrix.from(hc.sc, m, blockSize)
 
+  def apply(i: Int, j: Int): Double = m(i, j)
+
+  def apply(i: Int, jj: Range) = LocalMatrix(m(i to i, jj))
+  
+  def apply(ii: Range, j: Int) = LocalMatrix(m(ii, j to j))
+  
+  def apply(ii: Range, jj: Range) = LocalMatrix(m(ii, jj))
+  
   def +(e: Double) = LocalMatrix(m :+ e)
 
   def -(e: Double) = LocalMatrix(m :- e)
 
   def *(e: Double) = LocalMatrix(m :* e)
 
-  def /(e: Double) = LocalMatrix(m :/ e) 
+  def /(e: Double) = LocalMatrix(m :/ e)
 
   def unary_+ = this
 
@@ -129,72 +164,78 @@ class LocalMatrix(val m: BDM[Double]) {
     } else {
       if (nCols > 1) rowType else sclrType
     }
-
-  def +(that: LocalMatrix): LocalMatrix =
-    if (shapeType == that.shapeType)
+  
+  def +(that: LocalMatrix): LocalMatrix = {
+    val (st, st2) = LocalMatrix.checkShapes(this, that, "addition")
+    if (st == st2)
       LocalMatrix(m + that.m)
-    else if (that.shapeType == sclrType)
+    else if (st2 == sclrType)
       this + that(0, 0)
-    else  if (shapeType == sclrType)
+    else if (st == sclrType)
       that + m(0, 0)
     else
-      (shapeType, that.shapeType) match {
-        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :+ BDV(that.toArray))
-        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :+ BDV(that.toArray))
-        case (`colType`, `matType`) => LocalMatrix(that.m(::, B_*) :+ BDV(this.toArray))
-        case (`rowType`, `matType`) => LocalMatrix(that.m(B_*, ::) :+ BDV(this.toArray))
-        case (`colType`, `rowType`) => LocalMatrix.outerSum(row = that.toArray, col = this.toArray)
-        case (`rowType`, `colType`) => LocalMatrix.outerSum(row = this.toArray, col = that.toArray)
+      (st, st2) match {
+        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :+ BDV(that.asArray))
+        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :+ BDV(that.asArray))
+        case (`colType`, `matType`) => LocalMatrix(that.m(::, B_*) :+ BDV(this.asArray))
+        case (`rowType`, `matType`) => LocalMatrix(that.m(B_*, ::) :+ BDV(this.asArray))
+        case (`colType`, `rowType`) => LocalMatrix.outerSum(row = that.asArray, col = this.asArray)
+        case (`rowType`, `colType`) => LocalMatrix.outerSum(row = this.asArray, col = that.asArray)
       }
+  }
 
-  def -(that: LocalMatrix): LocalMatrix =
-    if (shapeType == that.shapeType)
+  def -(that: LocalMatrix): LocalMatrix = {
+    val (st, st2) = LocalMatrix.checkShapes(this, that, "subtraction")
+    if (st == st2)
       LocalMatrix(m - that.m)
-    else if (that.shapeType == sclrType)
+    else if (st2 == sclrType)
       this - that(0, 0)
-    else if (shapeType == sclrType)
+    else if (st == sclrType)
       m(0, 0) - that
     else
-      (shapeType, that.shapeType) match {
-        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :- BDV(that.toArray))
-        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :- BDV(that.toArray))
+      (st, st2) match {
+        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :- BDV(that.asArray))
+        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :- BDV(that.asArray))
         case _ => this + (-that) // FIXME: room for improvement
       }
+  }
 
-  // pointwise multiplication
-  def *(that: LocalMatrix): LocalMatrix =
-    if (shapeType == that.shapeType)
+  def *(that: LocalMatrix): LocalMatrix = {
+    val (st, st2) = LocalMatrix.checkShapes(this, that, "pointwise multiplication")
+    if (st == st2)
       LocalMatrix(m :* that.m)
-    else if (that.shapeType == sclrType)
+    else if (st2 == sclrType)
       this * that(0, 0)
-    else if (shapeType == sclrType)
+    else if (st == sclrType)
       that * m(0, 0)
     else
       (shapeType, that.shapeType) match {
-        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :* BDV(that.toArray))
-        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :* BDV(that.toArray))
-        case (`colType`, `matType`) => LocalMatrix(that.m(::, B_*) :* BDV(this.toArray))
-        case (`rowType`, `matType`) => LocalMatrix(that.m(B_*, ::) :* BDV(this.toArray))
+        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :* BDV(that.asArray))
+        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :* BDV(that.asArray))
+        case (`colType`, `matType`) => LocalMatrix(that.m(::, B_*) :* BDV(this.asArray))
+        case (`rowType`, `matType`) => LocalMatrix(that.m(B_*, ::) :* BDV(this.asArray))
         case (`colType`, `rowType`) => LocalMatrix(m * that.m)
         case (`rowType`, `colType`) => LocalMatrix(that.m * m)
       }
-
-  // pointwise division
-  def /(that: LocalMatrix): LocalMatrix =
-    if (shapeType == that.shapeType)
+  }
+  
+  def /(that: LocalMatrix): LocalMatrix = {
+    val (st, st2) = LocalMatrix.checkShapes(this, that, "pointwise division")
+    if (st == st2)
       LocalMatrix(m :/ that.m)
-    else if (that.shapeType == sclrType)
+    else if (st2 == sclrType)
       this / that(0, 0)
-    else if (shapeType == sclrType)
+    else if (st == sclrType)
       m(0, 0) / that
     else
-      (shapeType, that.shapeType) match {
-        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :/ BDV(that.toArray))
-        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :/ BDV(that.toArray))
+      (st, st2) match {
+        case (`matType`, `colType`) => LocalMatrix(m(::, B_*) :/ BDV(that.asArray))
+        case (`matType`, `rowType`) => LocalMatrix(m(B_*, ::) :/ BDV(that.asArray))
         case _ => this * (1.0 / that) // FIXME: room for improvement
       }
-
-  def transpose() = LocalMatrix(m.t)
+  }
+  
+  def t = LocalMatrix(m.t)
 
   def diagonal(): LocalMatrix = LocalMatrix(diag(m).toArray)  
 
@@ -204,10 +245,11 @@ class LocalMatrix(val m: BDM[Double]) {
   // matrix multiplication
   def dot(that: LocalMatrix) = LocalMatrix(m * that.m)
 
-  // solve for X in this * X = that
+  // solve for X in AX = B, with A = this and B = that
   def solve(that: LocalMatrix) = LocalMatrix(m \ that.m)  
 
   // eigendecomposition of symmetric matrix using lapack.dsyevd (Divide and Conquer)
+  //   X = USU^T with U orthonormal and S diagonal
   //   returns (eigenvalues, Some(U)) or (eigenvalues, None)
   //   no symmetry check, uses lower triangle only
   def eig(computeEigenvectors: Boolean = true): (LocalMatrix, Option[LocalMatrix]) = {
@@ -215,12 +257,30 @@ class LocalMatrix(val m: BDM[Double]) {
     (LocalMatrix(evals), optEvects.map(LocalMatrix(_)))
   }
 
-  // singular value decomposition of n x m matrix using lapack.dgesdd (Divide and Conquer)
-  //   returns (U, singular values, V^T) with the following dimensions
-  //   regular:        n x n,  min(n,m) x 1,         m x m
-  //   reduced: n x min(n,m),  min(n,m) x 1,  min(n,m) x m
+  // singular value decomposition of n x m matrix X using lapack.dgesdd (Divide and Conquer)
+  //   X = USV^T with U and V orthonormal and S diagonal
+  //   returns (U, singular values, V^T) with the following dimensions where k = min(n, m)
+  //   regular: n x n,  k x 1,  m x m
+  //   reduced: n x k,  k x 1,  k x m
   def svd(reduced: Boolean = true): (LocalMatrix, LocalMatrix, LocalMatrix) = {
-    val s = if (reduced) breezeSVD.reduced(m) else breezeSVD(m)
-    (LocalMatrix(s.leftVectors), LocalMatrix(s.singularValues), LocalMatrix(s.rightVectors))
+    val res = if (reduced) breezeSVD.reduced(m) else breezeSVD(m)
+    (LocalMatrix(res.leftVectors), LocalMatrix(res.singularValues), LocalMatrix(res.rightVectors))
+  }
+  
+  // QR decomposition of n x m matrix X
+  //   X = QR with Q orthonormal columns and R upper triangular
+  //   returns (Q, R) with the following dimensions where k = min(n, m)
+  //   regular: n x m,  m x m
+  //   reduced: n x k,  k x m
+  def qr(reduced: Boolean = true): (LocalMatrix, LocalMatrix) = {
+    val res = if (reduced) breezeQR.reduced(m) else breezeQR(m)
+    (LocalMatrix(res.q), LocalMatrix(res.r))
+  }
+  
+  // Cholesky factor L of a symmetric, positive-definite matrix X
+  //   X = LL^T with L lower triangular
+  def cholesky(): LocalMatrix = {
+    m.forceSymmetry() // needed to prevent failure of symmetry check, even though lapack only uses lower triangle
+    LocalMatrix(breezeCholesky(m))
   }
 }
