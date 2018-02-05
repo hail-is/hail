@@ -372,7 +372,7 @@ class HailContext private(val sc: SparkContext,
 
     val files = hadoopConf.globAll(inputs)
     if (files.isEmpty)
-      fatal(s"Arguments referred to no files: '${ files.mkString(",") }'")
+      fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
     val (struct, rdd) =
       TextTableReader.read(sc)(files, types, commentChar, separator, missing,
