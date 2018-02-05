@@ -1,15 +1,12 @@
 Expression Utils
 ================
 
-.. toctree::
-    :maxdepth: 2
-
 .. currentmodule:: hail.expr.utils
 
 .. autosummary::
+    :nosignatures:
+    :template: class.rst
+    :toctree: .
 
-    SwitchBuilder
     CaseBuilder
-
-.. autoclass:: SwitchBuilder
-.. autoclass:: CaseBuilder
+    SwitchBuilder
