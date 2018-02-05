@@ -119,10 +119,10 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     }
   }
   
-  def isCompact: Boolean = m.offset == 0 && m.majorStride == (if (m.isTranspose) m.cols else m.rows)
+  def isCompact: Boolean = m.rows * m.cols == m.data.length
 
   def toCompactData(forceRowMajor: Boolean = false): (Array[Double], Boolean) = {
-    if (isCompact && (!forceRowMajor || m.isTranspose || m.rows == 1 || m.cols == 1))
+    if (isCompact && (!forceRowMajor || m.isTranspose))
       (m.data, m.isTranspose)
     else if (forceRowMajor)
       (m.t.toArray, true)

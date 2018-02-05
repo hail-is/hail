@@ -120,7 +120,7 @@ class LocalMatrix(val m: BDM[Double]) {
   def isTranspose: Boolean = m.isTranspose  
 
   def asArray: Array[Double] =
-    if (m.isCompact && (!isTranspose || nRows == 1 || nCols == 1))
+    if (m.isCompact && !isTranspose)
       m.data
     else
       toArray
