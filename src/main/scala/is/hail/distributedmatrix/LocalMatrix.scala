@@ -7,6 +7,7 @@ import is.hail.utils._
 import scala.collection.immutable.Range
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, * => B_*,
   svd => breezeSVD, cholesky => breezeCholesky, qr => breezeQR, _}
+import breeze.numerics.{sqrt => breezeSqrt, pow => breezePow}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import org.apache.commons.math3.random.MersenneTwister
 
@@ -235,6 +236,10 @@ class LocalMatrix(val m: BDM[Double]) {
       }
   }
   
+  def sqrt(): LocalMatrix = LocalMatrix(breezeSqrt(m))
+  
+  def pow(e: Double): LocalMatrix = LocalMatrix(breezePow(m, e))
+
   def t = LocalMatrix(m.t)
 
   def diagonal(): LocalMatrix = LocalMatrix(diag(m).toArray)  

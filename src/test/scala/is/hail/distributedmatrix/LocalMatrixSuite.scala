@@ -180,6 +180,10 @@ class LocalMatrixSuite extends SparkSuite {
     assertApproxEqual(c / r, LocalMatrix(2, 3, Array(1.0, 2.0, 0.5, 1.0, 1.0 / 3, 2.0 / 3)))
     assertApproxEqual(c / r, 1.0 / (r / c))
     
-    interceptFatal("division") { m.t / m }    
+    interceptFatal("division") { m.t / m }
+    
+    assertApproxEqual(m.sqrt(), LocalMatrix(2, 3, Array(1.0, 2.0, 3.0, 4.0, 5.0, 6.0).map(math.sqrt)))
+    
+    assertApproxEqual(m.pow(0.5), m.sqrt())
   }
 }
