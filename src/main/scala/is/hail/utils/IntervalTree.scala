@@ -2,6 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check._
+import is.hail.expr.types.TBoolean
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
@@ -10,14 +11,34 @@ import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
 // interval inclusive of start, exclusive of end: [start, end)
-case class Interval(start: Any, end: Any) extends Serializable {
-  def contains(pord: ExtendedOrdering, position: Any): Boolean = pord.gteq(position, start) && pord.lt(position, end)
+case class Interval(start: Any, end: Any, includeStart: Boolean = true, includeEnd: Boolean = false) extends Serializable {
 
-  def overlaps(pord: ExtendedOrdering, other: Interval): Boolean = this.contains(pord, other.start) || other.contains(pord, this.start)
+  def contains(pord: ExtendedOrdering, position: Any): Boolean = {
+    val compareStart = pord.compare(position, start)
+    val compareEnd = pord.compare(end, position)
+    (compareStart > 0 || (includeStart && compareStart == 0)) && (compareEnd > 0 || (includeEnd && compareEnd == 0))
+  }
 
-  def isEmpty(pord: ExtendedOrdering): Boolean = pord.gteq(start, end)
+  private def matchesEndpoint(pord: ExtendedOrdering, position: Any): Boolean = {
+    pord.eq(position, start) || pord.eq(position, end)
+  }
 
-  def toJSON(f: (Any) => JValue): JValue = JObject("start" -> f(start), "end" -> f(end))
+  def overlaps(pord: ExtendedOrdering, other: Interval): Boolean = {
+    (this.contains(pord, other.start) && (other.includeStart || this.matchesEndpoint(pord, other.start))) ||
+      (other.contains(pord, this.start) && (this.includeStart || other.matchesEndpoint(pord, this.start)))
+  }
+
+  // true indicates definitely-empty interval, but false does not guarantee
+  // non-empty interval in the (a, b) case;
+  // e.g. (1,2) is an empty Interval(Int32), but we cannot guarantee distance
+  // like that right now.
+  def isEmpty(pord: ExtendedOrdering): Boolean = if (includeStart && includeEnd) pord.gt(start, end) else pord.gteq(start, end)
+
+  def toJSON(f: (Any) => JValue): JValue =
+    JObject("start" -> f(start),
+      "end" -> f(end),
+      "includeStart" -> TBoolean().toJSON(includeStart),
+      "includeEnd" -> TBoolean().toJSON(includeEnd))
 
   override def toString: String = start + "-" + end
 }
@@ -40,8 +61,15 @@ object Interval {
       val c = pord.compare(xi.start, yi.start, missingGreatest)
       if (c != 0)
         return c
+      if (xi.includeStart != yi.includeStart)
+        return if (xi.includeStart) -1 else 1
 
-      pord.compare(xi.end, yi.end, missingGreatest)
+      val c2 = pord.compare(xi.end, yi.end, missingGreatest)
+      if (c2 != 0)
+        return c2
+      if (xi.includeEnd != yi.includeEnd)
+        if (xi.includeStart) -1 else 1
+      else 0
     }
   }
 }
@@ -86,12 +114,14 @@ object IntervalTree {
       var pruned = 0
       while (i < unpruned.length) {
         val interval = unpruned(i)
-        if (pord.lteq(interval.start, tmp.end)) {
-          val max = if (pord.gt(interval.end, tmp.end))
-            interval.end
+        val c = pord.compare(interval.start, tmp.end)
+        if (c < 0 || (c == 0 && (interval.includeStart || tmp.includeEnd))) {
+          tmp = if (pord.lt(interval.end, tmp.end))
+            Interval(tmp.start, tmp.end, tmp.includeStart, tmp.includeEnd)
+          else if (pord.eq(interval.end, tmp.end))
+            Interval(tmp.start, tmp.end, tmp.includeStart, tmp.includeEnd || interval.includeEnd)
           else
-            tmp.end
-          tmp = Interval(tmp.start, max)
+            Interval(tmp.start, interval.end, tmp.includeStart, interval.includeEnd)
           pruned += 1
         } else {
           ab += tmp
@@ -117,6 +147,10 @@ object IntervalTree {
       val lft = fromSorted(pord, intervals, start, mid)
       val rt = fromSorted(pord, intervals, mid + 1, end)
       Some(IntervalTreeNode(i, lft, rt, {
+        val min1 = lft.map(x => pord.min(x.minimum, i.start)).getOrElse(i.start)
+        rt.map(x => pord.min(x.minimum, min1)).getOrElse(min1)
+      },
+        {
         val max1 = lft.map(x => pord.max(x.maximum, i.end)).getOrElse(i.end)
         rt.map(x => pord.max(x.maximum, max1)).getOrElse(max1)
       }, v))
@@ -131,10 +165,10 @@ object IntervalTree {
 case class IntervalTreeNode[U](i: Interval,
   left: Option[IntervalTreeNode[U]],
   right: Option[IntervalTreeNode[U]],
-  maximum: Any, value: U) extends Traversable[(Interval, U)] {
+  minimum: Any, maximum: Any, value: U) extends Traversable[(Interval, U)] {
 
   def contains(pord: ExtendedOrdering, position: Any): Boolean = {
-    pord.lteq(position, maximum) &&
+    pord.lteq(position, maximum) && pord.gteq(position, minimum) &&
       (left.exists(_.contains(pord, position)) ||
         (pord.gteq(position, i.start) &&
           (i.contains(pord, position) ||
@@ -142,12 +176,13 @@ case class IntervalTreeNode[U](i: Interval,
   }
 
   def overlaps(pord: ExtendedOrdering, interval: Interval): Boolean = {
-    pord.lteq(interval.start, maximum) && (left.exists(_.overlaps(pord, interval))) ||
+    pord.lteq(interval.start, maximum) && pord.gteq(interval.end, minimum) &&
+      (left.exists(_.overlaps(pord, interval))) ||
       i.overlaps(pord, interval) || (right.exists(_.overlaps(pord, interval)))
   }
 
   def query(pord: ExtendedOrdering, b: mutable.Builder[Interval, _], position: Any) {
-    if (pord.lteq(position, maximum)) {
+    if (pord.lteq(position, maximum) && pord.gteq(position, minimum)) {
       left.foreach(_.query(pord, b, position))
       if (pord.gteq(position, i.start)) {
         right.foreach(_.query(pord, b, position))
@@ -158,7 +193,7 @@ case class IntervalTreeNode[U](i: Interval,
   }
 
   def queryValues(pord: ExtendedOrdering, b: mutable.Builder[U, _], position: Any) {
-    if (pord.lteq(position, maximum)) {
+    if (pord.lteq(position, maximum) && pord.gteq(position, minimum)) {
       left.foreach(_.queryValues(pord, b, position))
       if (pord.gteq(position, i.start)) {
         right.foreach(_.queryValues(pord, b, position))
