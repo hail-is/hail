@@ -1,8 +1,8 @@
 package is.hail.annotations
 
 import is.hail.rvd.OrderedRVType
-import is.hail.sparkextras.{GenericOrderedZipJoinIterator, StaircaseIterator}
-import is.hail.utils.Muple
+import is.hail.sparkextras.StaircaseIterator
+import is.hail.utils.{Muple, OrderedZipJoinIterator}
 
 case class OrderedRVIterator(t: OrderedRVType, iterator: BufferedIterator[RegionValue])
   extends BufferedIterator[RegionValue] {
@@ -24,12 +24,12 @@ case class OrderedRVIterator(t: OrderedRVType, iterator: BufferedIterator[Region
       this.t.kRowFieldIdx,
       other.t.rowType,
       other.t.kRowFieldIdx)
-    new GenericOrderedZipJoinIterator[BufferedIterator[RegionValue],
-                                      BufferedIterator[RegionValue]](
-      this.staircase.buffered,
-      other.staircase.buffered,
-      Iterator.empty.buffered,
-      Iterator.empty.buffered,
+    new OrderedZipJoinIterator[BufferedIterator[RegionValue],
+                               BufferedIterator[RegionValue]](
+      left = this.staircase.buffered,
+      leftDefault = Iterator.empty.buffered,
+      right = other.staircase.buffered,
+      rightDefault = Iterator.empty.buffered,
       (l, r) => ord.compare(l.head, r.head)
     )
   }

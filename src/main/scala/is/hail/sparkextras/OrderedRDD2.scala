@@ -62,54 +62,6 @@ class OrderedJoinDistinctRDD2(left: OrderedRVD, right: OrderedRVD, joinType: Str
   }
 }
 
-
-class GenericOrderedZipJoinIterator[T, U](
-  left: BufferedIterator[T], right: BufferedIterator[U],
-  leftDefault: T, rightDefault: U, ord: (T, U) => Int)
-    extends Iterator[Muple[T, U]] {
-
-  val muple = Muple(leftDefault, rightDefault)
-
-  def hasNext: Boolean = left.hasNext || right.hasNext
-
-  def next(): Muple[T, U] = {
-    val c = {
-      if (left.hasNext) {
-        if (right.hasNext)
-          ord(left.head, right.head)
-        else
-          -1
-      } else if (right.hasNext)
-          1
-      else {
-        assert(!hasNext)
-        throw new NoSuchElementException("next on empty iterator")
-      }
-    }
-    if (c == 0) {
-      muple._1 = left.next()
-      muple._2 = right.next()
-    } else if (c < 0) {
-      muple._1 = left.next()
-      muple._2 = rightDefault
-    } else {
-      // c > 0
-      muple._1 = leftDefault
-      muple._2 = right.next()
-    }
-    muple
-  }
-}
-
-class OrderedZipJoinIterator(
-  leftTyp: OrderedRVType, rightTyp: OrderedRVType,
-  lit: Iterator[RegionValue], rit: Iterator[RegionValue])
-    extends GenericOrderedZipJoinIterator[RegionValue, RegionValue](
-  lit.buffered, rit.buffered, null, null,
-  OrderedRVType.selectUnsafeOrdering(
-    leftTyp.rowType, leftTyp.kRowFieldIdx, rightTyp.rowType, rightTyp.kRowFieldIdx).compare
-)
-
 case class OrderedZipJoinRDDPartition(index: Int, leftPartition: Partition, rightPartitions: Array[Partition]) extends Partition
 
 class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
@@ -148,6 +100,14 @@ class OrderedZipJoinRDD(left: OrderedRVD, right: OrderedRVD)
     }
       .filter { rrv => leftPartitionForRightRow.getPartition(rrv) == index }
 
-    new OrderedZipJoinIterator(left.typ, right.typ, leftIt, rightIt)
+    new OrderedZipJoinIterator[RegionValue, RegionValue](
+      left = leftIt.buffered,
+      leftDefault = null,
+      right = rightIt.buffered,
+      rightDefault = null,
+      OrderedRVType.selectUnsafeOrdering(
+        left.typ.rowType, left.typ.kRowFieldIdx, right.typ.rowType, right.typ.kRowFieldIdx)
+        .compare
+    )
   }
 }
