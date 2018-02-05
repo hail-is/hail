@@ -716,4 +716,22 @@ class BlockMatrixSuite extends SparkSuite {
       }
     }
   }
+  
+  @Test
+  def random() {
+    var lm1 = BlockMatrix.random(hc, 5, 10, 2, seed = 1).toLocalMatrix()
+    var lm2 = BlockMatrix.random(hc, 5, 10, 2, seed = 1).toLocalMatrix()
+    var lm3 = BlockMatrix.random(hc, 5, 10, 2, seed = 2).toLocalMatrix()
+    
+    assert(lm1 === lm2)
+    assert(lm1 !== lm3)
+    assert(lm1.data.forall(x => x >= 0 && x <= 1))
+    
+    lm1 = BlockMatrix.random(hc, 5, 10, 2, seed = 1, gaussian = true).toLocalMatrix()
+    lm2 = BlockMatrix.random(hc, 5, 10, 2, seed = 1, gaussian = true).toLocalMatrix()
+    lm3 = BlockMatrix.random(hc, 5, 10, 2, seed = 2, gaussian = true).toLocalMatrix()
+    
+    assert(lm1 === lm2)
+    assert(lm1 !== lm3)
+  }
 }

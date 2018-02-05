@@ -3,8 +3,6 @@ from hail.utils.java import Env, handle_py4j, scala_object, jarray, numpy_from_b
 from hail.typecheck import *
 from hail.api2 import MatrixTable
 from hail.expr.expression import expr_numeric, to_expr, analyze
-from struct import unpack
-import numpy as np
 
 block_matrix_type = lazy()
 
@@ -45,10 +43,10 @@ class BlockMatrix(object):
 
     @staticmethod
     @handle_py4j
-    def random(num_rows, num_cols, block_size):
+    def random(num_rows, num_cols, block_size, seed=0, gaussian=False):
         hc = Env.hc()
         return BlockMatrix(scala_object(Env.hail().distributedmatrix, 'BlockMatrix').random(
-                hc._jhc, num_rows, num_cols, block_size))
+                hc._jhc, num_rows, num_cols, block_size, seed, gaussian))
 
     def __init__(self, jbm):
         self._jbm = jbm
