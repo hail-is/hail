@@ -973,7 +973,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     Test each gene for association using the linear sequence kernel association
     test:
 
-    >>> ds = methods.read_matrix('data/example_burden.vds')
+    >>> ds = methods.read_matrix_table('data/example_burden.vds')
     >>> skat_table = methods.skat(ds,
     ...                           key_expr=ds.gene,
     ...                           weight_expr=ds.weight,
