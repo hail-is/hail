@@ -27,6 +27,7 @@ class PartitioningSuite extends SparkSuite {
       val out = tmpDir.createTempFile("out", ".vds")
       val out2 = tmpDir.createTempFile("out", ".vds")
 
+      vds.typecheck()
       val orig = vds.coalesce(nPar)
         orig.write(out)
       val problem = hc.readVDS(out)

@@ -153,7 +153,6 @@ class Tests(unittest.TestCase):
     def test_trio_matrix(self):
         ped = Pedigree.read(test_file('triomatrix.fam'))
         fam_table = methods.import_fam(test_file('triomatrix.fam'))
-
         dataset = methods.import_vcf(test_file('triomatrix.vcf'))
         dataset = dataset.annotate_cols(fam=fam_table[dataset.s])
 
@@ -373,8 +372,9 @@ class Tests(unittest.TestCase):
         ds1 = methods.import_vcf(test_file('split_test.vcf'))
         ds1 = methods.split_multi_hts(ds1)
         ds2 = methods.import_vcf(test_file('split_test_b.vcf'))
-        self.assertEqual(ds1.aggregate_entries(foo=agg.product((ds1.was_split == (ds1.v.start != 1180)).to_int32())).foo, 1)
-        ds1 = ds1.drop('was_split','a_index')
+        df = ds1.rows_table()
+        self.assertTrue(df.forall((df.locus.position == 1180) | df.wasSplit))
+        ds1 = ds1.drop('was_split', 'a_index')
         # required python3
         # self.assertTrue(ds1._same(ds2))
 
@@ -391,8 +391,8 @@ class Tests(unittest.TestCase):
         men.select('fam_id', 's', 'code')
         fam.select('pat_id', 'children')
         self.assertEqual(ind.key, ['s'])
-        self.assertEqual(var.key, ['v'])
-        dataset.annotate_rows(mendel=var[dataset.v]).count_rows()
+        self.assertEqual(var.key, ['locus', 'alleles'])
+        dataset.annotate_rows(mendel=var[dataset.locus, dataset.alleles]).count_rows()
 
     def test_export_vcf(self):
         dataset = methods.import_vcf(test_file('sample.vcf.bgz'))
@@ -481,7 +481,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: methods.export_plink(ds, '/tmp/plink_example', is_case=0.0))
 
         # FIXME still resolving: these should throw an error due to unexpected row / entry indicies, still looking into why a more cryptic error is being thrown
-        # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.v.contig))
+        # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.locus.contig))
         # self.assertRaises(ExpressionException, lambda: methods.export_plink(ds, '/tmp/plink_example', id = ds.GT))
 
     def test_tdt(self):
@@ -495,8 +495,9 @@ class Tests(unittest.TestCase):
             types={'POSITION': TInt32(), 'T': TInt32(), 'U': TInt32(),
                    'Chi2': TFloat64(), 'Pval': TFloat64()})
         truth = (truth
-            .transmute(v=functions.variant(truth.CHROM, truth.POSITION, truth.REF, [truth.ALT]))
-            .key_by('v'))
+            .transmute(locus=functions.locus(truth.CHROM, truth.POSITION),
+                       alleles=[truth.REF, truth.ALT])
+            .key_by('locus', 'alleles'))
 
         if tdt_tab.count() != truth.count():
             self.fail('Result has {} rows but should have {} rows'.format(tdt_tab.count(), truth.count()))
@@ -639,8 +640,8 @@ class Tests(unittest.TestCase):
             .key_by("locus"))
 
         ds = methods.split_multi_hts(ds2)
-        ds = ds.annotate_rows(gene=intervalsSkat[ds.v],
-                              weight=weightsSkat[ds.v].weight)
+        ds = ds.annotate_rows(gene=intervalsSkat[ds.locus],
+                              weight=weightsSkat[ds.locus].weight)
         ds = ds.annotate_cols(pheno=phenotypesSkat[ds.s],
                               cov=covariatesSkat[ds.s])
         ds = ds.annotate_cols(pheno=functions.cond(ds.pheno == 1.0,
@@ -669,7 +670,7 @@ class Tests(unittest.TestCase):
         gen = methods.import_gen(test_file('example.gen'),
                                  sample_file=test_file('example.sample'),
                                  contig_recoding={"01": "1"}).rows_table()
-        self.assertTrue(gen.forall(gen.v.contig == "1"))
+        self.assertTrue(gen.forall(gen.locus.contig == "1"))
         self.assertEqual(gen.count(), 199)
 
     def test_import_bgen(self):
@@ -678,7 +679,7 @@ class Tests(unittest.TestCase):
         bgen = methods.import_bgen(test_file('example.v11.bgen'),
                                    sample_file=test_file('example.sample'),
                                    contig_recoding={"01": "1"}).rows_table()
-        self.assertTrue(bgen.forall(bgen.v.contig == "1"))
+        self.assertTrue(bgen.forall(bgen.locus.contig == "1"))
         self.assertEqual(bgen.count(), 199)
 
     def test_import_vcf(self):
@@ -688,7 +689,7 @@ class Tests(unittest.TestCase):
                                contig_recoding={"22": "chr22"}))
 
         vcf_table = vcf.rows_table()
-        self.assertTrue(vcf_table.forall(vcf_table.v.contig == "chr22"))
+        self.assertTrue(vcf_table.forall(vcf_table.locus.contig == "chr22"))
 
     def test_import_plink(self):
         vcf = methods.split_multi_hts(
@@ -702,5 +703,5 @@ class Tests(unittest.TestCase):
         plink = methods.import_plink(
             bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True,
             contig_recoding={'chr22': '22'}).rows_table()
-        self.assertTrue(plink.forall(plink.v.contig == "22"))
+        self.assertTrue(plink.forall(plink.locus.contig == "22"))
         self.assertEqual(vcf.count_rows(), plink.count())

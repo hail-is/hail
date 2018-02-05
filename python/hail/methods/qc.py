@@ -87,7 +87,7 @@ def sample_qc(dataset, name='sample_qc'):
         Dataset with a new column-indexed field `name`.
     """
 
-    return MatrixTable(Env.hail().methods.SampleQC.apply(require_biallelic(dataset, 'sample_qc')._jvds, 'sa.`{}`'.format(name)))
+    return MatrixTable(Env.hail().methods.SampleQC.apply(require_biallelic(dataset, 'sample_qc')._jvds, name))
 
 @handle_py4j
 @typecheck(dataset=MatrixTable, name=strlike)
@@ -163,7 +163,7 @@ def variant_qc(dataset, name='variant_qc'):
         Dataset with a new row-indexed field `name`.
     """
 
-    return MatrixTable(Env.hail().methods.VariantQC.apply(require_biallelic(dataset, 'variant_qc')._jvds, 'va.`{}`'.format(name)))
+    return MatrixTable(Env.hail().methods.VariantQC.apply(require_biallelic(dataset, 'variant_qc')._jvds, name))
 
 
 @handle_py4j

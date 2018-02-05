@@ -23,8 +23,6 @@ case class FamFileConfig(isQuantPheno: Boolean = false,
 object PlinkLoader {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
-  val plinkSchema = TStruct(("rsid", TString()))
-
   private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true,
     contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(Variant, String)] = {
     hConf.readLines(bimPath)(_.map(_.map { line =>
@@ -131,15 +129,17 @@ object PlinkLoader {
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val matrixType = MatrixType(
-      colType = sampleAnnotationSignature,
+    val matrixType = MatrixType.fromParts(
+      globalType = TStruct.empty(),
       colKey = Array("s"),
-      vaType = plinkSchema,
-      vType = TVariant(gr),
-      genotypeType = TStruct("GT" -> TCall()))
+      colType = sampleAnnotationSignature,
+      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TStringRequired), "rsid" -> TString()),
+      rowKey = Array("locus", "alleles"),
+      rowPartitionKey = Array("locus"),
+      entryType = TStruct(required = true, "GT" -> TCall()))
 
     val kType = matrixType.orderedRVType.kType
-    val rowType = matrixType.rvRowType
+    val rvRowType = matrixType.rvRowType
 
     val fastKeys = rdd.mapPartitions { it =>
       val region = Region()
@@ -156,7 +156,10 @@ object PlinkLoader {
           rvb.start(kType)
           rvb.startStruct()
           rvb.addAnnotation(kType.fieldType(0), v.locus) // locus/pk
-          rvb.addAnnotation(kType.fieldType(1), v)
+          rvb.startArray(2)
+          rvb.addString(v.ref)
+          rvb.addString(v.alt)
+          rvb.endArray()
           rvb.endStruct()
 
           rv.setOffset(rvb.end())
@@ -177,13 +180,11 @@ object PlinkLoader {
           None
         else {
           region.clear()
-          rvb.start(rowType)
+          rvb.start(rvRowType)
           rvb.startStruct()
-          rvb.addAnnotation(rowType.fieldType(0), v.locus) // locus/pk
-          rvb.addAnnotation(rowType.fieldType(1), v)
-          rvb.startStruct()
-          rvb.addAnnotation(TString(), rsid)
-          rvb.endStruct()
+          rvb.addAnnotation(rvRowType.fieldType(0), v.locus) // locus/pk
+          rvb.addAnnotation(rvRowType.fieldType(1), IndexedSeq(v.ref, v.alt))
+          rvb.addAnnotation(rvRowType.fieldType(2), rsid)
           record.getValue(rvb)
           rvb.endStruct()
 

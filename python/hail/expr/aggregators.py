@@ -2,7 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.typecheck import *
 from hail.expr.expression import *
 from hail.expr.ast import *
-from hail.genetics import Variant, Locus, Call, GenomeReference
+from hail.genetics import Locus, Call, GenomeReference
 
 
 def _to_agg(x):
@@ -814,8 +814,8 @@ def inbreeding(expr, prior):
     return construct_expr(ast, t, Indices(source=indices.source), aggregations.push(Aggregation(indices, refs)), joins)
 
 
-@typecheck(expr=oneof(Aggregable, expr_call), variant=expr_variant)
-def call_stats(expr, variant):
+@typecheck(expr=oneof(Aggregable, expr_call), alleles=expr_list)
+def call_stats(expr, alleles):
     """Compute useful call statistics.
 
     Examples
@@ -824,8 +824,8 @@ def call_stats(expr, variant):
 
     .. doctest::
 
-        >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.v))
-        >>> dataset_result.rows_table().select('v', 'gt_stats').show()
+        >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.alleles))
+        >>> dataset_result.rows_table().select('locus', 'alleles', 'gt_stats').show()
         +-----------------+--------------+----------------+-------------+--------------+
         | v               | gt_stats.AC  | gt_stats.AF    | gt_stats.AN | gt_stats.GC  |
         +-----------------+--------------+----------------+-------------+--------------+
@@ -857,15 +857,14 @@ def call_stats(expr, variant):
      - `AN` (:class:`.TInt32`) - Allele number. The total number of called
        alleles, or the number of non-missing calls * 2.
      - `GC` (:class:`.TArray` of :class:`.TInt32`) - Genotype counts. One element
-       for each possible biallelic configuration (see
-       :meth:`.VariantExpression.num_genotypes`).
+       for each possible biallelic configuration.
 
     Parameters
     ----------
     expr : :class:`.CallExpression`
         Call.
-    variant : :class:`.VariantExpression`
-        Variant.
+    alleles : :class:`.ArrayStringExpression`
+        Variant alleles.
 
     Returns
     -------
@@ -873,7 +872,10 @@ def call_stats(expr, variant):
         Struct expression with fields `AC`, `AF`, `AN`, and `GC`.
     """
     agg = _to_agg(expr)
-    variant = to_expr(variant)
+    alleles = to_expr(alleles)
+    if not alleles.dtype.element_type == TString():
+        raise TypeError("aggregator 'call_stats' requires 'alleles' to be an expression of type 'Array[String]',"
+                        " found '{}'".format(alleles.dtype))
 
     uid = Env._get_uid()
 
@@ -881,8 +883,8 @@ def call_stats(expr, variant):
         raise TypeError("aggregator 'call_stats' requires an expression of type 'TCall', found '{}'".format(
             agg._type.__class__))
 
-    ast = LambdaClassMethod('callStats', uid, agg._ast, variant._ast)
-    indices, aggregations, joins, refs = unify_all(agg, variant)
+    ast = LambdaClassMethod('callStats', uid, agg._ast, alleles._ast)
+    indices, aggregations, joins, refs = unify_all(agg, alleles)
 
     if aggregations:
         raise ExpressionException('Cannot aggregate an already-aggregated expression')

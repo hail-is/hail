@@ -34,16 +34,16 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
     identifiers are the sample IDs of the trio probands. The column fields and
     entries of the matrix are changed in the following ways:
 
-    The new column fields consist of three Structs (proband, father, mother),
-    a Boolean field, and a String field:
+    The new column fields consist of three Structs (`proband`, `father`,
+    `mother`), a Boolean field, and a String field:
 
-    - **proband.id** (*String*) - Proband sample ID, same as trio column key.
-    - **proband.fields** (*Struct*) - Column fields on the proband.
-    - **father.id** (*String*) - Father sample ID.
-    - **father.fields** (*Struct*) - Column fields on the father.
-    - **mother.id** (*String*) - Mother sample ID.
-    - **mother.fields** (*Struct*) - Column fields on the mother.
-    - **is_female** (*Boolean*) - Proband is female.
+    - proband.id** (*String*) - Proband sample ID, same as trio column key.
+    - proband.fields** (*Struct*) - Column fields on the proband.
+    - father.id** (*String*) - Father sample ID.
+    - father.fields** (*Struct*) - Column fields on the father.
+    - mother.id** (*String*) - Mother sample ID.
+    - mother.fields** (*Struct*) - Column fields on the mother.
+    - is_female** (*Boolean*) - Proband is female.
       True for female, false for male, missing if unknown.
     - **fam_id** (*String*) - Family ID.
 
@@ -53,13 +53,15 @@ def trio_matrix(dataset, pedigree, complete_trios=False):
     - **father_entry** (*Struct*) - Father entry fields.
     - **mother_entry** (*Struct*) - Mother entry fields.
 
-    :param pedigree: Collection of trios.
-    :type pedigree: :class:`.hail.representation.Pedigree`
+    Parameters
+    ----------
+    pedigree : :class:`.Pedigree`
 
-    :rtype: :class:`.VariantDataset`
+    Returns
+    -------
+    :class:`.MatrixTable`
     """
-    return MatrixTable(dataset._jvds.trioMatrix(pedigree._jrep, complete_trios)
-                       .annotateGenotypesExpr('g = {proband_entry: g.proband, father_entry: g.father, mother_entry: g.mother}'))
+    return MatrixTable(dataset._jvds.trioMatrix(pedigree._jrep, complete_trios))
 
 @handle_py4j
 @typecheck(dataset=MatrixTable,
@@ -93,7 +95,7 @@ def mendel_errors(dataset, pedigree):
 
     Annotate rows with the number of Mendel errors:
 
-    >>> annotated_variants = dataset.annotate_rows(mendel=per_variant[dataset.v])
+    >>> annotated_variants = dataset.annotate_rows(mendel=per_variant[dataset.locus, dataset.alleles])
 
     Notes
     -----
@@ -107,40 +109,40 @@ def mendel_errors(dataset, pedigree):
     **First table:** all Mendel errors. This table contains one row per Mendel
     error, keyed by the variant and proband id.
 
-        - **fam_id** (*String*) -- Family ID.
-        - **s** (*String*) -- Proband ID. (key field)
-        - **v** (*Variant*) -- Variant in which the error was found.
-          (key field)
-        - **code** (*Int32*) -- Mendel error code, see below.
-        - **error** (*String*) -- Readable representation of Mendel error.
+        - `fam_id` (:class:`.TString`) -- Family ID.
+        - `locus` (:class:`.TLocus`) -- Variant locus, key field.
+        - `alleles` (:class:`.TArray` of :class:`.TString`) -- Variant alleles, key field.
+        - `s` (:class:`.TString`) -- Proband ID, key field.
+        - `code` (:class:`.TInt32`) -- Mendel error code, see below.
+        - `error` (:class:`.TString`) -- Readable representation of Mendel error.
 
     **Second table:** errors per nuclear family. This table contains one row
     per nuclear family, keyed by the parents.
 
-        - **fam_id** (*String*) -- Family ID.
-        - **pat_id** (*String*) -- Paternal ID. (key field)
-        - **mat_id** (*String*) -- Maternal ID. (key field)
-        - **children** (*Int32*) -- Number of children in this nuclear family.
-        - **errors** (*Int32*) -- Number of Mendel errors in this nuclear
-          family.
-        - **snp_errors** (*Int32*) -- Number of Mendel errors at SNPs in this
+        - `fam_id` (:class:`.TString`) -- Family ID.
+        - `pat_id` (:class:`.TString`) -- Paternal ID. (key field)
+        - `mat_id` (:class:`.TString`) -- Maternal ID. (key field)
+        - `children` (:class:`.TInt32`) -- Number of children in this nuclear family.
+        - `errors` (:class:`.TInt32`) -- Number of Mendel errors in this nuclear family.
+        - `snp_errors` (:class:`.TInt32`) -- Number of Mendel errors at SNPs in this
           nuclear family.
 
     **Third table:** errors per individual. This table contains one row per
     individual. Each error is counted toward the proband, father, and mother
     according to the `Implicated` in the table below.
 
-        - **s** (*String*) -- Sample ID (key field).
-        - **fam_id** (*String*) -- Family ID.
-        - **errors** (*Int64*) -- Number of Mendel errors involving this
+        - `s` (:class:`.TString`) -- Sample ID (key field).
+        - `fam_id` (:class:`.TString`) -- Family ID.
+        - `errors` (:class:`.TInt64`) -- Number of Mendel errors involving this
           individual.
-        - **snp_errors** (*Int64*) -- Number of Mendel errors involving this
+        - `snp_errors` (:class:`.TInt64`) -- Number of Mendel errors involving this
           individual at SNPs.
 
     **Fourth table:** errors per variant.
 
-        - **v** (*Variant*) -- Variant (key field).
-        - **errors** (*Int32*) -- Number of Mendel errors in this variant.
+        - `locus` (:class:`.TLocus`) -- Variant locus, key field.
+        - `alleles` (:class:`.TArray` of :class:`.TString`) -- Variant alleles, key field.
+        - `errors` (:class:`.TInt32`) -- Number of Mendel errors in this variant.
 
     This method only considers complete trios (two parents and proband with
     defined sex). The code of each Mendel error is determined by the table
@@ -151,7 +153,7 @@ def mendel_errors(dataset, pedigree):
     as follows, where PAR is the `pseudoautosomal region
     <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__ (PAR) of X and Y
     defined by the reference genome and the autosome is defined by
-    :meth:`~hail.genetics.Variant.in_autosome`.
+    :meth:`~hail.genetics.Locus.in_autosome`.
 
     - Auto -- in autosome or in PAR or female child
     - HemiX -- in non-PAR of X and male child
@@ -263,7 +265,7 @@ def tdt(dataset, pedigree):
 
     :func:`tdt` only considers complete trios (two parents and a proband with
     defined sex) and only returns results for the autosome, as defined by
-    :meth:`~hail.genetics.Variant.in_autosome`, and chromosome X. Transmissions
+    :meth:`~hail.genetics.Locus.in_autosome`, and chromosome X. Transmissions
     and non-transmissions are counted only for the configurations of genotypes
     and copy state in the table below, in order to filter out Mendel errors and
     configurations where transmission is guaranteed. The copy state of a locus
@@ -313,15 +315,12 @@ def tdt(dataset, pedigree):
 
     :func:`tdt` produces a table with the following columns:
 
-     - **v** (*Variant*) -- Variant tested.
-
-     - **t** (*Int32*) -- Number of transmitted alternate alleles.
-
-     - **u** (*Int32*) -- Number of untransmitted alternate alleles.
-
-     - **chi2** (*Float64*) -- TDT statistic.
-
-     - **pval** (*Float64*) -- p-value.
+     - `locus` (:class:`.TLocus`) -- Locus.
+     - `alleles` (:class:`.TArray` of :class:`.TString`) -- Alleles.
+     - `t` (:class:`.TInt32`) -- Number of transmitted alternate alleles.
+     - `u` (:class:`.TInt32`) -- Number of untransmitted alternate alleles.
+     - `chi2` (:class:`.TFloat64`) -- TDT statistic.
+     - `pval` (:class:`.TFloat64`) -- p-value.
 
     Parameters
     ----------
@@ -337,8 +336,8 @@ def tdt(dataset, pedigree):
     """
 
     dataset = require_biallelic(dataset, 'tdt')
-    dataset = dataset.annotate_rows(auto_or_x_par = dataset.v.in_autosome() | dataset.v.in_x_par())
-    dataset = dataset.filter_rows(dataset.auto_or_x_par | dataset.v.in_x_nonpar())
+    dataset = dataset.annotate_rows(auto_or_x_par = dataset.locus.in_autosome() | dataset.locus.in_x_par())
+    dataset = dataset.filter_rows(dataset.auto_or_x_par | dataset.locus.in_x_nonpar())
 
     hom_ref = 0
     het = 1
@@ -380,7 +379,7 @@ def tdt(dataset, pedigree):
 
     tri = tri.annotate_rows(counts = agg.array_sum(agg.filter(parent_is_valid_het, count_map.get(config))))
 
-    tab = tri.rows_table().select('v', 'counts')
+    tab = tri.rows_table().select('locus', 'alleles', 'counts')
     tab = tab.transmute(t = tab.counts[0], u = tab.counts[1])
     tab = tab.annotate(chi2 = ((tab.t - tab.u) ** 2) / (tab.t + tab.u))
     tab = tab.annotate(pval = functions.pchisqtail(tab.chi2, 1.0))

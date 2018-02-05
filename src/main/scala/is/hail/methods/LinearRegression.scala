@@ -44,7 +44,7 @@ object LinearRegression {
 
     val sc = vsm.sparkContext
 
-    val localGlobalAnnotationBc = sc.broadcast(vsm.globalAnnotation)
+    val localGlobalAnnotationBc = sc.broadcast(vsm.globals)
     val sampleAnnotationsBc = vsm.sampleAnnotationsBc
 
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
@@ -53,14 +53,16 @@ object LinearRegression {
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
-    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newRDD2Type, inserter) = vsm.rdd2.typ.insert(LinearRegression.schema, "va" :: pathVA)
-    val newVAType = newRDD2Type.rowType.fieldType(2).asInstanceOf[TStruct]
 
-    val localRowType = vsm.rvRowType
-    val newRDD2 = vsm.rdd2.copy(
-      typ = newRDD2Type,
-      rdd = vsm.rdd2.mapPartitions { it =>
+    val localRVType = vsm.rvRowType
+    val localEntriesIndex = vsm.entriesIndex
+
+    val (newRVType, ins) = localRVType.unsafeStructInsert(LinearRegression.schema, List(root))
+
+    val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
+
+    val newRDD2 = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
+
         val region2 = Region()
         val rvb = new RegionValueBuilder(region2)
         val rv2 = RegionValue(region2)
@@ -73,23 +75,23 @@ object LinearRegression {
         val blockWRVs = new Array[WritableRegionValue](variantBlockSize)
         var i = 0
         while (i < variantBlockSize) {
-          blockWRVs(i) = WritableRegionValue(localRowType)
+          blockWRVs(i) = WritableRegionValue(localRVType)
           i += 1
         }
 
+        val fullRow = new UnsafeRow(localRVType)
+        val row = fullRow.delete(localEntriesIndex)
         it.trueGroupedIterator(variantBlockSize)
           .flatMap { git =>
             var i = 0
             while (git.hasNext) {
               val rv = git.next()
+              fullRow.set(rv)
 
-              val ur = new UnsafeRow(localRowType, rv)
-              val v = ur.get(1)
-              val va = ur.get(2)
-              val gs = ur.getAs[IndexedSeq[Annotation]](3)
 
               RegressionUtils.inputVector(X(::, i),
-                localGlobalAnnotationBc.value, sampleAnnotationsBc.value, (v, (va, gs)),
+                localGlobalAnnotationBc.value, sampleAnnotationsBc.value, row,
+                fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex),
                 ec, xf,
                 completeSampleIndexBc.value, missingSamples)
 
@@ -138,18 +140,16 @@ object LinearRegression {
               region2.setFrom(wrv.region)
               val offset2 = wrv.offset
 
-              rvb.start(newRDD2Type.rowType)
-              inserter(region2, offset2, rvb, () =>
-                rvb.addAnnotation(LinearRegression.schema, result))
-
+              rvb.start(newRVType)
+              ins(region2, offset2, rvb,
+                () => rvb.addAnnotation(LinearRegression.schema, result))
               rv2.setOffset(rvb.end())
               rv2
             }
           }
-      })
+      }
 
-    vsm.copy2(
-      rdd2 = newRDD2,
-      vaSignature = newVAType)
+    vsm.copyMT(matrixType = newMatrixType,
+      rvd = newRDD2)
   }
 }

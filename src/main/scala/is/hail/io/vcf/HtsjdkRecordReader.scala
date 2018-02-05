@@ -27,10 +27,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
   import HtsjdkRecordReader._
 
   def readVariantInfo(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct) {
-    // pk, v added via VCFLine
-
-    // va
-    rvb.startStruct()
+    // locus, alleles added via VCFLine
 
     // rsid
     val vcID = vc.getID
@@ -64,7 +61,6 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
       addAttribute(rvb, a, f.typ, -1)
     }
     rvb.endStruct() // info
-    rvb.endStruct() // va
   }
 
   def readRecord(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct, gType: TStruct, dropSamples: Boolean, canonicalFlags: Int): Unit = {

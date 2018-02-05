@@ -33,19 +33,19 @@ object PCRelate {
   val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
 
   def apply(vds: MatrixTable, k: Int, pcaScores: Table, maf: Double, blockSize: Int, minKinship: Double = PCRelate.defaultMinKinship, statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset): Table = {
-    val scoreArray = new Array[Double](vds.nSamples * k)
+    val scoreArray = new Array[Double](vds.numCols * k)
     val pcs = pcaScores.collect().asInstanceOf[IndexedSeq[UnsafeRow]]
     var i = 0
-    while (i < vds.nSamples) {
+    while (i < vds.numCols) {
       val row = pcs(i).getAs[IndexedSeq[Double]](1)
       var j = 0
       while (j < k) {
-        scoreArray(j * vds.nSamples + i) = row(j)
+        scoreArray(j * vds.numCols + i) = row(j)
         j += 1
       }
       i += 1
     }
-    PCRelate.toTable(vds, new DenseMatrix[Double](vds.nSamples, k, scoreArray), maf, blockSize, minKinship, statistics)
+    PCRelate.toTable(vds, new DenseMatrix[Double](vds.numCols, k, scoreArray), maf, blockSize, minKinship, statistics)
   }
 
   private val signature =
@@ -115,18 +115,16 @@ object PCRelate {
   }
 
   def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
-    val nSamples = vds.nSamples
+    val nSamples = vds.numCols
     val localRowType = vds.rvRowType
     val partStarts = vds.partitionStarts()
     val partStartsBc = vds.sparkContext.broadcast(partStarts)
-    val rdd = vds.rdd2.mapPartitionsWithIndex { case (partIdx, it) =>
+    val rdd = vds.rvd.mapPartitionsWithIndex { case (partIdx, it) =>
       val view = HardCallView(localRowType)
       val missingIndices = new ArrayBuilder[Int]()
 
       var rowIdx = partStartsBc.value(partIdx)
       it.map { rv =>
-        val v = Variant.fromRegionValue(rv.region,
-          localRowType.loadField(rv, 1))
         view.setRegion(rv)
 
         missingIndices.clear()

@@ -106,15 +106,16 @@ object BaldingNicholsModel {
       "ancestral_af_dist" -> ancestralAFAnnotationSignature,
       "seed" -> TInt32())
 
-    val matrixType = MatrixType(
+    val matrixType: MatrixType = MatrixType.fromParts(
       globalType = globalSignature,
       colType = saSignature,
       colKey = Array("s"),
-      vType = TVariant(gr),
-      vaType = vaSignature,
-      genotypeType = TStruct("GT" -> TCall()))
+      rowType = TStruct("locus" -> TLocus(gr), "alleles" -> TArray(TString())) ++ vaSignature,
+      rowKey = Array("locus", "alleles"),
+      rowPartitionKey = Array("locus"),
+      entryType = TStruct("GT" -> TCall()))
 
-    val rowType = matrixType.rvRowType
+    val rvType = matrixType.rvRowType
 
     val rdd = sc.parallelize((0 until M).view.map(m => (m, Rand.randInt.draw())), nPartitions)
       .mapPartitions { it =>
@@ -135,7 +136,7 @@ object BaldingNicholsModel {
           }
 
           region.clear()
-          rvb.start(rowType)
+          rvb.start(rvType)
           rvb.startStruct()
 
           // locus
@@ -144,21 +145,13 @@ object BaldingNicholsModel {
           rvb.addInt(m + 1)
           rvb.endStruct()
 
-          // variant
-          rvb.startStruct()
-          rvb.addString("1")
-          rvb.addInt(m + 1)
-          rvb.addString("A")
-          rvb.startArray(1)
-          rvb.startStruct()
+          // alleles
+          rvb.startArray(2)
           rvb.addString("A")
           rvb.addString("C")
-          rvb.endStruct()
           rvb.endArray()
-          rvb.endStruct()
 
           // va
-          rvb.startStruct()
           rvb.addDouble(ancestralAF)
           rvb.startArray(popAF_k.length)
           var i = 0
@@ -167,7 +160,6 @@ object BaldingNicholsModel {
             i += 1
           }
           rvb.endArray()
-          rvb.endStruct()
 
           // gs
           rvb.startArray(N)

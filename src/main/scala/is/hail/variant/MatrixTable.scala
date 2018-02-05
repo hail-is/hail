@@ -51,38 +51,39 @@ object MatrixTable {
       MatrixRead(dirname, nPartitions, fileMetadata, dropSamples, dropVariants))
   }
 
-  def fromLegacy[RK, T](hc: HailContext,
+  def fromLegacy[T](hc: HailContext,
     matrixType: MatrixType,
     localValue: MatrixLocalValue,
-    rdd: RDD[(RK, (Annotation, Iterable[T]))]): MatrixTable = {
+    rdd: RDD[(Annotation, Iterable[T])]): MatrixTable = {
 
-    val localGType = matrixType.genotypeType
+    val localGType = matrixType.entryType
     val localRVRowType = matrixType.rvRowType
-    val (t, p) = Type.partitionKeyProjection(matrixType.vType)
-    assert(t == matrixType.locusType)
+
+    assert(matrixType.rowPartitionKey == IndexedSeq("v"))
+    assert(matrixType.rowKey == IndexedSeq("v"))
     val localNSamples = localValue.nSamples
 
-    new MatrixTable(hc, matrixType, localValue,
+    var ds = new MatrixTable(hc, matrixType, localValue,
       OrderedRVD(matrixType.orderedRVType,
         rdd.mapPartitions { it =>
           val region = Region()
           val rvb = new RegionValueBuilder(region)
           val rv = RegionValue(region)
 
-          it.map { case (v, (va, gs)) =>
+          it.map { case (va, gs) =>
+            val vaRow = va.asInstanceOf[Row]
+            assert(matrixType.rowType.typeCheck(vaRow), s"${matrixType.rowType}, $vaRow")
+
             region.clear()
             rvb.start(localRVRowType)
             rvb.startStruct()
-            rvb.addAnnotation(localRVRowType.fieldType(0), p(v))
-            rvb.addAnnotation(localRVRowType.fieldType(1), v)
-            rvb.addAnnotation(localRVRowType.fieldType(2), va)
-            rvb.startArray(localNSamples) // gs
-            val git = gs.iterator
             var i = 0
-            while (i < localNSamples) {
-              rvb.addAnnotation(localGType, git.next())
+            while (i < vaRow.length) {
+              rvb.addAnnotation(localRVRowType.fieldType(i), vaRow.get(i))
               i += 1
             }
+            rvb.startArray(localNSamples) // gs
+            gs.foreach { g => rvb.addAnnotation(localGType, g) }
             rvb.endArray() // gs
             rvb.endStruct()
             rv.setOffset(rvb.end())
@@ -90,11 +91,17 @@ object MatrixTable {
             rv
           }
         }, None, None))
+    if (matrixType.rowType.fieldByName("v").typ.isInstanceOf[TVariant])
+      ds = ds.annotateVariantsExpr("locus = va.v.locus, alleles = [va.v.ref].extend(va.v.altAlleles.map(x => x.alt))")
+        .keyRowsBy(Array("locus", "alleles"), Array("locus"))
+        .dropRows("v")
+    ds.typecheck()
+    ds
   }
 
-  def fromLegacy[RK, T](hc: HailContext,
+  def fromLegacy[T](hc: HailContext,
     fileMetadata: MatrixFileMetadata,
-    rdd: RDD[(RK, (Annotation, Iterable[T]))]): MatrixTable =
+    rdd: RDD[(Annotation, Iterable[T])]): MatrixTable =
     fromLegacy(hc, fileMetadata.matrixType, fileMetadata.localValue, rdd)
 
   def readFileMetadata(hConf: hadoop.conf.Configuration, dirname: String,
@@ -135,7 +142,7 @@ object MatrixTable {
 
     val matrixType: MatrixType = Parser.parseMatrixType(metadata.matrix_type)
 
-    val saType = matrixType.saType
+    val saType = matrixType.colType
     val globalType = matrixType.globalType
 
     val sampleInfo = metadata.sample_annotations.asInstanceOf[JArray]
@@ -166,7 +173,7 @@ object MatrixTable {
     VSMSubgen(
       sSigGen = Type.genArb,
       saSigGen = Type.genInsertableStruct,
-      vSigGen = Type.genArb,
+      vSigGen = GenomeReference.gen.map(TVariant(_)),
       vaSigGen = Type.genInsertableStruct,
       globalSigGen = Type.genInsertableStruct,
       tSigGen = Type.genInsertableStruct,
@@ -180,18 +187,20 @@ object MatrixTable {
 
   def checkDatasetSchemasCompatible(datasets: Array[MatrixTable]) {
     val first = datasets(0)
-    val vaSchema = first.vaSignature
-    val genotypeSchema = first.genotypeSignature
-    val rowKeySchema = first.vSignature
-    val colKeySchema = first.sSignature
+    val vaSchema = first.rowType
+    val genotypeSchema = first.entryType
+    val rowKeySchema = first.rowKeyTypes
+    val nPartitionKeys = first.rowPartitionKey.length
+    val colKeySchema = first.colKeyTypes
     val colKeys = first.colKeys
 
     datasets.indices.tail.foreach { i =>
       val vds = datasets(i)
-      val vas = vds.vaSignature
-      val gsig = vds.genotypeSignature
-      val vsig = vds.vSignature
-      val ssig = vds.sSignature
+      val vas = vds.rowType
+      val gsig = vds.entryType
+      val vsig = vds.rowKeyTypes
+      val nrpk = vds.rowPartitionKey.length
+      val ssig = vds.colKeyTypes
       val cks = vds.colKeys
 
       if (!ssig.sameElements(colKeySchema)) {
@@ -202,7 +211,7 @@ object MatrixTable {
           colKeySchema.map(_.toString).mkString(", "),
           ssig.map(_.toString).mkString(", ")
         )
-      } else if (vsig != rowKeySchema) {
+      } else if (!vsig.sameElements(rowKeySchema)) {
         fatal(
           s"""cannot combine datasets with different row key schemata
              |  Schema in datasets[0]: @1
@@ -210,6 +219,9 @@ object MatrixTable {
           rowKeySchema.toString,
           vsig.toString
         )
+      } else if (nrpk != nPartitionKeys) {
+        fatal(
+          s"""cannot combine datasets with different partition keys""")
       } else if (colKeys != cks) {
         fatal(
           s"""cannot combine datasets with different column identifiers or ordering
@@ -245,56 +257,36 @@ object MatrixTable {
 
     checkDatasetSchemasCompatible(datasets)
 
-    first.copy2(
-      rdd2 = OrderedRVD(
-        first.rdd2.typ,
-        sc.union(datasets.map(_.rdd2.rdd)),
+    first.copyMT(
+      rvd = OrderedRVD(
+        first.rvd.typ,
+        sc.union(datasets.map(_.rvd.rdd)),
         None, None))
   }
 
   def fromRowsTable(kt: Table): MatrixTable = {
-    if (kt.key.length != 1)
-      fatal("from_table: key must have a single field")
-    val vType = kt.keyFields(0).typ
+    val matrixType = MatrixType.fromParts(
+      kt.globalSignature,
+      Array.empty[String],
+      TStruct.empty(),
+      kt.key,
+      kt.key,
+      kt.signature,
+      TStruct.empty()
+    )
+    val rvRowType = matrixType.rvRowType
 
-    val ktRowType = kt.signature
-    // FIXME
-    val kIndex = kt.keyFields(0).index
-    val ktValueFieldIdx = kt.valueSignature.fields.map(f => kt.signature.fieldIdx(f.name))
-
-    val matrixType = MatrixType(
-      vType = vType,
-      vaType = kt.valueSignature)
-
-    val locusType = matrixType.locusType
-    // FIXME
-    val projection =
-      matrixType.vType match {
-        case t: TVariant =>
-          (v: Annotation) => v.asInstanceOf[Variant].locus
-        case _ =>
-          (a: Annotation) => a
-      }
+    val oldRowType = kt.signature
 
     val rdd = kt.rvd.mapPartitions { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
       it.map { rv =>
-        val ur = new UnsafeRow(ktRowType, rv)
-
         rvb.set(rv.region)
-        rvb.start(matrixType.rvRowType)
+        rvb.start(rvRowType)
         rvb.startStruct()
-        rvb.addAnnotation(locusType, projection(ur.get(kIndex))) // pk
-        rvb.addField(ktRowType, rv, kIndex) // v
-        rvb.startStruct() // va
-      var i = 0
-        while (i < ktValueFieldIdx.length) {
-          rvb.addField(ktRowType, rv, ktValueFieldIdx(i))
-          i += 1
-        }
-        rvb.endStruct()
+        rvb.addAllFields(oldRowType, rv)
         rvb.startArray(0) // gs
         rvb.endArray()
         rvb.endStruct()
@@ -326,35 +318,35 @@ case class VSMSubgen(
 
   def gen(hc: HailContext): Gen[MatrixTable] =
     for (size <- Gen.size;
-      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
+    (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 3 / 10) * 8);
 
-      vSig <- vSigGen.resize(3);
-      vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-      sSig <- sSigGen.resize(3);
-      saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
-      globalSig <- globalSigGen.resize(5);
-      tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
-      global <- globalGen(globalSig).resize(25);
-      nPartitions <- Gen.choose(1, 10);
+    vSig <- vSigGen.resize(3);
+    vaSig <- vaSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+    sSig <- sSigGen.resize(3);
+    saSig <- saSigGen.map(t => t.deepOptional().asInstanceOf[TStruct]).resize(3);
+    globalSig <- globalSigGen.resize(5);
+    tSig <- tSigGen.map(t => t.structOptional().asInstanceOf[TStruct]).resize(3);
+    global <- globalGen(globalSig).resize(25);
+    nPartitions <- Gen.choose(1, 10);
 
-      sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
-        .map(ids => ids.distinct);
-      nSamples = sampleIds.length;
-      saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
-      rows <- Gen.buildableOfN[Array](l,
-        for (
-          v <- vGen(vSig).resize(3);
-          va <- vaGen(vaSig).resize(5);
-          ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
-          yield (v, (va, ts: Iterable[Annotation]))))
+    sampleIds <- Gen.buildableOfN[Array](w, sGen(sSig).resize(3))
+      .map(ids => ids.distinct);
+    nSamples = sampleIds.length;
+    saValues <- Gen.buildableOfN[Array](nSamples, saGen(saSig).resize(5));
+    rows <- Gen.buildableOfN[Array](l,
+      for (
+        v <- vGen(vSig).resize(3);
+        va <- vaGen(vaSig).resize(5);
+        ts <- Gen.buildableOfN[Array](nSamples, tGen(tSig, v).resize(3)))
+        yield (v, (va, ts: Iterable[Annotation]))))
       yield {
         assert(sampleIds.forall(_ != null))
-        assert(rows.forall(_._1 != null))
         val (finalSaSchema, ins) = saSig.structInsert(sSig, List("s"))
+        val (finalVaSchema, ins2) = vaSig.structInsert(vSig, List("v"))
         MatrixTable.fromLegacy(hc,
-          MatrixType(globalSig, finalSaSchema, Array("s"), vSig, vaSig, tSig),
+          MatrixType.fromParts(globalSig, Array("s"), finalSaSchema, Array("v"), Array("v"), finalVaSchema, tSig),
           MatrixLocalValue(global, sampleIds.zip(saValues).map { case (id, sa) => ins(sa, id) }),
-          hc.sc.parallelize(rows, nPartitions))
+          hc.sc.parallelize(rows.map { case (v, (va, gs)) => (ins2(va, v), gs) }, nPartitions))
           .deduplicate()
       }
 }
@@ -412,49 +404,71 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         MatrixValue(matrixType, localValue, rdd2)))
 
   def requireRowKeyVariant(method: String) {
-    vSignature match {
-      case _: TVariant =>
+    rowKey.zip(rowKeyTypes) match {
+      case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
       case _ =>
-        fatal(s"in $method: row key (variant) schema must be Variant, found: $vSignature")
+        fatal(s"in $method: row key (variant) schema must be ('locus': Locus, 'alleles': Array[String], found: ${
+          rowKey.zip(rowKeyTypes).mkString(", ")
+        }")
     }
   }
 
   def requireColKeyString(method: String) {
-    sSignature match {
+    colKeyTypes match {
       case Array(_: TString) =>
       case t =>
         fatal(s"in $method: column key schema must be String, found: $t")
     }
   }
 
-  def genomeReference: GenomeReference = vSignature.asInstanceOf[TVariant].gr.asInstanceOf[GenomeReference]
+  def genomeReference: GenomeReference = {
+    val firstKeyField = rowKeyTypes(0)
+    firstKeyField match {
+      case TLocus(gr: GenomeReference, _) => gr
+    }
+  }
 
   val matrixType: MatrixType = ast.typ
 
-  val globalSignature = matrixType.globalType
+  val colType: TStruct = matrixType.colType
+  val rowType: TStruct = matrixType.rowType
+  val entryType: TStruct = matrixType.entryType
+  val globalType: TStruct = matrixType.globalType
+
+  val rvRowType: TStruct = matrixType.rvRowType
+  val rowKey: IndexedSeq[String] = matrixType.rowKey
+  val rowPartitionKey: IndexedSeq[String] = matrixType.rowPartitionKey
+  val entriesIndex: Int = matrixType.entriesIdx
+
   val colKey: IndexedSeq[String] = matrixType.colKey
-  def sSignature: Array[Type] = colKey
-    .map(s => matrixType.saType.fieldType(matrixType.saType.fieldIdx(s)))
+
+  def colKeyTypes: Array[Type] = colKey
+    .map(s => matrixType.colType.fieldType(matrixType.colType.fieldIdx(s)))
     .toArray
-  val saSignature = matrixType.saType
-  val locusType: Type = matrixType.locusType
-  val vSignature = matrixType.vType
-  val vaSignature = matrixType.vaType
-  val genotypeSignature = matrixType.genotypeType
+
+  val rowKeyTypes: Array[Type] = rowKey
+    .map(s => matrixType.rowType.fieldType(matrixType.rowType.fieldIdx(s)))
+    .toArray
+
+  val rowKeyStruct: TStruct = TStruct(rowKey.zip(rowKeyTypes): _*)
+
+  val rowPartitionKeyTypes: Array[Type] = rowPartitionKey
+    .map(s => matrixType.rowType.fieldType(matrixType.rowType.fieldIdx(s)))
+    .toArray
 
   lazy val value: MatrixValue = {
     val opt = MatrixIR.optimize(ast)
     val v = opt.execute(hc)
-    assert(v.rdd2.typ == matrixType.orderedRVType)
+    assert(v.rvd.typ == matrixType.orderedRVType, s"\n${ v.rvd.typ }\n${ matrixType.orderedRVType }")
     v
   }
 
-  lazy val MatrixValue(_, MatrixLocalValue(globalAnnotation, sampleAnnotations), rdd2) = value
+  lazy val MatrixValue(_, MatrixLocalValue(globals, colValues), rvd) = value
 
   def partitionCounts(): Array[Long] = {
     ast.partitionCounts match {
       case Some(counts) => counts
-      case None => rdd2.countPerPartition()
+      case None => rvd.countPerPartition()
     }
   }
 
@@ -462,29 +476,52 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)
 
   def colKeys: IndexedSeq[Annotation] = {
-    val queriers = colKey.map(saSignature.query(_))
-    sampleAnnotations.map(a => Row.fromSeq(queriers.map(q => q(a)))).toArray[Annotation]
+    val queriers = colKey.map(colType.query(_))
+    colValues.map(a => Row.fromSeq(queriers.map(q => q(a)))).toArray[Annotation]
+  }
+
+  def rowKeysF: (Row) => Row = {
+    val localRowType = rowType
+    val queriers = rowKey.map(localRowType.query(_)).toArray
+    (r: Row) => Row.fromSeq(queriers.map(_ (r)))
+  }
+
+  def keyRowsBy(keys: java.util.ArrayList[String], partitionKeys: java.util.ArrayList[String]): MatrixTable =
+    keyRowsBy(keys.asScala.toArray, partitionKeys.asScala.toArray)
+
+  def keyRowsBy(keys: Array[String], partitionKeys: Array[String]): MatrixTable = {
+    require(keys.nonEmpty)
+    require(partitionKeys.nonEmpty)
+    val rowFields = rowType.fieldNames.toSet
+    assert(keys.forall(rowFields.contains), s"${ keys.filter(k => !rowFields.contains(k)).mkString(", ") }")
+    assert(partitionKeys.forall(rowFields.contains))
+
+    val newMatrixType = matrixType.copy(rowKey = keys,
+      rowPartitionKey = partitionKeys)
+
+    copyMT(matrixType = newMatrixType,
+      rvd = OrderedRVD(newMatrixType.orderedRVType, rvd.rdd, None, None))
   }
 
   def keyColsBy(keys: java.util.ArrayList[String]): MatrixTable = keyColsBy(keys.asScala: _*)
 
   def keyColsBy(keys: String*): MatrixTable = {
-    val colFields = saSignature.fieldNames.toSet
+    val colFields = colType.fieldNames.toSet
     assert(keys.forall(colFields.contains))
-    copy2(colKey = keys.toArray[String]: IndexedSeq[String])
+    copyMT(matrixType = matrixType.copy(colKey = keys.toArray[String]))
   }
 
   def stringSampleIds: IndexedSeq[String] = {
-    assert(sSignature.length == 1 && sSignature(0).isInstanceOf[TString], sSignature.toSeq)
-    val querier = saSignature.query(colKey(0))
-    sampleAnnotations.map(querier(_).asInstanceOf[String])
+    assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)
+    val querier = colType.query(colKey(0))
+    colValues.map(querier(_).asInstanceOf[String])
   }
 
   def stringSampleIdSet: Set[String] = stringSampleIds.toSet
 
   lazy val sampleAnnotationsBc = {
-    val saArrayType = TArray(saSignature, required = true)
-    sparkContext.broadcast(UnsafeIndexedSeq(saArrayType, sampleAnnotations))
+    val saArrayType = TArray(colType, required = true)
+    sparkContext.broadcast(UnsafeIndexedSeq(saArrayType, colValues))
   }
 
   def requireUniqueSamples(method: String) {
@@ -496,7 +533,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
   def unsafeRowRDD(): RDD[UnsafeRow] = {
     val localRVRowType = rvRowType
-    rdd2.map { rv =>
+    rvd.map { rv =>
       new UnsafeRow(localRVRowType, rv.region.copy(), rv.offset)
     }
   }
@@ -506,15 +543,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def take(n: Int): Array[UnsafeRow] = unsafeRowRDD().take(n)
 
   def groupSamplesBy(keyExpr: String, aggExpr: String): MatrixTable = {
-    val localRVRowType = rvRowType
-    val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
-      Annotation.SAMPLE_HEAD -> (2, saSignature)))
-    val (keyType, keyF) = Parser.parseExpr(keyExpr, sEC)
-    sEC.set(0, globalAnnotation)
+    val sEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalType),
+      Annotation.SAMPLE_HEAD -> (1, colType)))
+    val (keyNames, keyTypes, keyFs) = Parser.parseNamedExprs(keyExpr, sEC)
+    sEC.set(0, globals)
 
-    val keysBySample = sampleAnnotations.map { sa =>
-      sEC.set(2, sa)
-      keyF()
+    val keysBySample = colValues.map { sa =>
+      sEC.set(1, sa)
+      Row.fromSeq(keyFs())
     }
     val newKeys = keysBySample.toSet.toArray
     val keyMap = newKeys.zipWithIndex.toMap
@@ -523,86 +559,73 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val nKeys = newKeys.size
 
     val ec = variantEC
-    val (resultNames, resultTypes, resultF) = Parser.parseAnnotationExprs(aggExpr, ec, None)
-    val entryType = TStruct(resultNames.map(_.head).zip(resultTypes).toSeq: _*)
+    val (newEntryNames, newEntryTypes, entryF) = Parser.parseNamedExprs(aggExpr, ec)
+    val newEntryType = TStruct(newEntryNames.zip(newEntryTypes): _*)
 
-    val newColKey = Array("s")
-    val newSaType = TStruct("s" -> keyType)
-
-    val mt = matrixType.copy(colKey = newColKey, saType = newSaType, genotypeType = entryType)
-    val newRowType = mt.rvRowType
+    val newColKey = keyNames
+    val newColType = TStruct(keyNames.zip(keyTypes): _*)
 
     val aggregate = Aggregators.buildVariantAggregationsByKey(this, nKeys, samplesMap, ec)
 
-    val groupedRDD2 = rdd2.mapPartitionsPreservesPartitioning(mt.orderedRVType) { it =>
-      val region2 = Region()
-      val rv2 = RegionValue(region2)
-      val rv2b = new RegionValueBuilder(region2)
-      val ur = new UnsafeRow(localRVRowType)
-      it.map { rv =>
-        ur.set(rv)
-        val aggArr = aggregate(rv)
-        region2.clear()
-        rv2b.start(newRowType)
-        rv2b.startStruct()
-        rv2b.addAnnotation(mt.locusType, ur.get(0))
-        rv2b.addAnnotation(mt.vType, ur.get(1))
-        rv2b.addAnnotation(mt.vaType, ur.get(2))
+    rewriteEntries(noOp,
+      newColType = newColType,
+      newColValues = newKeys,
+      newColKey = newColKey)(newEntryType, { case (_, rv, rvb) =>
 
-        rv2b.startArray(nKeys)
-        var i = 0
-        while (i < nKeys) {
-          aggArr(i)()
-          rv2b.startStruct()
-          val fields = resultF()
-          var j = 0
-          while (j < fields.size) {
-            rv2b.addAnnotation(entryType.fieldType(j), fields(j))
-            j += 1
-          }
-          rv2b.endStruct()
-          i += 1
+      val aggArr = aggregate(rv)
+      rvb.startArray(nKeys)
+
+      var i = 0
+      while (i < nKeys) {
+        aggArr(i)()
+        rvb.startStruct()
+        val fields = entryF()
+        var j = 0
+        while (j < fields.length) {
+          rvb.addAnnotation(newEntryType.fieldType(j), fields(j))
+          j += 1
         }
-        rv2b.endArray()
-        rv2b.endStruct()
-        rv2.setOffset(rv2b.end())
-        rv2
+        rvb.endStruct()
+        i += 1
       }
-    }
-
-    copy2(rdd2 = groupedRDD2,
-      sampleAnnotations = newKeys.map(Annotation(_)),
-      colKey = newColKey,
-      saSignature = newSaType,
-      genotypeSignature = entryType)
+      rvb.endArray()
+    })
   }
 
-  def groupVariantsBy(keyExpr: String, aggExpr: String): MatrixTable = {
-    val localRVRowType = rvRowType
-    val vEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalSignature),
-      "v" -> (1, vSignature),
-      Annotation.VARIANT_HEAD -> (2, vaSignature)))
-    val (keyType, keyF) = Parser.parseExpr(keyExpr, vEC)
-    vEC.set(0, globalAnnotation)
+  def groupVariantsBy(keyExpr: String, aggExpr: String, partitionKey: java.util.ArrayList[String]): MatrixTable =
+    groupVariantsBy(keyExpr, aggExpr, Option(partitionKey).map(_.asScala.toArray))
 
-    val keyedRDD = rdd2.rdd.mapPartitions { it =>
-      val ur = new UnsafeRow(localRVRowType)
-      it.flatMap { rv =>
-        ur.set(rv)
-        vEC.set(1, ur.get(1))
-        vEC.set(2, ur.get(2))
-        Option(keyF()).map { key => (Annotation.copy(keyType, key), ur) }
+  def groupVariantsBy(keyExpr: String, aggExpr: String, partitionKey: Option[Array[String]] = None): MatrixTable = {
+    val localRVType = rvRowType
+    val vEC = EvalContext(Map(Annotation.GLOBAL_HEAD -> (0, globalType),
+      "va" -> (1, rowType)))
+    vEC.set(0, globals)
+    val (keyNames, keyTypes, keyFs) = Parser.parseNamedExprs(keyExpr, vEC)
+    partitionKey.foreach(pk => assert(keyNames.startsWith(pk)))
+    partitionKey.foreach(pk => assert(pk.nonEmpty))
+
+    val keyStruct = TStruct(keyNames.zip(keyTypes): _*)
+
+    val SampleFunctions(zero, seqOp, combOp, resultOp, newEntryType) = Aggregators.makeSampleFunctions(this, aggExpr)
+    val pk: IndexedSeq[String] = partitionKey.map(_.toFastIndexedSeq).getOrElse(keyNames.toFastIndexedSeq)
+    val newMatrixType = MatrixType.fromParts(globalType, colKey, colType,
+      pk, keyNames, keyStruct, newEntryType)
+
+    val localRowType = rowType
+    val localEntriesIndex = entriesIndex
+    val keyedRDD = rvd.rdd.mapPartitions { it =>
+      val fullRow = new UnsafeRow(localRVType)
+      it.map { rv =>
+        fullRow.set(rv)
+        val row = fullRow.delete(localEntriesIndex)
+        vEC.set(1, row)
+        val k = Annotation.copy(keyStruct, Row.fromSeq(keyFs()))
+        k -> rv
       }
     }
 
-    val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions(this, aggExpr)
-
-    val (pkType, pkF): (Type, Annotation => Annotation) = keyType match {
-      case TVariant(gr, _) => (TLocus(gr), { key => key.asInstanceOf[Variant].locus })
-      case t => (t, { key => key })
-    }
-
-    val signature = TStruct("pk" -> pkType, "v" -> keyType, Annotation.VARIANT_HEAD -> TStruct.empty(), Annotation.GENOTYPE_HEAD -> TArray(resultType))
+    // FIXME: this shuffles twice
+    val newRVType = newMatrixType.rvRowType
     val rdd = keyedRDD
       .aggregateByKey(zero)(seqOp, combOp)
       .mapPartitions { it =>
@@ -610,13 +633,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         it.map { case (key, agg) =>
+          val k = key.asInstanceOf[Row]
           region.clear()
-          rvb.start(signature)
+          rvb.start(newRVType)
           rvb.startStruct()
-          rvb.addAnnotation(pkType, pkF(key))
-          rvb.addAnnotation(keyType, key)
-          rvb.startStruct()
-          rvb.endStruct()
+          var i = 0
+          while (i < keyStruct.size) {
+            rvb.addAnnotation(keyStruct.fieldType(i), k.get(i))
+            i += 1
+          }
           resultOp(agg, rvb)
           rvb.endStruct()
           rv.setOffset(rvb.end())
@@ -624,17 +649,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         }
       }
 
-    val mt = matrixType.copy(vType = keyType, vaType = TStruct.empty(), genotypeType = resultType)
-
-    copy2(rdd2 = OrderedRVD(mt.orderedRVType, rdd, None, None),
-      vSignature = keyType,
-      vaSignature = TStruct.empty(),
-      genotypeSignature = resultType)
+    copyMT(rvd = OrderedRVD(newMatrixType.orderedRVType, rdd, None, None),
+      matrixType = newMatrixType)
   }
 
   def annotateGlobal(a: Annotation, t: Type, code: String): MatrixTable = {
     val (newT, i) = insertGlobal(t, Parser.parseAnnotationRoot(code, Annotation.GLOBAL_HEAD))
-    copy2(globalSignature = newT, globalAnnotation = i(globalAnnotation, a))
+    copyMT(matrixType = matrixType.copy(globalType = newT), globals = i(globals, a))
   }
 
   /**
@@ -644,13 +665,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     */
   def annotateGlobalExpr(expr: String): MatrixTable = {
     val ec = EvalContext(Map(
-      "global" -> (0, globalSignature)))
+      "global" -> (0, globalType)))
 
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Option(Annotation.GLOBAL_HEAD))
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
 
-    val finalType = (paths, types).zipped.foldLeft(globalSignature) { case (v, (ids, signature)) =>
+    val finalType = (paths, types).zipped.foldLeft(globalType) { case (v, (ids, signature)) =>
       val (s, i) = v.structInsert(signature, ids)
       inserterBuilder += i
       s
@@ -658,41 +679,41 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val inserters = inserterBuilder.result()
 
-    ec.set(0, globalAnnotation)
+    ec.set(0, globals)
     val ga = inserters
       .zip(f())
-      .foldLeft(globalAnnotation) { case (a, (ins, res)) =>
+      .foldLeft(globals) { case (a, (ins, res)) =>
         ins(a, res)
       }
 
-    copy2(globalAnnotation = ga,
-      globalSignature = finalType)
+    copyMT(matrixType = matrixType.copy(globalType = finalType), globals = ga)
+
   }
 
   def insertGlobal(sig: Type, path: List[String]): (TStruct, Inserter) = {
-    globalSignature.structInsert(sig, path)
+    globalType.structInsert(sig, path)
   }
 
   def annotateSamples(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
     val (t, ins) = insertSA(signature, path)
 
-    val newAnnotations = new Array[Annotation](nSamples)
+    val newAnnotations = new Array[Annotation](numCols)
 
-    for (i <- sampleAnnotations.indices) {
-      newAnnotations(i) = ins(sampleAnnotations(i), annotations(i))
+    for (i <- colValues.indices) {
+      newAnnotations(i) = ins(colValues(i), annotations(i))
       t.typeCheck(newAnnotations(i))
     }
 
-    copy2(sampleAnnotations = newAnnotations, saSignature = t)
+    copyMT(matrixType = matrixType.copy(colType = t), colValues = newAnnotations)
   }
 
   def annotateSamplesExpr(expr: String): MatrixTable = {
     val ec = sampleEC
 
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.SAMPLE_HEAD))
+    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
-    val finalType = (paths, types).zipped.foldLeft(saSignature) { case (sas, (ids, signature)) =>
+    val finalType = (paths, types).zipped.foldLeft(colType) { case (sas, (ids, signature)) =>
       val (s, i) = sas.structInsert(signature, ids)
       inserterBuilder += i
       s
@@ -701,14 +722,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, value, ec)
 
-    ec.set(0, globalAnnotation)
+    ec.set(0, globals)
 
-    val newAnnotations = new Array[Annotation](nSamples)
+    val newAnnotations = new Array[Annotation](numCols)
 
     var i = 0
-    while (i < nSamples) {
+    while (i < numCols) {
       sampleAggregationOption.foreach(_.apply(i))
-      val sa = sampleAnnotations(i)
+      val sa = colValues(i)
       ec.set(1, sa)
 
       newAnnotations(i) = f().zip(inserters)
@@ -719,15 +740,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     }
 
     val saFields = finalType.fieldNames.toSet
-    copy2(
-      sampleAnnotations = newAnnotations,
-      colKey = colKey.filter(saFields.contains),
-      saSignature = finalType
-    )
+    copyMT(colValues = newAnnotations,
+      matrixType = matrixType.copy(colKey = colKey.filter(saFields.contains), colType = finalType))
   }
 
-  def annotateSamples(annotations: Map[Annotation, Annotation], signature: Type, code: String): MatrixTable = {
-    val (t, i) = insertSA(signature, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
+  def annotateSamples(annotations: Map[Annotation, Annotation], signature: Type, root: String): MatrixTable = {
+    val (t, i) = insertSA(signature, List(root))
     annotateSamples(t, i) { case (s, _) => annotations.getOrElse(s, null) }
   }
 
@@ -760,10 +778,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val (finalType, inserter): (TStruct, (Annotation, Annotation) => Annotation) = {
       val (t, ins) = if (expr != null) {
         val ec = EvalContext(Map(
-          "sa" -> (0, saSignature),
+          "sa" -> (0, colType),
           "table" -> (1, joinSignature)))
-        Annotation.buildInserter(expr, saSignature, ec, Annotation.SAMPLE_HEAD)
-      } else insertSA(joinSignature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD))
+        Annotation.buildInserter(expr, colType, ec, Annotation.SAMPLE_HEAD)
+      } else insertSA(joinSignature, root)
 
       (t, (a: Annotation, toIns: Annotation) => ins(a, f(toIns)))
     }
@@ -776,7 +794,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val nullValue: IndexedSeq[Annotation] = if (product) IndexedSeq() else null
 
     if (vdsKey != null) {
-      val keyEC = EvalContext(Map("sa" -> (0, saSignature)))
+      val keyEC = EvalContext(Map("sa" -> (0, colType)))
       val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, keyEC)).unzip
 
       if (keyTypes != vdsKeyType)
@@ -787,7 +805,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
       val keyFuncArray = vdsKeyFs.toArray
 
-      val vdsKeys = sampleAnnotations.map { sa =>
+      val vdsKeys = colValues.map { sa =>
         keyEC.set(0, sa)
         (Row.fromSeq(keyFuncArray.map(_ ())), ())
       }.toArray
@@ -801,7 +819,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
       annotateSamples(finalType, inserter) { case (_, i) => m.getOrElse(vdsKeys(i)._1, nullValue) }
     } else {
-      val ssig = sSignature.toSeq
+      val ssig = colKeyTypes.toSeq
       keyTypes match {
         case `ssig` =>
           var r = keyedRDD.map { case (k, v) => (k: Annotation, v: Annotation) }
@@ -815,187 +833,211 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           annotateSamples(finalType, inserter) { case (ck, _) => m.getOrElse(ck, nullValue) }
         case other =>
           fatal(
-            s"""method 'annotate_samples_table' expects a key table keyed by [ ${sSignature.mkString(",")} ]
+            s"""method 'annotate_samples_table' expects a key table keyed by [ ${ colKeyTypes.mkString(",") } ]
                |  Found key [ ${ other.mkString(", ") } ] instead.""".stripMargin)
       }
     }
   }
 
   def annotateSamples(newSignature: TStruct, inserter: Inserter)(f: (Annotation, Int) => Annotation): MatrixTable = {
-    val newAnnotations = colKeys.zip(sampleAnnotations)
+    val newAnnotations = colKeys.zip(colValues)
       .zipWithIndex
       .map { case ((ck, sa), i) =>
         val newAnnotation = inserter(sa, f(ck, i))
-      newSignature.typeCheck(newAnnotation)
-      newAnnotation
-    }
+        newSignature.typeCheck(newAnnotation)
+        newAnnotation
+      }
 
     val newFields = newSignature.fieldNames.toSet
-    copy2(sampleAnnotations = newAnnotations, saSignature = newSignature, colKey = colKey.filter(newFields.contains))
-  }
-
-  def mapAnnotations(newVASignature: Type, f: (Annotation, Annotation, Iterable[Annotation]) => Annotation): MatrixTable = {
-    val localRVRowType = rvRowType
-    insertIntoRow(() => new UnsafeRow(localRVRowType))(newVASignature, List("va"), { case (ur, rv, rvb) =>
-      ur.set(rv)
-      val v = ur.getAs[Annotation](1)
-      val va = ur.get(2)
-      val gs = ur.getAs[Iterable[Annotation]](3)
-      rvb.addAnnotation(newVASignature, f(v, va, gs))
-    })
+    copy2(colValues = newAnnotations, colType = newSignature, colKey = colKey.filter(newFields.contains))
   }
 
   def annotateVariantsExpr(expr: String): MatrixTable = {
-    val localGlobalAnnotation = globalAnnotation
+    val localGlobalAnnotation = globals
 
     val ec = variantEC
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
+    ec.set(0, globals)
+    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, None)
 
-    var newVASignature = vaSignature
+    var newRowType = rowType
+    var touchesKeys = false
+    val rowKeySet = rowKey.toSet
     val inserters = new Array[Inserter](types.length)
     var i = 0
     while (i < types.length) {
-      val (newSig, ins) = newVASignature.structInsert(types(i), paths(i))
+      if (rowKeySet.contains(paths(i).head))
+        touchesKeys = true
+      val (newSig, ins) = newRowType.structInsert(types(i), paths(i))
       inserters(i) = ins
-      newVASignature = newSig
+      newRowType = newSig
       i += 1
     }
 
     val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
 
-    val localRVRowType = rvRowType
-    insertIntoRow(() => new UnsafeRow(localRVRowType))(
-      newVASignature, List("va"), { (ur, rv, rvb) =>
-        ur.set(rv)
+    val newMatrixType = matrixType.copyParts(rowType = newRowType)
 
-        val v = ur.getAs[Annotation](1)
-        val va = ur.get(2)
-        val gs = ur.getAs[Iterable[Annotation]](3)
+    val localRVType = rvRowType
+    val newRVType = newMatrixType.rvRowType
+    val localEntriesIndex = entriesIndex
 
-        ec.setAll(localGlobalAnnotation, v, va)
+    val mapPartitionsF: (Iterator[RegionValue] => Iterator[RegionValue]) = { it =>
+      val fullRow = new UnsafeRow(localRVType)
+
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      it.map { rv =>
+        fullRow.set(rv)
+        val row = fullRow.delete(localEntriesIndex)
+
+        ec.set(1, row)
 
         aggregateOption.foreach(f => f(rv))
 
-        var newVA = va
+        rvb.set(rv.region)
+        rvb.start(newRVType)
+        rvb.startStruct()
+
+        var newAnn = row: Annotation
         var i = 0
         var newA = f()
         while (i < newA.length) {
-          newVA = inserters(i)(newVA, newA(i))
+          newAnn = inserters(i)(newAnn, newA(i))
           i += 1
         }
 
-        rvb.addAnnotation(newVASignature, newVA)
-      })
+        val newRow = newAnn.asInstanceOf[Row]
+        i = 0
+        while (i < newRow.size) {
+          rvb.addAnnotation(newRowType.fieldType(i), newRow.get(i))
+          i += 1
+        }
+
+        rvb.addField(localRVType, rv, localEntriesIndex)
+        rvb.endStruct()
+
+        rv2.set(rv.region, rvb.end())
+        rv2
+      }
+    }
+
+    if (touchesKeys) {
+      warn("modified row key, rescanning to compute ordering...")
+      val newRDD = rvd.mapPartitions(mapPartitionsF)
+      copyMT(matrixType = newMatrixType,
+        rvd = OrderedRVD(newMatrixType.orderedRVType, newRDD, None, None))
+    } else copyMT(matrixType = newMatrixType,
+      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType)(mapPartitionsF))
   }
 
-  def orderedRVDLeftJoinDistinctAndInsert(
-    lrvd: OrderedRVD,
-    rrvd: OrderedRVD,
-    newOrderedRVType: OrderedRVType, product: Boolean, valueIdx: Int, newVAType: Type, inserter: Inserter): OrderedRVD = {
-    val leftRowType = lrvd.rowType
-    val rightRowType = rrvd.rowType
-    val newRowType = newOrderedRVType.rowType
-    OrderedRVD(
-      newOrderedRVType,
-      lrvd.partitioner,
-      lrvd.orderedJoinDistinct(rrvd, "left")
-        .mapPartitions { it =>
-          val rvb = new RegionValueBuilder()
-          val rv = RegionValue()
+  def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
+    assert(!rowKey.contains(root))
+    assert(right.typ.pkType.fieldType.map(_.deepOptional())
+      .sameElements(rowPartitionKeyTypes.map(_.deepOptional())))
 
-          it.map { jrv =>
-            val lrv = jrv.rvLeft
-            val lur = new UnsafeRow(leftRowType, lrv)
-            val rur =
-              if (jrv.rvRight != null)
-                new UnsafeRow(rightRowType, jrv.rvRight)
-              else
-                null
 
-            val va = lur.get(2)
-            val value = if (rur != null) {
-              var v = rur.get(valueIdx)
-              if (product)
-                v = v.asInstanceOf[IndexedSeq[Any]].map { x =>
-                  x.asInstanceOf[Row].get(0)
-                }
-              v
-            } else {
-              if (product)
-                IndexedSeq[Any]()
-              else
-                null
+    val (leftRVD, upcastKeys) = if (right.typ.kType.fieldType.map(_.deepOptional()).sameElements(rowPartitionKeyTypes.map(_.deepOptional()))) {
+      (rvd.downcastToPK(), rowKey.drop(rowPartitionKey.length).toArray)
+    } else (rvd, Array.empty[String])
+
+    var valueType: Type = right.typ.valueType
+
+    var rightRVD = right
+    if (product) {
+      valueType = TArray(valueType, required = true)
+      rightRVD = rightRVD.groupByKey(" !!! values !!! ")
+    }
+
+    val (newRVType, ins) = rvRowType.unsafeStructInsert(valueType, List(root))
+
+    val leftRowType = leftRVD.rowType
+    val rightRowType = rightRVD.rowType
+    val oldRVType = leftRVD.typ.rowType
+
+    val makeRightValues = rightRVD.typ.makeValueStruct()
+
+    val newMatrixType = matrixType.copy(rvRowType = newRVType)
+    val intermediateMatrixType = newMatrixType.copy(rowKey = newMatrixType.rowPartitionKey)
+
+    val emptyResult: IndexedSeq[Any] = Array.empty[Any]
+    val localEntriesIndex = entriesIndex
+
+    copyMT(matrixType = newMatrixType,
+      rvd = OrderedRVD(
+        newMatrixType.orderedRVType,
+        leftRVD.partitioner,
+        leftRVD.orderedJoinDistinct(rightRVD, "left")
+          .mapPartitions { it =>
+            val rvb = new RegionValueBuilder()
+            val rv = RegionValue()
+
+            it.map { jrv =>
+              val lrv = jrv.rvLeft
+
+              val rightValue = if (jrv.rvRight != null) {
+                val r = makeRightValues(jrv.rvRight)
+                if (product) {
+                  assert(r.length == 1)
+                  r.get(0)
+                } else r
+              } else if (product) emptyResult
+              else null
+
+              rvb.set(lrv.region)
+              rvb.start(newRVType)
+              ins(lrv.region, lrv.offset, rvb,
+                () => rvb.addAnnotation(valueType, rightValue))
+              rv.set(lrv.region, rvb.end())
+              rv
             }
-
-            val newVA = inserter(va, value)
-            assert(newVAType.typeCheck(newVA))
-
-            rvb.set(lrv.region)
-            rvb.start(newRowType)
-            rvb.startStruct()
-            rvb.addField(leftRowType, lrv, 0)
-            rvb.addField(leftRowType, lrv, 1)
-            rvb.addAnnotation(newVAType, newVA)
-            rvb.addField(leftRowType, lrv, 3)
-            rvb.endStruct()
-            rv.set(lrv.region, rvb.end())
-
-            rv
-          }
-        })
+          })
+    )
   }
 
-  private def annotateVariantsVariantTable(kt: Table, product: Boolean, newVAType: TStruct, inserter: Inserter): MatrixTable = {
-    var orderedKT = kt.toSingletonKeyOrderedRVD(Some(rdd2.partitioner))
-    if (product)
-      orderedKT = orderedKT.groupByKey()
+  //  private def annotateVariantsLocusTable(kt: Table, product: Boolean, newVAType: TStruct, inserter: Inserter): MatrixTable = {
+  //    val pkPart = rdd2.partitioner.withKType(Array("pk"), rdd2.partitioner.pkType)
+  //
+  //    val pkRowType = new OrderedRVType(Array("pk"), Array("pk"), rdd2.rowType)
+  //    val pkRDD2 = OrderedRVD(
+  //      pkRowType,
+  //      pkPart,
+  //      rdd2.rdd)
+  //
+  //    var ktRVD = kt.toSingletonKeyOrderedRVD(Some(pkPart), partitionKeyed = true)
+  //    if (product)
+  //      ktRVD = ktRVD.groupByKey()
+  //
+  //    val newMatrixType = matrixType.copy(vaType = newVAType)
+  //    val newPKRowType = new OrderedRVType(Array("pk"), Array("pk"), newMatrixType.rvRowType)
+  //    val pkNewRDD2 = orderedRVDLeftJoinDistinctAndInsert(pkRDD2, ktRVD, newMatrixType.orderedRVType, product, 1, newVAType, inserter)
+  //
+  //    val newRDD2 = OrderedRVD(
+  //      newMatrixType.orderedRVType,
+  //      rdd2.partitioner,
+  //      pkNewRDD2.rdd)
+  //
+  //    copy2(rdd2 = newRDD2, vaSignature = newVAType)
+  //  }
 
-    val newMatrixType = matrixType.copy(vaType = newVAType)
+  private def annotateVariantsIntervalTable(kt: Table, root: String, product: Boolean): MatrixTable = {
+    assert(rowPartitionKeyTypes.length == 1)
+    assert(kt.keySignature.size == 1)
+    assert(kt.keySignature.fieldType(0) == TInterval(rowPartitionKeyTypes(0)))
 
-    val newRDD2 = orderedRVDLeftJoinDistinctAndInsert(rdd2, orderedKT, newMatrixType.orderedRVType, product, 2, newVAType, inserter)
+    val typOrdering = rowPartitionKeyTypes(0).ordering
 
-    copy2(rdd2 = newRDD2, vaSignature = newVAType)
-  }
+    val typToInsert: Type = if (product) TArray(kt.valueSignature) else kt.valueSignature
 
-  private def annotateVariantsLocusTable(kt: Table, product: Boolean, newVAType: TStruct, inserter: Inserter): MatrixTable = {
-    val pkPart = rdd2.partitioner.withKType(Array("pk"), rdd2.partitioner.pkType)
+    val (newRVType, ins) = rvRowType.unsafeStructInsert(typToInsert, List(root))
 
-    val pkRowType = new OrderedRVType(Array("pk"), Array("pk"), rdd2.rowType)
-    val pkRDD2 = OrderedRVD(
-      pkRowType,
-      pkPart,
-      rdd2.rdd)
-
-    var ktRVD = kt.toSingletonKeyOrderedRVD(Some(pkPart), partitionKeyed = true)
-    if (product)
-      ktRVD = ktRVD.groupByKey()
-
-    val newMatrixType = matrixType.copy(vaType = newVAType)
-    val newPKRowType = new OrderedRVType(Array("pk"), Array("pk"), newMatrixType.rvRowType)
-    val pkNewRDD2 = orderedRVDLeftJoinDistinctAndInsert(pkRDD2, ktRVD, newMatrixType.orderedRVType, product, 1, newVAType, inserter)
-
-    val newRDD2 = OrderedRVD(
-      newMatrixType.orderedRVType,
-      rdd2.partitioner,
-      pkNewRDD2.rdd)
-
-    copy2(rdd2 = newRDD2, vaSignature = newVAType)
-  }
-
-  private def annotateVariantsIntervalTable(kt: Table, product: Boolean, newVAType: TStruct, inserter: Inserter): MatrixTable = {
-    val newMatrixType = matrixType.copy(vaType = newVAType)
-    val newRowType = newMatrixType.rvRowType
-
-    val locusOrdering = locusType.ordering
-
-    val partBc = sparkContext.broadcast(rdd2.partitioner)
+    val partBc = sparkContext.broadcast(rvd.partitioner)
     val ktSignature = kt.signature
-    val ktKeyFieldIdx = kt.keyFieldIdx
+    val ktKeyFieldIdx = kt.keyFieldIdx(0)
     val ktValueFieldIdx = kt.valueFieldIdx
     val partitionKeyedIntervals = kt.rvd.rdd
       .flatMap { rv =>
         val ur = new UnsafeRow(ktSignature, rv)
-        val interval = ur.getAs[Interval](ktKeyFieldIdx(0))
+        val interval = ur.getAs[Interval](ktKeyFieldIdx)
         if (interval != null) {
           val start = partBc.value.getPartitionPK(Row(interval.start))
           val end = partBc.value.getPartitionPK(Row(interval.end))
@@ -1004,7 +1046,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           Iterator()
       }
 
-    val nParts = rdd2.partitions.length
+    val nParts = rvd.partitions.length
     val zipRDD = partitionKeyedIntervals.partitionBy(new Partitioner {
       def getPartition(key: Any): Int = key.asInstanceOf[Int]
 
@@ -1012,25 +1054,24 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     }).values
 
     val localRVRowType = rvRowType
-    val newRDD = rdd2.rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
+    val pkIndex = rvRowType.fieldIdx(rowPartitionKey(0))
+    val newRDD = rvd.rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
       val intervalAnnotations =
         intervals.map { rv =>
           val ur = new UnsafeRow(ktSignature, rv)
-          val interval = ur.getAs[Interval](ktKeyFieldIdx(0))
+          val interval = ur.getAs[Interval](ktKeyFieldIdx)
           (interval, Row.fromSeq(ktValueFieldIdx.map(ur.get)))
-        }
-          .toArray
+        }.toArray
 
-      val iTree = IntervalTree.annotationTree(locusOrdering, intervalAnnotations)
+      val iTree = IntervalTree.annotationTree(typOrdering, intervalAnnotations)
 
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
       it.map { rv =>
         val ur = new UnsafeRow(localRVRowType, rv)
-        val pk = ur.get(0)
-        val va = ur.get(2)
-        val queries = iTree.queryValues(locusOrdering, pk)
+        val pk = ur.get(pkIndex)
+        val queries = iTree.queryValues(typOrdering, pk)
         val value: Annotation = if (product)
           queries: IndexedSeq[Annotation]
         else {
@@ -1039,162 +1080,370 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
           else
             queries(0)
         }
+        assert(typToInsert.typeCheck(value))
 
         rvb.set(rv.region)
-        rvb.start(newRowType)
-        rvb.startStruct()
-        rvb.addField(localRVRowType, rv, 0) // pk
-        rvb.addField(localRVRowType, rv, 1) // v
-      val newVA = inserter(va, value)
-        assert(newVAType.typeCheck(newVA))
-        rvb.addAnnotation(newVAType, newVA)
-        rvb.addField(localRVRowType, rv, 3) // gs
-        rvb.endStruct()
+        rvb.start(newRVType)
+
+        ins(rv.region, rv.offset, rvb, () => rvb.addAnnotation(typToInsert, value))
+
         rv2.set(rv.region, rvb.end())
 
         rv2
       }
     }
 
+    val newMatrixType = matrixType.copy(rvRowType = newRVType)
+
     val newRVD = OrderedRVD(
       newMatrixType.orderedRVType,
-      rdd2.partitioner,
+      rvd.partitioner,
       newRDD)
 
-    copy2(rdd2 = newRVD, vaSignature = newVAType)
+    copyMT(rvd = newRVD, matrixType = newMatrixType)
   }
 
-  def annotateVariantsTable(kt: Table, root: String = null, expr: String = null,
-    product: Boolean = false): MatrixTable = {
-    if (!((root != null) ^ (expr != null)))
-      fatal("method `annotateVariantsTable' requires one of `root' or 'expr', but not both")
-
-    var valueType: Type = kt.valueSignature
-
-    if (product)
-      valueType = TArray(valueType)
-
-    val (newVAType, inserter) = {
-      val (t, ins) = if (expr != null) {
-        val ec = EvalContext(Map(
-          "va" -> (0, vaSignature),
-          "table" -> (1, valueType)))
-        Annotation.buildInserter(expr, vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else
-        insertVA(valueType, Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
-
-      (t, (a: Annotation, toIns: Annotation) => ins(a, toIns))
-    }
+  def annotateVariantsTable(kt: Table, root: String, product: Boolean = false): MatrixTable = {
+    assert(!rowKey.contains(root))
 
     val keyTypes = kt.keyFields.map(_.typ)
-    keyTypes match {
-      case Array(`vSignature`) =>
-        annotateVariantsVariantTable(kt, product, newVAType, inserter)
-      case Array(`locusType`) =>
-        annotateVariantsLocusTable(kt, product, newVAType, inserter)
-      case Array(TInterval(`locusType`, _)) =>
-        annotateVariantsIntervalTable(kt, product, newVAType, inserter)
-      case _ =>
-        fatal(
-          s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
-               |  [ $vSignature ]
-               |  [ Locus ]
-               |  [ Interval[$locusType ] ]
-               |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
+    if (keyTypes.sameElements(rowKeyTypes) || keyTypes.sameElements(rowPartitionKeyTypes)) {
+      orderedRVDLeftJoinDistinctAndInsert(
+        kt.toOrderedRVD(Some(rvd.partitioner), rowPartitionKey.length),
+        root, product)
+    } else if (keyTypes.length == 1 &&
+      rowPartitionKeyTypes.length == 1 &&
+      keyTypes(0) == TInterval(rowPartitionKeyTypes(0))) {
+      annotateVariantsIntervalTable(kt, root, product)
+    }
+    //      case `rowPartitionKeyTypes` =>
+    //        annotateVariantsLocusTable(kt, product, newRowType,  valueType, inserter)
+    //      case Array(TInterval(`locusType`, _)) =>
+    //        annotateVariantsIntervalTable(kt, product, newRowType,  valueType, inserter)
+    else {
+      fatal(
+        s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
+           |  [ ${ rowKeyTypes.mkString(", ") } ]
+           |  [ ${ rowPartitionKeyTypes.mkString(", ") } ]
+           |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
     }
   }
 
-  def nPartitions: Int = rdd2.partitions.length
 
-  def annotateVariants2(rightRDD2: OrderedRVD, newVAType: TStruct, inserter: Inserter): MatrixTable = {
-    val leftRowType = rvRowType
-    val rightRowType = rightRDD2.typ.rowType
+  def selectGlobals(fields: java.util.ArrayList[String]): MatrixTable = selectGlobals(fields.asScala.toArray: _*)
 
-    val newMatrixType = matrixType.copy(vaType = newVAType)
-    val newRowType = newMatrixType.rvRowType
+  def selectGlobals(fields: String*): MatrixTable = {
+    // FIXME: should support nested fields
+    val fieldsToKeep = fields.toArray
+    val globalFieldSet = globalType.fieldNames.toSet
+    val keepSet = fieldsToKeep.toSet
+    assert(fieldsToKeep.forall(globalFieldSet.contains))
 
-    copy2(
-      vaSignature = newVAType,
-      rdd2 = OrderedRVD(
-        newMatrixType.orderedRVType,
-        rdd2.partitioner,
-        rdd2.orderedJoinDistinct(rightRDD2, "left")
-          .mapPartitions { it =>
-            val rvb = new RegionValueBuilder()
-            val rv2 = RegionValue()
+    val keepIndices = fieldsToKeep.map(globalType.fieldIdx)
 
-            it.map { jrv =>
-              val leftRV = jrv.rvLeft
-              assert(leftRV != null)
-              val region = leftRV.region
-              val rightRV = jrv.rvRight
+    val newGlobalType = TStruct(keepIndices.zip(fieldsToKeep).map { case (i, f) => f -> globalType.fieldType(i) }: _*)
 
-              val leftUR = new UnsafeRow(leftRowType, leftRV)
-              val va = leftUR.get(2)
+    val newMatrixType = matrixType.copy(globalType = newGlobalType)
 
-              val a =
-                if (rightRV != null) {
-                  val rightUR = new UnsafeRow(rightRowType, rightRV)
-                  rightUR.get(2)
-                } else
-                  null
+    val newGlobals = keepIndices.map(i => globals.asInstanceOf[Row].get(i))
 
-              val newVA = inserter(va, a)
-
-              rvb.set(region)
-              rvb.start(newRowType)
-              rvb.startStruct()
-              rvb.addField(leftRowType, leftRV, 0) // pk
-              rvb.addField(leftRowType, leftRV, 1) // v
-              rvb.addAnnotation(newVAType, newVA)
-              rvb.addField(leftRowType, leftRV, 3) // gs
-              rvb.endStruct()
-              rv2.set(region, rvb.end())
-
-              rv2
-            }
-          }))
+    copyMT(matrixType = newMatrixType, globals = newGlobals)
   }
 
-  def annotateVariantsVDS(right: MatrixTable,
-    root: Option[String] = None, code: Option[String] = None): MatrixTable = {
 
-    val (isCode, annotationExpr) = (root, code) match {
-      case (Some(r), None) => (false, r)
-      case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
+  def selectCols(selectExprs: java.util.ArrayList[String]): MatrixTable = selectCols(selectExprs.asScala.toArray: _*)
+
+  def selectCols(exprs: String*): MatrixTable = {
+    val ec = sampleEC
+    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs.toArray, ec)
+    val topLevelFields = mutable.Set.empty[String]
+    val finalNames = maybePaths.map(_.toArray).zip(isNamedExpr).map { case (l, named) =>
+      if (named) {
+        assert(l.length == 1)
+        l.head
+      } else {
+        assert(l.head == Annotation.SAMPLE_HEAD)
+        val name = l.last
+        if (l.length == 2) {
+          topLevelFields += name
+        }
+        name
+      }
+    }
+    assert(finalNames.areDistinct())
+    val newColType = TStruct(finalNames.zip(types): _*)
+    val finalNameSet = finalNames.toSet
+    val newColKey = colKey.filter(finalNameSet.contains)
+
+    val newMatrixType = matrixType.copy(colType = newColType, colKey = newColKey)
+    val aggOption = Aggregators.buildSampleAggregations(hc, value, ec)
+
+    ec.set(0, globals)
+    val newColValues = Array.tabulate(numCols) { i =>
+      ec.set(1, colValues(i))
+      aggOption.foreach(_ (i))
+      val results = f()
+      Row.fromSeq(results)
+    }
+    copyMT(matrixType = newMatrixType, colValues = newColValues)
+  }
+
+  def selectRows(selectExprs: java.util.ArrayList[String]): MatrixTable = selectRows(selectExprs.asScala.toArray: _*)
+
+  def selectRows(exprs: String*): MatrixTable = {
+    val ec = variantEC
+    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs.toArray, ec)
+    val topLevelFields = mutable.Set.empty[String]
+    val finalNames = maybePaths.map(_.toArray).zip(isNamedExpr).map { case (l, named) =>
+      if (named) {
+        assert(l.length == 1)
+        l.head
+      } else {
+        assert(l.head == Annotation.VARIANT_HEAD)
+        val name = l.last
+        if (l.length == 2) {
+          topLevelFields += name
+        }
+        name
+      }
     }
 
-    val (finalType, inserter): (TStruct, (Annotation, Annotation) => Annotation) =
-      if (isCode) {
-        val ec = EvalContext(Map(
-          "va" -> (0, vaSignature),
-          "vds" -> (1, right.vaSignature)))
-        Annotation.buildInserter(annotationExpr, vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else insertVA(right.vaSignature, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
+    assert(finalNames.areDistinct())
+    val touchesKeys = rowKey.forall(topLevelFields.contains)
 
-    annotateVariants2(right.dropSamples().rdd2, finalType, inserter)
+    val finalNameSet = finalNames.toSet
+    val newRowType = TStruct(finalNames.zip(types): _*)
+    val newRowKey = rowKey.filter(finalNameSet.contains)
+    val newPartitionKey = rowPartitionKey.filter(finalNameSet.contains)
+
+    val newMatrixType = matrixType.copyParts(rowType = newRowType, rowKey = newRowKey, rowPartitionKey = newPartitionKey)
+    val localRVType = rvRowType
+    val localEntriesIndex = entriesIndex
+    val newRVType = newMatrixType.rvRowType
+
+    val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
+    ec.set(0, globals)
+    val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
+      val fullRow = new UnsafeRow(localRVType)
+      val row = fullRow.delete(localEntriesIndex)
+      val rv2 = RegionValue()
+      val rvb = new RegionValueBuilder()
+      it.map { rv =>
+        fullRow.set(rv)
+        ec.set(1, row)
+        aggregateOption.foreach(_ (rv))
+        val results = f()
+        assert(results.length == types.length)
+
+        rvb.set(rv.region)
+        rvb.start(newRVType)
+        rvb.startStruct()
+        var i = 0
+        while (i < types.length) {
+          rvb.addAnnotation(types(i), results(i))
+          i += 1
+        }
+        rvb.addField(localRVType, rv, localEntriesIndex)
+        rvb.endStruct()
+        rv2.set(rv.region, rvb.end())
+        rv2
+      }
+    }
+    if (touchesKeys) {
+      warn("modified row key, rescanning to compute ordering...")
+      val newRDD = rvd.mapPartitions(mapPartitionsF)
+      copyMT(matrixType = newMatrixType,
+        rvd = OrderedRVD(newMatrixType.orderedRVType, newRDD, None, None))
+    } else copyMT(matrixType = newMatrixType,
+      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType)(mapPartitionsF))
   }
 
-  def count(): (Long, Long) = (nSamples, countVariants())
+  def dropRows(fields: java.util.ArrayList[String]): MatrixTable = dropRows(fields.asScala.toArray: _*)
+
+  def dropRows(fields: String*): MatrixTable = {
+    if (fields.isEmpty)
+      return this
+    assert(fields.areDistinct())
+    val dropSet = fields.toSet
+    val allRowFields = rowType.fieldNames.toSet
+    assert(fields.forall(allRowFields.contains))
+
+    val keepIndices = rowType.fields
+      .filter(f => !dropSet.contains(f.name))
+      .map(f => f.index)
+      .toArray
+    val newRowType = TStruct(keepIndices.map(rowType.fields(_)).map(f => f.name -> f.typ): _*)
+
+    val localRVType = rvRowType
+    val localEntriesIndex = entriesIndex
+    val newRowKey = rowKey.filter(f => !dropSet.contains(f))
+    val newPartitionKey = rowPartitionKey.filter(f => !dropSet.contains(f))
+    val touchesKeys = newRowKey != rowKey
+    val newMatrixType = matrixType.copyParts(rowType = newRowType,
+      rowKey = newRowKey,
+      rowPartitionKey = newPartitionKey)
+    val newRVType = newMatrixType.rvRowType
+
+    // FIXME: replace with physical type
+    val mapPartitionsF: Iterator[RegionValue] => Iterator[RegionValue] = { it =>
+      val rv2 = RegionValue()
+      val rvb = new RegionValueBuilder()
+      it.map { rv =>
+        rvb.set(rv.region)
+        rvb.start(newRVType)
+        rvb.startStruct()
+        var i = 0
+        while (i < keepIndices.length) {
+          rvb.addField(localRVType, rv, keepIndices(i))
+          i += 1
+        }
+        rvb.addField(localRVType, rv, localEntriesIndex)
+        rvb.endStruct()
+        rv2.set(rv.region, rvb.end())
+        rv2
+      }
+    }
+    if (touchesKeys) {
+      warn("modified row key, rescanning to compute ordering...")
+      val newRDD = rvd.mapPartitions(mapPartitionsF)
+      copyMT(matrixType = newMatrixType,
+        rvd = OrderedRVD(newMatrixType.orderedRVType, newRDD, None, None))
+    } else copyMT(matrixType = newMatrixType,
+      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType)(mapPartitionsF))
+  }
+
+  def selectEntries(selectExprs: java.util.ArrayList[String]): MatrixTable = selectEntries(selectExprs.asScala.toArray: _*)
+
+  def selectEntries(exprs: String*): MatrixTable = {
+    val ec = entryEC
+    ec.set(0, globals)
+
+    val (maybePaths, types, f, isNamedExpr) = Parser.parseSelectExprs(exprs.toArray, ec)
+    val topLevelFields = mutable.Set.empty[String]
+    val finalNames = maybePaths.map(_.toArray).zip(isNamedExpr).map { case (l, named) =>
+      if (named) {
+        assert(l.length == 1)
+        l.head
+      } else {
+        assert(l.head == Annotation.GENOTYPE_HEAD)
+        val name = l.last
+        if (l.length == 2) {
+          topLevelFields += name
+        }
+        name
+      }
+    }
+    assert(finalNames.areDistinct())
+
+    val newEntryType = TStruct(finalNames.zip(types): _*)
+    val localRVType = rvRowType
+    val localEntriesIndex = entriesIndex
+    val localNCols = numCols
+    val localColValuesBc = sampleAnnotationsBc
+
+    rewriteEntries(() => {
+      val fullRow = new UnsafeRow(localRVType)
+      val row = fullRow.delete(localEntriesIndex)
+      ec.set(1, row)
+      fullRow -> row
+    })(newEntryType, { case ((fullRow, row), rv, rvb) =>
+      fullRow.set(rv)
+      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+      rvb.startArray(localNCols)
+      var i = 0
+      while (i < localNCols) {
+        val entry = entries(i)
+        ec.set(2, localColValuesBc)
+        ec.set(3, entry)
+        val results = f()
+        var j = 0
+        rvb.startStruct()
+        while (j < types.length) {
+          rvb.addAnnotation(types(j), results(j))
+          j += 1
+        }
+        rvb.endStruct()
+        i += 1
+      }
+      rvb.endArray()
+    })
+  }
+
+
+  def dropEntries(fields: java.util.ArrayList[String]): MatrixTable = dropEntries(fields.asScala.toArray: _*)
+
+  def dropEntries(fields: String*): MatrixTable = {
+    if (fields.isEmpty)
+      return this
+    assert(fields.areDistinct())
+    val dropSet = fields.toSet
+    val allEntryFields = entryType.fieldNames.toSet
+    assert(fields.forall(allEntryFields.contains))
+
+    val keepIndices = entryType.fields
+      .filter(f => !dropSet.contains(f.name))
+      .map(f => f.index)
+      .toArray
+    val newEntryType = TStruct(keepIndices.map(entryType.fields(_)).map(f => f.name -> f.typ): _*)
+
+    val localRVType = rvRowType
+    val localEntriesIndex = entriesIndex
+    val localEntriesType = matrixType.entryArrayType
+    val localEntryType = entryType
+    val localNCols = numCols
+    // FIXME: replace with physical type
+    rewriteEntries(noOp)(newEntryType, { case (_, rv, rvb) =>
+      val entriesOffset = localRVType.loadField(rv, localEntriesIndex)
+      rvb.startArray(localNCols)
+      var i = 0
+      while (i < localNCols) {
+        if (localEntriesType.isElementMissing(rv.region, entriesOffset, i))
+          rvb.setMissing()
+        else {
+          val eltOffset = localEntriesType.loadElement(rv.region, entriesOffset, localNCols, i)
+          rvb.startStruct()
+          var j = 0
+          while (j < keepIndices.length) {
+            rvb.addField(localEntryType, rv.region, eltOffset, j)
+            j += 1
+          }
+          rvb.endStruct()
+        }
+        i += 1
+      }
+      rvb.endArray()
+    })
+  }
+
+  def nPartitions: Int = rvd.partitions.length
+
+  def annotateVariantsVDS(right: MatrixTable, root: String): MatrixTable = {
+    // need to strip entries!
+    // FIXME: HACK
+    val rTyp = new OrderedRVType(right.rowPartitionKey.toArray, right.rowKey.toArray, right.rowType)
+    val rightRVD = OrderedRVD(rTyp, right.rvd.partitioner, right.rowsTable().rvd)
+    orderedRVDLeftJoinDistinctAndInsert(rightRVD, root, product = false)
+  }
+
+  def count(): (Long, Long) = (numCols, countVariants())
 
   def countVariants(): Long = partitionCounts().sum
 
   def deduplicate(): MatrixTable =
-    copy2(rdd2 = rdd2.mapPartitionsPreservesPartitioning(rdd2.typ)(
-      SortedDistinctRowIterator.transformer(rdd2.typ)))
+    copy2(rvd = rvd.mapPartitionsPreservesPartitioning(rvd.typ)(
+      SortedDistinctRowIterator.transformer(rvd.typ)))
 
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
-  def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
+  def deleteVA(path: List[String]): (Type, Deleter) = rowType.delete(path)
 
   def dropSamples(): MatrixTable =
     copyAST(ast = FilterSamples(ast, Const(null, false, TBoolean())))
 
-  def dropVariants(): MatrixTable = copy2(rdd2 = OrderedRVD.empty(sparkContext, matrixType.orderedRVType))
+  def dropVariants(): MatrixTable = copy2(rvd = OrderedRVD.empty(sparkContext, matrixType.orderedRVType))
 
-  def explodeVariants(code: String): MatrixTable = {
-    val path = List(Annotation.VARIANT_HEAD) ++ Parser.parseAnnotationRoot(code, Annotation.VARIANT_HEAD)
+  def explodeVariants(root: String): MatrixTable = {
+    val path = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (keysType, querier) = rvRowType.queryTyped(path)
     val keyType = keysType match {
       case TArray(e, _) => e
@@ -1202,46 +1451,46 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       case t => fatal(s"Expected annotation of type Array or Set; found $t")
     }
 
-    val (newRowType, inserter) = rvRowType.unsafeInsert(keyType, path)
-    val newVAType = newRowType.asInstanceOf[TStruct].fieldType(2).asInstanceOf[TStruct]
-    val localRVRowType = rvRowType
+    val (newRVType, inserter) = rvRowType.unsafeStructInsert(keyType, path)
+    val newMatrixType = matrixType.copy(rvRowType = newRVType)
+    val oldRVType = rvRowType
 
-    val explodedRDD = rdd2.rdd.mapPartitions { it =>
+    val localEntriesIndex = entriesIndex
+
+    val explodedRDD = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
       val region2 = Region()
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
-      val ur = new UnsafeRow(localRVRowType)
+      val ur = new UnsafeRow(oldRVType)
       it.flatMap { rv =>
         ur.set(rv)
         val keys = querier(ur).asInstanceOf[Iterable[Any]]
         if (keys == null)
           None
         else
-          keys.iterator.map { va =>
+          keys.iterator.map { explodedElement =>
             region2.clear()
-            rv2b.start(newRowType)
-            inserter(rv.region, rv.offset, rv2b, { () =>
-              rv2b.addAnnotation(keyType, va)
-            })
+            rv2b.start(newRVType)
+            inserter(rv.region, rv.offset, rv2b,
+              () => rv2b.addAnnotation(keyType, explodedElement))
             rv2.setOffset(rv2b.end())
             rv2
           }
       }
     }
-    val newMatrixType = matrixType.copy(vaType = newVAType)
-    copy2(vaSignature = newVAType, rdd2 = rdd2.copy(typ = newMatrixType.orderedRVType, rdd = explodedRDD))
+    copyMT(matrixType = newMatrixType, rvd = explodedRDD)
   }
 
   def explodeSamples(code: String): MatrixTable = {
     val path = Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD)
-    val (keysType, querier) = saSignature.queryTyped(path)
+    val (keysType, querier) = colType.queryTyped(path)
     val keyType = keysType match {
       case TArray(e, _) => e
       case TSet(e, _) => e
       case t => fatal(s"Expected annotation of type Array or Set; found $t")
     }
     var size = 0
-    val keys = sampleAnnotations.map { sa =>
+    val keys = colValues.map { sa =>
       val ks = querier(sa).asInstanceOf[Iterable[Any]]
       if (ks == null)
         Iterable.empty[Any]
@@ -1251,143 +1500,95 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     }
 
-    val (newSASig, inserter) = saSignature.structInsert(keyType, path)
+    val (newColType, inserter) = colType.structInsert(keyType, path)
 
     val sampleMap = new Array[Int](size)
     val newSampleAnnotations = new Array[Annotation](size)
+    val newNCols = newSampleAnnotations.length
 
     var i = 0
     var j = 0
-    while (i < nSamples) {
+    while (i < numCols) {
       keys(i).foreach { e =>
         sampleMap(j) = i
-        newSampleAnnotations(j) = inserter(sampleAnnotations(i), e)
+        newSampleAnnotations(j) = inserter(colValues(i), e)
         j += 1
       }
       i += 1
     }
 
     val sampleMapBc = sparkContext.broadcast(sampleMap)
-    val localRVRowType = rvRowType
-    val localGSSig = rvRowType.fieldType(3).asInstanceOf[TArray]
+    val localEntriesIndex = entriesIndex
+    val localEntriesType = matrixType.entryArrayType
+    val localRVType = rvRowType
 
-    val newRDD = rdd2.rdd.mapPartitions { it =>
-      val region2 = Region()
-      val rv2 = RegionValue(region2)
-      val rv2b = new RegionValueBuilder(region2)
-      it.map { rv =>
-        region2.clear()
-        rv2b.start(localRVRowType)
-        rv2b.startStruct()
-        var i = 0
-        while (i < 3) {
-          rv2b.addRegionValue(localRVRowType.fieldType(i), rv.region, localRVRowType.loadField(rv, i))
-          i += 1
-        }
-        rv2b.startArray(newSampleAnnotations.length)
-        i = 0
-        val arrayOff = localRVRowType.loadField(rv, 3)
-        while (i < newSampleAnnotations.length) {
-          rv2b.addRegionValue(localGSSig.elementType, rv.region,
-            localGSSig.loadElement(rv.region, arrayOff, sampleMapBc.value(i)))
-          i += 1
-        }
-        rv2b.endArray()
-        rv2b.endStruct()
-        rv2b.end()
-        rv2.setOffset(rv2b.end())
-        rv2
+    rewriteEntries(noOp, newColType = newColType,
+      newColValues = newSampleAnnotations)(entryType, { case (_, rv, rvb) =>
+
+      val entriesOffset = localRVType.loadField(rv, localEntriesIndex)
+      rvb.startArray(newNCols)
+      var i = 0
+      while (i < newNCols) {
+        rvb.addElement(localEntriesType, rv.region, entriesOffset, sampleMapBc.value(i))
+        i += 1
       }
-    }
 
-    copy2(sampleAnnotations = newSampleAnnotations,
-      saSignature = newSASig,
-      rdd2 = rdd2.copy(rdd = newRDD))
+      rvb.endArray()
+
+    })
   }
 
   def annotateGenotypesExpr(expr: String): MatrixTable = {
     val symTab = Map(
-      "v" -> (0, vSignature),
-      "va" -> (1, vaSignature),
-      "sa" -> (2, saSignature),
-      "g" -> (3, genotypeSignature),
-      "global" -> (4, globalSignature))
+      "va" -> (0, rowType),
+      "sa" -> (1, colType),
+      "g" -> (2, entryType),
+      "global" -> (3, globalType))
     val ec = EvalContext(symTab)
 
-    ec.set(4, globalAnnotation)
+    ec.set(3, globals)
 
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.GENOTYPE_HEAD))
 
     val inserterBuilder = new ArrayBuilder[Inserter]()
-    val newGType = (paths, types).zipped.foldLeft(genotypeSignature) { case (gsig, (ids, signature)) =>
+    val newEntryType = (paths, types).zipped.foldLeft(entryType) { case (gsig, (ids, signature)) =>
       val (s, i) = gsig.structInsert(signature, ids)
       inserterBuilder += i
       s
     }
     val inserters = inserterBuilder.result()
 
-    val localNSamples = nSamples
-    val localRVRowType = rvRowType
+    val localNSamples = numCols
+    val localRVType = rvRowType
     val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localEntriesIndex = entriesIndex
 
-    val newMatrixType = matrixType.copy(genotypeType = newGType)
-    val newRowType = newMatrixType.rvRowType
+    rewriteEntries(() => {
+      val fullRow = new UnsafeRow(localRVType)
+      val row = fullRow.delete(localEntriesIndex)
+      (fullRow, row)
+    })(newEntryType, { case ((fullRow, row), rv, rvb) =>
+      fullRow.set(rv)
+      val entries = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
-    copy2(
-      genotypeSignature = newGType,
-      rdd2 = rdd2.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
-        val rvb = new RegionValueBuilder()
-        val rv2 = RegionValue()
+      rvb.startArray(localNSamples)
 
-        it.map { rv =>
-          val ur = new UnsafeRow(localRVRowType, rv)
+      var i = 0
+      while (i < localNSamples) {
+        val entry = entries(i)
+        ec.setAll(row,
+          localSampleAnnotationsBc.value(i),
+          entry)
 
-          rvb.set(rv.region)
-          rvb.start(newRowType)
-          rvb.startStruct()
-          rvb.addField(localRVRowType, rv, 0)
-          rvb.addField(localRVRowType, rv, 1)
-          rvb.addField(localRVRowType, rv, 2)
-
-          val v = ur.get(1)
-          val va = ur.get(2)
-          val gs = ur.getAs[IndexedSeq[Any]](3)
-
-          rvb.startArray(localNSamples)
-          var i = 0
-          while (i < localNSamples) {
-            val sa = localSampleAnnotationsBc.value(i)
-            val g = gs(i)
-
-            ec.setAll(v, va, sa, g)
-            val newG = f().zip(inserters)
-              .foldLeft(g) { case (ga, (a, inserter)) =>
-                inserter(ga, a)
-              }
-            rvb.addAnnotation(newGType, newG)
-
-            i += 1
+        val newEntry = f().zip(inserters)
+          .foldLeft(entry) { case (ga, (a, inserter)) =>
+            inserter(ga, a)
           }
-          rvb.endArray()
-          rvb.endStruct()
+        rvb.addAnnotation(newEntryType, newEntry)
 
-          rv2.set(rv.region, rvb.end())
-          rv2
-        }
-      })
-  }
-
-  def filterVariants(p: (Annotation, Annotation, Iterable[Annotation]) => Boolean): MatrixTable = {
-    val localRVRowType = matrixType.rvRowType
-    copy2(rdd2 = rdd2.filter { rv =>
-      // FIXME ur could be allocate once and set
-      val ur = new UnsafeRow(localRVRowType, rv.region, rv.offset)
-
-      val v = ur.getAs[Annotation](1)
-      val va = ur.get(2)
-      val gs = ur.getAs[IndexedSeq[Annotation]](3)
-
-      p(v, va, gs)
+        i += 1
+      }
+      rvb.endArray()
     })
   }
 
@@ -1436,110 +1637,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     copyAST(ast = FilterVariants(ast, filterAST))
   }
 
-  def filterVariantsList(variants: java.util.ArrayList[Annotation], keep: Boolean): MatrixTable =
-    filterVariantsList(variants.asScala.toSet, keep)
-
-  def filterVariantsList(variants: Set[Annotation], keep: Boolean): MatrixTable = {
-    if (keep) {
-      val (_, pkProjection) = Type.partitionKeyProjection(vSignature)
-
-      val partitionVariants = variants
-        .groupBy(v => rdd2.partitioner.getPartitionPK(Row(pkProjection(v))))
-        .toArray
-        .sortBy(_._1)
-
-      val localRVRowType = rvRowType
-      val adjRDD = new AdjustedPartitionsRDD(rdd2.rdd,
-        partitionVariants.map { case (oldPart, variantsSet) =>
-          Array(Adjustment[RegionValue](oldPart,
-            _.filter { rv =>
-              val ur = new UnsafeRow(localRVRowType, rv)
-              val v = ur.get(1)
-              variantsSet.contains(v)
-            }))
-        })
-
-      val adjRangeBounds: Array[Annotation] =
-        if (partitionVariants.isEmpty)
-          Array.empty
-        else
-          partitionVariants.init.map { case (oldPart, _) =>
-            rdd2.partitioner.rangeBounds(oldPart)
-          }
-
-      val adjPart = new OrderedRVPartitioner(partitionVariants.length,
-        rdd2.partitioner.partitionKey,
-        rdd2.partitioner.kType,
-        UnsafeIndexedSeq(rdd2.partitioner.rangeBoundsType, adjRangeBounds))
-
-      copy2(rdd2 = OrderedRVD(rdd2.typ,
-        adjPart,
-        adjRDD))
-    } else {
-      val variantsBc = hc.sc.broadcast(variants)
-      filterVariants { case (v, _, _) => !variantsBc.value.contains(v) }
-    }
-  }
-
-  def filterVariantsTable(kt: Table, keep: Boolean = true): MatrixTable = {
-    if (keep) {
-      val keyTypes = kt.keyFields.map(_.typ)
-      keyTypes match {
-        case Array(TInterval(`locusType`, _)) =>
-          val locusOrdering = locusType.ordering
-
-          val partBc = sparkContext.broadcast(rdd2.partitioner)
-          val ktSignature = kt.signature
-          val ktKeyFieldIdx = kt.keyFieldIdx
-          val ktValueFieldIdx = kt.valueFieldIdx
-          val partitionKeyedIntervals = kt.rvd.rdd
-            .flatMap { rv =>
-              val ur = new UnsafeRow(ktSignature, rv)
-              val interval = ur.getAs[Interval](ktKeyFieldIdx(0))
-              if (interval != null) {
-                val start = partBc.value.getPartitionPK(Row(interval.start))
-                val end = partBc.value.getPartitionPK(Row(interval.end))
-                (start to end).iterator.map(i => (i, interval))
-              } else
-                Iterator()
-            }
-
-          val overlapPartitions = partitionKeyedIntervals.keys.collectAsSet().toArray.sorted
-          val partitionMap = overlapPartitions.index
-
-          val intervalsRDD = partitionKeyedIntervals
-            .partitionBy(new Partitioner {
-              def getPartition(key: Any): Int = partitionMap(key.asInstanceOf[Int])
-
-              def numPartitions: Int = overlapPartitions.length
-            })
-            .values
-
-          val localRVRowType = rvRowType
-          val newRDD2 = rdd2.subsetPartitions(overlapPartitions)
-            .zipPartitionsPreservesPartitioning(rdd2.typ, intervalsRDD) { case (it, intervals) =>
-              val itree = IntervalTree.apply(locusOrdering, intervals.toArray)
-              it.filter { rv =>
-                val ur = new UnsafeRow(localRVRowType, rv)
-                val v = ur.get(1)
-                itree.contains(locusOrdering, v.asInstanceOf[Variant].locus)
-              }
-            }
-
-          return copy2(rdd2 = newRDD2)
-
-        case _ =>
-      }
-    }
-
-    val t = annotateVariantsExpr("va = {save_va: va}")
-      .annotateVariantsTable(kt.select(kt.key), expr = "va.predicate = isDefined(table)")
-      .filterVariantsExpr("va.predicate", keep = keep)
-    assert(t.vaSignature.asInstanceOf[TStruct].field("predicate").typ == TBoolean())
-
-    t.annotateVariantsExpr("va = va.save_va")
-  }
-
   def sparkContext: SparkContext = hc.sc
 
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
@@ -1547,24 +1644,61 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def head(n: Long): MatrixTable = {
     if (n < 0)
       fatal(s"n must be non-negative! Found `$n'.")
-    copy2(rdd2 = rdd2.head(n))
+    copy2(rvd = rvd.head(n))
   }
 
   def insertSA(sig: Type, args: String*): (TStruct, Inserter) = insertSA(sig, args.toList)
 
-  def insertSA(sig: Type, path: List[String]): (TStruct, Inserter) = saSignature.structInsert(sig, path)
+  def insertSA(sig: Type, path: List[String]): (TStruct, Inserter) = colType.structInsert(sig, path)
 
-  def insertVA(sig: Type, path: List[String]): (TStruct, Inserter) = {
-    vaSignature.structInsert(sig, path)
+  def rewriteEntries[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
+    newColKey: IndexedSeq[String] = colKey,
+    newColValues: IndexedSeq[Annotation] = colValues,
+    newGlobalType: TStruct = globalType,
+    newGlobals: Annotation = globals)(newEntryType: TStruct,
+    inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
+    insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
+      TArray(newEntryType), MatrixType.entriesIdentifier, inserter)
   }
 
-  def insertIntoRow[PC](makePartitionContext: () => PC)(typeToInsert: Type, path: List[String],
+  def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
+    newColKey: IndexedSeq[String] = colKey,
+    newColValues: IndexedSeq[Annotation] = colValues,
+    newGlobalType: TStruct = globalType,
+    newGlobals: Annotation = globals)(typeToInsert: Type, path: String,
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
-    val newRDD2 = rdd2.insert(makePartitionContext)(typeToInsert, path, inserter)
-    copy2(rdd2 = newRDD2,
-      // don't need to update vSignature, insert can't change the keys
-      vaSignature = newRDD2.typ.rowType.fieldType(2).asInstanceOf[TStruct],
-      genotypeSignature = newRDD2.typ.rowType.fieldType(3).asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
+    assert(!rowKey.contains(path))
+
+
+    val localRVType = rvRowType
+    val localEntriesIndex = entriesIndex
+
+    val (newRVType, ins) = localRVType.unsafeStructInsert(typeToInsert, List(path))
+
+    val newMatrixType = matrixType.copy(rvRowType = newRVType, colType = newColType,
+      colKey = newColKey, globalType = newGlobalType)
+
+    copyMT(matrixType = newMatrixType,
+      globals = newGlobals,
+      colValues = newColValues,
+      rvd = rvd.mapPartitionsPreservesPartitioning(newMatrixType.orderedRVType) { it =>
+
+        val pc = makePartitionContext()
+
+        val rv2 = RegionValue()
+        val rvb = new RegionValueBuilder()
+        it.map { rv =>
+          rvb.set(rv.region)
+          rvb.start(newRVType)
+
+          ins(rv.region, rv.offset, rvb,
+            () => inserter(pc, rv, rvb)
+          )
+
+          rv2.set(rv.region, rvb.end())
+          rv2
+        }
+      })
   }
 
   /**
@@ -1572,47 +1706,50 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     * @param right right-hand dataset with which to join
     */
   def unionCols(right: MatrixTable): MatrixTable = {
-    if (genotypeSignature != right.genotypeSignature) {
+    if (entryType != right.entryType) {
       fatal(
         s"""union_cols: cannot combine datasets with different entry schema
            |  left entry schema: @1
            |  right entry schema: @2""".stripMargin,
-        genotypeSignature.toString,
-        right.genotypeSignature.toString)
+        entryType.toString,
+        right.entryType.toString)
     }
 
-    if (!sSignature.sameElements(right.sSignature)) {
+    if (!colKeyTypes.sameElements(right.colKeyTypes)) {
       fatal(
         s"""union_cols: cannot combine datasets with different column key schema
-           |  left column schema: [${sSignature.map(_.toString).mkString(", ")}]
-           |  right column schema: [${right.sSignature.map(_.toString).mkString(", ")}]""".stripMargin)
+           |  left column schema: [${ colKeyTypes.map(_.toString).mkString(", ") }]
+           |  right column schema: [${ right.colKeyTypes.map(_.toString).mkString(", ") }]""".stripMargin)
     }
 
-    if (saSignature != right.saSignature) {
+    if (colType != right.colType) {
       fatal(
         s"""union_cols: cannot combine datasets with different column schema
            |  left column schema: @1
            |  right column schema: @2""".stripMargin,
-        saSignature.toString,
-        right.saSignature.toString)
+        colType.toString,
+        right.colType.toString)
     }
 
-    if (vSignature != right.vSignature) {
+    if (!rowKeyTypes.sameElements(right.rowKeyTypes)) {
       fatal(
         s"""union_cols: cannot combine datasets with different row key schema
            |  left row key schema: @1
            |  right row key schema: @2""".stripMargin,
-        vSignature.toString,
-        right.vSignature.toString)
+        rowKeyTypes.map(_.toString).mkString(", "),
+        right.rowKeyTypes.map(_.toString).mkString(", "))
     }
 
-    val leftRVRowType = rvRowType
-    val localLeftSamples = nSamples
-    val localRightSamples = right.nSamples
+    val leftRVType = rvRowType
+    val localLeftSamples = numCols
+    val localRightSamples = right.numCols
     val rightRVRowType = right.rvRowType
-    val tgs = rvRowType.fieldType(3).asInstanceOf[TArray]
+    val leftEntriesIndex = entriesIndex
+    val rightEntriesIndex = right.entriesIndex
+    val localEntriesType = matrixType.entryArrayType
+    assert(right.matrixType.entryArrayType == localEntriesType)
 
-    val joined = rdd2.orderedJoinDistinct(right.rdd2, "inner").mapPartitions({ it =>
+    val joined = rvd.orderedJoinDistinct(right.rvd, "inner").mapPartitions({ it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -1621,30 +1758,33 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         val rrv = jrv.rvRight
 
         rvb.set(lrv.region)
-        rvb.start(leftRVRowType)
+        rvb.start(leftRVType)
         rvb.startStruct()
-        rvb.addField(leftRVRowType, lrv, 0) // l
-        rvb.addField(leftRVRowType, lrv, 1) // v
-        rvb.addField(leftRVRowType, lrv, 2) // va
+        var i = 0
+        while (i < leftRVType.size) {
+          if (i != leftEntriesIndex)
+            rvb.addField(leftRVType, lrv, i)
+          i += 1
+        }
         rvb.startArray(localLeftSamples + localRightSamples)
 
-        val gsLeftOffset = leftRVRowType.loadField(lrv.region, lrv.offset, 3) // left gs
-      val gsLeftLength = tgs.loadLength(lrv.region, gsLeftOffset)
-        assert(gsLeftLength == localLeftSamples)
+        val leftEntriesOffset = leftRVType.loadField(lrv.region, lrv.offset, leftEntriesIndex)
+        val leftEntriesLength = localEntriesType.loadLength(lrv.region, leftEntriesOffset)
+        assert(leftEntriesLength == localLeftSamples)
 
-        val gsRightOffset = rightRVRowType.loadField(rrv.region, rrv.offset, 3) // right gs
-      val gsRightLength = tgs.loadLength(rrv.region, gsRightOffset)
-        assert(gsRightLength == localRightSamples)
+        val rightEntriesOffset = rightRVRowType.loadField(rrv.region, rrv.offset, rightEntriesIndex)
+        val rightEntriesLength = localEntriesType.loadLength(rrv.region, rightEntriesOffset)
+        assert(rightEntriesLength == localRightSamples)
 
-        var i = 0
+        i = 0
         while (i < localLeftSamples) {
-          rvb.addElement(tgs, lrv.region, gsLeftOffset, i)
+          rvb.addElement(localEntriesType, lrv.region, leftEntriesOffset, i)
           i += 1
         }
 
         i = 0
         while (i < localRightSamples) {
-          rvb.addElement(tgs, rrv.region, gsRightOffset, i)
+          rvb.addElement(localEntriesType, rrv.region, rightEntriesOffset, i)
           i += 1
         }
 
@@ -1655,26 +1795,29 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     }, preservesPartitioning = true)
 
-    copy2(sampleAnnotations = sampleAnnotations ++ right.sampleAnnotations,
-      rdd2 = OrderedRVD(rdd2.typ, rdd2.partitioner, joined))
+    val newMatrixType = matrixType.copyParts() // move entries to the end
+
+    copyMT(matrixType = newMatrixType,
+      colValues = colValues ++ right.colValues,
+      rvd = OrderedRVD(rvd.typ, rvd.partitioner, joined))
   }
 
   def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String] = Array.empty, seperator: String = "."): Table = {
     requireColKeyString("make table")
 
     val vSymTab = Map(
-      "v" -> (0, vSignature),
-      "va" -> (1, vaSignature))
+      "global" -> (0, globalType),
+      "va" -> (1, rowType))
     val vEC = EvalContext(vSymTab)
     val vA = vEC.a
 
     val (vNames, vTypes, vf) = Parser.parseNamedExprs(variantCondition, vEC)
 
     val gSymTab = Map(
-      "v" -> (0, vSignature),
-      "va" -> (1, vaSignature),
-      "sa" -> (2, saSignature),
-      "g" -> (3, genotypeSignature))
+      "global" -> (0, globalType),
+      "va" -> (1, rowType),
+      "sa" -> (2, colType),
+      "g" -> (3, entryType))
     val gEC = EvalContext(gSymTab)
     val gA = gEC.a
 
@@ -1690,37 +1833,41 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         }
       }).toSeq: _*)
 
-    val localNSamples = nSamples
+    val localNSamples = numCols
     val localSampleAnnotationsBc = sampleAnnotationsBc
     val localRVRowType = rvRowType
+    val localGlobalAnnotations = globals
+    val localEntriesIndex = entriesIndex
 
+    val n = vNames.length + gNames.length * localNSamples
     Table(hc,
-      rdd2.mapPartitions { it =>
-        val n = vNames.length + gNames.length * localNSamples
-        val ur = new UnsafeRow(localRVRowType)
+      rvd.mapPartitions { it =>
+        val fullRow = new UnsafeRow(localRVRowType)
+        val row = fullRow.delete(localEntriesIndex)
 
         it.map { rv =>
-          ur.set(rv)
-          val v = ur.get(1)
-          val va = ur.get(2)
-          val gs = ur.getAs[IndexedSeq[Any]](3)
+          fullRow.set(rv)
+          val gs = fullRow.getAs[IndexedSeq[Annotation]](localEntriesIndex)
 
           val a = new Array[Any](n)
 
           var j = 0
-          vEC.setAll(v, va)
+          vEC.setAll(localGlobalAnnotations, row)
           vf().foreach { x =>
             a(j) = x
             j += 1
           }
 
-          gs.iterator.zipWithIndex.foreach { case (g, i) =>
+          var i = 0
+          while (i < localNSamples) {
             val sa = localSampleAnnotationsBc.value(i)
-            gEC.setAll(v, va, sa, g)
+            gEC.setAll(localGlobalAnnotations, row, sa, gs(i))
             gf().foreach { x =>
               a(j) = x
               j += 1
             }
+
+            i += 1
           }
 
           assert(j == n)
@@ -1748,40 +1895,40 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
   def queryGenotypes(exprs: Array[String]): Array[(Annotation, Type)] = {
     val aggregationST = Map(
-      "global" -> (0, globalSignature),
-      "g" -> (1, genotypeSignature),
-      "v" -> (2, vSignature),
-      "va" -> (3, vaSignature),
-      "sa" -> (4, saSignature))
+      "global" -> (0, globalType),
+      "g" -> (1, entryType),
+      "va" -> (2, rowType),
+      "sa" -> (3, colType))
     val ec = EvalContext(Map(
-      "global" -> (0, globalSignature),
-      "gs" -> (1, TAggregable(genotypeSignature, aggregationST))))
+      "global" -> (0, globalType),
+      "gs" -> (1, TAggregable(entryType, aggregationST))))
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
-    val localGlobalAnnotation = globalAnnotation
+    val localGlobalAnnotation = globals
     val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, g) =>
       ec.set(1, g)
     })
 
-    val globalBc = sparkContext.broadcast(globalAnnotation)
+    val globalBc = sparkContext.broadcast(globals)
     val localSampleAnnotationsBc = sampleAnnotationsBc
     val localRVRowType = rvRowType
+    val localRowType = rowType
+    val localEntriesIndex = entriesIndex
 
-    val result = rdd2.mapPartitions { it =>
-      val ur = new UnsafeRow(localRVRowType)
+    val result = rvd.mapPartitions { it =>
+      val fullRow = new UnsafeRow(localRVRowType)
+      val row = new UnsafeRow(localRowType)
 
       val zv = zVal.map(_.copy())
       ec.set(0, globalBc.value)
       it.foreach { rv =>
-        ur.set(rv)
-        val v = ur.get(1)
-        val va = ur.get(2)
-        val gs = ur.getAs[IndexedSeq[Any]](3)
+        fullRow.set(rv)
+        row.set(rv)
+        val gs = fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)
 
         var i = 0
-        ec.set(2, v)
-        ec.set(3, va)
+        ec.set(2, row)
         gs.foreach { g =>
           ec.set(4, localSampleAnnotationsBc.value(i))
           seqOp(zv, g)
@@ -1797,7 +1944,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   }
 
   def queryGlobal(path: String): (Type, Annotation) = {
-    val st = Map(Annotation.GLOBAL_HEAD -> (0, globalSignature))
+    val st = Map(Annotation.GLOBAL_HEAD -> (0, globalType))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -1808,7 +1955,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       f()
     }
 
-    (t, f2(globalAnnotation))
+    (t, f2(globals))
   }
 
   def querySamples(expr: String): (Annotation, Type) = {
@@ -1819,20 +1966,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
   def querySamples(exprs: Array[String]): Array[(Annotation, Type)] = {
     val aggregationST = Map(
-      "global" -> (0, globalSignature),
-      "sa" -> (1, saSignature))
+      "global" -> (0, globalType),
+      "sa" -> (1, colType))
     val ec = EvalContext(Map(
-      "global" -> (0, globalSignature),
-      "samples" -> (1, TAggregable(saSignature, aggregationST))))
+      "global" -> (0, globalType),
+      "samples" -> (1, TAggregable(colType, aggregationST))))
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
-    val localGlobalAnnotation = globalAnnotation
+    val localGlobalAnnotation = globals
     val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, (sa)) =>
       ec.setAll(localGlobalAnnotation, sa)
     })
 
-    val results = sampleAnnotations
+    val results = colValues
       .aggregate(zVal)(seqOp, combOp)
     resOp(results)
     ec.set(0, localGlobalAnnotation)
@@ -1842,7 +1989,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
   def queryVA(code: String): (Type, Querier) = {
 
-    val st = Map(Annotation.VARIANT_HEAD -> (0, vaSignature))
+    val st = Map(Annotation.VARIANT_HEAD -> (0, rowType))
     val ec = EvalContext(st)
     val a = ec.a
 
@@ -1864,26 +2011,24 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
   def queryVariants(exprs: Array[String]): Array[(Annotation, Type)] = {
     val aggregationST = Map(
-      "global" -> (0, globalSignature),
-      "v" -> (1, vSignature),
-      "va" -> (2, vaSignature))
+      "global" -> (0, globalType),
+      "va" -> (1, rowType))
     val ec = EvalContext(Map(
-      "global" -> (0, globalSignature),
-      "variants" -> (1, TAggregable(vSignature, aggregationST))))
-    ec.setAll(globalAnnotation)
+      "global" -> (0, globalType),
+      "variants" -> (1, TAggregable(rowType, aggregationST))))
+    ec.setAll(globals)
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
-    val localRVRowType = rvRowType
+    val localRVType = rvRowType
+    val localEntriesIndex = entriesIndex
     val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[RegionValue](ec, { case (ec, rv) =>
-      val ur = new UnsafeRow(localRVRowType, rv)
-      val v = ur.get(1)
-      val va = ur.get(2)
-      ec.set(1, v)
-      ec.set(2, va)
+      val ur = new UnsafeRow(localRVType, rv)
+      val row = ur.delete(localEntriesIndex)
+      ec.set(1, row)
     })
 
-    val result = rdd2
+    val result = rvd
       .treeAggregate(zVal)(seqOp, combOp, depth = treeAggDepth(hc, nPartitions))
     resOp(result)
 
@@ -1895,8 +2040,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
   def reorderSamples(newIds: java.util.ArrayList[String]): MatrixTable =
     reorderSamples(newIds.asScala.toArray.map(Annotation(_)))
 
-  def reorderSamples(newIds: Array[Annotation]): MatrixTable = {
+  def reorderSamples(newIds: IndexedSeq[Annotation]): MatrixTable = {
+    require(newIds.length == numCols)
     requireUniqueSamples("reorder_samples")
+    require(newIds.areDistinct())
 
     val sampleSet = colKeys.toSet[Annotation]
     val newSampleSet = newIds.toSet
@@ -1911,46 +2058,28 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       fatal(s"Found ${ notInDataset.size } ${ plural(notInDataset.size, "sample ID") } in new ordering that are not in dataset:\n  " +
         s"@1", notInDataset.truncatable("\n  "))
 
-    val oldIndex = (colKeys: IndexedSeq[Annotation]).zipWithIndex.toMap
+    val oldIndex = colKeys.zipWithIndex.toMap
     val newToOld = newIds.map(oldIndex)
 
-    val newAnnotations = Array.tabulate(nSamples) { i =>
-      sampleAnnotations(newToOld(i))
+    val newColValues = Array.tabulate(numCols) { i =>
+      colValues(newToOld(i))
     }
 
-    val localNSamples = nSamples
+    val localNumCols = numCols
     val localRVRowType = rvRowType
-    val localGType = genotypeSignature
+    val localEntriesIndex = entriesIndex
+    val localEntriesType = matrixType.entryArrayType
 
-    val reorderedRDD2 = rdd2.mapPartitionsPreservesPartitioning(rdd2.typ) { it =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      val ur = new UnsafeRow(localRVRowType)
-
-      it.map { rv =>
-        rvb.set(rv.region)
-        rvb.start(localRVRowType)
-        rvb.startStruct()
-        rvb.addField(localRVRowType, rv, 0) // pk
-        rvb.addField(localRVRowType, rv, 1) // v
-        rvb.addField(localRVRowType, rv, 2) // va
-        rvb.startArray(localNSamples) // gs
-        ur.set(rv)
-        val gs = ur.getAs[IndexedSeq[Any]](3)
-        var i = 0
-        while (i < localNSamples) {
-          rvb.addAnnotation(localGType, gs(newToOld(i)))
-          i += 1
-        }
-        rvb.endArray() // gs
-        rvb.endStruct()
-        rv2.set(rv.region, rvb.end())
-
-        rv2
+    rewriteEntries(noOp, colType, colKey, newColValues.toFastIndexedSeq)(entryType, { case (_, rv, rvb) =>
+      val entriesOffset = localRVRowType.loadField(rv, localEntriesIndex)
+      rvb.startArray(localNumCols)
+      var i = 0
+      while (i < localNumCols) {
+        rvb.addElement(localEntriesType, rv.region, entriesOffset, newToOld(i))
+        i += 1
       }
-    }
-
-    copy2(rdd2 = reorderedRDD2, sampleAnnotations = newAnnotations)
+      rvb.endArray()
+    })
   }
 
   def renameDuplicates(id: String): MatrixTable = {
@@ -1962,111 +2091,111 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     else
       info(s"No duplicate sample IDs found.")
     val (newSchema, ins) = insertSA(TString(), id)
-    val newAnnotations = sampleAnnotations.zipWithIndex.map { case (sa, i) => ins(sa, newIds(i)) }.toArray
-    copy2(saSignature = newSchema, sampleAnnotations = newAnnotations)
+    val newAnnotations = colValues.zipWithIndex.map { case (sa, i) => ins(sa, newIds(i)) }.toArray
+    copy2(colType = newSchema, colValues = newAnnotations)
   }
 
   def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
     var metadataSame = true
-    if (vaSignature != that.vaSignature) {
+    if (rowType != that.rowType) {
       metadataSame = false
       println(
         s"""different va signature:
-           |  left:  ${ vaSignature.toString }
-           |  right: ${ that.vaSignature.toString }""".stripMargin)
+           |  left:  ${ rowType.toString }
+           |  right: ${ that.rowType.toString }""".stripMargin)
     }
-    if (saSignature != that.saSignature) {
+    if (colType != that.colType) {
       metadataSame = false
       println(
         s"""different sa signature:
-           |  left:  ${ saSignature.toString }
-           |  right: ${ that.saSignature.toString }""".stripMargin)
+           |  left:  ${ colType.toString }
+           |  right: ${ that.colType.toString }""".stripMargin)
     }
-    if (globalSignature != that.globalSignature) {
+    if (globalType != that.globalType) {
       metadataSame = false
       println(
         s"""different global signature:
-           |  left:  ${ globalSignature.toString }
-           |  right: ${ that.globalSignature.toString }""".stripMargin)
+           |  left:  ${ globalType.toString }
+           |  right: ${ that.globalType.toString }""".stripMargin)
     }
     if (!sampleAnnotationsSimilar(that, tolerance)) {
       metadataSame = false
       println(
         s"""different sample annotations:
-           |  left:  $sampleAnnotations
-           |  right: ${ that.sampleAnnotations }""".stripMargin)
+           |  left:  $colValues
+           |  right: ${ that.colValues }""".stripMargin)
     }
-    if (!globalSignature.valuesSimilar(globalAnnotation, that.globalAnnotation)) {
+    if (!globalType.valuesSimilar(globals, that.globals)) {
       metadataSame = false
       println(
         s"""different global annotation:
-           |  left:  $globalAnnotation
-           |  right: ${ that.globalAnnotation }""".stripMargin)
+           |  left:  $globals
+           |  right: ${ that.globals }""".stripMargin)
+    }
+    if (rowKey != that.rowKey || colKey != that.colKey || rowPartitionKey != that.rowPartitionKey) {
+      metadataSame = false
+      println(
+        s"""
+           |different keys:
+           |  left:  rk $rowKey, rpk $rowPartitionKey, ck $colKey
+           |  right: rk ${ that.rowKey }, rpk ${ that.rowPartitionKey }, ck ${ that.colKey }""".stripMargin)
     }
     if (!metadataSame)
       println("metadata were not the same")
 
-    val vaSignatureBc = sparkContext.broadcast(vaSignature)
-    val gSignatureBc = sparkContext.broadcast(genotypeSignature)
+    val localRVType = rvRowType
+    assert(localRVType == that.rvRowType)
+    val localRowType = rowType
+    val localEntriesIndex = entriesIndex
+    val localEntryType = entryType
+    val localRKF = rowKeysF
+    val localColKeys = colKeys
 
-    val rowType1 = rvRowType
-    val rowType2 = that.rvRowType
     metadataSame &&
-      rdd2.rdd.zipPartitions(
+      rvd.rdd.zipPartitions(
         OrderedRVD.shuffle(
-          that.rdd2.typ,
-          rdd2.partitioner.withKType(that.rdd2.typ.partitionKey, that.rdd2.typ.kType),
-          that.rdd2.rdd)
+          that.rvd.typ,
+          rvd.partitioner.withKType(that.rvd.typ.partitionKey, that.rvd.typ.kType),
+          that.rvd.rdd)
           .rdd) { (it1, it2) =>
-        val ur1 = new UnsafeRow(rowType1)
-        val ur2 = new UnsafeRow(rowType2)
+        val fullRow1 = new UnsafeRow(localRVType)
+        val fullRow2 = new UnsafeRow(localRVType)
         var partSame = true
         while (it1.hasNext && it2.hasNext) {
           val rv1 = it1.next()
           val rv2 = it2.next()
 
-          ur1.set(rv1)
-          ur2.set(rv2)
+          fullRow1.set(rv1)
+          fullRow2.set(rv2)
+          val row1 = fullRow1.delete(localEntriesIndex)
+          val row2 = fullRow2.delete(localEntriesIndex)
 
-          val v1 = ur1.get(1)
-          val va1 = ur1.get(2)
-          val gs1 = ur1.getAs[Iterable[Any]](3)
-
-          val v2 = ur2.get(1)
-          val va2 = ur2.get(2)
-          val gs2 = ur2.getAs[Iterable[Any]](3)
-
-          if (v1 != v2 && partSame) {
+          if (!localRowType.valuesSimilar(row1, row2, tolerance)) {
             println(
-              s"""variants were not the same:
-                 |  $v1
-                 |  $v2
-               """.stripMargin)
+              s"""row fields not the same:
+                 |  $row1
+                 |  $row2""".stripMargin)
             partSame = false
           }
-          val annotationsSame = vaSignatureBc.value.valuesSimilar(va1, va2, tolerance)
-          if (!annotationsSame && partSame) {
-            println(
-              s"""at variant `$v1', annotations were not the same:
-                 |  $va1
-                 |  $va2""".stripMargin)
-            partSame = false
-          }
-          gs1.iterator.zipWithIndex.zip(gs2.iterator).foreach { case ((g1, i), g2) =>
-            val gSame = gSignatureBc.value.valuesSimilar(g1, g2, tolerance)
-            if (!gSame && partSame) {
-              println(
-                s"""at $v1, col $i, genotypes were not the same:
-                   |  $g1
-                   |  $g2
-                   """.stripMargin)
+
+          val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+          val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localEntriesIndex)
+
+          var i = 0
+          while (partSame && i < gs1.length) {
+            if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance)) {
               partSame = false
+              println(
+                s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
+                   |  ${ gs1(i) }
+                   |  ${ gs2(i) }""".stripMargin)
             }
+            i += 1
           }
         }
 
         if ((it1.hasNext || it2.hasNext) && partSame) {
-          println("partition has different number of variants")
+          println("partition has different number of rows")
           partSame = false
         }
 
@@ -2076,103 +2205,119 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
   def sampleEC: EvalContext = {
     val aggregationST = Map(
-      "global" -> (0, globalSignature),
-      "sa" -> (1, saSignature),
-      "g" -> (2, genotypeSignature),
-      "v" -> (3, vSignature),
-      "va" -> (4, vaSignature))
+      "global" -> (0, globalType),
+      "sa" -> (1, colType),
+      "g" -> (2, entryType),
+      "va" -> (3, rowType))
     EvalContext(Map(
-      "global" -> (0, globalSignature),
-      "sa" -> (1, saSignature),
-      "gs" -> (2, TAggregable(genotypeSignature, aggregationST))))
+      "global" -> (0, globalType),
+      "sa" -> (1, colType),
+      "gs" -> (2, TAggregable(entryType, aggregationST))))
   }
 
   def sampleAnnotationsSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance): Boolean = {
-    require(saSignature == that.saSignature, s"\n${saSignature}\n${that.saSignature}")
-    sampleAnnotations.zip(that.sampleAnnotations)
-      .forall { case (s1, s2) => saSignature.valuesSimilar(s1, s2, tolerance)
+    require(colType == that.colType, s"\n${ colType }\n${ that.colType }")
+    colValues.zip(that.colValues)
+      .forall { case (s1, s2) => colType.valuesSimilar(s1, s2, tolerance)
       }
   }
 
   def sampleVariants(p: Double, seed: Int = 1): MatrixTable = {
     require(p > 0 && p < 1, s"the 'p' parameter must fall between 0 and 1, found $p")
-    copy2(rdd2 = rdd2.sample(withReplacement = false, p, seed))
+    copyMT(rvd = rvd.sample(withReplacement = false, p, seed))
   }
 
-  def copy2(rdd2: OrderedRVD = rdd2,
-    sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
+  def copy2(rvd: OrderedRVD = rvd,
+    colValues: IndexedSeq[Annotation] = colValues,
     colKey: IndexedSeq[String] = colKey,
-    globalAnnotation: Annotation = globalAnnotation,
-    saSignature: TStruct = saSignature,
-    vSignature: Type = vSignature,
-    vaSignature: TStruct = vaSignature,
-    globalSignature: TStruct = globalSignature,
-    genotypeSignature: TStruct = genotypeSignature): MatrixTable =
+    globals: Annotation = globals,
+    colType: TStruct = colType,
+    rvRowType: TStruct = rvRowType,
+    rowPartitionKey: IndexedSeq[String] = rowPartitionKey,
+    rowKey: IndexedSeq[String] = rowKey,
+    globalType: TStruct = globalType,
+    entryType: TStruct = entryType): MatrixTable = {
+    val newMatrixType = matrixType.copy(
+      globalType = globalType,
+      colKey = colKey,
+      colType = colType,
+      rowPartitionKey = rowPartitionKey,
+      rowKey = rowKey,
+      rvRowType = rvRowType)
     new MatrixTable(hc,
-      MatrixType(globalSignature, saSignature, colKey, vSignature, vaSignature, genotypeSignature),
-      MatrixLocalValue(globalAnnotation, sampleAnnotations), rdd2)
+      newMatrixType,
+      MatrixLocalValue(globals, colValues), rvd)
+  }
+
+  def copyMT(rvd: OrderedRVD = rvd,
+    matrixType: MatrixType = matrixType,
+    globals: Annotation = globals,
+    colValues: IndexedSeq[Annotation] = colValues): MatrixTable = {
+    assert(rvd.typ == matrixType.orderedRVType,
+      s"mismatch in orderedRVType:\n  rdd: ${ rvd.typ }\n  mat: ${ matrixType.orderedRVType }")
+    new MatrixTable(hc,
+      matrixType, MatrixLocalValue(globals, colValues), rvd)
+  }
 
   def copyAST(ast: MatrixIR = ast): MatrixTable =
     new MatrixTable(hc, ast)
 
-  def samplesKT(): Table = {
-    Table(hc, sparkContext.parallelize(sampleAnnotations.map(_.asInstanceOf[Row])),
-      saSignature,
-      colKey.toArray)
+  def colsTable(): Table = {
+    Table(hc, sparkContext.parallelize(colValues.map(_.asInstanceOf[Row])),
+      colType,
+      colKey.toArray,
+      globalType,
+      globals.asInstanceOf[Row])
   }
 
-  def storageLevel: String = rdd2.storageLevel.toReadableString()
+  def storageLevel: String = rvd.storageLevel.toReadableString()
 
   def summarize(): SummaryResult = {
     val localRVRowType = rvRowType
-    val localNSamples = nSamples
-    rdd2.aggregateWithContext(() =>
+    val localNSamples = numCols
+    rvd.aggregateWithContext(() =>
       (HardCallView(localRVRowType),
-        new RegionValueVariant(localRVRowType.fieldType(1).asInstanceOf[TVariant]))
+        new RegionValueVariant(localRVRowType))
     )(new SummaryCombiner)(
       { case ((view, rvVariant), summary, rv) =>
-        rvVariant.setRegion(rv.region, localRVRowType.loadField(rv, 1))
+        rvVariant.setRegion(rv)
         view.setRegion(rv)
         summary.merge(view, rvVariant)
       }, _.merge(_))
       .result(localNSamples)
   }
 
-  override def toString =
-    s"MatrixTable(rdd2=$rdd2, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleAnnotations, globalAnnotation=$globalAnnotation)"
-
-  def nSamples: Int = sampleAnnotations.length
+  def numCols: Int = colValues.length
 
   def typecheck() {
     var foundError = false
-    if (!globalSignature.typeCheck(globalAnnotation)) {
+    if (!globalType.typeCheck(globals)) {
       foundError = true
       warn(
         s"""found violation in global annotation
-           |Schema: ${ globalSignature.toString }
-           |Annotation: ${ Annotation.printAnnotation(globalAnnotation) }""".stripMargin)
+           |Schema: $globalType
+           |Annotation: ${ Annotation.printAnnotation(globals) }""".stripMargin)
     }
 
-    sampleAnnotations.zipWithIndex.find { case (sa, i) => !saSignature.typeCheck(sa) }
+    colValues.zipWithIndex.find { case (sa, i) => !colType.typeCheck(sa) }
       .foreach { case (sa, i) =>
         foundError = true
         warn(
           s"""found violation in sample annotations for col $i
-             |Schema: ${ saSignature.toString }
+             |Schema: $colType
              |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
       }
 
     val localRVRowType = rvRowType
-    rdd2.map { rv =>
+    rvd.map { rv =>
       new UnsafeRow(localRVRowType, rv)
     }.find(ur => !localRVRowType.typeCheck(ur))
       .foreach { ur =>
-        val v = ur.get(1)
 
         foundError = true
         warn(
-          s"""found violation in row with row key $v
-             |Schema: ${ localRVRowType.toString }
+          s"""found violation in row
+             |Schema: $localRVRowType
              |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
       }
 
@@ -2180,96 +2325,105 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       fatal("found one or more type check errors")
   }
 
+  def entryEC: EvalContext = EvalContext(Map(
+    "global" -> (0, globalType),
+    "va" -> (1, rowType),
+    "sa" -> (2, colType),
+    "g" -> (3, entryType)))
+
   def variantEC: EvalContext = {
     val aggregationST = Map(
-      "global" -> (0, globalSignature),
-      "v" -> (1, vSignature),
-      "va" -> (2, vaSignature),
-      "g" -> (3, genotypeSignature),
-      "sa" -> (4, saSignature))
+      "global" -> (0, globalType),
+      "va" -> (1, rowType),
+      "g" -> (2, entryType),
+      "sa" -> (3, colType))
     EvalContext(Map(
-      "global" -> (0, globalSignature),
-      "v" -> (1, vSignature),
-      "va" -> (2, vaSignature),
-      "gs" -> (3, TAggregable(genotypeSignature, aggregationST))))
+      "global" -> (0, globalType),
+      "va" -> (1, rowType),
+      "gs" -> (2, TAggregable(entryType, aggregationST))))
   }
 
-  def variantsKT(): Table = {
-    val localRVRowType = rvRowType
-    val typ = TStruct(
-      "v" -> vSignature,
-      "va" -> vaSignature)
-    new Table(hc, rdd2.mapPartitions { it =>
+  def rowsTable(): Table = {
+    val localRowType = rowType
+    val localRVType = rvRowType
+    val localEntriesIndex = entriesIndex
+    new Table(hc, rvd.mapPartitions { it =>
       val rv2b = new RegionValueBuilder()
       val rv2 = RegionValue()
       it.map { rv =>
         rv2b.set(rv.region)
-        rv2b.start(typ)
+        rv2b.start(localRowType)
         rv2b.startStruct()
-        rv2b.addField(localRVRowType, rv, 1) // v
-        rv2b.addField(localRVRowType, rv, 2) // va
+        var i = 0
+        while (i < localRVType.size) {
+          if (i != localEntriesIndex)
+            rv2b.addField(localRVType, rv, i)
+          i += 1
+        }
         rv2b.endStruct()
         rv2.set(rv.region, rv2b.end())
         rv2
       }
     },
-      typ,
-      Array("v"))
+      localRowType,
+      rowKey.toArray,
+      globalType,
+      globals.asInstanceOf[Row])
   }
 
-  def genotypeKT(): Table = {
-    val localNSamples = nSamples
-    val localSAType = saSignature
-    val localRVRowType = rvRowType
+  def entriesTable(): Table = {
+    val localNSamples = numCols
 
-    val allFields = Array("v" -> vSignature) ++
-      vaSignature.fields.map(f => f.name -> f.typ) ++
-      saSignature.fields.map(f => f.name -> f.typ) ++
-      genotypeSignature.fields.map(f => f.name -> f.typ)
+    val allFields = rowType.fields.map(f => f.name -> f.typ) ++
+      colType.fields.map(f => f.name -> f.typ) ++
+      entryType.fields.map(f => f.name -> f.typ)
 
     val resultStruct = TStruct(allFields: _*)
 
-    val localVaSignature = vaSignature
-    val localSaSignature = saSignature
-    val localGenoSignature = genotypeSignature
+    val localColType = colType
+    val localEntryType = entryType
+    val localRVType = rvRowType
 
-    val saArrayType = TArray(saSignature, required = true)
+    val localEntriesType = matrixType.entryArrayType
+    val localEntriesIndex = entriesIndex
+    val saArrayType = TArray(colType, required = true)
 
-    val gsType = localRVRowType.fieldType(3).asInstanceOf[TArray]
+    val rowSize = rowType.size
 
     val localSampleAnnotationsBc = sampleAnnotationsBc
-    new Table(hc, rdd2.mapPartitions { it =>
+    new Table(hc, rvd.mapPartitions { it =>
 
-      val sa = localSampleAnnotationsBc.value
+      val colValues = localSampleAnnotationsBc.value
 
       val rv2b = new RegionValueBuilder()
       val rv2 = RegionValue()
       it.flatMap { rv =>
         val rvEnd = rv.region.size
         rv2b.set(rv.region)
-        val gsOffset = localRVRowType.loadField(rv, 3)
+        val gsOffset = localRVType.loadField(rv, localEntriesIndex)
         (0 until localNSamples).iterator
           .filter { i =>
-            gsType.isElementDefined(rv.region, gsOffset, i)
+            localEntriesType.isElementDefined(rv.region, gsOffset, i)
           }
           .map { i =>
             rv.region.clear(rvEnd)
             rv2b.clear()
             rv2b.start(resultStruct)
             rv2b.startStruct()
-            rv2b.addField(localRVRowType, rv, 1) // v
 
-            if (localRVRowType.isFieldDefined(rv, 2))
-              rv2b.addAllFields(localVaSignature, rv.region, localRVRowType.loadField(rv, 2))
+            var j = 0
+            while (j < localRVType.size) {
+              if (j != localEntriesIndex)
+                rv2b.addField(localRVType, rv, j)
+              j += 1
+            }
+
+            if (saArrayType.isElementDefined(colValues.region, colValues.aoff, i))
+              rv2b.addAllFields(localColType, colValues.region, saArrayType.loadElement(colValues.region, colValues.aoff, i))
             else
-              rv2b.skipFields(localVaSignature.size)
+              rv2b.skipFields(localColType.size)
 
-            if (saArrayType.isElementDefined(sa.region, sa.aoff, i))
-              rv2b.addAllFields(localSaSignature, sa.region, saArrayType.loadElement(sa.region, sa.aoff, i))
-            else
-              rv2b.skipFields(localSaSignature.size)
-
-            rv2b.addAllFields(localGenoSignature, rv.region, gsType.elementOffsetInRegion(rv.region, gsOffset, i))
+            rv2b.addAllFields(localEntryType, rv.region, localEntriesType.elementOffsetInRegion(rv.region, gsOffset, i))
             rv2b.endStruct()
             rv2.set(rv.region, rv2b.end())
             rv2
@@ -2277,7 +2431,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       }
     },
       resultStruct,
-      Array("v") ++ colKey)
+      (rowKey ++ colKey).toArray,
+      globalSignature = globalType,
+      globals = globals.asInstanceOf[Row])
   }
 
   def writeMetadata(dirname: String, partitionCounts: Array[Long]) {
@@ -2289,10 +2445,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     hConf.mkDir(dirname)
 
     val sampleAnnotationsJ = JArray(
-      sampleAnnotations
-        .map { annotation => JSONAnnotationImpex.exportAnnotation(annotation, saSignature) }
+      colValues
+        .map { annotation => JSONAnnotationImpex.exportAnnotation(annotation, colType) }
         .toList)
-    val globalJ = JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature)
+    val globalJ = JSONAnnotationImpex.exportAnnotation(globals, globalType)
 
     val metadata = VDSMetadata(
       file_version = MatrixTable.fileVersion,
@@ -2308,12 +2464,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val refPath = dirname + "/references/"
     hc.hadoopConf.mkDir(refPath)
-    Array(vSignature, saSignature, vaSignature, genotypeSignature, globalSignature).foreach { t =>
+    Array(colType, rowType, entryType, globalType).foreach { t =>
       GenomeReference.exportReferences(hc, refPath, t)
     }
   }
 
-  def coalesce(k: Int, shuffle: Boolean = true): MatrixTable = copy2(rdd2 = rdd2.coalesce(k, shuffle))
+  def coalesce(k: Int, shuffle: Boolean = true): MatrixTable = copy2(rvd = rvd.coalesce(k, shuffle))
 
   def persist(storageLevel: String = "MEMORY_AND_DISK"): MatrixTable = {
     val level = try {
@@ -2323,15 +2479,40 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
         fatal(s"unknown StorageLevel `$storageLevel'")
     }
 
-    copy2(rdd2 = rdd2.persist(level))
+    copy2(rvd = rvd.persist(level))
   }
 
   def cache(): MatrixTable = persist("MEMORY_ONLY")
 
-  def unpersist(): MatrixTable = copy2(rdd2 = rdd2.unpersist())
+  def unpersist(): MatrixTable = copy2(rvd = rvd.unpersist())
 
   def naiveCoalesce(maxPartitions: Int): MatrixTable =
-    copy2(rdd2 = rdd2.naiveCoalesce(maxPartitions))
+    copy2(rvd = rvd.naiveCoalesce(maxPartitions))
+
+  def unfilterEntries(): MatrixTable = {
+    val localEntriesType = matrixType.entryArrayType
+    val localEntriesIndex = entriesIndex
+    val localEntryType = entryType
+    val localRVType = rvRowType
+    val localNCols = numCols
+
+    rewriteEntries(noOp)(localEntryType, { case (_, rv, rvb) =>
+      val entriesOffset = localRVType.loadField(rv, localEntriesIndex)
+
+      rvb.startArray(localNCols)
+      var i = 0
+      while (i < localNCols) {
+        if (localEntriesType.isElementMissing(rv.region, entriesOffset, i)) {
+          rvb.startStruct()
+          rvb.skipFields(localEntryType.size)
+          rvb.endStruct()
+        } else
+          rvb.addElement(localEntriesType, rv.region, entriesOffset, i)
+        i += 1
+      }
+      rvb.endArray()
+    })
+  }
 
   /**
     * @param filterExpr filter expression involving v (Variant), va (variant annotations), s (sample),
@@ -2340,49 +2521,52 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     */
   def filterGenotypes(filterExpr: String, keep: Boolean = true): MatrixTable = {
     val symTab = Map(
-      "v" -> (0, vSignature),
-      "va" -> (1, vaSignature),
-      "sa" -> (2, saSignature),
-      "g" -> (3, genotypeSignature),
-      "global" -> (4, globalSignature))
+      "va" -> (0, rowType),
+      "sa" -> (1, colType),
+      "g" -> (2, entryType),
+      "global" -> (3, globalType))
 
     val ec = EvalContext(symTab)
-    ec.set(4, globalAnnotation)
+    ec.set(3, globals)
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 
     val localKeep = keep
     val localRVRowType = rvRowType
-    val localNSamples = nSamples
-    val localGType = genotypeSignature
+    val localNSamples = numCols
+    val localEntryType = entryType
     val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localEntriesIndex = entriesIndex
 
     copy2(
-      rdd2 = rdd2.mapPartitionsPreservesPartitioning(rdd2.typ) { it =>
+      rvd = rvd.mapPartitionsPreservesPartitioning(rvd.typ) { it =>
         val rvb = new RegionValueBuilder()
         val rv2 = RegionValue()
+        val fullRow = new UnsafeRow(localRVRowType)
 
         it.map { rv =>
-          val ur = new UnsafeRow(localRVRowType, rv)
+          fullRow.set(rv)
+          val row = fullRow.delete(localEntriesIndex)
 
           rvb.set(rv.region)
           rvb.start(localRVRowType)
           rvb.startStruct()
-          rvb.addField(localRVRowType, rv, 0)
-          rvb.addField(localRVRowType, rv, 1)
-          rvb.addField(localRVRowType, rv, 2)
 
-          val v = ur.get(1)
-          val va = ur.get(2)
-          val gs = ur.getAs[IndexedSeq[Any]](3)
+          var i = 0
+          while (i < localEntriesIndex) {
+            rvb.addField(localRVRowType, rv, i)
+            i += 1
+          }
+
+          val gs = fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)
 
           rvb.startArray(localNSamples)
-          var i = 0
+          i = 0
           while (i < localNSamples) {
             val sa = localSampleAnnotationsBc.value(i)
             val g = gs(i)
-            ec.setAll(v, va, sa, g)
+            ec.setAll(row, sa, g)
             if (Filter.boxedKeepThis(f(), localKeep))
-              rvb.addAnnotation(localGType, g)
+              rvb.addAnnotation(localEntryType, g)
             else
               rvb.setMissing()
 
@@ -2396,7 +2580,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       })
   }
 
-  def rvRowType: TStruct = matrixType.rvRowType
 
   def write(dirname: String, overwrite: Boolean = false): Unit = {
     require(dirname.endsWith(".vds"), "generic dataset write paths must end in '.vds'")
@@ -2406,24 +2589,53 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     else if (hadoopConf.exists(dirname))
       fatal(s"file already exists at `$dirname'")
 
-    val partitionCounts = rdd2.rdd.writeRows(dirname, rvRowType)
+    val (entriesAtEndRDD, rvType) = if (entriesIndex == rowType.size)
+      (rvd.rdd, rvRowType)
+    else {
+      val localRVType = rvRowType
+      val newRVType = rowType ++ TStruct(MatrixType.entriesIdentifier -> matrixType.entryArrayType)
+      val localEntriesIndex = entriesIndex
+      (rvd.rdd.mapPartitions { it =>
+        val rv2 = RegionValue()
+        val rvb = new RegionValueBuilder()
+        it.map { rv =>
+          rvb.set(rv.region)
+          rvb.start(newRVType)
+          rvb.startStruct()
+
+          var i = 0
+          while (i < localRVType.size) {
+            if (i != localEntriesIndex)
+              rvb.addField(localRVType, rv, i)
+            i += 1
+          }
+          rvb.addField(localRVType, rv, localEntriesIndex)
+
+          rvb.endStruct()
+          rv2.set(rv.region, rvb.end())
+          rv2
+        }
+      }, newRVType)
+    }
+
+    val partitionCounts = entriesAtEndRDD.writeRows(dirname, rvType)
 
     writeMetadata(dirname, partitionCounts)
 
     hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
-      Serialization.write(rdd2.partitioner.toJSON, out)
+      Serialization.write(rvd.partitioner.toJSON, out)
     }
 
     hadoopConf.writeTextFile(dirname + "/_SUCCESS")(out => ())
   }
 
-  def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "va.linreg", variantBlockSize: Int = 16): MatrixTable = {
+  def linreg(ysExpr: Array[String], xExpr: String, covExpr: Array[String] = Array.empty[String], root: String = "linreg", variantBlockSize: Int = 16): MatrixTable = {
     LinearRegression(this, ysExpr, xExpr, covExpr, root, variantBlockSize)
   }
 
   def logreg(test: String,
     y: String, x: String, covariates: Array[String] = Array.empty[String],
-    root: String = "va.logreg"): MatrixTable = {
+    root: String = "logreg"): MatrixTable = {
     LogisticRegression(this, test, y, x, covariates, root)
   }
 
@@ -2433,7 +2645,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     covariates: Array[String] = Array.empty[String],
     useML: Boolean = false,
     rootGA: String = "global.lmmreg",
-    rootVA: String = "va.lmmreg",
+    rootVA: String = "lmmreg",
     runAssoc: Boolean = true,
     delta: Option[Double] = None,
     sparsityThreshold: Double = 1.0,
@@ -2461,7 +2673,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val localRVRowType = rvRowType
 
     def minRep1(removeLeftAligned: Boolean, removeMoving: Boolean, verifyLeftAligned: Boolean): RDD[RegionValue] = {
-      rdd2.mapPartitions { it =>
+      rvd.mapPartitions { it =>
         var prevLocus: Locus = null
         val rvb = new RegionValueBuilder()
         val rv2 = RegionValue()
@@ -2498,24 +2710,26 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
     val newRDD2 =
       if (leftAligned)
-        OrderedRVD(rdd2.typ,
-          rdd2.partitioner,
+        OrderedRVD(rvd.typ,
+          rvd.partitioner,
           minRep1(removeLeftAligned = false, removeMoving = false, verifyLeftAligned = true))
       else
         SplitMulti.unionMovedVariants(
-          OrderedRVD(rdd2.typ,
-            rdd2.partitioner,
+          OrderedRVD(rvd.typ,
+            rvd.partitioner,
             minRep1(removeLeftAligned = false, removeMoving = true, verifyLeftAligned = false)),
           minRep1(removeLeftAligned = true, removeMoving = false, verifyLeftAligned = false))
 
-    copy2(rdd2 = newRDD2)
+    copy2(rvd = newRDD2)
   }
 
   def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): MatrixTable = {
-    sSignature match {
+    colKeyTypes match {
       case Array(_: TString) =>
       case _ =>
-      fatal("trio_matrix requires column keys of type String")
+        fatal(s"trio_matrix requires column keys of type 'String', found [${
+          colKeyTypes.map(x => s"'$x'").mkString(", ")
+        }]")
     }
     requireUniqueSamples("trio_matrix")
 
@@ -2529,11 +2743,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     val dadIndices = Array.fill[Int](nTrios)(-1)
     val momIndices = Array.fill[Int](nTrios)(-1)
 
-    val newSaSignature = TStruct(
+    val newColType = TStruct(
       "id" -> TString(),
-      "proband" -> saSignature,
-      "father" -> saSignature,
-      "mother" -> saSignature,
+      "proband" -> colType,
+      "father" -> colType,
+      "mother" -> colType,
       "is_female" -> TBooleanOptional,
       "fam_id" -> TStringOptional
     )
@@ -2545,20 +2759,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       val t = trios(i)
       val kidIndex = sampleIndices(t.kid)
       kidIndices(i) = kidIndex
-      val kidAnnotation = sampleAnnotations(kidIndex)
+      val kidAnnotation = colValues(kidIndex)
 
       var dadAnnotation: Annotation = null
       t.dad.foreach { dad =>
         val index = sampleIndices(dad)
         dadIndices(i) = index
-        dadAnnotation = sampleAnnotations(index)
+        dadAnnotation = colValues(index)
       }
 
       var momAnnotation: Annotation = null
       t.mom.foreach { mom =>
         val index = sampleIndices(mom)
         momIndices(i) = index
-        momAnnotation = sampleAnnotations(index)
+        momAnnotation = colValues(index)
       }
 
       val isFemale: java.lang.Boolean = (t.sex: @unchecked) match {
@@ -2573,139 +2787,113 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
       i += 1
     }
 
-    val gSig = genotypeSignature
-
     val newEntryType = TStruct(
-      "proband" -> gSig,
-      "father" -> gSig,
-      "mother" -> gSig
+      "proband_entry" -> entryType,
+      "father_entry" -> entryType,
+      "mother_entry" -> entryType
     )
 
-    val oldRowType = rvRowType
-    val newRowType = TStruct(Array(
-      rvRowType.fields(0),
-      rvRowType.fields(1),
-      rvRowType.fields(2),
-      Field(rvRowType.fields(3).name, TArray(newEntryType), 3)
-    ))
+    val localRVType = rvRowType
+    val localEntriesIndex = entriesIndex
+    val localEntriesType = matrixType.entryArrayType
 
-    val oldGsType = rvRowType.fieldType(3).asInstanceOf[TArray]
+    rewriteEntries(noOp, newColType = newColType, newColKey = Array("id"),
+      newColValues = newSampleAnnotations)(newEntryType, { case (_, rv, rvb) =>
+      val entriesOffset = localRVType.loadField(rv, localEntriesIndex)
 
-    val newRDD = rdd2.mapPartitionsPreservesPartitioning(new OrderedRVType(rdd2.typ.partitionKey, rdd2.typ.key, newRowType)) { it =>
-      val region = Region()
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
-      it.map { r =>
-        region.clear()
-        rvb.start(newRowType)
+      rvb.startArray(nTrios)
+      var i = 0
+      while (i < nTrios) {
         rvb.startStruct()
 
-        rvb.addField(oldRowType, r, 0)
-        rvb.addField(oldRowType, r, 1)
-        rvb.addField(oldRowType, r, 2)
+        // append kid element
+        rvb.addElement(localEntriesType, rv.region, entriesOffset, kidIndices(i))
 
-        rvb.startArray(nTrios)
-        val gsOffset = oldRowType.loadField(r, 3)
+        // append dad element if the dad is defined
+        val dadIndex = dadIndices(i)
+        if (dadIndex >= 0)
+          rvb.addElement(localEntriesType, rv.region, entriesOffset, dadIndex)
+        else
+          rvb.setMissing()
 
-        var i = 0
-        while (i < nTrios) {
-          rvb.startStruct()
+        // append mom element if the mom is defined
+        val momIndex = momIndices(i)
+        if (momIndex >= 0)
+          rvb.addElement(localEntriesType, rv.region, entriesOffset, momIndex)
+        else
+          rvb.setMissing()
 
-          // append kid element
-          rvb.addElement(oldGsType, r.region, gsOffset, kidIndices(i))
-
-          // append dad element if the dad is defined
-          val dadIndex = dadIndices(i)
-          if (dadIndex >= 0)
-            rvb.addElement(oldGsType, r.region, gsOffset, dadIndex)
-          else
-            rvb.setMissing()
-
-          // append mom element if the mom is defined
-          val momIndex = momIndices(i)
-          if (momIndex >= 0)
-            rvb.addElement(oldGsType, r.region, gsOffset, momIndex)
-          else
-            rvb.setMissing()
-
-          rvb.endStruct()
-          i += 1
-        }
-        rvb.endArray()
         rvb.endStruct()
-        rv.setOffset(rvb.end())
-        rv
-      }
-    }
 
-    copy2(rdd2 = newRDD,
-      sampleAnnotations = newSampleAnnotations,
-      saSignature = newSaSignature,
-      colKey=Array("id"),
-      genotypeSignature = newEntryType)
+        i += 1
+      }
+      rvb.endArray()
+    })
   }
 
-  def toIndexedRowMatrix(expr: String, getVariants: Boolean): (IndexedRowMatrix, Option[Array[Any]]) = {
+
+  def toIndexedRowMatrix(expr: String): IndexedRowMatrix = {
     val partStarts = partitionStarts()
-    assert(partStarts.length == rdd2.getNumPartitions + 1)
+    assert(partStarts.length == rvd.getNumPartitions + 1)
     val partStartsBc = sparkContext.broadcast(partStarts)
 
-    val localRVRowType = rvRowType
+    val localRVType = rvRowType
     val localSampleAnnotationsBc = sampleAnnotationsBc
+    val localEntriesIndex = entriesIndex
+    val rowKeyQuerier = colKeys
+    val localRKF = rowKeysF
 
     val ec = EvalContext(Map(
-      "global" -> (0, globalSignature),
-      "v" -> (1, vSignature),
-      "va" -> (2, vaSignature),
-      "sa" -> (4, saSignature),
-      "g" -> (5, genotypeSignature)))
+      "global" -> (0, globalType),
+      "va" -> (1, rowType),
+      "sa" -> (2, colType),
+      "g" -> (3, entryType)))
     val f = RegressionUtils.parseExprAsDouble(expr, ec)
-    ec.set(0, globalAnnotation)
+    ec.set(0, globals)
 
-    val indexedRows = rdd2.mapPartitionsWithIndex { case (i, it) =>
+    val indexedRows = rvd.mapPartitionsWithIndex { case (i, it) =>
       val start = partStartsBc.value(i)
       var j = 0
-      val ur = new UnsafeRow(localRVRowType)
+      val fullRow = new UnsafeRow(localRVType)
       it.map { rv =>
-        ur.set(rv)
-        ec.set(1, ur.get(1))
-        ec.set(2, ur.get(2))
-        val gs = ur.getAs[IndexedSeq[Any]](3)
-        val ns = gs.length
+        fullRow.set(rv)
+        val row = fullRow.delete(localEntriesIndex)
+        val entries = fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)
+        val ns = entries.length
         val a = new Array[Double](ns)
         var k = 0
+        ec.set(1, row)
         while (k < ns) {
-          ec.set(4, localSampleAnnotationsBc.value(k))
-          ec.set(5, gs(k))
+          ec.set(2, localSampleAnnotationsBc.value(k))
+          ec.set(3, entries(k))
           a(k) = f() match {
-            case null => fatal(s"Entry expr must be non-missing. Found missing value for col $k and variant ${ ur.get(1) }")
+            case null => fatal(s"Entry expr must be non-missing. Found missing value for col $k and row ${ localRKF(row) }")
             case t => t.toDouble
           }
           k += 1
         }
-        val row = IndexedRow(start + j, Vectors.dense(a))
+        val r = IndexedRow(start + j, Vectors.dense(a))
         j += 1
-        row
+        r
       }
     }
 
-    val irm = new IndexedRowMatrix(indexedRows, partStarts.last, nSamples)
-
-    (irm, someIf(getVariants, rowKeys().values))
+    new IndexedRowMatrix(indexedRows, partStarts.last, numCols)
   }
 
-  def rowKeys(): Keys = {
-    val localRVRowType = rvRowType
-
-    val values = rdd2.mapPartitions { it =>
-      val ur = new UnsafeRow(localRVRowType)
+  def dMatrixRowKeys(): Keys = {
+    val localRVType = rvRowType
+    val localRKF = rowKeysF
+    val localKeyStruct = rowKeyStruct
+    val values = rvd.mapPartitions { it =>
+      val ur = new UnsafeRow(localRVType)
       it.map { rv =>
         ur.set(rv)
-        ur.get(1)
+        Annotation.copy(localKeyStruct, localRKF(ur))
       }
     }.collect()
 
-    new Keys(vSignature, values)
+    new Keys(TStruct(rowKey.zip(rowKeyTypes): _*), values)
   }
 
   def writeKeyedBlockMatrix(dirname: String, expr: String, blockSize: Int = BlockMatrix.defaultBlockSize,
@@ -2714,28 +2902,27 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     sparkContext.hadoopConfiguration.mkDir(dirname)
 
     if (keepRowKeys)
-      rowKeys().write(sparkContext, dirname + "/rowkeys")
+      dMatrixRowKeys().write(sparkContext, dirname + "/rowkeys")
 
     if (keepColKeys)
-      new Keys(TStruct(colKey.zip(sSignature): _*), colKeys.toArray).write(sparkContext, dirname + "/colkeys")
+      new Keys(TStruct(colKey.zip(colKeyTypes): _*), colKeys.toArray).write(sparkContext, dirname + "/colkeys")
     writeBlockMatrix(dirname + "/blockmatrix", expr, blockSize)
   }
 
   def writeBlockMatrix(dirname: String, expr: String, blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
     val partStarts = partitionStarts()
-    assert(partStarts.length == rdd2.getNumPartitions + 1)
+    assert(partStarts.length == rvd.getNumPartitions + 1)
 
     val ec = EvalContext(Map(
-      "global" -> (0, globalSignature),
-      "v" -> (1, vSignature),
-      "va" -> (2, vaSignature),
-      "sa" -> (4, saSignature),
-      "g" -> (5, genotypeSignature)))
+      "global" -> (0, globalType),
+      "va" -> (1, rowType),
+      "sa" -> (2, colType),
+      "g" -> (3, entryType)))
     val f = RegressionUtils.parseExprAsDouble(expr, ec)
-    ec.set(0, globalAnnotation)
+    ec.set(0, globals)
 
     val nRows = partStarts.last
-    val nCols = nSamples
+    val localNCols = numCols
 
     val hadoop = sparkContext.hadoopConfiguration
     hadoop.mkDir(dirname)
@@ -2743,35 +2930,31 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
     // write metadata
     hadoop.writeDataFile(dirname + BlockMatrix.metadataRelativePath) { os =>
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, nCols),
+        BlockMatrixMetadata(blockSize, nRows, localNCols),
         os)
     }
 
     // write blocks
     hadoop.mkDir(dirname + "/parts")
-    val gp = GridPartitioner(blockSize, nRows, nCols)
+    val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockCount =
-      new WriteBlocksRDD(dirname, rdd2, sparkContext, rvRowType, sparkContext.broadcast(colKeys),
-        sparkContext.broadcast(sampleAnnotations), partStarts, f, ec, gp)
+      new WriteBlocksRDD(dirname, rvd, sparkContext, matrixType,
+        sparkContext.broadcast(colValues), partStarts, f, ec, gp)
         .reduce(_ + _)
 
     assert(blockCount == gp.numPartitions)
-    info(s"Wrote all $blockCount blocks of $nRows x $nCols matrix with block size $blockSize.")
+    info(s"Wrote all $blockCount blocks of $nRows x $localNCols matrix with block size $blockSize.")
 
     hadoop.writeTextFile(dirname + "/_SUCCESS")(out => ())
   }
 
   def indexRows(name: String): MatrixTable = {
-    val path = List("va", name)
-
-    val (newRowType, inserter) = rvRowType.unsafeInsert(TInt64(), path)
-    val newVAType = newRowType.asInstanceOf[TStruct].fieldType(2).asInstanceOf[TStruct]
-    val localRVRowType = rvRowType
+    val (newRVType, inserter) = rvRowType.unsafeStructInsert(TInt64(), List(name))
 
     val partStarts = partitionStarts()
-    val newMatrixType = matrixType.copy(vaType = newVAType)
-
-    val indexedRDD = rdd2.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orderedRVType) { case (i, it) =>
+    val newMatrixType = matrixType.copy(rvRowType = newRVType)
+    val localEntriesIndex = entriesIndex
+    val indexedRVD = rvd.mapPartitionsWithIndexPreservesPartitioning(newMatrixType.orderedRVType) { case (i, it) =>
       val region2 = Region()
       val rv2 = RegionValue(region2)
       val rv2b = new RegionValueBuilder(region2)
@@ -2780,36 +2963,38 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) extends JoinAnnotator 
 
       it.map { rv =>
         region2.clear()
-        rv2b.start(newRowType)
-        inserter(rv.region, rv.offset, rv2b, () => rv2b.addLong(idx))
+        rv2b.start(newRVType)
+
+        inserter(rv.region, rv.offset, rv2b,
+          () => rv2b.addLong(idx))
+
         idx += 1
         rv2.setOffset(rv2b.end())
         rv2
       }
     }
-    copy2(vaSignature = newVAType, rdd2 = indexedRDD)
+    copyMT(matrixType = newMatrixType, rvd = indexedRVD)
   }
 
   def indexCols(name: String): MatrixTable = {
-    val path = List(name)
-    val (newColType, inserter) = saSignature.structInsert(TInt32(), path)
-    val newSampleAnnotations = Array.tabulate(nSamples) { i =>
-      inserter(sampleAnnotations(i), i)
+    val (newColType, inserter) = colType.structInsert(TInt32(), List(name))
+    val newSampleAnnotations = Array.tabulate(numCols) { i =>
+      inserter(colValues(i), i)
     }
-    copy2(saSignature = newColType, sampleAnnotations = newSampleAnnotations)
+    copy2(colType = newColType, colValues = newSampleAnnotations)
   }
 
   def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): MatrixTable =
     filterPartitions(parts.asScala.toArray, keep)
 
   def filterPartitions(parts: Array[Int], keep: Boolean = true): MatrixTable = {
-    copy2(rdd2 =
-      rdd2.subsetPartitions(
+    copy2(rvd =
+      rvd.subsetPartitions(
         if (keep)
           parts
         else {
           val partSet = parts.toSet
-          (0 until rdd2.getNumPartitions).filter(i => !partSet.contains(i)).toArray
+          (0 until rvd.getNumPartitions).filter(i => !partSet.contains(i)).toArray
         })
     )
   }

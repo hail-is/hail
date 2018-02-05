@@ -12,64 +12,12 @@ def tearDownModule():
 
 class Tests(unittest.TestCase):
     def test_classes(self):
-        v = Variant.parse('1:100:A:T')
-
-        self.assertEqual(v, Variant('1', 100, 'A', 'T'))
-        self.assertEqual(v, Variant(1, 100, 'A', ['T']))
-        self.assertEqual(v.reference_genome, default_reference())
-
-        v2 = Variant.parse('1:100:A:T,C')
-
-        self.assertEqual(v2, Variant('1', 100, 'A', ['T', 'C']))
 
         l = Locus.parse('1:100')
 
         self.assertEqual(l, Locus('1', 100))
         self.assertEqual(l, Locus(1, 100))
         self.assertEqual(l.reference_genome, default_reference())
-
-        self.assertEqual(l, v.locus())
-
-        self.assertEqual(v2.num_alt_alleles(), 2)
-        self.assertFalse(v2.is_biallelic())
-        self.assertTrue(v.is_biallelic())
-        self.assertEqual(v.alt_allele(), AltAllele('A', 'T'))
-        self.assertEqual(v.allele(0), 'A')
-        self.assertEqual(v.allele(1), 'T')
-        self.assertEqual(v2.num_alleles(), 3)
-        self.assertEqual(v.alt(), 'T')
-        self.assertEqual(v2.alt_alleles[0], AltAllele('A', 'T'))
-        self.assertEqual(v2.alt_alleles[1], AltAllele('A', 'C'))
-
-        self.assertTrue(v2.in_autosome_or_par())
-        self.assertTrue(v2.in_autosome())
-        self.assertFalse(v2.in_mito())
-        self.assertFalse(v2.in_x_par())
-        self.assertFalse(v2.in_y_par())
-        self.assertFalse(v2.in_x_nonpar())
-        self.assertFalse(v2.in_y_nonpar())
-
-        aa1 = AltAllele('A', 'T')
-        aa2 = AltAllele('A', 'AAA')
-        aa3 = AltAllele('TTTT', 'T')
-        aa4 = AltAllele('AT', 'TC')
-        aa5 = AltAllele('AAAT', 'AAAA')
-
-        self.assertEqual(aa1.num_mismatch(), 1)
-        self.assertEqual(aa5.num_mismatch(), 1)
-        self.assertEqual(aa4.num_mismatch(), 2)
-
-        c1, c2 = aa5.stripped_snp()
-
-        self.assertEqual(c1, 'T')
-        self.assertEqual(c2, 'A')
-        self.assertTrue(aa1.is_SNP())
-        self.assertTrue(aa5.is_SNP())
-        self.assertTrue(aa4.is_MNP())
-        self.assertTrue(aa2.is_insertion())
-        self.assertTrue(aa3.is_deletion())
-        self.assertTrue(aa3.is_indel())
-        self.assertTrue(aa1.is_transversion())
 
         interval = Interval.parse('1:100-110')
 
@@ -95,7 +43,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(c_hom_ref.gt, 0)
         self.assertEqual(c_hom_ref.num_alt_alleles(), 0)
         self.assertTrue(c_hom_ref.one_hot_alleles(2) == [2, 0])
-        self.assertTrue(c_hom_ref.one_hot_genotype(3) == [1, 0, 0])
         self.assertTrue(c_hom_ref.is_hom_ref())
         self.assertFalse(c_hom_ref.is_het())
         self.assertFalse(c_hom_ref.is_hom_var())
@@ -142,7 +89,7 @@ class Tests(unittest.TestCase):
         ped2 = Pedigree.read('/tmp/sample_out.fam')
         self.assertEqual(ped, ped2)
         print(ped.trios[:5])
-        print(ped.complete_trios)
+        print(ped.complete_trios())
 
         t1 = Trio('kid1', pat_id='dad1', is_female=True)
         t2 = Trio('kid1', pat_id='dad1', is_female=True)

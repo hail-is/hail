@@ -635,6 +635,7 @@ object Parser extends JavaTokenParsers {
       "AltAllele" ^^ { _ => TAltAllele() } |
       ("Variant" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).variantType } |
       ("Locus" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).locusType } |
+      ("LocusAlleles" ~ "(") ~> identifier <~ ")" ^^ { id => GenomeReference.getReference(id).locusType } |
       "Call" ^^ { _ => TCall() } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
       ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |
@@ -663,7 +664,7 @@ object Parser extends JavaTokenParsers {
       (("," ~ "row_key" ~ ":" ~ "[") ~> key) ~ (trailing_keys <~ "]") ~
       (("," ~ "row" ~ ":") ~> struct_expr) ~
       (("," ~ "entry" ~ ":") ~> struct_expr <~ "}") ^^ { case globalType ~ colKey ~ colType ~ rowPartitionKey ~ rowRestKey ~ rowType ~ entryType =>
-      MatrixType(globalType, colKey, colType, rowPartitionKey, rowPartitionKey ++ rowRestKey, rowType, entryType)
+      MatrixType.fromParts(globalType, colKey, colType, rowPartitionKey, rowPartitionKey ++ rowRestKey, rowType, entryType)
     }
 
   def parsePhysicalType(code: String): PhysicalType = parse(physical_type, code)
@@ -708,7 +709,7 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def genomeReferenceDependentTypes: Parser[String] = "Variant" | "LocusInterval" | "Locus"
+  def genomeReferenceDependentTypes: Parser[String] = "Variant" | "LocusInterval" | "LocusAlleles" | "Locus"
 
   def locusInterval(gr: GRBase): Parser[Interval] = {
     val contig = gr.contigParser

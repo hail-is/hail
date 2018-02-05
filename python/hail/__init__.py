@@ -7,8 +7,8 @@ import hail.expr.functions as functions
 import hail.expr.aggregators as agg
 import hail.methods as methods
 from hail.expr import Type, TInt32, TInt64, TFloat32, TFloat64, TString, TBoolean, TArray, TSet, TDict, TStruct, \
-    TLocus, TVariant, TAltAllele, TCall, TInterval, eval_expr, eval_expr_typed
-from hail.genetics import LDMatrix, KinshipMatrix, Variant, Locus, AltAllele, Interval, Call, Pedigree, Trio, \
+    TLocus, TCall, TInterval, eval_expr, eval_expr_typed
+from hail.genetics import KinshipMatrix, Locus, Interval, Call, Pedigree, Trio, \
     GenomeReference
 from hail.utils import Struct, hadoop_write, hadoop_read, hadoop_copy
 
@@ -37,10 +37,8 @@ __all__ = ['init',
            'methods',
            'eval_expr',
            'eval_expr_typed',
-           'Variant',
            'GenomeReference',
            'Locus',
-           'AltAllele',
            'Interval',
            'Struct',
            'Call',
@@ -58,9 +56,6 @@ __all__ = ['init',
            'TDict',
            'TStruct',
            'TLocus',
-           'TVariant',
-           'TAltAllele',
            'TCall',
            'TInterval',
-           'KinshipMatrix',
-           'LDMatrix']
+           'KinshipMatrix']

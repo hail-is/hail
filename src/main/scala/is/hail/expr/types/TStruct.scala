@@ -56,6 +56,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   override def children: Seq[Type] = fields.map(_.typ)
 
+  def fieldByName(name: String): Field = fields(fieldIdx(name))
+
   override def canCompare(other: Type): Boolean = other match {
     case t: TStruct => size == t.size && fields.zip(t.fields).forall { case (f1, f2) =>
       f1.name == f2.name && f1.typ.canCompare(f2.typ)
@@ -153,6 +155,12 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       }
       (newType, deleter)
     }
+  }
+
+  def unsafeStructInsert(typeToInsert: Type, path: List[String]): (TStruct, UnsafeInserter) = {
+    assert(typeToInsert.isInstanceOf[TStruct] || path.nonEmpty)
+    val (t, i) = unsafeInsert(typeToInsert, path)
+    (t.asInstanceOf[TStruct], i)
   }
 
   override def unsafeInsert(typeToInsert: Type, path: List[String]): (Type, UnsafeInserter) = {

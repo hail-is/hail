@@ -101,7 +101,7 @@ trait Py4jUtils {
   }
 
   def joinGlobals(left: Table, right: MatrixTable, identifier: String): Table = {
-    left.annotateGlobal(right.globalAnnotation, right.globalSignature, identifier)
+    left.annotateGlobal(right.globals, right.globalType, identifier)
   }
 
   def joinGlobals(left: MatrixTable, right: Table, identifier: String): MatrixTable = {
@@ -109,7 +109,7 @@ trait Py4jUtils {
   }
 
   def joinGlobals(left: MatrixTable, right: MatrixTable, identifier: String): MatrixTable = {
-    left.annotateGlobal(right.globalAnnotation, right.globalSignature, "global." + identifier)
+    left.annotateGlobal(right.globals, right.globalType, "global." + identifier)
   }
 
   def escapePyString(s: String): String = StringEscapeUtils.escapeString(s)
