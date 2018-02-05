@@ -55,8 +55,10 @@ class OrderedJoinDistinctRDD2(left: OrderedRVD, right: OrderedRVD, joinType: Str
     }
 
     joinType match {
-      case "inner" => new OrderedInnerJoinDistinctIterator(left.typ, right.typ, leftIt, rightIt)
-      case "left" => new OrderedLeftJoinDistinctIterator(left.typ, right.typ, leftIt, rightIt)
+      case "inner" => OrderedRVIterator(left.typ, leftIt.buffered)
+        .innerJoinDistinct(OrderedRVIterator(right.typ, rightIt.buffered))
+      case "left" => OrderedRVIterator(left.typ, leftIt.buffered)
+          .leftJoinDistinct(OrderedRVIterator(right.typ, rightIt.buffered))
       case _ => fatal(s"Unknown join type `$joinType'. Choose from `inner' or `left'.")
     }
   }

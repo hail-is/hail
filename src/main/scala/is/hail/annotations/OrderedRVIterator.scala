@@ -1,8 +1,7 @@
 package is.hail.annotations
 
 import is.hail.rvd.OrderedRVType
-import is.hail.sparkextras.StaircaseIterator
-import is.hail.utils.{Muple, OrderedZipJoinIterator}
+import is.hail.utils.{Muple, OrderedZipJoinIterator, StaircaseIterator}
 
 case class OrderedRVIterator(t: OrderedRVType, iterator: BufferedIterator[RegionValue])
   extends BufferedIterator[RegionValue] {
@@ -17,20 +16,33 @@ case class OrderedRVIterator(t: OrderedRVType, iterator: BufferedIterator[Region
   def cogroup(other: OrderedRVIterator):
       Iterator[Muple[BufferedIterator[RegionValue], BufferedIterator[RegionValue]]] =
   {
-    val leftStair = this.staircase
-    val rightStair = other.staircase
-    val ord = OrderedRVType.selectUnsafeOrdering(
-      this.t.rowType,
-      this.t.kRowFieldIdx,
-      other.t.rowType,
-      other.t.kRowFieldIdx)
     new OrderedZipJoinIterator[BufferedIterator[RegionValue],
                                BufferedIterator[RegionValue]](
       left = this.staircase.buffered,
       leftDefault = Iterator.empty.buffered,
       right = other.staircase.buffered,
       rightDefault = Iterator.empty.buffered,
-      (l, r) => ord.compare(l.head, r.head)
+      (l, r) => t.kComp(other.t).compare(l.head, r.head)
     )
+  }
+
+  def innerJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
+    val muple = Muple[RegionValue, RegionValue](null, null)
+    for (Muple(l, r) <- this.cogroup(other) if (l.hasNext && r.hasNext))
+    yield {
+      muple.set(l.head, r.head)
+      muple
+    }
+  }
+
+  def leftJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] = {
+    val muple = Muple[RegionValue, RegionValue](null, null)
+    for { Muple(l, r) <- this.cogroup(other)
+          lrv <- l
+    } yield {
+      muple.set(lrv, if (r.hasNext) r.head else null)
+      muple
+    }
+
   }
 }

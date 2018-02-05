@@ -47,6 +47,12 @@ class OrderedRVDType(
 
   def valueIndices: Array[Int] = (0 until rowType.size).filter(i => !keySet.contains(rowType.fieldNames(i))).toArray
 
+  def kComp(other: OrderedRVType): UnsafeOrdering = OrderedRVType.selectUnsafeOrdering(
+    this.rowType,
+    this.kRowFieldIdx,
+    other.rowType,
+    other.kRowFieldIdx)
+
   def mutableEquiv = new EquivalenceClassView[RegionValue] {
     val wrv = WritableRegionValue(kType)
     def setNonEmptyEquivClass(representative: RegionValue) {

@@ -5,7 +5,7 @@ class OrderedZipJoinIterator[T, U](
     leftDefault: T,
     right: BufferedIterator[U],
     rightDefault: U,
-    odering: (T, U) => Int)
+    ordering: (T, U) => Int)
   extends Iterator[Muple[T, U]] {
 
   val muple = Muple(leftDefault, rightDefault)
@@ -16,7 +16,7 @@ class OrderedZipJoinIterator[T, U](
     val c = {
       if (left.hasNext) {
         if (right.hasNext)
-          odering(left.head, right.head)
+          ordering(left.head, right.head)
         else
           -1
       } else if (right.hasNext)
@@ -26,17 +26,13 @@ class OrderedZipJoinIterator[T, U](
           throw new NoSuchElementException("next on empty iterator")
         }
     }
-    if (c == 0) {
-      muple._1 = left.next()
-      muple._2 = right.next()
-    } else if (c < 0) {
-      muple._1 = left.next()
-      muple._2 = rightDefault
-    } else {
+    if (c == 0)
+      muple.set(left.next(), right.next())
+    else if (c < 0)
+      muple.set(left.next(), rightDefault)
+    else
       // c > 0
-      muple._1 = leftDefault
-      muple._2 = right.next()
-    }
+      muple.set(leftDefault, right.next())
     muple
   }
 }
