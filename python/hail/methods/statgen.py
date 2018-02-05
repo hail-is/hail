@@ -2199,7 +2199,7 @@ def balding_nichols_model(num_populations, num_samples, num_variants, num_partit
     else:
         jvm_fst_opt = joption(jarray(Env.jvm().double, fst))
 
-    from hail2 import default_reference
+    from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
 
     jmt = Env.hc()._jhc.baldingNicholsModel(num_populations, num_samples, num_variants,
