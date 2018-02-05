@@ -615,27 +615,147 @@ def import_table(paths, key=[], min_partitions=None, impute=False, no_header=Fal
            reference_genome=nullable(GenomeReference),
            contig_recoding=nullable(dictof(strlike, strlike)),
            drop_chr0=bool)
-def import_plink(bed, bim, fam, min_partitions=None, delimiter='\\\\s+',
-                 missing='NA', quant_pheno=False, a2_reference=True, reference_genome=None,
-                 contig_recoding={'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}, drop_chr0=False):
+def import_plink(bed, bim, fam,
+                 min_partitions=None,
+                 delimiter='\\\\s+',
+                 missing='NA',
+                 quant_pheno=False,
+                 a2_reference=True,
+                 reference_genome=None,
+                 contig_recoding={'23': 'X',
+                                  '24': 'Y',
+                                  '25': 'X',
+                                  '26': 'MT'},
+                 drop_chr0=False):
+    """Import PLINK binary file (BED, BIM, FAM) as a :class:`.MatrixTable`.
+
+    Examples
+    --------
+
+    Import data from a PLINK binary file:
+
+    >>> ds = methods.import_plink(bed="data/test.bed",
+    ...                           bim="data/test.bim",
+    ...                           fam="data/test.fam")
+
+    Notes
+    -----
+
+    Only binary SNP-major mode files can be read into Hail. To convert your
+    file from individual-major mode to SNP-major mode, use PLINK to read in
+    your fileset and use the ``--make-bed`` option.
+
+    Hail ignores the centimorgan position (Column 3 in BIM file).
+
+    Hail uses the individual ID (column 2 in FAM file) as the sample id (`s`).
+    The individual IDs must be unique.
+
+    The resulting :class:`.MatrixTable` has the following fields:
+
+    * Row fields:
+
+        * `v` (:class:`.TVariant`) -- Variant (key field).
+        * `rsid` (:class:`.TString`) -- Column 2 in the BIM file.
+
+    * Column fields:
+
+        * `s` (:class:`.TString`) -- Column 2 in the Fam file (key field).
+        * `fam_id` (:class:`.TString`) -- Column 1 in the FAM file. Set to
+          missing if ID equals "0".
+        * `pat_id` (:class:`.TString`) -- Column 3 in the FAM file. Set to
+          missing if ID equals "0".
+        * `mat_id` (:class:`.TString`) -- Column 4 in the FAM file. Set to
+          missing if ID equals "0".
+        * `is_female` (:class:`.TString`) -- Column 5 in the FAM file. Set to
+          missing if value equals "-9", "0", or "N/A". Set to true if value
+          equals "2". Set to false if value equals "1".
+        * `is_case` (:class:`.TString`) -- Column 6 in the FAM file. Only
+          present if `quant_pheno` equals False. Set to missing if value equals
+          "-9", "0", "N/A", or the value specified by `missing`. Set to true if
+          value equals "2". Set to false if value equals "1".
+        * `quant_pheno` (:class:`.TString`) -- Column 6 in the FAM file. Only
+          present if `quant_pheno` equals True. Set to missing if value equals
+          `missing`.
+
+    * Entry fields:
+
+        * `GT` (:class:`.TCall`) -- Genotype call (diploid, unphased).
+
+    Parameters
+    ----------
+    bed : :obj:`str`
+        PLINK BED file.
+
+    bim : :obj:`str`
+        PLINK BIM file.
+
+    fam : :obj:`str`
+        PLINK FAM file.
+
+    min_partitions : :obj:`int`, optional
+        Number of partitions.
+
+    missing : :obj:`str`
+        String used to denote missing values **only** for the phenotype field.
+        This is in addition to "-9", "0", and "N/A" for case-control
+        phenotypes.
+
+    delimiter : :obj:`str`
+        FAM file field delimiter regex.
+
+    quant_pheno : :obj:`bool`
+        If true, FAM phenotype is interpreted as quantitative.
+
+    a2_reference : :obj:`bool`
+        If True, A2 is treated as the reference allele. If False, A1 is treated
+        as the reference allele.
+
+    reference_genome : :class:`.GenomeReference`
+        Reference genome to use. Default is
+        :class:`~.HailContext.default_reference`.
+
+    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of old contig name to new contig name. The new contig name must be
+        in the reference genome given by ``reference_genome``.
+
+    drop_chr0 : :obj:`bool`
+        If true, do not include variants with contig == "0".
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Dataset imported from PLINK files.
+    """
+
     rg = reference_genome if reference_genome else Env.hc().default_reference
 
     if contig_recoding:
-        contig_recoding = TDict(TString(), TString())._convert_to_j(contig_recoding)
+        contig_recoding = TDict(TString(),
+                                TString())._convert_to_j(contig_recoding)
 
-    jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter,
-                                    missing, quant_pheno, a2_reference, rg._jrep,
+    jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions),
+                                    delimiter, missing, quant_pheno,
+                                    a2_reference, rg._jrep,
                                     joption(contig_recoding), drop_chr0)
 
     return MatrixTable(jmt)
 
 
 @handle_py4j
-@typecheck(path=oneof(strlike, listof(strlike)),
-           drop_cols=bool,
-           drop_rows=bool)
-def read_matrix(path, drop_cols=False, drop_rows=False):
-    return MatrixTable(Env.hc()._jhc.read(path, drop_cols, drop_rows))
+@typecheck(path=oneof(strlike, listof(strlike)))
+def read_matrix_table(path):
+    """Read a `.vds` file as a :class:`.MatrixTable`
+
+    Parameters
+    ----------
+    path : :obj:`str`
+        File to read.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    return MatrixTable(Env.hc()._jhc.read(path, False, False))
 
 
 @handle_py4j
@@ -835,4 +955,15 @@ def index_bgen(path):
 @handle_py4j
 @typecheck(path=strlike)
 def read_table(path):
+    """Read a `.kt` file as a :class:`.Table`.
+
+    Parameters
+    ----------
+    path : :obj:`str`
+        File to read.
+
+    Returns
+    -------
+    :class:`.Table`
+    """
     Table(Env.hc()._jhc.readTable(path))

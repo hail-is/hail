@@ -478,7 +478,7 @@ def lmmreg(ds, kinshipMatrix, y, x, covariates=[], global_root="lmmreg_global", 
     Compute a :class:`.KinshipMatrix`, and use it to test variants for
     association using a linear mixed model:
 
-    >>> ds = methods.read_matrix("data/example_lmmreg.vds")
+    >>> ds = methods.read_matrix_table("data/example_lmmreg.vds")
     >>> kinship_matrix = methods.rrm(ds.filter_rows(ds.useInKinship)['GT'])
     >>> lmm_ds = methods.lmmreg(ds, kinship_matrix, ds.pheno, ds.GT.num_alt_alleles(), [ds.cov1, ds.cov2])
 
@@ -973,7 +973,7 @@ def skat(dataset, key_expr, weight_expr, y, x, covariates=[], logistic=False,
     Test each gene for association using the linear sequence kernel association
     test:
 
-    >>> ds = methods.read_matrix('data/example_burden.vds')
+    >>> ds = methods.read_matrix_table('data/example_burden.vds')
     >>> skat_table = methods.skat(ds,
     ...                           key_expr=ds.gene,
     ...                           weight_expr=ds.weight,
