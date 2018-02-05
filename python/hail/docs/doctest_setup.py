@@ -58,11 +58,11 @@ genekt = methods.import_interval_list('data/gene.interval_list')
 ds = ds.annotate_rows(gene = genekt[ds.v])
 ds.write('data/example_burden.vds', overwrite=True)
 
-ds = methods.read_matrix('data/example.vds')
+ds = methods.read_matrix_table('data/example.vds')
 
 methods.ld_matrix(methods.split_multi_hts(ds)).write("data/ld_matrix")
 
-multiallelic_generic_ds = methods.read_matrix('data/example2.multi.generic.vds')
+multiallelic_generic_ds = methods.read_matrix_table('data/example2.multi.generic.vds')
 
 lmmreg_ds = methods.variant_qc(methods.split_multi_hts(methods.import_vcf('data/sample.vcf.bgz')))
 lmmreg_tsv = methods.import_table('data/example_lmmreg.tsv', 'Sample', impute=True)
