@@ -45,12 +45,12 @@ case class Interval(start: Any, end: Any, includeStart: Boolean = true, includeE
 
 object Interval {
   def gen[P](pord: ExtendedOrdering, pgen: Gen[P]): Gen[Interval] =
-    Gen.zip(pgen, pgen)
-      .map { case (x, y) =>
+    Gen.zip(pgen, pgen, Gen.coin(), Gen.coin())
+      .map { case (x, y, s, e) =>
         if (pord.lt(x, y))
-          Interval(x, y)
+          Interval(x, y, s, e)
         else
-          Interval(y, x)
+          Interval(y, x, s, e)
       }
 
   def ordering(pord: ExtendedOrdering): ExtendedOrdering = new ExtendedOrdering {

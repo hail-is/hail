@@ -36,7 +36,7 @@ class IntervalSuite extends SparkSuite {
 
     val ex1 = IntervalList.read(hc, "src/test/resources/example1.interval_list")
 
-    val f = tmpDir.createTempFile("example", extension = ".interval_list")
+    val f = tmpDir.createTempFile("example", extension = "interval_list")
 
     ex1.annotate("""interval = interval.start.contig + ":" + interval.start.position + "-" + interval.end.position""")
       .export(f)
@@ -216,5 +216,33 @@ class IntervalSuite extends SparkSuite {
     val z = "HLA-DRB1*13:02:01:5-100"
     assert(Locus.parseInterval(z, gr38) ==
       Interval(Locus("HLA-DRB1*13:02:01", 5), Locus("HLA-DRB1*13:02:01", 100)))
+  }
+
+  @Test def testEndpoints() {
+    val ord = TInt32().ordering
+    val intContains = (i: Interval, v: Int) => i.contains(ord, v)
+
+    for (s1 <- Array(true, false); e1 <- Array(true, false)) {
+
+      val i0 = Interval(1, 1, includeStart=s1, includeEnd=e1)
+
+      assert(i0.isEmpty(ord) == (!i0.includeStart || !i0.includeEnd))
+
+      val i1 = Interval(1, 5, includeStart=s1, includeEnd=e1)
+
+      assert(i1.contains(ord, 3))
+      assert(i1.includeStart == i1.contains(ord, 1))
+      assert(i1.includeEnd == i1.contains(ord, 5))
+
+      for (s2 <- Array(true, false); e2 <- Array(true, false)) {
+        val i2 = Interval(5, 10, includeStart=s2, includeEnd=e2)
+        assert(i1.overlaps(ord, i2) == i2.overlaps(ord, i1))
+        assert(i1.overlaps(ord, i2) == (i1.includeEnd && i2.includeStart))
+
+        val iTree = IntervalTree.apply(ord, Array(i1, i2))
+        assert(iTree.contains(ord, 5) == (i1.includeEnd || i2.includeStart))
+        assert(iTree.queryIntervals(ord, 5).length == (if (i1.includeEnd || i2.includeStart) 1 else 0))
+      }
+    }
   }
 }
