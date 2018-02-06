@@ -72,11 +72,6 @@ class BlockMatrix(object):
         self._jbm.write(path)
 
     @handle_py4j
-    @typecheck_method(that=block_matrix_type)
-    def dot(self, that):
-        return BlockMatrix(self._jbm.multiply(that._jbm))
-
-    @handle_py4j
     @typecheck_method(cols_to_keep=listof(integral))
     def filter_cols(self, cols_to_keep):
         return BlockMatrix(self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
@@ -111,6 +106,21 @@ class BlockMatrix(object):
     @handle_py4j
     def to_numpy_matrix(self):
         return numpy_from_breeze(self._jbm.toLocalMatrix())
+
+    @handle_py4j
+    @typecheck_method(that=block_matrix_type)
+    def __add__(self, that):
+        return BlockMatrix(self._jbm.add(that._jbm))
+
+    @handle_py4j
+    @typecheck_method(that=block_matrix_type)
+    def __sub__(self, that):
+        return BlockMatrix(self._jbm.subtract(that._jbm))
+
+    @handle_py4j
+    @typecheck_method(that=block_matrix_type)
+    def dot(self, that):
+        return BlockMatrix(self._jbm.multiply(that._jbm))
 
     @handle_py4j
     @typecheck_method(i=numeric)

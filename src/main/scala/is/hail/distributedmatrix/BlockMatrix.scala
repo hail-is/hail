@@ -302,12 +302,9 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       assert(it.hasNext)
       var bdm = it.next()._2
       assert(!it.hasNext)
- 
-      if (forceRowMajor)
-        bdm = bdm.forceRowMajor()
-      
+       
       val dos = new DataOutputStream(os)
-      bdm.write(dos)
+      bdm.write(dos, forceRowMajor)
       dos.close()
 
       1
