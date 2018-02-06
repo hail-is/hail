@@ -169,7 +169,7 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       val jOffset = j * blockSize      
       var block = m(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
 
-      block.copy.write(hc, filename, forceRowMajor)
+      block.write(hc, filename, forceRowMajor)
     }
 
     info(s"wrote $nParts ${ plural(nParts, "item") } in $nParts ${ plural(nParts, "partition") }")
