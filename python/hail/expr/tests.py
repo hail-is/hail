@@ -794,3 +794,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(eval_expr(functions.hamming('A', 'T')), 1)
         self.assertEqual(eval_expr(functions.hamming('AAAAA', 'AAAAT')), 1)
         self.assertEqual(eval_expr(functions.hamming('abcde', 'edcba')), 4)
+
+    def test_gp_dosage(self):
+        self.assertAlmostEqual(eval_expr(functions.gp_dosage([1.0, 0.0, 0.0])), 0.0)
+        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 1.0, 0.0])), 1.0)
+        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 0.0, 1.0])), 2.0)
+        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.5, 0.5, 0.0])), 0.5)
+        self.assertAlmostEqual(eval_expr(functions.gp_dosage([0.0, 0.5, 0.5])), 1.5)

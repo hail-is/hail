@@ -22,6 +22,7 @@ Functions
     exp
     fisher_exact_test
     gt_index
+    gp_dosage
     hardy_weinberg_p
     index
     parse_locus
@@ -83,6 +84,7 @@ Functions
 .. autofunction:: drop
 .. autofunction:: exp
 .. autofunction:: fisher_exact_test
+.. autofunction:: gp_dosage
 .. autofunction:: gt_index
 .. autofunction:: hardy_weinberg_p
 .. autofunction:: index
