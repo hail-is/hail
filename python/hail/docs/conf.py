@@ -54,11 +54,12 @@ nbsphinx_allow_errors = False
 if not tags.has('checktutorial'):
     nbsphinx_execute = 'never'
 
-autosummary_generate = ['api.rst', 'genetics/index.rst', 'methods/index.rst', 'utils/index.rst', 'linalg/index.rst', 'stats/index.rst']
+autosummary_generate = ['api.rst', 'genetics/index.rst', 'methods/index.rst', 'utils/index.rst', 'linalg/index.rst', 'stats/index.rst', 'expr/utils.rst']
 # autoclass_content = "both"
 autodoc_default_flags = ['members', 'undoc-members']
 
 napoleon_use_rtype = False
+napoleon_use_param = False
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates', '_templates/_autosummary']
