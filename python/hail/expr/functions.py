@@ -99,7 +99,7 @@ def broadcast(x):
     -----
     Use this function to capture large Python objects for use in expressions. This
     function provides an alternative to adding an object as a global annotation on a
-    :class:hail.api2.Table or :class:hail.api2.MatrixTable.
+    :class:hail.Table or :class:hail.MatrixTable.
 
     Parameters
     ----------
@@ -115,8 +115,8 @@ def broadcast(x):
     uid = Env._get_uid()
 
     def joiner(obj):
-        from hail.api2.table import Table
-        from hail.api2.matrixtable import MatrixTable
+        from hail.table import Table
+        from hail.matrixtable import MatrixTable
         if isinstance(obj, Table):
             return Table(obj._jt.annotateGlobalExpr('{} = {}'.format(uid, expr._ast.to_hql())))
         else:

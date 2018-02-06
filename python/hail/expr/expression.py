@@ -4169,7 +4169,7 @@ def eval_expr(expression):
     This method is extremely useful for learning about Hail expressions and understanding
     how to compose them.
 
-    Expressions that refer to fields of :class:`.hail.api2.Table` or :class:`.hail.api.MatrixTable`
+    Expressions that refer to fields of :class:`.hail.Table` or :class:`.hail.MatrixTable`
     objects cannot be evaluated.
 
     Examples
@@ -4202,7 +4202,7 @@ def eval_expr_typed(expression):
     This method is extremely useful for learning about Hail expressions and understanding
     how to compose them.
 
-    Expressions that refer to fields of :class:`.hail.api2.Table` or :class:`.hail.api.MatrixTable`
+    Expressions that refer to fields of :class:`.hail.Table` or :class:`.hail.MatrixTable`
     objects cannot be evaluated.
 
     Examples
@@ -4228,7 +4228,10 @@ def eval_expr_typed(expression):
     analyze('eval_expr_typed', expression, Indices())
     if not expression._joins.empty():
         raise ExpressionException("'eval_expr' methods do not support joins or broadcasts")
-    r, t = Env.hc().eval_expr_typed(expression._ast.to_hql())
+
+    x = Env.hc()._jhc.eval(expression._ast.to_hql())
+    t = Type._from_java(x._2())
+    r = t._convert_to_py(x._1())
     return r, t
 
 

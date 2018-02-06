@@ -1,5 +1,5 @@
 from hail.typecheck import *
-from hail.api2 import MatrixTable
+from hail.matrixtable import MatrixTable
 from hail.utils.java import handle_py4j
 from hail.utils import Summary
 

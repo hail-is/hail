@@ -2,20 +2,14 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail import HailContext
 from hail.expr import *
-from hail2 import *
-
-hc = None
+from hail import *
 
 def setUpModule():
-    global hc
-    hc = HailContext()  # master = 'local[2]')
+    init(master='local[2]', min_block_size=0)
 
 def tearDownModule():
-    global hc
-    hc.stop()
-    hc = None
+    stop()
 
 class Tests(unittest.TestCase):
     def test_types(self):

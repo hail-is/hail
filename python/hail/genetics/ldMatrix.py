@@ -1,10 +1,9 @@
-from hail.history import *
 from hail.typecheck import *
 from hail.utils.java import *
 
 import hail
 
-class LDMatrix(HistoryMixin):
+class LDMatrix:
     """
     Represents a symmetric matrix encoding the Pearson correlation between each pair of variants in the accompanying variant list.
     """
@@ -54,7 +53,6 @@ class LDMatrix(HistoryMixin):
         return DenseMatrix(j_local_mat.rows(), j_local_mat.cols(), list(j_local_mat.data()), False)
 
     @handle_py4j
-    @write_history('path', is_dir=True)
     @typecheck_method(path=strlike)
     def write(self, path):
         """
@@ -64,7 +62,7 @@ class LDMatrix(HistoryMixin):
 
         Write an LD matrix to a file.
 
-        >>> vds.ld_matrix().write('output/ld_matrix')
+        >>> methods.ld_matrix(dataset).write('output/ld_matrix')
 
         :param path: the path to which to write the LD matrix
         :type path: str
@@ -93,7 +91,6 @@ class LDMatrix(HistoryMixin):
         return LDMatrix(jldm)
 
     @handle_py4j
-    @write_history('path', is_dir=False, parallel='parallel')
     @typecheck_method(path=strlike,
                       column_delimiter=strlike,
                       header=nullable(strlike),
@@ -106,18 +103,18 @@ class LDMatrix(HistoryMixin):
 
         Write a full LD matrix as a tab-separated file:
 
-        >>> vds.ld_matrix().export('output/ld_matrix.tsv', column_delimiter='\t')
+        >>> methods.ld_matrix(dataset).export('output/ld_matrix.tsv', column_delimiter='\t')
 
         Write a full LD matrix as a comma-separated file with the variant list as a header:
 
-        >>> ldm = vds.ld_matrix()
+        >>> ldm = methods.ld_matrix(dataset)
         >>> ldm.export('output/ld_matrix.tsv',
         ...            column_delimiter=',',
         ...            header=','.join([str(v) for v in ldm.variant_list()]))
 
         Write a full LD matrix as a folder of comma-separated file shards with a separate header file:
 
-        >>> ldm = vds.ld_matrix()
+        >>> ldm = methods.ld_matrix(dataset)
         >>> ldm.export('output/ld_matrix.tsv',
         ...            column_delimiter=',',
         ...            header=None,
@@ -125,7 +122,7 @@ class LDMatrix(HistoryMixin):
 
         Write the upper-triangle with the diagonal as a comma-separated file:
 
-        >>> ldm = vds.ld_matrix()
+        >>> ldm = methods.ld_matrix(dataset)
         >>> ldm.export('output/ld_matrix.tsv',
         ...            column_delimiter=',',
         ...            entries='upper')

@@ -1,7 +1,8 @@
 from hail.typecheck import *
 from hail.utils.java import Env, handle_py4j, joption, FatalError, jindexed_seq_args, jset_args
 from hail.utils import wrap_to_list
-from hail.api2 import Table, MatrixTable
+from hail.matrixtable import MatrixTable
+from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expression import analyze, expr_any
 from hail.genetics import GenomeReference
@@ -933,7 +934,7 @@ def import_vcf(path, force=False, force_bgz=False, header_file=None, min_partiti
     -------
     :class:`.MatrixTable`
     """
-    from hail2 import default_reference
+    from hail import default_reference
     rg = reference_genome if reference_genome else default_reference()
 
     if contig_recoding:
