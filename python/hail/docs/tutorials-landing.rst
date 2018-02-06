@@ -1,7 +1,7 @@
 .. _sec-tutorials2:
 
 ================
-Hail 2 Tutorials
+Hail Tutorials
 ================
 
 To take Hail for a test drive, go through our tutorials. These can be viewed here in the documentation,
@@ -18,5 +18,4 @@ test, and demonstrate the need to control for confounding caused by population s
 .. toctree::
     :maxdepth: 2
 
-    Hail Overview <hail2_tutorials/hail2-overview.ipynb>
-
+    Hail Overview <tutorials/hail-overview.ipynb>

@@ -1,7 +1,7 @@
 from hail.utils import new_temp_file, storage_level
 from hail.utils.java import Env, handle_py4j, scala_object, jarray, numpy_from_breeze
 from hail.typecheck import *
-from hail.api2 import MatrixTable
+from hail.matrixtable import MatrixTable
 from hail.expr.expression import expr_numeric, to_expr, analyze
 
 block_matrix_type = lazy()

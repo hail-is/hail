@@ -1118,7 +1118,7 @@ class Table(TableTemplate):
 
         indices, aggregations, joins, refs = unify_all(*exprs)
 
-        from hail.api2.matrixtable import MatrixTable
+        from hail.matrixtable import MatrixTable
         uid = Env._get_uid()
 
         src = indices.source
@@ -1222,7 +1222,7 @@ class Table(TableTemplate):
         uid = Env._get_uid()
 
         def joiner(obj):
-            from hail.api2.matrixtable import MatrixTable
+            from hail.matrixtable import MatrixTable
             if isinstance(obj, MatrixTable):
                 return MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jt, uid))
             else:
@@ -1305,7 +1305,7 @@ class Table(TableTemplate):
         Notes
         -----
 
-        This method is an alias for :func:`persist("MEMORY_ONLY") <hail.api2.Table.persist>`.
+        This method is an alias for :func:`persist("MEMORY_ONLY") <hail.Table.persist>`.
 
         Returns
         -------
@@ -2034,7 +2034,7 @@ class Table(TableTemplate):
     @handle_py4j
     def to_matrix_table(self, row_key, col_key, **entry_exprs):
 
-        from hail.api2 import MatrixTable
+        from hail.matrixtable import MatrixTable
 
         all_exprs = []
         all_exprs.append(row_key)

@@ -12,9 +12,7 @@ Contents
     :maxdepth: 2
 
     Getting Started <getting_started>
-    Overview <overview>
-    Hail2 Tutorials <tutorials2-landing>
-    Expression Language <exprlang>
+    Tutorials <tutorials-landing>
     Python API <api>
     Annotation Database <annotationdb>
     Getting Started Developing <getting_started_developing>

@@ -2,7 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail2 import *
+from hail import *
 from subprocess import call as syscall
 import numpy as np
 from struct import unpack
@@ -10,10 +10,8 @@ import hail.utils as utils
 from hail.expr.expression import ExpressionException
 from hail.utils.misc import test_file
 from hail.linalg import BlockMatrix
-from hail.api1.keytable import KeyTable
 from math import sqrt
 
-hc = None
 
 def setUpModule():
     init(master='local[2]', min_block_size=0)
