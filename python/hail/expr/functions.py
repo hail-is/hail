@@ -587,11 +587,6 @@ def ceil(x):
     """The smallest integral value that is greater than or equal to `x`."""
     return _func("ceil", x.dtype, x)
 
-@typecheck(x=expr_numeric)
-def round(x):
-    """The nearest integral value to `x`."""
-    return _func("round", x.dtype, x)
-
 @typecheck(j=expr_int32, k=expr_int32)
 def gt_index(j, k):
     """Convert from `j`/`k` pair to call index (the triangular number).

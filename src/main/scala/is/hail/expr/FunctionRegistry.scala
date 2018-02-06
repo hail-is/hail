@@ -1812,9 +1812,6 @@ object FunctionRegistry {
   register("ceil", (x: Float) => math.ceil(x).toFloat, null)
   register("ceil", (x: Double) => math.ceil(x), null)
 
-  register("round", (x: Float) => math.rint(x).toFloat, null)
-  register("round", (x: Double) => math.rint(x), null)
-
   register("//", { (xs: IndexedSeq[java.lang.Integer], y: Int) =>
     val a = new Array[java.lang.Integer](xs.length)
     var i = 0
