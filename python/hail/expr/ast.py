@@ -248,7 +248,7 @@ class GlobalJoinReference(AST):
         super(GlobalJoinReference, self).__init__()
 
     def set(self, target):
-        from hail.api2.matrixtable import MatrixTable
+        from hail.matrixtable import MatrixTable
         self.is_set = True
         if isinstance(target, MatrixTable):
             self.is_matrix = True

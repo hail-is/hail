@@ -2,9 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail2 import *
-
-hc = None
+from hail import *
 
 def setUpModule():
     init(master='local[2]', min_block_size=0)

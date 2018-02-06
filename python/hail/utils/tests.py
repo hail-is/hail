@@ -2,10 +2,9 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail import HailContext
 from hail.utils import *
 from .linkedlist import LinkedList
-from hail2 import *
+from hail import *
 
 def setUpModule():
     init(master='local[2]', min_block_size=0)
