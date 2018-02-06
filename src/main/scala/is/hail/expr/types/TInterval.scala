@@ -39,7 +39,7 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
       "start" -> pointType,
       "end" -> pointType,
       "includeStart" -> TBooleanRequired,
-      "includeEnd" -> TBooleanRequired))
+      "includeEnd" -> TBooleanRequired)
     rep.setRequired(required).asInstanceOf[TStruct]
   }
 
