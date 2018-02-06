@@ -696,7 +696,7 @@ def gp_dosage(gp):
     -------
     :class:`.Float64Expression`
     """
-    if not is_numeric(gp.dtype):
+    if not is_numeric(gp.dtype.element_type):
         raise TypeError("'gp_dosage' expects an expression of type "
                         "'Array[Float64]'. Found '{}'".format(gp.dtype))
     return _func("dosage", TFloat64(), gp)
