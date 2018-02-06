@@ -10,7 +10,6 @@ import hail.utils as utils
 from hail.expr.expression import ExpressionException
 from hail.utils.misc import test_file
 from hail.linalg import BlockMatrix
-from hail.api1.keytable import KeyTable
 from math import sqrt
 
 
