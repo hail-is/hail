@@ -22,33 +22,35 @@ import org.json4s._
 
 object BlockMatrix {
   type M = BlockMatrix
-  val defaultBlockSize: Int = 1024
+  val defaultBlockSize: Int = 4096
 
   def from(sc: SparkContext, lm: BDM[Double]): M =
     from(sc, lm, defaultBlockSize)
 
   def from(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
     assertCompatibleLocalMatrix(lm)
-    val part = GridPartitioner(blockSize, lm.rows, lm.cols)
-    val lmBc = sc.broadcast(lm)
-    new BlockMatrix(
-    new RDD[((Int, Int), BDM[Double])](sc, Nil) {
-      override val partitioner = Some(part)
+    val gp = GridPartitioner(blockSize, lm.rows, lm.cols)
+    val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
+      val (i, j) = gp.blockCoordinates(pi)
+      val (blockNRows, blockNCols) = gp.blockDims(pi)
+      val iOffset = i * blockSize
+      val jOffset = j * blockSize
+      
+      sc.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
+    }
+    
+    val blocks = new RDD[((Int, Int), BDM[Double])](sc, Nil) {
+      override val partitioner = Some(gp)
 
-      def getPartitions: Array[Partition] = Array.tabulate(part.numPartitions)(i => IntPartition(i))
+      def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(i => IntPartition(i))
 
       def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-        val (i, j) = part.blockCoordinates(split.index)
-        val iOffset = i * blockSize
-        val jOffset = j * blockSize
-        val (blockNRows, blockNCols) = part.blockDims(split.index)
-        // FIXME return slice when write supports sliced blocks
-        val b = new BDM[Double](blockNRows, blockNCols)
-        b := lmBc.value(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
-        Iterator(((i, j), b))
+        val pi = split.index
+        Iterator((gp.blockCoordinates(pi), localBlocksBc(split.index).value))
       }
-    },
-    blockSize, lm.rows, lm.cols)
+    }
+    
+    new BlockMatrix(blocks, blockSize, lm.rows, lm.cols)
   }
 
   def from(irm: IndexedRowMatrix): M =
