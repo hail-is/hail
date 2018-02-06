@@ -670,6 +670,33 @@ def parse_locus(s, reference_genome=None):
     return construct_expr(ApplyMethod('Locus({})'.format(reference_genome.name), s._ast), TLocus(reference_genome),
                           s._indices, s._aggregations, s._joins, s._refs)
 
+@typecheck(gp=expr_list)
+def gp_dosage(gp):
+    """
+    Return expected genotype dosage from array of genotype probabilities. Only defined for bi-allelic variants. The
+    `gp` argument must be length 3.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> eval_expr(functions.gp_dosage([0.0, 0.5, 0.5]))
+        1.5
+
+    Parameters
+    ----------
+    gp : :class:`.ArrayFloat64Expression`
+        Length 3 list of bi-allelic Phred-scaled genotype likelihoods
+
+    Returns
+    -------
+    :class:`.Float64Expression`
+    """
+    if not isinstance(gp, ArrayFloat64Expression):
+        raise TypeError("Function 'gp_dosage' expects an expression of type "
+                        "'Array[TFloat64]'. Found {}".format(gp.dtype))
+    return _func("dosage", TFloat64(), gp)
+
 @typecheck(pl=expr_list)
 def pl_dosage(pl):
     """
