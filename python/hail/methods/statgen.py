@@ -1677,6 +1677,100 @@ def sample_rows(dataset, fraction, seed=1):
 
     return MatrixTable(dataset._jvds.sampleVariants(fraction, seed))
 
+    @typecheck(gt=call_expr, i=expr_int32)
+    def downcode(call, i):
+        return Call(functions.cond(functions.gtj() == i, 1, 0)
+                    functions.cond(functions.gtk() == i, 1, 0))
+
+    @typecheck(gt=call_expr, i=expr_int32)
+    def gq_from_pl(call, i):
+        return Call(functions.cond(functions.gtj() == i, 1, 0)
+                    functions.cond(functions.gtk() == i, 1, 0))
+
+    @handle_py4j
+    @record_method
+    @typecheck(variant=strlike,
+               genotype=strlike,
+               keep_star=bool,
+               left_aligned=bool)
+    def split_multi(self, variant, genotype, keep_star=False, left_aligned=False):
+        """Split multiallelic variants.
+
+        Example
+        -------
+
+        :meth:`~hail.VariantDataset.split_multi_hts`, which splits
+        multiallelic variants for the HTS genotype schema and updates
+        the genotype annotations by downcoding the genotype, is
+        implemented as:
+
+        >>> methods.split_multi(multiallelic_generic_vds,
+        ...   lambda ctx: { aIndex: ctx.aIndex, wasSplit: ctx.wasSplit }
+        ...   lambda ctx: {
+        ...       GT: functions.downcode(ctx.GT, ctx.aIndex),
+        ...       AD: functions.or_missing(functions.is_defined(ctx.AD),
+        ...               [ctx.AD.sum() - ctx.AD[ctx.aIndex], ctx.AD[ctx.aIndex]]),
+        ...       DP: ctx.DP,
+        ...       PL: functions.or_missing(functions.is_defined(g.PL),
+        ...               (range(3)
+        ...                .map(lambda i: (range(ctx.PL.length())
+        ...                                .filter(lambda j: functions.downcode(Call(j), ctx.aIndex) == Call(i))
+        ...                                .map(j => ctx.PL[j])
+        ...                                .min()))))
+        ...       GQ: functions.gq_from_pl(newpl)
+        ...   }
+
+        Notes
+        -----
+
+        ``variant_expr`` is an annotation expression to update the
+        variant annotations for each output variant.  It updates `va`
+        and is evaluated in the following namespace:
+
+        - ``global``: global annotations
+        - ``v``: :ref:`variant(GR)`: the old variant
+        - ``newV``: :ref:`variant(GR)`: the new, split variant
+        - ``va``: the old variant annotations
+        - ``aIndex``: the index of the input allele to the output variant
+        - ``wasSplit``: True if the original variant was multiallelic
+
+        ``genotype_expr`` is an annotation expression to update the
+        genotype annotations for each output variant.  It updates `g`
+        and is evaluated in the following namespace:
+
+        - ``global``: global annotations
+        - ``v``: :ref:`variant(GR)`: the old variant
+        - ``newV``: :ref:`variant(GR)`: the new, split variant
+        - ``va``: the old variant annotations
+        - ``aIndex``: the index of the input allele to the output variant
+        - ``wasSplit``: True if the original variant was multiallelic
+        - ``s``: the sample
+        - ``sa``: the sample annotations
+        - ``g``: the old genotype annotations
+
+        Note, the variant and genotype annotations are updated for all
+        output variants, even those that were originally biallelic.
+        This is because the updates can change the variant annotation
+        and genotype schemas, which must be consistent across
+        variants.
+
+        variant: :obj:`str`
+            Annotation expressions to update the variant annotations for the
+            new, split variants.
+
+        :param str genotype_expr: Annotation expressions to update the genotype annotations for the new, split variants.
+
+        :param bool keep_star: Do not filter out * alleles.
+        :param bool left_aligned: If True, variants are assumed to be
+          left aligned and have unique loci.  This avoids a shuffle.
+          If the assumption is violated, an error is generated.
+
+        """
+
+        jvds = scala_object(Env.hail().methods, 'SplitMulti').apply(
+            self._jvds, variant_expr, genotype_expr, keep_star, left_aligned)
+        return VariantDataset(self.hc, jvds)
+
 @handle_py4j
 @typecheck(ds=MatrixTable,
            keep_star=bool,
