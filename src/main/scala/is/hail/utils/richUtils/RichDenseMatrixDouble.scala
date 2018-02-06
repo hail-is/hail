@@ -119,26 +119,30 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     }
   }
   
-  def write(dos: DataOutputStream) {
-    assert(m.offset == 0)
-    assert(m.majorStride == (if (m.isTranspose) m.cols else m.rows))
+  def isCompact: Boolean = m.rows * m.cols == m.data.length
 
+  def toCompactData(forceRowMajor: Boolean = false): (Array[Double], Boolean) = {
+    if (isCompact && (!forceRowMajor || m.isTranspose))
+      (m.data, m.isTranspose)
+    else if (forceRowMajor)
+      (m.t.toArray, true)
+    else
+      (m.toArray, false)
+  }
+
+  def write(dos: DataOutputStream, forceRowMajor: Boolean) {
+    val (data, isTranspose) = m.toCompactData(forceRowMajor)
+    assert(data.length == m.rows * m.cols)
+    
     dos.writeInt(m.rows)
     dos.writeInt(m.cols)
-    assert(m.data.length == m.rows * m.cols)
-    dos.writeBoolean(m.isTranspose)
+    dos.writeBoolean(isTranspose)
     
-    RichDenseMatrixDouble.writeDoubles(dos, m.data, m.data.length)
+    RichDenseMatrixDouble.writeDoubles(dos, data, data.length)
   }
   
-  def forceRowMajor(): DenseMatrix[Double] =
-    if (m.isTranspose)
-      m
-    else
-      new DenseMatrix(m.rows, m.cols, m.t.toArray, 0, m.cols, isTranspose = true)
-  
-  def write(hc: HailContext, path: String) {
-    hc.hadoopConf.writeDataFile(path)(write)
+  def write(hc: HailContext, path: String, forceRowMajor: Boolean = false) {
+    hc.hadoopConf.writeDataFile(path)(dos => write(dos, forceRowMajor))
   }
   
   def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false) {
@@ -164,11 +168,8 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
       val iOffset = i * blockSize
       val jOffset = j * blockSize      
       var block = m(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
-    
-      if (forceRowMajor)
-        block.forceRowMajor().write(hc, filename)
-      else
-        block.copy.write(hc, filename)
+
+      block.write(hc, filename, forceRowMajor)
     }
 
     info(s"wrote $nParts ${ plural(nParts, "item") } in $nParts ${ plural(nParts, "partition") }")
