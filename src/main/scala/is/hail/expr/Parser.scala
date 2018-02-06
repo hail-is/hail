@@ -618,9 +618,9 @@ object Parser extends JavaTokenParsers {
       .toArray
   }
 
-  def type_expr: Parser[Type] = _required_type ~ _type_expr ^^ { case req ~ t => if (req) !t else t }
+  def type_expr: Parser[Type] = _required_type ~ _type_expr ^^ { case req ~ t => t.setRequired(req) }
 
-  def _required_type: Parser[Boolean] = "!" ^^ { _ => true } | success(false)
+  def _required_type: Parser[Boolean] = "+" ^^ { _ => true } | success(false)
 
   def _type_expr: Parser[Type] =
     "Interval" ~> "[" ~> type_expr <~ "]" ^^ { pointType => TInterval(pointType) } |
@@ -641,7 +641,7 @@ object Parser extends JavaTokenParsers {
       ("Dict" ~ "[") ~> type_expr ~ "," ~ type_expr <~ "]" ^^ { case kt ~ _ ~ vt => TDict(kt, vt) } |
       _struct_expr
 
-  def struct_expr: Parser[TStruct] = _required_type ~ _struct_expr ^^ { case req ~ t => if (req) (!t).asInstanceOf[TStruct] else t }
+  def struct_expr: Parser[TStruct] = _required_type ~ _struct_expr ^^ { case req ~ t => t.setRequired(req).asInstanceOf[TStruct] }
 
   def _struct_expr: Parser[TStruct] = ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields => TStruct(fields) }
 

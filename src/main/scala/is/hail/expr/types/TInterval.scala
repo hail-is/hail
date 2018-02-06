@@ -38,7 +38,7 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
     val rep = TStruct(
       "start" -> pointType,
       "end" -> pointType)
-    if (required) (!rep).asInstanceOf[TStruct] else rep
+    rep.setRequired(required).asInstanceOf[TStruct]
   }
 
   override def unify(concrete: Type): Boolean = concrete match {
