@@ -55,7 +55,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // type Array - info.AC (allele count)
     val acQuery = vas.query("info", "AC")
-    assert(vas.fieldOption("info", "AC").exists(f => f.typ == TArray(TInt32()) || f.typ == TArray(!TInt32())))
+    assert(vas.fieldOption("info", "AC").exists(f => f.typ == TArray(TInt32()) || f.typ == TArray(+TInt32())))
     assert(acQuery(variantAnnotationMap(firstVariant)) == IndexedSeq(89))
     assert(acQuery(variantAnnotationMap(anotherVariant)) == IndexedSeq(13))
 
@@ -67,7 +67,7 @@ class AnnotationsSuite extends SparkSuite {
 
     //type Set[String]
     val filtQuery = vas.query("filters")
-    assert(vas.fieldOption("filters").exists(f => f.typ == TSet(TString()) || f.typ == TSet(!TString())))
+    assert(vas.fieldOption("filters").exists(f => f.typ == TSet(TString()) || f.typ == TSet(+TString())))
     assert(filtQuery(variantAnnotationMap(firstVariant)) == Set())
     assert(filtQuery(variantAnnotationMap(anotherVariant)) == Set("VQSRTrancheSNP99.95to100.00"))
   }

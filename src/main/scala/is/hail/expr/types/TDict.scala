@@ -9,7 +9,7 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, _}
 
 final case class TDict(keyType: Type, valueType: Type, override val required: Boolean = false) extends TContainer {
-  val elementType: Type = !TStruct("key" -> keyType, "value" -> valueType)
+  val elementType: Type = +TStruct("key" -> keyType, "value" -> valueType)
 
   val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
