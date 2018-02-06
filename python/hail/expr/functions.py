@@ -673,8 +673,7 @@ def parse_locus(s, reference_genome=None):
 @typecheck(gp=expr_list)
 def gp_dosage(gp):
     """
-    Return expected genotype dosage from array of genotype probabilities. Only defined for bi-allelic variants. The
-    `gp` argument must be length 3.
+    Return expected genotype dosage from array of genotype probabilities.
 
     Examples
     --------
@@ -683,18 +682,23 @@ def gp_dosage(gp):
         >>> eval_expr(functions.gp_dosage([0.0, 0.5, 0.5]))
         1.5
 
+    Notes
+    -----
+    This function is only defined for bi-allelic variants. The `gp` argument
+    must be length 3. The value is ``gp[1] + 2 * gp[2]``.
+
     Parameters
     ----------
     gp : :class:`.ArrayFloat64Expression`
-        Length 3 list of bi-allelic Phred-scaled genotype likelihoods
+        Length 3 array of bi-allelic genotype probabilities
 
     Returns
     -------
     :class:`.Float64Expression`
     """
-    if not isinstance(gp, ArrayFloat64Expression):
-        raise TypeError("Function 'gp_dosage' expects an expression of type "
-                        "'Array[TFloat64]'. Found {}".format(gp.dtype))
+    if not is_numeric(gp.dtype):
+        raise TypeError("'gp_dosage' expects an expression of type "
+                        "'Array[Float64]'. Found '{}'".format(gp.dtype))
     return _func("dosage", TFloat64(), gp)
 
 @typecheck(pl=expr_list)
@@ -714,7 +718,7 @@ def pl_dosage(pl):
     Parameters
     ----------
     pl : :class:`.ArrayInt32Expression`
-        Length 3 list of bi-allelic Phred-scaled genotype likelihoods
+        Length 3 array of bi-allelic Phred-scaled genotype likelihoods
 
     Returns
     -------
