@@ -144,6 +144,62 @@ class Tests(unittest.TestCase):
         str_exp = functions.capture('5')
         self.assertEqual(str_exp.dtype, TString())
 
+    def test_switch(self):
+        x = functions.capture('1')
+        na = functions.null(TInt32())
+
+        expr1 = (functions.switch(x)
+            .when('123', 5)
+            .when('1', 6)
+            .when('0', 2)
+            .or_missing())
+        self.assertEqual(eval_expr(expr1), 6)
+
+        expr2 = (functions.switch(x)
+            .when('123', 5)
+            .when('0', 2)
+            .or_missing())
+        self.assertEqual(eval_expr(expr2), None)
+
+        expr3 = (functions.switch(x)
+            .when('123', 5)
+            .when('0', 2)
+            .default(100))
+        self.assertEqual(eval_expr(expr3), 100)
+
+        expr4 = (functions.switch(na)
+            .when(5, 0)
+            .when(6, 1)
+            .when(0, 2)
+            .when(functions.null(TInt32()), 3)  # NA != NA
+            .default(4))
+        self.assertEqual(eval_expr(expr4), None)
+
+        expr5 = (functions.switch(na)
+            .when(5, 0)
+            .when(6, 1)
+            .when(0, 2)
+            .when(functions.null(TInt32()), 3)  # NA != NA
+            .when_missing(-1)
+            .default(4))
+        self.assertEqual(eval_expr(expr5), -1)
+
+    def test_case(self):
+        def make_case(x):
+            x = functions.capture(x)
+            return (functions.case()
+            .when(x == 6, 'A')
+            .when(x % 3 == 0, 'B')
+            .when(x == 5, 'C')
+            .when(x < 2, 'D')
+            .or_missing())
+
+        self.assertEqual(eval_expr(make_case(6)), 'A')
+        self.assertEqual(eval_expr(make_case(12)), 'B')
+        self.assertEqual(eval_expr(make_case(5)), 'C')
+        self.assertEqual(eval_expr(make_case(-1)), 'D')
+        self.assertEqual(eval_expr(make_case(2)), None)
+
     def test_struct_ops(self):
         s = functions.capture(Struct(f1=1, f2=2, f3=3))
 
