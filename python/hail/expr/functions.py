@@ -170,16 +170,78 @@ def cond(condition, consequent, alternate):
         One of `consequent`, `alternate`, or missing, based on `condition`.
     """
     indices, aggregations, joins, refs = unify_all(condition, consequent, alternate)
-    if is_numeric(consequent._type) and is_numeric(alternate._type):
-        t = unify_types(consequent._type, alternate._type)
-    else:
-        if not consequent._type == alternate._type:
-            raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
-                            "    consequent: type {}\n"
-                            "    alternate:  type {}".format(consequent._type, alternate._type))
-        t = consequent._type
+    t = unify_types_limited(consequent._type, alternate._type)
+    if not t:
+        raise TypeError("'cond' requires the 'consequent' and 'alternate' arguments to have the same type\n"
+                        "    consequent: type {}\n"
+                        "    alternate:  type {}".format(consequent._type, alternate._type))
     return construct_expr(Condition(condition._ast, consequent._ast, alternate._ast),
                           t, indices, aggregations, joins, refs)
+
+
+def case():
+    """Chain multiple if-else statements with a :class:`.CaseBuilder`.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> x = functions.capture('foo bar baz')
+        >>> expr = (functions.case()
+        ...                  .when(x[:3] == 'FOO', 1)
+        ...                  .when(x.length() == 11, 2)
+        ...                  .when(x == 'secret phrase', 3)
+        ...                  .default(0))
+        >>> eval_expr(expr)
+        2
+
+    See Also
+    --------
+    :class:`.CaseBuilder`
+
+    Returns
+    -------
+    :class:`.CaseBuilder`.
+    """
+    from hail.expr.utils import CaseBuilder
+    return CaseBuilder()
+
+
+@typecheck(expr=expr_any)
+def switch(expr):
+    """Build a conditional tree on the value of an expression.
+
+    Examples
+    --------
+    .. doctest::
+
+        >>> csq = functions.capture('loss of function')
+        >>> expr = (functions.switch(csq)
+        ...                  .when('synonymous', 1)
+        ...                  .when('SYN', 1)
+        ...                  .when('missense', 2)
+        ...                  .when('MIS', 2)
+        ...                  .when('loss of function', 3)
+        ...                  .when('LOF', 3)
+        ...                  .or_missing())
+        >>> eval_expr(expr)
+        3
+
+    See Also
+    --------
+    :class:`.SwitchBuilder`
+
+    Parameters
+    ----------
+    expr : :class:`.Expression`
+        Value to match against.
+
+    Returns
+    -------
+    :class:`.SwitchBuilder`
+    """
+    from hail.expr.utils import SwitchBuilder
+    return SwitchBuilder(expr)
 
 
 @typecheck(expr=expr_any, f=func_spec(1, expr_any))

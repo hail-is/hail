@@ -248,6 +248,25 @@ def unify_all(*exprs):
     return new_indices, agg, joins, refs
 
 
+def unify_types_limited(*ts):
+    classes = {t.__class__ for t in ts}
+    if len(classes) == 1:
+        # only one distinct class
+        return ts[0]
+    elif all(is_numeric(t) for t in ts):
+        # assert there are at least 2 numeric types
+        assert len(classes) > 1
+        if TFloat64 in classes:
+            return TFloat64()
+        elif TFloat32 in classes:
+            return TFloat32()
+        else:
+            assert classes == {TInt32, TInt64}
+            return TInt64()
+    else:
+        return None
+
+
 def unify_types(*ts):
     classes = {t.__class__ for t in ts}
     if len(classes) == 1:
@@ -263,7 +282,7 @@ def unify_types(*ts):
         else:
             assert classes == {TInt32, TInt64}
             return TInt64()
-    elif all(isinstance(TArray, t) for t in ts):
+    elif all(isinstance(t, TArray) for t in ts):
         et = unify_types(*(t.element_type for t in ts))
         if et:
             return TArray(et)
